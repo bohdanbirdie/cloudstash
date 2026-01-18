@@ -1,0 +1,46 @@
+name = "link-bucket"
+main = "./src/cf-worker/index.ts"
+compatibility_date = "2025-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+[[durable_objects.bindings]]
+name = "SYNC_BACKEND_DO"
+class_name = "SyncBackendDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SyncBackendDO"]
+
+# Environment configurations
+[env.production]
+name = "link-bucket"
+
+[[env.production.durable_objects.bindings]]
+name = "SYNC_BACKEND_DO"
+class_name = "SyncBackendDO"
+
+[[env.production.migrations]]
+tag = "v1"
+new_sqlite_classes = ["SyncBackendDO"]
+
+[env.preview]
+name = "link-bucket-preview"
+
+[[env.preview.durable_objects.bindings]]
+name = "SYNC_BACKEND_DO"
+class_name = "SyncBackendDO"
+
+[[env.preview.migrations]]
+tag = "v1"
+new_sqlite_classes = ["SyncBackendDO"]
+
+[env.development]
+name = "link-bucket-dev"
+
+[[env.development.durable_objects.bindings]]
+name = "SYNC_BACKEND_DO"
+class_name = "SyncBackendDO"
+
+[[env.development.migrations]]
+tag = "v1"
+new_sqlite_classes = ["SyncBackendDO"]

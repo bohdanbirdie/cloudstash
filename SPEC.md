@@ -9,7 +9,7 @@ A personal link management app for saving, organizing, and tracking links from v
 ### 1. Link Storage
 - Save URLs with automatic metadata extraction (OG tags)
 - Store: URL, title, description, image, favicon, domain
-- Timestamps: created_at, updated_at, completed_at
+- Timestamps: createdAt, completedAt, deletedAt
 - Manual title/description override if needed
 
 ### 2. Link Status
@@ -71,23 +71,33 @@ Summary of fields per link:
 
 | Layer | Choice |
 |-------|--------|
-| Framework | React 18+ |
+| Framework | React 19 (SPA) |
+| Routing | TanStack Router |
 | Data | LiveStore v0.4.0-dev.22 |
-| Sync | Cloudflare Workers (via @livestore/sync-cf) |
+| Sync | Cloudflare Workers + Durable Objects (via @livestore/sync-cf) |
 | Styling | shadcn/ui (Lyra style, zinc+orange, JetBrains Mono) |
 | Metadata fetch | Cloudflare Worker + open-graph-scraper |
-| Build | Vite + @cloudflare/vite-plugin |
-| Runtime | Bun 1.2+ or Node.js 23+ |
+| Build | Vite 7 + @cloudflare/vite-plugin |
+| Runtime | Bun 1.2+ |
 
-### LiveStore Packages
+### Key Packages
 ```bash
+# LiveStore
 @livestore/livestore@0.4.0-dev.22
-@livestore/wa-sqlite@0.4.0-dev.22
 @livestore/adapter-web@0.4.0-dev.22
 @livestore/react@0.4.0-dev.22
-@livestore/peer-deps@0.4.0-dev.22
 @livestore/sync-cf@0.4.0-dev.22
+@livestore/wa-sqlite@0.4.0-dev.22
+@livestore/peer-deps@0.4.0-dev.22
 @livestore/devtools-vite@0.4.0-dev.22
+
+# Routing
+@tanstack/react-router
+@tanstack/router-plugin
+
+# Build
+@cloudflare/vite-plugin
+wrangler
 ```
 
 ## UI Concepts
@@ -159,74 +169,17 @@ Summary of fields per link:
 4. Response saved as LiveStore event
 5. UI updates reactively
 
-## LiveStore Schema Design
+## LiveStore Events
 
-```typescript
-import { Events, makeSchema, Schema, State } from '@livestore/livestore'
+All events are synced across devices via Cloudflare Durable Objects.
 
-// Events (versioned for migrations)
-export const events = Events.define({
-  'v1.LinkCreated': Events.synced({
-    id: Schema.String,
-    url: Schema.String,
-    createdAt: Schema.Number,
-  }),
-  'v1.LinkMetadataFetched': Events.synced({
-    linkId: Schema.String,
-    title: Schema.NullOr(Schema.String),
-    description: Schema.NullOr(Schema.String),
-    image: Schema.NullOr(Schema.String),
-    favicon: Schema.NullOr(Schema.String),
-    domain: Schema.String,
-  }),
-  'v1.LinkStatusChanged': Events.synced({
-    linkId: Schema.String,
-    status: Schema.Literal('unread', 'completed'),
-    changedAt: Schema.Number,
-  }),
-  'v1.LinkDeleted': Events.synced({
-    linkId: Schema.String,
-    deletedAt: Schema.Number,
-  }),
-})
-
-// Derived state (SQLite table)
-export const tables = {
-  links: State.SQLite.table({
-    name: 'links',
-    columns: {
-      id: State.SQLite.text({ primaryKey: true }),
-      url: State.SQLite.text(),
-      title: State.SQLite.text({ nullable: true }),
-      description: State.SQLite.text({ nullable: true }),
-      image: State.SQLite.text({ nullable: true }),
-      favicon: State.SQLite.text({ nullable: true }),
-      domain: State.SQLite.text(),
-      status: State.SQLite.text({ default: 'unread' }),
-      createdAt: State.SQLite.integer(),
-      completedAt: State.SQLite.integer({ nullable: true }),
-      deletedAt: State.SQLite.integer({ nullable: true }),
-    },
-  }),
-}
-
-// Materializers (event -> state)
-export const materializers = State.SQLite.materializers(events, {
-  'v1.LinkCreated': ({ id, url, createdAt }) =>
-    tables.links.insert({ id, url, domain: new URL(url).hostname, createdAt }),
-  'v1.LinkMetadataFetched': ({ linkId, title, description, image, favicon, domain }) =>
-    tables.links.update({ title, description, image, favicon, domain }).where({ id: linkId }),
-  'v1.LinkStatusChanged': ({ linkId, status, changedAt }) =>
-    tables.links.update({
-      status,
-      completedAt: status === 'completed' ? changedAt : null
-    }).where({ id: linkId }),
-  'v1.LinkDeleted': ({ linkId, deletedAt }) =>
-    tables.links.update({ deletedAt }).where({ id: linkId }),
-})
-
-export const schema = makeSchema({ events, tables, materializers })
-```
+| Event | Data | Description |
+|-------|------|-------------|
+| `v1.LinkCreated` | id, url, domain, createdAt | New link saved |
+| `v1.LinkMetadataFetched` | id, title, description, image, favicon | OG metadata fetched |
+| `v1.LinkCompleted` | id, completedAt | Link marked as read |
+| `v1.LinkUncompleted` | id | Link marked as unread |
+| `v1.LinkDeleted` | id, deletedAt | Link soft-deleted |
 
 ## MVP Scope
 

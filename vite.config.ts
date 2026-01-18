@@ -1,23 +1,25 @@
 import { defineConfig } from 'vite'
-import { devtools } from '@tanstack/devtools-vite'
-import { tanstackStart } from '@tanstack/react-start/plugin/vite'
+import { cloudflare } from '@cloudflare/vite-plugin'
+import { livestoreDevtoolsPlugin } from '@livestore/devtools-vite'
+import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
-import { nitro } from 'nitro/vite'
 
-const config = defineConfig({
+export default defineConfig({
+  server: {
+    port: Number(process.env.PORT) || 3000,
+    fs: { strict: false },
+  },
+  worker: {
+    format: 'es',
+  },
   plugins: [
-    devtools(),
-    nitro(),
-    // this is the plugin that enables path aliases
-    viteTsConfigPaths({
-      projects: ['./tsconfig.json'],
-    }),
+    cloudflare(),
+    TanStackRouterVite(),
+    viteTsConfigPaths({ projects: ['./tsconfig.json'] }),
     tailwindcss(),
-    tanstackStart(),
     viteReact(),
+    livestoreDevtoolsPlugin({ schemaPath: './src/livestore/schema.ts' }),
   ],
 })
-
-export default config
