@@ -41,6 +41,7 @@ export default {
       })
     }
 
+    // Let assets handle non-sync requests (configured via wrangler.toml)
     return new Response('Not found', { status: 404 })
   },
 }

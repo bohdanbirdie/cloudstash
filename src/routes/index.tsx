@@ -6,9 +6,9 @@ export const Route = createFileRoute('/')({
 
 function HomePage() {
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold">Link Bucket</h1>
-      <p className="text-muted-foreground">Your links will appear here.</p>
+    <div className="p-6">
+      <h1 className="text-2xl font-bold">Inbox</h1>
+      <p className="text-muted-foreground mt-1">Links to read later.</p>
     </div>
   )
 }

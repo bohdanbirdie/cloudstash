@@ -9,8 +9,26 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TrashRouteImport } from './routes/trash'
+import { Route as CompletedRouteImport } from './routes/completed'
+import { Route as AllRouteImport } from './routes/all'
 import { Route as IndexRouteImport } from './routes/index'
 
+const TrashRoute = TrashRouteImport.update({
+  id: '/trash',
+  path: '/trash',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CompletedRoute = CompletedRouteImport.update({
+  id: '/completed',
+  path: '/completed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AllRoute = AllRouteImport.update({
+  id: '/all',
+  path: '/all',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -19,28 +37,61 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/all': typeof AllRoute
+  '/completed': typeof CompletedRoute
+  '/trash': typeof TrashRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/all': typeof AllRoute
+  '/completed': typeof CompletedRoute
+  '/trash': typeof TrashRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/all': typeof AllRoute
+  '/completed': typeof CompletedRoute
+  '/trash': typeof TrashRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/all' | '/completed' | '/trash'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/all' | '/completed' | '/trash'
+  id: '__root__' | '/' | '/all' | '/completed' | '/trash'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AllRoute: typeof AllRoute
+  CompletedRoute: typeof CompletedRoute
+  TrashRoute: typeof TrashRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/trash': {
+      id: '/trash'
+      path: '/trash'
+      fullPath: '/trash'
+      preLoaderRoute: typeof TrashRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/completed': {
+      id: '/completed'
+      path: '/completed'
+      fullPath: '/completed'
+      preLoaderRoute: typeof CompletedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/all': {
+      id: '/all'
+      path: '/all'
+      fullPath: '/all'
+      preLoaderRoute: typeof AllRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -53,6 +104,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AllRoute: AllRoute,
+  CompletedRoute: CompletedRoute,
+  TrashRoute: TrashRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

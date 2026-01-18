@@ -29,7 +29,7 @@
         "vite-tsconfig-paths": "^5.1.4",
       },
       "devDependencies": {
-        "@cloudflare/vite-plugin": "^1.0.0",
+        "@cloudflare/vite-plugin": "1.21.0",
         "@livestore/devtools-vite": "0.4.0-dev.22",
         "@testing-library/dom": "^10.4.0",
         "@testing-library/react": "^16.2.0",
