@@ -1,57 +1,57 @@
 /// <reference types="@cloudflare/workers-types" />
-import { Effect } from 'effect'
-import type { CfTypes } from '@livestore/sync-cf/cf-worker'
-import * as SyncBackend from '@livestore/sync-cf/cf-worker'
+import { Effect } from "effect";
+import type { CfTypes } from "@livestore/sync-cf/cf-worker";
+import * as SyncBackend from "@livestore/sync-cf/cf-worker";
 
-import { SyncPayload } from '../livestore/schema'
-import { metadataRequestToResponse } from './metadata/service'
+import { SyncPayload } from "../livestore/schema";
+import { metadataRequestToResponse } from "./metadata/service";
 
 export class SyncBackendDO extends SyncBackend.makeDurableObject({
   onPush: async (message, context) => {
-    console.log('onPush', message.batch, 'storeId:', context.storeId)
+    console.log("onPush", message.batch, "storeId:", context.storeId);
   },
   onPull: async (message, context) => {
-    console.log('onPull', message, 'storeId:', context.storeId)
+    console.log("onPull", message, "storeId:", context.storeId);
   },
 }) {}
 
 const validatePayload = (
   payload: typeof SyncPayload.Type | undefined,
-  context: { storeId: string }
+  context: { storeId: string },
 ) => {
-  console.log(`Validating connection for store: ${context.storeId}`)
-  if (payload?.authToken !== 'insecure-token-change-me') {
-    throw new Error('Invalid auth token')
+  console.log(`Validating connection for store: ${context.storeId}`);
+  if (payload?.authToken !== "insecure-token-change-me") {
+    throw new Error("Invalid auth token");
   }
-}
+};
 
 export default {
   async fetch(
     request: CfTypes.Request,
     _env: SyncBackend.Env,
-    ctx: CfTypes.ExecutionContext
+    ctx: CfTypes.ExecutionContext,
   ) {
-    const url = new URL(request.url)
+    const url = new URL(request.url);
 
-    // Handle metadata API endpoint
-    if (url.pathname === '/api/metadata') {
-      return Effect.runPromise(metadataRequestToResponse(request as unknown as Request))
+    if (url.pathname === "/api/metadata") {
+      return Effect.runPromise(
+        metadataRequestToResponse(request as unknown as Request),
+      );
     }
 
-    const searchParams = SyncBackend.matchSyncRequest(request)
+    const searchParams = SyncBackend.matchSyncRequest(request);
 
     if (searchParams !== undefined) {
       return SyncBackend.handleSyncRequest({
         request,
         searchParams,
         ctx,
-        syncBackendBinding: 'SYNC_BACKEND_DO',
+        syncBackendBinding: "SYNC_BACKEND_DO",
         syncPayloadSchema: SyncPayload,
         validatePayload,
-      })
+      });
     }
 
-    // Let assets handle non-sync requests (configured via wrangler.toml)
-    return new Response('Not found', { status: 404 })
+    return new Response("Not found", { status: 404 });
   },
-}
+};
