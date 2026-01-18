@@ -176,7 +176,7 @@ All events are synced across devices via Cloudflare Durable Objects.
 | Event | Data | Description |
 |-------|------|-------------|
 | `v1.LinkCreated` | id, url, domain, createdAt | New link saved |
-| `v1.LinkMetadataFetched` | id, title, description, image, favicon | OG metadata fetched |
+| `v1.LinkMetadataFetched` | id, linkId, title, description, image, favicon, fetchedAt | OG metadata snapshot |
 | `v1.LinkCompleted` | id, completedAt | Link marked as read |
 | `v1.LinkUncompleted` | id | Link marked as unread |
 | `v1.LinkDeleted` | id, deletedAt | Link soft-deleted |

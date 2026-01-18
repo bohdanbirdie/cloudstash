@@ -7,15 +7,23 @@ export const tables = {
     columns: {
       id: State.SQLite.text({ primaryKey: true }),
       url: State.SQLite.text({ default: '' }),
-      title: State.SQLite.text({ nullable: true }),
-      description: State.SQLite.text({ nullable: true }),
-      image: State.SQLite.text({ nullable: true }),
-      favicon: State.SQLite.text({ nullable: true }),
       domain: State.SQLite.text({ default: '' }),
       status: State.SQLite.text({ default: 'unread' }),
       createdAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
       completedAt: State.SQLite.integer({ nullable: true, schema: Schema.DateFromNumber }),
       deletedAt: State.SQLite.integer({ nullable: true, schema: Schema.DateFromNumber }),
+    },
+  }),
+  linkSnapshots: State.SQLite.table({
+    name: 'link_snapshots',
+    columns: {
+      id: State.SQLite.text({ primaryKey: true }),
+      linkId: State.SQLite.text({ default: '' }),
+      title: State.SQLite.text({ nullable: true }),
+      description: State.SQLite.text({ nullable: true }),
+      image: State.SQLite.text({ nullable: true }),
+      favicon: State.SQLite.text({ nullable: true }),
+      fetchedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
     },
   }),
 }
@@ -35,10 +43,12 @@ export const events = {
     name: 'v1.LinkMetadataFetched',
     schema: Schema.Struct({
       id: Schema.String,
+      linkId: Schema.String,
       title: Schema.NullOr(Schema.String),
       description: Schema.NullOr(Schema.String),
       image: Schema.NullOr(Schema.String),
       favicon: Schema.NullOr(Schema.String),
+      fetchedAt: Schema.Date,
     }),
   }),
   linkCompleted: Events.synced({
@@ -59,8 +69,8 @@ export const events = {
 const materializers = State.SQLite.materializers(events, {
   'v1.LinkCreated': ({ id, url, domain, createdAt }) =>
     tables.links.insert({ id, url, domain, createdAt, status: 'unread' }),
-  'v1.LinkMetadataFetched': ({ id, title, description, image, favicon }) =>
-    tables.links.update({ title, description, image, favicon }).where({ id }),
+  'v1.LinkMetadataFetched': ({ id, linkId, title, description, image, favicon, fetchedAt }) =>
+    tables.linkSnapshots.insert({ id, linkId, title, description, image, favicon, fetchedAt }),
   'v1.LinkCompleted': ({ id, completedAt }) =>
     tables.links.update({ status: 'completed', completedAt }).where({ id }),
   'v1.LinkUncompleted': ({ id }) =>
