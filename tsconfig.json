@@ -1,5 +1,6 @@
 {
   "include": ["**/*.ts", "**/*.tsx", "prettier.config.js", "vite.config.js"],
+  "exclude": ["readonly-livestore-git-clone"],
 
   "compilerOptions": {
     "target": "ES2022",

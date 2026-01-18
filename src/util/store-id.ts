@@ -1,3 +1,3 @@
 export const getStoreId = (): string => {
-  return 'link-bucket-store'
-}
+  return "link-bucket-store";
+};
