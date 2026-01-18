@@ -148,19 +148,10 @@ wrangler
 
 **Solution**: Cloudflare Worker endpoint that fetches and parses OG metadata.
 
-### NPM Package Options
-
-| Package | Notes |
-|---------|-------|
-| **open-graph-scraper** | Most popular, Node.js only, TypeScript support, comprehensive |
-| **fetch-meta-tags** | Lightweight, streams HTML, stops at `</head>` |
-| **url-metadata** | Browser-compatible (with bundler), charset detection |
-| **metascraper** | Fallback chain, works well for articles |
-
-**Recommended**: `open-graph-scraper` in a Cloudflare Worker
-- Use inside a Worker that exposes `/api/metadata?url=...`
-- Returns: `{ title, description, image, favicon, domain }`
-- Store result as a LiveStore event (e.g., `v1.LinkMetadataFetched`)
+**Decision**: Use Cloudflare Worker at `/api/metadata?url=<encoded-url>`
+- Returns: `{ title, description, image, favicon }`
+- Store result as LiveStore event (`v1.LinkMetadataFetched`)
+- Show preview in Add Link dialog before saving
 
 ### Flow
 1. User pastes URL in app

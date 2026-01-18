@@ -46,6 +46,14 @@ interface AddLinkDialogProviderProps {
   children: ReactNode;
 }
 
+interface OgMetadata {
+  title?: string;
+  description?: string;
+  image?: string;
+  logo?: string;
+  url?: string;
+}
+
 // Dialog content component - only rendered when dialog is open
 function AddLinkDialogContent({
   url,
@@ -57,6 +65,47 @@ function AddLinkDialogContent({
   onClose: () => void;
 }) {
   const store = useAppStore();
+  const [metadata, setMetadata] = useState<OgMetadata | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchMetadata = useCallback(async (targetUrl: string) => {
+    setIsLoading(true);
+    setError(null);
+    setMetadata(null);
+
+    try {
+      const response = await fetch(
+        `/api/metadata?url=${encodeURIComponent(targetUrl)}`
+      );
+      const data = (await response.json()) as OgMetadata & { error?: string };
+
+      if (!response.ok) {
+        setError(data.error || "Failed to fetch metadata");
+        return;
+      }
+
+      setMetadata(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch metadata");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) {
+      setMetadata(null);
+      setError(null);
+      return;
+    }
+
+    const urlResult = Schema.decodeUnknownOption(UrlSchema)(trimmedUrl);
+    if (Option.isSome(urlResult)) {
+      fetchMetadata(urlResult.value.href);
+    }
+  }, [url, fetchMetadata]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,6 +146,13 @@ function AddLinkDialogContent({
           onChange={(e) => setUrl(e.target.value)}
           autoFocus
         />
+        {isLoading && <p className="mt-2 text-sm text-muted-foreground">Loading metadata...</p>}
+        {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+        {metadata && (
+          <pre className="mt-2 p-2 text-xs bg-muted rounded overflow-auto max-h-40">
+            {JSON.stringify(metadata, null, 2)}
+          </pre>
+        )}
         <DialogFooter className="mt-4">
           <DialogClose render={<Button variant="outline" />}>
             Cancel

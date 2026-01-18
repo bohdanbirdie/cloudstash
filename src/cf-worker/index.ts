@@ -1,7 +1,10 @@
+/// <reference types="@cloudflare/workers-types" />
+import { Effect } from 'effect'
 import type { CfTypes } from '@livestore/sync-cf/cf-worker'
 import * as SyncBackend from '@livestore/sync-cf/cf-worker'
 
 import { SyncPayload } from '../livestore/schema'
+import { metadataRequestToResponse } from './metadata/service'
 
 export class SyncBackendDO extends SyncBackend.makeDurableObject({
   onPush: async (message, context) => {
@@ -28,6 +31,13 @@ export default {
     _env: SyncBackend.Env,
     ctx: CfTypes.ExecutionContext
   ) {
+    const url = new URL(request.url)
+
+    // Handle metadata API endpoint
+    if (url.pathname === '/api/metadata') {
+      return Effect.runPromise(metadataRequestToResponse(request as unknown as Request))
+    }
+
     const searchParams = SyncBackend.matchSyncRequest(request)
 
     if (searchParams !== undefined) {
