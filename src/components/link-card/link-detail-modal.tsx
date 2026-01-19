@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/dialog'
 import { Markdown } from '@/components/ui/markdown'
 import { ScrollableContent } from '@/components/ui/scrollable-content'
-import { Spinner } from '@/components/ui/spinner'
+import { TextShimmer } from '@/components/ui/text-shimmer'
 import { linkProcessingStatus$ } from '@/livestore/queries'
 import type { LinkWithDetails } from '@/livestore/queries'
 import { HotkeyButton } from '@/components/ui/hotkey-button'
@@ -133,9 +133,10 @@ export function LinkDetailModal({
             </ScrollableContent>
           </div>
         ) : isProcessing ? (
-          <div className='border-l-2 border-muted-foreground/30 bg-muted/50 pl-3 py-2 flex items-center gap-2'>
-            <Spinner className='size-3' />
-            <span className='text-sm text-muted-foreground'>Generating summary...</span>
+          <div className='border-l-2 border-muted-foreground/30 bg-muted/50 pl-3 py-2'>
+            <TextShimmer className='text-sm' duration={1.5}>
+              Generating summary...
+            </TextShimmer>
           </div>
         ) : null}
 

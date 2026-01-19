@@ -34,6 +34,7 @@
     "domutils": "3.2.2",
     "htmlparser2": "10.0.0",
     "lucide-react": "0.562.0",
+    "motion": "12.27.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hotkeys-hook": "5.2.3",
