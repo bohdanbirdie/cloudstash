@@ -20,6 +20,8 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
+import { Kbd } from "@/components/ui/kbd";
+import { useModifierHold } from "@/hooks/use-modifier-hold";
 import { useAddLinkDialog } from "@/components/add-link-dialog";
 import { useAppStore } from "@/livestore/store";
 import {
@@ -33,6 +35,7 @@ export function AppSidebar() {
   const location = useLocation();
   const { open: openAddLinkDialog } = useAddLinkDialog();
   const store = useAppStore();
+  const showHints = useModifierHold();
 
   const inboxCount = store.useQuery(inboxCount$);
   const completedCount = store.useQuery(completedCount$);
@@ -89,6 +92,9 @@ export function AppSidebar() {
                 >
                   <PlusIcon />
                   <span>Add Link</span>
+                  {showHints && (
+                    <Kbd className="ml-auto group-data-[collapsible=icon]:hidden">⌘V</Kbd>
+                  )}
                 </SidebarMenuButton>
               </SidebarMenuItem>
               {navItems.map((item) => (

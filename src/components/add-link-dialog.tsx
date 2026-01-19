@@ -26,7 +26,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { HotkeyButton } from "@/components/ui/hotkey-button";
 import { events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
 
@@ -278,12 +278,12 @@ function AddLinkDialogContent({
         {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
         {!isLoading && metadata && <LinkPreviewCard metadata={metadata} url={url} />}
         <DialogFooter className="mt-4">
-          <DialogClose render={<Button variant="outline" />}>
+          <DialogClose render={<HotkeyButton variant="outline" kbdLabel="Esc" />}>
             Cancel
           </DialogClose>
-          <Button type="submit" disabled={!url.trim()}>
+          <HotkeyButton type="submit" disabled={!url.trim()} kbdLabel="↵">
             Add
-          </Button>
+          </HotkeyButton>
         </DialogFooter>
       </form>
     </DialogContent>
