@@ -1,21 +1,24 @@
-import { Schema } from 'effect'
+import { Schema } from "effect"
 
 export class MetadataFetchError extends Schema.TaggedError<MetadataFetchError>()(
-  'MetadataFetchError',
+  "MetadataFetchError",
   {
     url: Schema.String,
     statusCode: Schema.Number,
-  }
+  },
 ) {}
 
 export class MetadataParseError extends Schema.TaggedError<MetadataParseError>()(
-  'MetadataParseError',
+  "MetadataParseError",
   {
     url: Schema.String,
     error: Schema.Defect,
-  }
+  },
 ) {}
 
-export class MissingUrlError extends Schema.TaggedError<MissingUrlError>()('MissingUrlError', {}) {}
+export class MissingUrlError extends Schema.TaggedError<MissingUrlError>()(
+  "MissingUrlError",
+  {},
+) {}
 
 export type MetadataError = MetadataFetchError | MetadataParseError | MissingUrlError

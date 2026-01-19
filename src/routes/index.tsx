@@ -1,9 +1,9 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { LinkGrid } from '@/components/link-card'
-import { useAppStore } from '@/livestore/store'
-import { inboxLinks$ } from '@/livestore/queries'
+import { createFileRoute } from "@tanstack/react-router"
+import { LinkGrid } from "@/components/link-card"
+import { useAppStore } from "@/livestore/store"
+import { inboxLinks$ } from "@/livestore/queries"
 
-export const Route = createFileRoute('/')({
+export const Route = createFileRoute("/")({
   component: HomePage,
 })
 

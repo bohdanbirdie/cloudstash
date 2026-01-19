@@ -1,28 +1,28 @@
-import { StoreRegistry } from "@livestore/livestore";
-import { StoreRegistryProvider } from "@livestore/react";
-import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
-import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-import { Suspense } from "react";
+import { StoreRegistry } from "@livestore/livestore"
+import { StoreRegistryProvider } from "@livestore/react"
+import { createRootRouteWithContext, Outlet } from "@tanstack/react-router"
+import { TanStackRouterDevtools } from "@tanstack/react-router-devtools"
+import { Suspense } from "react"
 
-import { AppSidebar } from "@/components/app-sidebar";
-import { AddLinkDialogProvider } from "@/components/add-link-dialog";
+import { AppSidebar } from "@/components/app-sidebar"
+import { AddLinkDialogProvider } from "@/components/add-link-dialog"
 import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
-} from "@/components/ui/sidebar";
-import { Spinner } from "@/components/ui/spinner";
+} from "@/components/ui/sidebar"
+import { Spinner } from "@/components/ui/spinner"
 
 type RouterContext = {
-  storeRegistry: StoreRegistry;
-};
+  storeRegistry: StoreRegistry
+}
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   component: RootComponent,
-});
+})
 
 function RootComponent() {
-  const { storeRegistry } = Route.useRouteContext();
+  const { storeRegistry } = Route.useRouteContext()
 
   return (
     <StoreRegistryProvider storeRegistry={storeRegistry}>
@@ -49,5 +49,5 @@ function RootComponent() {
         </AddLinkDialogProvider>
       </Suspense>
     </StoreRegistryProvider>
-  );
+  )
 }

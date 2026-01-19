@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState } from "react"
 import {
   ExternalLinkIcon,
   ChevronLeftIcon,
@@ -9,34 +9,34 @@ import {
   CheckCheck,
   RotateCcwIcon,
   UndoIcon,
-} from "lucide-react";
-import { useAppStore } from "@/livestore/store";
+} from "lucide-react"
+import { useAppStore } from "@/livestore/store"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/components/ui/dialog";
-import { Markdown } from "@/components/ui/markdown";
-import { ScrollableContent } from "@/components/ui/scrollable-content";
-import { Spinner } from "@/components/ui/spinner";
-import { linkProcessingStatus$ } from "@/livestore/queries";
-import type { LinkWithDetails } from "@/livestore/queries";
-import { HotkeyButton } from "@/components/ui/hotkey-button";
+} from "@/components/ui/dialog"
+import { Markdown } from "@/components/ui/markdown"
+import { ScrollableContent } from "@/components/ui/scrollable-content"
+import { Spinner } from "@/components/ui/spinner"
+import { linkProcessingStatus$ } from "@/livestore/queries"
+import type { LinkWithDetails } from "@/livestore/queries"
+import { HotkeyButton } from "@/components/ui/hotkey-button"
 
 interface LinkDetailModalProps {
-  link: LinkWithDetails | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onPrevious: () => void;
-  onNext: () => void;
-  hasPrevious: boolean;
-  hasNext: boolean;
-  onComplete: () => void;
-  onUncomplete: () => void;
-  onDelete: () => void;
-  onRestore: () => void;
+  link: LinkWithDetails | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onPrevious: () => void
+  onNext: () => void
+  hasPrevious: boolean
+  hasNext: boolean
+  onComplete: () => void
+  onUncomplete: () => void
+  onDelete: () => void
+  onRestore: () => void
 }
 
 export function LinkDetailModal({
@@ -52,31 +52,31 @@ export function LinkDetailModal({
   onDelete,
   onRestore,
 }: LinkDetailModalProps) {
-  const store = useAppStore();
-  const [copied, setCopied] = useState(false);
+  const store = useAppStore()
+  const [copied, setCopied] = useState(false)
 
-  const processingRecord = store.useQuery(linkProcessingStatus$(link?.id ?? ""));
-  const isProcessing = processingRecord?.status === "pending";
+  const processingRecord = store.useQuery(linkProcessingStatus$(link?.id ?? ""))
+  const isProcessing = processingRecord?.status === "pending"
 
-  const isCompleted = link?.status === "completed";
-  const isDeleted = link?.deletedAt !== null;
+  const isCompleted = link?.status === "completed"
+  const isDeleted = link?.deletedAt !== null
 
   const handleCopy = async () => {
-    if (!link) return;
-    await navigator.clipboard.writeText(link.url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+    if (!link) return
+    await navigator.clipboard.writeText(link.url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
-  if (!link) return null;
+  if (!link) return null
 
-  const displayTitle = link.title || link.url;
+  const displayTitle = link.title || link.url
   const formattedDate = new Date(link.createdAt).toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
     day: "numeric",
     year: "numeric",
-  });
+  })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -144,7 +144,9 @@ export function LinkDetailModal({
         ) : isProcessing ? (
           <div className="border-l-2 border-muted-foreground/30 bg-muted/50 pl-3 py-2 flex items-center gap-2">
             <Spinner className="size-3" />
-            <span className="text-sm text-muted-foreground">Generating summary...</span>
+            <span className="text-sm text-muted-foreground">
+              Generating summary...
+            </span>
           </div>
         ) : null}
 
@@ -217,5 +219,5 @@ export function LinkDetailModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+  )
 }

@@ -1,6 +1,6 @@
-import { parseHTML } from 'linkedom'
-import { Readability } from '@mozilla/readability'
-import TurndownService from 'turndown'
+import { parseHTML } from "linkedom"
+import { Readability } from "@mozilla/readability"
+import TurndownService from "turndown"
 
 export interface ExtractedContent {
   title: string | null
@@ -12,18 +12,29 @@ export interface ExtractedContent {
 }
 
 const turndownService = new TurndownService({
-  headingStyle: 'atx',
-  codeBlockStyle: 'fenced',
+  headingStyle: "atx",
+  codeBlockStyle: "fenced",
 })
 
 // Remove script, style, nav, footer, aside elements
-turndownService.remove(['script', 'style', 'nav', 'footer', 'aside', 'iframe', 'noscript'])
+turndownService.remove([
+  "script",
+  "style",
+  "nav",
+  "footer",
+  "aside",
+  "iframe",
+  "noscript",
+])
 
 /**
  * Extracts the main article content from HTML and converts it to markdown.
  * Uses Mozilla's Readability (Firefox Reader Mode algorithm) + Turndown.
  */
-export function extractContent(html: string, url: string): ExtractedContent | null {
+export function extractContent(
+  html: string,
+  url: string,
+): ExtractedContent | null {
   try {
     // Parse HTML with linkedom
     const { document } = parseHTML(html)
@@ -45,7 +56,7 @@ export function extractContent(html: string, url: string): ExtractedContent | nu
     return {
       title: article.title || null,
       content: markdown,
-      textContent: article.textContent || '',
+      textContent: article.textContent || "",
       excerpt: article.excerpt || null,
       byline: article.byline || null,
       siteName: article.siteName || null,
@@ -59,12 +70,14 @@ export function extractContent(html: string, url: string): ExtractedContent | nu
 /**
  * Fetches a URL and extracts its content as markdown.
  */
-export async function fetchAndExtractContent(url: string): Promise<ExtractedContent | null> {
+export async function fetchAndExtractContent(
+  url: string,
+): Promise<ExtractedContent | null> {
   try {
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; LinkBucketBot/1.0)',
-        Accept: 'text/html',
+        "User-Agent": "Mozilla/5.0 (compatible; LinkBucketBot/1.0)",
+        Accept: "text/html",
       },
     })
 

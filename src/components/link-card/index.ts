@@ -1,1 +1,1 @@
-export { LinkGrid } from "./link-grid";
+export { LinkGrid } from "./link-grid"

@@ -1,35 +1,37 @@
-import { queryDb, Schema } from "@livestore/livestore";
+import { queryDb, Schema } from "@livestore/livestore"
 
-import { tables } from "./schema";
+import { tables } from "./schema"
 
 export const inboxCount$ = queryDb(
   tables.links.count().where({ status: "unread", deletedAt: null }),
-  { label: "inboxCount" }
-);
+  { label: "inboxCount" },
+)
 
 export const completedCount$ = queryDb(
   tables.links.count().where({ status: "completed", deletedAt: null }),
-  { label: "completedCount" }
-);
+  { label: "completedCount" },
+)
 
 export const allLinksCount$ = queryDb(
   tables.links.count().where({ deletedAt: null }),
-  { label: "allLinksCount" }
-);
+  {
+    label: "allLinksCount",
+  },
+)
 
 // For trash, we need raw SQL to query "deletedAt IS NOT NULL"
 const trashCountSchema = Schema.Struct({ count: Schema.Number }).pipe(
   Schema.Array,
-  Schema.headOrElse(() => ({ count: 0 }))
-);
+  Schema.headOrElse(() => ({ count: 0 })),
+)
 
 export const trashCount$ = queryDb(
   () => ({
     query: "SELECT COUNT(*) as count FROM links WHERE deletedAt IS NOT NULL",
     schema: trashCountSchema,
   }),
-  { label: "trashCount" }
-);
+  { label: "trashCount" },
+)
 
 // Schema for raw SQL join results (dates are numbers from SQLite)
 const LinkWithDetailsSchema = Schema.Struct({
@@ -47,13 +49,13 @@ const LinkWithDetailsSchema = Schema.Struct({
   favicon: Schema.NullOr(Schema.String),
   // From link_summaries
   summary: Schema.NullOr(Schema.String),
-});
+})
 
-export type LinkWithDetails = typeof LinkWithDetailsSchema.Type;
+export type LinkWithDetails = typeof LinkWithDetailsSchema.Type
 /** @deprecated Use LinkWithDetails instead */
-export type LinkWithSnapshot = LinkWithDetails;
+export type LinkWithSnapshot = LinkWithDetails
 
-const linksWithDetailsSchema = Schema.Array(LinkWithDetailsSchema);
+const linksWithDetailsSchema = Schema.Array(LinkWithDetailsSchema)
 
 // Inbox links (unread, not deleted)
 export const inboxLinks$ = queryDb(
@@ -80,8 +82,8 @@ export const inboxLinks$ = queryDb(
     `,
     schema: linksWithDetailsSchema,
   }),
-  { label: "inboxLinks" }
-);
+  { label: "inboxLinks" },
+)
 
 // Completed links (completed, not deleted)
 export const completedLinks$ = queryDb(
@@ -108,8 +110,8 @@ export const completedLinks$ = queryDb(
     `,
     schema: linksWithDetailsSchema,
   }),
-  { label: "completedLinks" }
-);
+  { label: "completedLinks" },
+)
 
 // All links (not deleted)
 export const allLinks$ = queryDb(
@@ -136,8 +138,8 @@ export const allLinks$ = queryDb(
     `,
     schema: linksWithDetailsSchema,
   }),
-  { label: "allLinks" }
-);
+  { label: "allLinks" },
+)
 
 // Trash links (deleted)
 export const trashLinks$ = queryDb(
@@ -164,12 +166,11 @@ export const trashLinks$ = queryDb(
     `,
     schema: linksWithDetailsSchema,
   }),
-  { label: "trashLinks" }
-);
+  { label: "trashLinks" },
+)
 
 // Processing status for a single link
 export const linkProcessingStatus$ = (linkId: string) =>
-  queryDb(
-    tables.linkProcessingStatus.where({ linkId }).first(),
-    { label: `linkProcessingStatus:${linkId}` }
-  );
+  queryDb(tables.linkProcessingStatus.where({ linkId }).first(), {
+    label: `linkProcessingStatus:${linkId}`,
+  })

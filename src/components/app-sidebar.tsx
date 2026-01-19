@@ -1,4 +1,4 @@
-import { Link, useLocation } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router"
 import {
   InboxIcon,
   CheckCircle2Icon,
@@ -6,7 +6,7 @@ import {
   Trash2Icon,
   LinkIcon,
   PlusIcon,
-} from "lucide-react";
+} from "lucide-react"
 
 import {
   Sidebar,
@@ -18,29 +18,29 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-} from "@/components/ui/sidebar";
-import { Badge } from "@/components/ui/badge";
-import { Kbd } from "@/components/ui/kbd";
-import { useModifierHold } from "@/hooks/use-modifier-hold";
-import { useAddLinkDialog } from "@/components/add-link-dialog";
-import { useAppStore } from "@/livestore/store";
+} from "@/components/ui/sidebar"
+import { Badge } from "@/components/ui/badge"
+import { Kbd } from "@/components/ui/kbd"
+import { useModifierHold } from "@/hooks/use-modifier-hold"
+import { useAddLinkDialog } from "@/components/add-link-dialog"
+import { useAppStore } from "@/livestore/store"
 import {
   inboxCount$,
   completedCount$,
   allLinksCount$,
   trashCount$,
-} from "@/livestore/queries";
+} from "@/livestore/queries"
 
 export function AppSidebar() {
-  const location = useLocation();
-  const { open: openAddLinkDialog } = useAddLinkDialog();
-  const store = useAppStore();
-  const showHints = useModifierHold();
+  const location = useLocation()
+  const { open: openAddLinkDialog } = useAddLinkDialog()
+  const store = useAppStore()
+  const showHints = useModifierHold()
 
-  const inboxCount = store.useQuery(inboxCount$);
-  const completedCount = store.useQuery(completedCount$);
-  const allLinksCount = store.useQuery(allLinksCount$);
-  const { count: trashCount } = store.useQuery(trashCount$);
+  const inboxCount = store.useQuery(inboxCount$)
+  const completedCount = store.useQuery(completedCount$)
+  const allLinksCount = store.useQuery(allLinksCount$)
+  const { count: trashCount } = store.useQuery(trashCount$)
 
   const navItems = [
     {
@@ -67,7 +67,7 @@ export function AppSidebar() {
       icon: Trash2Icon,
       count: trashCount,
     },
-  ];
+  ]
 
   return (
     <Sidebar collapsible="icon">
@@ -93,7 +93,9 @@ export function AppSidebar() {
                   <PlusIcon />
                   <span>Add Link</span>
                   {showHints && (
-                    <Kbd className="ml-auto group-data-[collapsible=icon]:hidden">⌘V</Kbd>
+                    <Kbd className="ml-auto group-data-[collapsible=icon]:hidden">
+                      ⌘V
+                    </Kbd>
                   )}
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -121,5 +123,5 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarRail />
     </Sidebar>
-  );
+  )
 }

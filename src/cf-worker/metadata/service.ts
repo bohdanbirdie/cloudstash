@@ -1,17 +1,23 @@
 /// <reference types="@cloudflare/workers-types" />
-import { Effect, Schema } from 'effect'
+import { Effect, Schema } from "effect"
 
-import { MetadataFetchError, MetadataParseError, MissingUrlError } from './errors'
-import { MetadataParser } from './parser'
-import { OgMetadata, ResolvedUrl } from './schema'
+import {
+  MetadataFetchError,
+  MetadataParseError,
+  MissingUrlError,
+} from "./errors"
+import { MetadataParser } from "./parser"
+import { OgMetadata, ResolvedUrl } from "./schema"
 
-export const fetchOgMetadata = Effect.fn('fetchOgMetadata')(function* (targetUrl: string) {
+export const fetchOgMetadata = Effect.fn("fetchOgMetadata")(function* (
+  targetUrl: string,
+) {
   const response = yield* Effect.tryPromise({
     try: () =>
       fetch(targetUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; LinkBucketBot/1.0)',
-          Accept: 'text/html',
+          "User-Agent": "Mozilla/5.0 (compatible; LinkBucketBot/1.0)",
+          Accept: "text/html",
         },
       }),
     catch: (error) =>
@@ -33,9 +39,9 @@ export const fetchOgMetadata = Effect.fn('fetchOgMetadata')(function* (targetUrl
   yield* Effect.tryPromise({
     try: () =>
       new HTMLRewriter()
-        .on('title', parser)
-        .on('meta', parser)
-        .on('link', parser)
+        .on("title", parser)
+        .on("meta", parser)
+        .on("link", parser)
         .transform(response)
         .text(),
     catch: (error) =>
@@ -46,7 +52,8 @@ export const fetchOgMetadata = Effect.fn('fetchOgMetadata')(function* (targetUrl
   })
 
   const favicon =
-    parser.favicon ?? Schema.decodeUnknownSync(ResolvedUrl(targetUrl))('/favicon.ico')
+    parser.favicon ??
+    Schema.decodeUnknownSync(ResolvedUrl(targetUrl))("/favicon.ico")
 
   return OgMetadata.make({
     title: parser.title,
@@ -57,38 +64,44 @@ export const fetchOgMetadata = Effect.fn('fetchOgMetadata')(function* (targetUrl
   })
 })
 
-export const handleMetadataRequest = Effect.fn('handleMetadataRequest')(function* (
-  request: Request
-) {
-  const url = new URL(request.url)
-  const targetUrl = url.searchParams.get('url')
+export const handleMetadataRequest = Effect.fn("handleMetadataRequest")(
+  function* (request: Request) {
+    const url = new URL(request.url)
+    const targetUrl = url.searchParams.get("url")
 
-  if (!targetUrl) {
-    return yield* MissingUrlError.make({})
-  }
+    if (!targetUrl) {
+      return yield* MissingUrlError.make({})
+    }
 
-  return yield* fetchOgMetadata(targetUrl)
-})
+    return yield* fetchOgMetadata(targetUrl)
+  },
+)
 
 export const metadataRequestToResponse = (
-  request: Request
+  request: Request,
 ): Effect.Effect<Response, never, never> =>
   handleMetadataRequest(request).pipe(
     Effect.map((metadata) =>
       Response.json(metadata, {
         headers: {
-          'Cache-Control': 'public, max-age=86400',
+          "Cache-Control": "public, max-age=86400",
         },
-      })
+      }),
     ),
     Effect.catchTags({
       MissingUrlError: () =>
-        Effect.succeed(Response.json({ error: 'Missing url parameter' }, { status: 400 })),
+        Effect.succeed(
+          Response.json({ error: "Missing url parameter" }, { status: 400 }),
+        ),
       MetadataFetchError: (e) =>
         Effect.succeed(
-          Response.json({ error: `Failed to fetch URL: ${e.statusCode}` }, { status: 502 })
+          Response.json({ error: `Failed to fetch URL: ${e.statusCode}` }, {
+            status: 502,
+          }),
         ),
       MetadataParseError: () =>
-        Effect.succeed(Response.json({ error: 'Failed to parse metadata' }, { status: 500 })),
-    })
+        Effect.succeed(
+          Response.json({ error: "Failed to parse metadata" }, { status: 500 }),
+        ),
+    }),
   )

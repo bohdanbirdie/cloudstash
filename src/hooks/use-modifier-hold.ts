@@ -1,33 +1,33 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect } from "react"
 
 export function useModifierHold(delay = 1000) {
-  const [showHints, setShowHints] = useState(false);
+  const [showHints, setShowHints] = useState(false)
 
   useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Meta" || e.key === "Control") {
-        timeoutId = setTimeout(() => setShowHints(true), delay);
+        timeoutId = setTimeout(() => setShowHints(true), delay)
       }
-    };
+    }
 
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === "Meta" || e.key === "Control") {
-        if (timeoutId) clearTimeout(timeoutId);
-        setShowHints(false);
+        if (timeoutId) clearTimeout(timeoutId)
+        setShowHints(false)
       }
-    };
+    }
 
-    document.addEventListener("keydown", handleKeyDown);
-    document.addEventListener("keyup", handleKeyUp);
+    document.addEventListener("keydown", handleKeyDown)
+    document.addEventListener("keyup", handleKeyUp)
 
     return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.removeEventListener("keyup", handleKeyUp);
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [delay]);
+      document.removeEventListener("keydown", handleKeyDown)
+      document.removeEventListener("keyup", handleKeyUp)
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+  }, [delay])
 
-  return showHints;
+  return showHints
 }

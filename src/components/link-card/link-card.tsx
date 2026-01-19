@@ -4,21 +4,21 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
-} from "@/components/ui/card";
-import type { LinkWithDetails } from "@/livestore/queries";
+} from "@/components/ui/card"
+import type { LinkWithDetails } from "@/livestore/queries"
 
 interface LinkCardProps {
-  link: LinkWithDetails;
-  onClick: () => void;
+  link: LinkWithDetails
+  onClick: () => void
 }
 
 export function LinkCard({ link, onClick }: LinkCardProps) {
-  const displayTitle = link.title || link.url;
+  const displayTitle = link.title || link.url
   const formattedDate = new Date(link.createdAt).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
     year: "numeric",
-  });
+  })
 
   return (
     <button
@@ -57,5 +57,5 @@ export function LinkCard({ link, onClick }: LinkCardProps) {
         </CardContent>
       </Card>
     </button>
-  );
+  )
 }
