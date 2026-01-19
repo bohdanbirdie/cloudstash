@@ -1,3 +1,3 @@
-export const getStoreId = (): string => {
-  return 'link-bucket-store6'
+export const getStoreId = (userId: string): string => {
+  return `user-${userId}`
 }

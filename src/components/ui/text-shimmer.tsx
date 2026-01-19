@@ -40,10 +40,12 @@ function TextShimmerComponent({
         duration,
         ease: 'linear',
       }}
-      style={{
-        '--spread': `${dynamicSpread}px`,
-        backgroundImage: `var(--bg), linear-gradient(var(--base-color), var(--base-color))`,
-      } as React.CSSProperties}
+      style={
+        {
+          '--spread': `${dynamicSpread}px`,
+          backgroundImage: `var(--bg), linear-gradient(var(--base-color), var(--base-color))`,
+        } as React.CSSProperties
+      }
     >
       {children}
     </MotionComponent>

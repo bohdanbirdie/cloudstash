@@ -18,6 +18,12 @@ class_name = "LinkProcessorDO"
 [ai]
 binding = "AI"
 
+[[d1_databases]]
+binding = "DB"
+database_name = "link-bucket-auth"
+database_id = "e2a04a74-0228-4f2b-954b-22fe4e100112"
+migrations_dir = "drizzle/migrations"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["SyncBackendDO"]
@@ -41,6 +47,12 @@ class_name = "LinkProcessorDO"
 [env.production.ai]
 binding = "AI"
 
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "link-bucket-auth"
+database_id = "e2a04a74-0228-4f2b-954b-22fe4e100112"
+migrations_dir = "drizzle/migrations"
+
 [[env.production.migrations]]
 tag = "v1"
 new_sqlite_classes = ["SyncBackendDO"]
@@ -63,6 +75,12 @@ class_name = "LinkProcessorDO"
 [env.preview.ai]
 binding = "AI"
 
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "link-bucket-auth"
+database_id = "e2a04a74-0228-4f2b-954b-22fe4e100112"
+migrations_dir = "drizzle/migrations"
+
 [[env.preview.migrations]]
 tag = "v1"
 new_sqlite_classes = ["SyncBackendDO"]
@@ -84,6 +102,12 @@ class_name = "LinkProcessorDO"
 
 [env.development.ai]
 binding = "AI"
+
+[[env.development.d1_databases]]
+binding = "DB"
+database_name = "link-bucket-auth"
+database_id = "e2a04a74-0228-4f2b-954b-22fe4e100112"
+migrations_dir = "drizzle/migrations"
 
 [[env.development.migrations]]
 tag = "v1"

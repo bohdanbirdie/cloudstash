@@ -1,9 +1,18 @@
 import { Link, useLocation } from '@tanstack/react-router'
-import { InboxIcon, CheckCircle2Icon, ListIcon, Trash2Icon, LinkIcon, PlusIcon } from 'lucide-react'
+import {
+  InboxIcon,
+  CheckCircle2Icon,
+  ListIcon,
+  Trash2Icon,
+  LinkIcon,
+  PlusIcon,
+  LogOutIcon,
+} from 'lucide-react'
 
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarHeader,
@@ -12,6 +21,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar'
+import { authClient } from '@/lib/auth-client'
 import { Badge } from '@/components/ui/badge'
 import { Kbd } from '@/components/ui/kbd'
 import { useModifierHold } from '@/hooks/use-modifier-hold'
@@ -102,6 +112,19 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip='Sign out'
+              onClick={() => authClient.signOut().then(() => window.location.reload())}
+            >
+              <LogOutIcon />
+              <span>Sign out</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   )

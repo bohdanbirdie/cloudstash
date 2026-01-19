@@ -3,11 +3,10 @@ import LiveStoreSharedWorker from '@livestore/adapter-web/shared-worker?sharedwo
 import { useStore } from '@livestore/react'
 import { unstable_batchedUpdates } from 'react-dom'
 
+import { authClient } from '../lib/auth-client'
 import LiveStoreWorker from '../livestore.worker?worker'
 import { getStoreId } from '../util/store-id'
 import { schema, SyncPayload } from './schema'
-
-const storeId = getStoreId()
 
 const adapter = makePersistedAdapter({
   storage: { type: 'opfs' },
@@ -15,12 +14,22 @@ const adapter = makePersistedAdapter({
   sharedWorker: LiveStoreSharedWorker,
 })
 
-export const useAppStore = () =>
-  useStore({
+export const useAppStore = () => {
+  const { data: session } = authClient.useSession()
+
+  if (!session?.user) {
+    throw new Error('useAppStore must be used within an authenticated context')
+  }
+
+  const storeId = getStoreId(session.user.id)
+  const authToken = session.session.token
+
+  return useStore({
     storeId,
     schema,
     adapter,
     batchUpdates: unstable_batchedUpdates,
     syncPayloadSchema: SyncPayload,
-    syncPayload: { authToken: 'insecure-token-change-me' },
+    syncPayload: { authToken },
   })
+}

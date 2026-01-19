@@ -1,5 +1,6 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Navigate } from '@tanstack/react-router'
 import { LinkGrid } from '@/components/link-card'
+import { authClient } from '@/lib/auth-client'
 import { useAppStore } from '@/livestore/store'
 import { trashLinks$ } from '@/livestore/queries'
 
@@ -8,6 +9,16 @@ export const Route = createFileRoute('/trash')({
 })
 
 function TrashPage() {
+  const { data: session } = authClient.useSession()
+
+  if (!session) {
+    return <Navigate to='/login' />
+  }
+
+  return <TrashPageContent />
+}
+
+function TrashPageContent() {
   const store = useAppStore()
   const links = store.useQuery(trashLinks$)
 

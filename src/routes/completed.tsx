@@ -1,5 +1,6 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Navigate } from '@tanstack/react-router'
 import { LinkGrid } from '@/components/link-card'
+import { authClient } from '@/lib/auth-client'
 import { useAppStore } from '@/livestore/store'
 import { completedLinks$ } from '@/livestore/queries'
 
@@ -8,6 +9,16 @@ export const Route = createFileRoute('/completed')({
 })
 
 function CompletedPage() {
+  const { data: session } = authClient.useSession()
+
+  if (!session) {
+    return <Navigate to='/login' />
+  }
+
+  return <CompletedPageContent />
+}
+
+function CompletedPageContent() {
   const store = useAppStore()
   const links = store.useQuery(completedLinks$)
 

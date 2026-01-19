@@ -1,11 +1,12 @@
 import { StoreRegistry } from '@livestore/livestore'
 import { StoreRegistryProvider } from '@livestore/react'
-import { createRootRouteWithContext, Outlet } from '@tanstack/react-router'
+import { createRootRouteWithContext, Outlet, useLocation, Navigate } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import { Suspense } from 'react'
 
 import { AppSidebar } from '@/components/app-sidebar'
 import { AddLinkDialogProvider } from '@/components/add-link-dialog'
+import { authClient } from '@/lib/auth-client'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { Spinner } from '@/components/ui/spinner'
 
@@ -19,6 +20,28 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 
 function RootComponent() {
   const { storeRegistry } = Route.useRouteContext()
+  const { data: session, isPending } = authClient.useSession()
+  const location = useLocation()
+
+  const isLoginPage = location.pathname === '/login'
+
+  if (isPending) {
+    return (
+      <div className='flex h-screen w-screen items-center justify-center'>
+        <Spinner className='size-8' />
+      </div>
+    )
+  }
+
+  // Allow access to login page without authentication
+  if (isLoginPage) {
+    return <Outlet />
+  }
+
+  // Redirect to login if not authenticated
+  if (!session) {
+    return <Navigate to='/login' />
+  }
 
   return (
     <StoreRegistryProvider storeRegistry={storeRegistry}>

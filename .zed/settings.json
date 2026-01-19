@@ -5,55 +5,55 @@
       "format_on_save": "on",
       "formatter": [
         { "language_server": { "name": "oxfmt" } },
-        { "code_action": "source.fixAll.oxc" },
-      ],
+        { "code_action": "source.fixAll.oxc" }
+      ]
     },
     "TypeScript": {
       "language_servers": ["oxfmt", "oxlint", "tsgo", "vtsls"],
       "format_on_save": "on",
       "formatter": [
         { "language_server": { "name": "oxfmt" } },
-        { "code_action": "source.fixAll.oxc" },
-      ],
+        { "code_action": "source.fixAll.oxc" }
+      ]
     },
     "TSX": {
       "language_servers": ["oxfmt", "oxlint", "tsgo", "vtsls"],
       "format_on_save": "on",
       "formatter": [
         { "language_server": { "name": "oxfmt" } },
-        { "code_action": "source.fixAll.oxc" },
-      ],
+        { "code_action": "source.fixAll.oxc" }
+      ]
     },
     "JSON": {
       "language_servers": ["oxfmt"],
       "format_on_save": "on",
-      "formatter": [{ "language_server": { "name": "oxfmt" } }],
+      "formatter": [{ "language_server": { "name": "oxfmt" } }]
     },
     "JSONC": {
       "language_servers": ["oxfmt"],
       "format_on_save": "on",
-      "formatter": [{ "language_server": { "name": "oxfmt" } }],
+      "formatter": [{ "language_server": { "name": "oxfmt" } }]
     },
     "YAML": {
       "language_servers": ["oxfmt"],
       "format_on_save": "on",
-      "formatter": [{ "language_server": { "name": "oxfmt" } }],
+      "formatter": [{ "language_server": { "name": "oxfmt" } }]
     },
     "TOML": {
       "language_servers": ["oxfmt"],
       "format_on_save": "on",
-      "formatter": [{ "language_server": { "name": "oxfmt" } }],
+      "formatter": [{ "language_server": { "name": "oxfmt" } }]
     },
     "CSS": {
       "language_servers": ["oxfmt"],
       "format_on_save": "on",
-      "formatter": [{ "language_server": { "name": "oxfmt" } }],
+      "formatter": [{ "language_server": { "name": "oxfmt" } }]
     },
     "Markdown": {
       "language_servers": ["oxfmt"],
       "format_on_save": "on",
-      "formatter": [{ "language_server": { "name": "oxfmt" } }],
-    },
+      "formatter": [{ "language_server": { "name": "oxfmt" } }]
+    }
   },
   "lsp": {
     "oxlint": {
@@ -63,9 +63,9 @@
           "fixKind": "safe_fix",
           "run": "onType",
           "typeAware": true,
-          "unusedDisableDirectives": "deny",
-        },
-      },
+          "unusedDisableDirectives": "deny"
+        }
+      }
     },
     "oxfmt": {
       "initialization_options": {
@@ -76,9 +76,9 @@
           "fmt.experimental": true,
           "run": "onSave",
           "typeAware": false,
-          "unusedDisableDirectives": false,
-        },
-      },
-    },
-  },
+          "unusedDisableDirectives": false
+        }
+      }
+    }
+  }
 }

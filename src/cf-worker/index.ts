@@ -5,6 +5,8 @@ import type { CfTypes } from '@livestore/sync-cf/cf-worker'
 import * as SyncBackend from '@livestore/sync-cf/cf-worker'
 
 import { SyncPayload } from '../livestore/schema'
+import { createAuth } from './auth'
+import { createDb } from './db'
 import { metadataRequestToResponse } from './metadata/service'
 import type { Env } from './shared'
 
@@ -42,19 +44,45 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
   }
 }
 
-const validatePayload = (
+const validatePayload = async (
   payload: typeof SyncPayload.Type | undefined,
   context: { storeId: string },
+  env: Env,
 ) => {
   console.log(`Validating connection for store: ${context.storeId}`)
-  if (payload?.authToken !== 'insecure-token-change-me') {
-    throw new Error('Invalid auth token')
+  if (!payload?.authToken) {
+    throw new Error('Missing auth token')
   }
+
+  const db = createDb(env.DB)
+
+  // Query session directly from database by token
+  const sessionResult = await db.query.session.findFirst({
+    where: (sessions, { eq }) => eq(sessions.token, payload.authToken),
+  })
+
+  if (!sessionResult) {
+    throw new Error('Invalid session')
+  }
+
+  if (sessionResult.expiresAt < new Date()) {
+    throw new Error('Session expired')
+  }
+
+  // Scope store to user - override storeId with user ID
+  context.storeId = `user-${sessionResult.userId}`
 }
 
 export default {
   async fetch(request: CfTypes.Request, env: Env, ctx: CfTypes.ExecutionContext) {
     const url = new URL(request.url)
+
+    // Handle auth routes
+    if (url.pathname.startsWith('/api/auth')) {
+      const db = createDb(env.DB)
+      const auth = createAuth(env, db)
+      return auth.handler(request as unknown as Request)
+    }
 
     if (url.pathname === '/api/metadata') {
       return Effect.runPromise(metadataRequestToResponse(request as unknown as Request))
@@ -82,7 +110,7 @@ export default {
         ctx,
         syncBackendBinding: 'SYNC_BACKEND_DO',
         syncPayloadSchema: SyncPayload,
-        validatePayload,
+        validatePayload: (payload, context) => validatePayload(payload, context, env),
       })
     }
 
