@@ -1,21 +1,25 @@
 import { parseDocument } from 'htmlparser2'
 import { textContent, getElementsByTagName, removeElement, getAttributeValue } from 'domutils'
 import type { Document, Element } from 'domhandler'
-import render from 'dom-serializer'
-import TurndownService from 'turndown'
 
 export interface ExtractedContent {
   title: string | null
-  content: string // markdown content
+  content: string // plain text content
 }
 
-const turndownService = new TurndownService({
-  headingStyle: 'atx',
-  codeBlockStyle: 'fenced',
-})
-
 // Tags to remove entirely (noise)
-const REMOVE_TAGS = ['script', 'style', 'nav', 'footer', 'aside', 'iframe', 'noscript', 'header', 'form', 'button']
+const REMOVE_TAGS = [
+  'script',
+  'style',
+  'nav',
+  'footer',
+  'aside',
+  'iframe',
+  'noscript',
+  'header',
+  'form',
+  'button',
+]
 
 /**
  * Cleans up whitespace in text.
@@ -114,7 +118,7 @@ function removeNoiseElements(doc: Document): void {
 }
 
 /**
- * Extracts the main content from HTML and converts it to markdown.
+ * Extracts the main content from HTML as plain text.
  * Uses htmlparser2 (pure ESM, Workers-compatible) for parsing.
  */
 export function extractContent(html: string, _url: string): ExtractedContent | null {
@@ -129,20 +133,16 @@ export function extractContent(html: string, _url: string): ExtractedContent | n
 
     // Find main content
     const mainContent = findMainContent(doc)
-    const text = getCleanText(mainContent)
+    const content = getCleanText(mainContent)
 
     // Require minimum content length
-    if (!text || text.length < 100) {
+    if (!content || content.length < 100) {
       return null
     }
 
-    // Convert HTML to markdown
-    const contentHtml = render(mainContent)
-    const markdown = turndownService.turndown(contentHtml)
-
     return {
       title,
-      content: markdown || text, // Fall back to plain text if turndown fails
+      content,
     }
   } catch (error) {
     console.error(`Failed to extract content:`, error)
