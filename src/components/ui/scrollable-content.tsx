@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, type ReactNode } from "react"
-import { cn } from "@/lib/utils"
+import { useState, useRef, useEffect, type ReactNode } from 'react'
+import { cn } from '@/lib/utils'
 
 interface ScrollableContentProps {
   children: ReactNode
@@ -11,8 +11,8 @@ interface ScrollableContentProps {
 export function ScrollableContent({
   children,
   className,
-  maxHeightClass = "max-h-48",
-  fadeFromClass = "from-background",
+  maxHeightClass = 'max-h-48',
+  fadeFromClass = 'from-background',
 }: ScrollableContentProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [canScroll, setCanScroll] = useState(false)
@@ -24,9 +24,7 @@ export function ScrollableContent({
 
     const checkScroll = () => {
       const hasOverflow = container.scrollHeight > container.clientHeight
-      const atBottom =
-        container.scrollHeight - container.scrollTop - container.clientHeight <
-        1
+      const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 1
 
       setCanScroll(hasOverflow)
       setIsAtBottom(atBottom)
@@ -38,22 +36,22 @@ export function ScrollableContent({
     const resizeObserver = new ResizeObserver(checkScroll)
     resizeObserver.observe(container)
 
-    container.addEventListener("scroll", checkScroll)
+    container.addEventListener('scroll', checkScroll)
 
     return () => {
       resizeObserver.disconnect()
-      container.removeEventListener("scroll", checkScroll)
+      container.removeEventListener('scroll', checkScroll)
     }
   }, [children])
 
   return (
-    <div className="relative">
+    <div className='relative'>
       <div
         ref={containerRef}
         className={cn(
           maxHeightClass,
           // Always show scrollbar when content overflows
-          canScroll ? "overflow-y-scroll" : "overflow-y-auto",
+          canScroll ? 'overflow-y-scroll' : 'overflow-y-auto',
           className,
         )}
       >
@@ -64,7 +62,7 @@ export function ScrollableContent({
       {canScroll && !isAtBottom && (
         <div
           className={cn(
-            "absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t to-transparent pointer-events-none",
+            'absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t to-transparent pointer-events-none',
             fadeFromClass,
           )}
         />

@@ -7,6 +7,7 @@ A personal link management app for saving, organizing, and tracking links from v
 ## Core Features
 
 ### 1. Link Storage
+
 - Save URLs with automatic metadata extraction (OG tags)
 - Store: URL, title, description, image, favicon, domain
 - AI-generated summaries via background processing
@@ -14,18 +15,22 @@ A personal link management app for saving, organizing, and tracking links from v
 - Manual title/description override if needed
 
 ### 2. Link Status
+
 - **Unread** (default) - saved for later
 - **Completed** - manually marked as read/done
 - Soft delete (deletedAt timestamp, not shown in UI)
 
 ### 3. Link Preview
+
 - Display OG image, title, description
 - Show favicon + domain for quick recognition
 - AI summary when available
 - Fallback UI for links without OG data
 
 ### 4. Easy Link Addition
+
 Multiple input methods:
+
 - **Paste URL** - main input field, commits link immediately
 - **Bulk paste** - paste multiple URLs, all processed in background
 - **Bookmarklet** - one-click save from any browser (future)
@@ -33,12 +38,14 @@ Multiple input methods:
 - **Keyboard shortcut** - global shortcut to open quick-add modal (Cmd/Ctrl+K style)
 
 ### 5. Data Layer
+
 - **LiveStore** (v0.4.0-dev.22) as reactive data layer
 - **Cloudflare sync** for cross-device persistence
 - Offline-first - works without connection, syncs when available
 - Event sourcing model - all changes are events, state derived via materializers
 
 ### 6. Background Processing
+
 - **Async processing** - metadata and summaries fetched after link is saved
 - **Queue-based** - reliable processing with automatic retries
 - **Works offline** - close browser, processing continues on server
@@ -49,6 +56,7 @@ Multiple input methods:
 See **LiveStore Schema Design** section below for the actual implementation.
 
 Summary of fields per link:
+
 - `id` - unique identifier
 - `url` - the saved URL
 - `title`, `description`, `image`, `favicon` - OG metadata (fetched)
@@ -59,18 +67,21 @@ Summary of fields per link:
 ## Suggested Additional Features
 
 ### High Value
+
 - **Tags/folders** - organize links by topic or project
 - **Search** - full-text search across title, description, notes, URL
 - **Duplicate detection** - warn when saving an already-saved link
 - **Bulk actions** - select multiple, mark complete, delete, tag
 
 ### Medium Value
+
 - **Quick filters** - by domain (all Twitter links), by tag, by date range
 - **Sort options** - newest, oldest, recently updated, alphabetical
 - **Reading queue order** - drag to reorder priority
 - **Import/export** - JSON export, browser bookmarks import
 
 ### Nice to Have
+
 - **Reading time estimate** - for articles (based on word count from metadata)
 - **Stale link reminder** - surface old unread links periodically
 - **Broken link detection** - periodic check if links still work
@@ -78,20 +89,21 @@ Summary of fields per link:
 
 ## Technical Stack
 
-| Layer | Choice |
-|-------|--------|
-| Framework | React 19 (SPA) |
-| Routing | TanStack Router |
-| Data | LiveStore v0.4.0-dev.22 |
-| Sync | Cloudflare Workers + Durable Objects (via @livestore/sync-cf) |
-| Background Jobs | LinkProcessorDO (subscription-based, not queues) |
-| AI/LLM | Cloudflare Workers AI (`@cf/meta/llama-3-8b-instruct`) |
-| Styling | shadcn/ui (Lyra style, zinc+orange, JetBrains Mono) |
-| Metadata fetch | Cloudflare Worker + HTMLRewriter (native) |
-| Build | Vite 7 + @cloudflare/vite-plugin |
-| Runtime | Bun 1.2+ |
+| Layer           | Choice                                                        |
+| --------------- | ------------------------------------------------------------- |
+| Framework       | React 19 (SPA)                                                |
+| Routing         | TanStack Router                                               |
+| Data            | LiveStore v0.4.0-dev.22                                       |
+| Sync            | Cloudflare Workers + Durable Objects (via @livestore/sync-cf) |
+| Background Jobs | LinkProcessorDO (subscription-based, not queues)              |
+| AI/LLM          | Cloudflare Workers AI (`@cf/meta/llama-3-8b-instruct`)        |
+| Styling         | shadcn/ui (Lyra style, zinc+orange, JetBrains Mono)           |
+| Metadata fetch  | Cloudflare Worker + HTMLRewriter (native)                     |
+| Build           | Vite 7 + @cloudflare/vite-plugin                              |
+| Runtime         | Bun 1.2+                                                      |
 
 ### Key Packages
+
 ```bash
 # LiveStore
 @livestore/livestore@0.4.0-dev.22
@@ -115,6 +127,7 @@ wrangler
 ## UI Concepts
 
 ### Main View
+
 ```
 ┌─────────────────────────────────────────────────┐
 │  [+ Add Link]  [Search...]  [Filters ▼]         │
@@ -136,6 +149,7 @@ wrangler
 ```
 
 ### Quick Add Modal
+
 ```
 ┌─────────────────────────────────────┐
 │  Add Link                      [×]  │
@@ -182,6 +196,7 @@ wrangler
 ```
 
 **Simple flow:**
+
 1. Endpoint call or `onPush` hook wakes up the DO
 2. DO connects to `SyncBackendDO` (same as browsers do)
 3. Syncs events it doesn't have yet (just like a browser reconnecting)
@@ -227,11 +242,11 @@ The `linkProcessingStatus` table is the source of truth for what's been handled.
 
 ### AI Model Details
 
-| Setting | Value |
-|---------|-------|
-| Model | `@cf/meta/llama-3-8b-instruct` (Llama 3 8B) |
-| Max tokens | 200 |
-| Input | Extracted markdown content (up to 4000 chars) |
+| Setting    | Value                                         |
+| ---------- | --------------------------------------------- |
+| Model      | `@cf/meta/llama-3-8b-instruct` (Llama 3 8B)   |
+| Max tokens | 200                                           |
+| Input      | Extracted markdown content (up to 4000 chars) |
 
 ### Content Extraction Pipeline
 
@@ -241,13 +256,14 @@ The processor extracts actual page content using a three-stage pipeline:
 HTML → linkedom (DOM parser) → @mozilla/readability (article extraction) → turndown (markdown)
 ```
 
-| Library | Purpose |
-|---------|---------|
-| `linkedom` | Lightweight DOM parser that works in Cloudflare Workers |
+| Library                | Purpose                                                       |
+| ---------------------- | ------------------------------------------------------------- |
+| `linkedom`             | Lightweight DOM parser that works in Cloudflare Workers       |
 | `@mozilla/readability` | Firefox Reader Mode algorithm - extracts main article content |
-| `turndown` | Converts HTML to clean markdown for LLM consumption |
+| `turndown`             | Converts HTML to clean markdown for LLM consumption           |
 
 **Extraction flow:**
+
 1. Fetch the page HTML
 2. Parse with linkedom to create a DOM
 3. Run Readability to extract the main article (strips nav, ads, footers, etc.)
@@ -261,9 +277,9 @@ HTML → linkedom (DOM parser) → @mozilla/readability (article extraction) →
 
 #### When it wakes up
 
-| Trigger | What happens |
-|---------|--------------|
-| `onPush` detects `LinkCreated` | Wakes up DO, calls `fetch()` |
+| Trigger                                       | What happens                 |
+| --------------------------------------------- | ---------------------------- |
+| `onPush` detects `LinkCreated`                | Wakes up DO, calls `fetch()` |
 | Manual `/api/link-processor?storeId=...` call | Wakes up DO, calls `fetch()` |
 
 #### When it shuts down
@@ -282,11 +298,11 @@ isInitialized: boolean     // Init flag
 
 #### What's persisted (survives shutdown)
 
-| Data | Storage | Purpose |
-|------|---------|---------|
-| `sessionId` | `ctx.storage` (KV) | Stable client identity for sync |
-| LiveStore events | DO SQLite | Local cache of synced events |
-| `linkProcessingStatus` | LiveStore (via events) | Which links were processed |
+| Data                   | Storage                | Purpose                         |
+| ---------------------- | ---------------------- | ------------------------------- |
+| `sessionId`            | `ctx.storage` (KV)     | Stable client identity for sync |
+| LiveStore events       | DO SQLite              | Local cache of synced events    |
+| `linkProcessingStatus` | LiveStore (via events) | Which links were processed      |
 
 #### Restart flow
 
@@ -388,6 +404,7 @@ store.commit(events.linkMetadataFetched({ ... }))  // May arrive after processor
 ```
 
 The race condition:
+
 1. `LinkCreated` pushed → `onPush` fires → processor wakes up
 2. Processor does initial sync (only sees `LinkCreated`)
 3. `LinkMetadataFetched` pushed (but processor already syncing)
@@ -422,12 +439,12 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
   constructor(ctx, env) {
     super(ctx, env)
     this._env = env
-    currentSyncBackend = this  // Set reference for onPush to use
+    currentSyncBackend = this // Set reference for onPush to use
   }
 
   triggerLinkProcessor(storeId: string) {
     const processor = this._env.LINK_PROCESSOR_DO.get(
-      this._env.LINK_PROCESSOR_DO.idFromName(storeId)
+      this._env.LINK_PROCESSOR_DO.idFromName(storeId),
     )
     processor.fetch(`https://link-processor/?storeId=${storeId}`)
   }
@@ -460,6 +477,7 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
 For immediate preview in the Add Link dialog, a direct API is also available:
 
 `GET /api/metadata?url=<encoded-url>`
+
 - Returns: `{ title, description, image, favicon }`
 - Uses HTMLRewriter (native to Workers, no dependencies)
 - Optional - background processing will also fetch this
@@ -470,26 +488,27 @@ All events are synced across devices via Cloudflare Durable Objects.
 
 ### Client Events (user actions)
 
-| Event | Data | Description |
-|-------|------|-------------|
-| `v1.LinkCreated` | id, url, domain, createdAt | New link saved |
-| `v1.LinkCompleted` | id, completedAt | Link marked as read |
-| `v1.LinkUncompleted` | id | Link marked as unread |
-| `v1.LinkDeleted` | id, deletedAt | Link soft-deleted |
+| Event                | Data                       | Description           |
+| -------------------- | -------------------------- | --------------------- |
+| `v1.LinkCreated`     | id, url, domain, createdAt | New link saved        |
+| `v1.LinkCompleted`   | id, completedAt            | Link marked as read   |
+| `v1.LinkUncompleted` | id                         | Link marked as unread |
+| `v1.LinkDeleted`     | id, deletedAt              | Link soft-deleted     |
 
 ### Server Events (background processing)
 
-| Event | Data | Description |
-|-------|------|-------------|
-| `v1.LinkMetadataFetched` | id, linkId, title, description, image, favicon, fetchedAt | OG metadata from page |
-| `v1.LinkSummarized` | id, linkId, summary, model, summarizedAt | AI-generated summary |
-| `v1.LinkProcessingStarted` | linkId, updatedAt | Processing begun (for idempotency) |
-| `v1.LinkProcessingCompleted` | linkId, updatedAt | Processing finished successfully |
-| `v1.LinkProcessingFailed` | linkId, error, updatedAt | Processing error (for debugging) |
+| Event                        | Data                                                      | Description                        |
+| ---------------------------- | --------------------------------------------------------- | ---------------------------------- |
+| `v1.LinkMetadataFetched`     | id, linkId, title, description, image, favicon, fetchedAt | OG metadata from page              |
+| `v1.LinkSummarized`          | id, linkId, summary, model, summarizedAt                  | AI-generated summary               |
+| `v1.LinkProcessingStarted`   | linkId, updatedAt                                         | Processing begun (for idempotency) |
+| `v1.LinkProcessingCompleted` | linkId, updatedAt                                         | Processing finished successfully   |
+| `v1.LinkProcessingFailed`    | linkId, error, updatedAt                                  | Processing error (for debugging)   |
 
 ## MVP Scope
 
 ### Phase 1: Basic Link Management
+
 1. Add link with URL paste
 2. Immediate metadata preview via `/api/metadata`
 3. On save: commit `LinkCreated` + `LinkMetadataFetched` (first snapshot)
@@ -499,6 +518,7 @@ All events are synced across devices via Cloudflare Durable Objects.
 7. LiveStore + Cloudflare sync
 
 ### Phase 2: Background Processing
+
 1. `LinkProcessorDO` - server-side LiveStore client DO
 2. `onPush` hook to detect `LinkCreated` → wake up processor
 3. Subscription to `links` table for reactive processing
@@ -507,6 +527,7 @@ All events are synced across devices via Cloudflare Durable Objects.
 6. Processing status tracking for idempotency
 
 ### Phase 3: Polish
+
 - Search
 - Tags
 - Bookmarklet / browser extension

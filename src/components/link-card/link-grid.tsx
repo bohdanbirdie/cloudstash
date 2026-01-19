@@ -1,24 +1,20 @@
-import { useState, useCallback } from "react"
-import { events } from "@/livestore/schema"
-import { useAppStore } from "@/livestore/store"
-import type { LinkWithDetails } from "@/livestore/queries"
-import { LinkCard } from "./link-card"
-import { LinkDetailModal } from "./link-detail-modal"
+import { useState, useCallback } from 'react'
+import { events } from '@/livestore/schema'
+import { useAppStore } from '@/livestore/store'
+import type { LinkWithDetails } from '@/livestore/queries'
+import { LinkCard } from './link-card'
+import { LinkDetailModal } from './link-detail-modal'
 
 interface LinkGridProps {
   links: readonly LinkWithDetails[]
   emptyMessage?: string
 }
 
-export function LinkGrid({
-  links,
-  emptyMessage = "No links yet",
-}: LinkGridProps) {
+export function LinkGrid({ links, emptyMessage = 'No links yet' }: LinkGridProps) {
   const store = useAppStore()
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
 
-  const selectedLink =
-    selectedIndex !== null ? (links[selectedIndex] ?? null) : null
+  const selectedLink = selectedIndex !== null ? (links[selectedIndex] ?? null) : null
   const hasPrevious = selectedIndex !== null && selectedIndex > 0
   const hasNext = selectedIndex !== null && selectedIndex < links.length - 1
 
@@ -36,9 +32,7 @@ export function LinkGrid({
 
   const handleComplete = useCallback(() => {
     if (!selectedLink) return
-    store.commit(
-      events.linkCompleted({ id: selectedLink.id, completedAt: new Date() }),
-    )
+    store.commit(events.linkCompleted({ id: selectedLink.id, completedAt: new Date() }))
     // Move to next link or close modal
     if (hasNext) {
       // Index stays the same since the current link will be removed from this list
@@ -64,9 +58,7 @@ export function LinkGrid({
 
   const handleDelete = useCallback(() => {
     if (!selectedLink) return
-    store.commit(
-      events.linkDeleted({ id: selectedLink.id, deletedAt: new Date() }),
-    )
+    store.commit(events.linkDeleted({ id: selectedLink.id, deletedAt: new Date() }))
     // Move to next link or close modal
     if (hasNext) {
       // Index stays the same since the current link will be removed from this list
@@ -91,22 +83,14 @@ export function LinkGrid({
   }, [selectedLink, store, hasNext, hasPrevious, selectedIndex])
 
   if (links.length === 0) {
-    return (
-      <div className="text-muted-foreground text-center py-12">
-        {emptyMessage}
-      </div>
-    )
+    return <div className='text-muted-foreground text-center py-12'>{emptyMessage}</div>
   }
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
         {links.map((link, index) => (
-          <LinkCard
-            key={link.id}
-            link={link}
-            onClick={() => setSelectedIndex(index)}
-          />
+          <LinkCard key={link.id} link={link} onClick={() => setSelectedIndex(index)} />
         ))}
       </div>
 

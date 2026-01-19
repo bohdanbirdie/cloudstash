@@ -1,9 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router"
-import { LinkGrid } from "@/components/link-card"
-import { useAppStore } from "@/livestore/store"
-import { completedLinks$ } from "@/livestore/queries"
+import { createFileRoute } from '@tanstack/react-router'
+import { LinkGrid } from '@/components/link-card'
+import { useAppStore } from '@/livestore/store'
+import { completedLinks$ } from '@/livestore/queries'
 
-export const Route = createFileRoute("/completed")({
+export const Route = createFileRoute('/completed')({
   component: CompletedPage,
 })
 
@@ -12,12 +12,10 @@ function CompletedPage() {
   const links = store.useQuery(completedLinks$)
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold">Completed</h1>
-      <p className="text-muted-foreground mt-1 mb-6">
-        Links you've finished reading.
-      </p>
-      <LinkGrid links={links} emptyMessage="No completed links yet" />
+    <div className='p-6'>
+      <h1 className='text-2xl font-bold'>Completed</h1>
+      <p className='text-muted-foreground mt-1 mb-6'>Links you've finished reading.</p>
+      <LinkGrid links={links} emptyMessage='No completed links yet' />
     </div>
   )
 }

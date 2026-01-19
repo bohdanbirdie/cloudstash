@@ -1,23 +1,20 @@
-import { queryDb, Schema } from "@livestore/livestore"
+import { queryDb, Schema } from '@livestore/livestore'
 
-import { tables } from "./schema"
+import { tables } from './schema'
 
 export const inboxCount$ = queryDb(
-  tables.links.count().where({ status: "unread", deletedAt: null }),
-  { label: "inboxCount" },
+  tables.links.count().where({ status: 'unread', deletedAt: null }),
+  { label: 'inboxCount' },
 )
 
 export const completedCount$ = queryDb(
-  tables.links.count().where({ status: "completed", deletedAt: null }),
-  { label: "completedCount" },
+  tables.links.count().where({ status: 'completed', deletedAt: null }),
+  { label: 'completedCount' },
 )
 
-export const allLinksCount$ = queryDb(
-  tables.links.count().where({ deletedAt: null }),
-  {
-    label: "allLinksCount",
-  },
-)
+export const allLinksCount$ = queryDb(tables.links.count().where({ deletedAt: null }), {
+  label: 'allLinksCount',
+})
 
 // For trash, we need raw SQL to query "deletedAt IS NOT NULL"
 const trashCountSchema = Schema.Struct({ count: Schema.Number }).pipe(
@@ -27,10 +24,10 @@ const trashCountSchema = Schema.Struct({ count: Schema.Number }).pipe(
 
 export const trashCount$ = queryDb(
   () => ({
-    query: "SELECT COUNT(*) as count FROM links WHERE deletedAt IS NOT NULL",
+    query: 'SELECT COUNT(*) as count FROM links WHERE deletedAt IS NOT NULL',
     schema: trashCountSchema,
   }),
-  { label: "trashCount" },
+  { label: 'trashCount' },
 )
 
 // Schema for raw SQL join results (dates are numbers from SQLite)
@@ -82,7 +79,7 @@ export const inboxLinks$ = queryDb(
     `,
     schema: linksWithDetailsSchema,
   }),
-  { label: "inboxLinks" },
+  { label: 'inboxLinks' },
 )
 
 // Completed links (completed, not deleted)
@@ -110,7 +107,7 @@ export const completedLinks$ = queryDb(
     `,
     schema: linksWithDetailsSchema,
   }),
-  { label: "completedLinks" },
+  { label: 'completedLinks' },
 )
 
 // All links (not deleted)
@@ -138,7 +135,7 @@ export const allLinks$ = queryDb(
     `,
     schema: linksWithDetailsSchema,
   }),
-  { label: "allLinks" },
+  { label: 'allLinks' },
 )
 
 // Trash links (deleted)
@@ -166,7 +163,7 @@ export const trashLinks$ = queryDb(
     `,
     schema: linksWithDetailsSchema,
   }),
-  { label: "trashLinks" },
+  { label: 'trashLinks' },
 )
 
 // Processing status for a single link

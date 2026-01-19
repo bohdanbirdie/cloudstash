@@ -10,7 +10,7 @@ Reference: https://www.effect.solutions/
 Just as `async/await` provides a sequential, readable way to work with `Promise` values, `Effect.gen` and `yield*` provide the same ergonomic benefits for `Effect` values.
 
 ```typescript
-import { Effect } from "effect"
+import { Effect } from 'effect'
 
 const program = Effect.gen(function* () {
   const data = yield* fetchData
@@ -24,9 +24,9 @@ const program = Effect.gen(function* () {
 Use `Effect.fn` with generator functions for traced, named effects. `Effect.fn` traces where the function is called from, not just where it's defined:
 
 ```typescript
-import { Effect } from "effect"
+import { Effect } from 'effect'
 
-const processUser = Effect.fn("processUser")(function* (userId: string) {
+const processUser = Effect.fn('processUser')(function* (userId: string) {
   yield* Effect.logInfo(`Processing user ${userId}`)
   const user = yield* getUser(userId)
   return yield* processData(user)
@@ -34,6 +34,7 @@ const processUser = Effect.fn("processUser")(function* (userId: string) {
 ```
 
 **Benefits:**
+
 - Call-site tracing for each invocation
 - Stack traces with location details
 - Clean signatures
@@ -44,17 +45,18 @@ const processUser = Effect.fn("processUser")(function* (userId: string) {
 Use `.pipe()` to add cross-cutting concerns to Effect values:
 
 ```typescript
-import { Effect, Schedule } from "effect"
+import { Effect, Schedule } from 'effect'
 
 const program = fetchData.pipe(
-  Effect.timeout("5 seconds"),
-  Effect.retry(Schedule.exponential("100 millis").pipe(Schedule.compose(Schedule.recurs(3)))),
+  Effect.timeout('5 seconds'),
+  Effect.retry(Schedule.exponential('100 millis').pipe(Schedule.compose(Schedule.recurs(3)))),
   Effect.tap((data) => Effect.logInfo(`Fetched: ${data}`)),
-  Effect.withSpan("fetchData")
+  Effect.withSpan('fetchData'),
 )
 ```
 
 **Common instrumentation:**
+
 - `Effect.timeout` - fail if effect takes too long
 - `Effect.retry` - retry on failure with a schedule
 - `Effect.tap` - run side effect without changing the value
@@ -67,9 +69,9 @@ const program = fetchData.pipe(
 A service is defined using `Context.Tag` as a class:
 
 ```typescript
-import { Context, Effect } from "effect"
+import { Context, Effect } from 'effect'
 
-class Database extends Context.Tag("@app/Database")<
+class Database extends Context.Tag('@app/Database')<
   Database,
   {
     readonly query: (sql: string) => Effect.Effect<unknown[]>
@@ -79,6 +81,7 @@ class Database extends Context.Tag("@app/Database")<
 ```
 
 **Rules:**
+
 - Tag identifiers must be unique. Use `@path/to/ServiceName` prefix pattern
 - Service methods should have no dependencies (`R = never`). Dependencies are handled via Layer composition
 - Use readonly properties
@@ -88,9 +91,9 @@ class Database extends Context.Tag("@app/Database")<
 A Layer is an implementation of a service:
 
 ```typescript
-import { Context, Effect, Layer } from "effect"
+import { Context, Effect, Layer } from 'effect'
 
-class Users extends Context.Tag("@app/Users")<
+class Users extends Context.Tag('@app/Users')<
   Users,
   {
     readonly findById: (id: UserId) => Effect.Effect<User, UsersError>
@@ -103,14 +106,14 @@ class Users extends Context.Tag("@app/Users")<
       const http = yield* HttpClient.HttpClient
 
       // 2. define the service methods with Effect.fn for call-site tracing
-      const findById = Effect.fn("Users.findById")(function* (id: UserId) {
+      const findById = Effect.fn('Users.findById')(function* (id: UserId) {
         const response = yield* http.get(`/users/${id}`)
         return yield* HttpClientResponse.schemaBodyJson(User)(response)
       })
 
       // 3. return the service
       return Users.of({ findById })
-    })
+    }),
   )
 }
 ```
@@ -125,7 +128,7 @@ Use `Effect.provide` once at the top of your application:
 const appLayer = userServiceLayer.pipe(
   Layer.provideMerge(databaseLayer),
   Layer.provideMerge(loggerLayer),
-  Layer.provideMerge(configLayer)
+  Layer.provideMerge(configLayer),
 )
 
 const main = program.pipe(Effect.provide(appLayer))
@@ -156,12 +159,12 @@ class Database extends Context.Tag("@app/Database")<...>() {
 Use `Schema.Class` for composite data models:
 
 ```typescript
-import { Schema } from "effect"
+import { Schema } from 'effect'
 
-const UserId = Schema.String.pipe(Schema.brand("UserId"))
+const UserId = Schema.String.pipe(Schema.brand('UserId'))
 type UserId = typeof UserId.Type
 
-export class User extends Schema.Class<User>("User")({
+export class User extends Schema.Class<User>('User')({
   id: UserId,
   name: Schema.String,
   email: Schema.String,
@@ -178,17 +181,17 @@ export class User extends Schema.Class<User>("User")({
 Use branded types to prevent mixing values with the same underlying type:
 
 ```typescript
-import { Schema } from "effect"
+import { Schema } from 'effect'
 
-export const UserId = Schema.String.pipe(Schema.brand("UserId"))
+export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 export type UserId = typeof UserId.Type
 
-export const PostId = Schema.String.pipe(Schema.brand("PostId"))
+export const PostId = Schema.String.pipe(Schema.brand('PostId'))
 export type PostId = typeof PostId.Type
 
 // These are now incompatible types
-const userId = UserId.make("user-123")
-const postId = PostId.make("post-456")
+const userId = UserId.make('user-123')
+const postId = PostId.make('post-456')
 ```
 
 **In a well-designed domain model, nearly all primitives should be branded.**
@@ -198,13 +201,13 @@ const postId = PostId.make("post-456")
 For structured variants with fields:
 
 ```typescript
-import { Match, Schema } from "effect"
+import { Match, Schema } from 'effect'
 
-export class Success extends Schema.TaggedClass<Success>()("Success", {
+export class Success extends Schema.TaggedClass<Success>()('Success', {
   value: Schema.Number,
 }) {}
 
-export class Failure extends Schema.TaggedClass<Failure>()("Failure", {
+export class Failure extends Schema.TaggedClass<Failure>()('Failure', {
   error: Schema.String,
 }) {}
 
@@ -214,7 +217,7 @@ export type Result = typeof Result.Type
 // Pattern match
 Match.valueTags(result, {
   Success: ({ value }) => `Got: ${value}`,
-  Failure: ({ error }) => `Error: ${error}`
+  Failure: ({ error }) => `Error: ${error}`,
 })
 ```
 
@@ -223,9 +226,9 @@ Match.valueTags(result, {
 Use `Schema.parseJson` to parse and validate JSON strings:
 
 ```typescript
-import { Effect, Schema } from "effect"
+import { Effect, Schema } from 'effect'
 
-class Move extends Schema.Class<Move>("Move")({
+class Move extends Schema.Class<Move>('Move')({
   from: Position,
   to: Position,
 }) {}
@@ -246,26 +249,21 @@ const program = Effect.gen(function* () {
 Define domain errors with `Schema.TaggedError`:
 
 ```typescript
-import { Schema } from "effect"
+import { Schema } from 'effect'
 
-class ValidationError extends Schema.TaggedError<ValidationError>()(
-  "ValidationError",
-  {
-    field: Schema.String,
-    message: Schema.String,
-  }
-) {}
+class ValidationError extends Schema.TaggedError<ValidationError>()('ValidationError', {
+  field: Schema.String,
+  message: Schema.String,
+}) {}
 
-class NotFoundError extends Schema.TaggedError<NotFoundError>()(
-  "NotFoundError",
-  {
-    resource: Schema.String,
-    id: Schema.String,
-  }
-) {}
+class NotFoundError extends Schema.TaggedError<NotFoundError>()('NotFoundError', {
+  resource: Schema.String,
+  id: Schema.String,
+}) {}
 ```
 
 **Benefits:**
+
 - Serializable (can send over network/save to DB)
 - Type-safe with built-in `_tag` for pattern matching
 - Yieldable - can be used directly without `Effect.fail()`
@@ -276,9 +274,7 @@ class NotFoundError extends Schema.TaggedError<NotFoundError>()(
 
 ```typescript
 // ✅ Good: Yieldable errors can be used directly
-return error.response.status === 404
-  ? UserNotFoundError.make({ id })
-  : Effect.die(error)
+return error.response.status === 404 ? UserNotFoundError.make({ id }) : Effect.die(error)
 
 // ❌ Redundant: no need to wrap with Effect.fail
 return error.response.status === 404
@@ -292,12 +288,12 @@ return error.response.status === 404
 
 ```typescript
 const recovered = program.pipe(
-  Effect.catchTag("HttpError", (error) =>
+  Effect.catchTag('HttpError', (error) =>
     Effect.gen(function* () {
       yield* Effect.logWarning(`HTTP ${error.statusCode}`)
-      return "Recovered from HttpError"
-    })
-  )
+      return 'Recovered from HttpError'
+    }),
+  ),
 )
 ```
 
@@ -306,9 +302,9 @@ const recovered = program.pipe(
 ```typescript
 const recovered = program.pipe(
   Effect.catchTags({
-    HttpError: () => Effect.succeed("Recovered from HttpError"),
-    ValidationError: () => Effect.succeed("Recovered from ValidationError")
-  })
+    HttpError: () => Effect.succeed('Recovered from HttpError'),
+    ValidationError: () => Effect.succeed('Recovered from ValidationError'),
+  }),
 )
 ```
 
@@ -331,23 +327,21 @@ const main = Effect.gen(function* () {
 Use `Schema.Defect` to wrap unknown errors from external libraries:
 
 ```typescript
-class ApiError extends Schema.TaggedError<ApiError>()(
-  "ApiError",
-  {
-    endpoint: Schema.String,
-    statusCode: Schema.Number,
-    error: Schema.Defect,  // Wrap the underlying error
-  }
-) {}
+class ApiError extends Schema.TaggedError<ApiError>()('ApiError', {
+  endpoint: Schema.String,
+  statusCode: Schema.Number,
+  error: Schema.Defect, // Wrap the underlying error
+}) {}
 
 const fetchUser = (id: string) =>
   Effect.tryPromise({
-    try: () => fetch(`/api/users/${id}`).then(r => r.json()),
-    catch: (error) => ApiError.make({
-      endpoint: `/api/users/${id}`,
-      statusCode: 500,
-      error
-    })
+    try: () => fetch(`/api/users/${id}`).then((r) => r.json()),
+    catch: (error) =>
+      ApiError.make({
+        endpoint: `/api/users/${id}`,
+        statusCode: 500,
+        error,
+      }),
   })
 ```
 
@@ -363,10 +357,8 @@ Key settings for Effect projects:
     "noUnusedLocals": true,
     "noImplicitOverride": true,
     "verbatimModuleSyntax": true,
-    "plugins": [
-      { "name": "@effect/language-service" }
-    ]
-  }
+    "plugins": [{ "name": "@effect/language-service" }],
+  },
 }
 ```
 

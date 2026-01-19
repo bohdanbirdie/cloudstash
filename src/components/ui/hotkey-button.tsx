@@ -1,13 +1,11 @@
-import { useHotkeys } from "react-hotkeys-hook"
-import { Button, buttonVariants } from "@/components/ui/button"
-import { Kbd } from "@/components/ui/kbd"
-import { useModifierHold } from "@/hooks/use-modifier-hold"
-import type { VariantProps } from "class-variance-authority"
-import type { Button as ButtonPrimitive } from "@base-ui/react/button"
+import { useHotkeys } from 'react-hotkeys-hook'
+import { Button, buttonVariants } from '@/components/ui/button'
+import { Kbd } from '@/components/ui/kbd'
+import { useModifierHold } from '@/hooks/use-modifier-hold'
+import type { VariantProps } from 'class-variance-authority'
+import type { Button as ButtonPrimitive } from '@base-ui/react/button'
 
-interface HotkeyButtonProps
-  extendsButtonPrimitive.Props,
-    VariantProps<typeof buttonVariants> {
+interface HotkeyButtonProps extends ButtonPrimitive.Props, VariantProps<typeof buttonVariants> {
   kbdLabel: string
   hotkey?: string
   hotkeyEnabled?: boolean
@@ -24,20 +22,16 @@ export function HotkeyButton({
 }: HotkeyButtonProps) {
   const showHints = useModifierHold()
 
-  useHotkeys(hotkey ?? "", onHotkeyPress ?? (() => {}), {
+  useHotkeys(hotkey ?? '', onHotkeyPress ?? (() => {}), {
     enabled: Boolean(hotkey && onHotkeyPress && hotkeyEnabled && !disabled),
     preventDefault: true,
     enableOnFormTags: true,
   })
 
   return (
-    <div className="relative">
+    <div className='relative'>
       <Button disabled={disabled} {...props} />
-      {showHints && (
-        <Kbd className="absolute -top-6 left-1/2 -translate-x-1/2">
-          {kbdLabel}
-        </Kbd>
-      )}
+      {showHints && <Kbd className='absolute -top-6 left-1/2 -translate-x-1/2'>{kbdLabel}</Kbd>}
     </div>
   )
 }

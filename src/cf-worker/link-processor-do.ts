@@ -1,30 +1,21 @@
 /// <reference types="@cloudflare/workers-types" />
-import { DurableObject } from "cloudflare:workers"
-import { Effect } from "effect"
-import { nanoid, type Store } from "@livestore/livestore"
-import {
-  createStoreDoPromise,
-  type ClientDoWithRpcCallback,
-} from "@livestore/adapter-cloudflare"
-import { handleSyncUpdateRpc } from "@livestore/sync-cf/client"
+import { DurableObject } from 'cloudflare:workers'
+import { Effect } from 'effect'
+import { nanoid, type Store } from '@livestore/livestore'
+import { createStoreDoPromise, type ClientDoWithRpcCallback } from '@livestore/adapter-cloudflare'
+import { handleSyncUpdateRpc } from '@livestore/sync-cf/client'
 
-import { schema, tables, events } from "../livestore/schema"
-import { fetchOgMetadata } from "./metadata/service"
-import {
-  fetchAndExtractContent,
-  type ExtractedContent,
-} from "./content-extractor"
-import type { Env } from "./shared"
+import { schema, tables, events } from '../livestore/schema'
+import { fetchOgMetadata } from './metadata/service'
+import { fetchAndExtractContent, type ExtractedContent } from './content-extractor'
+import type { Env } from './shared'
 
-const AI_MODEL = "@cf/meta/llama-3-8b-instruct"
+const AI_MODEL = '@cf/meta/llama-3-8b-instruct'
 
 type LinkStore = Store<typeof schema>
 
-export class LinkProcessorDO
-  extends DurableObject<Env>
-  implements ClientDoWithRpcCallback
-{
-  __DURABLE_OBJECT_BRAND = "link-processor-do" as never
+export class LinkProcessorDO extends DurableObject<Env> implements ClientDoWithRpcCallback {
+  __DURABLE_OBJECT_BRAND = 'link-processor-do' as never
   private store: LinkStore | null = null
   private storeId: string | null = null
   private isInitialized = false
@@ -34,12 +25,12 @@ export class LinkProcessorDO
    * Persisted in DO storage so it survives restarts.
    */
   private async getOrCreateSessionId(): Promise<string> {
-    const stored = await this.ctx.storage.get<string>("sessionId")
+    const stored = await this.ctx.storage.get<string>('sessionId')
     if (stored) {
       return stored
     }
     const newSessionId = nanoid()
-    await this.ctx.storage.put("sessionId", newSessionId)
+    await this.ctx.storage.put('sessionId', newSessionId)
     return newSessionId
   }
 
@@ -50,18 +41,18 @@ export class LinkProcessorDO
 
     this.storeId = storeId
     // Persist storeId so syncUpdateRpc can use it after hibernation
-    await this.ctx.storage.put("storeId", storeId)
+    await this.ctx.storage.put('storeId', storeId)
     const sessionId = await this.getOrCreateSessionId()
 
     this.store = await createStoreDoPromise({
       schema,
       storeId,
-      clientId: "link-processor-do",
+      clientId: 'link-processor-do',
       sessionId,
       durableObject: {
         ctx: this.ctx,
         env: this.env,
-        bindingName: "LINK_PROCESSOR_DO",
+        bindingName: 'LINK_PROCESSOR_DO',
       } as never,
       syncBackendStub: this.env.SYNC_BACKEND_DO.get(
         this.env.SYNC_BACKEND_DO.idFromName(storeId),
@@ -82,16 +73,16 @@ export class LinkProcessorDO
 
   // RPC callback for push notifications from sync backend
   async syncUpdateRpc(payload: unknown): Promise<void> {
-    console.log("LinkProcessorDO received push notification")
+    console.log('LinkProcessorDO received push notification')
 
     // Ensure store is initialized before processing
     // Load storeId from storage in case DO was hibernated
     if (!this.isInitialized) {
-      const storeId = await this.ctx.storage.get<string>("storeId")
+      const storeId = await this.ctx.storage.get<string>('storeId')
       if (storeId) {
         await this.initialize(storeId)
       } else {
-        console.warn("syncUpdateRpc called but no storeId found in storage")
+        console.warn('syncUpdateRpc called but no storeId found in storage')
         return
       }
     }
@@ -100,27 +91,19 @@ export class LinkProcessorDO
     await handleSyncUpdateRpc(payload)
   }
 
-  private async processNewLinks(
-    links: Array<{ id: string url: string deletedAt: Date | null }>,
-  ) {
+  private async processNewLinks(links: Array<{ id: string; url: string; deletedAt: Date | null }>) {
     if (!this.store) return
 
     console.log(`[processNewLinks] total links: ${links.length}`)
 
     // Get processing status for all links
-    const processingStatuses = this.store.query(
-      tables.linkProcessingStatus.where({}),
-    )
+    const processingStatuses = this.store.query(tables.linkProcessingStatus.where({}))
     const processedIds = new Set(processingStatuses.map((s) => s.linkId))
 
-    console.log(`[processNewLinks] already processed: ${processedIds.size}`, [
-      ...processedIds,
-    ])
+    console.log(`[processNewLinks] already processed: ${processedIds.size}`, [...processedIds])
 
     // Filter to only new, undeleted links
-    const newLinks = links.filter(
-      (link) => !processedIds.has(link.id) && !link.deletedAt,
-    )
+    const newLinks = links.filter((link) => !processedIds.has(link.id) && !link.deletedAt)
 
     console.log(`[processNewLinks] new links to process: ${newLinks.length}`)
 
@@ -129,7 +112,7 @@ export class LinkProcessorDO
     }
   }
 
-  private async processLink(link: { id: string url: string }) {
+  private async processLink(link: { id: string; url: string }) {
     if (!this.store) return
 
     const now = new Date()
@@ -138,18 +121,14 @@ export class LinkProcessorDO
       console.log(`Processing link: ${link.id} - ${link.url}`)
 
       // Mark as processing started
-      console.log(
-        `[processLink] committing linkProcessingStarted for ${link.id}`,
-      )
+      console.log(`[processLink] committing linkProcessingStarted for ${link.id}`)
       this.store.commit(
         events.linkProcessingStarted({
           linkId: link.id,
           updatedAt: now,
         }),
       )
-      console.log(
-        `[processLink] committed linkProcessingStarted for ${link.id}`,
-      )
+      console.log(`[processLink] committed linkProcessingStarted for ${link.id}`)
 
       // Fetch metadata
       const metadataResult = await Effect.runPromise(
@@ -186,11 +165,7 @@ export class LinkProcessorDO
       }
 
       // Generate AI summary using extracted content (or fall back to metadata)
-      const summaryContent = await this.generateSummary(
-        link.url,
-        metadataResult,
-        extractedContent,
-      )
+      const summaryContent = await this.generateSummary(link.url, metadataResult, extractedContent)
 
       if (summaryContent) {
         const summaryId = nanoid()
@@ -232,7 +207,7 @@ export class LinkProcessorDO
 
   private async generateSummary(
     url: string,
-    metadata: { title?: string description?: string } | null,
+    metadata: { title?: string; description?: string } | null,
     extractedContent: ExtractedContent | null,
   ): Promise<string | null> {
     try {
@@ -241,10 +216,8 @@ export class LinkProcessorDO
 
       if (extractedContent?.content) {
         // Use extracted markdown content (truncated to fit context)
-        const title = extractedContent.title || metadata?.title || ""
-        content = title
-          ? `# ${title}\n\n${extractedContent.content}`
-          : extractedContent.content
+        const title = extractedContent.title || metadata?.title || ''
+        content = title ? `# ${title}\n\n${extractedContent.content}` : extractedContent.content
       } else {
         // Fall back to metadata only
         const contentParts: string[] = [`URL: ${url}`]
@@ -254,7 +227,7 @@ export class LinkProcessorDO
         if (metadata?.description) {
           contentParts.push(`Description: ${metadata.description}`)
         }
-        content = contentParts.join("\n")
+        content = contentParts.join('\n')
       }
 
       // Truncate to ~4000 chars to fit in context window
@@ -263,19 +236,19 @@ export class LinkProcessorDO
       const response = await this.env.AI.run(AI_MODEL, {
         messages: [
           {
-            role: "system",
+            role: 'system',
             content:
               'Summarize web pages in 2-3 sentences. Output ONLY the summary itself - no preamble, no "Here is a summary", no introductory phrases. Start directly with the content.',
           },
           {
-            role: "user",
+            role: 'user',
             content: truncatedContent,
           },
         ],
         max_tokens: 200,
       })
 
-      if ("response" in response && typeof response.response === "string") {
+      if ('response' in response && typeof response.response === 'string') {
         return response.response.trim()
       }
 
@@ -288,14 +261,14 @@ export class LinkProcessorDO
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
-    const storeId = url.searchParams.get("storeId")
+    const storeId = url.searchParams.get('storeId')
 
     if (!storeId) {
-      return new Response("Missing storeId parameter", { status: 400 })
+      return new Response('Missing storeId parameter', { status: 400 })
     }
 
     await this.initialize(storeId)
 
-    return new Response("LinkProcessorDO initialized", { status: 200 })
+    return new Response('LinkProcessorDO initialized', { status: 200 })
   }
 }
