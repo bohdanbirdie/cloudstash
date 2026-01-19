@@ -232,7 +232,7 @@ export class LinkProcessorDO
 
   private async generateSummary(
     url: string,
-    metadata: { title?: string description?: string } | null,
+    metadata: { title?: string; description?: string } | null,
     extractedContent: ExtractedContent | null,
   ): Promise<string | null> {
     try {
