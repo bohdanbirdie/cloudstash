@@ -7,6 +7,7 @@ import {
   useEffect,
   type ReactNode,
 } from "react";
+import { tables } from "@/livestore/schema";
 
 import {
   Dialog,
@@ -16,6 +17,14 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { events } from "@/livestore/schema";
@@ -54,6 +63,80 @@ interface OgMetadata {
   url?: string;
 }
 
+function LinkPreviewSkeleton() {
+  return (
+    <Card className="mt-4">
+      <Skeleton className="aspect-video w-full" />
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-4 w-4 rounded-full" />
+          <Skeleton className="h-3 w-24" />
+        </div>
+        <Skeleton className="h-5 w-3/4" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-2/3" />
+      </CardHeader>
+    </Card>
+  );
+}
+
+function LinkPreviewCard({
+  metadata,
+  url,
+}: {
+  metadata: OgMetadata;
+  url: string;
+}) {
+  const displayTitle = metadata.title || url;
+  let domain = "";
+  try {
+    domain = new URL(url).hostname;
+  } catch {
+    domain = url.split("/")[0];
+  }
+
+  return (
+    <Card className={metadata.image ? "mt-4 pt-0" : "mt-4"}>
+      {metadata.image && (
+        <div className="aspect-video w-full overflow-hidden">
+          <img
+            src={metadata.image}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        </div>
+      )}
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          {metadata.logo && (
+            <img src={metadata.logo} alt="" className="h-4 w-4 shrink-0" />
+          )}
+          <span className="text-muted-foreground text-xs truncate">
+            {domain}
+          </span>
+        </div>
+        <CardTitle className="line-clamp-2 text-base">{displayTitle}</CardTitle>
+        {metadata.description && (
+          <CardDescription className="line-clamp-3">
+            {metadata.description}
+          </CardDescription>
+        )}
+      </CardHeader>
+    </Card>
+  );
+}
+
+// Normalize URL for comparison (strips protocol, www, and trailing slash)
+function normalizeUrl(urlString: string): string {
+  try {
+    const u = new URL(urlString);
+    // Remove protocol, www prefix, and trailing slash
+    return u.host.replace(/^www\./, "") + u.pathname.replace(/\/$/, "") + u.search + u.hash;
+  } catch {
+    return urlString.toLowerCase().trim();
+  }
+}
+
 // Dialog content component - only rendered when dialog is open
 function AddLinkDialogContent({
   url,
@@ -69,6 +152,17 @@ function AddLinkDialogContent({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Query existing links (excluding deleted ones)
+  const existingLinks = store.useQuery(tables.links.where({ deletedAt: null }));
+
+  // Check for duplicate URL
+  const trimmedUrl = url.trim();
+  const urlResult = trimmedUrl ? Schema.decodeUnknownOption(UrlSchema)(trimmedUrl) : Option.none();
+  const normalizedInput = Option.isSome(urlResult) ? normalizeUrl(urlResult.value.href) : null;
+  const existingLink = normalizedInput
+    ? existingLinks.find((link) => normalizeUrl(link.url) === normalizedInput) ?? null
+    : null;
+
   const fetchMetadata = useCallback(async (targetUrl: string) => {
     setIsLoading(true);
     setError(null);
@@ -76,7 +170,7 @@ function AddLinkDialogContent({
 
     try {
       const response = await fetch(
-        `/api/metadata?url=${encodeURIComponent(targetUrl)}`
+        `/api/metadata?url=${encodeURIComponent(targetUrl)}`,
       );
       const data = (await response.json()) as OgMetadata & { error?: string };
 
@@ -121,14 +215,40 @@ function AddLinkDialogContent({
       domain = trimmedUrl.split("/")[0];
     }
 
-    store.commit(
-      events.linkCreated({
-        id: crypto.randomUUID(),
-        url: trimmedUrl,
-        domain,
-        createdAt: new Date(),
-      }),
-    );
+    const linkId = crypto.randomUUID();
+    const now = new Date();
+
+    // Batch both events in a single commit to avoid race condition with LinkProcessorDO
+    // If committed separately, the processor might see LinkCreated before LinkMetadataFetched
+    // arrives, causing ServerAheadError when it tries to commit its own events
+    if (metadata) {
+      store.commit(
+        events.linkCreated({
+          id: linkId,
+          url: trimmedUrl,
+          domain,
+          createdAt: now,
+        }),
+        events.linkMetadataFetched({
+          id: crypto.randomUUID(),
+          linkId,
+          title: metadata.title ?? null,
+          description: metadata.description ?? null,
+          image: metadata.image ?? null,
+          favicon: metadata.logo ?? null,
+          fetchedAt: now,
+        }),
+      );
+    } else {
+      store.commit(
+        events.linkCreated({
+          id: linkId,
+          url: trimmedUrl,
+          domain,
+          createdAt: now,
+        }),
+      );
+    }
 
     onClose();
   };
@@ -146,13 +266,17 @@ function AddLinkDialogContent({
           onChange={(e) => setUrl(e.target.value)}
           autoFocus
         />
-        {isLoading && <p className="mt-2 text-sm text-muted-foreground">Loading metadata...</p>}
-        {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
-        {metadata && (
-          <pre className="mt-2 p-2 text-xs bg-muted rounded overflow-auto max-h-40">
-            {JSON.stringify(metadata, null, 2)}
-          </pre>
+        {existingLink && (
+          <Alert className="mt-2 bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200">
+            <AlertDescription>
+              This link was already added on{" "}
+              {existingLink.createdAt.toLocaleDateString()}
+            </AlertDescription>
+          </Alert>
         )}
+        {isLoading && <LinkPreviewSkeleton />}
+        {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+        {!isLoading && metadata && <LinkPreviewCard metadata={metadata} url={url} />}
         <DialogFooter className="mt-4">
           <DialogClose render={<Button variant="outline" />}>
             Cancel

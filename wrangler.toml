@@ -11,9 +11,20 @@ run_worker_first = ["/sync*", "/api/*"]
 name = "SYNC_BACKEND_DO"
 class_name = "SyncBackendDO"
 
+[[durable_objects.bindings]]
+name = "LINK_PROCESSOR_DO"
+class_name = "LinkProcessorDO"
+
+[ai]
+binding = "AI"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["SyncBackendDO"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["LinkProcessorDO"]
 
 # Environment configurations
 [env.production]
@@ -23,9 +34,20 @@ name = "link-bucket"
 name = "SYNC_BACKEND_DO"
 class_name = "SyncBackendDO"
 
+[[env.production.durable_objects.bindings]]
+name = "LINK_PROCESSOR_DO"
+class_name = "LinkProcessorDO"
+
+[env.production.ai]
+binding = "AI"
+
 [[env.production.migrations]]
 tag = "v1"
 new_sqlite_classes = ["SyncBackendDO"]
+
+[[env.production.migrations]]
+tag = "v2"
+new_sqlite_classes = ["LinkProcessorDO"]
 
 [env.preview]
 name = "link-bucket-preview"
@@ -34,9 +56,20 @@ name = "link-bucket-preview"
 name = "SYNC_BACKEND_DO"
 class_name = "SyncBackendDO"
 
+[[env.preview.durable_objects.bindings]]
+name = "LINK_PROCESSOR_DO"
+class_name = "LinkProcessorDO"
+
+[env.preview.ai]
+binding = "AI"
+
 [[env.preview.migrations]]
 tag = "v1"
 new_sqlite_classes = ["SyncBackendDO"]
+
+[[env.preview.migrations]]
+tag = "v2"
+new_sqlite_classes = ["LinkProcessorDO"]
 
 [env.development]
 name = "link-bucket-dev"
@@ -45,6 +78,17 @@ name = "link-bucket-dev"
 name = "SYNC_BACKEND_DO"
 class_name = "SyncBackendDO"
 
+[[env.development.durable_objects.bindings]]
+name = "LINK_PROCESSOR_DO"
+class_name = "LinkProcessorDO"
+
+[env.development.ai]
+binding = "AI"
+
 [[env.development.migrations]]
 tag = "v1"
 new_sqlite_classes = ["SyncBackendDO"]
+
+[[env.development.migrations]]
+tag = "v2"
+new_sqlite_classes = ["LinkProcessorDO"]

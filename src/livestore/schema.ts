@@ -26,6 +26,25 @@ export const tables = {
       fetchedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
     },
   }),
+  linkSummaries: State.SQLite.table({
+    name: 'link_summaries',
+    columns: {
+      id: State.SQLite.text({ primaryKey: true }),
+      linkId: State.SQLite.text({ default: '' }),
+      summary: State.SQLite.text({ default: '' }),
+      model: State.SQLite.text({ default: '' }),
+      summarizedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+    },
+  }),
+  linkProcessingStatus: State.SQLite.table({
+    name: 'link_processing_status',
+    columns: {
+      linkId: State.SQLite.text({ primaryKey: true }),
+      status: State.SQLite.text({ default: 'pending' }), // pending | completed | failed
+      error: State.SQLite.text({ nullable: true }),
+      updatedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+    },
+  }),
 }
 
 // Events describe data changes
@@ -63,6 +82,42 @@ export const events = {
     name: 'v1.LinkDeleted',
     schema: Schema.Struct({ id: Schema.String, deletedAt: Schema.Date }),
   }),
+  linkRestored: Events.synced({
+    name: 'v1.LinkRestored',
+    schema: Schema.Struct({ id: Schema.String }),
+  }),
+  linkSummarized: Events.synced({
+    name: 'v1.LinkSummarized',
+    schema: Schema.Struct({
+      id: Schema.String,
+      linkId: Schema.String,
+      summary: Schema.String,
+      model: Schema.String,
+      summarizedAt: Schema.Date,
+    }),
+  }),
+  linkProcessingStarted: Events.synced({
+    name: 'v1.LinkProcessingStarted',
+    schema: Schema.Struct({
+      linkId: Schema.String,
+      updatedAt: Schema.Date,
+    }),
+  }),
+  linkProcessingCompleted: Events.synced({
+    name: 'v1.LinkProcessingCompleted',
+    schema: Schema.Struct({
+      linkId: Schema.String,
+      updatedAt: Schema.Date,
+    }),
+  }),
+  linkProcessingFailed: Events.synced({
+    name: 'v1.LinkProcessingFailed',
+    schema: Schema.Struct({
+      linkId: Schema.String,
+      error: Schema.String,
+      updatedAt: Schema.Date,
+    }),
+  }),
 }
 
 // Materializers map events to state
@@ -77,6 +132,16 @@ const materializers = State.SQLite.materializers(events, {
     tables.links.update({ status: 'unread', completedAt: null }).where({ id }),
   'v1.LinkDeleted': ({ id, deletedAt }) =>
     tables.links.update({ deletedAt }).where({ id }),
+  'v1.LinkRestored': ({ id }) =>
+    tables.links.update({ deletedAt: null }).where({ id }),
+  'v1.LinkSummarized': ({ id, linkId, summary, model, summarizedAt }) =>
+    tables.linkSummaries.insert({ id, linkId, summary, model, summarizedAt }),
+  'v1.LinkProcessingStarted': ({ linkId, updatedAt }) =>
+    tables.linkProcessingStatus.insert({ linkId, status: 'pending', error: null, updatedAt }),
+  'v1.LinkProcessingCompleted': ({ linkId, updatedAt }) =>
+    tables.linkProcessingStatus.update({ status: 'completed', updatedAt }).where({ linkId }),
+  'v1.LinkProcessingFailed': ({ linkId, error, updatedAt }) =>
+    tables.linkProcessingStatus.update({ status: 'failed', error, updatedAt }).where({ linkId }),
 })
 
 const state = State.SQLite.makeState({ tables, materializers })
