@@ -101,7 +101,7 @@ export class LinkProcessorDO
   }
 
   private async processNewLinks(
-    links: Array<{ id: string; url: string; deletedAt: Date | null }>,
+    links: Array<{ id: string url: string deletedAt: Date | null }>,
   ) {
     if (!this.store) return
 
@@ -129,7 +129,7 @@ export class LinkProcessorDO
     }
   }
 
-  private async processLink(link: { id: string; url: string }) {
+  private async processLink(link: { id: string url: string }) {
     if (!this.store) return
 
     const now = new Date()
@@ -232,7 +232,7 @@ export class LinkProcessorDO
 
   private async generateSummary(
     url: string,
-    metadata: { title?: string; description?: string } | null,
+    metadata: { title?: string description?: string } | null,
     extractedContent: ExtractedContent | null,
   ): Promise<string | null> {
     try {
