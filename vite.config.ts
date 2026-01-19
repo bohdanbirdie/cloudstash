@@ -17,8 +17,6 @@ export default defineConfig({
   optimizeDeps: {
     // TODO remove once fixed https://github.com/vitejs/vite/issues/8427
     exclude: ['@livestore/wa-sqlite'],
-    // Force pre-bundling to convert CommonJS to ESM for Workers compatibility
-    include: ['linkedom', '@mozilla/readability', 'turndown'],
   },
   plugins: [
     cloudflare(),

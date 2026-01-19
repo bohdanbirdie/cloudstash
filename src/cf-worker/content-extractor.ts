@@ -1,14 +1,12 @@
-import { parseHTML } from 'linkedom'
-import { Readability } from '@mozilla/readability'
+import { parseDocument } from 'htmlparser2'
+import { textContent, getElementsByTagName, removeElement, getAttributeValue } from 'domutils'
+import type { Document, Element } from 'domhandler'
+import render from 'dom-serializer'
 import TurndownService from 'turndown'
 
 export interface ExtractedContent {
   title: string | null
   content: string // markdown content
-  textContent: string // plain text
-  excerpt: string | null
-  byline: string | null
-  siteName: string | null
 }
 
 const turndownService = new TurndownService({
@@ -16,48 +14,144 @@ const turndownService = new TurndownService({
   codeBlockStyle: 'fenced',
 })
 
-// Remove script, style, nav, footer, aside elements
-turndownService.remove(['script', 'style', 'nav', 'footer', 'aside', 'iframe', 'noscript'])
+// Tags to remove entirely (noise)
+const REMOVE_TAGS = ['script', 'style', 'nav', 'footer', 'aside', 'iframe', 'noscript', 'header', 'form', 'button']
 
 /**
- * Extracts the main article content from HTML and converts it to markdown.
- * Uses Mozilla's Readability (Firefox Reader Mode algorithm) + Turndown.
+ * Cleans up whitespace in text.
  */
-export function extractContent(html: string, url: string): ExtractedContent | null {
+function cleanText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Gets clean text content from an element.
+ */
+function getCleanText(element: Element | Document): string {
+  return cleanText(textContent(element))
+}
+
+/**
+ * Finds the best content container in the document.
+ */
+function findMainContent(doc: Document): Element | Document {
+  // Try semantic content tags first
+  for (const tag of ['article', 'main']) {
+    const elements = getElementsByTagName(tag, doc, true)
+    if (elements.length > 0) {
+      // Return the largest one by text content
+      let best = elements[0]
+      let bestLength = getCleanText(best).length
+      for (const el of elements) {
+        const len = getCleanText(el).length
+        if (len > bestLength) {
+          best = el
+          bestLength = len
+        }
+      }
+      return best
+    }
+  }
+
+  // Try role="main"
+  const allElements = getElementsByTagName('*', doc, true)
+  for (const el of allElements) {
+    if (getAttributeValue(el, 'role') === 'main') {
+      return el
+    }
+  }
+
+  // Fall back to body
+  const body = getElementsByTagName('body', doc, true)
+  if (body.length > 0) {
+    return body[0]
+  }
+
+  return doc
+}
+
+/**
+ * Extracts the page title.
+ */
+function extractTitle(doc: Document): string | null {
+  // Try <title> tag
+  const titleElements = getElementsByTagName('title', doc, true)
+  if (titleElements.length > 0) {
+    const text = getCleanText(titleElements[0])
+    if (text) return text
+  }
+
+  // Try <h1>
+  const h1Elements = getElementsByTagName('h1', doc, true)
+  if (h1Elements.length > 0) {
+    const text = getCleanText(h1Elements[0])
+    if (text) return text
+  }
+
+  // Try og:title meta tag
+  const metaTags = getElementsByTagName('meta', doc, true)
+  for (const meta of metaTags) {
+    const property = getAttributeValue(meta, 'property') || getAttributeValue(meta, 'name')
+    if (property === 'og:title' || property === 'twitter:title') {
+      const content = getAttributeValue(meta, 'content')
+      if (content) return content
+    }
+  }
+
+  return null
+}
+
+/**
+ * Removes unwanted elements from the document.
+ */
+function removeNoiseElements(doc: Document): void {
+  for (const tag of REMOVE_TAGS) {
+    const elements = getElementsByTagName(tag, doc, true)
+    for (const el of elements) {
+      removeElement(el)
+    }
+  }
+}
+
+/**
+ * Extracts the main content from HTML and converts it to markdown.
+ * Uses htmlparser2 (pure ESM, Workers-compatible) for parsing.
+ */
+export function extractContent(html: string, _url: string): ExtractedContent | null {
   try {
-    // Parse HTML with linkedom
-    const { document } = parseHTML(html)
+    const doc = parseDocument(html)
 
-    // Use Readability to extract main article content
-    const reader = new Readability(document as unknown as Document, {
-      charThreshold: 100,
-    })
+    // Extract title before removing elements
+    const title = extractTitle(doc)
 
-    const article = reader.parse()
+    // Remove noise elements
+    removeNoiseElements(doc)
 
-    if (!article || !article.content) {
+    // Find main content
+    const mainContent = findMainContent(doc)
+    const text = getCleanText(mainContent)
+
+    // Require minimum content length
+    if (!text || text.length < 100) {
       return null
     }
 
-    // Convert HTML content to markdown
-    const markdown = turndownService.turndown(article.content)
+    // Convert HTML to markdown
+    const contentHtml = render(mainContent)
+    const markdown = turndownService.turndown(contentHtml)
 
     return {
-      title: article.title || null,
-      content: markdown,
-      textContent: article.textContent || '',
-      excerpt: article.excerpt || null,
-      byline: article.byline || null,
-      siteName: article.siteName || null,
+      title,
+      content: markdown || text, // Fall back to plain text if turndown fails
     }
   } catch (error) {
-    console.error(`Failed to extract content from ${url}:`, error)
+    console.error(`Failed to extract content:`, error)
     return null
   }
 }
 
 /**
- * Fetches a URL and extracts its content as markdown.
+ * Fetches a URL and extracts its content.
  */
 export async function fetchAndExtractContent(url: string): Promise<ExtractedContent | null> {
   try {
