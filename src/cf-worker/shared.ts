@@ -1,6 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 import type { SyncBackendDO } from './index'
-import type { LinkProcessorDO } from './link-processor-do'
+import type { LinkProcessorDO } from './link-processor'
 
 export type Env = {
   SYNC_BACKEND_DO: DurableObjectNamespace<SyncBackendDO>

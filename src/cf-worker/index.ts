@@ -10,7 +10,7 @@ import { createDb } from './db'
 import { metadataRequestToResponse } from './metadata/service'
 import type { Env } from './shared'
 
-export { LinkProcessorDO } from './link-processor-do'
+export { LinkProcessorDO } from './link-processor'
 
 // Current SyncBackendDO instance - set in constructor so it's always available
 let currentSyncBackend: {
