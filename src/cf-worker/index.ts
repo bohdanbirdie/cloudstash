@@ -47,7 +47,7 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
 
 const validatePayload = async (
   payload: typeof SyncPayload.Type | undefined,
-  context: { storeId: string },
+  _context: { storeId: string },
   env: Env,
 ) => {
   if (!payload?.authToken) {
