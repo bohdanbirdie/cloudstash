@@ -1,12 +1,17 @@
+import { CheckIcon } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 import type { LinkWithDetails } from '@/livestore/queries'
 
 interface LinkCardProps {
   link: LinkWithDetails
   onClick: () => void
+  selected?: boolean
+  selectionMode?: boolean
+  onSelect?: () => void
 }
 
-export function LinkCard({ link, onClick }: LinkCardProps) {
+export function LinkCard({ link, onClick, selected, selectionMode, onSelect }: LinkCardProps) {
   const displayTitle = link.title || link.url
   const formattedDate = new Date(link.createdAt).toLocaleDateString(undefined, {
     month: 'short',
@@ -14,13 +19,37 @@ export function LinkCard({ link, onClick }: LinkCardProps) {
     year: 'numeric',
   })
 
+  const handleClick = (e: React.MouseEvent) => {
+    if ((e.metaKey || e.ctrlKey) && onSelect) {
+      e.preventDefault()
+      onSelect()
+    } else {
+      onClick()
+    }
+  }
+
   return (
     <button
       type='button'
-      onClick={onClick}
-      className='block w-full text-left transition-opacity hover:opacity-80 cursor-pointer'
+      onClick={handleClick}
+      className={cn(
+        'block w-full text-left cursor-pointer relative transition-all',
+        selectionMode
+          ? 'hover:ring-2 hover:ring-primary hover:ring-offset-2'
+          : 'hover:opacity-80'
+      )}
     >
-      <Card className={link.image ? 'h-full pt-0' : 'h-full'}>
+      {selected && (
+        <div className='absolute -top-2 -right-2 z-10 rounded-full bg-primary p-1 shadow-md'>
+          <CheckIcon className='h-3 w-3 text-primary-foreground' />
+        </div>
+      )}
+      <Card
+        className={cn(
+          link.image ? 'h-full pt-0' : 'h-full',
+          selected && 'ring-2 ring-primary ring-offset-2'
+        )}
+      >
         {link.image && (
           <div className='aspect-video w-full overflow-hidden'>
             <img src={link.image} alt='' className='h-full w-full object-cover' />

@@ -152,7 +152,6 @@ export function LinkDetailModal({
               disabled={!hasPrevious}
               aria-label='Previous link'
               hotkey='BracketLeft'
-              kbdLabel='['
               hotkeyEnabled={open}
             >
               <ChevronLeftIcon className='h-4 w-4' />
@@ -165,7 +164,6 @@ export function LinkDetailModal({
               disabled={!hasNext}
               aria-label='Next link'
               hotkey='BracketRight'
-              kbdLabel=']'
               hotkeyEnabled={open}
             >
               <ChevronRightIcon className='h-4 w-4' />
@@ -177,8 +175,7 @@ export function LinkDetailModal({
               onClick={isCompleted ? onUncomplete : onComplete}
               onHotkeyPress={isCompleted ? onUncomplete : onComplete}
               aria-label={isCompleted ? 'Mark as unread' : 'Mark as complete'}
-              hotkey='Enter'
-              kbdLabel='↵'
+              hotkey='meta+enter'
               hotkeyEnabled={open}
             >
               {isCompleted ? <UndoIcon className='h-4 w-4' /> : <CheckIcon className='h-4 w-4' />}
@@ -189,8 +186,7 @@ export function LinkDetailModal({
               onClick={isDeleted ? onRestore : onDelete}
               onHotkeyPress={isDeleted ? onRestore : onDelete}
               aria-label={isDeleted ? 'Restore link' : 'Delete link'}
-              hotkey='Backspace'
-              kbdLabel='Bksp'
+              hotkey='meta+backspace'
               hotkeyEnabled={open}
             >
               {isDeleted ? (

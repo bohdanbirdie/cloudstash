@@ -1,12 +1,16 @@
-import { useState } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { createFileRoute, Navigate } from '@tanstack/react-router'
 import { DownloadIcon } from 'lucide-react'
 import { LinkGrid } from '@/components/link-card'
+import type { LinkGridRef } from '@/components/link-card'
 import { ExportDialog } from '@/components/export-dialog'
+import { SelectionToolbar } from '@/components/selection-toolbar'
 import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth-client'
+import { events } from '@/livestore/schema'
 import { useAppStore } from '@/livestore/store'
 import { trashLinks$ } from '@/livestore/queries'
+import type { LinkWithDetails } from '@/livestore/queries'
 
 export const Route = createFileRoute('/trash')({
   component: TrashPage,
@@ -26,6 +30,18 @@ function TrashPageContent() {
   const store = useAppStore()
   const links = store.useQuery(trashLinks$)
   const [exportOpen, setExportOpen] = useState(false)
+  const [selectedLinks, setSelectedLinks] = useState<LinkWithDetails[]>([])
+  const gridRef = useRef<LinkGridRef>(null)
+
+  const handleBulkRestore = useCallback(() => {
+    for (const link of selectedLinks) {
+      store.commit(events.linkRestored({ id: link.id }))
+    }
+  }, [selectedLinks, store])
+
+  const handleClearSelection = useCallback(() => {
+    gridRef.current?.clearSelection()
+  }, [])
 
   return (
     <div className='p-6'>
@@ -39,12 +55,25 @@ function TrashPageContent() {
           Export
         </Button>
       </div>
-      <LinkGrid links={links} emptyMessage='Trash is empty' />
+      <LinkGrid
+        ref={gridRef}
+        links={links}
+        emptyMessage='Trash is empty'
+        onSelectionChange={setSelectedLinks}
+      />
+      <SelectionToolbar
+        selectedCount={selectedLinks.length}
+        onExport={() => setExportOpen(true)}
+        onDelete={handleBulkRestore}
+        onClear={handleClearSelection}
+        showComplete={false}
+        isTrash
+      />
       <ExportDialog
         open={exportOpen}
         onOpenChange={setExportOpen}
-        links={links}
-        pageTitle='Trash'
+        links={selectedLinks.length > 0 ? selectedLinks : links}
+        pageTitle={selectedLinks.length > 0 ? 'Selected Links' : 'Trash'}
       />
     </div>
   )

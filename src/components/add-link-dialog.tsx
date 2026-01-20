@@ -243,10 +243,10 @@ function AddLinkDialogContent({
         {error && <p className='mt-2 text-sm text-destructive'>{error}</p>}
         {!isLoading && metadata && <LinkPreviewCard metadata={metadata} url={url} />}
         <DialogFooter className='mt-4'>
-          <DialogClose render={<HotkeyButton variant='outline' kbdLabel='Esc' />}>
+          <DialogClose render={<HotkeyButton variant='outline' hotkey='escape' />}>
             Cancel
           </DialogClose>
-          <HotkeyButton type='submit' disabled={!url.trim()} kbdLabel='↵'>
+          <HotkeyButton type='submit' disabled={!url.trim()} hotkey='enter'>
             Add
           </HotkeyButton>
         </DialogFooter>

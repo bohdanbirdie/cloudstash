@@ -1,12 +1,16 @@
-import { useState } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { createFileRoute, Navigate } from '@tanstack/react-router'
 import { DownloadIcon } from 'lucide-react'
 import { LinkGrid } from '@/components/link-card'
+import type { LinkGridRef } from '@/components/link-card'
 import { ExportDialog } from '@/components/export-dialog'
+import { SelectionToolbar } from '@/components/selection-toolbar'
 import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth-client'
+import { events } from '@/livestore/schema'
 import { useAppStore } from '@/livestore/store'
 import { completedLinks$ } from '@/livestore/queries'
+import type { LinkWithDetails } from '@/livestore/queries'
 
 export const Route = createFileRoute('/completed')({
   component: CompletedPage,
@@ -26,6 +30,24 @@ function CompletedPageContent() {
   const store = useAppStore()
   const links = store.useQuery(completedLinks$)
   const [exportOpen, setExportOpen] = useState(false)
+  const [selectedLinks, setSelectedLinks] = useState<LinkWithDetails[]>([])
+  const gridRef = useRef<LinkGridRef>(null)
+
+  const handleBulkUncomplete = useCallback(() => {
+    for (const link of selectedLinks) {
+      store.commit(events.linkUncompleted({ id: link.id }))
+    }
+  }, [selectedLinks, store])
+
+  const handleBulkDelete = useCallback(() => {
+    for (const link of selectedLinks) {
+      store.commit(events.linkDeleted({ id: link.id, deletedAt: new Date() }))
+    }
+  }, [selectedLinks, store])
+
+  const handleClearSelection = useCallback(() => {
+    gridRef.current?.clearSelection()
+  }, [])
 
   return (
     <div className='p-6'>
@@ -39,12 +61,25 @@ function CompletedPageContent() {
           Export
         </Button>
       </div>
-      <LinkGrid links={links} emptyMessage='No completed links yet' />
+      <LinkGrid
+        ref={gridRef}
+        links={links}
+        emptyMessage='No completed links yet'
+        onSelectionChange={setSelectedLinks}
+      />
+      <SelectionToolbar
+        selectedCount={selectedLinks.length}
+        onExport={() => setExportOpen(true)}
+        onComplete={handleBulkUncomplete}
+        onDelete={handleBulkDelete}
+        onClear={handleClearSelection}
+        isCompleted
+      />
       <ExportDialog
         open={exportOpen}
         onOpenChange={setExportOpen}
-        links={links}
-        pageTitle='Completed'
+        links={selectedLinks.length > 0 ? selectedLinks : links}
+        pageTitle={selectedLinks.length > 0 ? 'Selected Links' : 'Completed'}
       />
     </div>
   )

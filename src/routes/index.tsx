@@ -1,12 +1,16 @@
-import { useState } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { createFileRoute, Navigate } from '@tanstack/react-router'
 import { DownloadIcon } from 'lucide-react'
 import { LinkGrid } from '@/components/link-card'
+import type { LinkGridRef } from '@/components/link-card'
 import { ExportDialog } from '@/components/export-dialog'
+import { SelectionToolbar } from '@/components/selection-toolbar'
 import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth-client'
+import { events } from '@/livestore/schema'
 import { useAppStore } from '@/livestore/store'
 import { inboxLinks$ } from '@/livestore/queries'
+import type { LinkWithDetails } from '@/livestore/queries'
 
 export const Route = createFileRoute('/')({
   component: HomePage,
@@ -26,6 +30,24 @@ function HomePageContent() {
   const store = useAppStore()
   const links = store.useQuery(inboxLinks$)
   const [exportOpen, setExportOpen] = useState(false)
+  const [selectedLinks, setSelectedLinks] = useState<LinkWithDetails[]>([])
+  const gridRef = useRef<LinkGridRef>(null)
+
+  const handleBulkComplete = useCallback(() => {
+    for (const link of selectedLinks) {
+      store.commit(events.linkCompleted({ id: link.id, completedAt: new Date() }))
+    }
+  }, [selectedLinks, store])
+
+  const handleBulkDelete = useCallback(() => {
+    for (const link of selectedLinks) {
+      store.commit(events.linkDeleted({ id: link.id, deletedAt: new Date() }))
+    }
+  }, [selectedLinks, store])
+
+  const handleClearSelection = useCallback(() => {
+    gridRef.current?.clearSelection()
+  }, [])
 
   return (
     <div className='p-6'>
@@ -39,12 +61,24 @@ function HomePageContent() {
           Export
         </Button>
       </div>
-      <LinkGrid links={links} emptyMessage='No links in your inbox' />
+      <LinkGrid
+        ref={gridRef}
+        links={links}
+        emptyMessage='No links in your inbox'
+        onSelectionChange={setSelectedLinks}
+      />
+      <SelectionToolbar
+        selectedCount={selectedLinks.length}
+        onExport={() => setExportOpen(true)}
+        onComplete={handleBulkComplete}
+        onDelete={handleBulkDelete}
+        onClear={handleClearSelection}
+      />
       <ExportDialog
         open={exportOpen}
         onOpenChange={setExportOpen}
-        links={links}
-        pageTitle='Inbox'
+        links={selectedLinks.length > 0 ? selectedLinks : links}
+        pageTitle={selectedLinks.length > 0 ? 'Selected Links' : 'Inbox'}
       />
     </div>
   )
