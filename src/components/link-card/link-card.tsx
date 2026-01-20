@@ -5,13 +5,12 @@ import type { LinkWithDetails } from '@/livestore/queries'
 
 interface LinkCardProps {
   link: LinkWithDetails
-  onClick: () => void
+  onClick: (e: React.MouseEvent) => void
   selected?: boolean
   selectionMode?: boolean
-  onSelect?: () => void
 }
 
-export function LinkCard({ link, onClick, selected, selectionMode, onSelect }: LinkCardProps) {
+export function LinkCard({ link, onClick, selected, selectionMode }: LinkCardProps) {
   const displayTitle = link.title || link.url
   const formattedDate = new Date(link.createdAt).toLocaleDateString(undefined, {
     month: 'short',
@@ -19,24 +18,15 @@ export function LinkCard({ link, onClick, selected, selectionMode, onSelect }: L
     year: 'numeric',
   })
 
-  const handleClick = (e: React.MouseEvent) => {
-    if ((e.metaKey || e.ctrlKey) && onSelect) {
-      e.preventDefault()
-      onSelect()
-    } else {
-      onClick()
-    }
-  }
-
   return (
     <button
       type='button'
-      onClick={handleClick}
+      onClick={onClick}
       className={cn(
-        'block w-full text-left cursor-pointer relative transition-all',
+        'block w-full text-left relative transition-all',
         selectionMode
           ? 'hover:ring-2 hover:ring-primary hover:ring-offset-2'
-          : 'hover:opacity-80'
+          : '[&_[data-slot=card]]:hover:bg-muted/50 [&_[data-slot=card]]:hover:ring-foreground/40'
       )}
     >
       {selected && (
@@ -46,6 +36,7 @@ export function LinkCard({ link, onClick, selected, selectionMode, onSelect }: L
       )}
       <Card
         className={cn(
+          'transition-shadow',
           link.image ? 'h-full pt-0' : 'h-full',
           selected && 'ring-2 ring-primary ring-offset-2'
         )}

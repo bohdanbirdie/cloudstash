@@ -1,14 +1,14 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { createFileRoute, Navigate } from '@tanstack/react-router'
 import { DownloadIcon } from 'lucide-react'
 import { LinkGrid } from '@/components/link-card'
-import type { LinkGridRef } from '@/components/link-card'
 import { ExportDialog } from '@/components/export-dialog'
 import { SelectionToolbar } from '@/components/selection-toolbar'
 import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth-client'
 import { events } from '@/livestore/schema'
 import { useAppStore } from '@/livestore/store'
+import { useSelectionStore } from '@/stores/selection-store'
 import { trashLinks$ } from '@/livestore/queries'
 import type { LinkWithDetails } from '@/livestore/queries'
 
@@ -29,19 +29,17 @@ function TrashPage() {
 function TrashPageContent() {
   const store = useAppStore()
   const links = store.useQuery(trashLinks$)
+  const clear = useSelectionStore((s) => s.clear)
   const [exportOpen, setExportOpen] = useState(false)
   const [selectedLinks, setSelectedLinks] = useState<LinkWithDetails[]>([])
-  const gridRef = useRef<LinkGridRef>(null)
+
+  useEffect(() => clear, [clear])
 
   const handleBulkRestore = useCallback(() => {
     for (const link of selectedLinks) {
       store.commit(events.linkRestored({ id: link.id }))
     }
   }, [selectedLinks, store])
-
-  const handleClearSelection = useCallback(() => {
-    gridRef.current?.clearSelection()
-  }, [])
 
   return (
     <div className='p-6'>
@@ -55,17 +53,12 @@ function TrashPageContent() {
           Export
         </Button>
       </div>
-      <LinkGrid
-        ref={gridRef}
-        links={links}
-        emptyMessage='Trash is empty'
-        onSelectionChange={setSelectedLinks}
-      />
+      <LinkGrid links={links} emptyMessage='Trash is empty' onSelectionChange={setSelectedLinks} />
       <SelectionToolbar
         selectedCount={selectedLinks.length}
         onExport={() => setExportOpen(true)}
         onDelete={handleBulkRestore}
-        onClear={handleClearSelection}
+        onClear={clear}
         showComplete={false}
         isTrash
       />

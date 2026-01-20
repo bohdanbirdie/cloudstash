@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect, useImperativeHandle, forwardRef } from 'react'
-import { events } from '@/livestore/schema'
-import { useAppStore } from '@/livestore/store'
-import { useModifierHold } from '@/hooks/use-modifier-hold'
+import { useState, useEffect, useMemo } from 'react'
+import { useHotkeys } from 'react-hotkeys-hook'
+import { useLinkDetailActions } from '@/hooks/use-link-detail-actions'
+import { useSelectionStore } from '@/stores/selection-store'
 import type { LinkWithDetails } from '@/livestore/queries'
 import { LinkCard } from './link-card'
 import { LinkDetailModal } from './link-detail-modal'
@@ -12,88 +12,44 @@ interface LinkGridProps {
   onSelectionChange?: (selectedLinks: LinkWithDetails[]) => void
 }
 
-export interface LinkGridRef {
-  clearSelection: () => void
-}
+export function LinkGrid({
+  links,
+  emptyMessage = 'No links yet',
+  onSelectionChange,
+}: LinkGridProps) {
+  const { selectedIds, anchorIndex, toggle, range, removeStale } = useSelectionStore()
+  const [isSelectionMode, setIsSelectionMode] = useState(false)
+  const modal = useLinkDetailActions(links)
 
-export const LinkGrid = forwardRef<LinkGridRef, LinkGridProps>(function LinkGrid(
-  { links, emptyMessage = 'No links yet', onSelectionChange },
-  ref
-) {
-  const store = useAppStore()
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const selectionMode = useModifierHold(0)
+  const linkIds = useMemo(() => links.map((l) => l.id), [links])
+  const validIdsSet = useMemo(() => new Set(linkIds), [linkIds])
 
-  const toggleSelection = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
-
-  const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
-
-  useImperativeHandle(ref, () => ({ clearSelection }), [clearSelection])
+  useHotkeys('*', (e) => setIsSelectionMode(e.metaKey || e.ctrlKey || e.shiftKey), {
+    keydown: true,
+    keyup: true,
+  })
 
   useEffect(() => {
     onSelectionChange?.(links.filter((link) => selectedIds.has(link.id)))
   }, [selectedIds, links, onSelectionChange])
 
   useEffect(() => {
-    const linkIdSet = new Set(links.map((l) => l.id))
-    setSelectedIds((prev) => {
-      const next = new Set<string>()
-      for (const id of prev) {
-        if (linkIdSet.has(id)) next.add(id)
-      }
-      return next
-    })
-  }, [links])
+    removeStale(validIdsSet)
+  }, [validIdsSet, removeStale])
 
-  const selectedLink = selectedIndex !== null ? (links[selectedIndex] ?? null) : null
-  const hasPrevious = selectedIndex !== null && selectedIndex > 0
-  const hasNext = selectedIndex !== null && selectedIndex < links.length - 1
-
-  const goToPrevious = () => {
-    if (hasPrevious) setSelectedIndex(selectedIndex - 1)
+  const handleCardClick = (index: number, e: React.MouseEvent) => {
+    const isModifierClick = e.metaKey || e.ctrlKey || e.shiftKey
+    if (!isModifierClick) {
+      modal.open(index)
+      return
+    }
+    e.preventDefault()
+    if (e.shiftKey && anchorIndex !== null) {
+      range(index, linkIds)
+    } else {
+      toggle(linkIds[index], index)
+    }
   }
-
-  const goToNext = () => {
-    if (hasNext) setSelectedIndex(selectedIndex + 1)
-  }
-
-  const moveAfterAction = useCallback(() => {
-    if (hasNext) return
-    if (hasPrevious) setSelectedIndex(selectedIndex - 1)
-    else setSelectedIndex(null)
-  }, [hasNext, hasPrevious, selectedIndex])
-
-  const handleComplete = useCallback(() => {
-    if (!selectedLink) return
-    store.commit(events.linkCompleted({ id: selectedLink.id, completedAt: new Date() }))
-    moveAfterAction()
-  }, [selectedLink, store, moveAfterAction])
-
-  const handleUncomplete = useCallback(() => {
-    if (!selectedLink) return
-    store.commit(events.linkUncompleted({ id: selectedLink.id }))
-    moveAfterAction()
-  }, [selectedLink, store, moveAfterAction])
-
-  const handleDelete = useCallback(() => {
-    if (!selectedLink) return
-    store.commit(events.linkDeleted({ id: selectedLink.id, deletedAt: new Date() }))
-    moveAfterAction()
-  }, [selectedLink, store, moveAfterAction])
-
-  const handleRestore = useCallback(() => {
-    if (!selectedLink) return
-    store.commit(events.linkRestored({ id: selectedLink.id }))
-    moveAfterAction()
-  }, [selectedLink, store, moveAfterAction])
 
   if (links.length === 0) {
     return <div className='text-muted-foreground text-center py-12'>{emptyMessage}</div>
@@ -107,28 +63,27 @@ export const LinkGrid = forwardRef<LinkGridRef, LinkGridProps>(function LinkGrid
             key={link.id}
             link={link}
             selected={selectedIds.has(link.id)}
-            selectionMode={selectionMode}
-            onClick={() => setSelectedIndex(index)}
-            onSelect={() => toggleSelection(link.id)}
+            selectionMode={isSelectionMode}
+            onClick={(e) => handleCardClick(index, e)}
           />
         ))}
       </div>
 
       <LinkDetailModal
-        link={selectedLink}
-        open={selectedIndex !== null}
+        link={modal.selectedLink}
+        open={modal.isOpen}
         onOpenChange={(open) => {
-          if (!open) setSelectedIndex(null)
+          if (!open) modal.close()
         }}
-        onPrevious={goToPrevious}
-        onNext={goToNext}
-        hasPrevious={hasPrevious}
-        hasNext={hasNext}
-        onComplete={handleComplete}
-        onUncomplete={handleUncomplete}
-        onDelete={handleDelete}
-        onRestore={handleRestore}
+        onPrevious={modal.goToPrevious}
+        onNext={modal.goToNext}
+        hasPrevious={modal.hasPrevious}
+        hasNext={modal.hasNext}
+        onComplete={modal.complete}
+        onUncomplete={modal.uncomplete}
+        onDelete={modal.remove}
+        onRestore={modal.restore}
       />
     </>
   )
-})
+}
