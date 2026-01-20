@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev --port 3000",
+    "dev:dashboard": "localflare attach --dev",
     "build": "vite build",
     "build:prod": "wrangler d1 migrations apply link-bucket-auth --remote && vite build",
     "preview": "vite preview",
@@ -64,6 +65,7 @@
     "@vitejs/plugin-react": "^5.0.4",
     "drizzle-kit": "0.31.8",
     "jsdom": "^27.0.0",
+    "localflare": "0.4.1",
     "oxfmt": "^0.25.0",
     "oxlint": "^0.16.6",
     "vite": "^7.1.7",

@@ -12,3 +12,6 @@ count.txt
 .output
 .vinxi
 todos.json
+
+# Localflare generated files
+.localflare/
