@@ -6,6 +6,8 @@ import { Suspense } from 'react'
 
 import { AppSidebar } from '@/components/app-sidebar'
 import { AddLinkDialogProvider } from '@/components/add-link-dialog'
+import { SearchCommand } from '@/components/search-command'
+import { LinkDetailModal } from '@/components/link-card/link-detail-modal'
 import { authClient } from '@/lib/auth-client'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { Spinner } from '@/components/ui/spinner'
@@ -63,6 +65,8 @@ function RootComponent() {
                 <Outlet />
               </main>
             </SidebarInset>
+            <SearchCommand />
+            <LinkDetailModal />
             <TanStackRouterDevtools position='bottom-right' />
           </SidebarProvider>
         </AddLinkDialogProvider>

@@ -1,6 +1,6 @@
 {
   "include": ["**/*.ts", "**/*.tsx", "prettier.config.js", "vite.config.js"],
-  "exclude": ["readonly-livestore-git-clone"],
+  "exclude": ["readonly-livestore-git-clone", "better-auth-example"],
 
   "compilerOptions": {
     "target": "ES2022",

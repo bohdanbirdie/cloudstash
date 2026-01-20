@@ -30,7 +30,7 @@ export function SelectionToolbar({
     () => {
       onClear()
     },
-    { enabled: selectedCount > 0, preventDefault: true }
+    { enabled: selectedCount > 0, preventDefault: true },
   )
 
   // Cmd+E to export
@@ -39,7 +39,7 @@ export function SelectionToolbar({
     () => {
       onExport()
     },
-    { enabled: selectedCount > 0, preventDefault: true }
+    { enabled: selectedCount > 0, preventDefault: true },
   )
 
   // Cmd+Enter to complete/uncomplete
@@ -50,7 +50,7 @@ export function SelectionToolbar({
         onComplete()
       }
     },
-    { enabled: selectedCount > 0 && showComplete && !!onComplete, preventDefault: true }
+    { enabled: selectedCount > 0 && showComplete && !!onComplete, preventDefault: true },
   )
 
   // Cmd+Backspace to delete/restore
@@ -59,7 +59,7 @@ export function SelectionToolbar({
     () => {
       onDelete()
     },
-    { enabled: selectedCount > 0, preventDefault: true }
+    { enabled: selectedCount > 0, preventDefault: true },
   )
 
   if (selectedCount === 0) return null
@@ -67,9 +67,7 @@ export function SelectionToolbar({
   return (
     <div className='fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 fade-in duration-200'>
       <div className='dark flex items-center gap-2 bg-popover text-popover-foreground border rounded-lg shadow-lg px-4 py-2'>
-        <span className='text-sm text-muted-foreground mr-2'>
-          {selectedCount} selected
-        </span>
+        <span className='text-sm text-muted-foreground mr-2'>{selectedCount} selected</span>
 
         <HotkeyButton
           variant='outline'

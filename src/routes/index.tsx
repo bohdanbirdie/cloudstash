@@ -14,6 +14,7 @@ import type { LinkWithDetails } from '@/livestore/queries'
 
 export const Route = createFileRoute('/')({
   component: HomePage,
+  staticData: { title: 'Inbox', icon: 'inbox' },
 })
 
 function HomePage() {
@@ -59,7 +60,11 @@ function HomePageContent() {
           Export
         </Button>
       </div>
-      <LinkGrid links={links} emptyMessage='No links in your inbox' onSelectionChange={setSelectedLinks} />
+      <LinkGrid
+        links={links}
+        emptyMessage='No links in your inbox'
+        onSelectionChange={setSelectedLinks}
+      />
       <SelectionToolbar
         selectedCount={selectedLinks.length}
         onExport={() => setExportOpen(true)}

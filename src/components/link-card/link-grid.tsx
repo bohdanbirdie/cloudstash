@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
-import { useLinkDetailActions } from '@/hooks/use-link-detail-actions'
 import { useSelectionStore } from '@/stores/selection-store'
+import { useLinkDetailStore } from '@/stores/link-detail-store'
+import { useTrackLinkOpen } from '@/hooks/use-track-link-open'
 import type { LinkWithDetails } from '@/livestore/queries'
 import { LinkCard } from './link-card'
-import { LinkDetailModal } from './link-detail-modal'
 
 interface LinkGridProps {
   links: readonly LinkWithDetails[]
@@ -19,7 +19,8 @@ export function LinkGrid({
 }: LinkGridProps) {
   const { selectedIds, anchorIndex, toggle, range, removeStale } = useSelectionStore()
   const [isSelectionMode, setIsSelectionMode] = useState(false)
-  const modal = useLinkDetailActions(links)
+  const openLinkInContext = useLinkDetailStore((s) => s.openLinkInContext)
+  const trackLinkOpen = useTrackLinkOpen()
 
   const linkIds = useMemo(() => links.map((l) => l.id), [links])
   const validIdsSet = useMemo(() => new Set(linkIds), [linkIds])
@@ -40,7 +41,9 @@ export function LinkGrid({
   const handleCardClick = (index: number, e: React.MouseEvent) => {
     const isModifierClick = e.metaKey || e.ctrlKey || e.shiftKey
     if (!isModifierClick) {
-      modal.open(index)
+      const link = links[index]
+      if (link) trackLinkOpen(link.id)
+      openLinkInContext(linkIds, index)
       return
     }
     e.preventDefault()
@@ -56,34 +59,16 @@ export function LinkGrid({
   }
 
   return (
-    <>
-      <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-        {links.map((link, index) => (
-          <LinkCard
-            key={link.id}
-            link={link}
-            selected={selectedIds.has(link.id)}
-            selectionMode={isSelectionMode}
-            onClick={(e) => handleCardClick(index, e)}
-          />
-        ))}
-      </div>
-
-      <LinkDetailModal
-        link={modal.selectedLink}
-        open={modal.isOpen}
-        onOpenChange={(open) => {
-          if (!open) modal.close()
-        }}
-        onPrevious={modal.goToPrevious}
-        onNext={modal.goToNext}
-        hasPrevious={modal.hasPrevious}
-        hasNext={modal.hasNext}
-        onComplete={modal.complete}
-        onUncomplete={modal.uncomplete}
-        onDelete={modal.remove}
-        onRestore={modal.restore}
-      />
-    </>
+    <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
+      {links.map((link, index) => (
+        <LinkCard
+          key={link.id}
+          link={link}
+          selected={selectedIds.has(link.id)}
+          selectionMode={isSelectionMode}
+          onClick={(e) => handleCardClick(index, e)}
+        />
+      ))}
+    </div>
   )
 }

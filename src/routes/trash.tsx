@@ -14,6 +14,7 @@ import type { LinkWithDetails } from '@/livestore/queries'
 
 export const Route = createFileRoute('/trash')({
   component: TrashPage,
+  staticData: { title: 'Trash', icon: 'trash' },
 })
 
 function TrashPage() {

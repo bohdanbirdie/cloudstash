@@ -27,7 +27,9 @@ export class LinkProcessorDO extends DurableObject<Env> implements ClientDoWithR
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
-    console.log('[LinkProcessorDO] Waking up (constructor called)', { constructedAt: new Date().toISOString() })
+    console.log('[LinkProcessorDO] Waking up (constructor called)', {
+      constructedAt: new Date().toISOString(),
+    })
   }
 
   /**
@@ -50,7 +52,9 @@ export class LinkProcessorDO extends DurableObject<Env> implements ClientDoWithR
    * This allows the DO to hibernate between processing runs.
    */
   private async processAndShutdown(storeId: string): Promise<void> {
-    await runEffect(Effect.logInfo('Creating store for processing').pipe(Effect.annotateLogs({ storeId })))
+    await runEffect(
+      Effect.logInfo('Creating store for processing').pipe(Effect.annotateLogs({ storeId })),
+    )
 
     await this.ctx.storage.put('storeId', storeId)
     const sessionId = await this.getOrCreateSessionId()

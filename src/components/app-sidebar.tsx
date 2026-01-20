@@ -7,6 +7,7 @@ import {
   LinkIcon,
   PlusIcon,
   LogOutIcon,
+  SearchIcon,
 } from 'lucide-react'
 
 import {
@@ -25,13 +26,16 @@ import { authClient } from '@/lib/auth-client'
 import { Badge } from '@/components/ui/badge'
 import { Kbd } from '@/components/ui/kbd'
 import { useModifierHold } from '@/hooks/use-modifier-hold'
+import { getHotkeyLabel } from '@/lib/hotkey-label'
 import { useAddLinkDialog } from '@/components/add-link-dialog'
+import { useSearchStore } from '@/stores/search-store'
 import { useAppStore } from '@/livestore/store'
 import { inboxCount$, completedCount$, allLinksCount$, trashCount$ } from '@/livestore/queries'
 
 export function AppSidebar() {
   const location = useLocation()
   const { open: openAddLinkDialog } = useAddLinkDialog()
+  const openSearch = useSearchStore((s) => s.setOpen)
   const store = useAppStore()
   const showHints = useModifierHold()
 
@@ -86,7 +90,20 @@ export function AppSidebar() {
                   <PlusIcon />
                   <span>Add Link</span>
                   {showHints && (
-                    <Kbd className='ml-auto group-data-[collapsible=icon]:hidden'>⌘V</Kbd>
+                    <Kbd className='ml-auto group-data-[collapsible=icon]:hidden'>
+                      {getHotkeyLabel('meta+v')}
+                    </Kbd>
+                  )}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip='Search' onClick={() => openSearch(true)}>
+                  <SearchIcon />
+                  <span>Search</span>
+                  {showHints && (
+                    <Kbd className='ml-auto group-data-[collapsible=icon]:hidden'>
+                      {getHotkeyLabel('meta+k')}
+                    </Kbd>
                   )}
                 </SidebarMenuButton>
               </SidebarMenuItem>

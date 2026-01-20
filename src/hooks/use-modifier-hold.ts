@@ -20,7 +20,7 @@ export function useModifierHold(delay = 1000) {
         setShowHints(false)
       }
     },
-    { keydown: true, keyup: true }
+    { keydown: true, keyup: true },
   )
 
   return showHints

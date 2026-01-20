@@ -16,7 +16,6 @@ export const allLinksCount$ = queryDb(tables.links.count().where({ deletedAt: nu
   label: 'allLinksCount',
 })
 
-// For trash, we need raw SQL to query "deletedAt IS NOT NULL"
 const trashCountSchema = Schema.Struct({ count: Schema.Number }).pipe(
   Schema.Array,
   Schema.headOrElse(() => ({ count: 0 })),
@@ -49,12 +48,9 @@ const LinkWithDetailsSchema = Schema.Struct({
 })
 
 export type LinkWithDetails = typeof LinkWithDetailsSchema.Type
-/** @deprecated Use LinkWithDetails instead */
-export type LinkWithSnapshot = LinkWithDetails
 
 const linksWithDetailsSchema = Schema.Array(LinkWithDetailsSchema)
 
-// Inbox links (unread, not deleted)
 export const inboxLinks$ = queryDb(
   () => ({
     query: `
@@ -82,7 +78,6 @@ export const inboxLinks$ = queryDb(
   { label: 'inboxLinks' },
 )
 
-// Completed links (completed, not deleted)
 export const completedLinks$ = queryDb(
   () => ({
     query: `
@@ -110,7 +105,6 @@ export const completedLinks$ = queryDb(
   { label: 'completedLinks' },
 )
 
-// All links (not deleted)
 export const allLinks$ = queryDb(
   () => ({
     query: `
@@ -138,7 +132,6 @@ export const allLinks$ = queryDb(
   { label: 'allLinks' },
 )
 
-// Trash links (deleted)
 export const trashLinks$ = queryDb(
   () => ({
     query: `
@@ -166,8 +159,74 @@ export const trashLinks$ = queryDb(
   { label: 'trashLinks' },
 )
 
-// Processing status for a single link
 export const linkProcessingStatus$ = (linkId: string) =>
   queryDb(tables.linkProcessingStatus.where({ linkId }).first(), {
     label: `linkProcessingStatus:${linkId}`,
   })
+
+const linkByIdSchema = LinkWithDetailsSchema.pipe(
+  Schema.Array,
+  Schema.headOrElse(() => null as unknown as typeof LinkWithDetailsSchema.Type),
+)
+
+export const linkById$ = (id: string) =>
+  queryDb(
+    {
+      query: `
+        SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+               s.title, s.description, s.image, s.favicon,
+               sum.summary
+        FROM links l
+        LEFT JOIN link_snapshots s ON s.id = (
+          SELECT s2.id FROM link_snapshots s2
+          WHERE s2.linkId = l.id
+          ORDER BY s2.fetchedAt DESC
+          LIMIT 1
+        )
+        LEFT JOIN link_summaries sum ON sum.id = (
+          SELECT sum2.id FROM link_summaries sum2
+          WHERE sum2.linkId = l.id
+          ORDER BY sum2.summarizedAt DESC
+          LIMIT 1
+        )
+        WHERE l.id = ?
+      `,
+      schema: linkByIdSchema,
+      bindValues: [id],
+    },
+    { label: `linkById:${id}` },
+  )
+
+export const recentlyOpenedLinks$ = queryDb(
+  () => ({
+    query: `
+      SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+             s.title, s.description, s.image, s.favicon,
+             sum.summary
+      FROM links l
+      INNER JOIN (
+        SELECT linkId, MAX(occurredAt) as lastOpened
+        FROM link_interactions
+        WHERE type = 'opened'
+        GROUP BY linkId
+      ) i ON i.linkId = l.id
+      LEFT JOIN link_snapshots s ON s.id = (
+        SELECT s2.id FROM link_snapshots s2
+        WHERE s2.linkId = l.id
+        ORDER BY s2.fetchedAt DESC
+        LIMIT 1
+      )
+      LEFT JOIN link_summaries sum ON sum.id = (
+        SELECT sum2.id FROM link_summaries sum2
+        WHERE sum2.linkId = l.id
+        ORDER BY sum2.summarizedAt DESC
+        LIMIT 1
+      )
+      WHERE l.deletedAt IS NULL
+      ORDER BY i.lastOpened DESC
+      LIMIT 10
+    `,
+    schema: linksWithDetailsSchema,
+  }),
+  { label: 'recentlyOpenedLinks' },
+)

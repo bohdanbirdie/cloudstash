@@ -14,6 +14,7 @@ import type { LinkWithDetails } from '@/livestore/queries'
 
 export const Route = createFileRoute('/all')({
   component: AllLinksPage,
+  staticData: { title: 'All Links', icon: 'list' },
 })
 
 function AllLinksPage() {
@@ -63,7 +64,11 @@ function AllLinksPageContent() {
           Export
         </Button>
       </div>
-      <LinkGrid links={links} emptyMessage='No links saved yet' onSelectionChange={setSelectedLinks} />
+      <LinkGrid
+        links={links}
+        emptyMessage='No links saved yet'
+        onSelectionChange={setSelectedLinks}
+      />
       <SelectionToolbar
         selectedCount={selectedLinks.length}
         onExport={() => setExportOpen(true)}

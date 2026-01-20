@@ -14,6 +14,7 @@ import type { LinkWithDetails } from '@/livestore/queries'
 
 export const Route = createFileRoute('/completed')({
   component: CompletedPage,
+  staticData: { title: 'Completed', icon: 'check-circle' },
 })
 
 function CompletedPage() {
@@ -59,7 +60,11 @@ function CompletedPageContent() {
           Export
         </Button>
       </div>
-      <LinkGrid links={links} emptyMessage='No completed links yet' onSelectionChange={setSelectedLinks} />
+      <LinkGrid
+        links={links}
+        emptyMessage='No completed links yet'
+        onSelectionChange={setSelectedLinks}
+      />
       <SelectionToolbar
         selectedCount={selectedLinks.length}
         onExport={() => setExportOpen(true)}

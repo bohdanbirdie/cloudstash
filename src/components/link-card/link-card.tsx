@@ -26,7 +26,7 @@ export function LinkCard({ link, onClick, selected, selectionMode }: LinkCardPro
         'block w-full text-left relative transition-all',
         selectionMode
           ? 'hover:ring-2 hover:ring-primary hover:ring-offset-2'
-          : '[&_[data-slot=card]]:hover:bg-muted/50 [&_[data-slot=card]]:hover:ring-foreground/40'
+          : '[&_[data-slot=card]]:hover:bg-muted/50 [&_[data-slot=card]]:hover:ring-foreground/40',
       )}
     >
       {selected && (
@@ -38,7 +38,7 @@ export function LinkCard({ link, onClick, selected, selectionMode }: LinkCardPro
         className={cn(
           'transition-shadow',
           link.image ? 'h-full pt-0' : 'h-full',
-          selected && 'ring-2 ring-primary ring-offset-2'
+          selected && 'ring-2 ring-primary ring-offset-2',
         )}
       >
         {link.image && (

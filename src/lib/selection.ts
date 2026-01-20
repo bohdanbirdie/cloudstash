@@ -9,7 +9,7 @@ export function selectRange(
   selectedIds: Set<string>,
   anchorIndex: number,
   targetIndex: number,
-  allIds: readonly string[]
+  allIds: readonly string[],
 ): Set<string> {
   const start = Math.min(anchorIndex, targetIndex)
   const end = Math.max(anchorIndex, targetIndex)

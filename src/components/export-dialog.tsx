@@ -25,10 +25,7 @@ export function ExportDialog({ open, onOpenChange, links, pageTitle }: ExportDia
   const [copied, setCopied] = useState(false)
   const [activeTab, setActiveTab] = useState<'full' | 'plain'>('full')
 
-  const markdownContent = useMemo(
-    () => generateLinksMarkdown(links, pageTitle),
-    [links, pageTitle],
-  )
+  const markdownContent = useMemo(() => generateLinksMarkdown(links, pageTitle), [links, pageTitle])
   const plainContent = useMemo(() => generatePlainLinks(links), [links])
 
   const currentContent = activeTab === 'plain' ? plainContent : markdownContent

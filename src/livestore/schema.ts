@@ -1,6 +1,5 @@
 import { Events, makeSchema, Schema, State } from '@livestore/livestore'
 
-// State tables
 export const tables = {
   links: State.SQLite.table({
     name: 'links',
@@ -46,14 +45,22 @@ export const tables = {
     name: 'link_processing_status',
     columns: {
       linkId: State.SQLite.text({ primaryKey: true }),
-      status: State.SQLite.text({ default: 'pending' }), // pending | completed | failed
+      status: State.SQLite.text({ default: 'pending' }),
       error: State.SQLite.text({ nullable: true }),
       updatedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
     },
   }),
+  linkInteractions: State.SQLite.table({
+    name: 'link_interactions',
+    columns: {
+      id: State.SQLite.text({ primaryKey: true }),
+      linkId: State.SQLite.text(),
+      type: State.SQLite.text(),
+      occurredAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+    },
+  }),
 }
 
-// Events describe data changes
 export const events = {
   linkCreated: Events.synced({
     name: 'v1.LinkCreated',
@@ -124,9 +131,17 @@ export const events = {
       updatedAt: Schema.Date,
     }),
   }),
+  linkInteracted: Events.synced({
+    name: 'v1.LinkInteracted',
+    schema: Schema.Struct({
+      id: Schema.String,
+      linkId: Schema.String,
+      type: Schema.String,
+      occurredAt: Schema.Date,
+    }),
+  }),
 }
 
-// Materializers map events to state
 const materializers = State.SQLite.materializers(events, {
   'v1.LinkCreated': ({ id, url, domain, createdAt }) =>
     tables.links.insert({ id, url, domain, createdAt, status: 'unread' }),
@@ -159,11 +174,12 @@ const materializers = State.SQLite.materializers(events, {
     tables.linkProcessingStatus.update({ status: 'completed', updatedAt }).where({ linkId }),
   'v1.LinkProcessingFailed': ({ linkId, error, updatedAt }) =>
     tables.linkProcessingStatus.update({ status: 'failed', error, updatedAt }).where({ linkId }),
+  'v1.LinkInteracted': ({ id, linkId, type, occurredAt }) =>
+    tables.linkInteractions.insert({ id, linkId, type, occurredAt }),
 })
 
 const state = State.SQLite.makeState({ tables, materializers })
 
 export const schema = makeSchema({ events, state })
 
-// Sync payload for authentication
 export const SyncPayload = Schema.Struct({ authToken: Schema.String })
