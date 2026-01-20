@@ -26,6 +26,7 @@
         "domutils": "3.2.2",
         "drizzle-orm": "0.45.1",
         "htmlparser2": "10.0.0",
+        "jose": "6.1.3",
         "lucide-react": "0.562.0",
         "motion": "12.27.1",
         "react": "^19.2.0",

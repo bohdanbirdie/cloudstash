@@ -22,7 +22,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar'
-import { authClient } from '@/lib/auth-client'
+import { authClient } from '@/lib/auth'
 import { Badge } from '@/components/ui/badge'
 import { Kbd } from '@/components/ui/kbd'
 import { useModifierHold } from '@/hooks/use-modifier-hold'

@@ -3,6 +3,7 @@ import '@livestore/adapter-cloudflare/polyfill'
 import { Effect } from 'effect'
 import type { CfTypes } from '@livestore/sync-cf/cf-worker'
 import * as SyncBackend from '@livestore/sync-cf/cf-worker'
+import { jwtVerify, createRemoteJWKSet } from 'jose'
 
 import { SyncPayload } from '../livestore/schema'
 import { createAuth } from './auth'
@@ -54,23 +55,19 @@ const validatePayload = async (
     throw new Error('Missing auth token')
   }
 
-  const db = createDb(env.DB)
+  const JWKS = createRemoteJWKSet(new URL(`${env.BETTER_AUTH_URL}/api/auth/jwks`))
 
-  // Query session directly from database by token
-  const sessionResult = await db.query.session.findFirst({
-    where: (sessions, { eq }) => eq(sessions.token, payload.authToken),
+  const { payload: claims } = await jwtVerify(payload.authToken, JWKS, {
+    issuer: env.BETTER_AUTH_URL,
+    audience: env.BETTER_AUTH_URL,
   })
 
-  if (!sessionResult) {
-    throw new Error('Invalid session')
+  if (!claims.sub) {
+    throw new Error('Invalid token: missing subject')
   }
 
-  if (sessionResult.expiresAt < new Date()) {
-    throw new Error('Session expired')
-  }
-
-  // Scope store to user - override storeId with user ID
-  context.storeId = `user-${sessionResult.userId}`
+  // Scope store to user - override storeId with user ID from JWT
+  context.storeId = `user-${claims.sub}`
 }
 
 export default {

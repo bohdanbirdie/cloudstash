@@ -1,6 +1,5 @@
-import { StoreRegistry } from '@livestore/livestore'
 import { StoreRegistryProvider } from '@livestore/react'
-import { createRootRouteWithContext, Outlet, useLocation, Navigate } from '@tanstack/react-router'
+import { createRootRouteWithContext, Outlet, redirect, useLocation } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import { Suspense } from 'react'
 
@@ -8,41 +7,37 @@ import { AppSidebar } from '@/components/app-sidebar'
 import { AddLinkDialogProvider } from '@/components/add-link-dialog'
 import { SearchCommand } from '@/components/search-command'
 import { LinkDetailModal } from '@/components/link-card/link-detail-modal'
-import { authClient } from '@/lib/auth-client'
+import { fetchAuth } from '@/lib/auth'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { Spinner } from '@/components/ui/spinner'
-
-type RouterContext = {
-  storeRegistry: StoreRegistry
-}
+import type { RouterContext } from '@/router'
 
 export const Route = createRootRouteWithContext<RouterContext>()({
+  beforeLoad: async ({ location }) => {
+    const auth = await fetchAuth()
+
+    // Allow login page without auth
+    if (location.pathname === '/login') {
+      return { auth }
+    }
+
+    // Redirect to login if not authenticated
+    if (!auth.isAuthenticated) {
+      throw redirect({ to: '/login' })
+    }
+
+    return { auth }
+  },
   component: RootComponent,
 })
 
 function RootComponent() {
   const { storeRegistry } = Route.useRouteContext()
-  const { data: session, isPending } = authClient.useSession()
   const location = useLocation()
 
-  const isLoginPage = location.pathname === '/login'
-
-  if (isPending) {
-    return (
-      <div className='flex h-screen w-screen items-center justify-center'>
-        <Spinner className='size-8' />
-      </div>
-    )
-  }
-
-  // Allow access to login page without authentication
-  if (isLoginPage) {
+  // Login page has minimal layout
+  if (location.pathname === '/login') {
     return <Outlet />
-  }
-
-  // Redirect to login if not authenticated
-  if (!session) {
-    return <Navigate to='/login' />
   }
 
   return (

@@ -1,11 +1,10 @@
 import { useState, useCallback, useEffect } from 'react'
-import { createFileRoute, Navigate } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { DownloadIcon } from 'lucide-react'
 import { LinkGrid } from '@/components/link-card'
 import { ExportDialog } from '@/components/export-dialog'
 import { SelectionToolbar } from '@/components/selection-toolbar'
 import { Button } from '@/components/ui/button'
-import { authClient } from '@/lib/auth-client'
 import { events } from '@/livestore/schema'
 import { useAppStore } from '@/livestore/store'
 import { useSelectionStore } from '@/stores/selection-store'
@@ -18,16 +17,6 @@ export const Route = createFileRoute('/completed')({
 })
 
 function CompletedPage() {
-  const { data: session } = authClient.useSession()
-
-  if (!session) {
-    return <Navigate to='/login' />
-  }
-
-  return <CompletedPageContent />
-}
-
-function CompletedPageContent() {
   const store = useAppStore()
   const links = store.useQuery(completedLinks$)
   const clear = useSelectionStore((s) => s.clear)

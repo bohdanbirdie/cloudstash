@@ -1,9 +1,9 @@
 import { makePersistedAdapter } from '@livestore/adapter-web'
 import LiveStoreSharedWorker from '@livestore/adapter-web/shared-worker?sharedworker'
 import { useStore } from '@livestore/react'
+import { useRouteContext } from '@tanstack/react-router'
 import { unstable_batchedUpdates } from 'react-dom'
 
-import { authClient } from '../lib/auth-client'
 import LiveStoreWorker from '../livestore.worker?worker'
 import { getStoreId } from '../util/store-id'
 import { schema, SyncPayload } from './schema'
@@ -15,14 +15,13 @@ const adapter = makePersistedAdapter({
 })
 
 export const useAppStore = () => {
-  const { data: session } = authClient.useSession()
+  const { auth } = useRouteContext({ strict: false })
 
-  if (!session?.user) {
-    throw new Error('useAppStore must be used within an authenticated context')
+  if (!auth?.isAuthenticated || !auth.userId || !auth.jwt) {
+    throw new Error('useAppStore must be used within an authenticated context with valid JWT')
   }
 
-  const storeId = getStoreId(session.user.id)
-  const authToken = session.session.token
+  const storeId = getStoreId(auth.userId)
 
   return useStore({
     storeId,
@@ -30,6 +29,6 @@ export const useAppStore = () => {
     adapter,
     batchUpdates: unstable_batchedUpdates,
     syncPayloadSchema: SyncPayload,
-    syncPayload: { authToken },
+    syncPayload: { authToken: auth.jwt },
   })
 }
