@@ -48,6 +48,10 @@ export function generateLinksMarkdown(links: readonly LinkWithDetails[], title: 
       markdown += `**Completed:** ${formatDate(link.completedAt)}\n`
     }
 
+    if (link.image) {
+      markdown += `\n![${link.title || 'Preview'}](${link.image})\n`
+    }
+
     markdown += `\n### Description\n\n`
     markdown += `${link.description || '*No description available*'}\n`
 
