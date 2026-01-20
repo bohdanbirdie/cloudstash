@@ -50,40 +50,29 @@ const validatePayload = async (
   context: { storeId: string },
   env: Env,
 ) => {
-  console.log(`Validating connection for store: ${context.storeId}`)
   if (!payload?.authToken) {
     throw new Error('Missing auth token')
   }
 
-  try {
-    // Fetch JWKS manually to avoid self-referential fetch issues with createRemoteJWKSet
-    const jwksUrl = `${env.BETTER_AUTH_URL}/api/auth/jwks`
-    console.log(`Fetching JWKS from: ${jwksUrl}`)
-
-    const jwksResponse = await fetch(jwksUrl)
-    if (!jwksResponse.ok) {
-      throw new Error(`Failed to fetch JWKS: ${jwksResponse.status}`)
-    }
-    const jwks = (await jwksResponse.json()) as { keys: JsonWebKey[] }
-    console.log('JWKS fetched, keys:', jwks.keys?.length)
-
-    const JWKS = createLocalJWKSet(jwks)
-
-    const { payload: claims } = await jwtVerify(payload.authToken, JWKS, {
-      issuer: env.BETTER_AUTH_URL,
-      audience: env.BETTER_AUTH_URL,
-    })
-
-    if (!claims.sub) {
-      throw new Error('Invalid token: missing subject')
-    }
-
-    // Scope store to user - override storeId with user ID from JWT
-    context.storeId = `user-${claims.sub}`
-  } catch (error) {
-    console.error('JWT verification failed:', error)
-    throw error
+  // Fetch JWKS manually (createRemoteJWKSet has issues with self-referential fetch in Workers)
+  const jwksResponse = await fetch(`${env.BETTER_AUTH_URL}/api/auth/jwks`)
+  if (!jwksResponse.ok) {
+    throw new Error(`Failed to fetch JWKS: ${jwksResponse.status}`)
   }
+  const jwks = (await jwksResponse.json()) as { keys: JsonWebKey[] }
+  const JWKS = createLocalJWKSet(jwks)
+
+  const { payload: claims } = await jwtVerify(payload.authToken, JWKS, {
+    issuer: env.BETTER_AUTH_URL,
+    audience: env.BETTER_AUTH_URL,
+  })
+
+  if (!claims.sub) {
+    throw new Error('Invalid token: missing subject')
+  }
+
+  // Scope store to user - override storeId with user ID from JWT
+  context.storeId = `user-${claims.sub}`
 }
 
 export default {
