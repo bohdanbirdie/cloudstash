@@ -3,7 +3,7 @@ import '@livestore/adapter-cloudflare/polyfill'
 import { Effect } from 'effect'
 import type { CfTypes } from '@livestore/sync-cf/cf-worker'
 import * as SyncBackend from '@livestore/sync-cf/cf-worker'
-import { jwtVerify, createRemoteJWKSet } from 'jose'
+import { jwtVerify, createLocalJWKSet } from 'jose'
 
 import { SyncPayload } from '../livestore/schema'
 import { createAuth } from './auth'
@@ -55,19 +55,35 @@ const validatePayload = async (
     throw new Error('Missing auth token')
   }
 
-  const JWKS = createRemoteJWKSet(new URL(`${env.BETTER_AUTH_URL}/api/auth/jwks`))
+  try {
+    // Fetch JWKS manually to avoid self-referential fetch issues with createRemoteJWKSet
+    const jwksUrl = `${env.BETTER_AUTH_URL}/api/auth/jwks`
+    console.log(`Fetching JWKS from: ${jwksUrl}`)
 
-  const { payload: claims } = await jwtVerify(payload.authToken, JWKS, {
-    issuer: env.BETTER_AUTH_URL,
-    audience: env.BETTER_AUTH_URL,
-  })
+    const jwksResponse = await fetch(jwksUrl)
+    if (!jwksResponse.ok) {
+      throw new Error(`Failed to fetch JWKS: ${jwksResponse.status}`)
+    }
+    const jwks = (await jwksResponse.json()) as { keys: JsonWebKey[] }
+    console.log('JWKS fetched, keys:', jwks.keys?.length)
 
-  if (!claims.sub) {
-    throw new Error('Invalid token: missing subject')
+    const JWKS = createLocalJWKSet(jwks)
+
+    const { payload: claims } = await jwtVerify(payload.authToken, JWKS, {
+      issuer: env.BETTER_AUTH_URL,
+      audience: env.BETTER_AUTH_URL,
+    })
+
+    if (!claims.sub) {
+      throw new Error('Invalid token: missing subject')
+    }
+
+    // Scope store to user - override storeId with user ID from JWT
+    context.storeId = `user-${claims.sub}`
+  } catch (error) {
+    console.error('JWT verification failed:', error)
+    throw error
   }
-
-  // Scope store to user - override storeId with user ID from JWT
-  context.storeId = `user-${claims.sub}`
 }
 
 export default {
