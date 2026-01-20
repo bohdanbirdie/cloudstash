@@ -71,8 +71,9 @@ const validatePayload = async (
     throw new Error('Invalid token: missing subject')
   }
 
-  // Scope store to user - override storeId with user ID from JWT
-  context.storeId = `user-${claims.sub}`
+  // TODO: Add proper resource access validation (e.g., check if user has access to requested storeId)
+  // Currently relies on client requesting correct storeId (user-{userId})
+  // See docs/auth.md "Future: Multi-Store Access" for options
 }
 
 export default {
