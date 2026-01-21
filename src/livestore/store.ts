@@ -5,7 +5,6 @@ import { useRouteContext } from '@tanstack/react-router'
 import { unstable_batchedUpdates } from 'react-dom'
 
 import LiveStoreWorker from '../livestore.worker?worker'
-import { getStoreId } from '../util/store-id'
 import { schema, SyncPayload } from './schema'
 
 const adapter = makePersistedAdapter({
@@ -17,14 +16,12 @@ const adapter = makePersistedAdapter({
 export const useAppStore = () => {
   const { auth } = useRouteContext({ strict: false })
 
-  if (!auth?.isAuthenticated || !auth.userId || !auth.jwt) {
-    throw new Error('useAppStore must be used within an authenticated context with valid JWT')
+  if (!auth?.isAuthenticated || !auth.orgId || !auth.jwt) {
+    throw new Error('useAppStore must be used within an authenticated context')
   }
 
-  const storeId = getStoreId(auth.userId)
-
   return useStore({
-    storeId,
+    storeId: auth.orgId,
     schema,
     adapter,
     batchUpdates: unstable_batchedUpdates,

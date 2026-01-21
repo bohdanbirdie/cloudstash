@@ -16,6 +16,17 @@ export const user = sqliteTable('user', {
     .notNull(),
 })
 
+export const organization = sqliteTable('organization', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  slug: text('slug').unique(),
+  logo: text('logo'),
+  metadata: text('metadata'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' })
+    .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+    .notNull(),
+})
+
 export const session = sqliteTable(
   'session',
   {
@@ -33,6 +44,7 @@ export const session = sqliteTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
+    activeOrganizationId: text('active_organization_id').references(() => organization.id),
   },
   (table) => [index('session_userId_idx').on(table.userId)],
 )
@@ -67,6 +79,46 @@ export const account = sqliteTable(
   (table) => [index('account_userId_idx').on(table.userId)],
 )
 
+export const member = sqliteTable(
+  'member',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    role: text('role').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+  },
+  (table) => [
+    index('member_orgId_idx').on(table.organizationId),
+    index('member_userId_idx').on(table.userId),
+  ],
+)
+
+export const invitation = sqliteTable(
+  'invitation',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    role: text('role').notNull(),
+    status: text('status').notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    inviterId: text('inviter_id').references(() => user.id),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+  },
+  (table) => [index('invitation_orgId_idx').on(table.organizationId)],
+)
+
 export const verification = sqliteTable(
   'verification',
   {
@@ -97,6 +149,7 @@ export const jwks = sqliteTable('jwks', {
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
+  members: many(member),
 }))
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -104,11 +157,42 @@ export const sessionRelations = relations(session, ({ one }) => ({
     fields: [session.userId],
     references: [user.id],
   }),
+  activeOrganization: one(organization, {
+    fields: [session.activeOrganizationId],
+    references: [organization.id],
+  }),
 }))
 
 export const accountRelations = relations(account, ({ one }) => ({
   user: one(user, {
     fields: [account.userId],
+    references: [user.id],
+  }),
+}))
+
+export const organizationRelations = relations(organization, ({ many }) => ({
+  members: many(member),
+  invitations: many(invitation),
+}))
+
+export const memberRelations = relations(member, ({ one }) => ({
+  organization: one(organization, {
+    fields: [member.organizationId],
+    references: [organization.id],
+  }),
+  user: one(user, {
+    fields: [member.userId],
+    references: [user.id],
+  }),
+}))
+
+export const invitationRelations = relations(invitation, ({ one }) => ({
+  organization: one(organization, {
+    fields: [invitation.organizationId],
+    references: [organization.id],
+  }),
+  inviter: one(user, {
+    fields: [invitation.inviterId],
     references: [user.id],
   }),
 }))

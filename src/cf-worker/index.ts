@@ -47,7 +47,7 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
 
 const validatePayload = async (
   payload: typeof SyncPayload.Type | undefined,
-  _context: { storeId: string },
+  context: { storeId: string },
   env: Env,
 ) => {
   if (!payload?.authToken) {
@@ -71,9 +71,10 @@ const validatePayload = async (
     throw new Error('Invalid token: missing subject')
   }
 
-  // TODO: Add proper resource access validation (e.g., check if user has access to requested storeId)
-  // Currently relies on client requesting correct storeId (user-{userId})
-  // See docs/auth.md "Future: Multi-Store Access" for options
+  // Validate org access - storeId must match JWT's orgId
+  if (claims.orgId !== context.storeId) {
+    throw new Error('Access denied: not a member of this organization')
+  }
 }
 
 export default {
