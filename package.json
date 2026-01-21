@@ -13,6 +13,8 @@
     "db:migrate:remote": "wrangler d1 migrations apply link-bucket-auth --remote",
     "db:generate": "drizzle-kit generate",
     "test": "vitest run",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "format": "oxfmt --check .",

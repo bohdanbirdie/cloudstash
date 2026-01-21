@@ -32,7 +32,10 @@
 - [x] **6. Generate migration** - `bun run db:generate` + `bun run db:migrate:local`
   - Done: Generated 0002_abnormal_captain_cross.sql, cleared .wrangler/state, applied all migrations
 
-- [ ] **7. Test flow** - signup creates org, login sets activeOrgId, sync connects to org-scoped store
+- [x] **7. Test flow** - signup creates org, login sets activeOrgId, sync connects to org-scoped store
+  - Done: Created `/api/auth/me` and `/api/org/:id` endpoints, enabled conditional email auth for tests
+  - E2E tests verify: user creation with auto-org, session auth, org access control, cross-user isolation
+  - All 9 tests passing
 
 ---
 

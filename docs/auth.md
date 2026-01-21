@@ -1,649 +1,318 @@
-# Authentication Setup
+# Authentication Spec
 
-## Architecture (JWT + JWKS + Organizations)
+## Overview
+
+Google OAuth authentication using Better Auth with organization-scoped LiveStore sync.
 
 ```
-Google OAuth → Better Auth (D1) → JWT (1h, signed) → LiveStore (org-scoped)
-                    │
-                    ▼
-              /api/auth/jwks (public keys)
-                    │
-                    ▼
-               Worker validates JWT via jose library
-                    │
-                    ▼
-            storeId = org-{claims.orgId}
+User → Google OAuth → Better Auth → Session + JWT → LiveStore (org-scoped)
 ```
 
-**Components:**
-- **Better Auth**: OAuth flow, sessions, JWT issuance via `jwt` + `organization` plugins
-- **D1**: Auth tables (user, session, account, verification, jwks, organization, member, invitation)
-- **jose**: JWT verification in worker via JWKS
-- **LiveStore**: Org-scoped stores via `org-{organizationId}`
+## Architecture
 
----
+| Component | Purpose |
+|-----------|---------|
+| Better Auth | OAuth, sessions, JWT issuance (`jwt` + `organization` plugins) |
+| D1 | Auth tables: user, session, account, verification, jwks, organization, member, invitation |
+| jose | JWT verification via JWKS (from `auth.handler`) |
+| LiveStore | Org-scoped stores using `{organizationId}` as storeId |
 
-## Key Files
+## Files
 
 | File | Purpose |
 |------|---------|
-| `src/cf-worker/auth.ts` | Better Auth config (jwt + organization plugins) |
-| `src/cf-worker/index.ts` | Worker with JWKS + org validation |
+| `src/cf-worker/auth.ts` | Better Auth config with jwt + organization plugins |
+| `src/cf-worker/index.ts` | Worker routes + JWT/org validation |
 | `src/cf-worker/db/schema.ts` | Drizzle schema (auth + org tables) |
-| `src/lib/auth.ts` | Auth client (with org plugin) + fetchAuth helper |
-| `src/router.tsx` | Router with auth type in context |
-| `src/routes/__root.tsx` | beforeLoad auth check + redirect |
-| `src/routes/login.tsx` | Login page |
-| `src/livestore/store.ts` | useAppStore with JWT from route context |
-
----
+| `src/lib/auth.ts` | Auth client + `fetchAuth()` helper |
+| `src/router.tsx` | Router with auth context type |
+| `src/routes/__root.tsx` | `beforeLoad` auth check + redirect |
+| `src/livestore/store.ts` | `useAppStore` with JWT from route context |
 
 ## Auth Flow
 
-### Router-Level Protection (TanStack Router)
+### 1. Signup (Google OAuth)
 
-Auth is checked in `beforeLoad`, not in render:
+```
+Click "Sign in" → Google OAuth → Better Auth callback
+                                       │
+                         ┌─────────────┴─────────────┐
+                         │ user.create.after hook    │
+                         │ → Creates personal org    │
+                         │ → Adds user as owner      │
+                         └─────────────┬─────────────┘
+                                       │
+                         ┌─────────────┴─────────────┐
+                         │ session.create.before     │
+                         │ → Sets activeOrgId        │
+                         └─────────────┬─────────────┘
+                                       │
+                         Set session cookie + redirect
+```
+
+### 2. Route Protection (TanStack Router)
+
+Auth checked in `beforeLoad`, not during render:
 
 ```typescript
 // src/routes/__root.tsx
-export const Route = createRootRouteWithContext<RouterContext>()({
-  beforeLoad: async ({ location }) => {
-    const auth = await fetchAuth()
-
-    if (location.pathname === '/login') {
-      return { auth }
-    }
-
-    if (!auth.isAuthenticated) {
-      throw redirect({ to: '/login' })
-    }
-
-    return { auth }
-  },
-  component: RootComponent,
-})
-```
-
-**Benefits:**
-- Auth checked before render, not during
-- No auth checks needed in route components
-- Clean separation of concerns
-
-### Sync Connection
-
-LiveStore passes JWT in WebSocket URL:
-```
-ws://localhost:3000/sync?storeId=org-xxx&payload=%7B%22authToken%22%3A%22eyJ...%22%7D
-```
-
-Worker validates JWT and org access:
-```typescript
-// Fetch JWKS manually (createRemoteJWKSet has issues with self-referential fetch in Workers)
-const jwksResponse = await fetch(`${env.BETTER_AUTH_URL}/api/auth/jwks`)
-const jwks = await jwksResponse.json()
-const JWKS = createLocalJWKSet(jwks)
-
-const { payload: claims } = await jwtVerify(token, JWKS, {
-  issuer: env.BETTER_AUTH_URL,
-  audience: env.BETTER_AUTH_URL,
-})
-
-// Validate org access
-const requestedOrgId = context.storeId.replace('org-', '')
-if (claims.orgId !== requestedOrgId) {
-  throw new Error('Access denied')
+beforeLoad: async ({ location }) => {
+  const auth = await fetchAuth()
+  if (!auth.isAuthenticated && location.pathname !== '/login') {
+    throw redirect({ to: '/login' })
+  }
+  return { auth }
 }
 ```
 
----
+### 3. LiveStore Sync Connection
 
-## Validation Tested
-
-| Test | Result |
-|------|--------|
-| Invalid JWT format | `JWSInvalid: JWS Protected Header is invalid` |
-| Missing authToken | `["authToken"] is missing` |
-| Valid JWT | Connection accepted, scoped to `org-{orgId}` |
-| JWT orgId mismatch | `Access denied: not a member of this organization` |
-
----
+```
+useAppStore() → WebSocket /sync?storeId={orgId}&payload={jwt}
+                                       │
+                         ┌─────────────┴─────────────┐
+                         │ validatePayload()         │
+                         │ → Verify JWT via JWKS     │
+                         │ → Check claims.orgId      │
+                         │   matches storeId         │
+                         └─────────────┬─────────────┘
+                                       │
+                              Connection accepted
+```
 
 ## Token Strategy
 
 | Token | Lifetime | Storage | Purpose |
 |-------|----------|---------|---------|
-| **JWT** | 1 hour | Route context | Sync auth |
-| **Session cookie** | 7 days | HttpOnly cookie | Refresh JWT |
+| Session cookie | 7 days | HttpOnly cookie | Maintain login, refresh JWT |
+| JWT | 1 hour | Route context | Sync auth (stateless validation) |
 
-**Why both?**
-- Cookie = refresh token (get new JWT without re-login)
-- JWT = access token (short-lived, for sync)
-- Without cookie: user re-logs in every hour
+### JWT Signing
 
-**Alternative (simpler, not implemented):**
-- JWT only, stored in localStorage, 7-day expiry
-- Less secure (XSS can steal), but simpler
-- Acceptable for personal app
+JWTs use **asymmetric EdDSA Ed25519 keys**, not `BETTER_AUTH_SECRET`:
 
----
+- Key pairs auto-generated by Better Auth and stored in D1 `jwks` table
+- JWT signed with **private key**
+- JWT verified with **public key** via `auth.handler('/api/auth/jwks')`
+- `BETTER_AUTH_SECRET` is only used for session cookie encryption
 
-## Auth State Management
+Note: `validatePayload` calls `auth.handler()` internally to fetch JWKS, avoiding external HTTP calls while staying coupled to Better Auth's public API (not DB schema).
 
-Auth state flows through TanStack Router's context:
+## API Endpoints
+
+### Better Auth (handled by `auth.handler`)
+
+- `POST /api/auth/sign-in/social` - Google OAuth initiation
+- `GET /api/auth/callback/google` - OAuth callback
+- `GET /api/auth/get-session` - Get current session
+- `POST /api/auth/token` - Get JWT
+- `GET /api/auth/jwks` - Public keys for JWT verification
+- `POST /api/auth/sign-up/email` - Email signup (test env only)
+
+### Custom Endpoints
+
+#### `GET /api/auth/me`
+
+Returns current authenticated user with organization info.
 
 ```typescript
-// src/lib/auth.ts - stateless, just fetches
-export const fetchAuth = async (): Promise<AuthState> => {
-  const { data: session } = await authClient.getSession()
-  const { data: tokenData } = await authClient.token()
-  return {
-    userId: session?.user?.id,
-    orgId: session?.activeOrganizationId,
-    jwt: tokenData?.token,
-    isAuthenticated: !!tokenData?.token && !!session?.activeOrganizationId,
-  }
+// Response 200
+{
+  user: { id, name, email },
+  session: { activeOrganizationId },
+  organization: { id, name, slug } | null
 }
 
-// src/routes/__root.tsx - fetches and puts in context
-beforeLoad: async () => {
-  const auth = await fetchAuth()
-  return { auth }
-}
-
-// src/livestore/store.ts - reads from context
-export const useAppStore = () => {
-  const { auth } = useRouteContext({ strict: false })
-  const storeId = `org-${auth.orgId}`
-  return useStore({ storeId, syncPayload: { authToken: auth.jwt }, ... })
-}
+// Response 401
+{ error: "Unauthorized" }
 ```
 
-**Why route context?**
-- `beforeLoad` runs before render, populates context
-- Components render only after auth is fetched
-- No mutable module variables needed
-- `useRouteContext` provides sync access to already-fetched data
+#### `GET /api/org/:id`
 
----
+Returns organization if user is a member.
+
+```typescript
+// Response 200 (member)
+{ id, name, slug, role }
+
+// Response 403 (not member)
+{ error: "Access denied" }
+
+// Response 404 (not found)
+{ error: "Organization not found" }
+```
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+| `BETTER_AUTH_SECRET` | Secret for signing (32+ chars) |
+| `BETTER_AUTH_URL` | Base URL (e.g., `http://localhost:3000`) |
+| `ENABLE_TEST_AUTH` | Set to `"true"` to enable email signup (tests only) |
+
+## Database Schema
+
+### Auth Tables (Better Auth)
+
+- `user` - id, name, email, emailVerified, image, timestamps
+- `session` - id, token, userId, activeOrganizationId, timestamps
+- `account` - OAuth provider links
+- `verification` - Email verification tokens
+- `jwks` - JWT signing keys
+
+### Organization Tables
+
+- `organization` - id, name, slug, logo, metadata, createdAt
+- `member` - id, organizationId, userId, role, createdAt
+- `invitation` - id, organizationId, email, role, status, expiresAt
+
+## E2E Testing
+
+### Setup
+
+Tests use `@cloudflare/vitest-pool-workers` with isolated D1 database.
+
+```bash
+bun run test:e2e    # Run e2e tests
+bun run test:unit   # Run unit tests
+```
+
+### Test Environment
+
+- `ENABLE_TEST_AUTH=true` enables email/password signup
+- Fresh in-memory D1 per test run (no effect on local dev DB)
+- Migrations loaded from `drizzle/migrations/` and applied before tests
+
+### Configuration
+
+The `vitest.e2e.config.ts`:
+
+1. **Loads migrations** from drizzle files in Node.js context
+2. **Passes migrations** to Workers via `TEST_MIGRATIONS` binding
+3. **Bundles dependencies** via `ssr.noExternal` for tree-shaking
+
+```typescript
+// Load migrations in Node.js context
+const migrations = journal.entries.map((entry) => ({
+  tag: entry.tag,
+  sql: fs.readFileSync(`drizzle/migrations/${entry.tag}.sql`, 'utf-8'),
+}))
+
+export default defineWorkersConfig({
+  // ...
+  miniflare: {
+    bindings: {
+      TEST_MIGRATIONS: JSON.stringify(migrations),
+    },
+  },
+  ssr: {
+    noExternal: ['effect', /@effect\//, /@livestore\//, /@opentelemetry\//],
+  },
+})
+```
+
+### Test Files
+
+```
+src/cf-worker/__tests__/
+├── e2e/
+│   ├── auth.test.ts    # Auth endpoint tests
+│   ├── sync.test.ts    # LiveStore sync auth tests
+│   └── setup.ts        # Applies migrations from TEST_MIGRATIONS binding
+├── unit/               # Unit tests
+└── env.d.ts            # Type declarations (ProvidedEnv)
+```
+
+### Auth Test Cases (auth.test.ts)
+
+| Test | Expected |
+|------|----------|
+| `GET /api/auth/me` (no auth) | 401 Unauthorized |
+| `GET /api/auth/me` (with cookie) | 200 + user data |
+| `GET /api/org/{myOrgId}` | 200 + org data |
+| `GET /api/org/{otherOrgId}` | 403 Access denied |
+| `GET /api/org/{nonExistent}` | 404 Not found |
+| User A and B have different orgs | Isolated |
+
+### Sync Test Cases (sync.test.ts)
+
+| Test | Expected |
+|------|----------|
+| Sync without payload | 400 (schema validation) |
+| Sync with empty payload | 400 (authToken missing) |
+| Sync with malformed JWT | 400 (Invalid Compact JWS) |
+| Sync with invalid JWT signature | 400 (JWS decode error) |
+| Sync with wrong orgId | 400 (Access denied) |
+| Sync with valid JWT + matching storeId | Success (not 400) |
+| User B cannot sync with User A's org | 400 (Access denied) |
+
+### Test Flow
+
+```typescript
+// 1. Signup creates user + org via databaseHooks
+const res = await SELF.fetch('/api/auth/sign-up/email', {
+  method: 'POST',
+  body: JSON.stringify({ email, password, name })
+})
+const cookie = res.headers.get('set-cookie')
+
+// 2. Get user info via /me endpoint
+const me = await SELF.fetch('/api/auth/me', {
+  headers: { Cookie: cookie }
+})
+
+// 3. Test org access
+const org = await SELF.fetch(`/api/org/${orgId}`, {
+  headers: { Cookie: cookie }
+})
+```
 
 ## Local Development
 
-1. Copy `.dev.vars.example` to `.dev.vars`:
-   ```
-   GOOGLE_CLIENT_ID=your-client-id
-   GOOGLE_CLIENT_SECRET=your-client-secret
-   BETTER_AUTH_SECRET=random-32-char-string
-   BETTER_AUTH_URL=http://localhost:3000
-   ```
+```bash
+# 1. Create .dev.vars
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
+BETTER_AUTH_SECRET=random-32-char-string
+BETTER_AUTH_URL=http://localhost:3000
 
-2. Apply migrations:
-   ```bash
-   bun run db:migrate:local
-   ```
+# 2. Apply migrations
+bun run db:migrate:local
 
-3. Google OAuth redirect URI:
-   ```
-   http://localhost:3000/api/auth/callback/google
-   ```
+# 3. Run
+bun run dev
+```
 
-4. Run: `bun run dev`
+Google OAuth redirect URI: `http://localhost:3000/api/auth/callback/google`
 
 ## Production
 
-1. Set secrets:
-   ```bash
-   wrangler secret put GOOGLE_CLIENT_ID
-   wrangler secret put GOOGLE_CLIENT_SECRET
-   wrangler secret put BETTER_AUTH_SECRET
-   wrangler secret put BETTER_AUTH_URL  # https://your-domain.workers.dev
-   ```
+```bash
+# 1. Set secrets
+wrangler secret put GOOGLE_CLIENT_ID
+wrangler secret put GOOGLE_CLIENT_SECRET
+wrangler secret put BETTER_AUTH_SECRET
+wrangler secret put BETTER_AUTH_URL
 
-2. Apply migrations:
-   ```bash
-   bun run db:migrate:remote
-   ```
+# 2. Apply migrations
+bun run db:migrate:remote
 
-3. Google OAuth redirect URI:
-   ```
-   https://your-domain.workers.dev/api/auth/callback/google
-   ```
+# 3. Deploy
+bun run deploy
+```
 
-4. Deploy: `bun run deploy`
+Google OAuth redirect URI: `https://your-domain.workers.dev/api/auth/callback/google`
 
----
-
-## Security Checklist
+## Security
 
 - [x] HttpOnly, Secure, SameSite cookies
-- [x] Org-scoped sync partitions (`org-{organizationId}`)
-- [x] JWT + JWKS validation (EdDSA, Ed25519)
-- [x] Short-lived access tokens (1h)
-- [x] Router-level auth (beforeLoad)
-- [x] Server-side store access validation (orgId in JWT)
+- [x] Org-scoped sync (storeId = organizationId)
+- [x] JWT + JWKS validation (EdDSA Ed25519)
+- [x] Short-lived JWTs (1h)
+- [x] Router-level auth (`beforeLoad`)
+- [x] Server-side org validation via JWT claims
 - [ ] Token refresh before expiration
 - [ ] Clear local data on logout
 - [ ] Handle 401 on reconnect
-- [ ] Offline validation (JWKS cached in localStorage)
-
----
-
-## Organization-Based Store Access
-
-Each user has a personal workspace (organization) created on signup. Store access is controlled via org membership, validated through JWT claims.
-
-### How It Works
-
-```
-User signup → Auto-create personal workspace (org) → Store = org-{organizationId}
-                                                           ↓
-                                              JWT includes activeOrganizationId
-                                                           ↓
-                                              Worker validates org membership
-```
-
-**Benefits:**
-- Clear ownership model: org membership = store access
-- JWT includes `activeOrganizationId` for stateless validation
-- Future multi-user workspaces via org invitations
-- Roles (owner/admin/member) for permission control
-
----
-
-### Flow Diagrams
-
-**New User Signup:**
-```
-┌──────────┐      ┌─────────────┐      ┌─────────────┐      ┌────────────────┐
-│  User    │      │   Google    │      │ Better Auth │      │      D1        │
-│ Browser  │      │   OAuth     │      │   Worker    │      │   Database     │
-└────┬─────┘      └──────┬──────┘      └──────┬──────┘      └───────┬────────┘
-     │                   │                    │                     │
-     │ 1. Click "Sign in with Google"         │                     │
-     │───────────────────────────────────────►│                     │
-     │                   │                    │                     │
-     │ 2. Redirect to Google                  │                     │
-     │◄───────────────────────────────────────│                     │
-     │                   │                    │                     │
-     │ 3. Login + consent│                    │                     │
-     │──────────────────►│                    │                     │
-     │                   │                    │                     │
-     │                   │ 4. Callback with code                    │
-     │                   │───────────────────►│                     │
-     │                   │                    │                     │
-     │                   │                    │ 5. INSERT user      │
-     │                   │                    │────────────────────►│
-     │                   │                    │                     │
-     │                   │      ┌─────────────┴─────────────┐       │
-     │                   │      │ 6. user.create.after hook │       │
-     │                   │      │    → Create personal org  │       │
-     │                   │      │    → Add user as owner    │       │
-     │                   │      └─────────────┬─────────────┘       │
-     │                   │                    │                     │
-     │                   │                    │ 7. INSERT org,member│
-     │                   │                    │────────────────────►│
-     │                   │                    │                     │
-     │                   │      ┌─────────────┴─────────────┐       │
-     │                   │      │ 8. session.create.before  │       │
-     │                   │      │    → Set activeOrgId      │       │
-     │                   │      └─────────────┬─────────────┘       │
-     │                   │                    │                     │
-     │                   │                    │ 9. INSERT session   │
-     │                   │                    │   (with activeOrgId)│
-     │                   │                    │────────────────────►│
-     │                   │                    │                     │
-     │ 10. Set session cookie + redirect      │                     │
-     │◄───────────────────────────────────────│                     │
-```
-
-**Authenticated Sync Connection:**
-```
-┌──────────┐      ┌─────────────┐      ┌─────────────┐      ┌────────────────┐
-│  React   │      │ Better Auth │      │  LiveStore  │      │  SyncBackend   │
-│   App    │      │   Client    │      │   Client    │      │      DO        │
-└────┬─────┘      └──────┬──────┘      └──────┬──────┘      └───────┬────────┘
-     │                   │                    │                     │
-     │ 1. beforeLoad: fetchAuth()             │                     │
-     │──────────────────►│                    │                     │
-     │                   │                    │                     │
-     │ 2. getSession() + token()              │                     │
-     │◄──────────────────│                    │                     │
-     │   { userId, orgId, jwt }               │                     │
-     │                   │                    │                     │
-     │ 3. useAppStore(storeId=org-{orgId})    │                     │
-     │───────────────────────────────────────►│                     │
-     │                   │                    │                     │
-     │                   │                    │ 4. WebSocket        │
-     │                   │                    │    ?storeId=org-xxx │
-     │                   │                    │    &payload={jwt}   │
-     │                   │                    │────────────────────►│
-     │                   │                    │                     │
-     │                   │                    │      ┌──────────────┴──────┐
-     │                   │                    │      │ 5. validatePayload  │
-     │                   │                    │      │    - Verify JWT     │
-     │                   │                    │      │    - claims.orgId   │
-     │                   │                    │      │      == storeId?    │
-     │                   │                    │      └──────────────┬──────┘
-     │                   │                    │                     │
-     │                   │                    │ 6. Connection OK    │
-     │                   │                    │◄────────────────────│
-     │                   │                    │                     │
-     │ 7. Sync data for org-{orgId}           │◄────────────────────│
-     │◄───────────────────────────────────────│                     │
-```
-
----
-
-### Organization Plugin Overview
-
-The plugin adds these tables to D1:
-
-| Table | Purpose |
-|-------|---------|
-| `organization` | Org name, slug, logo, metadata, createdAt |
-| `member` | Links users to orgs with role (owner/admin/member) |
-| `invitation` | Pending membership invites with expiration |
-
-Session table extended with:
-- `activeOrganizationId` (string, nullable)
-- `activeTeamId` (string, nullable, if teams enabled)
-
-**Default roles:**
-- `owner` - Full control, can delete org
-- `admin` - All permissions except org deletion
-- `member` - Read-only access
-
----
-
-### Implementation Steps
-
-#### 1. Add Organization Plugin
-
-```typescript
-// src/cf-worker/auth.ts
-import { organization } from 'better-auth/plugins'
-
-export const createAuth = (env: Env, db: Database) => {
-  const auth = betterAuth({
-    // ... existing config
-    plugins: [
-      jwt({
-        jwt: {
-          // Include activeOrganizationId in JWT
-          definePayload: async ({ user, session }) => ({
-            sub: user.id,
-            email: user.email,
-            orgId: session.activeOrganizationId,
-          }),
-          issuer: env.BETTER_AUTH_URL,
-          audience: env.BETTER_AUTH_URL,
-          expirationTime: '1h',
-        },
-        jwks: { keyPairConfig: { alg: 'EdDSA', crv: 'Ed25519' } },
-      }),
-      organization({
-        allowUserToCreateOrganization: true,
-        creatorRole: 'owner',
-      }),
-    ],
-    databaseHooks: {
-      // Auto-create personal workspace on signup (works for OAuth and email/password)
-      user: {
-        create: {
-          after: async (user) => {
-            // Create personal organization for new user
-            await auth.api.organization.create({
-              body: {
-                name: `${user.name}'s Workspace`,
-                slug: `user-${user.id}`,
-              },
-              headers: new Headers(),
-            })
-          },
-        },
-      },
-      // Set active org when session is created
-      session: {
-        create: {
-          before: async (session) => {
-            // Find user's first org (personal workspace)
-            const membership = await db.query.member.findFirst({
-              where: eq(member.userId, session.userId),
-            })
-            return {
-              data: {
-                ...session,
-                activeOrganizationId: membership?.organizationId ?? null,
-              },
-            }
-          },
-        },
-      },
-    },
-  })
-
-  return auth
-}
-```
-
-**Why `user.create.after`?**
-- Fires when user record is created in DB (works for OAuth + email/password)
-- Recommended by Better Auth for "new user" logic
-- No separate `onSignUp` event exists
-
-#### 2. Update Schema
-
-```typescript
-// src/cf-worker/db/schema.ts - add organization tables
-
-export const organization = sqliteTable('organization', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  slug: text('slug').unique(),
-  logo: text('logo'),
-  metadata: text('metadata'),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' })
-    .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-    .notNull(),
-})
-
-export const member = sqliteTable(
-  'member',
-  {
-    id: text('id').primaryKey(),
-    organizationId: text('organization_id')
-      .notNull()
-      .references(() => organization.id, { onDelete: 'cascade' }),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    role: text('role').notNull(), // 'owner' | 'admin' | 'member'
-    createdAt: integer('created_at', { mode: 'timestamp_ms' })
-      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-      .notNull(),
-  },
-  (table) => [
-    index('member_orgId_idx').on(table.organizationId),
-    index('member_userId_idx').on(table.userId),
-  ],
-)
-
-export const invitation = sqliteTable('invitation', {
-  id: text('id').primaryKey(),
-  organizationId: text('organization_id')
-    .notNull()
-    .references(() => organization.id, { onDelete: 'cascade' }),
-  email: text('email').notNull(),
-  role: text('role').notNull(),
-  status: text('status').notNull(), // 'pending' | 'accepted' | 'rejected' | 'canceled'
-  expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
-  inviterId: text('inviter_id').references(() => user.id),
-})
-
-// Add activeOrganizationId to session
-export const session = sqliteTable('session', {
-  // ... existing fields
-  activeOrganizationId: text('active_organization_id')
-    .references(() => organization.id),
-})
-```
-
-#### 3. Update Worker Validation
-
-```typescript
-// src/cf-worker/index.ts
-const validatePayload = async (
-  payload: typeof SyncPayload.Type | undefined,
-  context: { storeId: string },
-  env: Env,
-) => {
-  if (!payload?.authToken) {
-    throw new Error('Missing auth token')
-  }
-
-  const jwksResponse = await fetch(`${env.BETTER_AUTH_URL}/api/auth/jwks`)
-  if (!jwksResponse.ok) {
-    throw new Error(`Failed to fetch JWKS: ${jwksResponse.status}`)
-  }
-  const jwks = (await jwksResponse.json()) as { keys: JsonWebKey[] }
-  const JWKS = createLocalJWKSet(jwks)
-
-  const { payload: claims } = await jwtVerify(payload.authToken, JWKS, {
-    issuer: env.BETTER_AUTH_URL,
-    audience: env.BETTER_AUTH_URL,
-  })
-
-  if (!claims.sub) {
-    throw new Error('Invalid token: missing subject')
-  }
-
-  // Validate org access from JWT
-  const requestedOrgId = context.storeId.replace('org-', '')
-  if (claims.orgId !== requestedOrgId) {
-    throw new Error('Access denied: not a member of this organization')
-  }
-}
-```
-
-#### 4. Update Client Store ID
-
-```typescript
-// src/util/store-id.ts
-export const getStoreId = (orgId: string) => `org-${orgId}`
-
-// src/livestore/store.ts
-export const useAppStore = () => {
-  const { auth } = useRouteContext({ strict: false })
-
-  if (!auth?.isAuthenticated || !auth.orgId || !auth.jwt) {
-    throw new Error('useAppStore must be used within an authenticated context')
-  }
-
-  const storeId = getStoreId(auth.orgId)
-  // ...
-}
-```
-
-#### 5. Update Auth Client + State
-
-```typescript
-// src/lib/auth.ts
-import { createAuthClient } from 'better-auth/react'
-import { jwtClient, organizationClient } from 'better-auth/client/plugins'
-
-export const authClient = createAuthClient({
-  baseURL: window.location.origin,
-  plugins: [jwtClient(), organizationClient()],
-})
-
-export type AuthState = {
-  userId: string | null
-  orgId: string | null
-  jwt: string | null
-  isAuthenticated: boolean
-}
-
-export const fetchAuth = async (): Promise<AuthState> => {
-  const { data: session } = await authClient.getSession()
-
-  if (!session?.user) {
-    return { userId: null, orgId: null, jwt: null, isAuthenticated: false }
-  }
-
-  const { data: tokenData } = await authClient.token()
-
-  return {
-    userId: session.user.id,
-    orgId: session.activeOrganizationId ?? null,
-    jwt: tokenData?.token ?? null,
-    isAuthenticated: !!tokenData?.token && !!session.activeOrganizationId,
-  }
-}
-```
-
----
-
-### Client API for Organizations
-
-```typescript
-// List user's organizations
-const { data: orgs } = await authClient.organization.list()
-
-// Switch active organization
-await authClient.organization.setActive({ organizationId: 'org-123' })
-
-// Get current active org
-const { data: activeOrg } = authClient.useActiveOrganization()
-
-// Invite member (owner/admin only)
-await authClient.organization.inviteMember({
-  email: 'user@example.com',
-  role: 'member',
-  organizationId: 'org-123',
-})
-
-// Accept invitation
-await authClient.organization.acceptInvitation({ invitationId: 'inv-123' })
-```
-
----
-
-### Schema Migration
-
-After adding org tables to `schema.ts`, run Drizzle migrations:
-
-```bash
-bun run db:generate        # Generate migration SQL
-bun run db:migrate:local   # Apply locally
-bun run db:migrate:remote  # Apply to production
-```
-
----
-
-### Validation Approaches Comparison
-
-| Approach | Pros | Cons |
-|----------|------|------|
-| **JWT orgId (current)** | Stateless, fast validation | Stale if org changes mid-session |
-| JWT org list | Multi-org access in one token | JWT bloat, stale memberships |
-| DB lookup per request | Always fresh, flexible | Extra query per connection |
-
-**Current approach:** JWT with `activeOrganizationId` for single active workspace. If user switches org, they get a new JWT via `setActive()`.
-
----
-
-### Known Issues
-
-- **TypeScript inference**: Combining `customSession` + `organization` plugins can cause type issues. Use `satisfies BetterAuthOptions` pattern. See [GitHub #3233](https://github.com/better-auth/better-auth/issues/3233).
-- **Session caching**: Cookie cache doesn't include custom session fields. Each `getSession()` call triggers the custom function.
-
----
-
-## References
-
-- [Better Auth JWT Plugin](https://www.better-auth.com/docs/plugins/jwt)
-- [Better Auth Organization Plugin](https://www.better-auth.com/docs/plugins/organization)
-- [Better Auth Database Hooks](https://www.better-auth.com/docs/concepts/database#database-hooks)
-- [Better Auth Session Management](https://www.better-auth.com/docs/concepts/session-management)
-- [jose Library](https://github.com/panva/jose)
-- [TanStack Router Auth](https://tanstack.com/router/latest/docs/framework/react/guide/authenticated-routes)
-- [LiveStore Auth](https://docs.livestore.dev/patterns/auth/)
