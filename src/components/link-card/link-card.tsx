@@ -1,7 +1,9 @@
 import { CheckIcon } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { BorderTrail } from '@/components/ui/border-trail'
 import { cn } from '@/lib/utils'
-import type { LinkWithDetails } from '@/livestore/queries'
+import { useAppStore } from '@/livestore/store'
+import { linkProcessingStatus$, type LinkWithDetails } from '@/livestore/queries'
 
 interface LinkCardProps {
   link: LinkWithDetails
@@ -11,6 +13,10 @@ interface LinkCardProps {
 }
 
 export function LinkCard({ link, onClick, selected, selectionMode }: LinkCardProps) {
+  const store = useAppStore()
+  const processingRecord = store.useQuery(linkProcessingStatus$(link.id))
+  const isProcessing = processingRecord?.status === 'pending'
+
   const displayTitle = link.title || link.url
   const formattedDate = new Date(link.createdAt).toLocaleDateString(undefined, {
     month: 'short',
@@ -36,11 +42,22 @@ export function LinkCard({ link, onClick, selected, selectionMode }: LinkCardPro
       )}
       <Card
         className={cn(
-          'transition-shadow',
+          'transition-shadow overflow-hidden',
           link.image ? 'h-full pt-0' : 'h-full',
           selected && 'ring-2 ring-primary ring-offset-2',
         )}
       >
+        {isProcessing && (
+          <BorderTrail
+            className='bg-gradient-to-l from-blue-200 via-blue-500 to-blue-200 dark:from-blue-400 dark:via-blue-500 dark:to-blue-700'
+            size={80}
+            transition={{
+              repeat: Infinity,
+              duration: 4,
+              ease: 'linear',
+            }}
+          />
+        )}
         {link.image && (
           <div className='aspect-video w-full overflow-hidden'>
             <img src={link.image} alt='' className='h-full w-full object-cover' />
