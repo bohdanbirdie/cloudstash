@@ -3,7 +3,7 @@ import { nanoid } from '@livestore/livestore'
 
 import { events } from '../../livestore/schema'
 import { fetchOgMetadata } from '../metadata/service'
-import { fetchAndExtractContent } from '../content-extractor'
+import { fetchAndExtractContent } from './content-extractor'
 import type { Env } from '../shared'
 import { generateSummary } from './generate-summary'
 import { AI_MODEL, type LinkStore } from './types'
