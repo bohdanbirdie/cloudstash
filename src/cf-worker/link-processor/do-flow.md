@@ -284,6 +284,39 @@ Use `typeof tables.links.Type` to infer row types from LiveStore tables.
 
 ---
 
+## Security
+
+**LinkProcessorDO has no public HTTP access.**
+
+### Access Paths
+
+| Path | Who can call | Auth |
+|------|--------------|------|
+| `SyncBackendDO.triggerLinkProcessor()` | Internal DO-to-DO | None needed (trusted) |
+| `SyncBackendDO` → `syncUpdateRpc()` | Internal DO RPC | None needed (trusted) |
+
+### How it's secured
+
+1. **No HTTP route** - The `/api/link-processor` route was removed. The DO is not accessible via HTTP.
+
+2. **DO-to-DO only** - Cloudflare DOs can only be accessed via:
+   - A Worker that gets a stub (our worker doesn't expose this)
+   - Another DO that gets a stub (only SyncBackendDO does this)
+
+3. **External clients go through SyncBackendDO** - Browser clients connect via WebSocket to `handleSyncRequest()` which validates JWT auth before accepting connections.
+
+4. **Org isolation** - Each org has its own `LinkProcessorDO` instance (ID from `storeId`/`orgId`). A processor can only see events for its own org.
+
+### Auth flow for external clients
+
+```
+Browser → WebSocket → handleSyncRequest() → validatePayload(JWT) → SyncBackendDO
+                                                                        ↓
+                                                              LinkProcessorDO (internal)
+```
+
+---
+
 ## Warnings (Reference)
 
 1. **Do NOT shut down the store** - This breaks the reactive model
@@ -291,6 +324,7 @@ Use `typeof tables.links.Type` to infer row types from LiveStore tables.
 3. **Do NOT query once and process** - Use subscription for reactivity
 4. **Do NOT block in subscription callback** - Fire async, use lock for dedup
 5. **Do NOT change the trigger to pass link data** - DO discovers work from state
+6. **Do NOT add public HTTP routes to LinkProcessorDO** - Keep it internal only
 
 ---
 
