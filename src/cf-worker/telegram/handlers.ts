@@ -90,22 +90,30 @@ export const handleDisconnect = (ctx: Context, env: Env): Promise<void> => {
   )
 }
 
-const ingestUrl = (url: string, apiKey: string, env: Env) =>
-  Effect.tryPromise({
-    try: async () => {
-      const response = await fetch(new URL('/api/ingest', env.BETTER_AUTH_URL).toString(), {
+type IngestResult = { url: string; success: true } | { url: string; success: false; error: string }
+
+const ingestUrl = (url: string, apiKey: string, env: Env): Effect.Effect<IngestResult> =>
+  Effect.gen(function* () {
+    const response = yield* Effect.tryPromise(() =>
+      fetch(new URL('/api/ingest', env.BETTER_AUTH_URL).toString(), {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
+      }),
+    )
+
+    if (!response.ok) {
+      const text = yield* Effect.promise(() => response.text())
+      const parseResult = Effect.try({
+        try: () => (JSON.parse(text) as { error?: string }).error || 'Unknown error',
+        catch: () => `HTTP ${response.status}: ${text.slice(0, 100)}`,
       })
-      if (!response.ok) {
-        const body = (await response.json()) as { error?: string }
-        return { url, success: false, error: body.error || 'Unknown error' }
-      }
-      return { url, success: true }
-    },
-    catch: (error) => ({ url, success: false, error: String(error) }),
-  }).pipe(Effect.catchAll((result) => Effect.succeed(result)))
+      const error = yield* Effect.match(parseResult, { onSuccess: (e) => e, onFailure: (e) => e })
+      return { url, success: false, error } as const
+    }
+
+    return { url, success: true } as const
+  }).pipe(Effect.catchAll((error) => Effect.succeed({ url, success: false, error: String(error) } as const)))
 
 const react = (ctx: Context, emoji: '🤔' | '👍' | '👎') =>
   Effect.tryPromise(() => ctx.react(emoji)).pipe(Effect.catchAll(() => Effect.void))
