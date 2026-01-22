@@ -18,10 +18,12 @@ export function LinkCard({ link, onClick, selected, selectionMode }: LinkCardPro
   const isProcessing = processingRecord?.status === 'pending'
 
   const displayTitle = link.title || link.url
-  const formattedDate = new Date(link.createdAt).toLocaleDateString(undefined, {
+  const formattedDate = new Date(link.createdAt).toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
   })
 
   return (
