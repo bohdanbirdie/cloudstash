@@ -44,6 +44,7 @@
 ### Goal
 
 Test organization-based auth without LiveStore complexity:
+
 - User can access their own organization data
 - User cannot access other organizations
 - Unauthenticated requests are rejected
@@ -53,6 +54,7 @@ Test organization-based auth without LiveStore complexity:
 **Enable email/password auth in test environment only.**
 
 This is the [recommended approach by Auth.js](https://authjs.dev/guides/testing):
+
 > "OAuth providers are especially difficult to test... Enable an authentication method like the Credentials provider in development mode."
 
 Better Auth doesn't have official test utilities yet ([Issue #5609](https://github.com/better-auth/better-auth/issues/5609)), so credentials for testing is the pragmatic solution.
@@ -70,6 +72,7 @@ const auth = betterAuth({
 ```
 
 **Environment setup:**
+
 - Production: `ENABLE_TEST_AUTH` not set → Google OAuth only
 - Tests: `ENABLE_TEST_AUTH=true` → email/password signup available
 
@@ -125,6 +128,7 @@ const auth = betterAuth({
 ### New Endpoints to Create
 
 #### 1. `GET /api/auth/me`
+
 Returns current authenticated user with their active organization.
 
 ```typescript
@@ -137,25 +141,30 @@ Returns current authenticated user with their active organization.
 ```
 
 #### 2. `GET /api/org/:id`
+
 Returns organization details if user is a member.
 
 ```typescript
 // Response (200 if member)
-{ id, name, slug, role }
+{
+  ;(id, name, slug, role)
+}
 
 // Response (403 if not member)
-{ error: "Access denied" }
+{
+  error: 'Access denied'
+}
 ```
 
 ### Test Cases
 
-| # | Test | Endpoint | Auth | Expected |
-|---|------|----------|------|----------|
-| 1 | Unauthenticated /me | GET /api/auth/me | none | 401 |
-| 2 | Authenticated /me | GET /api/auth/me | valid cookie | 200 + user data |
-| 3 | Own org access | GET /api/org/{myOrgId} | valid cookie | 200 + org data |
-| 4 | Other org access | GET /api/org/{otherOrgId} | valid cookie | 403 |
-| 5 | Unauthenticated org | GET /api/org/{id} | none | 401 |
+| #   | Test                | Endpoint                  | Auth         | Expected        |
+| --- | ------------------- | ------------------------- | ------------ | --------------- |
+| 1   | Unauthenticated /me | GET /api/auth/me          | none         | 401             |
+| 2   | Authenticated /me   | GET /api/auth/me          | valid cookie | 200 + user data |
+| 3   | Own org access      | GET /api/org/{myOrgId}    | valid cookie | 200 + org data  |
+| 4   | Other org access    | GET /api/org/{otherOrgId} | valid cookie | 403             |
+| 5   | Unauthenticated org | GET /api/org/{id}         | none         | 401             |
 
 ### Test Flow (using Effect)
 
@@ -165,13 +174,13 @@ const signupUser = async (email: string, name: string) => {
   const res = await SELF.fetch('/api/auth/sign-up/email', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password: 'test-password-123', name })
+    body: JSON.stringify({ email, password: 'test-password-123', name }),
   })
   const cookie = res.headers.get('set-cookie') // session cookie
 
   // Get user info including orgId
   const meRes = await SELF.fetch('/api/auth/me', {
-    headers: { Cookie: cookie }
+    headers: { Cookie: cookie },
   })
   const me = await meRes.json()
 
@@ -179,8 +188,8 @@ const signupUser = async (email: string, name: string) => {
 }
 
 describe('Organization Auth E2E', () => {
-  let userA: { cookie: string, userId: string, orgId: string }
-  let userB: { cookie: string, userId: string, orgId: string }
+  let userA: { cookie: string; userId: string; orgId: string }
+  let userB: { cookie: string; userId: string; orgId: string }
 
   beforeAll(async () => {
     // Create two users via email signup (triggers databaseHooks → auto-creates orgs)
@@ -190,7 +199,7 @@ describe('Organization Auth E2E', () => {
 
   it('User A can access /me', async () => {
     const res = await SELF.fetch('/api/auth/me', {
-      headers: { Cookie: userA.cookie }
+      headers: { Cookie: userA.cookie },
     })
     expect(res.status).toBe(200)
     const data = await res.json()
@@ -199,14 +208,14 @@ describe('Organization Auth E2E', () => {
 
   it('User A can access own org', async () => {
     const res = await SELF.fetch(`/api/org/${userA.orgId}`, {
-      headers: { Cookie: userA.cookie }
+      headers: { Cookie: userA.cookie },
     })
     expect(res.status).toBe(200)
   })
 
   it('User A cannot access User B org', async () => {
     const res = await SELF.fetch(`/api/org/${userB.orgId}`, {
-      headers: { Cookie: userA.cookie }
+      headers: { Cookie: userA.cookie },
     })
     expect(res.status).toBe(403)
   })
@@ -252,7 +261,7 @@ export default defineWorkersConfig({
       workers: {
         miniflare: {
           bindings: {
-            ENABLE_TEST_AUTH: 'true',  // Enable email signup in tests
+            ENABLE_TEST_AUTH: 'true', // Enable email signup in tests
             // ... other test bindings
           },
         },

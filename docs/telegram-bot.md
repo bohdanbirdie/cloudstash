@@ -88,7 +88,9 @@ export const createAuth = (env: Env, db: Database) =>
   betterAuth({
     // ... existing config
     plugins: [
-      jwt({ /* existing config */ }),
+      jwt({
+        /* existing config */
+      }),
       apiKey({
         defaultPrefix: 'lb_tg',
       }),
@@ -330,11 +332,11 @@ const generateKey = async () => {
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
+| Command          | Description          |
+| ---------------- | -------------------- |
 | `/connect <key>` | Connect with API key |
-| `/disconnect` | Remove connection |
-| `<url>` | Save a link |
+| `/disconnect`    | Remove connection    |
+| `<url>`          | Save a link          |
 
 ---
 

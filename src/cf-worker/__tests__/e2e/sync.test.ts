@@ -119,9 +119,7 @@ describe('Sync Connection Auth E2E', () => {
 
   describe('Invalid auth token', () => {
     it('rejects sync request with malformed JWT', async () => {
-      const res = await SELF.fetch(
-        buildSyncUrl(userA.orgId, { authToken: 'not-a-valid-jwt' }),
-      )
+      const res = await SELF.fetch(buildSyncUrl(userA.orgId, { authToken: 'not-a-valid-jwt' }))
 
       expect(res.status).toBe(400)
     })
@@ -130,9 +128,7 @@ describe('Sync Connection Auth E2E', () => {
       // Create a fake JWT with invalid signature
       const fakeJwt =
         'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.invalid_signature'
-      const res = await SELF.fetch(
-        buildSyncUrl(userA.orgId, { authToken: fakeJwt }),
-      )
+      const res = await SELF.fetch(buildSyncUrl(userA.orgId, { authToken: fakeJwt }))
 
       expect(res.status).toBe(400)
     })
@@ -141,9 +137,7 @@ describe('Sync Connection Auth E2E', () => {
   describe('Org access control', () => {
     it('rejects when storeId does not match JWT orgId', async () => {
       // User A tries to sync with User B's org
-      const res = await SELF.fetch(
-        buildSyncUrl(userB.orgId, { authToken: userA.jwt }),
-      )
+      const res = await SELF.fetch(buildSyncUrl(userB.orgId, { authToken: userA.jwt }))
 
       expect(res.status).toBe(400)
       const text = await res.text()
@@ -151,9 +145,7 @@ describe('Sync Connection Auth E2E', () => {
     })
 
     it('rejects when storeId is non-existent org', async () => {
-      const res = await SELF.fetch(
-        buildSyncUrl('non-existent-org-id', { authToken: userA.jwt }),
-      )
+      const res = await SELF.fetch(buildSyncUrl('non-existent-org-id', { authToken: userA.jwt }))
 
       expect(res.status).toBe(400)
       const text = await res.text()
@@ -163,9 +155,7 @@ describe('Sync Connection Auth E2E', () => {
 
   describe('Valid auth', () => {
     it('accepts sync request with valid JWT and matching storeId', async () => {
-      const res = await SELF.fetch(
-        buildSyncUrl(userA.orgId, { authToken: userA.jwt }),
-      )
+      const res = await SELF.fetch(buildSyncUrl(userA.orgId, { authToken: userA.jwt }))
 
       // Should return 101 Switching Protocols (WebSocket upgrade)
       // or potentially a different success status depending on how SELF handles WebSocket
@@ -180,17 +170,13 @@ describe('Sync Connection Auth E2E', () => {
     })
 
     it('User B can sync with their own org', async () => {
-      const res = await SELF.fetch(
-        buildSyncUrl(userB.orgId, { authToken: userB.jwt }),
-      )
+      const res = await SELF.fetch(buildSyncUrl(userB.orgId, { authToken: userB.jwt }))
 
       expect(res.status).not.toBe(400)
     })
 
     it('User B cannot sync with User A org', async () => {
-      const res = await SELF.fetch(
-        buildSyncUrl(userA.orgId, { authToken: userB.jwt }),
-      )
+      const res = await SELF.fetch(buildSyncUrl(userA.orgId, { authToken: userB.jwt }))
 
       expect(res.status).toBe(400)
       const text = await res.text()

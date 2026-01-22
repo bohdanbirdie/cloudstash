@@ -12,8 +12,7 @@ export const createAuth = (env: Env, db: Database) => {
       provider: 'sqlite',
       schema,
     }),
-    emailAndPassword:
-      env.ENABLE_TEST_AUTH === 'true' ? { enabled: true } : undefined,
+    emailAndPassword: env.ENABLE_TEST_AUTH === 'true' ? { enabled: true } : undefined,
     socialProviders: {
       google: {
         clientId: env.GOOGLE_CLIENT_ID,

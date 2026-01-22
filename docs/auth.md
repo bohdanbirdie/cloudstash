@@ -10,24 +10,24 @@ User → Google OAuth → Better Auth → Session + JWT → LiveStore (org-scope
 
 ## Architecture
 
-| Component | Purpose |
-|-----------|---------|
-| Better Auth | OAuth, sessions, JWT issuance (`jwt` + `organization` plugins) |
-| D1 | Auth tables: user, session, account, verification, jwks, organization, member, invitation |
-| jose | JWT verification via JWKS (from `auth.handler`) |
-| LiveStore | Org-scoped stores using `{organizationId}` as storeId |
+| Component   | Purpose                                                                                   |
+| ----------- | ----------------------------------------------------------------------------------------- |
+| Better Auth | OAuth, sessions, JWT issuance (`jwt` + `organization` plugins)                            |
+| D1          | Auth tables: user, session, account, verification, jwks, organization, member, invitation |
+| jose        | JWT verification via JWKS (from `auth.handler`)                                           |
+| LiveStore   | Org-scoped stores using `{organizationId}` as storeId                                     |
 
 ## Files
 
-| File | Purpose |
-|------|---------|
-| `src/cf-worker/auth.ts` | Better Auth config with jwt + organization plugins |
-| `src/cf-worker/index.ts` | Worker routes + JWT/org validation |
-| `src/cf-worker/db/schema.ts` | Drizzle schema (auth + org tables) |
-| `src/lib/auth.ts` | Auth client + `fetchAuth()` helper |
-| `src/router.tsx` | Router with auth context type |
-| `src/routes/__root.tsx` | `beforeLoad` auth check + redirect |
-| `src/livestore/store.ts` | `useAppStore` with JWT from route context |
+| File                         | Purpose                                            |
+| ---------------------------- | -------------------------------------------------- |
+| `src/cf-worker/auth.ts`      | Better Auth config with jwt + organization plugins |
+| `src/cf-worker/index.ts`     | Worker routes + JWT/org validation                 |
+| `src/cf-worker/db/schema.ts` | Drizzle schema (auth + org tables)                 |
+| `src/lib/auth.ts`            | Auth client + `fetchAuth()` helper                 |
+| `src/router.tsx`             | Router with auth context type                      |
+| `src/routes/__root.tsx`      | `beforeLoad` auth check + redirect                 |
+| `src/livestore/store.ts`     | `useAppStore` with JWT from route context          |
 
 ## Auth Flow
 
@@ -82,10 +82,10 @@ useAppStore() → WebSocket /sync?storeId={orgId}&payload={jwt}
 
 ## Token Strategy
 
-| Token | Lifetime | Storage | Purpose |
-|-------|----------|---------|---------|
-| Session cookie | 7 days | HttpOnly cookie | Maintain login, refresh JWT |
-| JWT | 1 hour | Route context | Sync auth (stateless validation) |
+| Token          | Lifetime | Storage         | Purpose                          |
+| -------------- | -------- | --------------- | -------------------------------- |
+| Session cookie | 7 days   | HttpOnly cookie | Maintain login, refresh JWT      |
+| JWT            | 1 hour   | Route context   | Sync auth (stateless validation) |
 
 ### JWT Signing
 
@@ -133,24 +133,30 @@ Returns organization if user is a member.
 
 ```typescript
 // Response 200 (member)
-{ id, name, slug, role }
+{
+  ;(id, name, slug, role)
+}
 
 // Response 403 (not member)
-{ error: "Access denied" }
+{
+  error: 'Access denied'
+}
 
 // Response 404 (not found)
-{ error: "Organization not found" }
+{
+  error: 'Organization not found'
+}
 ```
 
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
-| `BETTER_AUTH_SECRET` | Secret for signing (32+ chars) |
-| `BETTER_AUTH_URL` | Base URL (e.g., `http://localhost:3000`) |
-| `ENABLE_TEST_AUTH` | Set to `"true"` to enable email signup (tests only) |
+| Variable               | Description                                         |
+| ---------------------- | --------------------------------------------------- |
+| `GOOGLE_CLIENT_ID`     | Google OAuth client ID                              |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret                          |
+| `BETTER_AUTH_SECRET`   | Secret for signing (32+ chars)                      |
+| `BETTER_AUTH_URL`      | Base URL (e.g., `http://localhost:3000`)            |
+| `ENABLE_TEST_AUTH`     | Set to `"true"` to enable email signup (tests only) |
 
 ## Database Schema
 
@@ -227,26 +233,26 @@ src/cf-worker/__tests__/
 
 ### Auth Test Cases (auth.test.ts)
 
-| Test | Expected |
-|------|----------|
-| `GET /api/auth/me` (no auth) | 401 Unauthorized |
-| `GET /api/auth/me` (with cookie) | 200 + user data |
-| `GET /api/org/{myOrgId}` | 200 + org data |
-| `GET /api/org/{otherOrgId}` | 403 Access denied |
-| `GET /api/org/{nonExistent}` | 404 Not found |
-| User A and B have different orgs | Isolated |
+| Test                             | Expected          |
+| -------------------------------- | ----------------- |
+| `GET /api/auth/me` (no auth)     | 401 Unauthorized  |
+| `GET /api/auth/me` (with cookie) | 200 + user data   |
+| `GET /api/org/{myOrgId}`         | 200 + org data    |
+| `GET /api/org/{otherOrgId}`      | 403 Access denied |
+| `GET /api/org/{nonExistent}`     | 404 Not found     |
+| User A and B have different orgs | Isolated          |
 
 ### Sync Test Cases (sync.test.ts)
 
-| Test | Expected |
-|------|----------|
-| Sync without payload | 400 (schema validation) |
-| Sync with empty payload | 400 (authToken missing) |
-| Sync with malformed JWT | 400 (Invalid Compact JWS) |
-| Sync with invalid JWT signature | 400 (JWS decode error) |
-| Sync with wrong orgId | 400 (Access denied) |
-| Sync with valid JWT + matching storeId | Success (not 400) |
-| User B cannot sync with User A's org | 400 (Access denied) |
+| Test                                   | Expected                  |
+| -------------------------------------- | ------------------------- |
+| Sync without payload                   | 400 (schema validation)   |
+| Sync with empty payload                | 400 (authToken missing)   |
+| Sync with malformed JWT                | 400 (Invalid Compact JWS) |
+| Sync with invalid JWT signature        | 400 (JWS decode error)    |
+| Sync with wrong orgId                  | 400 (Access denied)       |
+| Sync with valid JWT + matching storeId | Success (not 400)         |
+| User B cannot sync with User A's org   | 400 (Access denied)       |
 
 ### Test Flow
 
@@ -254,18 +260,18 @@ src/cf-worker/__tests__/
 // 1. Signup creates user + org via databaseHooks
 const res = await SELF.fetch('/api/auth/sign-up/email', {
   method: 'POST',
-  body: JSON.stringify({ email, password, name })
+  body: JSON.stringify({ email, password, name }),
 })
 const cookie = res.headers.get('set-cookie')
 
 // 2. Get user info via /me endpoint
 const me = await SELF.fetch('/api/auth/me', {
-  headers: { Cookie: cookie }
+  headers: { Cookie: cookie },
 })
 
 // 3. Test org access
 const org = await SELF.fetch(`/api/org/${orgId}`, {
-  headers: { Cookie: cookie }
+  headers: { Cookie: cookie },
 })
 ```
 

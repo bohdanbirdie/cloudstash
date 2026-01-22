@@ -3,9 +3,7 @@ import { beforeAll } from 'vitest'
 
 beforeAll(async () => {
   const db = env.DB
-  const migrations: Array<{ tag: string; sql: string }> = JSON.parse(
-    env.TEST_MIGRATIONS as string
-  )
+  const migrations: Array<{ tag: string; sql: string }> = JSON.parse(env.TEST_MIGRATIONS as string)
 
   for (const { sql } of migrations) {
     for (const statement of sql.split('--> statement-breakpoint')) {
