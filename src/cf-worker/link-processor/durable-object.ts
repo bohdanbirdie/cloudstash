@@ -110,6 +110,7 @@ export class LinkProcessorDO extends DurableObject<Env> implements ClientDoWithR
     isRetry: boolean,
   ): Promise<void> {
     this.currentlyProcessing.add(link.id)
+
     logger.info('Processing', { linkId: link.id, url: link.url, isRetry })
 
     try {
