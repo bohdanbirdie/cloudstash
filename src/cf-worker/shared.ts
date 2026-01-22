@@ -12,4 +12,7 @@ export type Env = {
   BETTER_AUTH_SECRET: string
   BETTER_AUTH_URL: string
   ENABLE_TEST_AUTH?: string
+  TELEGRAM_BOT_TOKEN: string
+  TELEGRAM_WEBHOOK_SECRET: string
+  TELEGRAM_KV: KVNamespace
 }

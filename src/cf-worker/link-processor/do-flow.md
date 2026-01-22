@@ -6,11 +6,11 @@ Implementation completed on 2026-01-22. All manual tests passed.
 
 ### Test Results
 
-| Test | Result |
-|------|--------|
-| Single link processing | Passed - AI summary committed, client received it |
-| Link after hibernation (few minutes wait) | Passed - DO woke up and processed |
-| Two rapid links | Passed - Both processed without duplicates |
+| Test                                      | Result                                            |
+| ----------------------------------------- | ------------------------------------------------- |
+| Single link processing                    | Passed - AI summary committed, client received it |
+| Link after hibernation (few minutes wait) | Passed - DO woke up and processed                 |
+| Two rapid links                           | Passed - Both processed without duplicates        |
 
 ---
 
@@ -102,6 +102,7 @@ if (claims.orgId !== context.storeId) {
 ```
 
 This means:
+
 - All users in the same organization share one `LinkProcessorDO` instance
 - Each organization has its own isolated processor
 - The processor only sees events for its organization's store
@@ -115,6 +116,7 @@ This means:
 1. **Local SQLite Storage**: The LiveStore adapter (`createStoreDoPromise`) automatically persists all events to SQLite in the DO's durable storage. This happens transparently.
 
 2. **Session ID Tracking**: The `sessionId` is persisted and tracks sync progress with the SyncBackendDO:
+
    ```typescript
    private async getSessionId(): Promise<string> {
      const stored = await this.ctx.storage.get<string>('sessionId')
@@ -130,11 +132,11 @@ This means:
 
 ### Why this matters:
 
-| Scenario | Without persistence | With persistence |
-|----------|--------------------|--------------------|
-| First wakeup | Fetch all events | Fetch all events |
-| Subsequent wakeups | Fetch all events again | Fetch only new events (delta) |
-| Large event history | Slow, expensive | Fast, efficient |
+| Scenario            | Without persistence    | With persistence              |
+| ------------------- | ---------------------- | ----------------------------- |
+| First wakeup        | Fetch all events       | Fetch all events              |
+| Subsequent wakeups  | Fetch all events again | Fetch only new events (delta) |
+| Large event history | Slow, expensive        | Fast, efficient               |
 
 The `sessionId` must be persisted (not regenerated) to enable delta sync. If you generate a new sessionId on each wakeup, the SyncBackendDO won't know what events you already have.
 
@@ -203,22 +205,22 @@ The processing status table is the source of truth. A link needs processing if:
 
 ## Summary
 
-| Aspect               | Decision                                              |
-| -------------------- | ----------------------------------------------------- |
-| Store lifecycle      | Cache forever, never shutdown                         |
-| Sync mode            | `livePull: true`                                      |
-| Data discovery       | Computed query `pendingLinks$` with `queryDb` wrapper |
-| Processing trigger   | Subscription callback (reactive)                      |
-| Duplicate prevention | In-memory `Set` + DB status                           |
+| Aspect               | Decision                                                  |
+| -------------------- | --------------------------------------------------------- |
+| Store lifecycle      | Cache forever, never shutdown                             |
+| Sync mode            | `livePull: true`                                          |
+| Data discovery       | Computed query `pendingLinks$` with `queryDb` wrapper     |
+| Processing trigger   | Subscription callback (reactive)                          |
+| Duplicate prevention | In-memory `Set` + DB status                               |
 | Processing logic     | Reuses existing `processLink` Effect from process-link.ts |
 
 ## Files Modified
 
-| File | Changes |
-|------|---------|
-| `src/cf-worker/link-processor/durable-object.ts` | Complete rewrite with reactive pattern |
-| `src/cf-worker/sync/index.ts` | No changes needed (already correct) |
-| `src/livestore/schema.ts` | No changes needed (schema already complete) |
+| File                                             | Changes                                     |
+| ------------------------------------------------ | ------------------------------------------- |
+| `src/cf-worker/link-processor/durable-object.ts` | Complete rewrite with reactive pattern      |
+| `src/cf-worker/sync/index.ts`                    | No changes needed (already correct)         |
+| `src/livestore/schema.ts`                        | No changes needed (schema already complete) |
 
 ## Implementation Notes
 
@@ -290,10 +292,10 @@ Use `typeof tables.links.Type` to infer row types from LiveStore tables.
 
 ### Access Paths
 
-| Path | Who can call | Auth |
-|------|--------------|------|
+| Path                                   | Who can call      | Auth                  |
+| -------------------------------------- | ----------------- | --------------------- |
 | `SyncBackendDO.triggerLinkProcessor()` | Internal DO-to-DO | None needed (trusted) |
-| `SyncBackendDO` → `syncUpdateRpc()` | Internal DO RPC | None needed (trusted) |
+| `SyncBackendDO` → `syncUpdateRpc()`    | Internal DO RPC   | None needed (trusted) |
 
 ### How it's secured
 

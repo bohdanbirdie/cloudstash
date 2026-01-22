@@ -6,98 +6,21 @@ import type { CfTypes } from '@livestore/sync-cf/cf-worker'
 
 import { createAuth } from './auth'
 import { createDb } from './db'
+import { ingestRequestToResponse } from './ingest/service'
 import { metadataRequestToResponse } from './metadata/service'
+import { handleGetMe, handleGetOrg } from './org'
 import type { Env } from './shared'
 import { SyncBackend, handleSyncRequest } from './sync'
+import { handleTelegramWebhook } from './telegram'
 
 export { SyncBackendDO } from './sync'
 export { LinkProcessorDO } from './link-processor'
 
 const app = new Hono<{ Bindings: Env }>()
 
-app.get('/api/auth/me', async (c) => {
-  const db = createDb(c.env.DB)
-  const auth = createAuth(c.env, db)
+app.get('/api/auth/me', (c) => handleGetMe(c.req.raw, c.env))
 
-  const session = await auth.api.getSession({
-    headers: c.req.raw.headers,
-  })
-
-  if (!session) {
-    return c.json({ error: 'Unauthorized' }, 401)
-  }
-
-  let organization = null
-  if (session.session.activeOrganizationId) {
-    const org = await auth.api.getFullOrganization({
-      headers: c.req.raw.headers,
-      query: { organizationId: session.session.activeOrganizationId },
-    })
-    if (org) {
-      organization = { id: org.id, name: org.name, slug: org.slug }
-    }
-  }
-
-  return c.json({
-    user: {
-      id: session.user.id,
-      name: session.user.name,
-      email: session.user.email,
-    },
-    session: {
-      activeOrganizationId: session.session.activeOrganizationId,
-    },
-    organization,
-  })
-})
-
-app.get('/api/org/:id', async (c) => {
-  const orgId = c.req.param('id')
-
-  const db = createDb(c.env.DB)
-  const auth = createAuth(c.env, db)
-
-  const session = await auth.api.getSession({
-    headers: c.req.raw.headers,
-  })
-
-  if (!session) {
-    return c.json({ error: 'Unauthorized' }, 401)
-  }
-
-  let org
-  try {
-    org = await auth.api.getFullOrganization({
-      headers: c.req.raw.headers,
-      query: { organizationId: orgId },
-    })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    if (message.includes('not found') || message.includes('Organization not found')) {
-      return c.json({ error: 'Organization not found' }, 404)
-    }
-    if (message.includes('not a member')) {
-      return c.json({ error: 'Access denied' }, 403)
-    }
-    throw error
-  }
-
-  if (!org) {
-    return c.json({ error: 'Organization not found' }, 404)
-  }
-
-  const member = org.members.find((m) => m.userId === session.user.id)
-  if (!member) {
-    return c.json({ error: 'Access denied' }, 403)
-  }
-
-  return c.json({
-    id: org.id,
-    name: org.name,
-    slug: org.slug,
-    role: member.role,
-  })
-})
+app.get('/api/org/:id', (c) => handleGetOrg(c.req.raw, c.req.param('id'), c.env))
 
 app.on(['GET', 'POST'], '/api/auth/*', (c) => {
   const db = createDb(c.env.DB)
@@ -105,9 +28,11 @@ app.on(['GET', 'POST'], '/api/auth/*', (c) => {
   return auth.handler(c.req.raw)
 })
 
-app.get('/api/metadata', (c) => {
-  return Effect.runPromise(metadataRequestToResponse(c.req.raw))
-})
+app.get('/api/metadata', (c) => Effect.runPromise(metadataRequestToResponse(c.req.raw)))
+
+app.post('/api/ingest', (c) => Effect.runPromise(ingestRequestToResponse(c.req.raw, c.env)))
+
+app.post('/api/telegram', (c) => handleTelegramWebhook(c.req.raw, c.env))
 
 export default {
   async fetch(request: CfTypes.Request, env: Env, ctx: CfTypes.ExecutionContext) {

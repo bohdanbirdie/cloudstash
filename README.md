@@ -1,3 +1,53 @@
-# TanStack Start + shadcn/ui
+# Link Bucket
 
-This is a template for a new TanStack Start project with React, TypeScript, and shadcn/ui.
+Save and organize links with AI-powered summaries.
+
+## Development
+
+```bash
+bun install
+bun dev
+```
+
+## Telegram Bot Setup
+
+### 1. Create bot
+
+Message [@BotFather](https://t.me/BotFather), send `/newbot`, save the token.
+
+### 2. Configure environment
+
+Add to `.dev.vars`:
+
+```
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_WEBHOOK_SECRET=dev-secret
+```
+
+### 3. Start tunnel
+
+```bash
+cloudflared tunnel --url http://localhost:3000
+```
+
+### 4. Register webhook
+
+```bash
+curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://YOUR_TUNNEL_URL/api/telegram", "secret_token": "dev-secret"}'
+```
+
+### 5. Set commands (optional)
+
+Send to @BotFather:
+
+```
+/setcommands
+start - Show help
+help - Show help
+connect - Connect with API key
+disconnect - Disconnect account
+```
+
+Re-register webhook when tunnel URL changes.

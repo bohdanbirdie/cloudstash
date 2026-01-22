@@ -5,7 +5,10 @@ import { jwtVerify, createLocalJWKSet } from 'jose'
 import { SyncPayload } from '../../livestore/schema'
 import { createAuth, type Auth } from '../auth'
 import { createDb } from '../db'
+import { logSync } from '../logger'
 import type { Env } from '../shared'
+
+const logger = logSync('SyncBackend')
 
 // Current SyncBackendDO instance - set in constructor so it's always available
 let currentSyncBackend: {
@@ -29,13 +32,15 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
   }
 
   triggerLinkProcessor(storeId: string) {
-    console.log('[triggerLinkProcessor] waking up processor for:', storeId)
+    logger.info('Waking up processor', { storeId })
     const processorId = this._env.LINK_PROCESSOR_DO.idFromName(storeId)
     const processor = this._env.LINK_PROCESSOR_DO.get(processorId)
     processor
       .fetch(`https://link-processor/?storeId=${storeId}`)
-      .then(() => console.log('[triggerLinkProcessor] processor fetch succeeded'))
-      .catch((error: unknown) => console.error('[triggerLinkProcessor] failed:', error))
+      .then(() => logger.info('Processor fetch succeeded', { storeId }))
+      .catch((error: unknown) =>
+        logger.error('Processor fetch failed', { storeId, error: String(error) }),
+      )
   }
 }
 

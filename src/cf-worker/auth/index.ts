@@ -1,10 +1,13 @@
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { jwt, organization } from 'better-auth/plugins'
+import { apiKey, jwt, organization } from 'better-auth/plugins'
 import { eq } from 'drizzle-orm'
 import type { Database } from '../db'
 import * as schema from '../db/schema'
+import { logSync } from '../logger'
 import type { Env } from '../shared'
+
+const logger = logSync('Auth')
 
 export const createAuth = (env: Env, db: Database) => {
   const auth = betterAuth({
@@ -44,6 +47,10 @@ export const createAuth = (env: Env, db: Database) => {
         allowUserToCreateOrganization: true,
         creatorRole: 'owner',
       }),
+      apiKey({
+        defaultPrefix: 'lb',
+        enableMetadata: true,
+      }),
     ],
     databaseHooks: {
       user: {
@@ -58,9 +65,12 @@ export const createAuth = (env: Env, db: Database) => {
                   userId: user.id,
                 },
               })
-              console.log('[user.create.after] Created organization:', result)
+              logger.info('Created organization', { orgId: result?.id, userId: user.id })
             } catch (error) {
-              console.error('[user.create.after] Failed to create organization:', error)
+              logger.error('Failed to create organization', {
+                userId: user.id,
+                error: String(error),
+              })
               throw error
             }
           },

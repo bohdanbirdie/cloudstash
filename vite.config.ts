@@ -10,6 +10,7 @@ export default defineConfig({
   server: {
     port: Number(process.env.PORT) || 3000,
     fs: { strict: false },
+    allowedHosts: ['.trycloudflare.com'],
   },
   worker: {
     format: 'es',

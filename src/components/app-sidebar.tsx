@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
 import {
   InboxIcon,
@@ -8,6 +9,7 @@ import {
   PlusIcon,
   LogOutIcon,
   SearchIcon,
+  SettingsIcon,
 } from 'lucide-react'
 
 import {
@@ -31,12 +33,14 @@ import { useAddLinkDialog } from '@/components/add-link-dialog'
 import { useSearchStore } from '@/stores/search-store'
 import { useAppStore } from '@/livestore/store'
 import { inboxCount$, completedCount$, allLinksCount$, trashCount$ } from '@/livestore/queries'
+import { ApiKeysModal } from '@/components/api-keys-modal'
 
 export function AppSidebar() {
   const location = useLocation()
   const { open: openAddLinkDialog } = useAddLinkDialog()
   const openSearch = useSearchStore((s) => s.setOpen)
   const store = useAppStore()
+  const [apiKeysOpen, setApiKeysOpen] = useState(false)
   const showHints = useModifierHold()
 
   const inboxCount = store.useQuery(inboxCount$)
@@ -132,6 +136,12 @@ export function AppSidebar() {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
+            <SidebarMenuButton tooltip='Settings' onClick={() => setApiKeysOpen(true)}>
+              <SettingsIcon />
+              <span>Settings</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
             <SidebarMenuButton
               tooltip='Sign out'
               onClick={() => authClient.signOut().then(() => window.location.reload())}
@@ -141,6 +151,7 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+        <ApiKeysModal open={apiKeysOpen} onOpenChange={setApiKeysOpen} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

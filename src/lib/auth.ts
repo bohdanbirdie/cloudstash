@@ -1,9 +1,9 @@
 import { createAuthClient } from 'better-auth/react'
-import { jwtClient, organizationClient } from 'better-auth/client/plugins'
+import { apiKeyClient, jwtClient, organizationClient } from 'better-auth/client/plugins'
 
 export const authClient = createAuthClient({
   baseURL: window.location.origin,
-  plugins: [jwtClient(), organizationClient()],
+  plugins: [jwtClient(), organizationClient(), apiKeyClient()],
 })
 
 export type AuthState = {

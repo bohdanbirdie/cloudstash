@@ -3,11 +3,16 @@ import { DurableObject } from 'cloudflare:workers'
 import { computed, nanoid, queryDb, type Store, type Unsubscribe } from '@livestore/livestore'
 import { createStoreDoPromise, type ClientDoWithRpcCallback } from '@livestore/adapter-cloudflare'
 import { handleSyncUpdateRpc } from '@livestore/sync-cf/client'
+import { Effect } from 'effect'
 
-import { schema, tables } from '../../livestore/schema'
+import { events, schema, tables } from '../../livestore/schema'
+import { logSync } from '../logger'
 import type { Env } from '../shared'
-import { processLink } from './process-link'
+import { InvalidUrlError } from './errors'
 import { runEffect } from './logger'
+import { processLink } from './process-link'
+
+const logger = logSync('LinkProcessorDO')
 
 type Link = typeof tables.links.Type
 
@@ -35,7 +40,7 @@ export class LinkProcessorDO extends DurableObject<Env> implements ClientDoWithR
     if (!this.storeId) throw new Error('storeId not set')
 
     const sessionId = await this.getSessionId()
-    console.log('[LinkProcessorDO] Creating store', { storeId: this.storeId, sessionId })
+    logger.info('Creating store', { storeId: this.storeId, sessionId })
 
     this.cachedStore = await createStoreDoPromise({
       schema,
@@ -79,7 +84,7 @@ export class LinkProcessorDO extends DurableObject<Env> implements ClientDoWithR
     )
 
     this.subscription = store.subscribe(pendingLinks$, (pendingLinks) => {
-      console.log('[LinkProcessorDO] Subscription fired', { pendingCount: pendingLinks.length })
+      logger.info('Subscription fired', { pendingCount: pendingLinks.length })
       this.onPendingLinksChanged(store, pendingLinks)
     })
   }
@@ -94,7 +99,7 @@ export class LinkProcessorDO extends DurableObject<Env> implements ClientDoWithR
       const isRetry = existingStatus.length > 0 && existingStatus[0].status === 'pending'
 
       this.processLinkAsync(store, link, isRetry).catch((err) => {
-        console.error('[LinkProcessorDO] processLinkAsync error', { linkId: link.id, error: err })
+        logger.error('processLinkAsync error', { linkId: link.id, error: String(err) })
       })
     }
   }
@@ -105,10 +110,12 @@ export class LinkProcessorDO extends DurableObject<Env> implements ClientDoWithR
     isRetry: boolean,
   ): Promise<void> {
     this.currentlyProcessing.add(link.id)
-    console.log('[LinkProcessorDO] Processing', { linkId: link.id, url: link.url, isRetry })
+    logger.info('Processing', { linkId: link.id, url: link.url, isRetry })
 
     try {
-      await runEffect(processLink({ link: { id: link.id, url: link.url }, store, env: this.env, isRetry }))
+      await runEffect(
+        processLink({ link: { id: link.id, url: link.url }, store, env: this.env, isRetry }),
+      )
     } finally {
       this.currentlyProcessing.delete(link.id)
     }
@@ -117,14 +124,63 @@ export class LinkProcessorDO extends DurableObject<Env> implements ClientDoWithR
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
     const storeId = url.searchParams.get('storeId')
+    const ingestUrl = url.searchParams.get('ingest')
 
     if (!storeId) return new Response('Missing storeId', { status: 400 })
 
     this.storeId = storeId
     await this.ctx.storage.put('storeId', storeId)
-    await this.ensureSubscribed()
 
+    if (ingestUrl) {
+      return this.handleIngest(ingestUrl)
+    }
+
+    await this.ensureSubscribed()
     return new Response('OK')
+  }
+
+  private handleIngest(url: string): Promise<Response> {
+    const json = (body: object, status = 200) =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+    const ingest = Effect.gen(this, function* () {
+      const store = yield* Effect.promise(() => this.getStore())
+      yield* Effect.promise(() => this.ensureSubscribed())
+
+      const linkId = nanoid()
+      const domain = yield* Effect.try({
+        try: () => new URL(url).hostname.replace(/^www\./, ''),
+        catch: () => new InvalidUrlError({ url }),
+      })
+
+      yield* Effect.sync(() =>
+        logger.info('Ingesting link', { storeId: this.storeId, url, linkId }),
+      )
+
+      yield* Effect.sync(() =>
+        store.commit(
+          events.linkCreated({
+            id: linkId,
+            url,
+            domain,
+            createdAt: new Date(),
+          }),
+        ),
+      )
+
+      return json({ linkId, status: 'ingested' })
+    })
+
+    return Effect.runPromise(
+      ingest.pipe(
+        Effect.catchTag('InvalidUrlError', () =>
+          Effect.succeed(json({ error: 'Invalid URL' }, 400)),
+        ),
+      ),
+    )
   }
 
   async syncUpdateRpc(payload: unknown): Promise<void> {
