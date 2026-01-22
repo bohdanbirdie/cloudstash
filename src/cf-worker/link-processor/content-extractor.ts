@@ -1,6 +1,9 @@
 import { parseDocument } from 'htmlparser2'
 import { textContent, getElementsByTagName, removeElement, getAttributeValue } from 'domutils'
 import type { Document, Element } from 'domhandler'
+import { logSync } from '../logger'
+
+const logger = logSync('ContentExtractor')
 
 export interface ExtractedContent {
   title: string | null
@@ -145,7 +148,7 @@ export function extractContent(html: string, _url: string): ExtractedContent | n
       content,
     }
   } catch (error) {
-    console.error(`Failed to extract content:`, error)
+    logger.error('Failed to extract content', { error: String(error) })
     return null
   }
 }
@@ -163,14 +166,14 @@ export async function fetchAndExtractContent(url: string): Promise<ExtractedCont
     })
 
     if (!response.ok) {
-      console.error(`Failed to fetch ${url}: ${response.status}`)
+      logger.error('Failed to fetch URL', { url, status: response.status })
       return null
     }
 
     const html = await response.text()
     return extractContent(html, url)
   } catch (error) {
-    console.error(`Failed to fetch and extract content from ${url}:`, error)
+    logger.error('Failed to fetch and extract content', { url, error: String(error) })
     return null
   }
 }

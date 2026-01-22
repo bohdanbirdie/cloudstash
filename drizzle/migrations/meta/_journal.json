@@ -15,6 +15,20 @@
       "when": 1768944305073,
       "tag": "0001_aspiring_hitman",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1768997106325,
+      "tag": "0002_abnormal_captain_cross",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1769112213405,
+      "tag": "0003_marvelous_boomerang",
+      "breakpoints": true
     }
   ]
 }

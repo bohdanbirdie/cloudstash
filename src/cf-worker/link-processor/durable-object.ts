@@ -1,67 +1,50 @@
 /// <reference types="@cloudflare/workers-types" />
 import { DurableObject } from 'cloudflare:workers'
-import { Effect } from 'effect'
-import { nanoid } from '@livestore/livestore'
+import { computed, nanoid, queryDb, type Store, type Unsubscribe } from '@livestore/livestore'
 import { createStoreDoPromise, type ClientDoWithRpcCallback } from '@livestore/adapter-cloudflare'
 import { handleSyncUpdateRpc } from '@livestore/sync-cf/client'
+import { Effect } from 'effect'
 
-import { schema, tables } from '../../livestore/schema'
+import { events, schema, tables } from '../../livestore/schema'
+import { logSync } from '../logger'
 import type { Env } from '../shared'
+import { InvalidUrlError } from './errors'
 import { runEffect } from './logger'
 import { processLink } from './process-link'
-import type { LinkStore } from './types'
 
-/**
- * LinkProcessorDO processes links by fetching metadata and generating AI summaries.
- *
- * Lifecycle (designed for hibernation):
- * 1. Woken up via fetch (triggered by SyncBackendDO.onPush when link created)
- * 2. Creates store, syncs data, processes all pending links
- * 3. Shuts down store to close connections
- * 4. Hibernates until next wakeup
- */
+const logger = logSync('LinkProcessorDO')
+
+type Link = typeof tables.links.Type
+
 export class LinkProcessorDO extends DurableObject<Env> implements ClientDoWithRpcCallback {
   __DURABLE_OBJECT_BRAND = 'link-processor-do' as never
 
-  private constructedAt = Date.now()
+  private storeId: string | undefined
+  private cachedStore: Store<typeof schema> | undefined
+  private subscription: Unsubscribe | undefined
+  private currentlyProcessing = new Set<string>()
 
-  constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env)
-    console.log('[LinkProcessorDO] Waking up (constructor called)', {
-      constructedAt: new Date().toISOString(),
-    })
-  }
-
-  /**
-   * Get or create a stable session ID for this DO instance.
-   * Persisted so the DO can resume from cached events instead of fetching all.
-   * ServerAheadError may occur if state diverges, but livestore handles recovery.
-   */
-  private async getOrCreateSessionId(): Promise<string> {
+  /** Persisted session ID enables delta sync (only fetch missing events on wakeup) */
+  private async getSessionId(): Promise<string> {
     const stored = await this.ctx.storage.get<string>('sessionId')
-    if (stored) {
-      return stored
-    }
+    if (stored) return stored
+
     const newSessionId = nanoid()
     await this.ctx.storage.put('sessionId', newSessionId)
     return newSessionId
   }
 
-  /**
-   * Creates a fresh store, processes all pending links, then shuts down.
-   * This allows the DO to hibernate between processing runs.
-   */
-  private async processAndShutdown(storeId: string): Promise<void> {
-    await runEffect(
-      Effect.logInfo('Creating store for processing').pipe(Effect.annotateLogs({ storeId })),
-    )
+  private async getStore(): Promise<Store<typeof schema>> {
+    if (this.cachedStore) return this.cachedStore
 
-    await this.ctx.storage.put('storeId', storeId)
-    const sessionId = await this.getOrCreateSessionId()
+    if (!this.storeId) throw new Error('storeId not set')
 
-    const store = await createStoreDoPromise({
+    const sessionId = await this.getSessionId()
+    logger.info('Creating store', { storeId: this.storeId, sessionId })
+
+    this.cachedStore = await createStoreDoPromise({
       schema,
-      storeId,
+      storeId: this.storeId,
       clientId: 'link-processor-do',
       sessionId,
       durableObject: {
@@ -70,147 +53,145 @@ export class LinkProcessorDO extends DurableObject<Env> implements ClientDoWithR
         bindingName: 'LINK_PROCESSOR_DO',
       } as never,
       syncBackendStub: this.env.SYNC_BACKEND_DO.get(
-        this.env.SYNC_BACKEND_DO.idFromName(storeId),
+        this.env.SYNC_BACKEND_DO.idFromName(this.storeId),
       ) as never,
-      livePull: false, // No need for live updates - we process and shutdown
+      livePull: true,
     })
 
-    await runEffect(
-      Effect.logInfo('Store created, processing links').pipe(
-        Effect.annotateLogs({ storeId, sessionId }),
-      ),
+    return this.cachedStore
+  }
+
+  private async ensureSubscribed(): Promise<void> {
+    if (this.subscription) return
+
+    const store = await this.getStore()
+
+    const links$ = queryDb(tables.links.where({ deletedAt: null }))
+    const statuses$ = queryDb(tables.linkProcessingStatus.where({}))
+
+    const pendingLinks$ = computed(
+      (get) => {
+        const links = get(links$)
+        const statuses = get(statuses$)
+        const statusMap = new Map(statuses.map((s) => [s.linkId, s]))
+
+        return links.filter((link) => {
+          const status = statusMap.get(link.id)
+          return !status || status.status === 'pending'
+        })
+      },
+      { label: 'pendingLinks' },
     )
 
-    try {
-      await this.processAllPendingLinks(store)
-    } finally {
-      // Always shutdown store to allow hibernation
-      await runEffect(Effect.logInfo('Shutting down store to allow hibernation'))
-      await store.shutdownPromise()
-      await runEffect(Effect.logInfo('Store shutdown complete - DO can now hibernate'))
-    }
-  }
-
-  /**
-   * Process all links that need processing (new or stuck).
-   */
-  private async processAllPendingLinks(store: LinkStore): Promise<void> {
-    const env = this.env
-
-    const program = Effect.gen(function* () {
-      const links = store.query(tables.links.where({}))
-      yield* Effect.logInfo(`Processing links batch: ${links.length} total links`)
-
-      const processingStatuses = store.query(tables.linkProcessingStatus.where({}))
-      const statusByLinkId = new Map(processingStatuses.map((s) => [s.linkId, s]))
-
-      yield* Effect.logDebug(`Processing status check: ${statusByLinkId.size} links have status`)
-
-      // Find links that need processing:
-      // 1. New links (no status)
-      // 2. Stuck links (status = "pending" for more than 5 minutes)
-      const STUCK_THRESHOLD_MS = 5 * 60 * 1000 // 5 minutes
-      const now = Date.now()
-
-      const linksToProcess = links.filter((link) => {
-        if (link.deletedAt) return false
-
-        const status = statusByLinkId.get(link.id)
-        if (!status) return true // New link, no status yet
-
-        // Retry stuck links (pending for too long)
-        if (status.status === 'pending') {
-          const stuckTime = now - status.updatedAt.getTime()
-          if (stuckTime > STUCK_THRESHOLD_MS) {
-            return true
-          }
-        }
-
-        return false
-      })
-
-      const newLinks = linksToProcess.filter((l) => !statusByLinkId.has(l.id))
-      const retryLinks = linksToProcess.filter((l) => statusByLinkId.has(l.id))
-
-      yield* Effect.logInfo(
-        `Links to process: ${linksToProcess.length} (${newLinks.length} new, ${retryLinks.length} stuck/retry)`,
-      )
-
-      // Process new links
-      for (const link of newLinks) {
-        yield* processLink({ link, store, env, isRetry: false })
-      }
-
-      // Retry stuck links
-      for (const link of retryLinks) {
-        yield* processLink({ link, store, env, isRetry: true })
-      }
-
-      yield* Effect.logInfo('All pending links processed')
+    this.subscription = store.subscribe(pendingLinks$, (pendingLinks) => {
+      logger.info('Subscription fired', { pendingCount: pendingLinks.length })
+      this.onPendingLinksChanged(store, pendingLinks)
     })
-
-    await runEffect(program)
   }
 
-  /**
-   * Handle push notifications from sync backend.
-   * Re-processes links if needed.
-   */
-  async syncUpdateRpc(payload: unknown): Promise<void> {
-    await runEffect(Effect.logDebug('Received push notification (syncUpdateRpc)'))
+  private onPendingLinksChanged(store: Store<typeof schema>, pendingLinks: readonly Link[]): void {
+    for (const link of pendingLinks) {
+      if (this.currentlyProcessing.has(link.id)) continue
 
-    const storeId = await this.ctx.storage.get<string>('storeId')
-    if (storeId) {
-      await runEffect(
-        Effect.logInfo('Processing due to sync update').pipe(
-          Effect.annotateLogs({ storeId, trigger: 'syncUpdateRpc' }),
-        ),
+      const existingStatus = store.query(
+        queryDb(tables.linkProcessingStatus.where({ linkId: link.id })),
       )
-      await this.processAndShutdown(storeId)
-    } else {
-      await runEffect(
-        Effect.logWarning('syncUpdateRpc called but no storeId in storage - ignoring'),
-      )
+      const isRetry = existingStatus.length > 0 && existingStatus[0].status === 'pending'
+
+      this.processLinkAsync(store, link, isRetry).catch((err) => {
+        logger.error('processLinkAsync error', { linkId: link.id, error: String(err) })
+      })
     }
+  }
 
-    await handleSyncUpdateRpc(payload)
+  private async processLinkAsync(
+    store: Store<typeof schema>,
+    link: Link,
+    isRetry: boolean,
+  ): Promise<void> {
+    this.currentlyProcessing.add(link.id)
+    logger.info('Processing', { linkId: link.id, url: link.url, isRetry })
+
+    try {
+      await runEffect(
+        processLink({ link: { id: link.id, url: link.url }, store, env: this.env, isRetry }),
+      )
+    } finally {
+      this.currentlyProcessing.delete(link.id)
+    }
   }
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
     const storeId = url.searchParams.get('storeId')
+    const ingestUrl = url.searchParams.get('ingest')
 
-    const instanceAge = Date.now() - this.constructedAt
-    await runEffect(
-      Effect.logInfo('Fetch request received').pipe(
-        Effect.annotateLogs({
-          storeId,
-          path: url.pathname,
-          trigger: 'fetch',
-          instanceAgeMs: instanceAge,
-          instanceAgeMin: Math.round(instanceAge / 60000),
-        }),
-      ),
-    )
+    if (!storeId) return new Response('Missing storeId', { status: 400 })
 
-    if (!storeId) {
-      await runEffect(Effect.logWarning('Missing storeId parameter'))
-      return new Response('Missing storeId parameter', { status: 400 })
+    this.storeId = storeId
+    await this.ctx.storage.put('storeId', storeId)
+
+    if (ingestUrl) {
+      return this.handleIngest(ingestUrl)
     }
 
-    try {
-      await this.processAndShutdown(storeId)
-      return new Response('LinkProcessorDO processed and shutdown', { status: 200 })
-    } catch (error) {
-      await runEffect(
-        Effect.logError('Processing failed').pipe(
-          Effect.annotateLogs({
-            storeId,
-            error: error instanceof Error ? error.message : String(error),
+    await this.ensureSubscribed()
+    return new Response('OK')
+  }
+
+  private handleIngest(url: string): Promise<Response> {
+    const json = (body: object, status = 200) =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+    const ingest = Effect.gen(this, function* () {
+      const store = yield* Effect.promise(() => this.getStore())
+      yield* Effect.promise(() => this.ensureSubscribed())
+
+      const linkId = nanoid()
+      const domain = yield* Effect.try({
+        try: () => new URL(url).hostname.replace(/^www\./, ''),
+        catch: () => new InvalidUrlError({ url }),
+      })
+
+      yield* Effect.sync(() =>
+        logger.info('Ingesting link', { storeId: this.storeId, url, linkId }),
+      )
+
+      yield* Effect.sync(() =>
+        store.commit(
+          events.linkCreated({
+            id: linkId,
+            url,
+            domain,
+            createdAt: new Date(),
           }),
         ),
       )
-      return new Response('Processing failed', { status: 500 })
+
+      return json({ linkId, status: 'ingested' })
+    })
+
+    return Effect.runPromise(
+      ingest.pipe(
+        Effect.catchTag('InvalidUrlError', () =>
+          Effect.succeed(json({ error: 'Invalid URL' }, 400)),
+        ),
+      ),
+    )
+  }
+
+  async syncUpdateRpc(payload: unknown): Promise<void> {
+    if (!this.storeId) {
+      this.storeId = await this.ctx.storage.get<string>('storeId')
     }
+
+    if (this.storeId) {
+      await this.ensureSubscribed()
+    }
+
+    await handleSyncUpdateRpc(payload)
   }
 }

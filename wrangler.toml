@@ -4,6 +4,7 @@ compatibility_date = "2025-01-15"
 compatibility_flags = ["nodejs_compat"]
 
 [assets]
+directory = "./dist"
 not_found_handling = "single-page-application"
 run_worker_first = ["/sync*", "/api/*"]
 
@@ -32,3 +33,8 @@ new_sqlite_classes = ["SyncBackendDO"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["LinkProcessorDO"]
+
+# KV for Telegram bot connections (chatId -> apiKey)
+[[kv_namespaces]]
+binding = "TELEGRAM_KV"
+id = "a54cb37a45324db1a64eea3471a36245"

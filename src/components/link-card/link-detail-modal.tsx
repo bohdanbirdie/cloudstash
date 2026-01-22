@@ -105,11 +105,13 @@ function LinkDetailModalContent({ linkId }: { linkId: string }) {
   if (!link) return null
 
   const displayTitle = link.title || link.url
-  const formattedDate = new Date(link.createdAt).toLocaleDateString(undefined, {
+  const formattedDate = new Date(link.createdAt).toLocaleString(undefined, {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
     year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
   })
 
   return (

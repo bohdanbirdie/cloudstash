@@ -16,6 +16,8 @@
     "**/*.d.ts",
     "**/*.gen.ts",
     "src/routeTree.gen.ts",
-    "coverage"
+    "coverage",
+    "readonly-livestore-git-clone",
+    "better-auth-example"
   ]
 }

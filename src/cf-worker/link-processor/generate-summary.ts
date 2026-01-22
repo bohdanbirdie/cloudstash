@@ -1,5 +1,5 @@
 import { Effect } from 'effect'
-import type { ExtractedContent } from '../content-extractor'
+import type { ExtractedContent } from './content-extractor'
 import type { Env } from '../shared'
 import { AI_MODEL } from './types'
 
