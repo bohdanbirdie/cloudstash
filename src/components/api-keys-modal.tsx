@@ -7,6 +7,7 @@ import {
   AlertTriangleIcon,
   EyeIcon,
   EyeOffIcon,
+  CheckIcon,
 } from 'lucide-react'
 
 import {
@@ -47,6 +48,7 @@ export function ApiKeysModal({ open, onOpenChange }: ApiKeysModalProps) {
   const [newKeyName, setNewKeyName] = useState('')
   const [generatedKey, setGeneratedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [commandCopied, setCommandCopied] = useState(false)
   const [keyVisible, setKeyVisible] = useState(false)
 
   const fetchKeys = async () => {
@@ -73,6 +75,7 @@ export function ApiKeysModal({ open, onOpenChange }: ApiKeysModalProps) {
       setGeneratedKey(null)
       setNewKeyName('')
       setCopied(false)
+      setCommandCopied(false)
       setKeyVisible(false)
     }
   }, [open])
@@ -128,6 +131,14 @@ export function ApiKeysModal({ open, onOpenChange }: ApiKeysModalProps) {
     }
   }
 
+  const handleCopyCommand = async () => {
+    if (generatedKey) {
+      await navigator.clipboard.writeText(`/connect ${generatedKey}`)
+      setCommandCopied(true)
+      setTimeout(() => setCommandCopied(false), 2000)
+    }
+  }
+
   const handleDone = () => {
     setGeneratedKey(null)
     setNewKeyName('')
@@ -168,9 +179,18 @@ export function ApiKeysModal({ open, onOpenChange }: ApiKeysModalProps) {
 
           <div className='text-xs text-muted-foreground'>
             Use this key with the Telegram bot:
-            <code className='block mt-1 bg-muted px-2 py-1 rounded break-all'>
-              /connect {keyVisible ? generatedKey : '••••••••'}
-            </code>
+            <div className='flex items-center gap-2 mt-1'>
+              <code className='flex-1 min-w-0 bg-muted px-2 py-1 rounded break-all'>
+                /connect {keyVisible ? generatedKey : '••••••••'}
+              </code>
+              <Button variant='outline' size='icon-sm' onClick={handleCopyCommand}>
+                {commandCopied ? (
+                  <CheckIcon className='h-3 w-3 text-green-500' />
+                ) : (
+                  <CopyIcon className='h-3 w-3' />
+                )}
+              </Button>
+            </div>
           </div>
 
           <DialogFooter>

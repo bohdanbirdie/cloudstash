@@ -24,6 +24,16 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { authClient } from '@/lib/auth'
 import { Badge } from '@/components/ui/badge'
 import { Kbd } from '@/components/ui/kbd'
@@ -41,6 +51,7 @@ export function AppSidebar() {
   const openSearch = useSearchStore((s) => s.setOpen)
   const store = useAppStore()
   const [apiKeysOpen, setApiKeysOpen] = useState(false)
+  const [logoutOpen, setLogoutOpen] = useState(false)
   const showHints = useModifierHold()
 
   const inboxCount = store.useQuery(inboxCount$)
@@ -142,16 +153,31 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip='Sign out'
-              onClick={() => authClient.signOut().then(() => window.location.reload())}
-            >
+            <SidebarMenuButton tooltip='Sign out' onClick={() => setLogoutOpen(true)}>
               <LogOutIcon />
               <span>Sign out</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
         <ApiKeysModal open={apiKeysOpen} onOpenChange={setApiKeysOpen} />
+        <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Sign out</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to sign out of your account?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => authClient.signOut().then(() => window.location.reload())}
+              >
+                Sign out
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
