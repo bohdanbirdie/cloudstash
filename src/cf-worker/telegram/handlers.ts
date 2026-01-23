@@ -92,24 +92,20 @@ export const handleDisconnect = (ctx: Context, env: Env): Promise<void> => {
 
 type IngestResult = { url: string; success: true } | { url: string; success: false; error: string }
 
-const ingestUrl = (url: string, apiKey: string, env: Env): Effect.Effect<IngestResult> =>
+const ingestUrl = (url: string, storeId: string, env: Env): Effect.Effect<IngestResult> =>
   Effect.gen(function* () {
-    const response = yield* Effect.tryPromise(() =>
-      fetch(new URL('/api/ingest', env.BETTER_AUTH_URL).toString(), {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-      }),
-    )
+    const doId = env.LINK_PROCESSOR_DO.idFromName(storeId)
+    const stub = env.LINK_PROCESSOR_DO.get(doId)
+
+    const doUrl = new URL('https://do/')
+    doUrl.searchParams.set('storeId', storeId)
+    doUrl.searchParams.set('ingest', url)
+
+    const response = yield* Effect.tryPromise(() => stub.fetch(doUrl.toString()))
 
     if (!response.ok) {
-      const text = yield* Effect.promise(() => response.text())
-      const parseResult = Effect.try({
-        try: () => (JSON.parse(text) as { error?: string }).error || 'Unknown error',
-        catch: () => `HTTP ${response.status}: ${text.slice(0, 100)}`,
-      })
-      const error = yield* Effect.match(parseResult, { onSuccess: (e) => e, onFailure: (e) => e })
-      return { url, success: false, error } as const
+      const result = yield* Effect.tryPromise(() => response.json() as Promise<{ error?: string }>)
+      return { url, success: false, error: result.error || 'Unknown error' } as const
     }
 
     return { url, success: true } as const
@@ -125,8 +121,12 @@ const linksRequest = (ctx: Context, urls: string[], env: Env) =>
       Effect.flatMap((key) => (key ? Effect.succeed(key) : Effect.fail(new NotConnectedError({})))),
     )
 
+    const auth = createAuth(env, createDb(env.DB))
+    const key = yield* verifyApiKey(auth, apiKey)
+    const storeId = key.metadata?.orgId as string
+
     yield* react(ctx, '🤔')
-    const results = yield* Effect.all(urls.map((url) => ingestUrl(url, apiKey, env)))
+    const results = yield* Effect.all(urls.map((url) => ingestUrl(url, storeId, env)))
     const allSuccess = results.every((r) => r.success)
 
     yield* Effect.sync(() => logger.info('Ingest complete', { chatId, results }))
