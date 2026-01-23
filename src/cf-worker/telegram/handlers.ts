@@ -90,7 +90,10 @@ export const handleDisconnect = (ctx: Context, env: Env): Promise<void> => {
   )
 }
 
-type IngestResult = { url: string; success: true } | { url: string; success: false; error: string }
+type IngestResult =
+  | { url: string; status: 'ingested' }
+  | { url: string; status: 'duplicate' }
+  | { url: string; status: 'failed'; error: string }
 
 const ingestUrl = (url: string, storeId: string, env: Env): Effect.Effect<IngestResult> =>
   Effect.gen(function* () {
@@ -102,16 +105,22 @@ const ingestUrl = (url: string, storeId: string, env: Env): Effect.Effect<Ingest
     doUrl.searchParams.set('ingest', url)
 
     const response = yield* Effect.tryPromise(() => stub.fetch(doUrl.toString()))
+    const result = yield* Effect.tryPromise(
+      () => response.json() as Promise<{ status: string; error?: string }>,
+    )
 
     if (!response.ok) {
-      const result = yield* Effect.tryPromise(() => response.json() as Promise<{ error?: string }>)
-      return { url, success: false, error: result.error || 'Unknown error' } as const
+      return { url, status: 'failed', error: result.error || 'Unknown error' } as const
     }
 
-    return { url, success: true } as const
+    if (result.status === 'duplicate') {
+      return { url, status: 'duplicate' } as const
+    }
+
+    return { url, status: 'ingested' } as const
   }).pipe(
     Effect.catchAll((error) =>
-      Effect.succeed({ url, success: false, error: String(error) } as const),
+      Effect.succeed({ url, status: 'failed', error: String(error) } as const),
     ),
   )
 
@@ -131,17 +140,32 @@ const linksRequest = (ctx: Context, urls: string[], env: Env) =>
 
     yield* react(ctx, '🤔')
     const results = yield* Effect.all(urls.map((url) => ingestUrl(url, storeId, env)))
-    const allSuccess = results.every((r) => r.success)
 
-    yield* Effect.sync(() => logger.info('Ingest complete', { chatId, results }))
-    yield* react(ctx, allSuccess ? '👍' : '👎')
+    const ingested = results.filter((r): r is IngestResult & { status: 'ingested' } => r.status === 'ingested')
+    const duplicates = results.filter((r): r is IngestResult & { status: 'duplicate' } => r.status === 'duplicate')
+    const failed = results.filter((r): r is IngestResult & { status: 'failed' } => r.status === 'failed')
 
-    const failed = results.filter((r) => !r.success)
+    yield* Effect.sync(() => logger.info('Ingest complete', { chatId, ingested: ingested.length, duplicates: duplicates.length, failed: failed.length }))
+
+    if (failed.length > 0) {
+      yield* react(ctx, '👎')
+    } else if (duplicates.length === results.length) {
+      // All were duplicates - no reaction, just inform
+    } else {
+      yield* react(ctx, '👍')
+    }
+
+    // Report duplicates and failures
+    const messages: string[] = []
+    if (duplicates.length > 0) {
+      messages.push(`Already saved: ${duplicates.map((r) => r.url).join(', ')}`)
+    }
     if (failed.length > 0) {
       const failedList = failed.map((r) => `- ${r.url}: ${r.error}`).join('\n')
-      yield* Effect.promise(() =>
-        ctx.reply(`Failed to save ${failed.length} link(s):\n${failedList}`),
-      )
+      messages.push(`Failed to save ${failed.length} link(s):\n${failedList}`)
+    }
+    if (messages.length > 0) {
+      yield* Effect.promise(() => ctx.reply(messages.join('\n\n')))
     }
   })
 

@@ -10,13 +10,15 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog'
-import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { HotkeyButton } from '@/components/ui/hotkey-button'
 import { events } from '@/livestore/schema'
 import { useAppStore } from '@/livestore/store'
+import { linkById$ } from '@/livestore/queries'
+import { useLinkDetailStore } from '@/stores/link-detail-store'
 
 const UrlSchema = Schema.URL
 
@@ -94,6 +96,49 @@ function LinkPreviewCard({ metadata, url }: { metadata: OgMetadata; url: string 
   )
 }
 
+function ExistingLinkCard({ linkId }: { linkId: string }) {
+  const store = useAppStore()
+  const link = store.useQuery(linkById$(linkId))
+
+  if (!link) return null
+
+  const displayTitle = link.title || link.url
+  const formattedDate = new Date(link.createdAt).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+
+  return (
+    <Card className={link.image ? 'mt-4 pt-0 border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/50' : 'mt-4 border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/50'}>
+      {link.image && (
+        <div className='aspect-video w-full overflow-hidden'>
+          <img src={link.image} alt='' className='h-full w-full object-cover' />
+        </div>
+      )}
+      <CardHeader className='pb-2'>
+        <div className='flex items-center gap-2'>
+          {link.favicon && <img src={link.favicon} alt='' className='h-4 w-4 shrink-0' />}
+          <span className='text-muted-foreground text-xs truncate'>{link.domain}</span>
+          <Badge variant='secondary' className='text-[10px] px-1.5 py-0 bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300'>
+            Already saved
+          </Badge>
+        </div>
+        <CardTitle className='line-clamp-2 text-base'>{displayTitle}</CardTitle>
+        {link.description && (
+          <CardDescription className='line-clamp-2'>{link.description}</CardDescription>
+        )}
+      </CardHeader>
+      <CardContent className='pt-0'>
+        <span className='text-muted-foreground text-xs'>Saved on {formattedDate}</span>
+        {link.status === 'completed' && (
+          <span className='text-green-600 dark:text-green-400 text-xs ml-2'>• Completed</span>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 // Normalize URL for comparison (strips protocol, www, and trailing slash)
 function normalizeUrl(urlString: string): string {
   try {
@@ -116,6 +161,7 @@ function AddLinkDialogContent({
   onClose: () => void
 }) {
   const store = useAppStore()
+  const openLinkDetail = useLinkDetailStore((s) => s.openLink)
   const [metadata, setMetadata] = useState<OgMetadata | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -232,23 +278,35 @@ function AddLinkDialogContent({
           onChange={(e) => setUrl(e.target.value)}
           autoFocus
         />
-        {existingLink && (
-          <Alert className='mt-2 bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200'>
-            <AlertDescription>
-              This link was already added on {existingLink.createdAt.toLocaleDateString()}
-            </AlertDescription>
-          </Alert>
+        {existingLink ? (
+          <ExistingLinkCard linkId={existingLink.id} />
+        ) : (
+          <>
+            {isLoading && <LinkPreviewSkeleton />}
+            {error && <p className='mt-2 text-sm text-destructive'>{error}</p>}
+            {!isLoading && metadata && <LinkPreviewCard metadata={metadata} url={url} />}
+          </>
         )}
-        {isLoading && <LinkPreviewSkeleton />}
-        {error && <p className='mt-2 text-sm text-destructive'>{error}</p>}
-        {!isLoading && metadata && <LinkPreviewCard metadata={metadata} url={url} />}
         <DialogFooter className='mt-4'>
           <DialogClose render={<HotkeyButton variant='outline' hotkey='escape' />}>
             Cancel
           </DialogClose>
-          <HotkeyButton type='submit' disabled={!url.trim()} hotkey='enter'>
-            Add
-          </HotkeyButton>
+          {existingLink ? (
+            <HotkeyButton
+              type='button'
+              hotkey='enter'
+              onClick={() => {
+                onClose()
+                openLinkDetail(existingLink.id)
+              }}
+            >
+              View Saved Link
+            </HotkeyButton>
+          ) : (
+            <HotkeyButton type='submit' disabled={!url.trim()} hotkey='enter'>
+              Add
+            </HotkeyButton>
+          )}
         </DialogFooter>
       </form>
     </DialogContent>

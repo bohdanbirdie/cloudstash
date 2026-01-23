@@ -18,6 +18,7 @@ export const tables = {
         schema: Schema.DateFromNumber,
       }),
     },
+    indexes: [{ name: 'idx_links_url_unique', columns: ['url'], isUnique: true }],
   }),
   linkSnapshots: State.SQLite.table({
     name: 'link_snapshots',
@@ -144,7 +145,7 @@ export const events = {
 
 const materializers = State.SQLite.materializers(events, {
   'v1.LinkCreated': ({ id, url, domain, createdAt }) =>
-    tables.links.insert({ id, url, domain, createdAt, status: 'unread' }),
+    tables.links.insert({ id, url, domain, createdAt, status: 'unread' }).onConflict('url', 'ignore'),
   'v1.LinkMetadataFetched': ({ id, linkId, title, description, image, favicon, fetchedAt }) =>
     tables.linkSnapshots.insert({
       id,

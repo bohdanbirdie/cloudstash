@@ -151,11 +151,20 @@ export class LinkProcessorDO extends DurableObject<Env> implements ClientDoWithR
       const store = yield* Effect.promise(() => this.getStore())
       yield* Effect.promise(() => this.ensureSubscribed())
 
-      const linkId = nanoid()
       const domain = yield* Effect.try({
         try: () => new URL(url).hostname.replace(/^www\./, ''),
         catch: () => new InvalidUrlError({ url }),
       })
+
+      const existing = store.query(queryDb(tables.links.where({ url })))
+      if (existing.length > 0) {
+        yield* Effect.sync(() =>
+          logger.info('Duplicate link', { storeId: this.storeId, url, existingId: existing[0].id }),
+        )
+        return json({ status: 'duplicate', existingId: existing[0].id })
+      }
+
+      const linkId = nanoid()
 
       yield* Effect.sync(() =>
         logger.info('Ingesting link', { storeId: this.storeId, url, linkId }),
