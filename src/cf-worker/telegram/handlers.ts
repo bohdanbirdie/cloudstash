@@ -109,7 +109,11 @@ const ingestUrl = (url: string, storeId: string, env: Env): Effect.Effect<Ingest
     }
 
     return { url, success: true } as const
-  }).pipe(Effect.catchAll((error) => Effect.succeed({ url, success: false, error: String(error) } as const)))
+  }).pipe(
+    Effect.catchAll((error) =>
+      Effect.succeed({ url, success: false, error: String(error) } as const),
+    ),
+  )
 
 const react = (ctx: Context, emoji: '🤔' | '👍' | '👎') =>
   Effect.tryPromise(() => ctx.react(emoji)).pipe(Effect.catchAll(() => Effect.void))

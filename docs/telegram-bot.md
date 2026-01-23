@@ -43,17 +43,18 @@ Save links by sending them to a Telegram bot.
 │                                    │          │◄─────────────│          │   │
 │                                    └──────────┘  apiKey      └──────────┘   │
 │                                         │                                    │
-│                                         │ 4. react 🤔                        │
+│                                         │ 4. verify apiKey → get orgId       │
 │                                         │                                    │
-│                                         │ 5. POST /api/ingest                │
-│                                         │    Authorization: Bearer <apiKey>  │
+│                                         │ 5. react 🤔                        │
+│                                         │                                    │
+│                                         │ 6. call DO directly (binding)      │
 │                                         ▼                                    │
 │                                    ┌─────────────┐                          │
 │                                    │ LinkProcessor│  commits linkCreated    │
 │                                    │     DO       │  processes link         │
 │                                    └─────────────┘                          │
 │                                         │                                    │
-│                                         │ 6. react 👍                        │
+│                                         │ 7. react 👍                        │
 │                                         ▼                                    │
 │                                    ┌──────────┐                             │
 │                                    │ Telegram │  link appears in web app    │
@@ -76,15 +77,17 @@ Telegram servers                    Our worker
       │──────────────────────────────────►│
       │                                  │
       │                                  │  KV.get(chatId) → apiKey
+      │                                  │  verifyApiKey(apiKey) → orgId  ← Layer 2: proves which user
       │                                  │
-      │                                  │  POST /api/ingest
-      │                                  │  Authorization: Bearer <apiKey>  ← Layer 2: proves which user
+      │                                  │  DO.fetch(storeId, url)  ← direct binding call
       │                                  │─────────► DO
 ```
 
 **Layer 1: Webhook Secret** - Proves request comes from Telegram, not an attacker.
 
-**Layer 2: User API Key** - Stored in KV after `/connect`, determines which org the link is saved to.
+**Layer 2: User API Key** - Stored in KV after `/connect`, verified to get orgId which determines the store.
+
+**Why direct DO binding?** Calling `/api/ingest` via HTTP from within the worker causes Cloudflare subrequest issues (error 1042). Using the DO binding directly is more efficient and reliable.
 
 ---
 
@@ -165,31 +168,22 @@ curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
 
 ## Local Development
 
-Use cloudflared to expose localhost for webhook testing:
+Use the dev tunnel script for automatic webhook registration:
 
 ```bash
-# 1. Install cloudflared
-brew install cloudflared
-
-# 2. Start dev server
+# Terminal 1: Start dev server
 bun dev
 
-# 3. Create tunnel (in another terminal)
-cloudflared tunnel --url http://localhost:3000
-# Output: https://random-name.trycloudflare.com
-
-# 4. Add to vite.config.ts server.allowedHosts: ['.trycloudflare.com']
-
-# 5. Register webhook with tunnel URL
-curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://random-name.trycloudflare.com/api/telegram",
-    "secret_token": "dev-secret"
-  }'
+# Terminal 2: Start tunnel with auto webhook registration
+bun run dev:tunnel
 ```
 
-**Note:** Tunnel URL changes on restart. Re-register webhook when it changes.
+The `dev:tunnel` script:
+
+1. Starts cloudflared tunnel
+2. Captures the tunnel URL
+3. Waits for DNS propagation
+4. Registers the webhook automatically
 
 Useful commands:
 
@@ -209,70 +203,46 @@ curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/deleteWebhook"
 
 - `src/cf-worker/telegram/bot.ts` - grammY bot setup
 - `src/cf-worker/telegram/handlers.ts` - command handlers
-- `src/cf-worker/telegram/index.ts` - exports
+- `src/cf-worker/telegram/errors.ts` - typed errors
+- `scripts/telegram-tunnel.ts` - dev tunnel with auto webhook
 
-### Route (src/cf-worker/index.ts)
-
-```typescript
-app.post('/api/telegram', async (c) => {
-  const secret = c.req.header('X-Telegram-Bot-Api-Secret-Token')
-  if (secret !== c.env.TELEGRAM_WEBHOOK_SECRET) {
-    return c.text('Forbidden', 403)
-  }
-
-  const handler = createWebhookHandler(c.env)
-  return handler(c.req.raw)
-})
-```
-
-### Env Types (src/cf-worker/shared.ts)
+### Link Ingestion Flow
 
 ```typescript
-export type Env = {
-  // ... existing
-  TELEGRAM_BOT_TOKEN: string
-  TELEGRAM_WEBHOOK_SECRET: string
-  TELEGRAM_KV: KVNamespace
-}
-```
+// 1. Get API key from KV
+const apiKey = await env.TELEGRAM_KV.get(`telegram:${chatId}`)
 
-### wrangler.toml
+// 2. Verify API key and get orgId
+const key = await verifyApiKey(auth, apiKey)
+const storeId = key.metadata.orgId
 
-```toml
-[[kv_namespaces]]
-binding = "TELEGRAM_KV"
-id = "your-kv-namespace-id"
+// 3. Call DO directly via binding
+const doId = env.LINK_PROCESSOR_DO.idFromName(storeId)
+const stub = env.LINK_PROCESSOR_DO.get(doId)
+await stub.fetch(`https://do/?storeId=${storeId}&ingest=${url}`)
 ```
 
 ---
 
-## TODO
+## Production Deployment
 
-### Phase 1: PoC (No Auth) - COMPLETE ✓
+```bash
+# 1. Create KV namespace
+bunx wrangler kv namespace create TELEGRAM_KV
+# Copy the ID to wrangler.toml
 
-- [x] Add ingest handling to LinkProcessorDO
-- [x] Add POST /api/ingest endpoint
-- [x] Test with curl
+# 2. Add secrets
+bunx wrangler secret put TELEGRAM_BOT_TOKEN
+bunx wrangler secret put TELEGRAM_WEBHOOK_SECRET
 
-### Phase 2: Auth Layer - COMPLETE ✓
+# 3. Deploy
+bun run deploy
 
-- [x] Add API Key plugin to Better Auth
-- [x] Protect /api/ingest endpoint
-- [x] Settings UI for API key management
-
-### Phase 3: Telegram Integration - COMPLETE ✓
-
-- [x] Add grammy dependency
-- [x] Add TELEGRAM_KV binding to wrangler.toml
-- [x] Add env types
-- [x] Create bot.ts and handlers.ts
-- [x] Add /api/telegram route
-- [x] Test locally with cloudflared tunnel
-
-### Phase 4: Production Deploy
-
-- [ ] Create KV namespace in Cloudflare dashboard
-- [ ] Update wrangler.toml with real KV namespace ID
-- [ ] Add secrets: `wrangler secret put TELEGRAM_BOT_TOKEN`, `wrangler secret put TELEGRAM_WEBHOOK_SECRET`
-- [ ] Deploy worker
-- [ ] Register production webhook URL
+# 4. Register webhook
+curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://link-bucket.your-subdomain.workers.dev/api/telegram",
+    "secret_token": "YOUR_WEBHOOK_SECRET"
+  }'
+```
