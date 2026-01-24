@@ -11,6 +11,7 @@ import {
   MissingChatIdError,
   MissingOrgIdError,
   NotConnectedError,
+  RateLimitError,
 } from './errors'
 
 const logger = logSync('Telegram')
@@ -24,7 +25,11 @@ const verifyApiKey = (auth: Auth, apiKey: string) =>
   Effect.gen(function* () {
     const result = yield* Effect.tryPromise({
       try: () => auth.api.verifyApiKey({ body: { key: apiKey } }),
-      catch: () => new InvalidApiKeyError({}),
+      catch: (error) => {
+        const message = String(error)
+        if (message.includes('Rate limit')) return new RateLimitError({})
+        return new InvalidApiKeyError({})
+      },
     })
     if (!result.valid || !result.key) return yield* Effect.fail(new InvalidApiKeyError({}))
     if (!result.key.metadata?.orgId) return yield* Effect.fail(new MissingOrgIdError({}))
@@ -169,16 +174,31 @@ const linksRequest = (ctx: Context, urls: string[], env: Env) =>
     }
   })
 
+const reply = (ctx: Context, message: string) =>
+  Effect.promise(() => ctx.reply(message)).pipe(
+    Effect.asVoid,
+    Effect.catchAll(() => Effect.void),
+  )
+
 export const handleLinks = (ctx: Context, urls: string[], env: Env): Promise<void> => {
   logger.info('Link received', { chatId: ctx.chat?.id, from: ctx.from?.username, urls })
 
   return Effect.runPromise(
     linksRequest(ctx, urls, env).pipe(
       Effect.catchTag('NotConnectedError', () =>
-        Effect.promise(() => ctx.reply('Please connect first: /connect <api-key>')),
+        reply(ctx, 'Please connect first: /connect <api-key>'),
+      ),
+      Effect.catchTag('InvalidApiKeyError', () =>
+        reply(ctx, 'Your API key is no longer valid. Please reconnect: /connect <new-api-key>'),
+      ),
+      Effect.catchTag('RateLimitError', () =>
+        reply(ctx, 'Too many links today. Please try again tomorrow.'),
       ),
       Effect.catchTag('MissingChatIdError', () => Effect.void),
-      Effect.asVoid,
+      Effect.catchAll((error) => {
+        logger.error('Unhandled error in handleLinks', { error: String(error) })
+        return Effect.void
+      }),
     ),
   )
 }

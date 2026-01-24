@@ -25,9 +25,12 @@ export class NotConnectedError extends Schema.TaggedError<NotConnectedError>()(
   {},
 ) {}
 
+export class RateLimitError extends Schema.TaggedError<RateLimitError>()('RateLimitError', {}) {}
+
 export type TelegramError =
   | MissingChatIdError
   | MissingApiKeyError
   | InvalidApiKeyError
   | MissingOrgIdError
   | NotConnectedError
+  | RateLimitError
