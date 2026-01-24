@@ -305,8 +305,94 @@ Google OAuth redirect URI: `https://your-domain.workers.dev/api/auth/callback/go
 - [x] Cookie-based sync auth (session validation)
 - [x] Router-level auth (`beforeLoad`)
 - [x] Server-side org validation via session
+- [x] API key rate limiting (100/day)
 - [ ] Clear local data on logout
 - [ ] Handle session expiry on reconnect
+
+---
+
+## API Key Rate Limiting
+
+Better Auth's API Key plugin has built-in rate limiting. **Default is very restrictive: 10 requests/day.**
+
+### Configuration
+
+```typescript
+// src/cf-worker/auth/index.ts
+apiKey({
+  defaultPrefix: 'lb',
+  enableMetadata: true,
+  rateLimit: {
+    enabled: true,
+    timeWindow: 1000 * 60 * 60 * 24, // 1 day
+    maxRequests: 100,  // 100 requests per day
+  },
+}),
+```
+
+### Rate Limit Storage
+
+Rate limit state is stored per-key in D1:
+- `lastRequest` - timestamp of last request
+- `rateLimitEnabled`, `rateLimitTimeWindow`, `rateLimitMax` - per-key config
+
+### Resetting a Rate-Limited Key
+
+If a key hits its limit, options:
+1. **Wait** for the time window to pass (24h)
+2. **Generate new key** - fresh key has no history
+3. **Reset in D1**: `UPDATE apikey SET lastRequest = NULL WHERE id = '...'`
+
+---
+
+## Observability
+
+Workers Logs enabled in `wrangler.toml`:
+
+```toml
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+```
+
+### Pricing
+
+| Plan | Included | Overage |
+|------|----------|---------|
+| Free | 200,000 logs/day | Stops logging |
+| Paid ($5/mo) | 20M/month | $0.60 per million |
+
+Optional sampling to reduce volume:
+```toml
+head_sampling_rate = 0.1  # Only log 10% of requests
+```
+
+---
+
+## WAF Rate Limiting (Edge)
+
+Cloudflare WAF can block requests at the edge before Workers are invoked. This protects against quota exhaustion from retry spam.
+
+### Configuration
+
+Dashboard → Security → WAF → Rate limiting rules
+
+Example rule for `/sync`:
+- **Expression**: `http.request.uri.path eq "/sync"`
+- **Rate**: 10 requests per 10 seconds per IP
+- **Action**: Block (429)
+- **Duration**: 60 seconds
+
+### Pricing
+
+**Free** on all plans (unmetered). 5 rules on Free plan.
+
+### Limitation
+
+WAF rate limiting requires a custom domain on Cloudflare. Not available for `*.workers.dev` domains.
 
 ---
 
@@ -341,3 +427,32 @@ The session cookie is automatically sent with same-origin WebSocket connections,
 ### Migration
 
 If you have an existing deployment with the JWT `jwks` table, it can be safely ignored (Better Auth created it for the `jwt` plugin). No data migration is needed since JWTs were stateless and not stored.
+
+---
+
+## Known Limitation: LiveStore Infinite Retry
+
+When a sync connection fails (auth error, session expired, etc.), LiveStore retries **indefinitely** every 1 second. This is hardcoded in `@livestore/sync-cf`:
+
+```typescript
+// ws-rpc-client.ts
+retryTransientErrors: Schedule.fixed(1000)  // Retry forever
+```
+
+### The Problem
+
+- WebSocket errors don't carry HTTP status codes
+- Auth failures (401/403) look identical to network errors
+- Client keeps retrying with expired session → quota exhaustion
+
+### Mitigations
+
+1. **WAF Rate Limiting** - Block at edge before Worker invoked (requires custom domain)
+2. **Observability** - Monitor for retry spam patterns
+3. **Session TTL** - 7-day session reduces likelihood vs 1-hour JWT
+
+### Future Fix
+
+LiveStore should add:
+- `maxRetries` or `shouldRetry` callback in `WsSyncOptions`
+- Distinguish auth errors from transient network errors
