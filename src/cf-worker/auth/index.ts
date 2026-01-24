@@ -32,6 +32,11 @@ export const createAuth = (env: Env, db: Database) => {
       apiKey({
         defaultPrefix: 'lb',
         enableMetadata: true,
+        rateLimit: {
+          enabled: true,
+          timeWindow: 1000 * 60 * 60 * 24, // 1 day
+          maxRequests: 100,
+        },
       }),
     ],
     databaseHooks: {
