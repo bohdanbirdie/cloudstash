@@ -175,10 +175,11 @@ const linksRequest = (ctx: Context, urls: string[], env: Env) =>
   })
 
 const reply = (ctx: Context, message: string) =>
-  Effect.promise(() => ctx.reply(message)).pipe(
-    Effect.asVoid,
-    Effect.catchAll(() => Effect.void),
-  )
+  Effect.promise(() =>
+    ctx.reply(message, {
+      reply_parameters: ctx.msg?.message_id ? { message_id: ctx.msg.message_id } : undefined,
+    }),
+  ).pipe(Effect.asVoid, Effect.catchAll(() => Effect.void))
 
 export const handleLinks = (ctx: Context, urls: string[], env: Env): Promise<void> => {
   logger.info('Link received', { chatId: ctx.chat?.id, from: ctx.from?.username, urls })
@@ -189,10 +190,16 @@ export const handleLinks = (ctx: Context, urls: string[], env: Env): Promise<voi
         reply(ctx, 'Please connect first: /connect <api-key>'),
       ),
       Effect.catchTag('InvalidApiKeyError', () =>
-        reply(ctx, 'Your API key is no longer valid. Please reconnect: /connect <new-api-key>'),
+        react(ctx, '👎').pipe(
+          Effect.flatMap(() =>
+            reply(ctx, 'Your API key is no longer valid. Please reconnect: /connect <new-api-key>'),
+          ),
+        ),
       ),
       Effect.catchTag('RateLimitError', () =>
-        reply(ctx, 'Too many links today. Please try again tomorrow.'),
+        react(ctx, '👎').pipe(
+          Effect.flatMap(() => reply(ctx, 'Too many links today. Please try again tomorrow.')),
+        ),
       ),
       Effect.catchTag('MissingChatIdError', () => Effect.void),
       Effect.catchAll((error) => {
