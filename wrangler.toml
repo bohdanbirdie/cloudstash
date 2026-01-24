@@ -38,3 +38,10 @@ new_sqlite_classes = ["LinkProcessorDO"]
 [[kv_namespaces]]
 binding = "TELEGRAM_KV"
 id = "a54cb37a45324db1a64eea3471a36245"
+
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true
