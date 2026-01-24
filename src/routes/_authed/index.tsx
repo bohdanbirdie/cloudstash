@@ -8,26 +8,32 @@ import { Button } from '@/components/ui/button'
 import { events } from '@/livestore/schema'
 import { useAppStore } from '@/livestore/store'
 import { useSelectionStore } from '@/stores/selection-store'
-import { trashLinks$ } from '@/livestore/queries'
+import { inboxLinks$ } from '@/livestore/queries'
 import type { LinkWithDetails } from '@/livestore/queries'
 
-export const Route = createFileRoute('/trash')({
-  component: TrashPage,
-  staticData: { title: 'Trash', icon: 'trash' },
+export const Route = createFileRoute('/_authed/')({
+  component: HomePage,
+  staticData: { title: 'Inbox', icon: 'inbox' },
 })
 
-function TrashPage() {
+function HomePage() {
   const store = useAppStore()
-  const links = store.useQuery(trashLinks$)
+  const links = store.useQuery(inboxLinks$)
   const clear = useSelectionStore((s) => s.clear)
   const [exportOpen, setExportOpen] = useState(false)
   const [selectedLinks, setSelectedLinks] = useState<LinkWithDetails[]>([])
 
   useEffect(() => clear, [clear])
 
-  const handleBulkRestore = useCallback(() => {
+  const handleBulkComplete = useCallback(() => {
     for (const link of selectedLinks) {
-      store.commit(events.linkRestored({ id: link.id }))
+      store.commit(events.linkCompleted({ id: link.id, completedAt: new Date() }))
+    }
+  }, [selectedLinks, store])
+
+  const handleBulkDelete = useCallback(() => {
+    for (const link of selectedLinks) {
+      store.commit(events.linkDeleted({ id: link.id, deletedAt: new Date() }))
     }
   }, [selectedLinks, store])
 
@@ -35,28 +41,31 @@ function TrashPage() {
     <div className='p-6'>
       <div className='flex items-center justify-between mb-6'>
         <div>
-          <h1 className='text-2xl font-bold'>Trash</h1>
-          <p className='text-muted-foreground mt-1'>Deleted links. Empty after 30 days.</p>
+          <h1 className='text-2xl font-bold'>Inbox</h1>
+          <p className='text-muted-foreground mt-1'>Links to read later.</p>
         </div>
         <Button variant='outline' size='sm' onClick={() => setExportOpen(true)}>
           <DownloadIcon className='h-4 w-4 mr-2' />
           Export
         </Button>
       </div>
-      <LinkGrid links={links} emptyMessage='Trash is empty' onSelectionChange={setSelectedLinks} />
+      <LinkGrid
+        links={links}
+        emptyMessage='No links in your inbox'
+        onSelectionChange={setSelectedLinks}
+      />
       <SelectionToolbar
         selectedCount={selectedLinks.length}
         onExport={() => setExportOpen(true)}
-        onDelete={handleBulkRestore}
+        onComplete={handleBulkComplete}
+        onDelete={handleBulkDelete}
         onClear={clear}
-        showComplete={false}
-        isTrash
       />
       <ExportDialog
         open={exportOpen}
         onOpenChange={setExportOpen}
         links={selectedLinks.length > 0 ? selectedLinks : links}
-        pageTitle={selectedLinks.length > 0 ? 'Selected Links' : 'Trash'}
+        pageTitle={selectedLinks.length > 0 ? 'Selected Links' : 'Inbox'}
       />
     </div>
   )

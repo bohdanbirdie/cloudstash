@@ -1,12 +1,12 @@
 import type { CfTypes } from '@livestore/sync-cf/cf-worker'
 import * as SyncBackend from '@livestore/sync-cf/cf-worker'
-import { jwtVerify, createLocalJWKSet } from 'jose'
+import { Effect } from 'effect'
 
-import { SyncPayload } from '../../livestore/schema'
 import { createAuth, type Auth } from '../auth'
 import { createDb } from '../db'
 import { logSync } from '../logger'
 import type { Env } from '../shared'
+import { InvalidSessionError, MissingSessionCookieError, OrgAccessDeniedError } from './errors'
 
 const logger = logSync('SyncBackend')
 
@@ -44,39 +44,33 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
   }
 }
 
-const validatePayload = async (
-  payload: typeof SyncPayload.Type | undefined,
-  context: { storeId: string },
-  env: Env,
+const validatePayload = (
+  _payload: unknown,
+  context: { storeId: string; headers: ReadonlyMap<string, string> },
   auth: Auth,
-) => {
-  if (!payload?.authToken) {
-    throw new Error('Missing auth token')
-  }
+) =>
+  Effect.gen(function* () {
+    const cookie = context.headers.get('cookie')
+    if (!cookie) {
+      return yield* new MissingSessionCookieError()
+    }
 
-  // Get JWKS via Better Auth handler (keeps coupling to public API, not DB schema)
-  const jwksRequest = new Request(`${env.BETTER_AUTH_URL}/api/auth/jwks`)
-  const jwksResponse = await auth.handler(jwksRequest)
-  if (!jwksResponse.ok) {
-    throw new Error(`Failed to get JWKS: ${jwksResponse.status}`)
-  }
-  const jwks = (await jwksResponse.json()) as { keys: JsonWebKey[] }
-  const JWKS = createLocalJWKSet(jwks)
+    const session = yield* Effect.tryPromise({
+      try: () => auth.api.getSession({ headers: new Headers({ cookie }) }),
+      catch: () => new InvalidSessionError(),
+    })
 
-  const { payload: claims } = await jwtVerify(payload.authToken, JWKS, {
-    issuer: env.BETTER_AUTH_URL,
-    audience: env.BETTER_AUTH_URL,
-  })
+    if (!session?.session) {
+      return yield* new InvalidSessionError()
+    }
 
-  if (!claims.sub) {
-    throw new Error('Invalid token: missing subject')
-  }
-
-  // Validate org access - storeId must match JWT's orgId
-  if (claims.orgId !== context.storeId) {
-    throw new Error('Access denied: not a member of this organization')
-  }
-}
+    if (session.session.activeOrganizationId !== context.storeId) {
+      return yield* new OrgAccessDeniedError({
+        storeId: context.storeId,
+        sessionOrgId: session.session.activeOrganizationId ?? null,
+      })
+    }
+  }).pipe(Effect.runPromise)
 
 type SyncSearchParams = NonNullable<ReturnType<typeof SyncBackend.matchSyncRequest>>
 
@@ -91,11 +85,10 @@ export const handleSyncRequest = (
     searchParams,
     ctx,
     syncBackendBinding: 'SYNC_BACKEND_DO',
-    syncPayloadSchema: SyncPayload,
     validatePayload: (payload, context) => {
       const db = createDb(env.DB)
       const auth = createAuth(env, db)
-      return validatePayload(payload, context, env, auth)
+      return validatePayload(payload, context, auth)
     },
   })
 }

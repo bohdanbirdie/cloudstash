@@ -11,7 +11,7 @@ import { useSelectionStore } from '@/stores/selection-store'
 import { allLinks$ } from '@/livestore/queries'
 import type { LinkWithDetails } from '@/livestore/queries'
 
-export const Route = createFileRoute('/all')({
+export const Route = createFileRoute('/_authed/all')({
   component: AllLinksPage,
   staticData: { title: 'All Links', icon: 'list' },
 })

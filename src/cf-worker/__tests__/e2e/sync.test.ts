@@ -5,8 +5,8 @@ import { describe, it, expect, beforeAll } from 'vitest'
  * E2E tests for LiveStore sync connection auth rejection.
  *
  * Tests that the sync endpoint rejects WebSocket connections when:
- * - Auth token is missing
- * - Auth token is invalid
+ * - Session cookie is missing
+ * - Session cookie is invalid
  * - User's orgId doesn't match the requested storeId
  */
 
@@ -14,11 +14,10 @@ type UserInfo = {
   cookie: string
   userId: string
   orgId: string
-  jwt: string
 }
 
 /**
- * Helper to signup a user and get their session info + JWT
+ * Helper to signup a user and get their session info
  */
 const signupUser = async (email: string, name: string): Promise<UserInfo> => {
   const res = await SELF.fetch('http://worker/api/auth/sign-up/email', {
@@ -52,37 +51,21 @@ const signupUser = async (email: string, name: string): Promise<UserInfo> => {
     session: { activeOrganizationId: string }
   }
 
-  // Get JWT token
-  const tokenRes = await SELF.fetch('http://worker/api/auth/token', {
-    headers: { Cookie: cookie },
-  })
-
-  if (!tokenRes.ok) {
-    const text = await tokenRes.text()
-    throw new Error(`Failed to get token: ${tokenRes.status} - ${text}`)
-  }
-
-  const tokenData = (await tokenRes.json()) as { token: string }
-
   return {
     cookie,
     userId: me.user.id,
     orgId: me.session.activeOrganizationId,
-    jwt: tokenData.token,
   }
 }
 
 /**
- * Build sync URL with optional payload
+ * Build sync URL for WebSocket connection
  */
-const buildSyncUrl = (storeId: string, payload?: { authToken: string }) => {
+const buildSyncUrl = (storeId: string) => {
   const params = new URLSearchParams({
     storeId,
     transport: 'ws',
   })
-  if (payload) {
-    params.set('payload', JSON.stringify(payload))
-  }
   return `http://worker/sync?${params.toString()}`
 }
 
@@ -95,49 +78,44 @@ describe('Sync Connection Auth E2E', () => {
     userB = await signupUser('sync-user-b@test.com', 'Sync User B')
   })
 
-  describe('Missing auth token', () => {
-    it('rejects sync request without payload', async () => {
+  describe('Missing session cookie', () => {
+    it('rejects sync request without cookie', async () => {
       const res = await SELF.fetch(buildSyncUrl(userA.orgId))
 
       expect(res.status).toBe(400)
       const text = await res.text()
-      // Schema validation fails before validatePayload runs
-      expect(text).toContain('authToken')
-    })
-
-    it('rejects sync request with empty payload', async () => {
-      const url = `http://worker/sync?storeId=${userA.orgId}&transport=ws&payload=${encodeURIComponent('{}')}`
-      const res = await SELF.fetch(url)
-
-      expect(res.status).toBe(400)
-      const text = await res.text()
-      // Schema validation fails before validatePayload runs
-      expect(text).toContain('authToken')
-      expect(text).toContain('is missing')
+      expect(text).toContain('Missing session cookie')
     })
   })
 
-  describe('Invalid auth token', () => {
-    it('rejects sync request with malformed JWT', async () => {
-      const res = await SELF.fetch(buildSyncUrl(userA.orgId, { authToken: 'not-a-valid-jwt' }))
+  describe('Invalid session cookie', () => {
+    it('rejects sync request with invalid cookie', async () => {
+      const res = await SELF.fetch(buildSyncUrl(userA.orgId), {
+        headers: { Cookie: 'better-auth.session_token=invalid-session-token' },
+      })
 
       expect(res.status).toBe(400)
+      const text = await res.text()
+      expect(text).toContain('Invalid or expired session')
     })
 
-    it('rejects sync request with expired/invalid JWT signature', async () => {
-      // Create a fake JWT with invalid signature
-      const fakeJwt =
-        'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.invalid_signature'
-      const res = await SELF.fetch(buildSyncUrl(userA.orgId, { authToken: fakeJwt }))
+    it('rejects sync request with malformed cookie', async () => {
+      const res = await SELF.fetch(buildSyncUrl(userA.orgId), {
+        headers: { Cookie: 'not-a-valid-cookie' },
+      })
 
       expect(res.status).toBe(400)
+      const text = await res.text()
+      expect(text).toContain('Invalid or expired session')
     })
   })
 
   describe('Org access control', () => {
-    it('rejects when storeId does not match JWT orgId', async () => {
+    it('rejects when storeId does not match session orgId', async () => {
       // User A tries to sync with User B's org
-      const res = await SELF.fetch(buildSyncUrl(userB.orgId, { authToken: userA.jwt }))
+      const res = await SELF.fetch(buildSyncUrl(userB.orgId), {
+        headers: { Cookie: userA.cookie },
+      })
 
       expect(res.status).toBe(400)
       const text = await res.text()
@@ -145,7 +123,9 @@ describe('Sync Connection Auth E2E', () => {
     })
 
     it('rejects when storeId is non-existent org', async () => {
-      const res = await SELF.fetch(buildSyncUrl('non-existent-org-id', { authToken: userA.jwt }))
+      const res = await SELF.fetch(buildSyncUrl('non-existent-org-id'), {
+        headers: { Cookie: userA.cookie },
+      })
 
       expect(res.status).toBe(400)
       const text = await res.text()
@@ -154,8 +134,10 @@ describe('Sync Connection Auth E2E', () => {
   })
 
   describe('Valid auth', () => {
-    it('accepts sync request with valid JWT and matching storeId', async () => {
-      const res = await SELF.fetch(buildSyncUrl(userA.orgId, { authToken: userA.jwt }))
+    it('accepts sync request with valid cookie and matching storeId', async () => {
+      const res = await SELF.fetch(buildSyncUrl(userA.orgId), {
+        headers: { Cookie: userA.cookie },
+      })
 
       // Should return 101 Switching Protocols (WebSocket upgrade)
       // or potentially a different success status depending on how SELF handles WebSocket
@@ -170,13 +152,17 @@ describe('Sync Connection Auth E2E', () => {
     })
 
     it('User B can sync with their own org', async () => {
-      const res = await SELF.fetch(buildSyncUrl(userB.orgId, { authToken: userB.jwt }))
+      const res = await SELF.fetch(buildSyncUrl(userB.orgId), {
+        headers: { Cookie: userB.cookie },
+      })
 
       expect(res.status).not.toBe(400)
     })
 
     it('User B cannot sync with User A org', async () => {
-      const res = await SELF.fetch(buildSyncUrl(userA.orgId, { authToken: userB.jwt }))
+      const res = await SELF.fetch(buildSyncUrl(userA.orgId), {
+        headers: { Cookie: userB.cookie },
+      })
 
       expect(res.status).toBe(400)
       const text = await res.text()

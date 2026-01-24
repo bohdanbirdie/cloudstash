@@ -11,7 +11,7 @@ import { useSelectionStore } from '@/stores/selection-store'
 import { completedLinks$ } from '@/livestore/queries'
 import type { LinkWithDetails } from '@/livestore/queries'
 
-export const Route = createFileRoute('/completed')({
+export const Route = createFileRoute('/_authed/completed')({
   component: CompletedPage,
   staticData: { title: 'Completed', icon: 'check-circle' },
 })

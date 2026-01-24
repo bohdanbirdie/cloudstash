@@ -1,6 +1,6 @@
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { apiKey, jwt, organization } from 'better-auth/plugins'
+import { apiKey, organization } from 'better-auth/plugins'
 import { eq } from 'drizzle-orm'
 import type { Database } from '../db'
 import * as schema from '../db/schema'
@@ -25,24 +25,6 @@ export const createAuth = (env: Env, db: Database) => {
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     plugins: [
-      jwt({
-        jwks: {
-          keyPairConfig: {
-            alg: 'EdDSA',
-            crv: 'Ed25519',
-          },
-        },
-        jwt: {
-          issuer: env.BETTER_AUTH_URL,
-          audience: env.BETTER_AUTH_URL,
-          expirationTime: '1h',
-          definePayload: async ({ user, session }) => ({
-            sub: user.id,
-            email: user.email,
-            orgId: session.activeOrganizationId,
-          }),
-        },
-      }),
       organization({
         allowUserToCreateOrganization: true,
         creatorRole: 'owner',
