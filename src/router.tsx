@@ -18,7 +18,7 @@ export const getRouter = () => {
     defaultPreloadStaleTime: 0,
     context: {
       storeRegistry,
-      auth: undefined!,  // Provided by AuthProvider at runtime
+      auth: undefined!, // Provided by AuthProvider at runtime
     },
   })
 }

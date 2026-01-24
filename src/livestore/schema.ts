@@ -145,7 +145,9 @@ export const events = {
 
 const materializers = State.SQLite.materializers(events, {
   'v1.LinkCreated': ({ id, url, domain, createdAt }) =>
-    tables.links.insert({ id, url, domain, createdAt, status: 'unread' }).onConflict('url', 'ignore'),
+    tables.links
+      .insert({ id, url, domain, createdAt, status: 'unread' })
+      .onConflict('url', 'ignore'),
   'v1.LinkMetadataFetched': ({ id, linkId, title, description, image, favicon, fetchedAt }) =>
     tables.linkSnapshots.insert({
       id,

@@ -203,14 +203,14 @@ The bot gracefully handles all errors to prevent Telegram retry spam.
 
 ### Error Responses
 
-| Error | Reaction | Message |
-|-------|----------|---------|
-| Not connected | - | "Please connect first: /connect <api-key>" |
-| Invalid/deleted API key | 👎 | "Your API key is no longer valid. Please reconnect..." |
-| Rate limit exceeded | 👎 | "Too many links today. Please try again tomorrow." |
-| Ingestion failed | 👎 | Shows failed URLs with errors |
-| Success | 👍 | - |
-| Processing | 🤔 | - |
+| Error                   | Reaction | Message                                                |
+| ----------------------- | -------- | ------------------------------------------------------ |
+| Not connected           | -        | "Please connect first: /connect <api-key>"             |
+| Invalid/deleted API key | 👎       | "Your API key is no longer valid. Please reconnect..." |
+| Rate limit exceeded     | 👎       | "Too many links today. Please try again tomorrow."     |
+| Ingestion failed        | 👎       | Shows failed URLs with errors                          |
+| Success                 | 👍       | -                                                      |
+| Processing              | 🤔       | -                                                      |
 
 ### Always Return 200
 
@@ -219,25 +219,32 @@ The bot gracefully handles all errors to prevent Telegram retry spam.
 ```typescript
 // Error replies use a helper that catches failures
 const reply = (ctx, message) =>
-  Effect.promise(() => ctx.reply(message, {
-    reply_parameters: { message_id: ctx.msg.message_id } // Quote original
-  })).pipe(Effect.asVoid, Effect.catchAll(() => Effect.void))
+  Effect.promise(() =>
+    ctx.reply(message, {
+      reply_parameters: { message_id: ctx.msg.message_id }, // Quote original
+    }),
+  ).pipe(
+    Effect.asVoid,
+    Effect.catchAll(() => Effect.void),
+  )
 
 // Final catchAll ensures we never return non-200
 Effect.catchAll((error) => {
   logger.error('Unhandled error', { error })
-  return Effect.void  // Returns 200 to Telegram
+  return Effect.void // Returns 200 to Telegram
 })
 ```
 
 ### Telegram Webhook Retry Behavior
 
 If your endpoint returns non-2xx:
+
 - Telegram queues the message and retries with exponential backoff
 - Retries continue for ~24 hours before giving up
 - **Messages are delivered in order** - pending failures block new messages
 
 To check/fix stuck messages:
+
 ```bash
 # Check webhook status
 curl "https://api.telegram.org/bot$TOKEN/getWebhookInfo"

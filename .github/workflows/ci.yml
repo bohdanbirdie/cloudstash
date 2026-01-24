@@ -26,4 +26,4 @@ jobs:
         env:
           BETTER_AUTH_SECRET: test-secret-for-ci-only-32chars
           BETTER_AUTH_URL: http://localhost:3000
-          ENABLE_TEST_AUTH: "true"
+          ENABLE_TEST_AUTH: 'true'

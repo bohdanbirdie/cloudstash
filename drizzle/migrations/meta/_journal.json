@@ -29,6 +29,20 @@
       "when": 1769112213405,
       "tag": "0003_marvelous_boomerang",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1769262749687,
+      "tag": "0004_brave_inhumans",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1769266439822,
+      "tag": "0005_foamy_blindfold",
+      "breakpoints": true
     }
   ]
 }

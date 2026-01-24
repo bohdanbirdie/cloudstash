@@ -10,6 +10,7 @@ import {
   LogOutIcon,
   SearchIcon,
   SettingsIcon,
+  ShieldIcon,
 } from 'lucide-react'
 
 import {
@@ -34,7 +35,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { authClient } from '@/lib/auth'
+import { authClient, useAuth } from '@/lib/auth'
 import { Badge } from '@/components/ui/badge'
 import { Kbd } from '@/components/ui/kbd'
 import { useModifierHold } from '@/hooks/use-modifier-hold'
@@ -44,6 +45,7 @@ import { useSearchStore } from '@/stores/search-store'
 import { useAppStore } from '@/livestore/store'
 import { inboxCount$, completedCount$, allLinksCount$, trashCount$ } from '@/livestore/queries'
 import { ApiKeysModal } from '@/components/api-keys-modal'
+import { AdminModal } from '@/components/admin-modal'
 
 export function AppSidebar() {
   const location = useLocation()
@@ -51,7 +53,9 @@ export function AppSidebar() {
   const openSearch = useSearchStore((s) => s.setOpen)
   const store = useAppStore()
   const [apiKeysOpen, setApiKeysOpen] = useState(false)
+  const [adminOpen, setAdminOpen] = useState(false)
   const [logoutOpen, setLogoutOpen] = useState(false)
+  const auth = useAuth()
   const showHints = useModifierHold()
 
   const inboxCount = store.useQuery(inboxCount$)
@@ -146,6 +150,14 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
+          {auth.role === 'admin' && (
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip='Admin' onClick={() => setAdminOpen(true)}>
+                <ShieldIcon />
+                <span>Admin</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton tooltip='Settings' onClick={() => setApiKeysOpen(true)}>
               <SettingsIcon />
@@ -160,6 +172,7 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
         <ApiKeysModal open={apiKeysOpen} onOpenChange={setApiKeysOpen} />
+        <AdminModal open={adminOpen} onOpenChange={setAdminOpen} />
         <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>

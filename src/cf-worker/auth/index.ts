@@ -1,6 +1,6 @@
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { apiKey, organization } from 'better-auth/plugins'
+import { admin, apiKey, organization } from 'better-auth/plugins'
 import { eq } from 'drizzle-orm'
 import type { Database } from '../db'
 import * as schema from '../db/schema'
@@ -15,6 +15,16 @@ export const createAuth = (env: Env, db: Database) => {
       provider: 'sqlite',
       schema,
     }),
+    user: {
+      additionalFields: {
+        approved: {
+          type: 'boolean',
+          required: false,
+          defaultValue: false,
+          input: false,
+        },
+      },
+    },
     emailAndPassword: env.ENABLE_TEST_AUTH === 'true' ? { enabled: true } : undefined,
     socialProviders: {
       google: {
@@ -38,13 +48,17 @@ export const createAuth = (env: Env, db: Database) => {
           maxRequests: 100,
         },
       }),
+      admin({
+        defaultRole: 'user',
+      }),
     ],
     databaseHooks: {
       user: {
         create: {
           after: async (user) => {
+            // New users get approved: false by default (via additionalFields)
+            // Just create personal workspace
             try {
-              // Create personal workspace using Better Auth API
               const result = await auth.api.createOrganization({
                 body: {
                   name: `${user.name}'s Workspace`,

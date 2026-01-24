@@ -146,11 +146,24 @@ const linksRequest = (ctx: Context, urls: string[], env: Env) =>
     yield* react(ctx, '🤔')
     const results = yield* Effect.all(urls.map((url) => ingestUrl(url, storeId, env)))
 
-    const ingested = results.filter((r): r is IngestResult & { status: 'ingested' } => r.status === 'ingested')
-    const duplicates = results.filter((r): r is IngestResult & { status: 'duplicate' } => r.status === 'duplicate')
-    const failed = results.filter((r): r is IngestResult & { status: 'failed' } => r.status === 'failed')
+    const ingested = results.filter(
+      (r): r is IngestResult & { status: 'ingested' } => r.status === 'ingested',
+    )
+    const duplicates = results.filter(
+      (r): r is IngestResult & { status: 'duplicate' } => r.status === 'duplicate',
+    )
+    const failed = results.filter(
+      (r): r is IngestResult & { status: 'failed' } => r.status === 'failed',
+    )
 
-    yield* Effect.sync(() => logger.info('Ingest complete', { chatId, ingested: ingested.length, duplicates: duplicates.length, failed: failed.length }))
+    yield* Effect.sync(() =>
+      logger.info('Ingest complete', {
+        chatId,
+        ingested: ingested.length,
+        duplicates: duplicates.length,
+        failed: failed.length,
+      }),
+    )
 
     if (failed.length > 0) {
       yield* react(ctx, '👎')
@@ -179,7 +192,10 @@ const reply = (ctx: Context, message: string) =>
     ctx.reply(message, {
       reply_parameters: ctx.msg?.message_id ? { message_id: ctx.msg.message_id } : undefined,
     }),
-  ).pipe(Effect.asVoid, Effect.catchAll(() => Effect.void))
+  ).pipe(
+    Effect.asVoid,
+    Effect.catchAll(() => Effect.void),
+  )
 
 export const handleLinks = (ctx: Context, urls: string[], env: Env): Promise<void> => {
   logger.info('Link received', { chatId: ctx.chat?.id, from: ctx.from?.username, urls })

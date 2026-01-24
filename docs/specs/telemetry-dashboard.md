@@ -41,8 +41,8 @@ LiveStore maintains OpenTelemetry contexts internally:
 type StoreOtel = {
   tracer: otel.Tracer
   rootSpanContext: otel.Context
-  commitsSpanContext: otel.Context  // Event commits
-  queriesSpanContext: otel.Context  // Query execution
+  commitsSpanContext: otel.Context // Event commits
+  queriesSpanContext: otel.Context // Query execution
 }
 
 // Accessing via store internals
@@ -73,17 +73,17 @@ store.commit(events.linkCreated({ ... }), {
 
 Already tracked in LiveStore schema:
 
-| Event | Data Available |
-|-------|----------------|
-| `linkCreated` | id, url, domain, createdAt |
-| `linkProcessingStarted` | linkId, startedAt |
-| `linkProcessingCompleted` | linkId, completedAt |
-| `linkProcessingFailed` | linkId, error, failedAt |
-| `linkMetadataFetched` | title, description, favicon |
-| `linkSummarized` | summary text |
-| `linkInteracted` | linkId, type (opened), timestamp |
-| `linkCompleted` / `linkUncompleted` | status changes |
-| `linkDeleted` / `linkRestored` | soft delete tracking |
+| Event                               | Data Available                   |
+| ----------------------------------- | -------------------------------- |
+| `linkCreated`                       | id, url, domain, createdAt       |
+| `linkProcessingStarted`             | linkId, startedAt                |
+| `linkProcessingCompleted`           | linkId, completedAt              |
+| `linkProcessingFailed`              | linkId, error, failedAt          |
+| `linkMetadataFetched`               | title, description, favicon      |
+| `linkSummarized`                    | summary text                     |
+| `linkInteracted`                    | linkId, type (opened), timestamp |
+| `linkCompleted` / `linkUncompleted` | status changes                   |
+| `linkDeleted` / `linkRestored`      | soft delete tracking             |
 
 ### Derived Metrics
 
@@ -94,12 +94,12 @@ Calculate from existing events:
 const metrics = {
   // Counts
   totalLinks: links.length,
-  completedLinks: links.filter(l => l.completedAt).length,
-  deletedLinks: links.filter(l => l.deletedAt).length,
+  completedLinks: links.filter((l) => l.completedAt).length,
+  deletedLinks: links.filter((l) => l.deletedAt).length,
 
   // Processing
-  pendingProcessing: processing.filter(p => p.status === 'pending').length,
-  failedProcessing: processing.filter(p => p.status === 'failed').length,
+  pendingProcessing: processing.filter((p) => p.status === 'pending').length,
+  failedProcessing: processing.filter((p) => p.status === 'failed').length,
   successRate: (completed / total) * 100,
 
   // Performance
@@ -107,8 +107,8 @@ const metrics = {
   p95ProcessingTime: calculatePercentile(processingTimes, 95),
 
   // Activity
-  linksToday: links.filter(l => isToday(l.createdAt)).length,
-  linksThisWeek: links.filter(l => isThisWeek(l.createdAt)).length,
+  linksToday: links.filter((l) => isToday(l.createdAt)).length,
+  linksThisWeek: links.filter((l) => isThisWeek(l.createdAt)).length,
   topDomains: groupByDomain(links).slice(0, 10),
 }
 ```
@@ -190,24 +190,26 @@ export const materializers = defineMaterializers(events, ({ tables }) => ({
 // src/shared/livestore/queries.ts
 export const queries = {
   // Current metrics (computed from live data)
-  currentMetrics: () => computed((get) => {
-    const links = get(querySQL`SELECT * FROM links WHERE deletedAt IS NULL`)
-    const processing = get(querySQL`SELECT * FROM link_processing_status`)
-    const interactions = get(querySQL`SELECT * FROM link_interactions`)
+  currentMetrics: () =>
+    computed((get) => {
+      const links = get(querySQL`SELECT * FROM links WHERE deletedAt IS NULL`)
+      const processing = get(querySQL`SELECT * FROM link_processing_status`)
+      const interactions = get(querySQL`SELECT * FROM link_interactions`)
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const todayTs = today.getTime()
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const todayTs = today.getTime()
 
-    return {
-      totalLinks: links.length,
-      completedLinks: links.filter((l) => l.completedAt).length,
-      pendingProcessing: processing.filter((p) => p.status === 'pending').length,
-      failedProcessing: processing.filter((p) => p.status === 'failed').length,
-      linksToday: links.filter((l) => new Date(l.createdAt).getTime() >= todayTs).length,
-      interactionsToday: interactions.filter((i) => new Date(i.timestamp).getTime() >= todayTs).length,
-    }
-  }),
+      return {
+        totalLinks: links.length,
+        completedLinks: links.filter((l) => l.completedAt).length,
+        pendingProcessing: processing.filter((p) => p.status === 'pending').length,
+        failedProcessing: processing.filter((p) => p.status === 'failed').length,
+        linksToday: links.filter((l) => new Date(l.createdAt).getTime() >= todayTs).length,
+        interactionsToday: interactions.filter((i) => new Date(i.timestamp).getTime() >= todayTs)
+          .length,
+      }
+    }),
 
   // Processing performance
   processingPerformance: () =>
@@ -322,18 +324,19 @@ interface StatsCardProps {
 export function StatsCard({ title, value, change, icon: Icon }: StatsCardProps) {
   return (
     <Card>
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between">
+      <CardContent className='p-6'>
+        <div className='flex items-center justify-between'>
           <div>
-            <p className="text-sm text-muted-foreground">{title}</p>
-            <p className="text-3xl font-bold">{value}</p>
+            <p className='text-sm text-muted-foreground'>{title}</p>
+            <p className='text-3xl font-bold'>{value}</p>
             {change !== undefined && (
               <p className={cn('text-sm', change >= 0 ? 'text-green-600' : 'text-red-600')}>
-                {change >= 0 ? '+' : ''}{change}% from last week
+                {change >= 0 ? '+' : ''}
+                {change}% from last week
               </p>
             )}
           </div>
-          {Icon && <Icon className="w-8 h-8 text-muted-foreground" />}
+          {Icon && <Icon className='w-8 h-8 text-muted-foreground' />}
         </div>
       </CardContent>
     </Card>
@@ -357,16 +360,16 @@ export function LinksChart() {
         <CardTitle>Links Over Time</CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={200}>
+        <ResponsiveContainer width='100%' height={200}>
           <AreaChart data={data}>
-            <XAxis dataKey="day" tickFormatter={(d) => format(new Date(d), 'MMM d')} />
+            <XAxis dataKey='day' tickFormatter={(d) => format(new Date(d), 'MMM d')} />
             <YAxis />
             <Tooltip />
             <Area
-              type="monotone"
-              dataKey="count"
-              stroke="hsl(var(--primary))"
-              fill="hsl(var(--primary) / 0.2)"
+              type='monotone'
+              dataKey='count'
+              stroke='hsl(var(--primary))'
+              fill='hsl(var(--primary) / 0.2)'
             />
           </AreaChart>
         </ResponsiveContainer>
@@ -390,19 +393,19 @@ export function TopDomains() {
         <CardTitle>Top Domains</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-2">
+        <div className='space-y-2'>
           {domains?.map((d, i) => (
-            <div key={d.domain} className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground w-4">{i + 1}.</span>
+            <div key={d.domain} className='flex items-center justify-between'>
+              <div className='flex items-center gap-2'>
+                <span className='text-muted-foreground w-4'>{i + 1}.</span>
                 <img
                   src={`https://www.google.com/s2/favicons?domain=${d.domain}&sz=16`}
-                  className="w-4 h-4"
-                  alt=""
+                  className='w-4 h-4'
+                  alt=''
                 />
-                <span className="truncate max-w-[150px]">{d.domain}</span>
+                <span className='truncate max-w-[150px]'>{d.domain}</span>
               </div>
-              <span className="font-mono text-sm">{d.count}</span>
+              <span className='font-mono text-sm'>{d.count}</span>
             </div>
           ))}
         </div>
@@ -427,7 +430,7 @@ export function RecentErrors() {
           <CardTitle>Recent Errors</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground text-center py-4">No errors</p>
+          <p className='text-muted-foreground text-center py-4'>No errors</p>
         </CardContent>
       </Card>
     )
@@ -450,13 +453,11 @@ export function RecentErrors() {
           <TableBody>
             {errors.map((e) => (
               <TableRow key={e.linkId}>
-                <TableCell className="text-muted-foreground">
+                <TableCell className='text-muted-foreground'>
                   {formatDistanceToNow(new Date(e.failedAt), { addSuffix: true })}
                 </TableCell>
-                <TableCell className="truncate max-w-[200px]">{e.url}</TableCell>
-                <TableCell className="text-red-600 truncate max-w-[200px]">
-                  {e.error}
-                </TableCell>
+                <TableCell className='truncate max-w-[200px]'>{e.url}</TableCell>
+                <TableCell className='text-red-600 truncate max-w-[200px]'>{e.error}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -484,18 +485,18 @@ export function ProcessingPerformance() {
         <CardTitle>Processing Performance</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center gap-8">
+        <div className='flex items-center gap-8'>
           <div>
-            <p className="text-sm text-muted-foreground">Success Rate</p>
-            <p className="text-2xl font-bold">{successRate}%</p>
+            <p className='text-sm text-muted-foreground'>Success Rate</p>
+            <p className='text-2xl font-bold'>{successRate}%</p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Avg Time</p>
-            <p className="text-2xl font-bold">{avgTime}s</p>
+            <p className='text-sm text-muted-foreground'>Avg Time</p>
+            <p className='text-2xl font-bold'>{avgTime}s</p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Total Processed</p>
-            <p className="text-2xl font-bold">{perf?.total || 0}</p>
+            <p className='text-sm text-muted-foreground'>Total Processed</p>
+            <p className='text-2xl font-bold'>{perf?.total || 0}</p>
           </div>
         </div>
       </CardContent>
@@ -515,35 +516,23 @@ export function TelemetryDashboard() {
   const metrics = useQuery(queries.currentMetrics, { store })
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <h1 className="text-2xl font-bold">Telemetry</h1>
+    <div className='container mx-auto p-6 space-y-6'>
+      <h1 className='text-2xl font-bold'>Telemetry</h1>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
+        <StatsCard title='Total Links' value={metrics?.totalLinks || 0} icon={Link} />
+        <StatsCard title='Completed' value={metrics?.completedLinks || 0} icon={LinkIcon} />
         <StatsCard
-          title="Total Links"
-          value={metrics?.totalLinks || 0}
-          icon={Link}
-        />
-        <StatsCard
-          title="Completed"
-          value={metrics?.completedLinks || 0}
-          icon={LinkIcon}
-        />
-        <StatsCard
-          title="Pending Processing"
+          title='Pending Processing'
           value={metrics?.pendingProcessing || 0}
           icon={Clock}
         />
-        <StatsCard
-          title="Failed"
-          value={metrics?.failedProcessing || 0}
-          icon={AlertTriangle}
-        />
+        <StatsCard title='Failed' value={metrics?.failedProcessing || 0} icon={AlertTriangle} />
       </div>
 
       {/* Charts Row */}
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className='grid md:grid-cols-2 gap-4'>
         <LinksChart />
         <TopDomains />
       </div>
@@ -612,13 +601,13 @@ crons = ["0 * * * *"]  # Every hour
 
 If custom UI is insufficient later:
 
-| Option | Pros | Cons |
-|--------|------|------|
-| **Cloudflare Analytics Engine** | Native, no setup, free | Limited dimensions, CF-only |
-| **Honeycomb** | Developer-friendly, powerful queries | Cost at scale |
-| **Grafana Cloud** | Open-source compatible, dashboards | Setup complexity |
-| **Datadog** | Full APM, alerting | Expensive |
-| **Custom D1 + Dashboard** | Full control, private | DIY everything |
+| Option                          | Pros                                 | Cons                        |
+| ------------------------------- | ------------------------------------ | --------------------------- |
+| **Cloudflare Analytics Engine** | Native, no setup, free               | Limited dimensions, CF-only |
+| **Honeycomb**                   | Developer-friendly, powerful queries | Cost at scale               |
+| **Grafana Cloud**               | Open-source compatible, dashboards   | Setup complexity            |
+| **Datadog**                     | Full APM, alerting                   | Expensive                   |
+| **Custom D1 + Dashboard**       | Full control, private                | DIY everything              |
 
 ### OpenTelemetry Export (Future)
 

@@ -110,7 +110,13 @@ function ExistingLinkCard({ linkId }: { linkId: string }) {
   })
 
   return (
-    <Card className={link.image ? 'mt-4 pt-0 border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/50' : 'mt-4 border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/50'}>
+    <Card
+      className={
+        link.image
+          ? 'mt-4 pt-0 border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/50'
+          : 'mt-4 border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/50'
+      }
+    >
       {link.image && (
         <div className='aspect-video w-full overflow-hidden'>
           <img src={link.image} alt='' className='h-full w-full object-cover' />
@@ -120,7 +126,10 @@ function ExistingLinkCard({ linkId }: { linkId: string }) {
         <div className='flex items-center gap-2'>
           {link.favicon && <img src={link.favicon} alt='' className='h-4 w-4 shrink-0' />}
           <span className='text-muted-foreground text-xs truncate'>{link.domain}</span>
-          <Badge variant='secondary' className='text-[10px] px-1.5 py-0 bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300'>
+          <Badge
+            variant='secondary'
+            className='text-[10px] px-1.5 py-0 bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300'
+          >
             Already saved
           </Badge>
         </div>
