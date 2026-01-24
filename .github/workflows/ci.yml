@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install
+
+      - run: bun run typecheck
+
+      - run: bun run lint
+
+      - run: bun run test:e2e
+        env:
+          BETTER_AUTH_SECRET: test-secret-for-ci-only-32chars
+          BETTER_AUTH_URL: http://localhost:3000
+          ENABLE_TEST_AUTH: "true"
