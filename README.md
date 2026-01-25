@@ -9,6 +9,17 @@ bun install
 bun dev
 ```
 
+## Deployment
+
+Auto-deployed via Cloudflare git integration. D1 migrations must be run explicitly.
+
+**Dashboard → Settings → Builds & deployments:**
+
+| Setting | Command |
+|---------|---------|
+| Build command | `bun run build` |
+| Deploy command | `bunx wrangler d1 migrations apply link-bucket-auth --remote && bunx wrangler deploy` |
+
 ## First Admin Setup
 
 The first user needs manual database setup to bootstrap admin access:
