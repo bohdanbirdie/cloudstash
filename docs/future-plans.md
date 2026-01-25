@@ -86,3 +86,22 @@ Expose LiveStore to LLMs via Model Context Protocol.
 - Resources: links, categories, stats
 - Prompts: organize_links, weekly_digest, find_related
 - Claude Desktop integration
+
+---
+
+## Technical Review
+
+### Rate Limiting Approach
+
+Review and consolidate rate limiting strategy across the app.
+
+**Current state:**
+- API key rate limiting uses D1 (counters stored in `apiKey` table)
+- Better Auth general rate limiting defaults to in-memory (not ideal for Workers)
+- No rate limiting on cookie-authenticated endpoints
+
+**To review:**
+- Consider adding `storage: "database"` to Better Auth config for general rate limiting
+- Evaluate if invite redeem endpoint needs rate limiting (brute-force protection)
+- Audit other endpoints that might need rate limiting (login, signup, etc.)
+- Decide on unified approach: D1 vs KV vs Better Auth built-in
