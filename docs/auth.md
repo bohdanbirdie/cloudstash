@@ -2,31 +2,36 @@
 
 ## Overview
 
-Google OAuth authentication using Better Auth with organization-scoped LiveStore sync.
+Google OAuth authentication using Better Auth with organization-scoped LiveStore sync and admin approval.
 
 ```
-User → Google OAuth → Better Auth → Session Cookie → LiveStore (org-scoped)
+User → Google OAuth → Better Auth → Session Cookie → Approval Check → LiveStore (org-scoped)
 ```
+
+New users require admin approval before accessing the app. See [admin-user-approval.md](specs/admin-user-approval.md) for details.
 
 ## Architecture
 
-| Component   | Purpose                                                              |
-| ----------- | -------------------------------------------------------------------- |
-| Better Auth | OAuth, sessions (`organization` plugin)                              |
+| Component   | Purpose                                                                              |
+| ----------- | ------------------------------------------------------------------------------------ |
+| Better Auth | OAuth, sessions (`organization`, `admin`, `apiKey` plugins)                          |
 | D1          | Auth tables: user, session, account, verification, organization, member, invitation |
-| LiveStore   | Org-scoped stores using `{organizationId}` as storeId                |
+| LiveStore   | Org-scoped stores using `{organizationId}` as storeId                                |
 
 ## Files
 
-| File                         | Purpose                                       |
-| ---------------------------- | --------------------------------------------- |
-| `src/cf-worker/auth.ts`      | Better Auth config with organization plugin   |
-| `src/cf-worker/index.ts`     | Worker routes + session/org validation        |
-| `src/cf-worker/db/schema.ts` | Drizzle schema (auth + org tables)            |
-| `src/lib/auth.ts`            | Auth client + `fetchAuth()` helper            |
-| `src/router.tsx`             | Router with auth context type                 |
-| `src/routes/__root.tsx`      | `beforeLoad` auth check + redirect            |
-| `src/livestore/store.ts`     | `useAppStore` with session cookie auth        |
+| File                                    | Purpose                                     |
+| --------------------------------------- | ------------------------------------------- |
+| `src/cf-worker/auth/index.ts`           | Better Auth config with organization plugin |
+| `src/cf-worker/auth/sync-auth.ts`       | Pre-flight sync auth check (Effect-based)   |
+| `src/cf-worker/index.ts`                | Worker routes + session/org validation      |
+| `src/cf-worker/db/schema.ts`            | Drizzle schema (auth + org tables)          |
+| `src/lib/auth.tsx`                      | Auth client, provider, visibility refresh   |
+| `src/router.tsx`                        | Router with auth context type               |
+| `src/routes/__root.tsx`                 | `beforeLoad` auth check + redirect          |
+| `src/livestore/store.ts`                | `useAppStore` + connection monitoring       |
+| `src/stores/sync-status-store.ts`       | Sync error state (Zustand)                  |
+| `src/components/sync-error-banner.tsx`  | Error banner for sync failures              |
 
 ## Auth Flow
 
@@ -84,11 +89,262 @@ useAppStore() → WebSocket /sync?storeId={orgId}
 
 ## Token Strategy
 
-| Token          | Lifetime | Storage         | Purpose                     |
-| -------------- | -------- | --------------- | --------------------------- |
-| Session cookie | 7 days   | HttpOnly cookie | All auth (routes + sync)    |
+| Token          | Lifetime | Storage         | Purpose                  |
+| -------------- | -------- | --------------- | ------------------------ |
+| Session cookie | 14 days  | HttpOnly cookie | All auth (routes + sync) |
 
 The session cookie is automatically included in same-origin WebSocket connections by the browser.
+
+### Session Configuration
+
+```typescript
+// src/cf-worker/auth/index.ts
+session: {
+  expiresIn: 60 * 60 * 24 * 14,  // 14 days
+  updateAge: 60 * 60 * 24 * 7,   // Refresh after 7 days of activity
+}
+```
+
+- **Sliding window**: Session extends when user is active after `updateAge`
+- **Long-lived tabs**: Supports tabs open for extended periods without refresh
+
+---
+
+## Session Refresh Strategy
+
+For tabs left open indefinitely (up to 1 month), we use visibility-based refresh and connection monitoring.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         SESSION KEEP-ALIVE FLOW                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Tab hidden for hours/days                                                   │
+│           │                                                                  │
+│           ▼                                                                  │
+│  User returns to tab (visibility: visible)                                   │
+│           │                                                                  │
+│           ▼                                                                  │
+│  authClient.getSession()  ─────────────────────────────────────────────────► │
+│           │                                     Extends session via          │
+│           │                                     sliding window               │
+│           ▼                                                                  │
+│  Session valid? ────────── No ──────► Redirect to /login                     │
+│           │                                                                  │
+│          Yes                                                                 │
+│           │                                                                  │
+│           ▼                                                                  │
+│  Continue normally                                                           │
+│                                                                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                     SYNC CONNECTION FAILURE FLOW                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  LiveStore sync connection fails                                             │
+│           │                                                                  │
+│           ▼                                                                  │
+│  ConnectionMonitor detects !isConnected                                      │
+│           │                                                                  │
+│           ▼                                                                  │
+│  fetchSyncAuthError(store.storeId) ────► GET /api/sync/auth?storeId=...      │
+│           │                                                                  │
+│           ▼                                                                  │
+│  store.shutdownPromise() (stops retries)                                     │
+│           │                                                                  │
+│           ▼                                                                  │
+│  Show SyncErrorBanner with actual reason                                     │
+│  (SESSION_EXPIRED, ACCESS_DENIED, UNAPPROVED, UNKNOWN)                       │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Implementation
+
+#### 1. Visibility-Based Session Refresh
+
+```typescript
+// src/lib/auth.tsx (AuthProvider)
+useEffect(() => {
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible') {
+      // Refresh session when tab becomes visible
+      authClient.getSession().then(({ data }) => {
+        if (!data?.session) {
+          // Session expired - redirect to login
+          window.location.href = '/login'
+        }
+        // Also update auth state (approved status may have changed)
+        if (data?.user) {
+          setAuth({
+            userId: data.user.id,
+            orgId: data.user.approved ? (data.session.activeOrganizationId ?? null) : null,
+            isAuthenticated: data.user.approved && !!data.session.activeOrganizationId,
+            role: data.user.role ?? 'user',
+            approved: data.user.approved ?? false,
+          })
+        }
+      })
+    }
+  }
+
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+}, [])
+```
+
+**Note**: Unapproved users see `<PendingApproval />` screen and never reach LiveStore, so connection monitoring only applies to approved users.
+
+#### 2. LiveStore Connection Monitoring
+
+LiveStore exposes `store.networkStatus` for detecting connection loss:
+
+```typescript
+// Available on store object
+store.networkStatus // Subscribable<{ isConnected: boolean, timestampMs: number }>
+```
+
+When connection drops, fetch the actual error reason and show a banner:
+
+```typescript
+// src/livestore/store.ts - ConnectionMonitor
+const useConnectionMonitor = (store: any) => {
+  useEffect(() => {
+    store.networkStatus.changes.pipe(
+      Stream.tap((status) => {
+        if (!status.isConnected) {
+          // Fetch actual error reason from server
+          fetchSyncAuthError(store.storeId).then(async (error) => {
+            await store.shutdownPromise() // Stop retries
+
+            // Show error banner
+            useSyncStatusStore.getState().setError(error ?? {
+              code: 'UNKNOWN',
+              message: 'Sync connection lost. Please reload to reconnect.',
+            })
+          })
+        }
+      }),
+      Stream.runDrain,
+      Effect.scoped,
+      Effect.runPromise,
+    )
+  }, [store])
+}
+```
+
+**Note**: Uses `store.storeId` instead of hardcoded `auth.orgId` for future-proofing when we add non-org store types.
+
+### LiveStore APIs for Session Management
+
+| API                        | Type                | Purpose                                        |
+| -------------------------- | ------------------- | ---------------------------------------------- |
+| `store.useSyncStatus()`    | React hook          | `{ isSynced, pendingCount }` - data sync state |
+| `store.networkStatus`      | Effect Subscribable | `{ isConnected }` - WebSocket connection state |
+| `store.shutdownPromise()`  | async method        | Stop all retries, close connections            |
+| `store.storeId`            | string              | Store identifier (orgId for org stores)        |
+
+### Sync Error State (Zustand)
+
+| API                          | Purpose                                        |
+| ---------------------------- | ---------------------------------------------- |
+| `useSyncStatusStore.error`   | Current sync error or null                     |
+| `useSyncStatusStore.setError`| Set error to show banner                       |
+| `fetchSyncAuthError(storeId)`| Fetch error reason from `/api/sync/auth`       |
+
+### Why This Approach
+
+1. **No polling** - Zero requests while tab is hidden
+2. **Instant refresh** - Session extends exactly when user returns
+3. **Graceful degradation** - Expired session shows login instead of infinite retries
+4. **LiveStore-aware** - Uses native APIs to detect and stop retry loop
+
+### Clear Local Data on Logout
+
+On logout, we clear OPFS (Origin Private File System) data to prevent the next user from accessing cached data on shared devices.
+
+**Challenge**: OPFS is locked while LiveStore is mounted, so we can't clear it during logout.
+
+**Solution**: Set a localStorage flag on logout, check it on next adapter creation using LiveStore's `resetPersistence` option.
+
+```typescript
+// src/lib/auth.tsx - logout function
+const logout = useCallback(async () => {
+  localStorage.setItem('livestore-reset-on-logout', 'true')
+  await authClient.signOut()
+}, [])
+
+// src/livestore/store.ts - adapter creation
+const shouldResetPersistence = (): boolean => {
+  const flag = localStorage.getItem('livestore-reset-on-logout')
+  if (flag) {
+    localStorage.removeItem(flag)
+    return true
+  }
+  return false
+}
+
+const adapter = makePersistedAdapter({
+  storage: { type: 'opfs' },
+  resetPersistence: shouldResetPersistence(),
+})
+```
+
+**Flow**:
+1. User clicks logout → flag set in localStorage
+2. `authClient.signOut()` → session cleared, page reloads to /login
+3. User logs back in → navigates to authenticated area
+4. `store.ts` module loads → checks flag, passes `resetPersistence: true`
+5. LiveStore clears the store's OPFS data before mounting
+
+#### How LiveStore `resetPersistence` Works
+
+From `@livestore/adapter-web` source (`persisted-adapter.ts`):
+
+```typescript
+// When resetPersistence is true:
+if (options.resetPersistence === true && opfsWarning === undefined) {
+  // 1. Send shutdown signal to any running worker
+  yield* shutdownChannel.send(IntentionalShutdownCause.make({ reason: 'adapter-reset' }))
+  // 2. Clear the OPFS directory for this store
+  yield* resetPersistedDataFromClientSession({ storageOptions, storeId })
+}
+```
+
+**Key details**:
+
+| Aspect | Behavior |
+| ------ | -------- |
+| Scope | **Store-specific** - only clears data for the storeId being initialized |
+| OPFS directory | `livestore-{storeId}@{version}` (e.g., `livestore-org_abc123@1`) |
+| Shutdown | Sends `IntentionalShutdownCause` to terminate any running worker first |
+| Safety | Retries with exponential backoff if OPFS is temporarily locked |
+| Private browsing | Skipped if OPFS unavailable (Safari/Firefox private mode) |
+
+**What gets deleted**:
+- State database (`state{hash}.db`) - materialized view of events
+- Eventlog database - local event history
+- Archive directory (dev only) - old schema migrations
+
+**What's preserved**:
+- Other stores' OPFS directories (different storeIds)
+- localStorage/sessionStorage data
+- Server-side data (sync backend has the source of truth)
+
+### Auth State Type
+
+```typescript
+// src/lib/auth.tsx
+type AuthState = {
+  userId: string | null
+  orgId: string | null
+  isAuthenticated: boolean  // true only if approved AND has activeOrgId
+  role: string | null       // 'user' | 'admin'
+  approved: boolean         // requires admin approval
+}
+```
+
+- **Unapproved users** (`approved: false`): See `<PendingApproval />` screen, never reach LiveStore
+- **Approved users** (`approved: true`): Full app access with LiveStore sync
 
 ## API Endpoints
 
@@ -115,6 +371,22 @@ Returns current authenticated user with organization info.
 
 // Response 401
 { error: "Unauthorized" }
+```
+
+#### `GET /api/sync/auth?storeId={id}`
+
+Pre-flight auth check for sync connections. Called by client to get actual error reason when sync fails.
+
+```typescript
+// Response 200 (auth OK)
+{ ok: true }
+
+// Response 401 (session issues)
+{ status: 401, code: "SESSION_EXPIRED", message: "Session expired or invalid" }
+
+// Response 403 (access denied)
+{ status: 403, code: "ACCESS_DENIED", message: "You do not have access to this workspace" }
+{ status: 403, code: "UNAPPROVED", message: "Account pending approval" }
 ```
 
 #### `GET /api/org/:id`
@@ -306,8 +578,11 @@ Google OAuth redirect URI: `https://your-domain.workers.dev/api/auth/callback/go
 - [x] Router-level auth (`beforeLoad`)
 - [x] Server-side org validation via session
 - [x] API key rate limiting (100/day)
-- [ ] Clear local data on logout
-- [ ] Handle session expiry on reconnect
+- [x] Admin approval required for new users
+- [x] Admin plugin for user management (ban, role assignment)
+- [x] Visibility-based session refresh
+- [x] Connection monitoring + graceful shutdown on expiry
+- [x] Clear local data on logout (OPFS)
 
 ---
 
@@ -333,12 +608,14 @@ apiKey({
 ### Rate Limit Storage
 
 Rate limit state is stored per-key in D1:
+
 - `lastRequest` - timestamp of last request
 - `rateLimitEnabled`, `rateLimitTimeWindow`, `rateLimitMax` - per-key config
 
 ### Resetting a Rate-Limited Key
 
 If a key hits its limit, options:
+
 1. **Wait** for the time window to pass (24h)
 2. **Generate new key** - fresh key has no history
 3. **Reset in D1**: `UPDATE apikey SET lastRequest = NULL WHERE id = '...'`
@@ -360,12 +637,13 @@ invocation_logs = true
 
 ### Pricing
 
-| Plan | Included | Overage |
-|------|----------|---------|
-| Free | 200,000 logs/day | Stops logging |
-| Paid ($5/mo) | 20M/month | $0.60 per million |
+| Plan         | Included         | Overage           |
+| ------------ | ---------------- | ----------------- |
+| Free         | 200,000 logs/day | Stops logging     |
+| Paid ($5/mo) | 20M/month        | $0.60 per million |
 
 Optional sampling to reduce volume:
+
 ```toml
 head_sampling_rate = 0.1  # Only log 10% of requests
 ```
@@ -381,6 +659,7 @@ Cloudflare WAF can block requests at the edge before Workers are invoked. This p
 Dashboard → Security → WAF → Rate limiting rules
 
 Example rule for `/sync`:
+
 - **Expression**: `http.request.uri.path eq "/sync"`
 - **Rate**: 10 requests per 10 seconds per IP
 - **Action**: Block (429)
@@ -411,16 +690,18 @@ Server: validatePayload() → JWKS fetch → JWT verify → check claims.orgId
 ```
 
 **Problems:**
+
 1. JWT expired after 1 hour, but LiveStore had no built-in refresh mechanism
 2. Required proactive refresh timers or store recreation on expiry
 3. Added complexity: `jose` library, JWKS endpoint, JWT claims validation
 
 ### Why Cookie Auth is Better
 
-1. **No refresh needed** - Session cookie (7 days) auto-included by browser
+1. **Long-lived sessions** - 14-day session with sliding window refresh
 2. **Simpler code** - No JWT plugin, no JWKS, no token fetching
 3. **Consistent auth** - Same session cookie used for routes and sync
 4. **LiveStore native support** - `validatePayload` receives request headers
+5. **Visibility refresh** - Session extends when user returns to hidden tab
 
 The session cookie is automatically sent with same-origin WebSocket connections, so the client code doesn't need to handle auth at all - it "just works."
 
@@ -436,7 +717,7 @@ When a sync connection fails (auth error, session expired, etc.), LiveStore retr
 
 ```typescript
 // ws-rpc-client.ts
-retryTransientErrors: Schedule.fixed(1000)  // Retry forever
+retryTransientErrors: Schedule.fixed(1000) // Retry forever
 ```
 
 ### The Problem
@@ -445,14 +726,46 @@ retryTransientErrors: Schedule.fixed(1000)  // Retry forever
 - Auth failures (401/403) look identical to network errors
 - Client keeps retrying with expired session → quota exhaustion
 
-### Mitigations
+### Our Solution
 
-1. **WAF Rate Limiting** - Block at edge before Worker invoked (requires custom domain)
-2. **Observability** - Monitor for retry spam patterns
-3. **Session TTL** - 7-day session reduces likelihood vs 1-hour JWT
+Multi-layer approach:
 
-### Future Fix
+1. **Pre-flight auth check** - Worker validates session before WebSocket upgrade
+2. **Connection monitoring** - Detect connection loss via `store.networkStatus`
+3. **Server-side error fetch** - Query `/api/sync/auth` to get actual error reason
+4. **Error banner** - Show informative banner instead of silent redirect
+
+```typescript
+// ConnectionMonitor in src/livestore/store.ts
+store.networkStatus.changes.pipe(
+  Stream.tap((status) => {
+    if (!status.isConnected) {
+      // Fetch actual error reason from server
+      const error = await fetchSyncAuthError(store.storeId)
+      await store.shutdownPromise() // Stops all retries
+
+      // Show error banner (not redirect)
+      useSyncStatusStore.getState().setError(error ?? {
+        code: 'UNKNOWN',
+        message: 'Sync connection lost',
+      })
+    }
+  }),
+)
+```
+
+Error codes: `SESSION_EXPIRED`, `ACCESS_DENIED`, `UNAPPROVED`, `UNKNOWN`
+
+### Additional Mitigations
+
+1. **14-day session** - Longer TTL reduces expiry likelihood
+2. **Visibility refresh** - Session extends when user returns to tab
+3. **WAF Rate Limiting** - Block at edge (requires custom domain)
+4. **Observability** - Monitor for retry spam patterns
+
+### Future LiveStore Improvement
 
 LiveStore should add:
+
 - `maxRetries` or `shouldRetry` callback in `WsSyncOptions`
 - Distinguish auth errors from transient network errors

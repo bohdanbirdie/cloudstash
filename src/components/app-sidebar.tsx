@@ -35,7 +35,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { authClient, useAuth } from '@/lib/auth'
+import { useAuth } from '@/lib/auth'
 import { Badge } from '@/components/ui/badge'
 import { Kbd } from '@/components/ui/kbd'
 import { useModifierHold } from '@/hooks/use-modifier-hold'
@@ -184,7 +184,7 @@ export function AppSidebar() {
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
-                onClick={() => authClient.signOut().then(() => window.location.reload())}
+                onClick={() => auth.logout().then(() => window.location.reload())}
               >
                 Sign out
               </AlertDialogAction>

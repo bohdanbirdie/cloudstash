@@ -2,6 +2,8 @@ import { createAuthClient } from 'better-auth/react'
 import { adminClient, apiKeyClient, organizationClient } from 'better-auth/client/plugins'
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 
+import { RESET_FLAG_KEY } from '@/livestore/store'
+
 export const authClient = createAuthClient({
   baseURL: window.location.origin,
   plugins: [organizationClient(), apiKeyClient(), adminClient()],
@@ -40,8 +42,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   })
   const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
-    authClient.getSession().then(({ data: session }) => {
+  const updateAuthFromSession = useCallback(
+    (session: Awaited<ReturnType<typeof authClient.getSession>>['data']) => {
       if (session?.user) {
         const user = session.user as typeof session.user & { approved?: boolean }
         const isApproved = user.approved ?? false
@@ -54,11 +56,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           approved: isApproved,
         })
       }
+    },
+    [],
+  )
+
+  // Initial session fetch
+  useEffect(() => {
+    authClient.getSession().then(({ data: session }) => {
+      updateAuthFromSession(session)
       setIsLoading(false)
     })
-  }, [])
+  }, [updateAuthFromSession])
+
+  // Visibility-based session refresh
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        authClient.getSession().then(({ data: session }) => {
+          if (!session?.session) {
+            // Session expired - redirect to login
+            window.location.href = '/login'
+            return
+          }
+          updateAuthFromSession(session)
+        })
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [updateAuthFromSession])
 
   const logout = useCallback(async () => {
+    // Set flag to clear OPFS data on next mount
+    try {
+      localStorage.setItem(RESET_FLAG_KEY, 'true')
+    } catch {
+      // localStorage not available
+    }
     await authClient.signOut()
     setAuth({
       userId: null,

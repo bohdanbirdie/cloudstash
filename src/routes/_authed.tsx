@@ -7,6 +7,8 @@ import { AppSidebar } from '@/components/app-sidebar'
 import { AddLinkDialogProvider } from '@/components/add-link-dialog'
 import { SearchCommand } from '@/components/search-command'
 import { LinkDetailModal } from '@/components/link-card/link-detail-modal'
+import { ConnectionMonitor } from '@/livestore/store'
+import { SyncErrorBanner } from '@/components/sync-error-banner'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { Spinner } from '@/components/ui/spinner'
 
@@ -31,10 +33,12 @@ function AuthedLayout() {
           </div>
         }
       >
+        <ConnectionMonitor />
         <AddLinkDialogProvider>
           <SidebarProvider>
             <AppSidebar />
             <SidebarInset>
+              <SyncErrorBanner />
               <header className='flex h-14 shrink-0 items-center gap-2 border-b px-4'>
                 <SidebarTrigger className='-ml-1' />
               </header>

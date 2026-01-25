@@ -15,6 +15,10 @@ export const createAuth = (env: Env, db: Database) => {
       provider: 'sqlite',
       schema,
     }),
+    session: {
+      expiresIn: 60 * 60 * 24 * 14, // 14 days
+      updateAge: 60 * 60 * 24 * 7, // 7 days - refresh after 7 days of activity
+    },
     user: {
       additionalFields: {
         approved: {
