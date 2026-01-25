@@ -9,6 +9,17 @@ bun install
 bun dev
 ```
 
+## First Admin Setup
+
+The first user needs manual database setup to bootstrap admin access:
+
+```bash
+npx wrangler d1 execute link-bucket-auth --remote --command \
+  "UPDATE user SET approved = 1, role = 'admin' WHERE email = 'your@email.com'"
+```
+
+After this, the admin can approve other users through the UI.
+
 ## Telegram Bot Setup
 
 ### 1. Create bot
