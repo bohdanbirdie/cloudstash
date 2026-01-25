@@ -8,6 +8,7 @@ import { createAuth } from './auth'
 import { checkSyncAuth, SyncAuthError } from './auth/sync-auth'
 import { createDb } from './db'
 import { ingestRequestToResponse } from './ingest/service'
+import { handleCreateInvite, handleDeleteInvite, handleListInvites, handleRedeemInvite } from './invites'
 import { metadataRequestToResponse } from './metadata/service'
 import { handleGetMe, handleGetOrg } from './org'
 import type { Env } from './shared'
@@ -29,13 +30,17 @@ app.on(['GET', 'POST'], '/api/auth/*', (c) => {
   return auth.handler(c.req.raw)
 })
 
+app.post('/api/invites', (c) => handleCreateInvite(c.req.raw, c.env))
+app.get('/api/invites', (c) => handleListInvites(c.req.raw, c.env))
+app.delete('/api/invites/:id', (c) => handleDeleteInvite(c.req.raw, c.req.param('id'), c.env))
+app.post('/api/invites/redeem', (c) => handleRedeemInvite(c.req.raw, c.env))
+
 app.get('/api/metadata', (c) => Effect.runPromise(metadataRequestToResponse(c.req.raw)))
 
 app.post('/api/ingest', (c) => Effect.runPromise(ingestRequestToResponse(c.req.raw, c.env)))
 
 app.post('/api/telegram', (c) => handleTelegramWebhook(c.req.raw, c.env))
 
-// Check sync auth - called by client to get error reason when sync fails
 app.get('/api/sync/auth', async (c) => {
   const storeId = c.req.query('storeId')
   if (!storeId) {
@@ -60,7 +65,6 @@ app.get('/api/sync/auth', async (c) => {
   return c.json(result, result.status as 401 | 403)
 })
 
-// LiveStore sync endpoint - handled separately due to WebSocket upgrade
 const handleSync = async (
   request: CfTypes.Request,
   env: Env,

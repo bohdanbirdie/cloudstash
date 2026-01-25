@@ -45,7 +45,7 @@ import { useSearchStore } from '@/stores/search-store'
 import { useAppStore } from '@/livestore/store'
 import { inboxCount$, completedCount$, allLinksCount$, trashCount$ } from '@/livestore/queries'
 import { ApiKeysModal } from '@/components/api-keys-modal'
-import { AdminModal } from '@/components/admin-modal'
+import { AdminModal } from '@/components/admin'
 
 export function AppSidebar() {
   const location = useLocation()

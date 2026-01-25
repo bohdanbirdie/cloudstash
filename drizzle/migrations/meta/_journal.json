@@ -43,6 +43,13 @@
       "when": 1769266439822,
       "tag": "0005_foamy_blindfold",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1769351847416,
+      "tag": "0006_cooing_iron_lad",
+      "breakpoints": true
     }
   ]
 }

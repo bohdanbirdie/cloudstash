@@ -20,6 +20,7 @@ export type AuthState = {
 type AuthContextType = AuthState & {
   isLoading: boolean
   logout: () => Promise<void>
+  refresh: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -60,7 +61,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [],
   )
 
-  // Initial session fetch
   useEffect(() => {
     authClient.getSession().then(({ data: session }) => {
       updateAuthFromSession(session)
@@ -68,27 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
   }, [updateAuthFromSession])
 
-  // Visibility-based session refresh
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        authClient.getSession().then(({ data: session }) => {
-          if (!session?.session) {
-            // Session expired - redirect to login
-            window.location.href = '/login'
-            return
-          }
-          updateAuthFromSession(session)
-        })
-      }
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [updateAuthFromSession])
-
   const logout = useCallback(async () => {
-    // Set flag to clear OPFS data on next mount
     try {
       localStorage.setItem(RESET_FLAG_KEY, 'true')
     } catch {
@@ -104,7 +84,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
+  const refresh = useCallback(async () => {
+    const { data: session } = await authClient.getSession()
+    updateAuthFromSession(session)
+  }, [updateAuthFromSession])
+
   return (
-    <AuthContext.Provider value={{ ...auth, isLoading, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ ...auth, isLoading, logout, refresh }}>
+      {children}
+    </AuthContext.Provider>
   )
 }

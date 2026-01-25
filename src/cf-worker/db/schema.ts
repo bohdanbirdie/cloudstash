@@ -190,10 +190,34 @@ export const apikey = sqliteTable(
   (table) => [index('apikey_key_idx').on(table.key), index('apikey_userId_idx').on(table.userId)],
 )
 
-export const userRelations = relations(user, ({ many }) => ({
+export const invite = sqliteTable(
+  'invite',
+  {
+    id: text('id').primaryKey(),
+    code: text('code').notNull().unique(),
+    createdByUserId: text('created_by_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    usedByUserId: text('used_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+    usedAt: integer('used_at', { mode: 'timestamp_ms' }),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+  },
+  (table) => [index('invite_code_idx').on(table.code)],
+)
+
+export const userRelations = relations(user, ({ many, one }) => ({
   sessions: many(session),
   accounts: many(account),
   members: many(member),
+  createdInvites: many(invite, { relationName: 'createdInvites' }),
+  usedInvite: one(invite, {
+    fields: [user.id],
+    references: [invite.usedByUserId],
+    relationName: 'usedInvite',
+  }),
 }))
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -238,5 +262,18 @@ export const invitationRelations = relations(invitation, ({ one }) => ({
   inviter: one(user, {
     fields: [invitation.inviterId],
     references: [user.id],
+  }),
+}))
+
+export const inviteRelations = relations(invite, ({ one }) => ({
+  createdBy: one(user, {
+    fields: [invite.createdByUserId],
+    references: [user.id],
+    relationName: 'createdInvites',
+  }),
+  usedBy: one(user, {
+    fields: [invite.usedByUserId],
+    references: [user.id],
+    relationName: 'usedInvite',
   }),
 }))

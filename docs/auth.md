@@ -262,73 +262,68 @@ const useConnectionMonitor = (store: any) => {
 
 On logout, we clear OPFS (Origin Private File System) data to prevent the next user from accessing cached data on shared devices.
 
-**Challenge**: OPFS is locked while LiveStore is mounted, so we can't clear it during logout.
+**Challenge**: OPFS is locked while LiveStore is mounted.
 
-**Solution**: Set a localStorage flag on logout, check it on next adapter creation using LiveStore's `resetPersistence` option.
+**Solution**: Dedicated `/logout` route that unmounts LiveStore first, then clears OPFS.
 
-```typescript
-// src/lib/auth.tsx - logout function
-const logout = useCallback(async () => {
-  localStorage.setItem('livestore-reset-on-logout', 'true')
-  await authClient.signOut()
-}, [])
-
-// src/livestore/store.ts - adapter creation
-const shouldResetPersistence = (): boolean => {
-  const flag = localStorage.getItem('livestore-reset-on-logout')
-  if (flag) {
-    localStorage.removeItem(flag)
-    return true
-  }
-  return false
-}
-
-const adapter = makePersistedAdapter({
-  storage: { type: 'opfs' },
-  resetPersistence: shouldResetPersistence(),
-})
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      LOGOUT FLOW                                │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  User clicks "Sign out"                                         │
+│           │                                                     │
+│           ▼                                                     │
+│  Navigate to /logout (outside _authed route)                    │
+│           │                                                     │
+│           ▼                                                     │
+│  LiveStore unmounts (no longer rendered)                        │
+│           │                                                     │
+│           ▼                                                     │
+│  Clear OPFS directories (navigator.storage.getDirectory())      │
+│           │                                                     │
+│           ▼                                                     │
+│  authClient.signOut()                                           │
+│           │                                                     │
+│           ▼                                                     │
+│  Redirect to /login                                             │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**Flow**:
-1. User clicks logout → flag set in localStorage
-2. `authClient.signOut()` → session cleared, page reloads to /login
-3. User logs back in → navigates to authenticated area
-4. `store.ts` module loads → checks flag, passes `resetPersistence: true`
-5. LiveStore clears the store's OPFS data before mounting
-
-#### How LiveStore `resetPersistence` Works
-
-From `@livestore/adapter-web` source (`persisted-adapter.ts`):
-
 ```typescript
-// When resetPersistence is true:
-if (options.resetPersistence === true && opfsWarning === undefined) {
-  // 1. Send shutdown signal to any running worker
-  yield* shutdownChannel.send(IntentionalShutdownCause.make({ reason: 'adapter-reset' }))
-  // 2. Clear the OPFS directory for this store
-  yield* resetPersistedDataFromClientSession({ storageOptions, storeId })
+// src/routes/logout.tsx
+export function LogoutPage() {
+  useEffect(() => {
+    async function cleanup() {
+      // Clear all LiveStore OPFS directories
+      const root = await navigator.storage.getDirectory()
+      for await (const name of root.keys()) {
+        if (name.startsWith('livestore-')) {
+          await root.removeEntry(name, { recursive: true })
+        }
+      }
+      await authClient.signOut()
+      window.location.href = '/login'
+    }
+    cleanup()
+  }, [])
+
+  return <div>Signing out...</div>
 }
 ```
 
-**Key details**:
-
-| Aspect | Behavior |
-| ------ | -------- |
-| Scope | **Store-specific** - only clears data for the storeId being initialized |
-| OPFS directory | `livestore-{storeId}@{version}` (e.g., `livestore-org_abc123@1`) |
-| Shutdown | Sends `IntentionalShutdownCause` to terminate any running worker first |
-| Safety | Retries with exponential backoff if OPFS is temporarily locked |
-| Private browsing | Skipped if OPFS unavailable (Safari/Firefox private mode) |
+**Why this works**:
+- `/logout` is outside the `_authed` route, so LiveStore unmounts
+- OPFS is no longer locked once LiveStore unmounts
+- Direct OPFS clearing via browser API - no workarounds needed
 
 **What gets deleted**:
-- State database (`state{hash}.db`) - materialized view of events
-- Eventlog database - local event history
-- Archive directory (dev only) - old schema migrations
+- All `livestore-*` directories in OPFS (state DB, eventlog, archives)
 
 **What's preserved**:
-- Other stores' OPFS directories (different storeIds)
-- localStorage/sessionStorage data
 - Server-side data (sync backend has the source of truth)
+- Re-syncs fresh data on next login
 
 ### Auth State Type
 
@@ -582,7 +577,7 @@ Google OAuth redirect URI: `https://your-domain.workers.dev/api/auth/callback/go
 - [x] Admin plugin for user management (ban, role assignment)
 - [x] Visibility-based session refresh
 - [x] Connection monitoring + graceful shutdown on expiry
-- [x] Clear local data on logout (OPFS)
+- [ ] Clear local data on logout (OPFS) - see [Logout Flow](#clear-local-data-on-logout)
 
 ---
 
