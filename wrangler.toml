@@ -58,7 +58,7 @@ id = "dd0c0cfe847745078e0c7582873a5b86"
 # PRODUCTION ENVIRONMENT
 # ============================================================
 [env.production]
-name = "cloudstash"
+name = "link-bucket"
 
 [env.production.ai]
 binding = "AI"
