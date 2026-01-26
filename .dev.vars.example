@@ -1,4 +1,11 @@
+# Google OAuth (required)
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+# Better Auth (required)
 BETTER_AUTH_SECRET=random-secret-string-at-least-32-chars
 BETTER_AUTH_URL=http://localhost:3000
+
+# Telegram Bot (optional)
+TELEGRAM_BOT_TOKEN=your-telegram-bot-token
+TELEGRAM_WEBHOOK_SECRET=dev-secret

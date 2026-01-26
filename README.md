@@ -6,16 +6,36 @@ Save and organize links with AI-powered summaries.
 
 ```bash
 bun install
+cp .dev.vars.example .dev.vars  # then fill in values
 bun run db:migrate:local
 bun dev
 ```
 
+## Environment Variables
+
+| Variable                  | Required | Description                                                             |
+| ------------------------- | -------- | ----------------------------------------------------------------------- |
+| `GOOGLE_CLIENT_ID`        | Yes      | Google OAuth client ID                                                  |
+| `GOOGLE_CLIENT_SECRET`    | Yes      | Google OAuth client secret                                              |
+| `BETTER_AUTH_SECRET`      | Yes      | Random string (32+ chars) for session encryption                        |
+| `BETTER_AUTH_URL`         | Yes      | Base URL (`http://localhost:3000` local, `https://cloudstash.dev` prod) |
+| `TELEGRAM_BOT_TOKEN`      | No       | Telegram bot token (for Telegram integration)                           |
+| `TELEGRAM_WEBHOOK_SECRET` | No       | Secret for validating Telegram webhooks                                 |
+
+**Local:** Set in `.dev.vars` file (copy from `.dev.vars.example`)
+
+**Production:** Set via Cloudflare secrets:
+
+```bash
+bunx wrangler secret put VARIABLE_NAME
+```
+
 ## Environments
 
-| Environment    | Database             | Worker URL                       | Deploy                   |
-| -------------- | -------------------- | -------------------------------- | ------------------------ |
-| **Local**      | `cloudstash` (local) | `localhost:3000`                 | `bun dev`                |
-| **Staging**    | `cloudstash-staging` | `cloudstash-staging.workers.dev` | `bun run deploy:staging` |
+| Environment    | Database             | Worker URL                       | Deploy                       |
+| -------------- | -------------------- | -------------------------------- | ---------------------------- |
+| **Local**      | `cloudstash` (local) | `localhost:3000`                 | `bun dev`                    |
+| **Staging**    | `cloudstash-staging` | `cloudstash-staging.workers.dev` | `bun run deploy:staging`     |
 | **Production** | `cloudstash`         | `cloudstash.dev`                 | `bun run deploy` or git push |
 
 ## Database Migrations
@@ -41,14 +61,14 @@ Manually deploy:
 bun run deploy
 ```
 
-Or connect via Cloudflare git integration: 
+Or connect via Cloudflare git integration:
 
 **Dashboard → Workers & Pages → cloudstash → Settings → Builds & deployments:**
 
-| Setting        | Command                                                                           |
-| -------------- | --------------------------------------------------------------------------------- |
-| Build command  | `bun run build`                                                                   |
-| Deploy command | `bunx wrangler d1 migrations apply cloudstash --remote && bunx wrangler deploy`   |
+| Setting        | Command                                                                         |
+| -------------- | ------------------------------------------------------------------------------- |
+| Build command  | `bun run build`                                                                 |
+| Deploy command | `bunx wrangler d1 migrations apply cloudstash --remote && bunx wrangler deploy` |
 
 ### Staging
 
