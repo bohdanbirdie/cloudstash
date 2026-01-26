@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import useSWR from 'swr'
 
 import type {
   InviteWithRelations,
@@ -7,36 +8,32 @@ import type {
   ApiErrorResponse,
 } from '@/types/api'
 
-export function useInvitesAdmin() {
-  const [invites, setInvites] = useState<InviteWithRelations[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+async function fetchInvites(): Promise<InviteWithRelations[]> {
+  const res = await fetch('/api/invites')
+  const data = (await res.json()) as InvitesListResponse | ApiErrorResponse
+  if (!res.ok || 'error' in data) {
+    throw new Error('error' in data ? data.error : 'Failed to fetch invites')
+  }
+  return data.invites
+}
+
+export function useInvitesAdmin(enabled = true) {
   const [isCreating, setIsCreating] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [newInviteCode, setNewInviteCode] = useState<string | null>(null)
   const [copiedCode, setCopiedCode] = useState(false)
+  const [mutationError, setMutationError] = useState<string | null>(null)
 
-  const fetchInvites = useCallback(async () => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      const res = await fetch('/api/invites')
-      const data = (await res.json()) as InvitesListResponse | ApiErrorResponse
-      if (!res.ok || 'error' in data) {
-        setError('error' in data ? data.error : 'Failed to fetch invites')
-        return
-      }
-      setInvites(data.invites)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch invites')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
+  const { data: invites = [], error: fetchError, isLoading, mutate } = useSWR(
+    enabled ? 'admin-invites' : null,
+    fetchInvites,
+  )
+
+  const error = mutationError || (fetchError?.message ?? null)
 
   const handleCreate = useCallback(async () => {
     setIsCreating(true)
-    setError(null)
+    setMutationError(null)
     try {
       const res = await fetch('/api/invites', {
         method: 'POST',
@@ -45,34 +42,35 @@ export function useInvitesAdmin() {
       })
       const data = (await res.json()) as InviteCreateResponse | ApiErrorResponse
       if (!res.ok || 'error' in data) {
-        setError('error' in data ? data.error : 'Failed to create invite')
+        setMutationError('error' in data ? data.error : 'Failed to create invite')
         return
       }
       setNewInviteCode(data.code)
-      await fetchInvites()
+      await mutate()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create invite')
+      setMutationError(err instanceof Error ? err.message : 'Failed to create invite')
     } finally {
       setIsCreating(false)
     }
-  }, [fetchInvites])
+  }, [mutate])
 
   const handleDelete = useCallback(async (inviteId: string) => {
     setActionLoading(inviteId)
+    setMutationError(null)
     try {
       const res = await fetch(`/api/invites/${inviteId}`, { method: 'DELETE' })
       const data = (await res.json()) as { success: boolean } | ApiErrorResponse
       if (!res.ok || 'error' in data) {
-        setError('error' in data ? data.error : 'Failed to delete invite')
+        setMutationError('error' in data ? data.error : 'Failed to delete invite')
         return
       }
-      await fetchInvites()
+      await mutate()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete invite')
+      setMutationError(err instanceof Error ? err.message : 'Failed to delete invite')
     } finally {
       setActionLoading(null)
     }
-  }, [fetchInvites])
+  }, [mutate])
 
   const handleCopyCode = useCallback(async (code: string) => {
     await navigator.clipboard.writeText(code)
@@ -95,7 +93,7 @@ export function useInvitesAdmin() {
     actionLoading,
     newInviteCode,
     copiedCode,
-    fetchInvites,
+    fetchInvites: mutate,
     handleCreate,
     handleDelete,
     handleCopyCode,

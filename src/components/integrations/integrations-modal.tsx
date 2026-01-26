@@ -31,11 +31,10 @@ export function IntegrationsModal({ open, onOpenChange }: IntegrationsModalProps
   const [activeTab, setActiveTab] = useState<TabValue>('telegram')
   const [generatedKeyState, setGeneratedKeyState] = useState<GeneratedKeyState | null>(null)
 
-  const apiKeys = useApiKeys()
+  const apiKeys = useApiKeys(open)
 
   useEffect(() => {
     if (open) {
-      apiKeys.fetchKeys()
       setGeneratedKeyState(null)
     }
   }, [open])

@@ -1,50 +1,27 @@
-import {
-  CheckIcon,
-  XIcon,
-  BanIcon,
-  ShieldIcon,
-  ShieldOffIcon,
-  UsersIcon,
-  ClockIcon,
-} from 'lucide-react'
+import { UsersIcon, ClockIcon, CheckIcon } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { TabsContent } from '@/components/ui/tabs'
 import type { AdminUser } from '@/types/api'
-import { getUserStatus, type ConfirmAction } from './use-users-admin'
+import { UserRow } from './user-row'
 
 interface UsersTabProps {
   users: AdminUser[]
   isLoading: boolean
   error: string | null
-  actionLoading: string | null
   pendingCount: number
   activeCount: number
   adminCount: number
-  onApprove: (userId: string) => void
-  onReject: (userId: string) => void
-  onBan: (userId: string) => void
-  onUnban: (userId: string) => void
-  onSetConfirmAction: (action: ConfirmAction) => void
 }
 
 export function UsersTab({
   users,
   isLoading,
   error,
-  actionLoading,
   pendingCount,
   activeCount,
   adminCount,
-  onApprove,
-  onReject,
-  onBan,
-  onUnban,
-  onSetConfirmAction,
 }: UsersTabProps) {
   return (
     <TabsContent value='users' className='flex-1 flex flex-col min-h-0'>
@@ -87,142 +64,9 @@ export function UsersTab({
             <p className='text-xs'>No users yet</p>
           </div>
         ) : (
-          users.map((user) => {
-            const status = getUserStatus(user)
-            const isActionLoading = actionLoading === user.id
-            return (
-              <div
-                key={user.id}
-                className='flex items-center justify-between p-3 bg-muted/50 gap-3'
-              >
-                <div className='min-w-0 flex-1'>
-                  <div className='flex items-center gap-2'>
-                    <span className='font-medium text-xs truncate'>{user.name}</span>
-                    {user.role === 'admin' && <Badge variant='secondary'>Admin</Badge>}
-                    {status === 'pending' && (
-                      <Badge
-                        variant='outline'
-                        className='bg-yellow-50 text-yellow-700 border-yellow-200'
-                      >
-                        Pending
-                      </Badge>
-                    )}
-                    {status === 'banned' && (
-                      <Badge variant='outline' className='bg-red-50 text-red-700 border-red-200'>
-                        Banned
-                      </Badge>
-                    )}
-                  </div>
-                  <p className='text-xs text-muted-foreground truncate'>{user.email}</p>
-                </div>
-
-                <div className='flex gap-1 shrink-0'>
-                  {status === 'pending' && (
-                    <>
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              size='icon-sm'
-                              variant='outline'
-                              onClick={() => onApprove(user.id)}
-                              disabled={isActionLoading}
-                            >
-                              <CheckIcon className='h-3.5 w-3.5 text-green-600' />
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>Approve user</TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              size='icon-sm'
-                              variant='outline'
-                              onClick={() => onReject(user.id)}
-                              disabled={isActionLoading}
-                            >
-                              <XIcon className='h-3.5 w-3.5 text-red-600' />
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>Reject and delete user</TooltipContent>
-                      </Tooltip>
-                    </>
-                  )}
-                  {status === 'active' && user.role !== 'admin' && (
-                    <>
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              size='icon-sm'
-                              variant='outline'
-                              onClick={() => onSetConfirmAction({ type: 'make-admin', user })}
-                              disabled={isActionLoading}
-                            >
-                              <ShieldIcon className='h-3.5 w-3.5' />
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>Make admin</TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              size='icon-sm'
-                              variant='outline'
-                              onClick={() => onBan(user.id)}
-                              disabled={isActionLoading}
-                            >
-                              <BanIcon className='h-3.5 w-3.5 text-red-600' />
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>Ban user</TooltipContent>
-                      </Tooltip>
-                    </>
-                  )}
-                  {status === 'active' && user.role === 'admin' && adminCount > 1 && (
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            size='icon-sm'
-                            variant='outline'
-                            onClick={() => onSetConfirmAction({ type: 'remove-admin', user })}
-                            disabled={isActionLoading}
-                          >
-                            <ShieldOffIcon className='h-3.5 w-3.5 text-red-600' />
-                          </Button>
-                        }
-                      />
-                      <TooltipContent>Remove admin</TooltipContent>
-                    </Tooltip>
-                  )}
-                  {status === 'banned' && (
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            size='icon-sm'
-                            variant='outline'
-                            onClick={() => onUnban(user.id)}
-                            disabled={isActionLoading}
-                          >
-                            <CheckIcon className='h-3.5 w-3.5' />
-                          </Button>
-                        }
-                      />
-                      <TooltipContent>Unban user</TooltipContent>
-                    </Tooltip>
-                  )}
-                </div>
-              </div>
-            )
-          })
+          users.map((user) => (
+            <UserRow key={user.id} user={user} adminCount={adminCount} />
+          ))
         )}
       </div>
     </TabsContent>

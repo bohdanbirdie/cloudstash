@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { UsersIcon, TicketIcon } from 'lucide-react'
 
 import {
@@ -8,16 +8,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogFooter,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogAction,
-  AlertDialogCancel,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useUsersAdmin } from './use-users-admin'
@@ -33,17 +23,8 @@ interface AdminModalProps {
 export function AdminModal({ open, onOpenChange }: AdminModalProps) {
   const [activeTab, setActiveTab] = useState<string | null>('users')
 
-  const users = useUsersAdmin()
-  const invites = useInvitesAdmin()
-
-  useEffect(() => {
-    if (open) {
-      users.fetchUsers()
-      invites.fetchInvites()
-    } else {
-      invites.reset()
-    }
-  }, [open])
+  const users = useUsersAdmin(open)
+  const invites = useInvitesAdmin(open)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -79,15 +60,9 @@ export function AdminModal({ open, onOpenChange }: AdminModalProps) {
             users={users.users}
             isLoading={users.isLoading}
             error={users.error}
-            actionLoading={users.actionLoading}
             pendingCount={users.pendingCount}
             activeCount={users.activeCount}
             adminCount={users.adminCount}
-            onApprove={users.handleApprove}
-            onReject={users.handleReject}
-            onBan={users.handleBan}
-            onUnban={users.handleUnban}
-            onSetConfirmAction={users.setConfirmAction}
           />
 
           <InvitesTab
@@ -104,33 +79,6 @@ export function AdminModal({ open, onOpenChange }: AdminModalProps) {
           />
         </Tabs>
       </DialogContent>
-
-      <AlertDialog
-        open={!!users.confirmAction}
-        onOpenChange={(open) => !open && users.setConfirmAction(null)}
-      >
-        <AlertDialogContent size='sm'>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {users.confirmAction?.type === 'make-admin' ? 'Make admin?' : 'Remove admin?'}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {users.confirmAction?.type === 'make-admin'
-                ? `This will give ${users.confirmAction.user.name} full admin privileges.`
-                : `This will remove admin privileges from ${users.confirmAction?.user.name}.`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant={users.confirmAction?.type === 'remove-admin' ? 'destructive' : 'default'}
-              onClick={users.handleConfirmAction}
-            >
-              {users.confirmAction?.type === 'make-admin' ? 'Make admin' : 'Remove admin'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </Dialog>
   )
 }

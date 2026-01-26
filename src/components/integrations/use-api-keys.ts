@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import useSWR from 'swr'
 import { authClient } from '@/lib/auth'
 import { Route } from '@/routes/__root'
 
@@ -9,39 +10,35 @@ export interface ApiKey {
   lastRequest: Date | null
 }
 
-export function useApiKeys() {
-  const { auth } = Route.useRouteContext()
-  const [keys, setKeys] = useState<ApiKey[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [isGenerating, setIsGenerating] = useState(false)
+async function fetchApiKeys(): Promise<ApiKey[]> {
+  const result = await authClient.apiKey.list()
+  if (result.error) {
+    throw new Error(result.error.message || 'Failed to fetch API keys')
+  }
+  return result.data ?? []
+}
 
-  const fetchKeys = useCallback(async () => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      const result = await authClient.apiKey.list()
-      if (result.error) {
-        setError(result.error.message || 'Failed to fetch API keys')
-        return
-      }
-      setKeys(result.data ?? [])
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch API keys')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
+export function useApiKeys(enabled = true) {
+  const { auth } = Route.useRouteContext()
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [mutationError, setMutationError] = useState<string | null>(null)
+
+  const { data: keys = [], error: fetchError, isLoading, mutate } = useSWR(
+    enabled ? 'api-keys' : null,
+    fetchApiKeys,
+  )
+
+  const error = mutationError || (fetchError?.message ?? null)
 
   const generateKey = useCallback(
     async (name: string): Promise<string | null> => {
       if (!auth.orgId) {
-        setError('No organization selected')
+        setMutationError('No organization selected')
         return null
       }
 
       setIsGenerating(true)
-      setError(null)
+      setMutationError(null)
       try {
         const result = await authClient.apiKey.create({
           name: name || 'API Key',
@@ -50,48 +47,49 @@ export function useApiKeys() {
           },
         })
         if (result.error) {
-          setError(result.error.message || 'Failed to generate API key')
+          setMutationError(result.error.message || 'Failed to generate API key')
           return null
         }
         if (result.data?.key) {
-          await fetchKeys()
+          await mutate()
           return result.data.key
         }
         return null
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to generate API key')
+        setMutationError(err instanceof Error ? err.message : 'Failed to generate API key')
         return null
       } finally {
         setIsGenerating(false)
       }
     },
-    [auth.orgId, fetchKeys],
+    [auth.orgId, mutate],
   )
 
   const revokeKey = useCallback(
     async (keyId: string) => {
+      setMutationError(null)
       try {
         const result = await authClient.apiKey.delete({ keyId })
         if (result.error) {
-          setError(result.error.message || 'Failed to revoke API key')
+          setMutationError(result.error.message || 'Failed to revoke API key')
           return
         }
-        await fetchKeys()
+        await mutate()
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to revoke API key')
+        setMutationError(err instanceof Error ? err.message : 'Failed to revoke API key')
       }
     },
-    [fetchKeys],
+    [mutate],
   )
 
-  const clearError = useCallback(() => setError(null), [])
+  const clearError = useCallback(() => setMutationError(null), [])
 
   return {
     keys,
     isLoading,
     error,
     isGenerating,
-    fetchKeys,
+    fetchKeys: mutate,
     generateKey,
     revokeKey,
     clearError,
