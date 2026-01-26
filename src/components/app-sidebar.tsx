@@ -97,7 +97,7 @@ export function AppSidebar() {
           <div className='bg-primary text-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg'>
             <LinkIcon className='size-4' />
           </div>
-          <span className='font-semibold group-data-[collapsible=icon]:hidden'>Link Bucket</span>
+          <span className='font-semibold group-data-[collapsible=icon]:hidden'>Cloudstash</span>
         </div>
       </SidebarHeader>
       <SidebarContent>

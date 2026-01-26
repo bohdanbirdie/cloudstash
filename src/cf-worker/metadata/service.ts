@@ -10,7 +10,7 @@ export const fetchOgMetadata = Effect.fn('fetchOgMetadata')(function* (targetUrl
     try: () =>
       fetch(targetUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; LinkBucketBot/1.0)',
+          'User-Agent': 'Mozilla/5.0 (compatible; CloudstashBot/1.0)',
           Accept: 'text/html',
         },
       }),

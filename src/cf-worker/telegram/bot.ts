@@ -6,7 +6,7 @@ import { extractUrls, handleConnect, handleDisconnect, handleLinks } from './han
 
 const logger = logSync('Telegram')
 
-const HELP_MESSAGE = `Send me a link to save it to your Link Bucket.
+const HELP_MESSAGE = `Send me a link to save it to cloudstash.dev.
 
 Commands:
 /connect <api-key> - Connect your account

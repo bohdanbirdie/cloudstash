@@ -344,7 +344,7 @@ However, this won't work with API key auth (no way to add headers), so we'd need
 
 Users install from Raycast Store:
 
-1. Open Raycast → Store → search "Link Bucket"
+1. Open Raycast → Store → search "Cloudstash"
 2. Install
 3. First use prompts for API key (stored in Keychain)
 

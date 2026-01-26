@@ -46,7 +46,7 @@ export function RaycastTab({
           <div className='space-y-2 text-sm'>
             <p className='font-medium'>Setup Instructions:</p>
             <ol className='list-decimal list-inside space-y-1 text-muted-foreground'>
-              <li>Install Link Bucket from the Raycast Store</li>
+              <li>Install Cloudstash from the Raycast Store</li>
               <li>Generate an API key below</li>
               <li>Paste the key in extension preferences</li>
             </ol>
