@@ -1,5 +1,5 @@
 {
-  "name": "link-bucket",
+  "name": "cloudstash",
   "private": true,
   "type": "module",
   "scripts": {
@@ -7,11 +7,12 @@
     "dev:tunnel": "bun scripts/telegram-tunnel.ts",
     "dev:dashboard": "localflare attach --dev",
     "build": "vite build",
-    "build:prod": "wrangler d1 migrations apply link-bucket-auth --remote && vite build",
+    "build:prod": "wrangler d1 migrations apply cloudstash --env production --remote && vite build",
     "preview": "vite preview",
-    "deploy": "wrangler d1 migrations apply link-bucket-auth --remote && wrangler deploy",
-    "db:migrate:local": "wrangler d1 migrations apply link-bucket-auth --local",
-    "db:migrate:remote": "wrangler d1 migrations apply link-bucket-auth --remote",
+    "deploy": "wrangler d1 migrations apply cloudstash --env production --remote && wrangler deploy --env production",
+    "deploy:staging": "wrangler d1 migrations apply cloudstash-staging --env staging --remote && wrangler deploy --env staging",
+    "db:migrate:local": "wrangler d1 migrations apply cloudstash --env production --local",
+    "db:migrate:remote": "wrangler d1 migrations apply cloudstash --env production --remote",
     "db:generate": "drizzle-kit generate",
     "test": "vitest run",
     "test:unit": "vitest run --config vitest.config.ts",
