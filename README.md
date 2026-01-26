@@ -12,11 +12,11 @@ bun dev
 
 ## Environments
 
-| Environment | Database | Worker URL | Deploy |
-|-------------|----------|------------|--------|
-| **Local** | `cloudstash-local` | `localhost:3000` | `bun dev` |
-| **Staging** | `cloudstash-staging` | `cloudstash-staging.workers.dev` | `bun run deploy:staging` |
-| **Production** | `cloudstash` | `cloudstash.dev` | `bun run deploy` |
+| Environment    | Database             | Worker URL                       | Deploy                   |
+| -------------- | -------------------- | -------------------------------- | ------------------------ |
+| **Local**      | `cloudstash-local`   | `localhost:3000`                 | `bun dev`                |
+| **Staging**    | `cloudstash-staging` | `cloudstash-staging.workers.dev` | `bun run deploy:staging` |
+| **Production** | `cloudstash`         | `cloudstash.dev`                 | `bun run deploy`         |
 
 ## Database Migrations
 
@@ -36,6 +36,7 @@ bun run db:migrate:remote
 ### Production
 
 Manually deploy:
+
 ```bash
 bun run deploy
 ```
@@ -44,9 +45,9 @@ Or connect via Cloudflare git integration:
 
 **Dashboard → Workers & Pages → cloudstash → Settings → Builds & deployments:**
 
-| Setting | Command |
-|---------|---------|
-| Build command | `bun run build` |
+| Setting        | Command                                                                                                           |
+| -------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Build command  | `bun run build`                                                                                                   |
 | Deploy command | `bunx wrangler d1 migrations apply cloudstash --env production --remote && bunx wrangler deploy --env production` |
 
 ### Staging
@@ -54,6 +55,7 @@ Or connect via Cloudflare git integration:
 Staging auto-deploys on PRs via GitHub Actions (requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets in GitHub).
 
 Manual deploy:
+
 ```bash
 bun run deploy:staging
 ```

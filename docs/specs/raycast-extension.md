@@ -92,13 +92,13 @@ For even faster saving without opening Raycast UI:
 
 ## Comparison with Telegram Bot
 
-| Aspect | Telegram Bot | Raycast Extension |
-|--------|--------------|-------------------|
-| API Key Storage | KV (chatId → apiKey) | Raycast Preferences (Keychain) |
-| Setup | `/connect <key>` in chat | Paste key in extension preferences |
-| Save Link | Send message with URL | Paste URL → select command |
-| Feedback | Emoji reactions | Toast notifications |
-| Platform | Any (Telegram client) | macOS only |
+| Aspect          | Telegram Bot             | Raycast Extension                  |
+| --------------- | ------------------------ | ---------------------------------- |
+| API Key Storage | KV (chatId → apiKey)     | Raycast Preferences (Keychain)     |
+| Setup           | `/connect <key>` in chat | Paste key in extension preferences |
+| Save Link       | Send message with URL    | Paste URL → select command         |
+| Feedback        | Emoji reactions          | Toast notifications                |
+| Platform        | Any (Telegram client)    | macOS only                         |
 
 ---
 
@@ -217,11 +217,11 @@ Content-Type: application/json
 
 ### Errors
 
-| Status | Code | Meaning |
-|--------|------|---------|
-| 401 | `INVALID_API_KEY` | API key invalid or revoked |
-| 400 | `INVALID_URL` | URL format invalid |
-| 429 | `RATE_LIMIT` | Too many requests |
+| Status | Code              | Meaning                    |
+| ------ | ----------------- | -------------------------- |
+| 401    | `INVALID_API_KEY` | API key invalid or revoked |
+| 400    | `INVALID_URL`     | URL format invalid         |
+| 429    | `RATE_LIMIT`      | Too many requests          |
 
 ---
 
@@ -243,59 +243,59 @@ raycast-extension/
 
 ```typescript
 // src/save-link.tsx
-import { showHUD, getPreferenceValues, openExtensionPreferences, LaunchProps } from "@raycast/api";
+import { showHUD, getPreferenceValues, openExtensionPreferences, LaunchProps } from '@raycast/api'
 
 interface Preferences {
-  apiKey: string;
-  serverUrl: string;
+  apiKey: string
+  serverUrl: string
 }
 
 interface Arguments {
-  url: string;
+  url: string
 }
 
 export default async function SaveLink(props: LaunchProps<{ arguments: Arguments }>) {
-  const { url } = props.arguments;
-  const { apiKey, serverUrl } = getPreferenceValues<Preferences>();
+  const { url } = props.arguments
+  const { apiKey, serverUrl } = getPreferenceValues<Preferences>()
 
   // Validate URL
   try {
-    new URL(url);
+    new URL(url)
   } catch {
-    await showHUD("❌ Invalid URL");
-    return;
+    await showHUD('❌ Invalid URL')
+    return
   }
 
   // Save link
   try {
     const response = await fetch(`${serverUrl}/api/ingest`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({ url }),
-    });
+    })
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json()
       if (response.status === 401) {
-        await showHUD("❌ Invalid API key");
-        await openExtensionPreferences();
-        return;
+        await showHUD('❌ Invalid API key')
+        await openExtensionPreferences()
+        return
       }
-      throw new Error(error.message || "Failed to save");
+      throw new Error(error.message || 'Failed to save')
     }
 
-    const result = await response.json();
+    const result = await response.json()
 
-    if (result.status === "duplicate") {
-      await showHUD("⚠️ Already saved");
+    if (result.status === 'duplicate') {
+      await showHUD('⚠️ Already saved')
     } else {
-      await showHUD("✓ Link saved!");
+      await showHUD('✓ Link saved!')
     }
   } catch (error) {
-    await showHUD(`❌ ${error.message}`);
+    await showHUD(`❌ ${error.message}`)
   }
 }
 ```
@@ -307,11 +307,13 @@ export default async function SaveLink(props: LaunchProps<{ arguments: Arguments
 ## Distribution Options
 
 ### 1. Raycast Store (Public)
+
 - Submit to official store
 - Requires review process
 - Users can install directly from Raycast
 
 ### 2. Private/Team Distribution
+
 - Share extension folder
 - Users run `npm install && npm run dev` to install locally
 - No store listing needed
@@ -341,6 +343,7 @@ However, this won't work with API key auth (no way to add headers), so we'd need
 ## Installation
 
 Users install from Raycast Store:
+
 1. Open Raycast → Store → search "Link Bucket"
 2. Install
 3. First use prompts for API key (stored in Keychain)
@@ -350,16 +353,19 @@ Users install from Raycast Store:
 ## Implementation Phases
 
 ### Phase 1: MVP
+
 - [ ] Save Link command with URL argument
 - [ ] API key preference
 - [ ] HUD feedback (saved / duplicate / error)
 
 ### Phase 2: Polish
+
 - [ ] Extension icon
 - [ ] Better error messages
 - [ ] Submit to Raycast Store
 
 ### Phase 3: Optional Enhancements
+
 - [ ] Hotkey command (clipboard-based, no UI)
 - [ ] Recent Links view
 - [ ] Offline queue

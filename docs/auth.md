@@ -12,26 +12,26 @@ New users require admin approval before accessing the app. See [admin-user-appro
 
 ## Architecture
 
-| Component   | Purpose                                                                              |
-| ----------- | ------------------------------------------------------------------------------------ |
-| Better Auth | OAuth, sessions (`organization`, `admin`, `apiKey` plugins)                          |
+| Component   | Purpose                                                                             |
+| ----------- | ----------------------------------------------------------------------------------- |
+| Better Auth | OAuth, sessions (`organization`, `admin`, `apiKey` plugins)                         |
 | D1          | Auth tables: user, session, account, verification, organization, member, invitation |
-| LiveStore   | Org-scoped stores using `{organizationId}` as storeId                                |
+| LiveStore   | Org-scoped stores using `{organizationId}` as storeId                               |
 
 ## Files
 
-| File                                    | Purpose                                     |
-| --------------------------------------- | ------------------------------------------- |
-| `src/cf-worker/auth/index.ts`           | Better Auth config with organization plugin |
-| `src/cf-worker/auth/sync-auth.ts`       | Pre-flight sync auth check (Effect-based)   |
-| `src/cf-worker/index.ts`                | Worker routes + session/org validation      |
-| `src/cf-worker/db/schema.ts`            | Drizzle schema (auth + org tables)          |
-| `src/lib/auth.tsx`                      | Auth client, provider, visibility refresh   |
-| `src/router.tsx`                        | Router with auth context type               |
-| `src/routes/__root.tsx`                 | `beforeLoad` auth check + redirect          |
-| `src/livestore/store.ts`                | `useAppStore` + connection monitoring       |
-| `src/stores/sync-status-store.ts`       | Sync error state (Zustand)                  |
-| `src/components/sync-error-banner.tsx`  | Error banner for sync failures              |
+| File                                   | Purpose                                     |
+| -------------------------------------- | ------------------------------------------- |
+| `src/cf-worker/auth/index.ts`          | Better Auth config with organization plugin |
+| `src/cf-worker/auth/sync-auth.ts`      | Pre-flight sync auth check (Effect-based)   |
+| `src/cf-worker/index.ts`               | Worker routes + session/org validation      |
+| `src/cf-worker/db/schema.ts`           | Drizzle schema (auth + org tables)          |
+| `src/lib/auth.tsx`                     | Auth client, provider, visibility refresh   |
+| `src/router.tsx`                       | Router with auth context type               |
+| `src/routes/__root.tsx`                | `beforeLoad` auth check + redirect          |
+| `src/livestore/store.ts`               | `useAppStore` + connection monitoring       |
+| `src/stores/sync-status-store.ts`      | Sync error state (Zustand)                  |
+| `src/components/sync-error-banner.tsx` | Error banner for sync failures              |
 
 ## Auth Flow
 
@@ -217,10 +217,12 @@ const useConnectionMonitor = (store: any) => {
             await store.shutdownPromise() // Stop retries
 
             // Show error banner
-            useSyncStatusStore.getState().setError(error ?? {
-              code: 'UNKNOWN',
-              message: 'Sync connection lost. Please reload to reconnect.',
-            })
+            useSyncStatusStore.getState().setError(
+              error ?? {
+                code: 'UNKNOWN',
+                message: 'Sync connection lost. Please reload to reconnect.',
+              },
+            )
           })
         }
       }),
@@ -236,20 +238,20 @@ const useConnectionMonitor = (store: any) => {
 
 ### LiveStore APIs for Session Management
 
-| API                        | Type                | Purpose                                        |
-| -------------------------- | ------------------- | ---------------------------------------------- |
-| `store.useSyncStatus()`    | React hook          | `{ isSynced, pendingCount }` - data sync state |
-| `store.networkStatus`      | Effect Subscribable | `{ isConnected }` - WebSocket connection state |
-| `store.shutdownPromise()`  | async method        | Stop all retries, close connections            |
-| `store.storeId`            | string              | Store identifier (orgId for org stores)        |
+| API                       | Type                | Purpose                                        |
+| ------------------------- | ------------------- | ---------------------------------------------- |
+| `store.useSyncStatus()`   | React hook          | `{ isSynced, pendingCount }` - data sync state |
+| `store.networkStatus`     | Effect Subscribable | `{ isConnected }` - WebSocket connection state |
+| `store.shutdownPromise()` | async method        | Stop all retries, close connections            |
+| `store.storeId`           | string              | Store identifier (orgId for org stores)        |
 
 ### Sync Error State (Zustand)
 
-| API                          | Purpose                                        |
-| ---------------------------- | ---------------------------------------------- |
-| `useSyncStatusStore.error`   | Current sync error or null                     |
-| `useSyncStatusStore.setError`| Set error to show banner                       |
-| `fetchSyncAuthError(storeId)`| Fetch error reason from `/api/sync/auth`       |
+| API                           | Purpose                                  |
+| ----------------------------- | ---------------------------------------- |
+| `useSyncStatusStore.error`    | Current sync error or null               |
+| `useSyncStatusStore.setError` | Set error to show banner                 |
+| `fetchSyncAuthError(storeId)` | Fetch error reason from `/api/sync/auth` |
 
 ### Why This Approach
 
@@ -314,14 +316,17 @@ export function LogoutPage() {
 ```
 
 **Why this works**:
+
 - `/logout` is outside the `_authed` route, so LiveStore unmounts
 - OPFS is no longer locked once LiveStore unmounts
 - Direct OPFS clearing via browser API - no workarounds needed
 
 **What gets deleted**:
+
 - All `livestore-*` directories in OPFS (state DB, eventlog, archives)
 
 **What's preserved**:
+
 - Server-side data (sync backend has the source of truth)
 - Re-syncs fresh data on next login
 
@@ -332,9 +337,9 @@ export function LogoutPage() {
 type AuthState = {
   userId: string | null
   orgId: string | null
-  isAuthenticated: boolean  // true only if approved AND has activeOrgId
-  role: string | null       // 'user' | 'admin'
-  approved: boolean         // requires admin approval
+  isAuthenticated: boolean // true only if approved AND has activeOrgId
+  role: string | null // 'user' | 'admin'
+  approved: boolean // requires admin approval
 }
 ```
 
@@ -740,10 +745,12 @@ store.networkStatus.changes.pipe(
       await store.shutdownPromise() // Stops all retries
 
       // Show error banner (not redirect)
-      useSyncStatusStore.getState().setError(error ?? {
-        code: 'UNKNOWN',
-        message: 'Sync connection lost',
-      })
+      useSyncStatusStore.getState().setError(
+        error ?? {
+          code: 'UNKNOWN',
+          message: 'Sync connection lost',
+        },
+      )
     }
   }),
 )

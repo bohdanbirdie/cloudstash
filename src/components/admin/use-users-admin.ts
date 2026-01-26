@@ -17,10 +17,7 @@ async function fetchUsers(): Promise<AdminUser[]> {
 }
 
 export function useUsersAdmin(enabled = true) {
-  const { data: users = [], error, isLoading } = useSWR(
-    enabled ? 'admin-users' : null,
-    fetchUsers,
-  )
+  const { data: users = [], error, isLoading } = useSWR(enabled ? 'admin-users' : null, fetchUsers)
 
   const pendingCount = users.filter((u) => !u.approved && !u.banned).length
   const activeCount = users.filter((u) => u.approved && !u.banned).length

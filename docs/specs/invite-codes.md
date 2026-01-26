@@ -19,11 +19,13 @@ Extend the existing admin approval system with one-time invite codes that allow 
 A community plugin ([better-auth-invite](https://github.com/bard/better-auth-invite)) provides invite functionality:
 
 **Pros:**
+
 - Ready-made solution with invite/activate/signup flow
 - Tracks who created and who used each invite
 - Configurable code generation and duration
 
 **Cons:**
+
 - Works via **roles** (roleForSignupWithInvite vs roleForSignupWithoutInvite)
 - Our current system uses `approved` boolean field, not roles
 - Would require rearchitecting approval logic
@@ -34,12 +36,14 @@ A community plugin ([better-auth-invite](https://github.com/bard/better-auth-inv
 Build a lightweight custom system that integrates with our existing `approved` field.
 
 **Pros:**
+
 - Integrates cleanly with existing approval system
 - No external dependency
 - Simpler flow: enter code on pending screen → get approved
 - Full control over behavior
 
 **Cons:**
+
 - More implementation work
 - Need to build admin UI for invite management
 
@@ -54,13 +58,14 @@ Add new `invite` table:
 ```typescript
 // src/cf-worker/db/schema.ts
 export const invite = sqliteTable('invite', {
-  id: text('id').primaryKey().$defaultFn(() => nanoid()),
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
   code: text('code').notNull().unique(),
   createdByUserId: text('created_by_user_id')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
-  usedByUserId: text('used_by_user_id')
-    .references(() => user.id, { onDelete: 'set null' }),
+  usedByUserId: text('used_by_user_id').references(() => user.id, { onDelete: 'set null' }),
   usedAt: integer('used_at', { mode: 'timestamp_ms' }),
   expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
   createdAt: integer('created_at', { mode: 'timestamp_ms' })
@@ -139,10 +144,7 @@ async function redeemInvite(req: Request, env: Env, db: Database, session: Sessi
     where: and(
       eq(invite.code, code.toUpperCase()),
       isNull(invite.usedByUserId),
-      or(
-        isNull(invite.expiresAt),
-        gt(invite.expiresAt, new Date())
-      )
+      or(isNull(invite.expiresAt), gt(invite.expiresAt, new Date())),
     ),
   })
 
@@ -152,12 +154,11 @@ async function redeemInvite(req: Request, env: Env, db: Database, session: Sessi
 
   // Mark invite as used and approve user
   await db.batch([
-    db.update(invite)
+    db
+      .update(invite)
       .set({ usedByUserId: session.user.id, usedAt: new Date() })
       .where(eq(invite.id, inviteRecord.id)),
-    db.update(user)
-      .set({ approved: true })
-      .where(eq(user.id, session.user.id)),
+    db.update(user).set({ approved: true }).where(eq(user.id, session.user.id)),
   ])
 
   return Response.json({ success: true })
@@ -241,9 +242,7 @@ export function PendingApproval() {
 
           {/* Invite code section */}
           <div className='border-t pt-4 mt-4'>
-            <p className='text-sm text-muted-foreground mb-3'>
-              Have an invite code?
-            </p>
+            <p className='text-sm text-muted-foreground mb-3'>Have an invite code?</p>
             <div className='flex gap-2'>
               <Input
                 placeholder='Enter code'
@@ -252,16 +251,11 @@ export function PendingApproval() {
                 maxLength={8}
                 className='font-mono text-center tracking-widest'
               />
-              <Button
-                onClick={handleRedeem}
-                disabled={!code || isRedeeming}
-              >
+              <Button onClick={handleRedeem} disabled={!code || isRedeeming}>
                 {isRedeeming ? <Spinner className='size-4' /> : 'Redeem'}
               </Button>
             </div>
-            {error && (
-              <p className='text-sm text-red-500 mt-2'>{error}</p>
-            )}
+            {error && <p className='text-sm text-red-500 mt-2'>{error}</p>}
           </div>
 
           <Button variant='outline' onClick={handleSignOut} className='mt-6'>
@@ -372,10 +366,10 @@ const handleDeleteInvite = async (inviteId: string) => {
 3. Admin can delete unused invites
 ```
 
-
 ## Implementation Checklist
 
 ### Database
+
 - [ ] Add `invite` table to schema
 - [ ] Add relations for invite
 - [ ] Generate Drizzle migration
@@ -383,12 +377,14 @@ const handleDeleteInvite = async (inviteId: string) => {
 - [ ] Run migration remotely (when ready)
 
 ### API Endpoints
+
 - [ ] POST `/api/invites` - Create invite (admin only)
 - [ ] GET `/api/invites` - List invites (admin only)
 - [ ] DELETE `/api/invites/:id` - Delete invite (admin only)
 - [ ] POST `/api/invites/redeem` - Redeem invite (authenticated)
 
 ### Frontend
+
 - [ ] Update `PendingApproval` with invite code input
 - [ ] Add `refresh()` method to AuthProvider
 - [ ] Add Invites tab to Admin modal
@@ -398,6 +394,7 @@ const handleDeleteInvite = async (inviteId: string) => {
 - [ ] Delete invite action
 
 ### Testing
+
 - [ ] Admin can create invite
 - [ ] Generated code is valid format
 - [ ] Non-admin cannot create invites
@@ -410,14 +407,14 @@ const handleDeleteInvite = async (inviteId: string) => {
 
 ## Files to Create/Modify
 
-| File | Changes |
-|------|---------|
-| `src/cf-worker/db/schema.ts` | Add `invite` table and relations |
-| `src/cf-worker/api/invites.ts` | New file: invite API handlers |
-| `src/cf-worker/index.ts` | Register invite API routes |
-| `src/lib/auth.tsx` | Add `refresh()` method to AuthProvider |
-| `src/components/pending-approval.tsx` | Add invite code redemption UI |
-| `src/components/admin-modal.tsx` | Add Invites tab with management UI |
+| File                                  | Changes                                |
+| ------------------------------------- | -------------------------------------- |
+| `src/cf-worker/db/schema.ts`          | Add `invite` table and relations       |
+| `src/cf-worker/api/invites.ts`        | New file: invite API handlers          |
+| `src/cf-worker/index.ts`              | Register invite API routes             |
+| `src/lib/auth.tsx`                    | Add `refresh()` method to AuthProvider |
+| `src/components/pending-approval.tsx` | Add invite code redemption UI          |
+| `src/components/admin-modal.tsx`      | Add Invites tab with management UI     |
 
 ## Security Considerations
 

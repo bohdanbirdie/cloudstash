@@ -17,4 +17,8 @@ export class InviteNotFoundError extends Schema.TaggedError<InviteNotFoundError>
   {},
 ) {}
 
-export type InviteError = UnauthorizedError | ForbiddenError | InvalidInviteError | InviteNotFoundError
+export type InviteError =
+  | UnauthorizedError
+  | ForbiddenError
+  | InvalidInviteError
+  | InviteNotFoundError

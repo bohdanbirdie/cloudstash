@@ -64,9 +64,7 @@ export function UsersTab({
             <p className='text-xs'>No users yet</p>
           </div>
         ) : (
-          users.map((user) => (
-            <UserRow key={user.id} user={user} adminCount={adminCount} />
-          ))
+          users.map((user) => <UserRow key={user.id} user={user} adminCount={adminCount} />)
         )}
       </div>
     </TabsContent>

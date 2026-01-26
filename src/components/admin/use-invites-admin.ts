@@ -24,10 +24,12 @@ export function useInvitesAdmin(enabled = true) {
   const [copiedCode, setCopiedCode] = useState(false)
   const [mutationError, setMutationError] = useState<string | null>(null)
 
-  const { data: invites = [], error: fetchError, isLoading, mutate } = useSWR(
-    enabled ? 'admin-invites' : null,
-    fetchInvites,
-  )
+  const {
+    data: invites = [],
+    error: fetchError,
+    isLoading,
+    mutate,
+  } = useSWR(enabled ? 'admin-invites' : null, fetchInvites)
 
   const error = mutationError || (fetchError?.message ?? null)
 
@@ -54,23 +56,26 @@ export function useInvitesAdmin(enabled = true) {
     }
   }, [mutate])
 
-  const handleDelete = useCallback(async (inviteId: string) => {
-    setActionLoading(inviteId)
-    setMutationError(null)
-    try {
-      const res = await fetch(`/api/invites/${inviteId}`, { method: 'DELETE' })
-      const data = (await res.json()) as { success: boolean } | ApiErrorResponse
-      if (!res.ok || 'error' in data) {
-        setMutationError('error' in data ? data.error : 'Failed to delete invite')
-        return
+  const handleDelete = useCallback(
+    async (inviteId: string) => {
+      setActionLoading(inviteId)
+      setMutationError(null)
+      try {
+        const res = await fetch(`/api/invites/${inviteId}`, { method: 'DELETE' })
+        const data = (await res.json()) as { success: boolean } | ApiErrorResponse
+        if (!res.ok || 'error' in data) {
+          setMutationError('error' in data ? data.error : 'Failed to delete invite')
+          return
+        }
+        await mutate()
+      } catch (err) {
+        setMutationError(err instanceof Error ? err.message : 'Failed to delete invite')
+      } finally {
+        setActionLoading(null)
       }
-      await mutate()
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Failed to delete invite')
-    } finally {
-      setActionLoading(null)
-    }
-  }, [mutate])
+    },
+    [mutate],
+  )
 
   const handleCopyCode = useCallback(async (code: string) => {
     await navigator.clipboard.writeText(code)

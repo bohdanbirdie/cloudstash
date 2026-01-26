@@ -35,15 +35,10 @@ export function RaycastTab({
 
   return (
     <TabsContent value='raycast' className='space-y-4 mt-4'>
-      <p className='text-muted-foreground'>
-        Save links with a keyboard shortcut from anywhere.
-      </p>
+      <p className='text-muted-foreground'>Save links with a keyboard shortcut from anywhere.</p>
 
       {generatedKey && (
-        <KeyCreatedBanner
-          generatedKey={generatedKey}
-          onDone={onClearGeneratedKey}
-        />
+        <KeyCreatedBanner generatedKey={generatedKey} onDone={onClearGeneratedKey} />
       )}
 
       {!generatedKey && (

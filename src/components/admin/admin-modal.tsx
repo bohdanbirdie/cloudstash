@@ -34,7 +34,11 @@ export function AdminModal({ open, onOpenChange }: AdminModalProps) {
           <DialogDescription>Manage users, approvals, and invite codes</DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className='flex-1 flex flex-col min-h-0'>
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className='flex-1 flex flex-col min-h-0'
+        >
           <TabsList variant='line'>
             <TabsTrigger value='users'>
               <UsersIcon className='h-3.5 w-3.5' />

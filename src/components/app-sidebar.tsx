@@ -183,9 +183,7 @@ export function AppSidebar() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => auth.logout().then(() => window.location.reload())}
-              >
+              <AlertDialogAction onClick={() => auth.logout().then(() => window.location.reload())}>
                 Sign out
               </AlertDialogAction>
             </AlertDialogFooter>

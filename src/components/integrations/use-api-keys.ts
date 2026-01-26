@@ -23,10 +23,12 @@ export function useApiKeys(enabled = true) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [mutationError, setMutationError] = useState<string | null>(null)
 
-  const { data: keys = [], error: fetchError, isLoading, mutate } = useSWR(
-    enabled ? 'api-keys' : null,
-    fetchApiKeys,
-  )
+  const {
+    data: keys = [],
+    error: fetchError,
+    isLoading,
+    mutate,
+  } = useSWR(enabled ? 'api-keys' : null, fetchApiKeys)
 
   const error = mutationError || (fetchError?.message ?? null)
 

@@ -60,9 +60,7 @@ export function IntegrationsModal({ open, onOpenChange }: IntegrationsModalProps
       <DialogContent className='sm:max-w-lg max-h-[80vh] flex flex-col'>
         <DialogHeader>
           <DialogTitle>Integrations</DialogTitle>
-          <DialogDescription>
-            Connect external tools to save links from anywhere.
-          </DialogDescription>
+          <DialogDescription>Connect external tools to save links from anywhere.</DialogDescription>
         </DialogHeader>
 
         {apiKeys.error && (

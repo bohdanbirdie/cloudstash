@@ -8,7 +8,12 @@ import { createAuth } from './auth'
 import { checkSyncAuth, SyncAuthError } from './auth/sync-auth'
 import { createDb } from './db'
 import { ingestRequestToResponse } from './ingest/service'
-import { handleCreateInvite, handleDeleteInvite, handleListInvites, handleRedeemInvite } from './invites'
+import {
+  handleCreateInvite,
+  handleDeleteInvite,
+  handleListInvites,
+  handleRedeemInvite,
+} from './invites'
 import { metadataRequestToResponse } from './metadata/service'
 import { handleGetMe, handleGetOrg } from './org'
 import type { Env } from './shared'

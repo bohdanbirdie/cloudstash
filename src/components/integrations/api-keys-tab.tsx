@@ -41,10 +41,7 @@ export function ApiKeysTab({
       </p>
 
       {generatedKey && (
-        <KeyCreatedBanner
-          generatedKey={generatedKey}
-          onDone={onClearGeneratedKey}
-        />
+        <KeyCreatedBanner generatedKey={generatedKey} onDone={onClearGeneratedKey} />
       )}
 
       {!generatedKey && (

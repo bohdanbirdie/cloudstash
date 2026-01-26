@@ -1,13 +1,7 @@
 import { useState } from 'react'
 import useSWRMutation from 'swr/mutation'
 import { mutate } from 'swr'
-import {
-  CheckIcon,
-  XIcon,
-  BanIcon,
-  ShieldIcon,
-  ShieldOffIcon,
-} from 'lucide-react'
+import { CheckIcon, XIcon, BanIcon, ShieldIcon, ShieldOffIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -61,7 +55,10 @@ async function unbanUser(_: string, { arg }: { arg: { userId: string } }) {
   mutate('admin-users')
 }
 
-async function setUserRole(_: string, { arg }: { arg: { userId: string; role: 'admin' | 'user' } }) {
+async function setUserRole(
+  _: string,
+  { arg }: { arg: { userId: string; role: 'admin' | 'user' } },
+) {
   const { error } = await authClient.admin.setRole({ userId: arg.userId, role: arg.role })
   if (error) throw new Error(error.message)
   mutate('admin-users')
@@ -78,7 +75,11 @@ export function UserRow({ user, adminCount }: UserRowProps) {
 
   const status = getUserStatus(user)
   const isLoading =
-    approve.isMutating || reject.isMutating || ban.isMutating || unban.isMutating || setRole.isMutating
+    approve.isMutating ||
+    reject.isMutating ||
+    ban.isMutating ||
+    unban.isMutating ||
+    setRole.isMutating
 
   const handleConfirmAction = () => {
     if (confirmAction === 'make-admin') {

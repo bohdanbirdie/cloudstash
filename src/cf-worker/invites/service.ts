@@ -5,7 +5,12 @@ import { createAuth, type Auth } from '../auth'
 import { createDb } from '../db'
 import * as schema from '../db/schema'
 import type { Env } from '../shared'
-import { ForbiddenError, InvalidInviteError, InviteNotFoundError, UnauthorizedError } from './errors'
+import {
+  ForbiddenError,
+  InvalidInviteError,
+  InviteNotFoundError,
+  UnauthorizedError,
+} from './errors'
 
 // Character set excluding ambiguous characters (0, O, I, L)
 const INVITE_CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
@@ -195,10 +200,7 @@ const handleRedeemInviteRequest = (request: Request, env: Env) =>
           .update(schema.invite)
           .set({ usedByUserId: session.user.id, usedAt: new Date() })
           .where(eq(schema.invite.id, invite.id)),
-        db
-          .update(schema.user)
-          .set({ approved: true })
-          .where(eq(schema.user.id, session.user.id)),
+        db.update(schema.user).set({ approved: true }).where(eq(schema.user.id, session.user.id)),
       ]),
     )
 

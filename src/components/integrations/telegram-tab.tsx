@@ -35,9 +35,7 @@ export function TelegramTab({
 
   return (
     <TabsContent value='telegram' className='space-y-4 mt-4'>
-      <p className='text-muted-foreground'>
-        Save links by sending them to a Telegram bot.
-      </p>
+      <p className='text-muted-foreground'>Save links by sending them to a Telegram bot.</p>
 
       {generatedKey && (
         <KeyCreatedBanner
