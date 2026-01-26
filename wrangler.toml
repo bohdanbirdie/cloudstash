@@ -13,7 +13,8 @@ run_worker_first = ["/sync*", "/api/*"]
 binding = "AI"
 
 # ============================================================
-# LOCAL DEV (top-level bindings used by `bun dev`)
+# DEFAULT (Production + Local Dev)
+# Local dev uses --local flag, so these IDs are for production
 # ============================================================
 [[durable_objects.bindings]]
 name = "SYNC_BACKEND_DO"
@@ -33,13 +34,13 @@ new_sqlite_classes = ["LinkProcessorDO"]
 
 [[d1_databases]]
 binding = "DB"
-database_name = "cloudstash-local"
-database_id = "ebc9fccf-955c-4b4e-b9a6-36fa8ebdf1aa"
+database_name = "cloudstash"
+database_id = "9b96a105-9bb7-4ba5-bbe8-1ded0b148f29"
 migrations_dir = "drizzle/migrations"
 
 [[kv_namespaces]]
 binding = "TELEGRAM_KV"
-id = "dd0c0cfe847745078e0c7582873a5b86"
+id = "2ba7eb003f494031ae9fee505ee6111a"
 
 [observability]
 enabled = true
@@ -82,38 +83,3 @@ migrations_dir = "drizzle/migrations"
 [[env.staging.kv_namespaces]]
 binding = "TELEGRAM_KV"
 id = "dd0c0cfe847745078e0c7582873a5b86"
-
-# ============================================================
-# PRODUCTION ENVIRONMENT
-# ============================================================
-[env.production]
-name = "cloudstash"
-
-[env.production.ai]
-binding = "AI"
-
-[[env.production.durable_objects.bindings]]
-name = "SYNC_BACKEND_DO"
-class_name = "SyncBackendDO"
-
-[[env.production.durable_objects.bindings]]
-name = "LINK_PROCESSOR_DO"
-class_name = "LinkProcessorDO"
-
-[[env.production.migrations]]
-tag = "v1"
-new_sqlite_classes = ["SyncBackendDO"]
-
-[[env.production.migrations]]
-tag = "v2"
-new_sqlite_classes = ["LinkProcessorDO"]
-
-[[env.production.d1_databases]]
-binding = "DB"
-database_name = "cloudstash"
-database_id = "9b96a105-9bb7-4ba5-bbe8-1ded0b148f29"
-migrations_dir = "drizzle/migrations"
-
-[[env.production.kv_namespaces]]
-binding = "TELEGRAM_KV"
-id = "2ba7eb003f494031ae9fee505ee6111a"
