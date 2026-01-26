@@ -41,7 +41,7 @@ Manually deploy:
 bun run deploy
 ```
 
-Or connect via Cloudflare git integration:
+Or connect via Cloudflare git integration: 
 
 **Dashboard → Workers & Pages → cloudstash → Settings → Builds & deployments:**
 
