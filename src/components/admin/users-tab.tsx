@@ -93,7 +93,7 @@ export function UsersTab({
             return (
               <div
                 key={user.id}
-                className='flex items-center justify-between p-3 bg-muted/50 rounded-sm gap-3'
+                className='flex items-center justify-between p-3 bg-muted/50 gap-3'
               >
                 <div className='min-w-0 flex-1'>
                   <div className='flex items-center gap-2'>

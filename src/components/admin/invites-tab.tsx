@@ -38,7 +38,7 @@ export function InvitesTab({
   return (
     <TabsContent value='invites' className='flex-1 flex flex-col min-h-0'>
       {newInviteCode && (
-        <div className='mb-3 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-sm'>
+        <div className='mb-3 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800'>
           <p className='text-xs text-green-700 dark:text-green-300 mb-2'>
             Invite code created! Share this with the user:
           </p>
@@ -89,7 +89,7 @@ export function InvitesTab({
             return (
               <div
                 key={invite.id}
-                className='flex items-center justify-between p-3 bg-muted/50 rounded-sm gap-3'
+                className='flex items-center justify-between p-3 bg-muted/50 gap-3'
               >
                 <div className='min-w-0 flex-1'>
                   <div className='flex items-center gap-2'>

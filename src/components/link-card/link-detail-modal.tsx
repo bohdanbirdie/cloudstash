@@ -148,7 +148,7 @@ function LinkDetailModalContent({ linkId }: { linkId: string }) {
 
         <ScrollableContent maxHeightClass='max-h-[60vh]' className='space-y-4'>
           {link.image && (
-            <div className='aspect-video w-full overflow-hidden rounded-sm flex items-center justify-center'>
+            <div className='aspect-video w-full overflow-hidden flex items-center justify-center'>
               <img src={link.image} alt='' className='max-h-full max-w-full object-contain' />
             </div>
           )}
