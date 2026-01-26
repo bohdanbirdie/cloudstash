@@ -1,4 +1,5 @@
-name = "link-bucket"
+# Shared configuration
+name = "cloudstash"
 main = "./src/cf-worker/index.ts"
 compatibility_date = "2025-01-15"
 compatibility_flags = ["nodejs_compat"]
@@ -8,36 +9,8 @@ directory = "./dist"
 not_found_handling = "single-page-application"
 run_worker_first = ["/sync*", "/api/*"]
 
-[[durable_objects.bindings]]
-name = "SYNC_BACKEND_DO"
-class_name = "SyncBackendDO"
-
-[[durable_objects.bindings]]
-name = "LINK_PROCESSOR_DO"
-class_name = "LinkProcessorDO"
-
 [ai]
 binding = "AI"
-
-# Production D1 (also used for local dev)
-[[d1_databases]]
-binding = "DB"
-database_name = "link-bucket-auth"
-database_id = "e2a04a74-0228-4f2b-954b-22fe4e100112"
-migrations_dir = "drizzle/migrations"
-
-[[migrations]]
-tag = "v1"
-new_sqlite_classes = ["SyncBackendDO"]
-
-[[migrations]]
-tag = "v2"
-new_sqlite_classes = ["LinkProcessorDO"]
-
-# KV for Telegram bot connections (chatId -> apiKey)
-[[kv_namespaces]]
-binding = "TELEGRAM_KV"
-id = "a54cb37a45324db1a64eea3471a36245"
 
 [observability]
 enabled = true
@@ -45,3 +18,73 @@ enabled = true
 [observability.logs]
 enabled = true
 invocation_logs = true
+
+# ============================================================
+# STAGING ENVIRONMENT
+# ============================================================
+[env.staging]
+name = "cloudstash-staging"
+
+[env.staging.ai]
+binding = "AI"
+
+[[env.staging.durable_objects.bindings]]
+name = "SYNC_BACKEND_DO"
+class_name = "SyncBackendDO"
+
+[[env.staging.durable_objects.bindings]]
+name = "LINK_PROCESSOR_DO"
+class_name = "LinkProcessorDO"
+
+[[env.staging.migrations]]
+tag = "v1"
+new_sqlite_classes = ["SyncBackendDO"]
+
+[[env.staging.migrations]]
+tag = "v2"
+new_sqlite_classes = ["LinkProcessorDO"]
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "cloudstash-staging"
+database_id = "ebc9fccf-955c-4b4e-b9a6-36fa8ebdf1aa"
+migrations_dir = "drizzle/migrations"
+
+[[env.staging.kv_namespaces]]
+binding = "TELEGRAM_KV"
+id = "dd0c0cfe847745078e0c7582873a5b86"
+
+# ============================================================
+# PRODUCTION ENVIRONMENT
+# ============================================================
+[env.production]
+name = "cloudstash"
+
+[env.production.ai]
+binding = "AI"
+
+[[env.production.durable_objects.bindings]]
+name = "SYNC_BACKEND_DO"
+class_name = "SyncBackendDO"
+
+[[env.production.durable_objects.bindings]]
+name = "LINK_PROCESSOR_DO"
+class_name = "LinkProcessorDO"
+
+[[env.production.migrations]]
+tag = "v1"
+new_sqlite_classes = ["SyncBackendDO"]
+
+[[env.production.migrations]]
+tag = "v2"
+new_sqlite_classes = ["LinkProcessorDO"]
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "cloudstash"
+database_id = "9b96a105-9bb7-4ba5-bbe8-1ded0b148f29"
+migrations_dir = "drizzle/migrations"
+
+[[env.production.kv_namespaces]]
+binding = "TELEGRAM_KV"
+id = "2ba7eb003f494031ae9fee505ee6111a"
