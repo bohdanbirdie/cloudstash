@@ -9,7 +9,7 @@ import {
   PlusIcon,
   LogOutIcon,
   SearchIcon,
-  SettingsIcon,
+  PuzzleIcon,
   ShieldIcon,
 } from 'lucide-react'
 
@@ -44,7 +44,7 @@ import { useAddLinkDialog } from '@/components/add-link-dialog'
 import { useSearchStore } from '@/stores/search-store'
 import { useAppStore } from '@/livestore/store'
 import { inboxCount$, completedCount$, allLinksCount$, trashCount$ } from '@/livestore/queries'
-import { ApiKeysModal } from '@/components/api-keys-modal'
+import { IntegrationsModal } from '@/components/integrations'
 import { AdminModal } from '@/components/admin'
 
 export function AppSidebar() {
@@ -52,7 +52,7 @@ export function AppSidebar() {
   const { open: openAddLinkDialog } = useAddLinkDialog()
   const openSearch = useSearchStore((s) => s.setOpen)
   const store = useAppStore()
-  const [apiKeysOpen, setApiKeysOpen] = useState(false)
+  const [integrationsOpen, setIntegrationsOpen] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
   const [logoutOpen, setLogoutOpen] = useState(false)
   const auth = useAuth()
@@ -159,9 +159,9 @@ export function AppSidebar() {
             </SidebarMenuItem>
           )}
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip='Settings' onClick={() => setApiKeysOpen(true)}>
-              <SettingsIcon />
-              <span>Settings</span>
+            <SidebarMenuButton tooltip='Integrations' onClick={() => setIntegrationsOpen(true)}>
+              <PuzzleIcon />
+              <span>Integrations</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
@@ -171,7 +171,7 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        <ApiKeysModal open={apiKeysOpen} onOpenChange={setApiKeysOpen} />
+        <IntegrationsModal open={integrationsOpen} onOpenChange={setIntegrationsOpen} />
         <AdminModal open={adminOpen} onOpenChange={setAdminOpen} />
         <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
           <AlertDialogContent>
