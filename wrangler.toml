@@ -34,7 +34,7 @@ new_sqlite_classes = ["LinkProcessorDO"]
 [[d1_databases]]
 binding = "DB"
 database_name = "cloudstash-local"
-database_id = "ebc9fccf-955c-4b4e-b9a6-36fa8ebdf1aa" # Uses staging ID for validation, but --local uses local SQLite
+database_id = "ebc9fccf-955c-4b4e-b9a6-36fa8ebdf1aa"
 migrations_dir = "drizzle/migrations"
 
 [[kv_namespaces]]
