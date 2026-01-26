@@ -12,6 +12,7 @@ Ideas for future features and improvements. Detailed specs are in `/docs/specs/`
 4. **Admin UI + registration approval** - Needed for public launch
 5. **Telemetry dashboard** - Monitoring and insights
 6. **LiveStore MCP integration** - AI/agent features
+7. **Raycast extension** - Quick link saving for macOS users
 
 ---
 
@@ -74,6 +75,17 @@ Custom UI for monitoring link processing, user activity, and system health.
 - Stats: total links, processing success rate, top domains
 - Recent errors table with context
 - Links over time chart
+
+### Raycast Extension
+
+Save links by pasting directly into Raycast (macOS).
+
+**Spec:** [raycast-extension.md](specs/raycast-extension.md)
+
+- Paste URL in Raycast → "Save to Link Bucket" command appears
+- API key stored in Raycast preferences (Keychain)
+- Reuses existing `/api/ingest` endpoint
+- Optional hotkey for power users
 
 ### LiveStore MCP Integration
 
