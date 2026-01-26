@@ -586,7 +586,7 @@ if (url.pathname === '/api/mcp') {
         "POST",
         "-H",
         "Authorization: Bearer YOUR_API_KEY",
-        "https://link-bucket.workers.dev/api/mcp"
+        "https://cloudstash.dev/api/mcp"
       ],
       "env": {}
     }

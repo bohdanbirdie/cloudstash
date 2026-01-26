@@ -616,11 +616,11 @@ All new users start with `approved: false`. Set the first admin manually after m
 
 ```bash
 # Set specific user as admin and approved (local)
-bun wrangler d1 execute link-bucket-auth --local --command \
+wrangler d1 execute cloudstash-local --local --command \
   "UPDATE user SET role = 'admin', approved = 1 WHERE email = 'your@email.com'"
 
-# Set specific user as admin and approved (remote)
-bun wrangler d1 execute link-bucket-auth --remote --command \
+# Set specific user as admin and approved (production)
+wrangler d1 execute cloudstash --env production --remote --command \
   "UPDATE user SET role = 'admin', approved = 1 WHERE email = 'your@email.com'"
 ```
 
@@ -730,7 +730,7 @@ Execute these steps in order.
 
 1. Run wrangler command to set first admin:
    ```bash
-   bun wrangler d1 execute link-bucket-auth --local --command \
+   wrangler d1 execute cloudstash-local --local --command \
      "UPDATE user SET role = 'admin', approved = 1 WHERE email = 'your@email.com'"
    ```
 

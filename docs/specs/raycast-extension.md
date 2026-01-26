@@ -12,7 +12,7 @@ Save links by pasting them directly into Raycast.
 ├────────────────────────────────────────┤
 │ > https://example.com/article          │
 │                                        │
-│   Save to Link Bucket            ⏎     │  ← extension command
+│   Save to Cloudstash            ⏎     │  ← extension command
 │   Open URL                             │
 │   Copy to Clipboard                    │
 └────────────────────────────────────────┘
@@ -20,7 +20,7 @@ Save links by pasting them directly into Raycast.
 
 1. `Cmd+Space` → open Raycast
 2. `Cmd+V` → paste URL
-3. "Save to Link Bucket" appears as option
+3. "Save to Cloudstash" appears as option
 4. `Enter` → saved, shows "Link saved!" toast
 
 **That's it.** 4 keystrokes: `⌘Space`, `⌘V`, `Enter`.
@@ -58,7 +58,7 @@ For even faster saving without opening Raycast UI:
 │                           LINK SAVING (each time)                            │
 │                                                                              │
 │  ┌──────────┐  1. ⌘Space → paste URL                                        │
-│  │   User   │  2. select "Save to Link Bucket"                              │
+│  │   User   │  2. select "Save to Cloudstash"                              │
 │  └──────────┘                                                               │
 │       │                                                                      │
 │       ▼                                                                      │
@@ -111,8 +111,8 @@ The extension uses a **text argument** to receive the pasted URL:
   "commands": [
     {
       "name": "save-link",
-      "title": "Save to Link Bucket",
-      "description": "Save a URL to your Link Bucket",
+      "title": "Save to Cloudstash",
+      "description": "Save a URL to Cloudstash",
       "mode": "no-view",
       "arguments": [
         {
@@ -135,18 +135,18 @@ When user pastes a URL in Raycast, this command appears because the argument acc
 
 ```json
 {
-  "name": "link-bucket",
-  "title": "Link Bucket",
-  "description": "Save links to your Link Bucket",
+  "name": "cloudstash",
+  "title": "Cloudstash",
+  "description": "Save links to Cloudstash",
   "icon": "extension-icon.png",
-  "author": "link-bucket",
+  "author": "cloudstash",
   "categories": ["Productivity", "Web"],
   "license": "MIT",
   "commands": [
     {
       "name": "save-link",
-      "title": "Save to Link Bucket",
-      "description": "Save a URL to your Link Bucket",
+      "title": "Save to Cloudstash",
+      "description": "Save a URL to Cloudstash",
       "mode": "no-view",
       "arguments": [
         {
@@ -163,16 +163,16 @@ When user pastes a URL in Raycast, this command appears because the argument acc
     {
       "name": "apiKey",
       "title": "API Key",
-      "description": "Your Link Bucket API key. Generate one in Settings → API Keys.",
+      "description": "Your Cloudstash API key. Generate one in Settings → API Keys.",
       "type": "password",
       "required": true
     },
     {
       "name": "serverUrl",
       "title": "Server URL",
-      "description": "Link Bucket server URL",
+      "description": "Cloudstash server URL",
       "type": "textfield",
-      "default": "https://link-bucket.example.com",
+      "default": "https://cloudstash.dev",
       "required": true
     }
   ],
@@ -321,8 +321,8 @@ export default async function SaveLink(props: LaunchProps<{ arguments: Arguments
 If a full extension is overkill, users can create a Raycast Quicklink:
 
 ```
-URL: https://link-bucket.example.com/api/ingest?url={clipboard}
-Name: Save to Link Bucket
+URL: https://cloudstash.dev/api/ingest?url={clipboard}
+Name: Save to Cloudstash
 ```
 
 However, this won't work with API key auth (no way to add headers), so we'd need to support query param auth or a signed URL approach.

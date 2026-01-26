@@ -1,4 +1,4 @@
-# Link Bucket
+# Cloudstash
 
 Save and organize links with AI-powered summaries.
 
@@ -6,26 +6,69 @@ Save and organize links with AI-powered summaries.
 
 ```bash
 bun install
+bun run db:migrate:local
 bun dev
+```
+
+## Environments
+
+| Environment | Database | Worker URL | Deploy |
+|-------------|----------|------------|--------|
+| **Local** | `cloudstash-local` | `localhost:3000` | `bun dev` |
+| **Staging** | `cloudstash-staging` | `cloudstash-staging.workers.dev` | `bun run deploy:staging` |
+| **Production** | `cloudstash` | `cloudstash.dev` | `bun run deploy` |
+
+## Database Migrations
+
+```bash
+# Local
+bun run db:migrate:local
+
+# Staging (remote)
+bun run db:migrate:staging
+
+# Production (remote)
+bun run db:migrate:remote
 ```
 
 ## Deployment
 
-Auto-deployed via Cloudflare git integration. D1 migrations must be run explicitly.
+### Production
 
-**Dashboard → Settings → Builds & deployments:**
+Manually deploy:
+```bash
+bun run deploy
+```
+
+Or connect via Cloudflare git integration:
+
+**Dashboard → Workers & Pages → cloudstash → Settings → Builds & deployments:**
 
 | Setting | Command |
 |---------|---------|
 | Build command | `bun run build` |
-| Deploy command | `bunx wrangler d1 migrations apply link-bucket-auth --remote && bunx wrangler deploy` |
+| Deploy command | `bunx wrangler d1 migrations apply cloudstash --env production --remote && bunx wrangler deploy --env production` |
+
+### Staging
+
+Staging auto-deploys on PRs via GitHub Actions (requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets in GitHub).
+
+Manual deploy:
+```bash
+bun run deploy:staging
+```
 
 ## First Admin Setup
 
 The first user needs manual database setup to bootstrap admin access:
 
 ```bash
-npx wrangler d1 execute link-bucket-auth --remote --command \
+# Local
+wrangler d1 execute cloudstash-local --local --command \
+  "UPDATE user SET approved = 1, role = 'admin' WHERE email = 'your@email.com'"
+
+# Production
+wrangler d1 execute cloudstash --env production --remote --command \
   "UPDATE user SET approved = 1, role = 'admin' WHERE email = 'your@email.com'"
 ```
 

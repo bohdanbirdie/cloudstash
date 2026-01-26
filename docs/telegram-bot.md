@@ -301,7 +301,7 @@ bun run deploy
 curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
   -H "Content-Type: application/json" \
   -d '{
-    "url": "https://link-bucket.your-subdomain.workers.dev/api/telegram",
+    "url": "https://cloudstash.dev/api/telegram",
     "secret_token": "YOUR_WEBHOOK_SECRET"
   }'
 ```

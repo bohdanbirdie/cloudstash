@@ -12,6 +12,35 @@ run_worker_first = ["/sync*", "/api/*"]
 [ai]
 binding = "AI"
 
+# ============================================================
+# LOCAL DEV (top-level bindings used by `bun dev`)
+# ============================================================
+[[durable_objects.bindings]]
+name = "SYNC_BACKEND_DO"
+class_name = "SyncBackendDO"
+
+[[durable_objects.bindings]]
+name = "LINK_PROCESSOR_DO"
+class_name = "LinkProcessorDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SyncBackendDO"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["LinkProcessorDO"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cloudstash-local"
+database_id = "local"
+migrations_dir = "drizzle/migrations"
+
+[[kv_namespaces]]
+binding = "TELEGRAM_KV"
+id = "dd0c0cfe847745078e0c7582873a5b86"
+
 [observability]
 enabled = true
 

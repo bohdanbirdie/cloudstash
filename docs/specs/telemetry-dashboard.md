@@ -623,7 +623,7 @@ const exporter = new OTLPTraceExporter({
 // Configure in Effect layer
 const OtelLive = Layer.merge(
   NodeSdk.layer(() => ({
-    resource: { serviceName: 'link-bucket' },
+    resource: { serviceName: 'cloudstash' },
     spanProcessor: new BatchSpanProcessor(exporter),
   })),
 )
