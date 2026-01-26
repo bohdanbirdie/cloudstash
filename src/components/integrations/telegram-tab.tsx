@@ -54,12 +54,12 @@ export function TelegramTab({
               <li>
                 Open{' '}
                 <a
-                  href='https://t.me/LinkBucketBot'
+                  href='https://t.me/cloud_stash_bot'
                   target='_blank'
                   rel='noopener noreferrer'
                   className='text-primary hover:underline'
                 >
-                  @LinkBucketBot
+                  @cloud_stash_bot
                 </a>{' '}
                 in Telegram
               </li>

@@ -3,53 +3,27 @@ import { ClockIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import { InputOTP } from '@/components/ui/input-otp'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/lib/auth'
-import type { ApiErrorResponse } from '@/types/api'
+import { useRedeemInvite } from './use-redeem-invite'
+
+const CODE_LENGTH = 6
 
 export function PendingApproval() {
-  const { logout, refresh } = useAuth()
+  const { logout } = useAuth()
+  const { redeem, isRedeeming, error } = useRedeemInvite()
   const [code, setCode] = useState('')
-  const [isRedeeming, setIsRedeeming] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const handleSignOut = async () => {
     await logout()
     window.location.reload()
   }
 
-  const handleRedeem = async () => {
-    if (!code.trim()) return
-
-    setIsRedeeming(true)
-    setError(null)
-
-    try {
-      const res = await fetch('/api/invites/redeem', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: code.trim() }),
-      })
-      const data = (await res.json()) as { success: boolean } | ApiErrorResponse
-
-      if (!res.ok || 'error' in data) {
-        setError('error' in data ? data.error : 'Failed to redeem invite')
-        return
-      }
-
-      await refresh()
-    } catch {
-      setError('Failed to redeem invite')
-    } finally {
-      setIsRedeeming(false)
-    }
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && code.trim() && !isRedeeming) {
-      handleRedeem()
-    }
+  const handleRedeem = async (codeToRedeem?: string) => {
+    const finalCode = codeToRedeem || code
+    if (finalCode.length !== CODE_LENGTH) return
+    await redeem(finalCode)
   }
 
   return (
@@ -64,22 +38,23 @@ export function PendingApproval() {
           </p>
 
           <div className='border-t pt-4 mt-4'>
-            <p className='text-sm text-muted-foreground mb-3'>Have an invite code?</p>
-            <div className='flex gap-2'>
-              <Input
-                placeholder='Enter code'
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                onKeyDown={handleKeyDown}
-                maxLength={8}
-                className='font-mono text-center tracking-widest'
-                disabled={isRedeeming}
-              />
-              <Button onClick={handleRedeem} disabled={!code.trim() || isRedeeming}>
-                {isRedeeming ? <Spinner className='size-4' /> : 'Redeem'}
-              </Button>
-            </div>
-            {error && <p className='text-sm text-red-500 mt-2'>{error}</p>}
+            <p className='text-sm text-muted-foreground mb-4'>Have an invite code?</p>
+            <InputOTP
+              length={CODE_LENGTH}
+              value={code}
+              onChange={setCode}
+              onComplete={handleRedeem}
+              disabled={isRedeeming}
+            />
+            {error && <p className='text-sm text-red-500 mt-3'>{error}</p>}
+            <Button
+              onClick={() => handleRedeem()}
+              disabled={code.length !== CODE_LENGTH || isRedeeming}
+              className='mt-4 w-full'
+            >
+              {isRedeeming ? <Spinner className='size-4 mr-2' /> : null}
+              Redeem Code
+            </Button>
           </div>
 
           <Button variant='outline' onClick={handleSignOut} className='mt-6'>
