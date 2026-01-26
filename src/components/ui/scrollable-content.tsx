@@ -58,7 +58,6 @@ export function ScrollableContent({
         {children}
       </div>
 
-      {/* Fade gradient */}
       {canScroll && !isAtBottom && (
         <div
           className={cn(

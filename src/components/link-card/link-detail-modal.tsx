@@ -116,7 +116,7 @@ function LinkDetailModalContent({ linkId }: { linkId: string }) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
-      <DialogContent className='sm:max-w-lg'>
+      <DialogContent className='sm:max-w-3xl'>
         <DialogHeader>
           <div className='flex items-center gap-2'>
             <a
@@ -146,16 +146,29 @@ function LinkDetailModalContent({ linkId }: { linkId: string }) {
           <DialogTitle className='text-base'>{displayTitle}</DialogTitle>
         </DialogHeader>
 
-        <ScrollableContent maxHeightClass='max-h-[60vh]' className='space-y-4'>
-          {link.image && (
-            <div className='aspect-video w-full overflow-hidden flex items-center justify-center'>
-              <img src={link.image} alt='' className='max-h-full max-w-full object-contain' />
-            </div>
-          )}
-
-          {link.description && (
-            <div className='text-sm text-muted-foreground'>
-              <Markdown>{link.description}</Markdown>
+        <ScrollableContent maxHeightClass='max-h-[60vh]' className='space-y-6'>
+          {(link.image || link.description) && (
+            <div className={link.image ? 'grid grid-cols-1 sm:grid-cols-2 gap-4' : ''}>
+              {link.image && (
+                <a
+                  href={link.url}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='aspect-video w-full overflow-hidden rounded-md bg-muted flex items-center justify-center hover:opacity-90 transition-opacity'
+                >
+                  <img src={link.image} alt='' className='max-h-full max-w-full object-contain' />
+                </a>
+              )}
+              {link.description && (
+                <div className='space-y-2'>
+                  <h4 className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>
+                    Description
+                  </h4>
+                  <div className='text-sm'>
+                    <Markdown>{link.description}</Markdown>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -174,7 +187,9 @@ function LinkDetailModalContent({ linkId }: { linkId: string }) {
             </div>
           ) : null}
 
-          <div className='text-xs text-muted-foreground'>Saved on {formattedDate}</div>
+          <div className='text-xs text-muted-foreground pt-2 border-t'>
+            Saved on {formattedDate}
+          </div>
         </ScrollableContent>
 
         <DialogFooter
