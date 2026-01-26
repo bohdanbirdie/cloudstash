@@ -66,15 +66,45 @@ The first user needs manual database setup to bootstrap admin access:
 
 ```bash
 # Local
-wrangler d1 execute cloudstash-local --local --command \
+wrangler d1 execute cloudstash --local --command \
   "UPDATE user SET approved = 1, role = 'admin' WHERE email = 'your@email.com'"
 
 # Production
-wrangler d1 execute cloudstash --env production --remote --command \
+wrangler d1 execute cloudstash --remote --command \
   "UPDATE user SET approved = 1, role = 'admin' WHERE email = 'your@email.com'"
 ```
 
 After this, the admin can approve other users through the UI.
+
+## Google OAuth Setup
+
+### 1. Create OAuth credentials
+
+Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials):
+
+1. Create a new project (or select existing)
+2. Go to **APIs & Services → Credentials**
+3. Click **Create Credentials → OAuth client ID**
+4. Select **Web application**
+5. Add authorized redirect URIs:
+   - Local: `http://localhost:3000/api/auth/callback/google`
+   - Production: `https://cloudstash.dev/api/auth/callback/google`
+
+### 2. Configure environment
+
+Add to `.dev.vars` (local):
+
+```
+GOOGLE_CLIENT_ID=your_client_id
+GOOGLE_CLIENT_SECRET=your_client_secret
+```
+
+For production, set as Cloudflare secrets:
+
+```bash
+bunx wrangler secret put GOOGLE_CLIENT_ID
+bunx wrangler secret put GOOGLE_CLIENT_SECRET
+```
 
 ## Telegram Bot Setup
 
