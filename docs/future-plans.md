@@ -7,10 +7,9 @@ Ideas for future features and improvements. Detailed specs are in `/docs/specs/`
 ## Priority
 
 1. **Dynamic categories** - High-value user feature
-2. **Opt-in AI summaries** - Cost optimization
-3. **Telemetry dashboard** - Monitoring and insights
-4. **LiveStore MCP integration** - AI/agent features
-5. **Raycast extension** - Quick link saving for macOS users (UI done, extension not built)
+2. **Telemetry dashboard** - Monitoring and insights
+3. **LiveStore MCP integration** - AI/agent features
+4. **Raycast extension** - Quick link saving for macOS users (UI done, extension not built)
 
 ---
 
@@ -28,16 +27,9 @@ User-defined categories with sensible defaults.
 - Filter links by category in UI
 - Drag-and-drop reordering
 
-### Opt-in AI Summaries
+### ~~Opt-in AI Summaries~~ ✓
 
-AI summary generation disabled by default. Users can enable it in settings.
-
-**Spec:** [opt-in-ai-summaries.md](specs/opt-in-ai-summaries.md)
-
-- Add `aiSummaryEnabled` setting per org
-- Skip summary generation in LinkProcessorDO if disabled
-- Settings UI toggle
-- Reduces Workers AI costs for users who don't need it
+**Done.** See [features/ai-summaries.md](features/ai-summaries.md)
 
 ### Telemetry Dashboard
 
