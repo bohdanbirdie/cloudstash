@@ -1,4 +1,4 @@
-import { UsersIcon, TicketIcon } from "lucide-react";
+import { UsersIcon, TicketIcon, BuildingIcon } from "lucide-react";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -10,11 +10,14 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/lib/auth";
 
 import { InvitesTab } from "./invites-tab";
 import { useInvitesAdmin } from "./use-invites-admin";
 import { useUsersAdmin } from "./use-users-admin";
+import { useWorkspacesAdmin } from "./use-workspaces-admin";
 import { UsersTab } from "./users-tab";
+import { WorkspacesTab } from "./workspaces-tab";
 
 interface AdminModalProps {
   open: boolean;
@@ -23,9 +26,11 @@ interface AdminModalProps {
 
 export function AdminModal({ open, onOpenChange }: AdminModalProps) {
   const [activeTab, setActiveTab] = useState<string | null>("users");
+  const { orgId } = useAuth();
 
   const users = useUsersAdmin(open);
   const invites = useInvitesAdmin(open);
+  const workspaces = useWorkspacesAdmin(open);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -61,6 +66,10 @@ export function AdminModal({ open, onOpenChange }: AdminModalProps) {
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="workspaces">
+              <BuildingIcon className="h-3.5 w-3.5" />
+              Workspaces
+            </TabsTrigger>
           </TabsList>
 
           <UsersTab
@@ -83,6 +92,16 @@ export function AdminModal({ open, onOpenChange }: AdminModalProps) {
             onCreate={invites.handleCreate}
             onDelete={invites.handleDelete}
             onCopyCode={invites.handleCopyCode}
+          />
+
+          <WorkspacesTab
+            workspaces={workspaces.workspaces}
+            isLoading={workspaces.isLoading}
+            error={workspaces.error}
+            isMutating={workspaces.isMutating}
+            aiEnabledCount={workspaces.aiEnabledCount}
+            currentOrgId={orgId}
+            onToggleAiSummary={workspaces.toggleAiSummary}
           />
         </Tabs>
       </DialogContent>

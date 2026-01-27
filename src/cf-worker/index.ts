@@ -4,6 +4,11 @@ import { type CfTypes } from "@livestore/sync-cf/cf-worker";
 import { Effect } from "effect";
 import { Hono } from "hono";
 
+import {
+  handleGetOrgSettings,
+  handleListWorkspaces,
+  handleUpdateOrgSettings,
+} from "./admin";
 import { createAuth } from "./auth";
 import { checkSyncAuth, SyncAuthError } from "./auth/sync-auth";
 import { createDb } from "./db";
@@ -15,20 +20,31 @@ import {
   handleRedeemInvite,
 } from "./invites";
 import { metadataRequestToResponse } from "./metadata/service";
+import { requireAdmin } from "./middleware/require-admin";
 import { handleGetMe, handleGetOrg } from "./org";
-import { type Env } from "./shared";
+import { type Env, type HonoVariables } from "./shared";
 import { SyncBackend, handleSyncRequest } from "./sync";
 import { handleTelegramWebhook } from "./telegram";
 
 export { SyncBackendDO } from "./sync";
 export { LinkProcessorDO } from "./link-processor";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: HonoVariables }>();
 
 app.get("/api/auth/me", (c) => handleGetMe(c.req.raw, c.env));
 
 app.get("/api/org/:id", (c) =>
   handleGetOrg(c.req.raw, c.req.param("id"), c.env)
+);
+
+app.get("/api/org/:id/settings", requireAdmin, (c) =>
+  handleGetOrgSettings(c.req.raw, c.req.param("id"), c.env)
+);
+app.put("/api/org/:id/settings", requireAdmin, (c) =>
+  handleUpdateOrgSettings(c.req.raw, c.req.param("id"), c.env)
+);
+app.get("/api/admin/workspaces", requireAdmin, (c) =>
+  handleListWorkspaces(c.req.raw, c.env)
 );
 
 app.on(["GET", "POST"], "/api/auth/*", (c) => {

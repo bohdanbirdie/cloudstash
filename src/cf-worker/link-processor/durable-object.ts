@@ -12,9 +12,12 @@ import {
 import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
 /// <reference types="@cloudflare/workers-types" />
 import { DurableObject } from "cloudflare:workers";
+import { eq } from "drizzle-orm";
 import { Effect } from "effect";
 
 import { events, schema, tables } from "../../livestore/schema";
+import { createDb } from "../db";
+import { organization, type OrgFeatures } from "../db/schema";
 import { logSync } from "../logger";
 import { type Env } from "../shared";
 import { InvalidUrlError } from "./errors";
@@ -77,6 +80,20 @@ export class LinkProcessorDO
     });
 
     return this.cachedStore;
+  }
+
+  private async getFeatures(): Promise<OrgFeatures> {
+    if (!this.storeId) return {};
+
+    const db = createDb(this.env.DB);
+    const org = await db.query.organization.findFirst({
+      where: eq(organization.id, this.storeId),
+      columns: { features: true },
+    });
+
+    const features = org?.features ?? {};
+    logger.info("Fetched features", { storeId: this.storeId, features });
+    return features;
   }
 
   private async ensureSubscribed(): Promise<void> {
@@ -143,8 +160,10 @@ export class LinkProcessorDO
     logger.info("Processing", { isRetry, linkId: link.id, url: link.url });
 
     try {
+      const features = await this.getFeatures();
       await runEffect(
         processLink({
+          aiSummaryEnabled: features.aiSummary ?? false,
           env: this.env,
           isRetry,
           link: { id: link.id, url: link.url },

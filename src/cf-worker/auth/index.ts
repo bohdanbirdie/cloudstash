@@ -68,6 +68,18 @@ export const createAuth = (env: Env, db: Database) => {
       organization({
         allowUserToCreateOrganization: true,
         creatorRole: "owner",
+        schema: {
+          organization: {
+            additionalFields: {
+              features: {
+                type: "string",
+                // Drizzle schema handles default via mode:'json' with default({})
+                // input: false means Better Auth won't validate/transform this field
+                input: false,
+              },
+            },
+          },
+        },
       }),
       apiKey({
         defaultPrefix: "lb",

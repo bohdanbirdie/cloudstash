@@ -1,6 +1,22 @@
+import { type Auth } from "./auth";
 /// <reference types="@cloudflare/workers-types" />
 import { type SyncBackendDO } from "./index";
 import { type LinkProcessorDO } from "./link-processor";
+
+type BetterAuthSession = NonNullable<
+  Awaited<ReturnType<Auth["api"]["getSession"]>>
+>;
+
+export type AdminSession = BetterAuthSession & {
+  user: BetterAuthSession["user"] & {
+    role?: string | null;
+    approved?: boolean;
+  };
+};
+
+export interface HonoVariables {
+  session: AdminSession;
+}
 
 export interface Env {
   SYNC_BACKEND_DO: DurableObjectNamespace<SyncBackendDO>;

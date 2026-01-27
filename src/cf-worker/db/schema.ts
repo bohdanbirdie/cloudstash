@@ -1,6 +1,10 @@
 import { relations, sql } from "drizzle-orm";
 import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
 
+export type OrgFeatures = {
+  aiSummary?: boolean;
+};
+
 export const user = sqliteTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -34,6 +38,7 @@ export const organization = sqliteTable("organization", {
   metadata: text("metadata"),
   name: text("name").notNull(),
   slug: text("slug").unique(),
+  features: text("features", { mode: "json" }).$type<OrgFeatures>().default({}),
 });
 
 export const session = sqliteTable(

@@ -9,20 +9,22 @@ import { generateSummary } from "./generate-summary";
 import { AI_MODEL, type LinkStore } from "./types";
 
 interface ProcessLinkParams {
-  link: { id: string; url: string };
-  store: LinkStore;
+  aiSummaryEnabled?: boolean;
   env: Env;
   isRetry?: boolean; // true if retrying a stuck link
+  link: { id: string; url: string };
+  store: LinkStore;
 }
 
 /**
  * Process a single link: fetch metadata, extract content, generate AI summary
  */
 export const processLink = ({
-  link,
-  store,
+  aiSummaryEnabled = false,
   env,
   isRetry = false,
+  link,
+  store,
 }: ProcessLinkParams) =>
   Effect.gen(function* processLink() {
     const now = new Date();
@@ -72,61 +74,62 @@ export const processLink = ({
       yield* Effect.logWarning("No metadata result");
     }
 
-    // Extract page content for AI summary
-    yield* Effect.logDebug("Extracting content");
-    const extractedContent = yield* Effect.tryPromise({
-      catch: (error) => new Error(`Content extraction failed: ${error}`),
-      try: () => fetchAndExtractContent(link.url),
-    }).pipe(
-      Effect.catchAll((error) =>
-        Effect.logWarning("Content extraction failed").pipe(
-          Effect.annotateLogs({ error: String(error) }),
-          Effect.as(null)
+    if (aiSummaryEnabled) {
+      yield* Effect.logDebug("Extracting content");
+      const extractedContent = yield* Effect.tryPromise({
+        catch: (error) => new Error(`Content extraction failed: ${error}`),
+        try: () => fetchAndExtractContent(link.url),
+      }).pipe(
+        Effect.catchAll((error) =>
+          Effect.logWarning("Content extraction failed").pipe(
+            Effect.annotateLogs({ error: String(error) }),
+            Effect.as(null)
+          )
         )
-      )
-    );
-
-    if (extractedContent) {
-      yield* Effect.logInfo("Content extracted").pipe(
-        Effect.annotateLogs({
-          contentLength: extractedContent.content.length,
-          hasTitle: !!extractedContent.title,
-        })
       );
+
+      if (extractedContent) {
+        yield* Effect.logInfo("Content extracted").pipe(
+          Effect.annotateLogs({
+            contentLength: extractedContent.content.length,
+            hasTitle: !!extractedContent.title,
+          })
+        );
+      } else {
+        yield* Effect.logWarning("No content extracted");
+      }
+
+      yield* Effect.logDebug("Generating AI summary");
+      const summaryContent = yield* generateSummary({
+        env,
+        extractedContent,
+        metadata: metadataResult,
+        url: link.url,
+      });
+
+      if (summaryContent) {
+        store.commit(
+          events.linkSummarized({
+            id: nanoid(),
+            linkId: link.id,
+            model: AI_MODEL,
+            summarizedAt: new Date(),
+            summary: summaryContent,
+          })
+        );
+        yield* Effect.logInfo("Summary generated and committed").pipe(
+          Effect.annotateLogs({
+            summaryLength: summaryContent.length,
+            summaryPreview: summaryContent.slice(0, 100),
+          })
+        );
+      } else {
+        yield* Effect.logWarning("No summary generated");
+      }
     } else {
-      yield* Effect.logWarning("No content extracted");
+      yield* Effect.logInfo("AI summaries disabled for this org, skipping");
     }
 
-    // Generate AI summary
-    yield* Effect.logDebug("Generating AI summary");
-    const summaryContent = yield* generateSummary({
-      env,
-      extractedContent,
-      metadata: metadataResult,
-      url: link.url,
-    });
-
-    if (summaryContent) {
-      store.commit(
-        events.linkSummarized({
-          id: nanoid(),
-          linkId: link.id,
-          model: AI_MODEL,
-          summarizedAt: new Date(),
-          summary: summaryContent,
-        })
-      );
-      yield* Effect.logInfo("Summary generated and committed").pipe(
-        Effect.annotateLogs({
-          summaryLength: summaryContent.length,
-          summaryPreview: summaryContent.slice(0, 100),
-        })
-      );
-    } else {
-      yield* Effect.logWarning("No summary generated");
-    }
-
-    // Mark as completed
     store.commit(
       events.linkProcessingCompleted({ linkId: link.id, updatedAt: new Date() })
     );
