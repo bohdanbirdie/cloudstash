@@ -67,19 +67,19 @@ This field is:
 
 ```typescript
 // src/cf-worker/auth/index.ts
-import { betterAuth } from 'better-auth'
-import { admin, apiKey, organization } from 'better-auth/plugins'
+import { betterAuth } from "better-auth";
+import { admin, apiKey, organization } from "better-auth/plugins";
 
 export const createAuth = (env: Env, db: Database) => {
   const auth = betterAuth({
     database: drizzleAdapter(db, {
-      provider: 'sqlite',
+      provider: "sqlite",
       schema,
     }),
     user: {
       additionalFields: {
         approved: {
-          type: 'boolean',
+          type: "boolean",
           required: false,
           defaultValue: false,
           input: false,
@@ -89,10 +89,10 @@ export const createAuth = (env: Env, db: Database) => {
     plugins: [
       organization({
         allowUserToCreateOrganization: true,
-        creatorRole: 'owner',
+        creatorRole: "owner",
       }),
       apiKey({
-        defaultPrefix: 'lb',
+        defaultPrefix: "lb",
         enableMetadata: true,
         rateLimit: {
           enabled: true,
@@ -101,7 +101,7 @@ export const createAuth = (env: Env, db: Database) => {
         },
       }),
       admin({
-        defaultRole: 'user',
+        defaultRole: "user",
       }),
     ],
     databaseHooks: {
@@ -117,14 +117,17 @@ export const createAuth = (env: Env, db: Database) => {
                   slug: `user-${user.id}`,
                   userId: user.id,
                 },
-              })
-              logger.info('Created organization', { orgId: result?.id, userId: user.id })
+              });
+              logger.info("Created organization", {
+                orgId: result?.id,
+                userId: user.id,
+              });
             } catch (error) {
-              logger.error('Failed to create organization', {
+              logger.error("Failed to create organization", {
                 userId: user.id,
                 error: String(error),
-              })
-              throw error
+              });
+              throw error;
             }
           },
         },
@@ -134,22 +137,22 @@ export const createAuth = (env: Env, db: Database) => {
           before: async (session) => {
             const membership = await db.query.member.findFirst({
               where: eq(schema.member.userId, session.userId),
-            })
+            });
             return {
               data: {
                 ...session,
                 activeOrganizationId: membership?.organizationId ?? null,
               },
-            }
+            };
           },
         },
       },
     },
     // ... rest of config
-  })
+  });
 
-  return auth
-}
+  return auth;
+};
 ```
 
 ### 2. Update Drizzle Schema
@@ -158,27 +161,29 @@ Add the `approved` field to the user table:
 
 ```typescript
 // src/cf-worker/db/schema.ts
-export const user = sqliteTable('user', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  email: text('email').notNull().unique(),
-  emailVerified: integer('email_verified', { mode: 'boolean' }).default(false).notNull(),
-  image: text('image'),
+export const user = sqliteTable("user", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: integer("email_verified", { mode: "boolean" })
+    .default(false)
+    .notNull(),
+  image: text("image"),
   // Admin plugin fields
-  role: text('role').default('user'),
-  banned: integer('banned', { mode: 'boolean' }).default(false),
-  banReason: text('ban_reason'),
-  banExpires: integer('ban_expires', { mode: 'timestamp_ms' }),
+  role: text("role").default("user"),
+  banned: integer("banned", { mode: "boolean" }).default(false),
+  banReason: text("ban_reason"),
+  banExpires: integer("ban_expires", { mode: "timestamp_ms" }),
   // Approval field (via additionalFields)
-  approved: integer('approved', { mode: 'boolean' }).default(false),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' })
+  approved: integer("approved", { mode: "boolean" }).default(false),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
     .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
     .notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
     .$onUpdate(() => new Date())
     .notNull(),
-})
+});
 ```
 
 ### 3. Update Auth State and Provider
@@ -243,25 +248,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 ```tsx
 // src/main.tsx
-import { PendingApproval } from './components/pending-approval'
+import { PendingApproval } from "./components/pending-approval";
 
 function InnerApp() {
-  const auth = useAuth()
+  const auth = useAuth();
 
   if (auth.isLoading) {
     return (
-      <div className='flex h-screen w-screen items-center justify-center'>
-        <Spinner className='size-8' />
+      <div className="flex h-screen w-screen items-center justify-center">
+        <Spinner className="size-8" />
       </div>
-    )
+    );
   }
 
   // Show pending approval screen for unapproved users
   if (auth.userId && !auth.approved) {
-    return <PendingApproval />
+    return <PendingApproval />;
   }
 
-  return <RouterProvider router={router} context={{ auth }} />
+  return <RouterProvider router={router} context={{ auth }} />;
 }
 ```
 
@@ -269,37 +274,39 @@ function InnerApp() {
 
 ```tsx
 // src/components/pending-approval.tsx
-import { ClockIcon } from 'lucide-react'
+import { ClockIcon } from "lucide-react";
 
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { useAuth } from '@/lib/auth'
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { useAuth } from "@/lib/auth";
 
 export function PendingApproval() {
-  const { logout } = useAuth()
+  const { logout } = useAuth();
 
   const handleSignOut = async () => {
-    await logout()
-    window.location.reload()
-  }
+    await logout();
+    window.location.reload();
+  };
 
   return (
-    <div className='flex min-h-screen items-center justify-center p-4 bg-muted/30'>
-      <Card className='max-w-md'>
-        <CardContent className='pt-6 text-center'>
-          <ClockIcon className='mx-auto h-12 w-12 text-yellow-500 mb-4' />
-          <h1 className='text-xl font-semibold mb-2'>Account Pending Approval</h1>
-          <p className='text-muted-foreground mb-6'>
-            Your account is waiting for admin approval. You'll be able to access the app once
-            approved.
+    <div className="flex min-h-screen items-center justify-center p-4 bg-muted/30">
+      <Card className="max-w-md">
+        <CardContent className="pt-6 text-center">
+          <ClockIcon className="mx-auto h-12 w-12 text-yellow-500 mb-4" />
+          <h1 className="text-xl font-semibold mb-2">
+            Account Pending Approval
+          </h1>
+          <p className="text-muted-foreground mb-6">
+            Your account is waiting for admin approval. You'll be able to access
+            the app once approved.
           </p>
-          <Button variant='outline' onClick={handleSignOut}>
+          <Button variant="outline" onClick={handleSignOut}>
             Sign Out
           </Button>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
 ```
 
@@ -307,8 +314,15 @@ export function PendingApproval() {
 
 ```tsx
 // src/components/admin-modal.tsx
-import { useState, useEffect } from 'react'
-import { CheckIcon, XIcon, BanIcon, ShieldIcon, UsersIcon, ClockIcon } from 'lucide-react'
+import { useState, useEffect } from "react";
+import {
+  CheckIcon,
+  XIcon,
+  BanIcon,
+  ShieldIcon,
+  UsersIcon,
+  ClockIcon,
+} from "lucide-react";
 
 import {
   Dialog,
@@ -316,295 +330,307 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { authClient } from '@/lib/auth'
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { authClient } from "@/lib/auth";
 
 interface User {
-  id: string
-  name: string
-  email: string
-  role: string | null
-  approved: boolean
-  banned: boolean
-  createdAt: Date
+  id: string;
+  name: string;
+  email: string;
+  role: string | null;
+  approved: boolean;
+  banned: boolean;
+  createdAt: Date;
 }
 
 interface AdminModalProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 export function AdminModal({ open, onOpenChange }: AdminModalProps) {
-  const [users, setUsers] = useState<User[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const fetchUsers = async () => {
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true);
+    setError(null);
     try {
       const { data, error } = await authClient.admin.listUsers({
         query: {
-          sortBy: 'createdAt',
-          sortDirection: 'desc',
+          sortBy: "createdAt",
+          sortDirection: "desc",
         },
-      })
+      });
       if (error) {
-        setError(error.message || 'Failed to fetch users')
-        return
+        setError(error.message || "Failed to fetch users");
+        return;
       }
-      setUsers((data?.users as User[]) ?? [])
+      setUsers((data?.users as User[]) ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch users')
+      setError(err instanceof Error ? err.message : "Failed to fetch users");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
     if (open) {
-      fetchUsers()
+      fetchUsers();
     }
-  }, [open])
+  }, [open]);
 
   const handleApprove = async (userId: string) => {
-    setActionLoading(userId)
+    setActionLoading(userId);
     try {
       // Use updateUser to set approved: true
       const { error } = await authClient.admin.updateUser({
         userId,
         data: { approved: true },
-      })
-      if (error) throw new Error(error.message)
-      await fetchUsers()
+      });
+      if (error) throw new Error(error.message);
+      await fetchUsers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to approve user')
+      setError(err instanceof Error ? err.message : "Failed to approve user");
     } finally {
-      setActionLoading(null)
+      setActionLoading(null);
     }
-  }
+  };
 
   const handleReject = async (userId: string) => {
-    setActionLoading(userId)
+    setActionLoading(userId);
     try {
-      const { error } = await authClient.admin.removeUser({ userId })
-      if (error) throw new Error(error.message)
-      await fetchUsers()
+      const { error } = await authClient.admin.removeUser({ userId });
+      if (error) throw new Error(error.message);
+      await fetchUsers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reject user')
+      setError(err instanceof Error ? err.message : "Failed to reject user");
     } finally {
-      setActionLoading(null)
+      setActionLoading(null);
     }
-  }
+  };
 
   const handleBan = async (userId: string) => {
-    setActionLoading(userId)
+    setActionLoading(userId);
     try {
       const { error } = await authClient.admin.banUser({
         userId,
-        banReason: 'Banned by admin',
-      })
-      if (error) throw new Error(error.message)
-      await fetchUsers()
+        banReason: "Banned by admin",
+      });
+      if (error) throw new Error(error.message);
+      await fetchUsers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to ban user')
+      setError(err instanceof Error ? err.message : "Failed to ban user");
     } finally {
-      setActionLoading(null)
+      setActionLoading(null);
     }
-  }
+  };
 
   const handleUnban = async (userId: string) => {
-    setActionLoading(userId)
+    setActionLoading(userId);
     try {
-      const { error } = await authClient.admin.unbanUser({ userId })
-      if (error) throw new Error(error.message)
-      await fetchUsers()
+      const { error } = await authClient.admin.unbanUser({ userId });
+      if (error) throw new Error(error.message);
+      await fetchUsers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to unban user')
+      setError(err instanceof Error ? err.message : "Failed to unban user");
     } finally {
-      setActionLoading(null)
+      setActionLoading(null);
     }
-  }
+  };
 
   const handleMakeAdmin = async (userId: string) => {
-    setActionLoading(userId)
+    setActionLoading(userId);
     try {
-      const { error } = await authClient.admin.setRole({ userId, role: 'admin' })
-      if (error) throw new Error(error.message)
-      await fetchUsers()
+      const { error } = await authClient.admin.setRole({
+        userId,
+        role: "admin",
+      });
+      if (error) throw new Error(error.message);
+      await fetchUsers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to set admin role')
+      setError(err instanceof Error ? err.message : "Failed to set admin role");
     } finally {
-      setActionLoading(null)
+      setActionLoading(null);
     }
-  }
+  };
 
-  const getUserStatus = (user: User): 'pending' | 'active' | 'banned' => {
-    if (user.banned) return 'banned'
-    if (!user.approved) return 'pending'
-    return 'active'
-  }
+  const getUserStatus = (user: User): "pending" | "active" | "banned" => {
+    if (user.banned) return "banned";
+    if (!user.approved) return "pending";
+    return "active";
+  };
 
   // Stats
-  const pendingCount = users.filter((u) => !u.approved && !u.banned).length
-  const activeCount = users.filter((u) => u.approved && !u.banned).length
-  const bannedCount = users.filter((u) => u.banned).length
+  const pendingCount = users.filter((u) => !u.approved && !u.banned).length;
+  const activeCount = users.filter((u) => u.approved && !u.banned).length;
+  const bannedCount = users.filter((u) => u.banned).length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-lg max-h-[80vh] flex flex-col'>
+      <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Admin</DialogTitle>
           <DialogDescription>Manage users and approvals</DialogDescription>
         </DialogHeader>
 
         {/* Stats */}
-        <div className='flex gap-4 text-xs'>
-          <div className='flex items-center gap-1.5'>
-            <UsersIcon className='h-4 w-4 text-muted-foreground' />
-            <span className='font-medium'>{users.length}</span>
-            <span className='text-muted-foreground'>total</span>
+        <div className="flex gap-4 text-xs">
+          <div className="flex items-center gap-1.5">
+            <UsersIcon className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">{users.length}</span>
+            <span className="text-muted-foreground">total</span>
           </div>
           {pendingCount > 0 && (
-            <div className='flex items-center gap-1.5'>
-              <ClockIcon className='h-4 w-4 text-yellow-500' />
-              <span className='font-medium'>{pendingCount}</span>
-              <span className='text-muted-foreground'>pending</span>
+            <div className="flex items-center gap-1.5">
+              <ClockIcon className="h-4 w-4 text-yellow-500" />
+              <span className="font-medium">{pendingCount}</span>
+              <span className="text-muted-foreground">pending</span>
             </div>
           )}
-          <div className='flex items-center gap-1.5'>
-            <CheckIcon className='h-4 w-4 text-green-500' />
-            <span className='font-medium'>{activeCount}</span>
-            <span className='text-muted-foreground'>active</span>
+          <div className="flex items-center gap-1.5">
+            <CheckIcon className="h-4 w-4 text-green-500" />
+            <span className="font-medium">{activeCount}</span>
+            <span className="text-muted-foreground">active</span>
           </div>
           {bannedCount > 0 && (
-            <div className='flex items-center gap-1.5'>
-              <BanIcon className='h-4 w-4 text-red-500' />
-              <span className='font-medium'>{bannedCount}</span>
-              <span className='text-muted-foreground'>banned</span>
+            <div className="flex items-center gap-1.5">
+              <BanIcon className="h-4 w-4 text-red-500" />
+              <span className="font-medium">{bannedCount}</span>
+              <span className="text-muted-foreground">banned</span>
             </div>
           )}
         </div>
 
         {error && (
-          <Alert variant='destructive'>
+          <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
         {/* User list */}
-        <div className='flex-1 overflow-y-auto space-y-2 min-h-0'>
+        <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
           {isLoading ? (
             <>
-              <Skeleton className='h-16 w-full' />
-              <Skeleton className='h-16 w-full' />
-              <Skeleton className='h-16 w-full' />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
             </>
           ) : users.length === 0 ? (
-            <div className='text-center py-8 text-muted-foreground'>
-              <UsersIcon className='h-8 w-8 mx-auto mb-2 opacity-50' />
-              <p className='text-xs'>No users yet</p>
+            <div className="text-center py-8 text-muted-foreground">
+              <UsersIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-xs">No users yet</p>
             </div>
           ) : (
             users.map((user) => {
-              const status = getUserStatus(user)
-              const isActionLoading = actionLoading === user.id
+              const status = getUserStatus(user);
+              const isActionLoading = actionLoading === user.id;
               return (
                 <div
                   key={user.id}
-                  className='flex items-center justify-between p-3 bg-muted/50 gap-3'
+                  className="flex items-center justify-between p-3 bg-muted/50 gap-3"
                 >
-                  <div className='min-w-0 flex-1'>
-                    <div className='flex items-center gap-2'>
-                      <span className='font-medium text-xs truncate'>{user.name}</span>
-                      {user.role === 'admin' && <Badge variant='secondary'>Admin</Badge>}
-                      {status === 'pending' && (
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-xs truncate">
+                        {user.name}
+                      </span>
+                      {user.role === "admin" && (
+                        <Badge variant="secondary">Admin</Badge>
+                      )}
+                      {status === "pending" && (
                         <Badge
-                          variant='outline'
-                          className='bg-yellow-50 text-yellow-700 border-yellow-200'
+                          variant="outline"
+                          className="bg-yellow-50 text-yellow-700 border-yellow-200"
                         >
                           Pending
                         </Badge>
                       )}
-                      {status === 'banned' && (
-                        <Badge variant='outline' className='bg-red-50 text-red-700 border-red-200'>
+                      {status === "banned" && (
+                        <Badge
+                          variant="outline"
+                          className="bg-red-50 text-red-700 border-red-200"
+                        >
                           Banned
                         </Badge>
                       )}
                     </div>
-                    <p className='text-xs text-muted-foreground truncate'>{user.email}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {user.email}
+                    </p>
                   </div>
 
-                  <div className='flex gap-1 shrink-0'>
-                    {status === 'pending' && (
+                  <div className="flex gap-1 shrink-0">
+                    {status === "pending" && (
                       <>
                         <Button
-                          size='icon-sm'
-                          variant='outline'
+                          size="icon-sm"
+                          variant="outline"
                           onClick={() => handleApprove(user.id)}
                           disabled={isActionLoading}
-                          title='Approve'
+                          title="Approve"
                         >
-                          <CheckIcon className='h-3.5 w-3.5 text-green-600' />
+                          <CheckIcon className="h-3.5 w-3.5 text-green-600" />
                         </Button>
                         <Button
-                          size='icon-sm'
-                          variant='outline'
+                          size="icon-sm"
+                          variant="outline"
                           onClick={() => handleReject(user.id)}
                           disabled={isActionLoading}
-                          title='Reject'
+                          title="Reject"
                         >
-                          <XIcon className='h-3.5 w-3.5 text-red-600' />
+                          <XIcon className="h-3.5 w-3.5 text-red-600" />
                         </Button>
                       </>
                     )}
-                    {status === 'active' && user.role !== 'admin' && (
+                    {status === "active" && user.role !== "admin" && (
                       <>
                         <Button
-                          size='icon-sm'
-                          variant='outline'
+                          size="icon-sm"
+                          variant="outline"
                           onClick={() => handleMakeAdmin(user.id)}
                           disabled={isActionLoading}
-                          title='Make Admin'
+                          title="Make Admin"
                         >
-                          <ShieldIcon className='h-3.5 w-3.5' />
+                          <ShieldIcon className="h-3.5 w-3.5" />
                         </Button>
                         <Button
-                          size='icon-sm'
-                          variant='outline'
+                          size="icon-sm"
+                          variant="outline"
                           onClick={() => handleBan(user.id)}
                           disabled={isActionLoading}
-                          title='Ban'
+                          title="Ban"
                         >
-                          <BanIcon className='h-3.5 w-3.5 text-red-600' />
+                          <BanIcon className="h-3.5 w-3.5 text-red-600" />
                         </Button>
                       </>
                     )}
-                    {status === 'banned' && (
+                    {status === "banned" && (
                       <Button
-                        size='icon-sm'
-                        variant='outline'
+                        size="icon-sm"
+                        variant="outline"
                         onClick={() => handleUnban(user.id)}
                         disabled={isActionLoading}
-                        title='Unban'
+                        title="Unban"
                       >
-                        <CheckIcon className='h-3.5 w-3.5' />
+                        <CheckIcon className="h-3.5 w-3.5" />
                       </Button>
                     )}
                   </div>
                 </div>
-              )
+              );
             })
           )}
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 ```
 

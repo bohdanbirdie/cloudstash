@@ -57,34 +57,36 @@ Add new `invite` table:
 
 ```typescript
 // src/cf-worker/db/schema.ts
-export const invite = sqliteTable('invite', {
-  id: text('id')
+export const invite = sqliteTable("invite", {
+  id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
-  code: text('code').notNull().unique(),
-  createdByUserId: text('created_by_user_id')
+  code: text("code").notNull().unique(),
+  createdByUserId: text("created_by_user_id")
     .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  usedByUserId: text('used_by_user_id').references(() => user.id, { onDelete: 'set null' }),
-  usedAt: integer('used_at', { mode: 'timestamp_ms' }),
-  expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' })
+    .references(() => user.id, { onDelete: "cascade" }),
+  usedByUserId: text("used_by_user_id").references(() => user.id, {
+    onDelete: "set null",
+  }),
+  usedAt: integer("used_at", { mode: "timestamp_ms" }),
+  expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
     .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
     .notNull(),
-})
+});
 
 export const inviteRelations = relations(invite, ({ one }) => ({
   createdBy: one(user, {
     fields: [invite.createdByUserId],
     references: [user.id],
-    relationName: 'createdInvites',
+    relationName: "createdInvites",
   }),
   usedBy: one(user, {
     fields: [invite.usedByUserId],
     references: [user.id],
-    relationName: 'usedInvite',
+    relationName: "usedInvite",
   }),
-}))
+}));
 ```
 
 ### Invite Code Format
@@ -102,25 +104,30 @@ export const inviteRelations = relations(invite, ({ one }) => ({
 // Body: { expiresInDays?: number }
 // Response: { code: string, expiresAt: Date | null }
 
-async function createInvite(req: Request, env: Env, db: Database, session: Session) {
+async function createInvite(
+  req: Request,
+  env: Env,
+  db: Database,
+  session: Session
+) {
   // Check admin role
-  if (session.user.role !== 'admin') {
-    return new Response('Forbidden', { status: 403 })
+  if (session.user.role !== "admin") {
+    return new Response("Forbidden", { status: 403 });
   }
 
-  const { expiresInDays } = await req.json()
-  const code = generateInviteCode()
+  const { expiresInDays } = await req.json();
+  const code = generateInviteCode();
   const expiresAt = expiresInDays
     ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
-    : null
+    : null;
 
   await db.insert(invite).values({
     code,
     createdByUserId: session.user.id,
     expiresAt,
-  })
+  });
 
-  return Response.json({ code, expiresAt })
+  return Response.json({ code, expiresAt });
 }
 ```
 
@@ -131,12 +138,17 @@ async function createInvite(req: Request, env: Env, db: Database, session: Sessi
 // Body: { code: string }
 // Response: { success: boolean }
 
-async function redeemInvite(req: Request, env: Env, db: Database, session: Session) {
-  const { code } = await req.json()
+async function redeemInvite(
+  req: Request,
+  env: Env,
+  db: Database,
+  session: Session
+) {
+  const { code } = await req.json();
 
   // Already approved
   if (session.user.approved) {
-    return Response.json({ success: true })
+    return Response.json({ success: true });
   }
 
   // Find valid invite
@@ -144,12 +156,15 @@ async function redeemInvite(req: Request, env: Env, db: Database, session: Sessi
     where: and(
       eq(invite.code, code.toUpperCase()),
       isNull(invite.usedByUserId),
-      or(isNull(invite.expiresAt), gt(invite.expiresAt, new Date())),
+      or(isNull(invite.expiresAt), gt(invite.expiresAt, new Date()))
     ),
-  })
+  });
 
   if (!inviteRecord) {
-    return Response.json({ error: 'Invalid or expired invite code' }, { status: 400 })
+    return Response.json(
+      { error: "Invalid or expired invite code" },
+      { status: 400 }
+    );
   }
 
   // Mark invite as used and approve user
@@ -159,9 +174,9 @@ async function redeemInvite(req: Request, env: Env, db: Database, session: Sessi
       .set({ usedByUserId: session.user.id, usedAt: new Date() })
       .where(eq(invite.id, inviteRecord.id)),
     db.update(user).set({ approved: true }).where(eq(user.id, session.user.id)),
-  ])
+  ]);
 
-  return Response.json({ success: true })
+  return Response.json({ success: true });
 }
 ```
 
@@ -171,17 +186,22 @@ async function redeemInvite(req: Request, env: Env, db: Database, session: Sessi
 // GET /api/invites
 // Response: { invites: Invite[] }
 
-async function listInvites(req: Request, env: Env, db: Database, session: Session) {
-  if (session.user.role !== 'admin') {
-    return new Response('Forbidden', { status: 403 })
+async function listInvites(
+  req: Request,
+  env: Env,
+  db: Database,
+  session: Session
+) {
+  if (session.user.role !== "admin") {
+    return new Response("Forbidden", { status: 403 });
   }
 
   const invites = await db.query.invite.findMany({
     with: { createdBy: true, usedBy: true },
     orderBy: [desc(invite.createdAt)],
-  })
+  });
 
-  return Response.json({ invites })
+  return Response.json({ invites });
 }
 ```
 
@@ -201,70 +221,74 @@ Add invite code input to the pending approval screen:
 ```tsx
 // src/components/pending-approval.tsx
 export function PendingApproval() {
-  const { logout, refresh } = useAuth()
-  const [code, setCode] = useState('')
-  const [isRedeeming, setIsRedeeming] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { logout, refresh } = useAuth();
+  const [code, setCode] = useState("");
+  const [isRedeeming, setIsRedeeming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleRedeem = async () => {
-    setIsRedeeming(true)
-    setError(null)
+    setIsRedeeming(true);
+    setError(null);
     try {
-      const res = await fetch('/api/invites/redeem', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/invites/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code }),
-      })
-      const data = await res.json()
+      });
+      const data = await res.json();
       if (!res.ok) {
-        setError(data.error || 'Failed to redeem invite')
-        return
+        setError(data.error || "Failed to redeem invite");
+        return;
       }
       // Refresh auth state to pick up approval
-      await refresh()
+      await refresh();
     } catch (err) {
-      setError('Failed to redeem invite')
+      setError("Failed to redeem invite");
     } finally {
-      setIsRedeeming(false)
+      setIsRedeeming(false);
     }
-  }
+  };
 
   return (
-    <div className='flex min-h-screen items-center justify-center p-4 bg-muted/30'>
-      <Card className='max-w-md'>
-        <CardContent className='pt-6 text-center'>
-          <ClockIcon className='mx-auto h-12 w-12 text-yellow-500 mb-4' />
-          <h1 className='text-xl font-semibold mb-2'>Account Pending Approval</h1>
-          <p className='text-muted-foreground mb-6'>
-            Your account is waiting for admin approval. You'll be able to access the app once
-            approved.
+    <div className="flex min-h-screen items-center justify-center p-4 bg-muted/30">
+      <Card className="max-w-md">
+        <CardContent className="pt-6 text-center">
+          <ClockIcon className="mx-auto h-12 w-12 text-yellow-500 mb-4" />
+          <h1 className="text-xl font-semibold mb-2">
+            Account Pending Approval
+          </h1>
+          <p className="text-muted-foreground mb-6">
+            Your account is waiting for admin approval. You'll be able to access
+            the app once approved.
           </p>
 
           {/* Invite code section */}
-          <div className='border-t pt-4 mt-4'>
-            <p className='text-sm text-muted-foreground mb-3'>Have an invite code?</p>
-            <div className='flex gap-2'>
+          <div className="border-t pt-4 mt-4">
+            <p className="text-sm text-muted-foreground mb-3">
+              Have an invite code?
+            </p>
+            <div className="flex gap-2">
               <Input
-                placeholder='Enter code'
+                placeholder="Enter code"
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
                 maxLength={8}
-                className='font-mono text-center tracking-widest'
+                className="font-mono text-center tracking-widest"
               />
               <Button onClick={handleRedeem} disabled={!code || isRedeeming}>
-                {isRedeeming ? <Spinner className='size-4' /> : 'Redeem'}
+                {isRedeeming ? <Spinner className="size-4" /> : "Redeem"}
               </Button>
             </div>
-            {error && <p className='text-sm text-red-500 mt-2'>{error}</p>}
+            {error && <p className="text-sm text-red-500 mt-2">{error}</p>}
           </div>
 
-          <Button variant='outline' onClick={handleSignOut} className='mt-6'>
+          <Button variant="outline" onClick={handleSignOut} className="mt-6">
             Sign Out
           </Button>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
 ```
 
@@ -276,37 +300,37 @@ Add invite management tab/section to the admin modal:
 // In admin-modal.tsx, add Invites tab
 
 interface Invite {
-  id: string
-  code: string
-  createdBy: { name: string; email: string }
-  usedBy: { name: string; email: string } | null
-  usedAt: Date | null
-  expiresAt: Date | null
-  createdAt: Date
+  id: string;
+  code: string;
+  createdBy: { name: string; email: string };
+  usedBy: { name: string; email: string } | null;
+  usedAt: Date | null;
+  expiresAt: Date | null;
+  createdAt: Date;
 }
 
 // State
-const [invites, setInvites] = useState<Invite[]>([])
-const [showInvites, setShowInvites] = useState(false)
+const [invites, setInvites] = useState<Invite[]>([]);
+const [showInvites, setShowInvites] = useState(false);
 
 // Create invite
 const handleCreateInvite = async (expiresInDays?: number) => {
-  const res = await fetch('/api/invites', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const res = await fetch("/api/invites", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ expiresInDays }),
-  })
-  const data = await res.json()
+  });
+  const data = await res.json();
   // Show code to admin, refresh list
-  setNewInviteCode(data.code)
-  await fetchInvites()
-}
+  setNewInviteCode(data.code);
+  await fetchInvites();
+};
 
 // Delete invite
 const handleDeleteInvite = async (inviteId: string) => {
-  await fetch(`/api/invites/${inviteId}`, { method: 'DELETE' })
-  await fetchInvites()
-}
+  await fetch(`/api/invites/${inviteId}`, { method: "DELETE" });
+  await fetchInvites();
+};
 
 // UI: Tab to switch between Users and Invites
 // Invites list showing: code, created by, status (available/used/expired), actions

@@ -103,13 +103,13 @@ Simple `chatId → apiKey` mapping in Cloudflare KV.
 
 ```typescript
 // Store after /connect
-await env.TELEGRAM_KV.put(`telegram:${chatId}`, apiKey)
+await env.TELEGRAM_KV.put(`telegram:${chatId}`, apiKey);
 
 // Lookup on each link
-const apiKey = await env.TELEGRAM_KV.get(`telegram:${chatId}`)
+const apiKey = await env.TELEGRAM_KV.get(`telegram:${chatId}`);
 
 // Remove on /disconnect
-await env.TELEGRAM_KV.delete(`telegram:${chatId}`)
+await env.TELEGRAM_KV.delete(`telegram:${chatId}`);
 ```
 
 **Why KV?** Simple lookup, globally distributed, API key revocation works automatically.
@@ -222,17 +222,17 @@ const reply = (ctx, message) =>
   Effect.promise(() =>
     ctx.reply(message, {
       reply_parameters: { message_id: ctx.msg.message_id }, // Quote original
-    }),
+    })
   ).pipe(
     Effect.asVoid,
-    Effect.catchAll(() => Effect.void),
-  )
+    Effect.catchAll(() => Effect.void)
+  );
 
 // Final catchAll ensures we never return non-200
 Effect.catchAll((error) => {
-  logger.error('Unhandled error', { error })
-  return Effect.void // Returns 200 to Telegram
-})
+  logger.error("Unhandled error", { error });
+  return Effect.void; // Returns 200 to Telegram
+});
 ```
 
 ### Telegram Webhook Retry Behavior
@@ -269,16 +269,16 @@ curl "https://api.telegram.org/bot$TOKEN/setWebhook?url=https://your-worker.dev/
 
 ```typescript
 // 1. Get API key from KV
-const apiKey = await env.TELEGRAM_KV.get(`telegram:${chatId}`)
+const apiKey = await env.TELEGRAM_KV.get(`telegram:${chatId}`);
 
 // 2. Verify API key and get orgId
-const key = await verifyApiKey(auth, apiKey)
-const storeId = key.metadata.orgId
+const key = await verifyApiKey(auth, apiKey);
+const storeId = key.metadata.orgId;
 
 // 3. Call DO directly via binding
-const doId = env.LINK_PROCESSOR_DO.idFromName(storeId)
-const stub = env.LINK_PROCESSOR_DO.get(doId)
-await stub.fetch(`https://do/?storeId=${storeId}&ingest=${url}`)
+const doId = env.LINK_PROCESSOR_DO.idFromName(storeId);
+const stub = env.LINK_PROCESSOR_DO.get(doId);
+await stub.fetch(`https://do/?storeId=${storeId}&ingest=${url}`);
 ```
 
 ---

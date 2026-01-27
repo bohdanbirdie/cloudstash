@@ -243,59 +243,66 @@ raycast-extension/
 
 ```typescript
 // src/save-link.tsx
-import { showHUD, getPreferenceValues, openExtensionPreferences, LaunchProps } from '@raycast/api'
+import {
+  showHUD,
+  getPreferenceValues,
+  openExtensionPreferences,
+  LaunchProps,
+} from "@raycast/api";
 
 interface Preferences {
-  apiKey: string
-  serverUrl: string
+  apiKey: string;
+  serverUrl: string;
 }
 
 interface Arguments {
-  url: string
+  url: string;
 }
 
-export default async function SaveLink(props: LaunchProps<{ arguments: Arguments }>) {
-  const { url } = props.arguments
-  const { apiKey, serverUrl } = getPreferenceValues<Preferences>()
+export default async function SaveLink(
+  props: LaunchProps<{ arguments: Arguments }>
+) {
+  const { url } = props.arguments;
+  const { apiKey, serverUrl } = getPreferenceValues<Preferences>();
 
   // Validate URL
   try {
-    new URL(url)
+    new URL(url);
   } catch {
-    await showHUD('❌ Invalid URL')
-    return
+    await showHUD("❌ Invalid URL");
+    return;
   }
 
   // Save link
   try {
     const response = await fetch(`${serverUrl}/api/ingest`, {
-      method: 'POST',
+      method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ url }),
-    })
+    });
 
     if (!response.ok) {
-      const error = await response.json()
+      const error = await response.json();
       if (response.status === 401) {
-        await showHUD('❌ Invalid API key')
-        await openExtensionPreferences()
-        return
+        await showHUD("❌ Invalid API key");
+        await openExtensionPreferences();
+        return;
       }
-      throw new Error(error.message || 'Failed to save')
+      throw new Error(error.message || "Failed to save");
     }
 
-    const result = await response.json()
+    const result = await response.json();
 
-    if (result.status === 'duplicate') {
-      await showHUD('⚠️ Already saved')
+    if (result.status === "duplicate") {
+      await showHUD("⚠️ Already saved");
     } else {
-      await showHUD('✓ Link saved!')
+      await showHUD("✓ Link saved!");
     }
   } catch (error) {
-    await showHUD(`❌ ${error.message}`)
+    await showHUD(`❌ ${error.message}`);
   }
 }
 ```

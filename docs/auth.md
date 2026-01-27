@@ -61,12 +61,12 @@ Auth checked in `beforeLoad`, not during render:
 ```typescript
 // src/routes/__root.tsx
 beforeLoad: async ({ location }) => {
-  const auth = await fetchAuth()
-  if (!auth.isAuthenticated && location.pathname !== '/login') {
-    throw redirect({ to: '/login' })
+  const auth = await fetchAuth();
+  if (!auth.isAuthenticated && location.pathname !== "/login") {
+    throw redirect({ to: "/login" });
   }
-  return { auth }
-}
+  return { auth };
+};
 ```
 
 ### 3. LiveStore Sync Connection
@@ -166,30 +166,34 @@ For tabs left open indefinitely (up to 1 month), we use visibility-based refresh
 // src/lib/auth.tsx (AuthProvider)
 useEffect(() => {
   const handleVisibilityChange = () => {
-    if (document.visibilityState === 'visible') {
+    if (document.visibilityState === "visible") {
       // Refresh session when tab becomes visible
       authClient.getSession().then(({ data }) => {
         if (!data?.session) {
           // Session expired - redirect to login
-          window.location.href = '/login'
+          window.location.href = "/login";
         }
         // Also update auth state (approved status may have changed)
         if (data?.user) {
           setAuth({
             userId: data.user.id,
-            orgId: data.user.approved ? (data.session.activeOrganizationId ?? null) : null,
-            isAuthenticated: data.user.approved && !!data.session.activeOrganizationId,
-            role: data.user.role ?? 'user',
+            orgId: data.user.approved
+              ? (data.session.activeOrganizationId ?? null)
+              : null,
+            isAuthenticated:
+              data.user.approved && !!data.session.activeOrganizationId,
+            role: data.user.role ?? "user",
             approved: data.user.approved ?? false,
-          })
+          });
         }
-      })
+      });
     }
-  }
+  };
 
-  document.addEventListener('visibilitychange', handleVisibilityChange)
-  return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-}, [])
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  return () =>
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+}, []);
 ```
 
 **Note**: Unapproved users see `<PendingApproval />` screen and never reach LiveStore, so connection monitoring only applies to approved users.
@@ -200,7 +204,7 @@ LiveStore exposes `store.networkStatus` for detecting connection loss:
 
 ```typescript
 // Available on store object
-store.networkStatus // Subscribable<{ isConnected: boolean, timestampMs: number }>
+store.networkStatus; // Subscribable<{ isConnected: boolean, timestampMs: number }>
 ```
 
 When connection drops, fetch the actual error reason and show a banner:
@@ -214,24 +218,24 @@ const useConnectionMonitor = (store: any) => {
         if (!status.isConnected) {
           // Fetch actual error reason from server
           fetchSyncAuthError(store.storeId).then(async (error) => {
-            await store.shutdownPromise() // Stop retries
+            await store.shutdownPromise(); // Stop retries
 
             // Show error banner
             useSyncStatusStore.getState().setError(
               error ?? {
-                code: 'UNKNOWN',
-                message: 'Sync connection lost. Please reload to reconnect.',
-              },
-            )
-          })
+                code: "UNKNOWN",
+                message: "Sync connection lost. Please reload to reconnect.",
+              }
+            );
+          });
         }
       }),
       Stream.runDrain,
       Effect.scoped,
-      Effect.runPromise,
-    )
-  }, [store])
-}
+      Effect.runPromise
+    );
+  }, [store]);
+};
 ```
 
 **Note**: Uses `store.storeId` instead of hardcoded `auth.orgId` for future-proofing when we add non-org store types.
@@ -335,12 +339,12 @@ export function LogoutPage() {
 ```typescript
 // src/lib/auth.tsx
 type AuthState = {
-  userId: string | null
-  orgId: string | null
-  isAuthenticated: boolean // true only if approved AND has activeOrgId
-  role: string | null // 'user' | 'admin'
-  approved: boolean // requires admin approval
-}
+  userId: string | null;
+  orgId: string | null;
+  isAuthenticated: boolean; // true only if approved AND has activeOrgId
+  role: string | null; // 'user' | 'admin'
+  approved: boolean; // requires admin approval
+};
 ```
 
 - **Unapproved users** (`approved: false`): See `<PendingApproval />` screen, never reach LiveStore
@@ -396,17 +400,17 @@ Returns organization if user is a member.
 ```typescript
 // Response 200 (member)
 {
-  ;(id, name, slug, role)
+  (id, name, slug, role);
 }
 
 // Response 403 (not member)
 {
-  error: 'Access denied'
+  error: "Access denied";
 }
 
 // Response 404 (not found)
 {
-  error: 'Organization not found'
+  error: "Organization not found";
 }
 ```
 
@@ -464,8 +468,8 @@ The `vitest.e2e.config.ts`:
 // Load migrations in Node.js context
 const migrations = journal.entries.map((entry) => ({
   tag: entry.tag,
-  sql: fs.readFileSync(`drizzle/migrations/${entry.tag}.sql`, 'utf-8'),
-}))
+  sql: fs.readFileSync(`drizzle/migrations/${entry.tag}.sql`, "utf-8"),
+}));
 
 export default defineWorkersConfig({
   // ...
@@ -475,9 +479,9 @@ export default defineWorkersConfig({
     },
   },
   ssr: {
-    noExternal: ['effect', /@effect\//, /@livestore\//, /@opentelemetry\//],
+    noExternal: ["effect", /@effect\//, /@livestore\//, /@opentelemetry\//],
   },
-})
+});
 ```
 
 ### Test Files
@@ -517,21 +521,21 @@ src/cf-worker/__tests__/
 
 ```typescript
 // 1. Signup creates user + org via databaseHooks
-const res = await SELF.fetch('/api/auth/sign-up/email', {
-  method: 'POST',
+const res = await SELF.fetch("/api/auth/sign-up/email", {
+  method: "POST",
   body: JSON.stringify({ email, password, name }),
-})
-const cookie = res.headers.get('set-cookie')
+});
+const cookie = res.headers.get("set-cookie");
 
 // 2. Get user info via /me endpoint
-const me = await SELF.fetch('/api/auth/me', {
+const me = await SELF.fetch("/api/auth/me", {
   headers: { Cookie: cookie },
-})
+});
 
 // 3. Test org access
 const org = await SELF.fetch(`/api/org/${orgId}`, {
   headers: { Cookie: cookie },
-})
+});
 ```
 
 ## Local Development
@@ -717,7 +721,7 @@ When a sync connection fails (auth error, session expired, etc.), LiveStore retr
 
 ```typescript
 // ws-rpc-client.ts
-retryTransientErrors: Schedule.fixed(1000) // Retry forever
+retryTransientErrors: Schedule.fixed(1000); // Retry forever
 ```
 
 ### The Problem
@@ -741,19 +745,19 @@ store.networkStatus.changes.pipe(
   Stream.tap((status) => {
     if (!status.isConnected) {
       // Fetch actual error reason from server
-      const error = await fetchSyncAuthError(store.storeId)
-      await store.shutdownPromise() // Stops all retries
+      const error = await fetchSyncAuthError(store.storeId);
+      await store.shutdownPromise(); // Stops all retries
 
       // Show error banner (not redirect)
       useSyncStatusStore.getState().setError(
         error ?? {
-          code: 'UNKNOWN',
-          message: 'Sync connection lost',
-        },
-      )
+          code: "UNKNOWN",
+          message: "Sync connection lost",
+        }
+      );
     }
-  }),
-)
+  })
+);
 ```
 
 Error codes: `SESSION_EXPIRED`, `ACCESS_DENIED`, `UNAPPROVED`, `UNKNOWN`

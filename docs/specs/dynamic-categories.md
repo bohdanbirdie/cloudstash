@@ -25,21 +25,21 @@ Pre-populate new organizations with these categories:
 export const tables = {
   // ... existing tables
 
-  categories: defineTable('categories', {
-    id: { type: 'TEXT', primaryKey: true },
-    name: { type: 'TEXT' },
-    color: { type: 'TEXT' }, // hex or tailwind color name
-    icon: { type: 'TEXT' }, // lucide icon name
-    sortOrder: { type: 'INTEGER', default: 0 },
-    createdAt: { type: 'TEXT' },
-    deletedAt: { type: 'TEXT', nullable: true },
+  categories: defineTable("categories", {
+    id: { type: "TEXT", primaryKey: true },
+    name: { type: "TEXT" },
+    color: { type: "TEXT" }, // hex or tailwind color name
+    icon: { type: "TEXT" }, // lucide icon name
+    sortOrder: { type: "INTEGER", default: 0 },
+    createdAt: { type: "TEXT" },
+    deletedAt: { type: "TEXT", nullable: true },
   }),
 
-  links: defineTable('links', {
+  links: defineTable("links", {
     // ... existing fields
-    categoryId: { type: 'TEXT', nullable: true }, // FK to categories
+    categoryId: { type: "TEXT", nullable: true }, // FK to categories
   }),
-}
+};
 ```
 
 ### Events
@@ -50,7 +50,7 @@ export const events = {
   // ... existing events
 
   categoryCreated: Events.synced(
-    'categoryCreated',
+    "categoryCreated",
     Schema.Struct({
       id: Schema.String,
       name: Schema.String,
@@ -58,36 +58,36 @@ export const events = {
       icon: Schema.String,
       sortOrder: Schema.Number,
       createdAt: Schema.Date,
-    }),
+    })
   ),
 
   categoryUpdated: Events.synced(
-    'categoryUpdated',
+    "categoryUpdated",
     Schema.Struct({
       id: Schema.String,
       name: Schema.optional(Schema.String),
       color: Schema.optional(Schema.String),
       icon: Schema.optional(Schema.String),
       sortOrder: Schema.optional(Schema.Number),
-    }),
+    })
   ),
 
   categoryDeleted: Events.synced(
-    'categoryDeleted',
+    "categoryDeleted",
     Schema.Struct({
       id: Schema.String,
       deletedAt: Schema.Date,
-    }),
+    })
   ),
 
   linkCategorySet: Events.synced(
-    'linkCategorySet',
+    "linkCategorySet",
     Schema.Struct({
       linkId: Schema.String,
       categoryId: Schema.NullOr(Schema.String),
-    }),
+    })
   ),
-}
+};
 ```
 
 ### Materializers
@@ -130,7 +130,7 @@ export const materializers = defineMaterializers(events, ({ tables }) => ({
       where: { id: event.linkId },
       set: { categoryId: event.categoryId },
     }),
-}))
+}));
 ```
 
 ## Queries
@@ -157,7 +157,7 @@ export const queries = {
       WHERE l.deletedAt IS NULL
       ORDER BY l.createdAt DESC
     `,
-}
+};
 ```
 
 ## UI Components
@@ -166,24 +166,27 @@ export const queries = {
 
 ```tsx
 // src/web/components/CategoryBadge.tsx
-import { Badge } from '@/components/ui/badge'
-import * as Icons from 'lucide-react'
+import { Badge } from "@/components/ui/badge";
+import * as Icons from "lucide-react";
 
 interface CategoryBadgeProps {
-  name: string
-  color: string
-  icon: string
+  name: string;
+  color: string;
+  icon: string;
 }
 
 export function CategoryBadge({ name, color, icon }: CategoryBadgeProps) {
-  const Icon = Icons[icon as keyof typeof Icons] || Icons.Tag
+  const Icon = Icons[icon as keyof typeof Icons] || Icons.Tag;
 
   return (
-    <Badge variant='outline' className={`bg-${color}-100 text-${color}-700 border-${color}-200`}>
-      <Icon className='w-3 h-3 mr-1' />
+    <Badge
+      variant="outline"
+      className={`bg-${color}-100 text-${color}-700 border-${color}-200`}
+    >
+      <Icon className="w-3 h-3 mr-1" />
       {name}
     </Badge>
-  )
+  );
 }
 ```
 
@@ -197,24 +200,27 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from "@/components/ui/select";
 
 interface CategorySelectorProps {
-  value: string | null
-  onChange: (categoryId: string | null) => void
+  value: string | null;
+  onChange: (categoryId: string | null) => void;
 }
 
 export function CategorySelector({ value, onChange }: CategorySelectorProps) {
-  const store = useLiveStore()
-  const categories = useQuery(queries.categories, { store })
+  const store = useLiveStore();
+  const categories = useQuery(queries.categories, { store });
 
   return (
-    <Select value={value || 'none'} onValueChange={(v) => onChange(v === 'none' ? null : v)}>
+    <Select
+      value={value || "none"}
+      onValueChange={(v) => onChange(v === "none" ? null : v)}
+    >
       <SelectTrigger>
-        <SelectValue placeholder='Select category' />
+        <SelectValue placeholder="Select category" />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value='none'>No category</SelectItem>
+        <SelectItem value="none">No category</SelectItem>
         {categories?.map((cat) => (
           <SelectItem key={cat.id} value={cat.id}>
             <CategoryBadge name={cat.name} color={cat.color} icon={cat.icon} />
@@ -222,7 +228,7 @@ export function CategorySelector({ value, onChange }: CategorySelectorProps) {
         ))}
       </SelectContent>
     </Select>
-  )
+  );
 }
 ```
 
@@ -234,38 +240,38 @@ export function CategoryFilter({
   selected,
   onSelect,
 }: {
-  selected: string | null
-  onSelect: (id: string | null) => void
+  selected: string | null;
+  onSelect: (id: string | null) => void;
 }) {
-  const store = useLiveStore()
-  const categories = useQuery(queries.categories, { store })
+  const store = useLiveStore();
+  const categories = useQuery(queries.categories, { store });
 
   return (
-    <div className='space-y-1'>
+    <div className="space-y-1">
       <Button
-        variant={selected === null ? 'secondary' : 'ghost'}
-        className='w-full justify-start'
+        variant={selected === null ? "secondary" : "ghost"}
+        className="w-full justify-start"
         onClick={() => onSelect(null)}
       >
         All Links
       </Button>
 
       {categories?.map((cat) => {
-        const Icon = Icons[cat.icon as keyof typeof Icons] || Icons.Tag
+        const Icon = Icons[cat.icon as keyof typeof Icons] || Icons.Tag;
         return (
           <Button
             key={cat.id}
-            variant={selected === cat.id ? 'secondary' : 'ghost'}
-            className='w-full justify-start'
+            variant={selected === cat.id ? "secondary" : "ghost"}
+            className="w-full justify-start"
             onClick={() => onSelect(cat.id)}
           >
             <Icon className={`w-4 h-4 mr-2 text-${cat.color}-500`} />
             {cat.name}
           </Button>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
 ```
 
@@ -274,43 +280,43 @@ export function CategoryFilter({
 ```tsx
 // src/web/components/CategoryManager.tsx
 export function CategoryManager() {
-  const store = useLiveStore()
-  const categories = useQuery(queries.categories, { store })
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const store = useLiveStore();
+  const categories = useQuery(queries.categories, { store });
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const createCategory = () => {
     store.commit(
       events.categoryCreated({
         id: nanoid(),
-        name: 'New Category',
-        color: 'gray',
-        icon: 'tag',
+        name: "New Category",
+        color: "gray",
+        icon: "tag",
         sortOrder: (categories?.length || 0) + 1,
         createdAt: new Date(),
-      }),
-    )
-  }
+      })
+    );
+  };
 
   const updateCategory = (id: string, updates: Partial<Category>) => {
-    store.commit(events.categoryUpdated({ id, ...updates }))
-  }
+    store.commit(events.categoryUpdated({ id, ...updates }));
+  };
 
   const deleteCategory = (id: string) => {
-    store.commit(events.categoryDeleted({ id, deletedAt: new Date() }))
-  }
+    store.commit(events.categoryDeleted({ id, deletedAt: new Date() }));
+  };
 
   return (
-    <div className='space-y-4'>
-      <div className='flex justify-between items-center'>
-        <h3 className='text-lg font-medium'>Categories</h3>
-        <Button size='sm' onClick={createCategory}>
-          <Plus className='w-4 h-4 mr-1' />
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-medium">Categories</h3>
+        <Button size="sm" onClick={createCategory}>
+          <Plus className="w-4 h-4 mr-1" />
           Add Category
         </Button>
       </div>
 
       <DragDropContext onDragEnd={handleReorder}>
-        <Droppable droppableId='categories'>
+        <Droppable droppableId="categories">
           {(provided) => (
             <div {...provided.droppableProps} ref={provided.innerRef}>
               {categories?.map((cat, index) => (
@@ -335,14 +341,14 @@ export function CategoryManager() {
         <CategoryEditDialog
           category={categories?.find((c) => c.id === editingId)}
           onSave={(updates) => {
-            updateCategory(editingId, updates)
-            setEditingId(null)
+            updateCategory(editingId, updates);
+            setEditingId(null);
           }}
           onClose={() => setEditingId(null)}
         />
       )}
     </div>
-  )
+  );
 }
 ```
 
@@ -351,12 +357,12 @@ export function CategoryManager() {
 ```typescript
 // src/shared/livestore/seed.ts
 const DEFAULT_CATEGORIES = [
-  { name: 'Reading', color: 'blue', icon: 'Book' },
-  { name: 'Watch Later', color: 'red', icon: 'Video' },
-  { name: 'Reference', color: 'green', icon: 'Bookmark' },
-  { name: 'Shopping', color: 'orange', icon: 'ShoppingCart' },
-  { name: 'Work', color: 'purple', icon: 'Briefcase' },
-]
+  { name: "Reading", color: "blue", icon: "Book" },
+  { name: "Watch Later", color: "red", icon: "Video" },
+  { name: "Reference", color: "green", icon: "Bookmark" },
+  { name: "Shopping", color: "orange", icon: "ShoppingCart" },
+  { name: "Work", color: "purple", icon: "Briefcase" },
+];
 
 export const seedDefaultCategories = (store: LiveStoreInstance) => {
   DEFAULT_CATEGORIES.forEach((cat, index) => {
@@ -368,10 +374,10 @@ export const seedDefaultCategories = (store: LiveStoreInstance) => {
         icon: cat.icon,
         sortOrder: index,
         createdAt: new Date(),
-      }),
-    )
-  })
-}
+      })
+    );
+  });
+};
 ```
 
 ## Implementation Checklist

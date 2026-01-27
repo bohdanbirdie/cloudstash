@@ -6,27 +6,15 @@ Ideas for future features and improvements. Detailed specs are in `/docs/specs/`
 
 ## Priority
 
-1. **Logout cleanup** - Bug fix, important for shared devices
-2. **Dynamic categories** - High-value user feature
-3. **Opt-in AI summaries** - Cost optimization
-4. **Admin UI + registration approval** - Needed for public launch
-5. **Telemetry dashboard** - Monitoring and insights
-6. **LiveStore MCP integration** - AI/agent features
-7. **Raycast extension** - Quick link saving for macOS users
+1. **Dynamic categories** - High-value user feature
+2. **Opt-in AI summaries** - Cost optimization
+3. **Telemetry dashboard** - Monitoring and insights
+4. **LiveStore MCP integration** - AI/agent features
+5. **Raycast extension** - Quick link saving for macOS users (UI done, extension not built)
 
 ---
 
 ## Features
-
-### Logout Cleanup
-
-Clear OPFS data after logout to prevent stale data on shared devices.
-
-**Spec:** [logout-cleanup.md](specs/logout-cleanup.md)
-
-- Shutdown livestore properly before clearing
-- Clear OPFS/IndexedDB storage after logout
-- Ensure clean state on next login
 
 ### Dynamic Categories
 
@@ -51,18 +39,6 @@ AI summary generation disabled by default. Users can enable it in settings.
 - Settings UI toggle
 - Reduces Workers AI costs for users who don't need it
 
-### Admin UI & User Approval
-
-Disable open registration. Admin dashboard for managing users.
-
-**Spec:** [admin-user-approval.md](specs/admin-user-approval.md)
-
-- Better Auth admin plugin integration
-- Add `approved` field to user table
-- Block unapproved users from accessing the app
-- View all users, orgs, usage stats
-- Approve/reject new registrations
-
 ### Telemetry Dashboard
 
 Custom UI for monitoring link processing, user activity, and system health.
@@ -82,10 +58,17 @@ Save links by pasting directly into Raycast (macOS).
 
 **Spec:** [raycast-extension.md](specs/raycast-extension.md)
 
-- Paste URL in Raycast → "Save to Link Bucket" command appears
+**Done:**
+
+- API key generation UI in integrations modal
+
+**Todo:**
+
+- Build Raycast extension
+- Paste URL in Raycast → "Save to Cloudstash" command appears
 - API key stored in Raycast preferences (Keychain)
 - Reuses existing `/api/ingest` endpoint
-- Optional hotkey for power users
+- Publish to Raycast Store
 
 ### LiveStore MCP Integration
 
