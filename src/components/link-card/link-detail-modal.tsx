@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import {
   ExternalLinkIcon,
   ChevronLeftIcon,
@@ -9,162 +8,197 @@ import {
   CheckCheck,
   RotateCcwIcon,
   UndoIcon,
-} from 'lucide-react'
-import { useAppStore } from '@/livestore/store'
-import { events } from '@/livestore/schema'
+} from "lucide-react";
+import { useState } from "react";
+
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '@/components/ui/dialog'
-import { Markdown } from '@/components/ui/markdown'
-import { ScrollableContent } from '@/components/ui/scrollable-content'
-import { TextShimmer } from '@/components/ui/text-shimmer'
-import { Badge } from '@/components/ui/badge'
-import { linkProcessingStatus$, linkById$ } from '@/livestore/queries'
-import { HotkeyButton } from '@/components/ui/hotkey-button'
+} from "@/components/ui/dialog";
+import { HotkeyButton } from "@/components/ui/hotkey-button";
+import { Markdown } from "@/components/ui/markdown";
+import { ScrollableContent } from "@/components/ui/scrollable-content";
+import { TextShimmer } from "@/components/ui/text-shimmer";
+import {
+  linkProcessingStatus$,
+  linkById$,
+  type LinkWithDetails,
+} from "@/livestore/queries";
+import { events } from "@/livestore/schema";
+import { useAppStore } from "@/livestore/store";
 import {
   useLinkDetailStore,
   selectHasPrevious,
   selectHasNext,
   selectHasNavigation,
-} from '@/stores/link-detail-store'
-import type { LinkWithDetails } from '@/livestore/queries'
+} from "@/stores/link-detail-store";
 
 function StatusBadge({ link }: { link: LinkWithDetails }) {
   if (link.deletedAt) {
     return (
-      <Badge variant='secondary' className='text-[10px] px-1.5 py-0 bg-muted text-muted-foreground'>
+      <Badge
+        variant="secondary"
+        className="text-[10px] px-1.5 py-0 bg-muted text-muted-foreground"
+      >
         Trash
       </Badge>
-    )
+    );
   }
-  if (link.status === 'completed') {
+  if (link.status === "completed") {
     return (
-      <Badge variant='secondary' className='text-[10px] px-1.5 py-0 bg-green-500/15 text-green-600'>
+      <Badge
+        variant="secondary"
+        className="text-[10px] px-1.5 py-0 bg-green-500/15 text-green-600"
+      >
         Completed
       </Badge>
-    )
+    );
   }
-  return null
+  return null;
 }
 
 function LinkDetailModalContent({ linkId }: { linkId: string }) {
-  const store = useAppStore()
-  const [copied, setCopied] = useState(false)
+  const store = useAppStore();
+  const [copied, setCopied] = useState(false);
 
-  const open = useLinkDetailStore((s) => s.open)
-  const close = useLinkDetailStore((s) => s.close)
-  const goToPrevious = useLinkDetailStore((s) => s.goToPrevious)
-  const goToNext = useLinkDetailStore((s) => s.goToNext)
-  const moveAfterAction = useLinkDetailStore((s) => s.moveAfterAction)
-  const hasPrevious = useLinkDetailStore(selectHasPrevious)
-  const hasNext = useLinkDetailStore(selectHasNext)
-  const hasNavigation = useLinkDetailStore(selectHasNavigation)
+  const open = useLinkDetailStore((s) => s.open);
+  const close = useLinkDetailStore((s) => s.close);
+  const goToPrevious = useLinkDetailStore((s) => s.goToPrevious);
+  const goToNext = useLinkDetailStore((s) => s.goToNext);
+  const moveAfterAction = useLinkDetailStore((s) => s.moveAfterAction);
+  const hasPrevious = useLinkDetailStore(selectHasPrevious);
+  const hasNext = useLinkDetailStore(selectHasNext);
+  const hasNavigation = useLinkDetailStore(selectHasNavigation);
 
-  const link = store.useQuery(linkById$(linkId))
-  const processingRecord = store.useQuery(linkProcessingStatus$(linkId))
-  const isProcessing = processingRecord?.status === 'pending'
+  const link = store.useQuery(linkById$(linkId));
+  const processingRecord = store.useQuery(linkProcessingStatus$(linkId));
+  const isProcessing = processingRecord?.status === "pending";
 
-  const isCompleted = link?.status === 'completed'
-  const isDeleted = link?.deletedAt !== null
+  const isCompleted = link?.status === "completed";
+  const isDeleted = link?.deletedAt !== null;
 
   const handleCopy = async () => {
-    if (!link) return
-    await navigator.clipboard.writeText(link.url)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
+    if (!link) {
+      return;
+    }
+    await navigator.clipboard.writeText(link.url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleComplete = () => {
-    if (!link) return
-    store.commit(events.linkCompleted({ id: link.id, completedAt: new Date() }))
-    moveAfterAction()
-  }
+    if (!link) {
+      return;
+    }
+    store.commit(
+      events.linkCompleted({ completedAt: new Date(), id: link.id })
+    );
+    moveAfterAction();
+  };
 
   const handleUncomplete = () => {
-    if (!link) return
-    store.commit(events.linkUncompleted({ id: link.id }))
-    moveAfterAction()
-  }
+    if (!link) {
+      return;
+    }
+    store.commit(events.linkUncompleted({ id: link.id }));
+    moveAfterAction();
+  };
 
   const handleDelete = () => {
-    if (!link) return
-    store.commit(events.linkDeleted({ id: link.id, deletedAt: new Date() }))
-    moveAfterAction()
-  }
+    if (!link) {
+      return;
+    }
+    store.commit(events.linkDeleted({ deletedAt: new Date(), id: link.id }));
+    moveAfterAction();
+  };
 
   const handleRestore = () => {
-    if (!link) return
-    store.commit(events.linkRestored({ id: link.id }))
-    moveAfterAction()
+    if (!link) {
+      return;
+    }
+    store.commit(events.linkRestored({ id: link.id }));
+    moveAfterAction();
+  };
+
+  if (!link) {
+    return null;
   }
 
-  if (!link) return null
-
-  const displayTitle = link.title || link.url
+  const displayTitle = link.title || link.url;
   const formattedDate = new Date(link.createdAt).toLocaleString(undefined, {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "long",
+    weekday: "long",
+    year: "numeric",
+  });
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
-      <DialogContent className='sm:max-w-3xl'>
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
-          <div className='flex items-center gap-2'>
+          <div className="flex items-center gap-2">
             <a
               href={link.url}
-              target='_blank'
-              rel='noopener noreferrer'
-              className='flex items-center gap-2 text-primary hover:text-primary/80 transition-colors'
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors"
             >
-              {link.favicon && <img src={link.favicon} alt='' className='h-4 w-4 shrink-0' />}
-              <span className='text-xs'>{link.domain}</span>
-              <ExternalLinkIcon className='h-3 w-3' />
+              {link.favicon && (
+                <img src={link.favicon} alt="" className="h-4 w-4 shrink-0" />
+              )}
+              <span className="text-xs">{link.domain}</span>
+              <ExternalLinkIcon className="h-3 w-3" />
             </a>
             <button
-              type='button'
+              type="button"
               onClick={handleCopy}
-              className='text-muted-foreground hover:text-foreground transition-colors p-1'
-              aria-label='Copy link'
+              className="text-muted-foreground hover:text-foreground transition-colors p-1"
+              aria-label="Copy link"
             >
               {copied ? (
-                <CheckCheck className='h-3 w-3 text-green-500' />
+                <CheckCheck className="h-3 w-3 text-green-500" />
               ) : (
-                <CopyIcon className='h-3 w-3' />
+                <CopyIcon className="h-3 w-3" />
               )}
             </button>
             <StatusBadge link={link} />
           </div>
-          <DialogTitle className='text-base'>{displayTitle}</DialogTitle>
+          <DialogTitle className="text-base">{displayTitle}</DialogTitle>
         </DialogHeader>
 
-        <ScrollableContent maxHeightClass='max-h-[60vh]' className='space-y-6'>
+        <ScrollableContent maxHeightClass="max-h-[60vh]" className="space-y-6">
           {(link.image || link.description) && (
-            <div className={link.image ? 'grid grid-cols-1 sm:grid-cols-2 gap-4' : ''}>
+            <div
+              className={
+                link.image ? "grid grid-cols-1 sm:grid-cols-2 gap-4" : ""
+              }
+            >
               {link.image && (
                 <a
                   href={link.url}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className='aspect-video w-full overflow-hidden rounded-md bg-muted flex items-center justify-center hover:opacity-90 transition-opacity'
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="aspect-video w-full overflow-hidden rounded-md bg-muted flex items-center justify-center hover:opacity-90 transition-opacity"
                 >
-                  <img src={link.image} alt='' className='max-h-full max-w-full object-contain' />
+                  <img
+                    src={link.image}
+                    alt=""
+                    className="max-h-full max-w-full object-contain"
+                  />
                 </a>
               )}
               {link.description && (
-                <div className='space-y-2'>
-                  <h4 className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>
+                <div className="space-y-2">
+                  <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                     Description
                   </h4>
-                  <div className='text-sm'>
+                  <div className="text-sm">
                     <Markdown>{link.description}</Markdown>
                   </div>
                 </div>
@@ -173,21 +207,21 @@ function LinkDetailModalContent({ linkId }: { linkId: string }) {
           )}
 
           {link.summary ? (
-            <div className='border-l-2 border-primary/50 bg-muted/50 pl-3 py-2 space-y-1'>
-              <h4 className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>
+            <div className="border-l-2 border-primary/50 bg-muted/50 pl-3 py-2 space-y-1">
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 AI Summary
               </h4>
-              <Markdown className='leading-relaxed'>{link.summary}</Markdown>
+              <Markdown className="leading-relaxed">{link.summary}</Markdown>
             </div>
           ) : isProcessing ? (
-            <div className='border-l-2 border-muted-foreground/30 bg-muted/50 pl-3 py-2'>
-              <TextShimmer className='text-sm' duration={1.5}>
+            <div className="border-l-2 border-muted-foreground/30 bg-muted/50 pl-3 py-2">
+              <TextShimmer className="text-sm" duration={1.5}>
                 Generating summary...
               </TextShimmer>
             </div>
           ) : null}
 
-          <div className='text-xs text-muted-foreground pt-2 border-t'>
+          <div className="text-xs text-muted-foreground pt-2 border-t">
             Saved on {formattedDate}
           </div>
         </ScrollableContent>
@@ -195,75 +229,81 @@ function LinkDetailModalContent({ linkId }: { linkId: string }) {
         <DialogFooter
           className={
             hasNavigation
-              ? 'flex-row justify-between sm:justify-between'
-              : 'flex-row justify-end sm:justify-end'
+              ? "flex-row justify-between sm:justify-between"
+              : "flex-row justify-end sm:justify-end"
           }
         >
           {hasNavigation && (
-            <div className='flex gap-1 items-center'>
+            <div className="flex gap-1 items-center">
               <HotkeyButton
-                variant='outline'
-                size='icon'
+                variant="outline"
+                size="icon"
                 onClick={goToPrevious}
                 onHotkeyPress={goToPrevious}
                 disabled={!hasPrevious}
-                aria-label='Previous link'
-                hotkey='BracketLeft'
+                aria-label="Previous link"
+                hotkey="BracketLeft"
                 hotkeyEnabled={open}
               >
-                <ChevronLeftIcon className='h-4 w-4' />
+                <ChevronLeftIcon className="h-4 w-4" />
               </HotkeyButton>
               <HotkeyButton
-                variant='outline'
-                size='icon'
+                variant="outline"
+                size="icon"
                 onClick={goToNext}
                 onHotkeyPress={goToNext}
                 disabled={!hasNext}
-                aria-label='Next link'
-                hotkey='BracketRight'
+                aria-label="Next link"
+                hotkey="BracketRight"
                 hotkeyEnabled={open}
               >
-                <ChevronRightIcon className='h-4 w-4' />
+                <ChevronRightIcon className="h-4 w-4" />
               </HotkeyButton>
             </div>
           )}
-          <div className='flex gap-1 items-center'>
+          <div className="flex gap-1 items-center">
             <HotkeyButton
-              size='icon'
+              size="icon"
               onClick={isCompleted ? handleUncomplete : handleComplete}
               onHotkeyPress={isCompleted ? handleUncomplete : handleComplete}
-              aria-label={isCompleted ? 'Mark as unread' : 'Mark as complete'}
-              hotkey='meta+enter'
+              aria-label={isCompleted ? "Mark as unread" : "Mark as complete"}
+              hotkey="meta+enter"
               hotkeyEnabled={open}
             >
-              {isCompleted ? <UndoIcon className='h-4 w-4' /> : <CheckIcon className='h-4 w-4' />}
+              {isCompleted ? (
+                <UndoIcon className="h-4 w-4" />
+              ) : (
+                <CheckIcon className="h-4 w-4" />
+              )}
             </HotkeyButton>
             <HotkeyButton
-              variant='ghost'
-              size='icon'
+              variant="ghost"
+              size="icon"
               onClick={isDeleted ? handleRestore : handleDelete}
               onHotkeyPress={isDeleted ? handleRestore : handleDelete}
-              aria-label={isDeleted ? 'Restore link' : 'Delete link'}
-              hotkey='meta+backspace'
+              aria-label={isDeleted ? "Restore link" : "Delete link"}
+              hotkey="meta+backspace"
               hotkeyEnabled={open}
             >
               {isDeleted ? (
-                <RotateCcwIcon className='h-4 w-4' />
+                <RotateCcwIcon className="h-4 w-4" />
               ) : (
-                <Trash2Icon className='h-4 w-4' />
+                <Trash2Icon className="h-4 w-4" />
               )}
             </HotkeyButton>
           </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
 export function LinkDetailModal() {
-  const linkId = useLinkDetailStore((s) => s.linkId)
+  const linkId = useLinkDetailStore((s) => s.linkId);
 
-  if (!linkId) return null
+  if (!linkId) {
+    return null;
+  }
 
-  return <LinkDetailModalContent linkId={linkId} />
+  return <LinkDetailModalContent linkId={linkId} />;
 }

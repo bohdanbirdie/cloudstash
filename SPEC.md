@@ -1,4 +1,4 @@
-# Link Bucket - Project Specification
+# cloudstash.dev - Project Specification
 
 ## Overview
 
@@ -373,20 +373,23 @@ Next LinkCreated → cycle repeats
 The DO must implement `ClientDoWithRpcCallback` and properly handle incoming sync updates:
 
 ```typescript
-import { handleSyncUpdateRpc } from '@livestore/sync-cf/client'
-import { type ClientDoWithRpcCallback } from '@livestore/adapter-cloudflare'
+import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
+import { type ClientDoWithRpcCallback } from "@livestore/adapter-cloudflare";
 
-export class LinkProcessorDO extends DurableObject<Env> implements ClientDoWithRpcCallback {
-  __DURABLE_OBJECT_BRAND = 'link-processor-do' as never
+export class LinkProcessorDO
+  extends DurableObject<Env>
+  implements ClientDoWithRpcCallback
+{
+  __DURABLE_OBJECT_BRAND = "link-processor-do" as never;
 
   async syncUpdateRpc(payload: unknown): Promise<void> {
     // Ensure store is initialized (may need to load storeId from storage after hibernation)
     if (!this.isInitialized) {
-      const storeId = await this.ctx.storage.get<string>('storeId')
-      if (storeId) await this.initialize(storeId)
+      const storeId = await this.ctx.storage.get<string>("storeId");
+      if (storeId) await this.initialize(storeId);
     }
     // CRITICAL: Actually process the payload - without this, live updates are ignored!
-    await handleSyncUpdateRpc(payload)
+    await handleSyncUpdateRpc(payload);
   }
 }
 ```
@@ -426,27 +429,31 @@ store.commit(
 The `onPush` hook runs in a static context without access to `this.env`. Solution: set instance reference in constructor:
 
 ```typescript
-let currentSyncBackend: { triggerLinkProcessor: (storeId: string) => void } | null = null
+let currentSyncBackend: {
+  triggerLinkProcessor: (storeId: string) => void;
+} | null = null;
 
 export class SyncBackendDO extends SyncBackend.makeDurableObject({
   onPush: async (message, context) => {
-    const hasLinkCreated = message.batch.some((e) => e.name === 'v1.LinkCreated')
+    const hasLinkCreated = message.batch.some(
+      (e) => e.name === "v1.LinkCreated"
+    );
     if (hasLinkCreated && currentSyncBackend) {
-      currentSyncBackend.triggerLinkProcessor(context.storeId)
+      currentSyncBackend.triggerLinkProcessor(context.storeId);
     }
   },
 }) {
   constructor(ctx, env) {
-    super(ctx, env)
-    this._env = env
-    currentSyncBackend = this // Set reference for onPush to use
+    super(ctx, env);
+    this._env = env;
+    currentSyncBackend = this; // Set reference for onPush to use
   }
 
   triggerLinkProcessor(storeId: string) {
     const processor = this._env.LINK_PROCESSOR_DO.get(
-      this._env.LINK_PROCESSOR_DO.idFromName(storeId),
-    )
-    processor.fetch(`https://link-processor/?storeId=${storeId}`)
+      this._env.LINK_PROCESSOR_DO.idFromName(storeId)
+    );
+    processor.fetch(`https://link-processor/?storeId=${storeId}`);
   }
 }
 ```

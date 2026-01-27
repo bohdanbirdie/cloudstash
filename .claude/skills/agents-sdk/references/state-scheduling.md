@@ -8,17 +8,17 @@ State persists automatically to SQLite and broadcasts to connected clients.
 
 ```typescript
 type State = {
-  count: number
-  items: string[]
-  lastUpdated: Date
-}
+  count: number;
+  items: string[];
+  lastUpdated: Date;
+};
 
 export class MyAgent extends Agent<Env, State> {
   initialState: State = {
     count: 0,
     items: [],
     lastUpdated: new Date(),
-  }
+  };
 }
 ```
 
@@ -26,13 +26,13 @@ export class MyAgent extends Agent<Env, State> {
 
 ```typescript
 // Read (lazy-loaded from SQLite on first access)
-const count = this.state.count
+const count = this.state.count;
 
 // Update (persists to SQLite, broadcasts to clients)
 this.setState({
   ...this.state,
   count: this.state.count + 1,
-})
+});
 ```
 
 ### React to State Changes
@@ -49,23 +49,23 @@ onStateUpdate(state: State, source: Connection | "server") {
 ### Client-Side State Sync (React)
 
 ```tsx
-import { useAgent } from 'agents/react'
-import { useState } from 'react'
+import { useAgent } from "agents/react";
+import { useState } from "react";
 
 function App() {
-  const [state, setLocalState] = useState<State>({ count: 0 })
+  const [state, setLocalState] = useState<State>({ count: 0 });
 
   const agent = useAgent<State>({
-    agent: 'MyAgent',
-    name: 'instance-1',
+    agent: "MyAgent",
+    name: "instance-1",
     onStateUpdate: (newState) => setLocalState(newState),
-  })
+  });
 
   const increment = () => {
-    agent.setState({ ...state, count: state.count + 1 })
-  }
+    agent.setState({ ...state, count: state.count + 1 });
+  };
 
-  return <button onClick={increment}>Count: {state.count}</button>
+  return <button onClick={increment}>Count: {state.count}</button>;
 }
 ```
 
@@ -79,14 +79,16 @@ Schedule methods to run at specific times using `this.schedule()`.
 
 ```typescript
 // At specific Date
-await this.schedule(new Date('2025-12-25T00:00:00Z'), 'sendGreeting', { to: 'user' })
+await this.schedule(new Date("2025-12-25T00:00:00Z"), "sendGreeting", {
+  to: "user",
+});
 
 // Delay in seconds
-await this.schedule(60, 'checkStatus', { id: 'abc123' }) // 1 minute
+await this.schedule(60, "checkStatus", { id: "abc123" }); // 1 minute
 
 // Cron expression (recurring)
-await this.schedule('0 * * * *', 'hourlyCleanup', {}) // Every hour
-await this.schedule('0 9 * * 1-5', 'weekdayReport', {}) // 9am weekdays
+await this.schedule("0 * * * *", "hourlyCleanup", {}); // Every hour
+await this.schedule("0 9 * * 1-5", "weekdayReport", {}); // 9am weekdays
 ```
 
 ### Schedule Handler
@@ -94,7 +96,7 @@ await this.schedule('0 9 * * 1-5', 'weekdayReport', {}) // 9am weekdays
 ```typescript
 export class MyAgent extends Agent<Env, State> {
   async sendGreeting(payload: { to: string }, schedule: Schedule) {
-    console.log(`Sending greeting to ${payload.to}`)
+    console.log(`Sending greeting to ${payload.to}`);
     // Cron schedules automatically reschedule; one-time schedules are deleted
   }
 }
@@ -104,18 +106,18 @@ export class MyAgent extends Agent<Env, State> {
 
 ```typescript
 // Get all schedules
-const schedules = this.getSchedules()
+const schedules = this.getSchedules();
 
 // Get by type
-const crons = this.getSchedules({ type: 'cron' })
+const crons = this.getSchedules({ type: "cron" });
 
 // Get by time range
 const upcoming = this.getSchedules({
   timeRange: { start: new Date(), end: nextWeek },
-})
+});
 
 // Cancel
-await this.cancelSchedule(schedule.id)
+await this.cancelSchedule(schedule.id);
 ```
 
 ## Task Queue
@@ -125,7 +127,7 @@ Process tasks sequentially with automatic dequeue on success.
 ### Queue a Task
 
 ```typescript
-await this.queue('processItem', { itemId: '123', priority: 'high' })
+await this.queue("processItem", { itemId: "123", priority: "high" });
 ```
 
 ### Queue Handler
@@ -142,16 +144,16 @@ async processItem(payload: { itemId: string }, queueItem: QueueItem) {
 
 ```typescript
 // Manual dequeue
-await this.dequeue(queueItem.id)
+await this.dequeue(queueItem.id);
 
 // Dequeue all
-await this.dequeueAll()
+await this.dequeueAll();
 
 // Dequeue by callback
-await this.dequeueAllByCallback('processItem')
+await this.dequeueAllByCallback("processItem");
 
 // Query queue
-const pending = await this.getQueues('priority', 'high')
+const pending = await this.getQueues("priority", "high");
 ```
 
 ## SQL API
@@ -166,15 +168,15 @@ this.sql`
     name TEXT,
     created_at INTEGER DEFAULT (unixepoch())
   )
-`
+`;
 
 // Insert with params
-this.sql`INSERT INTO items (id, name) VALUES (${id}, ${name})`
+this.sql`INSERT INTO items (id, name) VALUES (${id}, ${name})`;
 
 // Query with types
 const items = this.sql<{ id: string; name: string }>`
   SELECT * FROM items WHERE name LIKE ${`%${search}%`}
-`
+`;
 ```
 
 ## Lifecycle Callbacks
@@ -183,26 +185,26 @@ const items = this.sql<{ id: string; name: string }>`
 export class MyAgent extends Agent<Env, State> {
   // Called when agent starts (after hibernation or first create)
   async onStart() {
-    console.log('Agent started:', this.name)
+    console.log("Agent started:", this.name);
   }
 
   // WebSocket connected
   onConnect(conn: Connection, ctx: ConnectionContext) {
-    console.log('Client connected:', conn.id)
+    console.log("Client connected:", conn.id);
   }
 
   // WebSocket message (non-RPC)
   onMessage(conn: Connection, message: WSMessage) {
-    console.log('Received:', message)
+    console.log("Received:", message);
   }
 
   // State changed
-  onStateUpdate(state: State, source: Connection | 'server') {}
+  onStateUpdate(state: State, source: Connection | "server") {}
 
   // Error handler
   onError(error: unknown) {
-    console.error('Agent error:', error)
-    throw error // Re-throw to propagate
+    console.error("Agent error:", error);
+    throw error; // Re-throw to propagate
   }
 }
 ```

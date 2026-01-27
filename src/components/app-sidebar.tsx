@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { Link, useLocation } from '@tanstack/react-router'
+import { Link, useLocation } from "@tanstack/react-router";
 import {
   InboxIcon,
   CheckCircle2Icon,
@@ -11,8 +10,24 @@ import {
   SearchIcon,
   PuzzleIcon,
   ShieldIcon,
-} from 'lucide-react'
+} from "lucide-react";
+import { useState } from "react";
 
+import { useAddLinkDialog } from "@/components/add-link-dialog";
+import { AdminModal } from "@/components/admin";
+import { IntegrationsModal } from "@/components/integrations";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Kbd } from "@/components/ui/kbd";
 import {
   Sidebar,
   SidebarContent,
@@ -24,80 +39,72 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-} from '@/components/ui/sidebar'
+} from "@/components/ui/sidebar";
+import { useModifierHold } from "@/hooks/use-modifier-hold";
+import { useAuth } from "@/lib/auth";
+import { getHotkeyLabel } from "@/lib/hotkey-label";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { useAuth } from '@/lib/auth'
-import { Badge } from '@/components/ui/badge'
-import { Kbd } from '@/components/ui/kbd'
-import { useModifierHold } from '@/hooks/use-modifier-hold'
-import { getHotkeyLabel } from '@/lib/hotkey-label'
-import { useAddLinkDialog } from '@/components/add-link-dialog'
-import { useSearchStore } from '@/stores/search-store'
-import { useAppStore } from '@/livestore/store'
-import { inboxCount$, completedCount$, allLinksCount$, trashCount$ } from '@/livestore/queries'
-import { IntegrationsModal } from '@/components/integrations'
-import { AdminModal } from '@/components/admin'
+  inboxCount$,
+  completedCount$,
+  allLinksCount$,
+  trashCount$,
+} from "@/livestore/queries";
+import { useAppStore } from "@/livestore/store";
+import { useSearchStore } from "@/stores/search-store";
 
 export function AppSidebar() {
-  const location = useLocation()
-  const { open: openAddLinkDialog } = useAddLinkDialog()
-  const openSearch = useSearchStore((s) => s.setOpen)
-  const store = useAppStore()
-  const [integrationsOpen, setIntegrationsOpen] = useState(false)
-  const [adminOpen, setAdminOpen] = useState(false)
-  const [logoutOpen, setLogoutOpen] = useState(false)
-  const auth = useAuth()
-  const showHints = useModifierHold()
+  const location = useLocation();
+  const { open: openAddLinkDialog } = useAddLinkDialog();
+  const openSearch = useSearchStore((s) => s.setOpen);
+  const store = useAppStore();
+  const [integrationsOpen, setIntegrationsOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const auth = useAuth();
+  const showHints = useModifierHold();
 
-  const inboxCount = store.useQuery(inboxCount$)
-  const completedCount = store.useQuery(completedCount$)
-  const allLinksCount = store.useQuery(allLinksCount$)
-  const { count: trashCount } = store.useQuery(trashCount$)
+  const inboxCount = store.useQuery(inboxCount$);
+  const completedCount = store.useQuery(completedCount$);
+  const allLinksCount = store.useQuery(allLinksCount$);
+  const { count: trashCount } = store.useQuery(trashCount$);
 
   const navItems = [
     {
-      title: 'Inbox',
-      url: '/',
-      icon: InboxIcon,
       count: inboxCount,
+      icon: InboxIcon,
+      title: "Inbox",
+      url: "/",
     },
     {
-      title: 'Completed',
-      url: '/completed',
-      icon: CheckCircle2Icon,
       count: completedCount,
+      icon: CheckCircle2Icon,
+      title: "Completed",
+      url: "/completed",
     },
     {
-      title: 'All Links',
-      url: '/all',
-      icon: ListIcon,
       count: allLinksCount,
+      icon: ListIcon,
+      title: "All Links",
+      url: "/all",
     },
     {
-      title: 'Trash',
-      url: '/trash',
-      icon: Trash2Icon,
       count: trashCount,
+      icon: Trash2Icon,
+      title: "Trash",
+      url: "/trash",
     },
-  ]
+  ];
 
   return (
-    <Sidebar collapsible='icon'>
-      <SidebarHeader className='p-4 group-data-[collapsible=icon]:p-2'>
-        <div className='flex items-center gap-3 group-data-[collapsible=icon]:justify-center'>
-          <div className='bg-primary text-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg'>
-            <LinkIcon className='size-4' />
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-2">
+        <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
+          <div className="bg-primary text-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg">
+            <LinkIcon className="size-4" />
           </div>
-          <span className='font-semibold group-data-[collapsible=icon]:hidden'>Cloudstash</span>
+          <span className="font-semibold group-data-[collapsible=icon]:hidden">
+            Cloudstash
+          </span>
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -105,23 +112,29 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton tooltip='Add Link' onClick={() => openAddLinkDialog()}>
+                <SidebarMenuButton
+                  tooltip="Add Link"
+                  onClick={() => openAddLinkDialog()}
+                >
                   <PlusIcon />
                   <span>Add Link</span>
                   {showHints && (
-                    <Kbd className='ml-auto group-data-[collapsible=icon]:hidden'>
-                      {getHotkeyLabel('meta+v')}
+                    <Kbd className="ml-auto group-data-[collapsible=icon]:hidden">
+                      {getHotkeyLabel("meta+v")}
                     </Kbd>
                   )}
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton tooltip='Search' onClick={() => openSearch(true)}>
+                <SidebarMenuButton
+                  tooltip="Search"
+                  onClick={() => openSearch(true)}
+                >
                   <SearchIcon />
                   <span>Search</span>
                   {showHints && (
-                    <Kbd className='ml-auto group-data-[collapsible=icon]:hidden'>
-                      {getHotkeyLabel('meta+k')}
+                    <Kbd className="ml-auto group-data-[collapsible=icon]:hidden">
+                      {getHotkeyLabel("meta+k")}
                     </Kbd>
                   )}
                 </SidebarMenuButton>
@@ -136,8 +149,8 @@ export function AppSidebar() {
                     <item.icon />
                     <span>{item.title}</span>
                     <Badge
-                      variant='secondary'
-                      className='ml-auto h-5 min-w-5 px-1.5 group-data-[collapsible=icon]:hidden'
+                      variant="secondary"
+                      className="ml-auto h-5 min-w-5 px-1.5 group-data-[collapsible=icon]:hidden"
                     >
                       {item.count}
                     </Badge>
@@ -150,28 +163,40 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
-          {auth.role === 'admin' && (
+          {auth.role === "admin" && (
             <SidebarMenuItem>
-              <SidebarMenuButton tooltip='Admin' onClick={() => setAdminOpen(true)}>
+              <SidebarMenuButton
+                tooltip="Admin"
+                onClick={() => setAdminOpen(true)}
+              >
                 <ShieldIcon />
                 <span>Admin</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip='Integrations' onClick={() => setIntegrationsOpen(true)}>
+            <SidebarMenuButton
+              tooltip="Integrations"
+              onClick={() => setIntegrationsOpen(true)}
+            >
               <PuzzleIcon />
               <span>Integrations</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip='Sign out' onClick={() => setLogoutOpen(true)}>
+            <SidebarMenuButton
+              tooltip="Sign out"
+              onClick={() => setLogoutOpen(true)}
+            >
               <LogOutIcon />
               <span>Sign out</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        <IntegrationsModal open={integrationsOpen} onOpenChange={setIntegrationsOpen} />
+        <IntegrationsModal
+          open={integrationsOpen}
+          onOpenChange={setIntegrationsOpen}
+        />
         <AdminModal open={adminOpen} onOpenChange={setAdminOpen} />
         <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
           <AlertDialogContent>
@@ -183,7 +208,11 @@ export function AppSidebar() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => auth.logout().then(() => window.location.reload())}>
+              <AlertDialogAction
+                onClick={() =>
+                  auth.logout().then(() => window.location.reload())
+                }
+              >
                 Sign out
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -192,5 +221,5 @@ export function AppSidebar() {
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
-  )
+  );
 }

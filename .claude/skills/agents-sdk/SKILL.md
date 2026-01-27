@@ -62,23 +62,24 @@ Agents require a binding in `wrangler.jsonc`:
 ## Minimal Agent
 
 ```typescript
-import { Agent, routeAgentRequest, callable } from 'agents'
+import { Agent, routeAgentRequest, callable } from "agents";
 
-type State = { count: number }
+type State = { count: number };
 
 export class Counter extends Agent<Env, State> {
-  initialState = { count: 0 }
+  initialState = { count: 0 };
 
   @callable()
   increment() {
-    this.setState({ count: this.state.count + 1 })
-    return this.state.count
+    this.setState({ count: this.state.count + 1 });
+    return this.state.count;
   }
 }
 
 export default {
-  fetch: (req, env) => routeAgentRequest(req, env) ?? new Response('Not found', { status: 404 }),
-}
+  fetch: (req, env) =>
+    routeAgentRequest(req, env) ?? new Response("Not found", { status: 404 }),
+};
 ```
 
 ## Streaming Chat Agent
@@ -103,35 +104,36 @@ npm install @cloudflare/ai-chat ai @ai-sdk/openai
 ```
 
 ```typescript
-import { AIChatAgent } from '@cloudflare/ai-chat'
-import { routeAgentRequest } from 'agents'
-import { streamText, convertToModelMessages } from 'ai'
-import { openai } from '@ai-sdk/openai'
+import { AIChatAgent } from "@cloudflare/ai-chat";
+import { routeAgentRequest } from "agents";
+import { streamText, convertToModelMessages } from "ai";
+import { openai } from "@ai-sdk/openai";
 
 export class Chat extends AIChatAgent<Env> {
   async onChatMessage(onFinish) {
     const result = streamText({
-      model: openai('gpt-4o'),
+      model: openai("gpt-4o"),
       messages: await convertToModelMessages(this.messages),
       onFinish,
-    })
-    return result.toUIMessageStreamResponse()
+    });
+    return result.toUIMessageStreamResponse();
   }
 }
 
 export default {
-  fetch: (req, env) => routeAgentRequest(req, env) ?? new Response('Not found', { status: 404 }),
-}
+  fetch: (req, env) =>
+    routeAgentRequest(req, env) ?? new Response("Not found", { status: 404 }),
+};
 ```
 
 **Client** (React):
 
 ```tsx
-import { useAgent } from 'agents/react'
-import { useAgentChat } from '@cloudflare/ai-chat/react'
+import { useAgent } from "agents/react";
+import { useAgentChat } from "@cloudflare/ai-chat/react";
 
-const agent = useAgent({ agent: 'Chat', name: 'my-chat' })
-const { messages, input, handleSubmit } = useAgentChat({ agent })
+const agent = useAgent({ agent: "Chat", name: "my-chat" });
+const { messages, input, handleSubmit } = useAgentChat({ agent });
 ```
 
 ## Detailed References

@@ -3,4 +3,4 @@ export {
   handleListInvites,
   handleDeleteInvite,
   handleRedeemInvite,
-} from './service'
+} from "./service";

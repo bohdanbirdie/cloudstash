@@ -146,25 +146,27 @@ npx wrangler deploy
 
 ```javascript
 // URL pattern: /agents/:className/:instanceName
-const socket = new WebSocket('wss://my-agent.workers.dev/agents/MyAgent/session-123')
+const socket = new WebSocket(
+  "wss://my-agent.workers.dev/agents/MyAgent/session-123"
+);
 
 socket.onmessage = (e) => {
-  console.log('Received:', JSON.parse(e.data))
-}
+  console.log("Received:", JSON.parse(e.data));
+};
 
-socket.send(JSON.stringify({ type: 'chat', content: 'Hello' }))
+socket.send(JSON.stringify({ type: "chat", content: "Hello" }));
 ```
 
 **React integration:**
 
 ```tsx
-import { useAgent } from 'agents/react'
+import { useAgent } from "agents/react";
 
 function Chat() {
   const { state, send } = useAgent({
-    agent: 'my-agent',
-    name: 'session-123',
-  })
+    agent: "my-agent",
+    name: "session-123",
+  });
 
   // state auto-updates, send() dispatches messages
 }

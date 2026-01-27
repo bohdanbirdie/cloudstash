@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig } from "vitest/config";
 
 /**
  * Unit test configuration using standard Vitest.
@@ -6,6 +6,6 @@ import { defineConfig } from 'vitest/config'
  */
 export default defineConfig({
   test: {
-    include: ['src/cf-worker/__tests__/unit/**/*.test.ts'],
+    include: ["src/cf-worker/__tests__/unit/**/*.test.ts"],
   },
-})
+});

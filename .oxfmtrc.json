@@ -1,15 +1,23 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "printWidth": 100,
+  "printWidth": 80,
   "tabWidth": 2,
   "useTabs": false,
-  "semi": false,
-  "singleQuote": true,
-  "jsxSingleQuote": true,
-  "trailingComma": "all",
-  "arrowParens": "always",
+  "semi": true,
+  "singleQuote": false,
+  "quoteProps": "as-needed",
+  "jsxSingleQuote": false,
+  "trailingComma": "es5",
+  "bracketSpacing": true,
   "bracketSameLine": false,
+  "arrowParens": "always",
   "endOfLine": "lf",
+  "experimentalSortPackageJson": true,
+  "experimentalSortImports": {
+    "ignoreCase": true,
+    "newlinesBetween": true,
+    "order": "asc"
+  },
   "ignorePatterns": [
     "dist",
     "node_modules",
@@ -17,7 +25,6 @@
     "**/*.gen.ts",
     "src/routeTree.gen.ts",
     "coverage",
-    "readonly-livestore-git-clone",
-    "better-auth-example"
+    "readonly-llm-lookup"
   ]
 }

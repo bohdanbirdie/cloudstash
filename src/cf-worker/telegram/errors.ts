@@ -1,31 +1,34 @@
-import { Schema } from 'effect'
+import { Schema } from "effect";
 
 export class MissingChatIdError extends Schema.TaggedError<MissingChatIdError>()(
-  'MissingChatIdError',
-  {},
+  "MissingChatIdError",
+  {}
 ) {}
 
 export class MissingApiKeyError extends Schema.TaggedError<MissingApiKeyError>()(
-  'MissingApiKeyError',
-  {},
+  "MissingApiKeyError",
+  {}
 ) {}
 
 export class InvalidApiKeyError extends Schema.TaggedError<InvalidApiKeyError>()(
-  'InvalidApiKeyError',
-  {},
+  "InvalidApiKeyError",
+  {}
 ) {}
 
 export class MissingOrgIdError extends Schema.TaggedError<MissingOrgIdError>()(
-  'MissingOrgIdError',
-  {},
+  "MissingOrgIdError",
+  {}
 ) {}
 
 export class NotConnectedError extends Schema.TaggedError<NotConnectedError>()(
-  'NotConnectedError',
-  {},
+  "NotConnectedError",
+  {}
 ) {}
 
-export class RateLimitError extends Schema.TaggedError<RateLimitError>()('RateLimitError', {}) {}
+export class RateLimitError extends Schema.TaggedError<RateLimitError>()(
+  "RateLimitError",
+  {}
+) {}
 
 export type TelegramError =
   | MissingChatIdError
@@ -33,4 +36,4 @@ export type TelegramError =
   | InvalidApiKeyError
   | MissingOrgIdError
   | NotConnectedError
-  | RateLimitError
+  | RateLimitError;

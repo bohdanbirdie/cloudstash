@@ -1,1 +1,1 @@
-export { AdminModal } from './admin-modal'
+export { AdminModal } from "./admin-modal";

@@ -92,12 +92,12 @@ The DO ID is derived from `storeId`, which equals the organization ID:
 
 ```typescript
 // In sync/index.ts - trigger creates DO from storeId
-const processorId = env.LINK_PROCESSOR_DO.idFromName(storeId)
-const processor = env.LINK_PROCESSOR_DO.get(processorId)
+const processorId = env.LINK_PROCESSOR_DO.idFromName(storeId);
+const processor = env.LINK_PROCESSOR_DO.get(processorId);
 
 // storeId === orgId (from JWT claims)
 if (claims.orgId !== context.storeId) {
-  throw new Error('Access denied: not a member of this organization')
+  throw new Error("Access denied: not a member of this organization");
 }
 ```
 
@@ -155,22 +155,22 @@ Enables reactive sync updates via DO RPC callbacks. The DO can still hibernate -
 Let the reactive system filter for pending links using `queryDb` wrapper:
 
 ```typescript
-const links$ = queryDb(tables.links.where({ deletedAt: null }))
-const statuses$ = queryDb(tables.linkProcessingStatus.where({}))
+const links$ = queryDb(tables.links.where({ deletedAt: null }));
+const statuses$ = queryDb(tables.linkProcessingStatus.where({}));
 
 const pendingLinks$ = computed(
   (get) => {
-    const links = get(links$)
-    const statuses = get(statuses$)
-    const statusMap = new Map(statuses.map((s) => [s.linkId, s]))
+    const links = get(links$);
+    const statuses = get(statuses$);
+    const statusMap = new Map(statuses.map((s) => [s.linkId, s]));
 
     return links.filter((link) => {
-      const status = statusMap.get(link.id)
-      return !status || status.status === 'pending'
-    })
+      const status = statusMap.get(link.id);
+      return !status || status.status === "pending";
+    });
   },
-  { label: 'pendingLinks' },
-)
+  { label: "pendingLinks" }
+);
 ```
 
 Subscription callback only receives links that actually need processing.

@@ -1,29 +1,35 @@
-import { Schema } from 'effect'
+import { Schema } from "effect";
 
 export class MissingApiKeyError extends Schema.TaggedError<MissingApiKeyError>()(
-  'MissingApiKeyError',
-  {},
+  "MissingApiKeyError",
+  {}
 ) {}
 
 export class InvalidApiKeyError extends Schema.TaggedError<InvalidApiKeyError>()(
-  'InvalidApiKeyError',
-  {},
+  "InvalidApiKeyError",
+  {}
 ) {}
 
 export class MissingOrgIdError extends Schema.TaggedError<MissingOrgIdError>()(
-  'MissingOrgIdError',
-  {},
+  "MissingOrgIdError",
+  {}
 ) {}
 
-export class MissingUrlError extends Schema.TaggedError<MissingUrlError>()('MissingUrlError', {}) {}
+export class MissingUrlError extends Schema.TaggedError<MissingUrlError>()(
+  "MissingUrlError",
+  {}
+) {}
 
-export class InvalidUrlError extends Schema.TaggedError<InvalidUrlError>()('InvalidUrlError', {
-  url: Schema.String,
-}) {}
+export class InvalidUrlError extends Schema.TaggedError<InvalidUrlError>()(
+  "InvalidUrlError",
+  {
+    url: Schema.String,
+  }
+) {}
 
 export type IngestError =
   | MissingApiKeyError
   | InvalidApiKeyError
   | MissingOrgIdError
   | MissingUrlError
-  | InvalidUrlError
+  | InvalidUrlError;

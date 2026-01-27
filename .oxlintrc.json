@@ -1,0 +1,28 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "extends": [
+    "./node_modules/ultracite/config/oxlint/core/.oxlintrc.json",
+    "./node_modules/ultracite/config/oxlint/react/.oxlintrc.json"
+  ],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "off",
+    "restriction": "off",
+    "pedantic": "off",
+    "style": "off"
+  },
+  "ignorePatterns": ["readonly-llm-lookup"],
+  "rules": {
+    "func-style": "off",
+    "import/default": "off",
+    "require-hook": "off",
+    "anchor-is-valid": "off",
+    "click-events-have-key-events": "off",
+    "consistent-function-scoping": "off",
+    "img-redundant-alt": "off",
+    "no-new": "off",
+    "no-this-alias": "off",
+    "label-has-associated-control": "off"
+  }
+}

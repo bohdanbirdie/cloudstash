@@ -62,15 +62,15 @@ Client disconnects → State persists → Client reconnects → State restored
 ## Basic Agent Structure
 
 ```typescript
-import { Agent, Connection } from 'agents'
+import { Agent, Connection } from "agents";
 
 interface Env {
-  AI: Ai // Workers AI binding
+  AI: Ai; // Workers AI binding
 }
 
 interface State {
-  messages: Array<{ role: string; content: string }>
-  preferences: Record<string, string>
+  messages: Array<{ role: string; content: string }>;
+  preferences: Record<string, string>;
 }
 
 export class MyAgent extends Agent<Env, State> {
@@ -78,64 +78,70 @@ export class MyAgent extends Agent<Env, State> {
   initialState: State = {
     messages: [],
     preferences: {},
-  }
+  };
 
   // Called when agent starts or resumes
   async onStart() {
-    console.log('Agent started with state:', this.state)
+    console.log("Agent started with state:", this.state);
   }
 
   // Handle WebSocket connections
   async onConnect(connection: Connection) {
     connection.send(
       JSON.stringify({
-        type: 'welcome',
+        type: "welcome",
         history: this.state.messages,
-      }),
-    )
+      })
+    );
   }
 
   // Handle incoming messages
   async onMessage(connection: Connection, message: string) {
-    const data = JSON.parse(message)
+    const data = JSON.parse(message);
 
-    if (data.type === 'chat') {
-      await this.handleChat(connection, data.content)
+    if (data.type === "chat") {
+      await this.handleChat(connection, data.content);
     }
   }
 
   // Handle disconnections
   async onClose(connection: Connection) {
-    console.log('Client disconnected')
+    console.log("Client disconnected");
   }
 
   // React to state changes
   onStateUpdate(state: State, source: string) {
-    console.log('State updated by:', source)
+    console.log("State updated by:", source);
   }
 
   private async handleChat(connection: Connection, userMessage: string) {
     // Add user message to history
-    const messages = [...this.state.messages, { role: 'user', content: userMessage }]
+    const messages = [
+      ...this.state.messages,
+      { role: "user", content: userMessage },
+    ];
 
     // Call AI
-    const response = await this.env.AI.run('@cf/meta/llama-3-8b-instruct', {
+    const response = await this.env.AI.run("@cf/meta/llama-3-8b-instruct", {
       messages,
-    })
+    });
 
     // Update state (persists and syncs to all clients)
     this.setState({
       ...this.state,
-      messages: [...messages, { role: 'assistant', content: response.response }],
-    })
+      messages: [
+        ...messages,
+        { role: "assistant", content: response.response },
+      ],
+    });
 
     // Send response
     connection.send(
       JSON.stringify({
-        type: 'response',
+        type: "response",
         content: response.response,
-      }),
-    )
+      })
+    );
   }
 }
 ```
@@ -144,17 +150,20 @@ export class MyAgent extends Agent<Env, State> {
 
 ```typescript
 // src/index.ts
-import { routeAgentRequest } from 'agents'
-import { MyAgent } from './agent'
+import { routeAgentRequest } from "agents";
+import { MyAgent } from "./agent";
 
 export default {
   async fetch(request: Request, env: Env) {
     // routeAgentRequest handles routing to /agents/:class/:name
-    return (await routeAgentRequest(request, env)) || new Response('Not found', { status: 404 })
+    return (
+      (await routeAgentRequest(request, env)) ||
+      new Response("Not found", { status: 404 })
+    );
   },
-}
+};
 
-export { MyAgent }
+export { MyAgent };
 ```
 
 Clients connect via: `wss://my-agent.workers.dev/agents/MyAgent/session-id`
@@ -183,8 +192,8 @@ new_classes = ["MyAgent"]
 
 ```typescript
 // Current state is always available
-const currentMessages = this.state.messages
-const userPrefs = this.state.preferences
+const currentMessages = this.state.messages;
+const userPrefs = this.state.preferences;
 ```
 
 ### Updating State
@@ -194,12 +203,12 @@ const userPrefs = this.state.preferences
 this.setState({
   ...this.state,
   messages: [...this.state.messages, newMessage],
-})
+});
 
 // Partial updates work too
 this.setState({
-  preferences: { ...this.state.preferences, theme: 'dark' },
-})
+  preferences: { ...this.state.preferences, theme: "dark" },
+});
 ```
 
 ### SQL Storage
@@ -215,18 +224,18 @@ await this.sql`
     content TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
-`
+`;
 
 // Insert
 await this.sql`
   INSERT INTO documents (title, content)
   VALUES (${title}, ${content})
-`
+`;
 
 // Query
 const docs = await this.sql`
   SELECT * FROM documents WHERE title LIKE ${`%${search}%`}
-`
+`;
 ```
 
 ## Scheduled Tasks
@@ -265,18 +274,18 @@ async sendReminder(data: { message: string; userId: string }) {
 
 ```typescript
 // Delay in seconds
-await this.schedule(60, 'taskMethod', { data })
+await this.schedule(60, "taskMethod", { data });
 
 // Specific date
-await this.schedule(new Date('2025-01-01T00:00:00Z'), 'taskMethod', { data })
+await this.schedule(new Date("2025-01-01T00:00:00Z"), "taskMethod", { data });
 
 // Cron expression (recurring)
-await this.schedule('0 9 * * *', 'dailyTask', {}) // 9 AM daily
-await this.schedule('*/5 * * * *', 'everyFiveMinutes', {}) // Every 5 min
+await this.schedule("0 9 * * *", "dailyTask", {}); // 9 AM daily
+await this.schedule("*/5 * * * *", "everyFiveMinutes", {}); // Every 5 min
 
 // Manage schedules
-const schedules = await this.getSchedules()
-await this.cancelSchedule(taskId)
+const schedules = await this.getSchedules();
+await this.cancelSchedule(taskId);
 ```
 
 ## Chat Agent (AI-Powered)
@@ -284,22 +293,22 @@ await this.cancelSchedule(taskId)
 For chat-focused agents, extend `AIChatAgent`:
 
 ```typescript
-import { AIChatAgent } from 'agents/ai-chat-agent'
+import { AIChatAgent } from "agents/ai-chat-agent";
 
 export class ChatBot extends AIChatAgent<Env> {
   // Called for each user message
   async onChatMessage(message: string) {
-    const response = await this.env.AI.run('@cf/meta/llama-3-8b-instruct', {
+    const response = await this.env.AI.run("@cf/meta/llama-3-8b-instruct", {
       messages: [
-        { role: 'system', content: 'You are a helpful assistant.' },
+        { role: "system", content: "You are a helpful assistant." },
         ...this.messages, // Automatic history management
-        { role: 'user', content: message },
+        { role: "user", content: message },
       ],
       stream: true,
-    })
+    });
 
     // Stream response back to client
-    return response
+    return response;
   }
 }
 ```
@@ -315,17 +324,17 @@ Features included:
 ### React Hook
 
 ```tsx
-import { useAgent } from 'agents/react'
+import { useAgent } from "agents/react";
 
 function Chat() {
   const { state, send, connected } = useAgent({
-    agent: 'my-agent',
+    agent: "my-agent",
     name: userId, // Agent instance ID
-  })
+  });
 
   const sendMessage = (text: string) => {
-    send(JSON.stringify({ type: 'chat', content: text }))
-  }
+    send(JSON.stringify({ type: "chat", content: text }));
+  };
 
   return (
     <div>
@@ -334,27 +343,29 @@ function Chat() {
           {msg.role}: {msg.content}
         </div>
       ))}
-      <input onKeyDown={(e) => e.key === 'Enter' && sendMessage(e.target.value)} />
+      <input
+        onKeyDown={(e) => e.key === "Enter" && sendMessage(e.target.value)}
+      />
     </div>
-  )
+  );
 }
 ```
 
 ### Vanilla JavaScript
 
 ```javascript
-const ws = new WebSocket('wss://my-agent.workers.dev/agents/MyAgent/user123')
+const ws = new WebSocket("wss://my-agent.workers.dev/agents/MyAgent/user123");
 
 ws.onopen = () => {
-  console.log('Connected to agent')
-}
+  console.log("Connected to agent");
+};
 
 ws.onmessage = (event) => {
-  const data = JSON.parse(event.data)
-  console.log('Received:', data)
-}
+  const data = JSON.parse(event.data);
+  console.log("Received:", data);
+};
 
-ws.send(JSON.stringify({ type: 'chat', content: 'Hello!' }))
+ws.send(JSON.stringify({ type: "chat", content: "Hello!" }));
 ```
 
 ## Common Patterns

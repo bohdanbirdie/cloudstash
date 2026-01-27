@@ -10,13 +10,13 @@ Reference: https://www.effect.solutions/
 Just as `async/await` provides a sequential, readable way to work with `Promise` values, `Effect.gen` and `yield*` provide the same ergonomic benefits for `Effect` values.
 
 ```typescript
-import { Effect } from 'effect'
+import { Effect } from "effect";
 
 const program = Effect.gen(function* () {
-  const data = yield* fetchData
-  yield* Effect.logInfo(`Processing data: ${data}`)
-  return yield* processData(data)
-})
+  const data = yield* fetchData;
+  yield* Effect.logInfo(`Processing data: ${data}`);
+  return yield* processData(data);
+});
 ```
 
 ### Effect.fn
@@ -24,13 +24,13 @@ const program = Effect.gen(function* () {
 Use `Effect.fn` with generator functions for traced, named effects. `Effect.fn` traces where the function is called from, not just where it's defined:
 
 ```typescript
-import { Effect } from 'effect'
+import { Effect } from "effect";
 
-const processUser = Effect.fn('processUser')(function* (userId: string) {
-  yield* Effect.logInfo(`Processing user ${userId}`)
-  const user = yield* getUser(userId)
-  return yield* processData(user)
-})
+const processUser = Effect.fn("processUser")(function* (userId: string) {
+  yield* Effect.logInfo(`Processing user ${userId}`);
+  const user = yield* getUser(userId);
+  return yield* processData(user);
+});
 ```
 
 **Benefits:**
@@ -45,14 +45,18 @@ const processUser = Effect.fn('processUser')(function* (userId: string) {
 Use `.pipe()` to add cross-cutting concerns to Effect values:
 
 ```typescript
-import { Effect, Schedule } from 'effect'
+import { Effect, Schedule } from "effect";
 
 const program = fetchData.pipe(
-  Effect.timeout('5 seconds'),
-  Effect.retry(Schedule.exponential('100 millis').pipe(Schedule.compose(Schedule.recurs(3)))),
+  Effect.timeout("5 seconds"),
+  Effect.retry(
+    Schedule.exponential("100 millis").pipe(
+      Schedule.compose(Schedule.recurs(3))
+    )
+  ),
   Effect.tap((data) => Effect.logInfo(`Fetched: ${data}`)),
-  Effect.withSpan('fetchData'),
-)
+  Effect.withSpan("fetchData")
+);
 ```
 
 **Common instrumentation:**
@@ -69,13 +73,13 @@ const program = fetchData.pipe(
 A service is defined using `Context.Tag` as a class:
 
 ```typescript
-import { Context, Effect } from 'effect'
+import { Context, Effect } from "effect";
 
-class Database extends Context.Tag('@app/Database')<
+class Database extends Context.Tag("@app/Database")<
   Database,
   {
-    readonly query: (sql: string) => Effect.Effect<unknown[]>
-    readonly execute: (sql: string) => Effect.Effect<void>
+    readonly query: (sql: string) => Effect.Effect<unknown[]>;
+    readonly execute: (sql: string) => Effect.Effect<void>;
   }
 >() {}
 ```
@@ -91,30 +95,30 @@ class Database extends Context.Tag('@app/Database')<
 A Layer is an implementation of a service:
 
 ```typescript
-import { Context, Effect, Layer } from 'effect'
+import { Context, Effect, Layer } from "effect";
 
-class Users extends Context.Tag('@app/Users')<
+class Users extends Context.Tag("@app/Users")<
   Users,
   {
-    readonly findById: (id: UserId) => Effect.Effect<User, UsersError>
+    readonly findById: (id: UserId) => Effect.Effect<User, UsersError>;
   }
 >() {
   static readonly layer = Layer.effect(
     Users,
     Effect.gen(function* () {
       // 1. yield* services you depend on
-      const http = yield* HttpClient.HttpClient
+      const http = yield* HttpClient.HttpClient;
 
       // 2. define the service methods with Effect.fn for call-site tracing
-      const findById = Effect.fn('Users.findById')(function* (id: UserId) {
-        const response = yield* http.get(`/users/${id}`)
-        return yield* HttpClientResponse.schemaBodyJson(User)(response)
-      })
+      const findById = Effect.fn("Users.findById")(function* (id: UserId) {
+        const response = yield* http.get(`/users/${id}`);
+        return yield* HttpClientResponse.schemaBodyJson(User)(response);
+      });
 
       // 3. return the service
-      return Users.of({ findById })
-    }),
-  )
+      return Users.of({ findById });
+    })
+  );
 }
 ```
 
@@ -128,11 +132,11 @@ Use `Effect.provide` once at the top of your application:
 const appLayer = userServiceLayer.pipe(
   Layer.provideMerge(databaseLayer),
   Layer.provideMerge(loggerLayer),
-  Layer.provideMerge(configLayer),
-)
+  Layer.provideMerge(configLayer)
+);
 
-const main = program.pipe(Effect.provide(appLayer))
-Effect.runPromise(main)
+const main = program.pipe(Effect.provide(appLayer));
+Effect.runPromise(main);
 ```
 
 ### Test Implementations
@@ -159,19 +163,19 @@ class Database extends Context.Tag("@app/Database")<...>() {
 Use `Schema.Class` for composite data models:
 
 ```typescript
-import { Schema } from 'effect'
+import { Schema } from "effect";
 
-const UserId = Schema.String.pipe(Schema.brand('UserId'))
-type UserId = typeof UserId.Type
+const UserId = Schema.String.pipe(Schema.brand("UserId"));
+type UserId = typeof UserId.Type;
 
-export class User extends Schema.Class<User>('User')({
+export class User extends Schema.Class<User>("User")({
   id: UserId,
   name: Schema.String,
   email: Schema.String,
   createdAt: Schema.Date,
 }) {
   get displayName() {
-    return `${this.name} (${this.email})`
+    return `${this.name} (${this.email})`;
   }
 }
 ```
@@ -181,17 +185,17 @@ export class User extends Schema.Class<User>('User')({
 Use branded types to prevent mixing values with the same underlying type:
 
 ```typescript
-import { Schema } from 'effect'
+import { Schema } from "effect";
 
-export const UserId = Schema.String.pipe(Schema.brand('UserId'))
-export type UserId = typeof UserId.Type
+export const UserId = Schema.String.pipe(Schema.brand("UserId"));
+export type UserId = typeof UserId.Type;
 
-export const PostId = Schema.String.pipe(Schema.brand('PostId'))
-export type PostId = typeof PostId.Type
+export const PostId = Schema.String.pipe(Schema.brand("PostId"));
+export type PostId = typeof PostId.Type;
 
 // These are now incompatible types
-const userId = UserId.make('user-123')
-const postId = PostId.make('post-456')
+const userId = UserId.make("user-123");
+const postId = PostId.make("post-456");
 ```
 
 **In a well-designed domain model, nearly all primitives should be branded.**
@@ -201,24 +205,24 @@ const postId = PostId.make('post-456')
 For structured variants with fields:
 
 ```typescript
-import { Match, Schema } from 'effect'
+import { Match, Schema } from "effect";
 
-export class Success extends Schema.TaggedClass<Success>()('Success', {
+export class Success extends Schema.TaggedClass<Success>()("Success", {
   value: Schema.Number,
 }) {}
 
-export class Failure extends Schema.TaggedClass<Failure>()('Failure', {
+export class Failure extends Schema.TaggedClass<Failure>()("Failure", {
   error: Schema.String,
 }) {}
 
-export const Result = Schema.Union(Success, Failure)
-export type Result = typeof Result.Type
+export const Result = Schema.Union(Success, Failure);
+export type Result = typeof Result.Type;
 
 // Pattern match
 Match.valueTags(result, {
   Success: ({ value }) => `Got: ${value}`,
   Failure: ({ error }) => `Error: ${error}`,
-})
+});
 ```
 
 ### JSON Encoding/Decoding
@@ -226,20 +230,20 @@ Match.valueTags(result, {
 Use `Schema.parseJson` to parse and validate JSON strings:
 
 ```typescript
-import { Effect, Schema } from 'effect'
+import { Effect, Schema } from "effect";
 
-class Move extends Schema.Class<Move>('Move')({
+class Move extends Schema.Class<Move>("Move")({
   from: Position,
   to: Position,
 }) {}
 
-const MoveFromJson = Schema.parseJson(Move)
+const MoveFromJson = Schema.parseJson(Move);
 
 const program = Effect.gen(function* () {
-  const move = yield* Schema.decodeUnknown(MoveFromJson)(jsonString)
-  const json = yield* Schema.encode(MoveFromJson)(move)
-  return json
-})
+  const move = yield* Schema.decodeUnknown(MoveFromJson)(jsonString);
+  const json = yield* Schema.encode(MoveFromJson)(move);
+  return json;
+});
 ```
 
 ## Error Handling
@@ -249,17 +253,23 @@ const program = Effect.gen(function* () {
 Define domain errors with `Schema.TaggedError`:
 
 ```typescript
-import { Schema } from 'effect'
+import { Schema } from "effect";
 
-class ValidationError extends Schema.TaggedError<ValidationError>()('ValidationError', {
-  field: Schema.String,
-  message: Schema.String,
-}) {}
+class ValidationError extends Schema.TaggedError<ValidationError>()(
+  "ValidationError",
+  {
+    field: Schema.String,
+    message: Schema.String,
+  }
+) {}
 
-class NotFoundError extends Schema.TaggedError<NotFoundError>()('NotFoundError', {
-  resource: Schema.String,
-  id: Schema.String,
-}) {}
+class NotFoundError extends Schema.TaggedError<NotFoundError>()(
+  "NotFoundError",
+  {
+    resource: Schema.String,
+    id: Schema.String,
+  }
+) {}
 ```
 
 **Benefits:**
@@ -274,12 +284,14 @@ class NotFoundError extends Schema.TaggedError<NotFoundError>()('NotFoundError',
 
 ```typescript
 // ✅ Good: Yieldable errors can be used directly
-return error.response.status === 404 ? UserNotFoundError.make({ id }) : Effect.die(error)
+return error.response.status === 404
+  ? UserNotFoundError.make({ id })
+  : Effect.die(error);
 
 // ❌ Redundant: no need to wrap with Effect.fail
 return error.response.status === 404
   ? Effect.fail(UserNotFoundError.make({ id }))
-  : Effect.die(error)
+  : Effect.die(error);
 ```
 
 ### Recovering from Errors
@@ -288,13 +300,13 @@ return error.response.status === 404
 
 ```typescript
 const recovered = program.pipe(
-  Effect.catchTag('HttpError', (error) =>
+  Effect.catchTag("HttpError", (error) =>
     Effect.gen(function* () {
-      yield* Effect.logWarning(`HTTP ${error.statusCode}`)
-      return 'Recovered from HttpError'
-    }),
-  ),
-)
+      yield* Effect.logWarning(`HTTP ${error.statusCode}`);
+      return "Recovered from HttpError";
+    })
+  )
+);
 ```
 
 **catchTags** - Handle multiple error types:
@@ -302,10 +314,10 @@ const recovered = program.pipe(
 ```typescript
 const recovered = program.pipe(
   Effect.catchTags({
-    HttpError: () => Effect.succeed('Recovered from HttpError'),
-    ValidationError: () => Effect.succeed('Recovered from ValidationError'),
-  }),
-)
+    HttpError: () => Effect.succeed("Recovered from HttpError"),
+    ValidationError: () => Effect.succeed("Recovered from ValidationError"),
+  })
+);
 ```
 
 ### Expected Errors vs Defects
@@ -317,9 +329,9 @@ const recovered = program.pipe(
 ```typescript
 // At app entry: if config fails, nothing can proceed
 const main = Effect.gen(function* () {
-  const config = yield* loadConfig.pipe(Effect.orDie)
-  yield* Effect.log(`Starting on port ${config.port}`)
-})
+  const config = yield* loadConfig.pipe(Effect.orDie);
+  yield* Effect.log(`Starting on port ${config.port}`);
+});
 ```
 
 ### Schema.Defect for Unknown Errors
@@ -327,7 +339,7 @@ const main = Effect.gen(function* () {
 Use `Schema.Defect` to wrap unknown errors from external libraries:
 
 ```typescript
-class ApiError extends Schema.TaggedError<ApiError>()('ApiError', {
+class ApiError extends Schema.TaggedError<ApiError>()("ApiError", {
   endpoint: Schema.String,
   statusCode: Schema.Number,
   error: Schema.Defect, // Wrap the underlying error
@@ -342,7 +354,7 @@ const fetchUser = (id: string) =>
         statusCode: 500,
         error,
       }),
-  })
+  });
 ```
 
 ## TypeScript Configuration

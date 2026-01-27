@@ -1,6 +1,7 @@
-import type { Store } from '@livestore/livestore'
-import type { schema } from '../../livestore/schema'
+import { type Store } from "@livestore/livestore";
 
-export type LinkStore = Store<typeof schema>
+import { type schema } from "../../livestore/schema";
 
-export const AI_MODEL = '@cf/meta/llama-3-8b-instruct'
+export type LinkStore = Store<typeof schema>;
+
+export const AI_MODEL = "@cf/meta/llama-3-8b-instruct";

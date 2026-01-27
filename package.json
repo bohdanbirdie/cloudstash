@@ -18,11 +18,9 @@
     "test": "vitest run",
     "test:unit": "vitest run --config vitest.config.ts",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix",
-    "format": "oxfmt --check .",
-    "format:fix": "oxfmt --write .",
-    "typecheck": "tsgo --noEmit"
+    "typecheck": "tsgo --noEmit",
+    "check": "ultracite check",
+    "fix": "ultracite fix"
   },
   "dependencies": {
     "@base-ui/react": "1.1.0",
@@ -79,8 +77,9 @@
     "drizzle-kit": "0.31.8",
     "jsdom": "^27.0.0",
     "localflare": "0.4.1",
-    "oxfmt": "^0.25.0",
-    "oxlint": "^0.16.6",
+    "oxfmt": "0.27.0",
+    "oxlint": "1.42.0",
+    "ultracite": "7.1.1",
     "vite": "^7.1.7",
     "vitest": "^3.0.5",
     "web-vitals": "^5.1.0",

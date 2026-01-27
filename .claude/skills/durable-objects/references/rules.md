@@ -8,10 +8,10 @@ Create one DO per logical unit needing coordination: chat room, game session, do
 
 ```typescript
 // ✅ Good: One DO per chat room
-const stub = env.CHAT_ROOM.getByName(roomId)
+const stub = env.CHAT_ROOM.getByName(roomId);
 
 // ❌ Bad: Single global DO
-const stub = env.CHAT_ROOM.getByName('global') // Bottleneck!
+const stub = env.CHAT_ROOM.getByName("global"); // Bottleneck!
 ```
 
 ### Parent-Child Relationships
@@ -38,7 +38,7 @@ async createMatch(name: string): Promise<string> {
 Influence DO creation location for latency-sensitive apps:
 
 ```typescript
-const id = env.GAME.idFromName(gameId, { locationHint: 'wnam' })
+const id = env.GAME.idFromName(gameId, { locationHint: "wnam" });
 ```
 
 Available hints: `wnam`, `enam`, `sam`, `weur`, `eeur`, `apac`, `oc`, `afr`, `me`.
@@ -57,17 +57,24 @@ SQL API is synchronous:
 
 ```typescript
 // Write
-this.ctx.storage.sql.exec('INSERT INTO items (name, value) VALUES (?, ?)', name, value)
+this.ctx.storage.sql.exec(
+  "INSERT INTO items (name, value) VALUES (?, ?)",
+  name,
+  value
+);
 
 // Read
 const rows = this.ctx.storage.sql
-  .exec<{ id: number; name: string }>('SELECT * FROM items WHERE name = ?', name)
-  .toArray()
+  .exec<{
+    id: number;
+    name: string;
+  }>("SELECT * FROM items WHERE name = ?", name)
+  .toArray();
 
 // Single row
 const row = this.ctx.storage.sql
-  .exec<{ count: number }>('SELECT COUNT(*) as count FROM items')
-  .one()
+  .exec<{ count: number }>("SELECT COUNT(*) as count FROM items")
+  .one();
 ```
 
 ### Migrations
@@ -132,18 +139,26 @@ Multiple writes without `await` between them are batched atomically:
 
 ```typescript
 // ✅ Good: All three writes commit atomically
-this.ctx.storage.sql.exec('UPDATE accounts SET balance = balance - ? WHERE id = ?', amount, fromId)
-this.ctx.storage.sql.exec('UPDATE accounts SET balance = balance + ? WHERE id = ?', amount, toId)
 this.ctx.storage.sql.exec(
-  'INSERT INTO transfers (from_id, to_id, amount) VALUES (?, ?, ?)',
+  "UPDATE accounts SET balance = balance - ? WHERE id = ?",
+  amount,
+  fromId
+);
+this.ctx.storage.sql.exec(
+  "UPDATE accounts SET balance = balance + ? WHERE id = ?",
+  amount,
+  toId
+);
+this.ctx.storage.sql.exec(
+  "INSERT INTO transfers (from_id, to_id, amount) VALUES (?, ?, ?)",
   fromId,
   toId,
-  amount,
-)
+  amount
+);
 
 // ❌ Bad: await breaks coalescing
-await this.ctx.storage.put('key1', val1)
-await this.ctx.storage.put('key2', val2) // Separate transaction!
+await this.ctx.storage.put("key1", val1);
+await this.ctx.storage.put("key2", val2); // Separate transaction!
 ```
 
 ### Race Conditions with External I/O
@@ -193,17 +208,17 @@ export class ChatRoom extends DurableObject<Env> {
   async sendMessage(userId: string, content: string): Promise<Message> {
     // Public methods are RPC endpoints
     const result = this.ctx.storage.sql.exec<{ id: number }>(
-      'INSERT INTO messages (user_id, content) VALUES (?, ?) RETURNING id',
+      "INSERT INTO messages (user_id, content) VALUES (?, ?) RETURNING id",
       userId,
-      content,
-    )
-    return { id: result.one().id, userId, content }
+      content
+    );
+    return { id: result.one().id, userId, content };
   }
 }
 
 // Caller
-const stub = env.CHAT_ROOM.getByName(roomId)
-const msg = await stub.sendMessage('user-123', 'Hello!') // Typed!
+const stub = env.CHAT_ROOM.getByName(roomId);
+const msg = await stub.sendMessage("user-123", "Hello!"); // Typed!
 ```
 
 ### Explicit init() Method

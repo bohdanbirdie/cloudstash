@@ -1,18 +1,18 @@
-import { Schema } from 'effect'
+import { Schema } from "effect";
 
 export class UnauthorizedError extends Schema.TaggedError<UnauthorizedError>()(
-  'UnauthorizedError',
-  {},
+  "UnauthorizedError",
+  {}
 ) {}
 
 export class OrgNotFoundError extends Schema.TaggedError<OrgNotFoundError>()(
-  'OrgNotFoundError',
-  {},
+  "OrgNotFoundError",
+  {}
 ) {}
 
 export class AccessDeniedError extends Schema.TaggedError<AccessDeniedError>()(
-  'AccessDeniedError',
-  {},
+  "AccessDeniedError",
+  {}
 ) {}
 
-export type OrgError = UnauthorizedError | OrgNotFoundError | AccessDeniedError
+export type OrgError = UnauthorizedError | OrgNotFoundError | AccessDeniedError;

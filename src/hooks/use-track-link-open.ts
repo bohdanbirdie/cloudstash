@@ -1,9 +1,10 @@
-import { useCallback } from 'react'
-import { useAppStore } from '@/livestore/store'
-import { events } from '@/livestore/schema'
+import { useCallback } from "react";
+
+import { events } from "@/livestore/schema";
+import { useAppStore } from "@/livestore/store";
 
 export function useTrackLinkOpen() {
-  const store = useAppStore()
+  const store = useAppStore();
 
   return useCallback(
     (linkId: string) => {
@@ -11,11 +12,11 @@ export function useTrackLinkOpen() {
         events.linkInteracted({
           id: crypto.randomUUID(),
           linkId,
-          type: 'opened',
           occurredAt: new Date(),
-        }),
-      )
+          type: "opened",
+        })
+      );
     },
-    [store],
-  )
+    [store]
+  );
 }

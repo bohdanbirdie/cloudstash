@@ -58,28 +58,28 @@ If calling from browser-based client:
 export default {
   async fetch(request: Request, env: Env) {
     // Handle preflight
-    if (request.method === 'OPTIONS') {
+    if (request.method === "OPTIONS") {
       return new Response(null, {
         headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
         },
-      })
+      });
     }
 
-    const response = await handleRequest(request, env)
+    const response = await handleRequest(request, env);
 
     // Add CORS headers to response
-    const headers = new Headers(response.headers)
-    headers.set('Access-Control-Allow-Origin', '*')
+    const headers = new Headers(response.headers);
+    headers.set("Access-Control-Allow-Origin", "*");
 
     return new Response(response.body, {
       status: response.status,
       headers,
-    })
+    });
   },
-}
+};
 ```
 
 ## Tool Errors
@@ -189,8 +189,8 @@ State parameter validation failed.
 
    ```typescript
    // In your auth handler
-   console.log('Storing state:', state)
-   await env.OAUTH_KV.put(`state:${state}`, '1', { expirationTtl: 600 })
+   console.log("Storing state:", state);
+   await env.OAUTH_KV.put(`state:${state}`, "1", { expirationTtl: 600 });
    ```
 
 3. **Verify same domain for all requests**
@@ -238,7 +238,7 @@ new_classes = ["MyMCP"]
 And class must be exported:
 
 ```typescript
-export { MyMCP } // Don't forget this!
+export { MyMCP }; // Don't forget this!
 ```
 
 ## Deployment Errors
@@ -282,15 +282,15 @@ wrangler deploy
 ```typescript
 export class MyMCP extends McpAgent {
   async init() {
-    console.log('MCP Server initializing...')
-    console.log('Environment:', Object.keys(this.env))
+    console.log("MCP Server initializing...");
+    console.log("Environment:", Object.keys(this.env));
 
-    this.server.tool('test', {}, async () => {
-      console.log('Test tool called')
-      return { content: [{ type: 'text', text: 'OK' }] }
-    })
+    this.server.tool("test", {}, async () => {
+      console.log("Test tool called");
+      return { content: [{ type: "text", text: "OK" }] };
+    });
 
-    console.log('Tools registered')
+    console.log("Tools registered");
   }
 }
 ```

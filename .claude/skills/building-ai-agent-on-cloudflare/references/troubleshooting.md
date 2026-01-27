@@ -22,12 +22,12 @@ Common issues and solutions for Cloudflare Agents.
    ```javascript
    // Ensure your routing handles the agent path
    // Client:
-   new WebSocket('wss://my-worker.workers.dev/agent/user123')
+   new WebSocket("wss://my-worker.workers.dev/agent/user123");
 
    // Worker must route to agent:
-   if (url.pathname.startsWith('/agent/')) {
-     const id = url.pathname.split('/')[2]
-     return env.AGENT.get(env.AGENT.idFromName(id)).fetch(request)
+   if (url.pathname.startsWith("/agent/")) {
+     const id = url.pathname.split("/")[2];
+     return env.AGENT.get(env.AGENT.idFromName(id)).fetch(request);
    }
    ```
 
@@ -68,13 +68,13 @@ Common issues and solutions for Cloudflare Agents.
 
    ```typescript
    // Wrong - direct mutation doesn't persist
-   this.state.messages.push(newMessage)
+   this.state.messages.push(newMessage);
 
    // Correct - use setState
    this.setState({
      ...this.state,
      messages: [...this.state.messages, newMessage],
-   })
+   });
    ```
 
 2. **Agent crashed before state saved**
@@ -100,15 +100,15 @@ Common issues and solutions for Cloudflare Agents.
 
    ```typescript
    // React hook handles this automatically
-   const { state } = useAgent({ agent: 'my-agent', name: id })
+   const { state } = useAgent({ agent: "my-agent", name: id });
 
    // Manual WebSocket - listen for state messages
    ws.onmessage = (event) => {
-     const data = JSON.parse(event.data)
-     if (data.type === 'state_update') {
-       updateLocalState(data.state)
+     const data = JSON.parse(event.data);
+     if (data.type === "state_update") {
+       updateLocalState(data.state);
      }
-   }
+   };
    ```
 
 ### "State too large" / Performance issues
@@ -118,18 +118,18 @@ State is serialized as JSON. Keep it small:
 ```typescript
 // Bad - storing everything in state
 interface State {
-  allMessages: Message[] // Could be thousands
-  allDocuments: Document[]
+  allMessages: Message[]; // Could be thousands
+  allDocuments: Document[];
 }
 
 // Good - state for hot data, SQL for cold
 interface State {
-  recentMessages: Message[] // Last 50 only
-  currentDocument: Document | null
+  recentMessages: Message[]; // Last 50 only
+  currentDocument: Document | null;
 }
 
 // Store full history in SQL
-await this.sql`INSERT INTO messages ...`
+await this.sql`INSERT INTO messages ...`;
 ```
 
 ## SQL Issues
@@ -156,10 +156,10 @@ Check your query syntax. Use tagged templates correctly:
 
 ```typescript
 // Wrong - string interpolation (SQL injection risk!)
-await this.sql`SELECT * FROM users WHERE id = '${userId}'`
+await this.sql`SELECT * FROM users WHERE id = '${userId}'`;
 
 // Correct - parameterized query
-await this.sql`SELECT * FROM users WHERE id = ${userId}`
+await this.sql`SELECT * FROM users WHERE id = ${userId}`;
 ```
 
 ### SQL query returns empty
@@ -173,11 +173,11 @@ Debug:
 ```typescript
 const tables = await this.sql`
   SELECT name FROM sqlite_master WHERE type='table'
-`
-console.log('Tables:', tables)
+`;
+console.log("Tables:", tables);
 
-const count = await this.sql`SELECT COUNT(*) as count FROM messages`
-console.log('Message count:', count)
+const count = await this.sql`SELECT COUNT(*) as count FROM messages`;
+console.log("Message count:", count);
 ```
 
 ## Scheduled Task Issues
@@ -200,16 +200,16 @@ console.log('Message count:', count)
 
    ```typescript
    // Invalid cron
-   await this.schedule('every 5 minutes', 'task', {}) // Wrong
+   await this.schedule("every 5 minutes", "task", {}); // Wrong
 
    // Valid cron
-   await this.schedule('*/5 * * * *', 'task', {}) // Every 5 minutes
+   await this.schedule("*/5 * * * *", "task", {}); // Every 5 minutes
    ```
 
 3. **Task was cancelled**
    ```typescript
-   const schedules = await this.getSchedules()
-   console.log('Active schedules:', schedules)
+   const schedules = await this.getSchedules();
+   console.log("Active schedules:", schedules);
    ```
 
 ### "Task fires multiple times"
@@ -320,21 +320,21 @@ for await (const chunk of stream) {
 ```typescript
 export class MyAgent extends Agent<Env, State> {
   async onStart() {
-    console.log('Agent starting, state:', JSON.stringify(this.state))
+    console.log("Agent starting, state:", JSON.stringify(this.state));
   }
 
   async onConnect(connection: Connection) {
-    console.log('Client connected:', connection.id)
+    console.log("Client connected:", connection.id);
   }
 
   async onMessage(connection: Connection, message: string) {
-    console.log('Received message:', message)
+    console.log("Received message:", message);
     // ... handle
-    console.log('State after:', JSON.stringify(this.state))
+    console.log("State after:", JSON.stringify(this.state));
   }
 
   async onClose(connection: Connection) {
-    console.log('Client disconnected:', connection.id)
+    console.log("Client disconnected:", connection.id);
   }
 }
 ```

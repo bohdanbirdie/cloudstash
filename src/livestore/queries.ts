@@ -1,33 +1,36 @@
-import { queryDb, Schema } from '@livestore/livestore'
+import { queryDb, Schema } from "@livestore/livestore";
 
-import { tables } from './schema'
+import { tables } from "./schema";
 
 export const inboxCount$ = queryDb(
-  tables.links.count().where({ status: 'unread', deletedAt: null }),
-  { label: 'inboxCount' },
-)
+  tables.links.count().where({ deletedAt: null, status: "unread" }),
+  { label: "inboxCount" }
+);
 
 export const completedCount$ = queryDb(
-  tables.links.count().where({ status: 'completed', deletedAt: null }),
-  { label: 'completedCount' },
-)
+  tables.links.count().where({ deletedAt: null, status: "completed" }),
+  { label: "completedCount" }
+);
 
-export const allLinksCount$ = queryDb(tables.links.count().where({ deletedAt: null }), {
-  label: 'allLinksCount',
-})
+export const allLinksCount$ = queryDb(
+  tables.links.count().where({ deletedAt: null }),
+  {
+    label: "allLinksCount",
+  }
+);
 
 const trashCountSchema = Schema.Struct({ count: Schema.Number }).pipe(
   Schema.Array,
-  Schema.headOrElse(() => ({ count: 0 })),
-)
+  Schema.headOrElse(() => ({ count: 0 }))
+);
 
 export const trashCount$ = queryDb(
   () => ({
-    query: 'SELECT COUNT(*) as count FROM links WHERE deletedAt IS NOT NULL',
+    query: "SELECT COUNT(*) as count FROM links WHERE deletedAt IS NOT NULL",
     schema: trashCountSchema,
   }),
-  { label: 'trashCount' },
-)
+  { label: "trashCount" }
+);
 
 // Schema for raw SQL join results (dates are numbers from SQLite)
 const LinkWithDetailsSchema = Schema.Struct({
@@ -45,11 +48,11 @@ const LinkWithDetailsSchema = Schema.Struct({
   favicon: Schema.NullOr(Schema.String),
   // From link_summaries
   summary: Schema.NullOr(Schema.String),
-})
+});
 
-export type LinkWithDetails = typeof LinkWithDetailsSchema.Type
+export type LinkWithDetails = typeof LinkWithDetailsSchema.Type;
 
-const linksWithDetailsSchema = Schema.Array(LinkWithDetailsSchema)
+const linksWithDetailsSchema = Schema.Array(LinkWithDetailsSchema);
 
 export const inboxLinks$ = queryDb(
   () => ({
@@ -75,8 +78,8 @@ export const inboxLinks$ = queryDb(
     `,
     schema: linksWithDetailsSchema,
   }),
-  { label: 'inboxLinks' },
-)
+  { label: "inboxLinks" }
+);
 
 export const completedLinks$ = queryDb(
   () => ({
@@ -102,8 +105,8 @@ export const completedLinks$ = queryDb(
     `,
     schema: linksWithDetailsSchema,
   }),
-  { label: 'completedLinks' },
-)
+  { label: "completedLinks" }
+);
 
 export const allLinks$ = queryDb(
   () => ({
@@ -129,8 +132,8 @@ export const allLinks$ = queryDb(
     `,
     schema: linksWithDetailsSchema,
   }),
-  { label: 'allLinks' },
-)
+  { label: "allLinks" }
+);
 
 export const trashLinks$ = queryDb(
   () => ({
@@ -156,22 +159,23 @@ export const trashLinks$ = queryDb(
     `,
     schema: linksWithDetailsSchema,
   }),
-  { label: 'trashLinks' },
-)
+  { label: "trashLinks" }
+);
 
 export const linkProcessingStatus$ = (linkId: string) =>
   queryDb(tables.linkProcessingStatus.where({ linkId }).first(), {
     label: `linkProcessingStatus:${linkId}`,
-  })
+  });
 
 const linkByIdSchema = LinkWithDetailsSchema.pipe(
   Schema.Array,
-  Schema.headOrElse(() => null as unknown as typeof LinkWithDetailsSchema.Type),
-)
+  Schema.headOrElse(() => null as unknown as typeof LinkWithDetailsSchema.Type)
+);
 
 export const linkById$ = (id: string) =>
   queryDb(
     {
+      bindValues: [id],
       query: `
         SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
                s.title, s.description, s.image, s.favicon,
@@ -192,10 +196,9 @@ export const linkById$ = (id: string) =>
         WHERE l.id = ?
       `,
       schema: linkByIdSchema,
-      bindValues: [id],
     },
-    { label: `linkById:${id}` },
-  )
+    { label: `linkById:${id}` }
+  );
 
 export const recentlyOpenedLinks$ = queryDb(
   () => ({
@@ -228,5 +231,5 @@ export const recentlyOpenedLinks$ = queryDb(
     `,
     schema: linksWithDetailsSchema,
   }),
-  { label: 'recentlyOpenedLinks' },
-)
+  { label: "recentlyOpenedLinks" }
+);

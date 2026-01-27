@@ -1,1 +1,1 @@
-export { handleGetMe, handleGetOrg } from './service'
+export { handleGetMe, handleGetOrg } from "./service";

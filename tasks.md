@@ -147,12 +147,12 @@ Returns organization details if user is a member.
 ```typescript
 // Response (200 if member)
 {
-  ;(id, name, slug, role)
+  (id, name, slug, role);
 }
 
 // Response (403 if not member)
 {
-  error: 'Access denied'
+  error: "Access denied";
 }
 ```
 
@@ -171,60 +171,60 @@ Returns organization details if user is a member.
 ```typescript
 // Helper to signup and get session cookie
 const signupUser = async (email: string, name: string) => {
-  const res = await SELF.fetch('/api/auth/sign-up/email', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password: 'test-password-123', name }),
-  })
-  const cookie = res.headers.get('set-cookie') // session cookie
+  const res = await SELF.fetch("/api/auth/sign-up/email", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password: "test-password-123", name }),
+  });
+  const cookie = res.headers.get("set-cookie"); // session cookie
 
   // Get user info including orgId
-  const meRes = await SELF.fetch('/api/auth/me', {
+  const meRes = await SELF.fetch("/api/auth/me", {
     headers: { Cookie: cookie },
-  })
-  const me = await meRes.json()
+  });
+  const me = await meRes.json();
 
-  return { cookie, userId: me.user.id, orgId: me.session.activeOrganizationId }
-}
+  return { cookie, userId: me.user.id, orgId: me.session.activeOrganizationId };
+};
 
-describe('Organization Auth E2E', () => {
-  let userA: { cookie: string; userId: string; orgId: string }
-  let userB: { cookie: string; userId: string; orgId: string }
+describe("Organization Auth E2E", () => {
+  let userA: { cookie: string; userId: string; orgId: string };
+  let userB: { cookie: string; userId: string; orgId: string };
 
   beforeAll(async () => {
     // Create two users via email signup (triggers databaseHooks → auto-creates orgs)
-    userA = await signupUser('a@test.com', 'User A')
-    userB = await signupUser('b@test.com', 'User B')
-  })
+    userA = await signupUser("a@test.com", "User A");
+    userB = await signupUser("b@test.com", "User B");
+  });
 
-  it('User A can access /me', async () => {
-    const res = await SELF.fetch('/api/auth/me', {
+  it("User A can access /me", async () => {
+    const res = await SELF.fetch("/api/auth/me", {
       headers: { Cookie: userA.cookie },
-    })
-    expect(res.status).toBe(200)
-    const data = await res.json()
-    expect(data.user.id).toBe(userA.userId)
-  })
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.user.id).toBe(userA.userId);
+  });
 
-  it('User A can access own org', async () => {
+  it("User A can access own org", async () => {
     const res = await SELF.fetch(`/api/org/${userA.orgId}`, {
       headers: { Cookie: userA.cookie },
-    })
-    expect(res.status).toBe(200)
-  })
+    });
+    expect(res.status).toBe(200);
+  });
 
-  it('User A cannot access User B org', async () => {
+  it("User A cannot access User B org", async () => {
     const res = await SELF.fetch(`/api/org/${userB.orgId}`, {
       headers: { Cookie: userA.cookie },
-    })
-    expect(res.status).toBe(403)
-  })
+    });
+    expect(res.status).toBe(403);
+  });
 
-  it('Unauthenticated request is rejected', async () => {
-    const res = await SELF.fetch('/api/auth/me')
-    expect(res.status).toBe(401)
-  })
-})
+  it("Unauthenticated request is rejected", async () => {
+    const res = await SELF.fetch("/api/auth/me");
+    expect(res.status).toBe(401);
+  });
+});
 ```
 
 ### Implementation Steps
@@ -261,12 +261,12 @@ export default defineWorkersConfig({
       workers: {
         miniflare: {
           bindings: {
-            ENABLE_TEST_AUTH: 'true', // Enable email signup in tests
+            ENABLE_TEST_AUTH: "true", // Enable email signup in tests
             // ... other test bindings
           },
         },
       },
     },
   },
-})
+});
 ```

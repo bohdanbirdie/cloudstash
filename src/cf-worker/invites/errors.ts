@@ -1,24 +1,27 @@
-import { Schema } from 'effect'
+import { Schema } from "effect";
 
 export class UnauthorizedError extends Schema.TaggedError<UnauthorizedError>()(
-  'UnauthorizedError',
-  {},
+  "UnauthorizedError",
+  {}
 ) {}
 
-export class ForbiddenError extends Schema.TaggedError<ForbiddenError>()('ForbiddenError', {}) {}
+export class ForbiddenError extends Schema.TaggedError<ForbiddenError>()(
+  "ForbiddenError",
+  {}
+) {}
 
 export class InvalidInviteError extends Schema.TaggedError<InvalidInviteError>()(
-  'InvalidInviteError',
-  {},
+  "InvalidInviteError",
+  {}
 ) {}
 
 export class InviteNotFoundError extends Schema.TaggedError<InviteNotFoundError>()(
-  'InviteNotFoundError',
-  {},
+  "InviteNotFoundError",
+  {}
 ) {}
 
 export type InviteError =
   | UnauthorizedError
   | ForbiddenError
   | InvalidInviteError
-  | InviteNotFoundError
+  | InviteNotFoundError;

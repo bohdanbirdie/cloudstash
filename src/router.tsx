@@ -1,24 +1,24 @@
-import { StoreRegistry } from '@livestore/livestore'
-import { createRouter } from '@tanstack/react-router'
+import { StoreRegistry } from "@livestore/livestore";
+import { createRouter } from "@tanstack/react-router";
 
-import type { AuthState } from './lib/auth'
-import { routeTree } from './routeTree.gen'
+import { type AuthState } from "./lib/auth";
+import { routeTree } from "./routeTree.gen";
 
-export type RouterContext = {
-  storeRegistry: StoreRegistry
-  auth: AuthState
+export interface RouterContext {
+  storeRegistry: StoreRegistry;
+  auth: AuthState;
 }
 
 export const getRouter = () => {
-  const storeRegistry = new StoreRegistry()
+  const storeRegistry = new StoreRegistry();
 
   return createRouter({
+    context: {
+      auth: undefined!,
+      storeRegistry, // Provided by AuthProvider at runtime
+    },
+    defaultPreloadStaleTime: 0,
     routeTree,
     scrollRestoration: true,
-    defaultPreloadStaleTime: 0,
-    context: {
-      storeRegistry,
-      auth: undefined!, // Provided by AuthProvider at runtime
-    },
-  })
-}
+  });
+};

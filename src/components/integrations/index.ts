@@ -1,1 +1,1 @@
-export { IntegrationsModal } from './integrations-modal'
+export { IntegrationsModal } from "./integrations-modal";
