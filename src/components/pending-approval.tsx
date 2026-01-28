@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/auth";
 
 import { useRedeemInvite } from "./use-redeem-invite";
 
-const CODE_LENGTH = 6;
+const CODE_LENGTH = 8;
 
 export function PendingApproval() {
   const { logout } = useAuth();
