@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 
+import { safeErrorInfo } from "../log-utils";
 import { type Env } from "../shared";
 import { type ExtractedContent } from "./content-extractor";
 import { AI_MODEL } from "./types";
@@ -20,7 +21,7 @@ export const generateSummary = ({
   extractedContent,
   env,
 }: GenerateSummaryParams) =>
-  Effect.gen(function* generateSummary() {
+  Effect.gen(function* () {
     let content: string;
     let contentSource: string;
 
@@ -47,7 +48,6 @@ export const generateSummary = ({
     yield* Effect.logDebug("Calling Workers AI").pipe(
       Effect.annotateLogs({
         contentLength: truncatedContent.length,
-        contentPreview: truncatedContent.slice(0, 200),
         contentSource,
         model: AI_MODEL,
       })
@@ -71,29 +71,25 @@ export const generateSummary = ({
 
     yield* Effect.logDebug("Workers AI response received").pipe(
       Effect.annotateLogs({
-        rawResponse: JSON.stringify(response).slice(0, 500),
-        responseKeys: response ? Object.keys(response) : [],
+        hasResponse: "response" in response,
         responseType: typeof response,
       })
     );
 
     if ("response" in response && typeof response.response === "string") {
       const summary = response.response.trim();
-      yield* Effect.logDebug("Summary extracted from response").pipe(
+      yield* Effect.logDebug("Summary extracted").pipe(
         Effect.annotateLogs({ summaryLength: summary.length })
       );
       return summary;
     }
 
-    yield* Effect.logWarning("Unexpected AI response format").pipe(
-      Effect.annotateLogs({ response: JSON.stringify(response) })
-    );
+    yield* Effect.logWarning("Unexpected AI response format");
     return null;
   }).pipe(
-    Effect.annotateLogs({ url }),
     Effect.catchAll((error) =>
       Effect.logError("AI summary generation failed").pipe(
-        Effect.annotateLogs({ error: String(error) }),
+        Effect.annotateLogs(safeErrorInfo(error)),
         Effect.as(null)
       )
     )

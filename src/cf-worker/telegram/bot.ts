@@ -23,10 +23,7 @@ export function createBot(env: Env): Bot {
   bot.command("connect", (ctx) => handleConnect(ctx, env));
   bot.command("disconnect", (ctx) => handleDisconnect(ctx, env));
   bot.command(["start", "help"], (ctx) => {
-    logger.info("/start or /help", {
-      chatId: ctx.chat?.id,
-      from: ctx.from?.username,
-    });
+    logger.info("/start or /help");
     return ctx.reply(HELP_MESSAGE);
   });
 

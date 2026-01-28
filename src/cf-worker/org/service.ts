@@ -2,12 +2,16 @@ import { Effect } from "effect";
 
 import { createAuth } from "../auth";
 import { createDb } from "../db";
+import { maskId } from "../log-utils";
+import { logSync } from "../logger";
 import { type Env } from "../shared";
 import {
   AccessDeniedError,
   OrgNotFoundError,
   UnauthorizedError,
 } from "./errors";
+
+const logger = logSync("Org");
 
 type Auth = ReturnType<typeof createAuth>;
 
@@ -65,12 +69,21 @@ const handleGetMeRequest = (request: Request, env: Env) =>
 export const handleGetMe = (request: Request, env: Env): Promise<Response> =>
   Effect.runPromise(
     handleGetMeRequest(request, env).pipe(
-      Effect.map((data) => Response.json(data)),
-      Effect.catchTag("UnauthorizedError", () =>
-        Effect.succeed(
-          Response.json({ error: "Unauthorized" }, { status: 401 })
+      Effect.tap((data) =>
+        Effect.sync(() =>
+          logger.debug("Get me success", {
+            hasOrg: !!data.organization,
+            orgId: data.organization ? maskId(data.organization.id) : null,
+          })
         )
-      )
+      ),
+      Effect.map((data) => Response.json(data)),
+      Effect.catchTag("UnauthorizedError", () => {
+        logger.debug("Get me unauthorized");
+        return Effect.succeed(
+          Response.json({ error: "Unauthorized" }, { status: 401 })
+        );
+      })
     )
   );
 
@@ -128,20 +141,31 @@ export const handleGetOrg = (
 ): Promise<Response> =>
   Effect.runPromise(
     handleGetOrgRequest(request, orgId, env).pipe(
+      Effect.tap(() =>
+        Effect.sync(() =>
+          logger.debug("Get org success", { orgId: maskId(orgId) })
+        )
+      ),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
-        AccessDeniedError: () =>
-          Effect.succeed(
+        AccessDeniedError: () => {
+          logger.info("Get org access denied", { orgId: maskId(orgId) });
+          return Effect.succeed(
             Response.json({ error: "Access denied" }, { status: 403 })
-          ),
-        OrgNotFoundError: () =>
-          Effect.succeed(
+          );
+        },
+        OrgNotFoundError: () => {
+          logger.info("Get org not found", { orgId: maskId(orgId) });
+          return Effect.succeed(
             Response.json({ error: "Organization not found" }, { status: 404 })
-          ),
-        UnauthorizedError: () =>
-          Effect.succeed(
+          );
+        },
+        UnauthorizedError: () => {
+          logger.debug("Get org unauthorized");
+          return Effect.succeed(
             Response.json({ error: "Unauthorized" }, { status: 401 })
-          ),
+          );
+        },
       })
     )
   );

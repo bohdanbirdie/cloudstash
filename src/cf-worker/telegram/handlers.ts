@@ -3,6 +3,7 @@ import { type Context } from "grammy";
 
 import { createAuth } from "../auth";
 import { createDb } from "../db";
+import { safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import { type Env } from "../shared";
 import {
@@ -62,7 +63,7 @@ const connectRequest = (ctx: Context, env: Env) =>
   });
 
 export const handleConnect = (ctx: Context, env: Env): Promise<void> => {
-  logger.info("/connect", { chatId: ctx.chat?.id, from: ctx.from?.username });
+  logger.info("/connect");
 
   const reply = (msg: string) => Effect.promise(() => ctx.reply(msg));
 
@@ -80,7 +81,7 @@ export const handleConnect = (ctx: Context, env: Env): Promise<void> => {
       }),
       Effect.catchAll((error) =>
         Effect.sync(() =>
-          logger.error("Connect error", { error: String(error) })
+          logger.error("Connect error", safeErrorInfo(error))
         ).pipe(
           Effect.flatMap(() =>
             reply("Failed to verify API key. Please try again.")
@@ -100,10 +101,7 @@ const disconnectRequest = (ctx: Context, env: Env) =>
   });
 
 export const handleDisconnect = (ctx: Context, env: Env): Promise<void> => {
-  logger.info("/disconnect", {
-    chatId: ctx.chat?.id,
-    from: ctx.from?.username,
-  });
+  logger.info("/disconnect");
 
   const reply = (msg: string) => Effect.promise(() => ctx.reply(msg));
 
@@ -200,7 +198,6 @@ const linksRequest = (ctx: Context, urls: string[], env: Env) =>
 
     yield* Effect.sync(() =>
       logger.info("Ingest complete", {
-        chatId,
         duplicates: duplicates.length,
         failed: failed.length,
         ingested: ingested.length,
@@ -248,11 +245,7 @@ export const handleLinks = (
   urls: string[],
   env: Env
 ): Promise<void> => {
-  logger.info("Link received", {
-    chatId: ctx.chat?.id,
-    from: ctx.from?.username,
-    urls,
-  });
+  logger.info("Links received", { urlCount: urls.length });
 
   return Effect.runPromise(
     linksRequest(ctx, urls, env).pipe(
@@ -278,9 +271,7 @@ export const handleLinks = (
       ),
       Effect.catchTag("MissingChatIdError", () => Effect.void),
       Effect.catchAll((error) => {
-        logger.error("Unhandled error in handleLinks", {
-          error: String(error),
-        });
+        logger.error("Unhandled error in handleLinks", safeErrorInfo(error));
         return Effect.void;
       })
     )

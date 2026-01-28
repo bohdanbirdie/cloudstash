@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 
 import { type Database } from "../db";
 import * as schema from "../db/schema";
+import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import { type Env } from "../shared";
 
@@ -48,14 +49,13 @@ export const createAuth = (env: Env, db: Database) => {
                 },
               });
               logger.info("Created organization", {
-                orgId: result?.id,
-                userId: user.id,
+                orgId: maskId(result?.id ?? ""),
               });
             } catch (error) {
-              logger.error("Failed to create organization", {
-                userId: user.id,
-                error: String(error),
-              });
+              logger.error(
+                "Failed to create organization",
+                safeErrorInfo(error)
+              );
               throw error;
             }
           },

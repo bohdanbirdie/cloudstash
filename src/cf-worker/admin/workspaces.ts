@@ -3,7 +3,11 @@ import { eq } from "drizzle-orm";
 import { createDb } from "../db";
 import * as schema from "../db/schema";
 import { type OrgFeatures } from "../db/schema";
+import { maskId } from "../log-utils";
+import { logSync } from "../logger";
 import { type Env } from "../shared";
+
+const logger = logSync("Admin");
 
 export interface WorkspaceWithOwner {
   id: string;
@@ -39,6 +43,7 @@ export async function handleListWorkspaces(
     features: (org.features as OrgFeatures) ?? {},
   }));
 
+  logger.info("List workspaces", { count: workspaces.length });
   return Response.json({ workspaces });
 }
 
@@ -55,9 +60,11 @@ export async function handleGetOrgSettings(
   });
 
   if (!org) {
+    logger.info("Get org settings not found", { orgId: maskId(orgId) });
     return Response.json({ error: "Organization not found" }, { status: 404 });
   }
 
+  logger.debug("Get org settings", { orgId: maskId(orgId) });
   return Response.json({ features: (org.features as OrgFeatures) ?? {} });
 }
 
@@ -72,6 +79,7 @@ export async function handleUpdateOrgSettings(
   try {
     body = await request.json();
   } catch {
+    logger.warn("Update org settings invalid body", { orgId: maskId(orgId) });
     return Response.json({ error: "Invalid request body" }, { status: 400 });
   }
 
@@ -81,6 +89,7 @@ export async function handleUpdateOrgSettings(
   });
 
   if (!org) {
+    logger.info("Update org settings not found", { orgId: maskId(orgId) });
     return Response.json({ error: "Organization not found" }, { status: 404 });
   }
 
@@ -89,5 +98,9 @@ export async function handleUpdateOrgSettings(
     .set({ features: body.features })
     .where(eq(schema.organization.id, orgId));
 
+  logger.info("Update org settings", {
+    orgId: maskId(orgId),
+    features: Object.keys(body.features),
+  });
   return Response.json({ success: true, features: body.features });
 }

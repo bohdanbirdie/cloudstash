@@ -4,6 +4,7 @@ import { Effect } from "effect";
 import { createAuth, type Auth } from "../auth";
 import { createDb } from "../db";
 import * as schema from "../db/schema";
+import { logSync } from "../logger";
 import { type Env } from "../shared";
 import {
   ForbiddenError,
@@ -11,6 +12,8 @@ import {
   InviteNotFoundError,
   UnauthorizedError,
 } from "./errors";
+
+const logger = logSync("Invites");
 
 // Character set excluding ambiguous characters (0, O, I, L)
 const INVITE_CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -74,6 +77,7 @@ const handleCreateInviteRequest = (request: Request, env: Env) =>
       })
     );
 
+    logger.info("Invite created", { hasExpiry: !!expiresAt });
     return { code, expiresAt };
   });
 
@@ -114,6 +118,7 @@ const handleListInvitesRequest = (request: Request, env: Env) =>
       })
     );
 
+    logger.debug("List invites", { count: invites.length });
     return { invites };
   });
 
@@ -156,6 +161,7 @@ const handleDeleteInviteRequest = (
     );
 
     if (!invite) {
+      logger.info("Delete invite not found");
       return yield* Effect.fail(new InviteNotFoundError());
     }
 
@@ -163,6 +169,7 @@ const handleDeleteInviteRequest = (
       db.delete(schema.invite).where(eq(schema.invite.id, inviteId))
     );
 
+    logger.info("Invite deleted");
     return { success: true };
   });
 
@@ -199,6 +206,7 @@ const handleRedeemInviteRequest = (request: Request, env: Env) =>
 
     const user = session.user as typeof session.user & { approved?: boolean };
     if (user.approved) {
+      logger.debug("Redeem invite - already approved");
       return { success: true };
     }
 
@@ -208,6 +216,7 @@ const handleRedeemInviteRequest = (request: Request, env: Env) =>
     });
 
     if (!body.code) {
+      logger.info("Redeem invite - missing code");
       return yield* Effect.fail(new InvalidInviteError());
     }
 
@@ -225,6 +234,7 @@ const handleRedeemInviteRequest = (request: Request, env: Env) =>
     );
 
     if (!invite) {
+      logger.info("Redeem invite - invalid or expired code");
       return yield* Effect.fail(new InvalidInviteError());
     }
 

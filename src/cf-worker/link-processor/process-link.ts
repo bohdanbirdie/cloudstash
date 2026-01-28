@@ -2,6 +2,7 @@ import { nanoid } from "@livestore/livestore";
 import { Effect } from "effect";
 
 import { events } from "../../livestore/schema";
+import { safeErrorInfo } from "../log-utils";
 import { fetchOgMetadata } from "../metadata/service";
 import { type Env } from "../shared";
 import { fetchAndExtractContent } from "./content-extractor";
@@ -26,12 +27,12 @@ export const processLink = ({
   link,
   store,
 }: ProcessLinkParams) =>
-  Effect.gen(function* processLink() {
+  Effect.gen(function* () {
     const now = new Date();
 
     yield* Effect.logInfo(
       `Processing link ${isRetry ? "(retry)" : "started"}`
-    ).pipe(Effect.annotateLogs({ isRetry, url: link.url }));
+    ).pipe(Effect.annotateLogs({ isRetry }));
 
     // Mark as processing started (only for new links, not retries)
     if (!isRetry) {
@@ -41,11 +42,11 @@ export const processLink = ({
     }
 
     // Fetch metadata
-    yield* Effect.logDebug("Fetching metadata");
     const metadataResult = yield* fetchOgMetadata(link.url).pipe(
+      Effect.withSpan("fetchMetadata"),
       Effect.catchAll((error) =>
         Effect.logWarning("Metadata fetch failed").pipe(
-          Effect.annotateLogs({ error: String(error) }),
+          Effect.annotateLogs(safeErrorInfo(error)),
           Effect.as(null)
         )
       )
@@ -63,11 +64,12 @@ export const processLink = ({
           title: metadataResult.title ?? null,
         })
       );
-      yield* Effect.logInfo("Metadata fetched and committed").pipe(
+      yield* Effect.logInfo("Metadata fetched").pipe(
         Effect.annotateLogs({
           hasDescription: !!metadataResult.description,
+          hasFavicon: !!metadataResult.favicon,
           hasImage: !!metadataResult.image,
-          title: metadataResult.title,
+          hasTitle: !!metadataResult.title,
         })
       );
     } else {
@@ -75,14 +77,14 @@ export const processLink = ({
     }
 
     if (aiSummaryEnabled) {
-      yield* Effect.logDebug("Extracting content");
       const extractedContent = yield* Effect.tryPromise({
         catch: (error) => new Error(`Content extraction failed: ${error}`),
         try: () => fetchAndExtractContent(link.url),
       }).pipe(
+        Effect.withSpan("extractContent"),
         Effect.catchAll((error) =>
           Effect.logWarning("Content extraction failed").pipe(
-            Effect.annotateLogs({ error: String(error) }),
+            Effect.annotateLogs(safeErrorInfo(error)),
             Effect.as(null)
           )
         )
@@ -99,13 +101,12 @@ export const processLink = ({
         yield* Effect.logWarning("No content extracted");
       }
 
-      yield* Effect.logDebug("Generating AI summary");
       const summaryContent = yield* generateSummary({
         env,
         extractedContent,
         metadata: metadataResult,
         url: link.url,
-      });
+      }).pipe(Effect.withSpan("generateSummary"));
 
       if (summaryContent) {
         store.commit(
@@ -117,17 +118,17 @@ export const processLink = ({
             summary: summaryContent,
           })
         );
-        yield* Effect.logInfo("Summary generated and committed").pipe(
+        yield* Effect.logInfo("Summary generated").pipe(
           Effect.annotateLogs({
+            model: AI_MODEL,
             summaryLength: summaryContent.length,
-            summaryPreview: summaryContent.slice(0, 100),
           })
         );
       } else {
         yield* Effect.logWarning("No summary generated");
       }
     } else {
-      yield* Effect.logInfo("AI summaries disabled for this org, skipping");
+      yield* Effect.logDebug("AI summaries disabled, skipping");
     }
 
     store.commit(
@@ -137,15 +138,18 @@ export const processLink = ({
     yield* Effect.logInfo("Link processing completed");
   }).pipe(
     Effect.annotateLogs({ linkId: link.id }),
+    Effect.withSpan("processLink", {
+      attributes: { aiSummaryEnabled, isRetry, linkId: link.id },
+    }),
     Effect.catchAllCause((cause) =>
-      Effect.gen(function* processLink() {
-        const errorMessage = cause.toString();
+      Effect.gen(function* () {
+        const errorInfo = safeErrorInfo(cause);
         yield* Effect.logError("Link processing failed").pipe(
-          Effect.annotateLogs({ error: errorMessage })
+          Effect.annotateLogs(errorInfo)
         );
         store.commit(
           events.linkProcessingFailed({
-            error: errorMessage,
+            error: errorInfo.errorType,
             linkId: link.id,
             updatedAt: new Date(),
           })

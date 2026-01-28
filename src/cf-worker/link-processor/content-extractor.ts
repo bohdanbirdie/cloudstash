@@ -7,6 +7,7 @@ import {
 } from "domutils";
 import { parseDocument } from "htmlparser2";
 
+import { safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 
 const logger = logSync("ContentExtractor");
@@ -164,7 +165,7 @@ export function extractContent(
       title,
     };
   } catch (error) {
-    logger.error("Failed to extract content", { error: String(error) });
+    logger.error("Failed to extract content", safeErrorInfo(error));
     return null;
   }
 }
@@ -184,17 +185,14 @@ export async function fetchAndExtractContent(
     });
 
     if (!response.ok) {
-      logger.error("Failed to fetch URL", { status: response.status, url });
+      logger.error("Failed to fetch URL", { status: response.status });
       return null;
     }
 
     const html = await response.text();
     return extractContent(html, url);
   } catch (error) {
-    logger.error("Failed to fetch and extract content", {
-      error: String(error),
-      url,
-    });
+    logger.error("Failed to fetch and extract content", safeErrorInfo(error));
     return null;
   }
 }

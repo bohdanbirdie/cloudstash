@@ -19,6 +19,7 @@ import {
   handleListInvites,
   handleRedeemInvite,
 } from "./invites";
+import { logSync } from "./logger";
 import { metadataRequestToResponse } from "./metadata/service";
 import { requireAdmin } from "./middleware/require-admin";
 import { handleGetMe, handleGetOrg } from "./org";
@@ -28,6 +29,8 @@ import { handleTelegramWebhook } from "./telegram";
 
 export { SyncBackendDO } from "./sync";
 export { LinkProcessorDO } from "./link-processor";
+
+const logger = logSync("API");
 
 const app = new Hono<{ Bindings: Env; Variables: HonoVariables }>();
 
@@ -73,6 +76,7 @@ app.post("/api/telegram", (c) => handleTelegramWebhook(c.req.raw, c.env));
 app.get("/api/sync/auth", async (c) => {
   const storeId = c.req.query("storeId");
   if (!storeId) {
+    logger.warn("Sync auth missing storeId");
     return c.json({ error: "Missing storeId" }, 400);
   }
 
@@ -89,8 +93,10 @@ app.get("/api/sync/auth", async (c) => {
   );
 
   if ("ok" in result) {
+    logger.debug("Sync auth success");
     return c.json(result);
   }
+  logger.info("Sync auth failed", { code: result.code, status: result.status });
   return c.json(result, result.status as 401 | 403);
 });
 
@@ -102,6 +108,7 @@ const handleSync = async (
   const searchParams = SyncBackend.matchSyncRequest(request);
 
   if (!searchParams) {
+    logger.warn("Invalid sync request");
     return new Response(JSON.stringify({ error: "Invalid sync request" }), {
       headers: { "Content-Type": "application/json" },
       status: 400,
@@ -125,6 +132,10 @@ const handleSync = async (
   );
 
   if (authResult instanceof SyncAuthError) {
+    logger.info("Sync auth rejected", {
+      code: authResult.code,
+      status: authResult.status,
+    });
     return new Response(JSON.stringify(authResult), {
       headers: { "Content-Type": "application/json" },
       status: authResult.status,

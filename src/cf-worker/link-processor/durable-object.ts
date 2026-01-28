@@ -18,6 +18,7 @@ import { Effect } from "effect";
 import { events, schema, tables } from "../../livestore/schema";
 import { createDb } from "../db";
 import { organization, type OrgFeatures } from "../db/schema";
+import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import { type Env } from "../shared";
 import { InvalidUrlError } from "./errors";
@@ -61,7 +62,10 @@ export class LinkProcessorDO
     }
 
     const sessionId = await this.getSessionId();
-    logger.info("Creating store", { sessionId, storeId: this.storeId });
+    logger.info("Creating store", {
+      sessionId: maskId(sessionId),
+      storeId: maskId(this.storeId),
+    });
 
     this.cachedStore = await createStoreDoPromise({
       clientId: "link-processor-do",
@@ -92,7 +96,10 @@ export class LinkProcessorDO
     });
 
     const features = org?.features ?? {};
-    logger.info("Fetched features", { storeId: this.storeId, features });
+    logger.debug("Fetched features", {
+      storeId: maskId(this.storeId),
+      hasAiSummary: !!features.aiSummary,
+    });
     return features;
   }
 
@@ -143,7 +150,7 @@ export class LinkProcessorDO
 
       this.processLinkAsync(store, link, isRetry).catch((error) => {
         logger.error("processLinkAsync error", {
-          error: String(error),
+          ...safeErrorInfo(error),
           linkId: link.id,
         });
       });
@@ -157,7 +164,7 @@ export class LinkProcessorDO
   ): Promise<void> {
     this.currentlyProcessing.add(link.id);
 
-    logger.info("Processing", { isRetry, linkId: link.id, url: link.url });
+    logger.info("Processing", { isRetry, linkId: link.id });
 
     try {
       const features = await this.getFeatures();
@@ -216,8 +223,7 @@ export class LinkProcessorDO
         yield* Effect.sync(() =>
           logger.info("Duplicate link", {
             existingId: existing[0].id,
-            storeId: this.storeId,
-            url,
+            storeId: maskId(this.storeId ?? ""),
           })
         );
         return json({ existingId: existing[0].id, status: "duplicate" });
@@ -226,7 +232,10 @@ export class LinkProcessorDO
       const linkId = nanoid();
 
       yield* Effect.sync(() =>
-        logger.info("Ingesting link", { linkId, storeId: this.storeId, url })
+        logger.info("Ingesting link", {
+          linkId,
+          storeId: maskId(this.storeId ?? ""),
+        })
       );
 
       yield* Effect.sync(() =>

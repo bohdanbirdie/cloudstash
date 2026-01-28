@@ -3,7 +3,10 @@ import { createMiddleware } from "hono/factory";
 
 import { createAuth } from "../auth";
 import { createDb } from "../db";
+import { logSync } from "../logger";
 import { type AdminSession, type Env } from "../shared";
+
+const logger = logSync("Admin");
 
 type MiddlewareEnv = {
   Bindings: Env;
@@ -51,8 +54,10 @@ export const requireAdmin = createMiddleware<MiddlewareEnv>(async (c, next) => {
 
   if ("error" in result) {
     if (result.error._tag === "UnauthorizedError") {
+      logger.debug("Admin middleware - unauthorized");
       return c.json({ error: "Unauthorized" }, 401);
     }
+    logger.info("Admin middleware - forbidden (not admin)");
     return c.json({ error: "Admin access required" }, 403);
   }
 

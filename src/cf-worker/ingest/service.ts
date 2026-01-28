@@ -2,6 +2,8 @@ import { Effect } from "effect";
 
 import { createAuth } from "../auth";
 import { createDb } from "../db";
+import { maskId, safeErrorInfo } from "../log-utils";
+import { logSync } from "../logger";
 import { type Env } from "../shared";
 import {
   InvalidApiKeyError,
@@ -12,6 +14,8 @@ import {
   type IngestError,
 } from "./errors";
 
+const logger = logSync("Ingest");
+
 export const handleIngestRequest = (
   request: Request,
   env: Env
@@ -19,9 +23,10 @@ export const handleIngestRequest = (
   { result: { linkId: string; status: string }; ok: boolean },
   IngestError | Error
 > =>
-  Effect.gen(function* handleIngestRequest() {
+  Effect.gen(function* () {
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
+      logger.warn("Missing API key");
       return yield* MissingApiKeyError.make({});
     }
     const apiKey = authHeader.slice(7);
@@ -35,13 +40,17 @@ export const handleIngestRequest = (
     });
 
     if (!verifyResult.valid || !verifyResult.key) {
+      logger.warn("Invalid API key");
       return yield* InvalidApiKeyError.make({});
     }
 
     const orgId = verifyResult.key.metadata?.orgId as string | undefined;
     if (!orgId) {
+      logger.warn("API key missing orgId");
       return yield* MissingOrgIdError.make({});
     }
+
+    logger.debug("API key verified", { orgId: maskId(orgId) });
 
     const body = yield* Effect.tryPromise({
       catch: () => MissingUrlError.make({}),
@@ -49,12 +58,14 @@ export const handleIngestRequest = (
     });
 
     if (!body.url) {
+      logger.warn("Missing URL in request body");
       return yield* MissingUrlError.make({});
     }
 
     try {
       new URL(body.url);
     } catch {
+      logger.warn("Invalid URL format");
       return yield* InvalidUrlError.make({ url: body.url });
     }
 
@@ -74,6 +85,11 @@ export const handleIngestRequest = (
     const result = yield* Effect.tryPromise({
       catch: () => new Error("Failed to parse DO response"),
       try: () => response.json() as Promise<{ linkId: string; status: string }>,
+    });
+
+    logger.info("Ingest complete", {
+      linkId: result.linkId,
+      status: result.status,
     });
 
     return { ok: response.ok, result };
@@ -112,12 +128,13 @@ export const ingestRequestToResponse = (
           Response.json({ error: "Missing url" }, { status: 400 })
         ),
     }),
-    Effect.catchAll((error) =>
-      Effect.succeed(
+    Effect.catchAll((error) => {
+      logger.error("Ingest failed", safeErrorInfo(error));
+      return Effect.succeed(
         Response.json(
           { error: error instanceof Error ? error.message : "Unknown error" },
           { status: 500 }
         )
-      )
-    )
+      );
+    })
   );

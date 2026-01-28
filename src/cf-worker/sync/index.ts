@@ -4,6 +4,7 @@ import { Effect } from "effect";
 
 import { createAuth, type Auth } from "../auth";
 import { createDb } from "../db";
+import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import { type Env } from "../shared";
 import {
@@ -38,17 +39,14 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
   }
 
   triggerLinkProcessor(storeId: string) {
-    logger.info("Waking up processor", { storeId });
+    logger.info("Waking up processor", { storeId: maskId(storeId) });
     const processorId = this._env.LINK_PROCESSOR_DO.idFromName(storeId);
     const processor = this._env.LINK_PROCESSOR_DO.get(processorId);
     processor
       .fetch(`https://link-processor/?storeId=${storeId}`)
-      .then(() => logger.info("Processor fetch succeeded", { storeId }))
+      .then(() => logger.info("Processor fetch succeeded"))
       .catch((error: unknown) =>
-        logger.error("Processor fetch failed", {
-          error: String(error),
-          storeId,
-        })
+        logger.error("Processor fetch failed", safeErrorInfo(error))
       );
   }
 }
