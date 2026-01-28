@@ -12,7 +12,7 @@ interface InputOTPProps {
 }
 
 export function InputOTP({
-  length = 6,
+  length = 8,
   value,
   onChange,
   onComplete,
