@@ -1,6 +1,8 @@
 import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
 import { Effect } from "effect";
 
+import { INVITE_CODE_CHARS, INVITE_CODE_LENGTH } from "@/lib/invite";
+
 import { createAuth, type Auth } from "../auth";
 import { createDb } from "../db";
 import * as schema from "../db/schema";
@@ -14,10 +16,6 @@ import {
 } from "./errors";
 
 const logger = logSync("Invites");
-
-// Character set excluding ambiguous characters (0, O, I, L)
-const INVITE_CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-const INVITE_CODE_LENGTH = 8;
 
 function generateInviteCode(): string {
   const array = new Uint8Array(INVITE_CODE_LENGTH);

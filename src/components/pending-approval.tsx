@@ -6,10 +6,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { InputOTP } from "@/components/ui/input-otp";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/lib/auth";
+import { INVITE_CODE_LENGTH } from "@/lib/invite";
 
 import { useRedeemInvite } from "./use-redeem-invite";
-
-const CODE_LENGTH = 8;
 
 export function PendingApproval() {
   const { logout } = useAuth();
@@ -23,7 +22,7 @@ export function PendingApproval() {
 
   const handleRedeem = async (codeToRedeem?: string) => {
     const finalCode = codeToRedeem || code;
-    if (finalCode.length !== CODE_LENGTH) {
+    if (finalCode.length !== INVITE_CODE_LENGTH) {
       return;
     }
     await redeem(finalCode);
@@ -47,7 +46,7 @@ export function PendingApproval() {
               Have an invite code?
             </p>
             <InputOTP
-              length={CODE_LENGTH}
+              length={INVITE_CODE_LENGTH}
               value={code}
               onChange={setCode}
               onComplete={handleRedeem}
@@ -56,7 +55,7 @@ export function PendingApproval() {
             {error && <p className="text-sm text-red-500 mt-3">{error}</p>}
             <Button
               onClick={() => handleRedeem()}
-              disabled={code.length !== CODE_LENGTH || isRedeeming}
+              disabled={code.length !== INVITE_CODE_LENGTH || isRedeeming}
               className="mt-4 w-full"
             >
               {isRedeeming ? <Spinner className="size-4 mr-2" /> : null}
