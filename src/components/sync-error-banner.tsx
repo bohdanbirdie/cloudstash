@@ -1,4 +1,4 @@
-import { AlertTriangle, LogOut, RefreshCw } from "lucide-react";
+import { AlertTriangle, LogOut, RefreshCw, WifiOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useSyncStatusStore } from "@/stores/sync-status-store";
@@ -7,7 +7,7 @@ const ERROR_TITLES: Record<string, string> = {
   ACCESS_DENIED: "Access Denied",
   SESSION_EXPIRED: "Session Expired",
   UNAPPROVED: "Account Pending Approval",
-  UNKNOWN: "Sync Disconnected",
+  UNKNOWN: "Offline",
 };
 
 export function SyncErrorBanner() {
@@ -19,14 +19,21 @@ export function SyncErrorBanner() {
 
   const title = ERROR_TITLES[error.code] || "Sync Error";
   const showLogout = error.code === "SESSION_EXPIRED";
+  const isOffline = error.code === "UNKNOWN";
 
   return (
-    <div className="bg-destructive/15 border-b border-destructive/20 px-4 py-3">
+    <div className={`border-b px-4 py-3 ${isOffline ? "bg-muted/50 border-border" : "bg-destructive/15 border-destructive/20"}`}>
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5 text-destructive" />
+          {isOffline ? (
+            <WifiOff className="h-5 w-5 text-muted-foreground" />
+          ) : (
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+          )}
           <div>
-            <p className="text-sm font-medium text-destructive">{title}</p>
+            <p className={`text-sm font-medium ${isOffline ? "text-foreground" : "text-destructive"}`}>
+              {title}
+            </p>
             <p className="text-sm text-muted-foreground">{error.message}</p>
           </div>
         </div>
@@ -43,7 +50,7 @@ export function SyncErrorBanner() {
               <LogOut className="h-4 w-4 mr-2" />
               Sign In
             </Button>
-          ) : (
+          ) : !isOffline ? (
             <Button
               variant="outline"
               size="sm"
@@ -55,7 +62,7 @@ export function SyncErrorBanner() {
               <RefreshCw className="h-4 w-4 mr-2" />
               Reload
             </Button>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

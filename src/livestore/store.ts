@@ -1,5 +1,6 @@
 import { makePersistedAdapter } from "@livestore/adapter-web";
 import LiveStoreSharedWorker from "@livestore/adapter-web/shared-worker?sharedworker";
+import { type Store } from "@livestore/livestore";
 import { useStore } from "@livestore/react";
 import { useRouteContext } from "@tanstack/react-router";
 import { Effect, Stream } from "effect";
@@ -7,12 +8,14 @@ import { useEffect, useRef } from "react";
 import { unstable_batchedUpdates } from "react-dom";
 
 import {
-  fetchSyncAuthError,
+  fetchSyncAuthStatus,
   useSyncStatusStore,
 } from "@/stores/sync-status-store";
 
 import LiveStoreWorker from "../livestore.worker?worker";
 import { schema } from "./schema";
+
+type AppStore = Store<typeof schema>;
 
 export const RESET_FLAG_KEY = "livestore-reset-on-logout";
 
@@ -55,59 +58,53 @@ export const useAppStore = () => {
   });
 };
 
-/**
- * Monitor LiveStore connection and handle sync failures.
- * When connection drops, fetches the actual error reason from server.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const useConnectionMonitor = (store: any) => {
-  const isHandlingDisconnect = useRef(false);
+const AUTH_CHECK_COOLDOWN_MS = 5000;
+
+const useConnectionMonitor = (store: AppStore) => {
+  const lastAuthCheck = useRef(0);
 
   useEffect(() => {
     let aborted = false;
     const storeId = store.storeId as string;
 
+    const handleStatusChange = (status: { isConnected: boolean }) =>
+      Effect.gen(function* () {
+        if (aborted) return;
+
+        const { error, clearError } = useSyncStatusStore.getState();
+
+        if (status.isConnected) {
+          if (error?.code === "UNKNOWN") clearError();
+          return;
+        }
+
+        if (error && error.code !== "UNKNOWN") return;
+
+        const now = Date.now();
+        if (now - lastAuthCheck.current < AUTH_CHECK_COOLDOWN_MS) return;
+        lastAuthCheck.current = now;
+
+        const result = yield* Effect.promise(() => fetchSyncAuthStatus(storeId));
+        if (aborted) return;
+
+        const state = useSyncStatusStore.getState();
+
+        if (result.type === "auth_failed") {
+          yield* Effect.promise(() => store.shutdownPromise().catch(() => {}));
+          state.setError(result.error);
+        } else {
+          state.setError({
+            code: "UNKNOWN",
+            message: "Sync paused. Your changes are saved locally.",
+          });
+        }
+      });
+
     const runMonitor = async () => {
       try {
         await store.networkStatus.changes.pipe(
           Stream.tap((s: unknown) =>
-            Effect.sync(() => {
-              if (aborted || isHandlingDisconnect.current) {
-                return;
-              }
-              const status = s as { isConnected: boolean };
-
-              if (!status.isConnected) {
-                isHandlingDisconnect.current = true;
-
-                // Fetch actual error reason from server
-                fetchSyncAuthError(storeId).then(async (error) => {
-                  if (aborted) {
-                    return;
-                  }
-
-                  // Stop retries
-                  try {
-                    await store.shutdownPromise();
-                  } catch {
-                    // Already shut down
-                  }
-
-                  // Show error
-                  const { setError } = useSyncStatusStore.getState();
-                  if (error) {
-                    setError(error);
-                  } else {
-                    // Auth is OK but sync still failed - network issue?
-                    setError({
-                      code: "UNKNOWN",
-                      message:
-                        "Sync connection lost. Please reload to reconnect.",
-                    });
-                  }
-                });
-              }
-            })
+            handleStatusChange(s as { isConnected: boolean })
           ),
           Stream.runDrain,
           Effect.scoped,
@@ -126,11 +123,6 @@ const useConnectionMonitor = (store: any) => {
   }, [store]);
 };
 
-/**
- * Component that monitors LiveStore connection status.
- * Place inside StoreRegistryProvider to enable connection monitoring.
- * Shows error banner when sync fails with actual reason from server.
- */
 export const ConnectionMonitor = () => {
   const store = useAppStore();
   useConnectionMonitor(store);
