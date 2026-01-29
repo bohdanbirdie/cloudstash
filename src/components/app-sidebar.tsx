@@ -40,7 +40,6 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { useModifierHold } from "@/hooks/use-modifier-hold";
 import { useAuth } from "@/lib/auth";
 import { getHotkeyLabel } from "@/lib/hotkey-label";
 import {
@@ -61,7 +60,6 @@ export function AppSidebar() {
   const [adminOpen, setAdminOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const auth = useAuth();
-  const showHints = useModifierHold();
 
   const inboxCount = store.useQuery(inboxCount$);
   const completedCount = store.useQuery(completedCount$);
@@ -118,11 +116,9 @@ export function AppSidebar() {
                 >
                   <PlusIcon />
                   <span>Add Link</span>
-                  {showHints && (
-                    <Kbd className="ml-auto group-data-[collapsible=icon]:hidden">
-                      {getHotkeyLabel("meta+v")}
-                    </Kbd>
-                  )}
+                  <Kbd className="ml-auto hidden md:inline-flex group-data-[collapsible=icon]:hidden">
+                    {getHotkeyLabel("meta+v")}
+                  </Kbd>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
@@ -132,11 +128,9 @@ export function AppSidebar() {
                 >
                   <SearchIcon />
                   <span>Search</span>
-                  {showHints && (
-                    <Kbd className="ml-auto group-data-[collapsible=icon]:hidden">
-                      {getHotkeyLabel("meta+k")}
-                    </Kbd>
-                  )}
+                  <Kbd className="ml-auto hidden md:inline-flex group-data-[collapsible=icon]:hidden">
+                    {getHotkeyLabel("meta+k")}
+                  </Kbd>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               {navItems.map((item) => (
