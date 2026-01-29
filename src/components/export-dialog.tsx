@@ -55,7 +55,7 @@ export function ExportDialog({
     const a = document.createElement("a");
     a.href = url;
     a.download = `${pageTitle.toLowerCase().replaceAll(/\s+/g, "-")}-export.${extension}`;
-    document.body.append(a);
+    document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
