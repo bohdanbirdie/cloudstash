@@ -7,5 +7,6 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["src/cf-worker/__tests__/unit/**/*.test.ts"],
+    exclude: ["**/node_modules/**", "**/readonly-llm-lookup/**"],
   },
 });
