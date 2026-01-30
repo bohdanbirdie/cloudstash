@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { LinkImage } from "@/components/link-card";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -173,38 +174,34 @@ function LinkDetailModalContent({ linkId }: { linkId: string }) {
         </DialogHeader>
 
         <ScrollableContent maxHeightClass="max-h-[60vh]" className="space-y-6">
-          {(link.image || link.description) && (
-            <div
-              className={
-                link.image ? "grid grid-cols-1 sm:grid-cols-2 gap-4" : ""
-              }
+          <div
+            className={
+              link.description ? "grid grid-cols-1 sm:grid-cols-2 gap-4" : ""
+            }
+          >
+            <a
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:opacity-90 transition-opacity"
             >
-              {link.image && (
-                <a
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="aspect-video w-full overflow-hidden rounded-md bg-muted flex items-center justify-center hover:opacity-90 transition-opacity"
-                >
-                  <img
-                    src={link.image}
-                    alt=""
-                    className="max-h-full max-w-full object-contain"
-                  />
-                </a>
-              )}
-              {link.description && (
-                <div className="space-y-2">
-                  <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Description
-                  </h4>
-                  <div className="text-sm">
-                    <Markdown>{link.description}</Markdown>
-                  </div>
+              <LinkImage
+                src={link.image}
+                objectFit="contain"
+                iconClassName="h-12 w-12"
+              />
+            </a>
+            {link.description && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Description
+                </h4>
+                <div className="text-sm">
+                  <Markdown>{link.description}</Markdown>
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
 
           {link.summary ? (
             <div className="border-l-2 border-primary/50 bg-muted/50 pl-3 py-2 space-y-1">

@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { LinkImage } from "@/components/link-card";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -98,16 +99,8 @@ function LinkPreviewCard({
   }
 
   return (
-    <Card className={metadata.image ? "mt-4 pt-0" : "mt-4"}>
-      {metadata.image && (
-        <div className="aspect-video w-full overflow-hidden">
-          <img
-            src={metadata.image}
-            alt=""
-            className="h-full w-full object-cover"
-          />
-        </div>
-      )}
+    <Card className="mt-4 pt-0">
+      <LinkImage src={metadata.image} />
       <CardHeader>
         <div className="flex items-center gap-2">
           {metadata.logo && (
@@ -144,18 +137,8 @@ function ExistingLinkCard({ linkId }: { linkId: string }) {
   });
 
   return (
-    <Card
-      className={
-        link.image
-          ? "mt-4 pt-0 border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/50"
-          : "mt-4 border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/50"
-      }
-    >
-      {link.image && (
-        <div className="aspect-video w-full overflow-hidden">
-          <img src={link.image} alt="" className="h-full w-full object-cover" />
-        </div>
-      )}
+    <Card className="mt-4 pt-0 border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/50">
+      <LinkImage src={link.image} />
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
           {link.favicon && (

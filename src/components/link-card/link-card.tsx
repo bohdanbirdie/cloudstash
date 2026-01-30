@@ -15,6 +15,8 @@ import {
 } from "@/livestore/queries";
 import { useAppStore } from "@/livestore/store";
 
+import { LinkImage } from "./link-image";
+
 interface LinkCardProps {
   link: LinkWithDetails;
   onClick: (e: React.MouseEvent) => void;
@@ -59,8 +61,7 @@ export function LinkCard({
       )}
       <Card
         className={cn(
-          "transition-shadow overflow-hidden",
-          link.image ? "h-full pt-0" : "h-full",
+          "transition-shadow overflow-hidden h-full pt-0",
           selected && "ring-2 ring-primary ring-offset-2"
         )}
       >
@@ -75,15 +76,7 @@ export function LinkCard({
             }}
           />
         )}
-        {link.image && (
-          <div className="aspect-video w-full overflow-hidden">
-            <img
-              src={link.image}
-              alt=""
-              className="h-full w-full object-cover"
-            />
-          </div>
-        )}
+        <LinkImage src={link.image} />
         <CardHeader>
           <div className="flex items-center gap-2">
             {link.favicon && (
