@@ -37,12 +37,13 @@ interface UserRowProps {
 }
 
 async function approveUser(_: string, { arg }: { arg: { userId: string } }) {
-  const { error } = await authClient.admin.updateUser({
-    data: { approved: true },
-    userId: arg.userId,
+  const res = await fetch(`/api/admin/users/${arg.userId}/approve`, {
+    method: "POST",
+    credentials: "include",
   });
-  if (error) {
-    throw new Error(error.message);
+  if (!res.ok) {
+    const data = (await res.json()) as { error?: string };
+    throw new Error(data.error || "Failed to approve user");
   }
   mutate("admin-users");
 }

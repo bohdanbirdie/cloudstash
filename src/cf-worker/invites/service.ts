@@ -6,6 +6,7 @@ import { INVITE_CODE_CHARS, INVITE_CODE_LENGTH } from "@/lib/invite";
 import { createAuth, type Auth } from "../auth";
 import { createDb } from "../db";
 import * as schema from "../db/schema";
+import { sendApprovalEmail } from "../email/send-approval-email";
 import { logSync } from "../logger";
 import { type Env } from "../shared";
 import {
@@ -249,6 +250,13 @@ const handleRedeemInviteRequest = (request: Request, env: Env) =>
       ])
     );
 
+    yield* sendApprovalEmail(
+      session.user.email,
+      session.user.name,
+      env.RESEND_API_KEY
+    );
+
+    logger.info("Invite redeemed", { inviteId: invite.id });
     return { success: true };
   });
 

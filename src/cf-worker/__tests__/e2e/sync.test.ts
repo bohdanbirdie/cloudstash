@@ -82,9 +82,9 @@ describe("sync Connection Auth E2E", () => {
     it("rejects sync request without cookie", async () => {
       const res = await SELF.fetch(buildSyncUrl(userA.orgId));
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(401);
       const text = await res.text();
-      expect(text).toContain("Missing session cookie");
+      expect(text).toContain("SESSION_EXPIRED");
     });
   });
 
@@ -94,9 +94,9 @@ describe("sync Connection Auth E2E", () => {
         headers: { Cookie: "better-auth.session_token=invalid-session-token" },
       });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(401);
       const text = await res.text();
-      expect(text).toContain("Invalid or expired session");
+      expect(text).toContain("SESSION_EXPIRED");
     });
 
     it("rejects sync request with malformed cookie", async () => {
@@ -104,9 +104,9 @@ describe("sync Connection Auth E2E", () => {
         headers: { Cookie: "not-a-valid-cookie" },
       });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(401);
       const text = await res.text();
-      expect(text).toContain("Invalid or expired session");
+      expect(text).toContain("SESSION_EXPIRED");
     });
   });
 
@@ -117,9 +117,9 @@ describe("sync Connection Auth E2E", () => {
         headers: { Cookie: userA.cookie },
       });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(403);
       const text = await res.text();
-      expect(text).toContain("Access denied");
+      expect(text).toContain("UNAPPROVED");
     });
 
     it("rejects when storeId is non-existent org", async () => {
@@ -127,9 +127,9 @@ describe("sync Connection Auth E2E", () => {
         headers: { Cookie: userA.cookie },
       });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(403);
       const text = await res.text();
-      expect(text).toContain("Access denied");
+      expect(text).toContain("UNAPPROVED");
     });
   });
 
@@ -164,9 +164,9 @@ describe("sync Connection Auth E2E", () => {
         headers: { Cookie: userB.cookie },
       });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(403);
       const text = await res.text();
-      expect(text).toContain("Access denied");
+      expect(text).toContain("UNAPPROVED");
     });
   });
 });

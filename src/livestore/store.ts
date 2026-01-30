@@ -84,7 +84,9 @@ const useConnectionMonitor = (store: AppStore) => {
         if (now - lastAuthCheck.current < AUTH_CHECK_COOLDOWN_MS) return;
         lastAuthCheck.current = now;
 
-        const result = yield* Effect.promise(() => fetchSyncAuthStatus(storeId));
+        const result = yield* Effect.promise(() =>
+          fetchSyncAuthStatus(storeId)
+        );
         if (aborted) return;
 
         const state = useSyncStatusStore.getState();

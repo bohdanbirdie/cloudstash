@@ -28,7 +28,7 @@ export function TelegramTab({
   onRevokeKey,
   onClearGeneratedKey,
 }: TelegramTabProps) {
-  const [keyName, setKeyName] = useState('');
+  const [keyName, setKeyName] = useState("");
 
   const handleGenerate = async () => {
     await onGenerateKey(keyName);

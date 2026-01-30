@@ -22,7 +22,9 @@ export function SyncErrorBanner() {
   const isOffline = error.code === "UNKNOWN";
 
   return (
-    <div className={`border-b px-4 py-3 ${isOffline ? "bg-muted/50 border-border" : "bg-destructive/15 border-destructive/20"}`}>
+    <div
+      className={`border-b px-4 py-3 ${isOffline ? "bg-muted/50 border-border" : "bg-destructive/15 border-destructive/20"}`}
+    >
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           {isOffline ? (
@@ -31,7 +33,9 @@ export function SyncErrorBanner() {
             <AlertTriangle className="h-5 w-5 text-destructive" />
           )}
           <div>
-            <p className={`text-sm font-medium ${isOffline ? "text-foreground" : "text-destructive"}`}>
+            <p
+              className={`text-sm font-medium ${isOffline ? "text-foreground" : "text-destructive"}`}
+            >
               {title}
             </p>
             <p className="text-sm text-muted-foreground">{error.message}</p>

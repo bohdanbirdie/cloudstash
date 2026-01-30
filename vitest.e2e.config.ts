@@ -1,7 +1,10 @@
 import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import viteTsConfigPaths from "vite-tsconfig-paths";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Load migrations in Node.js context
 const migrationsDir = path.resolve(__dirname, "drizzle/migrations");
@@ -19,9 +22,30 @@ const migrations = journal.entries.map((entry: { tag: string }) => ({
  */
 export default defineWorkersConfig({
   plugins: [viteTsConfigPaths({ projects: ["./tsconfig.json"] })],
+  resolve: {
+    alias: {
+      // Stub mailparser to avoid Workers-incompatible dependencies in tests
+      mailparser: path.resolve(
+        __dirname,
+        "src/cf-worker/__tests__/stubs/mailparser.ts"
+      ),
+      // Stub @react-email/code-block to avoid prismjs (browser globals) in tests
+      "@react-email/code-block": path.resolve(
+        __dirname,
+        "src/cf-worker/email/stubs/code-block.ts"
+      ),
+    },
+  },
   ssr: {
     // Bundle these dependencies so Vite can tree-shake unused exports
-    noExternal: ["effect", /@effect\//, /@livestore\//, /@opentelemetry\//],
+    noExternal: [
+      "effect",
+      /@effect\//,
+      /@livestore\//,
+      /@opentelemetry\//,
+      "resend",
+      /@react-email\//,
+    ],
   },
   test: {
     include: ["src/cf-worker/__tests__/e2e/**/*.test.ts"],
