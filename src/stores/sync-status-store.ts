@@ -28,7 +28,6 @@ export const useSyncStatusStore = create<SyncStatusState>((set) => ({
   setError: (error) => set({ error }),
 }));
 
-
 export async function fetchSyncAuthStatus(
   storeId: string
 ): Promise<SyncAuthResult> {

@@ -25,9 +25,15 @@ export default defineWorkersConfig({
   resolve: {
     alias: {
       // Stub mailparser to avoid Workers-incompatible dependencies in tests
-      mailparser: path.resolve(__dirname, "src/cf-worker/__tests__/stubs/mailparser.ts"),
+      mailparser: path.resolve(
+        __dirname,
+        "src/cf-worker/__tests__/stubs/mailparser.ts"
+      ),
       // Stub @react-email/code-block to avoid prismjs (browser globals) in tests
-      "@react-email/code-block": path.resolve(__dirname, "src/cf-worker/email/stubs/code-block.ts"),
+      "@react-email/code-block": path.resolve(
+        __dirname,
+        "src/cf-worker/email/stubs/code-block.ts"
+      ),
     },
   },
   ssr: {

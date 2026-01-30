@@ -3,7 +3,6 @@ import { Effect } from "effect";
 import { Resend } from "resend";
 
 import { logSync } from "../logger";
-
 import { ApprovalEmail } from "./templates/approval-email";
 
 const logger = logSync("Email");

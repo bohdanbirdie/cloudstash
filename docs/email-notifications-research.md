@@ -14,13 +14,13 @@ Approval emails are sent via **Resend** when users are approved (admin approval 
 
 ## Files
 
-| File | Purpose |
-|------|---------|
-| `src/cf-worker/email/send-approval-email.ts` | Sends email via Resend |
-| `src/cf-worker/email/templates/approval-email.tsx` | React Email + Tailwind template |
-| `src/cf-worker/email/stubs/code-block.ts` | Stub to avoid prismjs in Workers |
-| `src/cf-worker/admin/approve-user.ts` | Custom approval endpoint |
-| `src/lib/colors.ts` | Shared oklch→hex color conversion |
+| File                                               | Purpose                           |
+| -------------------------------------------------- | --------------------------------- |
+| `src/cf-worker/email/send-approval-email.ts`       | Sends email via Resend            |
+| `src/cf-worker/email/templates/approval-email.tsx` | React Email + Tailwind template   |
+| `src/cf-worker/email/stubs/code-block.ts`          | Stub to avoid prismjs in Workers  |
+| `src/cf-worker/admin/approve-user.ts`              | Custom approval endpoint          |
+| `src/lib/colors.ts`                                | Shared oklch→hex color conversion |
 
 ## Cloudflare Workers + React Email
 
