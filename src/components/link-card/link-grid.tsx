@@ -5,8 +5,10 @@ import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
 import { type LinkWithDetails } from "@/livestore/queries";
 import { useLinkDetailStore } from "@/stores/link-detail-store";
 import { useSelectionStore } from "@/stores/selection-store";
+import { useViewModeStore } from "@/stores/view-mode-store";
 
 import { LinkCard } from "./link-card";
+import { LinkListItem } from "./link-list-item";
 
 interface LinkGridProps {
   links: readonly LinkWithDetails[];
@@ -21,6 +23,7 @@ export function LinkGrid({
 }: LinkGridProps) {
   const { selectedIds, anchorIndex, toggle, range, removeStale } =
     useSelectionStore();
+  const viewMode = useViewModeStore((s) => s.viewMode);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const openLinkInContext = useLinkDetailStore((s) => s.openLinkInContext);
   const trackLinkOpen = useTrackLinkOpen();
@@ -71,8 +74,24 @@ export function LinkGrid({
     );
   }
 
+  if (viewMode === "list") {
+    return (
+      <div className="flex flex-col gap-3 min-w-0">
+        {links.map((link, index) => (
+          <LinkListItem
+            key={link.id}
+            link={link}
+            selected={selectedIds.has(link.id)}
+            selectionMode={isSelectionMode}
+            onClick={(e) => handleCardClick(index, e)}
+          />
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {links.map((link, index) => (
         <LinkCard
           key={link.id}
