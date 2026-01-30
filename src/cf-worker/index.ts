@@ -9,6 +9,7 @@ import {
   handleListWorkspaces,
   handleUpdateOrgSettings,
 } from "./admin";
+import { handleApproveUser } from "./admin/approve-user";
 import { createAuth } from "./auth";
 import { checkSyncAuth, SyncAuthError } from "./auth/sync-auth";
 import { createDb } from "./db";
@@ -48,6 +49,9 @@ app.put("/api/org/:id/settings", requireAdmin, (c) =>
 );
 app.get("/api/admin/workspaces", requireAdmin, (c) =>
   handleListWorkspaces(c.req.raw, c.env)
+);
+app.post("/api/admin/users/:id/approve", requireAdmin, (c) =>
+  handleApproveUser(c.req.raw, c.req.param("id"), c.env)
 );
 
 app.on(["GET", "POST"], "/api/auth/*", (c) => {

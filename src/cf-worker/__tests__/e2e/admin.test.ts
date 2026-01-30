@@ -1,4 +1,4 @@
-import { SELF } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
 import { describe, it, expect, beforeAll } from "vitest";
 
 import { signupUser, makeAdmin, type UserInfo } from "./helpers";
@@ -218,6 +218,115 @@ describe("admin Endpoints E2E", () => {
       };
       expect(disableData.success).toBe(true);
       expect(disableData.features.aiSummary).toBe(false);
+    });
+  });
+
+  describe("POST /api/admin/users/:id/approve", () => {
+    let unapprovedUser: UserInfo;
+
+    beforeAll(async () => {
+      unapprovedUser = await signupUser(
+        "unapproved-user@test.com",
+        "Unapproved User"
+      );
+      await env.DB.prepare("UPDATE user SET approved = 0 WHERE id = ?")
+        .bind(unapprovedUser.userId)
+        .run();
+    });
+
+    it("returns 401 for unauthenticated request", async () => {
+      const res = await SELF.fetch(
+        `http://worker/api/admin/users/${unapprovedUser.userId}/approve`,
+        { method: "POST" }
+      );
+      expect(res.status).toBe(401);
+
+      const data = (await res.json()) as { error: string };
+      expect(data.error).toBe("Unauthorized");
+    });
+
+    it("returns 403 for non-admin user", async () => {
+      const res = await SELF.fetch(
+        `http://worker/api/admin/users/${unapprovedUser.userId}/approve`,
+        {
+          method: "POST",
+          headers: { Cookie: regularUser.cookie },
+        }
+      );
+      expect(res.status).toBe(403);
+
+      const data = (await res.json()) as { error: string };
+      expect(data.error).toBe("Admin access required");
+    });
+
+    it("returns 404 for non-existent user", async () => {
+      const res = await SELF.fetch(
+        "http://worker/api/admin/users/non-existent-user-id/approve",
+        {
+          method: "POST",
+          headers: { Cookie: adminUser.cookie },
+        }
+      );
+      expect(res.status).toBe(404);
+
+      const data = (await res.json()) as { error: string };
+      expect(data.error).toBe("User not found");
+    });
+
+    it("approves user successfully", async () => {
+      // Ensure user is unapproved before test
+      await env.DB.prepare("UPDATE user SET approved = 0 WHERE id = ?")
+        .bind(unapprovedUser.userId)
+        .run();
+
+      const beforeApproval = await env.DB.prepare(
+        "SELECT approved FROM user WHERE id = ?"
+      )
+        .bind(unapprovedUser.userId)
+        .first<{ approved: number }>();
+      expect(beforeApproval?.approved).toBe(0);
+
+      const res = await SELF.fetch(
+        `http://worker/api/admin/users/${unapprovedUser.userId}/approve`,
+        {
+          method: "POST",
+          headers: { Cookie: adminUser.cookie },
+        }
+      );
+      expect(res.status).toBe(200);
+
+      const data = (await res.json()) as { success: boolean };
+      expect(data.success).toBe(true);
+
+      const afterApproval = await env.DB.prepare(
+        "SELECT approved FROM user WHERE id = ?"
+      )
+        .bind(unapprovedUser.userId)
+        .first<{ approved: number }>();
+      expect(afterApproval?.approved).toBe(1);
+    });
+
+    it("handles already-approved user", async () => {
+      // Ensure user is approved before test
+      await env.DB.prepare("UPDATE user SET approved = 1 WHERE id = ?")
+        .bind(unapprovedUser.userId)
+        .run();
+
+      const res = await SELF.fetch(
+        `http://worker/api/admin/users/${unapprovedUser.userId}/approve`,
+        {
+          method: "POST",
+          headers: { Cookie: adminUser.cookie },
+        }
+      );
+      expect(res.status).toBe(200);
+
+      const data = (await res.json()) as {
+        success: boolean;
+        alreadyApproved: boolean;
+      };
+      expect(data.success).toBe(true);
+      expect(data.alreadyApproved).toBe(true);
     });
   });
 });

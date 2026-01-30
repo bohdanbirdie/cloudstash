@@ -1,3 +1,4 @@
+import viteTsConfigPaths from "vite-tsconfig-paths";
 import { defineConfig } from "vitest/config";
 
 /**
@@ -5,6 +6,7 @@ import { defineConfig } from "vitest/config";
  * Fast tests that don't require the Workers runtime.
  */
 export default defineConfig({
+  plugins: [viteTsConfigPaths({ projects: ["./tsconfig.json"] })],
   test: {
     include: ["src/cf-worker/__tests__/unit/**/*.test.ts"],
     exclude: ["**/node_modules/**", "**/readonly-llm-lookup/**"],
