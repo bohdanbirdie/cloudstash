@@ -1,6 +1,6 @@
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { ArrowRightIcon } from "lucide-react";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState, useDeferredValue } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -13,18 +13,20 @@ import {
   CommandItem,
   CommandSeparator,
 } from "@/components/ui/command";
+import { HighlightedText } from "@/components/ui/highlighted-text";
 import { buildPages } from "@/config/pages";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
 import {
-  allLinks$,
   recentlyOpenedLinks$,
+  searchLinks$,
   type LinkWithDetails,
+  type SearchResult,
 } from "@/livestore/queries";
 import { useAppStore } from "@/livestore/store";
 import { useLinkDetailStore } from "@/stores/link-detail-store";
 import { useSearchStore } from "@/stores/search-store";
 
-function getStatusBadge(link: LinkWithDetails) {
+function getStatusBadge(link: LinkWithDetails | SearchResult) {
   if (link.deletedAt) {
     return { className: "bg-muted text-muted-foreground", label: "Trash" };
   }
@@ -44,7 +46,7 @@ function LinkItem({
   const status = getStatusBadge(link);
   return (
     <CommandItem
-      value={`${link.title ?? ""} ${link.description ?? ""} ${link.url} ${link.domain} ${link.summary ?? ""}`}
+      value={link.id}
       onSelect={onSelect}
       className="flex items-center gap-3 p-3 rounded-md border border-transparent data-[selected=true]:border-border"
     >
@@ -75,6 +77,55 @@ function LinkItem({
   );
 }
 
+function SearchResultItem({
+  link,
+  query,
+  onSelect,
+}: {
+  link: SearchResult;
+  query: string;
+  onSelect: () => void;
+}) {
+  const status = getStatusBadge(link);
+  return (
+    <CommandItem
+      value={link.id}
+      onSelect={onSelect}
+      className="flex items-center gap-3 p-3 rounded-md border border-transparent data-[selected=true]:border-border"
+    >
+      <div className="flex-1 min-w-0 space-y-1">
+        <div className="flex items-center gap-2">
+          {link.favicon && (
+            <img src={link.favicon} alt="" className="h-4 w-4 shrink-0" />
+          )}
+          <HighlightedText
+            text={link.domain}
+            query={query}
+            className="text-muted-foreground text-xs"
+          />
+          {status && (
+            <Badge
+              variant="secondary"
+              className={`text-[10px] px-1.5 py-0 ${status.className}`}
+            >
+              {status.label}
+            </Badge>
+          )}
+        </div>
+        <div className="font-medium truncate">
+          <HighlightedText text={link.title || link.url} query={query} />
+        </div>
+        {link.description && (
+          <p className="text-muted-foreground text-xs line-clamp-4">
+            <HighlightedText text={link.description} query={query} />
+          </p>
+        )}
+      </div>
+      <ArrowRightIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+    </CommandItem>
+  );
+}
+
 export function SearchCommand() {
   const { open, setOpen } = useSearchStore();
   const openLinkDetail = useLinkDetailStore((s) => s.openLink);
@@ -83,12 +134,19 @@ export function SearchCommand() {
   const router = useRouter();
   const navigate = useNavigate();
 
+  const [inputValue, setInputValue] = useState("");
+  const deferredQuery = useDeferredValue(inputValue.trim());
+
   const pages = useMemo(
     () => buildPages(router.routeTree.children),
     [router.routeTree]
   );
-  const allLinks = store.useQuery(allLinks$);
+
   const recentLinks = store.useQuery(recentlyOpenedLinks$);
+
+  const searchResults = store.useQuery(searchLinks$(deferredQuery));
+
+  const showSearchResults = deferredQuery.length > 0;
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -101,7 +159,13 @@ export function SearchCommand() {
     return () => document.removeEventListener("keydown", down);
   }, []);
 
-  const handleSelectLink = (link: LinkWithDetails) => {
+  useEffect(() => {
+    if (!open) {
+      setInputValue("");
+    }
+  }, [open]);
+
+  const handleSelectLink = (link: LinkWithDetails | SearchResult) => {
     setOpen(false);
     trackLinkOpen(link.id);
     openLinkDetail(link.id);
@@ -112,9 +176,6 @@ export function SearchCommand() {
     navigate({ to: path });
   };
 
-  const recentLinkIds = new Set(recentLinks.map((l) => l.id));
-  const otherLinks = allLinks.filter((l) => !recentLinkIds.has(l.id));
-
   return (
     <CommandDialog
       open={open}
@@ -122,53 +183,67 @@ export function SearchCommand() {
       title="Search"
       description="Search pages and links"
     >
-      <Command>
-        <CommandInput placeholder="Search..." />
+      <Command shouldFilter={false}>
+        <CommandInput
+          placeholder="Search links..."
+          value={inputValue}
+          onValueChange={setInputValue}
+        />
         <CommandList>
-          <CommandEmpty>No results found.</CommandEmpty>
-
-          <CommandGroup heading="Pages">
-            {pages.map((page) => (
-              <CommandItem
-                key={page.path}
-                value={`page ${page.title}`}
-                onSelect={() => handleSelectPage(page.path)}
-                className="flex items-center gap-3 p-2"
-              >
-                {page.Icon && (
-                  <page.Icon className="h-4 w-4 text-muted-foreground" />
-                )}
-                <span>{page.title}</span>
-                <ArrowRightIcon className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" />
-              </CommandItem>
-            ))}
-          </CommandGroup>
-
-          {recentLinks.length > 0 && (
+          {showSearchResults ? (
             <>
-              <CommandSeparator />
-              <CommandGroup heading="Recently Opened">
-                {recentLinks.map((link) => (
-                  <LinkItem
-                    key={link.id}
-                    link={link}
-                    onSelect={() => handleSelectLink(link)}
-                  />
+              {searchResults.length === 0 ? (
+                <CommandEmpty>
+                  No links found for "{deferredQuery}"
+                </CommandEmpty>
+              ) : (
+                <CommandGroup heading={`Results (${searchResults.length})`}>
+                  {searchResults.map((link) => (
+                    <SearchResultItem
+                      key={link.id}
+                      link={link}
+                      query={deferredQuery}
+                      onSelect={() => handleSelectLink(link)}
+                    />
+                  ))}
+                </CommandGroup>
+              )}
+            </>
+          ) : (
+            <>
+              <CommandGroup heading="Pages">
+                {pages.map((page) => (
+                  <CommandItem
+                    key={page.path}
+                    value={page.path}
+                    onSelect={() => handleSelectPage(page.path)}
+                    className="flex items-center gap-3 p-2"
+                  >
+                    {page.Icon && (
+                      <page.Icon className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <span>{page.title}</span>
+                    <ArrowRightIcon className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" />
+                  </CommandItem>
                 ))}
               </CommandGroup>
+
+              {recentLinks.length > 0 && (
+                <>
+                  <CommandSeparator />
+                  <CommandGroup heading="Recently Opened">
+                    {recentLinks.map((link) => (
+                      <LinkItem
+                        key={link.id}
+                        link={link}
+                        onSelect={() => handleSelectLink(link)}
+                      />
+                    ))}
+                  </CommandGroup>
+                </>
+              )}
             </>
           )}
-
-          <CommandSeparator />
-          <CommandGroup heading="All Links">
-            {otherLinks.map((link) => (
-              <LinkItem
-                key={link.id}
-                link={link}
-                onSelect={() => handleSelectLink(link)}
-              />
-            ))}
-          </CommandGroup>
         </CommandList>
       </Command>
     </CommandDialog>

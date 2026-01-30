@@ -233,3 +233,80 @@ export const recentlyOpenedLinks$ = queryDb(
   }),
   { label: "recentlyOpenedLinks" }
 );
+
+const SearchResultSchema = Schema.Struct({
+  id: Schema.String,
+  url: Schema.String,
+  domain: Schema.String,
+  status: Schema.String,
+  createdAt: Schema.Number,
+  completedAt: Schema.NullOr(Schema.Number),
+  deletedAt: Schema.NullOr(Schema.Number),
+  title: Schema.NullOr(Schema.String),
+  description: Schema.NullOr(Schema.String),
+  image: Schema.NullOr(Schema.String),
+  favicon: Schema.NullOr(Schema.String),
+  summary: Schema.NullOr(Schema.String),
+  score: Schema.Number,
+});
+
+export type SearchResult = typeof SearchResultSchema.Type;
+
+const searchResultsSchema = Schema.Array(SearchResultSchema);
+
+export const searchLinks$ = (query: string) => {
+  if (!query.trim()) {
+    return queryDb(
+      {
+        query: "SELECT * FROM links WHERE 0",
+        schema: searchResultsSchema,
+      },
+      { label: "searchLinks:empty" }
+    );
+  }
+
+  const pattern = `%${query}%`;
+  return queryDb(
+    {
+      bindValues: [pattern, pattern, pattern, pattern, pattern],
+      query: `
+        SELECT
+          l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+          s.title, s.description, s.image, s.favicon,
+          sum.summary,
+          (
+            CASE WHEN s.title LIKE ?1 THEN 100 ELSE 0 END +
+            CASE WHEN l.domain LIKE ?2 THEN 50 ELSE 0 END +
+            CASE WHEN s.description LIKE ?3 THEN 30 ELSE 0 END +
+            CASE WHEN sum.summary LIKE ?4 THEN 20 ELSE 0 END +
+            CASE WHEN l.url LIKE ?5 THEN 10 ELSE 0 END
+          ) AS score
+        FROM links l
+        LEFT JOIN link_snapshots s ON s.id = (
+          SELECT s2.id FROM link_snapshots s2
+          WHERE s2.linkId = l.id
+          ORDER BY s2.fetchedAt DESC
+          LIMIT 1
+        )
+        LEFT JOIN link_summaries sum ON sum.id = (
+          SELECT sum2.id FROM link_summaries sum2
+          WHERE sum2.linkId = l.id
+          ORDER BY sum2.summarizedAt DESC
+          LIMIT 1
+        )
+        WHERE l.deletedAt IS NULL
+          AND (
+            s.title LIKE ?1
+            OR l.domain LIKE ?2
+            OR s.description LIKE ?3
+            OR sum.summary LIKE ?4
+            OR l.url LIKE ?5
+          )
+        ORDER BY score DESC
+        LIMIT 20
+      `,
+      schema: searchResultsSchema,
+    },
+    { label: `searchLinks:${query}` }
+  );
+};

@@ -8,7 +8,10 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [viteTsConfigPaths({ projects: ["./tsconfig.json"] })],
   test: {
-    include: ["src/cf-worker/__tests__/unit/**/*.test.ts"],
+    include: [
+      "src/cf-worker/__tests__/unit/**/*.test.ts",
+      "src/lib/__tests__/**/*.test.ts",
+    ],
     exclude: ["**/node_modules/**", "**/readonly-llm-lookup/**"],
   },
 });
