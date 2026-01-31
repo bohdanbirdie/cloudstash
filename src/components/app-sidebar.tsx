@@ -10,11 +10,13 @@ import {
   SearchIcon,
   PuzzleIcon,
   ShieldIcon,
+  MessageSquareIcon,
 } from "lucide-react";
 import { useState } from "react";
 
 import { useAddLinkDialog } from "@/components/add-link-dialog";
 import { AdminModal } from "@/components/admin";
+import { ChatDialog } from "@/components/chat/chat-dialog";
 import { IntegrationsModal } from "@/components/integrations";
 import {
   AlertDialog,
@@ -40,6 +42,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { useOrgFeatures } from "@/hooks/use-org-features";
 import { useAuth } from "@/lib/auth";
 import { getHotkeyLabel } from "@/lib/hotkey-label";
 import {
@@ -58,8 +61,10 @@ export function AppSidebar() {
   const store = useAppStore();
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const auth = useAuth();
+  const { isChatEnabled } = useOrgFeatures();
 
   const inboxCount = store.useQuery(inboxCount$);
   const completedCount = store.useQuery(completedCount$);
@@ -168,6 +173,17 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
+          {isChatEnabled && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tooltip="Chat"
+                onClick={() => setChatOpen(true)}
+              >
+                <MessageSquareIcon />
+                <span>Chat</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="Integrations"
@@ -187,6 +203,9 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+        {isChatEnabled && (
+          <ChatDialog open={chatOpen} onOpenChange={setChatOpen} />
+        )}
         <IntegrationsModal
           open={integrationsOpen}
           onOpenChange={setIntegrationsOpen}

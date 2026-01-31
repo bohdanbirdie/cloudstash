@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import "@livestore/adapter-cloudflare/polyfill";
 import { type CfTypes } from "@livestore/sync-cf/cf-worker";
+import { routeAgentRequest } from "agents";
 import { Effect } from "effect";
 import { Hono } from "hono";
 
@@ -12,6 +13,7 @@ import {
 import { handleApproveUser } from "./admin/approve-user";
 import { createAuth } from "./auth";
 import { checkSyncAuth, SyncAuthError } from "./auth/sync-auth";
+import { agentHooks } from "./chat-agent/hooks";
 import { createDb } from "./db";
 import { ingestRequestToResponse } from "./ingest/service";
 import {
@@ -30,6 +32,7 @@ import { handleTelegramWebhook } from "./telegram";
 
 export { SyncBackendDO } from "./sync";
 export { LinkProcessorDO } from "./link-processor";
+export { ChatAgentDO } from "./chat-agent";
 
 const logger = logSync("API");
 
@@ -161,6 +164,19 @@ export default {
     ctx: CfTypes.ExecutionContext
   ) {
     const url = new URL(request.url);
+
+    // Handle agent WebSocket connections (/agents/:agent/:name)
+    const agentResponse = await routeAgentRequest(
+      request as unknown as Request,
+      env,
+      {
+        onBeforeConnect: (req, lobby) =>
+          agentHooks.onBeforeConnect(req, lobby, env),
+        onBeforeRequest: (req, lobby) =>
+          agentHooks.onBeforeRequest(req, lobby, env),
+      }
+    );
+    if (agentResponse) return agentResponse;
 
     if (url.pathname === "/sync") {
       return handleSync(request, env, ctx);

@@ -100,8 +100,10 @@ export function AdminModal({ open, onOpenChange }: AdminModalProps) {
             error={workspaces.error}
             isMutating={workspaces.isMutating}
             aiEnabledCount={workspaces.aiEnabledCount}
+            chatEnabledCount={workspaces.chatEnabledCount}
             currentOrgId={orgId}
             onToggleAiSummary={workspaces.toggleAiSummary}
+            onToggleChatAgent={workspaces.toggleChatAgent}
           />
         </Tabs>
       </DialogContent>

@@ -7,7 +7,7 @@ compatibility_flags = ["nodejs_compat"]
 [assets]
 directory = "./dist"
 not_found_handling = "single-page-application"
-run_worker_first = ["/sync*", "/api/*"]
+run_worker_first = ["/sync*", "/api/*", "/agents/*"]
 
 [ai]
 binding = "AI"
@@ -24,6 +24,10 @@ class_name = "SyncBackendDO"
 name = "LINK_PROCESSOR_DO"
 class_name = "LinkProcessorDO"
 
+[[durable_objects.bindings]]
+name = "Chat"
+class_name = "ChatAgentDO"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["SyncBackendDO"]
@@ -31,6 +35,10 @@ new_sqlite_classes = ["SyncBackendDO"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["LinkProcessorDO"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["ChatAgentDO"]
 
 [[d1_databases]]
 binding = "DB"
@@ -66,6 +74,10 @@ class_name = "SyncBackendDO"
 name = "LINK_PROCESSOR_DO"
 class_name = "LinkProcessorDO"
 
+[[env.staging.durable_objects.bindings]]
+name = "Chat"
+class_name = "ChatAgentDO"
+
 [[env.staging.migrations]]
 tag = "v1"
 new_sqlite_classes = ["SyncBackendDO"]
@@ -73,6 +85,10 @@ new_sqlite_classes = ["SyncBackendDO"]
 [[env.staging.migrations]]
 tag = "v2"
 new_sqlite_classes = ["LinkProcessorDO"]
+
+[[env.staging.migrations]]
+tag = "v3"
+new_sqlite_classes = ["ChatAgentDO"]
 
 [[env.staging.d1_databases]]
 binding = "DB"

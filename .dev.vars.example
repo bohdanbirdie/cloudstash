@@ -11,3 +11,9 @@ TELEGRAM_BOT_TOKEN=your-telegram-bot-token
 TELEGRAM_WEBHOOK_SECRET=dev-secret
 
 RESEND_API_KEY=re_
+
+# Chat Agent (optional - for AI chat feature)
+GROQ_API_KEY=gsk_your_groq_api_key
+GOOGLE_GENERATIVE_AI_API_KEY=your_google_ai_api_key
+MISTRAL_API_KEY=your_mistral_api_key
+CEREBRAS_API_KEY=your_cerebras_api_key

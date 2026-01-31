@@ -3,6 +3,7 @@ import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
 
 export type OrgFeatures = {
   aiSummary?: boolean;
+  chatAgentEnabled?: boolean;
 };
 
 export const user = sqliteTable("user", {

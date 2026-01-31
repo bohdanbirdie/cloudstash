@@ -1,4 +1,4 @@
-import { BuildingIcon, SparklesIcon } from "lucide-react";
+import { BuildingIcon, MessageSquareIcon, SparklesIcon } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,8 +18,10 @@ interface WorkspacesTabProps {
   error: string | null;
   isMutating: boolean;
   aiEnabledCount: number;
+  chatEnabledCount: number;
   currentOrgId: string | null;
   onToggleAiSummary: (orgId: string, currentValue: boolean) => void;
+  onToggleChatAgent: (orgId: string, currentValue: boolean) => void;
 }
 
 export function WorkspacesTab({
@@ -28,8 +30,10 @@ export function WorkspacesTab({
   error,
   isMutating,
   aiEnabledCount,
+  chatEnabledCount,
   currentOrgId,
   onToggleAiSummary,
+  onToggleChatAgent,
 }: WorkspacesTabProps) {
   return (
     <TabsContent value="workspaces" className="flex-1 flex flex-col min-h-0">
@@ -43,6 +47,11 @@ export function WorkspacesTab({
           <SparklesIcon className="h-4 w-4 text-blue-500" />
           <span className="font-medium">{aiEnabledCount}</span>
           <span className="text-muted-foreground">AI enabled</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <MessageSquareIcon className="h-4 w-4 text-green-500" />
+          <span className="font-medium">{chatEnabledCount}</span>
+          <span className="text-muted-foreground">Chat enabled</span>
         </div>
       </div>
 
@@ -68,12 +77,15 @@ export function WorkspacesTab({
           <table className="w-full text-sm table-fixed">
             <thead>
               <tr className="border-b text-xs text-muted-foreground">
-                <th className="text-left py-2 font-medium w-[40%]">
+                <th className="text-left py-2 font-medium w-[30%]">
                   Workspace
                 </th>
-                <th className="text-left py-2 font-medium w-[40%]">Creator</th>
+                <th className="text-left py-2 font-medium w-[30%]">Creator</th>
                 <th className="text-right py-2 font-medium w-[20%]">
                   AI Summaries
+                </th>
+                <th className="text-right py-2 font-medium w-[20%]">
+                  Chat Agent
                 </th>
               </tr>
             </thead>
@@ -120,6 +132,18 @@ export function WorkspacesTab({
                           onToggleAiSummary(
                             workspace.id,
                             workspace.features.aiSummary ?? false
+                          )
+                        }
+                        disabled={isMutating}
+                      />
+                    </td>
+                    <td className="py-2 text-right">
+                      <Switch
+                        checked={workspace.features.chatAgentEnabled ?? false}
+                        onCheckedChange={() =>
+                          onToggleChatAgent(
+                            workspace.id,
+                            workspace.features.chatAgentEnabled ?? false
                           )
                         }
                         disabled={isMutating}

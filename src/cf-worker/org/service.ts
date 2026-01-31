@@ -1,7 +1,12 @@
+import { eq } from "drizzle-orm";
 import { Effect } from "effect";
+
+import { type MeResponse } from "@/types/api";
 
 import { createAuth } from "../auth";
 import { createDb } from "../db";
+import * as schema from "../db/schema";
+import { type OrgFeatures } from "../db/schema";
 import { maskId } from "../log-utils";
 import { logSync } from "../logger";
 import { type Env } from "../shared";
@@ -25,39 +30,60 @@ const getSession = (auth: Auth, headers: Headers) =>
     )
   );
 
-const getOrganization = (
+const getOrgWithFeatures = (
   auth: Auth,
   headers: Headers,
-  orgId: string | null | undefined
-) =>
-  orgId
-    ? Effect.tryPromise({
-        catch: () => null,
-        try: () =>
-          auth.api.getFullOrganization({
-            headers,
-            query: { organizationId: orgId },
-          }),
-      }).pipe(
-        Effect.map((org) =>
-          org ? { id: org.id, name: org.name, slug: org.slug } : null
-        )
-      )
-    : Effect.succeed(null);
+  db: ReturnType<typeof createDb>,
+  orgId: string
+): Effect.Effect<MeResponse["organization"], OrgNotFoundError> =>
+  Effect.gen(function* () {
+    const apiOrg = yield* Effect.tryPromise({
+      catch: () => OrgNotFoundError.make({}),
+      try: () =>
+        auth.api.getFullOrganization({
+          headers,
+          query: { organizationId: orgId },
+        }),
+    });
 
-const handleGetMeRequest = (request: Request, env: Env) =>
-  Effect.gen(function* handleGetMeRequest() {
-    const auth = createAuth(env, createDb(env.DB));
+    if (!apiOrg) {
+      return yield* OrgNotFoundError.make({});
+    }
+
+    const dbOrg = yield* Effect.tryPromise({
+      catch: () => OrgNotFoundError.make({}),
+      try: () =>
+        db.query.organization.findFirst({
+          where: eq(schema.organization.id, orgId),
+          columns: { features: true },
+        }),
+    });
+
+    return {
+      id: apiOrg.id,
+      name: apiOrg.name,
+      slug: apiOrg.slug,
+      features: (dbOrg?.features as OrgFeatures) ?? {},
+    };
+  });
+
+const handleGetMeRequest = (
+  request: Request,
+  env: Env
+): Effect.Effect<MeResponse, UnauthorizedError | OrgNotFoundError> =>
+  Effect.gen(function* () {
+    const db = createDb(env.DB);
+    const auth = createAuth(env, db);
     const session = yield* getSession(auth, request.headers);
-    const organization = yield* getOrganization(
-      auth,
-      request.headers,
-      session.session.activeOrganizationId
-    );
+    const orgId = session.session.activeOrganizationId;
+
+    const organization = orgId
+      ? yield* getOrgWithFeatures(auth, request.headers, db, orgId)
+      : null;
 
     return {
       organization,
-      session: { activeOrganizationId: session.session.activeOrganizationId },
+      session: { activeOrganizationId: orgId ?? null },
       user: {
         email: session.user.email,
         id: session.user.id,
@@ -78,11 +104,19 @@ export const handleGetMe = (request: Request, env: Env): Promise<Response> =>
         )
       ),
       Effect.map((data) => Response.json(data)),
-      Effect.catchTag("UnauthorizedError", () => {
-        logger.debug("Get me unauthorized");
-        return Effect.succeed(
-          Response.json({ error: "Unauthorized" }, { status: 401 })
-        );
+      Effect.catchTags({
+        OrgNotFoundError: () => {
+          logger.info("Get me org not found");
+          return Effect.succeed(
+            Response.json({ error: "Organization not found" }, { status: 404 })
+          );
+        },
+        UnauthorizedError: () => {
+          logger.debug("Get me unauthorized");
+          return Effect.succeed(
+            Response.json({ error: "Unauthorized" }, { status: 401 })
+          );
+        },
       })
     )
   );
