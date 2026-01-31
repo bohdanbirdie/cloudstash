@@ -557,6 +557,37 @@ const { isChatEnabled } = useOrgFeatures();
 
 `toggleChatAgent` in `use-workspaces-admin.ts` updates the feature flag and revalidates `/api/auth/me` so the sidebar updates immediately.
 
+## Planned: Slash Commands
+
+Allow users to type `/command` in chat for quick actions without waiting for LLM.
+
+### Example Commands
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Show available commands |
+| `/clear` | Clear chat history |
+| `/search <query>` | Search links directly (bypass LLM) |
+| `/save <url>` | Save a link directly |
+| `/recent [n]` | Show n recent links |
+
+### Implementation TODO
+
+- [ ] Parse input for `/` prefix before sending to agent
+- [ ] Create command registry with handler functions
+- [ ] Handle commands client-side (no WebSocket roundtrip needed for simple commands)
+- [ ] For commands that need data (search, recent), call API directly or send special message type to agent
+- [ ] Add command autocomplete in `PromptInputTextarea`
+- [ ] Show command help inline as user types
+- [ ] Consider: should `/clear` require confirmation?
+
+### UI Considerations
+
+- Commands should feel instant (no "Thinking..." indicator)
+- Command results could use different styling than LLM responses
+- Autocomplete dropdown when typing `/`
+- Show available commands on `/` with no text after
+
 ## Open Questions
 
 1. Max message history length before summarization?
