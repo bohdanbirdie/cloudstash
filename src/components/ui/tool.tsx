@@ -1,4 +1,4 @@
-import type { DynamicToolUIPart, ToolUIPart, UITools } from "ai";
+import { type DynamicToolUIPart, type ToolUIPart, type UITools } from "ai";
 import { getToolName } from "ai";
 import {
   CheckCircle,

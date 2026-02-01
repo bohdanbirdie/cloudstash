@@ -27,6 +27,19 @@ function extractLanguage(className?: string): string {
 }
 
 const INITIAL_COMPONENTS: Partial<Components> = {
+  a: function AnchorComponent({ href, children, ...props }) {
+    return (
+      <a
+        href={href}
+        className="break-all"
+        target="_blank"
+        rel="noopener noreferrer"
+        {...props}
+      >
+        {children}
+      </a>
+    );
+  },
   code: function CodeComponent({ className, children, ...props }) {
     const isInline =
       !props.node?.position?.start.line ||

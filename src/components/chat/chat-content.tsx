@@ -1,6 +1,6 @@
 import { isToolUIPart } from "ai";
 import { SendIcon } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 import {
   Conversation,
@@ -25,42 +25,22 @@ interface ChatContentProps {
 
 export function ChatContent({ workspaceId }: ChatContentProps) {
   const [input, setInput] = useState("");
-  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
   const { messages, sendMessage, status, isConnected } =
     useWorkspaceChat(workspaceId);
 
   const isStreaming = status === "streaming";
 
-  // Clear input when our pending message appears in the messages array
-  useEffect(() => {
-    if (pendingMessage && messages.length > 0) {
-      const reversed = [...messages].reverse();
-      const lastUserMessage = reversed.find((m) => m.role === "user");
-      if (lastUserMessage) {
-        const lastUserText = lastUserMessage.parts
-          .filter((p): p is { type: "text"; text: string } => p.type === "text")
-          .map((p) => p.text)
-          .join("\n");
-
-        if (lastUserText === pendingMessage) {
-          setInput("");
-          setPendingMessage(null);
-        }
-      }
-    }
-  }, [messages, pendingMessage]);
-
   const handleSubmit = async () => {
     const text = input.trim();
-    if (!text || !isConnected) return;
-
-    setPendingMessage(text);
+    if (!text || !isConnected || isStreaming) return;
 
     await sendMessage({
       role: "user",
       parts: [{ type: "text", text }],
     });
+
+    setInput("");
   };
 
   return (
@@ -125,7 +105,6 @@ export function ChatContent({ workspaceId }: ChatContentProps) {
         onValueChange={setInput}
         onSubmit={handleSubmit}
         isLoading={isStreaming}
-        disabled={!isConnected || !!pendingMessage}
         className="rounded-xl"
       >
         <PromptInputTextarea placeholder="Ask about your links..." />
@@ -134,9 +113,7 @@ export function ChatContent({ workspaceId }: ChatContentProps) {
             type="button"
             size="icon"
             className="rounded-full size-8"
-            disabled={
-              isStreaming || !isConnected || !input.trim() || !!pendingMessage
-            }
+            disabled={isStreaming || !isConnected || !input.trim()}
             onClick={handleSubmit}
           >
             <SendIcon className="size-4" />

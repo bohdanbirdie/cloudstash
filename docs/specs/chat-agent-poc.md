@@ -388,9 +388,9 @@ Key differences from earlier versions:
 The model can be swapped by changing the provider import:
 
 ```typescript
-// Cerebras (current) - 1M tokens/day free, fast inference
-import { createCerebras } from "@ai-sdk/cerebras";
-const model = createCerebras({ apiKey })("llama-3.3-70b");
+// Groq (current) - fast inference, good tool calling
+import { createGroq } from "@ai-sdk/groq";
+const model = createGroq({ apiKey })("llama-3.3-70b-versatile");
 
 // Google Gemini - works well but 5 RPM limit on free tier
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -413,7 +413,7 @@ const model = createWorkersAI({ binding: env.AI })(
 
 ## Future Enhancements (Post-PoC)
 
-1. **Real LiveStore Integration** - Replace dummy tools with actual queries/mutations
+1. ~~**Real LiveStore Integration**~~ - ✅ Done: Tools now query/mutate real data
 2. **BYOK Support** - Allow users to configure their own API keys
 3. **Multiple Conversations** - Chat history per workspace with conversation list
 4. **Rich Tool UI** - Display tool results as cards/components
