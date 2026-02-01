@@ -41,6 +41,10 @@ IMPORTANT INSTRUCTIONS:
 
 Do NOT use tools for greetings or general questions unrelated to links.`;
 
+// Sliding window: only send last N messages to model
+// Full history stays in SQLite for UI display
+const CONTEXT_WINDOW_SIZE = 30;
+
 export class ChatAgentDO
   extends AIChatAgent<Env>
   implements ClientDoWithRpcCallback
@@ -96,8 +100,10 @@ export class ChatAgentDO
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
         const program = Effect.gen(this, function* () {
+          // Apply sliding window - keep only recent messages for model context
+          const recentMessages = this.messages.slice(-CONTEXT_WINDOW_SIZE);
           const messages = yield* Effect.promise(() =>
-            convertToModelMessages(this.messages)
+            convertToModelMessages(recentMessages)
           );
 
           const result = yield* Effect.try({

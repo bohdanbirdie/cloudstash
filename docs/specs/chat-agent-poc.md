@@ -72,6 +72,7 @@ bun add agents @cloudflare/ai-chat ai @ai-sdk/cerebras
 - Can be aggressive with tool usage - may need guardrails
 
 **TODO: Guardrails**
+
 - [ ] Add pre-check to skip tool calling for simple greetings
 - [ ] Consider `toolChoice` configuration to control when tools are invoked
 - [ ] Rate limiting per user/workspace
@@ -157,41 +158,29 @@ export class ChatAgentDO extends AIChatAgent<Env> {
 
 ### Tools
 
-**Note:** AI SDK v6 requires `zodSchema()` wrapper for Zod schemas.
+**Note:** AI SDK v6 requires `zodSchema()` wrapper for Zod schemas. Tools receive a LiveStore instance for real data access.
 
 ```typescript
 // src/cf-worker/chat-agent/tools.ts
+import { nanoid, type Store } from "@livestore/livestore";
 import { tool, zodSchema } from "ai";
 import { z } from "zod";
+import { allLinks$, searchLinks$ } from "../../livestore/queries";
+import { events, schema } from "../../livestore/schema";
 
-const listRecentLinksSchema = z.object({
-  limit: z
-    .number()
-    .optional()
-    .describe("Number of links to return (default 5)"),
-});
-
-const saveLinkSchema = z.object({
-  url: z.string().describe("The URL to save"),
-  title: z.string().optional().describe("Optional title for the link"),
-});
-
-const searchLinksSchema = z.object({
-  query: z.string().describe("Search query"),
-});
-
-export function createTools() {
+export function createTools(store: Store<typeof schema>) {
   return {
     listRecentLinks: tool({
       description: "List recently saved links in the workspace",
       inputSchema: zodSchema(listRecentLinksSchema),
       execute: async ({ limit = 5 }) => {
-        // TODO: Replace with real LiveStore query
+        const links = store.query(allLinks$);
         return {
-          links: [
-            { id: "1", title: "Example Link 1", url: "https://example.com/1" },
-            { id: "2", title: "Example Link 2", url: "https://example.com/2" },
-          ].slice(0, limit),
+          links: links.slice(0, Math.min(limit, 20)).map((link) => ({
+            id: link.id,
+            url: link.url,
+            title: link.title || link.domain,
+          })),
         };
       },
     }),
@@ -199,13 +188,13 @@ export function createTools() {
     saveLink: tool({
       description: "Save a new link to the workspace",
       inputSchema: zodSchema(saveLinkSchema),
-      execute: async ({ url, title }) => {
-        // TODO: Replace with real LiveStore mutation
-        return {
-          success: true,
-          linkId: "dummy-" + Date.now(),
-          message: `Saved "${title || url}" to workspace`,
-        };
+      execute: async ({ url }) => {
+        const linkId = nanoid();
+        const domain = new URL(url).hostname.replace(/^www\./, "");
+        store.commit(
+          events.linkCreated({ id: linkId, url, domain, createdAt: new Date() })
+        );
+        return { success: true, linkId };
       },
     }),
 
@@ -213,16 +202,13 @@ export function createTools() {
       description: "Search for links by keyword",
       inputSchema: zodSchema(searchLinksSchema),
       execute: async ({ query }) => {
-        // TODO: Replace with real LiveStore search
+        const results = store.query(searchLinks$(query));
         return {
-          results: [
-            {
-              id: "1",
-              title: `Result for "${query}"`,
-              url: "https://example.com",
-              score: 0.9,
-            },
-          ],
+          results: results.map((link) => ({
+            id: link.id,
+            url: link.url,
+            title: link.title,
+          })),
         };
       },
     }),
@@ -415,13 +401,13 @@ const model = createWorkersAI({ binding: env.AI })(
 
 1. ~~**Real LiveStore Integration**~~ - ✅ Done: Tools now query/mutate real data
 2. **BYOK Support** - Allow users to configure their own API keys
-3. **Multiple Conversations** - Chat history per workspace with conversation list
+3. ~~**Infinite Conversation**~~ - ✅ Done: Sliding window (last 30 messages to model)
 4. **Rich Tool UI** - Display tool results as cards/components
 5. **Rate Limiting** - Prevent abuse
 
 ## Planned: BYOK (Bring Your Own Key)
 
-The Cerebras free tier (1M tokens/day, 30 RPM) is sufficient for single-user testing but not for multi-user production. BYOK allows users to provide their own API keys.
+The Groq free tier is sufficient for single-user testing but not for multi-user production. BYOK allows users to provide their own API keys.
 
 ### Provider Pricing Comparison (per 1M tokens)
 
@@ -451,7 +437,7 @@ The Cerebras free tier (1M tokens/day, 30 RPM) is sufficient for single-user tes
 
 - Store encrypted API keys per org in D1
 - Allow users to select provider + model in settings
-- Fall back to platform key (Cerebras) if no BYOK configured
+- Fall back to platform key (Groq) if no BYOK configured
 - Consider usage tracking per org for billing transparency
 
 ## ✅ Implemented: Authentication & Feature Gating
@@ -595,6 +581,21 @@ Allow users to type `/command` in chat for quick actions without waiting for LLM
 - Autocomplete dropdown when typing `/`
 - Show available commands on `/` with no text after
 
-## Open Questions
+## Context Window Management
 
-1. Max message history length before summarization?
+**Implemented: Simple sliding window**
+
+```typescript
+const CONTEXT_WINDOW_SIZE = 30;
+const recentMessages = this.messages.slice(-CONTEXT_WINDOW_SIZE);
+```
+
+- Full history stored in SQLite (for UI display)
+- Only last 30 messages sent to model
+- Simple, no extra LLM calls for summarization
+- Trade-off: model forgets older context
+
+**Future improvements (if needed):**
+- Summarization of old messages
+- Token counting for precise limits
+- Archive to R2/KV for very long conversations
