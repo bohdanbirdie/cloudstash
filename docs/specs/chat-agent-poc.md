@@ -8,7 +8,7 @@ Minimal proof-of-concept for a chat agent using Cloudflare Agents SDK. One chat 
 
 ## Goals
 
-1. ✅ Validate Cloudflare Agents SDK works with external providers (Cerebras)
+1. ✅ Validate Cloudflare Agents SDK works with external providers (Groq)
 2. ✅ Confirm persistent WebSocket + hibernation works as expected
 3. ✅ Test message persistence and history loading (handled automatically by AIChatAgent DO)
 4. ✅ Simple UI to verify streaming and tool calls
@@ -65,27 +65,32 @@ bun add agents @cloudflare/ai-chat ai @ai-sdk/cerebras
 
 ## Provider Selection
 
-**Final choice: Cerebras + Llama 3.3 70B**
+**Current choice: Groq + Llama 3.3 70B**
 
-- 1M tokens/day free tier
 - Fast inference
-- Good instruction following (respects system prompt)
+- Proper tool calling support (uses native function calling API)
+- Can be aggressive with tool usage - may need guardrails
+
+**TODO: Guardrails**
+- [ ] Add pre-check to skip tool calling for simple greetings
+- [ ] Consider `toolChoice` configuration to control when tools are invoked
+- [ ] Rate limiting per user/workspace
 
 **Tested and rejected:**
 | Provider | Model | Issue |
 |----------|-------|-------|
-| Groq | llama-3.3-70b-versatile | Too aggressive with tool calling, ignores system prompt |
+| Cerebras | llama-3.3-70b | Outputs tool calls as JSON text instead of using function calling API |
+| Cerebras | qwen-3-32b | Outputs `<think>` tags in responses |
 | Workers AI | llama-3.3-70b | Poor multi-step tool support |
 | Google Gemini | gemini-2.5-flash | Only 5 RPM on free tier |
 | Mistral | mistral-small-\* | Tool call ID format incompatible with AI SDK |
-| Cerebras | qwen-3-32b | Outputs `<think>` tags in responses |
 
 ## Files Created
 
 | File                                  | Purpose                                     | Status |
 | ------------------------------------- | ------------------------------------------- | ------ |
 | `src/cf-worker/chat-agent/index.ts`   | `ChatAgentDO` class extending `AIChatAgent` | ✅     |
-| `src/cf-worker/chat-agent/tools.ts`   | Dummy tools for PoC                         | ✅     |
+| `src/cf-worker/chat-agent/tools.ts`   | Tools with LiveStore integration            | ✅     |
 | `src/cf-worker/chat-agent/auth.ts`    | Feature flag check                          | ✅     |
 | `src/cf-worker/agents/hooks.ts`       | Effect-based agent auth hooks               | ✅     |
 | `src/components/chat/chat-dialog.tsx` | Chat dialog UI component                    | ✅     |
@@ -100,7 +105,7 @@ bun add agents @cloudflare/ai-chat ai @ai-sdk/cerebras
 ```typescript
 // src/cf-worker/chat-agent/index.ts
 import { AIChatAgent } from "@cloudflare/ai-chat";
-import { createCerebras } from "@ai-sdk/cerebras";
+import { createGroq } from "@ai-sdk/groq";
 import {
   streamText,
   convertToModelMessages,
@@ -113,20 +118,22 @@ import type { Env } from "../shared";
 
 const SYSTEM_PROMPT = `You are a helpful assistant for managing links and bookmarks.
 
-IMPORTANT: Only use tools when the user EXPLICITLY asks to:
-- List/show their links (use listRecentLinks)
-- Save/add a URL (use saveLink)
-- Search/find links (use searchLinks)
+You have access to these tools:
+- listRecentLinks: List recently saved links
+- saveLink: Save a new URL to the workspace
+- searchLinks: Search links by keyword
 
-Do NOT use tools for:
-- Greetings ("hello", "hi")
-- General questions ("can you code?", "what can you do?")
-- Anything not directly about managing links`;
+IMPORTANT INSTRUCTIONS:
+1. When the user asks about their links, searches, or wants to save a URL, you MUST use the appropriate tool
+2. NEVER output raw JSON or function call syntax in your response
+3. After using a tool, summarize the results in natural language
+
+Do NOT use tools for greetings or general questions unrelated to links.`;
 
 export class ChatAgentDO extends AIChatAgent<Env> {
   async onChatMessage() {
-    const cerebras = createCerebras({ apiKey: this.env.CEREBRAS_API_KEY });
-    const model = cerebras("llama-3.3-70b");
+    const groq = createGroq({ apiKey: this.env.GROQ_API_KEY });
+    const model = groq("llama-3.3-70b-versatile");
     const tools = createTools();
 
     const stream = createUIMessageStream({
@@ -148,7 +155,7 @@ export class ChatAgentDO extends AIChatAgent<Env> {
 }
 ```
 
-### Dummy Tools
+### Tools
 
 **Note:** AI SDK v6 requires `zodSchema()` wrapper for Zod schemas.
 
@@ -365,7 +372,7 @@ if (agentResponse) return agentResponse;
 - [x] Tool calls execute and display results
 - [x] Hibernation works (verified via constructor logs after idle)
 - [x] Multiple browser tabs share same conversation
-- [x] External provider (Cerebras) works
+- [x] External provider (Groq) works
 
 ## AI SDK v6 Notes
 
@@ -563,13 +570,13 @@ Allow users to type `/command` in chat for quick actions without waiting for LLM
 
 ### Example Commands
 
-| Command | Description |
-|---------|-------------|
-| `/help` | Show available commands |
-| `/clear` | Clear chat history |
+| Command           | Description                        |
+| ----------------- | ---------------------------------- |
+| `/help`           | Show available commands            |
+| `/clear`          | Clear chat history                 |
 | `/search <query>` | Search links directly (bypass LLM) |
-| `/save <url>` | Save a link directly |
-| `/recent [n]` | Show n recent links |
+| `/save <url>`     | Save a link directly               |
+| `/recent [n]`     | Show n recent links                |
 
 ### Implementation TODO
 
