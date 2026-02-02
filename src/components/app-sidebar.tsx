@@ -108,6 +108,9 @@ export function AppSidebar() {
           <span className="font-semibold group-data-[collapsible=icon]:hidden">
             Cloudstash
           </span>
+          <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400 group-data-[collapsible=icon]:hidden">
+            Alpha
+          </span>
         </div>
       </SidebarHeader>
       <SidebarContent>
