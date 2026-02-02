@@ -1,4 +1,4 @@
-import { createGroq } from "@ai-sdk/groq";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { AIChatAgent } from "@cloudflare/ai-chat";
 import {
   createStoreDoPromise,
@@ -12,11 +12,12 @@ import {
   createUIMessageStream,
   createUIMessageStreamResponse,
   stepCountIs,
+  type LanguageModel,
 } from "ai";
 import { schema } from "../../livestore/schema";
 import { type Env } from "../shared";
 import { CONTEXT_WINDOW_SIZE, SYSTEM_PROMPT } from "./config";
-import { extractRetryTime, isRateLimitError } from "./errors";
+import { extractRetryTime, isCreditLimitError, isRateLimitError } from "./errors";
 import { getLastUserMessageText, validateInput } from "./input-validator";
 import { writeTextMessage } from "./stream-helpers";
 import { createTools, createToolExecutors } from "./tools";
@@ -26,8 +27,16 @@ function formatError(error: unknown): string {
   if (isRateLimitError(error)) {
     return `I've hit my rate limit. Please try again in ${extractRetryTime(error)}.`;
   }
+  if (isCreditLimitError(error)) {
+    return "I've reached my spending limit. Please try again later.";
+  }
   const msg = error instanceof Error ? error.message : String(error);
-  if (msg.includes("tool_use_failed") || msg.includes("tool_calls")) {
+  if (
+    msg.includes("tool_use_failed") ||
+    msg.includes("tool_calls") ||
+    msg.includes("Failed to call a function") ||
+    msg.includes("tool call validation failed")
+  ) {
     return "I had trouble processing that request. Could you try rephrasing?";
   }
   return "Something went wrong. Please try again.";
@@ -79,8 +88,8 @@ export class ChatAgentDO
   }
 
   async onChatMessage() {
-    const groq = createGroq({ apiKey: this.env.GROQ_API_KEY });
-    const model = groq("llama-3.3-70b-versatile");
+    const openrouter = createOpenRouter({ apiKey: this.env.OPENROUTER_API_KEY });
+    const model = openrouter("google/gemini-2.5-flash");
 
     const store = await this.getStore();
     const tools = createTools(store);
@@ -112,7 +121,7 @@ export class ChatAgentDO
   }
 
   private handleToolConfirmation(
-    model: ReturnType<ReturnType<typeof createGroq>>,
+    model: LanguageModel,
     tools: ReturnType<typeof createTools>,
     toolExecutors: ReturnType<typeof createToolExecutors>
   ) {
@@ -146,7 +155,7 @@ export class ChatAgentDO
   }
 
   private handleNormalChat(
-    model: ReturnType<ReturnType<typeof createGroq>>,
+    model: LanguageModel,
     tools: ReturnType<typeof createTools>
   ) {
     const stream = createUIMessageStream({

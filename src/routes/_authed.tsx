@@ -6,11 +6,13 @@ import { useDefaultLayout } from "react-resizable-panels";
 
 import { AddLinkDialogProvider } from "@/components/add-link-dialog";
 import { AppSidebar } from "@/components/app-sidebar";
+import { useChatPanel } from "@/components/chat/chat-context";
 import {
   ChatPanel,
   ChatPanelHandle,
   ChatPanelProvider,
 } from "@/components/chat/chat-panel";
+import { ChatSheet, ChatSheetProvider } from "@/components/chat/chat-sheet";
 import { LinkDetailModal } from "@/components/link-card/link-detail-modal";
 import { SearchCommand } from "@/components/search-command";
 import { SyncErrorBanner } from "@/components/sync-error-banner";
@@ -24,6 +26,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ConnectionMonitor } from "@/livestore/store";
 
 export const Route = createFileRoute("/_authed")({
@@ -37,10 +40,7 @@ export const Route = createFileRoute("/_authed")({
 
 function AuthedLayout() {
   const { storeRegistry } = Route.useRouteContext();
-  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
-    id: "main-layout",
-    storage: localStorage,
-  });
+  const isMobile = useIsMobile();
 
   return (
     <StoreRegistryProvider storeRegistry={storeRegistry}>
@@ -53,36 +53,74 @@ function AuthedLayout() {
       >
         <ConnectionMonitor />
         <AddLinkDialogProvider>
-          <ChatPanelProvider>
-            <SidebarProvider className="!h-svh !min-h-0 overflow-hidden">
-              <AppSidebar />
-              <ResizablePanelGroup
-                direction="horizontal"
-                defaultLayout={defaultLayout}
-                onLayoutChanged={onLayoutChanged}
-                className="!h-svh !max-h-svh overflow-hidden"
-              >
-                <ResizablePanel id="main" defaultSize={100} minSize={50}>
-                  <SidebarInset className="h-full overflow-hidden">
-                    <SyncErrorBanner />
-                    <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-                      <SidebarTrigger className="-ml-1" />
-                    </header>
-                    <main className="flex-1 min-h-0 overflow-auto">
-                      <Outlet />
-                    </main>
-                  </SidebarInset>
-                </ResizablePanel>
-                <ChatPanelHandle />
-                <ChatPanel />
-              </ResizablePanelGroup>
-              <SearchCommand />
-              <LinkDetailModal />
-              <TanStackRouterDevtools position="bottom-right" />
-            </SidebarProvider>
-          </ChatPanelProvider>
+          {isMobile ? <MobileLayout /> : <DesktopLayout />}
         </AddLinkDialogProvider>
       </Suspense>
     </StoreRegistryProvider>
   );
+}
+
+function DesktopLayout() {
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: "main-layout",
+    storage: localStorage,
+  });
+
+  return (
+    <ChatPanelProvider>
+      <SidebarProvider className="!h-svh !min-h-0 overflow-hidden">
+        <AppSidebar />
+        <ResizablePanelGroup
+          direction="horizontal"
+          defaultLayout={defaultLayout}
+          onLayoutChanged={onLayoutChanged}
+          className="!h-svh !max-h-svh overflow-hidden"
+        >
+          <ResizablePanel id="main" defaultSize={100} minSize={50}>
+            <SidebarInset className="h-full overflow-hidden">
+              <SyncErrorBanner />
+              <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+                <SidebarTrigger className="-ml-1" />
+              </header>
+              <main className="flex-1 min-h-0 overflow-auto">
+                <Outlet />
+              </main>
+            </SidebarInset>
+          </ResizablePanel>
+          <ChatPanelHandle />
+          <ChatPanel />
+        </ResizablePanelGroup>
+        <SearchCommand />
+        <LinkDetailModal />
+        <TanStackRouterDevtools position="top-left" />
+      </SidebarProvider>
+    </ChatPanelProvider>
+  );
+}
+
+function MobileLayout() {
+  return (
+    <ChatSheetProvider>
+      <SidebarProvider className="!h-svh !min-h-0 overflow-hidden">
+        <AppSidebar />
+        <SidebarInset className="h-full overflow-hidden">
+          <SyncErrorBanner />
+          <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+            <SidebarTrigger className="-ml-1" />
+          </header>
+          <main className="flex-1 min-h-0 overflow-auto">
+            <Outlet />
+          </main>
+        </SidebarInset>
+        <MobileChatSheet />
+        <SearchCommand />
+        <LinkDetailModal />
+      </SidebarProvider>
+    </ChatSheetProvider>
+  );
+}
+
+function MobileChatSheet() {
+  const { isOpen, close } = useChatPanel();
+  return <ChatSheet open={isOpen} onOpenChange={(open) => !open && close()} />;
 }

@@ -24,6 +24,7 @@ export function useWorkspaceChat(workspaceId: string) {
       agent,
       credentials: "include",
       toolsRequiringConfirmation: [...TOOLS_REQUIRING_CONFIRMATION],
+      autoContinueAfterToolResult: true,
     });
 
   return {

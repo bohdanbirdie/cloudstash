@@ -17,6 +17,18 @@ const hasRateLimitMessage = (e: ErrorLike): boolean =>
 export const isRateLimitError = (error: unknown): boolean =>
   isObject(error) && (hasRateLimitStatus(error) || hasRateLimitMessage(error));
 
+// OpenRouter returns 402 when credit/spending limit is hit
+const hasCreditLimitStatus = (e: ErrorLike): boolean =>
+  e.statusCode === 402 || e.lastError?.statusCode === 402;
+
+const hasCreditLimitMessage = (e: ErrorLike): boolean =>
+  typeof e.message === "string" &&
+  (e.message.toLowerCase().includes("insufficient credits") ||
+    e.message.toLowerCase().includes("credit limit"));
+
+export const isCreditLimitError = (error: unknown): boolean =>
+  isObject(error) && (hasCreditLimitStatus(error) || hasCreditLimitMessage(error));
+
 export const extractRetryTime = (error: unknown): string => {
   const msg =
     error && typeof error === "object" && "message" in error

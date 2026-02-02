@@ -36,8 +36,5 @@ export interface Env {
   TELEGRAM_WEBHOOK_SECRET: string;
   TELEGRAM_KV: KVNamespace;
   RESEND_API_KEY: string;
-  GROQ_API_KEY: string;
-  GOOGLE_GENERATIVE_AI_API_KEY: string;
-  MISTRAL_API_KEY: string;
-  CEREBRAS_API_KEY: string;
+  OPENROUTER_API_KEY: string;
 }

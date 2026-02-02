@@ -1,48 +1,75 @@
 import type { UIMessage } from "@ai-sdk/react";
 import { getToolName, isToolUIPart } from "ai";
 import { Match } from "effect";
-import { AlertCircle, ArrowUp } from "lucide-react";
-import { useCallback, useState } from "react";
+import { AlertCircle } from "lucide-react";
+import { useCallback } from "react";
 
 import {
   Conversation,
   ConversationContent,
   ConversationScrollButton,
 } from "@/components/chat/conversation";
-import { Button } from "@/components/ui/button";
+import { ChatEditor } from "@/components/chat/lexical/chat-editor";
 import { MessageContent } from "@/components/ui/message";
-import {
-  PromptInput,
-  PromptInputTextarea,
-  PromptInputActions,
-} from "@/components/ui/prompt-input";
 import { Thinking } from "@/components/ui/thinking";
 import { Tool, APPROVAL, type ToolPartType } from "@/components/ui/tool";
 import { useWorkspaceChat } from "@/hooks/use-workspace-chat";
 import { cn } from "@/lib/utils";
 import { requiresConfirmation } from "@/shared/tool-config";
+import { SLASH_COMMANDS, type SlashCommand } from "@/shared/slash-commands";
 
 interface ChatContentProps {
   workspaceId: string;
 }
 
 export function ChatContent({ workspaceId }: ChatContentProps) {
-  const [input, setInput] = useState("");
-
-  const { messages, sendMessage, status, isConnected, addToolOutput, error } =
-    useWorkspaceChat(workspaceId);
+  const {
+    messages,
+    sendMessage,
+    clearHistory,
+    status,
+    isConnected,
+    addToolOutput,
+    error,
+  } = useWorkspaceChat(workspaceId);
 
   const isStreaming = status === "streaming";
   const hasError = status === "error";
   const hasPendingConfirmation = checkPendingConfirmation(messages);
 
-  const handleSubmit = () => {
-    const text = input.trim();
-    if (!text || !isConnected || isStreaming || hasPendingConfirmation) return;
+  const handleSubmit = useCallback(
+    (text: string) => {
+      if (!isConnected || isStreaming || hasPendingConfirmation) return;
+      sendMessage({ role: "user", parts: [{ type: "text", text }] });
+    },
+    [isConnected, isStreaming, hasPendingConfirmation, sendMessage]
+  );
 
-    sendMessage({ role: "user", parts: [{ type: "text", text }] });
-    setInput("");
-  };
+  const handleSlashCommand = useCallback(
+    (command: SlashCommand, args: string) => {
+      if (command.handler === "client") {
+        if (command.name === "clear") {
+          clearHistory();
+          return;
+        }
+        if (command.name === "help") {
+          const helpText = SLASH_COMMANDS.map(
+            (c) => `/${c.name}${c.args ? ` ${c.args}` : ""} - ${c.description}`
+          ).join("\n");
+          sendMessage({
+            role: "user",
+            parts: [{ type: "text", text: `/help\n\n${helpText}` }],
+          });
+          return;
+        }
+      }
+
+      // Convert slash command to natural language for the AI
+      const naturalLanguage = slashCommandToNaturalLanguage(command, args);
+      sendMessage({ role: "user", parts: [{ type: "text", text: naturalLanguage }] });
+    },
+    [clearHistory, sendMessage]
+  );
 
   const handleApprove = useCallback(
     (toolCallId: string, toolName: string) => {
@@ -59,11 +86,11 @@ export function ChatContent({ workspaceId }: ChatContentProps) {
   );
 
   return (
-    <div className="flex flex-col h-full min-h-0 gap-2">
+    <div className="relative flex flex-col h-full min-h-0 gap-2">
       <ConnectionStatus isConnected={isConnected} />
 
       <Conversation>
-        <ConversationContent>
+        <ConversationContent className="pb-24">
           {messages.length === 0 && <EmptyState />}
           {messages.map((message) => (
             <ChatMessage
@@ -76,38 +103,22 @@ export function ChatContent({ workspaceId }: ChatContentProps) {
           <Thinking isLoading={isStreaming} />
           {hasError && <ErrorMessage error={error} />}
         </ConversationContent>
-        <ConversationScrollButton />
+        <ConversationScrollButton className="bottom-28" />
       </Conversation>
 
-      <PromptInput
-        value={input}
-        onValueChange={setInput}
-        onSubmit={handleSubmit}
-        isLoading={isStreaming}
-        disabled={hasPendingConfirmation}
-        className="rounded-xl"
+      <div
+        className={cn(
+          "absolute bottom-0 left-0 right-0 bg-background border-input rounded-xl border shadow-xs mb-3",
+          hasPendingConfirmation && "opacity-60"
+        )}
       >
-        <PromptInputTextarea
+        <ChatEditor
+          onSubmit={handleSubmit}
+          onSlashCommand={handleSlashCommand}
+          disabled={!isConnected || isStreaming || hasPendingConfirmation}
           placeholder={getPlaceholder(hasPendingConfirmation)}
-          disabled={hasPendingConfirmation}
         />
-        <PromptInputActions className="justify-end px-2 pb-2">
-          <Button
-            type="button"
-            size="icon"
-            className="rounded-full size-8"
-            disabled={
-              isStreaming ||
-              !isConnected ||
-              !input.trim() ||
-              hasPendingConfirmation
-            }
-            onClick={handleSubmit}
-          >
-            <ArrowUp className="size-4" />
-          </Button>
-        </PromptInputActions>
-      </PromptInput>
+      </div>
     </div>
   );
 }
@@ -211,3 +222,21 @@ const getErrorMessage = (error: Error | undefined): string =>
     Match.when(true, () => "Rate limit reached. Please try again in a few minutes."),
     Match.orElse(() => "Something went wrong. Please try again.")
   );
+
+const slashCommandToNaturalLanguage = (
+  command: SlashCommand,
+  args: string
+): string => {
+  switch (command.name) {
+    case "search":
+      return args ? `Search my links for "${args}"` : "Search my links";
+    case "save":
+      return args ? `Save this link: ${args}` : "Save a link";
+    case "recent":
+      return args
+        ? `Show me my ${args} most recent links`
+        : "Show me my recent links";
+    default:
+      return `/${command.name}${args ? ` ${args}` : ""}`;
+  }
+};

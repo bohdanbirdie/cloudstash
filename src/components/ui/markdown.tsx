@@ -28,6 +28,15 @@ function extractLanguage(className?: string): string {
 }
 
 const INITIAL_COMPONENTS: Partial<Components> = {
+  ul: function UnorderedListComponent({ children }) {
+    return <ul className="list-inside list-disc my-2">{children}</ul>;
+  },
+  ol: function OrderedListComponent({ children }) {
+    return <ol className="list-inside list-decimal my-2">{children}</ol>;
+  },
+  li: function ListItemComponent({ children }) {
+    return <li className="my-0.5">{children}</li>;
+  },
   a: function AnchorComponent({ href, children }) {
     if (!href) {
       return <span>{children}</span>;

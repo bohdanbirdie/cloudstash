@@ -43,7 +43,10 @@ const getInboxSchema = z.object({
 export function createTools(store: Store<typeof schema>) {
   return {
     listRecentLinks: tool({
-      description: "List recently saved links in the workspace",
+      description:
+        "List recently saved links in the workspace. Present results as a markdown " +
+        "list with plain URLs (not [text](url) format) followed by a brief description. " +
+        "Example: '- https://example.com - description'",
       inputSchema: zodSchema(listRecentLinksSchema),
       execute: async ({ limit = 5 }) => {
         const links = store.query(allLinks$);
@@ -98,15 +101,23 @@ export function createTools(store: Store<typeof schema>) {
     }),
 
     searchLinks: tool({
-      description: "Search for links by keyword",
+      description:
+        "Search for links by keywords. Returns keyword matches - filter results to only " +
+        "include links that conceptually match what the user is looking for. Present " +
+        "relevant results as a markdown list with plain URLs (not [text](url) format) " +
+        "followed by a brief description. Example: '- https://example.com - description'",
       inputSchema: zodSchema(searchLinksSchema),
       execute: async ({ query }) => {
         const results = store.query(searchLinks$(query));
         return {
+          query,
+          total: results.length,
           results: results.map((link) => ({
             id: link.id,
             url: link.url,
             title: link.title || link.domain,
+            description: link.description,
+            summary: link.summary,
             score: link.score,
           })),
         };
@@ -205,7 +216,10 @@ export function createTools(store: Store<typeof schema>) {
     }),
 
     getInboxLinks: tool({
-      description: "List unread links in the inbox",
+      description:
+        "List unread links in the inbox. Present results as a markdown list with " +
+        "plain URLs (not [text](url) format) followed by a brief description. " +
+        "Example: '- https://example.com - description'",
       inputSchema: zodSchema(getInboxSchema),
       execute: async ({ limit = 10 }) => {
         const links = store.query(inboxLinks$);

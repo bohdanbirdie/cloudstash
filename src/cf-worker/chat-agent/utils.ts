@@ -1,6 +1,6 @@
 import { Effect, Array as A, Option } from "effect";
 import type { UIMessage } from "@ai-sdk/react";
-import type { ToolSet } from "ai";
+import { getToolName, isToolUIPart, type ToolSet } from "ai";
 
 import { requiresConfirmation } from "../../shared/tool-config";
 
@@ -9,28 +9,23 @@ export const APPROVAL = {
   YES: "Yes, confirmed.",
 } as const;
 
-type ToolConfirmationPart = {
-  type: string;
+type ToolPartWithOutput = {
+  toolCallId: string;
+  toolName?: string;
   output: string;
   input?: Record<string, unknown>;
 };
 
-const isToolConfirmationPart = (part: unknown): part is ToolConfirmationPart =>
-  typeof part === "object" &&
-  part !== null &&
-  "type" in part &&
-  "output" in part &&
-  typeof (part as ToolConfirmationPart).type === "string" &&
-  typeof (part as ToolConfirmationPart).output === "string";
-
-const isConfirmableTool = (part: ToolConfirmationPart): boolean =>
-  part.type.startsWith("tool-") &&
-  requiresConfirmation(part.type.slice("tool-".length));
+const isApprovalOutput = (part: unknown): part is ToolPartWithOutput =>
+  isToolUIPart(part as never) &&
+  "output" in (part as Record<string, unknown>) &&
+  ((part as ToolPartWithOutput).output === APPROVAL.YES ||
+    (part as ToolPartWithOutput).output === APPROVAL.NO);
 
 export const hasToolConfirmation = (message: UIMessage): boolean =>
   message?.parts?.some(
     (part) =>
-      isToolConfirmationPart(part) && isConfirmableTool(part) && "output" in part
+      isApprovalOutput(part) && requiresConfirmation(getToolName(part as never))
   ) ?? false;
 
 type ToolExecutors = Record<string, (args: any) => Promise<string>>;
@@ -39,11 +34,11 @@ const processToolPart = <T>(
   part: T,
   executors: ToolExecutors
 ): Effect.Effect<T, never, never> => {
-  if (!isToolConfirmationPart(part) || !part.type.startsWith("tool-")) {
+  if (!isApprovalOutput(part)) {
     return Effect.succeed(part);
   }
 
-  const toolName = part.type.replace("tool-", "");
+  const toolName = getToolName(part as never);
   const executor = executors[toolName];
 
   if (!executor) {

@@ -91,16 +91,18 @@ export function LinkGrid({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {links.map((link, index) => (
-        <LinkCard
-          key={link.id}
-          link={link}
-          selected={selectedIds.has(link.id)}
-          selectionMode={isSelectionMode}
-          onClick={(e) => handleCardClick(index, e)}
-        />
-      ))}
+    <div className="@container">
+      <div className="grid grid-cols-1 gap-4 @sm:grid-cols-2 @lg:grid-cols-3 @3xl:grid-cols-4">
+        {links.map((link, index) => (
+          <LinkCard
+            key={link.id}
+            link={link}
+            selected={selectedIds.has(link.id)}
+            selectionMode={isSelectionMode}
+            onClick={(e) => handleCardClick(index, e)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
