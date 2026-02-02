@@ -2,6 +2,8 @@ import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { useAgent } from "agents/react";
 import { useState } from "react";
 
+import { TOOLS_REQUIRING_CONFIRMATION } from "@/shared/tool-config";
+
 export function useWorkspaceChat(workspaceId: string) {
   const [isConnected, setIsConnected] = useState(false);
 
@@ -17,10 +19,12 @@ export function useWorkspaceChat(workspaceId: string) {
     },
   });
 
-  const { messages, sendMessage, clearHistory, status } = useAgentChat({
-    agent,
-    credentials: "include",
-  });
+  const { messages, sendMessage, clearHistory, status, addToolOutput, error } =
+    useAgentChat({
+      agent,
+      credentials: "include",
+      toolsRequiringConfirmation: [...TOOLS_REQUIRING_CONFIRMATION],
+    });
 
   return {
     messages,
@@ -28,5 +32,7 @@ export function useWorkspaceChat(workspaceId: string) {
     clearHistory,
     status,
     isConnected,
+    addToolOutput,
+    error,
   };
 }

@@ -171,6 +171,7 @@ function PromptInputTextarea({
       onKeyDown={handleKeyDown}
       className={cn(
         "text-primary min-h-[44px] w-full resize-none border-none bg-transparent shadow-none outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
+        "disabled:bg-transparent disabled:cursor-not-allowed disabled:opacity-100",
         className
       )}
       rows={1}

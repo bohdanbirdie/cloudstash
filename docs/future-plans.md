@@ -62,6 +62,18 @@ Save links by pasting directly into Raycast (macOS).
 - Reuses existing `/api/ingest` endpoint
 - Publish to Raycast Store
 
+### WhatsApp Integration
+
+Save links via WhatsApp messages, mirroring the existing Telegram bot.
+
+**Spec:** [whatsapp-integration.md](specs/whatsapp-integration.md)
+
+- Uses WhatsApp Cloud API (Meta-hosted)
+- Commands: `/connect`, `/disconnect`, `/help`
+- Free for user-initiated conversations (24h service window)
+- Same KV pattern as Telegram for phone→API key mapping
+- Webhook with HMAC-SHA256 signature verification
+
 ### LiveStore MCP Integration
 
 Expose LiveStore to LLMs via Model Context Protocol.

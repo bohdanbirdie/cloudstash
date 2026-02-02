@@ -539,3 +539,7 @@ All events are synced across devices via Cloudflare Durable Objects.
 - Tags
 - Bookmarklet / browser extension
 - Processing status indicators in UI
+
+## Chat Agent
+
+See [docs/specs/chat-agent-poc.md](docs/specs/chat-agent-poc.md) for full specification.

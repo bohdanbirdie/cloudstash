@@ -167,9 +167,13 @@ export const linkProcessingStatus$ = (linkId: string) =>
     label: `linkProcessingStatus:${linkId}`,
   });
 
-const linkByIdSchema = LinkWithDetailsSchema.pipe(
-  Schema.Array,
-  Schema.headOrElse(() => null as unknown as typeof LinkWithDetailsSchema.Type)
+const linkByIdSchema = Schema.transform(
+  Schema.Array(LinkWithDetailsSchema),
+  Schema.NullOr(LinkWithDetailsSchema),
+  {
+    decode: (arr) => arr[0] ?? null,
+    encode: (item) => (item ? [item] : []),
+  }
 );
 
 export const linkById$ = (id: string) =>
@@ -198,6 +202,34 @@ export const linkById$ = (id: string) =>
       schema: linkByIdSchema,
     },
     { label: `linkById:${id}` }
+  );
+
+export const linkByUrl$ = (url: string) =>
+  queryDb(
+    {
+      bindValues: [url],
+      query: `
+        SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+               s.title, s.description, s.image, s.favicon,
+               sum.summary
+        FROM links l
+        LEFT JOIN link_snapshots s ON s.id = (
+          SELECT s2.id FROM link_snapshots s2
+          WHERE s2.linkId = l.id
+          ORDER BY s2.fetchedAt DESC
+          LIMIT 1
+        )
+        LEFT JOIN link_summaries sum ON sum.id = (
+          SELECT sum2.id FROM link_summaries sum2
+          WHERE sum2.linkId = l.id
+          ORDER BY sum2.summarizedAt DESC
+          LIMIT 1
+        )
+        WHERE l.url = ?
+      `,
+      schema: linkByIdSchema,
+    },
+    { label: `linkByUrl` }
   );
 
 export const recentlyOpenedLinks$ = queryDb(
@@ -253,6 +285,46 @@ const SearchResultSchema = Schema.Struct({
 export type SearchResult = typeof SearchResultSchema.Type;
 
 const searchResultsSchema = Schema.Array(SearchResultSchema);
+
+export const linksByIds$ = (ids: string[]) => {
+  if (ids.length === 0) {
+    return queryDb(
+      {
+        query: "SELECT * FROM links WHERE 0",
+        schema: linksWithDetailsSchema,
+      },
+      { label: "linksByIds:empty" }
+    );
+  }
+
+  const placeholders = ids.map(() => "?").join(", ");
+  return queryDb(
+    {
+      bindValues: ids,
+      query: `
+        SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+               s.title, s.description, s.image, s.favicon,
+               sum.summary
+        FROM links l
+        LEFT JOIN link_snapshots s ON s.id = (
+          SELECT s2.id FROM link_snapshots s2
+          WHERE s2.linkId = l.id
+          ORDER BY s2.fetchedAt DESC
+          LIMIT 1
+        )
+        LEFT JOIN link_summaries sum ON sum.id = (
+          SELECT sum2.id FROM link_summaries sum2
+          WHERE sum2.linkId = l.id
+          ORDER BY sum2.summarizedAt DESC
+          LIMIT 1
+        )
+        WHERE l.id IN (${placeholders})
+      `,
+      schema: linksWithDetailsSchema,
+    },
+    { label: `linksByIds:${ids.length}` }
+  );
+};
 
 export const searchLinks$ = (query: string) => {
   if (!query.trim()) {

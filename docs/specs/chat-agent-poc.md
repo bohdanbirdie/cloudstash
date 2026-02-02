@@ -638,8 +638,124 @@ The system prompt now includes:
 3. **Hardened prompt** handles cases that slip through
 4. **Low risk domain** - worst case is saving/listing links, not destructive
 
+### Security Summary
+
+- **Input validation** - 33 regex patterns detect prompt injection attempts
+- **Role boundaries** - System prompt limits to link management only
+- **Context window** - Sliding window of 30 messages to manage context
+- **Step limit** - Max 5 tool calls per request
+
 ### Future Improvements
 
 - [ ] Rate limiting per workspace
 - [ ] Logging suspicious attempts for monitoring
 - [ ] ML-based classifier (if sophisticated attacks observed)
+
+## Tools (Full List)
+
+| Tool | Description | Auto/HITL |
+|------|-------------|-----------|
+| `listRecentLinks` | List recently saved links | Auto |
+| `saveLink` | Save a new URL | Auto |
+| `searchLinks` | Search by keyword | Auto |
+| `getLink` | Get link details by ID | Auto |
+| `completeLink` | Mark as done | Auto |
+| `uncompleteLink` | Mark as unread | Auto |
+| `deleteLink` | Move to trash | **HITL** |
+| `restoreLink` | Restore from trash | Auto |
+| `completeLinks` | Bulk mark as done | Auto |
+| `deleteLinks` | Bulk move to trash | **HITL** |
+| `getInboxLinks` | List unread links | Auto |
+| `getStats` | Inbox/completed/total counts | Auto |
+
+## Human-in-the-Loop (HITL)
+
+Destructive actions (`deleteLink`, `deleteLinks`) require user confirmation before execution.
+
+**Flow:**
+```
+User: "Delete the Groq article"
+    │
+    ▼
+LLM calls deleteLink({ id: "abc123" })
+    │
+    ▼ Tool has no execute function → stops
+    │
+┌─────────────────────────────────────────┐
+│ 🗑 Move to trash?                       │
+│                                         │
+│ 🔗 Supported Models - GroqDocs          │
+│    console.groq.com                     │
+│                                         │
+│     [ Cancel ]     [ 🗑 Delete ]        │
+└─────────────────────────────────────────┘
+    │
+    ▼ User clicks Delete
+    │
+Server executes tool → LLM responds "Done!"
+```
+
+**Implementation:**
+- Tools without `execute` function require client-side confirmation
+- `toolsRequiringConfirmation` array defines which tools need approval
+- `addToolResult()` sends approval/rejection back to server
+- `processToolCalls()` utility executes approved tools server-side
+- Rich link preview in confirmation UI (queries livestore for metadata)
+
+## Future HITL Ideas
+
+### 1. Rich Tool Results (not just JSON)
+
+Instead of raw JSON output, render contextual UI based on tool type:
+
+| Tool | Current | Improved |
+|------|---------|----------|
+| `getStats` | `{"inbox":12,"completed":45}` | Visual progress bars + percentages |
+| `getInboxLinks` | JSON array | Clickable link cards with actions |
+| `searchLinks` | JSON array | Search results with relevance highlighting |
+
+### 2. Bulk Action Preview
+
+Before bulk operations, show selectable list:
+
+```
+┌─────────────────────────────────────────┐
+│ ✓ Select links to mark as done         │
+├─────────────────────────────────────────┤
+│ [✓] How to Build AI Agents             │
+│ [✓] React 19 New Features              │
+│ [ ] TypeScript Tips  (uncheck to skip) │
+├─────────────────────────────────────────┤
+│ 2 of 3 selected                         │
+│     [ Cancel ]   [ ✓ Complete 2 ]      │
+└─────────────────────────────────────────┘
+```
+
+### 3. Undo Actions
+
+After destructive actions, show undo option:
+
+```
+┌─────────────────────────────────────────┐
+│ ✅ Moved "React article" to trash       │
+│                                         │
+│ [ ↩ Undo ]                              │
+└─────────────────────────────────────────┘
+```
+
+### 4. Link Mentions in Messages
+
+When agent references links, render them as rich badges (already implemented in `LinkMention` component):
+
+```
+I found the [🔗 Groq Docs](console.groq.com) article in your inbox.
+```
+
+### 5. Confirmation for Bulk Completes
+
+Consider adding HITL for `completeLinks` when count > N (e.g., 5+):
+
+```
+Mark 12 links as done? This will clear your inbox.
+[ Cancel ]  [ ✓ Complete All ]
+```

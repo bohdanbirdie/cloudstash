@@ -16,7 +16,7 @@ import { useState } from "react";
 
 import { useAddLinkDialog } from "@/components/add-link-dialog";
 import { AdminModal } from "@/components/admin";
-import { ChatDialog } from "@/components/chat/chat-dialog";
+import { useChatPanel } from "@/components/chat/chat-panel";
 import { IntegrationsModal } from "@/components/integrations";
 import {
   AlertDialog,
@@ -61,10 +61,10 @@ export function AppSidebar() {
   const store = useAppStore();
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const auth = useAuth();
   const { isChatEnabled } = useOrgFeatures();
+  const chatPanel = useChatPanel();
 
   const inboxCount = store.useQuery(inboxCount$);
   const completedCount = store.useQuery(completedCount$);
@@ -177,7 +177,7 @@ export function AppSidebar() {
             <SidebarMenuItem>
               <SidebarMenuButton
                 tooltip="Chat"
-                onClick={() => setChatOpen(true)}
+                onClick={chatPanel.open}
               >
                 <MessageSquareIcon />
                 <span>Chat</span>
@@ -203,9 +203,6 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        {isChatEnabled && (
-          <ChatDialog open={chatOpen} onOpenChange={setChatOpen} />
-        )}
         <IntegrationsModal
           open={integrationsOpen}
           onOpenChange={setIntegrationsOpen}

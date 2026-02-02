@@ -7,6 +7,7 @@ import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 
 import { CodeBlock, CodeBlockCode } from "./code-block";
+import { LinkMention } from "./link-mention";
 
 export type MarkdownProps = {
   children: string;
@@ -27,18 +28,11 @@ function extractLanguage(className?: string): string {
 }
 
 const INITIAL_COMPONENTS: Partial<Components> = {
-  a: function AnchorComponent({ href, children, ...props }) {
-    return (
-      <a
-        href={href}
-        className="break-all"
-        target="_blank"
-        rel="noopener noreferrer"
-        {...props}
-      >
-        {children}
-      </a>
-    );
+  a: function AnchorComponent({ href, children }) {
+    if (!href) {
+      return <span>{children}</span>;
+    }
+    return <LinkMention href={href}>{children}</LinkMention>;
   },
   code: function CodeComponent({ className, children, ...props }) {
     const isInline =
