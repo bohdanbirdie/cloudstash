@@ -6,9 +6,9 @@ import {
   type PanelProps,
   type SeparatorProps,
   type PanelImperativeHandle,
-} from "react-resizable-panels"
+} from "react-resizable-panels";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 type ResizablePanelGroupProps = Omit<GroupProps, "orientation"> & {
   direction?: "horizontal" | "vertical";
@@ -33,11 +33,11 @@ function ResizablePanelGroup({
       )}
       {...props}
     />
-  )
+  );
 }
 
 function ResizablePanel({ className, ...props }: PanelProps) {
-  return <Panel data-slot="resizable-panel" className={className} {...props} />
+  return <Panel data-slot="resizable-panel" className={className} {...props} />;
 }
 
 function ResizableHandle({
@@ -45,7 +45,7 @@ function ResizableHandle({
   className,
   ...props
 }: Omit<SeparatorProps, "children"> & {
-  withHandle?: boolean
+  withHandle?: boolean;
 }) {
   return (
     <Separator
@@ -60,8 +60,8 @@ function ResizableHandle({
         <div className="bg-border h-6 w-1 rounded-none flex shrink-0" />
       )}
     </Separator>
-  )
+  );
 }
 
-export { ResizablePanelGroup, ResizablePanel, ResizableHandle }
-export type { PanelImperativeHandle, PanelProps }
+export { ResizablePanelGroup, ResizablePanel, ResizableHandle };
+export type { PanelImperativeHandle, PanelProps };

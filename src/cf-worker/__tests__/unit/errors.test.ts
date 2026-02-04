@@ -53,9 +53,9 @@ describe("isRateLimitError", () => {
     });
 
     it("returns true when only status matches", () => {
-      expect(isRateLimitError({ statusCode: 429, message: "Unknown error" })).toBe(
-        true
-      );
+      expect(
+        isRateLimitError({ statusCode: 429, message: "Unknown error" })
+      ).toBe(true);
     });
 
     it("returns true when only message matches", () => {
@@ -111,16 +111,24 @@ describe("isCreditLimitError", () => {
 
   describe("message detection", () => {
     it("returns true for 'insufficient credits'", () => {
-      expect(isCreditLimitError({ message: "Insufficient credits" })).toBe(true);
+      expect(isCreditLimitError({ message: "Insufficient credits" })).toBe(
+        true
+      );
     });
 
     it("returns true for 'credit limit'", () => {
-      expect(isCreditLimitError({ message: "Credit limit reached" })).toBe(true);
+      expect(isCreditLimitError({ message: "Credit limit reached" })).toBe(
+        true
+      );
     });
 
     it("returns true for case-insensitive matching", () => {
-      expect(isCreditLimitError({ message: "INSUFFICIENT CREDITS" })).toBe(true);
-      expect(isCreditLimitError({ message: "CREDIT LIMIT exceeded" })).toBe(true);
+      expect(isCreditLimitError({ message: "INSUFFICIENT CREDITS" })).toBe(
+        true
+      );
+      expect(isCreditLimitError({ message: "CREDIT LIMIT exceeded" })).toBe(
+        true
+      );
     });
 
     it("returns true for message containing credit phrases", () => {
@@ -132,7 +140,9 @@ describe("isCreditLimitError", () => {
     });
 
     it("returns false for unrelated messages", () => {
-      expect(isCreditLimitError({ message: "Rate limit exceeded" })).toBe(false);
+      expect(isCreditLimitError({ message: "Rate limit exceeded" })).toBe(
+        false
+      );
       expect(isCreditLimitError({ message: "Unknown error" })).toBe(false);
     });
   });
@@ -203,7 +213,8 @@ describe("extractRetryTime", () => {
     it("extracts from longer message", () => {
       expect(
         extractRetryTime({
-          message: "Rate limit exceeded. Please try again in 3m20s to continue.",
+          message:
+            "Rate limit exceeded. Please try again in 3m20s to continue.",
         })
       ).toBe("3m20s");
     });
@@ -215,11 +226,15 @@ describe("extractRetryTime", () => {
     });
 
     it("extracts 'X minute' (singular)", () => {
-      expect(extractRetryTime({ message: "try in 1 minute" })).toBe("1 minutes");
+      expect(extractRetryTime({ message: "try in 1 minute" })).toBe(
+        "1 minutes"
+      );
     });
 
     it("is case-insensitive for minutes", () => {
-      expect(extractRetryTime({ message: "Wait 10 MINUTES" })).toBe("10 minutes");
+      expect(extractRetryTime({ message: "Wait 10 MINUTES" })).toBe(
+        "10 minutes"
+      );
     });
   });
 

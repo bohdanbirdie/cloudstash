@@ -30,7 +30,7 @@ export function ConversationContent({
 }: ConversationContentProps) {
   return (
     <StickToBottom.Content
-      className={cn("flex flex-col gap-3 py-2 pr-2 overflow-y-auto", className)}
+      className={cn("flex flex-col gap-3 py-2 pr-3 overflow-y-auto", className)}
       {...props}
     />
   );

@@ -1,4 +1,3 @@
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { AIChatAgent } from "@cloudflare/ai-chat";
 import {
   createStoreDoPromise,
@@ -6,6 +5,8 @@ import {
 } from "@livestore/adapter-cloudflare";
 import { nanoid, type Store } from "@livestore/livestore";
 import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { type Connection, type ConnectionContext } from "agents";
 import {
   streamText,
   convertToModelMessages,
@@ -14,13 +15,32 @@ import {
   stepCountIs,
   type LanguageModel,
 } from "ai";
+import { eq } from "drizzle-orm";
+import { Effect } from "effect";
+
 import { schema } from "../../livestore/schema";
+import { createDb } from "../db";
+import * as dbSchema from "../db/schema";
+import { type OrgFeatures } from "../db/schema";
 import { type Env } from "../shared";
 import { CONTEXT_WINDOW_SIZE, SYSTEM_PROMPT } from "./config";
-import { extractRetryTime, isCreditLimitError, isRateLimitError } from "./errors";
+import {
+  extractRetryTime,
+  isCreditLimitError,
+  isRateLimitError,
+} from "./errors";
 import { getLastUserMessageText, validateInput } from "./input-validator";
 import { writeTextMessage } from "./stream-helpers";
 import { createTools, createToolExecutors } from "./tools";
+import {
+  DEFAULT_MONTHLY_BUDGET,
+  LIMIT_REACHED_MESSAGE,
+  budgetToTokenLimit,
+  getCurrentPeriod,
+  getUsageKey,
+  type ChatAgentState,
+  type UsageData,
+} from "./usage";
 import { hasToolConfirmation, processToolCalls } from "./utils";
 
 function formatError(error: unknown): string {
@@ -48,6 +68,11 @@ export class ChatAgentDO
 {
   __DURABLE_OBJECT_BRAND = "chat-agent-do" as never;
   private cachedStore: Store<typeof schema> | undefined;
+
+  async onConnect(connection: Connection, ctx: ConnectionContext) {
+    await super.onConnect(connection, ctx);
+    void this.broadcastUsage();
+  }
 
   private async getSessionId(): Promise<string> {
     const key = "chat-session-id";
@@ -87,8 +112,80 @@ export class ChatAgentDO
     await handleSyncUpdateRpc(payload);
   }
 
+  private recordTokenUsage(
+    promptTokens: number,
+    completionTokens: number
+  ): Effect.Effect<void> {
+    const key = getUsageKey(getCurrentPeriod());
+    return Effect.gen(this, function* () {
+      const current = yield* Effect.promise(() =>
+        this.ctx.storage.get<UsageData>(key)
+      );
+      yield* Effect.promise(() =>
+        this.ctx.storage.put(key, {
+          promptTokens: (current?.promptTokens ?? 0) + promptTokens,
+          completionTokens: (current?.completionTokens ?? 0) + completionTokens,
+        })
+      );
+    });
+  }
+
+  private getUsage(): Effect.Effect<NonNullable<ChatAgentState["usage"]>> {
+    return Effect.gen(this, function* () {
+      const period = getCurrentPeriod();
+      const usage = yield* Effect.promise(() =>
+        this.ctx.storage.get<UsageData>(getUsageKey(period))
+      );
+      const used = (usage?.promptTokens ?? 0) + (usage?.completionTokens ?? 0);
+
+      const db = createDb(this.env.DB);
+      const org = yield* Effect.promise(() =>
+        db.query.organization.findFirst({
+          where: eq(dbSchema.organization.id, this.name),
+          columns: { features: true },
+        })
+      );
+
+      const features = (org?.features as OrgFeatures) ?? {};
+      const budget = features.monthlyTokenBudget ?? DEFAULT_MONTHLY_BUDGET;
+      const limit = budgetToTokenLimit(budget);
+
+      return { used, limit, budget, period };
+    });
+  }
+
+  private broadcastUsage(): Promise<void> {
+    return this.getUsage().pipe(
+      Effect.tap((usage) => Effect.sync(() => this.setState({ usage }))),
+      Effect.asVoid,
+      Effect.catchAll(() => Effect.void),
+      Effect.runPromise
+    );
+  }
+
+  private isWithinTokenLimit(): Promise<boolean> {
+    return this.getUsage().pipe(
+      Effect.map(({ used, limit }) => used < limit),
+      Effect.runPromise
+    );
+  }
+
   async onChatMessage() {
-    const openrouter = createOpenRouter({ apiKey: this.env.OPENROUTER_API_KEY });
+    await this.broadcastUsage();
+
+    const withinLimit = await this.isWithinTokenLimit();
+    if (!withinLimit) {
+      const limitStream = createUIMessageStream({
+        execute: ({ writer }) => {
+          writeTextMessage(writer, LIMIT_REACHED_MESSAGE, "limit");
+        },
+      });
+      return createUIMessageStreamResponse({ stream: limitStream });
+    }
+
+    const openrouter = createOpenRouter({
+      apiKey: this.env.OPENROUTER_API_KEY,
+    });
     const model = openrouter("google/gemini-2.5-flash");
 
     const store = await this.getStore();
@@ -141,10 +238,19 @@ export class ChatAgentDO
 
         const result = streamText({
           model,
-          system: `${SYSTEM_PROMPT}\n\nCurrent workspace: ${this.name}`,
+          system: SYSTEM_PROMPT,
           messages,
           tools,
           stopWhen: stepCountIs(5),
+          onFinish: ({ usage }) => {
+            void this.recordTokenUsage(
+              usage.inputTokens ?? 0,
+              usage.outputTokens ?? 0
+            ).pipe(
+              Effect.tap(() => Effect.promise(() => this.broadcastUsage())),
+              Effect.runPromise
+            );
+          },
         });
 
         writer.merge(result.toUIMessageStream());
@@ -166,10 +272,19 @@ export class ChatAgentDO
 
         const result = streamText({
           model,
-          system: `${SYSTEM_PROMPT}\n\nCurrent workspace: ${this.name}`,
+          system: SYSTEM_PROMPT,
           messages,
           tools,
           stopWhen: stepCountIs(5),
+          onFinish: ({ usage }) => {
+            void this.recordTokenUsage(
+              usage.inputTokens ?? 0,
+              usage.outputTokens ?? 0
+            ).pipe(
+              Effect.tap(() => Effect.promise(() => this.broadcastUsage())),
+              Effect.runPromise
+            );
+          },
         });
 
         writer.merge(result.toUIMessageStream());

@@ -1,14 +1,15 @@
+import { ListNode, ListItemNode } from "@lexical/list";
+import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
+import { ClearEditorPlugin } from "@lexical/react/LexicalClearEditorPlugin";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
+import { ListPlugin } from "@lexical/react/LexicalListPlugin";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
-import { ListPlugin } from "@lexical/react/LexicalListPlugin";
-import { ClearEditorPlugin } from "@lexical/react/LexicalClearEditorPlugin";
-import { ListNode, ListItemNode } from "@lexical/list";
 import { $getRoot, CLEAR_EDITOR_COMMAND, type EditorState } from "lexical";
-import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { ArrowUp } from "lucide-react";
 import { useState, useCallback, useRef } from "react";
 
@@ -150,6 +151,7 @@ function ChatEditorInner({
         </Button>
       </div>
 
+      <AutoFocusPlugin />
       <ListPlugin />
       <ListShortcutPlugin />
       <HistoryPlugin />

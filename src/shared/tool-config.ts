@@ -1,4 +1,7 @@
-export const TOOLS_REQUIRING_CONFIRMATION = ["deleteLink", "deleteLinks"] as const;
+export const TOOLS_REQUIRING_CONFIRMATION = [
+  "deleteLink",
+  "deleteLinks",
+] as const;
 
 export type ToolRequiringConfirmation =
   (typeof TOOLS_REQUIRING_CONFIRMATION)[number];

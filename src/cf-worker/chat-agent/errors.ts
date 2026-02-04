@@ -27,7 +27,8 @@ const hasCreditLimitMessage = (e: ErrorLike): boolean =>
     e.message.toLowerCase().includes("credit limit"));
 
 export const isCreditLimitError = (error: unknown): boolean =>
-  isObject(error) && (hasCreditLimitStatus(error) || hasCreditLimitMessage(error));
+  isObject(error) &&
+  (hasCreditLimitStatus(error) || hasCreditLimitMessage(error));
 
 export const extractRetryTime = (error: unknown): string => {
   const msg =

@@ -1,6 +1,6 @@
-import { Effect, Array as A, Option } from "effect";
-import type { UIMessage } from "@ai-sdk/react";
+import { type UIMessage } from "@ai-sdk/react";
 import { getToolName, isToolUIPart, type ToolSet } from "ai";
+import { Effect, Array as A, Option } from "effect";
 
 import { requiresConfirmation } from "../../shared/tool-config";
 
@@ -47,14 +47,19 @@ const processToolPart = <T>(
 
   return Effect.gen(function* () {
     if (part.output === APPROVAL.YES) {
-      const result = yield* Effect.tryPromise(() => executor(part.input ?? {})).pipe(
+      const result = yield* Effect.tryPromise(() =>
+        executor(part.input ?? {})
+      ).pipe(
         Effect.catchAll(() => Effect.succeed("Error: Tool execution failed"))
       );
       return { ...part, output: result } as T;
     }
 
     if (part.output === APPROVAL.NO) {
-      return { ...part, output: "Error: User denied access to tool execution" } as T;
+      return {
+        ...part,
+        output: "Error: User denied access to tool execution",
+      } as T;
     }
 
     return part;

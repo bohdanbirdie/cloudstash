@@ -69,7 +69,8 @@ export function validateInput(userMessage: string): ValidationResult {
   if (userMessage.length > 5000) {
     return {
       allowed: false,
-      reason: "Message too long. Please keep your message under 5000 characters.",
+      reason:
+        "Message too long. Please keep your message under 5000 characters.",
       suspicious: true,
     };
   }

@@ -11,22 +11,22 @@ Replace the current `<textarea>` chat input with a Lexical editor to support:
 
 ## Implementation Status
 
-| Phase | Feature | Status |
-|-------|---------|--------|
-| 1 | Basic editor + submit | ✅ Done |
-| 2 | Auto-lists | ✅ Done |
-| 3 | Slash commands (client) | ✅ Done |
-| 4 | Slash commands (server) | ⏳ Pending |
+| Phase | Feature                 | Status     |
+| ----- | ----------------------- | ---------- |
+| 1     | Basic editor + submit   | ✅ Done    |
+| 2     | Auto-lists              | ✅ Done    |
+| 3     | Slash commands (client) | ✅ Done    |
+| 4     | Slash commands (server) | ⏳ Pending |
 
 ## Files Created
 
-| File | Purpose |
-|------|---------|
-| `src/components/chat/lexical/chat-editor.tsx` | Main editor component with submit button |
-| `src/components/chat/lexical/plugins/slash-command-plugin.tsx` | Autocomplete menu + Enter/Tab selection |
-| `src/components/chat/lexical/plugins/submit-plugin.tsx` | Enter to send (low priority, yields to slash menu) |
-| `src/components/chat/lexical/plugins/list-shortcut-plugin.tsx` | Auto-list on `- ` or `1. ` |
-| `src/shared/slash-commands.ts` | Command registry + parser |
+| File                                                           | Purpose                                            |
+| -------------------------------------------------------------- | -------------------------------------------------- |
+| `src/components/chat/lexical/chat-editor.tsx`                  | Main editor component with submit button           |
+| `src/components/chat/lexical/plugins/slash-command-plugin.tsx` | Autocomplete menu + Enter/Tab selection            |
+| `src/components/chat/lexical/plugins/submit-plugin.tsx`        | Enter to send (low priority, yields to slash menu) |
+| `src/components/chat/lexical/plugins/list-shortcut-plugin.tsx` | Auto-list on `- ` or `1. `                         |
+| `src/shared/slash-commands.ts`                                 | Command registry + parser                          |
 
 ## Dependencies
 
@@ -45,9 +45,24 @@ Installed: `lexical@0.40.0`, `@lexical/react@0.40.0`, `@lexical/list@0.40.0`, `@
 export const SLASH_COMMANDS: SlashCommand[] = [
   { name: "help", description: "Show available commands", handler: "client" },
   { name: "clear", description: "Clear chat history", handler: "client" },
-  { name: "search", description: "Search your links", args: "<query>", handler: "server" },
-  { name: "save", description: "Save a new link", args: "<url>", handler: "server" },
-  { name: "recent", description: "Show recent links", args: "[count]", handler: "server" },
+  {
+    name: "search",
+    description: "Search your links",
+    args: "<query>",
+    handler: "server",
+  },
+  {
+    name: "save",
+    description: "Save a new link",
+    args: "<url>",
+    handler: "server",
+  },
+  {
+    name: "recent",
+    description: "Show recent links",
+    args: "[count]",
+    handler: "server",
+  },
 ];
 ```
 
@@ -63,11 +78,13 @@ export const SLASH_COMMANDS: SlashCommand[] = [
 ### Key Implementation Details
 
 **Priority Handling:**
+
 - `SlashCommandPlugin` registers Enter handler with `COMMAND_PRIORITY_HIGH`
 - `SubmitPlugin` uses `COMMAND_PRIORITY_LOW`
 - When menu is open, slash plugin handles Enter; when closed, submit plugin handles it
 
 **Menu Positioning:**
+
 - Portal to editor container ref (not inline anchor)
 - Uses `absolute bottom-full left-0` to appear above input
 
@@ -120,7 +137,9 @@ const handleSlashCommand = useCallback(
     // Server commands: send as regular message
     sendMessage({
       role: "user",
-      parts: [{ type: "text", text: `/${command.name}${args ? ` ${args}` : ""}` }],
+      parts: [
+        { type: "text", text: `/${command.name}${args ? ` ${args}` : ""}` },
+      ],
     });
   },
   [clearHistory, sendMessage]
@@ -240,12 +259,12 @@ if (textContent.startsWith('{"type":"search-results"')) {
 
 ## Open Questions (Resolved)
 
-| Question | Decision |
-|----------|----------|
+| Question            | Decision                                                    |
+| ------------------- | ----------------------------------------------------------- |
 | Clear confirmation? | No - instant clear, can use `/recent` to see what was there |
-| Help display? | Show as user message with formatted list |
-| Unknown commands? | Let LLM handle - it might understand intent |
-| Enter vs Tab? | Both select + add space |
+| Help display?       | Show as user message with formatted list                    |
+| Unknown commands?   | Let LLM handle - it might understand intent                 |
+| Enter vs Tab?       | Both select + add space                                     |
 
 ## References
 

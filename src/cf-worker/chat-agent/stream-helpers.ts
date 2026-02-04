@@ -1,4 +1,4 @@
-import type { UIMessageStreamWriter } from "ai";
+import { type UIMessageStreamWriter } from "ai";
 
 export function writeTextMessage(
   writer: UIMessageStreamWriter,

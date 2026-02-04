@@ -1,5 +1,6 @@
 import useSWR from "swr";
 
+import { DEFAULT_MONTHLY_BUDGET } from "@/cf-worker/chat-agent/usage";
 import { type OrgFeatures } from "@/cf-worker/db/schema";
 import { type MeResponse } from "@/types/api";
 
@@ -19,5 +20,6 @@ export function useOrgFeatures() {
     features,
     isChatEnabled: features.chatAgentEnabled ?? false,
     isAiSummaryEnabled: features.aiSummary ?? false,
+    monthlyTokenBudget: features.monthlyTokenBudget ?? DEFAULT_MONTHLY_BUDGET,
   };
 }

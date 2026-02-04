@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+/** Extract direct result from tool execute (not AsyncIterable) */
+function unwrap<T>(result: T | AsyncIterable<T>): T {
+  return result as T;
+}
+
 // Create mock query symbols using vi.hoisted so they're available before vi.mock runs
 const mockQueries = vi.hoisted(() => ({
   allLinks$: Symbol("allLinks$"),
@@ -74,12 +79,12 @@ const createMockStore = () => {
       }
 
       // Match parameterized queries by checking __type
-      if (
-        queryDef &&
-        typeof queryDef === "object" &&
-        "__type" in queryDef
-      ) {
-        const typedQuery = queryDef as { __type: string; id?: string; query?: string };
+      if (queryDef && typeof queryDef === "object" && "__type" in queryDef) {
+        const typedQuery = queryDef as {
+          __type: string;
+          id?: string;
+          query?: string;
+        };
         if (typedQuery.__type === "linkById$" && typedQuery.id) {
           return linksById.get(typedQuery.id) ?? null;
         }
@@ -107,7 +112,10 @@ const createMockStore = () => {
         linksById.delete(id);
       }
     },
-    _setSearchResults: (query: string, results: (LinkData & { score: number })[]) => {
+    _setSearchResults: (
+      query: string,
+      results: (LinkData & { score: number })[]
+    ) => {
       searchResults.set(query, results);
     },
     _setCounts: (inbox: number, completed: number, total: number) => {
@@ -140,7 +148,10 @@ describe("createTools", () => {
     it("returns empty array when no links exist", async () => {
       mockStore._setAllLinks([]);
 
-      const result = await tools.listRecentLinks.execute!({ limit: 5 }, {} as any);
+      const result = await tools.listRecentLinks.execute!(
+        { limit: 5 },
+        {} as any
+      );
 
       expect(result).toEqual({ links: [] });
     });
@@ -151,7 +162,9 @@ describe("createTools", () => {
       );
       mockStore._setAllLinks(links);
 
-      const result = await tools.listRecentLinks.execute!({}, {} as any);
+      const result = unwrap(
+        await tools.listRecentLinks.execute!({}, {} as any)
+      );
 
       expect(result.links).toHaveLength(5);
       expect(result.links[0].id).toBe("link-0");
@@ -163,7 +176,9 @@ describe("createTools", () => {
       );
       mockStore._setAllLinks(links);
 
-      const result = await tools.listRecentLinks.execute!({ limit: 3 }, {} as any);
+      const result = unwrap(
+        await tools.listRecentLinks.execute!({ limit: 3 }, {} as any)
+      );
 
       expect(result.links).toHaveLength(3);
     });
@@ -174,7 +189,9 @@ describe("createTools", () => {
       );
       mockStore._setAllLinks(links);
 
-      const result = await tools.listRecentLinks.execute!({ limit: 100 }, {} as any);
+      const result = unwrap(
+        await tools.listRecentLinks.execute!({ limit: 100 }, {} as any)
+      );
 
       expect(result.links).toHaveLength(20);
     });
@@ -189,7 +206,9 @@ describe("createTools", () => {
       });
       mockStore._setAllLinks([link]);
 
-      const result = await tools.listRecentLinks.execute!({ limit: 5 }, {} as any);
+      const result = unwrap(
+        await tools.listRecentLinks.execute!({ limit: 5 }, {} as any)
+      );
 
       expect(result.links[0]).toEqual({
         id: "test-id",
@@ -204,7 +223,9 @@ describe("createTools", () => {
       const link = createLink({ title: null, domain: "example.com" });
       mockStore._setAllLinks([link]);
 
-      const result = await tools.listRecentLinks.execute!({ limit: 5 }, {} as any);
+      const result = unwrap(
+        await tools.listRecentLinks.execute!({ limit: 5 }, {} as any)
+      );
 
       expect(result.links[0].title).toBe("example.com");
     });
@@ -278,7 +299,10 @@ describe("createTools", () => {
     it("returns empty results for no matches", async () => {
       mockStore._setSearchResults("test", []);
 
-      const result = await tools.searchLinks.execute!({ query: "test" }, {} as any);
+      const result = await tools.searchLinks.execute!(
+        { query: "test" },
+        {} as any
+      );
 
       expect(result).toEqual({
         query: "test",
@@ -294,9 +318,8 @@ describe("createTools", () => {
       ];
       mockStore._setSearchResults("example", links);
 
-      const result = await tools.searchLinks.execute!(
-        { query: "example" },
-        {} as any
+      const result = unwrap(
+        await tools.searchLinks.execute!({ query: "example" }, {} as any)
       );
 
       expect(result.total).toBe(2);
@@ -317,7 +340,9 @@ describe("createTools", () => {
       };
       mockStore._setSearchResults("query", [link]);
 
-      const result = await tools.searchLinks.execute!({ query: "query" }, {} as any);
+      const result = unwrap(
+        await tools.searchLinks.execute!({ query: "query" }, {} as any)
+      );
 
       expect(result.results[0]).toEqual({
         id: "search-id",
@@ -335,7 +360,10 @@ describe("createTools", () => {
       const link = createLink({ id: "found-id" });
       mockStore._setLinkById("found-id", link);
 
-      const result = await tools.getLink.execute!({ id: "found-id" }, {} as any);
+      const result = await tools.getLink.execute!(
+        { id: "found-id" },
+        {} as any
+      );
 
       expect(result).toEqual({ link });
     });
@@ -343,7 +371,10 @@ describe("createTools", () => {
     it("returns error when link not found", async () => {
       mockStore._setLinkById("missing-id", null);
 
-      const result = await tools.getLink.execute!({ id: "missing-id" }, {} as any);
+      const result = await tools.getLink.execute!(
+        { id: "missing-id" },
+        {} as any
+      );
 
       expect(result).toEqual({ error: "Link not found" });
     });
@@ -380,13 +411,18 @@ describe("createTools", () => {
         {} as any
       );
 
-      expect((result as { message: string }).message).toBe('Marked "https://notitle.com" as done');
+      expect((result as { message: string }).message).toBe(
+        'Marked "https://notitle.com" as done'
+      );
     });
 
     it("returns error when link not found", async () => {
       // Don't set any link for "missing"
 
-      const result = await tools.completeLink.execute!({ id: "missing" }, {} as any);
+      const result = await tools.completeLink.execute!(
+        { id: "missing" },
+        {} as any
+      );
 
       expect(result).toEqual({ error: "Link not found" });
       expect(mockStore.commit).not.toHaveBeenCalled();
@@ -483,7 +519,10 @@ describe("createTools", () => {
     });
 
     it("returns error when link not found", async () => {
-      const result = await tools.restoreLink.execute!({ id: "missing" }, {} as any);
+      const result = await tools.restoreLink.execute!(
+        { id: "missing" },
+        {} as any
+      );
 
       expect(result).toEqual({ error: "Link not found" });
     });
@@ -564,7 +603,10 @@ describe("createTools", () => {
 
     it("handles mixed success and failure", async () => {
       const validLink = createLink({ id: "valid", status: "unread" });
-      const completedLink = createLink({ id: "completed", status: "completed" });
+      const completedLink = createLink({
+        id: "completed",
+        status: "completed",
+      });
       mockStore._setLinkById("valid", validLink);
       mockStore._setLinkById("completed", completedLink);
       // "missing" is not set
@@ -586,7 +628,10 @@ describe("createTools", () => {
     it("returns empty array when inbox is empty", async () => {
       mockStore._setInboxLinks([]);
 
-      const result = await tools.getInboxLinks.execute!({ limit: 10 }, {} as any);
+      const result = await tools.getInboxLinks.execute!(
+        { limit: 10 },
+        {} as any
+      );
 
       expect(result).toEqual({ links: [], total: 0 });
     });
@@ -597,7 +642,7 @@ describe("createTools", () => {
       );
       mockStore._setInboxLinks(links);
 
-      const result = await tools.getInboxLinks.execute!({}, {} as any);
+      const result = unwrap(await tools.getInboxLinks.execute!({}, {} as any));
 
       expect(result.links).toHaveLength(10);
       expect(result.total).toBe(15);
@@ -609,7 +654,9 @@ describe("createTools", () => {
       );
       mockStore._setInboxLinks(links);
 
-      const result = await tools.getInboxLinks.execute!({ limit: 3 }, {} as any);
+      const result = unwrap(
+        await tools.getInboxLinks.execute!({ limit: 3 }, {} as any)
+      );
 
       expect(result.links).toHaveLength(3);
     });
@@ -620,7 +667,9 @@ describe("createTools", () => {
       );
       mockStore._setInboxLinks(links);
 
-      const result = await tools.getInboxLinks.execute!({ limit: 100 }, {} as any);
+      const result = unwrap(
+        await tools.getInboxLinks.execute!({ limit: 100 }, {} as any)
+      );
 
       expect(result.links).toHaveLength(20);
     });
@@ -635,7 +684,9 @@ describe("createTools", () => {
       });
       mockStore._setInboxLinks([link]);
 
-      const result = await tools.getInboxLinks.execute!({ limit: 10 }, {} as any);
+      const result = unwrap(
+        await tools.getInboxLinks.execute!({ limit: 10 }, {} as any)
+      );
 
       expect(result.links[0]).toEqual({
         id: "inbox-1",

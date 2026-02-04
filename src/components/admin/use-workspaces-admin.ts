@@ -84,6 +84,19 @@ export function useWorkspacesAdmin(enabled = true) {
     });
   };
 
+  const updateTokenBudget = (orgId: string, value: number) => {
+    const workspace = workspaces.find((w) => w.id === orgId);
+    if (!workspace) return;
+
+    updateSettings.trigger({
+      orgId,
+      features: {
+        ...workspace.features,
+        monthlyTokenBudget: value,
+      },
+    });
+  };
+
   const aiEnabledCount = workspaces.filter((w) => w.features.aiSummary).length;
   const chatEnabledCount = workspaces.filter(
     (w) => w.features.chatAgentEnabled
@@ -97,6 +110,7 @@ export function useWorkspacesAdmin(enabled = true) {
     isMutating: updateSettings.isMutating,
     toggleAiSummary,
     toggleChatAgent,
+    updateTokenBudget,
     workspaces,
   };
 }

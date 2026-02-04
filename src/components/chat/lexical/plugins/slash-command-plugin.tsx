@@ -4,11 +4,7 @@ import {
   MenuOption,
   useBasicTypeaheadTriggerMatch,
 } from "@lexical/react/LexicalTypeaheadMenuPlugin";
-import {
-  COMMAND_PRIORITY_HIGH,
-  KEY_ENTER_COMMAND,
-  TextNode,
-} from "lexical";
+import { COMMAND_PRIORITY_HIGH, KEY_ENTER_COMMAND, TextNode } from "lexical";
 import {
   useCallback,
   useEffect,
@@ -70,33 +66,35 @@ export function SlashCommandPlugin({
     onMenuOpenChange?.(isMenuOpen);
   }, [isMenuOpen, onMenuOpenChange]);
 
-  useEffect(() => {
-    return editor.registerCommand(
-      KEY_ENTER_COMMAND,
-      (event: KeyboardEvent | null) => {
-        if (!isMenuOpen) return false;
+  useEffect(
+    () =>
+      editor.registerCommand(
+        KEY_ENTER_COMMAND,
+        (event: KeyboardEvent | null) => {
+          if (!isMenuOpen) return false;
 
-        const currentOptions = optionsRef.current;
-        const currentIndex = selectedIndexRef.current;
-        const selectFn = selectOptionRef.current;
+          const currentOptions = optionsRef.current;
+          const currentIndex = selectedIndexRef.current;
+          const selectFn = selectOptionRef.current;
 
-        if (
-          currentOptions.length > 0 &&
-          currentIndex !== null &&
-          currentIndex >= 0 &&
-          currentIndex < currentOptions.length &&
-          selectFn
-        ) {
-          event?.preventDefault();
-          selectFn(currentOptions[currentIndex]);
-          return true;
-        }
+          if (
+            currentOptions.length > 0 &&
+            currentIndex !== null &&
+            currentIndex >= 0 &&
+            currentIndex < currentOptions.length &&
+            selectFn
+          ) {
+            event?.preventDefault();
+            selectFn(currentOptions[currentIndex]);
+            return true;
+          }
 
-        return false;
-      },
-      COMMAND_PRIORITY_HIGH
-    );
-  }, [editor, isMenuOpen]);
+          return false;
+        },
+        COMMAND_PRIORITY_HIGH
+      ),
+    [editor, isMenuOpen]
+  );
 
   const onSelectOption = useCallback(
     (

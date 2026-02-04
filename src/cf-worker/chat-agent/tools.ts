@@ -158,7 +158,8 @@ export function createTools(store: Store<typeof schema>) {
       execute: async ({ id }) => {
         const link = store.query(linkById$(id));
         if (!link) return { error: "Link not found" };
-        if (link.status === "unread") return { error: "Link is already unread" };
+        if (link.status === "unread")
+          return { error: "Link is already unread" };
 
         store.commit(events.linkUncompleted({ id }));
         return {
@@ -253,7 +254,8 @@ export function createToolExecutors(store: Store<typeof schema>) {
     deleteLink: async ({ id }: { id: string }): Promise<string> => {
       const link = store.query(linkById$(id));
       if (!link) return JSON.stringify({ error: "Link not found" });
-      if (link.deletedAt) return JSON.stringify({ error: "Link already in trash" });
+      if (link.deletedAt)
+        return JSON.stringify({ error: "Link already in trash" });
 
       store.commit(events.linkDeleted({ id, deletedAt: new Date() }));
       return JSON.stringify({

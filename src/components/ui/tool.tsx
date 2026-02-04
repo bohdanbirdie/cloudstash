@@ -85,11 +85,7 @@ const Tool = ({
     errorText
   );
 
-  const renderMode = getRenderMode(
-    !!needsConfirmation,
-    toolName,
-    linkIds
-  );
+  const renderMode = getRenderMode(!!needsConfirmation, toolName, linkIds);
 
   return Match.value(renderMode).pipe(
     Match.when({ type: "delete-confirmation" }, ({ linkIds }) => (
@@ -187,7 +183,10 @@ type RenderMode =
   | { type: "fallback-confirmation" }
   | { type: "default" };
 
-const getStateIcon = (state: ToolState, needsConfirmation: boolean): ReactNode =>
+const getStateIcon = (
+  state: ToolState,
+  needsConfirmation: boolean
+): ReactNode =>
   Match.value(state).pipe(
     Match.when("input-streaming", () => (
       <Loader2 className={cn(ICON_CLASS, "animate-spin text-blue-500")} />

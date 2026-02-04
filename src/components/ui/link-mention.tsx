@@ -1,11 +1,11 @@
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 
+import { useChatContainer } from "@/components/chat/chat-sheet";
 import { LinkImage } from "@/components/link-card/link-image";
+import { type LinkWithDetails } from "@/livestore/queries";
 import { linkByUrl$ } from "@/livestore/queries";
 import { useAppStore } from "@/livestore/store";
 import { useLinkDetailStore } from "@/stores/link-detail-store";
-
-import type { LinkWithDetails } from "@/livestore/queries";
 
 interface LinkMentionWithTooltipProps {
   link: LinkWithDetails;
@@ -17,6 +17,7 @@ function LinkMentionWithTooltip({
   linkElement,
 }: LinkMentionWithTooltipProps) {
   const openLink = useLinkDetailStore((s) => s.openLink);
+  const chatContainer = useChatContainer();
 
   const handleClick = () => {
     openLink(link.id);
@@ -26,7 +27,7 @@ function LinkMentionWithTooltip({
     <TooltipPrimitive.Provider delay={400}>
       <TooltipPrimitive.Root>
         <TooltipPrimitive.Trigger render={linkElement} />
-        <TooltipPrimitive.Portal>
+        <TooltipPrimitive.Portal container={chatContainer?.current}>
           <TooltipPrimitive.Positioner side="top" sideOffset={6}>
             <TooltipPrimitive.Popup
               className="z-50 overflow-hidden max-w-xs bg-background border border-primary shadow-xl animate-in fade-in-0 zoom-in-95 cursor-pointer hover:border-primary/80"

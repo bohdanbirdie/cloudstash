@@ -1,6 +1,9 @@
 import { BuildingIcon, MessageSquareIcon, SparklesIcon } from "lucide-react";
+import { useState, useCallback } from "react";
 
+import { DEFAULT_MONTHLY_BUDGET } from "@/cf-worker/chat-agent/usage";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { TabsContent } from "@/components/ui/tabs";
@@ -12,6 +15,50 @@ import {
 
 import { type Workspace } from "./use-workspaces-admin";
 
+function BudgetInput({
+  value,
+  disabled,
+  onCommit,
+}: {
+  value: number;
+  disabled: boolean;
+  onCommit: (value: number) => void;
+}) {
+  const [localValue, setLocalValue] = useState(String(value));
+
+  const commit = useCallback(() => {
+    const parsed = parseFloat(localValue);
+    if (isNaN(parsed) || parsed < 0) {
+      setLocalValue(String(value));
+      return;
+    }
+    const rounded = Math.round(parsed * 100) / 100;
+    if (rounded !== value) {
+      onCommit(rounded);
+    }
+    setLocalValue(String(rounded));
+  }, [localValue, value, onCommit]);
+
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <span className="text-xs text-muted-foreground">$</span>
+      <Input
+        type="number"
+        min="0"
+        step="0.10"
+        value={localValue}
+        onChange={(e) => setLocalValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+        }}
+        disabled={disabled}
+        className="w-20 h-7 text-xs text-right"
+      />
+    </div>
+  );
+}
+
 interface WorkspacesTabProps {
   workspaces: Workspace[];
   isLoading: boolean;
@@ -22,6 +69,7 @@ interface WorkspacesTabProps {
   currentOrgId: string | null;
   onToggleAiSummary: (orgId: string, currentValue: boolean) => void;
   onToggleChatAgent: (orgId: string, currentValue: boolean) => void;
+  onUpdateTokenBudget: (orgId: string, value: number) => void;
 }
 
 export function WorkspacesTab({
@@ -34,6 +82,7 @@ export function WorkspacesTab({
   currentOrgId,
   onToggleAiSummary,
   onToggleChatAgent,
+  onUpdateTokenBudget,
 }: WorkspacesTabProps) {
   return (
     <TabsContent value="workspaces" className="flex-1 flex flex-col min-h-0">
@@ -77,15 +126,18 @@ export function WorkspacesTab({
           <table className="w-full text-sm table-fixed">
             <thead>
               <tr className="border-b text-xs text-muted-foreground">
-                <th className="text-left py-2 font-medium w-[30%]">
+                <th className="text-left py-2 font-medium w-[25%]">
                   Workspace
                 </th>
-                <th className="text-left py-2 font-medium w-[30%]">Creator</th>
-                <th className="text-right py-2 font-medium w-[20%]">
+                <th className="text-left py-2 font-medium w-[20%]">Creator</th>
+                <th className="text-right py-2 font-medium w-[15%]">
                   AI Summaries
                 </th>
-                <th className="text-right py-2 font-medium w-[20%]">
+                <th className="text-right py-2 font-medium w-[15%]">
                   Chat Agent
+                </th>
+                <th className="text-right py-2 font-medium w-[25%]">
+                  Monthly Budget
                 </th>
               </tr>
             </thead>
@@ -147,6 +199,18 @@ export function WorkspacesTab({
                           )
                         }
                         disabled={isMutating}
+                      />
+                    </td>
+                    <td className="py-2 text-right">
+                      <BudgetInput
+                        value={
+                          workspace.features.monthlyTokenBudget ??
+                          DEFAULT_MONTHLY_BUDGET
+                        }
+                        disabled={isMutating}
+                        onCommit={(value) =>
+                          onUpdateTokenBudget(workspace.id, value)
+                        }
                       />
                     </td>
                   </tr>

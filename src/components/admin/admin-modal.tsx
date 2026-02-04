@@ -104,6 +104,7 @@ export function AdminModal({ open, onOpenChange }: AdminModalProps) {
             currentOrgId={orgId}
             onToggleAiSummary={workspaces.toggleAiSummary}
             onToggleChatAgent={workspaces.toggleChatAgent}
+            onUpdateTokenBudget={workspaces.updateTokenBudget}
           />
         </Tabs>
       </DialogContent>

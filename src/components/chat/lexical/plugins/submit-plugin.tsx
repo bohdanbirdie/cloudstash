@@ -15,31 +15,33 @@ type SubmitPluginProps = {
 export function SubmitPlugin({ onSubmit, disabled }: SubmitPluginProps) {
   const [editor] = useLexicalComposerContext();
 
-  useEffect(() => {
-    return editor.registerCommand(
-      KEY_ENTER_COMMAND,
-      (event: KeyboardEvent | null) => {
-        if (disabled) return false;
+  useEffect(
+    () =>
+      editor.registerCommand(
+        KEY_ENTER_COMMAND,
+        (event: KeyboardEvent | null) => {
+          if (disabled) return false;
 
-        // Shift+Enter creates new line
-        if (event?.shiftKey) return false;
+          // Shift+Enter creates new line
+          if (event?.shiftKey) return false;
 
-        const text = editor.getEditorState().read(() => {
-          return $getRoot().getTextContent().trim();
-        });
+          const text = editor
+            .getEditorState()
+            .read(() => $getRoot().getTextContent().trim());
 
-        if (!text) return true;
+          if (!text) return true;
 
-        event?.preventDefault();
-        onSubmit(text);
+          event?.preventDefault();
+          onSubmit(text);
 
-        editor.dispatchCommand(CLEAR_EDITOR_COMMAND, undefined);
+          editor.dispatchCommand(CLEAR_EDITOR_COMMAND, undefined);
 
-        return true;
-      },
-      COMMAND_PRIORITY_LOW
-    );
-  }, [editor, onSubmit, disabled]);
+          return true;
+        },
+        COMMAND_PRIORITY_LOW
+      ),
+    [editor, onSubmit, disabled]
+  );
 
   return null;
 }

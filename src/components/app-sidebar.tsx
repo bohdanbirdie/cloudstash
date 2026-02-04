@@ -16,7 +16,8 @@ import { useState } from "react";
 
 import { useAddLinkDialog } from "@/components/add-link-dialog";
 import { AdminModal } from "@/components/admin";
-import { useChatPanel } from "@/components/chat/chat-panel";
+import { useChatPanel } from "@/components/chat/chat-context";
+import { CHAT_HOTKEY } from "@/components/chat/chat-sheet-provider";
 import { IntegrationsModal } from "@/components/integrations";
 import {
   AlertDialog,
@@ -42,6 +43,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { useModifierHold } from "@/hooks/use-modifier-hold";
 import { useOrgFeatures } from "@/hooks/use-org-features";
 import { useAuth } from "@/lib/auth";
 import { getHotkeyLabel } from "@/lib/hotkey-label";
@@ -65,6 +67,7 @@ export function AppSidebar() {
   const auth = useAuth();
   const { isChatEnabled } = useOrgFeatures();
   const chatPanel = useChatPanel();
+  const showHotkeys = useModifierHold();
 
   const inboxCount = store.useQuery(inboxCount$);
   const completedCount = store.useQuery(completedCount$);
@@ -178,12 +181,14 @@ export function AppSidebar() {
           )}
           {isChatEnabled && (
             <SidebarMenuItem>
-              <SidebarMenuButton
-                tooltip="Chat"
-                onClick={chatPanel.open}
-              >
+              <SidebarMenuButton tooltip="Agent" onClick={chatPanel.toggle}>
                 <MessageSquareIcon />
-                <span>Chat</span>
+                <span>Agent</span>
+                {showHotkeys && (
+                  <Kbd className="ml-auto hidden md:inline-flex group-data-[collapsible=icon]:hidden">
+                    {getHotkeyLabel(CHAT_HOTKEY)}
+                  </Kbd>
+                )}
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
