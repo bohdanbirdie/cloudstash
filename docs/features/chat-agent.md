@@ -1,17 +1,10 @@
-# Chat Agent PoC Spec
+# Chat Agent
 
-**Status:** Implemented
+Chat agent for managing links via natural language, built on Cloudflare Agents SDK.
 
 ## Overview
 
-Minimal proof-of-concept for a chat agent using Cloudflare Agents SDK. One chat per workspace, with dummy tools to validate the architecture before integrating real LiveStore operations.
-
-## Goals
-
-1. ✅ Validate Cloudflare Agents SDK works with external providers (Groq)
-2. ✅ Confirm persistent WebSocket + hibernation works as expected
-3. ✅ Test message persistence and history loading (handled automatically by AIChatAgent DO)
-4. ✅ Simple UI to verify streaming and tool calls
+One chat per workspace with real-time WebSocket connection, message persistence, and LiveStore integration for link management.
 
 ## Architecture
 
@@ -71,11 +64,10 @@ bun add agents @cloudflare/ai-chat ai @ai-sdk/cerebras
 - Proper tool calling support (uses native function calling API)
 - Can be aggressive with tool usage - may need guardrails
 
-**Guardrails (Implemented)**
+**Guardrails**
 
-- [x] Input validation for prompt injection detection (see `input-validator.ts`)
-- [x] Hardened system prompt with explicit role boundaries
-- [ ] Rate limiting per user/workspace (future)
+- Input validation for prompt injection detection (see `input-validator.ts`)
+- Hardened system prompt with explicit role boundaries
 
 **Tested and rejected:**
 | Provider | Model | Issue |
@@ -398,51 +390,7 @@ const model = createWorkersAI({ binding: env.AI })(
 );
 ```
 
-## Future Enhancements (Post-PoC)
-
-1. ~~**Real LiveStore Integration**~~ - ✅ Done: Tools now query/mutate real data
-2. **BYOK Support** - Allow users to configure their own API keys
-3. ~~**Infinite Conversation**~~ - ✅ Done: Sliding window + `/clear` command
-4. ~~**Slash Commands**~~ - ✅ Done: `/help`, `/clear`, `/search`, `/save`, `/recent`
-5. **Rich Tool UI** - Display tool results as cards/components
-6. **Usage Limits** - Token-based limits per workspace (see Planned section)
-
-## Planned: BYOK (Bring Your Own Key)
-
-The Groq free tier is sufficient for single-user testing but not for multi-user production. BYOK allows users to provide their own API keys.
-
-### Provider Pricing Comparison (per 1M tokens)
-
-| Provider      | Model             | Input | Output | Notes                    |
-| ------------- | ----------------- | ----- | ------ | ------------------------ |
-| **Google**    | gemini-2.0-flash  | $0.10 | $0.40  | Cheapest, has free tier  |
-| **OpenAI**    | gpt-4o-mini       | $0.15 | $0.60  | Best value, most popular |
-| **Anthropic** | claude-3-5-haiku  | $0.80 | $4.00  | Fast responses           |
-| **OpenAI**    | gpt-4o            | $2.50 | $10.00 | High quality             |
-| **Anthropic** | claude-3-5-sonnet | $3.00 | $15.00 | Best reasoning           |
-
-### Recommended Providers to Support
-
-1. **OpenAI** - Most users already have API keys
-   - Models: `gpt-4o-mini` (budget), `gpt-4o` (quality)
-   - Package: `@ai-sdk/openai`
-
-2. **Anthropic** - Quality-focused users
-   - Models: `claude-3-5-haiku` (fast), `claude-3-5-sonnet` (quality)
-   - Package: `@ai-sdk/anthropic`
-
-3. **Google Gemini** - Budget users + free tier
-   - Models: `gemini-2.0-flash`, `gemini-2.5-flash`
-   - Package: `@ai-sdk/google`
-
-### Implementation Notes
-
-- Store encrypted API keys per org in D1
-- Allow users to select provider + model in settings
-- Fall back to platform key (Groq) if no BYOK configured
-- Consider usage tracking per org for billing transparency
-
-## ✅ Implemented: Authentication & Feature Gating
+## Authentication & Feature Gating
 
 ### URL Structure
 
@@ -552,7 +500,7 @@ const { isChatEnabled } = useOrgFeatures();
 
 `toggleChatAgent` in `use-workspaces-admin.ts` updates the feature flag and revalidates `/api/auth/me` so the sidebar updates immediately.
 
-## ✅ Implemented: Slash Commands
+## Slash Commands
 
 Allow users to type `/command` in chat for quick actions without waiting for LLM.
 
@@ -566,7 +514,7 @@ Allow users to type `/command` in chat for quick actions without waiting for LLM
 | `/save <url>`     | Save a link directly               |
 | `/recent [n]`     | Show n recent links                |
 
-## ✅ Implemented: Context Window Management
+## Context Window Management
 
 **Sliding window + `/clear` command**
 
@@ -625,10 +573,6 @@ The system prompt now includes:
 - **Context window** - Sliding window of 30 messages to manage context
 - **Step limit** - Max 5 tool calls per request
 
-### Future Improvements
-
-- [ ] Rate limiting per workspace (see **Planned: Usage Limits** section below)
-
 ## Tools (Full List)
 
 | Tool              | Description                  | Auto/HITL |
@@ -682,64 +626,6 @@ Server executes tool → LLM responds "Done!"
 - `processToolCalls()` utility executes approved tools server-side
 - Rich link preview in confirmation UI (queries livestore for metadata)
 
-## Planned: Usage Limits
+## Related
 
-See [`docs/specs/usage-limits.md`](./usage-limits.md) — token-based limits per workspace, $0.50/month default, tracked in DO SQLite.
-
-## Future HITL Ideas
-
-### 1. Rich Tool Results (not just JSON)
-
-Instead of raw JSON output, render contextual UI based on tool type:
-
-| Tool            | Current                       | Improved                                   |
-| --------------- | ----------------------------- | ------------------------------------------ |
-| `getStats`      | `{"inbox":12,"completed":45}` | Visual progress bars + percentages         |
-| `getInboxLinks` | JSON array                    | Clickable link cards with actions          |
-| `searchLinks`   | JSON array                    | Search results with relevance highlighting |
-
-### 2. Bulk Action Preview
-
-Before bulk operations, show selectable list:
-
-```
-┌─────────────────────────────────────────┐
-│ ✓ Select links to mark as done         │
-├─────────────────────────────────────────┤
-│ [✓] How to Build AI Agents             │
-│ [✓] React 19 New Features              │
-│ [ ] TypeScript Tips  (uncheck to skip) │
-├─────────────────────────────────────────┤
-│ 2 of 3 selected                         │
-│     [ Cancel ]   [ ✓ Complete 2 ]      │
-└─────────────────────────────────────────┘
-```
-
-### 3. Undo Actions
-
-After destructive actions, show undo option:
-
-```
-┌─────────────────────────────────────────┐
-│ ✅ Moved "React article" to trash       │
-│                                         │
-│ [ ↩ Undo ]                              │
-└─────────────────────────────────────────┘
-```
-
-### 4. Link Mentions in Messages
-
-When agent references links, render them as rich badges (already implemented in `LinkMention` component):
-
-```
-I found the [🔗 Groq Docs](console.groq.com) article in your inbox.
-```
-
-### 5. Confirmation for Bulk Completes
-
-Consider adding HITL for `completeLinks` when count > N (e.g., 5+):
-
-```
-Mark 12 links as done? This will clear your inbox.
-[ Cancel ]  [ ✓ Complete All ]
-```
+- [Usage Limits](../specs/usage-limits.md) — token-based limits per workspace

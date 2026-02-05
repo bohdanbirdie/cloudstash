@@ -86,6 +86,17 @@ Expose LiveStore to LLMs via Model Context Protocol.
 - Prompts: organize_links, weekly_digest, find_related
 - Claude Desktop integration
 
+### Chat Agent BYOK (Bring Your Own Key)
+
+Allow users to provide their own LLM API keys instead of using shared Groq key.
+
+**Reference:** [chat-agent.md](features/chat-agent.md) (Provider Pricing section)
+
+- Store encrypted API keys per org in D1
+- Support OpenAI, Anthropic, Google Gemini
+- Allow users to select provider + model in settings
+- Fall back to platform key (Groq) if no BYOK configured
+
 ---
 
 ## Technical Review
