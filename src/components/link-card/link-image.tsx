@@ -18,8 +18,8 @@ export function LinkImage({
   iconClassName = "h-8 w-8",
   objectFit = "cover",
 }: LinkImageProps) {
-  const [error, setError] = useState(false);
-  const showImage = src && !error;
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const showImage = src && src !== failedSrc;
 
   return (
     <div
@@ -37,7 +37,7 @@ export function LinkImage({
               ? "h-full w-full object-cover"
               : "max-h-full max-w-full object-contain"
           )}
-          onError={() => setError(true)}
+          onError={() => setFailedSrc(src ?? null)}
         />
       ) : (
         <ImageIcon className={cn("text-muted-foreground", iconClassName)} />
