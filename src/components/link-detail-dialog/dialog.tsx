@@ -11,8 +11,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-import  { type LinkAction, type LinkProjection } from "@/lib/link-projections";
-
 import { LinkImage } from "@/components/link-card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -27,6 +25,7 @@ import { Markdown } from "@/components/ui/markdown";
 import { ScrollableContent } from "@/components/ui/scrollable-content";
 import { TextShimmer } from "@/components/ui/text-shimmer";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
+import { type LinkAction, type LinkProjection } from "@/lib/link-projections";
 import {
   linkById$,
   linkProcessingStatus$,

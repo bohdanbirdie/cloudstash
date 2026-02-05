@@ -11,9 +11,11 @@ bun dev              # Start dev server (port 3000)
 bun test             # Run all tests
 bun run test:unit    # Unit tests only
 bun run typecheck    # Type checking
-bun run check        # Lint (Ultracite)
+bun run check        # Lint (Ultracite = oxlint + oxfmt)
 bun run fix          # Fix lint issues
 ```
+
+**Linting:** Uses oxlint and oxfmt via Ultracite (NOT eslint). Don't use eslint-disable comments.
 
 **NEVER run remote wrangler commands** (migrations, deployments, secrets, etc.). Local only:
 
