@@ -29,6 +29,7 @@
     "@ai-sdk/google": "3.0.18",
     "@ai-sdk/groq": "3.0.19",
     "@ai-sdk/mistral": "3.0.16",
+    "@ai-sdk/react": "3.0.73",
     "@base-ui/react": "1.1.0",
     "@cloudflare/ai-chat": "0.0.4",
     "@fontsource-variable/jetbrains-mono": "5.2.8",
