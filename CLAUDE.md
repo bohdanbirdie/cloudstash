@@ -30,7 +30,7 @@ bun run deploy             # FORBIDDEN
 - **Frontend:** React 19, Vite, TailwindCSS 4, TanStack Router, Zustand
 - **Backend:** Cloudflare Workers, Hono.js, D1 (SQLite), Drizzle ORM
 - **Real-time:** Livestore sync
-- **AI:** Vercel AI SDK (Anthropic, Google, Groq, Mistral)
+- **AI:** Vercel AI SDK + OpenRouter
 - **Auth:** Better Auth + Google OAuth
 
 ## Documentation

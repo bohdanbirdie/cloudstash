@@ -29,7 +29,7 @@ One chat per workspace with real-time WebSocket connection, message persistence,
 │  ┌───────────────────────────────────────────────────────┐  │
 │  │  onChatMessage()                                      │  │
 │  │  - streamText() with tools                            │  │
-│  │  - Provider: Groq (or any AI SDK provider)            │  │
+│  │  - Provider: OpenRouter                                │  │
 │  │  - Messages persisted in DO SQLite                    │  │
 │  └───────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
@@ -45,38 +45,19 @@ Key examples:
 
 ## Dependencies
 
-```bash
-bun add agents @cloudflare/ai-chat ai @ai-sdk/cerebras
-```
+- `agents` - Cloudflare Agents SDK
+- `@cloudflare/ai-chat` - Chat agent base class
+- `ai` - Vercel AI SDK
+- `@openrouter/ai-sdk-provider` - OpenRouter provider for AI SDK
 
-**Installed versions:**
+## Provider
 
-- `agents@0.3.6`
-- `@cloudflare/ai-chat@0.0.4`
-- `ai@6.0.64`
-- `@ai-sdk/cerebras@2.0.27`
+**OpenRouter** - access to multiple models via single API key.
 
-## Provider Selection
-
-**Current choice: Groq + Llama 3.3 70B**
-
-- Fast inference
-- Proper tool calling support (uses native function calling API)
-- Can be aggressive with tool usage - may need guardrails
-
-**Guardrails**
+**Guardrails:**
 
 - Input validation for prompt injection detection (see `input-validator.ts`)
 - Hardened system prompt with explicit role boundaries
-
-**Tested and rejected:**
-| Provider | Model | Issue |
-|----------|-------|-------|
-| Cerebras | llama-3.3-70b | Outputs tool calls as JSON text instead of using function calling API |
-| Cerebras | qwen-3-32b | Outputs `<think>` tags in responses |
-| Workers AI | llama-3.3-70b | Poor multi-step tool support |
-| Google Gemini | gemini-2.5-flash | Only 5 RPM on free tier |
-| Mistral | mistral-small-\* | Tool call ID format incompatible with AI SDK |
 
 ## Files Created
 
@@ -361,34 +342,6 @@ Key differences from earlier versions:
 - Wrap Zod schemas with `zodSchema()` for proper conversion
 - Tool parts have type `tool-${toolName}` not `tool-invocation`
 - Multi-step: use `stopWhen: stepCountIs(N)` instead of `maxSteps`
-
-## Swappable Providers
-
-The model can be swapped by changing the provider import:
-
-```typescript
-// Groq (current) - fast inference, good tool calling
-import { createGroq } from "@ai-sdk/groq";
-const model = createGroq({ apiKey })("llama-3.3-70b-versatile");
-
-// Google Gemini - works well but 5 RPM limit on free tier
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-const model = createGoogleGenerativeAI({ apiKey })("gemini-2.5-flash");
-
-// OpenAI - excellent tool calling, paid only
-import { createOpenAI } from "@ai-sdk/openai";
-const model = createOpenAI({ apiKey })("gpt-4o");
-
-// Anthropic - excellent tool calling, paid only
-import { createAnthropic } from "@ai-sdk/anthropic";
-const model = createAnthropic({ apiKey })("claude-sonnet-4-20250514");
-
-// Cloudflare Workers AI (free, no API key) - poor multi-step support
-import { createWorkersAI } from "workers-ai-provider";
-const model = createWorkersAI({ binding: env.AI })(
-  "@cf/meta/llama-3-8b-instruct"
-);
-```
 
 ## Authentication & Feature Gating
 
