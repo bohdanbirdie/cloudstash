@@ -5,10 +5,10 @@ import { Suspense } from "react";
 
 import { AddLinkDialogProvider } from "@/components/add-link-dialog";
 import { AppSidebar } from "@/components/app-sidebar";
-import { LinkDetailDialogProvider } from "@/components/link-detail-dialog";
 import { useChatPanel } from "@/components/chat/chat-context";
 import { ChatSheet } from "@/components/chat/chat-sheet";
 import { ChatSheetProvider } from "@/components/chat/chat-sheet-provider";
+import { LinkDetailDialogProvider } from "@/components/link-detail-dialog";
 import { SearchCommand } from "@/components/search-command";
 import { SyncErrorBanner } from "@/components/sync-error-banner";
 import {

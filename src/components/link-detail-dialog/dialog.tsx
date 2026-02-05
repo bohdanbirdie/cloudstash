@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import  { type LinkAction, type LinkProjection } from "@/lib/link-projections";
+
 import { LinkImage } from "@/components/link-card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -25,7 +27,6 @@ import { Markdown } from "@/components/ui/markdown";
 import { ScrollableContent } from "@/components/ui/scrollable-content";
 import { TextShimmer } from "@/components/ui/text-shimmer";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
-import type { LinkAction, LinkProjection } from "@/lib/link-projections";
 import {
   linkById$,
   linkProcessingStatus$,
@@ -127,7 +128,9 @@ export function LinkDetailDialogContent({
 
   const handleComplete = () =>
     handleAction("complete", () => {
-      store.commit(events.linkCompleted({ completedAt: new Date(), id: linkId }));
+      store.commit(
+        events.linkCompleted({ completedAt: new Date(), id: linkId })
+      );
     });
 
   const handleUncomplete = () =>

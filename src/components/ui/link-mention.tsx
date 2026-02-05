@@ -1,8 +1,8 @@
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 
 import { useChatContainer } from "@/components/chat/chat-sheet";
-import { useLinkDetailDialog } from "@/components/link-detail-dialog";
 import { LinkImage } from "@/components/link-card/link-image";
+import { useLinkDetailDialog } from "@/components/link-detail-dialog";
 import { linkByUrl$, type LinkWithDetails } from "@/livestore/queries";
 import { useAppStore } from "@/livestore/store";
 

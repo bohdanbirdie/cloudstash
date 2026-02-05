@@ -16,6 +16,7 @@ bun run fix          # Fix lint issues
 ```
 
 **NEVER run remote wrangler commands** (migrations, deployments, secrets, etc.). Local only:
+
 ```bash
 bun run db:migrate:local   # OK - local migrations
 bun run db:migrate:remote  # FORBIDDEN

@@ -24,6 +24,7 @@ A global dialog for viewing and managing individual links with context-aware nav
 ```
 
 The dialog:
+
 1. Receives `linkId` and optional `projection` via context
 2. Queries its own data from LiveStore (`linkById$`, `projection.query`)
 3. Handles actions internally, navigates or closes based on projection
@@ -34,19 +35,19 @@ A **projection** defines a view of links with its navigation behavior:
 
 ```tsx
 interface LinkProjection {
-  query: typeof inboxLinks$;                      // LiveStore query for the list
-  willActionRemoveLink: (action: LinkAction) => boolean;  // Does action remove link from view?
+  query: typeof inboxLinks$; // LiveStore query for the list
+  willActionRemoveLink: (action: LinkAction) => boolean; // Does action remove link from view?
 }
 ```
 
 ### Predefined Projections
 
-| Projection | Query | Actions that remove link |
-|------------|-------|-------------------------|
-| `inboxProjection` | `inboxLinks$` | All (complete, delete) |
-| `allLinksProjection` | `allLinks$` | Only delete |
-| `completedProjection` | `completedLinks$` | Uncomplete, delete |
-| `trashProjection` | `trashLinks$` | All (restore, delete) |
+| Projection            | Query             | Actions that remove link |
+| --------------------- | ----------------- | ------------------------ |
+| `inboxProjection`     | `inboxLinks$`     | All (complete, delete)   |
+| `allLinksProjection`  | `allLinks$`       | Only delete              |
+| `completedProjection` | `completedLinks$` | Uncomplete, delete       |
+| `trashProjection`     | `trashLinks$`     | All (restore, delete)    |
 
 ## Usage
 
@@ -91,11 +92,11 @@ open({ linkId, projection? })
 
 ## Files
 
-| File | Purpose |
-|------|---------|
+| File                                             | Purpose                            |
+| ------------------------------------------------ | ---------------------------------- |
 | `src/components/link-detail-dialog/provider.tsx` | Context provider, state management |
-| `src/components/link-detail-dialog/dialog.tsx` | Dialog UI, action handlers |
-| `src/lib/link-projections.ts` | Projection definitions |
+| `src/components/link-detail-dialog/dialog.tsx`   | Dialog UI, action handlers         |
+| `src/lib/link-projections.ts`                    | Projection definitions             |
 
 ## Adding a New Projection
 

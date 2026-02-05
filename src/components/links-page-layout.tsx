@@ -1,13 +1,14 @@
 import { DownloadIcon } from "lucide-react";
 import { useState, useCallback } from "react";
 
+import  { type LinkProjection } from "@/lib/link-projections";
+
 import { ExportDialog } from "@/components/export-dialog";
 import { LinkGrid, ViewSwitcher } from "@/components/link-card";
 import { useLinkDetailDialog } from "@/components/link-detail-dialog";
 import { SelectionToolbar } from "@/components/selection-toolbar";
 import { Button } from "@/components/ui/button";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
-import type { LinkProjection } from "@/lib/link-projections";
 import { type LinkWithDetails } from "@/livestore/queries";
 import { useSelectionStore } from "@/stores/selection-store";
 

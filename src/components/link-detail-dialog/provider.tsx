@@ -1,4 +1,10 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { type LinkProjection } from "@/lib/link-projections";
 
@@ -14,7 +20,8 @@ interface LinkDetailDialogContextValue {
   close: () => void;
 }
 
-const LinkDetailDialogContext = createContext<LinkDetailDialogContextValue | null>(null);
+const LinkDetailDialogContext =
+  createContext<LinkDetailDialogContextValue | null>(null);
 
 const noopContext: LinkDetailDialogContextValue = {
   open: () => {},
@@ -30,12 +37,17 @@ interface LinkDetailDialogProviderProps {
   children: ReactNode;
 }
 
-export function LinkDetailDialogProvider({ children }: LinkDetailDialogProviderProps) {
+export function LinkDetailDialogProvider({
+  children,
+}: LinkDetailDialogProviderProps) {
   const [state, setState] = useState<DialogState | null>(null);
 
-  const open = useCallback((options: { linkId: string; projection?: LinkProjection }) => {
-    setState(options);
-  }, []);
+  const open = useCallback(
+    (options: { linkId: string; projection?: LinkProjection }) => {
+      setState(options);
+    },
+    []
+  );
 
   const close = useCallback(() => {
     setState(null);
