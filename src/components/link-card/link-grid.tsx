@@ -3,7 +3,6 @@ import { useHotkeys } from "react-hotkeys-hook";
 
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
 import { type LinkWithDetails } from "@/livestore/queries";
-import { useLinkDetailStore } from "@/stores/link-detail-store";
 import { useSelectionStore } from "@/stores/selection-store";
 import { useViewModeStore } from "@/stores/view-mode-store";
 
@@ -14,18 +13,19 @@ interface LinkGridProps {
   links: readonly LinkWithDetails[];
   emptyMessage?: string;
   onSelectionChange?: (selectedLinks: LinkWithDetails[]) => void;
+  onLinkClick?: (index: number) => void;
 }
 
 export function LinkGrid({
   links,
   emptyMessage = "No links yet",
   onSelectionChange,
+  onLinkClick,
 }: LinkGridProps) {
   const { selectedIds, anchorIndex, toggle, range, removeStale } =
     useSelectionStore();
   const viewMode = useViewModeStore((s) => s.viewMode);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const openLinkInContext = useLinkDetailStore((s) => s.openLinkInContext);
   const trackLinkOpen = useTrackLinkOpen();
 
   const linkIds = useMemo(() => links.map((l) => l.id), [links]);
@@ -55,7 +55,7 @@ export function LinkGrid({
       if (link) {
         trackLinkOpen(link.id);
       }
-      openLinkInContext(linkIds, index);
+      onLinkClick?.(index);
       return;
     }
     e.preventDefault();

@@ -1,12 +1,12 @@
 import {
-  ExternalLinkIcon,
+  CheckCheck,
+  CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  CheckIcon,
-  Trash2Icon,
   CopyIcon,
-  CheckCheck,
+  ExternalLinkIcon,
   RotateCcwIcon,
+  Trash2Icon,
   UndoIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -16,27 +16,23 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { HotkeyButton } from "@/components/ui/hotkey-button";
 import { Markdown } from "@/components/ui/markdown";
 import { ScrollableContent } from "@/components/ui/scrollable-content";
 import { TextShimmer } from "@/components/ui/text-shimmer";
+import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
+import type { LinkAction, LinkProjection } from "@/lib/link-projections";
 import {
-  linkProcessingStatus$,
   linkById$,
+  linkProcessingStatus$,
   type LinkWithDetails,
 } from "@/livestore/queries";
 import { events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
-import {
-  useLinkDetailStore,
-  selectHasPrevious,
-  selectHasNext,
-  selectHasNavigation,
-} from "@/stores/link-detail-store";
 
 function StatusBadge({ link }: { link: LinkWithDetails }) {
   if (link.deletedAt) {
@@ -62,72 +58,104 @@ function StatusBadge({ link }: { link: LinkWithDetails }) {
   return null;
 }
 
-function LinkDetailModalContent({ linkId }: { linkId: string }) {
+interface LinkDetailDialogContentProps {
+  linkId: string;
+  projection?: LinkProjection;
+  onClose: () => void;
+  onNavigate: (linkId: string) => void;
+}
+
+export function LinkDetailDialogContent({
+  linkId,
+  projection,
+  onClose,
+  onNavigate,
+}: LinkDetailDialogContentProps) {
   const store = useAppStore();
+  const trackLinkOpen = useTrackLinkOpen();
   const [copied, setCopied] = useState(false);
 
-  const open = useLinkDetailStore((s) => s.open);
-  const close = useLinkDetailStore((s) => s.close);
-  const goToPrevious = useLinkDetailStore((s) => s.goToPrevious);
-  const goToNext = useLinkDetailStore((s) => s.goToNext);
-  const moveAfterAction = useLinkDetailStore((s) => s.moveAfterAction);
-  const hasPrevious = useLinkDetailStore(selectHasPrevious);
-  const hasNext = useLinkDetailStore(selectHasNext);
-  const hasNavigation = useLinkDetailStore(selectHasNavigation);
-
   const link = store.useQuery(linkById$(linkId));
+  const links: readonly LinkWithDetails[] = projection
+    ? store.useQuery(projection.query)
+    : [];
+
+  if (!link) {
+    onClose();
+    return null;
+  }
+
+  const currentIndex = links.findIndex((l) => l.id === linkId);
+  const hasNavigation = links.length > 1;
+  const hasPrevious = currentIndex > 0;
+  const hasNext = currentIndex < links.length - 1;
+
+  const getNextLinkId = (): string | null => {
+    const nextLink = links[currentIndex + 1] ?? links[currentIndex - 1];
+    return nextLink?.id ?? null;
+  };
+
+  const goToPrevious = () => {
+    const prevLink = links[currentIndex - 1];
+    if (prevLink) {
+      trackLinkOpen(prevLink.id);
+      onNavigate(prevLink.id);
+    }
+  };
+
+  const goToNext = () => {
+    const nextLink = links[currentIndex + 1];
+    if (nextLink) {
+      trackLinkOpen(nextLink.id);
+      onNavigate(nextLink.id);
+    }
+  };
+
+  const handleAction = (action: LinkAction, commitFn: () => void) => {
+    const willRemove = projection?.willActionRemoveLink(action) ?? true;
+    const nextLinkId = willRemove ? getNextLinkId() : linkId;
+
+    commitFn();
+
+    if (nextLinkId && nextLinkId !== linkId) {
+      trackLinkOpen(nextLinkId);
+      onNavigate(nextLinkId);
+    } else if (willRemove) {
+      onClose();
+    }
+  };
+
+  const handleComplete = () =>
+    handleAction("complete", () => {
+      store.commit(events.linkCompleted({ completedAt: new Date(), id: linkId }));
+    });
+
+  const handleUncomplete = () =>
+    handleAction("uncomplete", () => {
+      store.commit(events.linkUncompleted({ id: linkId }));
+    });
+
+  const handleDelete = () =>
+    handleAction("delete", () => {
+      store.commit(events.linkDeleted({ deletedAt: new Date(), id: linkId }));
+    });
+
+  const handleRestore = () =>
+    handleAction("restore", () => {
+      store.commit(events.linkRestored({ id: linkId }));
+    });
+
   const processingRecord = store.useQuery(linkProcessingStatus$(linkId));
   const isProcessing = processingRecord?.status === "pending";
 
-  const isCompleted = link?.status === "completed";
-  const isDeleted = link?.deletedAt !== null;
+  const isCompleted = link.status === "completed";
+  const isDeleted = link.deletedAt !== null;
 
   const handleCopy = async () => {
-    if (!link) {
-      return;
-    }
     await navigator.clipboard.writeText(link.url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
-  const handleComplete = () => {
-    if (!link) {
-      return;
-    }
-    store.commit(
-      events.linkCompleted({ completedAt: new Date(), id: link.id })
-    );
-    moveAfterAction();
-  };
-
-  const handleUncomplete = () => {
-    if (!link) {
-      return;
-    }
-    store.commit(events.linkUncompleted({ id: link.id }));
-    moveAfterAction();
-  };
-
-  const handleDelete = () => {
-    if (!link) {
-      return;
-    }
-    store.commit(events.linkDeleted({ deletedAt: new Date(), id: link.id }));
-    moveAfterAction();
-  };
-
-  const handleRestore = () => {
-    if (!link) {
-      return;
-    }
-    store.commit(events.linkRestored({ id: link.id }));
-    moveAfterAction();
-  };
-
-  if (!link) {
-    return null;
-  }
 
   const displayTitle = link.title || link.url;
   const formattedDate = new Date(link.createdAt).toLocaleString(undefined, {
@@ -140,7 +168,7 @@ function LinkDetailModalContent({ linkId }: { linkId: string }) {
   });
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && close()}>
+    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <div className="flex items-center gap-2">
@@ -240,7 +268,7 @@ function LinkDetailModalContent({ linkId }: { linkId: string }) {
                 disabled={!hasPrevious}
                 aria-label="Previous link"
                 hotkey="BracketLeft"
-                hotkeyEnabled={open}
+                hotkeyEnabled={true}
               >
                 <ChevronLeftIcon className="h-4 w-4" />
               </HotkeyButton>
@@ -252,7 +280,7 @@ function LinkDetailModalContent({ linkId }: { linkId: string }) {
                 disabled={!hasNext}
                 aria-label="Next link"
                 hotkey="BracketRight"
-                hotkeyEnabled={open}
+                hotkeyEnabled={true}
               >
                 <ChevronRightIcon className="h-4 w-4" />
               </HotkeyButton>
@@ -265,7 +293,7 @@ function LinkDetailModalContent({ linkId }: { linkId: string }) {
               onHotkeyPress={isCompleted ? handleUncomplete : handleComplete}
               aria-label={isCompleted ? "Mark as unread" : "Mark as complete"}
               hotkey="meta+enter"
-              hotkeyEnabled={open}
+              hotkeyEnabled={true}
             >
               {isCompleted ? (
                 <UndoIcon className="h-4 w-4" />
@@ -280,7 +308,7 @@ function LinkDetailModalContent({ linkId }: { linkId: string }) {
               onHotkeyPress={isDeleted ? handleRestore : handleDelete}
               aria-label={isDeleted ? "Restore link" : "Delete link"}
               hotkey="meta+backspace"
-              hotkeyEnabled={open}
+              hotkeyEnabled={true}
             >
               {isDeleted ? (
                 <RotateCcwIcon className="h-4 w-4" />
@@ -293,14 +321,4 @@ function LinkDetailModalContent({ linkId }: { linkId: string }) {
       </DialogContent>
     </Dialog>
   );
-}
-
-export function LinkDetailModal() {
-  const linkId = useLinkDetailStore((s) => s.linkId);
-
-  if (!linkId) {
-    return null;
-  }
-
-  return <LinkDetailModalContent linkId={linkId} />;
 }

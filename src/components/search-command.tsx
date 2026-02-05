@@ -2,6 +2,7 @@ import { useNavigate, useRouter } from "@tanstack/react-router";
 import { ArrowRightIcon } from "lucide-react";
 import { useEffect, useMemo, useState, useDeferredValue } from "react";
 
+import { useLinkDetailDialog } from "@/components/link-detail-dialog";
 import { Badge } from "@/components/ui/badge";
 import {
   Command,
@@ -23,7 +24,6 @@ import {
   type SearchResult,
 } from "@/livestore/queries";
 import { useAppStore } from "@/livestore/store";
-import { useLinkDetailStore } from "@/stores/link-detail-store";
 import { useSearchStore } from "@/stores/search-store";
 
 function getStatusBadge(link: LinkWithDetails | SearchResult) {
@@ -128,8 +128,8 @@ function SearchResultItem({
 
 export function SearchCommand() {
   const { open, setOpen } = useSearchStore();
-  const openLinkDetail = useLinkDetailStore((s) => s.openLink);
   const trackLinkOpen = useTrackLinkOpen();
+  const { open: openLinkDialog } = useLinkDetailDialog();
   const store = useAppStore();
   const router = useRouter();
   const navigate = useNavigate();
@@ -143,9 +143,7 @@ export function SearchCommand() {
   );
 
   const recentLinks = store.useQuery(recentlyOpenedLinks$);
-
   const searchResults = store.useQuery(searchLinks$(deferredQuery));
-
   const showSearchResults = deferredQuery.length > 0;
 
   useEffect(() => {
@@ -168,7 +166,7 @@ export function SearchCommand() {
   const handleSelectLink = (link: LinkWithDetails | SearchResult) => {
     setOpen(false);
     trackLinkOpen(link.id);
-    openLinkDetail(link.id);
+    openLinkDialog({ linkId: link.id });
   };
 
   const handleSelectPage = (path: string) => {

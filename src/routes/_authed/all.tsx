@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback } from "react";
 
 import { LinksPageLayout } from "@/components/links-page-layout";
+import { allLinksProjection } from "@/lib/link-projections";
 import { allLinks$, type LinkWithDetails } from "@/livestore/queries";
 import { events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
@@ -51,6 +52,7 @@ function AllLinksPage() {
         onComplete: handleBulkComplete,
         onDelete: handleBulkDelete,
       }}
+      projection={allLinksProjection}
     />
   );
 }

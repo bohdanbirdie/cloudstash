@@ -1,27 +1,23 @@
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 
 import { useChatContainer } from "@/components/chat/chat-sheet";
+import { useLinkDetailDialog } from "@/components/link-detail-dialog";
 import { LinkImage } from "@/components/link-card/link-image";
-import { type LinkWithDetails } from "@/livestore/queries";
-import { linkByUrl$ } from "@/livestore/queries";
+import { linkByUrl$, type LinkWithDetails } from "@/livestore/queries";
 import { useAppStore } from "@/livestore/store";
-import { useLinkDetailStore } from "@/stores/link-detail-store";
 
 interface LinkMentionWithTooltipProps {
   link: LinkWithDetails;
   linkElement: React.ReactElement;
+  onOpenDetail: () => void;
 }
 
 function LinkMentionWithTooltip({
   link,
   linkElement,
+  onOpenDetail,
 }: LinkMentionWithTooltipProps) {
-  const openLink = useLinkDetailStore((s) => s.openLink);
   const chatContainer = useChatContainer();
-
-  const handleClick = () => {
-    openLink(link.id);
-  };
 
   return (
     <TooltipPrimitive.Provider delay={400}>
@@ -31,7 +27,7 @@ function LinkMentionWithTooltip({
           <TooltipPrimitive.Positioner side="top" sideOffset={6}>
             <TooltipPrimitive.Popup
               className="z-50 overflow-hidden max-w-xs bg-background border border-primary shadow-xl animate-in fade-in-0 zoom-in-95 cursor-pointer hover:border-primary/80"
-              onClick={handleClick}
+              onClick={onOpenDetail}
             >
               <LinkImage
                 src={link.image}
@@ -66,6 +62,7 @@ interface LinkMentionProps {
 export function LinkMention({ href, children }: LinkMentionProps) {
   const store = useAppStore();
   const link = store.useQuery(linkByUrl$(href));
+  const { open: openLinkDialog } = useLinkDetailDialog();
 
   const childText = typeof children === "string" ? children : null;
   const isPlainUrl = childText === href;
@@ -73,6 +70,10 @@ export function LinkMention({ href, children }: LinkMentionProps) {
   if (link && isPlainUrl) {
     const displayText = link.title || link.domain;
     const hasPreview = link.image || link.title;
+
+    const handleOpenDetail = () => {
+      openLinkDialog({ linkId: link.id });
+    };
 
     const linkElement = (
       <a
@@ -88,11 +89,15 @@ export function LinkMention({ href, children }: LinkMentionProps) {
       </a>
     );
 
-    if (!hasPreview) {
-      return linkElement;
-    }
-
-    return <LinkMentionWithTooltip link={link} linkElement={linkElement} />;
+    return hasPreview ? (
+      <LinkMentionWithTooltip
+        link={link}
+        linkElement={linkElement}
+        onOpenDetail={handleOpenDetail}
+      />
+    ) : (
+      linkElement
+    );
   }
 
   return (
