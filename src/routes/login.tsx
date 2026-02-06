@@ -23,6 +23,9 @@ function LoginForm({ className, ...props }: React.ComponentProps<"div">) {
           <div className="flex flex-col justify-center p-6 md:p-8 md:min-h-[400px]">
             <FieldGroup>
               <div className="flex flex-col items-center gap-2 text-center">
+                <span className="rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+                  Alpha
+                </span>
                 <h1 className="text-2xl font-bold">Welcome back</h1>
                 <p className="text-muted-foreground text-balance">
                   Sign in to save and organize your links

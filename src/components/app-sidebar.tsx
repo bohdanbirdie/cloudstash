@@ -10,11 +10,14 @@ import {
   SearchIcon,
   PuzzleIcon,
   ShieldIcon,
+  MessageSquareIcon,
 } from "lucide-react";
 import { useState } from "react";
 
 import { useAddLinkDialog } from "@/components/add-link-dialog";
 import { AdminModal } from "@/components/admin";
+import { useChatPanel } from "@/components/chat/chat-context";
+import { CHAT_HOTKEY } from "@/components/chat/chat-sheet-provider";
 import { IntegrationsModal } from "@/components/integrations";
 import {
   AlertDialog,
@@ -40,6 +43,8 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { useModifierHold } from "@/hooks/use-modifier-hold";
+import { useOrgFeatures } from "@/hooks/use-org-features";
 import { useAuth } from "@/lib/auth";
 import { getHotkeyLabel } from "@/lib/hotkey-label";
 import {
@@ -60,6 +65,9 @@ export function AppSidebar() {
   const [adminOpen, setAdminOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const auth = useAuth();
+  const { isChatEnabled } = useOrgFeatures();
+  const chatPanel = useChatPanel();
+  const showHotkeys = useModifierHold();
 
   const inboxCount = store.useQuery(inboxCount$);
   const completedCount = store.useQuery(completedCount$);
@@ -102,6 +110,9 @@ export function AppSidebar() {
           </div>
           <span className="font-semibold group-data-[collapsible=icon]:hidden">
             Cloudstash
+          </span>
+          <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400 group-data-[collapsible=icon]:hidden">
+            Alpha
           </span>
         </div>
       </SidebarHeader>
@@ -165,6 +176,19 @@ export function AppSidebar() {
               >
                 <ShieldIcon />
                 <span>Admin</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+          {isChatEnabled && (
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip="Agent" onClick={chatPanel.toggle}>
+                <MessageSquareIcon />
+                <span>Agent</span>
+                {showHotkeys && (
+                  <Kbd className="ml-auto hidden md:inline-flex group-data-[collapsible=icon]:hidden">
+                    {getHotkeyLabel(CHAT_HOTKEY)}
+                  </Kbd>
+                )}
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}

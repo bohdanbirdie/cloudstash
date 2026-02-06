@@ -1,67 +1,128 @@
-import ReactMarkdown, { type Components } from "react-markdown";
+import { marked } from "marked";
+import { memo, useId, useMemo } from "react";
+import ReactMarkdown, { Components } from "react-markdown";
+import remarkBreaks from "remark-breaks";
+import remarkGfm from "remark-gfm";
 
 import { cn } from "@/lib/utils";
 
-interface MarkdownProps {
-  children: string;
-  className?: string;
-}
+import { CodeBlock, CodeBlockCode } from "./code-block";
+import { LinkMention } from "./link-mention";
 
-const components: Components = {
-  a: ({ href, children }) => (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-primary underline underline-offset-2 hover:text-primary/80"
-    >
-      {children}
-    </a>
-  ),
-  blockquote: ({ children }) => (
-    <blockquote className="border-l-2 border-primary/50 pl-3 italic my-2">
-      {children}
-    </blockquote>
-  ),
-  code: ({ children }) => (
-    <code className="bg-muted px-1 py-0.5 rounded text-xs">{children}</code>
-  ),
-  em: ({ children }) => <em className="italic">{children}</em>,
-  h1: ({ children }) => (
-    <h1 className="text-lg font-medium tracking-tight mt-4 mb-2">{children}</h1>
-  ),
-  h2: ({ children }) => (
-    <h2 className="text-base font-medium tracking-tight mt-3 mb-2">
-      {children}
-    </h2>
-  ),
-  h3: ({ children }) => (
-    <h3 className="text-sm font-medium tracking-tight mt-2 mb-1">{children}</h3>
-  ),
-  li: ({ children }) => <li>{children}</li>,
-  ol: ({ children }) => (
-    <ol className="list-decimal list-inside my-2 space-y-0.5">{children}</ol>
-  ),
-  p: ({ children }) => (
-    <p className="leading-relaxed my-2 first:mt-0 last:mb-0">{children}</p>
-  ),
-  pre: ({ children }) => (
-    <pre className="bg-muted p-3 rounded text-xs overflow-x-auto my-2">
-      {children}
-    </pre>
-  ),
-  strong: ({ children }) => (
-    <strong className="font-semibold">{children}</strong>
-  ),
-  ul: ({ children }) => (
-    <ul className="list-disc list-inside my-2 space-y-0.5">{children}</ul>
-  ),
+export type MarkdownProps = {
+  children: string;
+  id?: string;
+  className?: string;
+  components?: Partial<Components>;
 };
 
-export function Markdown({ children, className }: MarkdownProps) {
+function parseMarkdownIntoBlocks(markdown: string): string[] {
+  const tokens = marked.lexer(markdown);
+  return tokens.map((token) => token.raw);
+}
+
+function extractLanguage(className?: string): string {
+  if (!className) return "plaintext";
+  const match = className.match(/language-(\w+)/);
+  return match ? match[1] : "plaintext";
+}
+
+const INITIAL_COMPONENTS: Partial<Components> = {
+  ul: function UnorderedListComponent({ children }) {
+    return <ul className="list-inside list-disc my-2">{children}</ul>;
+  },
+  ol: function OrderedListComponent({ children }) {
+    return <ol className="list-inside list-decimal my-2">{children}</ol>;
+  },
+  li: function ListItemComponent({ children }) {
+    return <li className="my-0.5">{children}</li>;
+  },
+  a: function AnchorComponent({ href, children }) {
+    if (!href) {
+      return <span>{children}</span>;
+    }
+    return <LinkMention href={href}>{children}</LinkMention>;
+  },
+  code: function CodeComponent({ className, children, ...props }) {
+    const isInline =
+      !props.node?.position?.start.line ||
+      props.node?.position?.start.line === props.node?.position?.end.line;
+
+    if (isInline) {
+      return (
+        <span
+          className={cn(
+            "bg-primary-foreground rounded-sm px-1 font-mono text-[0.9em]",
+            className
+          )}
+          {...props}
+        >
+          {children}
+        </span>
+      );
+    }
+
+    const language = extractLanguage(className);
+
+    return (
+      <CodeBlock className={className}>
+        <CodeBlockCode code={children as string} language={language} />
+      </CodeBlock>
+    );
+  },
+  pre: function PreComponent({ children }) {
+    return <>{children}</>;
+  },
+};
+
+const MemoizedMarkdownBlock = memo(
+  function MarkdownBlock({
+    content,
+    components = INITIAL_COMPONENTS,
+  }: {
+    content: string;
+    components?: Partial<Components>;
+  }) {
+    return (
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkBreaks]}
+        components={components}
+      >
+        {content}
+      </ReactMarkdown>
+    );
+  },
+  function propsAreEqual(prevProps, nextProps) {
+    return prevProps.content === nextProps.content;
+  }
+);
+
+MemoizedMarkdownBlock.displayName = "MemoizedMarkdownBlock";
+
+function MarkdownComponent({
+  children,
+  id,
+  className,
+  components = INITIAL_COMPONENTS,
+}: MarkdownProps) {
+  const generatedId = useId();
+  const blockId = id ?? generatedId;
+  const blocks = useMemo(() => parseMarkdownIntoBlocks(children), [children]);
+
   return (
-    <div className={cn("text-sm", className)}>
-      <ReactMarkdown components={components}>{children}</ReactMarkdown>
+    <div className={className}>
+      {blocks.map((block, index) => (
+        <MemoizedMarkdownBlock
+          key={`${blockId}-block-${index}`}
+          content={block}
+          components={components}
+        />
+      ))}
     </div>
   );
 }
+
+const Markdown = memo(MarkdownComponent);
+Markdown.displayName = "Markdown";
+
+export { Markdown };

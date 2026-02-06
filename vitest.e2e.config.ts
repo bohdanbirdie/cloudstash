@@ -34,6 +34,13 @@ export default defineWorkersConfig({
         __dirname,
         "src/cf-worker/email/stubs/code-block.ts"
       ),
+      // Stub ajv and ajv-formats - MCP SDK imports ajv at top level but agents uses CfWorkerJsonSchemaValidator
+      // These are CJS and don't work in Workers Vitest pool
+      ajv: path.resolve(__dirname, "src/cf-worker/__tests__/stubs/ajv.ts"),
+      "ajv-formats": path.resolve(
+        __dirname,
+        "src/cf-worker/__tests__/stubs/ajv-formats.ts"
+      ),
     },
   },
   ssr: {
@@ -45,6 +52,10 @@ export default defineWorkersConfig({
       /@opentelemetry\//,
       "resend",
       /@react-email\//,
+      "agents",
+      "@cloudflare/ai-chat",
+      /@ai-sdk\//,
+      /@modelcontextprotocol\//,
     ],
   },
   test: {

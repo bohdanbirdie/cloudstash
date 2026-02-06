@@ -1,19 +1,12 @@
 import useSWR, { mutate } from "swr";
 import useSWRMutation from "swr/mutation";
 
+import { type WorkspaceWithOwner } from "@/cf-worker/admin/workspaces";
+import { type OrgFeatures } from "@/cf-worker/db/schema";
 import { type ApiErrorResponse } from "@/types/api";
 
-export type OrgFeatures = {
-  aiSummary?: boolean;
-};
-
-export interface Workspace {
-  id: string;
-  name: string;
-  slug: string | null;
-  creatorEmail: string | null;
-  features: OrgFeatures;
-}
+export type { OrgFeatures };
+export type Workspace = WorkspaceWithOwner;
 
 interface WorkspacesListResponse {
   workspaces: Workspace[];
@@ -49,6 +42,7 @@ async function updateOrgSettings(
     throw new Error("error" in data ? data.error : "Failed to update settings");
   }
   mutate("admin-workspaces");
+  mutate("/api/auth/me");
   return data;
 }
 
@@ -77,14 +71,46 @@ export function useWorkspacesAdmin(enabled = true) {
     });
   };
 
+  const toggleChatAgent = (orgId: string, currentValue: boolean) => {
+    const workspace = workspaces.find((w) => w.id === orgId);
+    if (!workspace) return;
+
+    updateSettings.trigger({
+      orgId,
+      features: {
+        ...workspace.features,
+        chatAgentEnabled: !currentValue,
+      },
+    });
+  };
+
+  const updateTokenBudget = (orgId: string, value: number) => {
+    const workspace = workspaces.find((w) => w.id === orgId);
+    if (!workspace) return;
+
+    updateSettings.trigger({
+      orgId,
+      features: {
+        ...workspace.features,
+        monthlyTokenBudget: value,
+      },
+    });
+  };
+
   const aiEnabledCount = workspaces.filter((w) => w.features.aiSummary).length;
+  const chatEnabledCount = workspaces.filter(
+    (w) => w.features.chatAgentEnabled
+  ).length;
 
   return {
     aiEnabledCount,
+    chatEnabledCount,
     error: updateSettings.error?.message ?? fetchError?.message ?? null,
     isLoading,
     isMutating: updateSettings.isMutating,
     toggleAiSummary,
+    toggleChatAgent,
+    updateTokenBudget,
     workspaces,
   };
 }

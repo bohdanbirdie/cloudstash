@@ -1,10 +1,13 @@
 import { DownloadIcon } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 
 import { ExportDialog } from "@/components/export-dialog";
 import { LinkGrid, ViewSwitcher } from "@/components/link-card";
+import { useLinkDetailDialog } from "@/components/link-detail-dialog";
 import { SelectionToolbar } from "@/components/selection-toolbar";
 import { Button } from "@/components/ui/button";
+import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
+import { type LinkProjection } from "@/lib/link-projections";
 import { type LinkWithDetails } from "@/livestore/queries";
 import { useSelectionStore } from "@/stores/selection-store";
 
@@ -20,6 +23,7 @@ interface LinksPageLayoutProps {
     isTrash?: boolean;
     showComplete?: boolean;
   };
+  projection: LinkProjection;
 }
 
 export function LinksPageLayout({
@@ -28,18 +32,31 @@ export function LinksPageLayout({
   links,
   emptyMessage,
   toolbarConfig,
+  projection,
 }: LinksPageLayoutProps) {
   const clear = useSelectionStore((s) => s.clear);
+  const trackLinkOpen = useTrackLinkOpen();
+  const { open: openDialog } = useLinkDetailDialog();
+
   const [exportOpen, setExportOpen] = useState(false);
   const [selectedLinks, setSelectedLinks] = useState<LinkWithDetails[]>([]);
 
-  useEffect(() => clear, [clear]);
+  const handleLinkClick = useCallback(
+    (index: number) => {
+      const link = links[index];
+      if (link) {
+        trackLinkOpen(link.id);
+        openDialog({ linkId: link.id, projection });
+      }
+    },
+    [links, trackLinkOpen, openDialog, projection]
+  );
 
-  const handleComplete = toolbarConfig.onComplete
+  const handleBulkComplete = toolbarConfig.onComplete
     ? () => toolbarConfig.onComplete!(selectedLinks)
     : undefined;
 
-  const handleDelete = () => toolbarConfig.onDelete(selectedLinks);
+  const handleBulkDelete = () => toolbarConfig.onDelete(selectedLinks);
 
   return (
     <div className="p-6">
@@ -60,21 +77,25 @@ export function LinksPageLayout({
           </Button>
         </div>
       </div>
+
       <LinkGrid
         links={links}
         emptyMessage={emptyMessage}
         onSelectionChange={setSelectedLinks}
+        onLinkClick={handleLinkClick}
       />
+
       <SelectionToolbar
         selectedCount={selectedLinks.length}
         onExport={() => setExportOpen(true)}
-        onComplete={handleComplete}
-        onDelete={handleDelete}
+        onComplete={handleBulkComplete}
+        onDelete={handleBulkDelete}
         onClear={clear}
         isCompleted={toolbarConfig.isCompleted}
         isTrash={toolbarConfig.isTrash}
         showComplete={toolbarConfig.showComplete}
       />
+
       <ExportDialog
         open={exportOpen}
         onOpenChange={setExportOpen}

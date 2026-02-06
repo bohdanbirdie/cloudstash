@@ -1,7 +1,28 @@
-import { type invite, type user } from "@/cf-worker/db/schema";
+import {
+  type invite,
+  type user,
+  type OrgFeatures,
+} from "@/cf-worker/db/schema";
 
 export type InviteRow = typeof invite.$inferSelect;
 export type UserRow = typeof user.$inferSelect;
+
+export interface MeResponse {
+  organization: {
+    id: string;
+    name: string;
+    slug: string;
+    features: OrgFeatures;
+  } | null;
+  session: {
+    activeOrganizationId: string | null;
+  };
+  user: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
 
 export type UserBasic = Pick<UserRow, "id" | "name" | "email">;
 

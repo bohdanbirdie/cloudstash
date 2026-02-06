@@ -1,4 +1,5 @@
 import { type Auth } from "./auth";
+import { type ChatAgentDO } from "./chat-agent";
 /// <reference types="@cloudflare/workers-types" />
 import { type SyncBackendDO } from "./index";
 import { type LinkProcessorDO } from "./link-processor";
@@ -21,6 +22,9 @@ export interface HonoVariables {
 export interface Env {
   SYNC_BACKEND_DO: DurableObjectNamespace<SyncBackendDO>;
   LINK_PROCESSOR_DO: DurableObjectNamespace<LinkProcessorDO>;
+  // Binding name must match what useAgent({ agent: "chat" }) expects
+  // The agents SDK converts "chat" → "Chat" for env lookup
+  Chat: DurableObjectNamespace<ChatAgentDO>;
   AI: Ai;
   DB: D1Database;
   GOOGLE_CLIENT_ID: string;
@@ -32,4 +36,5 @@ export interface Env {
   TELEGRAM_WEBHOOK_SECRET: string;
   TELEGRAM_KV: KVNamespace;
   RESEND_API_KEY: string;
+  OPENROUTER_API_KEY: string;
 }

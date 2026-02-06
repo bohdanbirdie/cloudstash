@@ -11,3 +11,6 @@ TELEGRAM_BOT_TOKEN=your-telegram-bot-token
 TELEGRAM_WEBHOOK_SECRET=dev-secret
 
 RESEND_API_KEY=re_
+
+# Chat Agent (optional - for AI chat feature)
+OPENROUTER_API_KEY=sk-

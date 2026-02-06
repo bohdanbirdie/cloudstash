@@ -167,9 +167,13 @@ export const linkProcessingStatus$ = (linkId: string) =>
     label: `linkProcessingStatus:${linkId}`,
   });
 
-const linkByIdSchema = LinkWithDetailsSchema.pipe(
-  Schema.Array,
-  Schema.headOrElse(() => null as unknown as typeof LinkWithDetailsSchema.Type)
+const linkByIdSchema = Schema.transform(
+  Schema.Array(LinkWithDetailsSchema),
+  Schema.NullOr(LinkWithDetailsSchema),
+  {
+    decode: (arr) => arr[0] ?? null,
+    encode: (item) => (item ? [item] : []),
+  }
 );
 
 export const linkById$ = (id: string) =>
@@ -198,6 +202,34 @@ export const linkById$ = (id: string) =>
       schema: linkByIdSchema,
     },
     { label: `linkById:${id}` }
+  );
+
+export const linkByUrl$ = (url: string) =>
+  queryDb(
+    {
+      bindValues: [url],
+      query: `
+        SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+               s.title, s.description, s.image, s.favicon,
+               sum.summary
+        FROM links l
+        LEFT JOIN link_snapshots s ON s.id = (
+          SELECT s2.id FROM link_snapshots s2
+          WHERE s2.linkId = l.id
+          ORDER BY s2.fetchedAt DESC
+          LIMIT 1
+        )
+        LEFT JOIN link_summaries sum ON sum.id = (
+          SELECT sum2.id FROM link_summaries sum2
+          WHERE sum2.linkId = l.id
+          ORDER BY sum2.summarizedAt DESC
+          LIMIT 1
+        )
+        WHERE l.url = ?
+      `,
+      schema: linkByIdSchema,
+    },
+    { label: `linkByUrl` }
   );
 
 export const recentlyOpenedLinks$ = queryDb(
@@ -254,6 +286,46 @@ export type SearchResult = typeof SearchResultSchema.Type;
 
 const searchResultsSchema = Schema.Array(SearchResultSchema);
 
+export const linksByIds$ = (ids: string[]) => {
+  if (ids.length === 0) {
+    return queryDb(
+      {
+        query: "SELECT * FROM links WHERE 0",
+        schema: linksWithDetailsSchema,
+      },
+      { label: "linksByIds:empty" }
+    );
+  }
+
+  const placeholders = ids.map(() => "?").join(", ");
+  return queryDb(
+    {
+      bindValues: ids,
+      query: `
+        SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+               s.title, s.description, s.image, s.favicon,
+               sum.summary
+        FROM links l
+        LEFT JOIN link_snapshots s ON s.id = (
+          SELECT s2.id FROM link_snapshots s2
+          WHERE s2.linkId = l.id
+          ORDER BY s2.fetchedAt DESC
+          LIMIT 1
+        )
+        LEFT JOIN link_summaries sum ON sum.id = (
+          SELECT sum2.id FROM link_summaries sum2
+          WHERE sum2.linkId = l.id
+          ORDER BY sum2.summarizedAt DESC
+          LIMIT 1
+        )
+        WHERE l.id IN (${placeholders})
+      `,
+      schema: linksWithDetailsSchema,
+    },
+    { label: `linksByIds:${ids.length}` }
+  );
+};
+
 export const searchLinks$ = (query: string) => {
   if (!query.trim()) {
     return queryDb(
@@ -265,22 +337,64 @@ export const searchLinks$ = (query: string) => {
     );
   }
 
-  const pattern = `%${query}%`;
+  // Split query into words, filter out empty strings
+  const words = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 0);
+
+  if (words.length === 0) {
+    return queryDb(
+      {
+        query: "SELECT * FROM links WHERE 0",
+        schema: searchResultsSchema,
+      },
+      { label: "searchLinks:empty" }
+    );
+  }
+
+  // Build dynamic WHERE conditions for each word
+  // Each word must appear in at least one field
+  const wordConditions = words
+    .map(
+      (_, i) => `
+      (
+        LOWER(COALESCE(s.title, '')) LIKE ?${i * 5 + 1}
+        OR LOWER(l.domain) LIKE ?${i * 5 + 2}
+        OR LOWER(COALESCE(s.description, '')) LIKE ?${i * 5 + 3}
+        OR LOWER(COALESCE(sum.summary, '')) LIKE ?${i * 5 + 4}
+        OR LOWER(l.url) LIKE ?${i * 5 + 5}
+      )`
+    )
+    .join(" AND ");
+
+  // Build scoring expression - higher score if word appears in important fields
+  const scoreExpressions = words
+    .map(
+      (_, i) => `
+      CASE WHEN LOWER(COALESCE(s.title, '')) LIKE ?${i * 5 + 1} THEN 100 ELSE 0 END +
+      CASE WHEN LOWER(l.domain) LIKE ?${i * 5 + 2} THEN 50 ELSE 0 END +
+      CASE WHEN LOWER(COALESCE(s.description, '')) LIKE ?${i * 5 + 3} THEN 30 ELSE 0 END +
+      CASE WHEN LOWER(COALESCE(sum.summary, '')) LIKE ?${i * 5 + 4} THEN 20 ELSE 0 END +
+      CASE WHEN LOWER(l.url) LIKE ?${i * 5 + 5} THEN 10 ELSE 0 END`
+    )
+    .join(" + ");
+
+  // Create bind values: each word needs 5 patterns (for each field)
+  const bindValues = words.flatMap((word) => {
+    const pattern = `%${word}%`;
+    return [pattern, pattern, pattern, pattern, pattern];
+  });
+
   return queryDb(
     {
-      bindValues: [pattern, pattern, pattern, pattern, pattern],
+      bindValues,
       query: `
         SELECT
           l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
           s.title, s.description, s.image, s.favicon,
           sum.summary,
-          (
-            CASE WHEN s.title LIKE ?1 THEN 100 ELSE 0 END +
-            CASE WHEN l.domain LIKE ?2 THEN 50 ELSE 0 END +
-            CASE WHEN s.description LIKE ?3 THEN 30 ELSE 0 END +
-            CASE WHEN sum.summary LIKE ?4 THEN 20 ELSE 0 END +
-            CASE WHEN l.url LIKE ?5 THEN 10 ELSE 0 END
-          ) AS score
+          (${scoreExpressions}) AS score
         FROM links l
         LEFT JOIN link_snapshots s ON s.id = (
           SELECT s2.id FROM link_snapshots s2
@@ -295,13 +409,7 @@ export const searchLinks$ = (query: string) => {
           LIMIT 1
         )
         WHERE l.deletedAt IS NULL
-          AND (
-            s.title LIKE ?1
-            OR l.domain LIKE ?2
-            OR s.description LIKE ?3
-            OR sum.summary LIKE ?4
-            OR l.url LIKE ?5
-          )
+          AND ${wordConditions}
         ORDER BY score DESC
         LIMIT 20
       `,

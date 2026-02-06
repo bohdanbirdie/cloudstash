@@ -62,6 +62,18 @@ Save links by pasting directly into Raycast (macOS).
 - Reuses existing `/api/ingest` endpoint
 - Publish to Raycast Store
 
+### WhatsApp Integration
+
+Save links via WhatsApp messages, mirroring the existing Telegram bot.
+
+**Spec:** [whatsapp-integration.md](specs/whatsapp-integration.md)
+
+- Uses WhatsApp Cloud API (Meta-hosted)
+- Commands: `/connect`, `/disconnect`, `/help`
+- Free for user-initiated conversations (24h service window)
+- Same KV pattern as Telegram for phone→API key mapping
+- Webhook with HMAC-SHA256 signature verification
+
 ### LiveStore MCP Integration
 
 Expose LiveStore to LLMs via Model Context Protocol.
@@ -73,6 +85,17 @@ Expose LiveStore to LLMs via Model Context Protocol.
 - Resources: links, categories, stats
 - Prompts: organize_links, weekly_digest, find_related
 - Claude Desktop integration
+
+### Chat Agent BYOK (Bring Your Own Key)
+
+Allow users to provide their own LLM API keys instead of using shared Groq key.
+
+**Reference:** [chat-agent.md](features/chat-agent.md) (Provider Pricing section)
+
+- Store encrypted API keys per org in D1
+- Support OpenAI, Anthropic, Google Gemini
+- Allow users to select provider + model in settings
+- Fall back to platform key (Groq) if no BYOK configured
 
 ---
 

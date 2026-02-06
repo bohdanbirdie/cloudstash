@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import { LinkImage } from "@/components/link-card";
+import { useLinkDetailDialog } from "@/components/link-detail-dialog";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -31,7 +32,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { linkById$ } from "@/livestore/queries";
 import { tables, events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
-import { useLinkDetailStore } from "@/stores/link-detail-store";
 
 const UrlSchema = Schema.URL;
 
@@ -196,13 +196,14 @@ function AddLinkDialogContent({
   url,
   setUrl,
   onClose,
+  onViewExisting,
 }: {
   url: string;
   setUrl: (url: string) => void;
   onClose: () => void;
+  onViewExisting: (linkId: string) => void;
 }) {
   const store = useAppStore();
-  const openLinkDetail = useLinkDetailStore((s) => s.openLink);
   const [metadata, setMetadata] = useState<OgMetadata | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -354,7 +355,7 @@ function AddLinkDialogContent({
               hotkey="enter"
               onClick={() => {
                 onClose();
-                openLinkDetail(existingLink.id);
+                onViewExisting(existingLink.id);
               }}
             >
               View Saved Link
@@ -375,6 +376,7 @@ export function AddLinkDialogProvider({
 }: AddLinkDialogProviderProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [url, setUrl] = useState("");
+  const { open: openLinkDialog } = useLinkDetailDialog();
 
   const open = useCallback((urlValue?: string) => {
     setUrl(urlValue ?? "");
@@ -385,6 +387,13 @@ export function AddLinkDialogProvider({
     setIsOpen(false);
     setUrl("");
   }, []);
+
+  const handleViewExisting = useCallback(
+    (linkId: string) => {
+      openLinkDialog({ linkId });
+    },
+    [openLinkDialog]
+  );
 
   // Global paste handler - opens dialog when URL is pasted outside of input fields
   useEffect(() => {
@@ -429,7 +438,12 @@ export function AddLinkDialogProvider({
       {children}
       <Dialog open={isOpen} onOpenChange={handleOpenChange}>
         {isOpen && (
-          <AddLinkDialogContent url={url} setUrl={setUrl} onClose={close} />
+          <AddLinkDialogContent
+            url={url}
+            setUrl={setUrl}
+            onClose={close}
+            onViewExisting={handleViewExisting}
+          />
         )}
       </Dialog>
     </AddLinkDialogContext.Provider>
