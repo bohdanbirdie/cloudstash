@@ -1,5 +1,31 @@
 import { Events, makeSchema, Schema, State } from "@livestore/livestore";
 
+/*
+ * ╔═══════════════════════════════════════════════════════════════════════════╗
+ * ║                         ⚠️  EVENTS ARE IMMUTABLE  ⚠️                        ║
+ * ╠═══════════════════════════════════════════════════════════════════════════╣
+ * ║                                                                           ║
+ * ║  Once an event is deployed and used in production, its schema MUST NOT   ║
+ * ║  be modified in any backward-incompatible way. Events are persisted      ║
+ * ║  forever and replayed to rebuild state.                                  ║
+ * ║                                                                           ║
+ * ║  FORBIDDEN CHANGES:                                                       ║
+ * ║  ❌ Adding required fields (old events won't have them)                   ║
+ * ║  ❌ Removing fields (old events still contain them)                       ║
+ * ║  ❌ Changing field types (breaks deserialization)                         ║
+ * ║  ❌ Renaming the event name (old events use the old name)                 ║
+ * ║                                                                           ║
+ * ║  ALLOWED CHANGES:                                                         ║
+ * ║  ✅ Adding optional fields with Schema.optional() or Schema.NullOr()     ║
+ * ║  ✅ Creating new events (use v2.EventName for breaking changes)          ║
+ * ║  ✅ Deprecating events (stop emitting, keep materializer for replay)     ║
+ * ║                                                                           ║
+ * ║  If you need a breaking change, create a NEW event (e.g., v2.LinkCreated)║
+ * ║  and handle migration in materializers or via a data migration script.   ║
+ * ║                                                                           ║
+ * ╚═══════════════════════════════════════════════════════════════════════════╝
+ */
+
 export const tables = {
   linkInteractions: State.SQLite.table({
     columns: {
