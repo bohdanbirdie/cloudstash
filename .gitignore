@@ -15,3 +15,6 @@ todos.json
 
 # Localflare generated files
 .localflare/
+
+# Local reference repos
+readonly-llm-lookup/
