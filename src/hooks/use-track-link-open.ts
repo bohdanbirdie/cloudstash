@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 
+import { track } from "@/lib/analytics";
 import { events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
 
@@ -16,6 +17,7 @@ export function useTrackLinkOpen() {
           type: "opened",
         })
       );
+      track("link_opened");
     },
     [store]
   );

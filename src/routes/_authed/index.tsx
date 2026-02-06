@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback } from "react";
 
 import { LinksPageLayout } from "@/components/links-page-layout";
+import { track } from "@/lib/analytics";
 import { inboxProjection } from "@/lib/link-projections";
 import { inboxLinks$, type LinkWithDetails } from "@/livestore/queries";
 import { events } from "@/livestore/schema";
@@ -23,6 +24,7 @@ function HomePage() {
           events.linkCompleted({ completedAt: new Date(), id: link.id })
         );
       }
+      track("bulk_action_used", { action: "complete", count: selected.length });
     },
     [store]
   );
@@ -34,6 +36,7 @@ function HomePage() {
           events.linkDeleted({ deletedAt: new Date(), id: link.id })
         );
       }
+      track("bulk_action_used", { action: "delete", count: selected.length });
     },
     [store]
   );

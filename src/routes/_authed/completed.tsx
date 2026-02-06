@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback } from "react";
 
 import { LinksPageLayout } from "@/components/links-page-layout";
+import { track } from "@/lib/analytics";
 import { completedProjection } from "@/lib/link-projections";
 import { completedLinks$, type LinkWithDetails } from "@/livestore/queries";
 import { events } from "@/livestore/schema";
@@ -21,6 +22,10 @@ function CompletedPage() {
       for (const link of selected) {
         store.commit(events.linkUncompleted({ id: link.id }));
       }
+      track("bulk_action_used", {
+        action: "uncomplete",
+        count: selected.length,
+      });
     },
     [store]
   );
@@ -32,6 +37,7 @@ function CompletedPage() {
           events.linkDeleted({ deletedAt: new Date(), id: link.id })
         );
       }
+      track("bulk_action_used", { action: "delete", count: selected.length });
     },
     [store]
   );

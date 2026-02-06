@@ -29,6 +29,7 @@ import {
 import { HotkeyButton } from "@/components/ui/hotkey-button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { track } from "@/lib/analytics";
 import { linkById$ } from "@/livestore/queries";
 import { tables, events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
@@ -316,6 +317,7 @@ function AddLinkDialogContent({
       );
     }
 
+    track("link_added");
     onClose();
   };
 

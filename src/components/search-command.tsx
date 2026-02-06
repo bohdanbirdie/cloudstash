@@ -1,6 +1,6 @@
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { ArrowRightIcon } from "lucide-react";
-import { useEffect, useMemo, useState, useDeferredValue } from "react";
+import { useEffect, useMemo, useState, useDeferredValue, useRef } from "react";
 
 import { useLinkDetailDialog } from "@/components/link-detail-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,7 @@ import {
 import { HighlightedText } from "@/components/ui/highlighted-text";
 import { buildPages } from "@/config/pages";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
+import { track } from "@/lib/analytics";
 import {
   recentlyOpenedLinks$,
   searchLinks$,
@@ -145,6 +146,15 @@ export function SearchCommand() {
   const recentLinks = store.useQuery(recentlyOpenedLinks$);
   const searchResults = store.useQuery(searchLinks$(deferredQuery));
   const showSearchResults = deferredQuery.length > 0;
+  const lastTrackedQuery = useRef<string>("");
+
+  // Track search when query changes and has results
+  useEffect(() => {
+    if (deferredQuery && deferredQuery !== lastTrackedQuery.current) {
+      lastTrackedQuery.current = deferredQuery;
+      track("search_used", { results_count: searchResults.length });
+    }
+  }, [deferredQuery, searchResults.length]);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {

@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Markdown } from "@/components/ui/markdown";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { track } from "@/lib/analytics";
 import {
   generateLinksMarkdown,
   generatePlainLinks,
@@ -45,6 +46,7 @@ export function ExportDialog({
     await navigator.clipboard.writeText(currentContent);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+    track("export_used", { method: "copy", format: activeTab });
   };
 
   const handleDownload = () => {
@@ -59,6 +61,7 @@ export function ExportDialog({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    track("export_used", { method: "download", format: activeTab });
   };
 
   return (

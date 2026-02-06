@@ -13,6 +13,7 @@ import { ChatEditor } from "@/components/chat/lexical/chat-editor";
 import { Thinking } from "@/components/ui/thinking";
 import { APPROVAL } from "@/components/ui/tool";
 import { useWorkspaceChat } from "@/hooks/use-workspace-chat";
+import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { SLASH_COMMANDS, type SlashCommand } from "@/shared/slash-commands";
 import { requiresConfirmation } from "@/shared/tool-config";
@@ -46,6 +47,7 @@ export function ChatContent({ workspaceId }: ChatContentProps) {
     (text: string) => {
       if (!isConnected || isStreaming || hasPendingConfirmation) return;
       sendMessage({ role: "user", parts: [{ type: "text", text }] });
+      track("chat_message_sent");
     },
     [isConnected, isStreaming, hasPendingConfirmation, sendMessage]
   );
