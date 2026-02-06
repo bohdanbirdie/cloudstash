@@ -124,7 +124,7 @@ export function ChatContent({ workspaceId }: ChatContentProps) {
 
         <div
           className={cn(
-            "absolute bottom-0 left-0 right-0 bg-background border-input rounded-xl border shadow-xs mb-3",
+            "absolute bottom-0 left-0 right-0 bg-background border-input rounded-xl border shadow-xs mb-3 mx-2",
             hasPendingConfirmation && "opacity-60"
           )}
         >
