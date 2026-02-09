@@ -117,9 +117,22 @@ export const handleGetMe = (request: Request, env: Env): Promise<Response> =>
             Response.json({ error: "Unauthorized" }, { status: 401 })
           );
         },
+      }),
+      Effect.catchAllDefect((defect) => {
+        logger.error("Unexpected error in /me", {
+          error: defect instanceof Error ? defect.message : String(defect),
+        });
+        return Effect.succeed(
+          Response.json({ error: "Internal server error" }, { status: 500 })
+        );
       })
     )
-  );
+  ).catch((error: unknown) => {
+    logger.error("Unhandled error in /me", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return Response.json({ error: "Internal server error" }, { status: 500 });
+  });
 
 const getFullOrganization = (
   auth: Auth,

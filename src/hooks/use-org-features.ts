@@ -8,11 +8,18 @@ export type { OrgFeatures };
 
 async function fetchMe(): Promise<MeResponse> {
   const res = await fetch("/api/auth/me");
+  if (!res.ok) {
+    throw new Error(`/me failed: ${res.status}`);
+  }
   return res.json();
 }
 
 export function useOrgFeatures() {
-  const { data } = useSWR("/api/auth/me", fetchMe);
+  const { data } = useSWR("/api/auth/me", fetchMe, {
+    revalidateOnFocus: false,
+    dedupingInterval: 30_000,
+    errorRetryCount: 2,
+  });
 
   const features = data?.organization?.features ?? {};
 

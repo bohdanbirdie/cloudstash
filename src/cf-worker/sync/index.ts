@@ -22,6 +22,12 @@ let currentSyncBackend: {
 
 export class SyncBackendDO extends SyncBackend.makeDurableObject({
   onPush: async (message, context) => {
+    logger.info("Push received", {
+      storeId: maskId(context.storeId),
+      batchSize: message.batch.length,
+      events: message.batch.map((e) => e.name),
+    });
+
     const hasLinkCreated = message.batch.some(
       (event) => event.name === "v1.LinkCreated"
     );
@@ -59,6 +65,9 @@ const validatePayload = (
   Effect.gen(function* validatePayload() {
     const cookie = context.headers.get("cookie");
     if (!cookie) {
+      logger.warn("Sync auth failed: missing cookie", {
+        storeId: maskId(context.storeId),
+      });
       return yield* new MissingSessionCookieError();
     }
 
@@ -68,15 +77,26 @@ const validatePayload = (
     });
 
     if (!session?.session) {
+      logger.warn("Sync auth failed: invalid session", {
+        storeId: maskId(context.storeId),
+      });
       return yield* new InvalidSessionError();
     }
 
     if (session.session.activeOrganizationId !== context.storeId) {
+      logger.warn("Sync auth failed: org mismatch", {
+        storeId: maskId(context.storeId),
+        sessionOrgId: maskId(session.session.activeOrganizationId ?? "none"),
+      });
       return yield* new OrgAccessDeniedError({
         sessionOrgId: session.session.activeOrganizationId ?? null,
         storeId: context.storeId,
       });
     }
+
+    logger.debug("Sync auth OK", {
+      storeId: maskId(context.storeId),
+    });
   }).pipe(Effect.runPromise);
 
 type SyncSearchParams = NonNullable<
