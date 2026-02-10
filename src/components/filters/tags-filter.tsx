@@ -1,12 +1,17 @@
-import { TagIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, TagIcon } from "lucide-react";
 import { useMemo } from "react";
 
 import { FilterChip } from "@/components/filters/filter-chip";
+import { Button } from "@/components/ui/button";
 import {
-  FilterDropdown,
-  FilterDropdownCheckboxItem,
-  FilterDropdownSeparator,
-} from "@/components/filters/filter-dropdown";
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useTagFilter } from "@/hooks/use-tag-filter";
 import { track } from "@/lib/analytics";
 import { getTagColor, tagColorStyles } from "@/lib/tag-colors";
@@ -42,51 +47,71 @@ export function TagsFilterDropdown() {
   };
 
   return (
-    <FilterDropdown
-      label="Tags"
-      icon={<TagIcon className="h-4 w-4" />}
-      hasActiveFilters={hasActiveFilters}
-    >
-      <FilterDropdownCheckboxItem
-        checked={untagged}
-        onCheckedChange={handleToggleUntagged}
-      >
-        <span className="h-2 w-2 rounded-full bg-gray-400 ring-1 ring-white" />
-        <span className="text-muted-foreground">Untagged</span>
-      </FilterDropdownCheckboxItem>
-
-      {allTags.length > 0 && <FilterDropdownSeparator />}
-
-      {allTags.map((tag) => {
-        const color = getTagColor(tag.name);
-        const styles = tagColorStyles[color];
-        const count = getCountForTag(tag.id);
-        const isSelected = tags.includes(tag.id);
-
-        return (
-          <FilterDropdownCheckboxItem
-            key={tag.id}
-            checked={isSelected}
-            onCheckedChange={() => handleToggleTag(tag.id)}
+    <Popover>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-8 gap-1.5 text-sm",
+              hasActiveFilters && "border-primary/50 bg-primary/5"
+            )}
           >
-            <span
-              className={cn(
-                "h-2 w-2 rounded-full ring-1 ring-white",
-                styles.dot
-              )}
-            />
-            <span>{tag.name}</span>
-            <span className="ml-auto text-muted-foreground">{count}</span>
-          </FilterDropdownCheckboxItem>
-        );
-      })}
+            <TagIcon className="h-4 w-4" />
+            Tags
+            <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
+          </Button>
+        }
+      />
+      <PopoverContent className="w-56 p-0">
+        <Command>
+          <CommandInput placeholder="Search tags..." />
+          <CommandList>
+            <CommandEmpty>No tags found</CommandEmpty>
 
-      {allTags.length === 0 && (
-        <div className="py-3 text-center text-sm text-muted-foreground">
-          No tags yet
-        </div>
-      )}
-    </FilterDropdown>
+            <CommandItem onSelect={handleToggleUntagged}>
+              <span className="h-2 w-2 rounded-full bg-gray-400 ring-1 ring-white" />
+              <span className="text-muted-foreground">Untagged</span>
+              {untagged && <CheckIcon className="ml-auto h-4 w-4" />}
+            </CommandItem>
+
+            {allTags.length > 0 && <CommandSeparator />}
+
+            {allTags.map((tag) => {
+              const color = getTagColor(tag.name);
+              const styles = tagColorStyles[color];
+              const count = getCountForTag(tag.id);
+              const isSelected = tags.includes(tag.id);
+
+              return (
+                <CommandItem
+                  key={tag.id}
+                  value={tag.name}
+                  onSelect={() => handleToggleTag(tag.id)}
+                >
+                  <span
+                    className={cn(
+                      "h-2 w-2 rounded-full ring-1 ring-white",
+                      styles.dot
+                    )}
+                  />
+                  <span>{tag.name}</span>
+                  <span className="ml-auto text-muted-foreground">{count}</span>
+                  {isSelected && <CheckIcon className="ml-2 h-4 w-4" />}
+                </CommandItem>
+              );
+            })}
+
+            {allTags.length === 0 && (
+              <div className="py-3 text-center text-sm text-muted-foreground">
+                No tags yet
+              </div>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 
