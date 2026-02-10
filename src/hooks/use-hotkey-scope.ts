@@ -7,15 +7,16 @@ export function useHotkeyScope(
 ) {
   const { enableScope, disableScope } = useHotkeysContext();
   const enabled = options?.enabled ?? true;
-  const disableScopes = options?.disableScopes;
+  const disableScopesKey = options?.disableScopes?.join(",") ?? "";
 
   useEffect(() => {
     if (!enabled) return;
-    disableScopes?.forEach((s) => disableScope(s));
+    const scopesToDisable = disableScopesKey ? disableScopesKey.split(",") : [];
+    scopesToDisable.forEach((s) => disableScope(s));
     enableScope(scope);
     return () => {
       disableScope(scope);
-      disableScopes?.forEach((s) => enableScope(s));
+      scopesToDisable.forEach((s) => enableScope(s));
     };
-  }, [scope, enabled, disableScopes, enableScope, disableScope]);
+  }, [scope, enabled, disableScopesKey, enableScope, disableScope]);
 }

@@ -2,12 +2,17 @@ import { DownloadIcon } from "lucide-react";
 import { useState, useCallback } from "react";
 
 import { ExportDialog } from "@/components/export-dialog";
+import { FilterBar } from "@/components/filters/filter-bar";
+import {
+  TagsFilterChips,
+  TagsFilterDropdown,
+} from "@/components/filters/tags-filter";
 import { LinkGrid, ViewSwitcher } from "@/components/link-card";
 import { useLinkDetailDialog } from "@/components/link-detail-dialog";
 import { SelectionToolbar } from "@/components/selection-toolbar";
-import { TagFilterBar } from "@/components/tags/tag-filter-bar";
 import { Button } from "@/components/ui/button";
 import { useFilteredLinks } from "@/hooks/use-filtered-links";
+import { useTagFilter } from "@/hooks/use-tag-filter";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
 import { type LinkProjection } from "@/lib/link-projections";
 import { type LinkWithDetails } from "@/livestore/queries/links";
@@ -39,6 +44,7 @@ export function LinksPageLayout({
   const clear = useSelectionStore((s) => s.clear);
   const trackLinkOpen = useTrackLinkOpen();
   const { open: openDialog } = useLinkDetailDialog();
+  const { hasFilters, clearFilters } = useTagFilter();
 
   const { links, totalCount, filteredCount } = useFilteredLinks(
     projection,
@@ -85,9 +91,15 @@ export function LinksPageLayout({
         </div>
       </div>
 
-      <div className="mb-4">
-        <TagFilterBar totalCount={totalCount} filteredCount={filteredCount} />
-      </div>
+      <FilterBar
+        dropdowns={<TagsFilterDropdown />}
+        chips={<TagsFilterChips />}
+        totalCount={totalCount}
+        filteredCount={filteredCount}
+        hasFilters={hasFilters}
+        onClearAll={clearFilters}
+        className="mb-4"
+      />
 
       <LinkGrid
         links={links}
