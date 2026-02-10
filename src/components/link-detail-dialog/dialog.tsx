@@ -13,6 +13,7 @@ import { useState } from "react";
 
 import { LinkImage } from "@/components/link-card";
 import { TagCombobox } from "@/components/tags/tag-combobox";
+import { TagSuggestions } from "@/components/tags/tag-suggestions";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -264,6 +265,8 @@ export function LinkDetailDialogContent({
               placeholder="Add tags..."
             />
           </div>
+
+          <TagSuggestions linkId={link.id} />
 
           <div className="text-xs text-muted-foreground pt-2 border-t">
             Saved on {formattedDate}

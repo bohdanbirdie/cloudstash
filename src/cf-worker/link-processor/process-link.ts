@@ -1,11 +1,12 @@
 import { nanoid } from "@livestore/livestore";
 import { Effect } from "effect";
 
-import { events } from "../../livestore/schema";
+import { events, tables } from "../../livestore/schema";
 import { safeErrorInfo } from "../log-utils";
 import { fetchOgMetadata } from "../metadata/service";
 import { type Env } from "../shared";
 import { fetchAndExtractContent } from "./content-extractor";
+import { findMatchingTag } from "./fuzzy-match";
 import { generateSummary } from "./generate-summary";
 import { AI_MODEL, type LinkStore } from "./types";
 
@@ -77,6 +78,8 @@ export const processLink = ({
     }
 
     if (aiSummaryEnabled) {
+      const existingTags = store.query(tables.tags.where({ deletedAt: null }));
+
       const extractedContent = yield* Effect.tryPromise({
         catch: (error) => new Error(`Content extraction failed: ${error}`),
         try: () => fetchAndExtractContent(link.url),
@@ -101,31 +104,52 @@ export const processLink = ({
         yield* Effect.logWarning("No content extracted");
       }
 
-      const summaryContent = yield* generateSummary({
+      const result = yield* generateSummary({
         env,
+        existingTags,
         extractedContent,
         metadata: metadataResult,
         url: link.url,
       }).pipe(Effect.withSpan("generateSummary"));
 
-      if (summaryContent) {
+      if (result.summary) {
         store.commit(
           events.linkSummarized({
             id: nanoid(),
             linkId: link.id,
             model: AI_MODEL,
             summarizedAt: new Date(),
-            summary: summaryContent,
+            summary: result.summary,
           })
         );
         yield* Effect.logInfo("Summary generated").pipe(
           Effect.annotateLogs({
             model: AI_MODEL,
-            summaryLength: summaryContent.length,
+            summaryLength: result.summary.length,
           })
         );
       } else {
         yield* Effect.logWarning("No summary generated");
+      }
+
+      for (const suggestion of result.suggestedTags) {
+        const matchedTag = findMatchingTag(suggestion, existingTags);
+        store.commit(
+          events.tagSuggested({
+            id: nanoid(),
+            linkId: link.id,
+            model: AI_MODEL,
+            suggestedAt: new Date(),
+            suggestedName: matchedTag?.name ?? suggestion,
+            tagId: matchedTag?.id ?? null,
+          })
+        );
+      }
+
+      if (result.suggestedTags.length > 0) {
+        yield* Effect.logInfo("Tag suggestions emitted").pipe(
+          Effect.annotateLogs({ count: result.suggestedTags.length })
+        );
       }
     } else {
       yield* Effect.logDebug("AI summaries disabled, skipping");

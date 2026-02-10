@@ -33,12 +33,12 @@ The livestore library ships with `Schedule.fixed(1000)` — infinite 1-second re
 
 ```typescript
 // Before
-retryTransientErrors: Schedule.fixed(1000)
+retryTransientErrors: Schedule.fixed(1000);
 
 // After — 1s → 2s → 4s → 8s → 16s → stop
-retryTransientErrors: Schedule.exponential('1 seconds', 2).pipe(
+retryTransientErrors: Schedule.exponential("1 seconds", 2).pipe(
   Schedule.intersect(Schedule.recurs(5))
-)
+);
 ```
 
 5 attempts over 31 seconds instead of 60+/min indefinitely. After exhausting retries, the UI shows "Sync paused".

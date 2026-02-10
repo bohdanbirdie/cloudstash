@@ -924,79 +924,245 @@ TagCombobox now uses inline layout (Linear-style):
 - Renaming only changes display name, not the slug (ID is primary key used in link_tags FK)
 - Tag deletion cascades to link_tags via materializer (soft-deletes tag, hard-deletes associations)
 
-### Phase 5: AI Auto-Tagging (Future)
+### Phase 5: AI Tag Suggestions ✅
 
-- [ ] Add auto-tag toggle in settings (opt-in)
-- [ ] Agent suggests tags after link processing
-- [ ] User approves/dismisses suggestions
+Extends the existing AI summary feature to also suggest 1-2 relevant tags per link.
+
+- [x] Add `tag_suggestions` table and events to schema
+- [x] Modify summary generation to include tag suggestions in single LLM call
+- [x] Add fuzzy matching to prefer existing tags over creating duplicates
+- [x] Build TagSuggestions UI component for link detail dialog
+- [x] Integrate suggestions into link detail dialog
+
+**Feature flag:** Uses existing `org.features.aiSummary` (no separate toggle)
+
+**Known Issues:**
+
+- [ ] **Sync resilience:** When LinkProcessorDO emits events but sync fails (e.g., `ServerAheadError`), the UI remains stuck in loading state showing "Generating summary..." even though processing completed successfully on the worker. Need to investigate retry/recovery mechanism for failed pushes from Durable Objects.
 
 ---
 
-## Future: AI Auto-Tagging
+## Phase 5: AI Tag Suggestions (Detailed Spec)
 
-The chat agent can automatically suggest tags for new links based on content analysis.
+### Overview
 
-### How It Works
+When a link is processed and AI summary is enabled, the LLM also suggests 1-2 tags based on page content. Suggestions are stored separately and shown in the link detail dialog for user approval.
 
-1. **After link processing** - Once metadata/summary is fetched, agent analyzes content
-2. **Match against existing tags** - Prefer user's existing tags over creating new ones
-3. **Suggest with confidence** - Show suggestions with approve/dismiss UI
-4. **Learn from feedback** - Track which suggestions user accepts/rejects
+### Architecture
 
-### Implementation Sketch
+```
+LinkProcessorDO detects pending link
+    ↓
+1. Fetch page content + metadata (existing flow)
+2. Query existing tags for this org
+3. Call LLM with content + existing tag names
+    ↓
+LLM returns:
+{
+  "summary": "Article about React performance optimization...",
+  "suggestedTags": ["react", "performance"]
+}
+    ↓
+4. For each suggestion:
+   - Fuzzy match against existing tags
+   - If match found → store with tagId reference
+   - If no match → store as new tag suggestion
+    ↓
+5. Emit tagSuggested events
+    ↓
+UI shows pending suggestions in link detail dialog
+    ↓
+User accepts/dismisses each suggestion
+```
+
+### Schema
+
+**Table: `tag_suggestions`**
 
 ```typescript
-// During link processing pipeline
-async function suggestTags(link: Link, summary: string, existingTags: Tag[]) {
-  const prompt = `
-    Given this link:
-    URL: ${link.url}
-    Title: ${link.title}
-    Summary: ${summary}
+tagSuggestions: State.SQLite.table({
+  name: "tag_suggestions",
+  columns: {
+    id: State.SQLite.text({ primaryKey: true }),
+    linkId: State.SQLite.text({ default: "" }),
+    tagId: State.SQLite.text({ nullable: true }),  // null if suggesting new tag
+    suggestedName: State.SQLite.text({ default: "" }),  // always present
+    status: State.SQLite.text({ default: "pending" }),  // pending | accepted | dismissed
+    model: State.SQLite.text({ default: "" }),
+    suggestedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+  },
+  indexes: [
+    { name: "idx_tag_suggestions_link", columns: ["linkId"] },
+  ],
+}),
+```
 
-    And these existing tags: ${existingTags.map((t) => t.name).join(", ")}
+**Events:**
 
-    Suggest 1-3 tags that best categorize this content.
-    Prefer existing tags when they fit. Only suggest new tags if necessary.
-    Return JSON: { "tags": ["tag1", "tag2"], "newTags": ["suggested-new-tag"] }
-  `;
+```typescript
+// LLM suggests a tag during link processing
+tagSuggested: Events.synced({
+  name: "v1.TagSuggested",
+  schema: Schema.Struct({
+    id: Schema.String,
+    linkId: Schema.String,
+    tagId: Schema.NullOr(Schema.String),  // null if new tag
+    suggestedName: Schema.String,
+    model: Schema.String,
+    suggestedAt: Schema.Date,
+  }),
+}),
 
-  // Call LLM, parse response, create TagSuggestion records
+// User accepts a suggestion
+tagSuggestionAccepted: Events.synced({
+  name: "v1.TagSuggestionAccepted",
+  schema: Schema.Struct({
+    id: Schema.String,
+  }),
+}),
+
+// User dismisses a suggestion
+tagSuggestionDismissed: Events.synced({
+  name: "v1.TagSuggestionDismissed",
+  schema: Schema.Struct({
+    id: Schema.String,
+  }),
+}),
+```
+
+**Materializers:**
+
+```typescript
+"v1.TagSuggested": ({ id, linkId, tagId, suggestedName, model, suggestedAt }) =>
+  tables.tagSuggestions.insert({ id, linkId, tagId, suggestedName, status: "pending", model, suggestedAt }),
+
+"v1.TagSuggestionAccepted": ({ id }) =>
+  tables.tagSuggestions.update({ status: "accepted" }).where({ id }),
+
+"v1.TagSuggestionDismissed": ({ id }) =>
+  tables.tagSuggestions.update({ status: "dismissed" }).where({ id }),
+```
+
+### Fuzzy Matching
+
+Simple O(n) matching against existing tags (n typically <100):
+
+```typescript
+function findMatchingTag(suggestion: string, existingTags: Tag[]): Tag | null {
+  const normalized = suggestion.toLowerCase().trim();
+
+  // 1. Exact match (case-insensitive)
+  const exact = existingTags.find((t) => t.name.toLowerCase() === normalized);
+  if (exact) return exact;
+
+  // 2. Substring match (e.g., "agent" ↔ "llm-agents")
+  const partial = existingTags.find((t) => {
+    const existing = t.name.toLowerCase();
+    return existing.includes(normalized) || normalized.includes(existing);
+  });
+  if (partial) return partial;
+
+  return null; // New tag suggestion
 }
 ```
 
-### UI: Tag Suggestions
+### LLM Prompt Changes
 
-Show pending suggestions in link detail or as a notification badge:
+Modify `generate-summary.ts` system prompt:
 
-```tsx
-function TagSuggestions({ linkId }: { linkId: string }) {
-  const suggestions = useQuery(pendingSuggestions$(linkId));
+```typescript
+const SYSTEM_PROMPT = `You are a web page summarization tool. Your ONLY function is to:
+1. Produce a 2-3 sentence summary of the page content
+2. Suggest 1-2 relevant tags for categorization
 
-  if (!suggestions.length) return null;
+Output JSON only: {"summary": "...", "suggestedTags": ["tag1", "tag2"]}
 
-  return (
-    <div className="flex items-center gap-2 p-2 bg-muted rounded">
-      <Sparkles className="h-4 w-4 text-yellow-500" />
-      <span className="text-sm">Suggested:</span>
-      {suggestions.map((s) => (
-        <TagBadge
-          key={s.tagId}
-          tag={s.tag}
-          onAccept={() => acceptSuggestion(s)}
-          onDismiss={() => dismissSuggestion(s)}
-        />
-      ))}
-    </div>
+Tag guidelines:
+- STRONGLY prefer tags from the user's existing list when they fit
+- Only suggest new tags if nothing existing applies
+- Use lowercase, hyphenated names (e.g., "react-hooks", "machine-learning")
+- Maximum 2 tags per link
+`;
+
+// User message includes existing tags
+const userMessage = `
+<existing-tags>${existingTags.map((t) => t.name).join(", ")}</existing-tags>
+
+<content>${sanitizedContent}</content>
+`;
+```
+
+### Queries
+
+```typescript
+// Pending suggestions for a specific link
+export const pendingSuggestionsForLink$ = (linkId: string) =>
+  queryDb(
+    {
+      query: `
+      SELECT ts.*, t.name as existingTagName
+      FROM tag_suggestions ts
+      LEFT JOIN tags t ON ts.tagId = t.id
+      WHERE ts.linkId = ? AND ts.status = 'pending'
+      ORDER BY ts.suggestedAt ASC
+    `,
+      bindValues: [linkId],
+      schema: Schema.Array(TagSuggestionSchema),
+    },
+    { label: `pendingSuggestions:${linkId}` }
   );
-}
+
+// Count of pending suggestions (for badge/indicator)
+export const pendingSuggestionsCount$ = queryDb(
+  {
+    query: `SELECT COUNT(*) as count FROM tag_suggestions WHERE status = 'pending'`,
+    schema: Schema.Struct({ count: Schema.Number }),
+  },
+  { label: "pendingSuggestionsCount" }
+);
 ```
 
-### Settings
+### UI Component
 
-- **Auto-tag new links** - Toggle on/off
-- **Auto-accept high-confidence** - Skip approval for >90% confidence matches
-- **Suggest new tags** - Allow agent to propose tags that don't exist yet
+**File:** `src/components/tags/tag-suggestions.tsx`
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ ✨ Suggested tags                                               │
+│                                                                 │
+│ ┌─────────────────────┐  ┌─────────────────────┐                │
+│ │ #react        ✓  ✕  │  │ #new-tag      ✓  ✕  │                │
+│ │ (existing)          │  │ (create new)        │                │
+│ └─────────────────────┘  └─────────────────────┘                │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+- Shows pending suggestions with Accept (✓) / Dismiss (✕) buttons
+- Visual distinction between existing tags and new tag suggestions
+- **Accept existing tag:** emit `linkTagged` + `tagSuggestionAccepted`
+- **Accept new tag:** emit `tagCreated` + `linkTagged` + `tagSuggestionAccepted`
+- **Dismiss:** emit `tagSuggestionDismissed`
+
+### Files to Create/Modify
+
+| File                                               | Action                           |
+| -------------------------------------------------- | -------------------------------- |
+| `src/livestore/schema.ts`                          | Add table, events, materializers |
+| `src/livestore/queries/tags.ts`                    | Add suggestion queries           |
+| `src/cf-worker/link-processor/generate-summary.ts` | Update prompt, parse suggestions |
+| `src/cf-worker/link-processor/fuzzy-match.ts`      | New: simple fuzzy matcher        |
+| `src/components/tags/tag-suggestions.tsx`          | New: UI component                |
+| `src/components/link-detail-dialog/dialog.tsx`     | Integrate suggestions            |
+
+### Design Decisions
+
+| Decision        | Choice                     | Rationale                                                    |
+| --------------- | -------------------------- | ------------------------------------------------------------ |
+| Single LLM call | Yes                        | No extra latency/cost, full page context available           |
+| Feature flag    | Reuse `aiSummary`          | Logically coupled, simplifies settings                       |
+| Fuzzy matching  | Simple substring           | Fast, handles common duplicates like "agent" vs "llm-agents" |
+| Max suggestions | 2 per link                 | Avoid overwhelming user, focus on quality                    |
+| Status tracking | pending/accepted/dismissed | Enables future analytics on suggestion quality               |
 
 ---
 
@@ -1024,7 +1190,8 @@ Tag input UX patterns researched from:
 - [WAI-ARIA Listbox Pattern](https://www.w3.org/WAI/ARIA/apg/patterns/listbox/) - Multi-select
 - [Ariakit Combobox Multiple](https://ariakit.org/examples/combobox-multiple) - Implementation reference
 
-## Open Questions (Future Phases)
+## Resolved Questions
 
-1. **Auto-tag timing** - During processing (async) or on-demand when viewing link?
-2. **AI tag creation** - Should AI create new tags, or only suggest from existing?
+1. **Auto-tag timing** - During processing (same LLM call as summary generation)
+2. **AI tag creation** - AI can suggest new tags, but user must approve before creation
+3. **Duplicate prevention** - Fuzzy matching prefers existing tags over creating similar ones

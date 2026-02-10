@@ -119,6 +119,19 @@ export const tables = {
     },
     name: "tags",
   }),
+  tagSuggestions: State.SQLite.table({
+    columns: {
+      id: State.SQLite.text({ primaryKey: true }),
+      linkId: State.SQLite.text({ default: "" }),
+      tagId: State.SQLite.text({ nullable: true }),
+      suggestedName: State.SQLite.text({ default: "" }),
+      status: State.SQLite.text({ default: "pending" }),
+      model: State.SQLite.text({ default: "" }),
+      suggestedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+    },
+    indexes: [{ columns: ["linkId"], name: "idx_tag_suggestions_link" }],
+    name: "tag_suggestions",
+  }),
 };
 
 export const events = {
@@ -247,6 +260,30 @@ export const events = {
       id: Schema.String,
     }),
   }),
+
+  tagSuggested: Events.synced({
+    name: "v1.TagSuggested",
+    schema: Schema.Struct({
+      id: Schema.String,
+      linkId: Schema.String,
+      model: Schema.String,
+      suggestedAt: Schema.Date,
+      suggestedName: Schema.String,
+      tagId: Schema.NullOr(Schema.String),
+    }),
+  }),
+  tagSuggestionAccepted: Events.synced({
+    name: "v1.TagSuggestionAccepted",
+    schema: Schema.Struct({
+      id: Schema.String,
+    }),
+  }),
+  tagSuggestionDismissed: Events.synced({
+    name: "v1.TagSuggestionDismissed",
+    schema: Schema.Struct({
+      id: Schema.String,
+    }),
+  }),
 };
 
 const materializers = State.SQLite.materializers(events, {
@@ -317,6 +354,28 @@ const materializers = State.SQLite.materializers(events, {
       .insert({ createdAt, id, linkId, tagId })
       .onConflict("id", "ignore"),
   "v1.LinkUntagged": ({ id }) => tables.linkTags.delete().where({ id }),
+
+  "v1.TagSuggested": ({
+    id,
+    linkId,
+    tagId,
+    suggestedName,
+    model,
+    suggestedAt,
+  }) =>
+    tables.tagSuggestions.insert({
+      id,
+      linkId,
+      model,
+      status: "pending",
+      suggestedAt,
+      suggestedName,
+      tagId,
+    }),
+  "v1.TagSuggestionAccepted": ({ id }) =>
+    tables.tagSuggestions.update({ status: "accepted" }).where({ id }),
+  "v1.TagSuggestionDismissed": ({ id }) =>
+    tables.tagSuggestions.update({ status: "dismissed" }).where({ id }),
 });
 
 const state = State.SQLite.makeState({ materializers, tables });

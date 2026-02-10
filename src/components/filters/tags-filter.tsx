@@ -11,7 +11,11 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useTagFilter } from "@/hooks/use-tag-filter";
 import { track } from "@/lib/analytics";
 import { getTagColor, tagColorStyles } from "@/lib/tag-colors";

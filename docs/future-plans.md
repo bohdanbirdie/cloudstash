@@ -105,6 +105,27 @@ Allow users to provide their own LLM API keys instead of using shared Groq key.
 
 ---
 
+## Technical Improvements
+
+### Clear OPFS on Logout
+
+Clear the Origin Private File System (OPFS) data when users log out to prevent stale LiveStore state from persisting across sessions.
+
+- Ensures clean slate for different users on same device
+- Prevents sync conflicts when logging into different accounts
+- Call `navigator.storage.getDirectory()` and clear on logout
+
+### LiveStore Event Log Viewer
+
+Add a debug UI to inspect the full LiveStore event log for troubleshooting sync issues.
+
+- API endpoint to fetch paginated event history
+- UI in settings/debug panel showing events with timestamps
+- Filter by event type, date range
+- Useful for diagnosing sync failures and data issues
+
+---
+
 ## Technical Review
 
 ### Rate Limiting Approach

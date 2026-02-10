@@ -1,6 +1,11 @@
 import { queryDb, Schema } from "@livestore/livestore";
 
-import { TagSchema, TagCountSchema, TagWithCountSchema } from "./schemas";
+import {
+  TagCountSchema,
+  TagSchema,
+  TagSuggestionSchema,
+  TagWithCountSchema,
+} from "./schemas";
 
 export type { Tag, TagWithCount } from "./schemas";
 
@@ -82,3 +87,17 @@ export const untaggedCount$ = queryDb(
   }),
   { label: "untaggedCount" }
 );
+
+export const pendingSuggestionsForLink$ = (linkId: string) =>
+  queryDb(
+    {
+      bindValues: [linkId],
+      query: `
+        SELECT * FROM tag_suggestions
+        WHERE linkId = ? AND status = 'pending'
+        ORDER BY suggestedAt ASC
+      `,
+      schema: Schema.Array(TagSuggestionSchema),
+    },
+    { label: `pendingSuggestions:${linkId}` }
+  );

@@ -24,6 +24,18 @@ export const TagWithCountSchema = Schema.Struct({
 
 export type TagWithCount = typeof TagWithCountSchema.Type;
 
+export const TagSuggestionSchema = Schema.Struct({
+  id: Schema.String,
+  linkId: Schema.String,
+  tagId: Schema.NullOr(Schema.String),
+  suggestedName: Schema.String,
+  status: Schema.String,
+  model: Schema.String,
+  suggestedAt: Schema.Number,
+});
+
+export type TagSuggestion = typeof TagSuggestionSchema.Type;
+
 export const LinkWithDetailsSchema = Schema.Struct({
   id: Schema.String,
   url: Schema.String,
