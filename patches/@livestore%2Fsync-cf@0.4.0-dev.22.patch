@@ -1,3 +1,19 @@
+diff --git a/node_modules/@livestore/sync-cf/.bun-tag-56179a606b3cd26f b/.bun-tag-56179a606b3cd26f
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/dist/client/transport/ws-rpc-client.js b/dist/client/transport/ws-rpc-client.js
+index bbb5da818dbe825d247694dd6655fe5504bb6a34..a3fdae538129d288192e20402885d3e1235cad32 100644
+--- a/dist/client/transport/ws-rpc-client.js
++++ b/dist/client/transport/ws-rpc-client.js
+@@ -36,7 +36,7 @@ export const makeWsSync = (options) => ({ storeId, payload }) => Effect.gen(func
+     const pingInterval = options.ping?.requestInterval ?? 10_000;
+     const ProtocolLive = RpcClient.layerProtocolSocketWithIsConnected({
+         isConnected,
+-        retryTransientErrors: Schedule.fixed(1000),
++        retryTransientErrors: Schedule.exponential('1 seconds', 2).pipe(Schedule.intersect(Schedule.recurs(5))),
+         pingSchedule: Schedule.once.pipe(Schedule.andThen(Schedule.fixed(pingInterval))),
+         url: wsUrl,
+     }).pipe(Layer.provide(Socket.layerWebSocket(wsUrl)), Layer.provide(Socket.layerWebSocketConstructorGlobal), Layer.provide(RpcSerialization.layerJson));
 diff --git a/src/client/transport/ws-rpc-client.ts b/src/client/transport/ws-rpc-client.ts
 index 61ef5156813396c1b8ce543fb11d32898893893c..10ed2079f18e075e130157c5d405b2496d599aaa 100644
 --- a/src/client/transport/ws-rpc-client.ts

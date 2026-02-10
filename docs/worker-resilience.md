@@ -118,16 +118,16 @@ On 2026-02-10, we investigated DO duration exhaustion. Key findings:
 
 3. **Pings are only for connection health checks** — They detect silent disconnects proactively. Without pings, sync still works; the client just discovers dead connections on the next actual push/pull (1-2s delay).
 
-Solution: Increase ping interval to 5 minutes (from 10s default). This reduces DO wake-ups by 30x while keeping connection health checks.
+Solution: Increase ping interval to 30 minutes (from 10s default). This reduces DO wake-ups by 180x while keeping connection health checks.
 
 ```typescript
 makeWsSync({
   url: `${globalThis.location.origin}/sync`,
-  ping: { requestInterval: 300_000 }, // 5 min
+  ping: { requestInterval: 1_800_000 }, // 30 min
 })
 ```
 
-Trade-off: Slightly slower detection of dead connections. Acceptable for a link-saving app.
+Trade-off: Slower detection of dead connections (up to 30 min). Acceptable for a link-saving app — the connection will be verified on the next actual sync operation anyway.
 
 ## Defense Layers Summary
 
@@ -140,7 +140,7 @@ Trade-off: Slightly slower detection of dead connections. Acceptable for a link-
 | Global SWR       | SWR retry storms on errors        | 3 retries, no focus revalidate |
 | Error boundaries | Unhandled crashes on `/me`        | Effect catchAllDefect          |
 | Logging          | Blind spots in auth/sync failures | Structured warnings            |
-| Ping interval    | Frequent DO wake-ups              | 5 min (default was 10s)        |
+| Ping interval    | Frequent DO wake-ups              | 30 min (default was 10s)       |
 
 ## Still TODO
 
