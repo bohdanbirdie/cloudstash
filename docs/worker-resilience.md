@@ -106,6 +106,29 @@ Individual hooks can override (e.g. `useOrgFeatures` uses `dedupingInterval: 30_
 - `onPush` logs storeId (masked), batch size, and event names
 - `validatePayload` logs warnings on auth failures (missing cookie, invalid session, org mismatch)
 
+## Extended Ping Interval
+
+**File:** `src/livestore.worker.ts`
+
+On 2026-02-10, we investigated DO duration exhaustion. Key findings:
+
+1. **DO hibernation works with WebSockets open** — Cloudflare's WebSocket Hibernation API holds connections at the edge while the DO sleeps. The DO only wakes when a message arrives.
+
+2. **Pings wake the DO** — Livestore's default 10s ping interval means 6 wake-ups/minute/user. Each wake prevents hibernation.
+
+3. **Pings are only for connection health checks** — They detect silent disconnects proactively. Without pings, sync still works; the client just discovers dead connections on the next actual push/pull (1-2s delay).
+
+Solution: Increase ping interval to 5 minutes (from 10s default). This reduces DO wake-ups by 30x while keeping connection health checks.
+
+```typescript
+makeWsSync({
+  url: `${globalThis.location.origin}/sync`,
+  ping: { requestInterval: 300_000 }, // 5 min
+})
+```
+
+Trade-off: Slightly slower detection of dead connections. Acceptable for a link-saving app.
+
 ## Defense Layers Summary
 
 | Layer            | Prevents                          | Config                         |
@@ -117,10 +140,11 @@ Individual hooks can override (e.g. `useOrgFeatures` uses `dedupingInterval: 30_
 | Global SWR       | SWR retry storms on errors        | 3 retries, no focus revalidate |
 | Error boundaries | Unhandled crashes on `/me`        | Effect catchAllDefect          |
 | Logging          | Blind spots in auth/sync failures | Structured warnings            |
+| Ping interval    | Frequent DO wake-ups              | 5 min (default was 10s)        |
 
 ## Still TODO
 
 - [ ] File upstream livestore issue: auth failures should be non-retryable
+- [ ] File upstream livestore issue: `ping.enabled` option is defined but never checked in code
 - [ ] Debounce `triggerLinkProcessor` in `onPush`
 - [ ] Investigate ChatAgentDO's 46% error rate
-- [ ] Consider paid Workers plan ($5/month) for 30ms CPU headroom
