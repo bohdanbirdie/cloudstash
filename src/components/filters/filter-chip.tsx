@@ -22,7 +22,7 @@ export function FilterChip({
       <button
         type="button"
         onClick={onRemove}
-        className="rounded-sm opacity-60 hover:opacity-100"
+        className="rounded-sm opacity-60 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-current"
         aria-label={ariaLabel ?? "Remove filter"}
       >
         <XIcon className="h-3 w-3" />
