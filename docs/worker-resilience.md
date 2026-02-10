@@ -59,7 +59,7 @@ Livestore's `SubscriptionRef.changes` only emits on actual state transitions (tr
 ```toml
 [[ratelimits]]
 name = "SYNC_RATE_LIMITER"
-namespace_id = "cloudstash-api"
+namespace_id = "1001"
 simple = { limit = 30, period = 60 }
 ```
 
