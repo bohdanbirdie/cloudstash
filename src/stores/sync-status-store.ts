@@ -1,9 +1,11 @@
+import { toast } from "sonner";
 import { create } from "zustand";
 
 export type SyncErrorCode =
   | "SESSION_EXPIRED"
   | "ACCESS_DENIED"
   | "UNAPPROVED"
+  | "RATE_LIMITED"
   | "UNKNOWN";
 
 export interface SyncError {
@@ -38,6 +40,17 @@ export async function fetchSyncAuthStatus(
 
     if (res.ok) {
       return { type: "auth_ok" };
+    }
+
+    if (res.status === 429) {
+      toast.warning("Too many requests — sync will resume shortly");
+      return {
+        type: "auth_failed",
+        error: {
+          code: "RATE_LIMITED" as SyncErrorCode,
+          message: "Too many requests. Please wait a moment.",
+        },
+      };
     }
 
     const data = (await res.json()) as { code?: string; message?: string };

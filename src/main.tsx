@@ -2,6 +2,8 @@ import "./styles.css";
 import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { Toaster } from "sonner";
+import { SWRConfig } from "swr";
 
 import { PendingApproval } from "./components/pending-approval";
 import { Spinner } from "./components/ui/spinner";
@@ -37,8 +39,17 @@ function InnerApp() {
 
 createRoot(document.querySelector("#root")!).render(
   <StrictMode>
-    <AuthProvider>
-      <InnerApp />
-    </AuthProvider>
+    <SWRConfig
+      value={{
+        revalidateOnFocus: false,
+        errorRetryCount: 3,
+        dedupingInterval: 10_000,
+      }}
+    >
+      <AuthProvider>
+        <InnerApp />
+      </AuthProvider>
+      <Toaster position="bottom-right" />
+    </SWRConfig>
   </StrictMode>
 );

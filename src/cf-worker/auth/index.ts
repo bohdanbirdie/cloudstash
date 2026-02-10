@@ -96,6 +96,10 @@ export const createAuth = (env: Env, db: Database) => {
     ],
     secret: env.BETTER_AUTH_SECRET,
     session: {
+      cookieCache: {
+        enabled: true,
+        maxAge: 5 * 60, // 5 minutes — avoids D1 call on every getSession()
+      },
       expiresIn: 60 * 60 * 24 * 14, // 14 days
       updateAge: 60 * 60 * 24 * 7, // 7 days - refresh after 7 days of activity
     },

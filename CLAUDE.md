@@ -35,7 +35,8 @@ bun run deploy             # FORBIDDEN
 
 ## Documentation
 
-Feature specs and technical decisions are documented in `docs/specs/`. Check these files for context on features before implementing changes.
+- `docs/specs/` — Feature specs and technical decisions. Check before implementing changes.
+- `docs/` — Architecture docs (auth, worker resilience, telegram bot, etc.). Check before modifying related systems.
 
 ## Conventions
 

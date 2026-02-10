@@ -27,6 +27,7 @@ export interface Env {
   Chat: DurableObjectNamespace<ChatAgentDO>;
   AI: Ai;
   DB: D1Database;
+  SYNC_RATE_LIMITER: RateLimit;
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
   BETTER_AUTH_SECRET: string;

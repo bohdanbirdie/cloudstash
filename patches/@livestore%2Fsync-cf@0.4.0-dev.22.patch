@@ -1,0 +1,13 @@
+diff --git a/src/client/transport/ws-rpc-client.ts b/src/client/transport/ws-rpc-client.ts
+index 61ef5156813396c1b8ce543fb11d32898893893c..10ed2079f18e075e130157c5d405b2496d599aaa 100644
+--- a/src/client/transport/ws-rpc-client.ts
++++ b/src/client/transport/ws-rpc-client.ts
+@@ -95,7 +95,7 @@ export const makeWsSync =
+ 
+       const ProtocolLive = RpcClient.layerProtocolSocketWithIsConnected({
+         isConnected,
+-        retryTransientErrors: Schedule.fixed(1000),
++        retryTransientErrors: Schedule.exponential('1 seconds', 2).pipe(Schedule.intersect(Schedule.recurs(5))),
+         pingSchedule: Schedule.once.pipe(Schedule.andThen(Schedule.fixed(pingInterval))),
+         url: wsUrl,
+       }).pipe(

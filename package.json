@@ -83,6 +83,7 @@
     "resend": "6.9.1",
     "shadcn": "3.7.0",
     "shiki": "3.22.0",
+    "sonner": "2.0.7",
     "swr": "2.3.8",
     "tailwind-merge": "3.4.0",
     "tailwindcss": "^4.0.6",
@@ -119,5 +120,8 @@
     "vitest": "^3.0.5",
     "web-vitals": "^5.1.0",
     "wrangler": "4.63.0"
+  },
+  "patchedDependencies": {
+    "@livestore/sync-cf@0.4.0-dev.22": "patches/@livestore%2Fsync-cf@0.4.0-dev.22.patch"
   }
 }

@@ -50,6 +50,11 @@ migrations_dir = "drizzle/migrations"
 binding = "TELEGRAM_KV"
 id = "2ba7eb003f494031ae9fee505ee6111a"
 
+[[ratelimits]]
+name = "SYNC_RATE_LIMITER"
+namespace_id = "cloudstash-api"
+simple = { limit = 30, period = 60 }
+
 [observability]
 enabled = true
 
@@ -99,3 +104,8 @@ migrations_dir = "drizzle/migrations"
 [[env.staging.kv_namespaces]]
 binding = "TELEGRAM_KV"
 id = "dd0c0cfe847745078e0c7582873a5b86"
+
+[[env.staging.ratelimits]]
+name = "SYNC_RATE_LIMITER"
+namespace_id = "cloudstash-api"
+simple = { limit = 30, period = 60 }

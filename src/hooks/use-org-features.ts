@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { DEFAULT_MONTHLY_BUDGET } from "@/cf-worker/chat-agent/usage";
@@ -8,6 +9,10 @@ export type { OrgFeatures };
 
 async function fetchMe(): Promise<MeResponse> {
   const res = await fetch("/api/auth/me");
+  if (res.status === 429) {
+    toast.warning("Too many requests — please wait a moment");
+    throw new Error("Rate limited");
+  }
   if (!res.ok) {
     throw new Error(`/me failed: ${res.status}`);
   }
@@ -16,9 +21,7 @@ async function fetchMe(): Promise<MeResponse> {
 
 export function useOrgFeatures() {
   const { data } = useSWR("/api/auth/me", fetchMe, {
-    revalidateOnFocus: false,
     dedupingInterval: 30_000,
-    errorRetryCount: 2,
   });
 
   const features = data?.organization?.features ?? {};

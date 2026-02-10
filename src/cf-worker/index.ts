@@ -36,6 +36,32 @@ export { ChatAgentDO } from "./chat-agent";
 
 const logger = logSync("API");
 
+const RATE_LIMITED_PREFIXES = ["/sync", "/api/sync/", "/api/auth/"];
+
+const isRateLimited = (pathname: string): boolean =>
+  RATE_LIMITED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
+
+const checkRateLimit = async (
+  request: CfTypes.Request,
+  env: Env
+): Promise<Response | null> => {
+  const url = new URL(request.url);
+  if (!isRateLimited(url.pathname)) return null;
+
+  const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+  const { success } = await env.SYNC_RATE_LIMITER.limit({ key: ip });
+
+  if (!success) {
+    logger.warn("Rate limited", { ip, path: url.pathname });
+    return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
+      headers: { "Content-Type": "application/json", "Retry-After": "60" },
+      status: 429,
+    });
+  }
+
+  return null;
+};
+
 const app = new Hono<{ Bindings: Env; Variables: HonoVariables }>();
 
 app.get("/api/auth/me", (c) => handleGetMe(c.req.raw, c.env));
@@ -163,6 +189,9 @@ export default {
     env: Env,
     ctx: CfTypes.ExecutionContext
   ) {
+    const rateLimited = await checkRateLimit(request, env);
+    if (rateLimited) return rateLimited;
+
     const url = new URL(request.url);
 
     // Handle agent WebSocket connections (/agents/:agent/:name)
