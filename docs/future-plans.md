@@ -6,7 +6,7 @@ Ideas for future features and improvements. Detailed specs are in `/docs/specs/`
 
 ## Priority
 
-1. **Dynamic categories** - High-value user feature
+1. **Dynamic tags** - High-value user feature (flexible multi-tag organization)
 2. **Telemetry dashboard** - Monitoring and insights
 3. **LiveStore MCP integration** - AI/agent features
 4. **Raycast extension** - Quick link saving for macOS users (UI done, extension not built)
@@ -15,17 +15,23 @@ Ideas for future features and improvements. Detailed specs are in `/docs/specs/`
 
 ## Features
 
-### Dynamic Categories
+### Dynamic Tags
 
-User-defined categories with sensible defaults.
+Flexible multi-tag organization for links (chosen over single-category folders).
 
 **Spec:** [dynamic-categories.md](specs/dynamic-categories.md)
 
-- Default categories: Reading, Watch Later, Reference, etc.
-- Users can create/edit/delete categories
-- Assign category when saving link (optional)
-- Filter links by category in UI
-- Drag-and-drop reordering
+- Multiple tags per link (not forced to choose one)
+- Default tags: Reading, Watch, Reference, Work
+- Save now, tag later workflow
+- Filter by tag in sidebar (shift-click for AND filtering)
+- Tag management: create, edit, merge, delete
+- `#hashtag` support in Telegram/Raycast
+
+**Future enhancements:**
+
+- AI auto-tagging: Agent suggests tags based on link content
+- Tag graph: Obsidian-style visualization of tag relationships
 
 ### ~~Opt-in AI Summaries~~ ✓
 

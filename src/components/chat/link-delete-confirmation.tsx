@@ -1,7 +1,7 @@
 import { ExternalLink, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { linksByIds$, type LinkWithDetails } from "@/livestore/queries";
+import { linksByIds$, type LinkWithDetails } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
 
 interface LinkDeleteConfirmationProps {

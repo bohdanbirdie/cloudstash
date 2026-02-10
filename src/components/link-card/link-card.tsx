@@ -1,5 +1,6 @@
 import { CheckIcon } from "lucide-react";
 
+import { TagBadge } from "@/components/tags/tag-badge";
 import { BorderTrail } from "@/components/ui/border-trail";
 import {
   Card,
@@ -12,7 +13,8 @@ import { cn } from "@/lib/utils";
 import {
   linkProcessingStatus$,
   type LinkWithDetails,
-} from "@/livestore/queries";
+} from "@/livestore/queries/links";
+import { tagsForLink$ } from "@/livestore/queries/tags";
 import { useAppStore } from "@/livestore/store";
 
 import { LinkImage } from "./link-image";
@@ -33,6 +35,7 @@ export function LinkCard({
   const store = useAppStore();
   const processingRecord = store.useQuery(linkProcessingStatus$(link.id));
   const isProcessing = processingRecord?.status === "pending";
+  const tags = store.useQuery(tagsForLink$(link.id));
 
   const displayTitle = link.title || link.url;
   const formattedDate = new Date(link.createdAt).toLocaleString(undefined, {
@@ -93,7 +96,14 @@ export function LinkCard({
             </CardDescription>
           )}
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-2">
+          {tags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {tags.map((tag) => (
+                <TagBadge key={tag.id} name={tag.name} />
+              ))}
+            </div>
+          )}
           <span className="text-muted-foreground text-xs">{formattedDate}</span>
         </CardContent>
       </Card>

@@ -10,7 +10,7 @@ import {
   inboxLinks$,
   linkById$,
   searchLinks$,
-} from "../../livestore/queries";
+} from "../../livestore/queries/links";
 import { events, schema } from "../../livestore/schema";
 
 const listRecentLinksSchema = z.object({

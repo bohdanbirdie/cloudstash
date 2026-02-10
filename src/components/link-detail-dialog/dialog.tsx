@@ -12,6 +12,7 @@ import {
 import { useState } from "react";
 
 import { LinkImage } from "@/components/link-card";
+import { TagCombobox } from "@/components/tags/tag-combobox";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -24,13 +25,15 @@ import { HotkeyButton } from "@/components/ui/hotkey-button";
 import { Markdown } from "@/components/ui/markdown";
 import { ScrollableContent } from "@/components/ui/scrollable-content";
 import { TextShimmer } from "@/components/ui/text-shimmer";
+import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
+import { useLinkTags } from "@/hooks/use-link-tags";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
 import { type LinkAction, type LinkProjection } from "@/lib/link-projections";
 import {
   linkById$,
   linkProcessingStatus$,
   type LinkWithDetails,
-} from "@/livestore/queries";
+} from "@/livestore/queries/links";
 import { events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
 
@@ -71,6 +74,8 @@ export function LinkDetailDialogContent({
   onClose,
   onNavigate,
 }: LinkDetailDialogContentProps) {
+  useHotkeyScope("dialog");
+
   const store = useAppStore();
   const trackLinkOpen = useTrackLinkOpen();
   const [copied, setCopied] = useState(false);
@@ -149,6 +154,7 @@ export function LinkDetailDialogContent({
 
   const processingRecord = store.useQuery(linkProcessingStatus$(linkId));
   const isProcessing = processingRecord?.status === "pending";
+  const { tagIds, setTagIds } = useLinkTags(linkId);
 
   const isCompleted = link.status === "completed";
   const isDeleted = link.deletedAt !== null;
@@ -248,6 +254,17 @@ export function LinkDetailDialogContent({
             </div>
           ) : null}
 
+          <div className="space-y-2">
+            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Tags
+            </h4>
+            <TagCombobox
+              selectedTagIds={tagIds}
+              onChange={setTagIds}
+              placeholder="Add tags..."
+            />
+          </div>
+
           <div className="text-xs text-muted-foreground pt-2 border-t">
             Saved on {formattedDate}
           </div>
@@ -271,6 +288,7 @@ export function LinkDetailDialogContent({
                 aria-label="Previous link"
                 hotkey="BracketLeft"
                 hotkeyEnabled={true}
+                scope="dialog"
               >
                 <ChevronLeftIcon className="h-4 w-4" />
               </HotkeyButton>
@@ -283,6 +301,7 @@ export function LinkDetailDialogContent({
                 aria-label="Next link"
                 hotkey="BracketRight"
                 hotkeyEnabled={true}
+                scope="dialog"
               >
                 <ChevronRightIcon className="h-4 w-4" />
               </HotkeyButton>
@@ -296,6 +315,7 @@ export function LinkDetailDialogContent({
               aria-label={isCompleted ? "Mark as unread" : "Mark as complete"}
               hotkey="meta+enter"
               hotkeyEnabled={true}
+              scope="dialog"
             >
               {isCompleted ? (
                 <UndoIcon className="h-4 w-4" />
@@ -311,6 +331,7 @@ export function LinkDetailDialogContent({
               aria-label={isDeleted ? "Restore link" : "Delete link"}
               hotkey="meta+backspace"
               hotkeyEnabled={true}
+              scope="dialog"
             >
               {isDeleted ? (
                 <RotateCcwIcon className="h-4 w-4" />

@@ -1,6 +1,13 @@
 import { queryDb, Schema } from "@livestore/livestore";
 
-import { tables } from "./schema";
+import { tables } from "../schema";
+import {
+  linksWithDetailsSchema,
+  linkByIdSchema,
+  searchResultsSchema,
+} from "./schemas";
+
+export type { LinkWithDetails, SearchResult } from "./schemas";
 
 export const inboxCount$ = queryDb(
   tables.links.count().where({ deletedAt: null, status: "unread" }),
@@ -14,9 +21,7 @@ export const completedCount$ = queryDb(
 
 export const allLinksCount$ = queryDb(
   tables.links.count().where({ deletedAt: null }),
-  {
-    label: "allLinksCount",
-  }
+  { label: "allLinksCount" }
 );
 
 const trashCountSchema = Schema.Struct({ count: Schema.Number }).pipe(
@@ -31,28 +36,6 @@ export const trashCount$ = queryDb(
   }),
   { label: "trashCount" }
 );
-
-// Schema for raw SQL join results (dates are numbers from SQLite)
-const LinkWithDetailsSchema = Schema.Struct({
-  id: Schema.String,
-  url: Schema.String,
-  domain: Schema.String,
-  status: Schema.String,
-  createdAt: Schema.Number,
-  completedAt: Schema.NullOr(Schema.Number),
-  deletedAt: Schema.NullOr(Schema.Number),
-  // From link_snapshots
-  title: Schema.NullOr(Schema.String),
-  description: Schema.NullOr(Schema.String),
-  image: Schema.NullOr(Schema.String),
-  favicon: Schema.NullOr(Schema.String),
-  // From link_summaries
-  summary: Schema.NullOr(Schema.String),
-});
-
-export type LinkWithDetails = typeof LinkWithDetailsSchema.Type;
-
-const linksWithDetailsSchema = Schema.Array(LinkWithDetailsSchema);
 
 export const inboxLinks$ = queryDb(
   () => ({
@@ -167,15 +150,6 @@ export const linkProcessingStatus$ = (linkId: string) =>
     label: `linkProcessingStatus:${linkId}`,
   });
 
-const linkByIdSchema = Schema.transform(
-  Schema.Array(LinkWithDetailsSchema),
-  Schema.NullOr(LinkWithDetailsSchema),
-  {
-    decode: (arr) => arr[0] ?? null,
-    encode: (item) => (item ? [item] : []),
-  }
-);
-
 export const linkById$ = (id: string) =>
   queryDb(
     {
@@ -232,60 +206,6 @@ export const linkByUrl$ = (url: string) =>
     { label: `linkByUrl` }
   );
 
-export const recentlyOpenedLinks$ = queryDb(
-  () => ({
-    query: `
-      SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
-             s.title, s.description, s.image, s.favicon,
-             sum.summary
-      FROM links l
-      INNER JOIN (
-        SELECT linkId, MAX(occurredAt) as lastOpened
-        FROM link_interactions
-        WHERE type = 'opened'
-        GROUP BY linkId
-      ) i ON i.linkId = l.id
-      LEFT JOIN link_snapshots s ON s.id = (
-        SELECT s2.id FROM link_snapshots s2
-        WHERE s2.linkId = l.id
-        ORDER BY s2.fetchedAt DESC
-        LIMIT 1
-      )
-      LEFT JOIN link_summaries sum ON sum.id = (
-        SELECT sum2.id FROM link_summaries sum2
-        WHERE sum2.linkId = l.id
-        ORDER BY sum2.summarizedAt DESC
-        LIMIT 1
-      )
-      WHERE l.deletedAt IS NULL
-      ORDER BY i.lastOpened DESC
-      LIMIT 10
-    `,
-    schema: linksWithDetailsSchema,
-  }),
-  { label: "recentlyOpenedLinks" }
-);
-
-const SearchResultSchema = Schema.Struct({
-  id: Schema.String,
-  url: Schema.String,
-  domain: Schema.String,
-  status: Schema.String,
-  createdAt: Schema.Number,
-  completedAt: Schema.NullOr(Schema.Number),
-  deletedAt: Schema.NullOr(Schema.Number),
-  title: Schema.NullOr(Schema.String),
-  description: Schema.NullOr(Schema.String),
-  image: Schema.NullOr(Schema.String),
-  favicon: Schema.NullOr(Schema.String),
-  summary: Schema.NullOr(Schema.String),
-  score: Schema.Number,
-});
-
-export type SearchResult = typeof SearchResultSchema.Type;
-
-const searchResultsSchema = Schema.Array(SearchResultSchema);
-
 export const linksByIds$ = (ids: string[]) => {
   if (ids.length === 0) {
     return queryDb(
@@ -326,6 +246,40 @@ export const linksByIds$ = (ids: string[]) => {
   );
 };
 
+export const recentlyOpenedLinks$ = queryDb(
+  () => ({
+    query: `
+      SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+             s.title, s.description, s.image, s.favicon,
+             sum.summary
+      FROM links l
+      INNER JOIN (
+        SELECT linkId, MAX(occurredAt) as lastOpened
+        FROM link_interactions
+        WHERE type = 'opened'
+        GROUP BY linkId
+      ) i ON i.linkId = l.id
+      LEFT JOIN link_snapshots s ON s.id = (
+        SELECT s2.id FROM link_snapshots s2
+        WHERE s2.linkId = l.id
+        ORDER BY s2.fetchedAt DESC
+        LIMIT 1
+      )
+      LEFT JOIN link_summaries sum ON sum.id = (
+        SELECT sum2.id FROM link_summaries sum2
+        WHERE sum2.linkId = l.id
+        ORDER BY sum2.summarizedAt DESC
+        LIMIT 1
+      )
+      WHERE l.deletedAt IS NULL
+      ORDER BY i.lastOpened DESC
+      LIMIT 10
+    `,
+    schema: linksWithDetailsSchema,
+  }),
+  { label: "recentlyOpenedLinks" }
+);
+
 export const searchLinks$ = (query: string) => {
   if (!query.trim()) {
     return queryDb(
@@ -337,7 +291,6 @@ export const searchLinks$ = (query: string) => {
     );
   }
 
-  // Split query into words, filter out empty strings
   const words = query
     .toLowerCase()
     .split(/\s+/)
@@ -353,8 +306,6 @@ export const searchLinks$ = (query: string) => {
     );
   }
 
-  // Build dynamic WHERE conditions for each word
-  // Each word must appear in at least one field
   const wordConditions = words
     .map(
       (_, i) => `
@@ -368,7 +319,6 @@ export const searchLinks$ = (query: string) => {
     )
     .join(" AND ");
 
-  // Build scoring expression - higher score if word appears in important fields
   const scoreExpressions = words
     .map(
       (_, i) => `
@@ -380,7 +330,6 @@ export const searchLinks$ = (query: string) => {
     )
     .join(" + ");
 
-  // Create bind values: each word needs 5 patterns (for each field)
   const bindValues = words.flatMap((word) => {
     const pattern = `%${word}%`;
     return [pattern, pattern, pattern, pattern, pattern];

@@ -16,7 +16,7 @@ import {
   generateLinksMarkdown,
   generatePlainLinks,
 } from "@/lib/export-markdown";
-import { type LinkWithDetails } from "@/livestore/queries";
+import { type LinkWithDetails } from "@/livestore/queries/links";
 
 interface ExportDialogProps {
   open: boolean;

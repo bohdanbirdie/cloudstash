@@ -1,5 +1,6 @@
 import "./styles.css";
 import { RouterProvider } from "@tanstack/react-router";
+import { NuqsAdapter } from "nuqs/adapters/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Toaster } from "sonner";
@@ -46,9 +47,11 @@ createRoot(document.querySelector("#root")!).render(
         dedupingInterval: 10_000,
       }}
     >
-      <AuthProvider>
-        <InnerApp />
-      </AuthProvider>
+      <NuqsAdapter>
+        <AuthProvider>
+          <InnerApp />
+        </AuthProvider>
+      </NuqsAdapter>
       <Toaster position="bottom-right" />
     </SWRConfig>
   </StrictMode>

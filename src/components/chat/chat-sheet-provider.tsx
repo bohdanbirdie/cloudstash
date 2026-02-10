@@ -16,7 +16,7 @@ export function ChatSheetProvider({ children }: { children: ReactNode }) {
   const close = useCallback(() => setIsOpen(false), []);
   const toggle = useCallback(() => setIsOpen((prev) => !prev), []);
 
-  useHotkeys(CHAT_HOTKEY, toggle, { preventDefault: true });
+  useHotkeys(CHAT_HOTKEY, toggle, { preventDefault: true, scopes: ["global"] });
 
   return (
     <ChatContext.Provider value={{ isOpen, open, close, toggle }}>

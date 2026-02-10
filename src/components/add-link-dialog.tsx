@@ -10,6 +10,7 @@ import {
 
 import { LinkImage } from "@/components/link-card";
 import { useLinkDetailDialog } from "@/components/link-detail-dialog";
+import { TagCombobox } from "@/components/tags/tag-combobox";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -29,8 +30,9 @@ import {
 import { HotkeyButton } from "@/components/ui/hotkey-button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import { track } from "@/lib/analytics";
-import { linkById$ } from "@/livestore/queries";
+import { linkById$ } from "@/livestore/queries/links";
 import { tables, events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
 
@@ -176,11 +178,9 @@ function ExistingLinkCard({ linkId }: { linkId: string }) {
   );
 }
 
-// Normalize URL for comparison (strips protocol, www, and trailing slash)
 function normalizeUrl(urlString: string): string {
   try {
     const u = new URL(urlString);
-    // Remove protocol, www prefix, and trailing slash
     return (
       u.host.replace(/^www\./, "") +
       u.pathname.replace(/\/$/, "") +
@@ -192,27 +192,30 @@ function normalizeUrl(urlString: string): string {
   }
 }
 
-// Dialog content component - only rendered when dialog is open
 function AddLinkDialogContent({
   url,
   setUrl,
+  selectedTagIds,
+  setSelectedTagIds,
   onClose,
   onViewExisting,
 }: {
   url: string;
   setUrl: (url: string) => void;
+  selectedTagIds: string[];
+  setSelectedTagIds: (tagIds: string[]) => void;
   onClose: () => void;
   onViewExisting: (linkId: string) => void;
 }) {
+  useHotkeyScope("dialog");
+
   const store = useAppStore();
   const [metadata, setMetadata] = useState<OgMetadata | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Query existing links (excluding deleted ones)
   const existingLinks = store.useQuery(tables.links.where({ deletedAt: null }));
 
-  // Check for duplicate URL
   const trimmedUrl = url.trim();
   const urlResult = trimmedUrl
     ? Schema.decodeUnknownOption(UrlSchema)(trimmedUrl)
@@ -285,17 +288,19 @@ function AddLinkDialogContent({
     const linkId = crypto.randomUUID();
     const now = new Date();
 
-    // Batch both events in a single commit to avoid race condition with LinkProcessorDO
-    // If committed separately, the processor might see LinkCreated before LinkMetadataFetched
-    // arrives, causing ServerAheadError when it tries to commit its own events
+    const eventsToCommit = [];
+
+    eventsToCommit.push(
+      events.linkCreated({
+        createdAt: now,
+        domain,
+        id: linkId,
+        url: trimmedUrl,
+      })
+    );
+
     if (metadata) {
-      store.commit(
-        events.linkCreated({
-          createdAt: now,
-          domain,
-          id: linkId,
-          url: trimmedUrl,
-        }),
+      eventsToCommit.push(
         events.linkMetadataFetched({
           description: metadata.description ?? null,
           favicon: metadata.logo ?? null,
@@ -306,16 +311,20 @@ function AddLinkDialogContent({
           title: metadata.title ?? null,
         })
       );
-    } else {
-      store.commit(
-        events.linkCreated({
+    }
+
+    for (const tagId of selectedTagIds) {
+      eventsToCommit.push(
+        events.linkTagged({
           createdAt: now,
-          domain,
-          id: linkId,
-          url: trimmedUrl,
+          id: `${linkId}-${tagId}`,
+          linkId,
+          tagId,
         })
       );
     }
+
+    store.commit(...eventsToCommit);
 
     track("link_added");
     onClose();
@@ -326,13 +335,18 @@ function AddLinkDialogContent({
       <DialogHeader>
         <DialogTitle>Add Link</DialogTitle>
       </DialogHeader>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="space-y-3">
         <Input
           type="url"
           placeholder="https://example.com"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           autoFocus
+        />
+        <TagCombobox
+          selectedTagIds={selectedTagIds}
+          onChange={setSelectedTagIds}
+          placeholder="Add tags..."
         />
         {existingLink ? (
           <ExistingLinkCard linkId={existingLink.id} />
@@ -347,7 +361,9 @@ function AddLinkDialogContent({
         )}
         <DialogFooter className="mt-4">
           <DialogClose
-            render={<HotkeyButton variant="outline" hotkey="escape" />}
+            render={
+              <HotkeyButton variant="outline" hotkey="escape" scope="dialog" />
+            }
           >
             Cancel
           </DialogClose>
@@ -355,6 +371,7 @@ function AddLinkDialogContent({
             <HotkeyButton
               type="button"
               hotkey="enter"
+              scope="dialog"
               onClick={() => {
                 onClose();
                 onViewExisting(existingLink.id);
@@ -363,7 +380,12 @@ function AddLinkDialogContent({
               View Saved Link
             </HotkeyButton>
           ) : (
-            <HotkeyButton type="submit" disabled={!url.trim()} hotkey="enter">
+            <HotkeyButton
+              type="submit"
+              disabled={!url.trim()}
+              hotkey="enter"
+              scope="dialog"
+            >
               Add
             </HotkeyButton>
           )}
@@ -378,16 +400,19 @@ export function AddLinkDialogProvider({
 }: AddLinkDialogProviderProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [url, setUrl] = useState("");
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const { open: openLinkDialog } = useLinkDetailDialog();
 
   const open = useCallback((urlValue?: string) => {
     setUrl(urlValue ?? "");
+    setSelectedTagIds([]);
     setIsOpen(true);
   }, []);
 
   const close = useCallback(() => {
     setIsOpen(false);
     setUrl("");
+    setSelectedTagIds([]);
   }, []);
 
   const handleViewExisting = useCallback(
@@ -397,7 +422,6 @@ export function AddLinkDialogProvider({
     [openLinkDialog]
   );
 
-  // Global paste handler - opens dialog when URL is pasted outside of input fields
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
       const { activeElement } = document;
@@ -443,6 +467,8 @@ export function AddLinkDialogProvider({
           <AddLinkDialogContent
             url={url}
             setUrl={setUrl}
+            selectedTagIds={selectedTagIds}
+            setSelectedTagIds={setSelectedTagIds}
             onClose={close}
             onViewExisting={handleViewExisting}
           />

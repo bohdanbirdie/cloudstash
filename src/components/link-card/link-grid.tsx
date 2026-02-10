@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
-import { type LinkWithDetails } from "@/livestore/queries";
+import { type LinkWithDetails } from "@/livestore/queries/links";
 import { useSelectionStore } from "@/stores/selection-store";
 import { useViewModeStore } from "@/stores/view-mode-store";
 

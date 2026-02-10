@@ -1,4 +1,4 @@
-import { type LinkWithDetails } from "@/livestore/queries";
+import { type LinkWithDetails } from "@/livestore/queries/links";
 
 function formatDate(timestamp: number | null): string {
   if (!timestamp) {

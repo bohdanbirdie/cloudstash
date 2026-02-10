@@ -11,6 +11,7 @@ import {
   PuzzleIcon,
   ShieldIcon,
   MessageSquareIcon,
+  TagsIcon,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -19,6 +20,7 @@ import { AdminModal } from "@/components/admin";
 import { useChatPanel } from "@/components/chat/chat-context";
 import { CHAT_HOTKEY } from "@/components/chat/chat-sheet-provider";
 import { IntegrationsModal } from "@/components/integrations";
+import { TagManagerDialog } from "@/components/tags/tag-manager-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,7 +54,7 @@ import {
   completedCount$,
   allLinksCount$,
   trashCount$,
-} from "@/livestore/queries";
+} from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
 import { useSearchStore } from "@/stores/search-store";
 
@@ -64,6 +66,7 @@ export function AppSidebar() {
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
+  const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const auth = useAuth();
   const { isChatEnabled } = useOrgFeatures();
   const chatPanel = useChatPanel();
@@ -194,6 +197,15 @@ export function AppSidebar() {
           )}
           <SidebarMenuItem>
             <SidebarMenuButton
+              tooltip="Tags"
+              onClick={() => setTagManagerOpen(true)}
+            >
+              <TagsIcon />
+              <span>Tags</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
               tooltip="Integrations"
               onClick={() => setIntegrationsOpen(true)}
             >
@@ -211,6 +223,10 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+        <TagManagerDialog
+          open={tagManagerOpen}
+          onOpenChange={setTagManagerOpen}
+        />
         <IntegrationsModal
           open={integrationsOpen}
           onOpenChange={setIntegrationsOpen}

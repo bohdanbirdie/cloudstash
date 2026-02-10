@@ -36,6 +36,24 @@ export const tables = {
     },
     name: "link_interactions",
   }),
+  linkTags: State.SQLite.table({
+    columns: {
+      id: State.SQLite.text({ primaryKey: true }),
+      linkId: State.SQLite.text({ default: "" }),
+      tagId: State.SQLite.text({ default: "" }),
+      createdAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+    },
+    indexes: [
+      { columns: ["linkId"], name: "idx_link_tags_link" },
+      { columns: ["tagId"], name: "idx_link_tags_tag" },
+      {
+        columns: ["linkId", "tagId"],
+        isUnique: true,
+        name: "idx_link_tags_unique",
+      },
+    ],
+    name: "link_tags",
+  }),
   linkProcessingStatus: State.SQLite.table({
     columns: {
       linkId: State.SQLite.text({ primaryKey: true }),
@@ -87,6 +105,19 @@ export const tables = {
       { name: "idx_links_url_unique", columns: ["url"], isUnique: true },
     ],
     name: "links",
+  }),
+  tags: State.SQLite.table({
+    columns: {
+      id: State.SQLite.text({ primaryKey: true }),
+      name: State.SQLite.text({ default: "" }),
+      sortOrder: State.SQLite.integer({ default: 0 }),
+      createdAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+      deletedAt: State.SQLite.integer({
+        nullable: true,
+        schema: Schema.DateFromNumber,
+      }),
+    },
+    name: "tags",
   }),
 };
 
@@ -169,6 +200,53 @@ export const events = {
     name: "v1.LinkUncompleted",
     schema: Schema.Struct({ id: Schema.String }),
   }),
+
+  tagCreated: Events.synced({
+    name: "v1.TagCreated",
+    schema: Schema.Struct({
+      createdAt: Schema.Date,
+      id: Schema.String,
+      name: Schema.String,
+      sortOrder: Schema.Number,
+    }),
+  }),
+  tagDeleted: Events.synced({
+    name: "v1.TagDeleted",
+    schema: Schema.Struct({
+      deletedAt: Schema.Date,
+      id: Schema.String,
+    }),
+  }),
+  tagRenamed: Events.synced({
+    name: "v1.TagRenamed",
+    schema: Schema.Struct({
+      id: Schema.String,
+      name: Schema.String,
+    }),
+  }),
+  tagReordered: Events.synced({
+    name: "v1.TagReordered",
+    schema: Schema.Struct({
+      id: Schema.String,
+      sortOrder: Schema.Number,
+    }),
+  }),
+
+  linkTagged: Events.synced({
+    name: "v1.LinkTagged",
+    schema: Schema.Struct({
+      createdAt: Schema.Date,
+      id: Schema.String,
+      linkId: Schema.String,
+      tagId: Schema.String,
+    }),
+  }),
+  linkUntagged: Events.synced({
+    name: "v1.LinkUntagged",
+    schema: Schema.Struct({
+      id: Schema.String,
+    }),
+  }),
 };
 
 const materializers = State.SQLite.materializers(events, {
@@ -221,6 +299,24 @@ const materializers = State.SQLite.materializers(events, {
     tables.linkSummaries.insert({ id, linkId, model, summarizedAt, summary }),
   "v1.LinkUncompleted": ({ id }) =>
     tables.links.update({ completedAt: null, status: "unread" }).where({ id }),
+
+  "v1.TagCreated": ({ id, name, sortOrder, createdAt }) =>
+    tables.tags
+      .insert({ createdAt, deletedAt: null, id, name, sortOrder })
+      .onConflict("id", "ignore"),
+  "v1.TagDeleted": ({ id, deletedAt }) => [
+    tables.tags.update({ deletedAt }).where({ id }),
+    tables.linkTags.delete().where({ tagId: id }),
+  ],
+  "v1.TagRenamed": ({ id, name }) => tables.tags.update({ name }).where({ id }),
+  "v1.TagReordered": ({ id, sortOrder }) =>
+    tables.tags.update({ sortOrder }).where({ id }),
+
+  "v1.LinkTagged": ({ id, linkId, tagId, createdAt }) =>
+    tables.linkTags
+      .insert({ createdAt, id, linkId, tagId })
+      .onConflict("id", "ignore"),
+  "v1.LinkUntagged": ({ id }) => tables.linkTags.delete().where({ id }),
 });
 
 const state = State.SQLite.makeState({ materializers, tables });

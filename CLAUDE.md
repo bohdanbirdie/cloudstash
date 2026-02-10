@@ -43,3 +43,5 @@ bun run deploy             # FORBIDDEN
 - Path alias: `@/*` maps to `src/*`
 - Routes in `src/routes/_authed/` require authentication
 - Database migrations: `bun run db:generate` then `bun run db:migrate:local`
+- Avoid code comments unless absolutely necessary for complex logic
+- No barrel files (index.ts re-exports) - import directly from source files

@@ -9,6 +9,7 @@ import { useHotkeys } from "react-hotkeys-hook";
 
 import { Button } from "@/components/ui/button";
 import { HotkeyButton } from "@/components/ui/hotkey-button";
+import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 
 interface SelectionToolbarProps {
   selectedCount: number;
@@ -31,25 +32,24 @@ export function SelectionToolbar({
   isCompleted = false,
   isTrash = false,
 }: SelectionToolbarProps) {
-  // Escape to clear selection
+  useHotkeyScope("selection", { enabled: selectedCount > 0 });
+
   useHotkeys(
     "escape",
     () => {
       onClear();
     },
-    { enabled: selectedCount > 0, preventDefault: true }
+    { enabled: selectedCount > 0, preventDefault: true, scopes: ["selection"] }
   );
 
-  // Cmd+E to export
   useHotkeys(
     "meta+e",
     () => {
       onExport();
     },
-    { enabled: selectedCount > 0, preventDefault: true }
+    { enabled: selectedCount > 0, preventDefault: true, scopes: ["selection"] }
   );
 
-  // Cmd+Enter to complete/uncomplete
   useHotkeys(
     "meta+enter",
     () => {
@@ -60,16 +60,16 @@ export function SelectionToolbar({
     {
       enabled: selectedCount > 0 && showComplete && !!onComplete,
       preventDefault: true,
+      scopes: ["selection"],
     }
   );
 
-  // Cmd+Backspace to delete/restore
   useHotkeys(
     "meta+backspace",
     () => {
       onDelete();
     },
-    { enabled: selectedCount > 0, preventDefault: true }
+    { enabled: selectedCount > 0, preventDefault: true, scopes: ["selection"] }
   );
 
   if (selectedCount === 0) {

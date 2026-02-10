@@ -23,7 +23,7 @@ import {
   searchLinks$,
   type LinkWithDetails,
   type SearchResult,
-} from "@/livestore/queries";
+} from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
 import { useSearchStore } from "@/stores/search-store";
 

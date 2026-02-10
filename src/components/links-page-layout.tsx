@@ -5,10 +5,12 @@ import { ExportDialog } from "@/components/export-dialog";
 import { LinkGrid, ViewSwitcher } from "@/components/link-card";
 import { useLinkDetailDialog } from "@/components/link-detail-dialog";
 import { SelectionToolbar } from "@/components/selection-toolbar";
+import { TagFilterBar } from "@/components/tags/tag-filter-bar";
 import { Button } from "@/components/ui/button";
+import { useFilteredLinks } from "@/hooks/use-filtered-links";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
 import { type LinkProjection } from "@/lib/link-projections";
-import { type LinkWithDetails } from "@/livestore/queries";
+import { type LinkWithDetails } from "@/livestore/queries/links";
 import { useSelectionStore } from "@/stores/selection-store";
 
 interface LinksPageLayoutProps {
@@ -29,7 +31,7 @@ interface LinksPageLayoutProps {
 export function LinksPageLayout({
   title,
   subtitle,
-  links,
+  links: baseLinks,
   emptyMessage,
   toolbarConfig,
   projection,
@@ -37,6 +39,11 @@ export function LinksPageLayout({
   const clear = useSelectionStore((s) => s.clear);
   const trackLinkOpen = useTrackLinkOpen();
   const { open: openDialog } = useLinkDetailDialog();
+
+  const { links, totalCount, filteredCount } = useFilteredLinks(
+    projection,
+    baseLinks
+  );
 
   const [exportOpen, setExportOpen] = useState(false);
   const [selectedLinks, setSelectedLinks] = useState<LinkWithDetails[]>([]);
@@ -78,6 +85,10 @@ export function LinksPageLayout({
         </div>
       </div>
 
+      <div className="mb-4">
+        <TagFilterBar totalCount={totalCount} filteredCount={filteredCount} />
+      </div>
+
       <LinkGrid
         links={links}
         emptyMessage={emptyMessage}
@@ -99,7 +110,7 @@ export function LinksPageLayout({
       <ExportDialog
         open={exportOpen}
         onOpenChange={setExportOpen}
-        links={selectedLinks.length > 0 ? selectedLinks : links}
+        links={selectedLinks.length > 0 ? selectedLinks : [...links]}
         pageTitle={selectedLinks.length > 0 ? "Selected Links" : title}
       />
     </div>

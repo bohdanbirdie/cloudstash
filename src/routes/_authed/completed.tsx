@@ -4,7 +4,10 @@ import { useCallback } from "react";
 import { LinksPageLayout } from "@/components/links-page-layout";
 import { track } from "@/lib/analytics";
 import { completedProjection } from "@/lib/link-projections";
-import { completedLinks$, type LinkWithDetails } from "@/livestore/queries";
+import {
+  completedLinks$,
+  type LinkWithDetails,
+} from "@/livestore/queries/links";
 import { events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
 

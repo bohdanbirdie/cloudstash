@@ -1,34 +1,62 @@
 import {
+  filteredLinks$,
+  type LinkStatus,
+  type TagFilterOptions,
+} from "@/livestore/queries/filtered-links";
+import {
   allLinks$,
   completedLinks$,
   inboxLinks$,
   trashLinks$,
-} from "@/livestore/queries";
+} from "@/livestore/queries/links";
 
 export type LinkAction = "complete" | "uncomplete" | "delete" | "restore";
 
 export interface LinkProjection {
+  /** Base query without filters */
   query: typeof inboxLinks$;
+  /** Status used for filtered queries */
+  status: LinkStatus;
+  /** Get query with tag filters applied */
+  filteredQuery: (
+    options: TagFilterOptions
+  ) => ReturnType<typeof filteredLinks$>;
   willActionRemoveLink: (action: LinkAction) => boolean;
 }
 
-export const inboxProjection: LinkProjection = {
-  query: inboxLinks$,
-  willActionRemoveLink: () => true,
-};
+function createProjection(
+  query: typeof inboxLinks$,
+  status: LinkStatus,
+  willActionRemoveLink: (action: LinkAction) => boolean
+): LinkProjection {
+  return {
+    query,
+    status,
+    filteredQuery: (options) => filteredLinks$(status, options),
+    willActionRemoveLink,
+  };
+}
 
-export const allLinksProjection: LinkProjection = {
-  query: allLinks$,
-  willActionRemoveLink: (action) => action === "delete",
-};
+export const inboxProjection = createProjection(
+  inboxLinks$,
+  "inbox",
+  () => true
+);
 
-export const completedProjection: LinkProjection = {
-  query: completedLinks$,
-  willActionRemoveLink: (action) =>
-    action === "uncomplete" || action === "delete",
-};
+export const allLinksProjection = createProjection(
+  allLinks$,
+  "all",
+  (action) => action === "delete"
+);
 
-export const trashProjection: LinkProjection = {
-  query: trashLinks$,
-  willActionRemoveLink: () => true,
-};
+export const completedProjection = createProjection(
+  completedLinks$,
+  "completed",
+  (action) => action === "uncomplete" || action === "delete"
+);
+
+export const trashProjection = createProjection(
+  trashLinks$,
+  "trash",
+  () => true
+);

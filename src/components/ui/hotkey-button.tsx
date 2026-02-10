@@ -13,6 +13,7 @@ interface HotkeyButtonProps
   hotkey?: string;
   hotkeyEnabled?: boolean;
   onHotkeyPress?: () => void;
+  scope?: string;
 }
 
 export function HotkeyButton({
@@ -21,14 +22,16 @@ export function HotkeyButton({
   hotkeyEnabled = true,
   onHotkeyPress,
   disabled,
+  scope,
   ...props
 }: HotkeyButtonProps) {
   const showHints = useModifierHold();
 
   useHotkeys(hotkey ?? "", onHotkeyPress ?? (() => {}), {
-    enableOnFormTags: true,
+    enableOnFormTags: false,
     enabled: Boolean(hotkey && onHotkeyPress && hotkeyEnabled && !disabled),
     preventDefault: true,
+    scopes: scope ? [scope] : undefined,
   });
 
   const label = kbdLabel ?? (hotkey ? getHotkeyLabel(hotkey) : "");

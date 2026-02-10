@@ -1,11 +1,13 @@
 import { CheckIcon } from "lucide-react";
 
+import { TagBadge } from "@/components/tags/tag-badge";
 import { BorderTrail } from "@/components/ui/border-trail";
 import { cn } from "@/lib/utils";
 import {
   linkProcessingStatus$,
   type LinkWithDetails,
-} from "@/livestore/queries";
+} from "@/livestore/queries/links";
+import { tagsForLink$ } from "@/livestore/queries/tags";
 import { useAppStore } from "@/livestore/store";
 
 interface LinkListItemProps {
@@ -24,6 +26,7 @@ export function LinkListItem({
   const store = useAppStore();
   const processingRecord = store.useQuery(linkProcessingStatus$(link.id));
   const isProcessing = processingRecord?.status === "pending";
+  const tags = store.useQuery(tagsForLink$(link.id));
 
   const displayTitle = link.title || link.url;
   const formattedDate = new Date(link.createdAt).toLocaleString(undefined, {
@@ -76,7 +79,18 @@ export function LinkListItem({
           {link.description}
         </p>
       )}
-      <span className="text-xs text-muted-foreground">{formattedDate}</span>
+      <div className="flex items-center gap-2">
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {tags.map((tag) => (
+              <TagBadge key={tag.id} name={tag.name} />
+            ))}
+          </div>
+        )}
+        <span className="text-xs text-muted-foreground ml-auto shrink-0">
+          {formattedDate}
+        </span>
+      </div>
     </button>
   );
 }

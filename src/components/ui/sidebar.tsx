@@ -96,6 +96,7 @@ function SidebarProvider({
 
   useHotkeys(`mod+${SIDEBAR_KEYBOARD_SHORTCUT}`, toggleSidebar, {
     preventDefault: true,
+    scopes: ["global"],
   });
 
   // We add a state so that we can do data-state="expanded" or "collapsed".
