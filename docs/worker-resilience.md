@@ -142,9 +142,34 @@ Trade-off: Slower detection of dead connections (up to 30 min). Acceptable for a
 | Logging          | Blind spots in auth/sync failures | Structured warnings            |
 | Ping interval    | Frequent DO wake-ups              | 30 min (default was 10s)       |
 
+## rows_written Quota (2026-02-11)
+
+On 2026-02-11, hit 90% of the free tier `rows_written` limit (100,000/day). Every `INSERT`/`UPDATE`/`DELETE` on DO SQLite counts, including KV operations (`ctx.storage.put/get`) which use a hidden SQLite table.
+
+**Root cause: write amplification across DOs.** Each user event is written multiple times:
+
+| Where | Rows per event |
+| --- | --- |
+| SyncBackendDO eventlog | 1 |
+| SyncBackendDO context cursor | 1 per push |
+| LinkProcessorDO local eventlog (replica) | 1 |
+| LinkProcessorDO materialized views | 1-2 |
+| LinkProcessorDO context cursor | 1 per sync |
+| ChatAgentDO (3 orgs) | 3-4 |
+
+One event ≈ 5-6 rows written. Link processing generates ~5 events per link → ~30 rows per link created.
+
+**Immediate fix:** Disabled `LinkInteracted` event (fired on every link click, was #1 event type by volume). Analytics-only tracking via `track("link_opened")` instead.
+
+**Cloudflare limitations:** The GraphQL Analytics API doesn't expose per-DO-class `rows_written` — only `storedBytes`, invocation counts, and CPU time. Dashboard Observability tab doesn't filter by DO class either. So we can't get a definitive breakdown of which DO is the biggest writer.
+
 ## Still TODO
 
 - [ ] File upstream livestore issue: auth failures should be non-retryable
 - [ ] File upstream livestore issue: `ping.enabled` option is defined but never checked in code
 - [ ] Debounce `triggerLinkProcessor` in `onPush`
 - [ ] Investigate ChatAgentDO's 46% error rate
+- [ ] **Remove LiveStore replica from LinkProcessorDO** — Currently `createStoreDoPromise` with `livePull: true` maintains a full local eventlog + materialized views inside LinkProcessorDO's SQLite. This doubles write amplification for every event. Instead, pass link data directly in the `triggerLinkProcessor` fetch call and write processing results back to SyncBackendDO via RPC. Eliminates ~50% of all `rows_written`.
+- [ ] **Combine processor events into single `linkProcessed`** — Currently emits 5+ events per link (`processingStarted`, `metadataFetched`, `summarized`, `tagSuggested` × N, `processingCompleted`). A single `linkProcessed` event with all results would cut processor writes by ~80%.
+- [ ] **Batch `tagSuggested` into `tagsSuggested`** — Fires once per tag suggestion. An array-based event would save 2-3 rows per link.
+- [ ] **Re-enable `LinkInteracted` with batching** — Currently disabled to save writes. Could re-enable with client-side debouncing (batch interactions over 30s and push once) if interaction tracking is needed.
