@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 
+import { trackEvent } from "../analytics";
 import { createAuth } from "../auth";
 import { createDb } from "../db";
 import { maskId, safeErrorInfo } from "../log-utils";
@@ -51,6 +52,12 @@ export const handleIngestRequest = (
     }
 
     logger.debug("API key verified", { orgId: maskId(orgId) });
+
+    trackEvent(env.USAGE_ANALYTICS, {
+      userId: verifyResult.key.userId ?? "api",
+      event: "ingest",
+      orgId,
+    });
 
     const body = yield* Effect.tryPromise({
       catch: () => MissingUrlError.make({}),

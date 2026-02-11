@@ -141,6 +141,13 @@ Trade-off: Slower detection of dead connections (up to 30 min). Acceptable for a
 | Error boundaries | Unhandled crashes on `/me`        | Effect catchAllDefect          |
 | Logging          | Blind spots in auth/sync failures | Structured warnings            |
 | Ping interval    | Frequent DO wake-ups              | 30 min (default was 10s)       |
+| Usage analytics  | No visibility into per-user load  | CF Analytics Engine, admin UI  |
+
+## Per-User Usage Analytics
+
+**Spec:** `docs/specs/usage-analytics.md`
+
+Fire-and-forget writes to Cloudflare Analytics Engine at 5 instrumentation points (sync, sync_auth, auth, chat, ingest). Queryable from the admin modal's "Usage" tab via CF SQL API. Adds ~0ms CPU overhead per request.
 
 ## rows_written Quota (2026-02-11)
 

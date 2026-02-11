@@ -3,6 +3,7 @@ import { Effect } from "effect";
 
 import { type MeResponse } from "@/types/api";
 
+import { trackEvent } from "../analytics";
 import { createAuth } from "../auth";
 import { createDb } from "../db";
 import * as schema from "../db/schema";
@@ -96,12 +97,17 @@ export const handleGetMe = (request: Request, env: Env): Promise<Response> =>
   Effect.runPromise(
     handleGetMeRequest(request, env).pipe(
       Effect.tap((data) =>
-        Effect.sync(() =>
+        Effect.sync(() => {
           logger.debug("Get me success", {
             hasOrg: !!data.organization,
             orgId: data.organization ? maskId(data.organization.id) : null,
-          })
-        )
+          });
+          trackEvent(env.USAGE_ANALYTICS, {
+            userId: data.user.id,
+            event: "auth",
+            orgId: data.organization?.id ?? "",
+          });
+        })
       ),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({

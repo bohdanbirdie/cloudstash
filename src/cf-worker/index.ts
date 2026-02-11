@@ -11,6 +11,8 @@ import {
   handleUpdateOrgSettings,
 } from "./admin";
 import { handleApproveUser } from "./admin/approve-user";
+import { handleGetUsage } from "./admin/usage";
+import { trackEvent } from "./analytics";
 import { createAuth } from "./auth";
 import { checkSyncAuth, SyncAuthError } from "./auth/sync-auth";
 import { agentHooks } from "./chat-agent/hooks";
@@ -82,6 +84,9 @@ app.get("/api/admin/workspaces", requireAdmin, (c) =>
 app.post("/api/admin/users/:id/approve", requireAdmin, (c) =>
   handleApproveUser(c.req.raw, c.req.param("id"), c.env)
 );
+app.get("/api/admin/usage", requireAdmin, (c) =>
+  handleGetUsage(c.req.raw, c.env)
+);
 
 app.on(["GET", "POST"], "/api/auth/*", (c) => {
   const db = createDb(c.env.DB);
@@ -120,14 +125,19 @@ app.get("/api/sync/auth", async (c) => {
   const result = await checkSyncAuth(cookie, storeId, auth).pipe(
     Effect.match({
       onFailure: (error) => error,
-      onSuccess: () => ({ ok: true as const }),
+      onSuccess: (authData) => ({ ok: true as const, userId: authData.userId }),
     }),
     Effect.runPromise
   );
 
   if ("ok" in result) {
     logger.debug("Sync auth success");
-    return c.json(result);
+    trackEvent(c.env.USAGE_ANALYTICS, {
+      userId: result.userId,
+      event: "sync_auth",
+      orgId: storeId,
+    });
+    return c.json({ ok: result.ok });
   }
   logger.info("Sync auth failed", { code: result.code, status: result.status });
   return c.json(result, result.status as 401 | 403);
@@ -159,7 +169,7 @@ const handleSync = async (
   ).pipe(
     Effect.match({
       onFailure: (error) => error,
-      onSuccess: () => null,
+      onSuccess: (result) => result,
     }),
     Effect.runPromise
   );
@@ -175,6 +185,12 @@ const handleSync = async (
     });
   }
 
+  trackEvent(env.USAGE_ANALYTICS, {
+    userId: authResult.userId,
+    event: "sync",
+    orgId: searchParams.storeId,
+  });
+
   return handleSyncRequest(
     request,
     searchParams,
@@ -189,11 +205,6 @@ export default {
     env: Env,
     ctx: CfTypes.ExecutionContext
   ) {
-    env.USAGE_ANALYTICS.writeDataPoint({
-      indexes: ["test"],
-      blobs: ["test", "test"],
-      doubles: [0],
-    });
     const rateLimited = await checkRateLimit(request, env);
     if (rateLimited) return rateLimited;
 

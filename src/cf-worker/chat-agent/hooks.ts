@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 
+import { trackEvent } from "../analytics";
 import { createAuth } from "../auth";
 import { checkSyncAuth, type SyncAuthError } from "../auth/sync-auth";
 import { createDb } from "../db";
@@ -25,7 +26,12 @@ const checkChatAgentAccess = (
     const auth = createAuth(env, db);
     const cookie = request.headers.get("cookie");
 
-    yield* checkSyncAuth(cookie, lobby.name, auth);
+    const { userId } = yield* checkSyncAuth(cookie, lobby.name, auth);
+    trackEvent(env.USAGE_ANALYTICS, {
+      userId,
+      event: "chat",
+      orgId: lobby.name,
+    });
     yield* checkChatFeatureEnabled(lobby.name, env);
   });
 
