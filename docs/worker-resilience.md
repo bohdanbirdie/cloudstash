@@ -118,16 +118,16 @@ On 2026-02-10, we investigated DO duration exhaustion. Key findings:
 
 3. **Pings are only for connection health checks** — They detect silent disconnects proactively. Without pings, sync still works; the client just discovers dead connections on the next actual push/pull (1-2s delay).
 
-Solution: Increase ping interval to 30 minutes (from 10s default). This reduces DO wake-ups by 180x while keeping connection health checks.
+Solution: Set ping interval to 5 minutes (from 10s default). This reduces DO wake-ups by 30x while keeping WebSocket connections alive through Cloudflare's idle timeout.
 
 ```typescript
 makeWsSync({
   url: `${globalThis.location.origin}/sync`,
-  ping: { requestInterval: 1_800_000 }, // 30 min
+  ping: { requestInterval: 300_000 }, // 5 min
 });
 ```
 
-Trade-off: Slower detection of dead connections (up to 30 min). Acceptable for a link-saving app — the connection will be verified on the next actual sync operation anyway.
+**History:** Initially set to 30 min on 2026-02-10 to minimize wake-ups. On 2026-02-11, discovered that 30 min was too long — Cloudflare drops idle WebSocket connections before the ping fires, causing frequent reconnects. Each reconnect triggers a full livestore `makeDoCtx` reinitialization with heavy SQL writes, which was the primary driver of `rows_written` quota exhaustion. 5 min is a better balance: keeps connections alive while still being 30x fewer wake-ups than the 10s default.
 
 ## Defense Layers Summary
 
@@ -140,7 +140,7 @@ Trade-off: Slower detection of dead connections (up to 30 min). Acceptable for a
 | Global SWR       | SWR retry storms on errors        | 3 retries, no focus revalidate |
 | Error boundaries | Unhandled crashes on `/me`        | Effect catchAllDefect          |
 | Logging          | Blind spots in auth/sync failures | Structured warnings            |
-| Ping interval    | Frequent DO wake-ups              | 30 min (default was 10s)       |
+| Ping interval    | Frequent DO wake-ups              | 5 min (default was 10s)        |
 | Usage analytics  | No visibility into per-user load  | CF Analytics Engine, admin UI  |
 
 ## Per-User Usage Analytics
@@ -148,6 +148,12 @@ Trade-off: Slower detection of dead connections (up to 30 min). Acceptable for a
 **Spec:** `docs/specs/usage-analytics.md`
 
 Fire-and-forget writes to Cloudflare Analytics Engine at 5 instrumentation points (sync, sync_auth, auth, chat, ingest). Queryable from the admin modal's "Usage" tab via CF SQL API. Adds ~0ms CPU overhead per request.
+
+### Bug fix: CF Analytics Engine returns string counts
+
+The Analytics Engine SQL API returns `count()` values as **strings**, not numbers. Without explicit conversion, JavaScript's `+` operator concatenates instead of adding: `0 + "9" + "5"` = `"095"` instead of `14`. This caused the admin UI to display nonsensical totals (e.g. "0965444" instead of 32).
+
+**Fix:** `queryUsage()` in `src/cf-worker/analytics.ts` now converts `count` to `Number()` when mapping API response rows. Covered by unit tests in `src/cf-worker/__tests__/unit/analytics.test.ts`.
 
 ## rows_written Quota (2026-02-11)
 

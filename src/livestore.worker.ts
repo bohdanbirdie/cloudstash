@@ -8,7 +8,7 @@ makeWorker({
   sync: {
     backend: makeWsSync({
       url: `${globalThis.location.origin}/sync`,
-      ping: { requestInterval: 1_800_000 }, // 30 min instead of default 10s to reduce DO wake-ups
+      ping: { requestInterval: 300_000 }, // 5 min — balance between DO wake-ups and keeping WS alive
     }),
     initialSyncOptions: { _tag: "Blocking", timeout: 5000 },
   },
