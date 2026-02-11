@@ -23,7 +23,7 @@ let currentSyncBackend: {
 export class SyncBackendDO extends SyncBackend.makeDurableObject({
   onPush: async (message, context) => {
     logger.info("Push received", {
-      storeId: maskId(context.storeId),
+      storeId: context.storeId,
       batchSize: message.batch.length,
       events: message.batch.map((e) => e.name),
     });
@@ -42,6 +42,7 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
     super(ctx, env);
     this._env = env;
     currentSyncBackend = this;
+    logger.info("DO woke up", { doId: ctx.id.toString() });
   }
 
   triggerLinkProcessor(storeId: string) {
