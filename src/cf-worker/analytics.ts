@@ -53,7 +53,12 @@ export async function queryUsage(
   }
 
   const json = (await resp.json()) as {
-    data: { userId: string; event: string; count: number }[];
+    data: { userId: string; event: string; count: string }[];
   };
-  return { rows: json.data ?? [] };
+  return {
+    rows: (json.data ?? []).map((r) => ({
+      ...r,
+      count: Number(r.count),
+    })),
+  };
 }
