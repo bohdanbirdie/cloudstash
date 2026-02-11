@@ -1,4 +1,9 @@
-import { UsersIcon, TicketIcon, BuildingIcon } from "lucide-react";
+import {
+  UsersIcon,
+  TicketIcon,
+  BuildingIcon,
+  BarChart3Icon,
+} from "lucide-react";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +18,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 
 import { InvitesTab } from "./invites-tab";
+import { UsageTab } from "./usage-tab";
 import { useInvitesAdmin } from "./use-invites-admin";
+import { type UsagePeriod, useUsageAdmin } from "./use-usage-admin";
 import { useUsersAdmin } from "./use-users-admin";
 import { useWorkspacesAdmin } from "./use-workspaces-admin";
 import { UsersTab } from "./users-tab";
@@ -26,15 +33,17 @@ interface AdminModalProps {
 
 export function AdminModal({ open, onOpenChange }: AdminModalProps) {
   const [activeTab, setActiveTab] = useState<string | null>("users");
+  const [usagePeriod, setUsagePeriod] = useState<UsagePeriod>("24h");
   const { orgId } = useAuth();
 
   const users = useUsersAdmin(open);
   const invites = useInvitesAdmin(open);
   const workspaces = useWorkspacesAdmin(open);
+  const usage = useUsageAdmin(usagePeriod, users.users, open);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
+      <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Admin</DialogTitle>
           <DialogDescription>
@@ -69,6 +78,10 @@ export function AdminModal({ open, onOpenChange }: AdminModalProps) {
             <TabsTrigger value="workspaces">
               <BuildingIcon className="h-3.5 w-3.5" />
               Workspaces
+            </TabsTrigger>
+            <TabsTrigger value="usage">
+              <BarChart3Icon className="h-3.5 w-3.5" />
+              Usage
             </TabsTrigger>
           </TabsList>
 
@@ -105,6 +118,15 @@ export function AdminModal({ open, onOpenChange }: AdminModalProps) {
             onToggleAiSummary={workspaces.toggleAiSummary}
             onToggleChatAgent={workspaces.toggleChatAgent}
             onUpdateTokenBudget={workspaces.updateTokenBudget}
+          />
+
+          <UsageTab
+            summaries={usage.summaries}
+            isLoading={usage.isLoading}
+            error={usage.error}
+            totals={usage.totals}
+            period={usagePeriod}
+            onPeriodChange={setUsagePeriod}
           />
         </Tabs>
       </DialogContent>

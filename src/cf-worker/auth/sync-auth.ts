@@ -22,7 +22,7 @@ export const checkSyncAuth = (
   cookie: string | null,
   storeId: string,
   auth: Auth
-): Effect.Effect<void, SyncAuthError> =>
+): Effect.Effect<{ userId: string }, SyncAuthError> =>
   Effect.gen(function* checkSyncAuth() {
     if (!cookie) {
       return yield* new SyncAuthError({
@@ -66,4 +66,6 @@ export const checkSyncAuth = (
         status: 403,
       });
     }
+
+    return { userId: session.user.id };
   });

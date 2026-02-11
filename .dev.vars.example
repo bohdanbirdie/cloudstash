@@ -14,3 +14,5 @@ RESEND_API_KEY=re_
 
 # Chat Agent (optional - for AI chat feature)
 OPENROUTER_API_KEY=sk-
+CF_ACCOUNT_ID=
+CF_ANALYTICS_TOKEN=
