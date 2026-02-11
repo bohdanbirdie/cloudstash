@@ -124,7 +124,7 @@ Solution: Increase ping interval to 30 minutes (from 10s default). This reduces 
 makeWsSync({
   url: `${globalThis.location.origin}/sync`,
   ping: { requestInterval: 1_800_000 }, // 30 min
-})
+});
 ```
 
 Trade-off: Slower detection of dead connections (up to 30 min). Acceptable for a link-saving app — the connection will be verified on the next actual sync operation anyway.
@@ -155,14 +155,14 @@ On 2026-02-11, hit 90% of the free tier `rows_written` limit (100,000/day). Ever
 
 **Root cause: write amplification across DOs.** Each user event is written multiple times:
 
-| Where | Rows per event |
-| --- | --- |
-| SyncBackendDO eventlog | 1 |
-| SyncBackendDO context cursor | 1 per push |
-| LinkProcessorDO local eventlog (replica) | 1 |
-| LinkProcessorDO materialized views | 1-2 |
-| LinkProcessorDO context cursor | 1 per sync |
-| ChatAgentDO (3 orgs) | 3-4 |
+| Where                                    | Rows per event |
+| ---------------------------------------- | -------------- |
+| SyncBackendDO eventlog                   | 1              |
+| SyncBackendDO context cursor             | 1 per push     |
+| LinkProcessorDO local eventlog (replica) | 1              |
+| LinkProcessorDO materialized views       | 1-2            |
+| LinkProcessorDO context cursor           | 1 per sync     |
+| ChatAgentDO (3 orgs)                     | 3-4            |
 
 One event ≈ 5-6 rows written. Link processing generates ~5 events per link → ~30 rows per link created.
 

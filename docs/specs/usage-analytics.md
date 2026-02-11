@@ -21,22 +21,22 @@ Deployed 2026-02-11. Secrets set, Analytics Engine activated, data flowing.
 
 **Data schema per event:**
 
-| Field | Content | Example |
-|-------|---------|---------|
-| `indexes[0]` | userId | `"usr_abc"` |
-| `blobs[0]` | event type | `"sync"` |
-| `blobs[1]` | orgId | `"org_xyz"` |
-| `doubles[0]` | HTTP status (0 if N/A) | `200` |
+| Field        | Content                | Example     |
+| ------------ | ---------------------- | ----------- |
+| `indexes[0]` | userId                 | `"usr_abc"` |
+| `blobs[0]`   | event type             | `"sync"`    |
+| `blobs[1]`   | orgId                  | `"org_xyz"` |
+| `doubles[0]` | HTTP status (0 if N/A) | `200`       |
 
 **Instrumented events:**
 
-| Event | Trigger | File |
-|-------|---------|------|
-| `sync` | WebSocket sync connection | `src/cf-worker/index.ts` (handleSync) |
+| Event       | Trigger                     | File                                         |
+| ----------- | --------------------------- | -------------------------------------------- |
+| `sync`      | WebSocket sync connection   | `src/cf-worker/index.ts` (handleSync)        |
 | `sync_auth` | `/api/sync/auth` pre-flight | `src/cf-worker/index.ts` (sync/auth handler) |
-| `auth` | `/api/auth/me` call | `src/cf-worker/org/service.ts` (handleGetMe) |
-| `chat` | Chat agent connection | `src/cf-worker/chat-agent/hooks.ts` |
-| `ingest` | API ingestion | `src/cf-worker/ingest/service.ts` |
+| `auth`      | `/api/auth/me` call         | `src/cf-worker/org/service.ts` (handleGetMe) |
+| `chat`      | Chat agent connection       | `src/cf-worker/chat-agent/hooks.ts`          |
+| `ingest`    | API ingestion               | `src/cf-worker/ingest/service.ts`            |
 
 ### Read path (admin only)
 
@@ -45,6 +45,7 @@ Deployed 2026-02-11. Secrets set, Analytics Engine activated, data flowing.
 ### Admin UI
 
 The "Usage" tab in the admin modal shows:
+
 - Period selector (24h / 7d / 30d)
 - Summary stats (total events, active users)
 - Per-user table: User | Total | Sync | Auth | Chat | Ingest
@@ -52,16 +53,16 @@ The "Usage" tab in the admin modal shows:
 
 ## Key files
 
-| File | Role |
-|------|------|
-| `wrangler.toml` | `analytics_engine_datasets` binding (default + staging) |
-| `src/cf-worker/shared.ts` | `USAGE_ANALYTICS`, `CF_ACCOUNT_ID`, `CF_ANALYTICS_TOKEN` in Env |
-| `src/cf-worker/analytics.ts` | `trackEvent()` + `queryUsage()` |
-| `src/cf-worker/auth/sync-auth.ts` | Returns `{ userId }` for downstream tracking |
-| `src/cf-worker/admin/usage.ts` | Admin API endpoint |
-| `src/components/admin/use-usage-admin.ts` | SWR hook + pivot logic |
-| `src/components/admin/usage-tab.tsx` | UI component |
-| `src/components/admin/admin-modal.tsx` | Hosts the Usage tab |
+| File                                      | Role                                                            |
+| ----------------------------------------- | --------------------------------------------------------------- |
+| `wrangler.toml`                           | `analytics_engine_datasets` binding (default + staging)         |
+| `src/cf-worker/shared.ts`                 | `USAGE_ANALYTICS`, `CF_ACCOUNT_ID`, `CF_ANALYTICS_TOKEN` in Env |
+| `src/cf-worker/analytics.ts`              | `trackEvent()` + `queryUsage()`                                 |
+| `src/cf-worker/auth/sync-auth.ts`         | Returns `{ userId }` for downstream tracking                    |
+| `src/cf-worker/admin/usage.ts`            | Admin API endpoint                                              |
+| `src/components/admin/use-usage-admin.ts` | SWR hook + pivot logic                                          |
+| `src/components/admin/usage-tab.tsx`      | UI component                                                    |
+| `src/components/admin/admin-modal.tsx`    | Hosts the Usage tab                                             |
 
 ## Cost
 
