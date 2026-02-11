@@ -189,6 +189,11 @@ export default {
     env: Env,
     ctx: CfTypes.ExecutionContext
   ) {
+    env.USAGE_ANALYTICS.writeDataPoint({
+      indexes: ["test"],
+      blobs: ["test", "test"],
+      doubles: [0],
+    });
     const rateLimited = await checkRateLimit(request, env);
     if (rateLimited) return rateLimited;
 
