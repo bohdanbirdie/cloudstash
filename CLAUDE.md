@@ -45,3 +45,4 @@ bun run deploy             # FORBIDDEN
 - Database migrations: `bun run db:generate` then `bun run db:migrate:local`
 - Avoid code comments unless absolutely necessary for complex logic
 - No barrel files (index.ts re-exports) - import directly from source files
+- **Patches:** When patching packages with pre-built dist files, patch `dist/*.js` directly (not just `src/*.ts`). Runtime imports from dist, not source.
