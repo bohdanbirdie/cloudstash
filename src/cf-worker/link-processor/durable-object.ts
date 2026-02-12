@@ -139,7 +139,12 @@ export class LinkProcessorDO
     );
 
     this.subscription = store.subscribe(pendingLinks$, (pendingLinks) => {
-      logger.info("Subscription fired", { pendingCount: pendingLinks.length });
+      const allStatuses = store.query(statuses$);
+      logger.info("Subscription fired", {
+        pendingCount: pendingLinks.length,
+        totalStatuses: allStatuses.length,
+        pendingLinkIds: pendingLinks.map((l) => l.id).slice(0, 5),
+      });
       this.onPendingLinksChanged(store, pendingLinks);
     });
   }
@@ -158,6 +163,13 @@ export class LinkProcessorDO
       );
       const isRetry =
         existingStatus.length > 0 && existingStatus[0].status === "pending";
+
+      logger.info("Processing link decision", {
+        linkId: link.id,
+        hasStatus: existingStatus.length > 0,
+        status: existingStatus[0]?.status ?? "none",
+        isRetry,
+      });
 
       this.processLinkAsync(store, link, isRetry).catch((error) => {
         logger.error("processLinkAsync error", {

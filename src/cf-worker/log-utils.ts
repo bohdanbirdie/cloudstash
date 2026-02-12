@@ -15,11 +15,20 @@ export const maskId = (id: string): string => {
  */
 export const safeErrorInfo = (
   error: unknown
-): { errorType: string; hasMessage: boolean } => {
+): { errorType: string; hasMessage: boolean; errorMessage?: string } => {
   if (error instanceof Error) {
     return {
       errorType: error.name || "Error",
       hasMessage: !!error.message,
+      errorMessage: error.message?.slice(0, 500),
+    };
+  }
+  if (error !== null && typeof error === "object") {
+    const str = String(error).slice(0, 500);
+    return {
+      errorType: "object",
+      hasMessage: str !== "[object Object]",
+      errorMessage: str !== "[object Object]" ? str : undefined,
     };
   }
   return {
