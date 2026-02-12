@@ -39,7 +39,10 @@ async function fetchUsage(key: string): Promise<UsageResponse> {
   return res.json() as Promise<UsageResponse>;
 }
 
-export function pivotRows(rows: UsageRow[], users: AdminUser[]): UserUsageSummary[] {
+export function pivotRows(
+  rows: UsageRow[],
+  users: AdminUser[]
+): UserUsageSummary[] {
   const userMap = new Map(users.map((u) => [u.id, u]));
   const byUser = new Map<string, UserUsageSummary>();
 

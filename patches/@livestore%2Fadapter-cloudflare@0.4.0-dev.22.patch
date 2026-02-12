@@ -1,0 +1,45 @@
+diff --git a/dist/make-adapter.js b/dist/make-adapter.js
+index 3e6455cf0cd732d666e833824f3c3ea66d611b2e..4f517ba60b2710bc006cfa7b94d699f36ce26fac 100644
+--- a/dist/make-adapter.js
++++ b/dist/make-adapter.js
+@@ -23,15 +23,11 @@ export const makeAdapter = ({ storage, clientId, syncOptions, sessionId, resetPe
+         });
+     }
+     const dbState = yield* makeSqliteDb({
+-        _tag: 'storage',
+-        storage,
+-        fileName: stateDbFileName,
++        _tag: 'in-memory',
+         configureDb: () => { },
+     }).pipe(UnknownError.mapToUnknownError);
+     const dbEventlog = yield* makeSqliteDb({
+-        _tag: 'storage',
+-        storage,
+-        fileName: eventlogDbFileName,
++        _tag: 'in-memory',
+         configureDb: () => { },
+     }).pipe(UnknownError.mapToUnknownError);
+     const shutdownChannel = yield* WebChannel.noopChannel();
+diff --git a/src/make-adapter.ts b/src/make-adapter.ts
+index 95e881abf93f8b472255b4a0fb855a69bfd000c7..317243952c6c211fabc83891c297cac833f1a59b 100644
+--- a/src/make-adapter.ts
++++ b/src/make-adapter.ts
+@@ -69,16 +69,12 @@ export const makeAdapter =
+       }
+ 
+       const dbState = yield* makeSqliteDb({
+-        _tag: 'storage',
+-        storage,
+-        fileName: stateDbFileName,
++        _tag: 'in-memory',
+         configureDb: () => {},
+       }).pipe(UnknownError.mapToUnknownError)
+ 
+       const dbEventlog = yield* makeSqliteDb({
+-        _tag: 'storage',
+-        storage,
+-        fileName: eventlogDbFileName,
++        _tag: 'in-memory',
+         configureDb: () => {},
+       }).pipe(UnknownError.mapToUnknownError)
+ 
