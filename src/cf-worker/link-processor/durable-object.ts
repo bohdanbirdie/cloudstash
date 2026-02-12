@@ -39,6 +39,17 @@ export class LinkProcessorDO
   private cachedStore: Store<typeof schema> | undefined;
   private subscription: Unsubscribe | undefined;
   private currentlyProcessing = new Set<string>();
+  private totalRowsWritten = 0;
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    const origExec = this.ctx.storage.sql.exec.bind(this.ctx.storage.sql);
+    this.ctx.storage.sql.exec = ((...args: unknown[]) => {
+      const cursor = origExec(args[0] as string, ...args.slice(1));
+      this.totalRowsWritten += cursor.rowsWritten;
+      return cursor;
+    }) as typeof origExec;
+  }
 
   /** Persisted session ID enables delta sync (only fetch missing events on wakeup) */
   private async getSessionId(): Promise<string> {
@@ -167,6 +178,7 @@ export class LinkProcessorDO
     logger.info("Processing", { isRetry, linkId: link.id });
 
     try {
+      const rowsBefore = this.totalRowsWritten;
       const features = await this.getFeatures();
       await runEffect(
         processLink({
@@ -177,6 +189,11 @@ export class LinkProcessorDO
           store,
         })
       );
+      logger.info("Link processed", {
+        linkId: link.id,
+        rowsWritten: this.totalRowsWritten - rowsBefore,
+        totalRowsWritten: this.totalRowsWritten,
+      });
     } finally {
       this.currentlyProcessing.delete(link.id);
     }

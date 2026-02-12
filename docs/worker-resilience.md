@@ -103,8 +103,27 @@ Individual hooks can override (e.g. `useOrgFeatures` uses `dedupingInterval: 30_
 
 **File:** `src/cf-worker/sync/index.ts`
 
-- `onPush` logs storeId (masked), batch size, and event names
+- DO constructor logs `doId` on every wake-up
+- `onPush` logs storeId (unmasked), batch size, and event names
 - `validatePayload` logs warnings on auth failures (missing cookie, invalid session, org mismatch)
+
+### DO namespace IDs
+
+| DO Class        | Namespace ID                       |
+| --------------- | ---------------------------------- |
+| SyncBackendDO   | `e96f6022469a4499bda090041bd03467` |
+| LinkProcessorDO | `0cc85e49c1fe4e43bb0bb24a6e98b655` |
+| ChatAgentDO     | check CF dashboard                 |
+
+Note: `idFromName(orgId)` produces different hashes per environment (local vs production) because it depends on the namespace ID. To map a DO instance ID to an org, use the `onPush` logs or query the GraphQL API by `objectId`.
+
+### Querying DO metrics
+
+The CF GraphQL Analytics API exposes per-namespace `rowsWritten` via `durableObjectsPeriodicGroups` (dimensions: `namespaceId`, `objectId`, `date`, `datetimeHour`). This was initially believed to be unavailable but was found via schema introspection.
+
+**Script:** `scripts/do-metrics.sh` — queries rows_written per namespace, hourly breakdowns, per-object breakdowns, and WebSocket message counts.
+
+**Wrangler tail:** `bunx wrangler tail --format json > tail-$(date -u +%Y-%m-%dT%H_%M_%S)Z.json`
 
 ## Extended Ping Interval
 
@@ -157,33 +176,124 @@ The Analytics Engine SQL API returns `count()` values as **strings**, not number
 
 ## rows_written Quota (2026-02-11)
 
-On 2026-02-11, hit 90% of the free tier `rows_written` limit (100,000/day). Every `INSERT`/`UPDATE`/`DELETE` on DO SQLite counts, including KV operations (`ctx.storage.put/get`) which use a hidden SQLite table.
+On 2026-02-11, exceeded the free tier `rows_written` limit (100,000/day). The limit is **account-wide** across all DO classes and all Workers projects on the account.
 
-**Root cause: write amplification across DOs.** Each user event is written multiple times:
+### Two types of DO SQLite
 
-| Where                                    | Rows per event |
-| ---------------------------------------- | -------------- |
-| SyncBackendDO eventlog                   | 1              |
-| SyncBackendDO context cursor             | 1 per push     |
-| LinkProcessorDO local eventlog (replica) | 1              |
-| LinkProcessorDO materialized views       | 1-2            |
-| LinkProcessorDO context cursor           | 1 per sync     |
-| ChatAgentDO (3 orgs)                     | 3-4            |
+**SyncBackendDO** uses the DO's **native SQLite** (`this.ctx.storage.sql`). Writes are efficient: 1 INSERT = 1 `rows_written`. Per the livestore source, a push of N events costs exactly N+1 rows (N eventlog + 1 context cursor). Pulls and WebSocket connections cost 0 writes. DO wake-up costs 0 writes for existing stores.
 
-One event ≈ 5-6 rows written. Link processing generates ~5 events per link → ~30 rows per link created.
+**LinkProcessorDO and ChatAgentDO** use `createStoreDoPromise` from `@livestore/adapter-cloudflare`, which runs **Wasm SQLite** (SQLite compiled to WebAssembly). The DO has no file system, so livestore uses a Virtual File System (`CloudflareSqlVFS`) that stores the wasm SQLite database file as 64 KiB chunks in the DO's native SqlStorage:
 
-**Immediate fix:** Disabled `LinkInteracted` event (fired on every link click, was #1 event type by volume). Analytics-only tracking via `track("link_opened")` instead.
+```
+vfs_files  — file metadata
+vfs_blocks — database content, one row per 64 KiB block
+```
 
-**Cloudflare limitations:** The GraphQL Analytics API doesn't expose per-DO-class `rows_written` — only `storedBytes`, invocation counts, and CPU time. Dashboard Observability tab doesn't filter by DO class either. So we can't get a definitive breakdown of which DO is the biggest writer.
+Every wasm SQLite page flush → `INSERT OR REPLACE INTO vfs_blocks` → counts as `rows_written`. A single logical INSERT in wasm SQLite dirties data pages, index pages, and journal pages across two separate database files (eventlog db + state db), each flushed as separate `vfs_blocks` rows. The exact multiplier depends on SQLite page layout, but **each `store.commit()` in a client DO costs significantly more than 1 `rows_written`**.
+
+### Write amplification
+
+Each user event is written multiple times. The client DOs have VFS overhead on top:
+
+| Where                                                          | Native rows_written per event |
+| -------------------------------------------------------------- | ----------------------------- |
+| SyncBackendDO eventlog + cursor (native SQLite)                | 2                             |
+| LinkProcessorDO eventlog + changeset + materializer (wasm/VFS) | ~4-10 per commit              |
+| ChatAgentDO same pattern when active (wasm/VFS)                | ~4-10 per commit              |
+
+`processLink` calls `store.commit()` **7 separate times** (not batched), each as an individual wasm SQLite transaction with full VFS flush. This is the biggest source of write amplification.
+
+### What happens when the limit is hit
+
+Once `rows_written` is exhausted, any DO that tries to write SQL gets `Exceeded allowed rows written in Durable Objects free tier`. For SyncBackendDO, livestore's `makeDoCtx` runs `CREATE TABLE IF NOT EXISTS` which triggers the error. The DO crashes, the client retries the WebSocket, the DO wakes again, crashes again — a retry loop that generates errors until midnight UTC reset. Tail log `tail-2026-02-11T22_07_10Z.json` captured this: 6 DO wake-ups in 44 seconds, all failing immediately.
+
+ChatAgentDO also fails at constructor time because the Agents SDK calls `this.sql` during `new ChatAgentDO()`.
+
+### Immediate fixes applied
+
+- Disabled `LinkInteracted` event (fired on every link click, was #1 event type by volume). Analytics-only tracking via `track("link_opened")` instead.
+- Changed ping interval from 30 min to 5 min to reduce WebSocket disconnects. Each disconnect → reconnect → potential re-sync → VFS writes on client DOs.
+
+### Confirmed: LinkProcessorDO is the culprit
+
+Using the CF GraphQL Analytics API (`durableObjectsPeriodicGroups` dataset, which exposes `rowsWritten` per `namespaceId`), we confirmed the VFS overhead theory:
+
+| Namespace                                        | Feb 11 rowsWritten |
+| ------------------------------------------------ | ------------------ |
+| LinkProcessorDO (`0cc85e...`, wasm SQLite + VFS) | **114,161**        |
+| SyncBackendDO (`e96f6022...`, native SQLite)     | **141**            |
+
+LinkProcessorDO accounts for **~99.9%** of all `rows_written`. The VFS layer (wasm SQLite → `vfs_blocks`) amplifies every logical event write into multiple native rows. SyncBackendDO with native SQLite is extremely efficient.
+
+**Script:** `scripts/do-metrics.sh` queries `rowsWritten` per namespace, hourly breakdowns, and per-object breakdowns via the CF GraphQL API.
+
+## LinkProcessorDO Refactor Research (2026-02-12)
+
+All three LinkProcessorDO triggers disabled while investigating alternatives. See `docs/link-processor-refactor.md` for full research.
+
+### Current status
+
+- [x] Disabled `onPush` trigger in SyncBackendDO
+- [x] Disabled ingest API trigger
+- [x] Disabled Telegram bot trigger
+
+### Root cause: wasm SQLite + VFS write amplification
+
+`createStoreDoPromise` from `@livestore/adapter-cloudflare` runs wasm SQLite with `CloudflareSqlVFS`. The VFS stores the wasm SQLite database as 64 KiB blocks in `vfs_blocks` table on native DO SqlStorage. Every `jWrite()` call (per SQL statement, NOT per transaction) triggers `INSERT OR REPLACE INTO vfs_blocks`. This causes ~4-10 native rows_written per logical `store.commit()`.
+
+### Approaches investigated and ruled out
+
+| Approach                                                  | Why ruled out                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Native DO SQLite adapter**                              | CF's `ctx.storage.sql` doesn't expose the SQLite session extension. Livestore's materializer calls `session()` unconditionally on every event to record changesets for rebase. No session = empty changesets = silent data corruption on rebase. Custom changeset implementations (triggers, snapshot diffing) can't produce SQLite's native binary changeset format that `makeChangeset().invert().apply()` expects. |
+| **Batch commits (7→1)**                                   | VFS flushes per SQL statement (`jWrite()`), not per transaction. Batching 7 events into 1 commit = same ~21-35 `vfs_blocks` rows. Only saves BEGIN/COMMIT overhead (negligible).                                                                                                                                                                                                                                      |
+| **Raw SQL event injection in onPush**                     | No built-in server-side push API. Would require manual seqNum management, manual broadcast to WebSocket/RPC clients, tightly coupled to livestore internals. Fragile and would break on upstream updates.                                                                                                                                                                                                             |
+| **Worker + R2 storage**                                   | R2 has no synchronous API (VFS requires sync). Workers are stateless (would reload DB per request). R2 Class A ops quota would also be exhausted.                                                                                                                                                                                                                                                                     |
+| **VFS write batching (buffer in jWrite, flush in jSync)** | Promising in theory (~50% reduction) but risky — modifying VFS internals could break SQLite's durability guarantees. May not be sufficient alone.                                                                                                                                                                                                                                                                     |
+
+### Key finding: livestore has a "public API" adapter
+
+`@livestore/adapter-cloudflare/src/make-sqlite-db.ts` contains `makeSqliteDb_()` — a complete `SqliteDb` implementation that wraps `ctx.storage.sql` directly (native DO SQLite, zero VFS). It stubs `session()` (returns empty changeset) and `makeChangeset().invert()`/`.apply()` (throws).
+
+`makeAdapter` in `make-adapter.ts` currently hardcodes the wasm path:
+
+```typescript
+const sqlite3 = yield * Effect.promise(() => loadSqlite3Wasm());
+const makeSqliteDb = sqliteDbFactory({ sqlite3 }); // ← always wasm + VFS
+```
+
+Swapping to the public API adapter would eliminate VFS entirely. The question is whether `invert()`/`apply()` ever executes for a sequential server-side client that never has conflicting local state.
+
+### Viable architectures (not yet implemented)
+
+| Architecture                        | How it works                                                                                                      | Rows/link      | Complexity  |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------- | ----------- |
+| **Patch adapter to use public API** | Swap `sqliteDbFactory` for `makeSqliteDb` in `makeAdapter`. Eliminates VFS. Risk: rebase would fail if triggered. | ~7-14 (native) | Low (patch) |
+| **Queue + stateless processing**    | `onPush` → Queue → Consumer Worker (30s CPU) → results back to SyncBackendDO                                      | ~4-7 (native)  | Medium      |
+| **SyncBackendDO alarm**             | `onPush` → store job → `setAlarm()` → alarm processes link → write events directly                                | ~5-8 (native)  | Medium      |
+| **D1 staging + client commit**      | Queue Consumer → results in D1 → client polls → `store.commit()` → normal sync                                    | 0 server-side  | Medium      |
+
+### CF infrastructure options researched
+
+| Primitive             | CPU limit    | Free tier                           | Triggered from DO?       |
+| --------------------- | ------------ | ----------------------------------- | ------------------------ |
+| Workers (fetch)       | 10ms         | 100k req/day                        | Via `fetch()`            |
+| **Durable Objects**   | **30s**      | 100k req/day, 100k rows_written/day | Yes (stub)               |
+| **Queues (consumer)** | **30s**      | 10k ops/day (~3.3k msgs)            | Yes (`env.QUEUE.send()`) |
+| Workflows (step)      | 10ms on free | 100k exec/day                       | Yes                      |
+| D1                    | N/A          | 100k writes/day (separate from DO)  | Yes                      |
+| KV                    | N/A          | 1k writes/day                       | Yes                      |
+| R2                    | N/A          | 1M class A/month                    | Yes                      |
+
+Key insight: DOs get **30s CPU** (not 10ms like Workers). Queue consumers also get **30s CPU + 15min wall time**. The bottleneck was never CPU — it was always VFS write amplification.
 
 ## Still TODO
 
 - [ ] File upstream livestore issue: auth failures should be non-retryable
 - [ ] File upstream livestore issue: `ping.enabled` option is defined but never checked in code
-- [ ] Debounce `triggerLinkProcessor` in `onPush`
 - [ ] Investigate ChatAgentDO's 46% error rate
-- [ ] **Remove LiveStore replica from LinkProcessorDO** — Currently `createStoreDoPromise` with `livePull: true` maintains a full local eventlog + materialized views inside LinkProcessorDO's SQLite. This doubles write amplification for every event. Instead, pass link data directly in the `triggerLinkProcessor` fetch call and write processing results back to SyncBackendDO via RPC. Eliminates ~50% of all `rows_written`.
-- [ ] **Combine processor events into single `linkProcessed`** — Currently emits 5+ events per link (`processingStarted`, `metadataFetched`, `summarized`, `tagSuggested` × N, `processingCompleted`). A single `linkProcessed` event with all results would cut processor writes by ~80%.
-- [ ] **Batch `tagSuggested` into `tagsSuggested`** — Fires once per tag suggestion. An array-based event would save 2-3 rows per link.
-- [ ] **Re-enable `LinkInteracted` with batching** — Currently disabled to save writes. Could re-enable with client-side debouncing (batch interactions over 30s and push once) if interaction tracking is needed.
-- [ ] **Investigate periodic WebSocket disconnects** — WS connections restart after ~10-30 minutes inconsistently. Could be Cloudflare's idle timeout evicting the DO, the edge dropping idle connections, or the 30-min ping interval being too long for Cloudflare's WebSocket keep-alive. Need to check if disconnects correlate with ping timing and whether `setWebSocketAutoResponse` (edge-level pong without waking DO) would help maintain connections.
+- [ ] **Decide on LinkProcessorDO architecture** — see research above and `docs/link-processor-refactor.md`
+- [ ] **Verify public API adapter safety** — does a sequential server-side livestore client ever trigger rebase? If not, patching `makeAdapter` to use native SQLite is the simplest fix.
+- [ ] **Combine processor events into single `linkProcessed`** — Currently emits 5+ events per link. A single event with all results would cut writes by ~80%.
+- [ ] **Re-enable `LinkInteracted` with batching** — Currently disabled to save writes. Could re-enable with client-side debouncing.
+- [ ] **Investigate periodic WebSocket disconnects** — WS connections restart after ~10-30 minutes inconsistently. Check if disconnects correlate with ping timing and whether `setWebSocketAutoResponse` would help.
