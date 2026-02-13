@@ -24,10 +24,18 @@ import { type Env } from "../shared";
 import { InvalidUrlError } from "./errors";
 import { runEffect } from "./logger";
 import { processLink } from "./process-link";
+import { packSnapshot, unpackSnapshot } from "./snapshot";
 
 const logger = logSync("LinkProcessorDO");
 
+const STUCK_TIMEOUT_MS = 5 * 60 * 1000;
+
 type Link = typeof tables.links.Type;
+
+const SCHEMA_HASH =
+  schema.state.sqlite.migrations.strategy === "manual"
+    ? "fixed"
+    : schema.state.sqlite.hash.toString();
 
 export class LinkProcessorDO
   extends DurableObject<Env>
@@ -40,6 +48,12 @@ export class LinkProcessorDO
   private subscription: Unsubscribe | undefined;
   private currentlyProcessing = new Set<string>();
   private totalRowsWritten = 0;
+  private exportFns:
+    | {
+        exportState: () => Uint8Array;
+        exportEventlog: () => Uint8Array;
+      }
+    | undefined;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -49,6 +63,10 @@ export class LinkProcessorDO
       this.totalRowsWritten += cursor.rowsWritten;
       return cursor;
     }) as typeof origExec;
+  }
+
+  private snapshotKey(): string {
+    return `snapshots/${this.storeId}/${SCHEMA_HASH}.bin`;
   }
 
   /** Persisted session ID enables delta sync (only fetch missing events on wakeup) */
@@ -63,6 +81,53 @@ export class LinkProcessorDO
     return newSessionId;
   }
 
+  private async loadSnapshot(): Promise<
+    { state: Uint8Array; eventlog: Uint8Array } | undefined
+  > {
+    try {
+      const obj = await this.env.SNAPSHOT_BUCKET.get(this.snapshotKey());
+      if (!obj) return undefined;
+
+      const buf = await obj.arrayBuffer();
+      const data = unpackSnapshot(new Uint8Array(buf));
+      logger.info("Snapshot loaded from R2", {
+        storeId: maskId(this.storeId ?? ""),
+        stateBytes: data.state.byteLength,
+        eventlogBytes: data.eventlog.byteLength,
+      });
+      return data;
+    } catch (error) {
+      logger.warn("Snapshot load failed, will do full pull", {
+        ...safeErrorInfo(error),
+        storeId: maskId(this.storeId ?? ""),
+      });
+      return undefined;
+    }
+  }
+
+  private async saveSnapshot(): Promise<void> {
+    if (!this.exportFns || !this.storeId) return;
+
+    try {
+      const state = this.exportFns.exportState();
+      const eventlog = this.exportFns.exportEventlog();
+      const blob = packSnapshot(state, eventlog);
+
+      await this.env.SNAPSHOT_BUCKET.put(this.snapshotKey(), blob);
+      logger.info("Snapshot saved to R2", {
+        storeId: maskId(this.storeId),
+        stateBytes: state.byteLength,
+        eventlogBytes: eventlog.byteLength,
+        totalBytes: blob.byteLength,
+      });
+    } catch (error) {
+      logger.warn("Snapshot save failed", {
+        ...safeErrorInfo(error),
+        storeId: maskId(this.storeId ?? ""),
+      });
+    }
+  }
+
   private async getStore(): Promise<Store<typeof schema>> {
     if (this.cachedStore) {
       return this.cachedStore;
@@ -73,9 +138,12 @@ export class LinkProcessorDO
     }
 
     const sessionId = await this.getSessionId();
+    const snapshotData = await this.loadSnapshot();
+
     logger.info("Creating store", {
       sessionId: maskId(sessionId),
       storeId: maskId(this.storeId),
+      hasSnapshot: !!snapshotData,
     });
 
     this.cachedStore = await createStoreDoPromise({
@@ -92,6 +160,10 @@ export class LinkProcessorDO
       syncBackendStub: this.env.SYNC_BACKEND_DO.get(
         this.env.SYNC_BACKEND_DO.idFromName(this.storeId)
       ) as never,
+      snapshotData,
+      onExportReady: (fns) => {
+        this.exportFns = fns;
+      },
     });
 
     return this.cachedStore;
@@ -164,6 +236,25 @@ export class LinkProcessorDO
       const isRetry =
         existingStatus.length > 0 && existingStatus[0].status === "pending";
 
+      if (isRetry && existingStatus[0]) {
+        const elapsed =
+          Date.now() - new Date(existingStatus[0].updatedAt).getTime();
+        if (elapsed > STUCK_TIMEOUT_MS) {
+          logger.info("Failing stuck link", {
+            linkId: link.id,
+            stuckMs: elapsed,
+          });
+          store.commit(
+            events.linkProcessingFailed({
+              error: "stuck_timeout",
+              linkId: link.id,
+              updatedAt: new Date(),
+            })
+          );
+          continue;
+        }
+      }
+
       logger.info("Processing link decision", {
         linkId: link.id,
         hasStatus: existingStatus.length > 0,
@@ -206,6 +297,31 @@ export class LinkProcessorDO
         rowsWritten: this.totalRowsWritten - rowsBefore,
         totalRowsWritten: this.totalRowsWritten,
       });
+
+      await this.saveSnapshot();
+    } catch (error) {
+      logger.error("processLinkAsync failed", {
+        ...safeErrorInfo(error),
+        linkId: link.id,
+      });
+      try {
+        const status = store.query(
+          queryDb(tables.linkProcessingStatus.where({ linkId: link.id }))
+        );
+        if (!status[0] || status[0].status === "pending") {
+          store.commit(
+            events.linkProcessingFailed({
+              error: safeErrorInfo(error).errorType,
+              linkId: link.id,
+              updatedAt: new Date(),
+            })
+          );
+        }
+      } catch {
+        logger.error("Failed to emit LinkProcessingFailed", {
+          linkId: link.id,
+        });
+      }
     } finally {
       this.currentlyProcessing.delete(link.id);
     }

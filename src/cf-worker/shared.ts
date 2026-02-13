@@ -41,4 +41,5 @@ export interface Env {
   USAGE_ANALYTICS: AnalyticsEngineDataset;
   CF_ACCOUNT_ID: string;
   CF_ANALYTICS_TOKEN: string;
+  SNAPSHOT_BUCKET: R2Bucket;
 }

@@ -115,6 +115,50 @@ Clear the Origin Private File System (OPFS) data when users log out to prevent s
 - Prevents sync conflicts when logging into different accounts
 - Call `navigator.storage.getDirectory()` and clear on logout
 
+### Telegram Queue-Based Ingestion
+
+Use Cloudflare Queues to make Telegram link ingestion reliable — no lost messages on transient failures.
+
+**Current problem:**
+
+- Telegram webhook → Worker → LinkProcessorDO fetch is fire-and-forget
+- If LinkProcessorDO fails (cold start timeout, OOM, transient error), the message is lost
+- Telegram does retry webhooks, but only for HTTP 5xx — if the Worker returns 200 before the DO fails, no retry
+
+**Proposed flow:**
+
+```
+Telegram webhook → Worker → Queue (enqueue message) → return 200 to Telegram
+                              ↓
+                   Queue consumer → LinkProcessorDO.fetch(storeId, url)
+                              ↓ (on failure)
+                   Automatic retry with backoff (up to 3 retries)
+                              ↓ (after max retries)
+                   Dead letter queue → alert / manual review
+```
+
+**Why Queues:**
+
+- Built-in retry with configurable backoff — failed messages re-delivered automatically
+- Dead letter queue for messages that exceed max retries — nothing silently lost
+- Decouples webhook response from processing — Telegram gets fast 200, processing happens async
+- Free tier: 1M operations/month — more than enough for personal use
+- Works for all external triggers (Telegram, Ingest API, future WhatsApp)
+
+**Message payload:**
+
+```json
+{
+  "source": "telegram",
+  "storeId": "...",
+  "url": "https://example.com",
+  "chatId": 12345,
+  "timestamp": "2026-02-12T16:20:00Z"
+}
+```
+
+**Scope:** Could also replace the direct `ingestUrl()` call in the Ingest API for the same reliability guarantees.
+
 ### LiveStore Event Log Viewer
 
 Add a debug UI to inspect the full LiveStore event log for troubleshooting sync issues.
