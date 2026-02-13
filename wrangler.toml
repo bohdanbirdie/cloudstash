@@ -59,6 +59,10 @@ simple = { limit = 30, period = 60 }
 binding = "USAGE_ANALYTICS"
 dataset = "cloudstash_usage"
 
+[[r2_buckets]]
+binding = "SNAPSHOT_BUCKET"
+bucket_name = "cloudstash-snapshots"
+
 [observability]
 enabled = true
 
@@ -113,6 +117,10 @@ id = "dd0c0cfe847745078e0c7582873a5b86"
 name = "SYNC_RATE_LIMITER"
 namespace_id = "1001"
 simple = { limit = 30, period = 60 }
+
+[[env.staging.r2_buckets]]
+binding = "SNAPSHOT_BUCKET"
+bucket_name = "cloudstash-snapshots-staging"
 
 [[env.staging.analytics_engine_datasets]]
 binding = "USAGE_ANALYTICS"

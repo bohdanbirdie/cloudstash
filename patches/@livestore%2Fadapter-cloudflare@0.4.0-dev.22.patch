@@ -1,8 +1,73 @@
+diff --git a/node_modules/@livestore/adapter-cloudflare/.bun-tag-6bd4623439c8237d b/.bun-tag-6bd4623439c8237d
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@livestore/adapter-cloudflare/.bun-tag-7d901f8512f0236a b/.bun-tag-7d901f8512f0236a
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/dist/create-store-do.d.ts b/dist/create-store-do.d.ts
+index 45016248e15ea08e54dfa0ef3ff9cabb06f9216f..ac2dc60061109da5d42a997241b270a91782341e 100644
+--- a/dist/create-store-do.d.ts
++++ b/dist/create-store-do.d.ts
+@@ -38,6 +38,14 @@ export type CreateStoreDoOptions<TSchema extends LiveStoreSchema, TEnv, TState>
+      * Note: Only use this for development purposes.
+      */
+     resetPersistence?: boolean;
++    snapshotData?: {
++        state: Uint8Array;
++        eventlog: Uint8Array;
++    };
++    onExportReady?: (fns: {
++        exportState: () => Uint8Array;
++        exportEventlog: () => Uint8Array;
++    }) => void;
+ } & LogConfig.WithLoggerOptions;
+ /**
+  * Creates a LiveStore instance inside a Cloudflare Durable Object.
+@@ -79,7 +87,7 @@ export type CreateStoreDoOptions<TSchema extends LiveStoreSchema, TEnv, TState>
+  *
+  * @see https://livestore.dev/docs/reference/adapters/cloudflare for setup guide
+  */
+-export declare const createStoreDo: <TSchema extends LiveStoreSchema, TEnv, TState extends CfTypes.DurableObjectState = CfTypes.DurableObjectState>({ schema, storeId, clientId, sessionId, durableObject, syncBackendStub, livePull, resetPersistence, }: CreateStoreDoOptions<TSchema, TEnv, TState>) => Effect.Effect<import("@livestore/livestore").Store<TSchema, {}>, import("@livestore/common").UnknownError, never>;
++export declare const createStoreDo: <TSchema extends LiveStoreSchema, TEnv, TState extends CfTypes.DurableObjectState = CfTypes.DurableObjectState>({ schema, storeId, clientId, sessionId, durableObject, syncBackendStub, livePull, resetPersistence, snapshotData, onExportReady, }: CreateStoreDoOptions<TSchema, TEnv, TState>) => Effect.Effect<import("@livestore/livestore").Store<TSchema, {}>, import("@livestore/common").UnknownError, never>;
+ /**
+  * Promise-based wrapper around `createStoreDo` for simpler async/await usage.
+  *
+diff --git a/dist/create-store-do.js b/dist/create-store-do.js
+index 5b0dcce78926f5fd7915984a8d704aa7effcfdd4..d1c6aebdaddf8c1bebfa25f40f1d952baa342b2c 100644
+--- a/dist/create-store-do.js
++++ b/dist/create-store-do.js
+@@ -44,7 +44,7 @@ import { makeAdapter } from "./make-adapter.js";
+  * @see https://livestore.dev/docs/reference/adapters/cloudflare for setup guide
+  */
+ // TODO Also support in Cloudflare workers outside of a durable object context.
+-export const createStoreDo = ({ schema, storeId, clientId, sessionId, durableObject, syncBackendStub, livePull = false, resetPersistence = false, }) => Effect.gen(function* () {
++export const createStoreDo = ({ schema, storeId, clientId, sessionId, durableObject, syncBackendStub, livePull = false, resetPersistence = false, snapshotData, onExportReady, }) => Effect.gen(function* () {
+     const { ctx, bindingName } = durableObject;
+     const storage = ctx.storage;
+     const durableObjectId = ctx.id.toString();
+@@ -54,6 +54,8 @@ export const createStoreDo = ({ schema, storeId, clientId, sessionId, durableObj
+         sessionId,
+         storage,
+         resetPersistence,
++        snapshotData,
++        onExportReady,
+         syncOptions: {
+             backend: makeDoRpcSync({
+                 syncBackendStub,
 diff --git a/dist/make-adapter.js b/dist/make-adapter.js
-index 3e6455cf0cd732d666e833824f3c3ea66d611b2e..4f517ba60b2710bc006cfa7b94d699f36ce26fac 100644
+index 3e6455cf0cd732d666e833824f3c3ea66d611b2e..f379dea125eb538730708f5326ada13c230c1f93 100644
 --- a/dist/make-adapter.js
 +++ b/dist/make-adapter.js
-@@ -23,15 +23,11 @@ export const makeAdapter = ({ storage, clientId, syncOptions, sessionId, resetPe
+@@ -4,7 +4,7 @@ import { LiveStoreEvent } from '@livestore/livestore';
+ import { sqliteDbFactory } from '@livestore/sqlite-wasm/cf';
+ import { loadSqlite3Wasm } from '@livestore/sqlite-wasm/load-wasm';
+ import { Effect, FetchHttpClient, Layer, Schedule, SubscriptionRef, WebChannel } from '@livestore/utils/effect';
+-export const makeAdapter = ({ storage, clientId, syncOptions, sessionId, resetPersistence = false, }) => (adapterArgs) => Effect.gen(function* () {
++export const makeAdapter = ({ storage, clientId, syncOptions, sessionId, resetPersistence = false, snapshotData, onExportReady, }) => (adapterArgs) => Effect.gen(function* () {
+     const { storeId, 
+     /* devtoolsEnabled, shutdown, bootStatusQueue,  */
+     syncPayloadEncoded, syncPayloadSchema, schema, } = adapterArgs;
+@@ -23,17 +23,17 @@ export const makeAdapter = ({ storage, clientId, syncOptions, sessionId, resetPe
          });
      }
      const dbState = yield* makeSqliteDb({
@@ -19,12 +84,79 @@ index 3e6455cf0cd732d666e833824f3c3ea66d611b2e..4f517ba60b2710bc006cfa7b94d699f3
 +        _tag: 'in-memory',
          configureDb: () => { },
      }).pipe(UnknownError.mapToUnknownError);
++    if (snapshotData) {
++        dbState.import(snapshotData.state);
++        dbEventlog.import(snapshotData.eventlog);
++    }
      const shutdownChannel = yield* WebChannel.noopChannel();
+     // Use Durable Object sync backend if no backend is specified
+     const layer = yield* Layer.build(makeLeaderThreadLayer({
+@@ -104,6 +104,12 @@ export const makeAdapter = ({ storage, clientId, syncOptions, sessionId, resetPe
+         registerBeforeUnload: (_onBeforeUnload) => () => { },
+         origin: undefined,
+     });
++    if (onExportReady) {
++        onExportReady({
++            exportState: () => dbState.export(),
++            exportEventlog: () => dbEventlog.export(),
++        });
++    }
+     return clientSession;
+ }).pipe(Effect.withSpan('@livestore/adapter-cloudflare:makeAdapter', { attributes: { clientId, sessionId } }), Effect.provide(FetchHttpClient.layer));
+ const getStateDbFileName = (suffix) => `state${suffix}@${liveStoreStorageFormatVersion}.db`;
+diff --git a/src/create-store-do.ts b/src/create-store-do.ts
+index ecda0f8c30fd804685758222b6efd697a8e224c8..291a42c4bbc278d438bdef25c2e7637198395e67 100644
+--- a/src/create-store-do.ts
++++ b/src/create-store-do.ts
+@@ -42,6 +42,8 @@ export type CreateStoreDoOptions<TSchema extends LiveStoreSchema, TEnv, TState>
+    * Note: Only use this for development purposes.
+    */
+   resetPersistence?: boolean
++  snapshotData?: { state: Uint8Array; eventlog: Uint8Array }
++  onExportReady?: (fns: { exportState: () => Uint8Array; exportEventlog: () => Uint8Array }) => void
+ } & LogConfig.WithLoggerOptions
+ 
+ /**
+@@ -98,6 +100,8 @@ export const createStoreDo = <
+   syncBackendStub,
+   livePull = false,
+   resetPersistence = false,
++  snapshotData,
++  onExportReady,
+ }: CreateStoreDoOptions<TSchema, TEnv, TState>) =>
+   Effect.gen(function* () {
+     const { ctx, bindingName } = durableObject
+@@ -110,6 +114,8 @@ export const createStoreDo = <
+       sessionId,
+       storage,
+       resetPersistence,
++      snapshotData,
++      onExportReady,
+       syncOptions: {
+         backend: makeDoRpcSync({
+           syncBackendStub,
 diff --git a/src/make-adapter.ts b/src/make-adapter.ts
-index 95e881abf93f8b472255b4a0fb855a69bfd000c7..317243952c6c211fabc83891c297cac833f1a59b 100644
+index 95e881abf93f8b472255b4a0fb855a69bfd000c7..c4a6465fb2b71df2d257f834041b201cdab92f73 100644
 --- a/src/make-adapter.ts
 +++ b/src/make-adapter.ts
-@@ -69,16 +69,12 @@ export const makeAdapter =
+@@ -27,12 +27,16 @@ export const makeAdapter =
+     syncOptions,
+     sessionId,
+     resetPersistence = false,
++    snapshotData,
++    onExportReady,
+   }: {
+     storage: CfTypes.DurableObjectStorage
+     clientId: string
+     syncOptions: SyncOptions
+     sessionId: string
+     resetPersistence?: boolean
++    snapshotData?: { state: Uint8Array; eventlog: Uint8Array }
++    onExportReady?: (fns: { exportState: () => Uint8Array; exportEventlog: () => Uint8Array }) => void
+   }): Adapter =>
+   (adapterArgs) =>
+     Effect.gen(function* () {
+@@ -69,19 +73,20 @@ export const makeAdapter =
        }
  
        const dbState = yield* makeSqliteDb({
@@ -43,3 +175,25 @@ index 95e881abf93f8b472255b4a0fb855a69bfd000c7..317243952c6c211fabc83891c297cac8
          configureDb: () => {},
        }).pipe(UnknownError.mapToUnknownError)
  
++      if (snapshotData) {
++        dbState.import(snapshotData.state)
++        dbEventlog.import(snapshotData.eventlog)
++      }
++
+       const shutdownChannel = yield* WebChannel.noopChannel<any, any>()
+ 
+       // Use Durable Object sync backend if no backend is specified
+@@ -174,6 +179,13 @@ export const makeAdapter =
+         origin: undefined,
+       })
+ 
++      if (onExportReady) {
++        onExportReady({
++          exportState: () => dbState.export(),
++          exportEventlog: () => dbEventlog.export(),
++        })
++      }
++
+       return clientSession
+     }).pipe(
+       Effect.withSpan('@livestore/adapter-cloudflare:makeAdapter', { attributes: { clientId, sessionId } }),

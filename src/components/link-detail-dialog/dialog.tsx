@@ -9,6 +9,7 @@ import {
   Trash2Icon,
   UndoIcon,
 } from "lucide-react";
+import { Match } from "effect";
 import { useState } from "react";
 
 import { LinkImage } from "@/components/link-card";
@@ -154,7 +155,6 @@ export function LinkDetailDialogContent({
     });
 
   const processingRecord = store.useQuery(linkProcessingStatus$(linkId));
-  const isProcessing = processingRecord?.status === "pending";
   const { tagIds, setTagIds } = useLinkTags(linkId);
 
   const isCompleted = link.status === "completed";
@@ -240,20 +240,37 @@ export function LinkDetailDialogContent({
             )}
           </div>
 
-          {link.summary ? (
-            <div className="border-l-2 border-primary/50 bg-muted/50 pl-3 py-2 space-y-1">
-              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                AI Summary
-              </h4>
-              <Markdown className="leading-relaxed">{link.summary}</Markdown>
-            </div>
-          ) : isProcessing ? (
-            <div className="border-l-2 border-muted-foreground/30 bg-muted/50 pl-3 py-2">
-              <TextShimmer className="text-sm" duration={1.5}>
-                Generating summary...
-              </TextShimmer>
-            </div>
-          ) : null}
+          {Match.value(
+            link.summary
+              ? ("has-summary" as const)
+              : processingRecord?.status,
+          ).pipe(
+            Match.when("has-summary", () => (
+              <div className="border-l-2 border-primary/50 bg-muted/50 pl-3 py-2 space-y-1">
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  AI Summary
+                </h4>
+                <Markdown className="leading-relaxed">
+                  {link.summary!}
+                </Markdown>
+              </div>
+            )),
+            Match.when("pending", () => (
+              <div className="border-l-2 border-muted-foreground/30 bg-muted/50 pl-3 py-2">
+                <TextShimmer className="text-sm" duration={1.5}>
+                  Generating summary...
+                </TextShimmer>
+              </div>
+            )),
+            Match.when("failed", () => (
+              <div className="border-l-2 border-destructive/50 bg-destructive/5 pl-3 py-2">
+                <p className="text-sm text-muted-foreground">
+                  Summary generation failed
+                </p>
+              </div>
+            )),
+            Match.orElse(() => null),
+          )}
 
           <div className="space-y-2">
             <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
