@@ -66,6 +66,9 @@ enabled = true
 enabled = true
 invocation_logs = true
 
+[vars]
+VERSION = "1.0.0"
+
 # ============================================================
 # STAGING ENVIRONMENT
 # ============================================================

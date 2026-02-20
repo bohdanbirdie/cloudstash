@@ -3,6 +3,7 @@ import { type ChatAgentDO } from "./chat-agent";
 /// <reference types="@cloudflare/workers-types" />
 import { type SyncBackendDO } from "./index";
 import { type LinkProcessorDO } from "./link-processor";
+import { type RequestContextData } from "./logging/types";
 
 type BetterAuthSession = NonNullable<
   Awaited<ReturnType<Auth["api"]["getSession"]>>
@@ -17,6 +18,8 @@ export type AdminSession = BetterAuthSession & {
 
 export interface HonoVariables {
   session: AdminSession;
+  requestContext: RequestContextData;
+  requestId: string;
 }
 
 export interface Env {
@@ -41,4 +44,6 @@ export interface Env {
   USAGE_ANALYTICS: AnalyticsEngineDataset;
   CF_ACCOUNT_ID: string;
   CF_ANALYTICS_TOKEN: string;
+  VERSION?: string;
+  COMMIT_HASH?: string;
 }

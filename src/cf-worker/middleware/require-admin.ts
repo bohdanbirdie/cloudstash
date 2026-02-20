@@ -3,16 +3,12 @@ import { createMiddleware } from "hono/factory";
 
 import { createAuth } from "../auth";
 import { createDb } from "../db";
-import { logSync } from "../logger";
-import { type AdminSession, type Env } from "../shared";
-
-const logger = logSync("Admin");
+import { addToWideEvent } from "../logging/middleware";
+import { type AdminSession, type Env, type HonoVariables } from "../shared";
 
 type MiddlewareEnv = {
   Bindings: Env;
-  Variables: {
-    session: AdminSession;
-  };
+  Variables: HonoVariables;
 };
 
 class UnauthorizedError {
@@ -54,13 +50,14 @@ export const requireAdmin = createMiddleware<MiddlewareEnv>(async (c, next) => {
 
   if ("error" in result) {
     if (result.error._tag === "UnauthorizedError") {
-      logger.debug("Admin middleware - unauthorized");
+      addToWideEvent(c, { adminAuth: "unauthorized" });
       return c.json({ error: "Unauthorized" }, 401);
     }
-    logger.info("Admin middleware - forbidden (not admin)");
+    addToWideEvent(c, { adminAuth: "forbidden" });
     return c.json({ error: "Admin access required" }, 403);
   }
 
+  addToWideEvent(c, { adminAuth: "success" });
   c.set("session", result.session as AdminSession);
   await next();
 });

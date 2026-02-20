@@ -1,18 +1,11 @@
-import { Effect, Logger, LogLevel } from "effect";
+import { Effect, Logger } from "effect";
 
 export const createLogger = (component: string) =>
   Logger.make(({ logLevel, message, annotations, date }) => {
-    const level = logLevel._tag;
-
     const allAnnotations: Record<string, unknown> = {};
     for (const [key, value] of annotations) {
       allAnnotations[key] = value;
     }
-
-    const annotationsStr =
-      Object.keys(allAnnotations).length > 0
-        ? ` ${JSON.stringify(allAnnotations)}`
-        : "";
 
     let msg: string;
     if (typeof message === "string") {
@@ -25,15 +18,15 @@ export const createLogger = (component: string) =>
       msg = JSON.stringify(message);
     }
 
-    const output = `[${date.toISOString()}] [${component}] [${level}] ${msg}${annotationsStr}`;
+    const logEvent = {
+      timestamp: date.toISOString(),
+      service: `cloudstash-${component.toLowerCase()}`,
+      level: logLevel._tag.toLowerCase(),
+      message: msg,
+      ...allAnnotations,
+    };
 
-    if (logLevel === LogLevel.Error) {
-      console.error(output);
-    } else if (logLevel === LogLevel.Warning) {
-      console.warn(output);
-    } else {
-      console.log(output);
-    }
+    console.log(JSON.stringify(logEvent));
   });
 
 export const runWithLogger =
