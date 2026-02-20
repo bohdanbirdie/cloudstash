@@ -5,7 +5,6 @@ import { Effect } from "effect";
 import { createAuth, type Auth } from "../auth";
 import { createDb } from "../db";
 import { maskId, safeErrorInfo } from "../log-utils";
-import { logSync } from "../logger";
 import { type Env } from "../shared";
 import {
   InvalidSessionError,
@@ -13,7 +12,14 @@ import {
   OrgAccessDeniedError,
 } from "./errors";
 
-const logger = logSync("SyncBackend");
+const log = (event: Record<string, unknown>) =>
+  console.log(
+    JSON.stringify({
+      timestamp: new Date().toISOString(),
+      service: "cloudstash-sync-do",
+      ...event,
+    })
+  );
 
 // Current SyncBackendDO instance - set in constructor so it's always available
 let currentSyncBackend: {
@@ -22,10 +28,11 @@ let currentSyncBackend: {
 
 export class SyncBackendDO extends SyncBackend.makeDurableObject({
   onPush: async (message, context) => {
-    logger.info("Push received", {
-      storeId: context.storeId,
+    log({
+      event: "push_received",
+      storeId: maskId(context.storeId),
       batchSize: message.batch.length,
-      events: message.batch.map((e) => e.name),
+      eventTypes: message.batch.map((e) => e.name),
     });
 
     const hasLinkCreated = message.batch.some(
@@ -42,18 +49,24 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
     super(ctx, env);
     this._env = env;
     currentSyncBackend = this;
-    logger.info("DO woke up", { doId: ctx.id.toString() });
+    log({ event: "do_woke_up", doId: ctx.id.toString() });
   }
 
   triggerLinkProcessor(storeId: string) {
-    logger.info("Waking up processor", { storeId: maskId(storeId) });
+    log({ event: "waking_processor", storeId: maskId(storeId) });
     const processorId = this._env.LINK_PROCESSOR_DO.idFromName(storeId);
     const processor = this._env.LINK_PROCESSOR_DO.get(processorId);
     processor
       .fetch(`https://link-processor/?storeId=${storeId}`)
-      .then(() => logger.info("Processor fetch succeeded"))
+      .then(() =>
+        log({ event: "processor_fetch_succeeded", storeId: maskId(storeId) })
+      )
       .catch((error: unknown) =>
-        logger.error("Processor fetch failed", safeErrorInfo(error))
+        log({
+          event: "processor_fetch_failed",
+          ...safeErrorInfo(error),
+          storeId: maskId(storeId),
+        })
       );
   }
 }
@@ -66,7 +79,9 @@ const validatePayload = (
   Effect.gen(function* validatePayload() {
     const cookie = context.headers.get("cookie");
     if (!cookie) {
-      logger.warn("Sync auth failed: missing cookie", {
+      log({
+        event: "sync_auth_failed",
+        reason: "missing_cookie",
         storeId: maskId(context.storeId),
       });
       return yield* new MissingSessionCookieError();
@@ -78,14 +93,18 @@ const validatePayload = (
     });
 
     if (!session?.session) {
-      logger.warn("Sync auth failed: invalid session", {
+      log({
+        event: "sync_auth_failed",
+        reason: "invalid_session",
         storeId: maskId(context.storeId),
       });
       return yield* new InvalidSessionError();
     }
 
     if (session.session.activeOrganizationId !== context.storeId) {
-      logger.warn("Sync auth failed: org mismatch", {
+      log({
+        event: "sync_auth_failed",
+        reason: "org_mismatch",
         storeId: maskId(context.storeId),
         sessionOrgId: maskId(session.session.activeOrganizationId ?? "none"),
       });
@@ -95,7 +114,8 @@ const validatePayload = (
       });
     }
 
-    logger.debug("Sync auth OK", {
+    log({
+      event: "sync_auth_ok",
       storeId: maskId(context.storeId),
     });
   }).pipe(Effect.runPromise);

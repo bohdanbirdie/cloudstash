@@ -24,7 +24,7 @@ import {
   handleListInvites,
   handleRedeemInvite,
 } from "./invites";
-import { logSync } from "./logger";
+import { addToWideEvent, wideEventMiddleware } from "./logging/middleware";
 import { metadataRequestToResponse } from "./metadata/service";
 import { requireAdmin } from "./middleware/require-admin";
 import { handleGetMe, handleGetOrg } from "./org";
@@ -36,35 +36,31 @@ export { SyncBackendDO } from "./sync";
 export { LinkProcessorDO } from "./link-processor";
 export { ChatAgentDO } from "./chat-agent";
 
-const logger = logSync("API");
-
 const RATE_LIMITED_PREFIXES = ["/sync", "/api/sync/", "/api/auth/"];
 
 const isRateLimited = (pathname: string): boolean =>
   RATE_LIMITED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
 
-const checkRateLimit = async (
-  request: CfTypes.Request,
-  env: Env
-): Promise<Response | null> => {
-  const url = new URL(request.url);
-  if (!isRateLimited(url.pathname)) return null;
+const app = new Hono<{ Bindings: Env; Variables: HonoVariables }>();
 
-  const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
-  const { success } = await env.SYNC_RATE_LIMITER.limit({ key: ip });
+app.use("/api/*", wideEventMiddleware);
 
-  if (!success) {
-    logger.warn("Rate limited", { ip, path: url.pathname });
-    return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
-      headers: { "Content-Type": "application/json", "Retry-After": "60" },
-      status: 429,
-    });
+app.use("/api/*", async (c, next) => {
+  const url = new URL(c.req.url);
+  if (!isRateLimited(url.pathname)) {
+    return next();
   }
 
-  return null;
-};
+  const ip = c.req.header("cf-connecting-ip") ?? "unknown";
+  const { success } = await c.env.SYNC_RATE_LIMITER.limit({ key: ip });
 
-const app = new Hono<{ Bindings: Env; Variables: HonoVariables }>();
+  if (!success) {
+    addToWideEvent(c, { rateLimited: true, ip });
+    return c.json({ error: "Rate limit exceeded" }, 429);
+  }
+
+  return next();
+});
 
 app.get("/api/auth/me", (c) => handleGetMe(c.req.raw, c.env));
 
@@ -114,9 +110,11 @@ app.post("/api/telegram", (c) => handleTelegramWebhook(c.req.raw, c.env));
 app.get("/api/sync/auth", async (c) => {
   const storeId = c.req.query("storeId");
   if (!storeId) {
-    logger.warn("Sync auth missing storeId");
+    addToWideEvent(c, { syncAuth: "missing_store_id" });
     return c.json({ error: "Missing storeId" }, 400);
   }
+
+  addToWideEvent(c, { orgId: storeId });
 
   const db = createDb(c.env.DB);
   const auth = createAuth(c.env, db);
@@ -131,7 +129,7 @@ app.get("/api/sync/auth", async (c) => {
   );
 
   if ("ok" in result) {
-    logger.debug("Sync auth success");
+    addToWideEvent(c, { syncAuth: "success", userId: result.userId });
     trackEvent(c.env.USAGE_ANALYTICS, {
       userId: result.userId,
       event: "sync_auth",
@@ -139,7 +137,11 @@ app.get("/api/sync/auth", async (c) => {
     });
     return c.json({ ok: result.ok });
   }
-  logger.info("Sync auth failed", { code: result.code, status: result.status });
+  addToWideEvent(c, {
+    syncAuth: "failed",
+    authErrorCode: result.code,
+    authErrorStatus: result.status,
+  });
   return c.json(result, result.status as 401 | 403);
 });
 
@@ -148,10 +150,33 @@ const handleSync = async (
   env: Env,
   ctx: CfTypes.ExecutionContext
 ): Promise<Response> => {
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID();
+  const url = new URL(request.url);
+
+  const emitSyncEvent = (fields: Record<string, unknown>) => {
+    console.log(
+      JSON.stringify({
+        timestamp: new Date().toISOString(),
+        requestId,
+        service: "cloudstash-worker",
+        method: request.method,
+        path: url.pathname,
+        region: (request.cf?.colo as string) ?? "unknown",
+        durationMs: Date.now() - startTime,
+        ...fields,
+      })
+    );
+  };
+
   const searchParams = SyncBackend.matchSyncRequest(request);
 
   if (!searchParams) {
-    logger.warn("Invalid sync request");
+    emitSyncEvent({
+      outcome: "error",
+      statusCode: 400,
+      error: "invalid_sync_request",
+    });
     return new Response(JSON.stringify({ error: "Invalid sync request" }), {
       headers: { "Content-Type": "application/json" },
       status: 400,
@@ -175,9 +200,11 @@ const handleSync = async (
   );
 
   if (authResult instanceof SyncAuthError) {
-    logger.info("Sync auth rejected", {
-      code: authResult.code,
-      status: authResult.status,
+    emitSyncEvent({
+      outcome: "error",
+      statusCode: authResult.status,
+      authErrorCode: authResult.code,
+      orgId: searchParams.storeId,
     });
     return new Response(JSON.stringify(authResult), {
       headers: { "Content-Type": "application/json" },
@@ -188,6 +215,13 @@ const handleSync = async (
   trackEvent(env.USAGE_ANALYTICS, {
     userId: authResult.userId,
     event: "sync",
+    orgId: searchParams.storeId,
+  });
+
+  emitSyncEvent({
+    outcome: "success",
+    statusCode: 101,
+    userId: authResult.userId,
     orgId: searchParams.storeId,
   });
 
@@ -205,9 +239,6 @@ export default {
     env: Env,
     ctx: CfTypes.ExecutionContext
   ) {
-    const rateLimited = await checkRateLimit(request, env);
-    if (rateLimited) return rateLimited;
-
     const url = new URL(request.url);
 
     // Handle agent WebSocket connections (/agents/:agent/:name)
@@ -223,7 +254,27 @@ export default {
     );
     if (agentResponse) return agentResponse;
 
+    // Handle /sync path separately (rate limiting handled in handleSync)
     if (url.pathname === "/sync") {
+      // Check rate limit for sync
+      const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+      const { success } = await env.SYNC_RATE_LIMITER.limit({ key: ip });
+      if (!success) {
+        console.log(
+          JSON.stringify({
+            timestamp: new Date().toISOString(),
+            service: "cloudstash-worker",
+            path: "/sync",
+            outcome: "rate_limited",
+            statusCode: 429,
+            ip,
+          })
+        );
+        return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
+          headers: { "Content-Type": "application/json", "Retry-After": "60" },
+          status: 429,
+        });
+      }
       return handleSync(request, env, ctx);
     }
 
