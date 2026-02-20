@@ -155,6 +155,7 @@ export function LinkDetailDialogContent({
 
   const processingRecord = store.useQuery(linkProcessingStatus$(linkId));
   const isProcessing = processingRecord?.status === "pending";
+  const isFailed = processingRecord?.status === "failed";
   const { tagIds, setTagIds } = useLinkTags(linkId);
 
   const isCompleted = link.status === "completed";
@@ -252,6 +253,12 @@ export function LinkDetailDialogContent({
               <TextShimmer className="text-sm" duration={1.5}>
                 Generating summary...
               </TextShimmer>
+            </div>
+          ) : isFailed ? (
+            <div className="border-l-2 border-destructive/50 bg-destructive/5 pl-3 py-2">
+              <p className="text-sm text-muted-foreground">
+                Summary generation failed
+              </p>
             </div>
           ) : null}
 

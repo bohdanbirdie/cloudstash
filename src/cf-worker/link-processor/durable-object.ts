@@ -27,6 +27,8 @@ import { processLink } from "./process-link";
 
 const logger = logSync("LinkProcessorDO");
 
+const STUCK_TIMEOUT_MS = 5 * 60 * 1000;
+
 type Link = typeof tables.links.Type;
 
 export class LinkProcessorDO
@@ -164,6 +166,25 @@ export class LinkProcessorDO
       const isRetry =
         existingStatus.length > 0 && existingStatus[0].status === "pending";
 
+      if (isRetry && existingStatus[0]) {
+        const elapsed =
+          Date.now() - new Date(existingStatus[0].updatedAt).getTime();
+        if (elapsed > STUCK_TIMEOUT_MS) {
+          logger.info("Failing stuck link", {
+            linkId: link.id,
+            stuckMs: elapsed,
+          });
+          store.commit(
+            events.linkProcessingFailed({
+              error: "stuck_timeout",
+              linkId: link.id,
+              updatedAt: new Date(),
+            })
+          );
+          continue;
+        }
+      }
+
       logger.info("Processing link decision", {
         linkId: link.id,
         hasStatus: existingStatus.length > 0,
@@ -206,6 +227,29 @@ export class LinkProcessorDO
         rowsWritten: this.totalRowsWritten - rowsBefore,
         totalRowsWritten: this.totalRowsWritten,
       });
+    } catch (error) {
+      logger.error("processLinkAsync failed", {
+        ...safeErrorInfo(error),
+        linkId: link.id,
+      });
+      try {
+        const status = store.query(
+          queryDb(tables.linkProcessingStatus.where({ linkId: link.id }))
+        );
+        if (!status[0] || status[0].status === "pending") {
+          store.commit(
+            events.linkProcessingFailed({
+              error: safeErrorInfo(error).errorType,
+              linkId: link.id,
+              updatedAt: new Date(),
+            })
+          );
+        }
+      } catch {
+        logger.error("Failed to emit LinkProcessingFailed", {
+          linkId: link.id,
+        });
+      }
     } finally {
       this.currentlyProcessing.delete(link.id);
     }
