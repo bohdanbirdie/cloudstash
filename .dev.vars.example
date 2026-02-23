@@ -9,20 +9,14 @@ GOOGLE_CLIENT_SECRET=
 BETTER_AUTH_SECRET=
 BETTER_AUTH_URL=http://localhost:3000
 
-# Telegram Bot (optional)
-# Create bot via https://t.me/BotFather
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_WEBHOOK_SECRET=
-
-# Email via Resend (required for approval emails)
-# Get key at https://resend.com
-RESEND_API_KEY=re_
+# Email sender (required for approval emails)
+# Get Resend key at https://resend.com
+RESEND_API_KEY=
 EMAIL_FROM=YourApp <noreply@yourdomain.com>
 
-# AI Chat (optional - for chat agent feature)
-# Get key at https://openrouter.ai/keys
-OPENROUTER_API_KEY=sk-
-
-# Cloudflare observability (optional - for DO metrics script)
-CF_ACCOUNT_ID=
-CF_ANALYTICS_TOKEN=
+# --- Optional (see README for details) ---
+# TELEGRAM_BOT_TOKEN=
+# TELEGRAM_WEBHOOK_SECRET=
+# OPENROUTER_API_KEY=
+# CF_ACCOUNT_ID=
+# CF_ANALYTICS_TOKEN=

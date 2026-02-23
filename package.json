@@ -135,17 +135,11 @@
       "BETTER_AUTH_URL": {
         "description": "Full URL of your deployed Worker (e.g. https://cloudstash.your-subdomain.workers.dev)"
       },
-      "OPENROUTER_API_KEY": {
-        "description": "API key from [OpenRouter](https://openrouter.ai/keys) -- optional, for AI chat"
-      },
       "RESEND_API_KEY": {
-        "description": "API key from [Resend](https://resend.com) -- optional, for approval emails"
+        "description": "API key from [Resend](https://resend.com) for approval emails"
       },
-      "TELEGRAM_BOT_TOKEN": {
-        "description": "Telegram Bot token from @BotFather -- optional"
-      },
-      "TELEGRAM_WEBHOOK_SECRET": {
-        "description": "Random string for Telegram webhook validation -- optional"
+      "EMAIL_FROM": {
+        "description": "Email sender address (e.g. YourApp <noreply@yourdomain.com>)"
       }
     }
   },
