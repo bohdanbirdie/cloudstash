@@ -254,10 +254,21 @@ export class LinkProcessorDO
         totalRowsWritten: this.totalRowsWritten,
       });
     } catch (error) {
+      const errorInfo = safeErrorInfo(error);
       logger.error("processLinkAsync failed", {
-        ...safeErrorInfo(error),
+        ...errorInfo,
         linkId: link.id,
       });
+
+      if (errorInfo.errorMessage?.includes("shut down")) {
+        logger.warn("Store shut down, clearing cached store", {
+          linkId: link.id,
+        });
+        this.cachedStore = undefined;
+        this.subscription = undefined;
+        return;
+      }
+
       try {
         const status = store.query(
           queryDb(tables.linkProcessingStatus.where({ linkId: link.id }))
@@ -265,7 +276,7 @@ export class LinkProcessorDO
         if (!status[0] || status[0].status === "pending") {
           store.commit(
             events.linkProcessingFailed({
-              error: safeErrorInfo(error).errorType,
+              error: errorInfo.errorType,
               linkId: link.id,
               updatedAt: new Date(),
             })
@@ -275,6 +286,8 @@ export class LinkProcessorDO
         logger.error("Failed to emit LinkProcessingFailed", {
           linkId: link.id,
         });
+        this.cachedStore = undefined;
+        this.subscription = undefined;
       }
     } finally {
       this.currentlyProcessing.delete(link.id);

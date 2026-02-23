@@ -324,12 +324,14 @@ const materializers = State.SQLite.materializers(events, {
       .update({ error, status: "failed", updatedAt })
       .where({ linkId }),
   "v1.LinkProcessingStarted": ({ linkId, updatedAt }) =>
-    tables.linkProcessingStatus.insert({
-      error: null,
-      linkId,
-      status: "pending",
-      updatedAt,
-    }),
+    tables.linkProcessingStatus
+      .insert({
+        error: null,
+        linkId,
+        status: "pending",
+        updatedAt,
+      })
+      .onConflict("linkId", "replace"),
   "v1.LinkRestored": ({ id }) =>
     tables.links.update({ deletedAt: null }).where({ id }),
   "v1.LinkSummarized": ({ id, linkId, summary, model, summarizedAt }) =>
