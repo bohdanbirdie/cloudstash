@@ -41,5 +41,5 @@ export interface Env {
   OPENROUTER_API_KEY: string;
   USAGE_ANALYTICS?: AnalyticsEngineDataset;
   CF_ACCOUNT_ID: string;
-  CF_ANALYTICS_TOKEN: string;
+  CF_ANALYTICS_TOKEN?: string;
 }

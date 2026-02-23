@@ -20,6 +20,13 @@ export async function handleGetUsage(
     );
   }
 
+  if (!env.CF_ACCOUNT_ID || !env.CF_ANALYTICS_TOKEN) {
+    return Response.json(
+      { error: "Usage analytics not configured" },
+      { status: 501 }
+    );
+  }
+
   const dataset = env.BETTER_AUTH_URL?.includes("staging")
     ? "cloudstash_usage_staging"
     : "cloudstash_usage";
