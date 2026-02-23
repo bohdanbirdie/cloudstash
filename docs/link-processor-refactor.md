@@ -136,22 +136,23 @@ Instrumented `ctx.storage.sql.exec()` in LinkProcessorDO constructor to accumula
 
 **Test:** Single link with AI enabled → 6 commits (`LinkProcessingStarted`, `LinkMetadataFetched`, `LinkSummarized`, 2× `TagSuggested`, `LinkProcessingCompleted`).
 
-| Metric | Measured |
-|--------|----------|
+| Metric                                                                          | Measured               |
+| ------------------------------------------------------------------------------- | ---------------------- |
 | **DO initialization** (store creation, VFS tables, livePull, rematerialization) | **3,772 rows_written** |
-| **Per-link processing** (AI + 2 tag suggestions, 6 commits) | **854 rows_written** |
-| **Total DO lifecycle** (init + 1 link) | **4,626 rows_written** |
-| **Per commit** (~6 commits) | **~142 rows_written** |
+| **Per-link processing** (AI + 2 tag suggestions, 6 commits)                     | **854 rows_written**   |
+| **Total DO lifecycle** (init + 1 link)                                          | **4,626 rows_written** |
+| **Per commit** (~6 commits)                                                     | **~142 rows_written**  |
 
 **Capacity at 100k/day limit:**
 
-| Scenario | rows_written/link | Max links/day |
-|----------|-------------------|---------------|
-| DO stays warm (no re-init) | 854 | ~117 |
-| DO evicted between each link (cold start each time) | 4,626 | ~21 |
-| Realistic (mix of warm + cold) | ~1,500–3,000 | ~33–66 |
+| Scenario                                            | rows_written/link | Max links/day |
+| --------------------------------------------------- | ----------------- | ------------- |
+| DO stays warm (no re-init)                          | 854               | ~117          |
+| DO evicted between each link (cold start each time) | 4,626             | ~21           |
+| Realistic (mix of warm + cold)                      | ~1,500–3,000      | ~33–66        |
 
 **Key findings:**
+
 - The theoretical estimate (36-90 rows/link for AI) was **~10x too low** — actual cost is **854 rows_written** per link
 - DO initialization is **4.4x more expensive** than processing a single link
 - Per-commit cost (~142 rows_written) implies ~24 VFS block writes per commit at 2-3 rows_written per block, or ~36 at 4-6 — much higher than the theoretical 3+ minimum
@@ -161,11 +162,11 @@ Instrumented `ctx.storage.sql.exec()` in LinkProcessorDO constructor to accumula
 
 Applied `bun patch` switching `_tag: 'storage'` → `_tag: 'in-memory'` for `dbState` and `dbEventlog` in `@livestore/adapter-cloudflare`. Same test: single link, AI enabled, 6 commits.
 
-| Metric | Before patch | After patch |
-|--------|-------------|-------------|
-| DO initialization | 3,772 rows_written | **0** |
-| Per-link processing (AI + 2 tags) | 854 rows_written | **0** |
-| Total DO lifecycle | 4,626 rows_written | **0** |
+| Metric                            | Before patch       | After patch |
+| --------------------------------- | ------------------ | ----------- |
+| DO initialization                 | 3,772 rows_written | **0**       |
+| Per-link processing (AI + 2 tags) | 854 rows_written   | **0**       |
+| Total DO lifecycle                | 4,626 rows_written | **0**       |
 
 All events still push to SyncBackendDO via RPC and broadcast to WebSocket clients normally. Link processing flow unchanged — metadata fetched, AI summary generated, tag suggestions emitted, processing completed.
 
@@ -448,13 +449,13 @@ LinkProcessorDO is bursty: wake up → process 1 link → idle → evicted. Each
 
 **Measured:** ~120ms cold start at current eventlog size (local, 2026-02-12). Store creation → subscription fired.
 
-| Links saved | ~Events    | Est. cold start | Verdict                  |
-| ----------- | ---------- | --------------- | ------------------------ |
-| current     | small      | **~120ms** (measured) | Fine                |
-| 1,000       | ~3k–6k     | ~200–500ms      | Fine                     |
-| 5,000       | ~15k–30k   | ~1–3s           | Acceptable               |
-| 10,000      | ~30k–60k   | ~3–10s          | Getting tight            |
-| 50,000      | ~150k–300k | ~10–30s         | Hitting 30s DO CPU limit |
+| Links saved | ~Events    | Est. cold start       | Verdict                  |
+| ----------- | ---------- | --------------------- | ------------------------ |
+| current     | small      | **~120ms** (measured) | Fine                     |
+| 1,000       | ~3k–6k     | ~200–500ms            | Fine                     |
+| 5,000       | ~15k–30k   | ~1–3s                 | Acceptable               |
+| 10,000      | ~30k–60k   | ~3–10s                | Getting tight            |
+| 50,000      | ~150k–300k | ~10–30s               | Hitting 30s DO CPU limit |
 
 The eventlog is append-only — livestore has no compaction or snapshotting. Growth is monotonic. R2 snapshots (Phase 2) will bound cold start to R2 GET + delta replay instead of full eventlog.
 

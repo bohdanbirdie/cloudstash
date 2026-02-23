@@ -40,12 +40,13 @@ describe("trackEvent", () => {
   });
 
   it("no-ops when analytics is undefined", () => {
-    // Should not throw
-    trackEvent(undefined, {
-      userId: "usr_abc",
-      event: "sync",
-      orgId: "org_xyz",
-    });
+    expect(() =>
+      trackEvent(undefined, {
+        userId: "usr_abc",
+        event: "sync",
+        orgId: "org_xyz",
+      })
+    ).not.toThrow();
   });
 });
 

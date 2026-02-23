@@ -10,7 +10,8 @@ const logger = logSync("Email");
 export const sendApprovalEmail = (
   email: string,
   name: string | null,
-  apiKey: string
+  apiKey: string,
+  emailFrom: string
 ) =>
   Effect.gen(function* () {
     const resend = new Resend(apiKey);
@@ -23,7 +24,7 @@ export const sendApprovalEmail = (
     yield* Effect.tryPromise({
       try: () =>
         resend.emails.send({
-          from: "CloudStash <noreply@cloudstash.dev>",
+          from: emailFrom,
           to: email,
           subject: "Your CloudStash account has been approved!",
           html,

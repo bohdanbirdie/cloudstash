@@ -6,7 +6,7 @@ Mechanisms in place to prevent request storms, CPU exhaustion, and cascade failu
 
 On 2026-02-09, a cascade failure took down sync for ~1 hour. `auth.api.getSession()` costs ~10ms CPU — right at the Workers free tier 10ms limit. When it intermittently exceeded the limit, the livestore client retried every 1 second indefinitely, creating a storm that overwhelmed D1 and exhausted the daily Durable Objects duration quota.
 
-Full incident log analysis is in `logs-2026-02-09T22_48_42.928Z.csv` (654 rows, 3 users affected).
+Full incident log analysis is available in the CF dashboard tail logs.
 
 ## Session Cookie Cache
 
@@ -109,11 +109,7 @@ Individual hooks can override (e.g. `useOrgFeatures` uses `dedupingInterval: 30_
 
 ### DO namespace IDs
 
-| DO Class        | Namespace ID                       |
-| --------------- | ---------------------------------- |
-| SyncBackendDO   | `e96f6022469a4499bda090041bd03467` |
-| LinkProcessorDO | `0cc85e49c1fe4e43bb0bb24a6e98b655` |
-| ChatAgentDO     | check CF dashboard                 |
+Find namespace IDs in the Cloudflare dashboard under Workers & Pages → Durable Objects. Each DO class gets a unique namespace ID.
 
 Note: `idFromName(orgId)` produces different hashes per environment (local vs production) because it depends on the namespace ID. To map a DO instance ID to an org, use the `onPush` logs or query the GraphQL API by `objectId`.
 
@@ -205,7 +201,7 @@ Each user event is written multiple times. The client DOs have VFS overhead on t
 
 ### What happens when the limit is hit
 
-Once `rows_written` is exhausted, any DO that tries to write SQL gets `Exceeded allowed rows written in Durable Objects free tier`. For SyncBackendDO, livestore's `makeDoCtx` runs `CREATE TABLE IF NOT EXISTS` which triggers the error. The DO crashes, the client retries the WebSocket, the DO wakes again, crashes again — a retry loop that generates errors until midnight UTC reset. Tail log `tail-2026-02-11T22_07_10Z.json` captured this: 6 DO wake-ups in 44 seconds, all failing immediately.
+Once `rows_written` is exhausted, any DO that tries to write SQL gets `Exceeded allowed rows written in Durable Objects free tier`. For SyncBackendDO, livestore's `makeDoCtx` runs `CREATE TABLE IF NOT EXISTS` which triggers the error. The DO crashes, the client retries the WebSocket, the DO wakes again, crashes again — a retry loop that generates errors until midnight UTC reset. Tail logs captured this: repeated DO wake-ups in quick succession, all failing immediately.
 
 ChatAgentDO also fails at constructor time because the Agents SDK calls `this.sql` during `new ChatAgentDO()`.
 
@@ -218,10 +214,10 @@ ChatAgentDO also fails at constructor time because the Agents SDK calls `this.sq
 
 Using the CF GraphQL Analytics API (`durableObjectsPeriodicGroups` dataset, which exposes `rowsWritten` per `namespaceId`), we confirmed the VFS overhead theory:
 
-| Namespace                                        | Feb 11 rowsWritten |
-| ------------------------------------------------ | ------------------ |
-| LinkProcessorDO (`0cc85e...`, wasm SQLite + VFS) | **114,161**        |
-| SyncBackendDO (`e96f6022...`, native SQLite)     | **141**            |
+| Namespace                           | Example rowsWritten |
+| ----------------------------------- | ------------------- |
+| LinkProcessorDO (wasm SQLite + VFS) | **~114k**           |
+| SyncBackendDO (native SQLite)       | **~141**            |
 
 LinkProcessorDO accounts for **~99.9%** of all `rows_written`. The VFS layer (wasm SQLite → `vfs_blocks`) amplifies every logical event write into multiple native rows. SyncBackendDO with native SQLite is extremely efficient.
 

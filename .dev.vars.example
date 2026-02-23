@@ -1,18 +1,28 @@
 # Google OAuth (required)
+# Create at https://console.cloud.google.com/apis/credentials
+# Add redirect URI: http://localhost:3000/api/auth/callback/google
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 
 # Better Auth (required)
+# Generate secret: openssl rand -hex 32
 BETTER_AUTH_SECRET=random-secret-string-at-least-32-chars
 BETTER_AUTH_URL=http://localhost:3000
 
 # Telegram Bot (optional)
+# Create bot via https://t.me/BotFather
 TELEGRAM_BOT_TOKEN=your-telegram-bot-token
 TELEGRAM_WEBHOOK_SECRET=dev-secret
 
-RESEND_API_KEY=re_
+# Email via Resend (required for approval emails)
+# Get key at https://resend.com
+RESEND_API_KEY=re_your-resend-key
+EMAIL_FROM=YourApp <noreply@yourdomain.com>
 
-# Chat Agent (optional - for AI chat feature)
-OPENROUTER_API_KEY=sk-
+# AI Chat (optional - for chat agent feature)
+# Get key at https://openrouter.ai/keys
+OPENROUTER_API_KEY=sk-your-openrouter-key
+
+# Cloudflare observability (optional - for DO metrics script)
 CF_ACCOUNT_ID=
 CF_ANALYTICS_TOKEN=

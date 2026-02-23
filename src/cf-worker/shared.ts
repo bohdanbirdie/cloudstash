@@ -27,7 +27,7 @@ export interface Env {
   Chat: DurableObjectNamespace<ChatAgentDO>;
   AI: Ai;
   DB: D1Database;
-  SYNC_RATE_LIMITER: RateLimit;
+  SYNC_RATE_LIMITER?: RateLimit;
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
   BETTER_AUTH_SECRET: string;
@@ -37,8 +37,9 @@ export interface Env {
   TELEGRAM_WEBHOOK_SECRET: string;
   TELEGRAM_KV: KVNamespace;
   RESEND_API_KEY: string;
+  EMAIL_FROM: string;
   OPENROUTER_API_KEY: string;
-  USAGE_ANALYTICS: AnalyticsEngineDataset;
+  USAGE_ANALYTICS?: AnalyticsEngineDataset;
   CF_ACCOUNT_ID: string;
   CF_ANALYTICS_TOKEN: string;
 }
