@@ -21,7 +21,7 @@ export const sendApprovalEmail = (
       render(ApprovalEmail({ name }), { plainText: true })
     );
 
-    yield* Effect.tryPromise({
+    const result = yield* Effect.tryPromise({
       try: () =>
         resend.emails.send({
           from: emailFrom,
@@ -36,5 +36,10 @@ export const sendApprovalEmail = (
       },
     });
 
-    logger.info("Approval email sent", { email });
+    if (result.error) {
+      logger.error("Resend API error", { email, error: result.error });
+      return yield* Effect.fail(result.error);
+    }
+
+    logger.info("Approval email sent", { email, id: result.data?.id });
   }).pipe(Effect.catchAll(() => Effect.void));

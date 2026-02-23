@@ -52,6 +52,7 @@ export const handleSendSunsetNotification = async (
 
   let sent = 0;
   let failed = 0;
+  const errors: Array<{ email: string; error: unknown }> = [];
 
   for (const user of users) {
     try {
@@ -66,14 +67,16 @@ export const handleSendSunsetNotification = async (
         })
       );
       sent++;
-    } catch {
+    } catch (error) {
       failed++;
+      errors.push({ email: user.email, error });
       logger.error("Failed to send sunset notification", {
         email: user.email,
+        error,
       });
     }
   }
 
   logger.info("Sunset notifications complete", { sent, failed });
-  return Response.json({ sent, failed, total: users.length });
+  return Response.json({ sent, failed, total: users.length, errors });
 };

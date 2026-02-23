@@ -31,7 +31,7 @@ export const sendSunsetNotification = (params: {
       render(SunsetNotificationEmail(templateProps), { plainText: true })
     );
 
-    yield* Effect.tryPromise({
+    const result = yield* Effect.tryPromise({
       try: () =>
         resend.emails.send({
           from: params.emailFrom,
@@ -49,5 +49,16 @@ export const sendSunsetNotification = (params: {
       },
     });
 
-    logger.info("Sunset notification sent", { email: params.email });
-  }).pipe(Effect.catchAll(() => Effect.void));
+    if (result.error) {
+      logger.error("Resend API error", {
+        email: params.email,
+        error: result.error,
+      });
+      return yield* Effect.fail(result.error);
+    }
+
+    logger.info("Sunset notification sent", {
+      email: params.email,
+      id: result.data?.id,
+    });
+  });
