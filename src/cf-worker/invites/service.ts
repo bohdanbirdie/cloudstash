@@ -253,7 +253,8 @@ const handleRedeemInviteRequest = (request: Request, env: Env) =>
     yield* sendApprovalEmail(
       session.user.email,
       session.user.name,
-      env.RESEND_API_KEY
+      env.RESEND_API_KEY,
+      env.EMAIL_FROM
     );
 
     logger.info("Invite redeemed", { inviteId: invite.id });

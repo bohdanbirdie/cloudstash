@@ -41,7 +41,7 @@ export const handleApproveUser = async (
     .where(eq(schema.user.id, userId));
 
   await Effect.runPromise(
-    sendApprovalEmail(user.email, user.name, env.RESEND_API_KEY)
+    sendApprovalEmail(user.email, user.name, env.RESEND_API_KEY, env.EMAIL_FROM)
   );
 
   logger.info("User approved by admin", { userId });

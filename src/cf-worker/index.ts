@@ -11,6 +11,7 @@ import {
   handleUpdateOrgSettings,
 } from "./admin";
 import { handleApproveUser } from "./admin/approve-user";
+import { handleSendSunsetNotification } from "./admin/send-sunset-notification";
 import { handleGetUsage } from "./admin/usage";
 import { trackEvent } from "./analytics";
 import { createAuth } from "./auth";
@@ -50,6 +51,8 @@ const checkRateLimit = async (
   const url = new URL(request.url);
   if (!isRateLimited(url.pathname)) return null;
 
+  if (!env.SYNC_RATE_LIMITER) return null;
+
   const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
   const { success } = await env.SYNC_RATE_LIMITER.limit({ key: ip });
 
@@ -86,6 +89,9 @@ app.post("/api/admin/users/:id/approve", requireAdmin, (c) =>
 );
 app.get("/api/admin/usage", requireAdmin, (c) =>
   handleGetUsage(c.req.raw, c.env)
+);
+app.post("/api/admin/email/send-sunset-notification", requireAdmin, (c) =>
+  handleSendSunsetNotification(c.req.raw, c.env)
 );
 
 app.on(["GET", "POST"], "/api/auth/*", (c) => {

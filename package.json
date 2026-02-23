@@ -8,13 +8,11 @@
     "dev:tunnel": "bun scripts/telegram-tunnel.ts",
     "dev:dashboard": "localflare attach --dev",
     "build": "vite build",
-    "build:prod": "wrangler d1 migrations apply cloudstash --remote && vite build",
+    "build:prod": "wrangler d1 migrations apply DB --remote && vite build",
     "preview": "vite preview",
-    "deploy": "wrangler d1 migrations apply cloudstash --remote && wrangler deploy",
-    "deploy:staging": "wrangler d1 migrations apply cloudstash-staging --env staging --remote && wrangler deploy --env staging",
-    "db:migrate:local": "wrangler d1 migrations apply cloudstash --local",
-    "db:migrate:remote": "wrangler d1 migrations apply cloudstash --remote",
-    "db:migrate:staging": "wrangler d1 migrations apply cloudstash-staging --env staging --remote",
+    "deploy": "wrangler d1 migrations apply DB --remote && wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "db:generate": "drizzle-kit generate",
     "test": "vitest run",
     "test:unit": "vitest run --config vitest.config.ts",
@@ -122,6 +120,34 @@
     "vitest": "^3.0.5",
     "web-vitals": "^5.1.0",
     "wrangler": "4.63.0"
+  },
+  "cloudflare": {
+    "bindings": {
+      "GOOGLE_CLIENT_ID": {
+        "description": "Google OAuth Client ID from [Google Cloud Console](https://console.cloud.google.com/apis/credentials)"
+      },
+      "GOOGLE_CLIENT_SECRET": {
+        "description": "Google OAuth Client Secret"
+      },
+      "BETTER_AUTH_SECRET": {
+        "description": "Random string (32+ chars). Generate with: openssl rand -hex 32"
+      },
+      "BETTER_AUTH_URL": {
+        "description": "Full URL of your deployed Worker (e.g. https://cloudstash.your-subdomain.workers.dev)"
+      },
+      "OPENROUTER_API_KEY": {
+        "description": "API key from [OpenRouter](https://openrouter.ai/keys) -- optional, for AI chat"
+      },
+      "RESEND_API_KEY": {
+        "description": "API key from [Resend](https://resend.com) -- optional, for approval emails"
+      },
+      "TELEGRAM_BOT_TOKEN": {
+        "description": "Telegram Bot token from @BotFather -- optional"
+      },
+      "TELEGRAM_WEBHOOK_SECRET": {
+        "description": "Random string for Telegram webhook validation -- optional"
+      }
+    }
   },
   "patchedDependencies": {
     "@livestore/sync-cf@0.4.0-dev.22": "patches/@livestore%2Fsync-cf@0.4.0-dev.22.patch",
