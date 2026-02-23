@@ -79,20 +79,27 @@ export function SunsetNotificationEmail({
               </Text>
 
               <Text className="text-xs mb-3 leading-relaxed" style={fontStyle}>
-                CloudStash is going open-source! The full source code will be
-                publicly available on GitHub.
+                CloudStash is going open-source! The full source code is now
+                publicly available at{" "}
+                <a
+                  href="https://github.com/bohdanbirdie/cloudstash"
+                  style={{ color: hexColors.primary }}
+                >
+                  github.com/bohdanbirdie/cloudstash
+                </a>
+                .
               </Text>
 
               <Text className="text-xs mb-3 leading-relaxed" style={fontStyle}>
-                The hosted instance at cloudstash.dev will become inaccessible
-                on <strong>{deadlineDate}</strong>. Please log in and export
-                your saved links before then.
+                All accounts on the hosted instance at cloudstash.dev will be
+                suspended on <strong>{deadlineDate}</strong>. Please log in and
+                export your saved links before then.
               </Text>
 
               <Text className="text-xs mb-5 leading-relaxed" style={fontStyle}>
                 Want to keep using CloudStash? You can deploy your own instance
                 to Cloudflare in one click using the "Deploy to Cloudflare"
-                button in the GitHub repo.
+                button in the repo.
               </Text>
 
               <Button
