@@ -156,9 +156,7 @@ export class LinkProcessorDO
     pendingLinks: readonly Link[]
   ): void {
     for (const link of pendingLinks) {
-      if (this.currentlyProcessing.has(link.id)) {
-        continue;
-      }
+      if (this.currentlyProcessing.has(link.id)) continue;
 
       const existingStatus = store.query(
         queryDb(tables.linkProcessingStatus.where({ linkId: link.id }))
@@ -181,24 +179,52 @@ export class LinkProcessorDO
               updatedAt: new Date(),
             })
           );
-          continue;
         }
       }
-
-      logger.info("Processing link decision", {
-        linkId: link.id,
-        hasStatus: existingStatus.length > 0,
-        status: existingStatus[0]?.status ?? "none",
-        isRetry,
-      });
-
-      this.processLinkAsync(store, link, isRetry).catch((error) => {
-        logger.error("processLinkAsync error", {
-          ...safeErrorInfo(error),
-          linkId: link.id,
-        });
-      });
     }
+
+    if (this.currentlyProcessing.size > 0) {
+      logger.debug("Skipping, already processing", {
+        currentIds: [...this.currentlyProcessing],
+        pendingCount: pendingLinks.length,
+      });
+      return;
+    }
+
+    this.processNextPending(store);
+  }
+
+  private processNextPending(store: Store<typeof schema>): void {
+    const links = store.query(
+      queryDb(tables.links.where({ deletedAt: null }))
+    );
+    const statuses = store.query(
+      queryDb(tables.linkProcessingStatus.where({}))
+    );
+    const statusMap = new Map(statuses.map((s) => [s.linkId, s]));
+
+    const nextLink = links.find((link) => {
+      const status = statusMap.get(link.id);
+      return !status || status.status === "pending";
+    });
+
+    if (!nextLink) return;
+
+    const existingStatus = statusMap.get(nextLink.id);
+    const isRetry = !!existingStatus && existingStatus.status === "pending";
+
+    logger.info("Processing link decision", {
+      linkId: nextLink.id,
+      status: existingStatus?.status ?? "none",
+      isRetry,
+    });
+
+    this.processLinkAsync(store, nextLink, isRetry).catch((error) => {
+      logger.error("processLinkAsync error", {
+        ...safeErrorInfo(error),
+        linkId: nextLink.id,
+      });
+    });
   }
 
   private async processLinkAsync(
@@ -252,6 +278,7 @@ export class LinkProcessorDO
       }
     } finally {
       this.currentlyProcessing.delete(link.id);
+      this.processNextPending(store);
     }
   }
 
