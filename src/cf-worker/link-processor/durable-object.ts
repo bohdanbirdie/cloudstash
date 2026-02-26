@@ -41,6 +41,7 @@ export class LinkProcessorDO
   private cachedStore: Store<typeof schema> | undefined;
   private subscription: Unsubscribe | undefined;
   private currentlyProcessing = new Set<string>();
+  private reprocessQueue = new Set<string>();
   private totalRowsWritten = 0;
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -195,9 +196,9 @@ export class LinkProcessorDO
   }
 
   private processNextPending(store: Store<typeof schema>): void {
-    const links = store.query(
-      queryDb(tables.links.where({ deletedAt: null }))
-    );
+    if (this.currentlyProcessing.size > 0) return;
+
+    const links = store.query(queryDb(tables.links.where({ deletedAt: null })));
     const statuses = store.query(
       queryDb(tables.linkProcessingStatus.where({}))
     );
@@ -291,7 +292,19 @@ export class LinkProcessorDO
       }
     } finally {
       this.currentlyProcessing.delete(link.id);
-      this.processNextPending(store);
+      if (this.cachedStore) {
+        if (this.reprocessQueue.has(link.id)) {
+          this.reprocessQueue.delete(link.id);
+          logger.info("Reprocessing queued link", { linkId: link.id });
+          store.commit(
+            events.linkProcessingStarted({
+              linkId: link.id,
+              updatedAt: new Date(),
+            })
+          );
+        }
+        this.processNextPending(store);
+      }
     }
   }
 
@@ -299,6 +312,7 @@ export class LinkProcessorDO
     const url = new URL(request.url);
     const storeId = url.searchParams.get("storeId");
     const ingestUrl = url.searchParams.get("ingest");
+    const reprocessLinkId = url.searchParams.get("reprocess");
 
     if (!storeId) {
       return new Response("Missing storeId", { status: 400 });
@@ -311,8 +325,35 @@ export class LinkProcessorDO
       return this.handleIngest(ingestUrl);
     }
 
+    if (reprocessLinkId) {
+      return this.handleReprocess(reprocessLinkId);
+    }
+
     await this.ensureSubscribed();
     return new Response("OK");
+  }
+
+  private async handleReprocess(linkId: string): Promise<Response> {
+    const json = (body: object, status = 200) =>
+      new Response(JSON.stringify(body), {
+        headers: { "Content-Type": "application/json" },
+        status,
+      });
+
+    await this.ensureSubscribed();
+    const store = await this.getStore();
+
+    if (this.currentlyProcessing.has(linkId)) {
+      logger.info("Queuing reprocess (link currently processing)", { linkId });
+      this.reprocessQueue.add(linkId);
+      return json({ status: "queued" });
+    }
+
+    // Don't commit linkProcessingStarted here — the client already committed it.
+    // Just ensure we pick up the pending link and start processing.
+    this.processNextPending(store);
+
+    return json({ status: "reprocessing" });
   }
 
   private handleIngest(url: string): Promise<Response> {
