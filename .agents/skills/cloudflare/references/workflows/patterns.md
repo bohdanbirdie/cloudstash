@@ -6,7 +6,7 @@
 export class ImageProcessingWorkflow extends WorkflowEntrypoint<Env, Params> {
   async run(event, step) {
     const imageData = await step.do("fetch", async () =>
-      (await this.env.BUCKET.get(event.params.imageKey)).arrayBuffer()
+      (await this.env.BUCKET.get(event.payload.imageKey)).arrayBuffer()
     );
     const description = await step.do(
       "generate description",
@@ -24,7 +24,7 @@ export class ImageProcessingWorkflow extends WorkflowEntrypoint<Env, Params> {
     await step.do(
       "publish",
       async () =>
-        await this.env.BUCKET.put(`public/${event.params.imageKey}`, imageData)
+        await this.env.BUCKET.put(`public/${event.payload.imageKey}`, imageData)
     );
   }
 }
@@ -37,21 +37,21 @@ export class UserLifecycleWorkflow extends WorkflowEntrypoint<Env, Params> {
   async run(event, step) {
     await step.do(
       "welcome email",
-      async () => await sendEmail(event.params.email, "Welcome!")
+      async () => await sendEmail(event.payload.email, "Welcome!")
     );
     await step.sleep("trial period", "7 days");
     const hasConverted = await step.do("check conversion", async () => {
       const user = await this.env.DB.prepare(
         "SELECT subscription_status FROM users WHERE id = ?"
       )
-        .bind(event.params.userId)
+        .bind(event.payload.userId)
         .first();
       return user.subscription_status === "active";
     });
     if (!hasConverted)
       await step.do(
         "trial expiration email",
-        async () => await sendEmail(event.params.email, "Trial ending")
+        async () => await sendEmail(event.payload.email, "Trial ending")
       );
   }
 }
@@ -66,7 +66,7 @@ export class DataPipelineWorkflow extends WorkflowEntrypoint<Env, Params> {
       "extract",
       { retries: { limit: 10, delay: "30s", backoff: "exponential" } },
       async () => {
-        const res = await fetch(event.params.sourceUrl);
+        const res = await fetch(event.payload.sourceUrl);
         if (!res.ok) throw new Error("Fetch failed");
         return res.json();
       }
@@ -109,7 +109,7 @@ export class ApprovalWorkflow extends WorkflowEntrypoint<Env, Params> {
         await this.env.DB.prepare(
           "INSERT INTO approvals (id, user_id, status) VALUES (?, ?, ?)"
         )
-          .bind(event.instanceId, event.params.userId, "pending")
+          .bind(event.instanceId, event.payload.userId, "pending")
           .run()
     );
     try {
