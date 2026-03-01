@@ -13,7 +13,7 @@ import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
 /// <reference types="@cloudflare/workers-types" />
 import { DurableObject } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
-import { Effect } from "effect";
+import { Effect, Layer } from "effect";
 
 import { events, schema, tables } from "../../livestore/schema";
 import { createDb } from "../db";
@@ -24,6 +24,11 @@ import { type Env } from "../shared";
 import { InvalidUrlError } from "./errors";
 import { runEffect } from "./logger";
 import { processLink } from "./process-link";
+import { AiSummaryGeneratorLive } from "./services/ai-summary-generator.live";
+import { ContentExtractorLive } from "./services/content-extractor.live";
+import { LinkEventStoreLive } from "./services/link-event-store.live";
+import { MetadataFetcherLive } from "./services/metadata-fetcher.live";
+import { WorkersAiLive } from "./services/workers-ai.live";
 
 const logger = logSync("LinkProcessorDO");
 
@@ -240,14 +245,20 @@ export class LinkProcessorDO
     try {
       const rowsBefore = this.totalRowsWritten;
       const features = await this.getFeatures();
+
+      const liveLayer = Layer.mergeAll(
+        MetadataFetcherLive,
+        ContentExtractorLive,
+        AiSummaryGeneratorLive,
+        LinkEventStoreLive(store)
+      ).pipe(Layer.provide(WorkersAiLive(this.env.AI)));
+
       await runEffect(
         processLink({
           aiSummaryEnabled: features.aiSummary ?? false,
-          env: this.env,
           isRetry,
           link: { id: link.id, url: link.url },
-          store,
-        })
+        }).pipe(Effect.provide(liveLayer))
       );
       logger.info("Link processed", {
         linkId: link.id,
@@ -255,41 +266,14 @@ export class LinkProcessorDO
         totalRowsWritten: this.totalRowsWritten,
       });
     } catch (error) {
-      const errorInfo = safeErrorInfo(error);
-      logger.error("processLinkAsync failed", {
-        ...errorInfo,
+      // processLink's catchAllCause handles all errors internally.
+      // If we get here, the store itself is dead — no point trying to commit.
+      logger.error("processLinkAsync failed (store likely dead)", {
+        ...safeErrorInfo(error),
         linkId: link.id,
       });
-
-      if (errorInfo.errorMessage?.includes("shut down")) {
-        logger.warn("Store shut down, clearing cached store", {
-          linkId: link.id,
-        });
-        this.cachedStore = undefined;
-        this.subscription = undefined;
-        return;
-      }
-
-      try {
-        const status = store.query(
-          queryDb(tables.linkProcessingStatus.where({ linkId: link.id }))
-        );
-        if (!status[0] || status[0].status === "pending") {
-          store.commit(
-            events.linkProcessingFailed({
-              error: errorInfo.errorType,
-              linkId: link.id,
-              updatedAt: new Date(),
-            })
-          );
-        }
-      } catch {
-        logger.error("Failed to emit LinkProcessingFailed", {
-          linkId: link.id,
-        });
-        this.cachedStore = undefined;
-        this.subscription = undefined;
-      }
+      this.cachedStore = undefined;
+      this.subscription = undefined;
     } finally {
       this.currentlyProcessing.delete(link.id);
       if (this.cachedStore) {

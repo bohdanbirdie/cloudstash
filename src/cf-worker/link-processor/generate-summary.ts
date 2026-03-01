@@ -1,7 +1,6 @@
 import { Effect } from "effect";
 
 import { safeErrorInfo } from "../log-utils";
-import { type Env } from "../shared";
 import { type ExtractedContent } from "./content-extractor";
 import { AI_MODEL } from "./types";
 
@@ -59,7 +58,7 @@ interface GenerateSummaryParams {
   url: string;
   metadata: { title?: string; description?: string } | null;
   extractedContent: ExtractedContent | null;
-  env: Env;
+  ai: Ai;
   existingTags: readonly { readonly id: string; readonly name: string }[];
 }
 
@@ -72,7 +71,7 @@ export const generateSummary = ({
   url,
   metadata,
   extractedContent,
-  env,
+  ai,
   existingTags,
 }: GenerateSummaryParams): Effect.Effect<GenerateSummaryResult, never> =>
   Effect.gen(function* () {
@@ -115,7 +114,7 @@ export const generateSummary = ({
     const response = yield* Effect.tryPromise({
       catch: (error) => new Error(`AI call failed: ${error}`),
       try: () =>
-        env.AI.run(AI_MODEL, {
+        ai.run(AI_MODEL, {
           max_tokens: 250,
           response_format: { type: "json_object" },
           messages: [
