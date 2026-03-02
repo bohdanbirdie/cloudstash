@@ -16,5 +16,8 @@ todos.json
 # Localflare generated files
 .localflare/
 
+# Coverage reports
+coverage/
+
 # Local reference repos
 readonly-llm-lookup/
