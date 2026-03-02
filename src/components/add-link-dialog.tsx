@@ -291,10 +291,12 @@ function AddLinkDialogContent({
     const eventsToCommit = [];
 
     eventsToCommit.push(
-      events.linkCreated({
+      events.linkCreatedV2({
         createdAt: now,
         domain,
         id: linkId,
+        source: "app",
+        sourceMeta: null,
         url: trimmedUrl,
       })
     );

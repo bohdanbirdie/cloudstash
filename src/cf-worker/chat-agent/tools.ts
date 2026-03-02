@@ -84,11 +84,13 @@ export function createTools(store: Store<typeof schema>) {
 
         const linkId = nanoid();
         store.commit(
-          events.linkCreated({
+          events.linkCreatedV2({
             id: linkId,
             url,
             domain,
             createdAt: new Date(),
+            source: "chat",
+            sourceMeta: null,
           })
         );
 

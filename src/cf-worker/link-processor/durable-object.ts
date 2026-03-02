@@ -14,6 +14,7 @@ import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
 import { DurableObject } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { Effect, Layer } from "effect";
+import { Api } from "grammy";
 
 import { events, schema, tables } from "../../livestore/schema";
 import { createDb } from "../db";
@@ -21,7 +22,6 @@ import { organization, type OrgFeatures } from "../db/schema";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import { type Env } from "../shared";
-import { InvalidUrlError } from "./errors";
 import { runEffect } from "./logger";
 import { processLink } from "./process-link";
 import { AiSummaryGeneratorLive } from "./services/ai-summary-generator.live";
@@ -29,6 +29,7 @@ import { ContentExtractorLive } from "./services/content-extractor.live";
 import { LinkEventStoreLive } from "./services/link-event-store.live";
 import { MetadataFetcherLive } from "./services/metadata-fetcher.live";
 import { WorkersAiLive } from "./services/workers-ai.live";
+import { type LinkQueueMessage } from "./types";
 
 const logger = logSync("LinkProcessorDO");
 
@@ -155,6 +156,74 @@ export class LinkProcessorDO
       });
       this.onPendingLinksChanged(store, pendingLinks);
     });
+
+    const unnotifiedResults$ = computed(
+      (get) => {
+        const allStatuses = get(statuses$);
+        const allLinks = get(links$);
+        const linkMap = new Map(allLinks.map((l) => [l.id, l]));
+
+        return allStatuses
+          .filter((s) => {
+            if (s.notified) return false;
+            if (s.status !== "completed" && s.status !== "failed") return false;
+            const link = linkMap.get(s.linkId);
+            return link?.source != null && link.source !== "app";
+          })
+          .map((s) => {
+            const link = linkMap.get(s.linkId)!;
+            return {
+              linkId: s.linkId,
+              processingStatus: s.status as "completed" | "failed",
+              source: link.source!,
+              sourceMeta: link.sourceMeta,
+            };
+          });
+      },
+      { label: "unnotifiedResults" }
+    );
+
+    store.subscribe(unnotifiedResults$, (results) => {
+      if (results.length === 0) return;
+      this.notifyResults(store, results);
+    });
+
+    this.cancelStaleLinks(store);
+  }
+
+  private cancelStaleLinks(store: Store<typeof schema>): void {
+    const links = store.query(queryDb(tables.links.where({ deletedAt: null })));
+    const statuses = store.query(
+      queryDb(tables.linkProcessingStatus.where({}))
+    );
+    const statusMap = new Map(statuses.map((s) => [s.linkId, s]));
+    const now = Date.now();
+
+    let cancelled = 0;
+    for (const link of links) {
+      if (this.currentlyProcessing.has(link.id)) continue;
+
+      const status = statusMap.get(link.id);
+      if (status?.status === "completed" || status?.status === "cancelled")
+        continue;
+
+      const updatedAt = status
+        ? new Date(status.updatedAt).getTime()
+        : new Date(link.createdAt).getTime();
+      if (now - updatedAt <= STUCK_TIMEOUT_MS) continue;
+
+      store.commit(
+        events.linkProcessingCancelled({
+          linkId: link.id,
+          updatedAt: new Date(),
+        })
+      );
+      cancelled++;
+    }
+
+    if (cancelled > 0) {
+      logger.info("Cancelled stale links on startup", { cancelled });
+    }
   }
 
   private onPendingLinksChanged(
@@ -242,6 +311,8 @@ export class LinkProcessorDO
 
     logger.info("Processing", { isRetry, linkId: link.id });
 
+    this.reactToSource(link.source, link.sourceMeta, "🤔").catch(() => {});
+
     try {
       const rowsBefore = this.totalRowsWritten;
       const features = await this.getFeatures();
@@ -292,10 +363,95 @@ export class LinkProcessorDO
     }
   }
 
+  private notifyResults(
+    store: Store<typeof schema>,
+    results: ReadonlyArray<{
+      linkId: string;
+      processingStatus: "completed" | "failed";
+      source: string;
+      sourceMeta: string | null;
+    }>
+  ): void {
+    for (const result of results) {
+      logger.info("Notifying source", {
+        linkId: result.linkId,
+        source: result.source,
+        status: result.processingStatus,
+      });
+
+      const emoji = result.processingStatus === "completed" ? "👍" : "👎";
+
+      Promise.all([
+        this.reactToSource(result.source, result.sourceMeta, emoji),
+        result.processingStatus === "failed"
+          ? this.replyToSource(
+              result.source,
+              result.sourceMeta,
+              "Failed to process link."
+            )
+          : Promise.resolve(),
+      ])
+        .catch((error) => {
+          logger.error("Notification failed", {
+            ...safeErrorInfo(error),
+            linkId: result.linkId,
+            source: result.source,
+          });
+        })
+        .finally(() => {
+          store.commit(
+            events.linkSourceNotified({
+              linkId: result.linkId,
+              notifiedAt: new Date(),
+            })
+          );
+        });
+    }
+  }
+
+  private async reactToSource(
+    source: string | null,
+    sourceMeta: string | null,
+    emoji: "🤔" | "👌" | "👍" | "👎"
+  ): Promise<void> {
+    if (source !== "telegram" || !sourceMeta) return;
+
+    const meta = JSON.parse(sourceMeta) as {
+      chatId?: number;
+      messageId?: number;
+    };
+    if (!meta.chatId || !meta.messageId) return;
+
+    const api = new Api(this.env.TELEGRAM_BOT_TOKEN);
+    await api.setMessageReaction(meta.chatId, meta.messageId, [
+      { type: "emoji", emoji },
+    ]);
+  }
+
+  private async replyToSource(
+    source: string | null,
+    sourceMeta: string | null,
+    text: string
+  ): Promise<void> {
+    if (source !== "telegram" || !sourceMeta) return;
+
+    const meta = JSON.parse(sourceMeta) as {
+      chatId?: number;
+      messageId?: number;
+    };
+    if (!meta.chatId) return;
+
+    const api = new Api(this.env.TELEGRAM_BOT_TOKEN);
+    await api.sendMessage(meta.chatId, text, {
+      reply_parameters: meta.messageId
+        ? { message_id: meta.messageId }
+        : undefined,
+    });
+  }
+
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const storeId = url.searchParams.get("storeId");
-    const ingestUrl = url.searchParams.get("ingest");
     const reprocessLinkId = url.searchParams.get("reprocess");
 
     if (!storeId) {
@@ -304,10 +460,6 @@ export class LinkProcessorDO
 
     this.storeId = storeId;
     await this.ctx.storage.put("storeId", storeId);
-
-    if (ingestUrl) {
-      return this.handleIngest(ingestUrl);
-    }
 
     if (reprocessLinkId) {
       return this.handleReprocess(reprocessLinkId);
@@ -340,63 +492,59 @@ export class LinkProcessorDO
     return json({ status: "reprocessing" });
   }
 
-  private handleIngest(url: string): Promise<Response> {
-    const json = (body: object, status = 200) =>
-      new Response(JSON.stringify(body), {
-        headers: { "Content-Type": "application/json" },
-        status,
+  async ingestAndProcess(
+    msg: LinkQueueMessage
+  ): Promise<{ status: string; linkId?: string }> {
+    this.storeId = msg.storeId;
+    await this.ctx.storage.put("storeId", msg.storeId);
+
+    const store = await this.getStore();
+    await this.ensureSubscribed();
+
+    let domain: string;
+    try {
+      domain = new URL(msg.url).hostname.replace(/^www\./, "");
+    } catch {
+      logger.warn("Invalid URL in queue message", { url: msg.url });
+      return { status: "invalid_url" };
+    }
+
+    const existing = store.query(queryDb(tables.links.where({ url: msg.url })));
+    if (existing.length > 0) {
+      logger.info("Duplicate link from queue", {
+        existingId: existing[0].id,
+        storeId: maskId(msg.storeId),
       });
-
-    const ingest = Effect.gen(this, function* ingest() {
-      const store = yield* Effect.promise(() => this.getStore());
-      yield* Effect.promise(() => this.ensureSubscribed());
-
-      const domain = yield* Effect.try({
-        catch: () => new InvalidUrlError({ url }),
-        try: () => new URL(url).hostname.replace(/^www\./, ""),
-      });
-
-      const existing = store.query(queryDb(tables.links.where({ url })));
-      if (existing.length > 0) {
-        yield* Effect.sync(() =>
-          logger.info("Duplicate link", {
-            existingId: existing[0].id,
-            storeId: maskId(this.storeId ?? ""),
-          })
-        );
-        return json({ existingId: existing[0].id, status: "duplicate" });
-      }
-
-      const linkId = nanoid();
-
-      yield* Effect.sync(() =>
-        logger.info("Ingesting link", {
-          linkId,
-          storeId: maskId(this.storeId ?? ""),
-        })
+      this.reactToSource(msg.source, msg.sourceMeta ?? null, "👌").catch(
+        () => {}
       );
+      this.replyToSource(
+        msg.source,
+        msg.sourceMeta ?? null,
+        "Link already saved."
+      ).catch(() => {});
+      return { status: "duplicate", linkId: existing[0].id };
+    }
 
-      yield* Effect.sync(() =>
-        store.commit(
-          events.linkCreated({
-            createdAt: new Date(),
-            domain,
-            id: linkId,
-            url,
-          })
-        )
-      );
-
-      return json({ linkId, status: "ingested" });
+    const linkId = nanoid();
+    logger.info("Ingesting link from queue", {
+      linkId,
+      source: msg.source,
+      storeId: maskId(msg.storeId),
     });
 
-    return Effect.runPromise(
-      ingest.pipe(
-        Effect.catchTag("InvalidUrlError", () =>
-          Effect.succeed(json({ error: "Invalid URL" }, 400))
-        )
-      )
+    store.commit(
+      events.linkCreatedV2({
+        createdAt: new Date(),
+        domain,
+        id: linkId,
+        source: msg.source,
+        sourceMeta: msg.sourceMeta,
+        url: msg.url,
+      })
     );
+
+    return { status: "ingested", linkId };
   }
 
   async syncUpdateRpc(payload: unknown): Promise<void> {

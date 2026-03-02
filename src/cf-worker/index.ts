@@ -25,10 +25,12 @@ import {
   handleListInvites,
   handleRedeemInvite,
 } from "./invites";
+import { type LinkQueueMessage } from "./link-processor/types";
 import { logSync } from "./logger";
 import { metadataRequestToResponse } from "./metadata/service";
 import { requireAdmin } from "./middleware/require-admin";
 import { handleGetMe, handleGetOrg } from "./org";
+import { handleQueueBatch } from "./queue-handler";
 import { type Env, type HonoVariables } from "./shared";
 import { SyncBackend, handleSyncRequest } from "./sync";
 import { handleTelegramWebhook } from "./telegram";
@@ -235,6 +237,10 @@ const handleSync = async (
 };
 
 export default {
+  async queue(batch: MessageBatch<LinkQueueMessage>, env: Env): Promise<void> {
+    await handleQueueBatch(batch, env);
+  },
+
   async fetch(
     request: CfTypes.Request,
     env: Env,

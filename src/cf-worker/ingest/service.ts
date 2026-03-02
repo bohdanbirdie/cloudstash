@@ -3,6 +3,7 @@ import { Effect } from "effect";
 import { trackEvent } from "../analytics";
 import { createAuth } from "../auth";
 import { createDb } from "../db";
+import { type LinkQueueMessage } from "../link-processor/types";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import { type Env } from "../shared";
@@ -21,7 +22,7 @@ export const handleIngestRequest = (
   request: Request,
   env: Env
 ): Effect.Effect<
-  { result: { linkId: string; status: string }; ok: boolean },
+  { result: { status: string }; ok: boolean },
   IngestError | Error
 > =>
   Effect.gen(function* () {
@@ -69,37 +70,29 @@ export const handleIngestRequest = (
       return yield* MissingUrlError.make({});
     }
 
+    const url = body.url;
+
     try {
-      new URL(body.url);
+      new URL(url);
     } catch {
       logger.warn("Invalid URL format");
-      return yield* InvalidUrlError.make({ url: body.url });
+      return yield* InvalidUrlError.make({ url });
     }
 
-    const storeId = orgId;
-    const doId = env.LINK_PROCESSOR_DO.idFromName(storeId);
-    const stub = env.LINK_PROCESSOR_DO.get(doId);
-
-    const doUrl = new URL("https://do/");
-    doUrl.searchParams.set("storeId", storeId);
-    doUrl.searchParams.set("ingest", body.url);
-
-    const response = yield* Effect.tryPromise({
-      catch: (error) => new Error(`DO fetch failed: ${error}`),
-      try: () => stub.fetch(doUrl.toString()),
+    yield* Effect.tryPromise({
+      catch: (error) => new Error(`Queue send failed: ${error}`),
+      try: () =>
+        env.LINK_QUEUE.send({
+          source: "api",
+          sourceMeta: null,
+          storeId: orgId,
+          url,
+        } satisfies LinkQueueMessage),
     });
 
-    const result = yield* Effect.tryPromise({
-      catch: () => new Error("Failed to parse DO response"),
-      try: () => response.json() as Promise<{ linkId: string; status: string }>,
-    });
+    logger.info("Ingest queued", { url, orgId: maskId(orgId) });
 
-    logger.info("Ingest complete", {
-      linkId: result.linkId,
-      status: result.status,
-    });
-
-    return { ok: response.ok, result };
+    return { ok: true, result: { status: "queued" } };
   });
 
 export const ingestRequestToResponse = (

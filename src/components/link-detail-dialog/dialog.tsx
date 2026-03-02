@@ -3,10 +3,13 @@ import {
   CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  CodeIcon,
   CopyIcon,
   ExternalLinkIcon,
+  MessageSquareIcon,
   RefreshCwIcon,
   RotateCcwIcon,
+  SendIcon,
   Trash2Icon,
   UndoIcon,
 } from "lucide-react";
@@ -62,6 +65,25 @@ function StatusBadge({ link }: { link: LinkWithDetails }) {
     );
   }
   return null;
+}
+
+const SOURCE_CONFIG: Record<string, { icon: typeof SendIcon; label: string }> =
+  {
+    telegram: { icon: SendIcon, label: "Telegram" },
+    api: { icon: CodeIcon, label: "API" },
+    chat: { icon: MessageSquareIcon, label: "Chat" },
+  };
+
+function SourceBadge({ source }: { source: string }) {
+  const config = SOURCE_CONFIG[source];
+  if (!config) return null;
+  const Icon = config.icon;
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+      <Icon className="h-3 w-3" />
+      {config.label}
+    </span>
+  );
 }
 
 interface LinkDetailDialogContentProps {
@@ -305,8 +327,11 @@ export function LinkDetailDialogContent({
 
           <TagSuggestions linkId={link.id} />
 
-          <div className="text-xs text-muted-foreground pt-2 border-t">
-            Saved on {formattedDate}
+          <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t">
+            <span>Saved on {formattedDate}</span>
+            {link.source && link.source !== "app" && (
+              <SourceBadge source={link.source} />
+            )}
           </div>
         </ScrollableContent>
 

@@ -59,6 +59,15 @@ simple = { limit = 30, period = 60 }
 binding = "USAGE_ANALYTICS"
 dataset = "cloudstash_usage"
 
+[[queues.producers]]
+binding = "LINK_QUEUE"
+queue = "cloudstash-link-queue"
+
+[[queues.consumers]]
+queue = "cloudstash-link-queue"
+max_retries = 3
+dead_letter_queue = "cloudstash-link-dlq"
+
 [observability]
 enabled = true
 

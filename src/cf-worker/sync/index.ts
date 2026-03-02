@@ -29,7 +29,8 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
     });
 
     const hasLinkCreated = message.batch.some(
-      (event) => event.name === "v1.LinkCreated"
+      (event) =>
+        event.name === "v1.LinkCreated" || event.name === "v2.LinkCreated"
     );
     if (hasLinkCreated && currentSyncBackend) {
       currentSyncBackend.triggerLinkProcessor(context.storeId);
