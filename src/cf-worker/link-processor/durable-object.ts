@@ -12,28 +12,32 @@ import {
 import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
 /// <reference types="@cloudflare/workers-types" />
 import { DurableObject } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
 import { Effect, Layer } from "effect";
-import { Api } from "grammy";
 
 import { events, schema, tables } from "../../livestore/schema";
-import { createDb } from "../db";
-import { organization, type OrgFeatures } from "../db/schema";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import { type Env } from "../shared";
+import {
+  cancelStaleLinks,
+  detectStuckLinks,
+  ingestLink,
+  notifyResult,
+} from "./do-programs";
 import { runEffect } from "./logger";
 import { processLink } from "./process-link";
+import { FeatureStore, SourceNotifier } from "./services";
 import { AiSummaryGeneratorLive } from "./services/ai-summary-generator.live";
 import { ContentExtractorLive } from "./services/content-extractor.live";
+import { FeatureStoreLive } from "./services/feature-store.live";
 import { LinkEventStoreLive } from "./services/link-event-store.live";
+import { LinkRepositoryLive } from "./services/link-repository.live";
 import { MetadataFetcherLive } from "./services/metadata-fetcher.live";
+import { SourceNotifierLive } from "./services/source-notifier.live";
 import { WorkersAiLive } from "./services/workers-ai.live";
 import { type LinkQueueMessage } from "./types";
 
 const logger = logSync("LinkProcessorDO");
-
-const STUCK_TIMEOUT_MS = 5 * 60 * 1000;
 
 type Link = typeof tables.links.Type;
 
@@ -60,7 +64,6 @@ export class LinkProcessorDO
     }) as typeof origExec;
   }
 
-  /** Persisted session ID enables delta sync (only fetch missing events on wakeup) */
   private async getSessionId(): Promise<string> {
     const stored = await this.ctx.storage.get<string>("sessionId");
     if (stored) {
@@ -106,21 +109,11 @@ export class LinkProcessorDO
     return this.cachedStore;
   }
 
-  private async getFeatures(): Promise<OrgFeatures> {
-    if (!this.storeId) return {};
-
-    const db = createDb(this.env.DB);
-    const org = await db.query.organization.findFirst({
-      where: eq(organization.id, this.storeId),
-      columns: { features: true },
-    });
-
-    const features = org?.features ?? {};
-    logger.debug("Fetched features", {
-      storeId: maskId(this.storeId),
-      hasAiSummary: !!features.aiSummary,
-    });
-    return features;
+  private buildDoLayer(store: Store<typeof schema>) {
+    return Layer.mergeAll(
+      LinkRepositoryLive(store),
+      SourceNotifierLive(this.env.TELEGRAM_BOT_TOKEN)
+    );
   }
 
   private async ensureSubscribed(): Promise<void> {
@@ -154,7 +147,7 @@ export class LinkProcessorDO
         totalStatuses: allStatuses.length,
         pendingLinkIds: pendingLinks.map((l) => l.id).slice(0, 5),
       });
-      this.onPendingLinksChanged(store, pendingLinks);
+      this.onPendingLinksChanged(store, pendingLinks, allStatuses);
     });
 
     const unnotifiedResults$ = computed(
@@ -188,74 +181,39 @@ export class LinkProcessorDO
       this.notifyResults(store, results);
     });
 
-    this.cancelStaleLinks(store);
-  }
-
-  private cancelStaleLinks(store: Store<typeof schema>): void {
-    const links = store.query(queryDb(tables.links.where({ deletedAt: null })));
-    const statuses = store.query(
-      queryDb(tables.linkProcessingStatus.where({}))
-    );
-    const statusMap = new Map(statuses.map((s) => [s.linkId, s]));
-    const now = Date.now();
-
-    let cancelled = 0;
-    for (const link of links) {
-      if (this.currentlyProcessing.has(link.id)) continue;
-
-      const status = statusMap.get(link.id);
-      if (status?.status === "completed" || status?.status === "cancelled")
-        continue;
-
-      const updatedAt = status
-        ? new Date(status.updatedAt).getTime()
-        : new Date(link.createdAt).getTime();
-      if (now - updatedAt <= STUCK_TIMEOUT_MS) continue;
-
-      store.commit(
-        events.linkProcessingCancelled({
-          linkId: link.id,
-          updatedAt: new Date(),
-        })
-      );
-      cancelled++;
-    }
-
-    if (cancelled > 0) {
-      logger.info("Cancelled stale links on startup", { cancelled });
-    }
+    runEffect(
+      cancelStaleLinks(this.currentlyProcessing, Date.now()).pipe(
+        Effect.provide(this.buildDoLayer(store))
+      )
+    ).catch((error) => {
+      logger.error("cancelStaleLinks failed", safeErrorInfo(error));
+    });
   }
 
   private onPendingLinksChanged(
     store: Store<typeof schema>,
-    pendingLinks: readonly Link[]
+    pendingLinks: readonly Link[],
+    statuses: readonly (typeof tables.linkProcessingStatus.Type)[]
   ): void {
-    for (const link of pendingLinks) {
-      if (this.currentlyProcessing.has(link.id)) continue;
+    const stuckLinks = detectStuckLinks(
+      pendingLinks,
+      statuses,
+      this.currentlyProcessing,
+      Date.now()
+    );
 
-      const existingStatus = store.query(
-        queryDb(tables.linkProcessingStatus.where({ linkId: link.id }))
+    for (const stuck of stuckLinks) {
+      logger.info("Failing stuck link", {
+        linkId: stuck.linkId,
+        stuckMs: stuck.stuckMs,
+      });
+      store.commit(
+        events.linkProcessingFailed({
+          error: "stuck_timeout",
+          linkId: stuck.linkId,
+          updatedAt: new Date(),
+        })
       );
-      const isRetry =
-        existingStatus.length > 0 && existingStatus[0].status === "pending";
-
-      if (isRetry && existingStatus[0]) {
-        const elapsed =
-          Date.now() - new Date(existingStatus[0].updatedAt).getTime();
-        if (elapsed > STUCK_TIMEOUT_MS) {
-          logger.info("Failing stuck link", {
-            linkId: link.id,
-            stuckMs: elapsed,
-          });
-          store.commit(
-            events.linkProcessingFailed({
-              error: "stuck_timeout",
-              linkId: link.id,
-              updatedAt: new Date(),
-            })
-          );
-        }
-      }
     }
 
     if (this.currentlyProcessing.size > 0) {
@@ -311,11 +269,22 @@ export class LinkProcessorDO
 
     logger.info("Processing", { isRetry, linkId: link.id });
 
-    this.reactToSource(link.source, link.sourceMeta, "🤔").catch(() => {});
+    const doLayer = this.buildDoLayer(store);
+    runEffect(
+      SourceNotifier.pipe(
+        Effect.flatMap((n) => n.react(link.source, link.sourceMeta, "🤔")),
+        Effect.provide(doLayer)
+      )
+    ).catch(() => {});
 
     try {
       const rowsBefore = this.totalRowsWritten;
-      const features = await this.getFeatures();
+      const features = await Effect.runPromise(
+        FeatureStore.pipe(
+          Effect.flatMap((fs) => fs.getFeatures(this.storeId!)),
+          Effect.provide(FeatureStoreLive(this.env.DB))
+        )
+      ).catch(() => ({}));
 
       const liveLayer = Layer.mergeAll(
         MetadataFetcherLive,
@@ -326,7 +295,8 @@ export class LinkProcessorDO
 
       await runEffect(
         processLink({
-          aiSummaryEnabled: features.aiSummary ?? false,
+          aiSummaryEnabled:
+            (features as { aiSummary?: boolean }).aiSummary ?? false,
           isRetry,
           link: { id: link.id, url: link.url },
         }).pipe(Effect.provide(liveLayer))
@@ -337,8 +307,6 @@ export class LinkProcessorDO
         totalRowsWritten: this.totalRowsWritten,
       });
     } catch (error) {
-      // processLink's catchAllCause handles all errors internally.
-      // If we get here, the store itself is dead — no point trying to commit.
       logger.error("processLinkAsync failed (store likely dead)", {
         ...safeErrorInfo(error),
         linkId: link.id,
@@ -372,81 +340,17 @@ export class LinkProcessorDO
       sourceMeta: string | null;
     }>
   ): void {
+    const doLayer = this.buildDoLayer(store);
     for (const result of results) {
-      logger.info("Notifying source", {
-        linkId: result.linkId,
-        source: result.source,
-        status: result.processingStatus,
-      });
-
-      const emoji = result.processingStatus === "completed" ? "👍" : "👎";
-
-      Promise.all([
-        this.reactToSource(result.source, result.sourceMeta, emoji),
-        result.processingStatus === "failed"
-          ? this.replyToSource(
-              result.source,
-              result.sourceMeta,
-              "Failed to process link."
-            )
-          : Promise.resolve(),
-      ])
-        .catch((error) => {
-          logger.error("Notification failed", {
+      runEffect(notifyResult(result).pipe(Effect.provide(doLayer))).catch(
+        (error) => {
+          logger.error("notifyResult effect failed", {
             ...safeErrorInfo(error),
             linkId: result.linkId,
-            source: result.source,
           });
-        })
-        .finally(() => {
-          store.commit(
-            events.linkSourceNotified({
-              linkId: result.linkId,
-              notifiedAt: new Date(),
-            })
-          );
-        });
+        }
+      );
     }
-  }
-
-  private async reactToSource(
-    source: string | null,
-    sourceMeta: string | null,
-    emoji: "🤔" | "👌" | "👍" | "👎"
-  ): Promise<void> {
-    if (source !== "telegram" || !sourceMeta) return;
-
-    const meta = JSON.parse(sourceMeta) as {
-      chatId?: number;
-      messageId?: number;
-    };
-    if (!meta.chatId || !meta.messageId) return;
-
-    const api = new Api(this.env.TELEGRAM_BOT_TOKEN);
-    await api.setMessageReaction(meta.chatId, meta.messageId, [
-      { type: "emoji", emoji },
-    ]);
-  }
-
-  private async replyToSource(
-    source: string | null,
-    sourceMeta: string | null,
-    text: string
-  ): Promise<void> {
-    if (source !== "telegram" || !sourceMeta) return;
-
-    const meta = JSON.parse(sourceMeta) as {
-      chatId?: number;
-      messageId?: number;
-    };
-    if (!meta.chatId) return;
-
-    const api = new Api(this.env.TELEGRAM_BOT_TOKEN);
-    await api.sendMessage(meta.chatId, text, {
-      reply_parameters: meta.messageId
-        ? { message_id: meta.messageId }
-        : undefined,
-    });
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -485,8 +389,6 @@ export class LinkProcessorDO
       return json({ status: "queued" });
     }
 
-    // Don't commit linkProcessingStarted here — the client already committed it.
-    // Just ensure we pick up the pending link and start processing.
     this.processNextPending(store);
 
     return json({ status: "reprocessing" });
@@ -501,50 +403,15 @@ export class LinkProcessorDO
     const store = await this.getStore();
     await this.ensureSubscribed();
 
-    let domain: string;
-    try {
-      domain = new URL(msg.url).hostname.replace(/^www\./, "");
-    } catch {
-      logger.warn("Invalid URL in queue message", { url: msg.url });
-      return { status: "invalid_url" };
-    }
-
-    const existing = store.query(queryDb(tables.links.where({ url: msg.url })));
-    if (existing.length > 0) {
-      logger.info("Duplicate link from queue", {
-        existingId: existing[0].id,
-        storeId: maskId(msg.storeId),
-      });
-      this.reactToSource(msg.source, msg.sourceMeta ?? null, "👌").catch(
-        () => {}
-      );
-      this.replyToSource(
-        msg.source,
-        msg.sourceMeta ?? null,
-        "Link already saved."
-      ).catch(() => {});
-      return { status: "duplicate", linkId: existing[0].id };
-    }
-
-    const linkId = nanoid();
-    logger.info("Ingesting link from queue", {
-      linkId,
-      source: msg.source,
-      storeId: maskId(msg.storeId),
-    });
-
-    store.commit(
-      events.linkCreatedV2({
-        createdAt: new Date(),
-        domain,
-        id: linkId,
+    const doLayer = this.buildDoLayer(store);
+    return runEffect(
+      ingestLink({
+        url: msg.url,
+        storeId: msg.storeId,
         source: msg.source,
         sourceMeta: msg.sourceMeta,
-        url: msg.url,
-      })
+      }).pipe(Effect.provide(doLayer))
     );
-
-    return { status: "ingested", linkId };
   }
 
   async syncUpdateRpc(payload: unknown): Promise<void> {
