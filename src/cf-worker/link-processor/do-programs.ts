@@ -90,7 +90,11 @@ export const cancelStaleLinks = (
       if (currentlyProcessing.has(link.id)) continue;
 
       const status = statusMap.get(link.id);
-      if (status?.status === "completed" || status?.status === "cancelled")
+      if (
+        status?.status === "completed" ||
+        status?.status === "cancelled" ||
+        status?.status === "failed"
+      )
         continue;
 
       const updatedAt = status

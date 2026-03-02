@@ -220,6 +220,24 @@ describe("cancelStaleLinks", () => {
     expect(cancelled).toBe(0);
   });
 
+  it("skips failed links", async () => {
+    const link = makeLink({
+      createdAt: new Date(Date.now() - FIVE_MIN - 1000),
+    });
+    const status = makeStatus({ linkId: "link-1", status: "failed" });
+    const repo = createTestRepo([link], [status]);
+
+    const cancelled = await Effect.runPromise(
+      cancelStaleLinks(new Set(), Date.now()).pipe(
+        Effect.provide(repo.layer),
+        silentLogger
+      )
+    );
+
+    expect(cancelled).toBe(0);
+    expect(repo.committed).toHaveLength(0);
+  });
+
   it("does not cancel fresh links", async () => {
     const freshLink = makeLink({ createdAt: new Date() });
     const repo = createTestRepo([freshLink]);
