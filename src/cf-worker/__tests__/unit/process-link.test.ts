@@ -208,6 +208,33 @@ describe("processLink", () => {
     });
   });
 
+  it("error escapes when store commit fails in error handler", async () => {
+    const testLayer = Layer.mergeAll(
+      Layer.succeed(MetadataFetcher, {
+        fetch: () => Effect.die("metadata crash"),
+      }),
+      Layer.succeed(ContentExtractor, {
+        extract: () => Effect.succeed(null),
+      }),
+      Layer.succeed(AiSummaryGenerator, {
+        generate: () => Effect.succeed({ summary: null, suggestedTags: [] }),
+      }),
+      Layer.succeed(LinkEventStore, {
+        commit: () => Effect.die("store dead"),
+        queryTags: () => Effect.succeed([]),
+      })
+    );
+
+    await expect(
+      Effect.runPromise(
+        processLink({ link: testLink }).pipe(
+          Effect.provide(testLayer),
+          Logger.withMinimumLogLevel(LogLevel.None)
+        )
+      )
+    ).rejects.toThrow("store dead");
+  });
+
   it("emits one tagSuggested per AI suggestion", async () => {
     const { run, committed } = runWithTestLayers(
       { link: testLink, aiSummaryEnabled: true },
