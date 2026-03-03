@@ -2,7 +2,7 @@
 
 ## Overview
 
-LinkProcessorDO processes newly saved links: fetches metadata, extracts content, generates AI summaries, and suggests tags. It runs as a Durable Object hosting an in-memory livestore client (wasm SQLite via MemoryVFS) to participate in event-sourcing sync.
+LinkProcessorDO processes newly saved links: fetches metadata, extracts content, generates AI summaries, and suggests tags. It runs as a Durable Object hosting a livestore client (wasm SQLite via CloudflareSqlVFS, persisted to DO storage) to participate in event-sourcing sync.
 
 **Status:** Fully refactored (all 9 groups complete). Effect Layer services with per-step timeouts/retries, dual-path ingestion (browser direct + queue for external), event-driven Telegram notifications, stale link cleanup, and AI error propagation. 275 unit tests passing.
 
@@ -37,8 +37,8 @@ SyncBackendDO                           │   Cloudflare Queue      │
 │                  LinkProcessorDO (per org)                       │
 │                                                                  │
 │  ┌────────────────────────────────────────────────────────┐     │
-│  │ LiveStore Client (in-memory wasm SQLite)                │     │
-│  │  livePull ──→ rematerialize (full replay on cold start) │     │
+│  │ LiveStore Client (wasm SQLite via DO storage/VFS)        │     │
+│  │  livePull ──→ delta sync (persisted across hibernation) │     │
 │  │  store.commit() ──→ SyncBackendDO ──→ clients           │     │
 │  └────────────────────────────────────────────────────────┘     │
 │                                                                  │
@@ -86,7 +86,7 @@ processLink: Effect<void, never, MetadataFetcher | ContentExtractor | AiSummaryG
 | `MetadataFetcher`    | `fetchOgMetadata`                 | 10s                    | 2x exponential (200ms base)              | Uses global `fetch` + `HTMLRewriter`  | Returns configurable `OgMetadata` or null           |
 | `ContentExtractor`   | `fetchAndExtractContent`          | 15s                    | 2x exponential (300ms base)              | Uses global `fetch` + `htmlparser2`   | Returns configurable `ExtractedContent` or null     |
 | `AiSummaryGenerator` | `env.AI.run()`                    | 30s                    | None (errors propagate as `AiCallError`) | Uses CF Workers AI binding            | Returns configurable summary + tags, or fails       |
-| `LinkEventStore`     | `store.commit()`, `store.query()` | None (sync in-memory)  | None (idempotent)                        | Uses livestore store                  | Records commits in array, returns configurable tags |
+| `LinkEventStore`     | `store.commit()`, `store.query()` | None (sync, VFS-backed) | None (idempotent)                        | Uses livestore store                  | Records commits in array, returns configurable tags |
 | `SourceNotifier`     | Grammy `Api` reactions/replies    | None (fire-and-forget) | None (logs errors)                       | `new Api(token).setMessageReaction()` | Records reactions/replies in arrays                 |
 | `FeatureStore`       | D1/Drizzle org query              | None                   | None                                     | `db.query.organization.findFirst()`   | Returns configurable `OrgFeatures`                  |
 | `LinkRepository`     | livestore `Store` queries         | None (sync in-memory)  | None (idempotent)                        | `store.query()`, `store.commit()`     | In-memory arrays, records commits                   |
@@ -103,7 +103,7 @@ link-processor/
     metadata-fetcher.live.ts           — 10s timeout, 2x retry
     content-extractor.live.ts          — 15s timeout, 2x retry
     ai-summary-generator.live.ts       — 30s timeout, no retry
-    link-event-store.live.ts           — in-memory commits
+    link-event-store.live.ts           — VFS-backed commits
     workers-ai.live.ts                 — CF Workers AI binding
     source-notifier.live.ts            — Telegram reactions/replies
     feature-store.live.ts              — D1/Drizzle org features
@@ -334,12 +334,51 @@ Verified 2026-02-27. Sources: [CF Durable Objects Limits](https://developers.clo
 | CPU time                  | 30s default, configurable to 5min via `limits.cpu_ms`       | **Low** — most time is I/O wait (fetch, AI), which doesn't count toward CPU |
 | Wall clock (HTTP request) | **Unlimited** while caller is connected                     | **None** — processing can take minutes                                      |
 | Wall clock (alarm)        | 15 min                                                      | N/A — not using alarms                                                      |
-| Memory                    | 128 MB (shared across same-class instances on same machine) | **Medium** — wasm SQLite + full eventlog in heap                            |
-| Eviction                  | 70-140s inactivity (non-hibernateable)                      | Loses `currentlyProcessing`, `cachedStore`, etc.                            |
+| Memory                    | 128 MB (shared across same-class instances on same machine) | **Medium** — wasm SQLite in heap (state persisted to DO storage via VFS)    |
+| Eviction                  | 70-140s inactivity (non-hibernateable)                      | Loses `currentlyProcessing`, `cachedStore`; SQLite data persists in storage |
 | Outbound connections      | 6 simultaneous                                              | **Low** — serial processing                                                 |
 | Subrequests               | 10,000 per invocation (raised Feb 2026)                     | **None**                                                                    |
 
 Key insight: **there is no wall clock or CPU limit that blocks link processing.** Past incidents were all app-level bugs (retry storms, materializer crashes, race conditions), not platform constraints.
+
+## Livestore Sync: ServerAheadError and Rebase
+
+`createStoreDoPromise` uses `initialSyncOptions: { _tag: 'Blocking', timeout: 500 }`. When the eventlog is large (e.g., 1412 events), the initial sync doesn't complete in 500ms. The store returns partially synced, and events committed locally (linkCreated, linkProcessingStarted, etc.) try to push to SyncBackendDO with a stale `parentSeqNum`. These pushes fail with `ServerAheadError`.
+
+**In-memory patch disabled (2026-03-03):** The `@livestore/adapter-cloudflare` package was previously patched to use `_tag: 'in-memory'` instead of `_tag: 'storage'` for both `dbState` and `dbEventlog`. This avoided VFS write amplification (see [history doc](./link-processor-refactor-history.md)) but meant every DO wake-up from hibernation required a full eventlog replay (~1400+ events). With a growing eventlog, cold-start sync couldn't keep up — the DO would spend its entire lifetime catching up and never reach the newly added links. Patch disabled (renamed to `.disabled`); the adapter now uses Cloudflare DO storage via `CloudflareSqlVFS`, persisting state across hibernation cycles so only delta sync is needed on wake-up.
+
+**This is expected and handled by the sync protocol.** The recovery works as follows:
+
+```
+1. DO commits event locally
+   → event applied to local state + added to syncState.pending
+   → event enqueued in syncBackendPushQueue
+
+2. Push fiber takes event from queue, pushes to SyncBackendDO
+   → Server rejects: ServerAheadError (parentSeqNum < server head)
+   → Push fiber parks: yield* Effect.never (waits for interrupt)
+
+3. Pull stream delivers server events (the ones that caused the head to advance)
+   → SyncState.merge() rebases all pending events onto new server head
+   → restartBackendPushing() interrupts parked push fiber
+   → Clears push queue, re-enqueues all rebased pending events
+   → Starts new push fiber
+
+4. New push fiber pushes rebased events successfully
+   → Events reach SyncBackendDO → broadcast to browser clients
+```
+
+Key invariants:
+- **`syncState.pending` is the source of truth** for uncommitted events, not the push queue. Events consumed from the queue are never lost — they're always in `pending` until confirmed.
+- **`Effect.never` is a deliberate parking strategy**, not a deadlock. The pull side provides the interrupt via `restartBackendPushing`.
+- **Multiple events** accumulated during catch-up are all preserved and rebased together.
+- **The protocol guarantees** that a ServerAheadError always implies the server has new events the client hasn't seen yet, delivered via the pull stream.
+
+The `ServerAheadError` flood visible in production logs during DO cold start is harmless noise. The `providedNum` values climbing (0 → 100 → 200 → ... → 1380) show the pull catching up in batches, with each batch triggering a rebase cycle until the client is fully synced.
+
+**Note on `onPush` timing:** The SyncBackendDO's `onPush` callback fires *before* push validation in the livestore library. This means `triggerLinkProcessor` is called even for rejected pushes. These are wasted wake-ups but harmless — the processor's `ensureSubscribed` returns early and `processNextPending` checks `currentlyProcessing`.
+
+Source: `readonly-llm-lookup/livestore/packages/@livestore/common/src/leader-thread/LeaderSyncProcessor.ts` (lines 893-979: `backgroundBackendPushing`, lines 377-388: `restartBackendPushing`, lines 731-848: `onNewPullChunk`).
 
 ## Implementation Log
 
@@ -491,6 +530,8 @@ Files changed (Group 9):
 `onPendingLinksChanged` called `detectStuckLinks` → `store.commit(linkProcessingFailed)` for each stuck link. But `store.commit()` fires subscriptions **synchronously**, re-entering `onPendingLinksChanged`. During initial sync, incoming events overwrite the failed status back to "pending" (via `linkProcessingStarted` INSERT ON CONFLICT REPLACE), causing the same links to be detected as stuck infinitely. Produced hundreds of log entries per second.
 
 Fix: removed `detectStuckLinks` from subscription callback entirely. Stuck link cleanup is already handled by `cancelStaleLinks` (runs once asynchronously on boot, uses `linkProcessingCancelled` with INSERT ON CONFLICT REPLACE).
+
+Verified in production: all stuck links processed successfully after deploy. Telegram ingestion after DO hibernation also works correctly.
 
 **Other hardening:**
 

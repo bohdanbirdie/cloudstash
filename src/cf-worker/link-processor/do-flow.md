@@ -346,3 +346,5 @@ LinkProcessorDO:
 Key insight: DO doesn't trust trigger data. It queries state to find work.
 This handles race conditions, missed triggers, and duplicates automatically.
 ```
+
+// todo: might be outdated
