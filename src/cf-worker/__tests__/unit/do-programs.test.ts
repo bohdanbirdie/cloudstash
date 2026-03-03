@@ -258,8 +258,18 @@ describe("notification dedup", () => {
   it("filters out already-notified linkIds", () => {
     const notifiedLinkIds = new Set<string>();
     const results = [
-      { linkId: "link-1", processingStatus: "completed" as const, source: "telegram", sourceMeta: null },
-      { linkId: "link-2", processingStatus: "failed" as const, source: "telegram", sourceMeta: null },
+      {
+        linkId: "link-1",
+        processingStatus: "completed" as const,
+        source: "telegram",
+        sourceMeta: null,
+      },
+      {
+        linkId: "link-2",
+        processingStatus: "failed" as const,
+        source: "telegram",
+        sourceMeta: null,
+      },
     ];
 
     const newResults = results.filter((r) => !notifiedLinkIds.has(r.linkId));
@@ -275,8 +285,18 @@ describe("notification dedup", () => {
   it("allows new linkIds while blocking seen ones", () => {
     const notifiedLinkIds = new Set<string>(["link-1"]);
     const results = [
-      { linkId: "link-1", processingStatus: "completed" as const, source: "telegram", sourceMeta: null },
-      { linkId: "link-3", processingStatus: "completed" as const, source: "telegram", sourceMeta: null },
+      {
+        linkId: "link-1",
+        processingStatus: "completed" as const,
+        source: "telegram",
+        sourceMeta: null,
+      },
+      {
+        linkId: "link-3",
+        processingStatus: "completed" as const,
+        source: "telegram",
+        sourceMeta: null,
+      },
     ];
 
     const newResults = results.filter((r) => !notifiedLinkIds.has(r.linkId));

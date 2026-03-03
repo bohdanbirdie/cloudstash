@@ -493,6 +493,7 @@ Files changed (Group 9):
 Fix: removed `detectStuckLinks` from subscription callback entirely. Stuck link cleanup is already handled by `cancelStaleLinks` (runs once asynchronously on boot, uses `linkProcessingCancelled` with INSERT ON CONFLICT REPLACE).
 
 **Other hardening:**
+
 - `cancelStaleLinks` guarded with `hasRunCleanup` flag — runs once per DO lifetime, not on every store recreation
 - `syncUpdateRpc` calls `processNextPending` after `handleSyncUpdateRpc` as fallback in case subscription didn't fire
 - Notification dedup via in-memory `notifiedLinkIds` Set (see Error Handling section)

@@ -18,11 +18,7 @@ import { events, schema, tables } from "../../livestore/schema";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import { type Env } from "../shared";
-import {
-  cancelStaleLinks,
-  ingestLink,
-  notifyResult,
-} from "./do-programs";
+import { cancelStaleLinks, ingestLink, notifyResult } from "./do-programs";
 import { runEffect } from "./logger";
 import { processLink } from "./process-link";
 import { FeatureStore, SourceNotifier } from "./services";
