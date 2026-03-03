@@ -1,0 +1,26 @@
+diff --git a/dist/create-store-do.js b/dist/create-store-do.js
+index 5b0dcce78926f5fd7915984a8d704aa7effcfdd4..929f0806be851b3d19386381eea4d38a04f05cec 100644
+--- a/dist/create-store-do.js
++++ b/dist/create-store-do.js
+@@ -60,7 +60,7 @@ export const createStoreDo = ({ schema, storeId, clientId, sessionId, durableObj
+                 durableObjectContext: { bindingName, durableObjectId },
+             }),
+             livePull, // Uses DO RPC callbacks for reactive pull
+-            initialSyncOptions: { _tag: 'Blocking', timeout: 500 },
++            initialSyncOptions: { _tag: 'Blocking', timeout: 5000 },
+         },
+     });
+     return yield* createStore({ schema, adapter, storeId }).pipe(Scope.extend(scope), provideOtel({}));
+diff --git a/src/create-store-do.ts b/src/create-store-do.ts
+index ecda0f8c30fd804685758222b6efd697a8e224c8..1c447c89513cb85002329240bd9f34015b677c02 100644
+--- a/src/create-store-do.ts
++++ b/src/create-store-do.ts
+@@ -116,7 +116,7 @@ export const createStoreDo = <
+           durableObjectContext: { bindingName, durableObjectId },
+         }),
+         livePull, // Uses DO RPC callbacks for reactive pull
+-        initialSyncOptions: { _tag: 'Blocking', timeout: 500 },
++        initialSyncOptions: { _tag: 'Blocking', timeout: 5000 },
+       },
+     })
+ 

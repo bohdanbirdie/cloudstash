@@ -87,6 +87,7 @@ export class LinkProcessorDO
       storeId: maskId(this.storeId),
     });
 
+    // TODO: disable resetPersistence once stale VFS data from the in-memory patch era is cleared
     this.cachedStore = await createStoreDoPromise({
       clientId: "link-processor-do",
       durableObject: {
@@ -95,6 +96,7 @@ export class LinkProcessorDO
         env: this.env,
       } as never,
       livePull: true,
+      resetPersistence: true,
       schema,
       sessionId,
       storeId: this.storeId,
