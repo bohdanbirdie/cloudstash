@@ -4,6 +4,7 @@ import { type events, type tables } from "../../livestore/schema";
 import { type OrgFeatures } from "../db/schema";
 import { type OgMetadata } from "../metadata/schema";
 import { type ExtractedContent } from "./content-extractor";
+import { type AiCallError } from "./errors";
 
 type EventCreators = typeof events;
 export type StoreEvent = {
@@ -40,7 +41,7 @@ export class AiSummaryGenerator extends Context.Tag("AiSummaryGenerator")<
   {
     readonly generate: (
       params: GenerateParams
-    ) => Effect.Effect<GenerateSummaryResult>;
+    ) => Effect.Effect<GenerateSummaryResult, AiCallError>;
   }
 >() {}
 

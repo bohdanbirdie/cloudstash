@@ -1,6 +1,5 @@
 import { Effect } from "effect";
 
-import { safeErrorInfo } from "../log-utils";
 import { type ExtractedContent } from "./content-extractor";
 import { AiCallError } from "./errors";
 import { AI_MODEL } from "./types";
@@ -74,7 +73,7 @@ export const generateSummary = ({
   extractedContent,
   ai,
   existingTags,
-}: GenerateSummaryParams): Effect.Effect<GenerateSummaryResult, never> =>
+}: GenerateSummaryParams): Effect.Effect<GenerateSummaryResult, AiCallError> =>
   Effect.gen(function* () {
     let content: string;
     let contentSource: string;
@@ -138,23 +137,24 @@ export const generateSummary = ({
     if ("response" in response && typeof response.response === "string") {
       const rawResponse = response.response.trim();
 
-      const result = yield* Effect.try({
-        try: () => {
-          const parsed = JSON.parse(rawResponse) as {
-            summary?: string;
-            suggestedTags?: string[];
-          };
-          return {
-            summary: typeof parsed.summary === "string" ? parsed.summary : null,
-            suggestedTags: Array.isArray(parsed.suggestedTags)
-              ? parsed.suggestedTags.filter(
-                  (t): t is string => typeof t === "string"
-                )
-              : [],
-          };
-        },
-        catch: () => ({ summary: rawResponse, suggestedTags: [] as string[] }),
+      const result = yield* Effect.try(() => {
+        const parsed = JSON.parse(rawResponse) as {
+          summary?: string;
+          suggestedTags?: string[];
+        };
+        return {
+          summary: typeof parsed.summary === "string" ? parsed.summary : null,
+          suggestedTags: Array.isArray(parsed.suggestedTags)
+            ? parsed.suggestedTags.filter(
+                (t): t is string => typeof t === "string"
+              )
+            : [],
+        };
       }).pipe(
+        Effect.orElseSucceed(() => ({
+          summary: rawResponse,
+          suggestedTags: [] as string[],
+        })),
         Effect.tap((r) =>
           r.summary === null
             ? Effect.logWarning("Failed to parse JSON response")
@@ -183,11 +183,4 @@ export const generateSummary = ({
 
     yield* Effect.logWarning("Unexpected AI response format");
     return { summary: null, suggestedTags: [] };
-  }).pipe(
-    Effect.catchAll((error) =>
-      Effect.logError("AI summary generation failed").pipe(
-        Effect.annotateLogs(safeErrorInfo(error)),
-        Effect.as({ summary: null, suggestedTags: [] })
-      )
-    )
-  );
+  });

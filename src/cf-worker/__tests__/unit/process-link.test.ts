@@ -1,6 +1,7 @@
 import { Effect, Layer, LogLevel, Logger } from "effect";
 import { describe, expect, it } from "vitest";
 
+import { AiCallError } from "../../link-processor/errors";
 import { processLink } from "../../link-processor/process-link";
 import {
   AiSummaryGenerator,
@@ -174,6 +175,36 @@ describe("processLink", () => {
         tagId: "tag-1",
         suggestedName: "javascript",
       }),
+    });
+  });
+
+  it("commits linkProcessingFailed when AI service fails", async () => {
+    const store = createTestStore();
+    const testLayer = Layer.mergeAll(
+      Layer.succeed(MetadataFetcher, {
+        fetch: () => Effect.succeed(mockMetadata),
+      }),
+      Layer.succeed(ContentExtractor, {
+        extract: () => Effect.succeed({ title: "Test", content: "Content" }),
+      }),
+      Layer.succeed(AiSummaryGenerator, {
+        generate: () =>
+          Effect.fail(new AiCallError({ cause: "AI unavailable" })),
+      }),
+      store.layer
+    );
+
+    await Effect.runPromise(
+      processLink({ link: testLink, aiSummaryEnabled: true }).pipe(
+        Effect.provide(testLayer),
+        Logger.withMinimumLogLevel(LogLevel.None)
+      )
+    );
+
+    const lastEvent = store.committed.at(-1);
+    expect(lastEvent).toMatchObject({
+      name: "v1.LinkProcessingFailed",
+      args: expect.objectContaining({ linkId: "link-1" }),
     });
   });
 
