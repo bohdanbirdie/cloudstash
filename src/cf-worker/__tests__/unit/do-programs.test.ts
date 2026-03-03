@@ -254,6 +254,39 @@ describe("cancelStaleLinks", () => {
   });
 });
 
+describe("notification dedup", () => {
+  it("filters out already-notified linkIds", () => {
+    const notifiedLinkIds = new Set<string>();
+    const results = [
+      { linkId: "link-1", processingStatus: "completed" as const, source: "telegram", sourceMeta: null },
+      { linkId: "link-2", processingStatus: "failed" as const, source: "telegram", sourceMeta: null },
+    ];
+
+    const newResults = results.filter((r) => !notifiedLinkIds.has(r.linkId));
+    for (const r of newResults) notifiedLinkIds.add(r.linkId);
+
+    expect(newResults).toHaveLength(2);
+    expect(notifiedLinkIds.size).toBe(2);
+
+    const secondRun = results.filter((r) => !notifiedLinkIds.has(r.linkId));
+    expect(secondRun).toHaveLength(0);
+  });
+
+  it("allows new linkIds while blocking seen ones", () => {
+    const notifiedLinkIds = new Set<string>(["link-1"]);
+    const results = [
+      { linkId: "link-1", processingStatus: "completed" as const, source: "telegram", sourceMeta: null },
+      { linkId: "link-3", processingStatus: "completed" as const, source: "telegram", sourceMeta: null },
+    ];
+
+    const newResults = results.filter((r) => !notifiedLinkIds.has(r.linkId));
+    for (const r of newResults) notifiedLinkIds.add(r.linkId);
+
+    expect(newResults).toHaveLength(1);
+    expect(newResults[0].linkId).toBe("link-3");
+  });
+});
+
 describe("notifyResult", () => {
   it("reacts with 👍 and commits notified event on completed", async () => {
     const repo = createTestRepo();

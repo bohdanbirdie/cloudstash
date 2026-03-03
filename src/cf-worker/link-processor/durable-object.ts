@@ -20,7 +20,6 @@ import { logSync } from "../logger";
 import { type Env } from "../shared";
 import {
   cancelStaleLinks,
-  detectStuckLinks,
   ingestLink,
   notifyResult,
 } from "./do-programs";
@@ -52,6 +51,8 @@ export class LinkProcessorDO
   private subscription: Unsubscribe | undefined;
   private currentlyProcessing = new Set<string>();
   private reprocessQueue = new Set<string>();
+  private notifiedLinkIds = new Set<string>();
+  private hasRunCleanup = false;
   private totalRowsWritten = 0;
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -141,13 +142,11 @@ export class LinkProcessorDO
     );
 
     this.subscription = store.subscribe(pendingLinks$, (pendingLinks) => {
-      const allStatuses = store.query(statuses$);
       logger.info("Subscription fired", {
         pendingCount: pendingLinks.length,
-        totalStatuses: allStatuses.length,
         pendingLinkIds: pendingLinks.map((l) => l.id).slice(0, 5),
       });
-      this.onPendingLinksChanged(store, pendingLinks, allStatuses);
+      this.onPendingLinksChanged(store, pendingLinks);
     });
 
     const unnotifiedResults$ = computed(
@@ -178,44 +177,32 @@ export class LinkProcessorDO
 
     store.subscribe(unnotifiedResults$, (results) => {
       if (results.length === 0) return;
-      this.notifyResults(store, results);
+      const newResults = results.filter(
+        (r) => !this.notifiedLinkIds.has(r.linkId)
+      );
+      if (newResults.length === 0) return;
+      for (const r of newResults) {
+        this.notifiedLinkIds.add(r.linkId);
+      }
+      this.notifyResults(store, newResults);
     });
 
-    runEffect(
-      cancelStaleLinks(this.currentlyProcessing, Date.now()).pipe(
-        Effect.provide(this.buildDoLayer(store))
-      )
-    ).catch((error) => {
-      logger.error("cancelStaleLinks failed", safeErrorInfo(error));
-    });
+    if (!this.hasRunCleanup) {
+      this.hasRunCleanup = true;
+      runEffect(
+        cancelStaleLinks(this.currentlyProcessing, Date.now()).pipe(
+          Effect.provide(this.buildDoLayer(store))
+        )
+      ).catch((error) => {
+        logger.error("cancelStaleLinks failed", safeErrorInfo(error));
+      });
+    }
   }
 
   private onPendingLinksChanged(
     store: Store<typeof schema>,
-    pendingLinks: readonly Link[],
-    statuses: readonly (typeof tables.linkProcessingStatus.Type)[]
+    pendingLinks: readonly Link[]
   ): void {
-    const stuckLinks = detectStuckLinks(
-      pendingLinks,
-      statuses,
-      this.currentlyProcessing,
-      Date.now()
-    );
-
-    for (const stuck of stuckLinks) {
-      logger.info("Failing stuck link", {
-        linkId: stuck.linkId,
-        stuckMs: stuck.stuckMs,
-      });
-      store.commit(
-        events.linkProcessingFailed({
-          error: "stuck_timeout",
-          linkId: stuck.linkId,
-          updatedAt: new Date(),
-        })
-      );
-    }
-
     if (this.currentlyProcessing.size > 0) {
       logger.debug("Skipping, already processing", {
         currentIds: [...this.currentlyProcessing],
@@ -424,5 +411,12 @@ export class LinkProcessorDO
     }
 
     await handleSyncUpdateRpc(payload);
+
+    // Fallback: directly check for pending links after sync update.
+    // If the mailbox delivered the update but the subscription didn't fire,
+    // this ensures processing still starts.
+    if (this.cachedStore && this.currentlyProcessing.size === 0) {
+      this.processNextPending(this.cachedStore);
+    }
   }
 }

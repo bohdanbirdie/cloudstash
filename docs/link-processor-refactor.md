@@ -4,7 +4,7 @@
 
 LinkProcessorDO processes newly saved links: fetches metadata, extracts content, generates AI summaries, and suggests tags. It runs as a Durable Object hosting an in-memory livestore client (wasm SQLite via MemoryVFS) to participate in event-sourcing sync.
 
-**Status:** Fully refactored (all 9 groups complete). Effect Layer services with per-step timeouts/retries, dual-path ingestion (browser direct + queue for external), event-driven Telegram notifications, stale link cleanup, and AI error propagation. 272 unit tests passing.
+**Status:** Fully refactored (all 9 groups complete). Effect Layer services with per-step timeouts/retries, dual-path ingestion (browser direct + queue for external), event-driven Telegram notifications, stale link cleanup, and AI error propagation. 275 unit tests passing.
 
 For historical investigation, VFS forensics, options analysis, and patch instructions, see [link-processor-refactor-history.md](./link-processor-refactor-history.md).
 
@@ -117,6 +117,8 @@ link-processor/
 | `MetadataFetcher`    | Retry 2x → swallow → `null`               | Optional enrichment, link useful without it        |
 | `ContentExtractor`   | Retry 2x → swallow → `null`               | Optional enrichment, AI falls back to metadata     |
 | `AiSummaryGenerator` | Timeout 30s → **propagate `AiCallError`** | User should know summary failed, can retry from UI |
+
+**Notification invariant:** Each link must be notified at most once. Two guards prevent double-notification: (1) `notified` column in `linkProcessingStatus` (persists across evictions via eventlog), (2) in-memory `notifiedLinkIds` Set (guards against subscription re-fire before the `linkSourceNotified` commit materializes).
 
 AI failure flow:
 
@@ -481,6 +483,19 @@ Files changed (Group 9):
 | + 12 more files                                        | Tagged error adoption, idiomatic Effect patterns                                              |
 
 - [x] Tests for ingest service producer path (handleIngestRequest → LINK_QUEUE.send) — 8 tests in `ingest-service.test.ts`
+
+## Post-Merge Fixes
+
+**Infinite cascade from `detectStuckLinks` in subscription callback (2026-03-03):**
+
+`onPendingLinksChanged` called `detectStuckLinks` → `store.commit(linkProcessingFailed)` for each stuck link. But `store.commit()` fires subscriptions **synchronously**, re-entering `onPendingLinksChanged`. During initial sync, incoming events overwrite the failed status back to "pending" (via `linkProcessingStarted` INSERT ON CONFLICT REPLACE), causing the same links to be detected as stuck infinitely. Produced hundreds of log entries per second.
+
+Fix: removed `detectStuckLinks` from subscription callback entirely. Stuck link cleanup is already handled by `cancelStaleLinks` (runs once asynchronously on boot, uses `linkProcessingCancelled` with INSERT ON CONFLICT REPLACE).
+
+**Other hardening:**
+- `cancelStaleLinks` guarded with `hasRunCleanup` flag — runs once per DO lifetime, not on every store recreation
+- `syncUpdateRpc` calls `processNextPending` after `handleSyncUpdateRpc` as fallback in case subscription didn't fire
+- Notification dedup via in-memory `notifiedLinkIds` Set (see Error Handling section)
 
 ## Future Ideas
 
