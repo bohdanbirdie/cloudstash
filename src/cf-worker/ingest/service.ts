@@ -13,6 +13,7 @@ import {
   MissingApiKeyError,
   MissingOrgIdError,
   MissingUrlError,
+  QueueSendError,
   type IngestError,
 } from "./errors";
 
@@ -21,10 +22,7 @@ const logger = logSync("Ingest");
 export const handleIngestRequest = (
   request: Request,
   env: Env
-): Effect.Effect<
-  { result: { status: string }; ok: boolean },
-  IngestError | Error
-> =>
+): Effect.Effect<{ result: { status: string }; ok: boolean }, IngestError> =>
   Effect.gen(function* () {
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
@@ -72,15 +70,15 @@ export const handleIngestRequest = (
 
     const url = body.url;
 
-    try {
-      new URL(url);
-    } catch {
-      logger.warn("Invalid URL format");
-      return yield* InvalidUrlError.make({ url });
-    }
+    yield* Effect.try(() => new URL(url)).pipe(
+      Effect.mapError(() => {
+        logger.warn("Invalid URL format");
+        return new InvalidUrlError({ url });
+      })
+    );
 
     yield* Effect.tryPromise({
-      catch: (error) => new Error(`Queue send failed: ${error}`),
+      catch: (cause) => new QueueSendError({ cause }),
       try: () =>
         env.LINK_QUEUE.send({
           source: "api",
@@ -131,10 +129,7 @@ export const ingestRequestToResponse = (
     Effect.catchAll((error) => {
       logger.error("Ingest failed", safeErrorInfo(error));
       return Effect.succeed(
-        Response.json(
-          { error: error instanceof Error ? error.message : "Unknown error" },
-          { status: 500 }
-        )
+        Response.json({ error: "Queue send failed" }, { status: 500 })
       );
     })
   );

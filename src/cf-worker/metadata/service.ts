@@ -55,7 +55,9 @@ export const fetchOgMetadata = Effect.fn("fetchOgMetadata")(
 
     const favicon =
       parser.favicon ??
-      Schema.decodeUnknownSync(ResolvedUrl(targetUrl))("/favicon.ico");
+      (yield* Schema.decodeUnknown(ResolvedUrl(targetUrl))("/favicon.ico").pipe(
+        Effect.orElseSucceed(() => "/favicon.ico")
+      ));
 
     return OgMetadata.make({
       description: parser.description,

@@ -3,6 +3,7 @@ import { Effect } from "effect";
 import { Resend } from "resend";
 
 import { logSync } from "../logger";
+import { EmailSendError } from "./errors";
 import { SunsetNotificationEmail } from "./templates/sunset-notification-email";
 
 const logger = logSync("Email");
@@ -40,12 +41,12 @@ export const sendSunsetNotification = (params: {
           html,
           text,
         }),
-      catch: (error) => {
+      catch: (cause) => {
         logger.error("Failed to send sunset notification", {
-          error,
+          error: cause,
           email: params.email,
         });
-        return error;
+        return new EmailSendError({ cause });
       },
     });
 
@@ -54,7 +55,7 @@ export const sendSunsetNotification = (params: {
         email: params.email,
         error: result.error,
       });
-      return yield* Effect.fail(result.error);
+      return yield* new EmailSendError({ cause: result.error });
     }
 
     logger.info("Sunset notification sent", {

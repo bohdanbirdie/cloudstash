@@ -5,6 +5,7 @@ import {
   InvalidApiKeyError,
   MissingOrgIdError,
   NotConnectedError,
+  QueueSendError,
   RateLimitError,
 } from "../../telegram/errors";
 import {
@@ -69,7 +70,8 @@ function createTestQueue(shouldFail = false) {
   const enqueued: { url: string; storeId: string }[] = [];
   const layer = Layer.succeed(LinkQueue, {
     enqueue: (url, storeId) => {
-      if (shouldFail) return Effect.fail(new Error("Queue send failed"));
+      if (shouldFail)
+        return Effect.fail(new QueueSendError({ cause: "Queue send failed" }));
       enqueued.push({ url, storeId });
       return Effect.void;
     },

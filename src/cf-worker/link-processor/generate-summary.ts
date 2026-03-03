@@ -2,6 +2,7 @@ import { Effect } from "effect";
 
 import { safeErrorInfo } from "../log-utils";
 import { type ExtractedContent } from "./content-extractor";
+import { AiCallError } from "./errors";
 import { AI_MODEL } from "./types";
 
 function sanitizeContent(content: string): string {
@@ -112,7 +113,7 @@ export const generateSummary = ({
     );
 
     const response = yield* Effect.tryPromise({
-      catch: (error) => new Error(`AI call failed: ${error}`),
+      catch: (cause) => new AiCallError({ cause }),
       try: () =>
         ai.run(AI_MODEL, {
           max_tokens: 250,

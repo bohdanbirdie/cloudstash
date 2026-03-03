@@ -2,12 +2,13 @@ import { Effect, Layer, Schedule } from "effect";
 
 import { safeErrorInfo } from "../../log-utils";
 import { fetchAndExtractContent } from "../content-extractor";
+import { ContentExtractionError } from "../errors";
 import { ContentExtractor } from "../services";
 
 export const ContentExtractorLive = Layer.succeed(ContentExtractor, {
   extract: (url) =>
     Effect.tryPromise({
-      catch: (e) => new Error(`Content extraction failed: ${e}`),
+      catch: (cause) => new ContentExtractionError({ cause }),
       try: () => fetchAndExtractContent(url),
     }).pipe(
       Effect.timeout("15 seconds"),

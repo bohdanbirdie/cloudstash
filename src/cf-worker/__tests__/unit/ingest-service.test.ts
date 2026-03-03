@@ -160,7 +160,7 @@ describe("ingestRequestToResponse", () => {
 
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({
-      error: "Queue send failed: Error: Queue unavailable",
+      error: "Queue send failed",
     });
   });
 

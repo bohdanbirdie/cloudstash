@@ -25,9 +25,17 @@ export class RateLimitError extends Schema.TaggedError<RateLimitError>()(
   {}
 ) {}
 
+export class QueueSendError extends Schema.TaggedError<QueueSendError>()(
+  "QueueSendError",
+  {
+    cause: Schema.Unknown,
+  }
+) {}
+
 export type TelegramError =
   | MissingApiKeyError
   | InvalidApiKeyError
   | MissingOrgIdError
   | NotConnectedError
-  | RateLimitError;
+  | RateLimitError
+  | QueueSendError;

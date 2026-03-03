@@ -2,6 +2,7 @@ import { Effect, Layer } from "effect";
 
 import { type LinkQueueMessage } from "../../link-processor/types";
 import { type Env } from "../../shared";
+import { QueueSendError } from "../errors";
 import { LinkQueue } from "../services";
 
 export const LinkQueueLive = (
@@ -12,7 +13,7 @@ export const LinkQueueLive = (
   Layer.succeed(LinkQueue, {
     enqueue: (url, storeId) =>
       Effect.tryPromise({
-        catch: (error) => new Error(`Queue send failed: ${error}`),
+        catch: (cause) => new QueueSendError({ cause }),
         try: () =>
           env.LINK_QUEUE.send({
             source: "telegram",

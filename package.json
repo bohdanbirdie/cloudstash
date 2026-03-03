@@ -20,6 +20,7 @@
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "typecheck": "tsgo --noEmit",
     "check": "ultracite check",
+    "check:effect": "effect-language-service diagnostics --project tsconfig.json --format pretty --strict",
     "fix": "ultracite fix"
   },
   "dependencies": {
@@ -98,6 +99,7 @@
     "@cloudflare/vite-plugin": "1.21.0",
     "@cloudflare/vitest-pool-workers": "0.12.5",
     "@cloudflare/workers-types": "4.20260118.0",
+    "@effect/language-service": "0.77.0",
     "@livestore/adapter-node": "0.3.1",
     "@livestore/devtools-vite": "0.4.0-dev.22",
     "@react-email/code-block": "0.2.1",

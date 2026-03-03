@@ -25,10 +25,10 @@ const verifyApiKey = (env: Env, apiKey: string) =>
       try: () => auth.api.verifyApiKey({ body: { key: apiKey } }),
     });
     if (!result.valid || !result.key) {
-      return yield* Effect.fail(new InvalidApiKeyError({}));
+      return yield* new InvalidApiKeyError({});
     }
     if (!result.key.metadata?.orgId) {
-      return yield* Effect.fail(new MissingOrgIdError({}));
+      return yield* new MissingOrgIdError({});
     }
     return result.key.metadata.orgId as string;
   });

@@ -4,6 +4,7 @@ import {
   type InvalidApiKeyError,
   type MissingOrgIdError,
   type NotConnectedError,
+  type QueueSendError,
   type RateLimitError,
 } from "./errors";
 
@@ -40,7 +41,7 @@ export class LinkQueue extends Context.Tag("LinkQueue")<
     readonly enqueue: (
       url: string,
       storeId: string
-    ) => Effect.Effect<void, Error>;
+    ) => Effect.Effect<void, QueueSendError>;
   }
 >() {}
 

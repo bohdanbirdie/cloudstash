@@ -77,10 +77,6 @@ export const handleLinks = (urls: string[]) =>
             )
           )
         ),
-    }),
-    Effect.catchAll((error) => {
-      logger.error("Unhandled error in handleLinks", safeErrorInfo(error));
-      return Effect.void;
     })
   );
 
@@ -117,20 +113,7 @@ export const handleConnect = (chatId: number, apiKeyText: string | undefined) =>
             m.reply("Too many requests. Please try again later.")
           )
         ),
-    }),
-    Effect.catchAll((error) =>
-      Effect.sync(() =>
-        logger.error("Connect error", safeErrorInfo(error))
-      ).pipe(
-        Effect.flatMap(() =>
-          Messenger.pipe(
-            Effect.flatMap((m) =>
-              m.reply("Failed to verify API key. Please try again.")
-            )
-          )
-        )
-      )
-    )
+    })
   );
 
 export const handleDisconnect = (chatId: number) =>

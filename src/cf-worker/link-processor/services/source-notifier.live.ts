@@ -1,8 +1,15 @@
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Schema } from "effect";
 import { Api } from "grammy";
 import { type ReactionTypeEmoji } from "grammy/types";
 
 import { SourceNotifier } from "../services";
+
+const TelegramMeta = Schema.Struct({
+  chatId: Schema.optional(Schema.Number),
+  messageId: Schema.optional(Schema.Number),
+});
+
+const decodeMeta = Schema.decodeUnknown(Schema.parseJson(TelegramMeta));
 
 export const SourceNotifierLive = (telegramBotToken: string) =>
   Layer.succeed(SourceNotifier, {
@@ -10,10 +17,7 @@ export const SourceNotifierLive = (telegramBotToken: string) =>
       Effect.gen(function* () {
         if (source !== "telegram" || !sourceMeta) return;
 
-        const meta = JSON.parse(sourceMeta) as {
-          chatId?: number;
-          messageId?: number;
-        };
+        const meta = yield* decodeMeta(sourceMeta);
         if (!meta.chatId || !meta.messageId) return;
 
         const api = new Api(telegramBotToken);
@@ -34,10 +38,7 @@ export const SourceNotifierLive = (telegramBotToken: string) =>
       Effect.gen(function* () {
         if (source !== "telegram" || !sourceMeta) return;
 
-        const meta = JSON.parse(sourceMeta) as {
-          chatId?: number;
-          messageId?: number;
-        };
+        const meta = yield* decodeMeta(sourceMeta);
         if (!meta.chatId) return;
 
         const api = new Api(telegramBotToken);
