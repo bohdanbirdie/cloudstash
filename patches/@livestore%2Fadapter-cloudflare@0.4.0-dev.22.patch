@@ -1,3 +1,6 @@
+diff --git a/node_modules/@livestore/adapter-cloudflare/.bun-tag-ea837b6a3706cace b/.bun-tag-ea837b6a3706cace
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/dist/create-store-do.js b/dist/create-store-do.js
 index 5b0dcce78926f5fd7915984a8d704aa7effcfdd4..929f0806be851b3d19386381eea4d38a04f05cec 100644
 --- a/dist/create-store-do.js
@@ -11,6 +14,28 @@ index 5b0dcce78926f5fd7915984a8d704aa7effcfdd4..929f0806be851b3d19386381eea4d38a
          },
      });
      return yield* createStore({ schema, adapter, storeId }).pipe(Scope.extend(scope), provideOtel({}));
+diff --git a/dist/make-adapter.js b/dist/make-adapter.js
+index 3e6455cf0cd732d666e833824f3c3ea66d611b2e..4f517ba60b2710bc006cfa7b94d699f36ce26fac 100644
+--- a/dist/make-adapter.js
++++ b/dist/make-adapter.js
+@@ -23,15 +23,11 @@ export const makeAdapter = ({ storage, clientId, syncOptions, sessionId, resetPe
+         });
+     }
+     const dbState = yield* makeSqliteDb({
+-        _tag: 'storage',
+-        storage,
+-        fileName: stateDbFileName,
++        _tag: 'in-memory',
+         configureDb: () => { },
+     }).pipe(UnknownError.mapToUnknownError);
+     const dbEventlog = yield* makeSqliteDb({
+-        _tag: 'storage',
+-        storage,
+-        fileName: eventlogDbFileName,
++        _tag: 'in-memory',
+         configureDb: () => { },
+     }).pipe(UnknownError.mapToUnknownError);
+     const shutdownChannel = yield* WebChannel.noopChannel();
 diff --git a/src/create-store-do.ts b/src/create-store-do.ts
 index ecda0f8c30fd804685758222b6efd697a8e224c8..1c447c89513cb85002329240bd9f34015b677c02 100644
 --- a/src/create-store-do.ts
@@ -23,4 +48,27 @@ index ecda0f8c30fd804685758222b6efd697a8e224c8..1c447c89513cb85002329240bd9f3401
 +        initialSyncOptions: { _tag: 'Blocking', timeout: 5000 },
        },
      })
+ 
+diff --git a/src/make-adapter.ts b/src/make-adapter.ts
+index 95e881abf93f8b472255b4a0fb855a69bfd000c7..317243952c6c211fabc83891c297cac833f1a59b 100644
+--- a/src/make-adapter.ts
++++ b/src/make-adapter.ts
+@@ -69,16 +69,12 @@ export const makeAdapter =
+       }
+ 
+       const dbState = yield* makeSqliteDb({
+-        _tag: 'storage',
+-        storage,
+-        fileName: stateDbFileName,
++        _tag: 'in-memory',
+         configureDb: () => {},
+       }).pipe(UnknownError.mapToUnknownError)
+ 
+       const dbEventlog = yield* makeSqliteDb({
+-        _tag: 'storage',
+-        storage,
+-        fileName: eventlogDbFileName,
++        _tag: 'in-memory',
+         configureDb: () => {},
+       }).pipe(UnknownError.mapToUnknownError)
  

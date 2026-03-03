@@ -2,7 +2,7 @@
 
 ## Overview
 
-LinkProcessorDO processes newly saved links: fetches metadata, extracts content, generates AI summaries, and suggests tags. It runs as a Durable Object hosting a livestore client (wasm SQLite via CloudflareSqlVFS, persisted to DO storage) to participate in event-sourcing sync.
+LinkProcessorDO processes newly saved links: fetches metadata, extracts content, generates AI summaries, and suggests tags. It runs as a Durable Object hosting an in-memory livestore client (wasm SQLite, full replay on cold start) to participate in event-sourcing sync.
 
 **Status:** Fully refactored (all 9 groups complete). Effect Layer services with per-step timeouts/retries, dual-path ingestion (browser direct + queue for external), event-driven Telegram notifications, stale link cleanup, and AI error propagation. 275 unit tests passing.
 
@@ -37,8 +37,8 @@ SyncBackendDO                           │   Cloudflare Queue      │
 │                  LinkProcessorDO (per org)                       │
 │                                                                  │
 │  ┌────────────────────────────────────────────────────────┐     │
-│  │ LiveStore Client (wasm SQLite via DO storage/VFS)        │     │
-│  │  livePull ──→ delta sync (persisted across hibernation) │     │
+│  │ LiveStore Client (in-memory wasm SQLite)                │     │
+│  │  livePull ──→ full replay on cold start (5s timeout)   │     │
 │  │  store.commit() ──→ SyncBackendDO ──→ clients           │     │
 │  └────────────────────────────────────────────────────────┘     │
 │                                                                  │
@@ -86,7 +86,7 @@ processLink: Effect<void, never, MetadataFetcher | ContentExtractor | AiSummaryG
 | `MetadataFetcher`    | `fetchOgMetadata`                 | 10s                    | 2x exponential (200ms base)              | Uses global `fetch` + `HTMLRewriter`  | Returns configurable `OgMetadata` or null           |
 | `ContentExtractor`   | `fetchAndExtractContent`          | 15s                    | 2x exponential (300ms base)              | Uses global `fetch` + `htmlparser2`   | Returns configurable `ExtractedContent` or null     |
 | `AiSummaryGenerator` | `env.AI.run()`                    | 30s                    | None (errors propagate as `AiCallError`) | Uses CF Workers AI binding            | Returns configurable summary + tags, or fails       |
-| `LinkEventStore`     | `store.commit()`, `store.query()` | None (sync, VFS-backed) | None (idempotent)                        | Uses livestore store                  | Records commits in array, returns configurable tags |
+| `LinkEventStore`     | `store.commit()`, `store.query()` | None (sync in-memory)  | None (idempotent)                        | Uses livestore store                  | Records commits in array, returns configurable tags |
 | `SourceNotifier`     | Grammy `Api` reactions/replies    | None (fire-and-forget) | None (logs errors)                       | `new Api(token).setMessageReaction()` | Records reactions/replies in arrays                 |
 | `FeatureStore`       | D1/Drizzle org query              | None                   | None                                     | `db.query.organization.findFirst()`   | Returns configurable `OrgFeatures`                  |
 | `LinkRepository`     | livestore `Store` queries         | None (sync in-memory)  | None (idempotent)                        | `store.query()`, `store.commit()`     | In-memory arrays, records commits                   |
@@ -103,7 +103,7 @@ link-processor/
     metadata-fetcher.live.ts           — 10s timeout, 2x retry
     content-extractor.live.ts          — 15s timeout, 2x retry
     ai-summary-generator.live.ts       — 30s timeout, no retry
-    link-event-store.live.ts           — VFS-backed commits
+    link-event-store.live.ts           — in-memory commits
     workers-ai.live.ts                 — CF Workers AI binding
     source-notifier.live.ts            — Telegram reactions/replies
     feature-store.live.ts              — D1/Drizzle org features
@@ -334,8 +334,8 @@ Verified 2026-02-27. Sources: [CF Durable Objects Limits](https://developers.clo
 | CPU time                  | 30s default, configurable to 5min via `limits.cpu_ms`       | **Low** — most time is I/O wait (fetch, AI), which doesn't count toward CPU |
 | Wall clock (HTTP request) | **Unlimited** while caller is connected                     | **None** — processing can take minutes                                      |
 | Wall clock (alarm)        | 15 min                                                      | N/A — not using alarms                                                      |
-| Memory                    | 128 MB (shared across same-class instances on same machine) | **Medium** — wasm SQLite in heap (state persisted to DO storage via VFS)    |
-| Eviction                  | 70-140s inactivity (non-hibernateable)                      | Loses `currentlyProcessing`, `cachedStore`; SQLite data persists in storage |
+| Memory                    | 128 MB (shared across same-class instances on same machine) | **Medium** — wasm SQLite + full eventlog in heap                            |
+| Eviction                  | 70-140s inactivity (non-hibernateable)                      | Loses everything: `currentlyProcessing`, `cachedStore`, SQLite data         |
 | Outbound connections      | 6 simultaneous                                              | **Low** — serial processing                                                 |
 | Subrequests               | 10,000 per invocation (raised Feb 2026)                     | **None**                                                                    |
 
@@ -343,9 +343,14 @@ Key insight: **there is no wall clock or CPU limit that blocks link processing.*
 
 ## Livestore Sync: ServerAheadError and Rebase
 
-`createStoreDoPromise` uses `initialSyncOptions: { _tag: 'Blocking', timeout: 500 }`. When the eventlog is large (e.g., 1412 events), the initial sync doesn't complete in 500ms. The store returns partially synced, and events committed locally (linkCreated, linkProcessingStarted, etc.) try to push to SyncBackendDO with a stale `parentSeqNum`. These pushes fail with `ServerAheadError`.
+`createStoreDoPromise` uses `initialSyncOptions: { _tag: 'Blocking', timeout: 500 }` by default (patched to 5000ms). When the eventlog is large (e.g., 1400+ events), the initial sync may not complete in time. The store returns partially synced, and events committed locally (linkCreated, linkProcessingStarted, etc.) try to push to SyncBackendDO with a stale `parentSeqNum`. These pushes fail with `ServerAheadError`.
 
-**In-memory patch disabled (2026-03-03):** The `@livestore/adapter-cloudflare` package was previously patched to use `_tag: 'in-memory'` instead of `_tag: 'storage'` for both `dbState` and `dbEventlog`. This avoided VFS write amplification (see [history doc](./link-processor-refactor-history.md)) but meant every DO wake-up from hibernation required a full eventlog replay (~1400+ events). With a growing eventlog, cold-start sync couldn't keep up — the DO would spend its entire lifetime catching up and never reach the newly added links. Patch disabled (renamed to `.disabled`); the adapter now uses Cloudflare DO storage via `CloudflareSqlVFS`, persisting state across hibernation cycles so only delta sync is needed on wake-up.
+**In-memory patch (required):** The `@livestore/adapter-cloudflare` package is patched to use `_tag: 'in-memory'` instead of `_tag: 'storage'` for both `dbState` and `dbEventlog`. VFS-backed storage (`CloudflareSqlVFS`) is not viable for two reasons:
+
+1. **Write amplification:** VFS writes ~14k `rows_written` per link processed. With the account-wide 100k/day limit, this exhausts the quota after ~7 links. Confirmed in production on 2026-03-03 — hit 100k rows_written very quickly after re-enabling VFS.
+2. **Materializer crashes:** VFS persistence causes `UNIQUE constraint failed` on `eventlog.seqNumGlobal` during boot (livestore's `insertIntoEventlog()` uses plain INSERT with no dedup), and `RuntimeError: function signature mismatch` in WASM changeset apply during rebase.
+
+The trade-off: in-memory means full eventlog replay on every cold start. The initial sync timeout is patched from 500ms → 5000ms to accommodate this. For larger eventlogs, R2 snapshots (see Future Ideas) would be the proper solution.
 
 **This is expected and handled by the sync protocol.** The recovery works as follows:
 
