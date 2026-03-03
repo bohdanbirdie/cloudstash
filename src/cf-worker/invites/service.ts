@@ -161,7 +161,7 @@ const handleDeleteInviteRequest = (
 
     if (!invite) {
       logger.info("Delete invite not found");
-      return yield* Effect.fail(new InviteNotFoundError());
+      return yield* new InviteNotFoundError();
     }
 
     yield* Effect.promise(() =>
@@ -216,7 +216,7 @@ const handleRedeemInviteRequest = (request: Request, env: Env) =>
 
     if (!body.code) {
       logger.info("Redeem invite - missing code");
-      return yield* Effect.fail(new InvalidInviteError());
+      return yield* new InvalidInviteError();
     }
 
     const invite = yield* Effect.promise(() =>
@@ -234,7 +234,7 @@ const handleRedeemInviteRequest = (request: Request, env: Env) =>
 
     if (!invite) {
       logger.info("Redeem invite - invalid or expired code");
-      return yield* Effect.fail(new InvalidInviteError());
+      return yield* new InvalidInviteError();
     }
 
     yield* Effect.promise(() =>

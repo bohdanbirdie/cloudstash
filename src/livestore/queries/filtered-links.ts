@@ -15,7 +15,7 @@ export const linksWithTag$ = (tagId: string) =>
     {
       bindValues: [tagId],
       query: `
-        SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+        SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
                s.title, s.description, s.image, s.favicon,
                sum.summary
         FROM links l
@@ -40,7 +40,7 @@ export const linksWithTag$ = (tagId: string) =>
 export const untaggedLinks$ = queryDb(
   () => ({
     query: `
-      SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+      SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
              s.title, s.description, s.image, s.favicon,
              sum.summary
       FROM links l
@@ -76,7 +76,7 @@ export const linksWithAllTags$ = (tagIds: string[]) => {
     {
       bindValues: [...tagIds, tagIds.length],
       query: `
-        SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+        SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
                s.title, s.description, s.image, s.favicon,
                sum.summary
         FROM links l
@@ -167,7 +167,7 @@ export const filteredLinks$ = (
   const { clause: tagClause, bindValues } = buildTagFilterClause(options);
 
   const query = `
-    SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+    SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
            s.title, s.description, s.image, s.favicon,
            sum.summary
     FROM links l

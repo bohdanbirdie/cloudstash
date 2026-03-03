@@ -3,6 +3,7 @@ import { type ChatAgentDO } from "./chat-agent";
 /// <reference types="@cloudflare/workers-types" />
 import { type SyncBackendDO } from "./index";
 import { type LinkProcessorDO } from "./link-processor";
+import { type LinkQueueMessage } from "./link-processor/types";
 
 type BetterAuthSession = NonNullable<
   Awaited<ReturnType<Auth["api"]["getSession"]>>
@@ -25,6 +26,7 @@ export interface Env {
   // Binding name must match what useAgent({ agent: "chat" }) expects
   // The agents SDK converts "chat" → "Chat" for env lookup
   Chat: DurableObjectNamespace<ChatAgentDO>;
+  LINK_QUEUE: Queue<LinkQueueMessage>;
   AI: Ai;
   DB: D1Database;
   SYNC_RATE_LIMITER?: RateLimit;

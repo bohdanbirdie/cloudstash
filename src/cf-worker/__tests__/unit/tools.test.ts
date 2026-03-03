@@ -17,7 +17,7 @@ const mockQueries = vi.hoisted(() => ({
 }));
 
 // Mock the queries module
-vi.mock("../../../livestore/queries", () => mockQueries);
+vi.mock("../../../livestore/queries/links", () => mockQueries);
 
 // Mock nanoid for predictable IDs
 vi.mock("@livestore/livestore", async () => {

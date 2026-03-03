@@ -25,10 +25,12 @@ import {
   handleListInvites,
   handleRedeemInvite,
 } from "./invites";
+import { type LinkQueueMessage } from "./link-processor/types";
 import { logSync } from "./logger";
 import { metadataRequestToResponse } from "./metadata/service";
 import { requireAdmin } from "./middleware/require-admin";
 import { handleGetMe, handleGetOrg } from "./org";
+import { handleQueueBatch } from "./queue-handler";
 import { type Env, type HonoVariables } from "./shared";
 import { SyncBackend, handleSyncRequest } from "./sync";
 import { handleTelegramWebhook } from "./telegram";
@@ -114,6 +116,35 @@ app.get("/api/metadata", (c) =>
 app.post("/api/ingest", (c) =>
   Effect.runPromise(ingestRequestToResponse(c.req.raw, c.env))
 );
+
+app.post("/api/links/:id/reprocess", async (c) => {
+  const db = createDb(c.env.DB);
+  const auth = createAuth(c.env, db);
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+
+  if (!session?.session) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const orgId = session.session.activeOrganizationId;
+  if (!orgId) {
+    return c.json({ error: "No active organization" }, 400);
+  }
+
+  const linkId = c.req.param("id");
+  const processorId = c.env.LINK_PROCESSOR_DO.idFromName(orgId);
+  const processor = c.env.LINK_PROCESSOR_DO.get(processorId);
+
+  try {
+    const resp = await processor.fetch(
+      `https://link-processor/?storeId=${orgId}&reprocess=${linkId}`
+    );
+    const body = await resp.json();
+    return c.json(body as Record<string, unknown>);
+  } catch {
+    return c.json({ error: "Internal error" }, 500);
+  }
+});
 
 app.post("/api/telegram", (c) => handleTelegramWebhook(c.req.raw, c.env));
 
@@ -206,6 +237,10 @@ const handleSync = async (
 };
 
 export default {
+  async queue(batch: MessageBatch<LinkQueueMessage>, env: Env): Promise<void> {
+    await handleQueueBatch(batch, env);
+  },
+
   async fetch(
     request: CfTypes.Request,
     env: Env,

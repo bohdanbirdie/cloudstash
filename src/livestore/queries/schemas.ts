@@ -41,6 +41,7 @@ export const LinkWithDetailsSchema = Schema.Struct({
   url: Schema.String,
   domain: Schema.String,
   status: Schema.String,
+  source: Schema.NullOr(Schema.String),
   createdAt: Schema.Number,
   completedAt: Schema.NullOr(Schema.Number),
   deletedAt: Schema.NullOr(Schema.Number),

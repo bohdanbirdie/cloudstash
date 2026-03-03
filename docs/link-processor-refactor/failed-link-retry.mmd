@@ -1,0 +1,57 @@
+sequenceDiagram
+    participant W as Worker
+    participant Q as Queue
+    participant C as Consumer
+    participant DO as LinkProcessorDO
+    participant Ext as External API
+    participant TG as Telegram
+
+    Note over W: Telegram webhook arrives
+
+    W->>Q: env.LINK_QUEUE.send({url, orgId, source: "telegram", sourceMeta: {chatId, messageId}})
+    W-->>TG: return 200 immediately
+
+    rect rgb(232, 245, 233)
+        Note over Q,DO: CASE 1: Processing succeeds
+        Q->>C: Deliver message
+        C->>DO: ingestAndProcess(message)
+        DO->>DO: sync store (livePull)
+        DO->>DO: dedup check → new link
+        DO->>DO: commit linkCreated (source + meta)
+        DO->>Ext: fetchMetadata
+        Ext-->>DO: metadata ✅
+        DO->>DO: AI summary ✅
+        DO->>DO: commit linkProcessingCompleted
+        DO-->>C: { status: "completed" }
+        C->>Q: message.ack() ✅
+        DO->>TG: Api.react() 👍
+    end
+
+    rect rgb(255, 243, 224)
+        Note over Q,DO: CASE 2: Processing fails, failure committed
+        Q->>C: Deliver message
+        C->>DO: ingestAndProcess(message)
+        DO->>DO: sync store → dedup → commit linkCreated
+        DO->>Ext: fetchMetadata
+        Note over Ext: ⏱ hangs...
+        Note over DO: Effect.timeout fires at 10s
+        DO->>DO: catchAllCause → commit linkProcessingFailed
+        DO-->>C: { status: "failed" }
+        C->>Q: message.ack() ✅ (failure is committed)
+        DO->>TG: Api.react() 👎
+        Note over TG: User can retry from UI ("Regenerate")
+    end
+
+    rect rgb(255, 235, 238)
+        Note over Q,DO: CASE 3: DO unreachable (infra failure)
+        Q->>C: Deliver message
+        C-xDO: ingestAndProcess(message) — DO crashed / store dead
+        Note over C: HTTP call fails, no commit possible
+        C->>Q: message NOT acked → queue retries
+        Note over Q: Retry after delay (max 3 attempts)
+        Q->>C: Redeliver (attempt 2)
+        C->>DO: ingestAndProcess(message)
+        DO->>DO: fresh wake → sync → dedup → already committed → process
+        DO-->>C: { status: "completed" }
+        C->>Q: message.ack() ✅
+    end

@@ -158,7 +158,6 @@ export class ChatAgentDO
     return this.getUsage().pipe(
       Effect.tap((usage) => Effect.sync(() => this.setState({ usage }))),
       Effect.asVoid,
-      Effect.catchAll(() => Effect.void),
       Effect.runPromise
     );
   }

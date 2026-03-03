@@ -59,6 +59,7 @@ export const tables = {
       linkId: State.SQLite.text({ primaryKey: true }),
       status: State.SQLite.text({ default: "pending" }),
       error: State.SQLite.text({ nullable: true }),
+      notified: State.SQLite.integer({ default: 0 }),
       updatedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
     },
     name: "link_processing_status",
@@ -91,6 +92,8 @@ export const tables = {
       url: State.SQLite.text({ default: "" }),
       domain: State.SQLite.text({ default: "" }),
       status: State.SQLite.text({ default: "unread" }),
+      source: State.SQLite.text({ nullable: true }),
+      sourceMeta: State.SQLite.text({ nullable: true }),
       createdAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
       completedAt: State.SQLite.integer({
         nullable: true,
@@ -148,6 +151,17 @@ export const events = {
       url: Schema.String,
     }),
   }),
+  linkCreatedV2: Events.synced({
+    name: "v2.LinkCreated",
+    schema: Schema.Struct({
+      createdAt: Schema.Date,
+      domain: Schema.String,
+      id: Schema.String,
+      source: Schema.String,
+      sourceMeta: Schema.NullOr(Schema.String),
+      url: Schema.String,
+    }),
+  }),
   linkDeleted: Events.synced({
     name: "v1.LinkDeleted",
     schema: Schema.Struct({ deletedAt: Schema.Date, id: Schema.String }),
@@ -173,6 +187,13 @@ export const events = {
       title: Schema.NullOr(Schema.String),
     }),
   }),
+  linkProcessingCancelled: Events.synced({
+    name: "v1.LinkProcessingCancelled",
+    schema: Schema.Struct({
+      linkId: Schema.String,
+      updatedAt: Schema.Date,
+    }),
+  }),
   linkProcessingCompleted: Events.synced({
     name: "v1.LinkProcessingCompleted",
     schema: Schema.Struct({
@@ -193,6 +214,13 @@ export const events = {
     schema: Schema.Struct({
       linkId: Schema.String,
       updatedAt: Schema.Date,
+    }),
+  }),
+  linkSourceNotified: Events.synced({
+    name: "v1.LinkSourceNotified",
+    schema: Schema.Struct({
+      linkId: Schema.String,
+      notifiedAt: Schema.Date,
     }),
   }),
   linkRestored: Events.synced({
@@ -291,7 +319,27 @@ const materializers = State.SQLite.materializers(events, {
     tables.links.update({ completedAt, status: "completed" }).where({ id }),
   "v1.LinkCreated": ({ id, url, domain, createdAt }) =>
     tables.links
-      .insert({ createdAt, domain, id, status: "unread", url })
+      .insert({
+        createdAt,
+        domain,
+        id,
+        source: null,
+        sourceMeta: null,
+        status: "unread",
+        url,
+      })
+      .onConflict("url", "ignore"),
+  "v2.LinkCreated": ({ id, url, domain, createdAt, source, sourceMeta }) =>
+    tables.links
+      .insert({
+        createdAt,
+        domain,
+        id,
+        source,
+        sourceMeta,
+        status: "unread",
+        url,
+      })
       .onConflict("url", "ignore"),
   "v1.LinkDeleted": ({ id, deletedAt }) =>
     tables.links.update({ deletedAt }).where({ id }),
@@ -315,6 +363,16 @@ const materializers = State.SQLite.materializers(events, {
       linkId,
       title,
     }),
+  "v1.LinkProcessingCancelled": ({ linkId, updatedAt }) =>
+    tables.linkProcessingStatus
+      .insert({
+        error: null,
+        linkId,
+        notified: 0,
+        status: "cancelled",
+        updatedAt,
+      })
+      .onConflict("linkId", "replace"),
   "v1.LinkProcessingCompleted": ({ linkId, updatedAt }) =>
     tables.linkProcessingStatus
       .update({ status: "completed", updatedAt })
@@ -328,10 +386,13 @@ const materializers = State.SQLite.materializers(events, {
       .insert({
         error: null,
         linkId,
+        notified: 0,
         status: "pending",
         updatedAt,
       })
       .onConflict("linkId", "replace"),
+  "v1.LinkSourceNotified": ({ linkId }) =>
+    tables.linkProcessingStatus.update({ notified: 1 }).where({ linkId }),
   "v1.LinkRestored": ({ id }) =>
     tables.links.update({ deletedAt: null }).where({ id }),
   "v1.LinkSummarized": ({ id, linkId, summary, model, summarizedAt }) =>

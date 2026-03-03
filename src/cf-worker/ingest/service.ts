@@ -3,6 +3,7 @@ import { Effect } from "effect";
 import { trackEvent } from "../analytics";
 import { createAuth } from "../auth";
 import { createDb } from "../db";
+import { type LinkQueueMessage } from "../link-processor/types";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import { type Env } from "../shared";
@@ -12,6 +13,7 @@ import {
   MissingApiKeyError,
   MissingOrgIdError,
   MissingUrlError,
+  QueueSendError,
   type IngestError,
 } from "./errors";
 
@@ -20,10 +22,7 @@ const logger = logSync("Ingest");
 export const handleIngestRequest = (
   request: Request,
   env: Env
-): Effect.Effect<
-  { result: { linkId: string; status: string }; ok: boolean },
-  IngestError | Error
-> =>
+): Effect.Effect<{ result: { status: string }; ok: boolean }, IngestError> =>
   Effect.gen(function* () {
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
@@ -69,37 +68,29 @@ export const handleIngestRequest = (
       return yield* MissingUrlError.make({});
     }
 
-    try {
-      new URL(body.url);
-    } catch {
-      logger.warn("Invalid URL format");
-      return yield* InvalidUrlError.make({ url: body.url });
-    }
+    const url = body.url;
 
-    const storeId = orgId;
-    const doId = env.LINK_PROCESSOR_DO.idFromName(storeId);
-    const stub = env.LINK_PROCESSOR_DO.get(doId);
+    yield* Effect.try(() => new URL(url)).pipe(
+      Effect.mapError(() => {
+        logger.warn("Invalid URL format");
+        return new InvalidUrlError({ url });
+      })
+    );
 
-    const doUrl = new URL("https://do/");
-    doUrl.searchParams.set("storeId", storeId);
-    doUrl.searchParams.set("ingest", body.url);
-
-    const response = yield* Effect.tryPromise({
-      catch: (error) => new Error(`DO fetch failed: ${error}`),
-      try: () => stub.fetch(doUrl.toString()),
+    yield* Effect.tryPromise({
+      catch: (cause) => new QueueSendError({ cause }),
+      try: () =>
+        env.LINK_QUEUE.send({
+          source: "api",
+          sourceMeta: null,
+          storeId: orgId,
+          url,
+        } satisfies LinkQueueMessage),
     });
 
-    const result = yield* Effect.tryPromise({
-      catch: () => new Error("Failed to parse DO response"),
-      try: () => response.json() as Promise<{ linkId: string; status: string }>,
-    });
+    logger.info("Ingest queued", { url, orgId: maskId(orgId) });
 
-    logger.info("Ingest complete", {
-      linkId: result.linkId,
-      status: result.status,
-    });
-
-    return { ok: response.ok, result };
+    return { ok: true, result: { status: "queued" } };
   });
 
 export const ingestRequestToResponse = (
@@ -138,10 +129,7 @@ export const ingestRequestToResponse = (
     Effect.catchAll((error) => {
       logger.error("Ingest failed", safeErrorInfo(error));
       return Effect.succeed(
-        Response.json(
-          { error: error instanceof Error ? error.message : "Unknown error" },
-          { status: 500 }
-        )
+        Response.json({ error: "Queue send failed" }, { status: 500 })
       );
     })
   );

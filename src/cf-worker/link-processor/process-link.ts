@@ -1,60 +1,50 @@
 import { nanoid } from "@livestore/livestore";
 import { Effect } from "effect";
 
-import { events, tables } from "../../livestore/schema";
+import { events } from "../../livestore/schema";
 import { safeErrorInfo } from "../log-utils";
-import { fetchOgMetadata } from "../metadata/service";
-import { type Env } from "../shared";
-import { fetchAndExtractContent } from "./content-extractor";
 import { findMatchingTag } from "./fuzzy-match";
-import { generateSummary } from "./generate-summary";
-import { AI_MODEL, type LinkStore } from "./types";
+import {
+  AiSummaryGenerator,
+  ContentExtractor,
+  LinkEventStore,
+  MetadataFetcher,
+} from "./services";
+import { AI_MODEL } from "./types";
 
 interface ProcessLinkParams {
   aiSummaryEnabled?: boolean;
-  env: Env;
-  isRetry?: boolean; // true if retrying a stuck link
+  isRetry?: boolean;
   link: { id: string; url: string };
-  store: LinkStore;
 }
 
-/**
- * Process a single link: fetch metadata, extract content, generate AI summary
- */
 export const processLink = ({
   aiSummaryEnabled = false,
-  env,
   isRetry = false,
   link,
-  store,
 }: ProcessLinkParams) =>
   Effect.gen(function* () {
+    const metadataFetcher = yield* MetadataFetcher;
+    const contentExtractor = yield* ContentExtractor;
+    const aiGenerator = yield* AiSummaryGenerator;
+    const linkStore = yield* LinkEventStore;
+
     const now = new Date();
 
     yield* Effect.logInfo(
       `Processing link ${isRetry ? "(retry)" : "started"}`
     ).pipe(Effect.annotateLogs({ isRetry }));
 
-    // Mark as processing started (only for new links, not retries)
     if (!isRetry) {
-      store.commit(
+      yield* linkStore.commit(
         events.linkProcessingStarted({ linkId: link.id, updatedAt: now })
       );
     }
 
-    // Fetch metadata
-    const metadataResult = yield* fetchOgMetadata(link.url).pipe(
-      Effect.withSpan("fetchMetadata"),
-      Effect.catchAll((error) =>
-        Effect.logWarning("Metadata fetch failed").pipe(
-          Effect.annotateLogs(safeErrorInfo(error)),
-          Effect.as(null)
-        )
-      )
-    );
+    const metadataResult = yield* metadataFetcher.fetch(link.url);
 
     if (metadataResult) {
-      store.commit(
+      yield* linkStore.commit(
         events.linkMetadataFetched({
           description: metadataResult.description ?? null,
           favicon: metadataResult.favicon ?? null,
@@ -78,20 +68,9 @@ export const processLink = ({
     }
 
     if (aiSummaryEnabled) {
-      const existingTags = store.query(tables.tags.where({ deletedAt: null }));
+      const existingTags = yield* linkStore.queryTags();
 
-      const extractedContent = yield* Effect.tryPromise({
-        catch: (error) => new Error(`Content extraction failed: ${error}`),
-        try: () => fetchAndExtractContent(link.url),
-      }).pipe(
-        Effect.withSpan("extractContent"),
-        Effect.catchAll((error) =>
-          Effect.logWarning("Content extraction failed").pipe(
-            Effect.annotateLogs(safeErrorInfo(error)),
-            Effect.as(null)
-          )
-        )
-      );
+      const extractedContent = yield* contentExtractor.extract(link.url);
 
       if (extractedContent) {
         yield* Effect.logInfo("Content extracted").pipe(
@@ -104,16 +83,15 @@ export const processLink = ({
         yield* Effect.logWarning("No content extracted");
       }
 
-      const result = yield* generateSummary({
-        env,
+      const result = yield* aiGenerator.generate({
         existingTags,
         extractedContent,
         metadata: metadataResult,
         url: link.url,
-      }).pipe(Effect.withSpan("generateSummary"));
+      });
 
       if (result.summary) {
-        store.commit(
+        yield* linkStore.commit(
           events.linkSummarized({
             id: nanoid(),
             linkId: link.id,
@@ -134,7 +112,7 @@ export const processLink = ({
 
       for (const suggestion of result.suggestedTags) {
         const matchedTag = findMatchingTag(suggestion, existingTags);
-        store.commit(
+        yield* linkStore.commit(
           events.tagSuggested({
             id: nanoid(),
             linkId: link.id,
@@ -155,8 +133,11 @@ export const processLink = ({
       yield* Effect.logDebug("AI summaries disabled, skipping");
     }
 
-    store.commit(
-      events.linkProcessingCompleted({ linkId: link.id, updatedAt: new Date() })
+    yield* linkStore.commit(
+      events.linkProcessingCompleted({
+        linkId: link.id,
+        updatedAt: new Date(),
+      })
     );
 
     yield* Effect.logInfo("Link processing completed");
@@ -167,11 +148,12 @@ export const processLink = ({
     }),
     Effect.catchAllCause((cause) =>
       Effect.gen(function* () {
+        const linkStore = yield* LinkEventStore;
         const errorInfo = safeErrorInfo(cause);
         yield* Effect.logError("Link processing failed").pipe(
           Effect.annotateLogs(errorInfo)
         );
-        store.commit(
+        yield* linkStore.commit(
           events.linkProcessingFailed({
             error: errorInfo.errorType,
             linkId: link.id,

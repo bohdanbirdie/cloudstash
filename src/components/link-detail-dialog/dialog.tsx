@@ -3,9 +3,13 @@ import {
   CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  CodeIcon,
   CopyIcon,
   ExternalLinkIcon,
+  MessageSquareIcon,
+  RefreshCwIcon,
   RotateCcwIcon,
+  SendIcon,
   Trash2Icon,
   UndoIcon,
 } from "lucide-react";
@@ -30,6 +34,7 @@ import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import { useLinkTags } from "@/hooks/use-link-tags";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
 import { type LinkAction, type LinkProjection } from "@/lib/link-projections";
+import { cn } from "@/lib/utils";
 import {
   linkById$,
   linkProcessingStatus$,
@@ -60,6 +65,25 @@ function StatusBadge({ link }: { link: LinkWithDetails }) {
     );
   }
   return null;
+}
+
+const SOURCE_CONFIG: Record<string, { icon: typeof SendIcon; label: string }> =
+  {
+    telegram: { icon: SendIcon, label: "Telegram" },
+    api: { icon: CodeIcon, label: "API" },
+    chat: { icon: MessageSquareIcon, label: "Chat" },
+  };
+
+function SourceBadge({ source }: { source: string }) {
+  const config = SOURCE_CONFIG[source];
+  if (!config) return null;
+  const Icon = config.icon;
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+      <Icon className="h-3 w-3" />
+      {config.label}
+    </span>
+  );
 }
 
 interface LinkDetailDialogContentProps {
@@ -161,6 +185,13 @@ export function LinkDetailDialogContent({
   const isCompleted = link.status === "completed";
   const isDeleted = link.deletedAt !== null;
 
+  const handleRegenerate = () => {
+    store.commit(
+      events.linkProcessingStarted({ linkId, updatedAt: new Date() })
+    );
+    fetch(`/api/links/${linkId}/reprocess`, { method: "POST" });
+  };
+
   const handleCopy = async () => {
     await navigator.clipboard.writeText(link.url);
     setCopied(true);
@@ -243,9 +274,22 @@ export function LinkDetailDialogContent({
 
           {link.summary ? (
             <div className="border-l-2 border-primary/50 bg-muted/50 pl-3 py-2 space-y-1">
-              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                AI Summary
-              </h4>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  AI Summary
+                </h4>
+                <button
+                  type="button"
+                  onClick={handleRegenerate}
+                  disabled={isProcessing}
+                  className="text-muted-foreground hover:text-foreground transition-colors p-1 disabled:opacity-50"
+                  aria-label="Regenerate summary"
+                >
+                  <RefreshCwIcon
+                    className={cn("h-3 w-3", isProcessing && "animate-spin")}
+                  />
+                </button>
+              </div>
               <Markdown className="leading-relaxed">{link.summary}</Markdown>
             </div>
           ) : isProcessing ? (
@@ -255,10 +299,18 @@ export function LinkDetailDialogContent({
               </TextShimmer>
             </div>
           ) : isFailed ? (
-            <div className="border-l-2 border-destructive/50 bg-destructive/5 pl-3 py-2">
+            <div className="border-l-2 border-destructive/50 bg-destructive/5 pl-3 py-2 flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
                 Summary generation failed
               </p>
+              <button
+                type="button"
+                onClick={handleRegenerate}
+                className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                aria-label="Retry summary generation"
+              >
+                <RefreshCwIcon className="h-3 w-3" />
+              </button>
             </div>
           ) : null}
 
@@ -275,8 +327,11 @@ export function LinkDetailDialogContent({
 
           <TagSuggestions linkId={link.id} />
 
-          <div className="text-xs text-muted-foreground pt-2 border-t">
-            Saved on {formattedDate}
+          <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t">
+            <span>Saved on {formattedDate}</span>
+            {link.source && link.source !== "app" && (
+              <SourceBadge source={link.source} />
+            )}
           </div>
         </ScrollableContent>
 

@@ -40,7 +40,7 @@ export const trashCount$ = queryDb(
 export const inboxLinks$ = queryDb(
   () => ({
     query: `
-      SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+      SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
              s.title, s.description, s.image, s.favicon,
              sum.summary
       FROM links l
@@ -67,7 +67,7 @@ export const inboxLinks$ = queryDb(
 export const completedLinks$ = queryDb(
   () => ({
     query: `
-      SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+      SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
              s.title, s.description, s.image, s.favicon,
              sum.summary
       FROM links l
@@ -94,7 +94,7 @@ export const completedLinks$ = queryDb(
 export const allLinks$ = queryDb(
   () => ({
     query: `
-      SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+      SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
              s.title, s.description, s.image, s.favicon,
              sum.summary
       FROM links l
@@ -121,7 +121,7 @@ export const allLinks$ = queryDb(
 export const trashLinks$ = queryDb(
   () => ({
     query: `
-      SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+      SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
              s.title, s.description, s.image, s.favicon,
              sum.summary
       FROM links l
@@ -155,7 +155,7 @@ export const linkById$ = (id: string) =>
     {
       bindValues: [id],
       query: `
-        SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+        SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
                s.title, s.description, s.image, s.favicon,
                sum.summary
         FROM links l
@@ -183,7 +183,7 @@ export const linkByUrl$ = (url: string) =>
     {
       bindValues: [url],
       query: `
-        SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+        SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
                s.title, s.description, s.image, s.favicon,
                sum.summary
         FROM links l
@@ -222,7 +222,7 @@ export const linksByIds$ = (ids: string[]) => {
     {
       bindValues: ids,
       query: `
-        SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+        SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
                s.title, s.description, s.image, s.favicon,
                sum.summary
         FROM links l
@@ -249,7 +249,7 @@ export const linksByIds$ = (ids: string[]) => {
 export const recentlyOpenedLinks$ = queryDb(
   () => ({
     query: `
-      SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+      SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
              s.title, s.description, s.image, s.favicon,
              sum.summary
       FROM links l

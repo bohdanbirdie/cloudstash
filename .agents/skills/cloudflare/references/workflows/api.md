@@ -122,7 +122,7 @@ import { NonRetryableError } from "cloudflare:workers";
 
 // NonRetryableError
 await step.do("validate", async () => {
-  if (!event.params.paymentMethod)
+  if (!event.payload.paymentMethod)
     throw new NonRetryableError("Payment method required");
   const res = await fetch("https://api.example.com/charge", { method: "POST" });
   if (res.status === 401) throw new NonRetryableError("Invalid credentials"); // Don't retry
@@ -209,7 +209,7 @@ const instance = await env.MY_WORKFLOW.create({
 
 ```typescript
 async run(event: WorkflowEvent<Params>, step: WorkflowStep) {
-  const userId = event.params.userId;
+  const userId = event.payload.userId;
   const instanceId = event.instanceId;
   const createdAt = event.timestamp;
 }

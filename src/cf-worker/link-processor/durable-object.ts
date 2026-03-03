@@ -12,22 +12,32 @@ import {
 import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
 /// <reference types="@cloudflare/workers-types" />
 import { DurableObject } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
-import { Effect } from "effect";
+import { Effect, Layer } from "effect";
 
 import { events, schema, tables } from "../../livestore/schema";
-import { createDb } from "../db";
-import { organization, type OrgFeatures } from "../db/schema";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import { type Env } from "../shared";
-import { InvalidUrlError } from "./errors";
+import {
+  cancelStaleLinks,
+  detectStuckLinks,
+  ingestLink,
+  notifyResult,
+} from "./do-programs";
 import { runEffect } from "./logger";
 import { processLink } from "./process-link";
+import { FeatureStore, SourceNotifier } from "./services";
+import { AiSummaryGeneratorLive } from "./services/ai-summary-generator.live";
+import { ContentExtractorLive } from "./services/content-extractor.live";
+import { FeatureStoreLive } from "./services/feature-store.live";
+import { LinkEventStoreLive } from "./services/link-event-store.live";
+import { LinkRepositoryLive } from "./services/link-repository.live";
+import { MetadataFetcherLive } from "./services/metadata-fetcher.live";
+import { SourceNotifierLive } from "./services/source-notifier.live";
+import { WorkersAiLive } from "./services/workers-ai.live";
+import { type LinkQueueMessage } from "./types";
 
 const logger = logSync("LinkProcessorDO");
-
-const STUCK_TIMEOUT_MS = 5 * 60 * 1000;
 
 type Link = typeof tables.links.Type;
 
@@ -41,6 +51,7 @@ export class LinkProcessorDO
   private cachedStore: Store<typeof schema> | undefined;
   private subscription: Unsubscribe | undefined;
   private currentlyProcessing = new Set<string>();
+  private reprocessQueue = new Set<string>();
   private totalRowsWritten = 0;
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -53,7 +64,6 @@ export class LinkProcessorDO
     }) as typeof origExec;
   }
 
-  /** Persisted session ID enables delta sync (only fetch missing events on wakeup) */
   private async getSessionId(): Promise<string> {
     const stored = await this.ctx.storage.get<string>("sessionId");
     if (stored) {
@@ -99,21 +109,11 @@ export class LinkProcessorDO
     return this.cachedStore;
   }
 
-  private async getFeatures(): Promise<OrgFeatures> {
-    if (!this.storeId) return {};
-
-    const db = createDb(this.env.DB);
-    const org = await db.query.organization.findFirst({
-      where: eq(organization.id, this.storeId),
-      columns: { features: true },
-    });
-
-    const features = org?.features ?? {};
-    logger.debug("Fetched features", {
-      storeId: maskId(this.storeId),
-      hasAiSummary: !!features.aiSummary,
-    });
-    return features;
+  private buildDoLayer(store: Store<typeof schema>) {
+    return Layer.mergeAll(
+      LinkRepositoryLive(store),
+      SourceNotifierLive(this.env.TELEGRAM_BOT_TOKEN)
+    );
   }
 
   private async ensureSubscribed(): Promise<void> {
@@ -147,40 +147,73 @@ export class LinkProcessorDO
         totalStatuses: allStatuses.length,
         pendingLinkIds: pendingLinks.map((l) => l.id).slice(0, 5),
       });
-      this.onPendingLinksChanged(store, pendingLinks);
+      this.onPendingLinksChanged(store, pendingLinks, allStatuses);
+    });
+
+    const unnotifiedResults$ = computed(
+      (get) => {
+        const allStatuses = get(statuses$);
+        const allLinks = get(links$);
+        const linkMap = new Map(allLinks.map((l) => [l.id, l]));
+
+        return allStatuses
+          .filter((s) => {
+            if (s.notified) return false;
+            if (s.status !== "completed" && s.status !== "failed") return false;
+            const link = linkMap.get(s.linkId);
+            return link?.source != null && link.source !== "app";
+          })
+          .map((s) => {
+            const link = linkMap.get(s.linkId)!;
+            return {
+              linkId: s.linkId,
+              processingStatus: s.status as "completed" | "failed",
+              source: link.source!,
+              sourceMeta: link.sourceMeta,
+            };
+          });
+      },
+      { label: "unnotifiedResults" }
+    );
+
+    store.subscribe(unnotifiedResults$, (results) => {
+      if (results.length === 0) return;
+      this.notifyResults(store, results);
+    });
+
+    runEffect(
+      cancelStaleLinks(this.currentlyProcessing, Date.now()).pipe(
+        Effect.provide(this.buildDoLayer(store))
+      )
+    ).catch((error) => {
+      logger.error("cancelStaleLinks failed", safeErrorInfo(error));
     });
   }
 
   private onPendingLinksChanged(
     store: Store<typeof schema>,
-    pendingLinks: readonly Link[]
+    pendingLinks: readonly Link[],
+    statuses: readonly (typeof tables.linkProcessingStatus.Type)[]
   ): void {
-    for (const link of pendingLinks) {
-      if (this.currentlyProcessing.has(link.id)) continue;
+    const stuckLinks = detectStuckLinks(
+      pendingLinks,
+      statuses,
+      this.currentlyProcessing,
+      Date.now()
+    );
 
-      const existingStatus = store.query(
-        queryDb(tables.linkProcessingStatus.where({ linkId: link.id }))
+    for (const stuck of stuckLinks) {
+      logger.info("Failing stuck link", {
+        linkId: stuck.linkId,
+        stuckMs: stuck.stuckMs,
+      });
+      store.commit(
+        events.linkProcessingFailed({
+          error: "stuck_timeout",
+          linkId: stuck.linkId,
+          updatedAt: new Date(),
+        })
       );
-      const isRetry =
-        existingStatus.length > 0 && existingStatus[0].status === "pending";
-
-      if (isRetry && existingStatus[0]) {
-        const elapsed =
-          Date.now() - new Date(existingStatus[0].updatedAt).getTime();
-        if (elapsed > STUCK_TIMEOUT_MS) {
-          logger.info("Failing stuck link", {
-            linkId: link.id,
-            stuckMs: elapsed,
-          });
-          store.commit(
-            events.linkProcessingFailed({
-              error: "stuck_timeout",
-              linkId: link.id,
-              updatedAt: new Date(),
-            })
-          );
-        }
-      }
     }
 
     if (this.currentlyProcessing.size > 0) {
@@ -195,9 +228,9 @@ export class LinkProcessorDO
   }
 
   private processNextPending(store: Store<typeof schema>): void {
-    const links = store.query(
-      queryDb(tables.links.where({ deletedAt: null }))
-    );
+    if (this.currentlyProcessing.size > 0) return;
+
+    const links = store.query(queryDb(tables.links.where({ deletedAt: null })));
     const statuses = store.query(
       queryDb(tables.linkProcessingStatus.where({}))
     );
@@ -236,17 +269,37 @@ export class LinkProcessorDO
 
     logger.info("Processing", { isRetry, linkId: link.id });
 
+    const doLayer = this.buildDoLayer(store);
+    runEffect(
+      SourceNotifier.pipe(
+        Effect.flatMap((n) => n.react(link.source, link.sourceMeta, "🤔")),
+        Effect.provide(doLayer)
+      )
+    ).catch(() => {});
+
     try {
       const rowsBefore = this.totalRowsWritten;
-      const features = await this.getFeatures();
+      const features = await Effect.runPromise(
+        FeatureStore.pipe(
+          Effect.flatMap((fs) => fs.getFeatures(this.storeId!)),
+          Effect.provide(FeatureStoreLive(this.env.DB))
+        )
+      ).catch(() => ({}));
+
+      const liveLayer = Layer.mergeAll(
+        MetadataFetcherLive,
+        ContentExtractorLive,
+        AiSummaryGeneratorLive,
+        LinkEventStoreLive(store)
+      ).pipe(Layer.provide(WorkersAiLive(this.env.AI)));
+
       await runEffect(
         processLink({
-          aiSummaryEnabled: features.aiSummary ?? false,
-          env: this.env,
+          aiSummaryEnabled:
+            (features as { aiSummary?: boolean }).aiSummary ?? false,
           isRetry,
           link: { id: link.id, url: link.url },
-          store,
-        })
+        }).pipe(Effect.provide(liveLayer))
       );
       logger.info("Link processed", {
         linkId: link.id,
@@ -254,51 +307,56 @@ export class LinkProcessorDO
         totalRowsWritten: this.totalRowsWritten,
       });
     } catch (error) {
-      const errorInfo = safeErrorInfo(error);
-      logger.error("processLinkAsync failed", {
-        ...errorInfo,
+      logger.error("processLinkAsync failed (store likely dead)", {
+        ...safeErrorInfo(error),
         linkId: link.id,
       });
-
-      if (errorInfo.errorMessage?.includes("shut down")) {
-        logger.warn("Store shut down, clearing cached store", {
-          linkId: link.id,
-        });
-        this.cachedStore = undefined;
-        this.subscription = undefined;
-        return;
-      }
-
-      try {
-        const status = store.query(
-          queryDb(tables.linkProcessingStatus.where({ linkId: link.id }))
-        );
-        if (!status[0] || status[0].status === "pending") {
+      this.cachedStore = undefined;
+      this.subscription = undefined;
+    } finally {
+      this.currentlyProcessing.delete(link.id);
+      if (this.cachedStore) {
+        if (this.reprocessQueue.has(link.id)) {
+          this.reprocessQueue.delete(link.id);
+          logger.info("Reprocessing queued link", { linkId: link.id });
           store.commit(
-            events.linkProcessingFailed({
-              error: errorInfo.errorType,
+            events.linkProcessingStarted({
               linkId: link.id,
               updatedAt: new Date(),
             })
           );
         }
-      } catch {
-        logger.error("Failed to emit LinkProcessingFailed", {
-          linkId: link.id,
-        });
-        this.cachedStore = undefined;
-        this.subscription = undefined;
+        this.processNextPending(store);
       }
-    } finally {
-      this.currentlyProcessing.delete(link.id);
-      this.processNextPending(store);
+    }
+  }
+
+  private notifyResults(
+    store: Store<typeof schema>,
+    results: ReadonlyArray<{
+      linkId: string;
+      processingStatus: "completed" | "failed";
+      source: string;
+      sourceMeta: string | null;
+    }>
+  ): void {
+    const doLayer = this.buildDoLayer(store);
+    for (const result of results) {
+      runEffect(notifyResult(result).pipe(Effect.provide(doLayer))).catch(
+        (error) => {
+          logger.error("notifyResult effect failed", {
+            ...safeErrorInfo(error),
+            linkId: result.linkId,
+          });
+        }
+      );
     }
   }
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const storeId = url.searchParams.get("storeId");
-    const ingestUrl = url.searchParams.get("ingest");
+    const reprocessLinkId = url.searchParams.get("reprocess");
 
     if (!storeId) {
       return new Response("Missing storeId", { status: 400 });
@@ -307,70 +365,52 @@ export class LinkProcessorDO
     this.storeId = storeId;
     await this.ctx.storage.put("storeId", storeId);
 
-    if (ingestUrl) {
-      return this.handleIngest(ingestUrl);
+    if (reprocessLinkId) {
+      return this.handleReprocess(reprocessLinkId);
     }
 
     await this.ensureSubscribed();
     return new Response("OK");
   }
 
-  private handleIngest(url: string): Promise<Response> {
+  private async handleReprocess(linkId: string): Promise<Response> {
     const json = (body: object, status = 200) =>
       new Response(JSON.stringify(body), {
         headers: { "Content-Type": "application/json" },
         status,
       });
 
-    const ingest = Effect.gen(this, function* ingest() {
-      const store = yield* Effect.promise(() => this.getStore());
-      yield* Effect.promise(() => this.ensureSubscribed());
+    await this.ensureSubscribed();
+    const store = await this.getStore();
 
-      const domain = yield* Effect.try({
-        catch: () => new InvalidUrlError({ url }),
-        try: () => new URL(url).hostname.replace(/^www\./, ""),
-      });
+    if (this.currentlyProcessing.has(linkId)) {
+      logger.info("Queuing reprocess (link currently processing)", { linkId });
+      this.reprocessQueue.add(linkId);
+      return json({ status: "queued" });
+    }
 
-      const existing = store.query(queryDb(tables.links.where({ url })));
-      if (existing.length > 0) {
-        yield* Effect.sync(() =>
-          logger.info("Duplicate link", {
-            existingId: existing[0].id,
-            storeId: maskId(this.storeId ?? ""),
-          })
-        );
-        return json({ existingId: existing[0].id, status: "duplicate" });
-      }
+    this.processNextPending(store);
 
-      const linkId = nanoid();
+    return json({ status: "reprocessing" });
+  }
 
-      yield* Effect.sync(() =>
-        logger.info("Ingesting link", {
-          linkId,
-          storeId: maskId(this.storeId ?? ""),
-        })
-      );
+  async ingestAndProcess(
+    msg: LinkQueueMessage
+  ): Promise<{ status: string; linkId?: string }> {
+    this.storeId = msg.storeId;
+    await this.ctx.storage.put("storeId", msg.storeId);
 
-      yield* Effect.sync(() =>
-        store.commit(
-          events.linkCreated({
-            createdAt: new Date(),
-            domain,
-            id: linkId,
-            url,
-          })
-        )
-      );
+    const store = await this.getStore();
+    await this.ensureSubscribed();
 
-      return json({ linkId, status: "ingested" });
-    });
-
-    return Effect.runPromise(
-      ingest.pipe(
-        Effect.catchTag("InvalidUrlError", () =>
-          Effect.succeed(json({ error: "Invalid URL" }, 400))
-        )
-      )
+    const doLayer = this.buildDoLayer(store);
+    return runEffect(
+      ingestLink({
+        url: msg.url,
+        storeId: msg.storeId,
+        source: msg.source,
+        sourceMeta: msg.sourceMeta,
+      }).pipe(Effect.provide(doLayer))
     );
   }
 

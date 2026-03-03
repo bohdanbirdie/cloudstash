@@ -3,6 +3,7 @@ import { Effect } from "effect";
 import { Resend } from "resend";
 
 import { logSync } from "../logger";
+import { EmailSendError } from "./errors";
 import { ApprovalEmail } from "./templates/approval-email";
 
 const logger = logSync("Email");
@@ -30,15 +31,15 @@ export const sendApprovalEmail = (
           html,
           text,
         }),
-      catch: (error) => {
-        logger.error("Failed to send approval email", { error, email });
-        return error;
+      catch: (cause) => {
+        logger.error("Failed to send approval email", { error: cause, email });
+        return new EmailSendError({ cause });
       },
     });
 
     if (result.error) {
       logger.error("Resend API error", { email, error: result.error });
-      return yield* Effect.fail(result.error);
+      return yield* new EmailSendError({ cause: result.error });
     }
 
     logger.info("Approval email sent", { email, id: result.data?.id });

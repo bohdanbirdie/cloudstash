@@ -27,9 +27,17 @@ export class InvalidUrlError extends Schema.TaggedError<InvalidUrlError>()(
   }
 ) {}
 
+export class QueueSendError extends Schema.TaggedError<QueueSendError>()(
+  "QueueSendError",
+  {
+    cause: Schema.Unknown,
+  }
+) {}
+
 export type IngestError =
   | MissingApiKeyError
   | InvalidApiKeyError
   | MissingOrgIdError
   | MissingUrlError
-  | InvalidUrlError;
+  | InvalidUrlError
+  | QueueSendError;

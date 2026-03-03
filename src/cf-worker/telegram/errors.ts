@@ -1,10 +1,5 @@
 import { Schema } from "effect";
 
-export class MissingChatIdError extends Schema.TaggedError<MissingChatIdError>()(
-  "MissingChatIdError",
-  {}
-) {}
-
 export class MissingApiKeyError extends Schema.TaggedError<MissingApiKeyError>()(
   "MissingApiKeyError",
   {}
@@ -30,10 +25,17 @@ export class RateLimitError extends Schema.TaggedError<RateLimitError>()(
   {}
 ) {}
 
+export class QueueSendError extends Schema.TaggedError<QueueSendError>()(
+  "QueueSendError",
+  {
+    cause: Schema.Unknown,
+  }
+) {}
+
 export type TelegramError =
-  | MissingChatIdError
   | MissingApiKeyError
   | InvalidApiKeyError
   | MissingOrgIdError
   | NotConnectedError
-  | RateLimitError;
+  | RateLimitError
+  | QueueSendError;
