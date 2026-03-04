@@ -547,15 +547,9 @@ Verified in production: all stuck links processed successfully after deploy. Tel
 - `syncUpdateRpc` calls `processNextPending` after `handleSyncUpdateRpc` as fallback in case subscription didn't fire
 - Notification dedup via in-memory `notifiedLinkIds` Set (see Error Handling section)
 
-## DO KV Snapshots
-
-The DO exports the in-memory wasm SQLite databases (state + eventlog) as `Uint8Array` blobs and stores them as 128KB chunks in DO KV storage (`ctx.storage.put`). Snapshots are saved at two points: immediately after store creation (bootstraps on first sync without needing to process a link) and after each successful link processing. On cold start, the snapshot is restored before creating the store, so sync only needs delta events instead of full eventlog replay.
-
-Cost: ~6 `rows_written` per snapshot (3 state + 2 eventlog chunks + 1 meta, confirmed in local testing) vs 14k with VFS persistence. The `@livestore/adapter-cloudflare` patch adds `snapshotData` and `onExportReady` options to `createStoreDoPromise` / `makeAdapter`.
-
-See [do-kv-snapshots.md](./do-kv-snapshots.md) for the full problem analysis, architecture, and KV VFS cost comparison.
-
 ## Future Ideas
+
+**R2 Snapshots:** When eventlog reaches ~5k–10k events, cold start becomes expensive (full replay on every wake-up). R2 snapshots would serialize all 3 in-memory DBs to a single R2 object, restoring on wake-up with only delta sync. See [history doc](./link-processor-refactor-history.md#r2-snapshot-future-idea) for full design.
 
 **Observability (already available):**
 

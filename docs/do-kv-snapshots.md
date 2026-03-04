@@ -95,3 +95,30 @@ Confirmed locally (2026-03-04):
 2. After restart: `Snapshot loaded { stateSize: 319488, eventlogSize: 204800 }` → `Creating store { hasSnapshot: true }` → delta sync only (ServerAheadError shows `providedNum: 372` not 0)
 3. Link processing completes normally after restore
 4. 275/275 unit tests pass, typecheck clean, lint clean
+
+## Production Result: Reverted
+
+Deployed 2026-03-04, reverted same day. Three issues found:
+
+### 1. First boot timeout (expected but unrecoverable)
+
+The biggest store (~1426 events) had no snapshot on first deploy. Full sync timed out at 30s (`hasSnapshot: false`). The snapshot saved after this timeout captured a partially-synced eventlog with locally-committed but unconfirmed events.
+
+### 2. Concurrent store creation → OOM
+
+Multiple simultaneous requests (SyncBackendDO wake-up, queue message, browser push) all called `getStore()` concurrently. The async `createStoreDoPromise` hadn't returned yet, so `cachedStore` was still `undefined`. Each caller loaded the ~1MB snapshot and created its own wasm SQLite instance. 6 concurrent instances exceeded the 128MB DO memory limit.
+
+**Fix applied (before revert):** Added `storePromise` field to deduplicate concurrent `getStore()` calls — subsequent callers await the same promise.
+
+### 3. Snapshot didn't reduce sync time (root cause for revert)
+
+Even with the snapshot pre-populating the eventlog at seqNum 1380 (only 46-event delta to server at 1426), the initial sync still took exactly 30s (timeout). The sync protocol appears to pull from the beginning regardless of the eventlog content, or the unconfirmed local events in the snapshot confused the protocol's cursor logic.
+
+This meant every cold start with the snapshot was identical to a cold start without it — 30s timeout, mailbox never registered, pushes fail with ServerAheadError, events never sync to browser clients. Links were processed locally but invisible in the UI.
+
+### Open questions for future attempt
+
+1. **Does `Eventlog.getClientHeadFromDb()` use the snapshot's head as the pull cursor?** If not, the snapshot doesn't help sync at all — it only helps materializer replay.
+2. **Do unconfirmed events in the snapshot's eventlog confuse the sync protocol?** The snapshot was saved after a timed-out session where events were committed locally but never pushed. The eventlog contains events the server doesn't know about.
+3. **Could we snapshot only confirmed state?** The `syncProcessor.syncState` tracks which events are pending vs confirmed, but this isn't accessible from the export callback.
+4. **Would the `storePromise` dedup fix alone solve the OOM?** The concurrent creation was a pre-existing race condition in `getStore()` — worth fixing independently of snapshots.
