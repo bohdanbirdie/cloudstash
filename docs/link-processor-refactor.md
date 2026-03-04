@@ -38,7 +38,7 @@ SyncBackendDO                           │   Cloudflare Queue      │
 │                                                                  │
 │  ┌────────────────────────────────────────────────────────┐     │
 │  │ LiveStore Client (in-memory wasm SQLite)                │     │
-│  │  livePull ──→ full replay on cold start (5s timeout)   │     │
+│  │  livePull ──→ full replay on cold start (30s timeout)  │     │
 │  │  store.commit() ──→ SyncBackendDO ──→ clients           │     │
 │  └────────────────────────────────────────────────────────┘     │
 │                                                                  │
@@ -350,7 +350,9 @@ Key insight: **there is no wall clock or CPU limit that blocks link processing.*
 1. **Write amplification:** VFS writes ~14k `rows_written` per link processed. With the account-wide 100k/day limit, this exhausts the quota after ~7 links. Confirmed in production on 2026-03-03 — hit 100k rows_written very quickly after re-enabling VFS.
 2. **Materializer crashes:** VFS persistence causes `UNIQUE constraint failed` on `eventlog.seqNumGlobal` during boot (livestore's `insertIntoEventlog()` uses plain INSERT with no dedup), and `RuntimeError: function signature mismatch` in WASM changeset apply during rebase.
 
-The trade-off: in-memory means full eventlog replay on every cold start. The initial sync timeout is patched from 500ms → 5000ms to accommodate this. For larger eventlogs, R2 snapshots (see Future Ideas) would be the proper solution.
+The trade-off: in-memory means full eventlog replay on every cold start. The initial sync timeout is patched from 500ms → 30s to accommodate this (see below). For larger eventlogs, R2 snapshots (see Future Ideas) would be the proper solution.
+
+**Why the timeout matters (mailbox registration):** The `@livestore/sync-cf` live pull mechanism registers a mailbox for receiving updates via `syncUpdateRpc` only AFTER the initial pull stream completes all pages. If the blocking timeout fires before the initial pull finishes, the mailbox is never registered. `syncUpdateRpc` calls then hit "No mailbox found" and the update is silently dropped — no events flow in either direction (push fails with ServerAheadError, pull updates are lost). The DO processes links locally but events never reach SyncBackendDO or browser clients. Confirmed in production with 1400+ events: 5s timeout was insufficient, 30s timeout allows full sync to complete.
 
 **This is expected and handled by the sync protocol.** The recovery works as follows:
 
