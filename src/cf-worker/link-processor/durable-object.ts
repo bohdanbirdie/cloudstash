@@ -71,6 +71,7 @@ export class LinkProcessorDO
 
   private storeId: string | undefined;
   private cachedStore: Store<typeof schema> | undefined;
+  private storePromise: Promise<Store<typeof schema>> | undefined;
   private subscription: Unsubscribe | undefined;
   private currentlyProcessing = new Set<string>();
   private reprocessQueue = new Set<string>();
@@ -201,7 +202,19 @@ export class LinkProcessorDO
     if (this.cachedStore) {
       return this.cachedStore;
     }
+    if (this.storePromise) {
+      return this.storePromise;
+    }
+    this.storePromise = this.initStore();
+    try {
+      return await this.storePromise;
+    } catch (error) {
+      this.storePromise = undefined;
+      throw error;
+    }
+  }
 
+  private async initStore(): Promise<Store<typeof schema>> {
     if (!this.storeId) {
       throw new Error("storeId not set");
     }
@@ -233,12 +246,6 @@ export class LinkProcessorDO
         this.env.SYNC_BACKEND_DO.idFromName(this.storeId)
       ) as never,
     });
-
-    try {
-      await this.saveSnapshot();
-    } catch (error) {
-      logger.error("Post-sync snapshot save failed", safeErrorInfo(error));
-    }
 
     return this.cachedStore;
   }
