@@ -34,6 +34,33 @@ import { type LinkQueueMessage } from "./types";
 
 const logger = logSync("LinkProcessorDO");
 
+const SNAPSHOT_CHUNK_SIZE = 128 * 1024;
+
+function concatUint8Arrays(arrays: Uint8Array[]): Uint8Array {
+  const totalLength = arrays.reduce((sum, arr) => sum + arr.length, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const arr of arrays) {
+    result.set(arr, offset);
+    offset += arr.length;
+  }
+  return result;
+}
+
+function chunkUint8Array(data: Uint8Array, chunkSize: number): Uint8Array[] {
+  const chunks: Uint8Array[] = [];
+  for (let i = 0; i < data.length; i += chunkSize) {
+    chunks.push(data.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
+type SnapshotMeta = {
+  stateChunks: number;
+  eventlogChunks: number;
+  savedAt: number;
+};
+
 type Link = typeof tables.links.Type;
 
 export class LinkProcessorDO
@@ -50,6 +77,9 @@ export class LinkProcessorDO
   private notifiedLinkIds = new Set<string>();
   private hasRunCleanup = false;
   private totalRowsWritten = 0;
+  private exportFns:
+    | { exportState: () => Uint8Array; exportEventlog: () => Uint8Array }
+    | undefined;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -72,6 +102,101 @@ export class LinkProcessorDO
     return newSessionId;
   }
 
+  private async loadSnapshot(): Promise<
+    { state: Uint8Array; eventlog: Uint8Array } | undefined
+  > {
+    const meta = await this.ctx.storage.get<SnapshotMeta>("snapshot:meta");
+    if (!meta) return undefined;
+
+    const stateKeys = Array.from(
+      { length: meta.stateChunks },
+      (_, i) => `snapshot:state:${i}`
+    );
+    const eventlogKeys = Array.from(
+      { length: meta.eventlogChunks },
+      (_, i) => `snapshot:eventlog:${i}`
+    );
+
+    const allChunks = await this.ctx.storage.get<Uint8Array>([
+      ...stateKeys,
+      ...eventlogKeys,
+    ]);
+
+    const stateChunks: Uint8Array[] = [];
+    for (const key of stateKeys) {
+      const chunk = allChunks.get(key);
+      if (!chunk) return undefined;
+      stateChunks.push(chunk);
+    }
+
+    const eventlogChunks: Uint8Array[] = [];
+    for (const key of eventlogKeys) {
+      const chunk = allChunks.get(key);
+      if (!chunk) return undefined;
+      eventlogChunks.push(chunk);
+    }
+
+    const state = concatUint8Arrays(stateChunks);
+    const eventlog = concatUint8Arrays(eventlogChunks);
+
+    logger.info("Snapshot loaded", {
+      stateSize: state.length,
+      eventlogSize: eventlog.length,
+      stateChunks: meta.stateChunks,
+      eventlogChunks: meta.eventlogChunks,
+    });
+
+    return { state, eventlog };
+  }
+
+  private async saveSnapshot(): Promise<void> {
+    if (!this.exportFns) return;
+
+    const state = this.exportFns.exportState();
+    const eventlog = this.exportFns.exportEventlog();
+
+    const stateChunks = chunkUint8Array(state, SNAPSHOT_CHUNK_SIZE);
+    const eventlogChunks = chunkUint8Array(eventlog, SNAPSHOT_CHUNK_SIZE);
+
+    const oldMeta = await this.ctx.storage.get<SnapshotMeta>("snapshot:meta");
+
+    const entries: Record<string, Uint8Array | SnapshotMeta> = {};
+    for (let i = 0; i < stateChunks.length; i++) {
+      entries[`snapshot:state:${i}`] = stateChunks[i];
+    }
+    for (let i = 0; i < eventlogChunks.length; i++) {
+      entries[`snapshot:eventlog:${i}`] = eventlogChunks[i];
+    }
+    entries["snapshot:meta"] = {
+      stateChunks: stateChunks.length,
+      eventlogChunks: eventlogChunks.length,
+      savedAt: Date.now(),
+    };
+    await this.ctx.storage.put(entries);
+
+    if (oldMeta) {
+      const staleKeys: string[] = [];
+      for (let i = stateChunks.length; i < oldMeta.stateChunks; i++) {
+        staleKeys.push(`snapshot:state:${i}`);
+      }
+      for (let i = eventlogChunks.length; i < oldMeta.eventlogChunks; i++) {
+        staleKeys.push(`snapshot:eventlog:${i}`);
+      }
+      if (staleKeys.length > 0) {
+        await this.ctx.storage.delete(staleKeys);
+      }
+    }
+
+    const totalChunks = stateChunks.length + eventlogChunks.length;
+    logger.info("Snapshot saved", {
+      stateSize: state.length,
+      eventlogSize: eventlog.length,
+      stateChunks: stateChunks.length,
+      eventlogChunks: eventlogChunks.length,
+      estimatedRowsWritten: totalChunks + 1,
+    });
+  }
+
   private async getStore(): Promise<Store<typeof schema>> {
     if (this.cachedStore) {
       return this.cachedStore;
@@ -81,10 +206,12 @@ export class LinkProcessorDO
       throw new Error("storeId not set");
     }
 
+    const snapshotData = await this.loadSnapshot();
     const sessionId = await this.getSessionId();
     logger.info("Creating store", {
       sessionId: maskId(sessionId),
       storeId: maskId(this.storeId),
+      hasSnapshot: !!snapshotData,
     });
 
     this.cachedStore = await createStoreDoPromise({
@@ -97,11 +224,21 @@ export class LinkProcessorDO
       livePull: true,
       schema,
       sessionId,
+      snapshotData,
+      onExportReady: (fns) => {
+        this.exportFns = fns;
+      },
       storeId: this.storeId,
       syncBackendStub: this.env.SYNC_BACKEND_DO.get(
         this.env.SYNC_BACKEND_DO.idFromName(this.storeId)
       ) as never,
     });
+
+    try {
+      await this.saveSnapshot();
+    } catch (error) {
+      logger.error("Post-sync snapshot save failed", safeErrorInfo(error));
+    }
 
     return this.cachedStore;
   }
@@ -289,6 +426,12 @@ export class LinkProcessorDO
         rowsWritten: this.totalRowsWritten - rowsBefore,
         totalRowsWritten: this.totalRowsWritten,
       });
+
+      try {
+        await this.saveSnapshot();
+      } catch (snapshotError) {
+        logger.error("Snapshot save failed", safeErrorInfo(snapshotError));
+      }
     } catch (error) {
       logger.error("processLinkAsync failed (store likely dead)", {
         ...safeErrorInfo(error),
