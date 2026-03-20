@@ -6,8 +6,6 @@ LinkProcessorDO processes newly saved links: fetches metadata, extracts content,
 
 **Status:** Fully refactored (all 9 groups complete). Effect Layer services with per-step timeouts/retries, dual-path ingestion (browser direct + queue for external), event-driven Telegram notifications, stale link cleanup, and AI error propagation. 275 unit tests passing.
 
-For historical investigation, VFS forensics, options analysis, and patch instructions, see [link-processor-refactor-history.md](./link-processor-refactor-history.md).
-
 ## Architecture
 
 ```
