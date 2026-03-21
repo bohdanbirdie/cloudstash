@@ -20,7 +20,7 @@ export default defineConfig({
   optimizeDeps: {
     // TODO remove once fixed https://github.com/vitejs/vite/issues/8427
     exclude: ["@livestore/wa-sqlite"],
-    include: ["prismjs"],
+    include: ["@lexical/code"],
   },
   plugins: [
     cloudflare(),
