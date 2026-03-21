@@ -1,5 +1,4 @@
 import { makePersistedAdapter } from "@livestore/adapter-web";
-import LiveStoreSharedWorker from "../livestore-shared-worker?sharedworker";
 import { type Store } from "@livestore/livestore";
 import { useStore } from "@livestore/react";
 import { useRouteContext } from "@tanstack/react-router";
@@ -12,6 +11,7 @@ import {
   useSyncStatusStore,
 } from "@/stores/sync-status-store";
 
+import LiveStoreSharedWorker from "../livestore-shared-worker?sharedworker";
 import LiveStoreWorker from "../livestore.worker?worker";
 import { schema } from "./schema";
 
