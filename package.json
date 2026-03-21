@@ -31,13 +31,13 @@
     "@lexical/list": "0.40.0",
     "@lexical/markdown": "0.40.0",
     "@lexical/react": "0.40.0",
-    "@livestore/adapter-cloudflare": "0.4.0-dev.22",
-    "@livestore/adapter-web": "0.4.0-dev.22",
-    "@livestore/livestore": "0.4.0-dev.22",
-    "@livestore/peer-deps": "0.4.0-dev.22",
-    "@livestore/react": "0.4.0-dev.22",
-    "@livestore/sync-cf": "0.4.0-dev.22",
-    "@livestore/wa-sqlite": "0.4.0-dev.22",
+    "@livestore/adapter-cloudflare": "0.0.0-snapshot-551e77c106b260fec805412b679b44da68ea19b0",
+    "@livestore/adapter-web": "0.0.0-snapshot-551e77c106b260fec805412b679b44da68ea19b0",
+    "@livestore/livestore": "0.0.0-snapshot-551e77c106b260fec805412b679b44da68ea19b0",
+    "@livestore/peer-deps": "0.0.0-snapshot-551e77c106b260fec805412b679b44da68ea19b0",
+    "@livestore/react": "0.0.0-snapshot-551e77c106b260fec805412b679b44da68ea19b0",
+    "@livestore/sync-cf": "0.0.0-snapshot-551e77c106b260fec805412b679b44da68ea19b0",
+    "@livestore/wa-sqlite": "0.0.0-snapshot-551e77c106b260fec805412b679b44da68ea19b0",
     "@openrouter/ai-sdk-provider": "2.1.1",
     "@react-email/body": "0.2.1",
     "@react-email/button": "0.2.1",
@@ -100,8 +100,7 @@
     "@cloudflare/vitest-pool-workers": "0.12.5",
     "@cloudflare/workers-types": "4.20260118.0",
     "@effect/language-service": "0.77.0",
-    "@livestore/adapter-node": "0.3.1",
-    "@livestore/devtools-vite": "0.4.0-dev.22",
+    "@livestore/devtools-vite": "0.0.0-snapshot-86c8d65816a9de8b2599654155ffb80951627223.mltzt7p9",
     "@react-email/code-block": "0.2.1",
     "@react-email/preview-server": "5.2.5",
     "@testing-library/dom": "^10.4.0",
@@ -148,7 +147,6 @@
     }
   },
   "patchedDependencies": {
-    "@livestore/sync-cf@0.4.0-dev.22": "patches/@livestore%2Fsync-cf@0.4.0-dev.22.patch",
-    "@livestore/adapter-cloudflare@0.4.0-dev.22": "patches/@livestore%2Fadapter-cloudflare@0.4.0-dev.22.patch"
+    "@livestore/sync-cf@0.0.0-snapshot-551e77c106b260fec805412b679b44da68ea19b0": "patches/@livestore%2Fsync-cf@0.0.0-snapshot-551e77c106b260fec805412b679b44da68ea19b0.patch"
   }
 }

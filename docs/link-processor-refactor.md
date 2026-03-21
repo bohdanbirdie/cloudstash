@@ -2,11 +2,9 @@
 
 ## Overview
 
-LinkProcessorDO processes newly saved links: fetches metadata, extracts content, generates AI summaries, and suggests tags. It runs as a Durable Object hosting an in-memory livestore client (wasm SQLite, full replay on cold start) to participate in event-sourcing sync.
+LinkProcessorDO processes newly saved links: fetches metadata, extracts content, generates AI summaries, and suggests tags. It runs as a Durable Object hosting a livestore client (native DO SQLite for eventlog, optimized VFS for state) to participate in event-sourcing sync.
 
 **Status:** Fully refactored (all 9 groups complete). Effect Layer services with per-step timeouts/retries, dual-path ingestion (browser direct + queue for external), event-driven Telegram notifications, stale link cleanup, and AI error propagation. 275 unit tests passing.
-
-For historical investigation, VFS forensics, options analysis, and patch instructions, see [link-processor-refactor-history.md](./link-processor-refactor-history.md).
 
 ## Architecture
 
@@ -37,8 +35,8 @@ SyncBackendDO                           │   Cloudflare Queue      │
 │                  LinkProcessorDO (per org)                       │
 │                                                                  │
 │  ┌────────────────────────────────────────────────────────┐     │
-│  │ LiveStore Client (in-memory wasm SQLite)                │     │
-│  │  livePull ──→ full replay on cold start (30s timeout)  │     │
+│  │ LiveStore Client (native DO SQLite + optimized VFS)     │     │
+│  │  livePull ──→ persisted state, no full replay needed   │     │
 │  │  store.commit() ──→ SyncBackendDO ──→ clients           │     │
 │  └────────────────────────────────────────────────────────┘     │
 │                                                                  │
@@ -345,12 +343,12 @@ Key insight: **there is no wall clock or CPU limit that blocks link processing.*
 
 `createStoreDoPromise` uses `initialSyncOptions: { _tag: 'Blocking', timeout: 500 }` by default (patched to 5000ms). When the eventlog is large (e.g., 1400+ events), the initial sync may not complete in time. The store returns partially synced, and events committed locally (linkCreated, linkProcessingStarted, etc.) try to push to SyncBackendDO with a stale `parentSeqNum`. These pushes fail with `ServerAheadError`.
 
-**In-memory patch (required):** The `@livestore/adapter-cloudflare` package is patched to use `_tag: 'in-memory'` instead of `_tag: 'storage'` for both `dbState` and `dbEventlog`. VFS-backed storage (`CloudflareSqlVFS`) is not viable for two reasons:
+**Upstream VFS fix (PRs #1089 + #1029):** The `@livestore/adapter-cloudflare` snapshot `551e77c` includes two upstream fixes that resolved the original VFS problems:
 
-1. **Write amplification:** VFS writes ~14k `rows_written` per link processed. With the account-wide 100k/day limit, this exhausts the quota after ~7 links. Confirmed in production on 2026-03-03 — hit 100k rows_written very quickly after re-enabling VFS.
-2. **Materializer crashes:** VFS persistence causes `UNIQUE constraint failed` on `eventlog.seqNumGlobal` during boot (livestore's `insertIntoEventlog()` uses plain INSERT with no dedup), and `RuntimeError: function signature mismatch` in WASM changeset apply during rebase.
+1. **Native eventlog (PR #1089):** `dbEventlog` writes directly to native DO SQLite (bypasses VFS entirely) — 1 event = 1 `rows_written`. `dbState` stays on VFS but with 8KB block size (matching `page_size=8192`), eliminating `mergePartialBlock` overhead. `PRAGMA journal_mode=MEMORY` keeps journal in wasm heap. Result: 238→22 writes/todo (90.8% reduction), cold start writes: 4,003→0.
+2. **Mutex fix (PR #1029):** After DO shutdown + store recreation, `backgroundBackendPulling` held `pushPullMutex` permanently. Events committed in-memory but never persisted. Fix: scoped `withPermits(1)` + `Effect.ensuring` for guaranteed mutex release.
 
-The trade-off: in-memory means full eventlog replay on every cold start. The initial sync timeout is patched from 500ms → 30s to accommodate this (see below). For larger eventlogs, R2 snapshots (see Future Ideas) would be the proper solution.
+Both `dbState` and `dbEventlog` are now persisted — no full eventlog replay on cold start.
 
 **Why the timeout matters (mailbox registration):** The `@livestore/sync-cf` live pull mechanism registers a mailbox for receiving updates via `syncUpdateRpc` only AFTER the initial pull stream completes all pages. If the blocking timeout fires before the initial pull finishes, the mailbox is never registered. `syncUpdateRpc` calls then hit "No mailbox found" and the update is silently dropped — no events flow in either direction (push fails with ServerAheadError, pull updates are lost). The DO processes links locally but events never reach SyncBackendDO or browser clients. Confirmed in production with 1400+ events: 5s timeout was insufficient, 30s timeout allows full sync to complete.
 
@@ -548,8 +546,6 @@ Verified in production: all stuck links processed successfully after deploy. Tel
 - Notification dedup via in-memory `notifiedLinkIds` Set (see Error Handling section)
 
 ## Future Ideas
-
-**R2 Snapshots:** When eventlog reaches ~5k–10k events, cold start becomes expensive (full replay on every wake-up). R2 snapshots would serialize all 3 in-memory DBs to a single R2 object, restoring on wake-up with only delta sync. See [history doc](./link-processor-refactor-history.md#r2-snapshot-future-idea) for full design.
 
 **Observability (already available):**
 
