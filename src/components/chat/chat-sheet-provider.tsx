@@ -1,4 +1,5 @@
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useState } from "react";
+import type { ReactNode } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { ChatContext } from "@/components/chat/chat-context";

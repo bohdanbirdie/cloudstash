@@ -1,6 +1,6 @@
 import { queryUsage } from "../analytics";
 import { logSync } from "../logger";
-import { type Env } from "../shared";
+import type { Env } from "../shared";
 
 const logger = logSync("Admin");
 

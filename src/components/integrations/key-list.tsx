@@ -3,7 +3,7 @@ import { Trash2Icon, KeyIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { type ApiKey } from "./use-api-keys";
+import type { ApiKey } from "./use-api-keys";
 
 interface KeyListProps {
   keys: ApiKey[];

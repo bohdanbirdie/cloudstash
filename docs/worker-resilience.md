@@ -282,4 +282,3 @@ Swapping to the public API adapter would eliminate VFS entirely. The question is
 | R2                    | N/A          | 1M class A/month                    | Yes                      |
 
 Key insight: DOs get **30s CPU** (not 10ms like Workers). Queue consumers also get **30s CPU + 15min wall time**. The bottleneck was never CPU — it was always VFS write amplification.
-

@@ -1,5 +1,5 @@
 import { Effect, Layer } from "effect";
-import { type Context } from "grammy";
+import type { Context } from "grammy";
 
 import { Messenger } from "../services";
 

@@ -33,13 +33,10 @@ import { TextShimmer } from "@/components/ui/text-shimmer";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import { useLinkTags } from "@/hooks/use-link-tags";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
-import { type LinkAction, type LinkProjection } from "@/lib/link-projections";
+import type { LinkAction, LinkProjection } from "@/lib/link-projections";
 import { cn } from "@/lib/utils";
-import {
-  linkById$,
-  linkProcessingStatus$,
-  type LinkWithDetails,
-} from "@/livestore/queries/links";
+import { linkById$, linkProcessingStatus$ } from "@/livestore/queries/links";
+import type { LinkWithDetails } from "@/livestore/queries/links";
 import { events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
 

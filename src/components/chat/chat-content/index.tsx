@@ -1,4 +1,4 @@
-import { type UIMessage } from "@ai-sdk/react";
+import type { UIMessage } from "@ai-sdk/react";
 import { getToolName, isToolUIPart } from "ai";
 import { Match } from "effect";
 import { MessageSquareIcon } from "lucide-react";
@@ -15,7 +15,8 @@ import { APPROVAL } from "@/components/ui/tool";
 import { useWorkspaceChat } from "@/hooks/use-workspace-chat";
 import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
-import { SLASH_COMMANDS, type SlashCommand } from "@/shared/slash-commands";
+import { SLASH_COMMANDS } from "@/shared/slash-commands";
+import type { SlashCommand } from "@/shared/slash-commands";
 import { requiresConfirmation } from "@/shared/tool-config";
 
 import { ChatMessage } from "./chat-message";

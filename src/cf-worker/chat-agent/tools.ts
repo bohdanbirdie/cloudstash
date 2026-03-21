@@ -1,4 +1,5 @@
-import { nanoid, type Store } from "@livestore/livestore";
+import { nanoid } from "@livestore/livestore";
+import type { Store } from "@livestore/livestore";
 import { tool, zodSchema } from "ai";
 import { z } from "zod";
 

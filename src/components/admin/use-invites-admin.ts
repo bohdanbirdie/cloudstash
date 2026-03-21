@@ -1,11 +1,11 @@
 import { useState, useCallback } from "react";
 import useSWR from "swr";
 
-import {
-  type InviteWithRelations,
-  type InvitesListResponse,
-  type InviteCreateResponse,
-  type ApiErrorResponse,
+import type {
+  InviteWithRelations,
+  InvitesListResponse,
+  InviteCreateResponse,
+  ApiErrorResponse,
 } from "@/types/api";
 
 async function fetchInvites(): Promise<InviteWithRelations[]> {

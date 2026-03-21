@@ -6,7 +6,7 @@ import { createDb } from "../db";
 import * as schema from "../db/schema";
 import { sendApprovalEmail } from "../email/send-approval-email";
 import { logSync } from "../logger";
-import { type Env } from "../shared";
+import type { Env } from "../shared";
 
 const logger = logSync("Admin");
 

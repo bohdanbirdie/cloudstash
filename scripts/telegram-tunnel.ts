@@ -1,5 +1,6 @@
-import { spawn } from "bun";
 import { readFileSync } from "node:fs";
+
+import { spawn } from "bun";
 
 // Read .dev.vars
 const devVars = readFileSync(".dev.vars", "utf8");

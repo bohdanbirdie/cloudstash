@@ -1,7 +1,8 @@
 import { SELF } from "cloudflare:test";
 import { describe, it, expect, beforeAll } from "vitest";
 
-import { signupUser, type UserInfo } from "./helpers";
+import { signupUser } from "./helpers";
+import type { UserInfo } from "./helpers";
 
 describe("organization Auth E2E", () => {
   let userA: UserInfo;

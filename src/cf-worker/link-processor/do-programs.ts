@@ -3,12 +3,8 @@ import { Effect } from "effect";
 
 import { events } from "../../livestore/schema";
 import { maskId } from "../log-utils";
-import {
-  LinkRepository,
-  SourceNotifier,
-  type Link,
-  type Status,
-} from "./services";
+import { LinkRepository, SourceNotifier } from "./services";
+import type { Link, Status } from "./services";
 
 const STUCK_TIMEOUT_MS = 5 * 60 * 1000;
 

@@ -5,18 +5,13 @@ import {
   useBasicTypeaheadTriggerMatch,
 } from "@lexical/react/LexicalTypeaheadMenuPlugin";
 import { COMMAND_PRIORITY_HIGH, KEY_ENTER_COMMAND, TextNode } from "lexical";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type RefObject,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { RefObject } from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils";
-import { SLASH_COMMANDS, type SlashCommand } from "@/shared/slash-commands";
+import { SLASH_COMMANDS } from "@/shared/slash-commands";
+import type { SlashCommand } from "@/shared/slash-commands";
 
 class CommandOption extends MenuOption {
   command: SlashCommand;

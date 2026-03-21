@@ -5,8 +5,8 @@ import {
   useState,
   useCallback,
   useEffect,
-  type ReactNode,
 } from "react";
+import type { ReactNode } from "react";
 
 import { LinkImage } from "@/components/link-card";
 import { useLinkDetailDialog } from "@/components/link-detail-dialog";

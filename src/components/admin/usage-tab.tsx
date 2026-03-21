@@ -4,7 +4,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TabsContent } from "@/components/ui/tabs";
 
-import { type UsagePeriod, type UserUsageSummary } from "./use-usage-admin";
+import type { UsagePeriod, UserUsageSummary } from "./use-usage-admin";
 
 const PERIODS: { value: UsagePeriod; label: string }[] = [
   { value: "24h", label: "24h" },

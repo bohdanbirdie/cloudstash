@@ -1,5 +1,6 @@
-import { type UIMessage } from "@ai-sdk/react";
-import { getToolName, isToolUIPart, type ToolSet } from "ai";
+import type { UIMessage } from "@ai-sdk/react";
+import { getToolName, isToolUIPart } from "ai";
+import type { ToolSet } from "ai";
 import { Effect, Array as A, Option } from "effect";
 
 import { requiresConfirmation } from "../../shared/tool-config";

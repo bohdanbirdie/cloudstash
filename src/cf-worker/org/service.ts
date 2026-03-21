@@ -1,16 +1,16 @@
 import { eq } from "drizzle-orm";
 import { Effect } from "effect";
 
-import { type MeResponse } from "@/types/api";
+import type { MeResponse } from "@/types/api";
 
 import { trackEvent } from "../analytics";
 import { createAuth } from "../auth";
 import { createDb } from "../db";
 import * as schema from "../db/schema";
-import { type OrgFeatures } from "../db/schema";
+import type { OrgFeatures } from "../db/schema";
 import { maskId } from "../log-utils";
 import { logSync } from "../logger";
-import { type Env } from "../shared";
+import type { Env } from "../shared";
 import {
   AccessDeniedError,
   OrgNotFoundError,

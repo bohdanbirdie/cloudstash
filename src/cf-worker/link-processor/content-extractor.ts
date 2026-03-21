@@ -1,4 +1,4 @@
-import { type Document, type Element } from "domhandler";
+import type { Document, Element } from "domhandler";
 import {
   textContent,
   getElementsByTagName,

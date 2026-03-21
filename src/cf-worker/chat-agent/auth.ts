@@ -3,8 +3,8 @@ import { Effect, Data } from "effect";
 
 import { createDb } from "../db";
 import * as schema from "../db/schema";
-import { type OrgFeatures } from "../db/schema";
-import { type Env } from "../shared";
+import type { OrgFeatures } from "../db/schema";
+import type { Env } from "../shared";
 
 export class ChatFeatureDisabledError extends Data.TaggedError(
   "ChatFeatureDisabledError"

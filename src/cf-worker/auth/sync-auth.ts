@@ -1,6 +1,6 @@
 import { Effect, Data } from "effect";
 
-import { type Auth } from "./index";
+import type { Auth } from "./index";
 
 export type SyncAuthErrorCode =
   | "SESSION_EXPIRED"

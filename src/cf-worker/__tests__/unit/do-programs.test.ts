@@ -7,13 +7,8 @@ import {
   ingestLink,
   notifyResult,
 } from "../../link-processor/do-programs";
-import {
-  LinkRepository,
-  SourceNotifier,
-  type Link,
-  type Status,
-  type StoreEvent,
-} from "../../link-processor/services";
+import { LinkRepository, SourceNotifier } from "../../link-processor/services";
+import type { Link, Status, StoreEvent } from "../../link-processor/services";
 
 function createTestRepo(links: Link[] = [], statuses: Status[] = []) {
   const committed: StoreEvent[] = [];

@@ -2,8 +2,8 @@ import { toast } from "sonner";
 import useSWR from "swr";
 
 import { DEFAULT_MONTHLY_BUDGET } from "@/cf-worker/chat-agent/usage";
-import { type OrgFeatures } from "@/cf-worker/db/schema";
-import { type MeResponse } from "@/types/api";
+import type { OrgFeatures } from "@/cf-worker/db/schema";
+import type { MeResponse } from "@/types/api";
 
 export type { OrgFeatures };
 

@@ -1,6 +1,6 @@
 import { useTagFilter } from "@/hooks/use-tag-filter";
-import { type LinkProjection } from "@/lib/link-projections";
-import { type LinkWithDetails } from "@/livestore/queries/links";
+import type { LinkProjection } from "@/lib/link-projections";
+import type { LinkWithDetails } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
 
 export function useFilteredLinks(

@@ -1,8 +1,9 @@
-import { type UIMessage } from "@ai-sdk/react";
+import type { UIMessage } from "@ai-sdk/react";
 import { getToolName, isToolUIPart } from "ai";
 
 import { MessageContent } from "@/components/ui/message";
-import { Tool, type ToolPartType } from "@/components/ui/tool";
+import { Tool } from "@/components/ui/tool";
+import type { ToolPartType } from "@/components/ui/tool";
 import { cn } from "@/lib/utils";
 import { requiresConfirmation } from "@/shared/tool-config";
 

@@ -18,12 +18,8 @@ import { HighlightedText } from "@/components/ui/highlighted-text";
 import { buildPages } from "@/config/pages";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
 import { track } from "@/lib/analytics";
-import {
-  recentlyOpenedLinks$,
-  searchLinks$,
-  type LinkWithDetails,
-  type SearchResult,
-} from "@/livestore/queries/links";
+import { recentlyOpenedLinks$, searchLinks$ } from "@/livestore/queries/links";
+import type { LinkWithDetails, SearchResult } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
 import { useSearchStore } from "@/stores/search-store";
 

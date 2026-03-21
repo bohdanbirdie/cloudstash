@@ -1,11 +1,12 @@
-import { Context, type Effect } from "effect";
+import { Context } from "effect";
+import type { Effect } from "effect";
 
-import {
-  type InvalidApiKeyError,
-  type MissingOrgIdError,
-  type NotConnectedError,
-  type QueueSendError,
-  type RateLimitError,
+import type {
+  InvalidApiKeyError,
+  MissingOrgIdError,
+  NotConnectedError,
+  QueueSendError,
+  RateLimitError,
 } from "./errors";
 
 export class Messenger extends Context.Tag("Messenger")<

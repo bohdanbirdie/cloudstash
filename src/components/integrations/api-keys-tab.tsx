@@ -7,7 +7,7 @@ import { TabsContent } from "@/components/ui/tabs";
 
 import { KeyCreatedBanner } from "./key-created-banner";
 import { KeyList } from "./key-list";
-import { type ApiKey } from "./use-api-keys";
+import type { ApiKey } from "./use-api-keys";
 
 interface ApiKeysTabProps {
   keys: ApiKey[];

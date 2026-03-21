@@ -1,7 +1,7 @@
-import {
-  filteredLinks$,
-  type LinkStatus,
-  type TagFilterOptions,
+import { filteredLinks$ } from "@/livestore/queries/filtered-links";
+import type {
+  LinkStatus,
+  TagFilterOptions,
 } from "@/livestore/queries/filtered-links";
 import {
   allLinks$,

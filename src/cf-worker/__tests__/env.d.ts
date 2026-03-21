@@ -1,7 +1,7 @@
-import       { type Env } from '../shared'
+import type { Env } from '../shared';
 
-declare module 'cloudflare:test' {
+declare module "cloudflare:test" {
   interface ProvidedEnv extends Env {
-    TEST_MIGRATIONS: string
+    TEST_MIGRATIONS: string;
   }
 }

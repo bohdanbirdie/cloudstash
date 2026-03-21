@@ -3,12 +3,13 @@ import { Effect } from "effect";
 
 import { INVITE_CODE_CHARS, INVITE_CODE_LENGTH } from "@/lib/invite";
 
-import { createAuth, type Auth } from "../auth";
+import { createAuth } from "../auth";
+import type { Auth } from "../auth";
 import { createDb } from "../db";
 import * as schema from "../db/schema";
 import { sendApprovalEmail } from "../email/send-approval-email";
 import { logSync } from "../logger";
-import { type Env } from "../shared";
+import type { Env } from "../shared";
 import {
   ForbiddenError,
   InvalidInviteError,

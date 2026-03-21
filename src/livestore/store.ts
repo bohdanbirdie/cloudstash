@@ -1,5 +1,5 @@
 import { makePersistedAdapter } from "@livestore/adapter-web";
-import { type Store } from "@livestore/livestore";
+import type { Store } from "@livestore/livestore";
 import { useStore } from "@livestore/react";
 import { useRouteContext } from "@tanstack/react-router";
 import { Effect, Stream } from "effect";

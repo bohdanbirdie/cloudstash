@@ -1,4 +1,4 @@
-import { type LinkQueueMessage } from "./link-processor/types";
+import type { LinkQueueMessage } from "./link-processor/types";
 import { safeErrorInfo } from "./log-utils";
 import { logSync } from "./logger";
 

@@ -1,28 +1,27 @@
 import { AIChatAgent } from "@cloudflare/ai-chat";
-import {
-  createStoreDoPromise,
-  type ClientDoWithRpcCallback,
-} from "@livestore/adapter-cloudflare";
-import { nanoid, type Store } from "@livestore/livestore";
+import { createStoreDoPromise } from "@livestore/adapter-cloudflare";
+import type { ClientDoWithRpcCallback } from "@livestore/adapter-cloudflare";
+import { nanoid } from "@livestore/livestore";
+import type { Store } from "@livestore/livestore";
 import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { type Connection, type ConnectionContext } from "agents";
+import type { Connection, ConnectionContext } from "agents";
 import {
   streamText,
   convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
   stepCountIs,
-  type LanguageModel,
 } from "ai";
+import type { LanguageModel } from "ai";
 import { eq } from "drizzle-orm";
 import { Effect } from "effect";
 
 import { schema } from "../../livestore/schema";
 import { createDb } from "../db";
 import * as dbSchema from "../db/schema";
-import { type OrgFeatures } from "../db/schema";
-import { type Env } from "../shared";
+import type { OrgFeatures } from "../db/schema";
+import type { Env } from "../shared";
 import { CONTEXT_WINDOW_SIZE, SYSTEM_PROMPT } from "./config";
 import {
   extractRetryTime,
@@ -38,9 +37,8 @@ import {
   budgetToTokenLimit,
   getCurrentPeriod,
   getUsageKey,
-  type ChatAgentState,
-  type UsageData,
 } from "./usage";
+import type { ChatAgentState, UsageData } from "./usage";
 import { hasToolConfirmation, processToolCalls } from "./utils";
 
 function formatError(error: unknown): string {

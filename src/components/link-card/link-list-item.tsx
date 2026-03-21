@@ -3,10 +3,8 @@ import { CheckIcon } from "lucide-react";
 import { TagBadge } from "@/components/tags/tag-badge";
 import { BorderTrail } from "@/components/ui/border-trail";
 import { cn } from "@/lib/utils";
-import {
-  linkProcessingStatus$,
-  type LinkWithDetails,
-} from "@/livestore/queries/links";
+import { linkProcessingStatus$ } from "@/livestore/queries/links";
+import type { LinkWithDetails } from "@/livestore/queries/links";
 import { tagsForLink$ } from "@/livestore/queries/tags";
 import { useAppStore } from "@/livestore/store";
 

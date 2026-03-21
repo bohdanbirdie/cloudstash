@@ -1,5 +1,11 @@
 {
-  "include": ["**/*.ts", "**/*.tsx", "prettier.config.js", "vite.config.js"],
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "worker-configuration.d.ts",
+    "prettier.config.js",
+    "vite.config.js"
+  ],
   "exclude": ["readonly-llm-lookup", "scripts"],
 
   "compilerOptions": {

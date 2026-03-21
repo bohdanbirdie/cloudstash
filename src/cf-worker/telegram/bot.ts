@@ -2,7 +2,7 @@ import { Effect, Layer } from "effect";
 import { Bot, webhookCallback } from "grammy";
 
 import { logSync } from "../logger";
-import { type Env } from "../shared";
+import type { Env } from "../shared";
 import {
   extractUrls,
   handleConnect,

@@ -1,7 +1,8 @@
-import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
 import viteTsConfigPaths from "vite-tsconfig-paths";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

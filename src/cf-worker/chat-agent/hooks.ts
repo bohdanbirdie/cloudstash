@@ -2,10 +2,12 @@ import { Effect } from "effect";
 
 import { trackEvent } from "../analytics";
 import { createAuth } from "../auth";
-import { checkSyncAuth, type SyncAuthError } from "../auth/sync-auth";
+import { checkSyncAuth } from "../auth/sync-auth";
+import type { SyncAuthError } from "../auth/sync-auth";
 import { createDb } from "../db";
-import { type Env } from "../shared";
-import { checkChatFeatureEnabled, type ChatFeatureDisabledError } from "./auth";
+import type { Env } from "../shared";
+import { checkChatFeatureEnabled } from "./auth";
+import type { ChatFeatureDisabledError } from "./auth";
 
 interface Lobby {
   party: string;

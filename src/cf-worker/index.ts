@@ -1,6 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 import "@livestore/adapter-cloudflare/polyfill";
-import { type CfTypes } from "@livestore/sync-cf/cf-worker";
+import type { CfTypes } from "@livestore/sync-cf/cf-worker";
 import { routeAgentRequest } from "agents";
 import { Effect } from "effect";
 import { Hono } from "hono";
@@ -25,13 +25,13 @@ import {
   handleListInvites,
   handleRedeemInvite,
 } from "./invites";
-import { type LinkQueueMessage } from "./link-processor/types";
+import type { LinkQueueMessage } from "./link-processor/types";
 import { logSync } from "./logger";
 import { metadataRequestToResponse } from "./metadata/service";
 import { requireAdmin } from "./middleware/require-admin";
 import { handleGetMe, handleGetOrg } from "./org";
 import { handleQueueBatch } from "./queue-handler";
-import { type Env, type HonoVariables } from "./shared";
+import type { Env, HonoVariables } from "./shared";
 import { SyncBackend, handleSyncRequest } from "./sync";
 import { handleTelegramWebhook } from "./telegram";
 

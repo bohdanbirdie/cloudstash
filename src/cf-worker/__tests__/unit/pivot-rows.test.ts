@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 
 import { pivotRows } from "@/components/admin/use-usage-admin";
-import { type AdminUser } from "@/types/api";
+import type { AdminUser } from "@/types/api";
 
 const makeUser = (id: string, name: string, email: string): AdminUser =>
   ({ id, name, email }) as AdminUser;

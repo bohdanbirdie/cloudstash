@@ -3,11 +3,11 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, apiKey, organization } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 
-import { type Database } from "../db";
+import type { Database } from "../db";
 import * as schema from "../db/schema";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
-import { type Env } from "../shared";
+import type { Env } from "../shared";
 
 const logger = logSync("Auth");
 

@@ -1,7 +1,7 @@
 import useSWR from "swr";
 
 import { authClient } from "@/lib/auth";
-import { type AdminUser } from "@/types/api";
+import type { AdminUser } from "@/types/api";
 
 async function fetchUsers(): Promise<AdminUser[]> {
   const { data, error } = await authClient.admin.listUsers({

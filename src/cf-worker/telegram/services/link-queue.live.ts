@@ -1,7 +1,7 @@
 import { Effect, Layer } from "effect";
 
-import { type LinkQueueMessage } from "../../link-processor/types";
-import { type Env } from "../../shared";
+import type { LinkQueueMessage } from "../../link-processor/types";
+import type { Env } from "../../shared";
 import { QueueSendError } from "../errors";
 import { LinkQueue } from "../services";
 

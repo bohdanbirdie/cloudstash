@@ -4,7 +4,7 @@ import { createMiddleware } from "hono/factory";
 import { createAuth } from "../auth";
 import { createDb } from "../db";
 import { logSync } from "../logger";
-import { type AdminSession, type Env } from "../shared";
+import type { AdminSession, Env } from "../shared";
 
 const logger = logSync("Admin");
 

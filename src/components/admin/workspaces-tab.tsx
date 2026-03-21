@@ -13,7 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-import { type Workspace } from "./use-workspaces-admin";
+import type { Workspace } from "./use-workspaces-admin";
 
 function BudgetInput({
   value,
