@@ -46,3 +46,10 @@ bun run deploy             # FORBIDDEN
 - Avoid code comments unless absolutely necessary for complex logic
 - No barrel files (index.ts re-exports) - import directly from source files
 - **Patches:** When patching packages with pre-built dist files, patch `dist/*.js` directly (not just `src/*.ts`). Runtime imports from dist, not source.
+
+## Task Tracking
+
+Private GitHub Project #1: `gh project item-list 1 --owner "@me"`
+
+Use `gh project item-create 1 --owner "@me" --title "..." --body "..."` to add draft items.
+Fields: Status, Type (Bug/Feature/Idea/Tech Debt), Priority (P0-P3).

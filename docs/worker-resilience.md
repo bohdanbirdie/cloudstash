@@ -283,13 +283,3 @@ Swapping to the public API adapter would eliminate VFS entirely. The question is
 
 Key insight: DOs get **30s CPU** (not 10ms like Workers). Queue consumers also get **30s CPU + 15min wall time**. The bottleneck was never CPU — it was always VFS write amplification.
 
-## Still TODO
-
-- [ ] File upstream livestore issue: auth failures should be non-retryable
-- [ ] File upstream livestore issue: `ping.enabled` option is defined but never checked in code
-- [ ] Investigate ChatAgentDO's 46% error rate
-- [ ] **Decide on LinkProcessorDO architecture** — see research above and `docs/link-processor-refactor.md`
-- [ ] **Verify public API adapter safety** — does a sequential server-side livestore client ever trigger rebase? If not, patching `makeAdapter` to use native SQLite is the simplest fix.
-- [ ] **Combine processor events into single `linkProcessed`** — Currently emits 5+ events per link. A single event with all results would cut writes by ~80%.
-- [ ] **Re-enable `LinkInteracted` with batching** — Currently disabled to save writes. Could re-enable with client-side debouncing.
-- [ ] **Investigate periodic WebSocket disconnects** — WS connections restart after ~10-30 minutes inconsistently. Check if disconnects correlate with ping timing and whether `setWebSocketAutoResponse` would help.
