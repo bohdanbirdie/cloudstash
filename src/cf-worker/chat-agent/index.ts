@@ -64,10 +64,10 @@ export class ChatAgentDO
   extends AIChatAgent<Env>
   implements ClientDoWithRpcCallback
 {
-  __DURABLE_OBJECT_BRAND = "chat-agent-do" as never;
+  override __DURABLE_OBJECT_BRAND = "chat-agent-do" as never;
   private cachedStore: Store<typeof schema> | undefined;
 
-  async onConnect(connection: Connection, ctx: ConnectionContext) {
+  override async onConnect(connection: Connection, ctx: ConnectionContext) {
     await super.onConnect(connection, ctx);
     void this.broadcastUsage();
   }
@@ -167,7 +167,7 @@ export class ChatAgentDO
     );
   }
 
-  async onChatMessage() {
+  override async onChatMessage() {
     await this.broadcastUsage();
 
     const withinLimit = await this.isWithinTokenLimit();

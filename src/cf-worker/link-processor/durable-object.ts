@@ -34,7 +34,7 @@ export class LinkProcessorDO
   extends DurableObject<Env>
   implements ClientDoWithRpcCallback
 {
-  __DURABLE_OBJECT_BRAND = "link-processor-do" as never;
+  override __DURABLE_OBJECT_BRAND = "link-processor-do" as never;
 
   private storeId: string | undefined;
   private cachedStore: Store<typeof schema> | undefined;
@@ -346,7 +346,7 @@ export class LinkProcessorDO
     }
   }
 
-  async fetch(request: Request): Promise<Response> {
+  override async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const storeId = url.searchParams.get("storeId");
     const reprocessLinkId = url.searchParams.get("reprocess");

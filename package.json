@@ -25,7 +25,8 @@
     "typecheck": "tsgo --noEmit",
     "check": "ultracite check",
     "check:effect": "effect-language-service diagnostics --project tsconfig.json --format pretty --strict",
-    "fix": "ultracite fix"
+    "fix": "ultracite fix",
+    "prepare": "effect-language-service patch"
   },
   "dependencies": {
     "@ai-sdk/react": "3.0.136",

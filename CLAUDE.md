@@ -47,6 +47,22 @@ bun run deploy             # FORBIDDEN
 - No barrel files (index.ts re-exports) - import directly from source files
 - **Patches:** When patching packages with pre-built dist files, patch `dist/*.js` directly (not just `src/*.ts`). Runtime imports from dist, not source.
 
+<!-- effect-solutions:start -->
+
+## Effect Best Practices
+
+**IMPORTANT:** Always consult effect-solutions before writing Effect code.
+
+1. Run `effect-solutions list` to see available guides
+2. Run `effect-solutions show <topic>...` for relevant patterns (supports multiple topics)
+3. Search `readonly-llm-lookup/effect` for real implementations
+
+Topics: quick-start, project-setup, tsconfig, basics, services-and-layers, data-modeling, error-handling, config, testing, cli.
+
+Never guess at Effect patterns - check the guide first.
+
+<!-- effect-solutions:end -->
+
 ## Task Tracking
 
 Private GitHub Project #1: `gh project item-list 1 --owner "@me"`

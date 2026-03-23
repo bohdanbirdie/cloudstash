@@ -4,7 +4,7 @@ export class MissingSessionCookieError extends Schema.TaggedError<MissingSession
   "MissingSessionCookieError",
   {}
 ) {
-  get message() {
+  override get message() {
     return "Missing session cookie";
   }
 }
@@ -13,7 +13,7 @@ export class InvalidSessionError extends Schema.TaggedError<InvalidSessionError>
   "InvalidSessionError",
   {}
 ) {
-  get message() {
+  override get message() {
     return "Invalid or expired session";
   }
 }
@@ -25,7 +25,7 @@ export class OrgAccessDeniedError extends Schema.TaggedError<OrgAccessDeniedErro
     storeId: Schema.String,
   }
 ) {
-  get message() {
+  override get message() {
     return "Access denied: not a member of this organization";
   }
 }
