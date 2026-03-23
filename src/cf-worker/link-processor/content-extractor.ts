@@ -9,6 +9,7 @@ import { parseDocument } from "htmlparser2";
 
 import { safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
+import { decodeHtmlEntities } from "../metadata/decode-entities";
 
 const logger = logSync("ContentExtractor");
 
@@ -93,7 +94,7 @@ function extractTitle(doc: Document): string | null {
   if (titleElements.length > 0) {
     const text = getCleanText(titleElements[0]);
     if (text) {
-      return text;
+      return decodeHtmlEntities(text);
     }
   }
 
@@ -102,7 +103,7 @@ function extractTitle(doc: Document): string | null {
   if (h1Elements.length > 0) {
     const text = getCleanText(h1Elements[0]);
     if (text) {
-      return text;
+      return decodeHtmlEntities(text);
     }
   }
 
@@ -114,7 +115,7 @@ function extractTitle(doc: Document): string | null {
     if (property === "og:title" || property === "twitter:title") {
       const content = getAttributeValue(meta, "content");
       if (content) {
-        return content;
+        return decodeHtmlEntities(content);
       }
     }
   }

@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import { Match, Schema } from "effect";
 
+import { decodeHtmlEntities } from "./decode-entities";
 import { ResolvedUrl } from "./schema";
 
 export class MetadataParser implements HTMLRewriterElementContentHandlers {
@@ -48,12 +49,12 @@ export class MetadataParser implements HTMLRewriterElementContentHandlers {
       Match.value(property).pipe(
         Match.when(isTitle, () => {
           if (!this.title) {
-            this.title = content;
+            this.title = decodeHtmlEntities(content);
           }
         }),
         Match.when(isDescription, () => {
           if (!this.description) {
-            this.description = content;
+            this.description = decodeHtmlEntities(content);
           }
         }),
         Match.when(isImage, () => {
@@ -93,7 +94,7 @@ export class MetadataParser implements HTMLRewriterElementContentHandlers {
       if (text.lastInTextNode) {
         this.inTitle = false;
         if (!this.title && this.titleText.trim()) {
-          this.title = this.titleText.trim();
+          this.title = decodeHtmlEntities(this.titleText.trim());
         }
       }
     }
