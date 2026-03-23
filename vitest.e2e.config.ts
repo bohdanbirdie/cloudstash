@@ -65,6 +65,7 @@ export default defineWorkersConfig({
     poolOptions: {
       workers: {
         singleWorker: true,
+        remoteBindings: false,
         wrangler: { configPath: "./wrangler.toml" },
         miniflare: {
           bindings: {
