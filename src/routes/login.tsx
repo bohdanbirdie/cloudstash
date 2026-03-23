@@ -33,7 +33,9 @@ function LoginForm({ className, ...props }: React.ComponentProps<"div">) {
               </div>
               <Button
                 className="w-full"
-                onClick={() => authClient.signIn.social({ provider: "google" })}
+                onClick={() =>
+                  authClient.signIn.oauth2({ providerId: "google" })
+                }
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"

@@ -26,5 +26,6 @@ export interface Env extends Cloudflare.Env {
   LINK_PROCESSOR_DO: DurableObjectNamespace<LinkProcessorDO>;
   Chat: DurableObjectNamespace<ChatAgentDO>;
   ENABLE_TEST_AUTH?: string;
+  GOOGLE_BASE_URL?: string;
   EMAIL_FROM: string;
 }

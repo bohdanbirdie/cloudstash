@@ -2,6 +2,7 @@ import { apiKey } from "@better-auth/api-key";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, organization } from "better-auth/plugins";
+import { genericOAuth } from "better-auth/plugins/generic-oauth";
 import { eq } from "drizzle-orm";
 
 import type { Database } from "../db";
@@ -11,6 +12,25 @@ import { logSync } from "../logger";
 import type { Env } from "../shared";
 
 const logger = logSync("Auth");
+
+const DEFAULT_GOOGLE_BASE_URL = "https://accounts.google.com";
+
+function googleOAuthPlugin(env: Env) {
+  const baseUrl = env.GOOGLE_BASE_URL ?? DEFAULT_GOOGLE_BASE_URL;
+
+  return genericOAuth({
+    config: [
+      {
+        providerId: "google",
+        discoveryUrl: `${baseUrl}/.well-known/openid-configuration`,
+        clientId: env.GOOGLE_CLIENT_ID,
+        clientSecret: env.GOOGLE_CLIENT_SECRET,
+        scopes: ["openid", "email", "profile"],
+        pkce: true,
+      },
+    ],
+  });
+}
 
 export const createAuth = (env: Env, db: Database) => {
   const auth = betterAuth({
@@ -97,6 +117,7 @@ export const createAuth = (env: Env, db: Database) => {
       admin({
         defaultRole: "user",
       }),
+      googleOAuthPlugin(env),
     ],
     secret: env.BETTER_AUTH_SECRET,
     session: {
@@ -106,12 +127,6 @@ export const createAuth = (env: Env, db: Database) => {
       },
       expiresIn: 60 * 60 * 24 * 14,
       updateAge: 60 * 60 * 24 * 7,
-    },
-    socialProviders: {
-      google: {
-        clientId: env.GOOGLE_CLIENT_ID,
-        clientSecret: env.GOOGLE_CLIENT_SECRET,
-      },
     },
     user: {
       additionalFields: {

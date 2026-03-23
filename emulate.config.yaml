@@ -1,0 +1,21 @@
+google:
+  users:
+    - email: admin@cloudstash.test
+      name: Admin User
+      given_name: Admin
+      family_name: User
+      email_verified: true
+      locale: en
+    - email: dev@cloudstash.test
+      name: Dev User
+      given_name: Dev
+      family_name: User
+      picture: https://lh3.googleusercontent.com/a/default-user
+      email_verified: true
+      locale: en
+  oauth_clients:
+    - client_id: cloudstash-dev.apps.googleusercontent.com
+      client_secret: GOCSPX-cloudstash-dev-secret
+      name: Cloudstash Dev
+      redirect_uris:
+        - http://localhost:3000/api/auth/oauth2/callback/google
