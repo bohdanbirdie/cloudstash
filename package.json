@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev --port 3000",
+    "dev:emulate": "bunx emulate start --service google --seed emulate.config.yaml",
+    "dev:make-admin": "wrangler d1 execute DB --local --command \"UPDATE user SET approved = 1, role = 'admin' WHERE email = 'admin@cloudstash.test'\"",
     "email:dev": "email dev -d src/cf-worker/email/templates -p 3001",
     "dev:tunnel": "bun scripts/telegram-tunnel.ts",
     "dev:dashboard": "localflare attach",

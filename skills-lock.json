@@ -26,6 +26,11 @@
       "sourceType": "github",
       "computedHash": "53a1de29d2b76481202608376fa4a20a8bd7e65b0b8a907a8c9578e629cf313f"
     },
+    "google": {
+      "source": "vercel-labs/emulate",
+      "sourceType": "github",
+      "computedHash": "3350d2586521fe9ef2089af20dfeeaa3ccc13cea9d23d908ea2f4dcb03fab411"
+    },
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",

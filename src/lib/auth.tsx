@@ -1,5 +1,9 @@
 import { apiKeyClient } from "@better-auth/api-key/client";
-import { adminClient, organizationClient } from "better-auth/client/plugins";
+import {
+  adminClient,
+  genericOAuthClient,
+  organizationClient,
+} from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import {
   createContext,
@@ -13,7 +17,12 @@ import { RESET_FLAG_KEY } from "@/livestore/store";
 
 export const authClient = createAuthClient({
   baseURL: window.location.origin,
-  plugins: [organizationClient(), apiKeyClient(), adminClient()],
+  plugins: [
+    organizationClient(),
+    apiKeyClient(),
+    adminClient(),
+    genericOAuthClient(),
+  ],
 });
 
 export interface AuthState {
