@@ -11,7 +11,12 @@ import { events, schema, tables } from "../../livestore/schema";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
-import { cancelStaleLinks, ingestLink, notifyResult } from "./do-programs";
+import {
+  cancelStaleLinks,
+  ingestLink,
+  notifyResult,
+} from "./do-programs";
+import type { NotifyResultParams } from "./do-programs";
 import { runEffect } from "./logger";
 import { processLink } from "./process-link";
 import { FeatureStore, SourceNotifier } from "./services";
@@ -138,11 +143,25 @@ export class LinkProcessorDO
       this.onPendingLinksChanged(store, pendingLinks);
     });
 
+    const summaries$ = queryDb(tables.linkSummaries.where({}));
+    const tagSuggestions$ = queryDb(tables.tagSuggestions.where({}));
+
     const unnotifiedResults$ = computed(
       (get) => {
         const allStatuses = get(statuses$);
         const allLinks = get(links$);
+        const allSummaries = get(summaries$);
+        const allTagSuggestions = get(tagSuggestions$);
         const linkMap = new Map(allLinks.map((l) => [l.id, l]));
+        const summaryMap = new Map(
+          allSummaries.map((s) => [s.linkId, s.summary])
+        );
+        const tagsMap = new Map<string, string[]>();
+        for (const ts of allTagSuggestions) {
+          const existing = tagsMap.get(ts.linkId) ?? [];
+          existing.push(ts.suggestedName);
+          tagsMap.set(ts.linkId, existing);
+        }
 
         return allStatuses
           .filter((s) => {
@@ -158,6 +177,8 @@ export class LinkProcessorDO
               processingStatus: s.status as "completed" | "failed",
               source: link.source!,
               sourceMeta: link.sourceMeta,
+              summary: summaryMap.get(s.linkId) ?? null,
+              suggestedTags: tagsMap.get(s.linkId) ?? [],
             };
           });
       },
@@ -248,7 +269,12 @@ export class LinkProcessorDO
     const doLayer = this.buildDoLayer(store);
     runEffect(
       SourceNotifier.pipe(
-        Effect.flatMap((n) => n.react(link.source, link.sourceMeta, "🤔")),
+        Effect.flatMap((n) =>
+          n.streamProgress(
+            { source: link.source, sourceMeta: link.sourceMeta },
+            "Fetching metadata"
+          )
+        ),
         Effect.provide(doLayer)
       )
     ).catch(() => {});
@@ -309,12 +335,7 @@ export class LinkProcessorDO
 
   private notifyResults(
     store: Store<typeof schema>,
-    results: ReadonlyArray<{
-      linkId: string;
-      processingStatus: "completed" | "failed";
-      source: string;
-      sourceMeta: string | null;
-    }>
+    results: ReadonlyArray<NotifyResultParams>
   ): void {
     const doLayer = this.buildDoLayer(store);
     for (const result of results) {

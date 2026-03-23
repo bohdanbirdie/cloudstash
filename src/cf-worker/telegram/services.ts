@@ -12,7 +12,7 @@ import type {
 export class Messenger extends Context.Tag("Messenger")<
   Messenger,
   {
-    readonly react: (emoji: string) => Effect.Effect<void>;
+    readonly draft: (text: string) => Effect.Effect<void>;
     readonly reply: (text: string) => Effect.Effect<void>;
   }
 >() {}

@@ -43,10 +43,8 @@ export const ingestLink = Effect.fn("ingestLink")(function* (
         storeId: maskId(params.storeId),
       })
     );
-    yield* notifier.react(params.source, params.sourceMeta, "👌");
     yield* notifier.reply(
-      params.source,
-      params.sourceMeta,
+      { source: params.source, sourceMeta: params.sourceMeta },
       "Link already saved."
     );
     return { status: "duplicate" as const, linkId: existing.id };
@@ -120,11 +118,13 @@ export const cancelStaleLinks = Effect.fn("cancelStaleLinks")(function* (
   return cancelled;
 });
 
-interface NotifyResultParams {
+export interface NotifyResultParams {
   linkId: string;
   processingStatus: "completed" | "failed";
   source: string;
   sourceMeta: string | null;
+  summary: string | null;
+  suggestedTags: string[];
 }
 
 export const notifyResult = Effect.fn("notifyResult")(function* (
@@ -141,16 +141,14 @@ export const notifyResult = Effect.fn("notifyResult")(function* (
     })
   );
 
-  const emoji = result.processingStatus === "completed" ? "👍" : "👎";
-  yield* notifier.react(result.source, result.sourceMeta, emoji);
-
-  if (result.processingStatus === "failed") {
-    yield* notifier.reply(
-      result.source,
-      result.sourceMeta,
-      "Failed to process link."
-    );
-  }
+  yield* notifier.finalizeProgress(
+    { source: result.source, sourceMeta: result.sourceMeta },
+    {
+      processingStatus: result.processingStatus,
+      summary: result.summary,
+      suggestedTags: result.suggestedTags,
+    }
+  );
 
   yield* repo.commitEvent(
     events.linkSourceNotified({

@@ -21,19 +21,19 @@ import {
 } from "../../telegram/services";
 
 function createTestMessenger() {
-  const reactions: string[] = [];
+  const drafts: string[] = [];
   const replies: string[] = [];
   const layer = Layer.succeed(Messenger, {
-    react: (emoji) =>
+    draft: (text) =>
       Effect.sync(() => {
-        reactions.push(emoji);
+        drafts.push(text);
       }),
     reply: (text) =>
       Effect.sync(() => {
         replies.push(text);
       }),
   });
-  return { layer, reactions, replies };
+  return { layer, drafts, replies };
 }
 
 function createTestSourceAuth(
@@ -95,7 +95,7 @@ function createTestKeyStore() {
 }
 
 describe("handleLinks", () => {
-  it("PATH 1: enqueues urls and reacts with eyes on success", async () => {
+  it("PATH 1: enqueues urls and sends draft on success", async () => {
     const messenger = createTestMessenger();
     const queue = createTestQueue();
     const layer = Layer.mergeAll(
@@ -111,14 +111,14 @@ describe("handleLinks", () => {
       )
     );
 
-    expect(messenger.reactions).toEqual(["👀"]);
+    expect(messenger.drafts).toEqual(["Saving link"]);
     expect(messenger.replies).toEqual([]);
     expect(queue.enqueued).toEqual([
       { url: "https://example.com", storeId: "org-1" },
     ]);
   });
 
-  it("PATH 4: reacts with thumbs down and replies when queue fails", async () => {
+  it("PATH 4: sends draft then replies with error when queue fails", async () => {
     const messenger = createTestMessenger();
     const queue = createTestQueue(true);
     const layer = Layer.mergeAll(
@@ -134,7 +134,7 @@ describe("handleLinks", () => {
       )
     );
 
-    expect(messenger.reactions).toEqual(["👀", "👎"]);
+    expect(messenger.drafts).toEqual(["Saving link"]);
     expect(messenger.replies).toEqual([
       "Failed to save link. Please try again later.",
     ]);
@@ -156,14 +156,14 @@ describe("handleLinks", () => {
       )
     );
 
-    expect(messenger.reactions).toEqual([]);
+    expect(messenger.drafts).toEqual([]);
     expect(messenger.replies).toEqual([
       "Please connect first: /connect <api-key>",
     ]);
     expect(queue.enqueued).toEqual([]);
   });
 
-  it("PATH 6: reacts and replies when API key is invalid", async () => {
+  it("PATH 6: replies when API key is invalid", async () => {
     const messenger = createTestMessenger();
     const queue = createTestQueue();
     const layer = Layer.mergeAll(
@@ -179,13 +179,13 @@ describe("handleLinks", () => {
       )
     );
 
-    expect(messenger.reactions).toEqual(["👎"]);
+    expect(messenger.drafts).toEqual([]);
     expect(messenger.replies).toEqual([
       "Your API key is no longer valid. Please reconnect: /connect <new-api-key>",
     ]);
   });
 
-  it("PATH 7: reacts and replies on rate limit", async () => {
+  it("PATH 7: replies on rate limit", async () => {
     const messenger = createTestMessenger();
     const queue = createTestQueue();
     const layer = Layer.mergeAll(
@@ -201,7 +201,7 @@ describe("handleLinks", () => {
       )
     );
 
-    expect(messenger.reactions).toEqual(["👎"]);
+    expect(messenger.drafts).toEqual([]);
     expect(messenger.replies).toEqual([
       "Too many links today. Please try again tomorrow.",
     ]);

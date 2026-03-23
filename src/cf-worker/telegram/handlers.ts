@@ -15,7 +15,7 @@ export const handleLinks = (urls: string[]) =>
 
     const { orgId } = yield* auth.authenticate();
 
-    yield* messenger.react("👀");
+    yield* messenger.draft("Saving link");
 
     const enqueueResult = yield* Effect.all(
       urls.map((url) => queue.enqueue(url, orgId))
@@ -28,7 +28,6 @@ export const handleLinks = (urls: string[]) =>
     );
 
     if (enqueueResult === "failed") {
-      yield* messenger.react("👎");
       yield* messenger.reply("Failed to save link. Please try again later.");
     } else {
       yield* Effect.sync(() =>
@@ -46,27 +45,15 @@ export const handleLinks = (urls: string[]) =>
       InvalidApiKeyError: () =>
         Messenger.pipe(
           Effect.flatMap((m) =>
-            m
-              .react("👎")
-              .pipe(
-                Effect.flatMap(() =>
-                  m.reply(
-                    "Your API key is no longer valid. Please reconnect: /connect <new-api-key>"
-                  )
-                )
-              )
+            m.reply(
+              "Your API key is no longer valid. Please reconnect: /connect <new-api-key>"
+            )
           )
         ),
       RateLimitError: () =>
         Messenger.pipe(
           Effect.flatMap((m) =>
-            m
-              .react("👎")
-              .pipe(
-                Effect.flatMap(() =>
-                  m.reply("Too many links today. Please try again tomorrow.")
-                )
-              )
+            m.reply("Too many links today. Please try again tomorrow.")
           )
         ),
       MissingOrgIdError: () =>

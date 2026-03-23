@@ -5,10 +5,15 @@ import { Messenger } from "../services";
 
 export const TelegramMessengerLive = (ctx: Context) =>
   Layer.succeed(Messenger, {
-    react: (emoji) =>
-      Effect.tryPromise(() =>
-        ctx.react(emoji as Parameters<typeof ctx.react>[0])
-      ).pipe(Effect.catchAll(() => Effect.void)),
+    draft: (text) =>
+      Effect.tryPromise(() => ctx.replyWithDraft(text)).pipe(
+        Effect.asVoid,
+        Effect.catchAll((error) =>
+          Effect.logWarning("Telegram messenger: draft failed").pipe(
+            Effect.annotateLogs({ error: String(error) })
+          )
+        )
+      ),
     reply: (text) =>
       Effect.tryPromise(() =>
         ctx.reply(text, {
@@ -18,6 +23,10 @@ export const TelegramMessengerLive = (ctx: Context) =>
         })
       ).pipe(
         Effect.asVoid,
-        Effect.catchAll(() => Effect.void)
+        Effect.catchAll((error) =>
+          Effect.logWarning("Telegram messenger: reply failed").pipe(
+            Effect.annotateLogs({ error: String(error) })
+          )
+        )
       ),
   });
