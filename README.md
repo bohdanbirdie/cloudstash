@@ -71,16 +71,16 @@ The app runs at `http://localhost:3000`.
 
 ### Optional
 
-| Variable                  | Description                                                                |
-| ------------------------- | -------------------------------------------------------------------------- |
+| Variable                  | Description                                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------------- |
 | `GOOGLE_BASE_URL`         | Google OAuth base URL (default: `https://accounts.google.com`). Set to emulator URL for local dev |
-| `OPENROUTER_API_KEY`      | [OpenRouter](https://openrouter.ai/keys) API key for AI chat and summaries |
-| `RESEND_API_KEY`          | [Resend](https://resend.com) API key for email notifications               |
-| `EMAIL_FROM`              | Custom sender address (default: `CloudStash <noreply@cloudstash.dev>`)     |
-| `TELEGRAM_BOT_TOKEN`      | Telegram bot token from [@BotFather](https://t.me/BotFather)               |
-| `TELEGRAM_WEBHOOK_SECRET` | Random string for Telegram webhook validation                              |
-| `CF_ACCOUNT_ID`           | Cloudflare account ID (for observability scripts)                          |
-| `CF_ANALYTICS_TOKEN`      | Cloudflare analytics token (for DO metrics)                                |
+| `OPENROUTER_API_KEY`      | [OpenRouter](https://openrouter.ai/keys) API key for AI chat and summaries                        |
+| `RESEND_API_KEY`          | [Resend](https://resend.com) API key for email notifications                                      |
+| `EMAIL_FROM`              | Custom sender address (default: `CloudStash <noreply@cloudstash.dev>`)                            |
+| `TELEGRAM_BOT_TOKEN`      | Telegram bot token from [@BotFather](https://t.me/BotFather)                                      |
+| `TELEGRAM_WEBHOOK_SECRET` | Random string for Telegram webhook validation                                                     |
+| `CF_ACCOUNT_ID`           | Cloudflare account ID (for observability scripts)                                                 |
+| `CF_ANALYTICS_TOKEN`      | Cloudflare analytics token (for DO metrics)                                                       |
 
 **Local:** Set in `.dev.vars` (copy from `.dev.vars.example`).
 **Production:** Set via `bunx wrangler secret put VARIABLE_NAME`.
