@@ -80,10 +80,7 @@ export class SourceNotifier extends Context.Tag("SourceNotifier")<
       ctx: SourceContext,
       payload: NotifyPayload
     ) => Effect.Effect<void>;
-    readonly reply: (
-      ctx: SourceContext,
-      text: string
-    ) => Effect.Effect<void>;
+    readonly reply: (ctx: SourceContext, text: string) => Effect.Effect<void>;
   }
 >() {}
 

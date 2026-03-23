@@ -5,7 +5,11 @@ import { formatPayload } from "../../link-processor/services/source-notifier.liv
 describe("formatPayload", () => {
   it("returns plain success for completed with no summary or tags", () => {
     expect(
-      formatPayload({ processingStatus: "completed", summary: null, suggestedTags: [] })
+      formatPayload({
+        processingStatus: "completed",
+        summary: null,
+        suggestedTags: [],
+      })
     ).toBe("Link saved!");
   });
 
@@ -16,7 +20,9 @@ describe("formatPayload", () => {
         summary: "An article about streaming",
         suggestedTags: [],
       })
-    ).toBe("Link saved!\n\n<blockquote>An article about streaming</blockquote>");
+    ).toBe(
+      "Link saved!\n\n<blockquote>An article about streaming</blockquote>"
+    );
   });
 
   it("includes tags as hashtags", () => {
@@ -55,7 +61,11 @@ describe("formatPayload", () => {
 
   it("returns enrichment failed message for failed status", () => {
     expect(
-      formatPayload({ processingStatus: "failed", summary: null, suggestedTags: [] })
+      formatPayload({
+        processingStatus: "failed",
+        summary: null,
+        suggestedTags: [],
+      })
     ).toBe("Link saved, but enrichment failed (metadata/summary unavailable).");
   });
 });
