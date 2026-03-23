@@ -75,6 +75,9 @@ export default defineWorkersConfig({
             ENABLE_TEST_AUTH: "true",
             TEST_MIGRATIONS: JSON.stringify(migrations),
           },
+          ratelimits: {
+            SYNC_RATE_LIMITER: { simple: { limit: 10000, period: 60 } },
+          },
         },
       },
     },
