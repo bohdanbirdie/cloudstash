@@ -19,34 +19,38 @@ export function TagBadge({
   const color = getTagColor(name);
   const styles = tagColorStyles[color];
 
-  const badge = (
-    <button
-      type="button"
-      className={cn(
-        "inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium transition-colors",
-        styles.badge,
-        onClick && styles.badgeHover,
-        onClick && "cursor-pointer",
-        className
-      )}
-      onClick={onClick}
-    >
-      #{name}
-      {onRemove && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-          className="opacity-60 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-current"
-          aria-label={`Remove ${name} tag`}
-        >
-          <XIcon className="h-3 w-3" />
-        </button>
-      )}
-    </button>
+  const sharedClassName = cn(
+    "inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium transition-colors",
+    styles.badge,
+    onClick && styles.badgeHover,
+    onClick && "cursor-pointer",
+    className
   );
 
-  return badge;
+  const removeIcon = onRemove && (
+    <XIcon
+      className="h-3 w-3 opacity-60 hover:opacity-100"
+      aria-label={`Remove ${name} tag`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onRemove();
+      }}
+    />
+  );
+
+  if (!onClick) {
+    return (
+      <span className={sharedClassName}>
+        #{name}
+        {removeIcon}
+      </span>
+    );
+  }
+
+  return (
+    <button type="button" className={sharedClassName} onClick={onClick}>
+      #{name}
+      {removeIcon}
+    </button>
+  );
 }
