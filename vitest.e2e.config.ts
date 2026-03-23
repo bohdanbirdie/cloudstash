@@ -1,7 +1,8 @@
-import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
 import viteTsConfigPaths from "vite-tsconfig-paths";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -64,6 +65,7 @@ export default defineWorkersConfig({
     poolOptions: {
       workers: {
         singleWorker: true,
+        remoteBindings: false,
         wrangler: { configPath: "./wrangler.toml" },
         miniflare: {
           bindings: {
@@ -72,7 +74,12 @@ export default defineWorkersConfig({
             GOOGLE_CLIENT_ID: "test-google-client-id",
             GOOGLE_CLIENT_SECRET: "test-google-client-secret",
             ENABLE_TEST_AUTH: "true",
+            RESEND_API_KEY: "re_test_dummy",
+            EMAIL_FROM: "test@example.com",
             TEST_MIGRATIONS: JSON.stringify(migrations),
+          },
+          ratelimits: {
+            SYNC_RATE_LIMITER: { simple: { limit: 10000, period: 60 } },
           },
         },
       },

@@ -17,7 +17,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
-import { type InviteWithRelations } from "@/types/api";
+import type { InviteWithRelations } from "@/types/api";
 
 import { getInviteStatus } from "./use-invites-admin";
 

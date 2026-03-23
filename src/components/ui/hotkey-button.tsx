@@ -1,8 +1,9 @@
-import { type Button as ButtonPrimitive } from "@base-ui/react/button";
-import { type VariantProps } from "class-variance-authority";
+import type { Button as ButtonPrimitive } from "@base-ui/react/button";
+import type { VariantProps } from "class-variance-authority";
 import { useHotkeys } from "react-hotkeys-hook";
 
-import { Button, type buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import type { buttonVariants } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { useModifierHold } from "@/hooks/use-modifier-hold";
 import { getHotkeyLabel } from "@/lib/hotkey-label";

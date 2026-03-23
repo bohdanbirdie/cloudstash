@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 
-import { type ExtractedContent } from "./content-extractor";
+import type { ExtractedContent } from "./content-extractor";
 import { AiCallError } from "./errors";
 import { AI_MODEL } from "./types";
 

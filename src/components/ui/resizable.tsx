@@ -1,11 +1,9 @@
-import {
-  Group,
-  Panel,
-  Separator,
-  type GroupProps,
-  type PanelProps,
-  type SeparatorProps,
-  type PanelImperativeHandle,
+import { Group, Panel, Separator } from "react-resizable-panels";
+import type {
+  GroupProps,
+  PanelProps,
+  SeparatorProps,
+  PanelImperativeHandle,
 } from "react-resizable-panels";
 
 import { cn } from "@/lib/utils";

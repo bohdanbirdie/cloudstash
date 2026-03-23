@@ -2,7 +2,7 @@ import { Effect, Layer } from "effect";
 
 import { createAuth } from "../../auth";
 import { createDb } from "../../db";
-import { type Env } from "../../shared";
+import type { Env } from "../../shared";
 import {
   InvalidApiKeyError,
   MissingOrgIdError,

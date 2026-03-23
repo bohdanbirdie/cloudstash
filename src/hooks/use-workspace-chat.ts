@@ -2,7 +2,7 @@ import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { useAgent } from "agents/react";
 import { useState } from "react";
 
-import { type ChatAgentState } from "@/cf-worker/chat-agent/usage";
+import type { ChatAgentState } from "@/cf-worker/chat-agent/usage";
 import { TOOLS_REQUIRING_CONFIRMATION } from "@/shared/tool-config";
 
 export function useWorkspaceChat(workspaceId: string) {

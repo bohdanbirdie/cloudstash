@@ -91,6 +91,7 @@ function PromptInput({
         }}
       >
         <div
+          role="group"
           onClick={handleClick}
           className={cn(
             "border-input bg-background cursor-text rounded-3xl border p-2 shadow-xs",

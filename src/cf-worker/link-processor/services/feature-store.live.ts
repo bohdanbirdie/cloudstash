@@ -2,7 +2,8 @@ import { eq } from "drizzle-orm";
 import { Effect, Layer } from "effect";
 
 import { createDb } from "../../db";
-import { organization, type OrgFeatures } from "../../db/schema";
+import { organization } from "../../db/schema";
+import type { OrgFeatures } from "../../db/schema";
 import { FeatureStore } from "../services";
 
 export const FeatureStoreLive = (d1: D1Database) =>

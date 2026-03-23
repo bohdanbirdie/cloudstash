@@ -1,9 +1,9 @@
 import { UsersIcon, ClockIcon, CheckIcon } from "lucide-react";
 
+import type { AdminUser } from "@/components/admin/use-users-admin";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TabsContent } from "@/components/ui/tabs";
-import { type AdminUser } from "@/types/api";
 
 import { UserRow } from "./user-row";
 

@@ -1,6 +1,6 @@
 import { Effect, Layer } from "effect";
 
-import { type Env } from "../../shared";
+import type { Env } from "../../shared";
 import { TelegramKeyStore } from "../services";
 
 export const TelegramKeyStoreLive = (env: Env) =>

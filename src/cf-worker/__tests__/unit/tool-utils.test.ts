@@ -1,4 +1,4 @@
-import { type UIMessage } from "@ai-sdk/react";
+import type { UIMessage } from "@ai-sdk/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock the ai package before importing the module under test

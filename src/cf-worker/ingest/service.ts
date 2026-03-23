@@ -3,10 +3,10 @@ import { Effect } from "effect";
 import { trackEvent } from "../analytics";
 import { createAuth } from "../auth";
 import { createDb } from "../db";
-import { type LinkQueueMessage } from "../link-processor/types";
+import type { LinkQueueMessage } from "../link-processor/types";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
-import { type Env } from "../shared";
+import type { Env } from "../shared";
 import {
   InvalidApiKeyError,
   InvalidUrlError,
@@ -14,8 +14,8 @@ import {
   MissingOrgIdError,
   MissingUrlError,
   QueueSendError,
-  type IngestError,
 } from "./errors";
+import type { IngestError } from "./errors";
 
 const logger = logSync("Ingest");
 
@@ -53,7 +53,7 @@ export const handleIngestRequest = (
     logger.debug("API key verified", { orgId: maskId(orgId) });
 
     trackEvent(env.USAGE_ANALYTICS, {
-      userId: verifyResult.key.userId ?? "api",
+      userId: verifyResult.key.referenceId ?? "api",
       event: "ingest",
       orgId,
     });

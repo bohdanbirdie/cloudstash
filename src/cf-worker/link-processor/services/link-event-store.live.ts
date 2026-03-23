@@ -1,7 +1,8 @@
-import { type Store } from "@livestore/livestore";
+import type { Store } from "@livestore/livestore";
 import { Effect, Layer } from "effect";
 
-import { type schema, tables } from "../../../livestore/schema";
+import { tables } from "../../../livestore/schema";
+import type { schema } from "../../../livestore/schema";
 import { LinkEventStore } from "../services";
 
 export const LinkEventStoreLive = (store: Store<typeof schema>) =>

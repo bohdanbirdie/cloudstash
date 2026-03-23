@@ -5,8 +5,8 @@ import {
   useState,
   useCallback,
   useEffect,
-  type ReactNode,
 } from "react";
+import type { ReactNode } from "react";
 
 import { LinkImage } from "@/components/link-card";
 import { useLinkDetailDialog } from "@/components/link-detail-dialog";
@@ -246,43 +246,41 @@ function AddLinkDialogContent({
       }
 
       setMetadata(data);
-    } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "Failed to fetch metadata"
-      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch metadata");
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    const trimmedUrl = url.trim();
-    if (!trimmedUrl) {
+    const effectUrl = url.trim();
+    if (!effectUrl) {
       setMetadata(null);
       setError(null);
       return;
     }
 
-    const urlResult = Schema.decodeUnknownOption(UrlSchema)(trimmedUrl);
-    if (Option.isSome(urlResult)) {
-      fetchMetadata(urlResult.value.href);
+    const effectUrlResult = Schema.decodeUnknownOption(UrlSchema)(effectUrl);
+    if (Option.isSome(effectUrlResult)) {
+      fetchMetadata(effectUrlResult.value.href);
     }
   }, [url, fetchMetadata]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const trimmedUrl = url.trim();
-    if (!trimmedUrl) {
+    const submitUrl = url.trim();
+    if (!submitUrl) {
       return;
     }
 
     let domain = "";
     try {
-      const urlObj = new URL(trimmedUrl);
+      const urlObj = new URL(submitUrl);
       domain = urlObj.hostname;
     } catch {
-      domain = trimmedUrl.split("/")[0];
+      domain = submitUrl.split("/")[0];
     }
 
     const linkId = crypto.randomUUID();
@@ -297,7 +295,7 @@ function AddLinkDialogContent({
         id: linkId,
         source: "app",
         sourceMeta: null,
-        url: trimmedUrl,
+        url: submitUrl,
       })
     );
 
@@ -455,8 +453,8 @@ export function AddLinkDialogProvider({
     return () => document.removeEventListener("paste", handlePaste);
   }, [isOpen, open]);
 
-  const handleOpenChange = (open: boolean) => {
-    if (!open) {
+  const handleOpenChange = (isDialogOpen: boolean) => {
+    if (!isDialogOpen) {
       close();
     }
   };

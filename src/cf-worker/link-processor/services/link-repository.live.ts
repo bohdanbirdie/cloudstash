@@ -1,7 +1,9 @@
-import { queryDb, type Store } from "@livestore/livestore";
+import { queryDb } from "@livestore/livestore";
+import type { Store } from "@livestore/livestore";
 import { Effect, Layer } from "effect";
 
-import { type schema, tables } from "../../../livestore/schema";
+import { tables } from "../../../livestore/schema";
+import type { schema } from "../../../livestore/schema";
 import { LinkRepository } from "../services";
 
 export const LinkRepositoryLive = (store: Store<typeof schema>) =>

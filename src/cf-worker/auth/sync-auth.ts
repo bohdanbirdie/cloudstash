@@ -1,6 +1,6 @@
 import { Effect, Data } from "effect";
 
-import { type Auth } from "./index";
+import type { Auth } from "./index";
 
 export type SyncAuthErrorCode =
   | "SESSION_EXPIRED"
@@ -23,7 +23,7 @@ export const checkSyncAuth = (
   storeId: string,
   auth: Auth
 ): Effect.Effect<{ userId: string }, SyncAuthError> =>
-  Effect.gen(function* checkSyncAuth() {
+  Effect.gen(function* () {
     if (!cookie) {
       return yield* new SyncAuthError({
         code: "SESSION_EXPIRED",
@@ -50,8 +50,7 @@ export const checkSyncAuth = (
       });
     }
 
-    const user = session.user as typeof session.user & { approved?: boolean };
-    if (!user.approved) {
+    if (!session.user.approved) {
       return yield* new SyncAuthError({
         code: "UNAPPROVED",
         message: "Account pending approval",

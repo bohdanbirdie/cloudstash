@@ -2,10 +2,10 @@ import { eq } from "drizzle-orm";
 
 import { createDb } from "../db";
 import * as schema from "../db/schema";
-import { type OrgFeatures } from "../db/schema";
+import type { OrgFeatures } from "../db/schema";
 import { maskId } from "../log-utils";
 import { logSync } from "../logger";
-import { type Env } from "../shared";
+import type { Env } from "../shared";
 
 const logger = logSync("Admin");
 

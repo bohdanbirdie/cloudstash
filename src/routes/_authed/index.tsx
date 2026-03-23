@@ -4,7 +4,8 @@ import { useCallback } from "react";
 import { LinksPageLayout } from "@/components/links-page-layout";
 import { track } from "@/lib/analytics";
 import { inboxProjection } from "@/lib/link-projections";
-import { inboxLinks$, type LinkWithDetails } from "@/livestore/queries/links";
+import { inboxLinks$ } from "@/livestore/queries/links";
+import type { LinkWithDetails } from "@/livestore/queries/links";
 import { events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
 

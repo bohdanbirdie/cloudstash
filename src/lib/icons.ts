@@ -3,8 +3,8 @@ import {
   ListIcon,
   CheckCircle2Icon,
   Trash2Icon,
-  type LucideIcon,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 const iconMap: Record<string, LucideIcon> = {
   "check-circle": CheckCircle2Icon,

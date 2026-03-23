@@ -1,6 +1,6 @@
 ---
 name: cloudflare
-description: Comprehensive Cloudflare platform skill covering Workers, Pages, storage (KV, D1, R2), AI (Workers AI, Vectorize, Agents SDK), networking (Tunnel, Spectrum), security (WAF, DDoS), and infrastructure-as-code (Terraform, Pulumi). Use for any Cloudflare development task.
+description: Comprehensive Cloudflare platform skill covering Workers, Pages, storage (KV, D1, R2), AI (Workers AI, Vectorize, Agents SDK), networking (Tunnel, Spectrum), security (WAF, DDoS), and infrastructure-as-code (Terraform, Pulumi). Use for any Cloudflare development task. Biases towards retrieval from Cloudflare docs over pre-trained knowledge.
 references:
   - workers
   - pages
@@ -107,6 +107,17 @@ Need media?
 └─ Third-party script management → zaraz/
 ```
 
+### "I need analytics/metrics data"
+
+```
+Need analytics?
+├─ Query across all Cloudflare products (HTTP, Workers, DNS, etc.) → graphql-api/
+├─ Custom high-cardinality metrics from Workers → analytics-engine/
+├─ Client-side (RUM) performance data → web-analytics/
+├─ Workers Logs and real-time debugging → observability/
+└─ Raw logs (Logpush to external tools) → Cloudflare docs
+```
+
 ### "I need infrastructure-as-code"
 
 ```
@@ -195,17 +206,18 @@ Need IaC? → pulumi/ (Pulumi), terraform/ (Terraform), or api/ (REST API)
 
 ### Developer Tools
 
-| Product            | Reference                        |
-| ------------------ | -------------------------------- |
-| Wrangler           | `references/wrangler/`           |
-| Miniflare          | `references/miniflare/`          |
-| C3                 | `references/c3/`                 |
-| Observability      | `references/observability/`      |
-| Analytics Engine   | `references/analytics-engine/`   |
-| Web Analytics      | `references/web-analytics/`      |
-| Sandbox            | `references/sandbox/`            |
-| Workerd            | `references/workerd/`            |
-| Workers Playground | `references/workers-playground/` |
+| Product               | Reference                        |
+| --------------------- | -------------------------------- |
+| Wrangler              | `references/wrangler/`           |
+| Miniflare             | `references/miniflare/`          |
+| C3                    | `references/c3/`                 |
+| Observability         | `references/observability/`      |
+| GraphQL Analytics API | `references/graphql-api/`        |
+| Analytics Engine      | `references/analytics-engine/`   |
+| Web Analytics         | `references/web-analytics/`      |
+| Sandbox               | `references/sandbox/`            |
+| Workerd               | `references/workerd/`            |
+| Workers Playground    | `references/workers-playground/` |
 
 ### Infrastructure as Code
 

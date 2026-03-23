@@ -9,6 +9,7 @@ import { useState } from "react";
 import { mutate } from "swr";
 import useSWRMutation from "swr/mutation";
 
+import type { AdminUser } from "@/components/admin/use-users-admin";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -27,7 +28,6 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 import { authClient } from "@/lib/auth";
-import { type AdminUser } from "@/types/api";
 
 import { getUserStatus } from "./use-users-admin";
 

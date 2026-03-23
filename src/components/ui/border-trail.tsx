@@ -1,6 +1,7 @@
 "use client";
 
-import { motion, type Transition } from "motion/react";
+import { motion } from "motion/react";
+import type { Transition } from "motion/react";
 
 import { cn } from "@/lib/utils";
 

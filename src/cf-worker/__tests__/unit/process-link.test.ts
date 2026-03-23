@@ -8,8 +8,8 @@ import {
   ContentExtractor,
   LinkEventStore,
   MetadataFetcher,
-  type StoreEvent,
 } from "../../link-processor/services";
+import type { StoreEvent } from "../../link-processor/services";
 
 const testLink = { id: "link-1", url: "https://example.com" };
 

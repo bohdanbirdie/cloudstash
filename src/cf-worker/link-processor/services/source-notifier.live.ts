@@ -1,6 +1,6 @@
 import { Effect, Layer, Schema } from "effect";
 import { Api } from "grammy";
-import { type ReactionTypeEmoji } from "grammy/types";
+import type { ReactionTypeEmoji } from "grammy/types";
 
 import { SourceNotifier } from "../services";
 

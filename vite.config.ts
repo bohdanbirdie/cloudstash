@@ -1,14 +1,15 @@
+import path from "node:path";
+
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { livestoreDevtoolsPlugin } from "@livestore/devtools-vite";
 import tailwindcss from "@tailwindcss/vite";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import viteReact from "@vitejs/plugin-react";
-import path from "node:path";
 import { defineConfig } from "vite";
-import viteTsConfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
   resolve: {
+    tsconfigPaths: true,
     alias: {
       // Stub @react-email/code-block to avoid prismjs (browser-only) in Workers
       "@react-email/code-block": path.resolve(
@@ -20,11 +21,11 @@ export default defineConfig({
   optimizeDeps: {
     // TODO remove once fixed https://github.com/vitejs/vite/issues/8427
     exclude: ["@livestore/wa-sqlite"],
+    include: ["@lexical/code"],
   },
   plugins: [
     cloudflare(),
     TanStackRouterVite(),
-    viteTsConfigPaths({ projects: ["./tsconfig.json"] }),
     tailwindcss(),
     viteReact(),
     livestoreDevtoolsPlugin({ schemaPath: "./src/livestore/schema.ts" }),

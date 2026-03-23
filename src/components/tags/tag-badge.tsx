@@ -20,7 +20,8 @@ export function TagBadge({
   const styles = tagColorStyles[color];
 
   const badge = (
-    <span
+    <button
+      type="button"
       className={cn(
         "inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium transition-colors",
         styles.badge,
@@ -44,7 +45,7 @@ export function TagBadge({
           <XIcon className="h-3 w-3" />
         </button>
       )}
-    </span>
+    </button>
   );
 
   return badge;

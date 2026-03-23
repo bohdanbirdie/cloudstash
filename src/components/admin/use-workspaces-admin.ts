@@ -1,9 +1,9 @@
 import useSWR, { mutate } from "swr";
 import useSWRMutation from "swr/mutation";
 
-import { type WorkspaceWithOwner } from "@/cf-worker/admin/workspaces";
-import { type OrgFeatures } from "@/cf-worker/db/schema";
-import { type ApiErrorResponse } from "@/types/api";
+import type { WorkspaceWithOwner } from "@/cf-worker/admin/workspaces";
+import type { OrgFeatures } from "@/cf-worker/db/schema";
+import type { ApiErrorResponse } from "@/types/api";
 
 export type { OrgFeatures };
 export type Workspace = WorkspaceWithOwner;

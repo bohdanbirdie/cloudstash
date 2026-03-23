@@ -1,8 +1,4 @@
-import {
-  type invite,
-  type user,
-  type OrgFeatures,
-} from "@/cf-worker/db/schema";
+import type { invite, user, OrgFeatures } from "@/cf-worker/db/schema";
 
 export type InviteRow = typeof invite.$inferSelect;
 export type UserRow = typeof user.$inferSelect;

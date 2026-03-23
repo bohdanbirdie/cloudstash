@@ -1,7 +1,7 @@
 import { StoreRegistry } from "@livestore/livestore";
 import { createRouter } from "@tanstack/react-router";
 
-import { type AuthState } from "./lib/auth";
+import type { AuthState } from "./lib/auth";
 import { routeTree } from "./routeTree.gen";
 
 export interface RouterContext {

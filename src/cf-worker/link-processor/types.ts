@@ -1,6 +1,6 @@
-import { type Store } from "@livestore/livestore";
+import type { Store } from "@livestore/livestore";
 
-import { type schema } from "../../livestore/schema";
+import type { schema } from "../../livestore/schema";
 
 export type LivestoreInstance = Store<typeof schema>;
 

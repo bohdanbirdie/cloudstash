@@ -1,7 +1,8 @@
 import { env, SELF } from "cloudflare:test";
 import { describe, it, expect, beforeAll } from "vitest";
 
-import { signupUser, makeAdmin, type UserInfo } from "./helpers";
+import { signupUser, makeAdmin } from "./helpers";
+import type { UserInfo } from "./helpers";
 
 describe("admin Endpoints E2E", () => {
   let adminUser: UserInfo;

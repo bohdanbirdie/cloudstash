@@ -9,13 +9,15 @@ import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { ListPlugin } from "@lexical/react/LexicalListPlugin";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
-import { $getRoot, CLEAR_EDITOR_COMMAND, type EditorState } from "lexical";
+import { $getRoot, CLEAR_EDITOR_COMMAND } from "lexical";
+import type { EditorState } from "lexical";
 import { ArrowUp } from "lucide-react";
 import { useState, useCallback, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { parseSlashCommand, type SlashCommand } from "@/shared/slash-commands";
+import { parseSlashCommand } from "@/shared/slash-commands";
+import type { SlashCommand } from "@/shared/slash-commands";
 
 import { ListShortcutPlugin } from "./plugins/list-shortcut-plugin";
 import { SlashCommandPlugin } from "./plugins/slash-command-plugin";

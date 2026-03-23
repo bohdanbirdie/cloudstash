@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { type Context } from "grammy";
+import type { Context } from "grammy";
 
 import { safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";

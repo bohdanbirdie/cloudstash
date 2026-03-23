@@ -1,11 +1,5 @@
-import {
-  createContext,
-  useContext,
-  useState,
-  useRef,
-  Suspense,
-  type RefObject,
-} from "react";
+import { createContext, useContext, useState, useRef, Suspense } from "react";
+import type { RefObject } from "react";
 
 import { ChatContent } from "@/components/chat/chat-content";
 import { ChatLoading } from "@/components/chat/chat-loading";

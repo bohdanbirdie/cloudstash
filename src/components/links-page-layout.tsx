@@ -14,8 +14,8 @@ import { Button } from "@/components/ui/button";
 import { useFilteredLinks } from "@/hooks/use-filtered-links";
 import { useTagFilter } from "@/hooks/use-tag-filter";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
-import { type LinkProjection } from "@/lib/link-projections";
-import { type LinkWithDetails } from "@/livestore/queries/links";
+import type { LinkProjection } from "@/lib/link-projections";
+import type { LinkWithDetails } from "@/livestore/queries/links";
 import { useSelectionStore } from "@/stores/selection-store";
 
 interface LinksPageLayoutProps {

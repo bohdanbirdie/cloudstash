@@ -3,12 +3,13 @@ import { Effect } from "effect";
 
 import { INVITE_CODE_CHARS, INVITE_CODE_LENGTH } from "@/lib/invite";
 
-import { createAuth, type Auth } from "../auth";
+import { createAuth } from "../auth";
+import type { Auth } from "../auth";
 import { createDb } from "../db";
 import * as schema from "../db/schema";
 import { sendApprovalEmail } from "../email/send-approval-email";
 import { logSync } from "../logger";
-import { type Env } from "../shared";
+import type { Env } from "../shared";
 import {
   ForbiddenError,
   InvalidInviteError,
@@ -47,7 +48,7 @@ const requireAdmin = (session: { user: { role?: string | null } }) =>
     : Effect.fail(new ForbiddenError());
 
 const handleCreateInviteRequest = (request: Request, env: Env) =>
-  Effect.gen(function* handleCreateInviteRequest() {
+  Effect.gen(function* () {
     const db = createDb(env.DB);
     const auth = createAuth(env, db);
     const session = yield* getSession(auth, request.headers);
@@ -101,7 +102,7 @@ export const handleCreateInvite = (
   );
 
 const handleListInvitesRequest = (request: Request, env: Env) =>
-  Effect.gen(function* handleListInvitesRequest() {
+  Effect.gen(function* () {
     const db = createDb(env.DB);
     const auth = createAuth(env, db);
     const session = yield* getSession(auth, request.headers);
@@ -147,7 +148,7 @@ const handleDeleteInviteRequest = (
   inviteId: string,
   env: Env
 ) =>
-  Effect.gen(function* handleDeleteInviteRequest() {
+  Effect.gen(function* () {
     const db = createDb(env.DB);
     const auth = createAuth(env, db);
     const session = yield* getSession(auth, request.headers);
@@ -198,13 +199,12 @@ export const handleDeleteInvite = (
   );
 
 const handleRedeemInviteRequest = (request: Request, env: Env) =>
-  Effect.gen(function* handleRedeemInviteRequest() {
+  Effect.gen(function* () {
     const db = createDb(env.DB);
     const auth = createAuth(env, db);
     const session = yield* getSession(auth, request.headers);
 
-    const user = session.user as typeof session.user & { approved?: boolean };
-    if (user.approved) {
+    if (session.user.approved) {
       logger.debug("Redeem invite - already approved");
       return { success: true };
     }
@@ -237,6 +237,7 @@ const handleRedeemInviteRequest = (request: Request, env: Env) =>
       return yield* new InvalidInviteError();
     }
 
+    // Mark invite as used and approve user
     yield* Effect.promise(() =>
       db.batch([
         db

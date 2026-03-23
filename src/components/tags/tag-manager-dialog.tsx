@@ -16,10 +16,8 @@ import {
   InputGroupText,
 } from "@/components/ui/input-group";
 import { track } from "@/lib/analytics";
-import {
-  allTagsWithCounts$,
-  type TagWithCount,
-} from "@/livestore/queries/tags";
+import { allTagsWithCounts$ } from "@/livestore/queries/tags";
+import type { TagWithCount } from "@/livestore/queries/tags";
 import { events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
 

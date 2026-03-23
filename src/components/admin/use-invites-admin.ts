@@ -1,11 +1,11 @@
 import { useState, useCallback } from "react";
 import useSWR from "swr";
 
-import {
-  type InviteWithRelations,
-  type InvitesListResponse,
-  type InviteCreateResponse,
-  type ApiErrorResponse,
+import type {
+  InviteWithRelations,
+  InvitesListResponse,
+  InviteCreateResponse,
+  ApiErrorResponse,
 } from "@/types/api";
 
 async function fetchInvites(): Promise<InviteWithRelations[]> {
@@ -53,9 +53,9 @@ export function useInvitesAdmin(enabled = true) {
       }
       setNewInviteCode(data.code);
       await mutate();
-    } catch (error) {
+    } catch (err) {
       setMutationError(
-        error instanceof Error ? error.message : "Failed to create invite"
+        err instanceof Error ? err.message : "Failed to create invite"
       );
     } finally {
       setIsCreating(false);
@@ -80,9 +80,9 @@ export function useInvitesAdmin(enabled = true) {
           return;
         }
         await mutate();
-      } catch (error) {
+      } catch (err) {
         setMutationError(
-          error instanceof Error ? error.message : "Failed to delete invite"
+          err instanceof Error ? err.message : "Failed to delete invite"
         );
       } finally {
         setActionLoading(null);

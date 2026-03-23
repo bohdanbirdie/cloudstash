@@ -1,6 +1,7 @@
 "use client";
 import { motion } from "motion/react";
-import React, { useMemo, type JSX } from "react";
+import React, { useMemo } from "react";
+import type { JSX } from "react";
 
 import { cn } from "@/lib/utils";
 

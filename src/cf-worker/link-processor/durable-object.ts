@@ -1,14 +1,7 @@
-import {
-  createStoreDoPromise,
-  type ClientDoWithRpcCallback,
-} from "@livestore/adapter-cloudflare";
-import {
-  computed,
-  nanoid,
-  queryDb,
-  type Store,
-  type Unsubscribe,
-} from "@livestore/livestore";
+import { createStoreDoPromise } from "@livestore/adapter-cloudflare";
+import type { ClientDoWithRpcCallback } from "@livestore/adapter-cloudflare";
+import { computed, nanoid, queryDb } from "@livestore/livestore";
+import type { Store, Unsubscribe } from "@livestore/livestore";
 import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
 /// <reference types="@cloudflare/workers-types" />
 import { DurableObject } from "cloudflare:workers";
@@ -17,7 +10,7 @@ import { Effect, Layer } from "effect";
 import { events, schema, tables } from "../../livestore/schema";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
-import { type Env } from "../shared";
+import type { Env } from "../shared";
 import { cancelStaleLinks, ingestLink, notifyResult } from "./do-programs";
 import { runEffect } from "./logger";
 import { processLink } from "./process-link";
@@ -30,7 +23,7 @@ import { LinkRepositoryLive } from "./services/link-repository.live";
 import { MetadataFetcherLive } from "./services/metadata-fetcher.live";
 import { SourceNotifierLive } from "./services/source-notifier.live";
 import { WorkersAiLive } from "./services/workers-ai.live";
-import { type LinkQueueMessage } from "./types";
+import type { LinkQueueMessage } from "./types";
 
 const logger = logSync("LinkProcessorDO");
 

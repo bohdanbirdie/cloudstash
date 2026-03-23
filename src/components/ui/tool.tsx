@@ -1,4 +1,4 @@
-import { type DynamicToolUIPart, type ToolUIPart, type UITools } from "ai";
+import type { DynamicToolUIPart, ToolUIPart, UITools } from "ai";
 import { getToolName } from "ai";
 import { Match } from "effect";
 import {
@@ -11,7 +11,8 @@ import {
   XCircle,
   XOctagon,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
+import type { ReactNode } from "react";
 
 import { LinkDeleteConfirmation } from "@/components/chat/link-delete-confirmation";
 import { Button } from "@/components/ui/button";
@@ -88,9 +89,9 @@ const Tool = ({
   const renderMode = getRenderMode(!!needsConfirmation, toolName, linkIds);
 
   return Match.value(renderMode).pipe(
-    Match.when({ type: "delete-confirmation" }, ({ linkIds }) => (
+    Match.when({ type: "delete-confirmation" }, ({ linkIds: ids }) => (
       <LinkDeleteConfirmation
-        linkIds={linkIds}
+        linkIds={ids}
         onApprove={handleApprove}
         onReject={handleReject}
       />

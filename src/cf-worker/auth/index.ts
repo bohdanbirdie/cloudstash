@@ -1,13 +1,14 @@
+import { apiKey } from "@better-auth/api-key";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { admin, apiKey, organization } from "better-auth/plugins";
+import { admin, organization } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 
-import { type Database } from "../db";
+import type { Database } from "../db";
 import * as schema from "../db/schema";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
-import { type Env } from "../shared";
+import type { Env } from "../shared";
 
 const logger = logSync("Auth");
 
@@ -22,42 +23,47 @@ export const createAuth = (env: Env, db: Database) => {
       session: {
         create: {
           before: async (session) => {
-            // Find user's first org (personal workspace) and set as active
-            const membership = await db.query.member.findFirst({
+            // Check if user already has an org
+            let membership = await db.query.member.findFirst({
               where: eq(schema.member.userId, session.userId),
             });
+
+            // First session for this user — create their personal workspace
+            if (!membership) {
+              try {
+                const user = await db.query.user.findFirst({
+                  where: eq(schema.user.id, session.userId),
+                });
+                const orgName = user?.name
+                  ? `${user.name}'s Workspace`
+                  : "My Workspace";
+                const org = await auth.api.createOrganization({
+                  body: {
+                    name: orgName,
+                    slug: `user-${session.userId}`,
+                    userId: session.userId,
+                  },
+                });
+                logger.info("Created organization", {
+                  orgId: maskId(org?.id ?? ""),
+                });
+                membership = await db.query.member.findFirst({
+                  where: eq(schema.member.userId, session.userId),
+                });
+              } catch (error) {
+                logger.error(
+                  "Failed to create organization",
+                  safeErrorInfo(error)
+                );
+              }
+            }
+
             return {
               data: {
                 ...session,
                 activeOrganizationId: membership?.organizationId ?? null,
               },
             };
-          },
-        },
-      },
-      user: {
-        create: {
-          after: async (user) => {
-            // New users get approved: false by default (via additionalFields)
-            // Just create personal workspace
-            try {
-              const result = await auth.api.createOrganization({
-                body: {
-                  name: `${user.name}'s Workspace`,
-                  slug: `user-${user.id}`,
-                  userId: user.id,
-                },
-              });
-              logger.info("Created organization", {
-                orgId: maskId(result?.id ?? ""),
-              });
-            } catch (error) {
-              logger.error(
-                "Failed to create organization",
-                safeErrorInfo(error)
-              );
-              throw error;
-            }
           },
         },
       },
@@ -73,8 +79,6 @@ export const createAuth = (env: Env, db: Database) => {
             additionalFields: {
               features: {
                 type: "string",
-                // Drizzle schema handles default via mode:'json' with default({})
-                // input: false means Better Auth won't validate/transform this field
                 input: false,
               },
             },
@@ -86,7 +90,7 @@ export const createAuth = (env: Env, db: Database) => {
         enableMetadata: true,
         rateLimit: {
           enabled: true,
-          timeWindow: 1000 * 60 * 60 * 24, // 1 day
+          timeWindow: 1000 * 60 * 60 * 24,
           maxRequests: 100,
         },
       }),
@@ -98,10 +102,10 @@ export const createAuth = (env: Env, db: Database) => {
     session: {
       cookieCache: {
         enabled: true,
-        maxAge: 5 * 60, // 5 minutes — avoids D1 call on every getSession()
+        maxAge: 5 * 60,
       },
-      expiresIn: 60 * 60 * 24 * 14, // 14 days
-      updateAge: 60 * 60 * 24 * 7, // 7 days - refresh after 7 days of activity
+      expiresIn: 60 * 60 * 24 * 14,
+      updateAge: 60 * 60 * 24 * 7,
     },
     socialProviders: {
       google: {

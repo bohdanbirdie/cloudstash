@@ -6,10 +6,15 @@
       "sourceType": "github",
       "computedHash": "ee8445129b8b6e4732492ed7c0f0b32c6a20c2a289dbbbdfb84b3c17047b0659"
     },
+    "better-auth-best-practices": {
+      "source": "better-auth/skills",
+      "sourceType": "github",
+      "computedHash": "a4c830509e85557b59339d8d93a4e243e9e59c686e7678854d39230e12c2a6dc"
+    },
     "cloudflare": {
       "source": "cloudflare/skills",
       "sourceType": "github",
-      "computedHash": "23e4bfb0abbbe018f782921a527b7fb4781df808c03cca22c503d8295ac3f499"
+      "computedHash": "02ef72b4906d295d03da15d52357babdef06a762f0374b85c89c73c9b22a7bad"
     },
     "durable-objects": {
       "source": "cloudflare/skills",

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { type LinkQueueMessage } from "../../link-processor/types";
+import type { LinkQueueMessage } from "../../link-processor/types";
 import { handleQueueBatch } from "../../queue-handler";
 
 function createMessage(
