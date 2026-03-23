@@ -58,19 +58,29 @@ export class LinkEventStore extends Context.Tag("LinkEventStore")<
   }
 >() {}
 
+export interface SourceContext {
+  source: string | null;
+  sourceMeta: string | null;
+}
+
+export interface NotifyPayload {
+  processingStatus: "completed" | "failed";
+  summary: string | null;
+  suggestedTags: string[];
+}
+
 export class SourceNotifier extends Context.Tag("SourceNotifier")<
   SourceNotifier,
   {
-    readonly react: (
-      source: string | null,
-      sourceMeta: string | null,
-      emoji: string
-    ) => Effect.Effect<void>;
-    readonly reply: (
-      source: string | null,
-      sourceMeta: string | null,
+    readonly streamProgress: (
+      ctx: SourceContext,
       text: string
     ) => Effect.Effect<void>;
+    readonly finalizeProgress: (
+      ctx: SourceContext,
+      payload: NotifyPayload
+    ) => Effect.Effect<void>;
+    readonly reply: (ctx: SourceContext, text: string) => Effect.Effect<void>;
   }
 >() {}
 

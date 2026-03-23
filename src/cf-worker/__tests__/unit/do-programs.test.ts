@@ -8,7 +8,12 @@ import {
   notifyResult,
 } from "../../link-processor/do-programs";
 import { LinkRepository, SourceNotifier } from "../../link-processor/services";
-import type { Link, Status, StoreEvent } from "../../link-processor/services";
+import type {
+  Link,
+  NotifyPayload,
+  Status,
+  StoreEvent,
+} from "../../link-processor/services";
 
 function createTestRepo(links: Link[] = [], statuses: Status[] = []) {
   const committed: StoreEvent[] = [];
@@ -26,19 +31,24 @@ function createTestRepo(links: Link[] = [], statuses: Status[] = []) {
 }
 
 function createTestNotifier() {
-  const reactions: { source: string | null; emoji: string }[] = [];
+  const drafts: { source: string | null; text: string }[] = [];
+  const finalized: { source: string | null; payload: NotifyPayload }[] = [];
   const replies: { source: string | null; text: string }[] = [];
   const layer = Layer.succeed(SourceNotifier, {
-    react: (source, _sourceMeta, emoji) =>
+    streamProgress: (ctx, text) =>
       Effect.sync(() => {
-        reactions.push({ source, emoji });
+        drafts.push({ source: ctx.source, text });
       }),
-    reply: (source, _sourceMeta, text) =>
+    finalizeProgress: (ctx, payload) =>
       Effect.sync(() => {
-        replies.push({ source, text });
+        finalized.push({ source: ctx.source, payload });
+      }),
+    reply: (ctx, text) =>
+      Effect.sync(() => {
+        replies.push({ source: ctx.source, text });
       }),
   });
-  return { layer, reactions, replies };
+  return { layer, drafts, finalized, replies };
 }
 
 const makeLink = (overrides: Partial<Link> = {}): Link =>
@@ -113,7 +123,6 @@ describe("ingestLink", () => {
     expect(result.status).toBe("duplicate");
     expect(result.linkId).toBe("existing-1");
     expect(repo.committed).toHaveLength(0);
-    expect(notifier.reactions).toEqual([{ source: "telegram", emoji: "👌" }]);
     expect(notifier.replies).toEqual([
       { source: "telegram", text: "Link already saved." },
     ]);
@@ -303,7 +312,7 @@ describe("notification dedup", () => {
 });
 
 describe("notifyResult", () => {
-  it("reacts with 👍 and commits notified event on completed", async () => {
+  it("passes completed payload and commits notified event", async () => {
     const repo = createTestRepo();
     const notifier = createTestNotifier();
     const testLayer = Layer.mergeAll(repo.layer, notifier.layer);
@@ -314,11 +323,21 @@ describe("notifyResult", () => {
         processingStatus: "completed",
         source: "telegram",
         sourceMeta: null,
+        summary: "A summary",
+        suggestedTags: ["tag1"],
       }).pipe(Effect.provide(testLayer), silentLogger)
     );
 
-    expect(notifier.reactions).toEqual([{ source: "telegram", emoji: "👍" }]);
-    expect(notifier.replies).toHaveLength(0);
+    expect(notifier.finalized).toEqual([
+      {
+        source: "telegram",
+        payload: {
+          processingStatus: "completed",
+          summary: "A summary",
+          suggestedTags: ["tag1"],
+        },
+      },
+    ]);
     expect(repo.committed).toHaveLength(1);
     expect(repo.committed[0]).toMatchObject({
       name: "v1.LinkSourceNotified",
@@ -326,7 +345,7 @@ describe("notifyResult", () => {
     });
   });
 
-  it("reacts with 👎, replies, and commits on failed", async () => {
+  it("passes failed payload and commits notified event", async () => {
     const repo = createTestRepo();
     const notifier = createTestNotifier();
     const testLayer = Layer.mergeAll(repo.layer, notifier.layer);
@@ -337,12 +356,20 @@ describe("notifyResult", () => {
         processingStatus: "failed",
         source: "telegram",
         sourceMeta: null,
+        summary: null,
+        suggestedTags: [],
       }).pipe(Effect.provide(testLayer), silentLogger)
     );
 
-    expect(notifier.reactions).toEqual([{ source: "telegram", emoji: "👎" }]);
-    expect(notifier.replies).toEqual([
-      { source: "telegram", text: "Failed to process link." },
+    expect(notifier.finalized).toEqual([
+      {
+        source: "telegram",
+        payload: {
+          processingStatus: "failed",
+          summary: null,
+          suggestedTags: [],
+        },
+      },
     ]);
     expect(repo.committed).toHaveLength(1);
     expect(repo.committed[0]).toMatchObject({
