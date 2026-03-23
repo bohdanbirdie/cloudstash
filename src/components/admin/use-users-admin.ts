@@ -1,7 +1,10 @@
 import useSWR from "swr";
 
 import { authClient } from "@/lib/auth";
-import type { AdminUser } from "@/types/api";
+
+export type AdminUser = NonNullable<
+  Awaited<ReturnType<typeof authClient.admin.listUsers>>["data"]
+>["users"][number];
 
 async function fetchUsers(): Promise<AdminUser[]> {
   const { data, error } = await authClient.admin.listUsers({
@@ -13,7 +16,7 @@ async function fetchUsers(): Promise<AdminUser[]> {
   if (error) {
     throw new Error(error.message || "Failed to fetch users");
   }
-  return (data?.users as AdminUser[]) ?? [];
+  return data?.users ?? [];
 }
 
 export function useUsersAdmin(enabled = true) {

@@ -16,7 +16,7 @@ async function fetchApiKeys(): Promise<ApiKey[]> {
   if (result.error) {
     throw new Error(result.error.message || "Failed to fetch API keys");
   }
-  return result.data ?? [];
+  return result.data?.apiKeys ?? [];
 }
 
 export function useApiKeys(enabled = true) {

@@ -204,8 +204,7 @@ const handleRedeemInviteRequest = (request: Request, env: Env) =>
     const auth = createAuth(env, db);
     const session = yield* getSession(auth, request.headers);
 
-    const user = session.user as typeof session.user & { approved?: boolean };
-    if (user.approved) {
+    if (session.user.approved) {
       logger.debug("Redeem invite - already approved");
       return { success: true };
     }
@@ -238,6 +237,7 @@ const handleRedeemInviteRequest = (request: Request, env: Env) =>
       return yield* new InvalidInviteError();
     }
 
+    // Mark invite as used and approve user
     yield* Effect.promise(() =>
       db.batch([
         db

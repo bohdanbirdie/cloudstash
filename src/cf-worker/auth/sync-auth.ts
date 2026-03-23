@@ -50,8 +50,7 @@ export const checkSyncAuth = (
       });
     }
 
-    const user = session.user as typeof session.user & { approved?: boolean };
-    if (!user.approved) {
+    if (!session.user.approved) {
       return yield* new SyncAuthError({
         code: "UNAPPROVED",
         message: "Account pending approval",

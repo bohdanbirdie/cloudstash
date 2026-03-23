@@ -1,6 +1,6 @@
 import useSWR from "swr";
 
-import type { AdminUser } from "@/types/api";
+import type { AdminUser } from "@/components/admin/use-users-admin";
 
 export type UsagePeriod = "24h" | "7d" | "30d";
 

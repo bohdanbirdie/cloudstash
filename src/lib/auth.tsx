@@ -1,8 +1,5 @@
-import {
-  adminClient,
-  apiKeyClient,
-  organizationClient,
-} from "better-auth/client/plugins";
+import { apiKeyClient } from "@better-auth/api-key/client";
+import { adminClient, organizationClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import {
   createContext,
@@ -30,7 +27,7 @@ export interface AuthState {
 type AuthContextType = AuthState & {
   isLoading: boolean;
   logout: () => Promise<void>;
-  refresh: () => Promise<void>;
+  refresh: (opts?: { disableCookieCache?: boolean }) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -98,10 +95,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const refresh = useCallback(async () => {
-    const { data: session } = await authClient.getSession();
-    updateAuthFromSession(session);
-  }, [updateAuthFromSession]);
+  const refresh = useCallback(
+    async (opts?: { disableCookieCache?: boolean }) => {
+      const { data: session } = await authClient.getSession({
+        fetchOptions: opts?.disableCookieCache
+          ? { query: { disableCookieCache: "true" } }
+          : undefined,
+      });
+      updateAuthFromSession(session);
+    },
+    [updateAuthFromSession]
+  );
 
   return (
     <AuthContext.Provider value={{ ...auth, isLoading, logout, refresh }}>

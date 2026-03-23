@@ -33,7 +33,7 @@ export function useRedeemInvite() {
           return false;
         }
 
-        await refresh();
+        await refresh({ disableCookieCache: true });
         return true;
       } catch {
         setError("Failed to redeem invite");

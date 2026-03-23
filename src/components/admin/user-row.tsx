@@ -27,7 +27,7 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 import { authClient } from "@/lib/auth";
-import type { AdminUser } from "@/types/api";
+import type { AdminUser } from "@/components/admin/use-users-admin";
 
 import { getUserStatus } from "./use-users-admin";
 

@@ -196,13 +196,14 @@ export const apikey = sqliteTable(
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
       .$onUpdate(() => new Date())
       .notNull(),
-    userId: text("user_id")
+    referenceId: text("reference_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    configId: text("config_id").notNull().default("default"),
   },
   (table) => [
     index("apikey_key_idx").on(table.key),
-    index("apikey_userId_idx").on(table.userId),
+    index("apikey_referenceId_idx").on(table.referenceId),
   ]
 );
 

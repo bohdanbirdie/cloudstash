@@ -1,7 +1,7 @@
-import { SELF } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
 import { describe, it, expect, beforeAll } from "vitest";
 
-import { signupUser } from "./helpers";
+import { signupUser, makeAdmin } from "./helpers";
 import type { UserInfo } from "./helpers";
 
 describe("organization Auth E2E", () => {
@@ -113,6 +113,65 @@ describe("organization Auth E2E", () => {
         headers: { Cookie: userB.cookie },
       });
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe("invite redeem flow", () => {
+    let unapprovedUser: UserInfo;
+    let inviteCode: string;
+
+    beforeAll(async () => {
+      // Create an unapproved user
+      unapprovedUser = await signupUser(
+        "unapproved@test.com",
+        "Unapproved User"
+      );
+      await env.DB.prepare("UPDATE user SET approved = 0 WHERE id = ?")
+        .bind(unapprovedUser.userId)
+        .run();
+
+      // Create an invite code (admin creates it)
+      await makeAdmin(userA.userId);
+      const createRes = await SELF.fetch("http://worker/api/invites", {
+        method: "POST",
+        headers: {
+          Cookie: userA.cookie,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+      expect(createRes.status).toBe(200);
+      const invite = (await createRes.json()) as { code: string };
+      inviteCode = invite.code;
+    });
+
+    it("redeem updates user and getSession with disableCookieCache returns approved:true", async () => {
+      const res = await SELF.fetch("http://worker/api/invites/redeem", {
+        method: "POST",
+        headers: {
+          Cookie: unapprovedUser.cookie,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ code: inviteCode }),
+      });
+      expect(res.status).toBe(200);
+
+      // Without disableCookieCache, the stale cookie would return approved:false
+      // With disableCookieCache, it reads from DB and returns approved:true
+      const meRes = await SELF.fetch(
+        "http://worker/api/auth/get-session?disableCookieCache=true",
+        { headers: { Cookie: unapprovedUser.cookie } }
+      );
+      expect(meRes.status).toBe(200);
+
+      const session = (await meRes.json()) as {
+        user: { approved: boolean };
+      };
+      expect(session.user.approved).toBe(true);
+
+      // The response should include updated Set-Cookie to refresh the cache
+      const setCookie = meRes.headers.get("set-cookie");
+      expect(setCookie).toBeTruthy();
     });
   });
 });

@@ -53,7 +53,7 @@ export const handleIngestRequest = (
     logger.debug("API key verified", { orgId: maskId(orgId) });
 
     trackEvent(env.USAGE_ANALYTICS, {
-      userId: verifyResult.key.userId ?? "api",
+      userId: verifyResult.key.referenceId ?? "api",
       event: "ingest",
       orgId,
     });
