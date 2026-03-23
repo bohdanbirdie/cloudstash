@@ -74,6 +74,8 @@ export default defineWorkersConfig({
             GOOGLE_CLIENT_ID: "test-google-client-id",
             GOOGLE_CLIENT_SECRET: "test-google-client-secret",
             ENABLE_TEST_AUTH: "true",
+            RESEND_API_KEY: "re_test_dummy",
+            EMAIL_FROM: "test@example.com",
             TEST_MIGRATIONS: JSON.stringify(migrations),
           },
           ratelimits: {
