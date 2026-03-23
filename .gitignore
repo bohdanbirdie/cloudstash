@@ -21,3 +21,6 @@ coverage/
 
 # Local clones of external repos (managed by `bun run sync`)
 local/
+
+# Vite+ generates pnpm-lock.yaml but we use bun
+pnpm-lock.yaml
