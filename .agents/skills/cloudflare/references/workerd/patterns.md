@@ -1,7 +1,6 @@
 # Workerd Patterns
 
 ## Multi-Service Architecture
-
 ```capnp
 const config :Workerd.Config = (
   services = [
@@ -23,7 +22,6 @@ const config :Workerd.Config = (
 ```
 
 ## Durable Objects
-
 ```capnp
 const worker :Workerd.Worker = (
   modules = [(name = "index.js", esModule = embed "index.js"), (name = "room.js", esModule = embed "room.js")],
@@ -35,7 +33,6 @@ const worker :Workerd.Worker = (
 ```
 
 ## Dev vs Prod Configs
-
 ```capnp
 # Use parameter bindings for env-specific config
 const baseWorker :Workerd.Worker = (
@@ -51,7 +48,6 @@ const prodWorker :Workerd.Worker = (
 ```
 
 ## HTTP Reverse Proxy
-
 ```capnp
 services = [
   (name = "proxy", worker = (serviceWorkerScript = embed "proxy.js", compatibilityDate = "2024-01-15", bindings = [(name = "BACKEND", service = "backend")])),
@@ -62,25 +58,21 @@ services = [
 ## Local Development
 
 **Recommended:** Use Wrangler
-
 ```bash
 wrangler dev  # Uses workerd internally
 ```
 
 **Direct workerd:**
-
 ```bash
 workerd serve config.capnp --socket-addr http=*:3000 --verbose
 ```
 
 **Environment variables:**
-
 ```capnp
 bindings = [(name = "DATABASE_URL", fromEnvironment = "DATABASE_URL")]
 ```
 
 ## Testing
-
 ```bash
 workerd test config.capnp
 workerd test config.capnp --test-only=test.js
@@ -91,14 +83,12 @@ Test files must be included in `modules = [...]` config.
 ## Production Deployment
 
 ### Compiled Binary (Recommended)
-
 ```bash
 workerd compile config.capnp myConfig -o production-server
 ./production-server
 ```
 
 ### Docker
-
 ```dockerfile
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates
@@ -110,7 +100,6 @@ CMD ["workerd", "serve", "/etc/workerd/config.capnp"]
 ```
 
 ### Systemd
-
 ```ini
 # /etc/systemd/system/workerd.service
 [Service]
@@ -124,15 +113,14 @@ See systemd socket activation docs for complete setup.
 ## Framework Integration
 
 ### Hono
-
 ```javascript
-import { Hono } from "hono";
+import { Hono } from 'hono';
 
 const app = new Hono();
 
-app.get("/", (c) => c.text("Hello Hono!"));
-app.get("/api/:id", async (c) => {
-  const id = c.req.param("id");
+app.get('/', (c) => c.text('Hello Hono!'));
+app.get('/api/:id', async (c) => {
+  const id = c.req.param('id');
   const data = await c.env.KV.get(id);
   return c.json({ id, data });
 });
@@ -141,21 +129,20 @@ export default app;
 ```
 
 ### itty-router
-
 ```javascript
-import { Router } from "itty-router";
+import { Router } from 'itty-router';
 
 const router = Router();
 
-router.get("/", () => new Response("Hello itty!"));
-router.get("/api/:id", async (request, env) => {
+router.get('/', () => new Response('Hello itty!'));
+router.get('/api/:id', async (request, env) => {
   const { id } = request.params;
   const data = await env.KV.get(id);
   return Response.json({ id, data });
 });
 
 export default {
-  fetch: (request, env, ctx) => router.handle(request, env, ctx),
+  fetch: (request, env, ctx) => router.handle(request, env, ctx)
 };
 ```
 
@@ -173,7 +160,6 @@ export default {
 ## Common Patterns
 
 ### Error Handling
-
 ```javascript
 export default {
   async fetch(request, env, ctx) {
@@ -181,24 +167,25 @@ export default {
       return await handleRequest(request, env);
     } catch (error) {
       console.error("Request failed", error);
-      return new Response("Internal Error", { status: 500 });
+      return new Response("Internal Error", {status: 500});
     }
-  },
+  }
 };
 ```
 
 ### Background Tasks
-
 ```javascript
 export default {
   async fetch(request, env, ctx) {
     const response = new Response("OK");
-
+    
     // Fire-and-forget background work
-    ctx.waitUntil(env.ANALYTICS.put(request.url, Date.now()));
-
+    ctx.waitUntil(
+      env.ANALYTICS.put(request.url, Date.now())
+    );
+    
     return response;
-  },
+  }
 };
 ```
 

@@ -5,7 +5,6 @@
 **Problem:** Connections fail or timeout  
 **Cause:** Origin firewall blocking Cloudflare IPs, origin service not running, incorrect DNS  
 **Solution:**
-
 1. Verify origin firewall allows Cloudflare IP ranges
 2. Check origin service running on correct port
 3. Ensure DNS record is CNAME (not A/AAAA)
@@ -22,17 +21,15 @@ dig app.example.com
 **Problem:** Origin logs show Cloudflare IPs not real client IPs  
 **Cause:** Proxy Protocol not enabled or origin not configured  
 **Solution:**
-
 ```typescript
 // Enable in Spectrum app
 const app = await client.spectrum.apps.create({
   // ...
-  proxy_protocol: "v1", // TCP: v1/v2; UDP: simple
+  proxy_protocol: 'v1',  // TCP: v1/v2; UDP: simple
 });
 ```
 
 **Origin config:**
-
 - **nginx**: `listen 22 proxy_protocol;`
 - **HAProxy**: `bind :22 accept-proxy`
 
@@ -41,14 +38,13 @@ const app = await client.spectrum.apps.create({
 **Problem:** TLS handshake failures, 525 errors  
 **Cause:** TLS mode mismatch
 
-| Error              | TLS Mode        | Problem            | Solution                        |
-| ------------------ | --------------- | ------------------ | ------------------------------- |
-| Connection refused | `full`/`strict` | Origin not TLS     | Use `tls: "off"` or enable TLS  |
-| 525 cert invalid   | `strict`        | Self-signed cert   | Use `tls: "full"` or valid cert |
-| Handshake timeout  | `flexible`      | Origin expects TLS | Use `tls: "full"`               |
+| Error | TLS Mode | Problem | Solution |
+|-------|----------|---------|----------|
+| Connection refused | `full`/`strict` | Origin not TLS | Use `tls: "off"` or enable TLS |
+| 525 cert invalid | `strict` | Self-signed cert | Use `tls: "full"` or valid cert |
+| Handshake timeout | `flexible` | Origin expects TLS | Use `tls: "full"` |
 
 **Debug:**
-
 ```bash
 openssl s_client -connect app.example.com:443 -showcerts
 ```
@@ -60,7 +56,6 @@ openssl s_client -connect app.example.com:443 -showcerts
 **Impact:** Many mail servers require valid rDNS for anti-spam
 
 **Solution:**
-
 - Outbound SMTP: NOT recommended through Spectrum
 - Inbound SMTP: Use Cloudflare Email Routing
 - Internal relay: Whitelist Spectrum IPs on destination
@@ -71,13 +66,11 @@ openssl s_client -connect app.example.com:443 -showcerts
 **Cause:** Origin doesn't support Proxy Protocol
 
 **Solution:**
-
 1. Verify origin supports version (v1: widely supported, v2: HAProxy 1.5+/nginx 1.11+)
 2. Test with `proxy_protocol: 'off'` first
 3. Configure origin to parse headers
 
 **nginx TCP:**
-
 ```nginx
 stream {
     server {
@@ -88,7 +81,6 @@ stream {
 ```
 
 **HAProxy:**
-
 ```
 frontend ft_ssh
     bind :22 accept-proxy
@@ -99,11 +91,11 @@ frontend ft_ssh
 **Problem:** Historical data not available  
 **Cause:** Retention varies by plan
 
-| Plan       | Real-time | Historical |
-| ---------- | --------- | ---------- |
-| Pro        | Last hour | ❌         |
-| Business   | Last hour | Limited    |
-| Enterprise | Last hour | 90+ days   |
+| Plan | Real-time | Historical |
+|------|-----------|------------|
+| Pro | Last hour | ❌ |
+| Business | Last hour | Limited |
+| Enterprise | Last hour | 90+ days |
 
 **Solution:** Query within retention window or export to external system
 
@@ -113,7 +105,6 @@ frontend ft_ssh
 **Cause:** Requires Enterprise plan
 
 **Enterprise-only:**
-
 - Port ranges (`tcp/25565-25575`)
 - All TCP/UDP ports (Pro/Business: selected only)
 - Extended analytics retention
@@ -128,26 +119,25 @@ frontend ft_ssh
 const app = await client.spectrum.apps.create({
   // ...
   edge_ips: {
-    type: "dynamic",
-    connectivity: "ipv4", // Options: 'all', 'ipv4', 'ipv6'
+    type: 'dynamic',
+    connectivity: 'ipv4',  // Options: 'all', 'ipv4', 'ipv6'
   },
 });
 ```
 
 **Options:**
-
 - `all`: Dual-stack (default, requires origin support both)
 - `ipv4`: IPv4 only (use if origin lacks IPv6)
 - `ipv6`: IPv6 only (rare)
 
 ## Limits
 
-| Resource    | Pro/Business | Enterprise  |
-| ----------- | ------------ | ----------- |
-| Max apps    | ~10-15       | 100+        |
-| Protocols   | Selected     | All TCP/UDP |
-| Port ranges | ❌           | ✅          |
-| Analytics   | ~1 hour      | 90+ days    |
+| Resource | Pro/Business | Enterprise |
+|----------|--------------|------------|
+| Max apps | ~10-15 | 100+ |
+| Protocols | Selected | All TCP/UDP |
+| Port ranges | ❌ | ✅ |
+| Analytics | ~1 hour | 90+ days |
 
 ## See Also
 

@@ -19,7 +19,6 @@ npx wrangler r2 bucket catalog enable <BUCKET_NAME>
 ```
 
 **Output:**
-
 ```
 ✅ Data Catalog enabled for bucket 'my-bucket'
    Catalog URI: https://<account-id>.r2.cloudflarestorage.com/iceberg/my-bucket
@@ -33,7 +32,6 @@ npx wrangler r2 bucket catalog enable <BUCKET_NAME>
 3. Note the **Catalog URI** and **Warehouse name** shown
 
 **Result:**
-
 - Catalog URI: `https://<account-id>.r2.cloudflarestorage.com/iceberg/<bucket-name>`
 - Warehouse: `<bucket-name>` (same as bucket name)
 
@@ -47,7 +45,6 @@ curl -X POST \
 ```
 
 **Response:**
-
 ```json
 {
   "result": {
@@ -65,7 +62,6 @@ npx wrangler r2 bucket catalog status <BUCKET_NAME>
 ```
 
 **Output:**
-
 ```
 Catalog Status: enabled
 Catalog URI: https://<account-id>.r2.cloudflarestorage.com/iceberg/my-bucket
@@ -93,14 +89,12 @@ R2 Data Catalog requires API token with **both** R2 Storage + R2 Data Catalog pe
 3. Copy token value immediately (shown only once)
 
 **Permission groups included:**
-
 - `Workers R2 Data Catalog Write` (or Read)
 - `Workers R2 Storage Bucket Item Write` (or Read)
 
 ### API Method (Programmatic)
 
 Use Cloudflare API to create tokens programmatically. Required permissions:
-
 - `Workers R2 Data Catalog Write` (or Read)
 - `Workers R2 Storage Bucket Item Write` (or Read)
 
@@ -120,7 +114,6 @@ catalog = RestCatalog(
 ```
 
 **Full example with credentials:**
-
 ```python
 import os
 from pyiceberg.catalog.rest import RestCatalog
@@ -157,12 +150,12 @@ Token:        <r2-api-token>
 
 **Where to find values:**
 
-| Value          | Source                                          |
-| -------------- | ----------------------------------------------- |
-| `<account-id>` | Dashboard URL or `wrangler whoami`              |
-| `<bucket>`     | R2 bucket name                                  |
-| Catalog URI    | Output from `wrangler r2 bucket catalog enable` |
-| Token          | R2 API Token creation page                      |
+| Value | Source |
+|-------|--------|
+| `<account-id>` | Dashboard URL or `wrangler whoami` |
+| `<bucket>` | R2 bucket name |
+| Catalog URI | Output from `wrangler r2 bucket catalog enable` |
+| Token | R2 API Token creation page |
 
 ## Security Best Practices
 
@@ -196,10 +189,10 @@ catalog = RestCatalog(
 
 ## Troubleshooting
 
-| Problem                 | Solution                                           |
-| ----------------------- | -------------------------------------------------- |
-| 404 "catalog not found" | Run `wrangler r2 bucket catalog enable <bucket>`   |
-| 401 "unauthorized"      | Check token has both Catalog + Storage permissions |
-| 403 on data files       | Token needs both permission groups                 |
+| Problem | Solution |
+|---------|----------|
+| 404 "catalog not found" | Run `wrangler r2 bucket catalog enable <bucket>` |
+| 401 "unauthorized" | Check token has both Catalog + Storage permissions |
+| 403 on data files | Token needs both permission groups |
 
 See [gotchas.md](gotchas.md) for detailed troubleshooting.

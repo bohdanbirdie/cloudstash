@@ -12,21 +12,11 @@ export class MyContainer extends Container {
   envVars = {};
   entrypoint = [];
 
-  onStart() {
-    /* container started */
-  }
-  onStop() {
-    /* container stopping */
-  }
-  onError(error: Error) {
-    /* container error */
-  }
-  onActivityExpired(): boolean {
-    /* timeout, return true to stay alive */
-  }
-  async alarm() {
-    /* scheduled task */
-  }
+  onStart() { /* container started */ }
+  onStop() { /* container stopping */ }
+  onError(error: Error) { /* container error */ }
+  onActivityExpired(): boolean { /* timeout, return true to stay alive */ }
+  async alarm() { /* scheduled task */ }
 }
 ```
 
@@ -54,11 +44,11 @@ Returns when **process starts**, NOT when ports ready. Use for fire-and-forget.
 ### startAndWaitForPorts() - Recommended (20s timeout)
 
 ```typescript
-await container.startAndWaitForPorts(); // Uses requiredPorts
+await container.startAndWaitForPorts();  // Uses requiredPorts
 await container.startAndWaitForPorts({ ports: [8080, 9090] });
-await container.startAndWaitForPorts({
+await container.startAndWaitForPorts({ 
   ports: [8080],
-  startOptions: { envVars: { KEY: "value" } },
+  startOptions: { envVars: { KEY: "value" } }
 });
 ```
 
@@ -82,7 +72,7 @@ await container.waitForPort(8080, { timeout: 30000 });
 const response = await container.fetch(request);
 const response = await container.fetch("http://container/api", {
   method: "POST",
-  body: JSON.stringify({ data: "value" }),
+  body: JSON.stringify({ data: "value" })
 });
 ```
 
@@ -111,7 +101,7 @@ return new Response(conn.readable);
 ### switchPort() - Change default port
 
 ```typescript
-this.switchPort(8081); // Subsequent fetch() uses this port
+this.switchPort(8081);  // Subsequent fetch() uses this port
 ```
 
 ## Lifecycle Hooks
@@ -162,8 +152,8 @@ onActivityExpired(): boolean {
 ```typescript
 export class ScheduledContainer extends Container {
   async fetch(request: Request) {
-    await this.schedule(Date.now() + 60000); // 1 minute
-    await this.schedule("2026-01-28T00:00:00Z"); // ISO string
+    await this.schedule(Date.now() + 60000);  // 1 minute
+    await this.schedule("2026-01-28T00:00:00Z");  // ISO string
     return new Response("Scheduled");
   }
 
