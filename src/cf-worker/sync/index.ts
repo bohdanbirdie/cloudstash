@@ -65,7 +65,7 @@ const validatePayload = (
   context: { storeId: string; headers: ReadonlyMap<string, string> },
   auth: Auth
 ) =>
-  Effect.gen(function* validatePayload() {
+  Effect.gen(function* () {
     const cookie = context.headers.get("cookie");
     if (!cookie) {
       logger.warn("Sync auth failed: missing cookie", {

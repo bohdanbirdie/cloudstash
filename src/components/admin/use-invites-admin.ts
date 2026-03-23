@@ -53,9 +53,9 @@ export function useInvitesAdmin(enabled = true) {
       }
       setNewInviteCode(data.code);
       await mutate();
-    } catch (error) {
+    } catch (err) {
       setMutationError(
-        error instanceof Error ? error.message : "Failed to create invite"
+        err instanceof Error ? err.message : "Failed to create invite"
       );
     } finally {
       setIsCreating(false);
@@ -80,9 +80,9 @@ export function useInvitesAdmin(enabled = true) {
           return;
         }
         await mutate();
-      } catch (error) {
+      } catch (err) {
         setMutationError(
-          error instanceof Error ? error.message : "Failed to delete invite"
+          err instanceof Error ? err.message : "Failed to delete invite"
         );
       } finally {
         setActionLoading(null);

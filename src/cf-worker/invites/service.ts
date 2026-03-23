@@ -48,7 +48,7 @@ const requireAdmin = (session: { user: { role?: string | null } }) =>
     : Effect.fail(new ForbiddenError());
 
 const handleCreateInviteRequest = (request: Request, env: Env) =>
-  Effect.gen(function* handleCreateInviteRequest() {
+  Effect.gen(function* () {
     const db = createDb(env.DB);
     const auth = createAuth(env, db);
     const session = yield* getSession(auth, request.headers);
@@ -102,7 +102,7 @@ export const handleCreateInvite = (
   );
 
 const handleListInvitesRequest = (request: Request, env: Env) =>
-  Effect.gen(function* handleListInvitesRequest() {
+  Effect.gen(function* () {
     const db = createDb(env.DB);
     const auth = createAuth(env, db);
     const session = yield* getSession(auth, request.headers);
@@ -148,7 +148,7 @@ const handleDeleteInviteRequest = (
   inviteId: string,
   env: Env
 ) =>
-  Effect.gen(function* handleDeleteInviteRequest() {
+  Effect.gen(function* () {
     const db = createDb(env.DB);
     const auth = createAuth(env, db);
     const session = yield* getSession(auth, request.headers);
@@ -199,7 +199,7 @@ export const handleDeleteInvite = (
   );
 
 const handleRedeemInviteRequest = (request: Request, env: Env) =>
-  Effect.gen(function* handleRedeemInviteRequest() {
+  Effect.gen(function* () {
     const db = createDb(env.DB);
     const auth = createAuth(env, db);
     const session = yield* getSession(auth, request.headers);

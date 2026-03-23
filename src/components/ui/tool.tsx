@@ -89,9 +89,9 @@ const Tool = ({
   const renderMode = getRenderMode(!!needsConfirmation, toolName, linkIds);
 
   return Match.value(renderMode).pipe(
-    Match.when({ type: "delete-confirmation" }, ({ linkIds }) => (
+    Match.when({ type: "delete-confirmation" }, ({ linkIds: ids }) => (
       <LinkDeleteConfirmation
-        linkIds={linkIds}
+        linkIds={ids}
         onApprove={handleApprove}
         onReject={handleReject}
       />

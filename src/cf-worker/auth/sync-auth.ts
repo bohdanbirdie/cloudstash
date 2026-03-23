@@ -23,7 +23,7 @@ export const checkSyncAuth = (
   storeId: string,
   auth: Auth
 ): Effect.Effect<{ userId: string }, SyncAuthError> =>
-  Effect.gen(function* checkSyncAuth() {
+  Effect.gen(function* () {
     if (!cookie) {
       return yield* new SyncAuthError({
         code: "SESSION_EXPIRED",

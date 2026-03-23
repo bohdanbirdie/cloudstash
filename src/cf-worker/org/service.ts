@@ -176,7 +176,7 @@ const getFullOrganization = (
   );
 
 const handleGetOrgRequest = (request: Request, orgId: string, env: Env) =>
-  Effect.gen(function* handleGetOrgRequest() {
+  Effect.gen(function* () {
     const auth = createAuth(env, createDb(env.DB));
     const session = yield* getSession(auth, request.headers);
     return yield* getFullOrganization(

@@ -60,9 +60,9 @@ export function useApiKeys(enabled = true) {
           return result.data.key;
         }
         return null;
-      } catch (error) {
+      } catch (err) {
         setMutationError(
-          error instanceof Error ? error.message : "Failed to generate API key"
+          err instanceof Error ? err.message : "Failed to generate API key"
         );
         return null;
       } finally {
@@ -82,9 +82,9 @@ export function useApiKeys(enabled = true) {
           return;
         }
         await mutate();
-      } catch (error) {
+      } catch (err) {
         setMutationError(
-          error instanceof Error ? error.message : "Failed to revoke API key"
+          err instanceof Error ? err.message : "Failed to revoke API key"
         );
       }
     },

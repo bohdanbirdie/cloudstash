@@ -160,6 +160,8 @@ function SlashCommandMenu({
         </div>
         {options.map((option, i) => (
           <div
+            role="option"
+            aria-selected={selectedIndex === i}
             key={option.command.name}
             onClick={() => onSelect(option)}
             onMouseEnter={() => onHover(i)}
