@@ -1,5 +1,6 @@
 import { Context } from "effect";
 import type { Effect } from "effect";
+import type { ZodType } from "zod";
 
 import type { events, tables } from "../../livestore/schema";
 import type { OrgFeatures } from "../db/schema";
@@ -47,6 +48,22 @@ export class AiSummaryGenerator extends Context.Tag("AiSummaryGenerator")<
 >() {}
 
 export class WorkersAi extends Context.Tag("WorkersAi")<WorkersAi, Ai>() {}
+
+export interface LinkProcessorAiParams<T> {
+  system: string;
+  prompt: string;
+  schema: ZodType<T>;
+  maxOutputTokens: number;
+}
+
+export class LinkProcessorAi extends Context.Tag("LinkProcessorAi")<
+  LinkProcessorAi,
+  {
+    readonly generateObject: <T>(
+      params: LinkProcessorAiParams<T>
+    ) => Effect.Effect<T | null, AiCallError>;
+  }
+>() {}
 
 export class LinkEventStore extends Context.Tag("LinkEventStore")<
   LinkEventStore,
