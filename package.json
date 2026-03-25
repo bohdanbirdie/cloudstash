@@ -8,6 +8,8 @@
     "dev:make-admin": "wrangler d1 execute DB --local --command \"UPDATE user SET approved = 1, role = 'admin' WHERE email = 'admin@cloudstash.test'\"",
     "email:dev": "email dev -d src/cf-worker/email/templates -p 3001",
     "dev:tunnel": "bun scripts/telegram-tunnel.ts",
+    "dev:raycast": "npm --prefix local/raycast-extension run dev",
+    "sync": "bash scripts/sync-repos.sh",
     "dev:dashboard": "localflare attach",
     "build": "vite build",
     "build:prod": "wrangler d1 migrations apply DB --remote && vite build",

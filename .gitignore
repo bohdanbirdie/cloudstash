@@ -19,5 +19,5 @@ todos.json
 # Coverage reports
 coverage/
 
-# Local reference repos
-readonly-llm-lookup/
+# Local clones of external repos (managed by `bun run sync`)
+local/

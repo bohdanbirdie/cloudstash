@@ -61,7 +61,7 @@ export default defineWorkersConfig({
   },
   test: {
     include: ["src/cf-worker/__tests__/e2e/**/*.test.ts"],
-    exclude: ["**/node_modules/**", "**/readonly-llm-lookup/**"],
+    exclude: ["**/node_modules/**", "**/local/**"],
     poolOptions: {
       workers: {
         singleWorker: true,
