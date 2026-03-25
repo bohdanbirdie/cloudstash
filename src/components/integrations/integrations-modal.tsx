@@ -10,13 +10,9 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from "@/components/ui/tooltip";
 
 import { ApiKeysTab } from "./api-keys-tab";
+import { RaycastTab } from "./raycast-tab";
 import { TelegramTab } from "./telegram-tab";
 import { useApiKeys } from "./use-api-keys";
 
@@ -89,17 +85,10 @@ export function IntegrationsModal({
               <SendIcon className="h-3.5 w-3.5" />
               Telegram
             </TabsTrigger>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <TabsTrigger value="raycast" disabled>
-                    <CommandIcon className="h-3.5 w-3.5" />
-                    Raycast
-                  </TabsTrigger>
-                }
-              />
-              <TooltipContent>Maybe later</TooltipContent>
-            </Tooltip>
+            <TabsTrigger value="raycast">
+              <CommandIcon className="h-3.5 w-3.5" />
+              Raycast
+            </TabsTrigger>
             <TabsTrigger value="api-keys">
               <KeyIcon className="h-3.5 w-3.5" />
               API Keys
@@ -114,6 +103,12 @@ export function IntegrationsModal({
             onGenerateKey={handleGenerateKey}
             onRevokeKey={apiKeys.revokeKey}
             onClearGeneratedKey={handleClearGeneratedKey}
+          />
+
+          <RaycastTab
+            keys={apiKeys.keys}
+            isLoading={apiKeys.isLoading}
+            onRevokeKey={apiKeys.revokeKey}
           />
 
           <ApiKeysTab

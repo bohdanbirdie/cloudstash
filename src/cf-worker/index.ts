@@ -17,6 +17,7 @@ import { trackEvent } from "./analytics";
 import { createAuth } from "./auth";
 import { checkSyncAuth, SyncAuthError } from "./auth/sync-auth";
 import { agentHooks } from "./chat-agent/hooks";
+import { handleRaycastConnect, handleRaycastExchange } from "./connect/raycast";
 import { createDb } from "./db";
 import { ingestRequestToResponse } from "./ingest/service";
 import {
@@ -115,6 +116,11 @@ app.get("/api/metadata", (c) =>
 
 app.post("/api/ingest", (c) =>
   Effect.runPromise(ingestRequestToResponse(c.req.raw, c.env))
+);
+
+app.post("/api/connect/raycast", (c) => handleRaycastConnect(c.req.raw, c.env));
+app.post("/api/connect/raycast/exchange", (c) =>
+  handleRaycastExchange(c.req.raw, c.env)
 );
 
 app.post("/api/links/:id/reprocess", async (c) => {

@@ -135,6 +135,9 @@
     "web-vitals": "^5.1.0",
     "wrangler": "4.76.0"
   },
+  "overrides": {
+    "undici": "7.18.2"
+  },
   "cloudflare": {
     "bindings": {
       "GOOGLE_CLIENT_ID": {
