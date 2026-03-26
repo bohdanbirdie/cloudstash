@@ -89,6 +89,21 @@ describe("ingestRequestToResponse", () => {
     expect(await response.json()).toEqual({ error: "Invalid API key" });
   });
 
+  it("returns 401 when verifyApiKey throws an error", async () => {
+    mockVerifyApiKey.mockRejectedValue(new Error("Invalid API key."));
+
+    const request = createRequest(
+      { url: "https://example.com" },
+      { Authorization: "Bearer bad-key" }
+    );
+    const env = createEnv();
+
+    const response = await run(request, env);
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "Invalid API key" });
+  });
+
   it("returns 401 when API key is missing orgId", async () => {
     mockVerifyApiKey.mockResolvedValue({
       valid: true,

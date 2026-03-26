@@ -12,11 +12,12 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
-  TooltipTrigger,
   TooltipContent,
+  TooltipTrigger,
 } from "@/components/ui/tooltip";
 
 import { ApiKeysTab } from "./api-keys-tab";
+import { RaycastTab } from "./raycast-tab";
 import { TelegramTab } from "./telegram-tab";
 import { useApiKeys } from "./use-api-keys";
 
@@ -98,7 +99,7 @@ export function IntegrationsModal({
                   </TabsTrigger>
                 }
               />
-              <TooltipContent>Maybe later</TooltipContent>
+              <TooltipContent>Soon</TooltipContent>
             </Tooltip>
             <TabsTrigger value="api-keys">
               <KeyIcon className="h-3.5 w-3.5" />
@@ -114,6 +115,12 @@ export function IntegrationsModal({
             onGenerateKey={handleGenerateKey}
             onRevokeKey={apiKeys.revokeKey}
             onClearGeneratedKey={handleClearGeneratedKey}
+          />
+
+          <RaycastTab
+            keys={apiKeys.keys}
+            isLoading={apiKeys.isLoading}
+            onRevokeKey={apiKeys.revokeKey}
           />
 
           <ApiKeysTab

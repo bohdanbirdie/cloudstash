@@ -37,7 +37,7 @@ One chat per workspace with real-time WebSocket connection, message persistence,
 
 ## Reference Implementation
 
-Reference code from Cloudflare is available at `readonly-llm-lookup/agents/` (read-only).
+Reference code from Cloudflare is available at `local/readonly-llm-lookup/agents/` (read-only).
 Key examples:
 
 - `examples/playground/` - Chat with rooms, demonstrates persistence

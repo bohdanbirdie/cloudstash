@@ -12,7 +12,7 @@ export default defineConfig({
       "src/cf-worker/__tests__/unit/**/*.test.ts",
       "src/lib/__tests__/**/*.test.ts",
     ],
-    exclude: ["**/node_modules/**", "**/readonly-llm-lookup/**"],
+    exclude: ["**/node_modules/**", "**/local/**"],
     coverage: {
       include: ["src/cf-worker/**"],
       exclude: ["src/cf-worker/__tests__/**"],

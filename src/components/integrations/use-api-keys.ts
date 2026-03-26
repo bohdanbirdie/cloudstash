@@ -29,7 +29,9 @@ export function useApiKeys(enabled = true) {
     error: fetchError,
     isLoading,
     mutate,
-  } = useSWR(enabled ? "api-keys" : null, fetchApiKeys);
+  } = useSWR(enabled ? "api-keys" : null, fetchApiKeys, {
+    revalidateOnFocus: true,
+  });
 
   const error = mutationError || (fetchError?.message ?? null);
 

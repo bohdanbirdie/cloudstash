@@ -33,6 +33,21 @@ bun run deploy             # FORBIDDEN
 - **AI:** Vercel AI SDK + OpenRouter
 - **Auth:** Better Auth + Google OAuth
 
+## Raycast Extension (separate repo)
+
+`local/raycast-extension/` is a local clone of [bohdanbirdie/cloudstash-raycast](https://github.com/bohdanbirdie/cloudstash-raycast) (gitignored). It's a separate project with its own package manager (npm), dependencies, and tooling. Do NOT run bun commands inside it — use npm.
+
+- **Server-side connect endpoints** live in this repo: `src/cf-worker/connect/`
+- **Extension code** lives in the clone: `local/raycast-extension/src/`
+- The only connection is the HTTP API contract (no shared imports)
+
+## Local Repos
+
+`local/` contains gitignored clones of external repos. Run `bun run sync` to clone/update all.
+
+- `local/raycast-extension/` — Raycast extension (npm, separate repo)
+- `local/readonly-llm-lookup/` — Reference implementations for external libraries (Effect, Livestore, etc.)
+
 ## Documentation
 
 - `docs/specs/` — Feature specs and technical decisions. Check before implementing changes.
@@ -55,7 +70,7 @@ bun run deploy             # FORBIDDEN
 
 1. Run `effect-solutions list` to see available guides
 2. Run `effect-solutions show <topic>...` for relevant patterns (supports multiple topics)
-3. Search `readonly-llm-lookup/effect` for real implementations
+3. Search `local/readonly-llm-lookup/effect` for real implementations
 
 Topics: quick-start, project-setup, tsconfig, basics, services-and-layers, data-modeling, error-handling, config, testing, cli.
 
