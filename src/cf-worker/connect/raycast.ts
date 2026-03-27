@@ -3,7 +3,7 @@ import { Effect, Layer } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
 import * as schema from "../db/schema";
-import { DbClient } from "../db/service";
+import { DbClient, query } from "../db/service";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
 import {
@@ -125,7 +125,7 @@ const makeLiveLayer = (env: Env) =>
         const auth = yield* AuthClient;
         return ApiKeyStore.of({
           listByUser: (userId) =>
-            Effect.promise(() =>
+            query(
               db
                 .select({
                   id: schema.apikey.id,
@@ -135,7 +135,7 @@ const makeLiveLayer = (env: Env) =>
                 .where(eq(schema.apikey.referenceId, userId))
             ),
           deleteById: (id) =>
-            Effect.promise(() =>
+            query(
               db.delete(schema.apikey).where(eq(schema.apikey.id, id))
             ).pipe(Effect.asVoid),
           create: (headers, metadata, name) =>
@@ -150,7 +150,7 @@ const makeLiveLayer = (env: Env) =>
               Effect.orElseSucceed(() => null)
             ),
           updateName: (id, name) =>
-            Effect.promise(() =>
+            query(
               db
                 .update(schema.apikey)
                 .set({ name })
@@ -164,20 +164,21 @@ const makeLiveLayer = (env: Env) =>
       Effect.gen(function* () {
         const db = yield* DbClient;
         return VerificationStore.of({
-          save: (identifier, value, ttlMs) =>
-            Effect.promise(() => {
-              const now = new Date();
-              return db.insert(schema.verification).values({
+          save: (identifier, value, ttlMs) => {
+            const now = new Date();
+            return query(
+              db.insert(schema.verification).values({
                 id: crypto.randomUUID(),
                 identifier,
                 value,
                 createdAt: now,
                 expiresAt: new Date(now.getTime() + ttlMs),
                 updatedAt: now,
-              });
-            }).pipe(Effect.asVoid),
+              })
+            ).pipe(Effect.asVoid);
+          },
           findValid: (identifier) =>
-            Effect.promise(() =>
+            query(
               db
                 .select()
                 .from(schema.verification)
@@ -192,7 +193,7 @@ const makeLiveLayer = (env: Env) =>
               Effect.map((r) => (r ? { id: r.id, value: r.value } : null))
             ),
           deleteById: (id) =>
-            Effect.promise(() =>
+            query(
               db
                 .delete(schema.verification)
                 .where(eq(schema.verification.id, id))

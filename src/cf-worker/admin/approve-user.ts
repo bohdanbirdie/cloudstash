@@ -1,9 +1,6 @@
-import { eq } from "drizzle-orm";
 import { Effect } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
-import * as schema from "../db/schema";
-import { DbClient } from "../db/service";
 import { sendApprovalEmail } from "../email/send-approval-email";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
@@ -17,7 +14,6 @@ export const handleApproveUser = async (
 ): Promise<Response> =>
   Effect.runPromise(
     Effect.gen(function* () {
-      const db = yield* DbClient;
       const auth = yield* AuthClient;
 
       const session = yield* Effect.promise(() =>
@@ -27,11 +23,7 @@ export const handleApproveUser = async (
         return Response.json({ error: "Unauthorized" }, { status: 401 });
       }
 
-      const user = yield* Effect.promise(() =>
-        db.query.user.findFirst({
-          where: eq(schema.user.id, userId),
-        })
-      );
+      const user = yield* auth.findUser(userId);
 
       if (!user) {
         return Response.json({ error: "User not found" }, { status: 404 });
@@ -41,12 +33,7 @@ export const handleApproveUser = async (
         return Response.json({ success: true, alreadyApproved: true });
       }
 
-      yield* Effect.promise(() =>
-        db
-          .update(schema.user)
-          .set({ approved: true })
-          .where(eq(schema.user.id, userId))
-      );
+      yield* auth.approveUser(userId);
 
       yield* sendApprovalEmail(
         user.email,
@@ -57,5 +44,12 @@ export const handleApproveUser = async (
 
       logger.info("User approved by admin", { userId });
       return Response.json({ success: true });
-    }).pipe(Effect.provide(AppLayerLive(env)))
+    }).pipe(
+      Effect.provide(AppLayerLive(env)),
+      Effect.catchTag("DbError", () =>
+        Effect.succeed(
+          Response.json({ error: "Internal server error" }, { status: 500 })
+        )
+      )
+    )
   );

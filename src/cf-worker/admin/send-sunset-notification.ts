@@ -1,9 +1,6 @@
-import { eq } from "drizzle-orm";
 import { Effect } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
-import * as schema from "../db/schema";
-import { DbClient } from "../db/service";
 import { sendSunsetNotification } from "../email/send-sunset-notification";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
@@ -16,7 +13,6 @@ export const handleSendSunsetNotification = async (
 ): Promise<Response> =>
   Effect.runPromise(
     Effect.gen(function* () {
-      const db = yield* DbClient;
       const auth = yield* AuthClient;
 
       const session = yield* Effect.promise(() =>
@@ -38,11 +34,7 @@ export const handleSendSunsetNotification = async (
         );
       }
 
-      const users = yield* Effect.promise(() =>
-        db.query.user.findMany({
-          where: eq(schema.user.approved, true),
-        })
-      );
+      const users = yield* auth.listApprovedUsers();
 
       if (body.dryRun) {
         logger.info("Dry run: would send sunset notification", {
@@ -83,5 +75,12 @@ export const handleSendSunsetNotification = async (
 
       logger.info("Sunset notifications complete", { sent, failed });
       return Response.json({ sent, failed, total: users.length, errors });
-    }).pipe(Effect.provide(AppLayerLive(env)))
+    }).pipe(
+      Effect.provide(AppLayerLive(env)),
+      Effect.catchTag("DbError", () =>
+        Effect.succeed(
+          Response.json({ error: "Internal server error" }, { status: 500 })
+        )
+      )
+    )
   );

@@ -11,6 +11,7 @@ import { events, schema, tables } from "../../livestore/schema";
 import { DbClientLive } from "../db/service";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
+import { OrgFeaturesLive } from "../org/features-service";
 import type { Env } from "../shared";
 import { cancelStaleLinks, ingestLink, notifyResult } from "./do-programs";
 import type { NotifyResultParams } from "./do-programs";
@@ -282,7 +283,10 @@ export class LinkProcessorDO
         FeatureStore.pipe(
           Effect.flatMap((fs) => fs.getFeatures(this.storeId!)),
           Effect.provide(
-            FeatureStoreLive.pipe(Layer.provide(DbClientLive(this.env.DB)))
+            FeatureStoreLive.pipe(
+              Layer.provide(OrgFeaturesLive),
+              Layer.provide(DbClientLive(this.env.DB))
+            )
           )
         )
       ).catch(() => ({}));

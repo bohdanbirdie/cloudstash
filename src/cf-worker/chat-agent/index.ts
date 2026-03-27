@@ -14,13 +14,11 @@ import {
   stepCountIs,
 } from "ai";
 import type { LanguageModel } from "ai";
-import { eq } from "drizzle-orm";
-import { Effect } from "effect";
+import { Effect, Layer } from "effect";
 
 import { schema } from "../../livestore/schema";
-import * as dbSchema from "../db/schema";
-import type { OrgFeatures } from "../db/schema";
-import { DbClient, DbClientLive } from "../db/service";
+import { DbClientLive } from "../db/service";
+import { OrgFeatures, OrgFeaturesLive } from "../org/features-service";
 import type { Env } from "../shared";
 import { CONTEXT_WINDOW_SIZE, SYSTEM_PROMPT } from "./config";
 import {
@@ -131,7 +129,7 @@ export class ChatAgentDO
   private getUsage(): Effect.Effect<
     NonNullable<ChatAgentState["usage"]>,
     never,
-    DbClient
+    OrgFeatures
   > {
     return Effect.gen(this, function* () {
       const period = getCurrentPeriod();
@@ -140,25 +138,27 @@ export class ChatAgentDO
       );
       const used = (usage?.promptTokens ?? 0) + (usage?.completionTokens ?? 0);
 
-      const db = yield* DbClient;
-      const org = yield* Effect.promise(() =>
-        db.query.organization.findFirst({
-          where: eq(dbSchema.organization.id, this.name),
-          columns: { features: true },
-        })
-      );
-
-      const features = (org?.features as OrgFeatures) ?? {};
-      const budget = features.monthlyTokenBudget ?? DEFAULT_MONTHLY_BUDGET;
+      const orgFeatures = yield* OrgFeatures;
+      const features = yield* orgFeatures
+        .get(this.name)
+        .pipe(Effect.catchTag("DbError", () => Effect.succeed({})));
+      const budget =
+        ("monthlyTokenBudget" in features
+          ? features.monthlyTokenBudget
+          : undefined) ?? DEFAULT_MONTHLY_BUDGET;
       const limit = budgetToTokenLimit(budget);
 
       return { used, limit, budget, period };
     });
   }
 
+  private orgFeaturesLayer() {
+    return OrgFeaturesLive.pipe(Layer.provide(DbClientLive(this.env.DB)));
+  }
+
   private broadcastUsage(): Promise<void> {
     return this.getUsage().pipe(
-      Effect.provide(DbClientLive(this.env.DB)),
+      Effect.provide(this.orgFeaturesLayer()),
       Effect.tap((usage) => Effect.sync(() => this.setState({ usage }))),
       Effect.asVoid,
       Effect.runPromise
@@ -167,7 +167,7 @@ export class ChatAgentDO
 
   private isWithinTokenLimit(): Promise<boolean> {
     return this.getUsage().pipe(
-      Effect.provide(DbClientLive(this.env.DB)),
+      Effect.provide(this.orgFeaturesLayer()),
       Effect.map(({ used, limit }) => used < limit),
       Effect.runPromise
     );

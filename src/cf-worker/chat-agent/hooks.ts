@@ -4,9 +4,9 @@ import { trackEvent } from "../analytics";
 import { AppLayerLive, AuthClient } from "../auth/service";
 import { checkSyncAuth } from "../auth/sync-auth";
 import type { SyncAuthError } from "../auth/sync-auth";
+import { OrgFeaturesLive } from "../org/features-service";
 import type { Env } from "../shared";
-import { checkChatFeatureEnabled } from "./auth";
-import type { ChatFeatureDisabledError } from "./auth";
+import { ChatFeatureDisabledError, checkChatFeatureEnabled } from "./auth";
 
 interface Lobby {
   party: string;
@@ -32,8 +32,17 @@ const checkChatAgentAccess = (
       event: "chat",
       orgId: lobby.name,
     });
-    yield* checkChatFeatureEnabled(lobby.name);
-  }).pipe(Effect.provide(AppLayerLive(env)));
+    yield* checkChatFeatureEnabled(lobby.name).pipe(
+      Effect.catchTag("DbError", () =>
+        Effect.fail(
+          new ChatFeatureDisabledError({
+            message: "Failed to check features",
+            status: 500,
+          })
+        )
+      )
+    );
+  }).pipe(Effect.provide(OrgFeaturesLive), Effect.provide(AppLayerLive(env)));
 
 const errorToResponse = (error: ChatAccessError): Response =>
   new Response(JSON.stringify(error), {

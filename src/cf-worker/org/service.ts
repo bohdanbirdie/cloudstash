@@ -1,12 +1,8 @@
-import { eq } from "drizzle-orm";
 import { Effect } from "effect";
 
 import { trackEvent } from "../analytics";
 import type { Auth } from "../auth";
 import { AppLayerLive, AuthClient } from "../auth/service";
-import * as schema from "../db/schema";
-import type { OrgFeatures } from "../db/schema";
-import { DbClient } from "../db/service";
 import { maskId } from "../log-utils";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
@@ -15,6 +11,7 @@ import {
   OrgNotFoundError,
   UnauthorizedError,
 } from "./errors";
+import { OrgFeatures, OrgFeaturesLive } from "./features-service";
 
 const logger = logSync("Org");
 
@@ -30,7 +27,6 @@ const getSession = (auth: Auth, headers: Headers) =>
 
 const getOrgWithFeatures = (auth: Auth, headers: Headers, orgId: string) =>
   Effect.gen(function* () {
-    const db = yield* DbClient;
     const apiOrg = yield* Effect.tryPromise({
       catch: () => OrgNotFoundError.make({}),
       try: () =>
@@ -44,20 +40,16 @@ const getOrgWithFeatures = (auth: Auth, headers: Headers, orgId: string) =>
       return yield* OrgNotFoundError.make({});
     }
 
-    const dbOrg = yield* Effect.tryPromise({
-      catch: () => OrgNotFoundError.make({}),
-      try: () =>
-        db.query.organization.findFirst({
-          where: eq(schema.organization.id, orgId),
-          columns: { features: true },
-        }),
-    });
+    const orgFeatures = yield* OrgFeatures;
+    const features = yield* orgFeatures
+      .get(orgId)
+      .pipe(Effect.catchTag("DbError", () => OrgNotFoundError.make({})));
 
     return {
       id: apiOrg.id,
       name: apiOrg.name,
       slug: apiOrg.slug,
-      features: (dbOrg?.features as OrgFeatures) ?? {},
+      features,
     };
   });
 
@@ -85,6 +77,7 @@ const handleGetMeRequest = (request: Request) =>
 export const handleGetMe = (request: Request, env: Env): Promise<Response> =>
   Effect.runPromise(
     handleGetMeRequest(request).pipe(
+      Effect.provide(OrgFeaturesLive),
       Effect.provide(AppLayerLive(env)),
       Effect.tap((data) =>
         Effect.sync(() => {
@@ -184,6 +177,7 @@ export const handleGetOrg = (
 ): Promise<Response> =>
   Effect.runPromise(
     handleGetOrgRequest(request, orgId).pipe(
+      Effect.provide(OrgFeaturesLive),
       Effect.provide(AppLayerLive(env)),
       Effect.tap(() =>
         Effect.sync(() =>

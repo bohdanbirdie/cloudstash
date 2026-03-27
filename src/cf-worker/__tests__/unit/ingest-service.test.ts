@@ -1,19 +1,8 @@
-import { Effect } from "effect";
+import { Effect, Layer, LogLevel, Logger } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
-const mockVerifyApiKey = vi.fn();
-
-vi.mock("../../auth", () => ({
-  createAuth: () => ({
-    api: { verifyApiKey: mockVerifyApiKey },
-  }),
-}));
-
-vi.mock("../../db", () => ({
-  createDb: () => ({}),
-}));
-
-import { ingestRequestToResponse } from "../../ingest/service";
+import { AuthClient } from "../../auth/service";
+import { handleIngestRequest, ingestRequestToResponse } from "../../ingest/service";
 
 function createRequest(
   body: unknown,
@@ -46,16 +35,75 @@ function createEnv(overrides: { queueSendError?: Error } = {}) {
   };
 }
 
-async function run(request: Request, env: ReturnType<typeof createEnv>) {
-  return Effect.runPromise(ingestRequestToResponse(request, env as never));
+function makeAuthLayer(
+  verifyApiKey: (opts: {
+    body: { key: string };
+  }) => Promise<{ valid: boolean; key: unknown }>
+) {
+  return Layer.succeed(AuthClient, {
+    api: { verifyApiKey },
+  } as unknown as AuthClient["Type"]);
 }
+
+function run(
+  request: Request,
+  env: ReturnType<typeof createEnv>,
+  authLayer: Layer.Layer<AuthClient>
+) {
+  return Effect.runPromise(
+    handleIngestRequest(request, env as never).pipe(
+      Effect.provide(authLayer),
+      Effect.map(({ result, ok }) =>
+        Response.json(result, { status: ok ? 200 : 400 })
+      ),
+      Effect.catchTags({
+        InvalidApiKeyError: () =>
+          Effect.succeed(
+            Response.json({ error: "Invalid API key" }, { status: 401 })
+          ),
+        InvalidUrlError: () =>
+          Effect.succeed(
+            Response.json({ error: "Invalid URL" }, { status: 400 })
+          ),
+        MissingApiKeyError: () =>
+          Effect.succeed(
+            Response.json({ error: "Missing API key" }, { status: 401 })
+          ),
+        MissingOrgIdError: () =>
+          Effect.succeed(
+            Response.json(
+              { error: "API key missing orgId metadata" },
+              { status: 401 }
+            )
+          ),
+        MissingUrlError: () =>
+          Effect.succeed(
+            Response.json({ error: "Missing url" }, { status: 400 })
+          ),
+      }),
+      Effect.catchAll(() =>
+        Effect.succeed(
+          Response.json({ error: "Queue send failed" }, { status: 500 })
+        )
+      ),
+      Logger.withMinimumLogLevel(LogLevel.Error)
+    )
+  );
+}
+
+const validKeyResponse = {
+  valid: true,
+  key: { metadata: { orgId: "org-1" }, referenceId: "user-1" },
+};
+
+const validAuthLayer = makeAuthLayer(() => Promise.resolve(validKeyResponse));
 
 describe("ingestRequestToResponse", () => {
   it("returns 401 when Authorization header is missing", async () => {
     const request = createRequest({ url: "https://example.com" });
     const env = createEnv();
 
-    const response = await run(request, env);
+    const response = await run(request, env, validAuthLayer);
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: "Missing API key" });
@@ -68,14 +116,16 @@ describe("ingestRequestToResponse", () => {
     );
     const env = createEnv();
 
-    const response = await run(request, env);
+    const response = await run(request, env, validAuthLayer);
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: "Missing API key" });
   });
 
   it("returns 401 when API key is invalid", async () => {
-    mockVerifyApiKey.mockResolvedValue({ valid: false, key: null });
+    const authLayer = makeAuthLayer(() =>
+      Promise.resolve({ valid: false, key: null })
+    );
 
     const request = createRequest(
       { url: "https://example.com" },
@@ -83,14 +133,16 @@ describe("ingestRequestToResponse", () => {
     );
     const env = createEnv();
 
-    const response = await run(request, env);
+    const response = await run(request, env, authLayer);
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: "Invalid API key" });
   });
 
   it("returns 401 when verifyApiKey throws an error", async () => {
-    mockVerifyApiKey.mockRejectedValue(new Error("Invalid API key."));
+    const authLayer = makeAuthLayer(() =>
+      Promise.reject(new Error("Invalid API key."))
+    );
 
     const request = createRequest(
       { url: "https://example.com" },
@@ -98,17 +150,16 @@ describe("ingestRequestToResponse", () => {
     );
     const env = createEnv();
 
-    const response = await run(request, env);
+    const response = await run(request, env, authLayer);
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: "Invalid API key" });
   });
 
   it("returns 401 when API key is missing orgId", async () => {
-    mockVerifyApiKey.mockResolvedValue({
-      valid: true,
-      key: { metadata: {} },
-    });
+    const authLayer = makeAuthLayer(() =>
+      Promise.resolve({ valid: true, key: { metadata: {} } })
+    );
 
     const request = createRequest(
       { url: "https://example.com" },
@@ -116,7 +167,7 @@ describe("ingestRequestToResponse", () => {
     );
     const env = createEnv();
 
-    const response = await run(request, env);
+    const response = await run(request, env, authLayer);
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({
@@ -125,44 +176,32 @@ describe("ingestRequestToResponse", () => {
   });
 
   it("returns 400 when request body has no url", async () => {
-    mockVerifyApiKey.mockResolvedValue({
-      valid: true,
-      key: { metadata: { orgId: "org-1" }, userId: "user-1" },
-    });
-
-    const request = createRequest({}, { Authorization: "Bearer valid-key" });
+    const request = createRequest(
+      {},
+      { Authorization: "Bearer valid-key" }
+    );
     const env = createEnv();
 
-    const response = await run(request, env);
+    const response = await run(request, env, validAuthLayer);
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "Missing url" });
   });
 
   it("returns 400 when url is invalid", async () => {
-    mockVerifyApiKey.mockResolvedValue({
-      valid: true,
-      key: { metadata: { orgId: "org-1" }, userId: "user-1" },
-    });
-
     const request = createRequest(
       { url: "not-a-url" },
       { Authorization: "Bearer valid-key" }
     );
     const env = createEnv();
 
-    const response = await run(request, env);
+    const response = await run(request, env, validAuthLayer);
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "Invalid URL" });
   });
 
   it("returns 500 when queue send fails", async () => {
-    mockVerifyApiKey.mockResolvedValue({
-      valid: true,
-      key: { metadata: { orgId: "org-1" }, userId: "user-1" },
-    });
-
     const request = createRequest(
       { url: "https://example.com" },
       { Authorization: "Bearer valid-key" }
@@ -171,7 +210,7 @@ describe("ingestRequestToResponse", () => {
       queueSendError: new Error("Queue unavailable"),
     });
 
-    const response = await run(request, env);
+    const response = await run(request, env, validAuthLayer);
 
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({
@@ -180,18 +219,13 @@ describe("ingestRequestToResponse", () => {
   });
 
   it("returns 200 and queues link on success", async () => {
-    mockVerifyApiKey.mockResolvedValue({
-      valid: true,
-      key: { metadata: { orgId: "org-1" }, userId: "user-1" },
-    });
-
     const request = createRequest(
       { url: "https://example.com" },
       { Authorization: "Bearer valid-key" }
     );
     const env = createEnv();
 
-    const response = await run(request, env);
+    const response = await run(request, env, validAuthLayer);
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ status: "queued" });
