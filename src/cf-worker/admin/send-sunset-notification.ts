@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Array as Arr, Effect, Either } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
 import { sendSunsetNotification } from "../email/send-sunset-notification";
@@ -49,34 +49,32 @@ export const handleSendSunsetNotification = async (
         });
       }
 
-      let sent = 0;
-      let failed = 0;
-      const errors: Array<{ email: string; error: unknown }> = [];
+      const results = yield* Effect.forEach(
+        users,
+        (user) =>
+          sendSunsetNotification({
+            email: user.email,
+            name: user.name,
+            apiKey: env.RESEND_API_KEY,
+            deadlineDate: body.deadlineDate,
+            appUrl: env.BETTER_AUTH_URL,
+            emailFrom: env.EMAIL_FROM,
+          }).pipe(
+            Effect.as(Either.right(user.email)),
+            Effect.catchAll((error) => {
+              logger.error("Failed to send sunset notification", {
+                email: user.email,
+                error,
+              });
+              return Effect.succeed(Either.left({ email: user.email, error }));
+            })
+          ),
+        { concurrency: 5 }
+      );
 
-      for (const user of users) {
-        const result = yield* sendSunsetNotification({
-          email: user.email,
-          name: user.name,
-          apiKey: env.RESEND_API_KEY,
-          deadlineDate: body.deadlineDate,
-          appUrl: env.BETTER_AUTH_URL,
-          emailFrom: env.EMAIL_FROM,
-        }).pipe(
-          Effect.as("ok" as const),
-          Effect.catchAll((error) => {
-            failed++;
-            errors.push({ email: user.email, error });
-            logger.error("Failed to send sunset notification", {
-              email: user.email,
-              error,
-            });
-            return Effect.succeed("failed" as const);
-          })
-        );
-        if (result === "ok") {
-          sent++;
-        }
-      }
+      const [errors, successes] = Arr.partitionMap(results, (r) => r);
+      const sent = successes.length;
+      const failed = errors.length;
 
       logger.info("Sunset notifications complete", { sent, failed });
       return Response.json({ sent, failed, total: users.length, errors });
