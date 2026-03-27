@@ -27,7 +27,7 @@
     "cf-typegen": "wrangler types --no-include-runtime",
     "typecheck": "tsgo --noEmit",
     "check": "vp check && bun run check:effect",
-    "check:effect": "effect-language-service diagnostics --project tsconfig.json --format pretty --strict --lspconfig '{\"allowedDuplicatedPackages\": [\"@livestore/utils\", \"@effect/platform\"]}'",
+    "check:effect": "effect-language-service diagnostics --project tsconfig.json --format pretty --strict --lspconfig '{\"allowedDuplicatedPackages\": [\"@livestore/utils\"]}'",
     "fix": "vp check --fix",
     "prepare": "effect-language-service patch"
   },
@@ -129,6 +129,7 @@
     "jsdom": "^29.0.1",
     "localflare": "0.5.0",
     "react-email": "5.2.10",
+    "typescript": "6.0.2",
     "vite": "^8.0.0",
     "vite-plus": "0.1.15-alpha.2",
     "vite-tsconfig-paths": "6.1.1",
