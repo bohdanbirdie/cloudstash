@@ -22,10 +22,11 @@ export const handleSendSunsetNotification = async (
         return Response.json({ error: "Unauthorized" }, { status: 401 });
       }
 
-      const body = (yield* Effect.promise(() => request.json())) as {
-        deadlineDate: string;
-        dryRun?: boolean;
-      };
+      const body: { deadlineDate: string; dryRun?: boolean } =
+        yield* Effect.promise(
+          (): Promise<{ deadlineDate: string; dryRun?: boolean }> =>
+            request.json()
+        );
 
       if (!body.deadlineDate) {
         return Response.json(

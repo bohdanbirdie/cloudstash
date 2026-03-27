@@ -24,9 +24,7 @@ export function useRedeemInvite() {
           headers: { "Content-Type": "application/json" },
           method: "POST",
         });
-        const data = (await res.json()) as
-          | { success: boolean }
-          | ApiErrorResponse;
+        const data: { success: boolean } | ApiErrorResponse = await res.json();
 
         if (!res.ok || "error" in data) {
           setError("error" in data ? data.error : "Failed to redeem invite");

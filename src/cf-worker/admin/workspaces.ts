@@ -83,9 +83,9 @@ export async function handleUpdateOrgSettings(
 
       let body: { features: OrgFeatures };
       try {
-        body = (yield* Effect.promise(() => request.json())) as {
-          features: OrgFeatures;
-        };
+        body = yield* Effect.promise(
+          (): Promise<{ features: OrgFeatures }> => request.json()
+        );
       } catch {
         logger.warn("Update org settings invalid body", {
           orgId: maskId(orgId),

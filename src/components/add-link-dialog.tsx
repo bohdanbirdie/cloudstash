@@ -238,7 +238,7 @@ function AddLinkDialogContent({
       const response = await fetch(
         `/api/metadata?url=${encodeURIComponent(targetUrl)}`
       );
-      const data = (await response.json()) as OgMetadata & { error?: string };
+      const data: OgMetadata & { error?: string } = await response.json();
 
       if (!response.ok) {
         setError(data.error || "Failed to fetch metadata");
@@ -263,7 +263,7 @@ function AddLinkDialogContent({
 
     const effectUrlResult = Schema.decodeUnknownOption(UrlSchema)(effectUrl);
     if (Option.isSome(effectUrlResult)) {
-      fetchMetadata(effectUrlResult.value.href);
+      void fetchMetadata(effectUrlResult.value.href);
     }
   }, [url, fetchMetadata]);
 

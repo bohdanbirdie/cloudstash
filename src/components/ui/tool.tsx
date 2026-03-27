@@ -1,4 +1,4 @@
-import type { DynamicToolUIPart, ToolUIPart, UITools } from "ai";
+import type { DynamicToolUIPart, ToolUIPart } from "ai";
 import { getToolName } from "ai";
 import { Match } from "effect";
 import {
@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 
-type ToolPartType = ToolUIPart<UITools> | DynamicToolUIPart;
+type ToolPartType = ToolUIPart | DynamicToolUIPart;
 type ToolState = ToolPartType["state"];
 
 const APPROVAL = {
@@ -60,7 +60,7 @@ const Tool = ({
   const needsConfirmation =
     requiresConfirmation && state === "input-available" && toolCallId;
 
-  const stateIcon = getStateIcon(state as ToolState, !!needsConfirmation);
+  const stateIcon = getStateIcon(state, !!needsConfirmation);
   const linkIds = extractLinkIds(toolName, input);
 
   const handleApprove = () => {
@@ -80,11 +80,7 @@ const Tool = ({
     state === "input-streaming" ||
     (state === "output-error" && errorText);
 
-  const expandableContent = getExpandableContent(
-    state as ToolState,
-    output,
-    errorText
-  );
+  const expandableContent = getExpandableContent(state, output, errorText);
 
   const renderMode = getRenderMode(!!needsConfirmation, toolName, linkIds);
 
@@ -216,13 +212,25 @@ const getStateIcon = (
     ))
   );
 
+function asRecord(v: unknown): Record<string, unknown> | undefined {
+  if (v != null && typeof v === "object") {
+    return v as Record<string, unknown>;
+  }
+  return undefined;
+}
+
 const extractLinkIds = (toolName: string, input: unknown): string[] =>
   Match.value(toolName).pipe(
     Match.when("deleteLink", () => {
-      const id = (input as { id?: string })?.id;
-      return id ? [id] : [];
+      const id = asRecord(input)?.id;
+      return typeof id === "string" ? [id] : [];
     }),
-    Match.when("deleteLinks", () => (input as { ids?: string[] })?.ids ?? []),
+    Match.when("deleteLinks", () => {
+      const ids = asRecord(input)?.ids;
+      return Array.isArray(ids)
+        ? ids.filter((id): id is string => typeof id === "string")
+        : [];
+    }),
     Match.orElse(() => [])
   );
 

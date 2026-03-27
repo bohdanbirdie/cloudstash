@@ -29,7 +29,7 @@ const verifyApiKey = (auth: Auth, apiKey: string) =>
     if (!result.key.metadata?.orgId) {
       return yield* new MissingOrgIdError({});
     }
-    return result.key.metadata.orgId as string;
+    return String(result.key.metadata.orgId);
   });
 
 export const TelegramSourceAuthLive = (env: Env, chatId: number) =>

@@ -82,7 +82,14 @@ export function IntegrationsModal({
 
         <Tabs
           value={activeTab}
-          onValueChange={(value) => setActiveTab(value as TabValue)}
+          onValueChange={(value) => {
+            if (
+              value === "telegram" ||
+              value === "raycast" ||
+              value === "api-keys"
+            )
+              setActiveTab(value);
+          }}
           className="flex-1 flex flex-col min-h-0"
         >
           <TabsList variant="line">

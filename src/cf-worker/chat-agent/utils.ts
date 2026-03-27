@@ -34,7 +34,7 @@ type ToolExecutors = Record<string, (args: any) => Promise<string>>;
 const processToolPart = <T>(
   part: T,
   executors: ToolExecutors
-): Effect.Effect<T, never, never> => {
+): Effect.Effect<T> => {
   if (!isApprovalOutput(part)) {
     return Effect.succeed(part);
   }

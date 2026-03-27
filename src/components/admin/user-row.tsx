@@ -42,10 +42,10 @@ async function approveUser(_: string, { arg }: { arg: { userId: string } }) {
     credentials: "include",
   });
   if (!res.ok) {
-    const data = (await res.json()) as { error?: string };
+    const data: { error?: string } = await res.json();
     throw new Error(data.error || "Failed to approve user");
   }
-  mutate("admin-users");
+  void mutate("admin-users");
 }
 
 async function rejectUser(_: string, { arg }: { arg: { userId: string } }) {
@@ -53,7 +53,7 @@ async function rejectUser(_: string, { arg }: { arg: { userId: string } }) {
   if (error) {
     throw new Error(error.message);
   }
-  mutate("admin-users");
+  void mutate("admin-users");
 }
 
 async function banUser(_: string, { arg }: { arg: { userId: string } }) {
@@ -64,7 +64,7 @@ async function banUser(_: string, { arg }: { arg: { userId: string } }) {
   if (error) {
     throw new Error(error.message);
   }
-  mutate("admin-users");
+  void mutate("admin-users");
 }
 
 async function unbanUser(_: string, { arg }: { arg: { userId: string } }) {
@@ -72,7 +72,7 @@ async function unbanUser(_: string, { arg }: { arg: { userId: string } }) {
   if (error) {
     throw new Error(error.message);
   }
-  mutate("admin-users");
+  void mutate("admin-users");
 }
 
 async function setUserRole(
@@ -86,7 +86,7 @@ async function setUserRole(
   if (error) {
     throw new Error(error.message);
   }
-  mutate("admin-users");
+  void mutate("admin-users");
 }
 
 export function UserRow({ user, adminCount }: UserRowProps) {
@@ -110,9 +110,9 @@ export function UserRow({ user, adminCount }: UserRowProps) {
 
   const handleConfirmAction = () => {
     if (confirmAction === "make-admin") {
-      setRole.trigger({ role: "admin", userId: user.id });
+      void setRole.trigger({ role: "admin", userId: user.id });
     } else if (confirmAction === "remove-admin") {
-      setRole.trigger({ role: "user", userId: user.id });
+      void setRole.trigger({ role: "user", userId: user.id });
     }
     setConfirmAction(null);
   };

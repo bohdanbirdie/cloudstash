@@ -65,7 +65,7 @@ const useConnectionMonitor = (store: AppStore) => {
 
   useEffect(() => {
     let aborted = false;
-    const storeId = store.storeId as string;
+    const storeId = store.storeId;
 
     const handleStatusChange = (status: { isConnected: boolean }) =>
       Effect.gen(function* () {
@@ -105,9 +105,7 @@ const useConnectionMonitor = (store: AppStore) => {
     const runMonitor = async () => {
       try {
         await store.networkStatus.changes.pipe(
-          Stream.tap((s: unknown) =>
-            handleStatusChange(s as { isConnected: boolean })
-          ),
+          Stream.tap((s) => handleStatusChange(s)),
           Stream.runDrain,
           Effect.scoped,
           Effect.runPromise
@@ -117,7 +115,7 @@ const useConnectionMonitor = (store: AppStore) => {
       }
     };
 
-    runMonitor();
+    void runMonitor();
 
     return () => {
       aborted = true;

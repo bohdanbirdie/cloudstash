@@ -24,11 +24,11 @@ export const safeErrorInfo = (
     };
   }
   if (error !== null && typeof error === "object") {
-    const str = String(error).slice(0, 500);
+    const str = JSON.stringify(error)?.slice(0, 500) ?? "{}";
     return {
       errorType: "object",
-      hasMessage: str !== "[object Object]",
-      errorMessage: str !== "[object Object]" ? str : undefined,
+      hasMessage: str !== "{}",
+      errorMessage: str !== "{}" ? str : undefined,
     };
   }
   return {

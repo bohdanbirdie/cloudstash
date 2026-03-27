@@ -27,7 +27,7 @@ export function InputOTP({
       return;
     }
 
-    const newValue = [...value];
+    const newValue = Array.from(value);
     newValue[index] = upperChar;
     const result = newValue.join("").slice(0, length);
     onChange(result);
@@ -49,7 +49,7 @@ export function InputOTP({
       if (!value[index] && index > 0) {
         inputRefs.current[index - 1]?.focus();
       }
-      const newValue = [...value];
+      const newValue = Array.from(value);
       newValue[index] = "";
       onChange(newValue.join(""));
     } else if (e.key === "ArrowLeft" && index > 0) {

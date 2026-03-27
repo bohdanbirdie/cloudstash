@@ -186,7 +186,7 @@ export function LinkDetailDialogContent({
     store.commit(
       events.linkProcessingStarted({ linkId, updatedAt: new Date() })
     );
-    fetch(`/api/links/${linkId}/reprocess`, { method: "POST" });
+    void fetch(`/api/links/${linkId}/reprocess`, { method: "POST" });
   };
 
   const handleCopy = async () => {

@@ -34,10 +34,10 @@ export function TagManagerDialog({
   const allTagsWithCounts = store.useQuery(allTagsWithCounts$);
   const [inputValue, setInputValue] = useState("");
 
-  const filteredTags = useMemo((): TagWithCount[] => {
-    if (!inputValue) return allTagsWithCounts as TagWithCount[];
+  const filteredTags = useMemo((): readonly TagWithCount[] => {
+    if (!inputValue) return allTagsWithCounts;
     const query = inputValue.toLowerCase();
-    return (allTagsWithCounts as TagWithCount[]).filter((tag) =>
+    return allTagsWithCounts.filter((tag: TagWithCount) =>
       tag.name.toLowerCase().includes(query)
     );
   }, [allTagsWithCounts, inputValue]);

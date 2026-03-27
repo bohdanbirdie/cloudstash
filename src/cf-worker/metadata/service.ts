@@ -88,7 +88,7 @@ export const handleMetadataRequest = Effect.fn("handleMetadataRequest")(
 
 export const metadataRequestToResponse = (
   request: Request
-): Effect.Effect<Response, never, never> =>
+): Effect.Effect<Response> =>
   handleMetadataRequest(request).pipe(
     Effect.map((metadata) =>
       Response.json(metadata, {

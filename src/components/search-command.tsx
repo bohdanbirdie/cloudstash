@@ -177,7 +177,7 @@ export function SearchCommand() {
 
   const handleSelectPage = (path: string) => {
     setOpen(false);
-    navigate({ to: path });
+    void navigate({ to: path });
   };
 
   return (

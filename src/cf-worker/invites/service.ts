@@ -54,7 +54,7 @@ const handleCreateInviteRequest = (request: Request) =>
 
     const expiresInDays = yield* Effect.promise(async () => {
       try {
-        const body = (await request.json()) as { expiresInDays?: number };
+        const body: { expiresInDays?: number } = await request.json();
         return body.expiresInDays;
       } catch {
         return;
@@ -206,7 +206,7 @@ const handleRedeemInviteRequest = (request: Request, env: Env) =>
 
     const body = yield* Effect.tryPromise({
       catch: () => new InvalidInviteError(),
-      try: () => request.json() as Promise<{ code?: string }>,
+      try: (): Promise<{ code?: string }> => request.json(),
     });
 
     if (!body.code) {

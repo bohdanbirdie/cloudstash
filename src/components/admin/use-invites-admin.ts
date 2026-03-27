@@ -10,7 +10,7 @@ import type {
 
 async function fetchInvites(): Promise<InviteWithRelations[]> {
   const res = await fetch("/api/invites");
-  const data = (await res.json()) as InvitesListResponse | ApiErrorResponse;
+  const data: InvitesListResponse | ApiErrorResponse = await res.json();
   if (!res.ok || "error" in data) {
     throw new Error("error" in data ? data.error : "Failed to fetch invites");
   }
@@ -42,9 +42,7 @@ export function useInvitesAdmin(enabled = true) {
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
-      const data = (await res.json()) as
-        | InviteCreateResponse
-        | ApiErrorResponse;
+      const data: InviteCreateResponse | ApiErrorResponse = await res.json();
       if (!res.ok || "error" in data) {
         setMutationError(
           "error" in data ? data.error : "Failed to create invite"
@@ -70,9 +68,7 @@ export function useInvitesAdmin(enabled = true) {
         const res = await fetch(`/api/invites/${inviteId}`, {
           method: "DELETE",
         });
-        const data = (await res.json()) as
-          | { success: boolean }
-          | ApiErrorResponse;
+        const data: { success: boolean } | ApiErrorResponse = await res.json();
         if (!res.ok || "error" in data) {
           setMutationError(
             "error" in data ? data.error : "Failed to delete invite"

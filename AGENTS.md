@@ -15,6 +15,7 @@ This project is using Vite+, a unified toolchain built on top of Vite, Rolldown,
 ## Configuration
 
 All Vite+ configuration lives in `vite.config.ts`, including:
+
 - `fmt` — Formatting options (oxfmt)
 - `lint` — Linting rules (oxlint)
 - Standard Vite config (plugins, resolve, server, etc.)

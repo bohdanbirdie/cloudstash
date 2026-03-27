@@ -47,7 +47,7 @@ export function ChatContent({ workspaceId }: ChatContentProps) {
   const handleSubmit = useCallback(
     (text: string) => {
       if (!isConnected || isStreaming || hasPendingConfirmation) return;
-      sendMessage({ role: "user", parts: [{ type: "text", text }] });
+      void sendMessage({ role: "user", parts: [{ type: "text", text }] });
       track("chat_message_sent");
     },
     [isConnected, isStreaming, hasPendingConfirmation, sendMessage]
@@ -64,7 +64,7 @@ export function ChatContent({ workspaceId }: ChatContentProps) {
           const helpText = SLASH_COMMANDS.map(
             (c) => `/${c.name}${c.args ? ` ${c.args}` : ""} - ${c.description}`
           ).join("\n");
-          sendMessage({
+          void sendMessage({
             role: "user",
             parts: [{ type: "text", text: `/help\n\n${helpText}` }],
           });
@@ -73,7 +73,7 @@ export function ChatContent({ workspaceId }: ChatContentProps) {
       }
 
       const naturalLanguage = slashCommandToNaturalLanguage(command, args);
-      sendMessage({
+      void sendMessage({
         role: "user",
         parts: [{ type: "text", text: naturalLanguage }],
       });

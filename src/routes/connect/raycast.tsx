@@ -43,11 +43,11 @@ function ConnectRaycastPage() {
       });
 
       if (!response.ok) {
-        const data = (await response.json()) as { error?: string };
+        const data: { error?: string } = await response.json();
         throw new Error(data.error || "Failed to connect");
       }
 
-      const { code } = (await response.json()) as { code: string };
+      const { code }: { code: string } = await response.json();
 
       setStatus("success");
 

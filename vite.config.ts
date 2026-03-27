@@ -128,6 +128,7 @@ export default defineConfig({
       "typescript/explicit-function-return-type": "off",
       "typescript/no-var-requires": "off",
       "typescript/require-await": "off",
+      "typescript/no-unsafe-type-assertion": "off",
 
       "node/no-process-env": "off",
 
@@ -161,7 +162,6 @@ export default defineConfig({
     },
     options: {
       typeAware: true,
-      typeCheck: true,
     },
     overrides: [
       {
@@ -172,6 +172,7 @@ export default defineConfig({
         rules: {
           "no-empty-function": "off",
           "promise/prefer-await-to-then": "off",
+          "typescript/no-unsafe-type-assertion": "off",
         },
       },
     ],

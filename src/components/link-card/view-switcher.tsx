@@ -17,8 +17,8 @@ export function ViewSwitcher() {
       <ToggleGroup
         value={[viewMode]}
         onValueChange={(value) => {
-          const newValue = value[0] as "grid" | "list" | undefined;
-          if (newValue) setViewMode(newValue);
+          const newValue = value[0];
+          if (newValue === "grid" || newValue === "list") setViewMode(newValue);
         }}
         variant="outline"
         size="sm"

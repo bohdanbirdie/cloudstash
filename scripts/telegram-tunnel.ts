@@ -75,12 +75,12 @@ async function processStream(stream: ReadableStream<Uint8Array>) {
 
     const match = text.match(/https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/);
     if (match) {
-      registerWebhook(match[0]);
+      void registerWebhook(match[0]);
     }
   }
 }
 
-processStream(proc.stderr as ReadableStream<Uint8Array>);
-processStream(proc.stdout as ReadableStream<Uint8Array>);
+if (proc.stderr) void processStream(proc.stderr);
+if (proc.stdout) void processStream(proc.stdout);
 
 await proc.exited;

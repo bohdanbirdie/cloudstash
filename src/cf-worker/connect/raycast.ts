@@ -236,8 +236,8 @@ export const handleRaycastExchange = (
   env: Env
 ): Promise<Response> =>
   Effect.tryPromise({
-    catch: () => ({}) as { code?: string },
-    try: () => request.json() as Promise<{ code?: string }>,
+    catch: (): { code?: string } => ({}),
+    try: (): Promise<{ code?: string; deviceName?: string }> => request.json(),
   }).pipe(
     Effect.flatMap((body) =>
       handleExchangeRequest(body).pipe(Effect.provide(makeLiveLayer(env)))
