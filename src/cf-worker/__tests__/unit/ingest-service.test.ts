@@ -2,7 +2,7 @@ import { Effect, Layer, LogLevel, Logger } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import { AuthClient } from "../../auth/service";
-import { handleIngestRequest, ingestRequestToResponse } from "../../ingest/service";
+import { handleIngestRequest } from "../../ingest/service";
 
 function createRequest(
   body: unknown,
