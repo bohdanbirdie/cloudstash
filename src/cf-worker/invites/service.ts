@@ -1,12 +1,9 @@
-import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
 import { Effect } from "effect";
 
 import { INVITE_CODE_CHARS, INVITE_CODE_LENGTH } from "@/lib/invite";
 
-import { createAuth } from "../auth";
 import type { Auth } from "../auth";
-import { createDb } from "../db";
-import * as schema from "../db/schema";
+import { AppLayerLive, AuthClient } from "../auth/service";
 import { sendApprovalEmail } from "../email/send-approval-email";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
@@ -16,6 +13,7 @@ import {
   InviteNotFoundError,
   UnauthorizedError,
 } from "./errors";
+import { InviteStore, InviteStoreLive } from "./store";
 
 const logger = logSync("Invites");
 
@@ -47,10 +45,10 @@ const requireAdmin = (session: { user: { role?: string | null } }) =>
     ? Effect.void
     : Effect.fail(new ForbiddenError());
 
-const handleCreateInviteRequest = (request: Request, env: Env) =>
+const handleCreateInviteRequest = (request: Request) =>
   Effect.gen(function* () {
-    const db = createDb(env.DB);
-    const auth = createAuth(env, db);
+    const auth = yield* AuthClient;
+    const inviteStore = yield* InviteStore;
     const session = yield* getSession(auth, request.headers);
     yield* requireAdmin(session);
 
@@ -68,14 +66,12 @@ const handleCreateInviteRequest = (request: Request, env: Env) =>
       ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
       : null;
 
-    yield* Effect.promise(() =>
-      db.insert(schema.invite).values({
-        code,
-        createdByUserId: session.user.id,
-        expiresAt,
-        id: generateInviteId(),
-      })
-    );
+    yield* inviteStore.create({
+      code,
+      createdByUserId: session.user.id,
+      expiresAt,
+      id: generateInviteId(),
+    });
 
     logger.info("Invite created", { hasExpiry: !!expiresAt });
     return { code, expiresAt };
@@ -86,9 +82,15 @@ export const handleCreateInvite = (
   env: Env
 ): Promise<Response> =>
   Effect.runPromise(
-    handleCreateInviteRequest(request, env).pipe(
+    handleCreateInviteRequest(request).pipe(
+      Effect.provide(InviteStoreLive),
+      Effect.provide(AppLayerLive(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
+        DbError: () =>
+          Effect.succeed(
+            Response.json({ error: "Internal server error" }, { status: 500 })
+          ),
         ForbiddenError: () =>
           Effect.succeed(
             Response.json({ error: "Admin access required" }, { status: 403 })
@@ -101,22 +103,14 @@ export const handleCreateInvite = (
     )
   );
 
-const handleListInvitesRequest = (request: Request, env: Env) =>
+const handleListInvitesRequest = (request: Request) =>
   Effect.gen(function* () {
-    const db = createDb(env.DB);
-    const auth = createAuth(env, db);
+    const auth = yield* AuthClient;
+    const inviteStore = yield* InviteStore;
     const session = yield* getSession(auth, request.headers);
     yield* requireAdmin(session);
 
-    const invites = yield* Effect.promise(() =>
-      db.query.invite.findMany({
-        orderBy: [desc(schema.invite.createdAt)],
-        with: {
-          createdBy: { columns: { email: true, id: true, name: true } },
-          usedBy: { columns: { email: true, id: true, name: true } },
-        },
-      })
-    );
+    const invites = yield* inviteStore.list();
 
     logger.debug("List invites", { count: invites.length });
     return { invites };
@@ -127,9 +121,15 @@ export const handleListInvites = (
   env: Env
 ): Promise<Response> =>
   Effect.runPromise(
-    handleListInvitesRequest(request, env).pipe(
+    handleListInvitesRequest(request).pipe(
+      Effect.provide(InviteStoreLive),
+      Effect.provide(AppLayerLive(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
+        DbError: () =>
+          Effect.succeed(
+            Response.json({ error: "Internal server error" }, { status: 500 })
+          ),
         ForbiddenError: () =>
           Effect.succeed(
             Response.json({ error: "Admin access required" }, { status: 403 })
@@ -142,32 +142,21 @@ export const handleListInvites = (
     )
   );
 
-// DELETE /api/invites/:id - Delete invite (admin only)
-const handleDeleteInviteRequest = (
-  request: Request,
-  inviteId: string,
-  env: Env
-) =>
+const handleDeleteInviteRequest = (request: Request, inviteId: string) =>
   Effect.gen(function* () {
-    const db = createDb(env.DB);
-    const auth = createAuth(env, db);
+    const auth = yield* AuthClient;
+    const inviteStore = yield* InviteStore;
     const session = yield* getSession(auth, request.headers);
     yield* requireAdmin(session);
 
-    const invite = yield* Effect.promise(() =>
-      db.query.invite.findFirst({
-        where: eq(schema.invite.id, inviteId),
-      })
-    );
+    const invite = yield* inviteStore.findById(inviteId);
 
     if (!invite) {
       logger.info("Delete invite not found");
       return yield* new InviteNotFoundError();
     }
 
-    yield* Effect.promise(() =>
-      db.delete(schema.invite).where(eq(schema.invite.id, inviteId))
-    );
+    yield* inviteStore.deleteById(inviteId);
 
     logger.info("Invite deleted");
     return { success: true };
@@ -179,9 +168,15 @@ export const handleDeleteInvite = (
   env: Env
 ): Promise<Response> =>
   Effect.runPromise(
-    handleDeleteInviteRequest(request, inviteId, env).pipe(
+    handleDeleteInviteRequest(request, inviteId).pipe(
+      Effect.provide(InviteStoreLive),
+      Effect.provide(AppLayerLive(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
+        DbError: () =>
+          Effect.succeed(
+            Response.json({ error: "Internal server error" }, { status: 500 })
+          ),
         ForbiddenError: () =>
           Effect.succeed(
             Response.json({ error: "Admin access required" }, { status: 403 })
@@ -200,8 +195,8 @@ export const handleDeleteInvite = (
 
 const handleRedeemInviteRequest = (request: Request, env: Env) =>
   Effect.gen(function* () {
-    const db = createDb(env.DB);
-    const auth = createAuth(env, db);
+    const auth = yield* AuthClient;
+    const inviteStore = yield* InviteStore;
     const session = yield* getSession(auth, request.headers);
 
     if (session.user.approved) {
@@ -219,37 +214,14 @@ const handleRedeemInviteRequest = (request: Request, env: Env) =>
       return yield* new InvalidInviteError();
     }
 
-    const invite = yield* Effect.promise(() =>
-      db.query.invite.findFirst({
-        where: and(
-          eq(schema.invite.code, body.code!.toUpperCase()),
-          isNull(schema.invite.usedByUserId),
-          or(
-            isNull(schema.invite.expiresAt),
-            gt(schema.invite.expiresAt, new Date())
-          )
-        ),
-      })
-    );
+    const invite = yield* inviteStore.findValidByCode(body.code);
 
     if (!invite) {
       logger.info("Redeem invite - invalid or expired code");
       return yield* new InvalidInviteError();
     }
 
-    // Mark invite as used and approve user
-    yield* Effect.promise(() =>
-      db.batch([
-        db
-          .update(schema.invite)
-          .set({ usedAt: new Date(), usedByUserId: session.user.id })
-          .where(eq(schema.invite.id, invite.id)),
-        db
-          .update(schema.user)
-          .set({ approved: true })
-          .where(eq(schema.user.id, session.user.id)),
-      ])
-    );
+    yield* inviteStore.redeemAndApproveUser(invite.id, session.user.id);
 
     yield* sendApprovalEmail(
       session.user.email,
@@ -268,8 +240,14 @@ export const handleRedeemInvite = (
 ): Promise<Response> =>
   Effect.runPromise(
     handleRedeemInviteRequest(request, env).pipe(
+      Effect.provide(InviteStoreLive),
+      Effect.provide(AppLayerLive(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
+        DbError: () =>
+          Effect.succeed(
+            Response.json({ error: "Internal server error" }, { status: 500 })
+          ),
         InvalidInviteError: () =>
           Effect.succeed(
             Response.json(

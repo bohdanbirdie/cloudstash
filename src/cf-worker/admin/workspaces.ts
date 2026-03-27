@@ -1,50 +1,42 @@
-import { eq } from "drizzle-orm";
+import { Effect } from "effect";
 
-import { createDb } from "../db";
-import * as schema from "../db/schema";
 import type { OrgFeatures } from "../db/schema";
+import { DbClientLive } from "../db/service";
 import { maskId } from "../log-utils";
 import { logSync } from "../logger";
+import {
+  OrgFeatures as OrgFeaturesService,
+  OrgFeaturesLive,
+} from "../org/features-service";
 import type { Env } from "../shared";
 
 const logger = logSync("Admin");
 
-export interface WorkspaceWithOwner {
-  id: string;
-  name: string;
-  slug: string | null;
-  creatorEmail: string | null;
-  features: OrgFeatures;
-}
+export type { WorkspaceWithOwner } from "../org/features-service";
+
+const orgLayer = OrgFeaturesLive;
 
 export async function handleListWorkspaces(
   _request: Request,
   env: Env
 ): Promise<Response> {
-  const db = createDb(env.DB);
+  return Effect.runPromise(
+    Effect.gen(function* () {
+      const orgFeatures = yield* OrgFeaturesService;
+      const workspaces = yield* orgFeatures.listWithOwners();
 
-  const orgs = await db.query.organization.findMany({
-    with: {
-      members: {
-        where: eq(schema.member.role, "owner"),
-        with: {
-          user: { columns: { email: true } },
-        },
-        limit: 1,
-      },
-    },
-  });
-
-  const workspaces: WorkspaceWithOwner[] = orgs.map((org) => ({
-    id: org.id,
-    name: org.name,
-    slug: org.slug,
-    creatorEmail: org.members[0]?.user?.email ?? null,
-    features: (org.features as OrgFeatures) ?? {},
-  }));
-
-  logger.info("List workspaces", { count: workspaces.length });
-  return Response.json({ workspaces });
+      logger.info("List workspaces", { count: workspaces.length });
+      return Response.json({ workspaces });
+    }).pipe(
+      Effect.provide(orgLayer),
+      Effect.provide(DbClientLive(env.DB)),
+      Effect.catchTag("DbError", () =>
+        Effect.succeed(
+          Response.json({ error: "Internal server error" }, { status: 500 })
+        )
+      )
+    )
+  );
 }
 
 export async function handleGetOrgSettings(
@@ -52,20 +44,32 @@ export async function handleGetOrgSettings(
   orgId: string,
   env: Env
 ): Promise<Response> {
-  const db = createDb(env.DB);
+  return Effect.runPromise(
+    Effect.gen(function* () {
+      const orgFeatures = yield* OrgFeaturesService;
+      const exists = yield* orgFeatures.exists(orgId);
 
-  const org = await db.query.organization.findFirst({
-    where: eq(schema.organization.id, orgId),
-    columns: { features: true },
-  });
+      if (!exists) {
+        logger.info("Get org settings not found", { orgId: maskId(orgId) });
+        return Response.json(
+          { error: "Organization not found" },
+          { status: 404 }
+        );
+      }
 
-  if (!org) {
-    logger.info("Get org settings not found", { orgId: maskId(orgId) });
-    return Response.json({ error: "Organization not found" }, { status: 404 });
-  }
-
-  logger.debug("Get org settings", { orgId: maskId(orgId) });
-  return Response.json({ features: (org.features as OrgFeatures) ?? {} });
+      const features = yield* orgFeatures.get(orgId);
+      logger.debug("Get org settings", { orgId: maskId(orgId) });
+      return Response.json({ features });
+    }).pipe(
+      Effect.provide(orgLayer),
+      Effect.provide(DbClientLive(env.DB)),
+      Effect.catchTag("DbError", () =>
+        Effect.succeed(
+          Response.json({ error: "Internal server error" }, { status: 500 })
+        )
+      )
+    )
+  );
 }
 
 export async function handleUpdateOrgSettings(
@@ -73,34 +77,49 @@ export async function handleUpdateOrgSettings(
   orgId: string,
   env: Env
 ): Promise<Response> {
-  const db = createDb(env.DB);
+  return Effect.runPromise(
+    Effect.gen(function* () {
+      const orgFeatures = yield* OrgFeaturesService;
 
-  let body: { features: OrgFeatures };
-  try {
-    body = await request.json();
-  } catch {
-    logger.warn("Update org settings invalid body", { orgId: maskId(orgId) });
-    return Response.json({ error: "Invalid request body" }, { status: 400 });
-  }
+      let body: { features: OrgFeatures };
+      try {
+        body = (yield* Effect.promise(() => request.json())) as {
+          features: OrgFeatures;
+        };
+      } catch {
+        logger.warn("Update org settings invalid body", {
+          orgId: maskId(orgId),
+        });
+        return Response.json(
+          { error: "Invalid request body" },
+          { status: 400 }
+        );
+      }
 
-  const org = await db.query.organization.findFirst({
-    where: eq(schema.organization.id, orgId),
-    columns: { id: true },
-  });
+      const exists = yield* orgFeatures.exists(orgId);
+      if (!exists) {
+        logger.info("Update org settings not found", { orgId: maskId(orgId) });
+        return Response.json(
+          { error: "Organization not found" },
+          { status: 404 }
+        );
+      }
 
-  if (!org) {
-    logger.info("Update org settings not found", { orgId: maskId(orgId) });
-    return Response.json({ error: "Organization not found" }, { status: 404 });
-  }
+      yield* orgFeatures.update(orgId, body.features);
 
-  await db
-    .update(schema.organization)
-    .set({ features: body.features })
-    .where(eq(schema.organization.id, orgId));
-
-  logger.info("Update org settings", {
-    orgId: maskId(orgId),
-    features: Object.keys(body.features),
-  });
-  return Response.json({ success: true, features: body.features });
+      logger.info("Update org settings", {
+        orgId: maskId(orgId),
+        features: Object.keys(body.features),
+      });
+      return Response.json({ success: true, features: body.features });
+    }).pipe(
+      Effect.provide(orgLayer),
+      Effect.provide(DbClientLive(env.DB)),
+      Effect.catchTag("DbError", () =>
+        Effect.succeed(
+          Response.json({ error: "Internal server error" }, { status: 500 })
+        )
+      )
+    )
+  );
 }

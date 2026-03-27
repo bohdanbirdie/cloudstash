@@ -1,9 +1,9 @@
 import { and, eq, gt } from "drizzle-orm";
 import { Effect, Layer } from "effect";
 
-import { createAuth } from "../auth";
-import { createDb } from "../db";
+import { AppLayerLive, AuthClient } from "../auth/service";
 import * as schema from "../db/schema";
+import { DbClient, query } from "../db/service";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
 import {
@@ -96,86 +96,112 @@ export const handleExchangeRequest = (body: {
     return { apiKey: stored.key };
   });
 
-const makeLiveLayer = (env: Env) => {
-  const db = createDb(env.DB);
-  const auth = createAuth(env, db);
-
-  return Layer.mergeAll(
-    Layer.succeed(SessionProvider, {
-      getSession: (headers) =>
-        Effect.tryPromise(() => auth.api.getSession({ headers })).pipe(
-          Effect.orElseSucceed(() => null),
-          Effect.map((session) =>
-            session?.session
-              ? {
-                  userId: session.user.id,
-                  orgId: session.session.activeOrganizationId ?? null,
-                }
-              : null
-          )
-        ),
-    }),
-    Layer.succeed(ApiKeyStore, {
-      listByUser: (userId) =>
-        Effect.promise(() =>
-          db
-            .select({ id: schema.apikey.id, metadata: schema.apikey.metadata })
-            .from(schema.apikey)
-            .where(eq(schema.apikey.referenceId, userId))
-        ),
-      deleteById: (id) =>
-        Effect.promise(() =>
-          db.delete(schema.apikey).where(eq(schema.apikey.id, id))
-        ).pipe(Effect.asVoid),
-      create: (headers, metadata, name) =>
-        Effect.tryPromise(() =>
-          auth.api.createApiKey({ body: { metadata, name }, headers })
-        ).pipe(
-          Effect.map((result) =>
-            result?.key && result?.id
-              ? { key: result.key, id: result.id }
-              : null
-          ),
-          Effect.orElseSucceed(() => null)
-        ),
-      updateName: (id, name) =>
-        Effect.promise(() =>
-          db.update(schema.apikey).set({ name }).where(eq(schema.apikey.id, id))
-        ).pipe(Effect.asVoid),
-    }),
-    Layer.succeed(VerificationStore, {
-      save: (identifier, value, ttlMs) =>
-        Effect.promise(() => {
-          const now = new Date();
-          return db.insert(schema.verification).values({
-            id: crypto.randomUUID(),
-            identifier,
-            value,
-            createdAt: now,
-            expiresAt: new Date(now.getTime() + ttlMs),
-            updatedAt: now,
-          });
-        }).pipe(Effect.asVoid),
-      findValid: (identifier) =>
-        Effect.promise(() =>
-          db
-            .select()
-            .from(schema.verification)
-            .where(
-              and(
-                eq(schema.verification.identifier, identifier),
-                gt(schema.verification.expiresAt, new Date())
+const makeLiveLayer = (env: Env) =>
+  Layer.mergeAll(
+    Layer.effect(
+      SessionProvider,
+      Effect.gen(function* () {
+        const auth = yield* AuthClient;
+        return SessionProvider.of({
+          getSession: (headers) =>
+            Effect.tryPromise(() => auth.api.getSession({ headers })).pipe(
+              Effect.orElseSucceed(() => null),
+              Effect.map((session) =>
+                session?.session
+                  ? {
+                      userId: session.user.id,
+                      orgId: session.session.activeOrganizationId ?? null,
+                    }
+                  : null
               )
-            )
-            .get()
-        ).pipe(Effect.map((r) => (r ? { id: r.id, value: r.value } : null))),
-      deleteById: (id) =>
-        Effect.promise(() =>
-          db.delete(schema.verification).where(eq(schema.verification.id, id))
-        ).pipe(Effect.asVoid),
-    })
-  );
-};
+            ),
+        });
+      })
+    ),
+    Layer.effect(
+      ApiKeyStore,
+      Effect.gen(function* () {
+        const db = yield* DbClient;
+        const auth = yield* AuthClient;
+        return ApiKeyStore.of({
+          listByUser: (userId) =>
+            query(
+              db
+                .select({
+                  id: schema.apikey.id,
+                  metadata: schema.apikey.metadata,
+                })
+                .from(schema.apikey)
+                .where(eq(schema.apikey.referenceId, userId))
+            ),
+          deleteById: (id) =>
+            query(
+              db.delete(schema.apikey).where(eq(schema.apikey.id, id))
+            ).pipe(Effect.asVoid),
+          create: (headers, metadata, name) =>
+            Effect.tryPromise(() =>
+              auth.api.createApiKey({ body: { metadata, name }, headers })
+            ).pipe(
+              Effect.map((result) =>
+                result?.key && result?.id
+                  ? { key: result.key, id: result.id }
+                  : null
+              ),
+              Effect.orElseSucceed(() => null)
+            ),
+          updateName: (id, name) =>
+            query(
+              db
+                .update(schema.apikey)
+                .set({ name })
+                .where(eq(schema.apikey.id, id))
+            ).pipe(Effect.asVoid),
+        });
+      })
+    ),
+    Layer.effect(
+      VerificationStore,
+      Effect.gen(function* () {
+        const db = yield* DbClient;
+        return VerificationStore.of({
+          save: (identifier, value, ttlMs) => {
+            const now = new Date();
+            return query(
+              db.insert(schema.verification).values({
+                id: crypto.randomUUID(),
+                identifier,
+                value,
+                createdAt: now,
+                expiresAt: new Date(now.getTime() + ttlMs),
+                updatedAt: now,
+              })
+            ).pipe(Effect.asVoid);
+          },
+          findValid: (identifier) =>
+            query(
+              db
+                .select()
+                .from(schema.verification)
+                .where(
+                  and(
+                    eq(schema.verification.identifier, identifier),
+                    gt(schema.verification.expiresAt, new Date())
+                  )
+                )
+                .get()
+            ).pipe(
+              Effect.map((r) => (r ? { id: r.id, value: r.value } : null))
+            ),
+          deleteById: (id) =>
+            query(
+              db
+                .delete(schema.verification)
+                .where(eq(schema.verification.id, id))
+            ).pipe(Effect.asVoid),
+        });
+      })
+    )
+  ).pipe(Layer.provide(AppLayerLive(env)));
 
 export const handleRaycastConnect = (
   request: Request,
