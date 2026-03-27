@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Layer } from "effect";
 
 import { INVITE_CODE_CHARS, INVITE_CODE_LENGTH } from "@/lib/invite";
 
@@ -83,8 +83,7 @@ export const handleCreateInvite = (
 ): Promise<Response> =>
   Effect.runPromise(
     handleCreateInviteRequest(request).pipe(
-      Effect.provide(InviteStoreLive),
-      Effect.provide(AppLayerLive(env)),
+      Effect.provide(Layer.provideMerge(InviteStoreLive, AppLayerLive(env))),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
         DbError: () =>
@@ -122,8 +121,7 @@ export const handleListInvites = (
 ): Promise<Response> =>
   Effect.runPromise(
     handleListInvitesRequest(request).pipe(
-      Effect.provide(InviteStoreLive),
-      Effect.provide(AppLayerLive(env)),
+      Effect.provide(Layer.provideMerge(InviteStoreLive, AppLayerLive(env))),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
         DbError: () =>
@@ -169,8 +167,7 @@ export const handleDeleteInvite = (
 ): Promise<Response> =>
   Effect.runPromise(
     handleDeleteInviteRequest(request, inviteId).pipe(
-      Effect.provide(InviteStoreLive),
-      Effect.provide(AppLayerLive(env)),
+      Effect.provide(Layer.provideMerge(InviteStoreLive, AppLayerLive(env))),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
         DbError: () =>
@@ -240,8 +237,7 @@ export const handleRedeemInvite = (
 ): Promise<Response> =>
   Effect.runPromise(
     handleRedeemInviteRequest(request, env).pipe(
-      Effect.provide(InviteStoreLive),
-      Effect.provide(AppLayerLive(env)),
+      Effect.provide(Layer.provideMerge(InviteStoreLive, AppLayerLive(env))),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
         DbError: () =>

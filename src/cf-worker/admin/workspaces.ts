@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Data, Effect, Layer } from "effect";
 
 import type { OrgFeatures } from "../db/schema";
 import { DbClientLive } from "../db/service";
@@ -12,9 +12,12 @@ import type { Env } from "../shared";
 
 const logger = logSync("Admin");
 
+class InvalidBodyError extends Data.TaggedError("InvalidBodyError") {}
+
 export type { WorkspaceWithOwner } from "../org/features-service";
 
-const orgLayer = OrgFeaturesLive;
+const makeLayer = (env: Env) =>
+  Layer.provideMerge(OrgFeaturesLive, DbClientLive(env.DB));
 
 export async function handleListWorkspaces(
   _request: Request,
@@ -28,8 +31,7 @@ export async function handleListWorkspaces(
       logger.info("List workspaces", { count: workspaces.length });
       return Response.json({ workspaces });
     }).pipe(
-      Effect.provide(orgLayer),
-      Effect.provide(DbClientLive(env.DB)),
+      Effect.provide(makeLayer(env)),
       Effect.catchTag("DbError", () =>
         Effect.succeed(
           Response.json({ error: "Internal server error" }, { status: 500 })
@@ -61,8 +63,7 @@ export async function handleGetOrgSettings(
       logger.debug("Get org settings", { orgId: maskId(orgId) });
       return Response.json({ features });
     }).pipe(
-      Effect.provide(orgLayer),
-      Effect.provide(DbClientLive(env.DB)),
+      Effect.provide(makeLayer(env)),
       Effect.catchTag("DbError", () =>
         Effect.succeed(
           Response.json({ error: "Internal server error" }, { status: 500 })
@@ -81,20 +82,10 @@ export async function handleUpdateOrgSettings(
     Effect.gen(function* () {
       const orgFeatures = yield* OrgFeaturesService;
 
-      let body: { features: OrgFeatures };
-      try {
-        body = yield* Effect.promise(
-          (): Promise<{ features: OrgFeatures }> => request.json()
-        );
-      } catch {
-        logger.warn("Update org settings invalid body", {
-          orgId: maskId(orgId),
-        });
-        return Response.json(
-          { error: "Invalid request body" },
-          { status: 400 }
-        );
-      }
+      const body = yield* Effect.tryPromise({
+        try: (): Promise<{ features: OrgFeatures }> => request.json(),
+        catch: () => new InvalidBodyError(),
+      });
 
       const exists = yield* orgFeatures.exists(orgId);
       if (!exists) {
@@ -113,8 +104,15 @@ export async function handleUpdateOrgSettings(
       });
       return Response.json({ success: true, features: body.features });
     }).pipe(
-      Effect.provide(orgLayer),
-      Effect.provide(DbClientLive(env.DB)),
+      Effect.provide(makeLayer(env)),
+      Effect.catchTag("InvalidBodyError", () => {
+        logger.warn("Update org settings invalid body", {
+          orgId: maskId(orgId),
+        });
+        return Effect.succeed(
+          Response.json({ error: "Invalid request body" }, { status: 400 })
+        );
+      }),
       Effect.catchTag("DbError", () =>
         Effect.succeed(
           Response.json({ error: "Internal server error" }, { status: 500 })

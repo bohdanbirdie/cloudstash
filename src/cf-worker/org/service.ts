@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Layer } from "effect";
 
 import { trackEvent } from "../analytics";
 import type { Auth } from "../auth";
@@ -77,8 +77,7 @@ const handleGetMeRequest = (request: Request) =>
 export const handleGetMe = (request: Request, env: Env): Promise<Response> =>
   Effect.runPromise(
     handleGetMeRequest(request).pipe(
-      Effect.provide(OrgFeaturesLive),
-      Effect.provide(AppLayerLive(env)),
+      Effect.provide(Layer.provideMerge(OrgFeaturesLive, AppLayerLive(env))),
       Effect.tap((data) =>
         Effect.sync(() => {
           logger.debug("Get me success", {
@@ -177,8 +176,7 @@ export const handleGetOrg = (
 ): Promise<Response> =>
   Effect.runPromise(
     handleGetOrgRequest(request, orgId).pipe(
-      Effect.provide(OrgFeaturesLive),
-      Effect.provide(AppLayerLive(env)),
+      Effect.provide(Layer.provideMerge(OrgFeaturesLive, AppLayerLive(env))),
       Effect.tap(() =>
         Effect.sync(() =>
           logger.debug("Get org success", { orgId: maskId(orgId) })
