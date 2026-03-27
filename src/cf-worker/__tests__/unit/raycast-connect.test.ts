@@ -138,15 +138,15 @@ describe("handleConnectRequest", () => {
 
   it("saves verification with key and keyId as JSON", async () => {
     let capturedIdentifier: string | null = null;
-    let capturedValue: string | null = null;
+    let capturedData: unknown = null;
 
     await Effect.runPromise(
       runConnect({
         session: { userId: "user-1", orgId: "org-1" },
         verificationStore: {
-          save: (identifier, value) => {
+          save: (identifier, data) => {
             capturedIdentifier = identifier;
-            capturedValue = value;
+            capturedData = data;
             return Effect.void;
           },
         },
@@ -154,9 +154,7 @@ describe("handleConnectRequest", () => {
     );
 
     expect(capturedIdentifier).toMatch(/^raycast-connect:/);
-    const parsed = JSON.parse(capturedValue!);
-    expect(parsed.key).toBe("lb_test_key_123");
-    expect(parsed.keyId).toBe("key-id-1");
+    expect(capturedData).toEqual({ key: "lb_test_key_123", keyId: "key-id-1" });
   });
 });
 
@@ -175,10 +173,10 @@ describe("handleExchangeRequest", () => {
 
   it("returns apiKey and deletes verification on success", async () => {
     let deletedId: string | null = null;
-    const storedValue = JSON.stringify({
+    const storedData = {
       key: "lb_test_key_123",
       keyId: "key-id-1",
-    });
+    };
 
     const result = await Effect.runPromise(
       runExchange(
@@ -187,7 +185,7 @@ describe("handleExchangeRequest", () => {
           verificationStore: {
             findValid: (identifier) =>
               identifier === "raycast-connect:valid-code"
-                ? Effect.succeed({ id: "ver-1", value: storedValue })
+                ? Effect.succeed({ id: "ver-1", data: storedData })
                 : Effect.succeed(null),
             deleteById: (id) => {
               deletedId = id;
@@ -205,10 +203,10 @@ describe("handleExchangeRequest", () => {
   it("updates key name with device name when provided", async () => {
     let updatedId: string | null = null;
     let updatedName: string | null = null;
-    const storedValue = JSON.stringify({
+    const storedData = {
       key: "lb_test_key_123",
       keyId: "key-id-1",
-    });
+    };
 
     await Effect.runPromise(
       runExchange(
@@ -224,7 +222,7 @@ describe("handleExchangeRequest", () => {
           verificationStore: {
             findValid: (identifier) =>
               identifier === "raycast-connect:valid-code"
-                ? Effect.succeed({ id: "ver-1", value: storedValue })
+                ? Effect.succeed({ id: "ver-1", data: storedData })
                 : Effect.succeed(null),
             deleteById: () => Effect.void,
           },
@@ -238,10 +236,10 @@ describe("handleExchangeRequest", () => {
 
   it("skips name update when deviceName is not provided", async () => {
     let updateCalled = false;
-    const storedValue = JSON.stringify({
+    const storedData = {
       key: "lb_test_key_123",
       keyId: "key-id-1",
-    });
+    };
 
     await Effect.runPromise(
       runExchange(
@@ -256,7 +254,7 @@ describe("handleExchangeRequest", () => {
           verificationStore: {
             findValid: (identifier) =>
               identifier === "raycast-connect:valid-code"
-                ? Effect.succeed({ id: "ver-1", value: storedValue })
+                ? Effect.succeed({ id: "ver-1", data: storedData })
                 : Effect.succeed(null),
             deleteById: () => Effect.void,
           },

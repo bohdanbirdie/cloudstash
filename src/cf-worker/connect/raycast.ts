@@ -48,7 +48,7 @@ export const handleConnectRequest = (headers: Headers) =>
 
     yield* verificationStore.save(
       `raycast-connect:${code}`,
-      JSON.stringify({ key: result.key, keyId: result.id }),
+      { key: result.key, keyId: result.id },
       60_000
     );
 
@@ -79,21 +79,15 @@ export const handleExchangeRequest = (body: {
 
     yield* verificationStore.deleteById(record.id);
 
-    const stored = JSON.parse(record.value) as {
-      key: string;
-      keyId: string;
-    };
+    const { key, keyId } = record.data;
 
     if (body.deviceName) {
-      yield* apiKeyStore.updateName(
-        stored.keyId,
-        `Raycast — ${body.deviceName}`
-      );
+      yield* apiKeyStore.updateName(keyId, `Raycast — ${body.deviceName}`);
     }
 
     logger.info("Raycast connect code exchanged");
 
-    return { apiKey: stored.key };
+    return { apiKey: key };
   });
 
 const makeLiveLayer = (env: Env) =>
@@ -164,13 +158,13 @@ const makeLiveLayer = (env: Env) =>
       Effect.gen(function* () {
         const db = yield* DbClient;
         return VerificationStore.of({
-          save: (identifier, value, ttlMs) => {
+          save: (identifier, data, ttlMs) => {
             const now = new Date();
             return query(
               db.insert(schema.verification).values({
                 id: crypto.randomUUID(),
                 identifier,
-                value,
+                value: JSON.stringify(data),
                 createdAt: now,
                 expiresAt: new Date(now.getTime() + ttlMs),
                 updatedAt: now,
@@ -190,7 +184,9 @@ const makeLiveLayer = (env: Env) =>
                 )
                 .get()
             ).pipe(
-              Effect.map((r) => (r ? { id: r.id, value: r.value } : null))
+              Effect.map((r) =>
+                r ? { id: r.id, data: JSON.parse(r.value) } : null
+              )
             ),
           deleteById: (id) =>
             query(
