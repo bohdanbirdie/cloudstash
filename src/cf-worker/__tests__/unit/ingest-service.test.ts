@@ -176,10 +176,7 @@ describe("ingestRequestToResponse", () => {
   });
 
   it("returns 400 when request body has no url", async () => {
-    const request = createRequest(
-      {},
-      { Authorization: "Bearer valid-key" }
-    );
+    const request = createRequest({}, { Authorization: "Bearer valid-key" });
     const env = createEnv();
 
     const response = await run(request, env, validAuthLayer);

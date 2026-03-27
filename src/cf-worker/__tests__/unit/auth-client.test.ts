@@ -26,9 +26,7 @@ function makeAuthClientLayer(
     findUser: AuthClient["Type"]["findUser"];
     approveUser: AuthClient["Type"]["approveUser"];
     listApprovedUsers: AuthClient["Type"]["listApprovedUsers"];
-    getSession: (opts: {
-      headers: Headers;
-    }) => Promise<{
+    getSession: (opts: { headers: Headers }) => Promise<{
       user: { id: string; role?: string };
       session: unknown;
     } | null>;
