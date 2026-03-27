@@ -2,9 +2,7 @@ import type { CfTypes } from "@livestore/sync-cf/cf-worker";
 import * as SyncBackend from "@livestore/sync-cf/cf-worker";
 import { Effect } from "effect";
 
-import { createAuth } from "../auth";
-import type { Auth } from "../auth";
-import { createDb } from "../db";
+import { AppLayerLive, AuthClient } from "../auth/service";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
@@ -62,10 +60,10 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
 
 const validatePayload = (
   _payload: unknown,
-  context: { storeId: string; headers: ReadonlyMap<string, string> },
-  auth: Auth
+  context: { storeId: string; headers: ReadonlyMap<string, string> }
 ) =>
   Effect.gen(function* () {
+    const auth = yield* AuthClient;
     const cookie = context.headers.get("cookie");
     if (!cookie) {
       logger.warn("Sync auth failed: missing cookie", {
@@ -100,7 +98,7 @@ const validatePayload = (
     logger.debug("Sync auth OK", {
       storeId: maskId(context.storeId),
     });
-  }).pipe(Effect.runPromise);
+  });
 
 type SyncSearchParams = NonNullable<
   ReturnType<typeof SyncBackend.matchSyncRequest>
@@ -117,11 +115,11 @@ export const handleSyncRequest = (
     request,
     searchParams,
     syncBackendBinding: "SYNC_BACKEND_DO",
-    validatePayload: (payload, context) => {
-      const db = createDb(env.DB);
-      const auth = createAuth(env, db);
-      return validatePayload(payload, context, auth);
-    },
+    validatePayload: (payload, context) =>
+      validatePayload(payload, context).pipe(
+        Effect.provide(AppLayerLive(env)),
+        Effect.runPromise
+      ),
   });
 
 export { SyncBackend };

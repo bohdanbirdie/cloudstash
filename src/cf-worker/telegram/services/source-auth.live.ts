@@ -1,7 +1,7 @@
 import { Effect, Layer } from "effect";
 
-import { createAuth } from "../../auth";
-import { createDb } from "../../db";
+import type { Auth } from "../../auth";
+import { AppLayerLive, AuthClient } from "../../auth/service";
 import type { Env } from "../../shared";
 import {
   InvalidApiKeyError,
@@ -11,9 +11,8 @@ import {
 } from "../errors";
 import { SourceAuth } from "../services";
 
-const verifyApiKey = (env: Env, apiKey: string) =>
+const verifyApiKey = (auth: Auth, apiKey: string) =>
   Effect.gen(function* () {
-    const auth = createAuth(env, createDb(env.DB));
     const result = yield* Effect.tryPromise({
       catch: (error) => {
         const message = String(error);
@@ -34,14 +33,20 @@ const verifyApiKey = (env: Env, apiKey: string) =>
   });
 
 export const TelegramSourceAuthLive = (env: Env, chatId: number) =>
-  Layer.succeed(SourceAuth, {
-    authenticate: () =>
-      Effect.promise(() => env.TELEGRAM_KV.get(`telegram:${chatId}`)).pipe(
-        Effect.flatMap((key) =>
-          key ? Effect.succeed(key) : Effect.fail(new NotConnectedError({}))
-        ),
-        Effect.flatMap((apiKey) => verifyApiKey(env, apiKey)),
-        Effect.map((orgId) => ({ orgId }))
-      ),
-    verify: (apiKey) => verifyApiKey(env, apiKey).pipe(Effect.asVoid),
-  });
+  Layer.effect(
+    SourceAuth,
+    Effect.gen(function* () {
+      const auth = yield* AuthClient;
+      return SourceAuth.of({
+        authenticate: () =>
+          Effect.promise(() => env.TELEGRAM_KV.get(`telegram:${chatId}`)).pipe(
+            Effect.flatMap((key) =>
+              key ? Effect.succeed(key) : Effect.fail(new NotConnectedError({}))
+            ),
+            Effect.flatMap((apiKey) => verifyApiKey(auth, apiKey)),
+            Effect.map((orgId) => ({ orgId }))
+          ),
+        verify: (apiKey) => verifyApiKey(auth, apiKey).pipe(Effect.asVoid),
+      });
+    })
+  ).pipe(Layer.provide(AppLayerLive(env)));

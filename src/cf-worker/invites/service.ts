@@ -3,10 +3,10 @@ import { Effect } from "effect";
 
 import { INVITE_CODE_CHARS, INVITE_CODE_LENGTH } from "@/lib/invite";
 
-import { createAuth } from "../auth";
 import type { Auth } from "../auth";
-import { createDb } from "../db";
+import { AppLayerLive, AuthClient } from "../auth/service";
 import * as schema from "../db/schema";
+import { DbClient } from "../db/service";
 import { sendApprovalEmail } from "../email/send-approval-email";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
@@ -47,10 +47,10 @@ const requireAdmin = (session: { user: { role?: string | null } }) =>
     ? Effect.void
     : Effect.fail(new ForbiddenError());
 
-const handleCreateInviteRequest = (request: Request, env: Env) =>
+const handleCreateInviteRequest = (request: Request) =>
   Effect.gen(function* () {
-    const db = createDb(env.DB);
-    const auth = createAuth(env, db);
+    const db = yield* DbClient;
+    const auth = yield* AuthClient;
     const session = yield* getSession(auth, request.headers);
     yield* requireAdmin(session);
 
@@ -86,7 +86,8 @@ export const handleCreateInvite = (
   env: Env
 ): Promise<Response> =>
   Effect.runPromise(
-    handleCreateInviteRequest(request, env).pipe(
+    handleCreateInviteRequest(request).pipe(
+      Effect.provide(AppLayerLive(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
         ForbiddenError: () =>
@@ -101,10 +102,10 @@ export const handleCreateInvite = (
     )
   );
 
-const handleListInvitesRequest = (request: Request, env: Env) =>
+const handleListInvitesRequest = (request: Request) =>
   Effect.gen(function* () {
-    const db = createDb(env.DB);
-    const auth = createAuth(env, db);
+    const db = yield* DbClient;
+    const auth = yield* AuthClient;
     const session = yield* getSession(auth, request.headers);
     yield* requireAdmin(session);
 
@@ -127,7 +128,8 @@ export const handleListInvites = (
   env: Env
 ): Promise<Response> =>
   Effect.runPromise(
-    handleListInvitesRequest(request, env).pipe(
+    handleListInvitesRequest(request).pipe(
+      Effect.provide(AppLayerLive(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
         ForbiddenError: () =>
@@ -143,14 +145,10 @@ export const handleListInvites = (
   );
 
 // DELETE /api/invites/:id - Delete invite (admin only)
-const handleDeleteInviteRequest = (
-  request: Request,
-  inviteId: string,
-  env: Env
-) =>
+const handleDeleteInviteRequest = (request: Request, inviteId: string) =>
   Effect.gen(function* () {
-    const db = createDb(env.DB);
-    const auth = createAuth(env, db);
+    const db = yield* DbClient;
+    const auth = yield* AuthClient;
     const session = yield* getSession(auth, request.headers);
     yield* requireAdmin(session);
 
@@ -179,7 +177,8 @@ export const handleDeleteInvite = (
   env: Env
 ): Promise<Response> =>
   Effect.runPromise(
-    handleDeleteInviteRequest(request, inviteId, env).pipe(
+    handleDeleteInviteRequest(request, inviteId).pipe(
+      Effect.provide(AppLayerLive(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
         ForbiddenError: () =>
@@ -200,8 +199,8 @@ export const handleDeleteInvite = (
 
 const handleRedeemInviteRequest = (request: Request, env: Env) =>
   Effect.gen(function* () {
-    const db = createDb(env.DB);
-    const auth = createAuth(env, db);
+    const db = yield* DbClient;
+    const auth = yield* AuthClient;
     const session = yield* getSession(auth, request.headers);
 
     if (session.user.approved) {
@@ -268,6 +267,7 @@ export const handleRedeemInvite = (
 ): Promise<Response> =>
   Effect.runPromise(
     handleRedeemInviteRequest(request, env).pipe(
+      Effect.provide(AppLayerLive(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
         InvalidInviteError: () =>

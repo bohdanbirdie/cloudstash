@@ -8,6 +8,7 @@ import { DurableObject } from "cloudflare:workers";
 import { Effect, Layer } from "effect";
 
 import { events, schema, tables } from "../../livestore/schema";
+import { DbClientLive } from "../db/service";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
@@ -280,7 +281,9 @@ export class LinkProcessorDO
       const features = await Effect.runPromise(
         FeatureStore.pipe(
           Effect.flatMap((fs) => fs.getFeatures(this.storeId!)),
-          Effect.provide(FeatureStoreLive(this.env.DB))
+          Effect.provide(
+            FeatureStoreLive.pipe(Layer.provide(DbClientLive(this.env.DB)))
+          )
         )
       ).catch(() => ({}));
 

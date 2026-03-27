@@ -1,8 +1,7 @@
 import { Effect } from "effect";
 
 import { trackEvent } from "../analytics";
-import { createAuth } from "../auth";
-import { createDb } from "../db";
+import { AppLayerLive, AuthClient } from "../auth/service";
 import type { LinkQueueMessage } from "../link-processor/types";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
@@ -22,7 +21,11 @@ const logger = logSync("Ingest");
 export const handleIngestRequest = (
   request: Request,
   env: Env
-): Effect.Effect<{ result: { status: string }; ok: boolean }, IngestError> =>
+): Effect.Effect<
+  { result: { status: string }; ok: boolean },
+  IngestError,
+  AuthClient
+> =>
   Effect.gen(function* () {
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
@@ -31,8 +34,7 @@ export const handleIngestRequest = (
     }
     const apiKey = authHeader.slice(7);
 
-    const db = createDb(env.DB);
-    const auth = createAuth(env, db);
+    const auth = yield* AuthClient;
 
     const verifyResult = yield* Effect.tryPromise({
       catch: () => InvalidApiKeyError.make({}),
@@ -98,6 +100,7 @@ export const ingestRequestToResponse = (
   env: Env
 ): Effect.Effect<Response, never, never> =>
   handleIngestRequest(request, env).pipe(
+    Effect.provide(AppLayerLive(env)),
     Effect.map(({ result, ok }) =>
       Response.json(result, { status: ok ? 200 : 400 })
     ),

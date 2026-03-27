@@ -1,10 +1,9 @@
 import { eq } from "drizzle-orm";
 import { Effect, Data } from "effect";
 
-import { createDb } from "../db";
 import * as schema from "../db/schema";
 import type { OrgFeatures } from "../db/schema";
-import type { Env } from "../shared";
+import { DbClient } from "../db/service";
 
 export class ChatFeatureDisabledError extends Data.TaggedError(
   "ChatFeatureDisabledError"
@@ -14,11 +13,10 @@ export class ChatFeatureDisabledError extends Data.TaggedError(
 }> {}
 
 export const checkChatFeatureEnabled = (
-  workspaceId: string,
-  env: Env
-): Effect.Effect<void, ChatFeatureDisabledError> =>
+  workspaceId: string
+): Effect.Effect<void, ChatFeatureDisabledError, DbClient> =>
   Effect.gen(function* () {
-    const db = createDb(env.DB);
+    const db = yield* DbClient;
     const org = yield* Effect.tryPromise({
       catch: () =>
         new ChatFeatureDisabledError({

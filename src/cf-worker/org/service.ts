@@ -1,13 +1,12 @@
 import { eq } from "drizzle-orm";
 import { Effect } from "effect";
 
-import type { MeResponse } from "@/types/api";
-
 import { trackEvent } from "../analytics";
-import { createAuth } from "../auth";
-import { createDb } from "../db";
+import type { Auth } from "../auth";
+import { AppLayerLive, AuthClient } from "../auth/service";
 import * as schema from "../db/schema";
 import type { OrgFeatures } from "../db/schema";
+import { DbClient } from "../db/service";
 import { maskId } from "../log-utils";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
@@ -19,8 +18,6 @@ import {
 
 const logger = logSync("Org");
 
-type Auth = ReturnType<typeof createAuth>;
-
 const getSession = (auth: Auth, headers: Headers) =>
   Effect.tryPromise({
     catch: () => UnauthorizedError.make({}),
@@ -31,13 +28,9 @@ const getSession = (auth: Auth, headers: Headers) =>
     )
   );
 
-const getOrgWithFeatures = (
-  auth: Auth,
-  headers: Headers,
-  db: ReturnType<typeof createDb>,
-  orgId: string
-): Effect.Effect<MeResponse["organization"], OrgNotFoundError> =>
+const getOrgWithFeatures = (auth: Auth, headers: Headers, orgId: string) =>
   Effect.gen(function* () {
+    const db = yield* DbClient;
     const apiOrg = yield* Effect.tryPromise({
       catch: () => OrgNotFoundError.make({}),
       try: () =>
@@ -68,18 +61,14 @@ const getOrgWithFeatures = (
     };
   });
 
-const handleGetMeRequest = (
-  request: Request,
-  env: Env
-): Effect.Effect<MeResponse, UnauthorizedError | OrgNotFoundError> =>
+const handleGetMeRequest = (request: Request) =>
   Effect.gen(function* () {
-    const db = createDb(env.DB);
-    const auth = createAuth(env, db);
+    const auth = yield* AuthClient;
     const session = yield* getSession(auth, request.headers);
     const orgId = session.session.activeOrganizationId;
 
     const organization = orgId
-      ? yield* getOrgWithFeatures(auth, request.headers, db, orgId)
+      ? yield* getOrgWithFeatures(auth, request.headers, orgId)
       : null;
 
     return {
@@ -95,7 +84,8 @@ const handleGetMeRequest = (
 
 export const handleGetMe = (request: Request, env: Env): Promise<Response> =>
   Effect.runPromise(
-    handleGetMeRequest(request, env).pipe(
+    handleGetMeRequest(request).pipe(
+      Effect.provide(AppLayerLive(env)),
       Effect.tap((data) =>
         Effect.sync(() => {
           logger.debug("Get me success", {
@@ -175,9 +165,9 @@ const getFullOrganization = (
     })
   );
 
-const handleGetOrgRequest = (request: Request, orgId: string, env: Env) =>
+const handleGetOrgRequest = (request: Request, orgId: string) =>
   Effect.gen(function* () {
-    const auth = createAuth(env, createDb(env.DB));
+    const auth = yield* AuthClient;
     const session = yield* getSession(auth, request.headers);
     return yield* getFullOrganization(
       auth,
@@ -193,7 +183,8 @@ export const handleGetOrg = (
   env: Env
 ): Promise<Response> =>
   Effect.runPromise(
-    handleGetOrgRequest(request, orgId, env).pipe(
+    handleGetOrgRequest(request, orgId).pipe(
+      Effect.provide(AppLayerLive(env)),
       Effect.tap(() =>
         Effect.sync(() =>
           logger.debug("Get org success", { orgId: maskId(orgId) })

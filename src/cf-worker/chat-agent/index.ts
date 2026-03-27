@@ -18,9 +18,9 @@ import { eq } from "drizzle-orm";
 import { Effect } from "effect";
 
 import { schema } from "../../livestore/schema";
-import { createDb } from "../db";
 import * as dbSchema from "../db/schema";
 import type { OrgFeatures } from "../db/schema";
+import { DbClient, DbClientLive } from "../db/service";
 import type { Env } from "../shared";
 import { CONTEXT_WINDOW_SIZE, SYSTEM_PROMPT } from "./config";
 import {
@@ -128,7 +128,11 @@ export class ChatAgentDO
     });
   }
 
-  private getUsage(): Effect.Effect<NonNullable<ChatAgentState["usage"]>> {
+  private getUsage(): Effect.Effect<
+    NonNullable<ChatAgentState["usage"]>,
+    never,
+    DbClient
+  > {
     return Effect.gen(this, function* () {
       const period = getCurrentPeriod();
       const usage = yield* Effect.promise(() =>
@@ -136,7 +140,7 @@ export class ChatAgentDO
       );
       const used = (usage?.promptTokens ?? 0) + (usage?.completionTokens ?? 0);
 
-      const db = createDb(this.env.DB);
+      const db = yield* DbClient;
       const org = yield* Effect.promise(() =>
         db.query.organization.findFirst({
           where: eq(dbSchema.organization.id, this.name),
@@ -154,6 +158,7 @@ export class ChatAgentDO
 
   private broadcastUsage(): Promise<void> {
     return this.getUsage().pipe(
+      Effect.provide(DbClientLive(this.env.DB)),
       Effect.tap((usage) => Effect.sync(() => this.setState({ usage }))),
       Effect.asVoid,
       Effect.runPromise
@@ -162,6 +167,7 @@ export class ChatAgentDO
 
   private isWithinTokenLimit(): Promise<boolean> {
     return this.getUsage().pipe(
+      Effect.provide(DbClientLive(this.env.DB)),
       Effect.map(({ used, limit }) => used < limit),
       Effect.runPromise
     );

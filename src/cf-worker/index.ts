@@ -14,11 +14,10 @@ import { handleApproveUser } from "./admin/approve-user";
 import { handleSendSunsetNotification } from "./admin/send-sunset-notification";
 import { handleGetUsage } from "./admin/usage";
 import { trackEvent } from "./analytics";
-import { createAuth } from "./auth";
+import { AppLayerLive, AuthClient } from "./auth/service";
 import { checkSyncAuth, SyncAuthError } from "./auth/sync-auth";
 import { agentHooks } from "./chat-agent/hooks";
 import { handleRaycastConnect, handleRaycastExchange } from "./connect/raycast";
-import { createDb } from "./db";
 import { ingestRequestToResponse } from "./ingest/service";
 import {
   handleCreateInvite,
@@ -97,11 +96,14 @@ app.post("/api/admin/email/send-sunset-notification", requireAdmin, (c) =>
   handleSendSunsetNotification(c.req.raw, c.env)
 );
 
-app.on(["GET", "POST"], "/api/auth/*", (c) => {
-  const db = createDb(c.env.DB);
-  const auth = createAuth(c.env, db);
-  return auth.handler(c.req.raw);
-});
+app.on(["GET", "POST"], "/api/auth/*", (c) =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const auth = yield* AuthClient;
+      return yield* Effect.promise(() => auth.handler(c.req.raw));
+    }).pipe(Effect.provide(AppLayerLive(c.env)))
+  )
+);
 
 app.post("/api/invites", (c) => handleCreateInvite(c.req.raw, c.env));
 app.get("/api/invites", (c) => handleListInvites(c.req.raw, c.env));
@@ -123,34 +125,40 @@ app.post("/api/connect/raycast/exchange", (c) =>
   handleRaycastExchange(c.req.raw, c.env)
 );
 
-app.post("/api/links/:id/reprocess", async (c) => {
-  const db = createDb(c.env.DB);
-  const auth = createAuth(c.env, db);
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+app.post("/api/links/:id/reprocess", (c) =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const auth = yield* AuthClient;
+      const session = yield* Effect.promise(() =>
+        auth.api.getSession({ headers: c.req.raw.headers })
+      );
 
-  if (!session?.session) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
+      if (!session?.session) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
 
-  const orgId = session.session.activeOrganizationId;
-  if (!orgId) {
-    return c.json({ error: "No active organization" }, 400);
-  }
+      const orgId = session.session.activeOrganizationId;
+      if (!orgId) {
+        return c.json({ error: "No active organization" }, 400);
+      }
 
-  const linkId = c.req.param("id");
-  const processorId = c.env.LINK_PROCESSOR_DO.idFromName(orgId);
-  const processor = c.env.LINK_PROCESSOR_DO.get(processorId);
+      const linkId = c.req.param("id");
+      const processorId = c.env.LINK_PROCESSOR_DO.idFromName(orgId);
+      const processor = c.env.LINK_PROCESSOR_DO.get(processorId);
 
-  try {
-    const resp = await processor.fetch(
-      `https://link-processor/?storeId=${orgId}&reprocess=${linkId}`
-    );
-    const body = await resp.json();
-    return c.json(body as Record<string, unknown>);
-  } catch {
-    return c.json({ error: "Internal error" }, 500);
-  }
-});
+      return yield* Effect.tryPromise({
+        catch: () => c.json({ error: "Internal error" }, 500),
+        try: async () => {
+          const resp = await processor.fetch(
+            `https://link-processor/?storeId=${orgId}&reprocess=${linkId}`
+          );
+          const body = await resp.json();
+          return c.json(body as Record<string, unknown>);
+        },
+      });
+    }).pipe(Effect.provide(AppLayerLive(c.env)))
+  )
+);
 
 app.post("/api/telegram", (c) => handleTelegramWebhook(c.req.raw, c.env));
 
@@ -161,17 +169,20 @@ app.get("/api/sync/auth", async (c) => {
     return c.json({ error: "Missing storeId" }, 400);
   }
 
-  const db = createDb(c.env.DB);
-  const auth = createAuth(c.env, db);
   const cookie = c.req.header("cookie") ?? null;
 
-  const result = await checkSyncAuth(cookie, storeId, auth).pipe(
-    Effect.match({
-      onFailure: (error) => error,
-      onSuccess: (authData) => ({ ok: true as const, userId: authData.userId }),
-    }),
-    Effect.runPromise
-  );
+  const result = await Effect.gen(function* () {
+    const auth = yield* AuthClient;
+    return yield* checkSyncAuth(cookie, storeId, auth).pipe(
+      Effect.match({
+        onFailure: (error) => error,
+        onSuccess: (authData) => ({
+          ok: true as const,
+          userId: authData.userId,
+        }),
+      })
+    );
+  }).pipe(Effect.provide(AppLayerLive(c.env)), Effect.runPromise);
 
   if ("ok" in result) {
     logger.debug("Sync auth success");
@@ -201,21 +212,17 @@ const handleSync = async (
     });
   }
 
-  const db = createDb(env.DB);
-  const auth = createAuth(env, db);
   const cookie = request.headers.get("cookie");
 
-  const authResult = await checkSyncAuth(
-    cookie,
-    searchParams.storeId,
-    auth
-  ).pipe(
-    Effect.match({
-      onFailure: (error) => error,
-      onSuccess: (result) => result,
-    }),
-    Effect.runPromise
-  );
+  const authResult = await Effect.gen(function* () {
+    const auth = yield* AuthClient;
+    return yield* checkSyncAuth(cookie, searchParams.storeId, auth).pipe(
+      Effect.match({
+        onFailure: (error) => error,
+        onSuccess: (result) => result,
+      })
+    );
+  }).pipe(Effect.provide(AppLayerLive(env)), Effect.runPromise);
 
   if (authResult instanceof SyncAuthError) {
     logger.info("Sync auth rejected", {

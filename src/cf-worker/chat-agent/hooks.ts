@@ -1,10 +1,9 @@
 import { Effect } from "effect";
 
 import { trackEvent } from "../analytics";
-import { createAuth } from "../auth";
+import { AppLayerLive, AuthClient } from "../auth/service";
 import { checkSyncAuth } from "../auth/sync-auth";
 import type { SyncAuthError } from "../auth/sync-auth";
-import { createDb } from "../db";
 import type { Env } from "../shared";
 import { checkChatFeatureEnabled } from "./auth";
 import type { ChatFeatureDisabledError } from "./auth";
@@ -24,8 +23,7 @@ const checkChatAgentAccess = (
   Effect.gen(function* () {
     if (lobby.party !== "chat") return;
 
-    const db = createDb(env.DB);
-    const auth = createAuth(env, db);
+    const auth = yield* AuthClient;
     const cookie = request.headers.get("cookie");
 
     const { userId } = yield* checkSyncAuth(cookie, lobby.name, auth);
@@ -34,8 +32,8 @@ const checkChatAgentAccess = (
       event: "chat",
       orgId: lobby.name,
     });
-    yield* checkChatFeatureEnabled(lobby.name, env);
-  });
+    yield* checkChatFeatureEnabled(lobby.name);
+  }).pipe(Effect.provide(AppLayerLive(env)));
 
 const errorToResponse = (error: ChatAccessError): Response =>
   new Response(JSON.stringify(error), {
