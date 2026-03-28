@@ -193,7 +193,7 @@ export default defineConfig({
     include: ["@lexical/code"],
   },
   plugins: [
-    cloudflare(),
+    cloudflare({ inspectorPort: 9230 }),
     TanStackRouterVite(),
     tailwindcss(),
     viteReact(),
