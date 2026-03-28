@@ -164,7 +164,7 @@ bun test             # Run all tests
 bun run test:unit    # Unit tests only
 bun run test:e2e     # E2E tests
 bun run typecheck    # Type checking
-bun run check        # Lint (oxlint + oxfmt via Ultracite)
+bun run check        # Lint + format (Vite+) + Effect diagnostics
 bun run fix          # Auto-fix lint issues
 ```
 
@@ -227,7 +227,7 @@ src/
 4. Run checks: `bun run check && bun run typecheck && bun test`
 5. Submit a pull request
 
-Uses `bun` (not npm) and `oxlint`/`oxfmt` via Ultracite (not eslint).
+Uses `bun` (not npm) and `oxlint`/`oxfmt` via Vite+ (not eslint).
 
 ## License
 

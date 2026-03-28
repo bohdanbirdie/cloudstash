@@ -7,15 +7,16 @@ Link saving app with AI-powered summaries. Full-stack TypeScript on Cloudflare W
 Use **bun** (not npm) for all commands.
 
 ```bash
-bun dev              # Start dev server (port 3000)
+bun dev              # Start all dev processes in parallel
+bun run dev:vp       # Vite+ dev server only (port 3000)
 bun test             # Run all tests
 bun run test:unit    # Unit tests only
 bun run typecheck    # Type checking
-bun run check        # Lint (Ultracite = oxlint + oxfmt)
+bun run check        # Lint + format (Vite+) + Effect diagnostics
 bun run fix          # Fix lint issues
 ```
 
-**Linting:** Uses oxlint and oxfmt via Ultracite (NOT eslint). Don't use eslint-disable comments.
+**Linting:** Uses oxlint and oxfmt via Vite+ (NOT eslint). Don't use eslint-disable comments.
 
 **NEVER run remote wrangler commands** (migrations, deployments, secrets, etc.). Local only:
 
