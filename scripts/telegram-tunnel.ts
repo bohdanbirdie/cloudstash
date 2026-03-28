@@ -74,14 +74,24 @@ async function processStream(stream: ReadableStream<Uint8Array>) {
 
     const match = text.match(/https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/);
     if (match) {
-      void registerWebhook(match[0]);
+      void registerWebhook(match[0]).catch((error) => {
+        console.error("Webhook registration failed:", error);
+      });
     } else if (text.includes("ERR") || text.includes("error")) {
       process.stderr.write(text);
     }
   }
 }
 
-if (proc.stderr) void processStream(proc.stderr);
-if (proc.stdout) void processStream(proc.stdout);
+if (proc.stderr) {
+  void processStream(proc.stderr).catch((error) => {
+    console.error("Stream processing failed:", error);
+  });
+}
+if (proc.stdout) {
+  void processStream(proc.stdout).catch((error) => {
+    console.error("Stream processing failed:", error);
+  });
+}
 
 await proc.exited;

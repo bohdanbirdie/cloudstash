@@ -9,7 +9,7 @@
     "dev:make-admin": "wrangler d1 execute DB --local --command \"UPDATE user SET approved = 1, role = 'admin' WHERE email = 'admin@cloudstash.test'\"",
     "email:dev": "email dev -d src/cf-worker/email/templates -p 3001",
     "dev:tunnel": "bun scripts/telegram-tunnel.ts",
-    "dev:raycast": "test -d local/raycast-extension && npm --prefix local/raycast-extension run dev || true",
+    "dev:raycast": "test -d local/raycast-extension || exit 0; npm --prefix local/raycast-extension run dev",
     "sync": "bash scripts/sync-repos.sh",
     "dev:dashboard": "localflare attach --no-open",
     "build": "vp build",
