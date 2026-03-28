@@ -158,7 +158,8 @@ disconnect - Disconnect account
 ## Commands
 
 ```bash
-bun dev              # Start dev server (port 3000)
+bun dev              # Vite+ dev server (port 3000)
+bun run dev:infra    # Auth emulator, tunnel, dashboard, raycast (separate terminal)
 bun run build        # Production build
 bun test             # Run all tests
 bun run test:unit    # Unit tests only

@@ -7,8 +7,8 @@ Link saving app with AI-powered summaries. Full-stack TypeScript on Cloudflare W
 Use **bun** (not npm) for all commands.
 
 ```bash
-bun dev              # Start all dev processes in parallel
-bun run dev:vp       # Vite+ dev server only (port 3000)
+bun dev              # Vite+ dev server (port 3000)
+bun run dev:infra    # Auth emulator, tunnel, dashboard, raycast (separate terminal)
 bun test             # Run all tests
 bun run test:unit    # Unit tests only
 bun run typecheck    # Type checking
