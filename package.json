@@ -104,7 +104,7 @@
     "zustand": "5.0.12"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.30.0",
+    "@cloudflare/vite-plugin": "1.30.2",
     "@cloudflare/vitest-pool-workers": "0.12.21",
     "@cloudflare/workers-types": "4.20260317.1",
     "@effect/language-service": "0.81.0",
@@ -135,7 +135,7 @@
     "vite-tsconfig-paths": "6.1.1",
     "vitest": "3.2.4",
     "web-vitals": "^5.1.0",
-    "wrangler": "4.76.0"
+    "wrangler": "4.78.0"
   },
   "overrides": {
     "undici": "7.18.2"
