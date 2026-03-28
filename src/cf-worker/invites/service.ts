@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Layer } from "effect";
 
 import { INVITE_CODE_CHARS, INVITE_CODE_LENGTH } from "@/lib/invite";
 
@@ -54,7 +54,7 @@ const handleCreateInviteRequest = (request: Request) =>
 
     const expiresInDays = yield* Effect.promise(async () => {
       try {
-        const body = (await request.json()) as { expiresInDays?: number };
+        const body: { expiresInDays?: number } = await request.json();
         return body.expiresInDays;
       } catch {
         return;
@@ -83,8 +83,7 @@ export const handleCreateInvite = (
 ): Promise<Response> =>
   Effect.runPromise(
     handleCreateInviteRequest(request).pipe(
-      Effect.provide(InviteStoreLive),
-      Effect.provide(AppLayerLive(env)),
+      Effect.provide(Layer.provideMerge(InviteStoreLive, AppLayerLive(env))),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
         DbError: () =>
@@ -122,8 +121,7 @@ export const handleListInvites = (
 ): Promise<Response> =>
   Effect.runPromise(
     handleListInvitesRequest(request).pipe(
-      Effect.provide(InviteStoreLive),
-      Effect.provide(AppLayerLive(env)),
+      Effect.provide(Layer.provideMerge(InviteStoreLive, AppLayerLive(env))),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
         DbError: () =>
@@ -169,8 +167,7 @@ export const handleDeleteInvite = (
 ): Promise<Response> =>
   Effect.runPromise(
     handleDeleteInviteRequest(request, inviteId).pipe(
-      Effect.provide(InviteStoreLive),
-      Effect.provide(AppLayerLive(env)),
+      Effect.provide(Layer.provideMerge(InviteStoreLive, AppLayerLive(env))),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
         DbError: () =>
@@ -206,7 +203,7 @@ const handleRedeemInviteRequest = (request: Request, env: Env) =>
 
     const body = yield* Effect.tryPromise({
       catch: () => new InvalidInviteError(),
-      try: () => request.json() as Promise<{ code?: string }>,
+      try: (): Promise<{ code?: string }> => request.json(),
     });
 
     if (!body.code) {
@@ -240,8 +237,7 @@ export const handleRedeemInvite = (
 ): Promise<Response> =>
   Effect.runPromise(
     handleRedeemInviteRequest(request, env).pipe(
-      Effect.provide(InviteStoreLive),
-      Effect.provide(AppLayerLive(env)),
+      Effect.provide(Layer.provideMerge(InviteStoreLive, AppLayerLive(env))),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
         DbError: () =>

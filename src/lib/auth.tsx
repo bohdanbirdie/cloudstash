@@ -62,9 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const updateAuthFromSession = useCallback(
     (session: Awaited<ReturnType<typeof authClient.getSession>>["data"]) => {
       if (session?.user) {
-        const user = session.user as typeof session.user & {
-          approved?: boolean;
-        };
+        const user = session.user;
         const isApproved = user.approved ?? false;
 
         setAuth({
@@ -82,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    authClient.getSession().then(({ data: session }) => {
+    void authClient.getSession().then(({ data: session }) => {
       updateAuthFromSession(session);
       setIsLoading(false);
     });

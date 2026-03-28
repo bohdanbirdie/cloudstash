@@ -8,10 +8,14 @@ export interface ApiKeyInfo {
   readonly metadata: string | null;
 }
 
+export interface VerificationData {
+  readonly key: string;
+  readonly keyId: string;
+}
+
 export interface VerificationRecord {
   readonly id: string;
-  readonly value: string;
-  readonly keyId?: string;
+  readonly data: VerificationData;
 }
 
 export interface SessionData {
@@ -52,7 +56,7 @@ export class VerificationStore extends Context.Tag("VerificationStore")<
   {
     readonly save: (
       identifier: string,
-      value: string,
+      data: VerificationData,
       ttlMs: number
     ) => Effect.Effect<void, DbError>;
     readonly findValid: (

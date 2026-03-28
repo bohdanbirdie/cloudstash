@@ -38,7 +38,7 @@ export const createLogger = (component: string) =>
 
 export const runWithLogger =
   (component: string) =>
-  <A, E>(effect: Effect.Effect<A, E, never>): Promise<A> =>
+  <A, E>(effect: Effect.Effect<A, E>): Promise<A> =>
     effect.pipe(
       Effect.provide(
         Logger.replace(Logger.defaultLogger, createLogger(component))

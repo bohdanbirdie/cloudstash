@@ -20,6 +20,7 @@ const migrations = journal.entries.map((entry: { tag: string }) => ({
 /**
  * E2E test configuration using Cloudflare Workers Vitest pool.
  * Tests run in an isolated Workers environment with fresh D1 database.
+ * Uses real vitest (not vite-plus shim) due to cloudflare pool incompatibility.
  */
 export default defineWorkersConfig({
   plugins: [viteTsConfigPaths({ projects: ["./tsconfig.json"] })],

@@ -71,16 +71,27 @@ async function processStream(stream: ReadableStream<Uint8Array>) {
     }
 
     const text = decoder.decode(value);
-    process.stdout.write(text);
 
     const match = text.match(/https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/);
     if (match) {
-      registerWebhook(match[0]);
+      void registerWebhook(match[0]).catch((error) => {
+        console.error("Webhook registration failed:", error);
+      });
+    } else if (text.includes("ERR") || text.includes("error")) {
+      process.stderr.write(text);
     }
   }
 }
 
-processStream(proc.stderr as ReadableStream<Uint8Array>);
-processStream(proc.stdout as ReadableStream<Uint8Array>);
+if (proc.stderr) {
+  void processStream(proc.stderr).catch((error) => {
+    console.error("Stream processing failed:", error);
+  });
+}
+if (proc.stdout) {
+  void processStream(proc.stdout).catch((error) => {
+    console.error("Stream processing failed:", error);
+  });
+}
 
 await proc.exited;

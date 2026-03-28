@@ -47,18 +47,18 @@ export async function fetchSyncAuthStatus(
       return {
         type: "auth_failed",
         error: {
-          code: "RATE_LIMITED" as SyncErrorCode,
+          code: "RATE_LIMITED" satisfies SyncErrorCode,
           message: "Too many requests. Please wait a moment.",
         },
       };
     }
 
-    const data = (await res.json()) as { code?: string; message?: string };
+    const data: { code?: SyncErrorCode; message?: string } = await res.json();
     return {
       type: "auth_failed",
       error: {
-        code: (data.code as SyncErrorCode) || "UNKNOWN",
-        message: data.message || "Sync connection failed",
+        code: data.code ?? "UNKNOWN",
+        message: data.message ?? "Sync connection failed",
       },
     };
   } catch {

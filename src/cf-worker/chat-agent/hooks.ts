@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Layer } from "effect";
 
 import { trackEvent } from "../analytics";
 import { AppLayerLive, AuthClient } from "../auth/service";
@@ -42,7 +42,9 @@ const checkChatAgentAccess = (
         )
       )
     );
-  }).pipe(Effect.provide(OrgFeaturesLive), Effect.provide(AppLayerLive(env)));
+  }).pipe(
+    Effect.provide(Layer.provideMerge(OrgFeaturesLive, AppLayerLive(env)))
+  );
 
 const errorToResponse = (error: ChatAccessError): Response =>
   new Response(JSON.stringify(error), {

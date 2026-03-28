@@ -4,7 +4,7 @@ import { beforeAll } from "vitest";
 beforeAll(async () => {
   const db = env.DB;
   const migrations: { tag: string; sql: string }[] = JSON.parse(
-    env.TEST_MIGRATIONS as string
+    env.TEST_MIGRATIONS
   );
 
   for (const { sql } of migrations) {

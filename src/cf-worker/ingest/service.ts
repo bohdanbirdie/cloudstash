@@ -62,7 +62,7 @@ export const handleIngestRequest = (
 
     const body = yield* Effect.tryPromise({
       catch: () => MissingUrlError.make({}),
-      try: () => request.json() as Promise<{ url?: string }>,
+      try: (): Promise<{ url?: string }> => request.json(),
     });
 
     if (!body.url) {
@@ -98,7 +98,7 @@ export const handleIngestRequest = (
 export const ingestRequestToResponse = (
   request: Request,
   env: Env
-): Effect.Effect<Response, never, never> =>
+): Effect.Effect<Response> =>
   handleIngestRequest(request, env).pipe(
     Effect.provide(AppLayerLive(env)),
     Effect.map(({ result, ok }) =>

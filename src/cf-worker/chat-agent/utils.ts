@@ -3,7 +3,7 @@ import { getToolName, isToolUIPart } from "ai";
 import type { ToolSet } from "ai";
 import { Effect, Array as A, Option } from "effect";
 
-import { requiresConfirmation } from "../../shared/tool-config";
+import { requiresConfirmation } from "@/shared/tool-config";
 
 export const APPROVAL = {
   NO: "No, denied.",
@@ -34,7 +34,7 @@ type ToolExecutors = Record<string, (args: any) => Promise<string>>;
 const processToolPart = <T>(
   part: T,
   executors: ToolExecutors
-): Effect.Effect<T, never, never> => {
+): Effect.Effect<T> => {
   if (!isApprovalOutput(part)) {
     return Effect.succeed(part);
   }

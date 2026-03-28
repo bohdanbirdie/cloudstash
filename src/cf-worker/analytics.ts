@@ -52,9 +52,9 @@ export async function queryUsage(
     throw new Error(`Analytics query failed: ${resp.status} ${text}`);
   }
 
-  const json = (await resp.json()) as {
+  const json: {
     data: { userId: string; event: string; count: string }[];
-  };
+  } = await resp.json();
   return {
     rows: (json.data ?? []).map((r) => ({
       ...r,

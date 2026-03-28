@@ -49,7 +49,7 @@ function CodeBlockCode({
       const html = await codeToHtml(code, { lang: language, theme });
       setHighlightedHtml(html);
     }
-    highlight();
+    void highlight();
   }, [code, language, theme]);
 
   if (!highlightedHtml) return null;

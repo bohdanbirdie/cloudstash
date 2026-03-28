@@ -19,7 +19,7 @@ interface SettingsUpdateResponse {
 
 async function fetchWorkspaces(): Promise<Workspace[]> {
   const res = await fetch("/api/admin/workspaces");
-  const data = (await res.json()) as WorkspacesListResponse | ApiErrorResponse;
+  const data: WorkspacesListResponse | ApiErrorResponse = await res.json();
   if (!res.ok || "error" in data) {
     throw new Error(
       "error" in data ? data.error : "Failed to fetch workspaces"
@@ -37,12 +37,12 @@ async function updateOrgSettings(
     headers: { "Content-Type": "application/json" },
     method: "PUT",
   });
-  const data = (await res.json()) as SettingsUpdateResponse | ApiErrorResponse;
+  const data: SettingsUpdateResponse | ApiErrorResponse = await res.json();
   if (!res.ok || "error" in data) {
     throw new Error("error" in data ? data.error : "Failed to update settings");
   }
-  mutate("admin-workspaces");
-  mutate("/api/auth/me");
+  void mutate("admin-workspaces");
+  void mutate("/api/auth/me");
   return data;
 }
 
@@ -62,7 +62,7 @@ export function useWorkspacesAdmin(enabled = true) {
     const workspace = workspaces.find((w) => w.id === orgId);
     if (!workspace) return;
 
-    updateSettings.trigger({
+    void updateSettings.trigger({
       orgId,
       features: {
         ...workspace.features,
@@ -75,7 +75,7 @@ export function useWorkspacesAdmin(enabled = true) {
     const workspace = workspaces.find((w) => w.id === orgId);
     if (!workspace) return;
 
-    updateSettings.trigger({
+    void updateSettings.trigger({
       orgId,
       features: {
         ...workspace.features,
@@ -88,7 +88,7 @@ export function useWorkspacesAdmin(enabled = true) {
     const workspace = workspaces.find((w) => w.id === orgId);
     if (!workspace) return;
 
-    updateSettings.trigger({
+    void updateSettings.trigger({
       orgId,
       features: {
         ...workspace.features,

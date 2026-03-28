@@ -31,12 +31,16 @@ async function fetchUsage(key: string): Promise<UsageResponse> {
   const url = key.startsWith("/") ? key : `/${key}`;
   const res = await fetch(url);
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: "Request failed" }));
-    throw new Error(
-      (body as { error?: string }).error ?? "Failed to fetch usage"
-    );
+    let body: { error?: string };
+    try {
+      body = await res.json();
+    } catch {
+      body = { error: "Request failed" };
+    }
+    throw new Error(body.error ?? "Failed to fetch usage");
   }
-  return res.json() as Promise<UsageResponse>;
+  const data: UsageResponse = await res.json();
+  return data;
 }
 
 export function pivotRows(
