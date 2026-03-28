@@ -11,7 +11,7 @@
     "dev:tunnel": "bun scripts/telegram-tunnel.ts",
     "dev:raycast": "test -d local/raycast-extension && npm --prefix local/raycast-extension run dev || true",
     "sync": "bash scripts/sync-repos.sh",
-    "dev:dashboard": "localflare attach",
+    "dev:dashboard": "localflare attach --no-open",
     "build": "vp build",
     "build:prod": "wrangler d1 migrations apply DB --remote && vp build",
     "preview": "vp preview",

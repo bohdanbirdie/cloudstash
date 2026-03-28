@@ -71,11 +71,12 @@ async function processStream(stream: ReadableStream<Uint8Array>) {
     }
 
     const text = decoder.decode(value);
-    process.stdout.write(text);
 
     const match = text.match(/https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/);
     if (match) {
       void registerWebhook(match[0]);
+    } else if (text.includes("ERR") || text.includes("error")) {
+      process.stderr.write(text);
     }
   }
 }
