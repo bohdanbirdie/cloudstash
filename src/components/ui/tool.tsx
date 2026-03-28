@@ -227,9 +227,8 @@ const extractLinkIds = (toolName: string, input: unknown): string[] =>
     }),
     Match.when("deleteLinks", () => {
       const ids = asRecord(input)?.ids;
-      return Array.isArray(ids)
-        ? ids.filter((id): id is string => typeof id === "string")
-        : [];
+      if (!Array.isArray(ids)) return [];
+      return ids.every((id): id is string => typeof id === "string") ? ids : [];
     }),
     Match.orElse(() => [])
   );
