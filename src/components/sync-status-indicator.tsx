@@ -6,7 +6,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useSyncStatusStore } from "@/stores/sync-status-store";
+import { sendBroadcast, useSyncStatusStore } from "@/stores/sync-status-store";
 
 export function SyncStatusIndicator() {
   const { status, storeId } = useSyncStatusStore();
@@ -42,9 +42,7 @@ function ReconnectingBadge() {
 function WaitingBadge({ storeId }: { storeId: string | null }) {
   const handleRetry = () => {
     if (!storeId) return;
-    const ch = new BroadcastChannel(`livestore.sync-retry.${storeId}`);
-    ch.postMessage({ type: "reset" });
-    ch.close();
+    sendBroadcast(`livestore.sync-retry.${storeId}`, { type: "reset" });
   };
 
   return (
@@ -73,11 +71,7 @@ function WaitingBadge({ storeId }: { storeId: string | null }) {
   );
 }
 
-function ErrorBadge({
-  status,
-}: {
-  status: { code: string; message: string };
-}) {
+function ErrorBadge({ status }: { status: { code: string; message: string } }) {
   const handleAction = () => {
     if (status.code === "SESSION_EXPIRED") {
       window.location.href = "/login";

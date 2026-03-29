@@ -8,6 +8,7 @@ import { unstable_batchedUpdates } from "react-dom";
 
 import {
   fetchSyncAuthStatus,
+  sendBroadcast,
   useSyncStatusStore,
 } from "@/stores/sync-status-store";
 
@@ -88,19 +89,17 @@ const useConnectionMonitor = (store: AppStore) => {
         lastAuthCheck.current = now;
 
         const result = yield* Effect.promise(() =>
-          fetchSyncAuthStatus(storeId),
+          fetchSyncAuthStatus(storeId)
         );
         if (aborted) return;
 
         if (result.type === "auth_failed") {
           yield* Effect.promise(() => store.shutdownPromise().catch(() => {}));
-          useSyncStatusStore
-            .getState()
-            .setStatus({
-              state: "error",
-              code: result.code,
-              message: result.message,
-            });
+          useSyncStatusStore.getState().setStatus({
+            state: "error",
+            code: result.code,
+            message: result.message,
+          });
         }
       });
 
@@ -110,7 +109,7 @@ const useConnectionMonitor = (store: AppStore) => {
           Stream.tap((s) => handleStatusChange(s)),
           Stream.runDrain,
           Effect.scoped,
-          Effect.runPromise,
+          Effect.runPromise
         );
       } catch {
         // Stream ended
@@ -130,7 +129,7 @@ const useRetryStateListener = (storeId: string) => {
     const channelName = `livestore.sync-retry.${storeId}`;
     const ch = new BroadcastChannel(channelName);
 
-    ch.onmessage = (ev) => {
+    ch.addEventListener("message", (ev: MessageEvent) => {
       const { status, setStatus } = useSyncStatusStore.getState();
       if (status.state === "error") return;
 
@@ -140,7 +139,7 @@ const useRetryStateListener = (storeId: string) => {
       } else if (data?.type === "waiting_for_focus") {
         setStatus({ state: "waiting_for_focus" });
       }
-    };
+    });
 
     return () => ch.close();
   }, [storeId]);
@@ -151,9 +150,7 @@ const useRetryReset = (storeId: string) => {
     const channelName = `livestore.sync-retry.${storeId}`;
 
     const postReset = () => {
-      const ch = new BroadcastChannel(channelName);
-      ch.postMessage({ type: "reset" });
-      ch.close();
+      sendBroadcast(channelName, { type: "reset" });
     };
 
     const handleVisibility = () => {

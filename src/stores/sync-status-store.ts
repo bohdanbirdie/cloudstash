@@ -32,12 +32,19 @@ export const useSyncStatusStore = create<SyncStatusState>((set) => ({
   setStatus: (status) => set({ status }),
 }));
 
+export function sendBroadcast(channelName: string, data: unknown): void {
+  const ch = new BroadcastChannel(channelName);
+  // oxlint-disable-next-line unicorn/require-post-message-target-origin -- BroadcastChannel, not window
+  ch.postMessage(data);
+  ch.close();
+}
+
 export async function fetchSyncAuthStatus(
-  storeId: string,
+  storeId: string
 ): Promise<SyncAuthResult> {
   try {
     const res = await fetch(
-      `/api/sync/auth?storeId=${encodeURIComponent(storeId)}`,
+      `/api/sync/auth?storeId=${encodeURIComponent(storeId)}`
     );
 
     if (res.ok) {
