@@ -20,6 +20,7 @@ import { AdminModal } from "@/components/admin";
 import { useChatPanel } from "@/components/chat/chat-context";
 import { CHAT_HOTKEY } from "@/components/chat/chat-sheet-provider";
 import { IntegrationsModal } from "@/components/integrations";
+import { SyncStatusIndicator } from "@/components/sync-status-indicator";
 import { TagManagerDialog } from "@/components/tags/tag-manager-dialog";
 import {
   AlertDialog,
@@ -57,7 +58,6 @@ import {
   trashCount$,
 } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
-import { SyncStatusIndicator } from "@/components/sync-status-indicator";
 import { useSearchStore } from "@/stores/search-store";
 
 export function AppSidebar() {
