@@ -62,7 +62,8 @@ function WaitingBadge({ storeId }: { storeId: string | null }) {
       <Button
         variant="ghost"
         size="icon"
-        className="size-6 shrink-0 group-data-[collapsible=icon]:hidden"
+        aria-label="Retry"
+        className="size-6 shrink-0"
         onClick={handleRetry}
       >
         <RefreshCw className="size-3" />
@@ -98,7 +99,8 @@ function ErrorBadge({ status }: { status: { code: string; message: string } }) {
       <Button
         variant="ghost"
         size="icon"
-        className="size-6 shrink-0 group-data-[collapsible=icon]:hidden"
+        aria-label="Retry"
+        className="size-6 shrink-0"
         onClick={handleAction}
       >
         <RefreshCw className="size-3" />

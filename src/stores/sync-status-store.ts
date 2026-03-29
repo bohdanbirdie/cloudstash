@@ -5,7 +5,8 @@ export type SyncErrorCode =
   | "SESSION_EXPIRED"
   | "ACCESS_DENIED"
   | "UNAPPROVED"
-  | "RATE_LIMITED";
+  | "RATE_LIMITED"
+  | "UNKNOWN";
 
 export type SyncStatus =
   | { state: "connected" }
@@ -63,7 +64,7 @@ export async function fetchSyncAuthStatus(
     const data: { code?: SyncErrorCode; message?: string } = await res.json();
     return {
       type: "auth_failed",
-      code: data.code ?? "SESSION_EXPIRED",
+      code: data.code ?? "UNKNOWN",
       message: data.message ?? "Sync connection failed",
     };
   } catch {
