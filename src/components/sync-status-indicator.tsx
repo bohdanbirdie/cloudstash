@@ -1,12 +1,12 @@
 import { Loader2, RefreshCw, WifiOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { SidebarMenu, SidebarMenuItem } from "@/components/ui/sidebar";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { SidebarMenu, SidebarMenuItem } from "@/components/ui/sidebar";
 import { sendBroadcast, useSyncStatusStore } from "@/stores/sync-status-store";
 
 export function SyncStatusIndicator() {
