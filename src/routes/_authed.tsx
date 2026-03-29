@@ -11,7 +11,6 @@ import { ChatSheet } from "@/components/chat/chat-sheet";
 import { ChatSheetProvider } from "@/components/chat/chat-sheet-provider";
 import { LinkDetailDialogProvider } from "@/components/link-detail-dialog";
 import { SearchCommand } from "@/components/search-command";
-import { SyncErrorBanner } from "@/components/sync-error-banner";
 import {
   SidebarInset,
   SidebarProvider,
@@ -51,7 +50,6 @@ function AuthedLayout() {
                 <SidebarProvider className="!h-svh !min-h-0 overflow-hidden">
                   <AppSidebar />
                   <SidebarInset className="h-full overflow-hidden">
-                    <SyncErrorBanner />
                     <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
                       <SidebarTrigger className="-ml-1" />
                     </header>

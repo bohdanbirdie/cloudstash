@@ -71,34 +71,36 @@ const useConnectionMonitor = (store: AppStore) => {
       Effect.gen(function* () {
         if (aborted) return;
 
-        const { error, clearError } = useSyncStatusStore.getState();
+        const { status: currentStatus, setStatus } =
+          useSyncStatusStore.getState();
 
         if (status.isConnected) {
-          if (error?.code === "UNKNOWN") clearError();
+          if (currentStatus.state !== "connected") {
+            setStatus({ state: "connected" });
+          }
           return;
         }
 
-        if (error && error.code !== "UNKNOWN") return;
+        if (currentStatus.state === "error") return;
 
         const now = Date.now();
         if (now - lastAuthCheck.current < AUTH_CHECK_COOLDOWN_MS) return;
         lastAuthCheck.current = now;
 
         const result = yield* Effect.promise(() =>
-          fetchSyncAuthStatus(storeId)
+          fetchSyncAuthStatus(storeId),
         );
         if (aborted) return;
 
-        const state = useSyncStatusStore.getState();
-
         if (result.type === "auth_failed") {
           yield* Effect.promise(() => store.shutdownPromise().catch(() => {}));
-          state.setError(result.error);
-        } else {
-          state.setError({
-            code: "UNKNOWN",
-            message: "Sync paused. Your changes are saved locally.",
-          });
+          useSyncStatusStore
+            .getState()
+            .setStatus({
+              state: "error",
+              code: result.code,
+              message: result.message,
+            });
         }
       });
 
@@ -108,7 +110,7 @@ const useConnectionMonitor = (store: AppStore) => {
           Stream.tap((s) => handleStatusChange(s)),
           Stream.runDrain,
           Effect.scoped,
-          Effect.runPromise
+          Effect.runPromise,
         );
       } catch {
         // Stream ended
@@ -123,8 +125,69 @@ const useConnectionMonitor = (store: AppStore) => {
   }, [store]);
 };
 
+const useRetryStateListener = (storeId: string) => {
+  useEffect(() => {
+    const channelName = `livestore.sync-retry.${storeId}`;
+    const ch = new BroadcastChannel(channelName);
+
+    ch.onmessage = (ev) => {
+      const { status, setStatus } = useSyncStatusStore.getState();
+      if (status.state === "error") return;
+
+      const data = ev.data;
+      if (data?.type === "reconnecting") {
+        setStatus({ state: "reconnecting", attempt: data.attempt });
+      } else if (data?.type === "waiting_for_focus") {
+        setStatus({ state: "waiting_for_focus" });
+      }
+    };
+
+    return () => ch.close();
+  }, [storeId]);
+};
+
+const useRetryReset = (storeId: string) => {
+  useEffect(() => {
+    const channelName = `livestore.sync-retry.${storeId}`;
+
+    const postReset = () => {
+      const ch = new BroadcastChannel(channelName);
+      ch.postMessage({ type: "reset" });
+      ch.close();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      const { status } = useSyncStatusStore.getState();
+      if (status.state !== "waiting_for_focus") return;
+      postReset();
+    };
+
+    const handleOnline = () => {
+      const { status } = useSyncStatusStore.getState();
+      if (status.state === "connected" || status.state === "error") return;
+      postReset();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", handleVisibility);
+    window.addEventListener("online", handleOnline);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", handleVisibility);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [storeId]);
+};
+
 export const ConnectionMonitor = () => {
   const store = useAppStore();
+  useEffect(() => {
+    useSyncStatusStore.getState().setStoreId(store.storeId);
+  }, [store.storeId]);
   useConnectionMonitor(store);
+  useRetryStateListener(store.storeId);
+  useRetryReset(store.storeId);
   return null;
 };

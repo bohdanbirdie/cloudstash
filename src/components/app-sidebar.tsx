@@ -57,6 +57,7 @@ import {
   trashCount$,
 } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
+import { SyncStatusIndicator } from "@/components/sync-status-indicator";
 import { useSearchStore } from "@/stores/search-store";
 
 export function AppSidebar() {
@@ -180,6 +181,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
+        <SyncStatusIndicator />
         <SidebarMenu>
           {auth.role === "admin" && (
             <SidebarMenuItem>
