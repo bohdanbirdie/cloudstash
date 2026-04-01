@@ -2,7 +2,7 @@ diff --git a/dist/client/transport/ws-rpc-client.js b/dist/client/transport/ws-r
 --- a/dist/client/transport/ws-rpc-client.js
 +++ b/dist/client/transport/ws-rpc-client.js
 @@ -1,6 +1,8 @@
- import { InvalidPullError, InvalidPushError, IsOfflineError, SyncBackend, UnknownError } from '@livestore/common';
+ import { IsOfflineError, SyncBackend, UnknownError } from '@livestore/common';
  import { splitChunkBySize } from '@livestore/common/sync';
  import { omit } from '@livestore/utils';
 +import * as ScheduleDecision from 'effect/ScheduleDecision';
@@ -14,7 +14,7 @@ diff --git a/dist/client/transport/ws-rpc-client.js b/dist/client/transport/ws-r
      const pingInterval = options.ping?.requestInterval ?? 10_000;
      const ProtocolLive = RpcClient.layerProtocolSocketWithIsConnected({
          isConnected,
--        retryTransientErrors: Schedule.fixed(1000),
+-        retryTransientErrors: Schedule.exponential('1 seconds').pipe(Schedule.union(Schedule.fixed('30 seconds')), Schedule.jittered),
 +        retryTransientErrors: (() => {
 +            const channelName = `livestore.sync-retry.${storeId}`;
 +            return Schedule.makeWithState(0, (now, _input, count) => {
@@ -51,11 +51,14 @@ diff --git a/src/client/transport/ws-rpc-client.ts b/src/client/transport/ws-rpc
    Chunk,
    type Duration,
    Effect,
-@@ -96,7 +98,26 @@ export const makeWsSync =
+@@ -96,10 +100,26 @@ export const makeWsSync =
 
        const ProtocolLive = RpcClient.layerProtocolSocketWithIsConnected({
          isConnected,
--        retryTransientErrors: Schedule.fixed(1000),
+-        retryTransientErrors: Schedule.exponential('1 seconds').pipe(
+-          Schedule.union(Schedule.fixed('30 seconds')),
+-          Schedule.jittered,
+-        ),
 +        retryTransientErrors: (() => {
 +          const channelName = `livestore.sync-retry.${storeId}`
 +          return Schedule.makeWithState(0, (now, _input, count) => {
