@@ -7,16 +7,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { sendBroadcast, useSyncStatusStore } from "@/stores/sync-status-store";
+import { useSyncStatusStore } from "@/stores/sync-status-store";
 
 export function SyncStatusIndicator() {
-  const { status, storeId } = useSyncStatusStore();
+  const { status } = useSyncStatusStore();
 
   if (status.state === "connected") return null;
   if (status.state === "reconnecting") return <ReconnectingItem />;
-  if (status.state === "waiting_for_focus")
-    return <WaitingItem storeId={storeId} />;
-  return <ErrorItem status={status} storeId={storeId} />;
+  return <ErrorItem status={status} />;
 }
 
 function StatusBadge({
@@ -88,35 +86,14 @@ function ReconnectingItem() {
   );
 }
 
-function WaitingItem({ storeId }: { storeId: string | null }) {
-  const handleRetry = () => {
-    if (!storeId) return;
-    sendBroadcast(`livestore.sync-retry.${storeId}`, { type: "reset" });
-  };
-
-  return (
-    <StatusBadge
-      icon={WifiOff}
-      label="Offline"
-      tooltip="Sync paused. Your changes are saved locally."
-      color="destructive"
-      action={{ onClick: handleRetry }}
-    />
-  );
-}
-
 function ErrorItem({
   status,
-  storeId,
 }: {
   status: { code: string; message: string };
-  storeId: string | null;
 }) {
   const handleAction = () => {
     if (status.code === "SESSION_EXPIRED") {
       window.location.href = "/login";
-    } else if (storeId) {
-      sendBroadcast(`livestore.sync-retry.${storeId}`, { type: "reset" });
     } else {
       window.location.reload();
     }

@@ -10,28 +10,25 @@ diff --git a/dist/client/transport/ws-rpc-client.js b/dist/client/transport/ws-r
  import { Chunk, Effect, Layer, Option, RpcClient, RpcSerialization, Schedule, Schema, Socket, Stream, SubscriptionRef, UrlParams, } from '@livestore/utils/effect';
  import { MAX_PUSH_EVENTS_PER_REQUEST, MAX_WS_MESSAGE_BYTES } from "../../common/constants.js";
  import { SearchParamsSchema } from "../../common/mod.js";
-@@ -36,7 +38,26 @@ export const makeWsSync = (options) => ({ storeId, payload }) => Effect.gen(func
+@@ -36,7 +38,23 @@ export const makeWsSync = (options) => ({ storeId, payload }) => Effect.gen(func
      const pingInterval = options.ping?.requestInterval ?? 10_000;
      const ProtocolLive = RpcClient.layerProtocolSocketWithIsConnected({
          isConnected,
 -        retryTransientErrors: Schedule.exponential('1 seconds').pipe(Schedule.union(Schedule.fixed('30 seconds')), Schedule.jittered),
 +        retryTransientErrors: (() => {
 +            const channelName = `livestore.sync-retry.${storeId}`;
++            const ch = new BroadcastChannel(channelName);
++            let shouldReset = false;
++            ch.addEventListener('message', (ev) => { if (ev.data?.type === 'reset') shouldReset = true; });
 +            return Schedule.makeWithState(0, (now, _input, count) => {
-+                if (count >= 5) {
-+                    const ch = new BroadcastChannel(channelName);
-+                    ch.postMessage({ type: 'waiting_for_focus' });
-+                    return Effect.async((resume) => {
-+                        ch.onmessage = (ev) => {
-+                            if (ev.data?.type === 'reset') {
-+                                ch.close();
-+                                resume(Effect.succeed([0, count, ScheduleDecision.continueWith(ScheduleInterval.after(now + 1000))]));
-+                            }
-+                        };
-+                    });
++                if (shouldReset) {
++                    shouldReset = false;
++                    count = 0;
 +                }
-+                new BroadcastChannel(channelName).postMessage({ type: 'reconnecting', attempt: count });
-+                const delay = 1000 * Math.pow(2, count);
++                ch.postMessage({ type: 'reconnecting', attempt: count });
++                const baseDelay = Math.min(1000 * Math.pow(2, count), 30000);
++                const jitter = baseDelay * (0.5 + Math.random());
++                const delay = Math.min(jitter, 30000);
 +                return Effect.succeed([count + 1, count, ScheduleDecision.continueWith(ScheduleInterval.after(now + delay))]);
 +            });
 +        })(),
@@ -51,7 +48,7 @@ diff --git a/src/client/transport/ws-rpc-client.ts b/src/client/transport/ws-rpc
    Chunk,
    type Duration,
    Effect,
-@@ -96,10 +100,26 @@ export const makeWsSync =
+@@ -96,10 +100,23 @@ export const makeWsSync =
 
        const ProtocolLive = RpcClient.layerProtocolSocketWithIsConnected({
          isConnected,
@@ -61,21 +58,18 @@ diff --git a/src/client/transport/ws-rpc-client.ts b/src/client/transport/ws-rpc
 -        ),
 +        retryTransientErrors: (() => {
 +          const channelName = `livestore.sync-retry.${storeId}`
++          const ch = new BroadcastChannel(channelName)
++          let shouldReset = false
++          ch.addEventListener('message', (ev: MessageEvent) => { if (ev.data?.type === 'reset') shouldReset = true })
 +          return Schedule.makeWithState(0, (now, _input, count) => {
-+            if (count >= 5) {
-+              const ch = new BroadcastChannel(channelName)
-+              ch.postMessage({ type: 'waiting_for_focus' })
-+              return Effect.async((resume) => {
-+                ch.onmessage = (ev) => {
-+                  if (ev.data?.type === 'reset') {
-+                    ch.close()
-+                    resume(Effect.succeed([0, count, ScheduleDecision.continueWith(ScheduleInterval.after(now + 1000))] as const))
-+                  }
-+                }
-+              })
++            if (shouldReset) {
++              shouldReset = false
++              count = 0
 +            }
-+            new BroadcastChannel(channelName).postMessage({ type: 'reconnecting', attempt: count })
-+            const delay = 1000 * Math.pow(2, count)
++            ch.postMessage({ type: 'reconnecting', attempt: count })
++            const baseDelay = Math.min(1000 * Math.pow(2, count), 30000)
++            const jitter = baseDelay * (0.5 + Math.random())
++            const delay = Math.min(jitter, 30000)
 +            return Effect.succeed([count + 1, count, ScheduleDecision.continueWith(ScheduleInterval.after(now + delay))] as const)
 +          })
 +        })(),

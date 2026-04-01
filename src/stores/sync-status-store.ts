@@ -11,7 +11,6 @@ export type SyncErrorCode =
 export type SyncStatus =
   | { state: "connected" }
   | { state: "reconnecting"; attempt: number }
-  | { state: "waiting_for_focus" }
   | { state: "error"; code: SyncErrorCode; message: string };
 
 export type SyncAuthResult =

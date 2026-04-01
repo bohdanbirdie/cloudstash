@@ -136,8 +136,6 @@ const useRetryStateListener = (storeId: string) => {
       const data = ev.data;
       if (data?.type === "reconnecting") {
         setStatus({ state: "reconnecting", attempt: data.attempt });
-      } else if (data?.type === "waiting_for_focus") {
-        setStatus({ state: "waiting_for_focus" });
       }
     });
 
@@ -145,35 +143,29 @@ const useRetryStateListener = (storeId: string) => {
   }, [storeId]);
 };
 
-const useRetryReset = (storeId: string) => {
+const useRetryResetOnFocus = (storeId: string) => {
   useEffect(() => {
     const channelName = `livestore.sync-retry.${storeId}`;
 
     const postReset = () => {
+      const { status } = useSyncStatusStore.getState();
+      if (status.state === "connected" || status.state === "error") return;
       sendBroadcast(channelName, { type: "reset" });
     };
 
     const handleVisibility = () => {
       if (document.visibilityState !== "visible") return;
-      const { status } = useSyncStatusStore.getState();
-      if (status.state !== "waiting_for_focus") return;
-      postReset();
-    };
-
-    const handleOnline = () => {
-      const { status } = useSyncStatusStore.getState();
-      if (status.state === "connected" || status.state === "error") return;
       postReset();
     };
 
     document.addEventListener("visibilitychange", handleVisibility);
     window.addEventListener("focus", handleVisibility);
-    window.addEventListener("online", handleOnline);
+    window.addEventListener("online", postReset);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("focus", handleVisibility);
-      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("online", postReset);
     };
   }, [storeId]);
 };
@@ -185,6 +177,6 @@ export const ConnectionMonitor = () => {
   }, [store.storeId]);
   useConnectionMonitor(store);
   useRetryStateListener(store.storeId);
-  useRetryReset(store.storeId);
+  useRetryResetOnFocus(store.storeId);
   return null;
 };
