@@ -86,11 +86,7 @@ function ReconnectingItem() {
   );
 }
 
-function ErrorItem({
-  status,
-}: {
-  status: { code: string; message: string };
-}) {
+function ErrorItem({ status }: { status: { code: string; message: string } }) {
   const handleAction = () => {
     if (status.code === "SESSION_EXPIRED") {
       window.location.href = "/login";
