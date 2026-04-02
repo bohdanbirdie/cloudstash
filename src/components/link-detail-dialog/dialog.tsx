@@ -176,8 +176,7 @@ export function LinkDetailDialogContent({
 
   const processingRecord = store.useQuery(linkProcessingStatus$(linkId));
   const isProcessing = processingRecord?.status === "pending";
-  const isReprocessing =
-    processingRecord?.status === "reprocess-requested";
+  const isReprocessing = processingRecord?.status === "reprocess-requested";
   const isFailed = processingRecord?.status === "failed";
   const { tagIds, setTagIds } = useLinkTags(linkId);
 
@@ -286,7 +285,7 @@ export function LinkDetailDialogContent({
                   <RefreshCwIcon
                     className={cn(
                       "h-3 w-3",
-                      (isProcessing || isReprocessing) && "animate-spin",
+                      (isProcessing || isReprocessing) && "animate-spin"
                     )}
                   />
                 </button>
