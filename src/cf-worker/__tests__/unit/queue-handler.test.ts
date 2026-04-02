@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { OrgId } from "../../db/branded";
 import type { LinkQueueMessage } from "../../link-processor/types";
 import { handleQueueBatch } from "../../queue-handler";
 
@@ -41,7 +42,7 @@ function createEnv(
 
 const testMessage: LinkQueueMessage = {
   url: "https://example.com",
-  storeId: "org-1",
+  storeId: OrgId.make("org-1"),
   source: "api",
   sourceMeta: null,
 };
@@ -89,7 +90,7 @@ describe("queue handler", () => {
   });
 
   it("routes to correct DO based on storeId", async () => {
-    const msg = createMessage({ ...testMessage, storeId: "org-42" });
+    const msg = createMessage({ ...testMessage, storeId: OrgId.make("org-42") });
     const { env } = createEnv({ status: "ingested", linkId: "link-1" });
 
     await runQueueHandler([msg], env);
@@ -101,7 +102,7 @@ describe("queue handler", () => {
   it("passes full message body to ingestAndProcess", async () => {
     const body: LinkQueueMessage = {
       url: "https://test.com",
-      storeId: "org-1",
+      storeId: OrgId.make("org-1"),
       source: "telegram",
       sourceMeta: JSON.stringify({ chatId: 123 }),
     };

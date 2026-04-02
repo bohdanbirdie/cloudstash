@@ -1,6 +1,7 @@
 import { Effect, Layer, LogLevel, Logger } from "effect";
 import { describe, expect, it } from "vitest";
 
+import { OrgId } from "../../db/branded";
 import {
   InvalidApiKeyError,
   MissingOrgIdError,
@@ -38,7 +39,7 @@ function createTestMessenger() {
 
 function createTestSourceAuth(
   result:
-    | { orgId: string }
+    | { orgId: typeof OrgId.Type }
     | "not-connected"
     | "invalid-key"
     | "rate-limit"
@@ -100,7 +101,7 @@ describe("handleLinks", () => {
     const queue = createTestQueue();
     const layer = Layer.mergeAll(
       messenger.layer,
-      createTestSourceAuth({ orgId: "org-1" }),
+      createTestSourceAuth({ orgId: OrgId.make("org-1") }),
       queue.layer
     );
 
@@ -123,7 +124,7 @@ describe("handleLinks", () => {
     const queue = createTestQueue(true);
     const layer = Layer.mergeAll(
       messenger.layer,
-      createTestSourceAuth({ orgId: "org-1" }),
+      createTestSourceAuth({ orgId: OrgId.make("org-1") }),
       queue.layer
     );
 
@@ -212,7 +213,7 @@ describe("handleLinks", () => {
     const queue = createTestQueue();
     const layer = Layer.mergeAll(
       messenger.layer,
-      createTestSourceAuth({ orgId: "org-1" }),
+      createTestSourceAuth({ orgId: OrgId.make("org-1") }),
       queue.layer
     );
 
@@ -233,7 +234,7 @@ describe("handleConnect", () => {
     const keyStore = createTestKeyStore();
     const layer = Layer.mergeAll(
       messenger.layer,
-      createTestSourceAuth({ orgId: "org-1" }),
+      createTestSourceAuth({ orgId: OrgId.make("org-1") }),
       keyStore.layer
     );
 
@@ -255,7 +256,7 @@ describe("handleConnect", () => {
     const keyStore = createTestKeyStore();
     const layer = Layer.mergeAll(
       messenger.layer,
-      createTestSourceAuth({ orgId: "org-1" }),
+      createTestSourceAuth({ orgId: OrgId.make("org-1") }),
       keyStore.layer
     );
 

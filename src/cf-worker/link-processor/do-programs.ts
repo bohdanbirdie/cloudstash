@@ -1,6 +1,8 @@
 import { nanoid } from "@livestore/livestore";
 import { Effect } from "effect";
 
+import { LinkId as LinkIdBrand } from "../db/branded";
+import type { LinkId, OrgId } from "../db/branded";
 import { events } from "../../livestore/schema";
 import { maskId } from "../log-utils";
 import { LinkRepository, SourceNotifier } from "./services";
@@ -10,7 +12,7 @@ const STUCK_TIMEOUT_MS = 5 * 60 * 1000;
 
 interface IngestLinkParams {
   url: string;
-  storeId: string;
+  storeId: OrgId;
   source: string;
   sourceMeta: string | null;
 }
@@ -50,7 +52,7 @@ export const ingestLink = Effect.fn("LinkProcessor.ingestLink")(function* (
     return { status: "duplicate" as const, linkId: existing.id };
   }
 
-  const linkId = nanoid();
+  const linkId = LinkIdBrand.make(nanoid());
   yield* Effect.logInfo("Ingesting link from queue").pipe(
     Effect.annotateLogs({
       linkId,
@@ -119,7 +121,7 @@ export const cancelStaleLinks = Effect.fn("LinkProcessor.cancelStaleLinks")(func
 });
 
 export interface NotifyResultParams {
-  linkId: string;
+  linkId: LinkId;
   processingStatus: "completed" | "failed";
   source: string;
   sourceMeta: string | null;
@@ -159,7 +161,7 @@ export const notifyResult = Effect.fn("LinkProcessor.notifyResult")(function* (
 });
 
 interface StuckLinkEvent {
-  linkId: string;
+  linkId: LinkId;
   stuckMs: number;
 }
 
@@ -180,7 +182,7 @@ export const detectStuckLinks = (
 
     const elapsed = now - new Date(existingStatus.updatedAt).getTime();
     if (elapsed > STUCK_TIMEOUT_MS) {
-      stuck.push({ linkId: link.id, stuckMs: elapsed });
+      stuck.push({ linkId: LinkIdBrand.make(link.id), stuckMs: elapsed });
     }
   }
 

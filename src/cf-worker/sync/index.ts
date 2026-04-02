@@ -3,6 +3,7 @@ import * as SyncBackend from "@livestore/sync-cf/cf-worker";
 import { Effect } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
+import { OrgId } from "../db/branded";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
@@ -91,8 +92,10 @@ const validatePayload = Effect.fn("Sync.validatePayload")(function* (
         })
       );
       return yield* new OrgAccessDeniedError({
-        sessionOrgId: session.session.activeOrganizationId ?? null,
-        storeId: context.storeId,
+        sessionOrgId: session.session.activeOrganizationId
+          ? OrgId.make(session.session.activeOrganizationId)
+          : null,
+        storeId: OrgId.make(context.storeId),
       });
     }
 

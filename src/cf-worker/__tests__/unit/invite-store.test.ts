@@ -1,6 +1,7 @@
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 
+import { InviteId, UserId } from "../../db/branded";
 import { DbError } from "../../db/service";
 import { InviteStore } from "../../invites/store";
 
@@ -42,9 +43,9 @@ describe("InviteStore service contract", () => {
       Effect.gen(function* () {
         const store = yield* InviteStore;
         yield* store.create({
-          id: "inv-1",
+          id: InviteId.make("inv-1"),
           code: "ABCD1234",
-          createdByUserId: "user-admin",
+          createdByUserId: UserId.make("user-admin"),
           expiresAt: null,
         });
       }).pipe(Effect.provide(layer))
@@ -92,7 +93,7 @@ describe("InviteStore service contract", () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const store = yield* InviteStore;
-        return yield* store.findById("inv-1");
+        return yield* store.findById(InviteId.make("inv-1"));
       }).pipe(Effect.provide(layer))
     );
 
@@ -105,7 +106,7 @@ describe("InviteStore service contract", () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const store = yield* InviteStore;
-        return yield* store.findById("nonexistent");
+        return yield* store.findById(InviteId.make("nonexistent"));
       }).pipe(Effect.provide(layer))
     );
 
@@ -145,7 +146,7 @@ describe("InviteStore service contract", () => {
     await Effect.runPromise(
       Effect.gen(function* () {
         const store = yield* InviteStore;
-        yield* store.deleteById("inv-1");
+        yield* store.deleteById(InviteId.make("inv-1"));
       }).pipe(Effect.provide(layer))
     );
 
@@ -165,7 +166,7 @@ describe("InviteStore service contract", () => {
     await Effect.runPromise(
       Effect.gen(function* () {
         const store = yield* InviteStore;
-        yield* store.redeemAndApproveUser("inv-1", "user-1");
+        yield* store.redeemAndApproveUser(InviteId.make("inv-1"), UserId.make("user-1"));
       }).pipe(Effect.provide(layer))
     );
 
@@ -182,9 +183,9 @@ describe("InviteStore service contract", () => {
       Effect.gen(function* () {
         const store = yield* InviteStore;
         yield* store.create({
-          id: "inv-1",
+          id: InviteId.make("inv-1"),
           code: "ABCD",
-          createdByUserId: "user-1",
+          createdByUserId: UserId.make("user-1"),
           expiresAt: null,
         });
       }).pipe(Effect.provide(layer), Effect.flip)

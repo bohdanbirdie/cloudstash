@@ -1,5 +1,6 @@
 import { Effect, Schema } from "effect";
 
+import type { OrgId } from "../db/branded";
 import { OrgFeatures } from "../org/features-service";
 
 export class ChatFeatureDisabledError extends Schema.TaggedError<ChatFeatureDisabledError>()(
@@ -11,7 +12,7 @@ export class ChatFeatureDisabledError extends Schema.TaggedError<ChatFeatureDisa
 ) {}
 
 export const checkChatFeatureEnabled = Effect.fn("ChatAgent.checkChatFeatureEnabled")(
-  function* (workspaceId: string) {
+  function* (workspaceId: OrgId) {
     const orgFeatures = yield* OrgFeatures;
     const features = yield* orgFeatures.get(workspaceId);
 

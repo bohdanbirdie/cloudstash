@@ -2,6 +2,7 @@ import { Effect, Layer } from "effect";
 
 import type { Auth } from "../../auth";
 import { AppLayerLive, AuthClient } from "../../auth/service";
+import { OrgId } from "../../db/branded";
 import type { Env } from "../../shared";
 import {
   InvalidApiKeyError,
@@ -29,7 +30,7 @@ const verifyApiKey = Effect.fn("Telegram.verifyApiKey")(function* (auth: Auth, a
     if (typeof orgId !== "string" || orgId.length === 0) {
       return yield* new MissingOrgIdError({});
     }
-    return orgId;
+    return OrgId.make(orgId);
   });
 
 export const TelegramSourceAuthLive = (env: Env, chatId: number) =>

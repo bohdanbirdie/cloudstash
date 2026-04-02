@@ -1,5 +1,6 @@
 import { Effect, Layer, Schema } from "effect";
 
+import type { OrgId } from "../db/branded";
 import type { OrgFeatures } from "../db/schema";
 import { DbClientLive } from "../db/service";
 import { maskId } from "../log-utils";
@@ -44,7 +45,7 @@ export async function handleListWorkspaces(
 
 export async function handleGetOrgSettings(
   _request: Request,
-  orgId: string,
+  orgId: OrgId,
   env: Env
 ): Promise<Response> {
   return Effect.runPromise(
@@ -77,7 +78,7 @@ export async function handleGetOrgSettings(
 
 export async function handleUpdateOrgSettings(
   request: Request,
-  orgId: string,
+  orgId: OrgId,
   env: Env
 ): Promise<Response> {
   return Effect.runPromise(

@@ -4,6 +4,7 @@ import { trackEvent } from "../analytics";
 import { AppLayerLive, AuthClient } from "../auth/service";
 import { checkSyncAuth } from "../auth/sync-auth";
 import type { SyncAuthError } from "../auth/sync-auth";
+import { OrgId } from "../db/branded";
 import { OrgFeaturesLive } from "../org/features-service";
 import type { Env } from "../shared";
 import { ChatFeatureDisabledError, checkChatFeatureEnabled } from "./auth";
@@ -25,14 +26,15 @@ const checkChatAgentAccess = (
 
     const auth = yield* AuthClient;
     const cookie = request.headers.get("cookie");
+    const workspaceId = OrgId.make(lobby.name);
 
-    const { userId } = yield* checkSyncAuth(cookie, lobby.name, auth);
+    const { userId } = yield* checkSyncAuth(cookie, workspaceId, auth);
     trackEvent(env.USAGE_ANALYTICS, {
       userId,
       event: "chat",
       orgId: lobby.name,
     });
-    yield* checkChatFeatureEnabled(lobby.name).pipe(
+    yield* checkChatFeatureEnabled(workspaceId).pipe(
       Effect.catchTag("DbError", () =>
         Effect.fail(
           new ChatFeatureDisabledError({

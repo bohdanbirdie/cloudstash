@@ -2,6 +2,7 @@ import { Effect } from "effect";
 
 import { trackEvent } from "../analytics";
 import { AppLayerLive, AuthClient } from "../auth/service";
+import { OrgId } from "../db/branded";
 import type { LinkQueueMessage } from "../link-processor/types";
 import { maskId, safeErrorInfo } from "../log-utils";
 import type { Env } from "../shared";
@@ -35,11 +36,12 @@ export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
       return yield* InvalidApiKeyError.make({});
     }
 
-    const orgId = verifyResult.key.metadata?.orgId as string | undefined;
-    if (!orgId) {
+    const rawOrgId = verifyResult.key.metadata?.orgId as string | undefined;
+    if (!rawOrgId) {
       yield* Effect.logWarning("API key missing orgId");
       return yield* MissingOrgIdError.make({});
     }
+    const orgId = OrgId.make(rawOrgId);
 
     yield* Effect.logDebug("API key verified").pipe(Effect.annotateLogs({ orgId: maskId(orgId) }));
 

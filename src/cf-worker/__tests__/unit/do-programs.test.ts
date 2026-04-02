@@ -1,6 +1,7 @@
 import { Effect, Layer, LogLevel, Logger } from "effect";
 import { describe, expect, it } from "vitest";
 
+import { LinkId, OrgId } from "../../db/branded";
 import {
   cancelStaleLinks,
   detectStuckLinks,
@@ -86,7 +87,7 @@ describe("ingestLink", () => {
     const result = await Effect.runPromise(
       ingestLink({
         url: "https://example.com",
-        storeId: "org-1",
+        storeId: OrgId.make("org-1"),
         source: "telegram",
         sourceMeta: null,
       }).pipe(Effect.provide(testLayer), silentLogger)
@@ -114,7 +115,7 @@ describe("ingestLink", () => {
     const result = await Effect.runPromise(
       ingestLink({
         url: "https://example.com",
-        storeId: "org-1",
+        storeId: OrgId.make("org-1"),
         source: "telegram",
         sourceMeta: null,
       }).pipe(Effect.provide(testLayer), silentLogger)
@@ -136,7 +137,7 @@ describe("ingestLink", () => {
     const result = await Effect.runPromise(
       ingestLink({
         url: "not-a-url",
-        storeId: "org-1",
+        storeId: OrgId.make("org-1"),
         source: "telegram",
         sourceMeta: null,
       }).pipe(Effect.provide(testLayer), silentLogger)
@@ -154,7 +155,7 @@ describe("ingestLink", () => {
     await Effect.runPromise(
       ingestLink({
         url: "https://www.example.com/page",
-        storeId: "org-1",
+        storeId: OrgId.make("org-1"),
         source: "app",
         sourceMeta: null,
       }).pipe(Effect.provide(testLayer), silentLogger)
@@ -319,7 +320,7 @@ describe("notifyResult", () => {
 
     await Effect.runPromise(
       notifyResult({
-        linkId: "link-1",
+        linkId: LinkId.make("link-1"),
         processingStatus: "completed",
         source: "telegram",
         sourceMeta: null,
@@ -352,7 +353,7 @@ describe("notifyResult", () => {
 
     await Effect.runPromise(
       notifyResult({
-        linkId: "link-1",
+        linkId: LinkId.make("link-1"),
         processingStatus: "failed",
         source: "telegram",
         sourceMeta: null,

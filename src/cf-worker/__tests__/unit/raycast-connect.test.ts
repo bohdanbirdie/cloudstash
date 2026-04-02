@@ -11,6 +11,7 @@ import {
   VerificationStore,
 } from "../../connect/services";
 import type { SessionData } from "../../connect/services";
+import { OrgId, UserId } from "../../db/branded";
 
 function makeSessionLayer(result: SessionData | null) {
   return Layer.succeed(SessionProvider, {
@@ -88,7 +89,7 @@ describe("handleConnectRequest", () => {
   it("fails with NoActiveOrgError when orgId is null", async () => {
     const error = await Effect.runPromise(
       runConnect({
-        session: { userId: "user-1", orgId: null },
+        session: { userId: UserId.make("user-1"), orgId: null },
       }).pipe(Effect.flip)
     );
     expect(error._tag).toBe("NoActiveOrgError");
@@ -97,7 +98,7 @@ describe("handleConnectRequest", () => {
   it("fails with KeyCreationError when create returns null", async () => {
     const error = await Effect.runPromise(
       runConnect({
-        session: { userId: "user-1", orgId: "org-1" },
+        session: { userId: UserId.make("user-1"), orgId: OrgId.make("org-1") },
         apiKeyStore: { create: () => Effect.succeed(null) },
       }).pipe(Effect.flip)
     );
@@ -107,7 +108,7 @@ describe("handleConnectRequest", () => {
   it("returns code on success", async () => {
     const result = await Effect.runPromise(
       runConnect({
-        session: { userId: "user-1", orgId: "org-1" },
+        session: { userId: UserId.make("user-1"), orgId: OrgId.make("org-1") },
       })
     );
 
@@ -121,7 +122,7 @@ describe("handleConnectRequest", () => {
 
     await Effect.runPromise(
       runConnect({
-        session: { userId: "user-1", orgId: "org-1" },
+        session: { userId: UserId.make("user-1"), orgId: OrgId.make("org-1") },
         apiKeyStore: {
           create: (_headers, metadata, name) => {
             capturedMetadata = metadata;
@@ -142,7 +143,7 @@ describe("handleConnectRequest", () => {
 
     await Effect.runPromise(
       runConnect({
-        session: { userId: "user-1", orgId: "org-1" },
+        session: { userId: UserId.make("user-1"), orgId: OrgId.make("org-1") },
         verificationStore: {
           save: (identifier, data) => {
             capturedIdentifier = identifier;

@@ -2,6 +2,7 @@ import { and, eq, gt } from "drizzle-orm";
 import { Effect, Layer } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
+import { OrgId, UserId } from "../db/branded";
 import * as schema from "../db/schema";
 import { DbClient, query } from "../db/service";
 import type { Env } from "../shared";
@@ -98,8 +99,10 @@ const makeLiveLayer = (env: Env) =>
               Effect.map((session) =>
                 session?.session
                   ? {
-                      userId: session.user.id,
-                      orgId: session.session.activeOrganizationId ?? null,
+                      userId: UserId.make(session.user.id),
+                      orgId: session.session.activeOrganizationId
+                        ? OrgId.make(session.session.activeOrganizationId)
+                        : null,
                     }
                   : null
               )

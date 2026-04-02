@@ -1,6 +1,7 @@
 import { Context } from "effect";
 import type { Effect } from "effect";
 
+import type { OrgId } from "../db/branded";
 import type {
   InvalidApiKeyError,
   MissingOrgIdError,
@@ -21,7 +22,7 @@ export class SourceAuth extends Context.Tag("SourceAuth")<
   SourceAuth,
   {
     readonly authenticate: () => Effect.Effect<
-      { orgId: string },
+      { orgId: OrgId },
       | NotConnectedError
       | InvalidApiKeyError
       | RateLimitError
@@ -41,7 +42,7 @@ export class LinkQueue extends Context.Tag("LinkQueue")<
   {
     readonly enqueue: (
       url: string,
-      storeId: string
+      storeId: OrgId
     ) => Effect.Effect<void, QueueSendError>;
   }
 >() {}

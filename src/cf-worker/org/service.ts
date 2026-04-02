@@ -3,6 +3,8 @@ import { Effect, Layer } from "effect";
 import { trackEvent } from "../analytics";
 import type { Auth } from "../auth";
 import { AppLayerLive, AuthClient } from "../auth/service";
+import type { OrgId } from "../db/branded";
+import { OrgId as OrgIdBrand } from "../db/branded";
 import { maskId } from "../log-utils";
 import type { Env } from "../shared";
 import {
@@ -22,7 +24,7 @@ const getSession = (auth: Auth, headers: Headers) =>
     )
   );
 
-const getOrgWithFeatures = Effect.fn("Org.getOrgWithFeatures")(function* (auth: Auth, headers: Headers, orgId: string) {
+const getOrgWithFeatures = Effect.fn("Org.getOrgWithFeatures")(function* (auth: Auth, headers: Headers, orgId: OrgId) {
     const apiOrg = yield* Effect.tryPromise({
       catch: () => OrgNotFoundError.make({ orgId }),
       try: () =>
@@ -52,15 +54,15 @@ const getOrgWithFeatures = Effect.fn("Org.getOrgWithFeatures")(function* (auth: 
 const handleGetMeRequest = Effect.fn("Org.handleGetMeRequest")(function* (request: Request) {
     const auth = yield* AuthClient;
     const session = yield* getSession(auth, request.headers);
-    const orgId = session.session.activeOrganizationId;
+    const rawOrgId = session.session.activeOrganizationId;
 
-    const organization = orgId
-      ? yield* getOrgWithFeatures(auth, request.headers, orgId)
+    const organization = rawOrgId
+      ? yield* getOrgWithFeatures(auth, request.headers, OrgIdBrand.make(rawOrgId))
       : null;
 
     return {
       organization,
-      session: { activeOrganizationId: orgId ?? null },
+      session: { activeOrganizationId: rawOrgId ?? null },
       user: {
         email: session.user.email,
         id: session.user.id,
@@ -116,7 +118,7 @@ export const handleGetMe = (request: Request, env: Env): Promise<Response> =>
 const getFullOrganization = (
   auth: Auth,
   headers: Headers,
-  orgId: string,
+  orgId: OrgId,
   userId: string
 ) =>
   Effect.tryPromise({
@@ -148,7 +150,7 @@ const getFullOrganization = (
     })
   );
 
-const handleGetOrgRequest = Effect.fn("Org.handleGetOrgRequest")(function* (request: Request, orgId: string) {
+const handleGetOrgRequest = Effect.fn("Org.handleGetOrgRequest")(function* (request: Request, orgId: OrgId) {
     const auth = yield* AuthClient;
     const session = yield* getSession(auth, request.headers);
     return yield* getFullOrganization(
@@ -161,7 +163,7 @@ const handleGetOrgRequest = Effect.fn("Org.handleGetOrgRequest")(function* (requ
 
 export const handleGetOrg = (
   request: Request,
-  orgId: string,
+  orgId: OrgId,
   env: Env
 ): Promise<Response> =>
   Effect.runPromise(

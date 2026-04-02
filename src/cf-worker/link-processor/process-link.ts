@@ -1,6 +1,7 @@
 import { nanoid } from "@livestore/livestore";
 import { Cause, Effect } from "effect";
 
+import type { LinkId } from "../db/branded";
 import { events } from "../../livestore/schema";
 import { findMatchingTag } from "./fuzzy-match";
 import {
@@ -14,7 +15,7 @@ import { AI_MODEL } from "./types";
 interface ProcessLinkParams {
   aiSummaryEnabled?: boolean;
   isRetry?: boolean;
-  link: { id: string; url: string };
+  link: { id: LinkId; url: string };
 }
 
 export const processLink = ({

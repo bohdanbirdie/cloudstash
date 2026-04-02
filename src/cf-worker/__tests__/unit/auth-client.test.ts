@@ -2,6 +2,7 @@ import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 
 import { AuthClient } from "../../auth/service";
+import { UserId } from "../../db/branded";
 import { DbError } from "../../db/service";
 
 const mockUser = {
@@ -54,7 +55,7 @@ describe("AuthClient enriched methods", () => {
       const result = await Effect.runPromise(
         Effect.gen(function* () {
           const auth = yield* AuthClient;
-          return yield* auth.findUser("user-1");
+          return yield* auth.findUser(UserId.make("user-1"));
         }).pipe(Effect.provide(layer))
       );
 
@@ -67,7 +68,7 @@ describe("AuthClient enriched methods", () => {
       const result = await Effect.runPromise(
         Effect.gen(function* () {
           const auth = yield* AuthClient;
-          return yield* auth.findUser("nonexistent");
+          return yield* auth.findUser(UserId.make("nonexistent"));
         }).pipe(Effect.provide(layer))
       );
 
@@ -83,7 +84,7 @@ describe("AuthClient enriched methods", () => {
       const error = await Effect.runPromise(
         Effect.gen(function* () {
           const auth = yield* AuthClient;
-          yield* auth.findUser("user-1");
+          yield* auth.findUser(UserId.make("user-1"));
         }).pipe(Effect.provide(layer), Effect.flip)
       );
 
@@ -105,7 +106,7 @@ describe("AuthClient enriched methods", () => {
       await Effect.runPromise(
         Effect.gen(function* () {
           const auth = yield* AuthClient;
-          yield* auth.approveUser("user-1");
+          yield* auth.approveUser(UserId.make("user-1"));
         }).pipe(Effect.provide(layer))
       );
 
@@ -121,7 +122,7 @@ describe("AuthClient enriched methods", () => {
       const error = await Effect.runPromise(
         Effect.gen(function* () {
           const auth = yield* AuthClient;
-          yield* auth.approveUser("user-1");
+          yield* auth.approveUser(UserId.make("user-1"));
         }).pipe(Effect.provide(layer), Effect.flip)
       );
 
@@ -196,9 +197,9 @@ describe("AuthClient enriched methods", () => {
       await Effect.runPromise(
         Effect.gen(function* () {
           const auth = yield* AuthClient;
-          const user = yield* auth.findUser("user-1");
+          const user = yield* auth.findUser(UserId.make("user-1"));
           if (user && !user.approved) {
-            yield* auth.approveUser(user.id);
+            yield* auth.approveUser(UserId.make(user.id));
           }
         }).pipe(Effect.provide(layer))
       );
@@ -223,9 +224,9 @@ describe("AuthClient enriched methods", () => {
       await Effect.runPromise(
         Effect.gen(function* () {
           const auth = yield* AuthClient;
-          const user = yield* auth.findUser("user-1");
+          const user = yield* auth.findUser(UserId.make("user-1"));
           if (user && !user.approved) {
-            yield* auth.approveUser(user.id);
+            yield* auth.approveUser(UserId.make(user.id));
           }
         }).pipe(Effect.provide(layer))
       );

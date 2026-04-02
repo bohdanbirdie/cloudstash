@@ -1,5 +1,7 @@
 import { Schema } from "effect";
 
+import { InviteId } from "../db/branded";
+
 export class UnauthorizedError extends Schema.TaggedError<UnauthorizedError>()(
   "UnauthorizedError",
   {}
@@ -18,7 +20,7 @@ export class InvalidInviteError extends Schema.TaggedError<InvalidInviteError>()
 export class InviteNotFoundError extends Schema.TaggedError<InviteNotFoundError>()(
   "InviteNotFoundError",
   {
-    inviteId: Schema.String,
+    inviteId: InviteId,
   }
 ) {}
 

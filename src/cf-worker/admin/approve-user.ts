@@ -1,12 +1,13 @@
 import { Effect } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
+import type { UserId } from "../db/branded";
 import { sendApprovalEmail } from "../email/send-approval-email";
 import type { Env } from "../shared";
 
 export const handleApproveUser = async (
   request: Request,
-  userId: string,
+  userId: UserId,
   env: Env
 ): Promise<Response> =>
   Effect.runPromise(

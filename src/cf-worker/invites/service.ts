@@ -4,6 +4,11 @@ import { INVITE_CODE_CHARS, INVITE_CODE_LENGTH } from "@/lib/invite";
 
 import type { Auth } from "../auth";
 import { AppLayerLive, AuthClient } from "../auth/service";
+import type { InviteId } from "../db/branded";
+import {
+  InviteId as InviteIdBrand,
+  UserId as UserIdBrand,
+} from "../db/branded";
 import { sendApprovalEmail } from "../email/send-approval-email";
 import type { Env } from "../shared";
 import {
@@ -23,8 +28,8 @@ function generateInviteCode(): string {
   ).join("");
 }
 
-function generateInviteId(): string {
-  return crypto.randomUUID();
+function generateInviteId(): InviteId {
+  return InviteIdBrand.make(crypto.randomUUID());
 }
 
 const getSession = (auth: Auth, headers: Headers) =>
@@ -63,7 +68,7 @@ const handleCreateInviteRequest = Effect.fn("Invites.handleCreateInviteRequest")
 
     yield* inviteStore.create({
       code,
-      createdByUserId: session.user.id,
+      createdByUserId: UserIdBrand.make(session.user.id),
       expiresAt,
       id: generateInviteId(),
     });
@@ -134,7 +139,7 @@ export const handleListInvites = (
     )
   );
 
-const handleDeleteInviteRequest = Effect.fn("Invites.handleDeleteInviteRequest")(function* (request: Request, inviteId: string) {
+const handleDeleteInviteRequest = Effect.fn("Invites.handleDeleteInviteRequest")(function* (request: Request, inviteId: InviteId) {
     const auth = yield* AuthClient;
     const inviteStore = yield* InviteStore;
     const session = yield* getSession(auth, request.headers);
@@ -155,7 +160,7 @@ const handleDeleteInviteRequest = Effect.fn("Invites.handleDeleteInviteRequest")
 
 export const handleDeleteInvite = (
   request: Request,
-  inviteId: string,
+  inviteId: InviteId,
   env: Env
 ): Promise<Response> =>
   Effect.runPromise(
@@ -210,7 +215,7 @@ const handleRedeemInviteRequest = Effect.fn("Invites.handleRedeemInviteRequest")
       return yield* new InvalidInviteError();
     }
 
-    yield* inviteStore.redeemAndApproveUser(invite.id, session.user.id);
+    yield* inviteStore.redeemAndApproveUser(InviteIdBrand.make(invite.id), UserIdBrand.make(session.user.id));
 
     yield* sendApprovalEmail(
       session.user.email,

@@ -1,5 +1,7 @@
 import { Schema } from "effect";
 
+import { OrgId } from "../db/branded";
+
 export class UnauthorizedError extends Schema.TaggedError<UnauthorizedError>()(
   "UnauthorizedError",
   {}
@@ -8,7 +10,7 @@ export class UnauthorizedError extends Schema.TaggedError<UnauthorizedError>()(
 export class OrgNotFoundError extends Schema.TaggedError<OrgNotFoundError>()(
   "OrgNotFoundError",
   {
-    orgId: Schema.String,
+    orgId: OrgId,
   }
 ) {}
 

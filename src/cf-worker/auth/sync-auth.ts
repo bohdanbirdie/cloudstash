@@ -1,5 +1,6 @@
 import { Effect, Schema } from "effect";
 
+import type { OrgId } from "../db/branded";
 import type { Auth } from "./index";
 
 export type SyncAuthErrorCode =
@@ -23,7 +24,7 @@ export class SyncAuthError extends Schema.TaggedError<SyncAuthError>()(
  */
 export const checkSyncAuth = Effect.fn("Auth.checkSyncAuth")(function* (
   cookie: string | null,
-  storeId: string,
+  storeId: OrgId,
   auth: Auth
 ) {
     if (!cookie) {

@@ -1,6 +1,7 @@
 import { Context } from "effect";
 import type { Effect } from "effect";
 
+import type { OrgId, UserId } from "../db/branded";
 import type { DbError } from "../db/service";
 
 export interface ApiKeyInfo {
@@ -19,8 +20,8 @@ export interface VerificationRecord {
 }
 
 export interface SessionData {
-  readonly userId: string;
-  readonly orgId: string | null;
+  readonly userId: UserId;
+  readonly orgId: OrgId | null;
 }
 
 export class SessionProvider extends Context.Tag("SessionProvider")<
@@ -36,12 +37,12 @@ export class ApiKeyStore extends Context.Tag("ApiKeyStore")<
   ApiKeyStore,
   {
     readonly listByUser: (
-      userId: string
+      userId: UserId
     ) => Effect.Effect<ApiKeyInfo[], DbError>;
     readonly deleteById: (id: string) => Effect.Effect<void, DbError>;
     readonly create: (
       headers: Headers,
-      metadata: { orgId: string; source: string },
+      metadata: { orgId: OrgId; source: string },
       name: string
     ) => Effect.Effect<{ key: string; id: string } | null>;
     readonly updateName: (

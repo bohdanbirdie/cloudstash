@@ -5,6 +5,7 @@ import {
   ChatFeatureDisabledError,
   checkChatFeatureEnabled,
 } from "../../chat-agent/auth";
+import { OrgId } from "../../db/branded";
 import { DbError } from "../../db/service";
 import { OrgFeatures } from "../../org/features-service";
 
@@ -25,7 +26,7 @@ describe("checkChatFeatureEnabled", () => {
     });
 
     await Effect.runPromise(
-      checkChatFeatureEnabled("org-1").pipe(
+      checkChatFeatureEnabled(OrgId.make("org-1")).pipe(
         Effect.provide(layer),
         Logger.withMinimumLogLevel(LogLevel.Error)
       )
@@ -38,7 +39,7 @@ describe("checkChatFeatureEnabled", () => {
     });
 
     const error = await Effect.runPromise(
-      checkChatFeatureEnabled("org-1").pipe(
+      checkChatFeatureEnabled(OrgId.make("org-1")).pipe(
         Effect.provide(layer),
         Effect.flip,
         Logger.withMinimumLogLevel(LogLevel.Error)
@@ -55,7 +56,7 @@ describe("checkChatFeatureEnabled", () => {
     });
 
     const error = await Effect.runPromise(
-      checkChatFeatureEnabled("org-1").pipe(
+      checkChatFeatureEnabled(OrgId.make("org-1")).pipe(
         Effect.provide(layer),
         Effect.flip,
         Logger.withMinimumLogLevel(LogLevel.Error)
@@ -71,7 +72,7 @@ describe("checkChatFeatureEnabled", () => {
     });
 
     const error = await Effect.runPromise(
-      checkChatFeatureEnabled("org-1").pipe(
+      checkChatFeatureEnabled(OrgId.make("org-1")).pipe(
         Effect.provide(layer),
         Effect.flip,
         Logger.withMinimumLogLevel(LogLevel.Error)
@@ -92,7 +93,7 @@ describe("checkChatFeatureEnabled", () => {
     });
 
     await Effect.runPromise(
-      checkChatFeatureEnabled("workspace-42").pipe(
+      checkChatFeatureEnabled(OrgId.make("workspace-42")).pipe(
         Effect.provide(layer),
         Logger.withMinimumLogLevel(LogLevel.Error)
       )
@@ -112,7 +113,7 @@ describe("OrgFeatures service contract", () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const svc = yield* OrgFeatures;
-        return yield* svc.get("org-1");
+        return yield* svc.get(OrgId.make("org-1"));
       }).pipe(Effect.provide(layer))
     );
 
@@ -127,7 +128,7 @@ describe("OrgFeatures service contract", () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const svc = yield* OrgFeatures;
-        return yield* svc.exists("org-1");
+        return yield* svc.exists(OrgId.make("org-1"));
       }).pipe(Effect.provide(layer))
     );
 
@@ -142,7 +143,7 @@ describe("OrgFeatures service contract", () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const svc = yield* OrgFeatures;
-        return yield* svc.exists("org-missing");
+        return yield* svc.exists(OrgId.make("org-missing"));
       }).pipe(Effect.provide(layer))
     );
 
@@ -152,7 +153,7 @@ describe("OrgFeatures service contract", () => {
   it("listWithOwners returns workspace list", async () => {
     const workspaces = [
       {
-        id: "org-1",
+        id: OrgId.make("org-1"),
         name: "Test Workspace",
         slug: "test",
         creatorEmail: "owner@test.com",
@@ -186,7 +187,7 @@ describe("OrgFeatures service contract", () => {
     await Effect.runPromise(
       Effect.gen(function* () {
         const svc = yield* OrgFeatures;
-        yield* svc.update("org-1", { aiSummary: true });
+        yield* svc.update(OrgId.make("org-1"), { aiSummary: true });
       }).pipe(Effect.provide(layer))
     );
 

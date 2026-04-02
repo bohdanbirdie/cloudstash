@@ -1,6 +1,7 @@
 import { Effect, Layer, LogLevel, Logger } from "effect";
 import { describe, expect, it } from "vitest";
 
+import { LinkId, TagId } from "../../db/branded";
 import { AiCallError } from "../../link-processor/errors";
 import { processLink } from "../../link-processor/process-link";
 import {
@@ -11,7 +12,7 @@ import {
 } from "../../link-processor/services";
 import type { StoreEvent } from "../../link-processor/services";
 
-const testLink = { id: "link-1", url: "https://example.com" };
+const testLink = { id: LinkId.make("link-1"), url: "https://example.com" };
 
 const mockMetadata = {
   title: "Example",
@@ -19,7 +20,7 @@ const mockMetadata = {
   favicon: "https://example.com/favicon.ico",
 };
 
-function createTestStore(tags: { id: string; name: string }[] = []) {
+function createTestStore(tags: { id: typeof TagId.Type; name: string }[] = []) {
   const committed: StoreEvent[] = [];
   const layer = Layer.succeed(LinkEventStore, {
     commit: (event) =>
@@ -42,7 +43,7 @@ function runWithTestLayers(
     } | null;
     content?: { title: string | null; content: string } | null;
     aiResult?: { summary: string | null; suggestedTags: string[] };
-    tags?: { id: string; name: string }[];
+    tags?: { id: typeof TagId.Type; name: string }[];
   } = {}
 ) {
   const store = createTestStore(options.tags);
@@ -164,7 +165,7 @@ describe("processLink", () => {
         metadata: mockMetadata,
         content: { title: "Example", content: "Content..." },
         aiResult: { summary: "A summary", suggestedTags: ["JavaScript"] },
-        tags: [{ id: "tag-1", name: "javascript" }],
+        tags: [{ id: TagId.make("tag-1"), name: "javascript" }],
       }
     );
     await run();
