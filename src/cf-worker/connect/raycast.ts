@@ -29,14 +29,14 @@ export const handleConnectRequest = Effect.fn("RaycastConnect.handleConnectReque
 
     const { userId, orgId } = session;
     if (!orgId) {
-      return yield* new NoActiveOrgError();
+      return yield* new NoActiveOrgError({ userId });
     }
 
     const result = yield* apiKeyStore
       .create(headers, { orgId, source: "raycast" }, "Raycast Extension")
       .pipe(
         Effect.flatMap((r) =>
-          r ? Effect.succeed(r) : Effect.fail(new KeyCreationError())
+          r ? Effect.succeed(r) : Effect.fail(new KeyCreationError({ cause: new Error("API key creation returned null") }))
         )
       );
 

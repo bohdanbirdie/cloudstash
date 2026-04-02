@@ -1,4 +1,4 @@
-import { Effect, Data } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { Auth } from "./index";
 
@@ -7,11 +7,14 @@ export type SyncAuthErrorCode =
   | "ACCESS_DENIED"
   | "UNAPPROVED";
 
-export class SyncAuthError extends Data.TaggedError("SyncAuthError")<{
-  status: number;
-  code: SyncAuthErrorCode;
-  message: string;
-}> {}
+export class SyncAuthError extends Schema.TaggedError<SyncAuthError>()(
+  "SyncAuthError",
+  {
+    status: Schema.Number,
+    code: Schema.String,
+    message: Schema.String,
+  }
+) {}
 
 /**
  * Pre-flight auth check for sync connections.

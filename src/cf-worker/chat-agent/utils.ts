@@ -51,6 +51,11 @@ const processToolPart = <T>(
       const result = yield* Effect.tryPromise(() =>
         executor(part.input ?? {})
       ).pipe(
+        Effect.tapError((e) =>
+          Effect.logError("Tool execution failed").pipe(
+            Effect.annotateLogs({ toolName, error: String(e) })
+          )
+        ),
         Effect.catchAll(() => Effect.succeed("Error: Tool execution failed"))
       );
       return { ...part, output: result } as T;

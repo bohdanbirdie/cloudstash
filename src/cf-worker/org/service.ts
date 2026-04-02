@@ -24,7 +24,7 @@ const getSession = (auth: Auth, headers: Headers) =>
 
 const getOrgWithFeatures = Effect.fn("Org.getOrgWithFeatures")(function* (auth: Auth, headers: Headers, orgId: string) {
     const apiOrg = yield* Effect.tryPromise({
-      catch: () => OrgNotFoundError.make({}),
+      catch: () => OrgNotFoundError.make({ orgId }),
       try: () =>
         auth.api.getFullOrganization({
           headers,
@@ -33,13 +33,13 @@ const getOrgWithFeatures = Effect.fn("Org.getOrgWithFeatures")(function* (auth: 
     });
 
     if (!apiOrg) {
-      return yield* OrgNotFoundError.make({});
+      return yield* OrgNotFoundError.make({ orgId });
     }
 
     const orgFeatures = yield* OrgFeatures;
     const features = yield* orgFeatures
       .get(orgId)
-      .pipe(Effect.catchTag("DbError", () => OrgNotFoundError.make({})));
+      .pipe(Effect.catchTag("DbError", () => OrgNotFoundError.make({ orgId })));
 
     return {
       id: apiOrg.id,
@@ -124,7 +124,7 @@ const getFullOrganization = (
       const msg = error instanceof Error ? error.message : "";
       return msg.includes("not a member")
         ? AccessDeniedError.make({})
-        : OrgNotFoundError.make({});
+        : OrgNotFoundError.make({ orgId });
     },
     try: () =>
       auth.api.getFullOrganization({
@@ -133,7 +133,7 @@ const getFullOrganization = (
       }),
   }).pipe(
     Effect.flatMap((org) =>
-      org ? Effect.succeed(org) : OrgNotFoundError.make({})
+      org ? Effect.succeed(org) : OrgNotFoundError.make({ orgId })
     ),
     Effect.flatMap((org) => {
       const member = org.members.find((m) => m.userId === userId);

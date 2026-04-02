@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import { createMiddleware } from "hono/factory";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
@@ -14,13 +14,15 @@ type MiddlewareEnv = {
   };
 };
 
-class UnauthorizedError {
-  readonly _tag = "UnauthorizedError";
-}
+class UnauthorizedError extends Schema.TaggedError<UnauthorizedError>()(
+  "UnauthorizedError",
+  {}
+) {}
 
-class ForbiddenError {
-  readonly _tag = "ForbiddenError";
-}
+class ForbiddenError extends Schema.TaggedError<ForbiddenError>()(
+  "ForbiddenError",
+  {}
+) {}
 
 const getSession = Effect.fn("Admin.getSession")(function* (headers: Headers) {
     const auth = yield* AuthClient;

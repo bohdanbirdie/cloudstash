@@ -144,7 +144,7 @@ const handleDeleteInviteRequest = Effect.fn("Invites.handleDeleteInviteRequest")
 
     if (!invite) {
       yield* Effect.logInfo("Delete invite not found");
-      return yield* new InviteNotFoundError();
+      return yield* new InviteNotFoundError({ inviteId });
     }
 
     yield* inviteStore.deleteById(inviteId);

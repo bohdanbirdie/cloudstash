@@ -116,7 +116,7 @@ export const ingestRequestToResponse = (
           Response.json({ error: "Missing url" }, { status: 400 })
         ),
     }),
-    Effect.catchAll((error) =>
+    Effect.catchTag("QueueSendError", (error) =>
       Effect.logError("Ingest failed").pipe(
         Effect.annotateLogs(safeErrorInfo(error)),
         Effect.as(Response.json({ error: "Queue send failed" }, { status: 500 }))

@@ -1,8 +1,7 @@
 import { nanoid } from "@livestore/livestore";
-import { Effect } from "effect";
+import { Cause, Effect } from "effect";
 
 import { events } from "../../livestore/schema";
-import { safeErrorInfo } from "../log-utils";
 import { findMatchingTag } from "./fuzzy-match";
 import {
   AiSummaryGenerator,
@@ -144,16 +143,31 @@ export const processLink = ({
   }).pipe(
     Effect.withSpan("processLink", { attributes: { aiSummaryEnabled, isRetry, linkId: link.id } }),
     Effect.annotateLogs({ linkId: link.id }),
-    Effect.catchAllCause((cause) =>
+    Effect.catchAll((error) =>
       Effect.gen(function* () {
         const linkStore = yield* LinkEventStore;
-        const errorInfo = safeErrorInfo(cause);
+        const errorTag = "_tag" in error ? error._tag : "UnknownError";
         yield* Effect.logError("Link processing failed").pipe(
-          Effect.annotateLogs(errorInfo)
+          Effect.annotateLogs({ errorTag })
         );
         yield* linkStore.commit(
           events.linkProcessingFailed({
-            error: errorInfo.errorType,
+            error: errorTag,
+            linkId: link.id,
+            updatedAt: new Date(),
+          })
+        );
+      })
+    ),
+    Effect.catchAllDefect((defect) =>
+      Effect.gen(function* () {
+        const linkStore = yield* LinkEventStore;
+        yield* Effect.logError("Link processing failed with defect").pipe(
+          Effect.annotateLogs({ defect: Cause.pretty(Cause.die(defect)) })
+        );
+        yield* linkStore.commit(
+          events.linkProcessingFailed({
+            error: "Defect",
             linkId: link.id,
             updatedAt: new Date(),
           })

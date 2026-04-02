@@ -7,12 +7,16 @@ export class UnauthorizedError extends Schema.TaggedError<UnauthorizedError>()(
 
 export class NoActiveOrgError extends Schema.TaggedError<NoActiveOrgError>()(
   "NoActiveOrgError",
-  {}
+  {
+    userId: Schema.String,
+  }
 ) {}
 
 export class KeyCreationError extends Schema.TaggedError<KeyCreationError>()(
   "KeyCreationError",
-  {}
+  {
+    cause: Schema.Defect,
+  }
 ) {}
 
 export class MissingCodeError extends Schema.TaggedError<MissingCodeError>()(

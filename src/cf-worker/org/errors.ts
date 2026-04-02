@@ -7,7 +7,9 @@ export class UnauthorizedError extends Schema.TaggedError<UnauthorizedError>()(
 
 export class OrgNotFoundError extends Schema.TaggedError<OrgNotFoundError>()(
   "OrgNotFoundError",
-  {}
+  {
+    orgId: Schema.String,
+  }
 ) {}
 
 export class AccessDeniedError extends Schema.TaggedError<AccessDeniedError>()(

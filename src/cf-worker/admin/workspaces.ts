@@ -1,4 +1,4 @@
-import { Data, Effect, Layer } from "effect";
+import { Effect, Layer, Schema } from "effect";
 
 import type { OrgFeatures } from "../db/schema";
 import { DbClientLive } from "../db/service";
@@ -9,7 +9,10 @@ import {
 } from "../org/features-service";
 import type { Env } from "../shared";
 
-class InvalidBodyError extends Data.TaggedError("InvalidBodyError") {}
+class InvalidBodyError extends Schema.TaggedError<InvalidBodyError>()(
+  "InvalidBodyError",
+  {}
+) {}
 
 export type { WorkspaceWithOwner } from "../org/features-service";
 

@@ -1,13 +1,14 @@
-import { Effect, Data } from "effect";
+import { Effect, Schema } from "effect";
 
 import { OrgFeatures } from "../org/features-service";
 
-export class ChatFeatureDisabledError extends Data.TaggedError(
-  "ChatFeatureDisabledError"
-)<{
-  status: number;
-  message: string;
-}> {}
+export class ChatFeatureDisabledError extends Schema.TaggedError<ChatFeatureDisabledError>()(
+  "ChatFeatureDisabledError",
+  {
+    status: Schema.Number,
+    message: Schema.String,
+  }
+) {}
 
 export const checkChatFeatureEnabled = Effect.fn("ChatAgent.checkChatFeatureEnabled")(
   function* (workspaceId: string) {
