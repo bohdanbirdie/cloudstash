@@ -1,3 +1,5 @@
+import { Effect } from "effect";
+
 import { queryUsage } from "../analytics";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
@@ -31,10 +33,10 @@ export async function handleGetUsage(
     ? "cloudstash_usage_staging"
     : "cloudstash_usage";
 
-  try {
-    const { rows } = await queryUsage(
-      env.CF_ACCOUNT_ID,
-      env.CF_ANALYTICS_TOKEN,
+  return Effect.gen(function* () {
+    const { rows } = yield* queryUsage(
+      env.CF_ACCOUNT_ID!,
+      env.CF_ANALYTICS_TOKEN!,
       {
         period: period as "24h" | "7d" | "30d",
         dataset,
@@ -47,13 +49,17 @@ export async function handleGetUsage(
     logger.info("Usage query", { period, totalEvents, uniqueUsers });
 
     return Response.json({ rows, totals: { totalEvents, uniqueUsers } });
-  } catch (error) {
-    logger.error("Usage query failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return Response.json(
-      { error: "Failed to query usage data" },
-      { status: 500 }
-    );
-  }
+  }).pipe(
+    Effect.withSpan("Admin.handleGetUsage"),
+    Effect.catchTag("AnalyticsQueryError", (error) => {
+      logger.error("Usage query failed", { error: error.message });
+      return Effect.succeed(
+        Response.json(
+          { error: "Failed to query usage data" },
+          { status: 500 }
+        )
+      );
+    }),
+    Effect.runPromise
+  );
 }

@@ -51,14 +51,13 @@ const handleCreateInviteRequest = Effect.fn("Invites.handleCreateInviteRequest")
     const session = yield* getSession(auth, request.headers);
     yield* requireAdmin(session);
 
-    const expiresInDays = yield* Effect.promise(async () => {
-      try {
-        const body: { expiresInDays?: number } = await request.json();
-        return body.expiresInDays;
-      } catch {
-        return;
-      }
-    });
+    const expiresInDays = yield* Effect.tryPromise({
+      catch: () => undefined,
+      try: (): Promise<{ expiresInDays?: number }> => request.json(),
+    }).pipe(
+      Effect.map((body) => body.expiresInDays),
+      Effect.catchAll(() => Effect.void)
+    );
 
     const code = generateInviteCode();
     const expiresAt = expiresInDays
