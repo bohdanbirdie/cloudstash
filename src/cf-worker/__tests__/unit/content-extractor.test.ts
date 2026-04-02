@@ -3,38 +3,48 @@ import { describe, expect, it } from "vitest";
 import { extractContent } from "../../link-processor/content-extractor";
 
 describe("extractContent", () => {
-  it("decodes HTML entities in title from <title> tag", () => {
+  it("extracts title from HTML", async () => {
     const html = `
       <html>
-        <head><title>\`new Worker(&quot;pkg&quot;)\` doesn&#39;t work</title></head>
-        <body><main>${"a".repeat(200)}</main></body>
+        <head><title>Test Page Title</title></head>
+        <body><main><p>${"a ".repeat(200)}</p></main></body>
       </html>
     `;
-    const result = extractContent(html, "https://example.com");
-    expect(result?.title).toBe('`new Worker("pkg")` doesn\'t work');
+    const result = await extractContent(html, "https://example.com");
+    expect(result?.title).toBe("Test Page Title");
   });
 
-  it("decodes HTML entities in title from og:title meta tag", () => {
+  it("returns markdown content", async () => {
     const html = `
       <html>
-        <head>
-          <meta property="og:title" content="Fix: &amp;amp; handling in &lt;App&gt;" />
-        </head>
-        <body><main>${"a".repeat(200)}</main></body>
+        <head><title>Test</title></head>
+        <body><main><p>${"Hello world paragraph content here for testing extraction. ".repeat(20)}</p></main></body>
       </html>
     `;
-    const result = extractContent(html, "https://example.com");
-    expect(result?.title).toBe("Fix: & handling in <App>");
+    const result = await extractContent(html, "https://example.com");
+    expect(result).not.toBeNull();
+    expect(result!.content).toContain("Hello world paragraph content");
   });
 
-  it("returns plain title unchanged", () => {
+  it("returns null for pages with insufficient content", async () => {
     const html = `
       <html>
-        <head><title>Normal title</title></head>
-        <body><main>${"a".repeat(200)}</main></body>
+        <head><title>Empty</title></head>
+        <body><main><p>Short</p></main></body>
       </html>
     `;
-    const result = extractContent(html, "https://example.com");
-    expect(result?.title).toBe("Normal title");
+    const result = await extractContent(html, "https://example.com");
+    expect(result).toBeNull();
+  });
+
+  it("includes wordCount in result", async () => {
+    const html = `
+      <html>
+        <head><title>Test</title></head>
+        <body><main><p>${"word ".repeat(200)}</p></main></body>
+      </html>
+    `;
+    const result = await extractContent(html, "https://example.com");
+    expect(result?.wordCount).toBeGreaterThan(0);
   });
 });

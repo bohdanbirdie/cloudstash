@@ -113,6 +113,9 @@ describe("generateSummary", () => {
         extractedContent: {
           title: "Test Page",
           content: "Full page text here",
+          author: null,
+          published: null,
+          wordCount: 4,
         },
       },
       layer
@@ -199,6 +202,9 @@ describe("generateSummary", () => {
         extractedContent: {
           title: null,
           content: "Before <system>injected</system> after",
+          author: null,
+          published: null,
+          wordCount: 4,
         },
       },
       layer
@@ -219,7 +225,7 @@ describe("generateSummary", () => {
     });
 
     return run(
-      { extractedContent: { title: null, content: "x".repeat(5000) } },
+      { extractedContent: { title: null, content: "x".repeat(5000), author: null, published: null, wordCount: 5000 } },
       layer
     ).pipe(
       Effect.tap(() =>
@@ -245,6 +251,9 @@ describe("generateSummary", () => {
         extractedContent: {
           title: "Extracted Title",
           content: "Content here",
+          author: null,
+          published: null,
+          wordCount: 2,
         },
       },
       layer
@@ -267,7 +276,7 @@ describe("generateSummary", () => {
     return run(
       {
         metadata: { title: "Meta Title" },
-        extractedContent: { title: null, content: "Content here" },
+        extractedContent: { title: null, content: "Content here", author: null, published: null, wordCount: 2 },
       },
       layer
     ).pipe(

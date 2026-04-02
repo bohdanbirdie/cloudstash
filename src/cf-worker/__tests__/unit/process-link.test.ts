@@ -41,7 +41,7 @@ function buildTestLayers(
       favicon?: string;
       image?: string;
     } | null;
-    content?: { title: string | null; content: string } | null;
+    content?: { title: string | null; content: string; author: string | null; published: string | null; wordCount: number } | null;
     aiResult?: { summary: string | null; suggestedTags: string[] };
     tags?: { id: typeof TagId.Type; name: string }[];
   } = {}
@@ -119,7 +119,7 @@ describe("processLink", () => {
   it.effect("generates summary and suggests tags when AI enabled", () => {
     const { testLayer, committed } = buildTestLayers({
       metadata: mockMetadata,
-      content: { title: "Example", content: "Some long content..." },
+      content: { title: "Example", content: "Some long content...", author: null, published: null, wordCount: 4 },
       aiResult: { summary: "A test summary", suggestedTags: ["test-tag"] },
     });
 
@@ -185,7 +185,7 @@ describe("processLink", () => {
   it.effect("matches suggested tags to existing tags", () => {
     const { testLayer, committed } = buildTestLayers({
       metadata: mockMetadata,
-      content: { title: "Example", content: "Content..." },
+      content: { title: "Example", content: "Content...", author: null, published: null, wordCount: 1 },
       aiResult: { summary: "A summary", suggestedTags: ["JavaScript"] },
       tags: [{ id: TagId.make("tag-1"), name: "javascript" }],
     });
@@ -214,7 +214,7 @@ describe("processLink", () => {
         fetch: () => Effect.succeed(mockMetadata),
       }),
       Layer.succeed(ContentExtractor, {
-        extract: () => Effect.succeed({ title: "Test", content: "Content" }),
+        extract: () => Effect.succeed({ title: "Test", content: "Content", author: null, published: null, wordCount: 1 }),
       }),
       Layer.succeed(AiSummaryGenerator, {
         generate: () =>
@@ -268,7 +268,7 @@ describe("processLink", () => {
   it.effect("emits one tagSuggested per AI suggestion", () => {
     const { testLayer, committed } = buildTestLayers({
       metadata: mockMetadata,
-      content: { title: "Example", content: "Content..." },
+      content: { title: "Example", content: "Content...", author: null, published: null, wordCount: 1 },
       aiResult: {
         summary: "A summary",
         suggestedTags: ["react", "typescript", "testing"],
