@@ -1,5 +1,7 @@
 import { Schema } from "effect";
 
+import { OrgId } from "../db/branded";
+
 export class MissingSessionCookieError extends Schema.TaggedError<MissingSessionCookieError>()(
   "MissingSessionCookieError",
   {}
@@ -21,8 +23,8 @@ export class InvalidSessionError extends Schema.TaggedError<InvalidSessionError>
 export class OrgAccessDeniedError extends Schema.TaggedError<OrgAccessDeniedError>()(
   "OrgAccessDeniedError",
   {
-    sessionOrgId: Schema.NullOr(Schema.String),
-    storeId: Schema.String,
+    sessionOrgId: Schema.NullOr(OrgId),
+    storeId: OrgId,
   }
 ) {
   override get message() {

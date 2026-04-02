@@ -2,7 +2,7 @@ export {
   MetadataError,
   MetadataFetchError,
   MetadataParseError,
-  MissingUrlError,
+  MetadataMissingUrlError,
 } from "./errors";
 export { MetadataParser } from "./parser";
 export { OgMetadata, ResolvedUrl } from "./schema";

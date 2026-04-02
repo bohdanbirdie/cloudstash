@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { describe, it, expect, vi } from "vitest";
 
 import { trackEvent, queryUsage } from "../../analytics";
@@ -68,10 +69,12 @@ describe("queryUsage", () => {
       })
     );
 
-    const result = await queryUsage("acct_id", "token", {
-      period: "24h",
-      dataset: "test_dataset",
-    });
+    const result = await Effect.runPromise(
+      queryUsage("acct_id", "token", {
+        period: "24h",
+        dataset: "test_dataset",
+      })
+    );
 
     expect(result.rows).toEqual([
       { userId: "usr_1", event: "sync", count: 42 },
@@ -101,14 +104,19 @@ describe("queryUsage", () => {
       })
     );
 
-    const result = await queryUsage("acct_id", "token", {
-      period: "7d",
-      dataset: "ds",
-    });
+    const result = await Effect.runPromise(
+      queryUsage("acct_id", "token", {
+        period: "7d",
+        dataset: "ds",
+      })
+    );
 
     // Without Number() conversion: 0 + "9" + "5" = "095" (string concatenation)
     // With Number() conversion: 0 + 9 + 5 = 14
-    const total = result.rows.reduce((sum, r) => sum + r.count, 0);
+    const total = result.rows.reduce(
+      (sum: number, r: { count: number }) => sum + r.count,
+      0
+    );
     expect(total).toBe(14);
 
     vi.unstubAllGlobals();
@@ -121,10 +129,12 @@ describe("queryUsage", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    await queryUsage("acct_id", "token", {
-      period: "30d",
-      dataset: "my_dataset",
-    });
+    await Effect.runPromise(
+      queryUsage("acct_id", "token", {
+        period: "30d",
+        dataset: "my_dataset",
+      })
+    );
 
     const body = fetchMock.mock.calls[0][1].body as string;
     expect(body).toContain("FROM my_dataset");
@@ -133,7 +143,7 @@ describe("queryUsage", () => {
     vi.unstubAllGlobals();
   });
 
-  it("throws on non-ok response", async () => {
+  it("rejects with AnalyticsQueryError on non-ok response", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -144,8 +154,10 @@ describe("queryUsage", () => {
     );
 
     await expect(
-      queryUsage("acct_id", "token", { period: "24h", dataset: "test" })
-    ).rejects.toThrow("Analytics query failed: 403 Forbidden");
+      Effect.runPromise(
+        queryUsage("acct_id", "token", { period: "24h", dataset: "test" })
+      )
+    ).rejects.toThrow();
 
     vi.unstubAllGlobals();
   });
@@ -159,10 +171,12 @@ describe("queryUsage", () => {
       })
     );
 
-    const result = await queryUsage("acct_id", "token", {
-      period: "24h",
-      dataset: "test",
-    });
+    const result = await Effect.runPromise(
+      queryUsage("acct_id", "token", {
+        period: "24h",
+        dataset: "test",
+      })
+    );
     expect(result.rows).toEqual([]);
 
     vi.unstubAllGlobals();

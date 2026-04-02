@@ -1,5 +1,6 @@
+import { it, describe } from "@effect/vitest";
 import { Effect, Layer, LogLevel, Logger } from "effect";
-import { describe, expect, it } from "vitest";
+import { expect } from "vitest";
 
 import {
   handleConnectRequest,
@@ -11,6 +12,7 @@ import {
   VerificationStore,
 } from "../../connect/services";
 import type { SessionData } from "../../connect/services";
+import { OrgId, UserId } from "../../db/branded";
 
 function makeSessionLayer(result: SessionData | null) {
   return Layer.succeed(SessionProvider, {
@@ -78,129 +80,167 @@ function runExchange(
 }
 
 describe("handleConnectRequest", () => {
-  it("fails with UnauthorizedError when session is null", async () => {
-    const error = await Effect.runPromise(
-      runConnect({ session: null }).pipe(Effect.flip)
-    );
-    expect(error._tag).toBe("UnauthorizedError");
-  });
+  it.effect("fails with ConnectUnauthorizedError when session is null", () =>
+    runConnect({ session: null }).pipe(
+      Effect.flip,
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("ConnectUnauthorizedError");
+        })
+      )
+    )
+  );
 
-  it("fails with NoActiveOrgError when orgId is null", async () => {
-    const error = await Effect.runPromise(
-      runConnect({
-        session: { userId: "user-1", orgId: null },
-      }).pipe(Effect.flip)
-    );
-    expect(error._tag).toBe("NoActiveOrgError");
-  });
+  it.effect("fails with NoActiveOrgError when orgId is null", () =>
+    runConnect({
+      session: { userId: UserId.make("user-1"), orgId: null },
+    }).pipe(
+      Effect.flip,
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("NoActiveOrgError");
+        })
+      )
+    )
+  );
 
-  it("fails with KeyCreationError when create returns null", async () => {
-    const error = await Effect.runPromise(
-      runConnect({
-        session: { userId: "user-1", orgId: "org-1" },
-        apiKeyStore: { create: () => Effect.succeed(null) },
-      }).pipe(Effect.flip)
-    );
-    expect(error._tag).toBe("KeyCreationError");
-  });
+  it.effect("fails with KeyCreationError when create returns null", () =>
+    runConnect({
+      session: { userId: UserId.make("user-1"), orgId: OrgId.make("org-1") },
+      apiKeyStore: { create: () => Effect.succeed(null) },
+    }).pipe(
+      Effect.flip,
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("KeyCreationError");
+        })
+      )
+    )
+  );
 
-  it("returns code on success", async () => {
-    const result = await Effect.runPromise(
-      runConnect({
-        session: { userId: "user-1", orgId: "org-1" },
-      })
-    );
+  it.effect("returns code on success", () =>
+    runConnect({
+      session: { userId: UserId.make("user-1"), orgId: OrgId.make("org-1") },
+    }).pipe(
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(result).toHaveProperty("code");
+          expect(typeof result.code).toBe("string");
+        })
+      )
+    )
+  );
 
-    expect(result).toHaveProperty("code");
-    expect(typeof result.code).toBe("string");
-  });
-
-  it("passes correct metadata to create", async () => {
+  it.effect("passes correct metadata to create", () => {
     let capturedMetadata: unknown = null;
     let capturedName: unknown = null;
 
-    await Effect.runPromise(
-      runConnect({
-        session: { userId: "user-1", orgId: "org-1" },
-        apiKeyStore: {
-          create: (_headers, metadata, name) => {
-            capturedMetadata = metadata;
-            capturedName = name;
-            return Effect.succeed({ key: "lb_key", id: "key-id" });
-          },
+    return runConnect({
+      session: { userId: UserId.make("user-1"), orgId: OrgId.make("org-1") },
+      apiKeyStore: {
+        create: (_headers, metadata, name) => {
+          capturedMetadata = metadata;
+          capturedName = name;
+          return Effect.succeed({ key: "lb_key", id: "key-id" });
         },
-      })
+      },
+    }).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(capturedMetadata).toEqual({
+            orgId: "org-1",
+            source: "raycast",
+          });
+          expect(capturedName).toBe("Raycast Extension");
+        })
+      )
     );
-
-    expect(capturedMetadata).toEqual({ orgId: "org-1", source: "raycast" });
-    expect(capturedName).toBe("Raycast Extension");
   });
 
-  it("saves verification with key and keyId as JSON", async () => {
+  it.effect("saves verification with key and keyId as JSON", () => {
     let capturedIdentifier: string | null = null;
     let capturedData: unknown = null;
 
-    await Effect.runPromise(
-      runConnect({
-        session: { userId: "user-1", orgId: "org-1" },
-        verificationStore: {
-          save: (identifier, data) => {
-            capturedIdentifier = identifier;
-            capturedData = data;
-            return Effect.void;
-          },
+    return runConnect({
+      session: { userId: UserId.make("user-1"), orgId: OrgId.make("org-1") },
+      verificationStore: {
+        save: (identifier, data) => {
+          capturedIdentifier = identifier;
+          capturedData = data;
+          return Effect.void;
         },
-      })
+      },
+    }).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(capturedIdentifier).toMatch(/^raycast-connect:/);
+          expect(capturedData).toEqual({
+            key: "lb_test_key_123",
+            keyId: "key-id-1",
+          });
+        })
+      )
     );
-
-    expect(capturedIdentifier).toMatch(/^raycast-connect:/);
-    expect(capturedData).toEqual({ key: "lb_test_key_123", keyId: "key-id-1" });
   });
 });
 
 describe("handleExchangeRequest", () => {
-  it("fails with MissingCodeError when code is missing", async () => {
-    const error = await Effect.runPromise(runExchange({}).pipe(Effect.flip));
-    expect(error._tag).toBe("MissingCodeError");
-  });
+  it.effect("fails with MissingCodeError when code is missing", () =>
+    runExchange({}).pipe(
+      Effect.flip,
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("MissingCodeError");
+        })
+      )
+    )
+  );
 
-  it("fails with InvalidCodeError when verification record not found", async () => {
-    const error = await Effect.runPromise(
-      runExchange({ code: "bad-code" }).pipe(Effect.flip)
-    );
-    expect(error._tag).toBe("InvalidCodeError");
-  });
+  it.effect(
+    "fails with InvalidCodeError when verification record not found",
+    () =>
+      runExchange({ code: "bad-code" }).pipe(
+        Effect.flip,
+        Effect.tap((error) =>
+          Effect.sync(() => {
+            expect(error._tag).toBe("InvalidCodeError");
+          })
+        )
+      )
+  );
 
-  it("returns apiKey and deletes verification on success", async () => {
+  it.effect("returns apiKey and deletes verification on success", () => {
     let deletedId: string | null = null;
     const storedData = {
       key: "lb_test_key_123",
       keyId: "key-id-1",
     };
 
-    const result = await Effect.runPromise(
-      runExchange(
-        { code: "valid-code" },
-        {
-          verificationStore: {
-            findValid: (identifier) =>
-              identifier === "raycast-connect:valid-code"
-                ? Effect.succeed({ id: "ver-1", data: storedData })
-                : Effect.succeed(null),
-            deleteById: (id) => {
-              deletedId = id;
-              return Effect.void;
-            },
+    return runExchange(
+      { code: "valid-code" },
+      {
+        verificationStore: {
+          findValid: (identifier) =>
+            identifier === "raycast-connect:valid-code"
+              ? Effect.succeed({ id: "ver-1", data: storedData })
+              : Effect.succeed(null),
+          deleteById: (id) => {
+            deletedId = id;
+            return Effect.void;
           },
-        }
+        },
+      }
+    ).pipe(
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(result).toEqual({ apiKey: "lb_test_key_123" });
+          expect(deletedId).toBe("ver-1");
+        })
       )
     );
-
-    expect(result).toEqual({ apiKey: "lb_test_key_123" });
-    expect(deletedId).toBe("ver-1");
   });
 
-  it("updates key name with device name when provided", async () => {
+  it.effect("updates key name with device name when provided", () => {
     let updatedId: string | null = null;
     let updatedName: string | null = null;
     const storedData = {
@@ -208,60 +248,64 @@ describe("handleExchangeRequest", () => {
       keyId: "key-id-1",
     };
 
-    await Effect.runPromise(
-      runExchange(
-        { code: "valid-code", deviceName: "Bohdans-MacBook-Pro" },
-        {
-          apiKeyStore: {
-            updateName: (id, name) => {
-              updatedId = id;
-              updatedName = name;
-              return Effect.void;
-            },
+    return runExchange(
+      { code: "valid-code", deviceName: "Bohdans-MacBook-Pro" },
+      {
+        apiKeyStore: {
+          updateName: (id, name) => {
+            updatedId = id;
+            updatedName = name;
+            return Effect.void;
           },
-          verificationStore: {
-            findValid: (identifier) =>
-              identifier === "raycast-connect:valid-code"
-                ? Effect.succeed({ id: "ver-1", data: storedData })
-                : Effect.succeed(null),
-            deleteById: () => Effect.void,
-          },
-        }
+        },
+        verificationStore: {
+          findValid: (identifier) =>
+            identifier === "raycast-connect:valid-code"
+              ? Effect.succeed({ id: "ver-1", data: storedData })
+              : Effect.succeed(null),
+          deleteById: () => Effect.void,
+        },
+      }
+    ).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(updatedId).toBe("key-id-1");
+          expect(updatedName).toBe("Raycast — Bohdans-MacBook-Pro");
+        })
       )
     );
-
-    expect(updatedId).toBe("key-id-1");
-    expect(updatedName).toBe("Raycast — Bohdans-MacBook-Pro");
   });
 
-  it("skips name update when deviceName is not provided", async () => {
+  it.effect("skips name update when deviceName is not provided", () => {
     let updateCalled = false;
     const storedData = {
       key: "lb_test_key_123",
       keyId: "key-id-1",
     };
 
-    await Effect.runPromise(
-      runExchange(
-        { code: "valid-code" },
-        {
-          apiKeyStore: {
-            updateName: () => {
-              updateCalled = true;
-              return Effect.void;
-            },
+    return runExchange(
+      { code: "valid-code" },
+      {
+        apiKeyStore: {
+          updateName: () => {
+            updateCalled = true;
+            return Effect.void;
           },
-          verificationStore: {
-            findValid: (identifier) =>
-              identifier === "raycast-connect:valid-code"
-                ? Effect.succeed({ id: "ver-1", data: storedData })
-                : Effect.succeed(null),
-            deleteById: () => Effect.void,
-          },
-        }
+        },
+        verificationStore: {
+          findValid: (identifier) =>
+            identifier === "raycast-connect:valid-code"
+              ? Effect.succeed({ id: "ver-1", data: storedData })
+              : Effect.succeed(null),
+          deleteById: () => Effect.void,
+        },
+      }
+    ).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(updateCalled).toBe(false);
+        })
       )
     );
-
-    expect(updateCalled).toBe(false);
   });
 });

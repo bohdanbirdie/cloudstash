@@ -3,6 +3,7 @@ import type { Effect } from "effect";
 import type { ZodType } from "zod";
 
 import type { events, tables } from "../../livestore/schema";
+import type { OrgId, TagId } from "../db/branded";
 import type { OrgFeatures } from "../db/schema";
 import type { OgMetadata } from "../metadata/schema";
 import type { ExtractedContent } from "./content-extractor";
@@ -35,7 +36,7 @@ export interface GenerateParams {
   url: string;
   metadata: { title?: string; description?: string } | null;
   extractedContent: ExtractedContent | null;
-  existingTags: readonly { readonly id: string; readonly name: string }[];
+  existingTags: readonly { readonly id: TagId; readonly name: string }[];
 }
 
 export class AiSummaryGenerator extends Context.Tag("AiSummaryGenerator")<
@@ -70,7 +71,7 @@ export class LinkEventStore extends Context.Tag("LinkEventStore")<
   {
     readonly commit: (event: StoreEvent) => Effect.Effect<void>;
     readonly queryTags: () => Effect.Effect<
-      readonly { readonly id: string; readonly name: string }[]
+      readonly { readonly id: TagId; readonly name: string }[]
     >;
   }
 >() {}
@@ -104,7 +105,7 @@ export class SourceNotifier extends Context.Tag("SourceNotifier")<
 export class FeatureStore extends Context.Tag("FeatureStore")<
   FeatureStore,
   {
-    readonly getFeatures: (storeId: string) => Effect.Effect<OrgFeatures>;
+    readonly getFeatures: (storeId: OrgId) => Effect.Effect<OrgFeatures>;
   }
 >() {}
 

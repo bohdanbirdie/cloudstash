@@ -2,57 +2,50 @@ import { Effect } from "effect";
 
 import { trackEvent } from "../analytics";
 import { AppLayerLive, AuthClient } from "../auth/service";
+import { OrgId } from "../db/branded";
 import type { LinkQueueMessage } from "../link-processor/types";
 import { maskId, safeErrorInfo } from "../log-utils";
-import { logSync } from "../logger";
 import type { Env } from "../shared";
 import {
-  InvalidApiKeyError,
-  InvalidUrlError,
-  MissingApiKeyError,
-  MissingOrgIdError,
-  MissingUrlError,
-  QueueSendError,
+  IngestInvalidApiKeyError,
+  IngestInvalidUrlError,
+  IngestMissingApiKeyError,
+  IngestMissingOrgIdError,
+  IngestMissingUrlError,
+  IngestQueueSendError,
 } from "./errors";
-import type { IngestError } from "./errors";
 
-const logger = logSync("Ingest");
-
-export const handleIngestRequest = (
-  request: Request,
-  env: Env
-): Effect.Effect<
-  { result: { status: string }; ok: boolean },
-  IngestError,
-  AuthClient
-> =>
-  Effect.gen(function* () {
+export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
+  function* (request: Request, env: Env) {
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      logger.warn("Missing API key");
-      return yield* MissingApiKeyError.make({});
+      yield* Effect.logWarning("Missing API key");
+      return yield* IngestMissingApiKeyError.make({});
     }
     const apiKey = authHeader.slice(7);
 
     const auth = yield* AuthClient;
 
     const verifyResult = yield* Effect.tryPromise({
-      catch: () => InvalidApiKeyError.make({}),
+      catch: () => IngestInvalidApiKeyError.make({}),
       try: () => auth.api.verifyApiKey({ body: { key: apiKey } }),
     });
 
     if (!verifyResult.valid || !verifyResult.key) {
-      logger.warn("Invalid API key");
-      return yield* InvalidApiKeyError.make({});
+      yield* Effect.logWarning("Invalid API key");
+      return yield* IngestInvalidApiKeyError.make({});
     }
 
-    const orgId = verifyResult.key.metadata?.orgId as string | undefined;
-    if (!orgId) {
-      logger.warn("API key missing orgId");
-      return yield* MissingOrgIdError.make({});
+    const rawOrgId = verifyResult.key.metadata?.orgId as string | undefined;
+    if (!rawOrgId) {
+      yield* Effect.logWarning("API key missing orgId");
+      return yield* IngestMissingOrgIdError.make({});
     }
+    const orgId = OrgId.make(rawOrgId);
 
-    logger.debug("API key verified", { orgId: maskId(orgId) });
+    yield* Effect.logDebug("API key verified").pipe(
+      Effect.annotateLogs({ orgId: maskId(orgId) })
+    );
 
     trackEvent(env.USAGE_ANALYTICS, {
       userId: verifyResult.key.referenceId ?? "api",
@@ -61,26 +54,23 @@ export const handleIngestRequest = (
     });
 
     const body = yield* Effect.tryPromise({
-      catch: () => MissingUrlError.make({}),
+      catch: () => IngestMissingUrlError.make({}),
       try: (): Promise<{ url?: string }> => request.json(),
     });
 
     if (!body.url) {
-      logger.warn("Missing URL in request body");
-      return yield* MissingUrlError.make({});
+      yield* Effect.logWarning("Missing URL in request body");
+      return yield* IngestMissingUrlError.make({});
     }
 
     const url = body.url;
 
     yield* Effect.try(() => new URL(url)).pipe(
-      Effect.mapError(() => {
-        logger.warn("Invalid URL format");
-        return new InvalidUrlError({ url });
-      })
+      Effect.mapError(() => new IngestInvalidUrlError({ url }))
     );
 
     yield* Effect.tryPromise({
-      catch: (cause) => new QueueSendError({ cause }),
+      catch: (cause) => new IngestQueueSendError({ cause }),
       try: () =>
         env.LINK_QUEUE.send({
           source: "api",
@@ -90,10 +80,13 @@ export const handleIngestRequest = (
         } satisfies LinkQueueMessage),
     });
 
-    logger.info("Ingest queued", { url, orgId: maskId(orgId) });
+    yield* Effect.logInfo("Ingest queued").pipe(
+      Effect.annotateLogs({ url, orgId: maskId(orgId) })
+    );
 
     return { ok: true, result: { status: "queued" } };
-  });
+  }
+);
 
 export const ingestRequestToResponse = (
   request: Request,
@@ -105,34 +98,36 @@ export const ingestRequestToResponse = (
       Response.json(result, { status: ok ? 200 : 400 })
     ),
     Effect.catchTags({
-      InvalidApiKeyError: () =>
+      IngestInvalidApiKeyError: () =>
         Effect.succeed(
           Response.json({ error: "Invalid API key" }, { status: 401 })
         ),
-      InvalidUrlError: () =>
+      IngestInvalidUrlError: () =>
         Effect.succeed(
           Response.json({ error: "Invalid URL" }, { status: 400 })
         ),
-      MissingApiKeyError: () =>
+      IngestMissingApiKeyError: () =>
         Effect.succeed(
           Response.json({ error: "Missing API key" }, { status: 401 })
         ),
-      MissingOrgIdError: () =>
+      IngestMissingOrgIdError: () =>
         Effect.succeed(
           Response.json(
             { error: "API key missing orgId metadata" },
             { status: 401 }
           )
         ),
-      MissingUrlError: () =>
+      IngestMissingUrlError: () =>
         Effect.succeed(
           Response.json({ error: "Missing url" }, { status: 400 })
         ),
     }),
-    Effect.catchAll((error) => {
-      logger.error("Ingest failed", safeErrorInfo(error));
-      return Effect.succeed(
-        Response.json({ error: "Queue send failed" }, { status: 500 })
-      );
-    })
+    Effect.catchTag("IngestQueueSendError", (error) =>
+      Effect.logError("Ingest failed").pipe(
+        Effect.annotateLogs(safeErrorInfo(error)),
+        Effect.as(
+          Response.json({ error: "Queue send failed" }, { status: 500 })
+        )
+      )
+    )
   );

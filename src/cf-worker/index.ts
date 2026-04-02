@@ -18,6 +18,7 @@ import { AppLayerLive, AuthClient } from "./auth/service";
 import { checkSyncAuth, SyncAuthError } from "./auth/sync-auth";
 import { agentHooks } from "./chat-agent/hooks";
 import { handleRaycastConnect, handleRaycastExchange } from "./connect/raycast";
+import { InviteId, OrgId, UserId } from "./db/branded";
 import { ingestRequestToResponse } from "./ingest/service";
 import {
   handleCreateInvite,
@@ -74,20 +75,20 @@ const app = new Hono<{ Bindings: Env; Variables: HonoVariables }>();
 app.get("/api/auth/me", (c) => handleGetMe(c.req.raw, c.env));
 
 app.get("/api/org/:id", (c) =>
-  handleGetOrg(c.req.raw, c.req.param("id"), c.env)
+  handleGetOrg(c.req.raw, OrgId.make(c.req.param("id")), c.env)
 );
 
 app.get("/api/org/:id/settings", requireAdmin, (c) =>
-  handleGetOrgSettings(c.req.raw, c.req.param("id"), c.env)
+  handleGetOrgSettings(c.req.raw, OrgId.make(c.req.param("id")), c.env)
 );
 app.put("/api/org/:id/settings", requireAdmin, (c) =>
-  handleUpdateOrgSettings(c.req.raw, c.req.param("id"), c.env)
+  handleUpdateOrgSettings(c.req.raw, OrgId.make(c.req.param("id")), c.env)
 );
 app.get("/api/admin/workspaces", requireAdmin, (c) =>
   handleListWorkspaces(c.req.raw, c.env)
 );
 app.post("/api/admin/users/:id/approve", requireAdmin, (c) =>
-  handleApproveUser(c.req.raw, c.req.param("id"), c.env)
+  handleApproveUser(c.req.raw, UserId.make(c.req.param("id")), c.env)
 );
 app.get("/api/admin/usage", requireAdmin, (c) =>
   handleGetUsage(c.req.raw, c.env)
@@ -108,7 +109,7 @@ app.on(["GET", "POST"], "/api/auth/*", (c) =>
 app.post("/api/invites", (c) => handleCreateInvite(c.req.raw, c.env));
 app.get("/api/invites", (c) => handleListInvites(c.req.raw, c.env));
 app.delete("/api/invites/:id", (c) =>
-  handleDeleteInvite(c.req.raw, c.req.param("id"), c.env)
+  handleDeleteInvite(c.req.raw, InviteId.make(c.req.param("id")), c.env)
 );
 app.post("/api/invites/redeem", (c) => handleRedeemInvite(c.req.raw, c.env));
 
@@ -163,12 +164,13 @@ app.post("/api/links/:id/reprocess", (c) =>
 app.post("/api/telegram", (c) => handleTelegramWebhook(c.req.raw, c.env));
 
 app.get("/api/sync/auth", async (c) => {
-  const storeId = c.req.query("storeId");
-  if (!storeId) {
+  const rawStoreId = c.req.query("storeId");
+  if (!rawStoreId) {
     logger.warn("Sync auth missing storeId");
     return c.json({ error: "Missing storeId" }, 400);
   }
 
+  const storeId = OrgId.make(rawStoreId);
   const cookie = c.req.header("cookie") ?? null;
 
   const result = await Effect.gen(function* () {
@@ -213,10 +215,11 @@ const handleSync = async (
   }
 
   const cookie = request.headers.get("cookie");
+  const syncStoreId = OrgId.make(searchParams.storeId);
 
   const authResult = await Effect.gen(function* () {
     const auth = yield* AuthClient;
-    return yield* checkSyncAuth(cookie, searchParams.storeId, auth).pipe(
+    return yield* checkSyncAuth(cookie, syncStoreId, auth).pipe(
       Effect.match({
         onFailure: (error) => error,
         onSuccess: (result) => result,

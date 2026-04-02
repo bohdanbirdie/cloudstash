@@ -1,12 +1,14 @@
 import { eq } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 
+import type { OrgId } from "../db/branded";
+import { OrgId as OrgIdBrand } from "../db/branded";
 import * as schema from "../db/schema";
 import type { OrgFeatures as OrgFeaturesType } from "../db/schema";
 import { DbClient, DbError, query } from "../db/service";
 
 export interface WorkspaceWithOwner {
-  id: string;
+  id: OrgId;
   name: string;
   slug: string | null;
   creatorEmail: string | null;
@@ -16,10 +18,10 @@ export interface WorkspaceWithOwner {
 export class OrgFeatures extends Context.Tag("@cloudstash/OrgFeatures")<
   OrgFeatures,
   {
-    readonly get: (orgId: string) => Effect.Effect<OrgFeaturesType, DbError>;
-    readonly exists: (orgId: string) => Effect.Effect<boolean, DbError>;
+    readonly get: (orgId: OrgId) => Effect.Effect<OrgFeaturesType, DbError>;
+    readonly exists: (orgId: OrgId) => Effect.Effect<boolean, DbError>;
     readonly update: (
-      orgId: string,
+      orgId: OrgId,
       features: OrgFeaturesType
     ) => Effect.Effect<void, DbError>;
     readonly listWithOwners: () => Effect.Effect<WorkspaceWithOwner[], DbError>;
@@ -71,7 +73,7 @@ export const OrgFeaturesLive = Layer.effect(
         ).pipe(
           Effect.map((orgs) =>
             orgs.map((org) => ({
-              id: org.id,
+              id: OrgIdBrand.make(org.id),
               name: org.name,
               slug: org.slug,
               creatorEmail: org.members[0]?.user?.email ?? null,

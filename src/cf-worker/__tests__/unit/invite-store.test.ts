@@ -1,6 +1,8 @@
+import { it, describe } from "@effect/vitest";
 import { Effect, Layer } from "effect";
-import { describe, expect, it } from "vitest";
+import { expect } from "vitest";
 
+import { InviteId, UserId } from "../../db/branded";
 import { DbError } from "../../db/service";
 import { InviteStore } from "../../invites/store";
 
@@ -28,7 +30,7 @@ const mockInvite = {
 };
 
 describe("InviteStore service contract", () => {
-  it("create captures params correctly", async () => {
+  it.effect("create captures params correctly", () => {
     let captured: unknown = null;
 
     const layer = makeInviteStoreLayer({
@@ -38,27 +40,24 @@ describe("InviteStore service contract", () => {
       },
     });
 
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const store = yield* InviteStore;
-        yield* store.create({
-          id: "inv-1",
-          code: "ABCD1234",
-          createdByUserId: "user-admin",
-          expiresAt: null,
-        });
-      }).pipe(Effect.provide(layer))
-    );
-
-    expect(captured).toEqual({
-      id: "inv-1",
-      code: "ABCD1234",
-      createdByUserId: "user-admin",
-      expiresAt: null,
-    });
+    return Effect.gen(function* () {
+      const store = yield* InviteStore;
+      yield* store.create({
+        id: InviteId.make("inv-1"),
+        code: "ABCD1234",
+        createdByUserId: UserId.make("user-admin"),
+        expiresAt: null,
+      });
+      expect(captured).toEqual({
+        id: "inv-1",
+        code: "ABCD1234",
+        createdByUserId: "user-admin",
+        expiresAt: null,
+      });
+    }).pipe(Effect.provide(layer));
   });
 
-  it("list returns invites", async () => {
+  it.effect("list returns invites", () => {
     const invites = [
       {
         ...mockInvite,
@@ -71,48 +70,39 @@ describe("InviteStore service contract", () => {
       list: () => Effect.succeed(invites),
     });
 
-    const result = await Effect.runPromise(
-      Effect.gen(function* () {
-        const store = yield* InviteStore;
-        return yield* store.list();
-      }).pipe(Effect.provide(layer))
-    );
-
-    expect(result).toHaveLength(1);
-    expect(result[0].code).toBe("ABCD1234");
-    expect(result[0].createdBy?.email).toBe("admin@test.com");
+    return Effect.gen(function* () {
+      const store = yield* InviteStore;
+      const result = yield* store.list();
+      expect(result).toHaveLength(1);
+      expect(result[0].code).toBe("ABCD1234");
+      expect(result[0].createdBy?.email).toBe("admin@test.com");
+    }).pipe(Effect.provide(layer));
   });
 
-  it("findById returns invite when found", async () => {
+  it.effect("findById returns invite when found", () => {
     const layer = makeInviteStoreLayer({
       findById: (id) =>
         id === "inv-1" ? Effect.succeed(mockInvite) : Effect.succeed(null),
     });
 
-    const result = await Effect.runPromise(
-      Effect.gen(function* () {
-        const store = yield* InviteStore;
-        return yield* store.findById("inv-1");
-      }).pipe(Effect.provide(layer))
-    );
-
-    expect(result).toEqual(mockInvite);
+    return Effect.gen(function* () {
+      const store = yield* InviteStore;
+      const result = yield* store.findById(InviteId.make("inv-1"));
+      expect(result).toEqual(mockInvite);
+    }).pipe(Effect.provide(layer));
   });
 
-  it("findById returns null when not found", async () => {
+  it.effect("findById returns null when not found", () => {
     const layer = makeInviteStoreLayer();
 
-    const result = await Effect.runPromise(
-      Effect.gen(function* () {
-        const store = yield* InviteStore;
-        return yield* store.findById("nonexistent");
-      }).pipe(Effect.provide(layer))
-    );
-
-    expect(result).toBeNull();
+    return Effect.gen(function* () {
+      const store = yield* InviteStore;
+      const result = yield* store.findById(InviteId.make("nonexistent"));
+      expect(result).toBeNull();
+    }).pipe(Effect.provide(layer));
   });
 
-  it("findValidByCode converts code to uppercase", async () => {
+  it.effect("findValidByCode converts code to uppercase", () => {
     let capturedCode: string | null = null;
 
     const layer = makeInviteStoreLayer({
@@ -122,17 +112,14 @@ describe("InviteStore service contract", () => {
       },
     });
 
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const store = yield* InviteStore;
-        yield* store.findValidByCode("abcd1234");
-      }).pipe(Effect.provide(layer))
-    );
-
-    expect(capturedCode).toBe("abcd1234");
+    return Effect.gen(function* () {
+      const store = yield* InviteStore;
+      yield* store.findValidByCode("abcd1234");
+      expect(capturedCode).toBe("abcd1234");
+    }).pipe(Effect.provide(layer));
   });
 
-  it("deleteById calls with correct id", async () => {
+  it.effect("deleteById calls with correct id", () => {
     let capturedId: string | null = null;
 
     const layer = makeInviteStoreLayer({
@@ -142,17 +129,14 @@ describe("InviteStore service contract", () => {
       },
     });
 
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const store = yield* InviteStore;
-        yield* store.deleteById("inv-1");
-      }).pipe(Effect.provide(layer))
-    );
-
-    expect(capturedId).toBe("inv-1");
+    return Effect.gen(function* () {
+      const store = yield* InviteStore;
+      yield* store.deleteById(InviteId.make("inv-1"));
+      expect(capturedId).toBe("inv-1");
+    }).pipe(Effect.provide(layer));
   });
 
-  it("redeemAndApproveUser captures both IDs", async () => {
+  it.effect("redeemAndApproveUser captures both IDs", () => {
     let capturedArgs: { inviteId: string; userId: string } | null = null;
 
     const layer = makeInviteStoreLayer({
@@ -162,50 +146,58 @@ describe("InviteStore service contract", () => {
       },
     });
 
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const store = yield* InviteStore;
-        yield* store.redeemAndApproveUser("inv-1", "user-1");
-      }).pipe(Effect.provide(layer))
-    );
-
-    expect(capturedArgs).toEqual({ inviteId: "inv-1", userId: "user-1" });
+    return Effect.gen(function* () {
+      const store = yield* InviteStore;
+      yield* store.redeemAndApproveUser(
+        InviteId.make("inv-1"),
+        UserId.make("user-1")
+      );
+      expect(capturedArgs).toEqual({ inviteId: "inv-1", userId: "user-1" });
+    }).pipe(Effect.provide(layer));
   });
 
-  it("propagates DbError from create", async () => {
+  it.effect("propagates DbError from create", () => {
     const layer = makeInviteStoreLayer({
       create: () =>
         Effect.fail(new DbError({ cause: new Error("insert failed") })),
     });
 
-    const error = await Effect.runPromise(
-      Effect.gen(function* () {
-        const store = yield* InviteStore;
-        yield* store.create({
-          id: "inv-1",
-          code: "ABCD",
-          createdByUserId: "user-1",
-          expiresAt: null,
-        });
-      }).pipe(Effect.provide(layer), Effect.flip)
+    return Effect.gen(function* () {
+      const store = yield* InviteStore;
+      yield* store.create({
+        id: InviteId.make("inv-1"),
+        code: "ABCD",
+        createdByUserId: UserId.make("user-1"),
+        expiresAt: null,
+      });
+    }).pipe(
+      Effect.provide(layer),
+      Effect.flip,
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("DbError");
+        })
+      )
     );
-
-    expect(error._tag).toBe("DbError");
   });
 
-  it("propagates DbError from list", async () => {
+  it.effect("propagates DbError from list", () => {
     const layer = makeInviteStoreLayer({
       list: () =>
         Effect.fail(new DbError({ cause: new Error("query failed") })),
     });
 
-    const error = await Effect.runPromise(
-      Effect.gen(function* () {
-        const store = yield* InviteStore;
-        yield* store.list();
-      }).pipe(Effect.provide(layer), Effect.flip)
+    return Effect.gen(function* () {
+      const store = yield* InviteStore;
+      yield* store.list();
+    }).pipe(
+      Effect.provide(layer),
+      Effect.flip,
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("DbError");
+        })
+      )
     );
-
-    expect(error._tag).toBe("DbError");
   });
 });

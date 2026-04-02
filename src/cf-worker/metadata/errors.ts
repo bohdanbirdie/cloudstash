@@ -16,12 +16,12 @@ export class MetadataParseError extends Schema.TaggedError<MetadataParseError>()
   }
 ) {}
 
-export class MissingUrlError extends Schema.TaggedError<MissingUrlError>()(
-  "MissingUrlError",
+export class MetadataMissingUrlError extends Schema.TaggedError<MetadataMissingUrlError>()(
+  "MetadataMissingUrlError",
   {}
 ) {}
 
 export type MetadataError =
   | MetadataFetchError
   | MetadataParseError
-  | MissingUrlError;
+  | MetadataMissingUrlError;

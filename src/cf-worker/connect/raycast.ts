@@ -2,93 +2,98 @@ import { and, eq, gt } from "drizzle-orm";
 import { Effect, Layer } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
+import { OrgId, UserId } from "../db/branded";
 import * as schema from "../db/schema";
 import { DbClient, query } from "../db/service";
-import { logSync } from "../logger";
 import type { Env } from "../shared";
 import {
   InvalidCodeError,
   KeyCreationError,
   MissingCodeError,
   NoActiveOrgError,
-  UnauthorizedError,
+  ConnectUnauthorizedError,
 } from "./errors";
 import { ApiKeyStore, SessionProvider, VerificationStore } from "./services";
 
-const logger = logSync("RaycastConnect");
+export const handleConnectRequest = Effect.fn(
+  "RaycastConnect.handleConnectRequest"
+)(function* (headers: Headers) {
+  const sessionProvider = yield* SessionProvider;
+  const apiKeyStore = yield* ApiKeyStore;
+  const verificationStore = yield* VerificationStore;
 
-export const handleConnectRequest = (headers: Headers) =>
-  Effect.gen(function* () {
-    const sessionProvider = yield* SessionProvider;
-    const apiKeyStore = yield* ApiKeyStore;
-    const verificationStore = yield* VerificationStore;
-
-    const session = yield* sessionProvider
-      .getSession(headers)
-      .pipe(
-        Effect.flatMap((s) =>
-          s ? Effect.succeed(s) : Effect.fail(new UnauthorizedError())
-        )
-      );
-
-    const { userId, orgId } = session;
-    if (!orgId) {
-      return yield* new NoActiveOrgError();
-    }
-
-    const result = yield* apiKeyStore
-      .create(headers, { orgId, source: "raycast" }, "Raycast Extension")
-      .pipe(
-        Effect.flatMap((r) =>
-          r ? Effect.succeed(r) : Effect.fail(new KeyCreationError())
-        )
-      );
-
-    const code = crypto.randomUUID();
-
-    yield* verificationStore.save(
-      `raycast-connect:${code}`,
-      { key: result.key, keyId: result.id },
-      60_000
+  const session = yield* sessionProvider
+    .getSession(headers)
+    .pipe(
+      Effect.flatMap((s) =>
+        s ? Effect.succeed(s) : Effect.fail(new ConnectUnauthorizedError())
+      )
     );
 
-    logger.info("Raycast connect code created", { userId });
+  const { userId, orgId } = session;
+  if (!orgId) {
+    return yield* new NoActiveOrgError({ userId });
+  }
 
-    return { code };
-  });
+  const result = yield* apiKeyStore
+    .create(headers, { orgId, source: "raycast" }, "Raycast Extension")
+    .pipe(
+      Effect.flatMap((r) =>
+        r
+          ? Effect.succeed(r)
+          : Effect.fail(
+              new KeyCreationError({
+                cause: new Error("API key creation returned null"),
+              })
+            )
+      )
+    );
 
-export const handleExchangeRequest = (body: {
-  code?: string;
-  deviceName?: string;
-}) =>
-  Effect.gen(function* () {
-    const apiKeyStore = yield* ApiKeyStore;
-    const verificationStore = yield* VerificationStore;
+  const code = crypto.randomUUID();
 
-    if (!body.code) {
-      return yield* new MissingCodeError();
-    }
+  yield* verificationStore.save(
+    `raycast-connect:${code}`,
+    { key: result.key, keyId: result.id },
+    60_000
+  );
 
-    const identifier = `raycast-connect:${body.code}`;
+  yield* Effect.logInfo("Raycast connect code created").pipe(
+    Effect.annotateLogs({ userId })
+  );
 
-    const record = yield* verificationStore.findValid(identifier);
+  return { code };
+});
 
-    if (!record) {
-      return yield* new InvalidCodeError();
-    }
+export const handleExchangeRequest = Effect.fn(
+  "RaycastConnect.handleExchangeRequest"
+)(function* (body: { code?: string; deviceName?: string }) {
+  const apiKeyStore = yield* ApiKeyStore;
+  const verificationStore = yield* VerificationStore;
 
-    yield* verificationStore.deleteById(record.id);
+  if (!body.code) {
+    return yield* new MissingCodeError();
+  }
 
-    const { key, keyId } = record.data;
+  const identifier = `raycast-connect:${body.code}`;
 
-    if (body.deviceName) {
-      yield* apiKeyStore.updateName(keyId, `Raycast — ${body.deviceName}`);
-    }
+  const record = yield* verificationStore.findValid(identifier);
 
-    logger.info("Raycast connect code exchanged");
+  if (!record) {
+    return yield* new InvalidCodeError();
+  }
 
-    return { apiKey: key };
-  });
+  yield* verificationStore.deleteById(record.id);
+
+  const { key, keyId } = record.data;
+
+  if (body.deviceName) {
+    yield* apiKeyStore.updateName(keyId, `Raycast — ${body.deviceName}`);
+  }
+
+  yield* Effect.logInfo("Raycast connect code exchanged");
+
+  return { apiKey: key };
+});
 
 const makeLiveLayer = (env: Env) =>
   Layer.mergeAll(
@@ -103,8 +108,10 @@ const makeLiveLayer = (env: Env) =>
               Effect.map((session) =>
                 session?.session
                   ? {
-                      userId: session.user.id,
-                      orgId: session.session.activeOrganizationId ?? null,
+                      userId: UserId.make(session.user.id),
+                      orgId: session.session.activeOrganizationId
+                        ? OrgId.make(session.session.activeOrganizationId)
+                        : null,
                     }
                   : null
               )
@@ -219,7 +226,7 @@ export const handleRaycastConnect = (
           Effect.succeed(
             Response.json({ error: "No active organization" }, { status: 400 })
           ),
-        UnauthorizedError: () =>
+        ConnectUnauthorizedError: () =>
           Effect.succeed(
             Response.json({ error: "Unauthorized" }, { status: 401 })
           ),

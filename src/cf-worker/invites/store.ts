@@ -1,6 +1,7 @@
 import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 
+import type { InviteId, UserId } from "../db/branded";
 import * as schema from "../db/schema";
 import { DbClient, DbError, query } from "../db/service";
 
@@ -15,20 +16,22 @@ export class InviteStore extends Context.Tag("@cloudstash/InviteStore")<
   InviteStore,
   {
     readonly create: (params: {
-      id: string;
+      id: InviteId;
       code: string;
-      createdByUserId: string;
+      createdByUserId: UserId;
       expiresAt: Date | null;
     }) => Effect.Effect<void, DbError>;
     readonly list: () => Effect.Effect<InviteWithRelations[], DbError>;
-    readonly findById: (id: string) => Effect.Effect<InviteRow | null, DbError>;
+    readonly findById: (
+      id: InviteId
+    ) => Effect.Effect<InviteRow | null, DbError>;
     readonly findValidByCode: (
       code: string
     ) => Effect.Effect<InviteRow | null, DbError>;
-    readonly deleteById: (id: string) => Effect.Effect<void, DbError>;
+    readonly deleteById: (id: InviteId) => Effect.Effect<void, DbError>;
     readonly redeemAndApproveUser: (
-      inviteId: string,
-      userId: string
+      inviteId: InviteId,
+      userId: UserId
     ) => Effect.Effect<void, DbError>;
   }
 >() {}

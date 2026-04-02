@@ -1,5 +1,6 @@
+import { it, describe } from "@effect/vitest";
 import { Effect, Layer, LogLevel, Logger } from "effect";
-import { describe, expect, it } from "vitest";
+import { expect } from "vitest";
 
 import { AiCallError } from "../../link-processor/errors";
 import {
@@ -39,66 +40,75 @@ function run(
   params: Partial<Parameters<typeof generateSummary>[0]>,
   layer: Layer.Layer<LinkProcessorAi>
 ) {
-  return Effect.runPromise(
-    generateSummary({
-      url: "https://example.com",
-      metadata: null,
-      extractedContent: null,
-      existingTags: [],
-      ...params,
-    }).pipe(Effect.provide(layer), Logger.withMinimumLogLevel(LogLevel.Error))
-  );
+  return generateSummary({
+    url: "https://example.com",
+    metadata: null,
+    extractedContent: null,
+    existingTags: [],
+    ...params,
+  }).pipe(Effect.provide(layer), Logger.withMinimumLogLevel(LogLevel.Error));
 }
 
 describe("generateSummary", () => {
-  it("returns summary and tags from valid AI response", async () => {
+  it.effect("returns summary and tags from valid AI response", () => {
     const layer = succeedWith({
       summary: "This is a test summary about the page content.",
       suggestedTags: ["testing"],
     });
 
-    const result = await run({}, layer);
-    expect(result).toEqual({
-      summary: "This is a test summary about the page content.",
-      suggestedTags: ["testing"],
-    });
+    return run({}, layer).pipe(
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(result).toEqual({
+            summary: "This is a test summary about the page content.",
+            suggestedTags: ["testing"],
+          });
+        })
+      )
+    );
   });
 
-  it("returns null summary when AI output is null", async () => {
+  it.effect("returns null summary when AI output is null", () => {
     const layer = succeedWith(null);
 
-    const result = await run({}, layer);
-    expect(result).toEqual({ summary: null, suggestedTags: [] });
+    return run({}, layer).pipe(
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(result).toEqual({ summary: null, suggestedTags: [] });
+        })
+      )
+    );
   });
 
-  it("fails with AiCallError when AI call fails", async () => {
+  it.effect("fails with AiCallError when AI call fails", () => {
     const layer = makeLayer(() =>
       Effect.fail(new AiCallError({ cause: "API failure" }))
     );
 
-    const error = await Effect.runPromise(
-      generateSummary({
-        url: "https://example.com",
-        metadata: null,
-        extractedContent: null,
-        existingTags: [],
-      }).pipe(
-        Effect.flip,
-        Effect.provide(layer),
-        Logger.withMinimumLogLevel(LogLevel.None)
+    return generateSummary({
+      url: "https://example.com",
+      metadata: null,
+      extractedContent: null,
+      existingTags: [],
+    }).pipe(
+      Effect.flip,
+      Effect.provide(layer),
+      Logger.withMinimumLogLevel(LogLevel.None),
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error).toBeInstanceOf(AiCallError);
+        })
       )
     );
-
-    expect(error).toBeInstanceOf(AiCallError);
   });
 
-  it("uses extracted content with title when available", async () => {
+  it.effect("uses extracted content with title when available", () => {
     const { layer, getParams } = capturePrompt({
       summary: "Summary of extracted content.",
       suggestedTags: [],
     });
 
-    await run(
+    return run(
       {
         extractedContent: {
           title: "Test Page",
@@ -106,48 +116,60 @@ describe("generateSummary", () => {
         },
       },
       layer
+    ).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(getParams().prompt).toContain("# Test Page");
+          expect(getParams().prompt).toContain("Full page text here");
+        })
+      )
     );
-
-    expect(getParams().prompt).toContain("# Test Page");
-    expect(getParams().prompt).toContain("Full page text here");
   });
 
-  it("falls back to metadata when no extracted content", async () => {
+  it.effect("falls back to metadata when no extracted content", () => {
     const { layer, getParams } = capturePrompt({
       summary: "Summary from metadata.",
       suggestedTags: [],
     });
 
-    await run(
+    return run(
       {
         metadata: { title: "Meta Title", description: "Meta description" },
         extractedContent: null,
       },
       layer
+    ).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(getParams().prompt).toContain("Title: Meta Title");
+          expect(getParams().prompt).toContain("Description: Meta description");
+        })
+      )
     );
-
-    expect(getParams().prompt).toContain("Title: Meta Title");
-    expect(getParams().prompt).toContain("Description: Meta description");
   });
 
-  it("falls back to URL-only when no metadata or content", async () => {
+  it.effect("falls back to URL-only when no metadata or content", () => {
     const { layer, getParams } = capturePrompt({
       summary: "Summary from URL only.",
       suggestedTags: [],
     });
 
-    await run({ url: "https://example.com/page" }, layer);
-
-    expect(getParams().prompt).toContain("URL: https://example.com/page");
+    return run({ url: "https://example.com/page" }, layer).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(getParams().prompt).toContain("URL: https://example.com/page");
+        })
+      )
+    );
   });
 
-  it("includes existing tags in prompt", async () => {
+  it.effect("includes existing tags in prompt", () => {
     const { layer, getParams } = capturePrompt({
       summary: "A summary with tags.",
       suggestedTags: [],
     });
 
-    await run(
+    return run(
       {
         existingTags: [
           { id: "1", name: "react" },
@@ -155,20 +177,24 @@ describe("generateSummary", () => {
         ],
       },
       layer
-    );
-
-    expect(getParams().prompt).toContain(
-      "<existing-tags>react, typescript</existing-tags>"
+    ).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(getParams().prompt).toContain(
+            "<existing-tags>react, typescript</existing-tags>"
+          );
+        })
+      )
     );
   });
 
-  it("sanitizes content with XML-like tags", async () => {
+  it.effect("sanitizes content with XML-like tags", () => {
     const { layer, getParams } = capturePrompt({
       summary: "Sanitized summary.",
       suggestedTags: [],
     });
 
-    await run(
+    return run(
       {
         extractedContent: {
           title: null,
@@ -176,36 +202,44 @@ describe("generateSummary", () => {
         },
       },
       layer
+    ).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(getParams().prompt).not.toContain("<system>");
+          expect(getParams().prompt).toContain("[...]injected[...]");
+        })
+      )
     );
-
-    expect(getParams().prompt).not.toContain("<system>");
-    expect(getParams().prompt).toContain("[...]injected[...]");
   });
 
-  it("truncates content to 4000 characters", async () => {
+  it.effect("truncates content to 4000 characters", () => {
     const { layer, getParams } = capturePrompt({
       summary: "Summary of long content.",
       suggestedTags: [],
     });
 
-    await run(
+    return run(
       { extractedContent: { title: null, content: "x".repeat(5000) } },
       layer
+    ).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          const contentMatch = getParams().prompt.match(
+            /<content>\n([\s\S]*?)\n<\/content>/
+          );
+          expect(contentMatch?.[1]?.length).toBe(4000);
+        })
+      )
     );
-
-    const contentMatch = getParams().prompt.match(
-      /<content>\n([\s\S]*?)\n<\/content>/
-    );
-    expect(contentMatch?.[1]?.length).toBe(4000);
   });
 
-  it("prefers extracted title over metadata title", async () => {
+  it.effect("prefers extracted title over metadata title", () => {
     const { layer, getParams } = capturePrompt({
       summary: "A summary result.",
       suggestedTags: [],
     });
 
-    await run(
+    return run(
       {
         metadata: { title: "Meta Title" },
         extractedContent: {
@@ -214,39 +248,53 @@ describe("generateSummary", () => {
         },
       },
       layer
+    ).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(getParams().prompt).toContain("# Extracted Title");
+          expect(getParams().prompt).not.toContain("Meta Title");
+        })
+      )
     );
-
-    expect(getParams().prompt).toContain("# Extracted Title");
-    expect(getParams().prompt).not.toContain("Meta Title");
   });
 
-  it("uses metadata title when extracted title is missing", async () => {
+  it.effect("uses metadata title when extracted title is missing", () => {
     const { layer, getParams } = capturePrompt({
       summary: "A summary result.",
       suggestedTags: [],
     });
 
-    await run(
+    return run(
       {
         metadata: { title: "Meta Title" },
         extractedContent: { title: null, content: "Content here" },
       },
       layer
+    ).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(getParams().prompt).toContain("# Meta Title");
+        })
+      )
     );
-
-    expect(getParams().prompt).toContain("# Meta Title");
   });
 
-  it("passes system prompt and maxOutputTokens to AI client", async () => {
+  it.effect("passes system prompt and maxOutputTokens to AI client", () => {
     const { layer, getParams } = capturePrompt({
       summary: "A valid summary for the test.",
       suggestedTags: [],
     });
 
-    await run({}, layer);
-
-    expect(getParams().system).toContain("summarization and categorization");
-    expect(getParams().maxOutputTokens).toBe(250);
+    return run({}, layer).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(getParams().system).toContain(
+            "summarization and categorization"
+          );
+          expect(getParams().maxOutputTokens).toBe(250);
+        })
+      )
+    );
   });
 });
 

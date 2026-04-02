@@ -1,12 +1,14 @@
 import { Schema } from "effect";
 
-export class UnauthorizedError extends Schema.TaggedError<UnauthorizedError>()(
-  "UnauthorizedError",
+import { InviteId } from "../db/branded";
+
+export class InvitesUnauthorizedError extends Schema.TaggedError<InvitesUnauthorizedError>()(
+  "InvitesUnauthorizedError",
   {}
 ) {}
 
-export class ForbiddenError extends Schema.TaggedError<ForbiddenError>()(
-  "ForbiddenError",
+export class InvitesForbiddenError extends Schema.TaggedError<InvitesForbiddenError>()(
+  "InvitesForbiddenError",
   {}
 ) {}
 
@@ -17,11 +19,13 @@ export class InvalidInviteError extends Schema.TaggedError<InvalidInviteError>()
 
 export class InviteNotFoundError extends Schema.TaggedError<InviteNotFoundError>()(
   "InviteNotFoundError",
-  {}
+  {
+    inviteId: InviteId,
+  }
 ) {}
 
 export type InviteError =
-  | UnauthorizedError
-  | ForbiddenError
+  | InvitesUnauthorizedError
+  | InvitesForbiddenError
   | InvalidInviteError
   | InviteNotFoundError;

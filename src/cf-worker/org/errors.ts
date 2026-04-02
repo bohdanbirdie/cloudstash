@@ -1,13 +1,17 @@
 import { Schema } from "effect";
 
-export class UnauthorizedError extends Schema.TaggedError<UnauthorizedError>()(
-  "UnauthorizedError",
+import { OrgId } from "../db/branded";
+
+export class OrgUnauthorizedError extends Schema.TaggedError<OrgUnauthorizedError>()(
+  "OrgUnauthorizedError",
   {}
 ) {}
 
 export class OrgNotFoundError extends Schema.TaggedError<OrgNotFoundError>()(
   "OrgNotFoundError",
-  {}
+  {
+    orgId: OrgId,
+  }
 ) {}
 
 export class AccessDeniedError extends Schema.TaggedError<AccessDeniedError>()(
@@ -15,4 +19,7 @@ export class AccessDeniedError extends Schema.TaggedError<AccessDeniedError>()(
   {}
 ) {}
 
-export type OrgError = UnauthorizedError | OrgNotFoundError | AccessDeniedError;
+export type OrgError =
+  | OrgUnauthorizedError
+  | OrgNotFoundError
+  | AccessDeniedError;

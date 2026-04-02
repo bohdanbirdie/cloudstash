@@ -17,6 +17,7 @@ import type { LanguageModel } from "ai";
 import { Effect, Layer } from "effect";
 
 import { schema } from "../../livestore/schema";
+import { OrgId } from "../db/branded";
 import { DbClientLive } from "../db/service";
 import { OrgFeatures, OrgFeaturesLive } from "../org/features-service";
 import type { Env } from "../shared";
@@ -140,7 +141,7 @@ export class ChatAgentDO
 
       const orgFeatures = yield* OrgFeatures;
       const features = yield* orgFeatures
-        .get(this.name)
+        .get(OrgId.make(this.name))
         .pipe(Effect.catchTag("DbError", () => Effect.succeed({})));
       const budget =
         ("monthlyTokenBudget" in features

@@ -1,5 +1,6 @@
+import { it, describe } from "@effect/vitest";
 import { Effect, Layer, LogLevel, Logger } from "effect";
-import { describe, expect, it, vi } from "vitest";
+import { expect, vi } from "vitest";
 
 import { AuthClient } from "../../auth/service";
 import { handleIngestRequest } from "../../ingest/service";
@@ -50,44 +51,42 @@ function run(
   env: ReturnType<typeof createEnv>,
   authLayer: Layer.Layer<AuthClient>
 ) {
-  return Effect.runPromise(
-    handleIngestRequest(request, env as never).pipe(
-      Effect.provide(authLayer),
-      Effect.map(({ result, ok }) =>
-        Response.json(result, { status: ok ? 200 : 400 })
-      ),
-      Effect.catchTags({
-        InvalidApiKeyError: () =>
-          Effect.succeed(
-            Response.json({ error: "Invalid API key" }, { status: 401 })
-          ),
-        InvalidUrlError: () =>
-          Effect.succeed(
-            Response.json({ error: "Invalid URL" }, { status: 400 })
-          ),
-        MissingApiKeyError: () =>
-          Effect.succeed(
-            Response.json({ error: "Missing API key" }, { status: 401 })
-          ),
-        MissingOrgIdError: () =>
-          Effect.succeed(
-            Response.json(
-              { error: "API key missing orgId metadata" },
-              { status: 401 }
-            )
-          ),
-        MissingUrlError: () =>
-          Effect.succeed(
-            Response.json({ error: "Missing url" }, { status: 400 })
-          ),
-      }),
-      Effect.catchAll(() =>
+  return handleIngestRequest(request, env as never).pipe(
+    Effect.provide(authLayer),
+    Effect.map(({ result, ok }) =>
+      Response.json(result, { status: ok ? 200 : 400 })
+    ),
+    Effect.catchTags({
+      IngestInvalidApiKeyError: () =>
         Effect.succeed(
-          Response.json({ error: "Queue send failed" }, { status: 500 })
-        )
-      ),
-      Logger.withMinimumLogLevel(LogLevel.Error)
-    )
+          Response.json({ error: "Invalid API key" }, { status: 401 })
+        ),
+      IngestInvalidUrlError: () =>
+        Effect.succeed(
+          Response.json({ error: "Invalid URL" }, { status: 400 })
+        ),
+      IngestMissingApiKeyError: () =>
+        Effect.succeed(
+          Response.json({ error: "Missing API key" }, { status: 401 })
+        ),
+      IngestMissingOrgIdError: () =>
+        Effect.succeed(
+          Response.json(
+            { error: "API key missing orgId metadata" },
+            { status: 401 }
+          )
+        ),
+      IngestMissingUrlError: () =>
+        Effect.succeed(
+          Response.json({ error: "Missing url" }, { status: 400 })
+        ),
+    }),
+    Effect.catchAll(() =>
+      Effect.succeed(
+        Response.json({ error: "Queue send failed" }, { status: 500 })
+      )
+    ),
+    Logger.withMinimumLogLevel(LogLevel.Error)
   );
 }
 
@@ -99,30 +98,38 @@ const validKeyResponse = {
 const validAuthLayer = makeAuthLayer(() => Promise.resolve(validKeyResponse));
 
 describe("ingestRequestToResponse", () => {
-  it("returns 401 when Authorization header is missing", async () => {
+  it.effect("returns 401 when Authorization header is missing", () => {
     const request = createRequest({ url: "https://example.com" });
     const env = createEnv();
 
-    const response = await run(request, env, validAuthLayer);
-
-    expect(response.status).toBe(401);
-    expect(await response.json()).toEqual({ error: "Missing API key" });
+    return run(request, env, validAuthLayer).pipe(
+      Effect.tap((response) =>
+        Effect.promise(async () => {
+          expect(response.status).toBe(401);
+          expect(await response.json()).toEqual({ error: "Missing API key" });
+        })
+      )
+    );
   });
 
-  it("returns 401 when Authorization header has wrong format", async () => {
+  it.effect("returns 401 when Authorization header has wrong format", () => {
     const request = createRequest(
       { url: "https://example.com" },
       { Authorization: "Basic abc123" }
     );
     const env = createEnv();
 
-    const response = await run(request, env, validAuthLayer);
-
-    expect(response.status).toBe(401);
-    expect(await response.json()).toEqual({ error: "Missing API key" });
+    return run(request, env, validAuthLayer).pipe(
+      Effect.tap((response) =>
+        Effect.promise(async () => {
+          expect(response.status).toBe(401);
+          expect(await response.json()).toEqual({ error: "Missing API key" });
+        })
+      )
+    );
   });
 
-  it("returns 401 when API key is invalid", async () => {
+  it.effect("returns 401 when API key is invalid", () => {
     const authLayer = makeAuthLayer(() =>
       Promise.resolve({ valid: false, key: null })
     );
@@ -133,13 +140,17 @@ describe("ingestRequestToResponse", () => {
     );
     const env = createEnv();
 
-    const response = await run(request, env, authLayer);
-
-    expect(response.status).toBe(401);
-    expect(await response.json()).toEqual({ error: "Invalid API key" });
+    return run(request, env, authLayer).pipe(
+      Effect.tap((response) =>
+        Effect.promise(async () => {
+          expect(response.status).toBe(401);
+          expect(await response.json()).toEqual({ error: "Invalid API key" });
+        })
+      )
+    );
   });
 
-  it("returns 401 when verifyApiKey throws an error", async () => {
+  it.effect("returns 401 when verifyApiKey throws an error", () => {
     const authLayer = makeAuthLayer(() =>
       Promise.reject(new Error("Invalid API key."))
     );
@@ -150,13 +161,17 @@ describe("ingestRequestToResponse", () => {
     );
     const env = createEnv();
 
-    const response = await run(request, env, authLayer);
-
-    expect(response.status).toBe(401);
-    expect(await response.json()).toEqual({ error: "Invalid API key" });
+    return run(request, env, authLayer).pipe(
+      Effect.tap((response) =>
+        Effect.promise(async () => {
+          expect(response.status).toBe(401);
+          expect(await response.json()).toEqual({ error: "Invalid API key" });
+        })
+      )
+    );
   });
 
-  it("returns 401 when API key is missing orgId", async () => {
+  it.effect("returns 401 when API key is missing orgId", () => {
     const authLayer = makeAuthLayer(() =>
       Promise.resolve({ valid: true, key: { metadata: {} } })
     );
@@ -167,38 +182,50 @@ describe("ingestRequestToResponse", () => {
     );
     const env = createEnv();
 
-    const response = await run(request, env, authLayer);
-
-    expect(response.status).toBe(401);
-    expect(await response.json()).toEqual({
-      error: "API key missing orgId metadata",
-    });
+    return run(request, env, authLayer).pipe(
+      Effect.tap((response) =>
+        Effect.promise(async () => {
+          expect(response.status).toBe(401);
+          expect(await response.json()).toEqual({
+            error: "API key missing orgId metadata",
+          });
+        })
+      )
+    );
   });
 
-  it("returns 400 when request body has no url", async () => {
+  it.effect("returns 400 when request body has no url", () => {
     const request = createRequest({}, { Authorization: "Bearer valid-key" });
     const env = createEnv();
 
-    const response = await run(request, env, validAuthLayer);
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: "Missing url" });
+    return run(request, env, validAuthLayer).pipe(
+      Effect.tap((response) =>
+        Effect.promise(async () => {
+          expect(response.status).toBe(400);
+          expect(await response.json()).toEqual({ error: "Missing url" });
+        })
+      )
+    );
   });
 
-  it("returns 400 when url is invalid", async () => {
+  it.effect("returns 400 when url is invalid", () => {
     const request = createRequest(
       { url: "not-a-url" },
       { Authorization: "Bearer valid-key" }
     );
     const env = createEnv();
 
-    const response = await run(request, env, validAuthLayer);
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: "Invalid URL" });
+    return run(request, env, validAuthLayer).pipe(
+      Effect.tap((response) =>
+        Effect.promise(async () => {
+          expect(response.status).toBe(400);
+          expect(await response.json()).toEqual({ error: "Invalid URL" });
+        })
+      )
+    );
   });
 
-  it("returns 500 when queue send fails", async () => {
+  it.effect("returns 500 when queue send fails", () => {
     const request = createRequest(
       { url: "https://example.com" },
       { Authorization: "Bearer valid-key" }
@@ -207,30 +234,38 @@ describe("ingestRequestToResponse", () => {
       queueSendError: new Error("Queue unavailable"),
     });
 
-    const response = await run(request, env, validAuthLayer);
-
-    expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({
-      error: "Queue send failed",
-    });
+    return run(request, env, validAuthLayer).pipe(
+      Effect.tap((response) =>
+        Effect.promise(async () => {
+          expect(response.status).toBe(500);
+          expect(await response.json()).toEqual({
+            error: "Queue send failed",
+          });
+        })
+      )
+    );
   });
 
-  it("returns 200 and queues link on success", async () => {
+  it.effect("returns 200 and queues link on success", () => {
     const request = createRequest(
       { url: "https://example.com" },
       { Authorization: "Bearer valid-key" }
     );
     const env = createEnv();
 
-    const response = await run(request, env, validAuthLayer);
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ status: "queued" });
-    expect(env._queueSend).toHaveBeenCalledWith({
-      source: "api",
-      sourceMeta: null,
-      storeId: "org-1",
-      url: "https://example.com",
-    });
+    return run(request, env, validAuthLayer).pipe(
+      Effect.tap((response) =>
+        Effect.promise(async () => {
+          expect(response.status).toBe(200);
+          expect(await response.json()).toEqual({ status: "queued" });
+          expect(env._queueSend).toHaveBeenCalledWith({
+            source: "api",
+            sourceMeta: null,
+            storeId: "org-1",
+            url: "https://example.com",
+          });
+        })
+      )
+    );
   });
 });

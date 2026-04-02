@@ -1,10 +1,12 @@
+import { it, describe } from "@effect/vitest";
 import { Effect, Layer, LogLevel, Logger } from "effect";
-import { describe, expect, it } from "vitest";
+import { expect } from "vitest";
 
 import {
   ChatFeatureDisabledError,
   checkChatFeatureEnabled,
 } from "../../chat-agent/auth";
+import { OrgId } from "../../db/branded";
 import { DbError } from "../../db/service";
 import { OrgFeatures } from "../../org/features-service";
 
@@ -19,69 +21,76 @@ function makeOrgFeaturesLayer(overrides: Partial<OrgFeatures["Type"]> = {}) {
 }
 
 describe("checkChatFeatureEnabled", () => {
-  it("succeeds when chatAgentEnabled is true", async () => {
+  it.effect("succeeds when chatAgentEnabled is true", () => {
     const layer = makeOrgFeaturesLayer({
       get: () => Effect.succeed({ chatAgentEnabled: true }),
     });
 
-    await Effect.runPromise(
-      checkChatFeatureEnabled("org-1").pipe(
-        Effect.provide(layer),
-        Logger.withMinimumLogLevel(LogLevel.Error)
-      )
+    return checkChatFeatureEnabled(OrgId.make("org-1")).pipe(
+      Effect.provide(layer),
+      Logger.withMinimumLogLevel(LogLevel.Error)
     );
   });
 
-  it("fails with ChatFeatureDisabledError when chatAgentEnabled is false", async () => {
-    const layer = makeOrgFeaturesLayer({
-      get: () => Effect.succeed({ chatAgentEnabled: false }),
-    });
+  it.effect(
+    "fails with ChatFeatureDisabledError when chatAgentEnabled is false",
+    () => {
+      const layer = makeOrgFeaturesLayer({
+        get: () => Effect.succeed({ chatAgentEnabled: false }),
+      });
 
-    const error = await Effect.runPromise(
-      checkChatFeatureEnabled("org-1").pipe(
-        Effect.provide(layer),
-        Effect.flip,
-        Logger.withMinimumLogLevel(LogLevel.Error)
-      )
-    );
-
-    expect(error._tag).toBe("ChatFeatureDisabledError");
-    expect((error as ChatFeatureDisabledError).status).toBe(403);
-  });
-
-  it("fails with ChatFeatureDisabledError when features are empty", async () => {
-    const layer = makeOrgFeaturesLayer({
-      get: () => Effect.succeed({}),
-    });
-
-    const error = await Effect.runPromise(
-      checkChatFeatureEnabled("org-1").pipe(
+      return checkChatFeatureEnabled(OrgId.make("org-1")).pipe(
         Effect.provide(layer),
         Effect.flip,
-        Logger.withMinimumLogLevel(LogLevel.Error)
-      )
-    );
+        Logger.withMinimumLogLevel(LogLevel.Error),
+        Effect.tap((error) =>
+          Effect.sync(() => {
+            expect(error._tag).toBe("ChatFeatureDisabledError");
+            expect((error as ChatFeatureDisabledError).status).toBe(403);
+          })
+        )
+      );
+    }
+  );
 
-    expect(error._tag).toBe("ChatFeatureDisabledError");
-  });
+  it.effect(
+    "fails with ChatFeatureDisabledError when features are empty",
+    () => {
+      const layer = makeOrgFeaturesLayer({
+        get: () => Effect.succeed({}),
+      });
 
-  it("propagates DbError from OrgFeatures.get", async () => {
+      return checkChatFeatureEnabled(OrgId.make("org-1")).pipe(
+        Effect.provide(layer),
+        Effect.flip,
+        Logger.withMinimumLogLevel(LogLevel.Error),
+        Effect.tap((error) =>
+          Effect.sync(() => {
+            expect(error._tag).toBe("ChatFeatureDisabledError");
+          })
+        )
+      );
+    }
+  );
+
+  it.effect("propagates DbError from OrgFeatures.get", () => {
     const layer = makeOrgFeaturesLayer({
       get: () => Effect.fail(new DbError({ cause: new Error("D1 down") })),
     });
 
-    const error = await Effect.runPromise(
-      checkChatFeatureEnabled("org-1").pipe(
-        Effect.provide(layer),
-        Effect.flip,
-        Logger.withMinimumLogLevel(LogLevel.Error)
+    return checkChatFeatureEnabled(OrgId.make("org-1")).pipe(
+      Effect.provide(layer),
+      Effect.flip,
+      Logger.withMinimumLogLevel(LogLevel.Error),
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("DbError");
+        })
       )
     );
-
-    expect(error._tag).toBe("DbError");
   });
 
-  it("passes the correct orgId to get", async () => {
+  it.effect("passes the correct orgId to get", () => {
     let capturedOrgId: string | null = null;
 
     const layer = makeOrgFeaturesLayer({
@@ -91,68 +100,60 @@ describe("checkChatFeatureEnabled", () => {
       },
     });
 
-    await Effect.runPromise(
-      checkChatFeatureEnabled("workspace-42").pipe(
-        Effect.provide(layer),
-        Logger.withMinimumLogLevel(LogLevel.Error)
+    return checkChatFeatureEnabled(OrgId.make("workspace-42")).pipe(
+      Effect.provide(layer),
+      Logger.withMinimumLogLevel(LogLevel.Error),
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(capturedOrgId).toBe("workspace-42");
+        })
       )
     );
-
-    expect(capturedOrgId).toBe("workspace-42");
   });
 });
 
 describe("OrgFeatures service contract", () => {
-  it("get returns features for an org", async () => {
+  it.effect("get returns features for an org", () => {
     const features = { aiSummary: true, chatAgentEnabled: true };
     const layer = makeOrgFeaturesLayer({
       get: () => Effect.succeed(features),
     });
 
-    const result = await Effect.runPromise(
-      Effect.gen(function* () {
-        const svc = yield* OrgFeatures;
-        return yield* svc.get("org-1");
-      }).pipe(Effect.provide(layer))
-    );
-
-    expect(result).toEqual(features);
+    return Effect.gen(function* () {
+      const svc = yield* OrgFeatures;
+      const result = yield* svc.get(OrgId.make("org-1"));
+      expect(result).toEqual(features);
+    }).pipe(Effect.provide(layer));
   });
 
-  it("exists returns true for existing org", async () => {
+  it.effect("exists returns true for existing org", () => {
     const layer = makeOrgFeaturesLayer({
       exists: () => Effect.succeed(true),
     });
 
-    const result = await Effect.runPromise(
-      Effect.gen(function* () {
-        const svc = yield* OrgFeatures;
-        return yield* svc.exists("org-1");
-      }).pipe(Effect.provide(layer))
-    );
-
-    expect(result).toBe(true);
+    return Effect.gen(function* () {
+      const svc = yield* OrgFeatures;
+      const result = yield* svc.exists(OrgId.make("org-1"));
+      expect(result).toBe(true);
+    }).pipe(Effect.provide(layer));
   });
 
-  it("exists returns false for missing org", async () => {
+  it.effect("exists returns false for missing org", () => {
     const layer = makeOrgFeaturesLayer({
       exists: () => Effect.succeed(false),
     });
 
-    const result = await Effect.runPromise(
-      Effect.gen(function* () {
-        const svc = yield* OrgFeatures;
-        return yield* svc.exists("org-missing");
-      }).pipe(Effect.provide(layer))
-    );
-
-    expect(result).toBe(false);
+    return Effect.gen(function* () {
+      const svc = yield* OrgFeatures;
+      const result = yield* svc.exists(OrgId.make("org-missing"));
+      expect(result).toBe(false);
+    }).pipe(Effect.provide(layer));
   });
 
-  it("listWithOwners returns workspace list", async () => {
+  it.effect("listWithOwners returns workspace list", () => {
     const workspaces = [
       {
-        id: "org-1",
+        id: OrgId.make("org-1"),
         name: "Test Workspace",
         slug: "test",
         creatorEmail: "owner@test.com",
@@ -163,17 +164,14 @@ describe("OrgFeatures service contract", () => {
       listWithOwners: () => Effect.succeed(workspaces),
     });
 
-    const result = await Effect.runPromise(
-      Effect.gen(function* () {
-        const svc = yield* OrgFeatures;
-        return yield* svc.listWithOwners();
-      }).pipe(Effect.provide(layer))
-    );
-
-    expect(result).toEqual(workspaces);
+    return Effect.gen(function* () {
+      const svc = yield* OrgFeatures;
+      const result = yield* svc.listWithOwners();
+      expect(result).toEqual(workspaces);
+    }).pipe(Effect.provide(layer));
   });
 
-  it("update calls with correct args", async () => {
+  it.effect("update calls with correct args", () => {
     let capturedArgs: { orgId: string; features: unknown } | null = null;
 
     const layer = makeOrgFeaturesLayer({
@@ -183,16 +181,13 @@ describe("OrgFeatures service contract", () => {
       },
     });
 
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const svc = yield* OrgFeatures;
-        yield* svc.update("org-1", { aiSummary: true });
-      }).pipe(Effect.provide(layer))
-    );
-
-    expect(capturedArgs).toEqual({
-      orgId: "org-1",
-      features: { aiSummary: true },
-    });
+    return Effect.gen(function* () {
+      const svc = yield* OrgFeatures;
+      yield* svc.update(OrgId.make("org-1"), { aiSummary: true });
+      expect(capturedArgs).toEqual({
+        orgId: "org-1",
+        features: { aiSummary: true },
+      });
+    }).pipe(Effect.provide(layer));
   });
 });

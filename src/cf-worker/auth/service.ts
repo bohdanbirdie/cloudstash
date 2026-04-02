@@ -3,6 +3,7 @@ import { Context, Effect, Layer } from "effect";
 
 import type { Auth } from ".";
 import { createAuth } from ".";
+import type { UserId } from "../db/branded";
 import * as schema from "../db/schema";
 import { DbClient, DbClientLive, DbError, query } from "../db/service";
 import type { Env } from "../shared";
@@ -13,9 +14,9 @@ export class AuthClient extends Context.Tag("@cloudstash/AuthClient")<
   AuthClient,
   Auth & {
     readonly findUser: (
-      userId: string
+      userId: UserId
     ) => Effect.Effect<UserRow | null, DbError>;
-    readonly approveUser: (userId: string) => Effect.Effect<void, DbError>;
+    readonly approveUser: (userId: UserId) => Effect.Effect<void, DbError>;
     readonly listApprovedUsers: () => Effect.Effect<UserRow[], DbError>;
   }
 >() {}
@@ -29,14 +30,14 @@ export const AuthClientLive = (env: Env) =>
 
       return {
         ...auth,
-        findUser: (userId: string) =>
+        findUser: (userId: UserId) =>
           query(
             db.query.user.findFirst({
               where: eq(schema.user.id, userId),
             })
           ).pipe(Effect.map((r) => r ?? null)),
 
-        approveUser: (userId: string) =>
+        approveUser: (userId: UserId) =>
           query(
             db
               .update(schema.user)

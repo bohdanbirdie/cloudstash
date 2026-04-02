@@ -8,6 +8,7 @@ import { DurableObject } from "cloudflare:workers";
 import { Effect, Layer } from "effect";
 
 import { events, schema, tables } from "../../livestore/schema";
+import { LinkId, OrgId } from "../db/branded";
 import { DbClientLive } from "../db/service";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
@@ -171,7 +172,7 @@ export class LinkProcessorDO
           .map((s) => {
             const link = linkMap.get(s.linkId)!;
             return {
-              linkId: s.linkId,
+              linkId: LinkId.make(s.linkId),
               processingStatus: s.status as "completed" | "failed",
               source: link.source!,
               sourceMeta: link.sourceMeta,
@@ -281,7 +282,7 @@ export class LinkProcessorDO
       const rowsBefore = this.totalRowsWritten;
       const features = await Effect.runPromise(
         FeatureStore.pipe(
-          Effect.flatMap((fs) => fs.getFeatures(this.storeId!)),
+          Effect.flatMap((fs) => fs.getFeatures(OrgId.make(this.storeId!))),
           Effect.provide(
             FeatureStoreLive.pipe(
               Layer.provide(OrgFeaturesLive),
@@ -303,7 +304,7 @@ export class LinkProcessorDO
           aiSummaryEnabled:
             (features as { aiSummary?: boolean }).aiSummary ?? false,
           isRetry,
-          link: { id: link.id, url: link.url },
+          link: { id: LinkId.make(link.id), url: link.url },
         }).pipe(Effect.provide(liveLayer))
       );
       logger.info("Link processed", {

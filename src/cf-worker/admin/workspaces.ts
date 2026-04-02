@@ -1,18 +1,19 @@
-import { Data, Effect, Layer } from "effect";
+import { Effect, Layer, Schema } from "effect";
 
+import type { OrgId } from "../db/branded";
 import type { OrgFeatures } from "../db/schema";
 import { DbClientLive } from "../db/service";
 import { maskId } from "../log-utils";
-import { logSync } from "../logger";
 import {
   OrgFeatures as OrgFeaturesService,
   OrgFeaturesLive,
 } from "../org/features-service";
 import type { Env } from "../shared";
 
-const logger = logSync("Admin");
-
-class InvalidBodyError extends Data.TaggedError("InvalidBodyError") {}
+class InvalidBodyError extends Schema.TaggedError<InvalidBodyError>()(
+  "InvalidBodyError",
+  {}
+) {}
 
 export type { WorkspaceWithOwner } from "../org/features-service";
 
@@ -28,9 +29,12 @@ export async function handleListWorkspaces(
       const orgFeatures = yield* OrgFeaturesService;
       const workspaces = yield* orgFeatures.listWithOwners();
 
-      logger.info("List workspaces", { count: workspaces.length });
+      yield* Effect.logInfo("List workspaces").pipe(
+        Effect.annotateLogs({ count: workspaces.length })
+      );
       return Response.json({ workspaces });
     }).pipe(
+      Effect.withSpan("Admin.handleListWorkspaces"),
       Effect.provide(makeLayer(env)),
       Effect.catchTag("DbError", () =>
         Effect.succeed(
@@ -43,7 +47,7 @@ export async function handleListWorkspaces(
 
 export async function handleGetOrgSettings(
   _request: Request,
-  orgId: string,
+  orgId: OrgId,
   env: Env
 ): Promise<Response> {
   return Effect.runPromise(
@@ -52,7 +56,9 @@ export async function handleGetOrgSettings(
       const exists = yield* orgFeatures.exists(orgId);
 
       if (!exists) {
-        logger.info("Get org settings not found", { orgId: maskId(orgId) });
+        yield* Effect.logInfo("Get org settings not found").pipe(
+          Effect.annotateLogs({ orgId: maskId(orgId) })
+        );
         return Response.json(
           { error: "Organization not found" },
           { status: 404 }
@@ -60,9 +66,12 @@ export async function handleGetOrgSettings(
       }
 
       const features = yield* orgFeatures.get(orgId);
-      logger.debug("Get org settings", { orgId: maskId(orgId) });
+      yield* Effect.logDebug("Get org settings").pipe(
+        Effect.annotateLogs({ orgId: maskId(orgId) })
+      );
       return Response.json({ features });
     }).pipe(
+      Effect.withSpan("Admin.handleGetOrgSettings"),
       Effect.provide(makeLayer(env)),
       Effect.catchTag("DbError", () =>
         Effect.succeed(
@@ -75,7 +84,7 @@ export async function handleGetOrgSettings(
 
 export async function handleUpdateOrgSettings(
   request: Request,
-  orgId: string,
+  orgId: OrgId,
   env: Env
 ): Promise<Response> {
   return Effect.runPromise(
@@ -89,7 +98,9 @@ export async function handleUpdateOrgSettings(
 
       const exists = yield* orgFeatures.exists(orgId);
       if (!exists) {
-        logger.info("Update org settings not found", { orgId: maskId(orgId) });
+        yield* Effect.logInfo("Update org settings not found").pipe(
+          Effect.annotateLogs({ orgId: maskId(orgId) })
+        );
         return Response.json(
           { error: "Organization not found" },
           { status: 404 }
@@ -98,21 +109,24 @@ export async function handleUpdateOrgSettings(
 
       yield* orgFeatures.update(orgId, body.features);
 
-      logger.info("Update org settings", {
-        orgId: maskId(orgId),
-        features: Object.keys(body.features),
-      });
+      yield* Effect.logInfo("Update org settings").pipe(
+        Effect.annotateLogs({
+          orgId: maskId(orgId),
+          features: Object.keys(body.features),
+        })
+      );
       return Response.json({ success: true, features: body.features });
     }).pipe(
+      Effect.withSpan("Admin.handleUpdateOrgSettings"),
       Effect.provide(makeLayer(env)),
-      Effect.catchTag("InvalidBodyError", () => {
-        logger.warn("Update org settings invalid body", {
-          orgId: maskId(orgId),
-        });
-        return Effect.succeed(
-          Response.json({ error: "Invalid request body" }, { status: 400 })
-        );
-      }),
+      Effect.catchTag("InvalidBodyError", () =>
+        Effect.logWarning("Update org settings invalid body").pipe(
+          Effect.annotateLogs({ orgId: maskId(orgId) }),
+          Effect.as(
+            Response.json({ error: "Invalid request body" }, { status: 400 })
+          )
+        )
+      ),
       Effect.catchTag("DbError", () =>
         Effect.succeed(
           Response.json({ error: "Internal server error" }, { status: 500 })

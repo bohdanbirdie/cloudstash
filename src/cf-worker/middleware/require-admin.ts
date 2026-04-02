@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import { createMiddleware } from "hono/factory";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
@@ -14,31 +14,34 @@ type MiddlewareEnv = {
   };
 };
 
-class UnauthorizedError {
-  readonly _tag = "UnauthorizedError";
-}
+class AdminUnauthorizedError extends Schema.TaggedError<AdminUnauthorizedError>()(
+  "AdminUnauthorizedError",
+  {}
+) {}
 
-class ForbiddenError {
-  readonly _tag = "ForbiddenError";
-}
+class AdminForbiddenError extends Schema.TaggedError<AdminForbiddenError>()(
+  "AdminForbiddenError",
+  {}
+) {}
 
-const getSession = (headers: Headers) =>
-  Effect.gen(function* () {
-    const auth = yield* AuthClient;
-    return yield* Effect.tryPromise({
-      catch: () => new UnauthorizedError(),
-      try: () => auth.api.getSession({ headers }),
-    }).pipe(
-      Effect.flatMap((session) =>
-        session ? Effect.succeed(session) : Effect.fail(new UnauthorizedError())
-      )
-    );
-  });
+const getSession = Effect.fn("Admin.getSession")(function* (headers: Headers) {
+  const auth = yield* AuthClient;
+  return yield* Effect.tryPromise({
+    catch: () => new AdminUnauthorizedError(),
+    try: () => auth.api.getSession({ headers }),
+  }).pipe(
+    Effect.flatMap((session) =>
+      session
+        ? Effect.succeed(session)
+        : Effect.fail(new AdminUnauthorizedError())
+    )
+  );
+});
 
 const checkAdmin = (session: { user: { role?: string | null } }) =>
   session.user.role === "admin"
     ? Effect.succeed(session)
-    : Effect.fail(new ForbiddenError());
+    : Effect.fail(new AdminForbiddenError());
 
 export const requireAdmin = createMiddleware<MiddlewareEnv>(async (c, next) => {
   const result = await Effect.runPromise(
@@ -53,7 +56,7 @@ export const requireAdmin = createMiddleware<MiddlewareEnv>(async (c, next) => {
   );
 
   if ("error" in result) {
-    if (result.error._tag === "UnauthorizedError") {
+    if (result.error._tag === "AdminUnauthorizedError") {
       logger.debug("Admin middleware - unauthorized");
       return c.json({ error: "Unauthorized" }, 401);
     }

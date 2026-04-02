@@ -1,8 +1,8 @@
 import { nanoid } from "@livestore/livestore";
-import { Effect } from "effect";
+import { Cause, Effect } from "effect";
 
 import { events } from "../../livestore/schema";
-import { safeErrorInfo } from "../log-utils";
+import type { LinkId } from "../db/branded";
 import { findMatchingTag } from "./fuzzy-match";
 import {
   AiSummaryGenerator,
@@ -15,7 +15,7 @@ import { AI_MODEL } from "./types";
 interface ProcessLinkParams {
   aiSummaryEnabled?: boolean;
   isRetry?: boolean;
-  link: { id: string; url: string };
+  link: { id: LinkId; url: string };
 }
 
 export const processLink = ({
@@ -142,20 +142,35 @@ export const processLink = ({
 
     yield* Effect.logInfo("Link processing completed");
   }).pipe(
-    Effect.annotateLogs({ linkId: link.id }),
     Effect.withSpan("processLink", {
       attributes: { aiSummaryEnabled, isRetry, linkId: link.id },
     }),
-    Effect.catchAllCause((cause) =>
+    Effect.annotateLogs({ linkId: link.id }),
+    Effect.catchAll((error) =>
       Effect.gen(function* () {
         const linkStore = yield* LinkEventStore;
-        const errorInfo = safeErrorInfo(cause);
+        const errorTag = "_tag" in error ? error._tag : "UnknownError";
         yield* Effect.logError("Link processing failed").pipe(
-          Effect.annotateLogs(errorInfo)
+          Effect.annotateLogs({ errorTag })
         );
         yield* linkStore.commit(
           events.linkProcessingFailed({
-            error: errorInfo.errorType,
+            error: errorTag,
+            linkId: link.id,
+            updatedAt: new Date(),
+          })
+        );
+      })
+    ),
+    Effect.catchAllDefect((defect) =>
+      Effect.gen(function* () {
+        const linkStore = yield* LinkEventStore;
+        yield* Effect.logError("Link processing failed with defect").pipe(
+          Effect.annotateLogs({ defect: Cause.pretty(Cause.die(defect)) })
+        );
+        yield* linkStore.commit(
+          events.linkProcessingFailed({
+            error: "Defect",
             linkId: link.id,
             updatedAt: new Date(),
           })

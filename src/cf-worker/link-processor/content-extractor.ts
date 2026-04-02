@@ -7,18 +7,13 @@ import {
 } from "domutils";
 import { parseDocument } from "htmlparser2";
 
-import { safeErrorInfo } from "../log-utils";
-import { logSync } from "../logger";
 import { decodeHtmlEntities } from "../metadata/decode-entities";
-
-const logger = logSync("ContentExtractor");
 
 export interface ExtractedContent {
   title: string | null;
   content: string; // plain text content
 }
 
-// Tags to remove entirely (noise)
 const REMOVE_TAGS = [
   "script",
   "style",
@@ -32,23 +27,14 @@ const REMOVE_TAGS = [
   "button",
 ];
 
-/**
- * Cleans up whitespace in text.
- */
 function cleanText(text: string): string {
   return text.replaceAll(/\s+/g, " ").trim();
 }
 
-/**
- * Gets clean text content from an element.
- */
 function getCleanText(element: Element | Document): string {
   return cleanText(textContent(element));
 }
 
-/**
- * Finds the best content container in the document.
- */
 function findMainContent(doc: Document): Element | Document {
   // Try semantic content tags first
   for (const tag of ["article", "main"]) {
@@ -85,9 +71,6 @@ function findMainContent(doc: Document): Element | Document {
   return doc;
 }
 
-/**
- * Extracts the page title.
- */
 function extractTitle(doc: Document): string | null {
   // Try <title> tag
   const titleElements = getElementsByTagName("title", doc, true);
@@ -123,9 +106,6 @@ function extractTitle(doc: Document): string | null {
   return null;
 }
 
-/**
- * Removes unwanted elements from the document.
- */
 function removeNoiseElements(doc: Document): void {
   for (const tag of REMOVE_TAGS) {
     const elements = getElementsByTagName(tag, doc, true);
@@ -135,65 +115,47 @@ function removeNoiseElements(doc: Document): void {
   }
 }
 
-/**
- * Extracts the main content from HTML as plain text.
- * Uses htmlparser2 (pure ESM, Workers-compatible) for parsing.
- */
 export function extractContent(
   html: string,
   _url: string
 ): ExtractedContent | null {
-  try {
-    const doc = parseDocument(html);
+  const doc = parseDocument(html);
 
-    // Extract title before removing elements
-    const title = extractTitle(doc);
+  // Extract title before removing elements
+  const title = extractTitle(doc);
 
-    // Remove noise elements
-    removeNoiseElements(doc);
+  // Remove noise elements
+  removeNoiseElements(doc);
 
-    // Find main content
-    const mainContent = findMainContent(doc);
-    const content = getCleanText(mainContent);
+  // Find main content
+  const mainContent = findMainContent(doc);
+  const content = getCleanText(mainContent);
 
-    // Require minimum content length
-    if (!content || content.length < 100) {
-      return null;
-    }
-
-    return {
-      content,
-      title,
-    };
-  } catch (error) {
-    logger.error("Failed to extract content", safeErrorInfo(error));
+  // Require minimum content length
+  if (!content || content.length < 100) {
     return null;
   }
+
+  return {
+    content,
+    title,
+  };
 }
 
-/**
- * Fetches a URL and extracts its content.
- */
 export async function fetchAndExtractContent(
   url: string
 ): Promise<ExtractedContent | null> {
-  try {
-    const response = await fetch(url, {
-      headers: {
-        Accept: "text/html",
-        "User-Agent": "Mozilla/5.0 (compatible; CloudstashBot/1.0)",
-      },
-    });
+  const response = await fetch(url, {
+    headers: {
+      Accept: "text/html",
+      "User-Agent": "Mozilla/5.0 (compatible; CloudstashBot/1.0)",
+    },
+  });
 
-    if (!response.ok) {
-      logger.error("Failed to fetch URL", { status: response.status });
-      return null;
-    }
-
-    const html = await response.text();
-    return extractContent(html, url);
-  } catch (error) {
-    logger.error("Failed to fetch and extract content", safeErrorInfo(error));
-    return null;
+  if (!response.ok) {
+    throw new Error(`Failed to fetch URL: ${response.status}`);
   }
+
+  const html = await response.text();
+  return extractContent(html, url);
 }
