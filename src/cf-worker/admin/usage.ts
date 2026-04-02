@@ -35,8 +35,8 @@ export async function handleGetUsage(
 
   return Effect.gen(function* () {
     const { rows } = yield* queryUsage(
-      env.CF_ACCOUNT_ID!,
-      env.CF_ANALYTICS_TOKEN!,
+      env.CF_ACCOUNT_ID,
+      env.CF_ANALYTICS_TOKEN,
       {
         period: period as "24h" | "7d" | "30d",
         dataset,
