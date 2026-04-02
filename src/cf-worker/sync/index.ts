@@ -28,11 +28,13 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
       events: message.batch.map((e) => e.name),
     });
 
-    const hasLinkCreated = message.batch.some(
+    const shouldWakeProcessor = message.batch.some(
       (event) =>
-        event.name === "v1.LinkCreated" || event.name === "v2.LinkCreated"
+        event.name === "v1.LinkCreated" ||
+        event.name === "v2.LinkCreated" ||
+        event.name === "v1.LinkReprocessRequested"
     );
-    if (hasLinkCreated && currentSyncBackend) {
+    if (shouldWakeProcessor && currentSyncBackend) {
       currentSyncBackend.triggerLinkProcessor(context.storeId);
     }
   },

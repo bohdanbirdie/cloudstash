@@ -100,22 +100,6 @@ describe("processLink", () => {
     );
   });
 
-  it.effect("skips linkProcessingStarted on retry", () => {
-    const { testLayer, committed } = buildTestLayers({
-      metadata: mockMetadata,
-    });
-
-    return processLink({ link: testLink, isRetry: true }).pipe(
-      Effect.provide(testLayer),
-      Logger.withMinimumLogLevel(LogLevel.Error),
-      Effect.tap(() =>
-        Effect.sync(() => {
-          expect(committed).toHaveLength(2);
-        })
-      )
-    );
-  });
-
   it.effect("generates summary and suggests tags when AI enabled", () => {
     const { testLayer, committed } = buildTestLayers({
       metadata: mockMetadata,

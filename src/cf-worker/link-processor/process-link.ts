@@ -14,13 +14,11 @@ import { AI_MODEL } from "./types";
 
 interface ProcessLinkParams {
   aiSummaryEnabled?: boolean;
-  isRetry?: boolean;
   link: { id: LinkId; url: string };
 }
 
 export const processLink = ({
   aiSummaryEnabled = false,
-  isRetry = false,
   link,
 }: ProcessLinkParams) =>
   Effect.gen(function* () {
@@ -31,15 +29,11 @@ export const processLink = ({
 
     const now = new Date();
 
-    yield* Effect.logInfo(
-      `Processing link ${isRetry ? "(retry)" : "started"}`
-    ).pipe(Effect.annotateLogs({ isRetry }));
+    yield* Effect.logInfo("Processing link started");
 
-    if (!isRetry) {
-      yield* linkStore.commit(
-        events.linkProcessingStarted({ linkId: link.id, updatedAt: now })
-      );
-    }
+    yield* linkStore.commit(
+      events.linkProcessingStarted({ linkId: link.id, updatedAt: now })
+    );
 
     const metadataResult = yield* metadataFetcher.fetch(link.url);
 
@@ -143,7 +137,7 @@ export const processLink = ({
     yield* Effect.logInfo("Link processing completed");
   }).pipe(
     Effect.withSpan("processLink", {
-      attributes: { aiSummaryEnabled, isRetry, linkId: link.id },
+      attributes: { aiSummaryEnabled, linkId: link.id },
     }),
     Effect.annotateLogs({ linkId: link.id }),
     Effect.catchAll((error) =>

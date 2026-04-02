@@ -184,9 +184,8 @@ export function LinkDetailDialogContent({
 
   const handleRegenerate = () => {
     store.commit(
-      events.linkProcessingStarted({ linkId, updatedAt: new Date() })
+      events.linkReprocessRequested({ linkId, requestedAt: new Date() })
     );
-    void fetch(`/api/links/${linkId}/reprocess`, { method: "POST" });
   };
 
   const handleCopy = async () => {

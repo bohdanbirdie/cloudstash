@@ -7,7 +7,7 @@ import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
 import { DurableObject } from "cloudflare:workers";
 import { Effect, Layer } from "effect";
 
-import { events, schema, tables } from "../../livestore/schema";
+import { schema, tables } from "../../livestore/schema";
 import { LinkId, OrgId } from "../db/branded";
 import { DbClientLive } from "../db/service";
 import { maskId, safeErrorInfo } from "../log-utils";
@@ -43,7 +43,6 @@ export class LinkProcessorDO
   private cachedStore: Store<typeof schema> | undefined;
   private subscription: Unsubscribe | undefined;
   private currentlyProcessing = new Set<string>();
-  private reprocessQueue = new Set<string>();
   private notifiedLinkIds = new Set<string>();
   private hasRunCleanup = false;
   private totalRowsWritten = 0;
@@ -128,7 +127,11 @@ export class LinkProcessorDO
 
         return links.filter((link) => {
           const status = statusMap.get(link.id);
-          return !status || status.status === "pending";
+          return (
+            !status ||
+            status.status === "pending" ||
+            status.status === "reprocess-requested"
+          );
         });
       },
       { label: "pendingLinks" }
@@ -234,21 +237,26 @@ export class LinkProcessorDO
 
     const nextLink = links.find((link) => {
       const status = statusMap.get(link.id);
-      return !status || status.status === "pending";
+      return (
+        !status ||
+        status.status === "pending" ||
+        status.status === "reprocess-requested"
+      );
     });
 
     if (!nextLink) return;
 
     const existingStatus = statusMap.get(nextLink.id);
-    const isRetry = !!existingStatus && existingStatus.status === "pending";
+    const isReprocess =
+      existingStatus?.status === "reprocess-requested";
 
     logger.info("Processing link decision", {
       linkId: nextLink.id,
       status: existingStatus?.status ?? "none",
-      isRetry,
+      isReprocess,
     });
 
-    this.processLinkAsync(store, nextLink, isRetry).catch((error) => {
+    this.processLinkAsync(store, nextLink, isReprocess).catch((error) => {
       logger.error("processLinkAsync error", {
         ...safeErrorInfo(error),
         linkId: nextLink.id,
@@ -259,11 +267,11 @@ export class LinkProcessorDO
   private async processLinkAsync(
     store: Store<typeof schema>,
     link: Link,
-    isRetry: boolean
+    isReprocess: boolean
   ): Promise<void> {
     this.currentlyProcessing.add(link.id);
 
-    logger.info("Processing", { isRetry, linkId: link.id });
+    logger.info("Processing", { isReprocess, linkId: link.id });
 
     const doLayer = this.buildDoLayer(store);
     runEffect(
@@ -303,7 +311,6 @@ export class LinkProcessorDO
         processLink({
           aiSummaryEnabled:
             (features as { aiSummary?: boolean }).aiSummary ?? false,
-          isRetry,
           link: { id: LinkId.make(link.id), url: link.url },
         }).pipe(Effect.provide(liveLayer))
       );
@@ -322,16 +329,6 @@ export class LinkProcessorDO
     } finally {
       this.currentlyProcessing.delete(link.id);
       if (this.cachedStore) {
-        if (this.reprocessQueue.has(link.id)) {
-          this.reprocessQueue.delete(link.id);
-          logger.info("Reprocessing queued link", { linkId: link.id });
-          store.commit(
-            events.linkProcessingStarted({
-              linkId: link.id,
-              updatedAt: new Date(),
-            })
-          );
-        }
         this.processNextPending(store);
       }
     }
@@ -357,7 +354,6 @@ export class LinkProcessorDO
   override async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const storeId = url.searchParams.get("storeId");
-    const reprocessLinkId = url.searchParams.get("reprocess");
 
     if (!storeId) {
       return new Response("Missing storeId", { status: 400 });
@@ -366,33 +362,8 @@ export class LinkProcessorDO
     this.storeId = storeId;
     await this.ctx.storage.put("storeId", storeId);
 
-    if (reprocessLinkId) {
-      return this.handleReprocess(reprocessLinkId);
-    }
-
     await this.ensureSubscribed();
     return new Response("OK");
-  }
-
-  private async handleReprocess(linkId: string): Promise<Response> {
-    const json = (body: object, status = 200) =>
-      new Response(JSON.stringify(body), {
-        headers: { "Content-Type": "application/json" },
-        status,
-      });
-
-    await this.ensureSubscribed();
-    const store = await this.getStore();
-
-    if (this.currentlyProcessing.has(linkId)) {
-      logger.info("Queuing reprocess (link currently processing)", { linkId });
-      this.reprocessQueue.add(linkId);
-      return json({ status: "queued" });
-    }
-
-    this.processNextPending(store);
-
-    return json({ status: "reprocessing" });
   }
 
   async ingestAndProcess(

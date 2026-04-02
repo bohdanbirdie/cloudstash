@@ -216,6 +216,13 @@ export const events = {
       updatedAt: Schema.Date,
     }),
   }),
+  linkReprocessRequested: Events.synced({
+    name: "v1.LinkReprocessRequested",
+    schema: Schema.Struct({
+      linkId: Schema.String,
+      requestedAt: Schema.Date,
+    }),
+  }),
   linkSourceNotified: Events.synced({
     name: "v1.LinkSourceNotified",
     schema: Schema.Struct({
@@ -398,6 +405,10 @@ const materializers = State.SQLite.materializers(events, {
         updatedAt,
       })
       .onConflict("linkId", "replace"),
+  "v1.LinkReprocessRequested": ({ linkId, requestedAt }) =>
+    tables.linkProcessingStatus
+      .update({ error: null, status: "reprocess-requested", updatedAt: requestedAt })
+      .where({ linkId }),
   "v1.LinkSourceNotified": ({ linkId }) =>
     tables.linkProcessingStatus.update({ notified: 1 }).where({ linkId }),
   "v1.LinkRestored": ({ id }) =>
