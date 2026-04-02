@@ -1,9 +1,9 @@
 import { nanoid } from "@livestore/livestore";
 import { Effect } from "effect";
 
+import { events } from "../../livestore/schema";
 import { LinkId as LinkIdBrand } from "../db/branded";
 import type { LinkId, OrgId } from "../db/branded";
-import { events } from "../../livestore/schema";
 import { maskId } from "../log-utils";
 import { LinkRepository, SourceNotifier } from "./services";
 import type { Link, Status } from "./services";
@@ -75,50 +75,49 @@ export const ingestLink = Effect.fn("LinkProcessor.ingestLink")(function* (
   return { status: "ingested" as const, linkId };
 });
 
-export const cancelStaleLinks = Effect.fn("LinkProcessor.cancelStaleLinks")(function* (
-  currentlyProcessing: ReadonlySet<string>,
-  now: number
-) {
-  const repo = yield* LinkRepository;
+export const cancelStaleLinks = Effect.fn("LinkProcessor.cancelStaleLinks")(
+  function* (currentlyProcessing: ReadonlySet<string>, now: number) {
+    const repo = yield* LinkRepository;
 
-  const links = yield* repo.queryActiveLinks();
-  const statuses = yield* repo.queryStatuses();
-  const statusMap = new Map(statuses.map((s) => [s.linkId, s]));
+    const links = yield* repo.queryActiveLinks();
+    const statuses = yield* repo.queryStatuses();
+    const statusMap = new Map(statuses.map((s) => [s.linkId, s]));
 
-  let cancelled = 0;
-  for (const link of links) {
-    if (currentlyProcessing.has(link.id)) continue;
+    let cancelled = 0;
+    for (const link of links) {
+      if (currentlyProcessing.has(link.id)) continue;
 
-    const status = statusMap.get(link.id);
-    if (
-      status?.status === "completed" ||
-      status?.status === "cancelled" ||
-      status?.status === "failed"
-    )
-      continue;
+      const status = statusMap.get(link.id);
+      if (
+        status?.status === "completed" ||
+        status?.status === "cancelled" ||
+        status?.status === "failed"
+      )
+        continue;
 
-    const updatedAt = status
-      ? new Date(status.updatedAt).getTime()
-      : new Date(link.createdAt).getTime();
-    if (now - updatedAt <= STUCK_TIMEOUT_MS) continue;
+      const updatedAt = status
+        ? new Date(status.updatedAt).getTime()
+        : new Date(link.createdAt).getTime();
+      if (now - updatedAt <= STUCK_TIMEOUT_MS) continue;
 
-    yield* repo.commitEvent(
-      events.linkProcessingCancelled({
-        linkId: link.id,
-        updatedAt: new Date(now),
-      })
-    );
-    cancelled++;
+      yield* repo.commitEvent(
+        events.linkProcessingCancelled({
+          linkId: link.id,
+          updatedAt: new Date(now),
+        })
+      );
+      cancelled++;
+    }
+
+    if (cancelled > 0) {
+      yield* Effect.logInfo("Cancelled stale links on startup").pipe(
+        Effect.annotateLogs({ cancelled })
+      );
+    }
+
+    return cancelled;
   }
-
-  if (cancelled > 0) {
-    yield* Effect.logInfo("Cancelled stale links on startup").pipe(
-      Effect.annotateLogs({ cancelled })
-    );
-  }
-
-  return cancelled;
-});
+);
 
 export interface NotifyResultParams {
   linkId: LinkId;

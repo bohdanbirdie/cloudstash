@@ -19,4 +19,7 @@ export class AccessDeniedError extends Schema.TaggedError<AccessDeniedError>()(
   {}
 ) {}
 
-export type OrgError = OrgUnauthorizedError | OrgNotFoundError | AccessDeniedError;
+export type OrgError =
+  | OrgUnauthorizedError
+  | OrgNotFoundError
+  | AccessDeniedError;

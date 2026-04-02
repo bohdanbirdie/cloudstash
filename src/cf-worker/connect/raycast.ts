@@ -15,76 +15,85 @@ import {
 } from "./errors";
 import { ApiKeyStore, SessionProvider, VerificationStore } from "./services";
 
-export const handleConnectRequest = Effect.fn("RaycastConnect.handleConnectRequest")(function* (headers: Headers) {
-    const sessionProvider = yield* SessionProvider;
-    const apiKeyStore = yield* ApiKeyStore;
-    const verificationStore = yield* VerificationStore;
+export const handleConnectRequest = Effect.fn(
+  "RaycastConnect.handleConnectRequest"
+)(function* (headers: Headers) {
+  const sessionProvider = yield* SessionProvider;
+  const apiKeyStore = yield* ApiKeyStore;
+  const verificationStore = yield* VerificationStore;
 
-    const session = yield* sessionProvider
-      .getSession(headers)
-      .pipe(
-        Effect.flatMap((s) =>
-          s ? Effect.succeed(s) : Effect.fail(new ConnectUnauthorizedError())
-        )
-      );
-
-    const { userId, orgId } = session;
-    if (!orgId) {
-      return yield* new NoActiveOrgError({ userId });
-    }
-
-    const result = yield* apiKeyStore
-      .create(headers, { orgId, source: "raycast" }, "Raycast Extension")
-      .pipe(
-        Effect.flatMap((r) =>
-          r ? Effect.succeed(r) : Effect.fail(new KeyCreationError({ cause: new Error("API key creation returned null") }))
-        )
-      );
-
-    const code = crypto.randomUUID();
-
-    yield* verificationStore.save(
-      `raycast-connect:${code}`,
-      { key: result.key, keyId: result.id },
-      60_000
+  const session = yield* sessionProvider
+    .getSession(headers)
+    .pipe(
+      Effect.flatMap((s) =>
+        s ? Effect.succeed(s) : Effect.fail(new ConnectUnauthorizedError())
+      )
     );
 
-    yield* Effect.logInfo("Raycast connect code created").pipe(Effect.annotateLogs({ userId }));
+  const { userId, orgId } = session;
+  if (!orgId) {
+    return yield* new NoActiveOrgError({ userId });
+  }
 
-    return { code };
-  });
+  const result = yield* apiKeyStore
+    .create(headers, { orgId, source: "raycast" }, "Raycast Extension")
+    .pipe(
+      Effect.flatMap((r) =>
+        r
+          ? Effect.succeed(r)
+          : Effect.fail(
+              new KeyCreationError({
+                cause: new Error("API key creation returned null"),
+              })
+            )
+      )
+    );
 
-export const handleExchangeRequest = Effect.fn("RaycastConnect.handleExchangeRequest")(function* (body: {
-  code?: string;
-  deviceName?: string;
-}) {
-    const apiKeyStore = yield* ApiKeyStore;
-    const verificationStore = yield* VerificationStore;
+  const code = crypto.randomUUID();
 
-    if (!body.code) {
-      return yield* new MissingCodeError();
-    }
+  yield* verificationStore.save(
+    `raycast-connect:${code}`,
+    { key: result.key, keyId: result.id },
+    60_000
+  );
 
-    const identifier = `raycast-connect:${body.code}`;
+  yield* Effect.logInfo("Raycast connect code created").pipe(
+    Effect.annotateLogs({ userId })
+  );
 
-    const record = yield* verificationStore.findValid(identifier);
+  return { code };
+});
 
-    if (!record) {
-      return yield* new InvalidCodeError();
-    }
+export const handleExchangeRequest = Effect.fn(
+  "RaycastConnect.handleExchangeRequest"
+)(function* (body: { code?: string; deviceName?: string }) {
+  const apiKeyStore = yield* ApiKeyStore;
+  const verificationStore = yield* VerificationStore;
 
-    yield* verificationStore.deleteById(record.id);
+  if (!body.code) {
+    return yield* new MissingCodeError();
+  }
 
-    const { key, keyId } = record.data;
+  const identifier = `raycast-connect:${body.code}`;
 
-    if (body.deviceName) {
-      yield* apiKeyStore.updateName(keyId, `Raycast — ${body.deviceName}`);
-    }
+  const record = yield* verificationStore.findValid(identifier);
 
-    yield* Effect.logInfo("Raycast connect code exchanged");
+  if (!record) {
+    return yield* new InvalidCodeError();
+  }
 
-    return { apiKey: key };
-  });
+  yield* verificationStore.deleteById(record.id);
+
+  const { key, keyId } = record.data;
+
+  if (body.deviceName) {
+    yield* apiKeyStore.updateName(keyId, `Raycast — ${body.deviceName}`);
+  }
+
+  yield* Effect.logInfo("Raycast connect code exchanged");
+
+  return { apiKey: key };
+});
 
 const makeLiveLayer = (env: Env) =>
   Layer.mergeAll(

@@ -36,7 +36,9 @@ export const sendApprovalEmail = (
       return yield* new EmailSendError({ cause: result.error });
     }
 
-    yield* Effect.logInfo("Approval email sent").pipe(Effect.annotateLogs({ id: result.data?.id }));
+    yield* Effect.logInfo("Approval email sent").pipe(
+      Effect.annotateLogs({ id: result.data?.id })
+    );
   }).pipe(
     Effect.withSpan("Email.sendApprovalEmail"),
     Effect.tapError((e) =>

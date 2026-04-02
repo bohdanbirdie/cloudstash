@@ -1,5 +1,5 @@
-import { Effect, Layer, LogLevel, Logger } from "effect";
 import { it, describe } from "@effect/vitest";
+import { Effect, Layer, LogLevel, Logger } from "effect";
 import { expect } from "vitest";
 
 import { OrgId } from "../../db/branded";
@@ -73,7 +73,9 @@ function createTestQueue(shouldFail = false) {
   const layer = Layer.succeed(LinkQueue, {
     enqueue: (url, storeId) => {
       if (shouldFail)
-        return Effect.fail(new TelegramQueueSendError({ cause: "Queue send failed" }));
+        return Effect.fail(
+          new TelegramQueueSendError({ cause: "Queue send failed" })
+        );
       enqueued.push({ url, storeId });
       return Effect.void;
     },
@@ -109,36 +111,43 @@ describe("handleLinks", () => {
     return handleLinks(["https://example.com"]).pipe(
       Effect.provide(layer),
       Logger.withMinimumLogLevel(LogLevel.None),
-      Effect.tap(() => Effect.sync(() => {
-        expect(messenger.drafts).toEqual(["Saving link"]);
-        expect(messenger.replies).toEqual([]);
-        expect(queue.enqueued).toEqual([
-          { url: "https://example.com", storeId: "org-1" },
-        ]);
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(messenger.drafts).toEqual(["Saving link"]);
+          expect(messenger.replies).toEqual([]);
+          expect(queue.enqueued).toEqual([
+            { url: "https://example.com", storeId: "org-1" },
+          ]);
+        })
+      )
     );
   });
 
-  it.effect("PATH 4: sends draft then replies with error when queue fails", () => {
-    const messenger = createTestMessenger();
-    const queue = createTestQueue(true);
-    const layer = Layer.mergeAll(
-      messenger.layer,
-      createTestSourceAuth({ orgId: OrgId.make("org-1") }),
-      queue.layer
-    );
+  it.effect(
+    "PATH 4: sends draft then replies with error when queue fails",
+    () => {
+      const messenger = createTestMessenger();
+      const queue = createTestQueue(true);
+      const layer = Layer.mergeAll(
+        messenger.layer,
+        createTestSourceAuth({ orgId: OrgId.make("org-1") }),
+        queue.layer
+      );
 
-    return handleLinks(["https://example.com"]).pipe(
-      Effect.provide(layer),
-      Logger.withMinimumLogLevel(LogLevel.None),
-      Effect.tap(() => Effect.sync(() => {
-        expect(messenger.drafts).toEqual(["Saving link"]);
-        expect(messenger.replies).toEqual([
-          "Failed to save link. Please try again later.",
-        ]);
-      }))
-    );
-  });
+      return handleLinks(["https://example.com"]).pipe(
+        Effect.provide(layer),
+        Logger.withMinimumLogLevel(LogLevel.None),
+        Effect.tap(() =>
+          Effect.sync(() => {
+            expect(messenger.drafts).toEqual(["Saving link"]);
+            expect(messenger.replies).toEqual([
+              "Failed to save link. Please try again later.",
+            ]);
+          })
+        )
+      );
+    }
+  );
 
   it.effect("PATH 5: replies with connect prompt when not connected", () => {
     const messenger = createTestMessenger();
@@ -152,13 +161,15 @@ describe("handleLinks", () => {
     return handleLinks(["https://example.com"]).pipe(
       Effect.provide(layer),
       Logger.withMinimumLogLevel(LogLevel.None),
-      Effect.tap(() => Effect.sync(() => {
-        expect(messenger.drafts).toEqual([]);
-        expect(messenger.replies).toEqual([
-          "Please connect first: /connect <api-key>",
-        ]);
-        expect(queue.enqueued).toEqual([]);
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(messenger.drafts).toEqual([]);
+          expect(messenger.replies).toEqual([
+            "Please connect first: /connect <api-key>",
+          ]);
+          expect(queue.enqueued).toEqual([]);
+        })
+      )
     );
   });
 
@@ -174,12 +185,14 @@ describe("handleLinks", () => {
     return handleLinks(["https://example.com"]).pipe(
       Effect.provide(layer),
       Logger.withMinimumLogLevel(LogLevel.None),
-      Effect.tap(() => Effect.sync(() => {
-        expect(messenger.drafts).toEqual([]);
-        expect(messenger.replies).toEqual([
-          "Your API key is no longer valid. Please reconnect: /connect <new-api-key>",
-        ]);
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(messenger.drafts).toEqual([]);
+          expect(messenger.replies).toEqual([
+            "Your API key is no longer valid. Please reconnect: /connect <new-api-key>",
+          ]);
+        })
+      )
     );
   });
 
@@ -195,12 +208,14 @@ describe("handleLinks", () => {
     return handleLinks(["https://example.com"]).pipe(
       Effect.provide(layer),
       Logger.withMinimumLogLevel(LogLevel.None),
-      Effect.tap(() => Effect.sync(() => {
-        expect(messenger.drafts).toEqual([]);
-        expect(messenger.replies).toEqual([
-          "Too many links today. Please try again tomorrow.",
-        ]);
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(messenger.drafts).toEqual([]);
+          expect(messenger.replies).toEqual([
+            "Too many links today. Please try again tomorrow.",
+          ]);
+        })
+      )
     );
   });
 
@@ -216,9 +231,11 @@ describe("handleLinks", () => {
     return handleLinks(["https://a.com", "https://b.com"]).pipe(
       Effect.provide(layer),
       Logger.withMinimumLogLevel(LogLevel.None),
-      Effect.tap(() => Effect.sync(() => {
-        expect(queue.enqueued).toHaveLength(2);
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(queue.enqueued).toHaveLength(2);
+        })
+      )
     );
   });
 });
@@ -236,12 +253,14 @@ describe("handleConnect", () => {
     return handleConnect(123, "sk_test_key").pipe(
       Effect.provide(layer),
       Logger.withMinimumLogLevel(LogLevel.None),
-      Effect.tap(() => Effect.sync(() => {
-        expect(keyStore.stored.get(123)).toBe("sk_test_key");
-        expect(messenger.replies).toEqual([
-          "Connected! Send me any link to save it.",
-        ]);
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(keyStore.stored.get(123)).toBe("sk_test_key");
+          expect(messenger.replies).toEqual([
+            "Connected! Send me any link to save it.",
+          ]);
+        })
+      )
     );
   });
 
@@ -257,10 +276,12 @@ describe("handleConnect", () => {
     return handleConnect(123, undefined).pipe(
       Effect.provide(layer),
       Logger.withMinimumLogLevel(LogLevel.None),
-      Effect.tap(() => Effect.sync(() => {
-        expect(keyStore.stored.size).toBe(0);
-        expect(messenger.replies).toEqual(["Usage: /connect <api-key>"]);
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(keyStore.stored.size).toBe(0);
+          expect(messenger.replies).toEqual(["Usage: /connect <api-key>"]);
+        })
+      )
     );
   });
 
@@ -276,10 +297,12 @@ describe("handleConnect", () => {
     return handleConnect(123, "bad_key").pipe(
       Effect.provide(layer),
       Logger.withMinimumLogLevel(LogLevel.None),
-      Effect.tap(() => Effect.sync(() => {
-        expect(keyStore.stored.size).toBe(0);
-        expect(messenger.replies).toEqual(["Invalid or expired API key."]);
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(keyStore.stored.size).toBe(0);
+          expect(messenger.replies).toEqual(["Invalid or expired API key."]);
+        })
+      )
     );
   });
 });
@@ -294,12 +317,14 @@ describe("handleDisconnect", () => {
     return handleDisconnect(123).pipe(
       Effect.provide(layer),
       Logger.withMinimumLogLevel(LogLevel.None),
-      Effect.tap(() => Effect.sync(() => {
-        expect(keyStore.stored.has(123)).toBe(false);
-        expect(messenger.replies).toEqual([
-          "Disconnected. Use /connect <api-key> to reconnect.",
-        ]);
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(keyStore.stored.has(123)).toBe(false);
+          expect(messenger.replies).toEqual([
+            "Disconnected. Use /connect <api-key> to reconnect.",
+          ]);
+        })
+      )
     );
   });
 });

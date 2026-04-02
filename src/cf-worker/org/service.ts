@@ -24,52 +24,62 @@ const getSession = (auth: Auth, headers: Headers) =>
     )
   );
 
-const getOrgWithFeatures = Effect.fn("Org.getOrgWithFeatures")(function* (auth: Auth, headers: Headers, orgId: OrgId) {
-    const apiOrg = yield* Effect.tryPromise({
-      catch: () => OrgNotFoundError.make({ orgId }),
-      try: () =>
-        auth.api.getFullOrganization({
-          headers,
-          query: { organizationId: orgId },
-        }),
-    });
-
-    if (!apiOrg) {
-      return yield* OrgNotFoundError.make({ orgId });
-    }
-
-    const orgFeatures = yield* OrgFeatures;
-    const features = yield* orgFeatures
-      .get(orgId)
-      .pipe(Effect.catchTag("DbError", () => OrgNotFoundError.make({ orgId })));
-
-    return {
-      id: apiOrg.id,
-      name: apiOrg.name,
-      slug: apiOrg.slug,
-      features,
-    };
+const getOrgWithFeatures = Effect.fn("Org.getOrgWithFeatures")(function* (
+  auth: Auth,
+  headers: Headers,
+  orgId: OrgId
+) {
+  const apiOrg = yield* Effect.tryPromise({
+    catch: () => OrgNotFoundError.make({ orgId }),
+    try: () =>
+      auth.api.getFullOrganization({
+        headers,
+        query: { organizationId: orgId },
+      }),
   });
 
-const handleGetMeRequest = Effect.fn("Org.handleGetMeRequest")(function* (request: Request) {
-    const auth = yield* AuthClient;
-    const session = yield* getSession(auth, request.headers);
-    const rawOrgId = session.session.activeOrganizationId;
+  if (!apiOrg) {
+    return yield* OrgNotFoundError.make({ orgId });
+  }
 
-    const organization = rawOrgId
-      ? yield* getOrgWithFeatures(auth, request.headers, OrgIdBrand.make(rawOrgId))
-      : null;
+  const orgFeatures = yield* OrgFeatures;
+  const features = yield* orgFeatures
+    .get(orgId)
+    .pipe(Effect.catchTag("DbError", () => OrgNotFoundError.make({ orgId })));
 
-    return {
-      organization,
-      session: { activeOrganizationId: rawOrgId ?? null },
-      user: {
-        email: session.user.email,
-        id: session.user.id,
-        name: session.user.name,
-      },
-    };
-  });
+  return {
+    id: apiOrg.id,
+    name: apiOrg.name,
+    slug: apiOrg.slug,
+    features,
+  };
+});
+
+const handleGetMeRequest = Effect.fn("Org.handleGetMeRequest")(function* (
+  request: Request
+) {
+  const auth = yield* AuthClient;
+  const session = yield* getSession(auth, request.headers);
+  const rawOrgId = session.session.activeOrganizationId;
+
+  const organization = rawOrgId
+    ? yield* getOrgWithFeatures(
+        auth,
+        request.headers,
+        OrgIdBrand.make(rawOrgId)
+      )
+    : null;
+
+  return {
+    organization,
+    session: { activeOrganizationId: rawOrgId ?? null },
+    user: {
+      email: session.user.email,
+      id: session.user.id,
+      name: session.user.name,
+    },
+  };
+});
 
 export const handleGetMe = (request: Request, env: Env): Promise<Response> =>
   Effect.runPromise(
@@ -96,7 +106,12 @@ export const handleGetMe = (request: Request, env: Env): Promise<Response> =>
       Effect.catchTags({
         OrgNotFoundError: () =>
           Effect.logInfo("Get me org not found").pipe(
-            Effect.as(Response.json({ error: "Organization not found" }, { status: 404 }))
+            Effect.as(
+              Response.json(
+                { error: "Organization not found" },
+                { status: 404 }
+              )
+            )
           ),
         OrgUnauthorizedError: () =>
           Effect.logDebug("Get me unauthorized").pipe(
@@ -105,13 +120,20 @@ export const handleGetMe = (request: Request, env: Env): Promise<Response> =>
       }),
       Effect.catchAllDefect((defect) =>
         Effect.logError("Unexpected error in /me").pipe(
-          Effect.annotateLogs({ error: defect instanceof Error ? defect.message : String(defect) }),
-          Effect.as(Response.json({ error: "Internal server error" }, { status: 500 }))
+          Effect.annotateLogs({
+            error: defect instanceof Error ? defect.message : String(defect),
+          }),
+          Effect.as(
+            Response.json({ error: "Internal server error" }, { status: 500 })
+          )
         )
       )
     )
   ).catch((error: unknown) => {
-    console.error("[Org] Unhandled error in /me", error instanceof Error ? error.message : String(error));
+    console.error(
+      "[Org] Unhandled error in /me",
+      error instanceof Error ? error.message : String(error)
+    );
     return Response.json({ error: "Internal server error" }, { status: 500 });
   });
 
@@ -150,16 +172,19 @@ const getFullOrganization = (
     })
   );
 
-const handleGetOrgRequest = Effect.fn("Org.handleGetOrgRequest")(function* (request: Request, orgId: OrgId) {
-    const auth = yield* AuthClient;
-    const session = yield* getSession(auth, request.headers);
-    return yield* getFullOrganization(
-      auth,
-      request.headers,
-      orgId,
-      session.user.id
-    );
-  });
+const handleGetOrgRequest = Effect.fn("Org.handleGetOrgRequest")(function* (
+  request: Request,
+  orgId: OrgId
+) {
+  const auth = yield* AuthClient;
+  const session = yield* getSession(auth, request.headers);
+  return yield* getFullOrganization(
+    auth,
+    request.headers,
+    orgId,
+    session.user.id
+  );
+});
 
 export const handleGetOrg = (
   request: Request,
@@ -179,12 +204,19 @@ export const handleGetOrg = (
         AccessDeniedError: () =>
           Effect.logInfo("Get org access denied").pipe(
             Effect.annotateLogs({ orgId: maskId(orgId) }),
-            Effect.as(Response.json({ error: "Access denied" }, { status: 403 }))
+            Effect.as(
+              Response.json({ error: "Access denied" }, { status: 403 })
+            )
           ),
         OrgNotFoundError: () =>
           Effect.logInfo("Get org not found").pipe(
             Effect.annotateLogs({ orgId: maskId(orgId) }),
-            Effect.as(Response.json({ error: "Organization not found" }, { status: 404 }))
+            Effect.as(
+              Response.json(
+                { error: "Organization not found" },
+                { status: 404 }
+              )
+            )
           ),
         OrgUnauthorizedError: () =>
           Effect.logDebug("Get org unauthorized").pipe(

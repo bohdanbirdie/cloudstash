@@ -18,11 +18,7 @@ import { AppLayerLive, AuthClient } from "./auth/service";
 import { checkSyncAuth, SyncAuthError } from "./auth/sync-auth";
 import { agentHooks } from "./chat-agent/hooks";
 import { handleRaycastConnect, handleRaycastExchange } from "./connect/raycast";
-import {
-  InviteId,
-  OrgId,
-  UserId,
-} from "./db/branded";
+import { InviteId, OrgId, UserId } from "./db/branded";
 import { ingestRequestToResponse } from "./ingest/service";
 import {
   handleCreateInvite,

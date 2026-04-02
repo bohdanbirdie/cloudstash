@@ -90,7 +90,10 @@ describe("queue handler", () => {
   });
 
   it("routes to correct DO based on storeId", async () => {
-    const msg = createMessage({ ...testMessage, storeId: OrgId.make("org-42") });
+    const msg = createMessage({
+      ...testMessage,
+      storeId: OrgId.make("org-42"),
+    });
     const { env } = createEnv({ status: "ingested", linkId: "link-1" });
 
     await runQueueHandler([msg], env);

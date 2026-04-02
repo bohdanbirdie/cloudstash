@@ -29,7 +29,9 @@ export async function handleListWorkspaces(
       const orgFeatures = yield* OrgFeaturesService;
       const workspaces = yield* orgFeatures.listWithOwners();
 
-      yield* Effect.logInfo("List workspaces").pipe(Effect.annotateLogs({ count: workspaces.length }));
+      yield* Effect.logInfo("List workspaces").pipe(
+        Effect.annotateLogs({ count: workspaces.length })
+      );
       return Response.json({ workspaces });
     }).pipe(
       Effect.withSpan("Admin.handleListWorkspaces"),
@@ -54,7 +56,9 @@ export async function handleGetOrgSettings(
       const exists = yield* orgFeatures.exists(orgId);
 
       if (!exists) {
-        yield* Effect.logInfo("Get org settings not found").pipe(Effect.annotateLogs({ orgId: maskId(orgId) }));
+        yield* Effect.logInfo("Get org settings not found").pipe(
+          Effect.annotateLogs({ orgId: maskId(orgId) })
+        );
         return Response.json(
           { error: "Organization not found" },
           { status: 404 }
@@ -62,7 +66,9 @@ export async function handleGetOrgSettings(
       }
 
       const features = yield* orgFeatures.get(orgId);
-      yield* Effect.logDebug("Get org settings").pipe(Effect.annotateLogs({ orgId: maskId(orgId) }));
+      yield* Effect.logDebug("Get org settings").pipe(
+        Effect.annotateLogs({ orgId: maskId(orgId) })
+      );
       return Response.json({ features });
     }).pipe(
       Effect.withSpan("Admin.handleGetOrgSettings"),
@@ -92,7 +98,9 @@ export async function handleUpdateOrgSettings(
 
       const exists = yield* orgFeatures.exists(orgId);
       if (!exists) {
-        yield* Effect.logInfo("Update org settings not found").pipe(Effect.annotateLogs({ orgId: maskId(orgId) }));
+        yield* Effect.logInfo("Update org settings not found").pipe(
+          Effect.annotateLogs({ orgId: maskId(orgId) })
+        );
         return Response.json(
           { error: "Organization not found" },
           { status: 404 }
@@ -102,7 +110,10 @@ export async function handleUpdateOrgSettings(
       yield* orgFeatures.update(orgId, body.features);
 
       yield* Effect.logInfo("Update org settings").pipe(
-        Effect.annotateLogs({ orgId: maskId(orgId), features: Object.keys(body.features) })
+        Effect.annotateLogs({
+          orgId: maskId(orgId),
+          features: Object.keys(body.features),
+        })
       );
       return Response.json({ success: true, features: body.features });
     }).pipe(
@@ -111,7 +122,9 @@ export async function handleUpdateOrgSettings(
       Effect.catchTag("InvalidBodyError", () =>
         Effect.logWarning("Update org settings invalid body").pipe(
           Effect.annotateLogs({ orgId: maskId(orgId) }),
-          Effect.as(Response.json({ error: "Invalid request body" }, { status: 400 }))
+          Effect.as(
+            Response.json({ error: "Invalid request body" }, { status: 400 })
+          )
         )
       ),
       Effect.catchTag("DbError", () =>

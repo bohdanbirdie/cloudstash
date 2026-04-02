@@ -63,46 +63,46 @@ const validatePayload = Effect.fn("Sync.validatePayload")(function* (
   _payload: unknown,
   context: { storeId: string; headers: ReadonlyMap<string, string> }
 ) {
-    const auth = yield* AuthClient;
-    const cookie = context.headers.get("cookie");
-    if (!cookie) {
-      yield* Effect.logWarning("Sync auth failed: missing cookie").pipe(
-        Effect.annotateLogs({ storeId: maskId(context.storeId) })
-      );
-      return yield* new MissingSessionCookieError();
-    }
-
-    const session = yield* Effect.tryPromise({
-      catch: () => new InvalidSessionError(),
-      try: () => auth.api.getSession({ headers: new Headers({ cookie }) }),
-    });
-
-    if (!session?.session) {
-      yield* Effect.logWarning("Sync auth failed: invalid session").pipe(
-        Effect.annotateLogs({ storeId: maskId(context.storeId) })
-      );
-      return yield* new InvalidSessionError();
-    }
-
-    if (session.session.activeOrganizationId !== context.storeId) {
-      yield* Effect.logWarning("Sync auth failed: org mismatch").pipe(
-        Effect.annotateLogs({
-          storeId: maskId(context.storeId),
-          sessionOrgId: maskId(session.session.activeOrganizationId ?? "none"),
-        })
-      );
-      return yield* new OrgAccessDeniedError({
-        sessionOrgId: session.session.activeOrganizationId
-          ? OrgId.make(session.session.activeOrganizationId)
-          : null,
-        storeId: OrgId.make(context.storeId),
-      });
-    }
-
-    yield* Effect.logDebug("Sync auth OK").pipe(
+  const auth = yield* AuthClient;
+  const cookie = context.headers.get("cookie");
+  if (!cookie) {
+    yield* Effect.logWarning("Sync auth failed: missing cookie").pipe(
       Effect.annotateLogs({ storeId: maskId(context.storeId) })
     );
+    return yield* new MissingSessionCookieError();
+  }
+
+  const session = yield* Effect.tryPromise({
+    catch: () => new InvalidSessionError(),
+    try: () => auth.api.getSession({ headers: new Headers({ cookie }) }),
   });
+
+  if (!session?.session) {
+    yield* Effect.logWarning("Sync auth failed: invalid session").pipe(
+      Effect.annotateLogs({ storeId: maskId(context.storeId) })
+    );
+    return yield* new InvalidSessionError();
+  }
+
+  if (session.session.activeOrganizationId !== context.storeId) {
+    yield* Effect.logWarning("Sync auth failed: org mismatch").pipe(
+      Effect.annotateLogs({
+        storeId: maskId(context.storeId),
+        sessionOrgId: maskId(session.session.activeOrganizationId ?? "none"),
+      })
+    );
+    return yield* new OrgAccessDeniedError({
+      sessionOrgId: session.session.activeOrganizationId
+        ? OrgId.make(session.session.activeOrganizationId)
+        : null,
+      storeId: OrgId.make(context.storeId),
+    });
+  }
+
+  yield* Effect.logDebug("Sync auth OK").pipe(
+    Effect.annotateLogs({ storeId: maskId(context.storeId) })
+  );
+});
 
 type SyncSearchParams = NonNullable<
   ReturnType<typeof SyncBackend.matchSyncRequest>

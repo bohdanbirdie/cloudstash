@@ -1,5 +1,5 @@
-import { Effect, Layer, LogLevel, Logger } from "effect";
 import { it, describe } from "@effect/vitest";
+import { Effect, Layer, LogLevel, Logger } from "effect";
 import { expect } from "vitest";
 
 import {
@@ -83,9 +83,11 @@ describe("handleConnectRequest", () => {
   it.effect("fails with ConnectUnauthorizedError when session is null", () =>
     runConnect({ session: null }).pipe(
       Effect.flip,
-      Effect.tap((error) => Effect.sync(() => {
-        expect(error._tag).toBe("ConnectUnauthorizedError");
-      }))
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("ConnectUnauthorizedError");
+        })
+      )
     )
   );
 
@@ -94,9 +96,11 @@ describe("handleConnectRequest", () => {
       session: { userId: UserId.make("user-1"), orgId: null },
     }).pipe(
       Effect.flip,
-      Effect.tap((error) => Effect.sync(() => {
-        expect(error._tag).toBe("NoActiveOrgError");
-      }))
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("NoActiveOrgError");
+        })
+      )
     )
   );
 
@@ -106,9 +110,11 @@ describe("handleConnectRequest", () => {
       apiKeyStore: { create: () => Effect.succeed(null) },
     }).pipe(
       Effect.flip,
-      Effect.tap((error) => Effect.sync(() => {
-        expect(error._tag).toBe("KeyCreationError");
-      }))
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("KeyCreationError");
+        })
+      )
     )
   );
 
@@ -116,10 +122,12 @@ describe("handleConnectRequest", () => {
     runConnect({
       session: { userId: UserId.make("user-1"), orgId: OrgId.make("org-1") },
     }).pipe(
-      Effect.tap((result) => Effect.sync(() => {
-        expect(result).toHaveProperty("code");
-        expect(typeof result.code).toBe("string");
-      }))
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(result).toHaveProperty("code");
+          expect(typeof result.code).toBe("string");
+        })
+      )
     )
   );
 
@@ -137,10 +145,15 @@ describe("handleConnectRequest", () => {
         },
       },
     }).pipe(
-      Effect.tap(() => Effect.sync(() => {
-        expect(capturedMetadata).toEqual({ orgId: "org-1", source: "raycast" });
-        expect(capturedName).toBe("Raycast Extension");
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(capturedMetadata).toEqual({
+            orgId: "org-1",
+            source: "raycast",
+          });
+          expect(capturedName).toBe("Raycast Extension");
+        })
+      )
     );
   });
 
@@ -158,10 +171,15 @@ describe("handleConnectRequest", () => {
         },
       },
     }).pipe(
-      Effect.tap(() => Effect.sync(() => {
-        expect(capturedIdentifier).toMatch(/^raycast-connect:/);
-        expect(capturedData).toEqual({ key: "lb_test_key_123", keyId: "key-id-1" });
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(capturedIdentifier).toMatch(/^raycast-connect:/);
+          expect(capturedData).toEqual({
+            key: "lb_test_key_123",
+            keyId: "key-id-1",
+          });
+        })
+      )
     );
   });
 });
@@ -170,19 +188,25 @@ describe("handleExchangeRequest", () => {
   it.effect("fails with MissingCodeError when code is missing", () =>
     runExchange({}).pipe(
       Effect.flip,
-      Effect.tap((error) => Effect.sync(() => {
-        expect(error._tag).toBe("MissingCodeError");
-      }))
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("MissingCodeError");
+        })
+      )
     )
   );
 
-  it.effect("fails with InvalidCodeError when verification record not found", () =>
-    runExchange({ code: "bad-code" }).pipe(
-      Effect.flip,
-      Effect.tap((error) => Effect.sync(() => {
-        expect(error._tag).toBe("InvalidCodeError");
-      }))
-    )
+  it.effect(
+    "fails with InvalidCodeError when verification record not found",
+    () =>
+      runExchange({ code: "bad-code" }).pipe(
+        Effect.flip,
+        Effect.tap((error) =>
+          Effect.sync(() => {
+            expect(error._tag).toBe("InvalidCodeError");
+          })
+        )
+      )
   );
 
   it.effect("returns apiKey and deletes verification on success", () => {
@@ -207,10 +231,12 @@ describe("handleExchangeRequest", () => {
         },
       }
     ).pipe(
-      Effect.tap((result) => Effect.sync(() => {
-        expect(result).toEqual({ apiKey: "lb_test_key_123" });
-        expect(deletedId).toBe("ver-1");
-      }))
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(result).toEqual({ apiKey: "lb_test_key_123" });
+          expect(deletedId).toBe("ver-1");
+        })
+      )
     );
   });
 
@@ -241,10 +267,12 @@ describe("handleExchangeRequest", () => {
         },
       }
     ).pipe(
-      Effect.tap(() => Effect.sync(() => {
-        expect(updatedId).toBe("key-id-1");
-        expect(updatedName).toBe("Raycast — Bohdans-MacBook-Pro");
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(updatedId).toBe("key-id-1");
+          expect(updatedName).toBe("Raycast — Bohdans-MacBook-Pro");
+        })
+      )
     );
   });
 
@@ -273,9 +301,11 @@ describe("handleExchangeRequest", () => {
         },
       }
     ).pipe(
-      Effect.tap(() => Effect.sync(() => {
-        expect(updateCalled).toBe(false);
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(updateCalled).toBe(false);
+        })
+      )
     );
   });
 });

@@ -43,7 +43,9 @@ export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
     }
     const orgId = OrgId.make(rawOrgId);
 
-    yield* Effect.logDebug("API key verified").pipe(Effect.annotateLogs({ orgId: maskId(orgId) }));
+    yield* Effect.logDebug("API key verified").pipe(
+      Effect.annotateLogs({ orgId: maskId(orgId) })
+    );
 
     trackEvent(env.USAGE_ANALYTICS, {
       userId: verifyResult.key.referenceId ?? "api",
@@ -78,7 +80,9 @@ export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
         } satisfies LinkQueueMessage),
     });
 
-    yield* Effect.logInfo("Ingest queued").pipe(Effect.annotateLogs({ url, orgId: maskId(orgId) }));
+    yield* Effect.logInfo("Ingest queued").pipe(
+      Effect.annotateLogs({ url, orgId: maskId(orgId) })
+    );
 
     return { ok: true, result: { status: "queued" } };
   }
@@ -121,7 +125,9 @@ export const ingestRequestToResponse = (
     Effect.catchTag("IngestQueueSendError", (error) =>
       Effect.logError("Ingest failed").pipe(
         Effect.annotateLogs(safeErrorInfo(error)),
-        Effect.as(Response.json({ error: "Queue send failed" }, { status: 500 }))
+        Effect.as(
+          Response.json({ error: "Queue send failed" }, { status: 500 })
+        )
       )
     )
   );

@@ -1,5 +1,5 @@
-import { Effect, Layer, LogLevel, Logger } from "effect";
 import { it, describe } from "@effect/vitest";
+import { Effect, Layer, LogLevel, Logger } from "effect";
 import { expect } from "vitest";
 
 import { AiCallError } from "../../link-processor/errors";
@@ -57,12 +57,14 @@ describe("generateSummary", () => {
     });
 
     return run({}, layer).pipe(
-      Effect.tap((result) => Effect.sync(() => {
-        expect(result).toEqual({
-          summary: "This is a test summary about the page content.",
-          suggestedTags: ["testing"],
-        });
-      }))
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(result).toEqual({
+            summary: "This is a test summary about the page content.",
+            suggestedTags: ["testing"],
+          });
+        })
+      )
     );
   });
 
@@ -70,9 +72,11 @@ describe("generateSummary", () => {
     const layer = succeedWith(null);
 
     return run({}, layer).pipe(
-      Effect.tap((result) => Effect.sync(() => {
-        expect(result).toEqual({ summary: null, suggestedTags: [] });
-      }))
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(result).toEqual({ summary: null, suggestedTags: [] });
+        })
+      )
     );
   });
 
@@ -90,9 +94,11 @@ describe("generateSummary", () => {
       Effect.flip,
       Effect.provide(layer),
       Logger.withMinimumLogLevel(LogLevel.None),
-      Effect.tap((error) => Effect.sync(() => {
-        expect(error).toBeInstanceOf(AiCallError);
-      }))
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error).toBeInstanceOf(AiCallError);
+        })
+      )
     );
   });
 
@@ -111,10 +117,12 @@ describe("generateSummary", () => {
       },
       layer
     ).pipe(
-      Effect.tap(() => Effect.sync(() => {
-        expect(getParams().prompt).toContain("# Test Page");
-        expect(getParams().prompt).toContain("Full page text here");
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(getParams().prompt).toContain("# Test Page");
+          expect(getParams().prompt).toContain("Full page text here");
+        })
+      )
     );
   });
 
@@ -131,10 +139,12 @@ describe("generateSummary", () => {
       },
       layer
     ).pipe(
-      Effect.tap(() => Effect.sync(() => {
-        expect(getParams().prompt).toContain("Title: Meta Title");
-        expect(getParams().prompt).toContain("Description: Meta description");
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(getParams().prompt).toContain("Title: Meta Title");
+          expect(getParams().prompt).toContain("Description: Meta description");
+        })
+      )
     );
   });
 
@@ -145,9 +155,11 @@ describe("generateSummary", () => {
     });
 
     return run({ url: "https://example.com/page" }, layer).pipe(
-      Effect.tap(() => Effect.sync(() => {
-        expect(getParams().prompt).toContain("URL: https://example.com/page");
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(getParams().prompt).toContain("URL: https://example.com/page");
+        })
+      )
     );
   });
 
@@ -166,11 +178,13 @@ describe("generateSummary", () => {
       },
       layer
     ).pipe(
-      Effect.tap(() => Effect.sync(() => {
-        expect(getParams().prompt).toContain(
-          "<existing-tags>react, typescript</existing-tags>"
-        );
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(getParams().prompt).toContain(
+            "<existing-tags>react, typescript</existing-tags>"
+          );
+        })
+      )
     );
   });
 
@@ -189,10 +203,12 @@ describe("generateSummary", () => {
       },
       layer
     ).pipe(
-      Effect.tap(() => Effect.sync(() => {
-        expect(getParams().prompt).not.toContain("<system>");
-        expect(getParams().prompt).toContain("[...]injected[...]");
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(getParams().prompt).not.toContain("<system>");
+          expect(getParams().prompt).toContain("[...]injected[...]");
+        })
+      )
     );
   });
 
@@ -206,12 +222,14 @@ describe("generateSummary", () => {
       { extractedContent: { title: null, content: "x".repeat(5000) } },
       layer
     ).pipe(
-      Effect.tap(() => Effect.sync(() => {
-        const contentMatch = getParams().prompt.match(
-          /<content>\n([\s\S]*?)\n<\/content>/
-        );
-        expect(contentMatch?.[1]?.length).toBe(4000);
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          const contentMatch = getParams().prompt.match(
+            /<content>\n([\s\S]*?)\n<\/content>/
+          );
+          expect(contentMatch?.[1]?.length).toBe(4000);
+        })
+      )
     );
   });
 
@@ -231,10 +249,12 @@ describe("generateSummary", () => {
       },
       layer
     ).pipe(
-      Effect.tap(() => Effect.sync(() => {
-        expect(getParams().prompt).toContain("# Extracted Title");
-        expect(getParams().prompt).not.toContain("Meta Title");
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(getParams().prompt).toContain("# Extracted Title");
+          expect(getParams().prompt).not.toContain("Meta Title");
+        })
+      )
     );
   });
 
@@ -251,9 +271,11 @@ describe("generateSummary", () => {
       },
       layer
     ).pipe(
-      Effect.tap(() => Effect.sync(() => {
-        expect(getParams().prompt).toContain("# Meta Title");
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(getParams().prompt).toContain("# Meta Title");
+        })
+      )
     );
   });
 
@@ -264,10 +286,14 @@ describe("generateSummary", () => {
     });
 
     return run({}, layer).pipe(
-      Effect.tap(() => Effect.sync(() => {
-        expect(getParams().system).toContain("summarization and categorization");
-        expect(getParams().maxOutputTokens).toBe(250);
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(getParams().system).toContain(
+            "summarization and categorization"
+          );
+          expect(getParams().maxOutputTokens).toBe(250);
+        })
+      )
     );
   });
 });

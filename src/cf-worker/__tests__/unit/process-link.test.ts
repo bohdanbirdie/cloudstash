@@ -1,5 +1,5 @@
-import { Effect, Layer, LogLevel, Logger } from "effect";
 import { it, describe } from "@effect/vitest";
+import { Effect, Layer, LogLevel, Logger } from "effect";
 import { expect } from "vitest";
 
 import { LinkId, TagId } from "../../db/branded";
@@ -78,9 +78,11 @@ describe("processLink", () => {
     return processLink({ link: testLink }).pipe(
       Effect.provide(testLayer),
       Logger.withMinimumLogLevel(LogLevel.Error),
-      Effect.tap(() => Effect.sync(() => {
-        expect(committed).toHaveLength(3);
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(committed).toHaveLength(3);
+        })
+      )
     );
   });
 
@@ -90,9 +92,11 @@ describe("processLink", () => {
     return processLink({ link: testLink }).pipe(
       Effect.provide(testLayer),
       Logger.withMinimumLogLevel(LogLevel.Error),
-      Effect.tap(() => Effect.sync(() => {
-        expect(committed).toHaveLength(2);
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(committed).toHaveLength(2);
+        })
+      )
     );
   });
 
@@ -104,9 +108,11 @@ describe("processLink", () => {
     return processLink({ link: testLink, isRetry: true }).pipe(
       Effect.provide(testLayer),
       Logger.withMinimumLogLevel(LogLevel.Error),
-      Effect.tap(() => Effect.sync(() => {
-        expect(committed).toHaveLength(2);
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(committed).toHaveLength(2);
+        })
+      )
     );
   });
 
@@ -120,9 +126,11 @@ describe("processLink", () => {
     return processLink({ link: testLink, aiSummaryEnabled: true }).pipe(
       Effect.provide(testLayer),
       Logger.withMinimumLogLevel(LogLevel.Error),
-      Effect.tap(() => Effect.sync(() => {
-        expect(committed.length).toBeGreaterThanOrEqual(5);
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(committed.length).toBeGreaterThanOrEqual(5);
+        })
+      )
     );
   });
 
@@ -135,9 +143,11 @@ describe("processLink", () => {
     return processLink({ link: testLink, aiSummaryEnabled: true }).pipe(
       Effect.provide(testLayer),
       Logger.withMinimumLogLevel(LogLevel.Error),
-      Effect.tap(() => Effect.sync(() => {
-        expect(committed).toHaveLength(3);
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(committed).toHaveLength(3);
+        })
+      )
     );
   });
 
@@ -159,14 +169,16 @@ describe("processLink", () => {
     return processLink({ link: testLink }).pipe(
       Effect.provide(testLayer),
       Logger.withMinimumLogLevel(LogLevel.None),
-      Effect.tap(() => Effect.sync(() => {
-        const lastEvent = store.committed.at(-1);
-        expect(lastEvent).toMatchObject({
-          name: "v1.LinkProcessingFailed",
-          args: expect.objectContaining({ linkId: "link-1" }),
-        });
-        expect(store.committed).toHaveLength(2);
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          const lastEvent = store.committed.at(-1);
+          expect(lastEvent).toMatchObject({
+            name: "v1.LinkProcessingFailed",
+            args: expect.objectContaining({ linkId: "link-1" }),
+          });
+          expect(store.committed).toHaveLength(2);
+        })
+      )
     );
   });
 
@@ -181,15 +193,17 @@ describe("processLink", () => {
     return processLink({ link: testLink, aiSummaryEnabled: true }).pipe(
       Effect.provide(testLayer),
       Logger.withMinimumLogLevel(LogLevel.Error),
-      Effect.tap(() => Effect.sync(() => {
-        const tagEvent = committed.find((e) => e.name === "v1.TagSuggested");
-        expect(tagEvent).toMatchObject({
-          args: expect.objectContaining({
-            tagId: "tag-1",
-            suggestedName: "javascript",
-          }),
-        });
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          const tagEvent = committed.find((e) => e.name === "v1.TagSuggested");
+          expect(tagEvent).toMatchObject({
+            args: expect.objectContaining({
+              tagId: "tag-1",
+              suggestedName: "javascript",
+            }),
+          });
+        })
+      )
     );
   });
 
@@ -212,13 +226,15 @@ describe("processLink", () => {
     return processLink({ link: testLink, aiSummaryEnabled: true }).pipe(
       Effect.provide(testLayer),
       Logger.withMinimumLogLevel(LogLevel.None),
-      Effect.tap(() => Effect.sync(() => {
-        const lastEvent = store.committed.at(-1);
-        expect(lastEvent).toMatchObject({
-          name: "v1.LinkProcessingFailed",
-          args: expect.objectContaining({ linkId: "link-1" }),
-        });
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          const lastEvent = store.committed.at(-1);
+          expect(lastEvent).toMatchObject({
+            name: "v1.LinkProcessingFailed",
+            args: expect.objectContaining({ linkId: "link-1" }),
+          });
+        })
+      )
     );
   });
 
@@ -262,10 +278,14 @@ describe("processLink", () => {
     return processLink({ link: testLink, aiSummaryEnabled: true }).pipe(
       Effect.provide(testLayer),
       Logger.withMinimumLogLevel(LogLevel.Error),
-      Effect.tap(() => Effect.sync(() => {
-        const tagEvents = committed.filter((e) => e.name === "v1.TagSuggested");
-        expect(tagEvents).toHaveLength(3);
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          const tagEvents = committed.filter(
+            (e) => e.name === "v1.TagSuggested"
+          );
+          expect(tagEvents).toHaveLength(3);
+        })
+      )
     );
   });
 });

@@ -1,5 +1,5 @@
-import { Effect, Layer } from "effect";
 import { it, describe } from "@effect/vitest";
+import { Effect, Layer } from "effect";
 import { expect } from "vitest";
 
 import { AuthClient } from "../../auth/service";
@@ -79,9 +79,15 @@ describe("AuthClient enriched methods", () => {
       return Effect.gen(function* () {
         const auth = yield* AuthClient;
         yield* auth.findUser(UserId.make("user-1"));
-      }).pipe(Effect.provide(layer), Effect.flip, Effect.tap((error) => Effect.sync(() => {
-        expect(error._tag).toBe("DbError");
-      })));
+      }).pipe(
+        Effect.provide(layer),
+        Effect.flip,
+        Effect.tap((error) =>
+          Effect.sync(() => {
+            expect(error._tag).toBe("DbError");
+          })
+        )
+      );
     });
   });
 
@@ -112,9 +118,15 @@ describe("AuthClient enriched methods", () => {
       return Effect.gen(function* () {
         const auth = yield* AuthClient;
         yield* auth.approveUser(UserId.make("user-1"));
-      }).pipe(Effect.provide(layer), Effect.flip, Effect.tap((error) => Effect.sync(() => {
-        expect(error._tag).toBe("DbError");
-      })));
+      }).pipe(
+        Effect.provide(layer),
+        Effect.flip,
+        Effect.tap((error) =>
+          Effect.sync(() => {
+            expect(error._tag).toBe("DbError");
+          })
+        )
+      );
     });
   });
 
@@ -153,9 +165,15 @@ describe("AuthClient enriched methods", () => {
       return Effect.gen(function* () {
         const auth = yield* AuthClient;
         yield* auth.listApprovedUsers();
-      }).pipe(Effect.provide(layer), Effect.flip, Effect.tap((error) => Effect.sync(() => {
-        expect(error._tag).toBe("DbError");
-      })));
+      }).pipe(
+        Effect.provide(layer),
+        Effect.flip,
+        Effect.tap((error) =>
+          Effect.sync(() => {
+            expect(error._tag).toBe("DbError");
+          })
+        )
+      );
     });
   });
 

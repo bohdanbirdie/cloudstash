@@ -54,10 +54,7 @@ export async function handleGetUsage(
     Effect.catchTag("AnalyticsQueryError", (error) => {
       logger.error("Usage query failed", { error: error.message });
       return Effect.succeed(
-        Response.json(
-          { error: "Failed to query usage data" },
-          { status: 500 }
-        )
+        Response.json({ error: "Failed to query usage data" }, { status: 500 })
       );
     }),
     Effect.runPromise

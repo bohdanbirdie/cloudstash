@@ -1,5 +1,5 @@
-import { Effect, Layer, LogLevel, Logger } from "effect";
 import { it, describe } from "@effect/vitest";
+import { Effect, Layer, LogLevel, Logger } from "effect";
 import { expect, vi } from "vitest";
 
 import { AuthClient } from "../../auth/service";

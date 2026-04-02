@@ -40,7 +40,9 @@ export const handleApproveUser = async (
         env.EMAIL_FROM
       );
 
-      yield* Effect.logInfo("User approved by admin").pipe(Effect.annotateLogs({ userId }));
+      yield* Effect.logInfo("User approved by admin").pipe(
+        Effect.annotateLogs({ userId })
+      );
       return Response.json({ success: true });
     }).pipe(
       Effect.withSpan("Admin.handleApproveUser"),

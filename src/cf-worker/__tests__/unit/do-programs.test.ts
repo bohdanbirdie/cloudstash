@@ -1,5 +1,5 @@
-import { Effect, Layer, LogLevel, Logger } from "effect";
 import { it, describe } from "@effect/vitest";
+import { Effect, Layer, LogLevel, Logger } from "effect";
 import { expect } from "vitest";
 
 import { LinkId, OrgId } from "../../db/branded";
@@ -93,19 +93,21 @@ describe("ingestLink", () => {
     }).pipe(
       Effect.provide(testLayer),
       silentLogger,
-      Effect.tap((result) => Effect.sync(() => {
-        expect(result.status).toBe("ingested");
-        expect(result.linkId).toBeDefined();
-        expect(repo.committed).toHaveLength(1);
-        expect(repo.committed[0]).toMatchObject({
-          name: "v2.LinkCreated",
-          args: expect.objectContaining({
-            url: "https://example.com",
-            domain: "example.com",
-            source: "telegram",
-          }),
-        });
-      }))
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(result.status).toBe("ingested");
+          expect(result.linkId).toBeDefined();
+          expect(repo.committed).toHaveLength(1);
+          expect(repo.committed[0]).toMatchObject({
+            name: "v2.LinkCreated",
+            args: expect.objectContaining({
+              url: "https://example.com",
+              domain: "example.com",
+              source: "telegram",
+            }),
+          });
+        })
+      )
     );
   });
 
@@ -123,14 +125,16 @@ describe("ingestLink", () => {
     }).pipe(
       Effect.provide(testLayer),
       silentLogger,
-      Effect.tap((result) => Effect.sync(() => {
-        expect(result.status).toBe("duplicate");
-        expect(result.linkId).toBe("existing-1");
-        expect(repo.committed).toHaveLength(0);
-        expect(notifier.replies).toEqual([
-          { source: "telegram", text: "Link already saved." },
-        ]);
-      }))
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(result.status).toBe("duplicate");
+          expect(result.linkId).toBe("existing-1");
+          expect(repo.committed).toHaveLength(0);
+          expect(notifier.replies).toEqual([
+            { source: "telegram", text: "Link already saved." },
+          ]);
+        })
+      )
     );
   });
 
@@ -147,10 +151,12 @@ describe("ingestLink", () => {
     }).pipe(
       Effect.provide(testLayer),
       silentLogger,
-      Effect.tap((result) => Effect.sync(() => {
-        expect(result.status).toBe("invalid_url");
-        expect(repo.committed).toHaveLength(0);
-      }))
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(result.status).toBe("invalid_url");
+          expect(repo.committed).toHaveLength(0);
+        })
+      )
     );
   });
 
@@ -167,11 +173,13 @@ describe("ingestLink", () => {
     }).pipe(
       Effect.provide(testLayer),
       silentLogger,
-      Effect.tap(() => Effect.sync(() => {
-        expect(repo.committed[0]).toMatchObject({
-          args: expect.objectContaining({ domain: "example.com" }),
-        });
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(repo.committed[0]).toMatchObject({
+            args: expect.objectContaining({ domain: "example.com" }),
+          });
+        })
+      )
     );
   });
 });
@@ -189,13 +197,15 @@ describe("cancelStaleLinks", () => {
     return cancelStaleLinks(new Set(), now).pipe(
       Effect.provide(repo.layer),
       silentLogger,
-      Effect.tap((cancelled) => Effect.sync(() => {
-        expect(cancelled).toBe(1);
-        expect(repo.committed[0]).toMatchObject({
-          name: "v1.LinkProcessingCancelled",
-          args: expect.objectContaining({ linkId: "link-1" }),
-        });
-      }))
+      Effect.tap((cancelled) =>
+        Effect.sync(() => {
+          expect(cancelled).toBe(1);
+          expect(repo.committed[0]).toMatchObject({
+            name: "v1.LinkProcessingCancelled",
+            args: expect.objectContaining({ linkId: "link-1" }),
+          });
+        })
+      )
     );
   });
 
@@ -208,10 +218,12 @@ describe("cancelStaleLinks", () => {
     return cancelStaleLinks(new Set(["link-1"]), Date.now()).pipe(
       Effect.provide(repo.layer),
       silentLogger,
-      Effect.tap((cancelled) => Effect.sync(() => {
-        expect(cancelled).toBe(0);
-        expect(repo.committed).toHaveLength(0);
-      }))
+      Effect.tap((cancelled) =>
+        Effect.sync(() => {
+          expect(cancelled).toBe(0);
+          expect(repo.committed).toHaveLength(0);
+        })
+      )
     );
   });
 
@@ -225,9 +237,11 @@ describe("cancelStaleLinks", () => {
     return cancelStaleLinks(new Set(), Date.now()).pipe(
       Effect.provide(repo.layer),
       silentLogger,
-      Effect.tap((cancelled) => Effect.sync(() => {
-        expect(cancelled).toBe(0);
-      }))
+      Effect.tap((cancelled) =>
+        Effect.sync(() => {
+          expect(cancelled).toBe(0);
+        })
+      )
     );
   });
 
@@ -241,10 +255,12 @@ describe("cancelStaleLinks", () => {
     return cancelStaleLinks(new Set(), Date.now()).pipe(
       Effect.provide(repo.layer),
       silentLogger,
-      Effect.tap((cancelled) => Effect.sync(() => {
-        expect(cancelled).toBe(0);
-        expect(repo.committed).toHaveLength(0);
-      }))
+      Effect.tap((cancelled) =>
+        Effect.sync(() => {
+          expect(cancelled).toBe(0);
+          expect(repo.committed).toHaveLength(0);
+        })
+      )
     );
   });
 
@@ -255,10 +271,12 @@ describe("cancelStaleLinks", () => {
     return cancelStaleLinks(new Set(), Date.now()).pipe(
       Effect.provide(repo.layer),
       silentLogger,
-      Effect.tap((cancelled) => Effect.sync(() => {
-        expect(cancelled).toBe(0);
-        expect(repo.committed).toHaveLength(0);
-      }))
+      Effect.tap((cancelled) =>
+        Effect.sync(() => {
+          expect(cancelled).toBe(0);
+          expect(repo.committed).toHaveLength(0);
+        })
+      )
     );
   });
 });
@@ -332,23 +350,25 @@ describe("notifyResult", () => {
     }).pipe(
       Effect.provide(testLayer),
       silentLogger,
-      Effect.tap(() => Effect.sync(() => {
-        expect(notifier.finalized).toEqual([
-          {
-            source: "telegram",
-            payload: {
-              processingStatus: "completed",
-              summary: "A summary",
-              suggestedTags: ["tag1"],
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(notifier.finalized).toEqual([
+            {
+              source: "telegram",
+              payload: {
+                processingStatus: "completed",
+                summary: "A summary",
+                suggestedTags: ["tag1"],
+              },
             },
-          },
-        ]);
-        expect(repo.committed).toHaveLength(1);
-        expect(repo.committed[0]).toMatchObject({
-          name: "v1.LinkSourceNotified",
-          args: expect.objectContaining({ linkId: "link-1" }),
-        });
-      }))
+          ]);
+          expect(repo.committed).toHaveLength(1);
+          expect(repo.committed[0]).toMatchObject({
+            name: "v1.LinkSourceNotified",
+            args: expect.objectContaining({ linkId: "link-1" }),
+          });
+        })
+      )
     );
   });
 
@@ -367,22 +387,24 @@ describe("notifyResult", () => {
     }).pipe(
       Effect.provide(testLayer),
       silentLogger,
-      Effect.tap(() => Effect.sync(() => {
-        expect(notifier.finalized).toEqual([
-          {
-            source: "telegram",
-            payload: {
-              processingStatus: "failed",
-              summary: null,
-              suggestedTags: [],
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(notifier.finalized).toEqual([
+            {
+              source: "telegram",
+              payload: {
+                processingStatus: "failed",
+                summary: null,
+                suggestedTags: [],
+              },
             },
-          },
-        ]);
-        expect(repo.committed).toHaveLength(1);
-        expect(repo.committed[0]).toMatchObject({
-          name: "v1.LinkSourceNotified",
-        });
-      }))
+          ]);
+          expect(repo.committed).toHaveLength(1);
+          expect(repo.committed[0]).toMatchObject({
+            name: "v1.LinkSourceNotified",
+          });
+        })
+      )
     );
   });
 });

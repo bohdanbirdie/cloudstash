@@ -25,16 +25,18 @@ class AdminForbiddenError extends Schema.TaggedError<AdminForbiddenError>()(
 ) {}
 
 const getSession = Effect.fn("Admin.getSession")(function* (headers: Headers) {
-    const auth = yield* AuthClient;
-    return yield* Effect.tryPromise({
-      catch: () => new AdminUnauthorizedError(),
-      try: () => auth.api.getSession({ headers }),
-    }).pipe(
-      Effect.flatMap((session) =>
-        session ? Effect.succeed(session) : Effect.fail(new AdminUnauthorizedError())
-      )
-    );
-  });
+  const auth = yield* AuthClient;
+  return yield* Effect.tryPromise({
+    catch: () => new AdminUnauthorizedError(),
+    try: () => auth.api.getSession({ headers }),
+  }).pipe(
+    Effect.flatMap((session) =>
+      session
+        ? Effect.succeed(session)
+        : Effect.fail(new AdminUnauthorizedError())
+    )
+  );
+});
 
 const checkAdmin = (session: { user: { role?: string | null } }) =>
   session.user.role === "admin"

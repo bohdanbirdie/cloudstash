@@ -1,8 +1,8 @@
 import { nanoid } from "@livestore/livestore";
 import { Cause, Effect } from "effect";
 
-import type { LinkId } from "../db/branded";
 import { events } from "../../livestore/schema";
+import type { LinkId } from "../db/branded";
 import { findMatchingTag } from "./fuzzy-match";
 import {
   AiSummaryGenerator,
@@ -142,7 +142,9 @@ export const processLink = ({
 
     yield* Effect.logInfo("Link processing completed");
   }).pipe(
-    Effect.withSpan("processLink", { attributes: { aiSummaryEnabled, isRetry, linkId: link.id } }),
+    Effect.withSpan("processLink", {
+      attributes: { aiSummaryEnabled, isRetry, linkId: link.id },
+    }),
     Effect.annotateLogs({ linkId: link.id }),
     Effect.catchAll((error) =>
       Effect.gen(function* () {

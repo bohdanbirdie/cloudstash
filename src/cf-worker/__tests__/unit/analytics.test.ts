@@ -113,7 +113,10 @@ describe("queryUsage", () => {
 
     // Without Number() conversion: 0 + "9" + "5" = "095" (string concatenation)
     // With Number() conversion: 0 + 9 + 5 = 14
-    const total = result.rows.reduce((sum: number, r: { count: number }) => sum + r.count, 0);
+    const total = result.rows.reduce(
+      (sum: number, r: { count: number }) => sum + r.count,
+      0
+    );
     expect(total).toBe(14);
 
     vi.unstubAllGlobals();

@@ -66,22 +66,24 @@ export const fetchOgMetadata = Effect.fn("MetadataService.fetchOgMetadata")(
   }
 );
 
-export const handleMetadataRequest = Effect.fn("MetadataService.handleMetadataRequest")(
-  function* handleMetadataRequest(request: Request) {
-    yield* Effect.logInfo("Metadata request received");
-    const url = new URL(request.url);
-    const targetUrl = url.searchParams.get("url");
+export const handleMetadataRequest = Effect.fn(
+  "MetadataService.handleMetadataRequest"
+)(function* handleMetadataRequest(request: Request) {
+  yield* Effect.logInfo("Metadata request received");
+  const url = new URL(request.url);
+  const targetUrl = url.searchParams.get("url");
 
-    if (!targetUrl) {
-      yield* Effect.logWarning("Missing URL parameter");
-      return yield* MetadataMissingUrlError.make({});
-    }
-
-    const metadata = yield* fetchOgMetadata(targetUrl);
-    yield* Effect.logInfo("Metadata fetched").pipe(Effect.annotateLogs({ hasTitle: !!metadata.title }));
-    return metadata;
+  if (!targetUrl) {
+    yield* Effect.logWarning("Missing URL parameter");
+    return yield* MetadataMissingUrlError.make({});
   }
-);
+
+  const metadata = yield* fetchOgMetadata(targetUrl);
+  yield* Effect.logInfo("Metadata fetched").pipe(
+    Effect.annotateLogs({ hasTitle: !!metadata.title })
+  );
+  return metadata;
+});
 
 export const metadataRequestToResponse = (
   request: Request
@@ -108,7 +110,10 @@ export const metadataRequestToResponse = (
       MetadataParseError: () =>
         Effect.logWarning("Metadata parse failed").pipe(
           Effect.as(
-            Response.json({ error: "Failed to parse metadata" }, { status: 500 })
+            Response.json(
+              { error: "Failed to parse metadata" },
+              { status: 500 }
+            )
           )
         ),
       MetadataMissingUrlError: () =>

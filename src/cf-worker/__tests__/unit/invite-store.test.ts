@@ -1,5 +1,5 @@
-import { Effect, Layer } from "effect";
 import { it, describe } from "@effect/vitest";
+import { Effect, Layer } from "effect";
 import { expect } from "vitest";
 
 import { InviteId, UserId } from "../../db/branded";
@@ -148,7 +148,10 @@ describe("InviteStore service contract", () => {
 
     return Effect.gen(function* () {
       const store = yield* InviteStore;
-      yield* store.redeemAndApproveUser(InviteId.make("inv-1"), UserId.make("user-1"));
+      yield* store.redeemAndApproveUser(
+        InviteId.make("inv-1"),
+        UserId.make("user-1")
+      );
       expect(capturedArgs).toEqual({ inviteId: "inv-1", userId: "user-1" });
     }).pipe(Effect.provide(layer));
   });
@@ -170,9 +173,11 @@ describe("InviteStore service contract", () => {
     }).pipe(
       Effect.provide(layer),
       Effect.flip,
-      Effect.tap((error) => Effect.sync(() => {
-        expect(error._tag).toBe("DbError");
-      }))
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("DbError");
+        })
+      )
     );
   });
 
@@ -188,9 +193,11 @@ describe("InviteStore service contract", () => {
     }).pipe(
       Effect.provide(layer),
       Effect.flip,
-      Effect.tap((error) => Effect.sync(() => {
-        expect(error._tag).toBe("DbError");
-      }))
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("DbError");
+        })
+      )
     );
   });
 });

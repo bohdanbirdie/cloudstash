@@ -1,5 +1,5 @@
-import { Effect, Layer, LogLevel, Logger } from "effect";
 import { it, describe } from "@effect/vitest";
+import { Effect, Layer, LogLevel, Logger } from "effect";
 import { expect } from "vitest";
 
 import {
@@ -32,36 +32,46 @@ describe("checkChatFeatureEnabled", () => {
     );
   });
 
-  it.effect("fails with ChatFeatureDisabledError when chatAgentEnabled is false", () => {
-    const layer = makeOrgFeaturesLayer({
-      get: () => Effect.succeed({ chatAgentEnabled: false }),
-    });
+  it.effect(
+    "fails with ChatFeatureDisabledError when chatAgentEnabled is false",
+    () => {
+      const layer = makeOrgFeaturesLayer({
+        get: () => Effect.succeed({ chatAgentEnabled: false }),
+      });
 
-    return checkChatFeatureEnabled(OrgId.make("org-1")).pipe(
-      Effect.provide(layer),
-      Effect.flip,
-      Logger.withMinimumLogLevel(LogLevel.Error),
-      Effect.tap((error) => Effect.sync(() => {
-        expect(error._tag).toBe("ChatFeatureDisabledError");
-        expect((error as ChatFeatureDisabledError).status).toBe(403);
-      }))
-    );
-  });
+      return checkChatFeatureEnabled(OrgId.make("org-1")).pipe(
+        Effect.provide(layer),
+        Effect.flip,
+        Logger.withMinimumLogLevel(LogLevel.Error),
+        Effect.tap((error) =>
+          Effect.sync(() => {
+            expect(error._tag).toBe("ChatFeatureDisabledError");
+            expect((error as ChatFeatureDisabledError).status).toBe(403);
+          })
+        )
+      );
+    }
+  );
 
-  it.effect("fails with ChatFeatureDisabledError when features are empty", () => {
-    const layer = makeOrgFeaturesLayer({
-      get: () => Effect.succeed({}),
-    });
+  it.effect(
+    "fails with ChatFeatureDisabledError when features are empty",
+    () => {
+      const layer = makeOrgFeaturesLayer({
+        get: () => Effect.succeed({}),
+      });
 
-    return checkChatFeatureEnabled(OrgId.make("org-1")).pipe(
-      Effect.provide(layer),
-      Effect.flip,
-      Logger.withMinimumLogLevel(LogLevel.Error),
-      Effect.tap((error) => Effect.sync(() => {
-        expect(error._tag).toBe("ChatFeatureDisabledError");
-      }))
-    );
-  });
+      return checkChatFeatureEnabled(OrgId.make("org-1")).pipe(
+        Effect.provide(layer),
+        Effect.flip,
+        Logger.withMinimumLogLevel(LogLevel.Error),
+        Effect.tap((error) =>
+          Effect.sync(() => {
+            expect(error._tag).toBe("ChatFeatureDisabledError");
+          })
+        )
+      );
+    }
+  );
 
   it.effect("propagates DbError from OrgFeatures.get", () => {
     const layer = makeOrgFeaturesLayer({
@@ -72,9 +82,11 @@ describe("checkChatFeatureEnabled", () => {
       Effect.provide(layer),
       Effect.flip,
       Logger.withMinimumLogLevel(LogLevel.Error),
-      Effect.tap((error) => Effect.sync(() => {
-        expect(error._tag).toBe("DbError");
-      }))
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("DbError");
+        })
+      )
     );
   });
 
@@ -91,9 +103,11 @@ describe("checkChatFeatureEnabled", () => {
     return checkChatFeatureEnabled(OrgId.make("workspace-42")).pipe(
       Effect.provide(layer),
       Logger.withMinimumLogLevel(LogLevel.Error),
-      Effect.tap(() => Effect.sync(() => {
-        expect(capturedOrgId).toBe("workspace-42");
-      }))
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(capturedOrgId).toBe("workspace-42");
+        })
+      )
     );
   });
 });

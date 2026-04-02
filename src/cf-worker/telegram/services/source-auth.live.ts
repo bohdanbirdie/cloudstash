@@ -12,26 +12,29 @@ import {
 } from "../errors";
 import { SourceAuth } from "../services";
 
-const verifyApiKey = Effect.fn("Telegram.verifyApiKey")(function* (auth: Auth, apiKey: string) {
-    const result = yield* Effect.tryPromise({
-      catch: (error) => {
-        const message = String(error);
-        if (message.includes("Rate limit")) {
-          return new RateLimitError({});
-        }
-        return new TelegramInvalidApiKeyError({});
-      },
-      try: () => auth.api.verifyApiKey({ body: { key: apiKey } }),
-    });
-    if (!result.valid || !result.key) {
-      return yield* new TelegramInvalidApiKeyError({});
-    }
-    const orgId = result.key.metadata?.orgId;
-    if (typeof orgId !== "string" || orgId.length === 0) {
-      return yield* new TelegramMissingOrgIdError({});
-    }
-    return OrgId.make(orgId);
+const verifyApiKey = Effect.fn("Telegram.verifyApiKey")(function* (
+  auth: Auth,
+  apiKey: string
+) {
+  const result = yield* Effect.tryPromise({
+    catch: (error) => {
+      const message = String(error);
+      if (message.includes("Rate limit")) {
+        return new RateLimitError({});
+      }
+      return new TelegramInvalidApiKeyError({});
+    },
+    try: () => auth.api.verifyApiKey({ body: { key: apiKey } }),
   });
+  if (!result.valid || !result.key) {
+    return yield* new TelegramInvalidApiKeyError({});
+  }
+  const orgId = result.key.metadata?.orgId;
+  if (typeof orgId !== "string" || orgId.length === 0) {
+    return yield* new TelegramMissingOrgIdError({});
+  }
+  return OrgId.make(orgId);
+});
 
 export const TelegramSourceAuthLive = (env: Env, chatId: number) =>
   Layer.effect(

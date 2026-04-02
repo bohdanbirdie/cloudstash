@@ -22,7 +22,9 @@ export class InviteStore extends Context.Tag("@cloudstash/InviteStore")<
       expiresAt: Date | null;
     }) => Effect.Effect<void, DbError>;
     readonly list: () => Effect.Effect<InviteWithRelations[], DbError>;
-    readonly findById: (id: InviteId) => Effect.Effect<InviteRow | null, DbError>;
+    readonly findById: (
+      id: InviteId
+    ) => Effect.Effect<InviteRow | null, DbError>;
     readonly findValidByCode: (
       code: string
     ) => Effect.Effect<InviteRow | null, DbError>;
