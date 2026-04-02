@@ -104,8 +104,8 @@ export const handleConnect = (chatId: number, apiKeyText: string | undefined) =>
     })
   );
 
-export const handleDisconnect = (chatId: number) =>
-  Effect.gen(function* () {
+export const handleDisconnect = Effect.fn("Telegram.handleDisconnect")(
+  function* (chatId: number) {
     const messenger = yield* Messenger;
     const keyStore = yield* TelegramKeyStore;
 
@@ -113,7 +113,8 @@ export const handleDisconnect = (chatId: number) =>
     yield* messenger.reply(
       "Disconnected. Use /connect <api-key> to reconnect."
     );
-  }).pipe(Effect.withSpan("Telegram.handleDisconnect"));
+  }
+);
 
 export const extractUrls = (ctx: Context): string[] => {
   const { message } = ctx;
