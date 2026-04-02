@@ -21,7 +21,10 @@ const mockMetadata = {
   favicon: "https://example.com/favicon.ico",
 };
 
-function createTestStore(tags: { id: typeof TagId.Type; name: string }[] = []) {
+function createTestStore(
+  tags: { id: typeof TagId.Type; name: string }[] = [],
+  existingLinkTagNames: string[] = []
+) {
   const committed: StoreEvent[] = [];
   const layer = Layer.succeed(LinkEventStore, {
     commit: (event) =>
@@ -29,6 +32,7 @@ function createTestStore(tags: { id: typeof TagId.Type; name: string }[] = []) {
         committed.push(event);
       }),
     queryTags: () => Effect.succeed(tags),
+    queryLinkTagNames: () => Effect.succeed(existingLinkTagNames),
   });
   return { layer, committed };
 }
@@ -41,12 +45,19 @@ function buildTestLayers(
       favicon?: string;
       image?: string;
     } | null;
-    content?: { title: string | null; content: string } | null;
+    content?: {
+      title: string | null;
+      content: string;
+      author: string | null;
+      published: string | null;
+      wordCount: number;
+    } | null;
     aiResult?: { summary: string | null; suggestedTags: string[] };
     tags?: { id: typeof TagId.Type; name: string }[];
+    existingLinkTagNames?: string[];
   } = {}
 ) {
-  const store = createTestStore(options.tags);
+  const store = createTestStore(options.tags, options.existingLinkTagNames);
   const testLayer = Layer.mergeAll(
     Layer.succeed(MetadataFetcher, {
       fetch: () => Effect.succeed(options.metadata ?? null),
@@ -100,26 +111,16 @@ describe("processLink", () => {
     );
   });
 
-  it.effect("skips linkProcessingStarted on retry", () => {
-    const { testLayer, committed } = buildTestLayers({
-      metadata: mockMetadata,
-    });
-
-    return processLink({ link: testLink, isRetry: true }).pipe(
-      Effect.provide(testLayer),
-      Logger.withMinimumLogLevel(LogLevel.Error),
-      Effect.tap(() =>
-        Effect.sync(() => {
-          expect(committed).toHaveLength(2);
-        })
-      )
-    );
-  });
-
   it.effect("generates summary and suggests tags when AI enabled", () => {
     const { testLayer, committed } = buildTestLayers({
       metadata: mockMetadata,
-      content: { title: "Example", content: "Some long content..." },
+      content: {
+        title: "Example",
+        content: "Some long content...",
+        author: null,
+        published: null,
+        wordCount: 4,
+      },
       aiResult: { summary: "A test summary", suggestedTags: ["test-tag"] },
     });
 
@@ -185,7 +186,13 @@ describe("processLink", () => {
   it.effect("matches suggested tags to existing tags", () => {
     const { testLayer, committed } = buildTestLayers({
       metadata: mockMetadata,
-      content: { title: "Example", content: "Content..." },
+      content: {
+        title: "Example",
+        content: "Content...",
+        author: null,
+        published: null,
+        wordCount: 1,
+      },
       aiResult: { summary: "A summary", suggestedTags: ["JavaScript"] },
       tags: [{ id: TagId.make("tag-1"), name: "javascript" }],
     });
@@ -207,6 +214,68 @@ describe("processLink", () => {
     );
   });
 
+  it.effect("skips tag suggestions already on the link", () => {
+    const { testLayer, committed } = buildTestLayers({
+      metadata: mockMetadata,
+      content: {
+        title: "Example",
+        content: "Content...",
+        author: null,
+        published: null,
+        wordCount: 1,
+      },
+      aiResult: {
+        summary: "A summary",
+        suggestedTags: ["react", "typescript"],
+      },
+      existingLinkTagNames: ["react"],
+    });
+
+    return processLink({ link: testLink, aiSummaryEnabled: true }).pipe(
+      Effect.provide(testLayer),
+      Logger.withMinimumLogLevel(LogLevel.Error),
+      Effect.tap(() =>
+        Effect.sync(() => {
+          const tagEvents = committed.filter(
+            (e) => e.name === "v1.TagSuggested"
+          );
+          expect(tagEvents).toHaveLength(1);
+          expect(tagEvents[0]).toMatchObject({
+            args: expect.objectContaining({ suggestedName: "typescript" }),
+          });
+        })
+      )
+    );
+  });
+
+  it.effect("skips tag suggestions case-insensitively", () => {
+    const { testLayer, committed } = buildTestLayers({
+      metadata: mockMetadata,
+      content: {
+        title: "Example",
+        content: "Content...",
+        author: null,
+        published: null,
+        wordCount: 1,
+      },
+      aiResult: { summary: "A summary", suggestedTags: ["React"] },
+      existingLinkTagNames: ["react"],
+    });
+
+    return processLink({ link: testLink, aiSummaryEnabled: true }).pipe(
+      Effect.provide(testLayer),
+      Logger.withMinimumLogLevel(LogLevel.Error),
+      Effect.tap(() =>
+        Effect.sync(() => {
+          const tagEvents = committed.filter(
+            (e) => e.name === "v1.TagSuggested"
+          );
+          expect(tagEvents).toHaveLength(0);
+        })
+      )
+    );
+  });
+
   it.effect("commits linkProcessingFailed when AI service fails", () => {
     const store = createTestStore();
     const testLayer = Layer.mergeAll(
@@ -214,7 +283,14 @@ describe("processLink", () => {
         fetch: () => Effect.succeed(mockMetadata),
       }),
       Layer.succeed(ContentExtractor, {
-        extract: () => Effect.succeed({ title: "Test", content: "Content" }),
+        extract: () =>
+          Effect.succeed({
+            title: "Test",
+            content: "Content",
+            author: null,
+            published: null,
+            wordCount: 1,
+          }),
       }),
       Layer.succeed(AiSummaryGenerator, {
         generate: () =>
@@ -252,6 +328,7 @@ describe("processLink", () => {
       Layer.succeed(LinkEventStore, {
         commit: () => Effect.die("store dead"),
         queryTags: () => Effect.succeed([]),
+        queryLinkTagNames: () => Effect.succeed([]),
       })
     );
 
@@ -268,7 +345,13 @@ describe("processLink", () => {
   it.effect("emits one tagSuggested per AI suggestion", () => {
     const { testLayer, committed } = buildTestLayers({
       metadata: mockMetadata,
-      content: { title: "Example", content: "Content..." },
+      content: {
+        title: "Example",
+        content: "Content...",
+        author: null,
+        published: null,
+        wordCount: 1,
+      },
       aiResult: {
         summary: "A summary",
         suggestedTags: ["react", "typescript", "testing"],

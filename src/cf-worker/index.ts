@@ -126,41 +126,6 @@ app.post("/api/connect/raycast/exchange", (c) =>
   handleRaycastExchange(c.req.raw, c.env)
 );
 
-app.post("/api/links/:id/reprocess", (c) =>
-  Effect.runPromise(
-    Effect.gen(function* () {
-      const auth = yield* AuthClient;
-      const session = yield* Effect.promise(() =>
-        auth.api.getSession({ headers: c.req.raw.headers })
-      );
-
-      if (!session?.session) {
-        return c.json({ error: "Unauthorized" }, 401);
-      }
-
-      const orgId = session.session.activeOrganizationId;
-      if (!orgId) {
-        return c.json({ error: "No active organization" }, 400);
-      }
-
-      const linkId = c.req.param("id");
-      const processorId = c.env.LINK_PROCESSOR_DO.idFromName(orgId);
-      const processor = c.env.LINK_PROCESSOR_DO.get(processorId);
-
-      return yield* Effect.tryPromise({
-        catch: () => c.json({ error: "Internal error" }, 500),
-        try: async () => {
-          const resp = await processor.fetch(
-            `https://link-processor/?storeId=${orgId}&reprocess=${linkId}`
-          );
-          const body = await resp.json();
-          return c.json(body as Record<string, unknown>);
-        },
-      });
-    }).pipe(Effect.provide(AppLayerLive(c.env)))
-  )
-);
-
 app.post("/api/telegram", (c) => handleTelegramWebhook(c.req.raw, c.env));
 
 app.get("/api/sync/auth", async (c) => {

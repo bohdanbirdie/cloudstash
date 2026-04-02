@@ -14,13 +14,11 @@ import { AI_MODEL } from "./types";
 
 interface ProcessLinkParams {
   aiSummaryEnabled?: boolean;
-  isRetry?: boolean;
   link: { id: LinkId; url: string };
 }
 
 export const processLink = ({
   aiSummaryEnabled = false,
-  isRetry = false,
   link,
 }: ProcessLinkParams) =>
   Effect.gen(function* () {
@@ -31,15 +29,11 @@ export const processLink = ({
 
     const now = new Date();
 
-    yield* Effect.logInfo(
-      `Processing link ${isRetry ? "(retry)" : "started"}`
-    ).pipe(Effect.annotateLogs({ isRetry }));
+    yield* Effect.logInfo("Processing link started");
 
-    if (!isRetry) {
-      yield* linkStore.commit(
-        events.linkProcessingStarted({ linkId: link.id, updatedAt: now })
-      );
-    }
+    yield* linkStore.commit(
+      events.linkProcessingStarted({ linkId: link.id, updatedAt: now })
+    );
 
     const metadataResult = yield* metadataFetcher.fetch(link.url);
 
@@ -110,7 +104,18 @@ export const processLink = ({
         yield* Effect.logWarning("No summary generated");
       }
 
-      for (const suggestion of result.suggestedTags) {
+      const existingLinkTagNames = yield* linkStore.queryLinkTagNames(link.id);
+      const existingNameSet = new Set(
+        existingLinkTagNames.map((n) => n.toLowerCase())
+      );
+
+      const newSuggestions = result.suggestedTags.filter((suggestion) => {
+        const matchedTag = findMatchingTag(suggestion, existingTags);
+        const name = matchedTag?.name ?? suggestion;
+        return !existingNameSet.has(name.toLowerCase());
+      });
+
+      for (const suggestion of newSuggestions) {
         const matchedTag = findMatchingTag(suggestion, existingTags);
         yield* linkStore.commit(
           events.tagSuggested({
@@ -124,9 +129,12 @@ export const processLink = ({
         );
       }
 
-      if (result.suggestedTags.length > 0) {
+      if (newSuggestions.length > 0) {
         yield* Effect.logInfo("Tag suggestions emitted").pipe(
-          Effect.annotateLogs({ count: result.suggestedTags.length })
+          Effect.annotateLogs({
+            count: newSuggestions.length,
+            skipped: result.suggestedTags.length - newSuggestions.length,
+          })
         );
       }
     } else {
@@ -143,7 +151,7 @@ export const processLink = ({
     yield* Effect.logInfo("Link processing completed");
   }).pipe(
     Effect.withSpan("processLink", {
-      attributes: { aiSummaryEnabled, isRetry, linkId: link.id },
+      attributes: { aiSummaryEnabled, linkId: link.id },
     }),
     Effect.annotateLogs({ linkId: link.id }),
     Effect.catchAll((error) =>
