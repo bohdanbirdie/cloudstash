@@ -176,6 +176,8 @@ export function LinkDetailDialogContent({
 
   const processingRecord = store.useQuery(linkProcessingStatus$(linkId));
   const isProcessing = processingRecord?.status === "pending";
+  const isReprocessing =
+    processingRecord?.status === "reprocess-requested";
   const isFailed = processingRecord?.status === "failed";
   const { tagIds, setTagIds } = useLinkTags(linkId);
 
@@ -277,18 +279,21 @@ export function LinkDetailDialogContent({
                 <button
                   type="button"
                   onClick={handleRegenerate}
-                  disabled={isProcessing}
+                  disabled={isProcessing || isReprocessing}
                   className="text-muted-foreground hover:text-foreground transition-colors p-1 disabled:opacity-50"
                   aria-label="Regenerate summary"
                 >
                   <RefreshCwIcon
-                    className={cn("h-3 w-3", isProcessing && "animate-spin")}
+                    className={cn(
+                      "h-3 w-3",
+                      (isProcessing || isReprocessing) && "animate-spin",
+                    )}
                   />
                 </button>
               </div>
               <Markdown className="leading-relaxed">{link.summary}</Markdown>
             </div>
-          ) : isProcessing ? (
+          ) : isProcessing || isReprocessing ? (
             <div className="border-l-2 border-muted-foreground/30 bg-muted/50 pl-3 py-2">
               <TextShimmer className="text-sm" duration={1.5}>
                 Generating summary...
