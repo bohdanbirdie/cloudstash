@@ -43,6 +43,10 @@ export default defineWorkersConfig({
         __dirname,
         "src/cf-worker/__tests__/stubs/ajv-formats.ts"
       ),
+      "defuddle/node": path.resolve(
+        __dirname,
+        "src/cf-worker/__tests__/stubs/defuddle-node.ts"
+      ),
     },
   },
   ssr: {
@@ -58,8 +62,6 @@ export default defineWorkersConfig({
       "@cloudflare/ai-chat",
       /@ai-sdk\//,
       /@modelcontextprotocol\//,
-      "defuddle",
-      "linkedom",
     ],
   },
   test: {
