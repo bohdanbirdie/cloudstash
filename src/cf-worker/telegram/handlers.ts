@@ -42,7 +42,7 @@ export const handleLinks = (urls: string[]) =>
             m.reply("Please connect first: /connect <api-key>")
           )
         ),
-      InvalidApiKeyError: () =>
+      TelegramInvalidApiKeyError: () =>
         Messenger.pipe(
           Effect.flatMap((m) =>
             m.reply(
@@ -56,7 +56,7 @@ export const handleLinks = (urls: string[]) =>
             m.reply("Too many links today. Please try again tomorrow.")
           )
         ),
-      MissingOrgIdError: () =>
+      TelegramMissingOrgIdError: () =>
         Messenger.pipe(
           Effect.flatMap((m) =>
             m.reply(
@@ -83,11 +83,11 @@ export const handleConnect = (chatId: number, apiKeyText: string | undefined) =>
   }).pipe(
     Effect.withSpan("Telegram.handleConnect"),
     Effect.catchTags({
-      InvalidApiKeyError: () =>
+      TelegramInvalidApiKeyError: () =>
         Messenger.pipe(
           Effect.flatMap((m) => m.reply("Invalid or expired API key."))
         ),
-      MissingOrgIdError: () =>
+      TelegramMissingOrgIdError: () =>
         Messenger.pipe(
           Effect.flatMap((m) =>
             m.reply(

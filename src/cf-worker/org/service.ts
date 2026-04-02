@@ -10,17 +10,17 @@ import type { Env } from "../shared";
 import {
   AccessDeniedError,
   OrgNotFoundError,
-  UnauthorizedError,
+  OrgUnauthorizedError,
 } from "./errors";
 import { OrgFeatures, OrgFeaturesLive } from "./features-service";
 
 const getSession = (auth: Auth, headers: Headers) =>
   Effect.tryPromise({
-    catch: () => UnauthorizedError.make({}),
+    catch: () => OrgUnauthorizedError.make({}),
     try: () => auth.api.getSession({ headers }),
   }).pipe(
     Effect.flatMap((session) =>
-      session ? Effect.succeed(session) : UnauthorizedError.make({})
+      session ? Effect.succeed(session) : OrgUnauthorizedError.make({})
     )
   );
 
@@ -98,7 +98,7 @@ export const handleGetMe = (request: Request, env: Env): Promise<Response> =>
           Effect.logInfo("Get me org not found").pipe(
             Effect.as(Response.json({ error: "Organization not found" }, { status: 404 }))
           ),
-        UnauthorizedError: () =>
+        OrgUnauthorizedError: () =>
           Effect.logDebug("Get me unauthorized").pipe(
             Effect.as(Response.json({ error: "Unauthorized" }, { status: 401 }))
           ),
@@ -186,7 +186,7 @@ export const handleGetOrg = (
             Effect.annotateLogs({ orgId: maskId(orgId) }),
             Effect.as(Response.json({ error: "Organization not found" }, { status: 404 }))
           ),
-        UnauthorizedError: () =>
+        OrgUnauthorizedError: () =>
           Effect.logDebug("Get org unauthorized").pipe(
             Effect.as(Response.json({ error: "Unauthorized" }, { status: 401 }))
           ),

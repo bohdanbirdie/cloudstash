@@ -80,11 +80,11 @@ function runExchange(
 }
 
 describe("handleConnectRequest", () => {
-  it.effect("fails with UnauthorizedError when session is null", () =>
+  it.effect("fails with ConnectUnauthorizedError when session is null", () =>
     runConnect({ session: null }).pipe(
       Effect.flip,
       Effect.tap((error) => Effect.sync(() => {
-        expect(error._tag).toBe("UnauthorizedError");
+        expect(error._tag).toBe("ConnectUnauthorizedError");
       }))
     )
   );

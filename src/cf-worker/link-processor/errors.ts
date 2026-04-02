@@ -1,7 +1,7 @@
 import { Schema } from "effect";
 
-export class InvalidUrlError extends Schema.TaggedError<InvalidUrlError>()(
-  "InvalidUrlError",
+export class LinkProcessorInvalidUrlError extends Schema.TaggedError<LinkProcessorInvalidUrlError>()(
+  "LinkProcessorInvalidUrlError",
   {
     url: Schema.String,
   }

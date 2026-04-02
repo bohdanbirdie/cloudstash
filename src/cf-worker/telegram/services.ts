@@ -3,10 +3,10 @@ import type { Effect } from "effect";
 
 import type { OrgId } from "../db/branded";
 import type {
-  InvalidApiKeyError,
-  MissingOrgIdError,
+  TelegramInvalidApiKeyError,
+  TelegramMissingOrgIdError,
   NotConnectedError,
-  QueueSendError,
+  TelegramQueueSendError,
   RateLimitError,
 } from "./errors";
 
@@ -24,15 +24,15 @@ export class SourceAuth extends Context.Tag("SourceAuth")<
     readonly authenticate: () => Effect.Effect<
       { orgId: OrgId },
       | NotConnectedError
-      | InvalidApiKeyError
+      | TelegramInvalidApiKeyError
       | RateLimitError
-      | MissingOrgIdError
+      | TelegramMissingOrgIdError
     >;
     readonly verify: (
       apiKey: string
     ) => Effect.Effect<
       void,
-      InvalidApiKeyError | RateLimitError | MissingOrgIdError
+      TelegramInvalidApiKeyError | RateLimitError | TelegramMissingOrgIdError
     >;
   }
 >() {}
@@ -43,7 +43,7 @@ export class LinkQueue extends Context.Tag("LinkQueue")<
     readonly enqueue: (
       url: string,
       storeId: OrgId
-    ) => Effect.Effect<void, QueueSendError>;
+    ) => Effect.Effect<void, TelegramQueueSendError>;
   }
 >() {}
 

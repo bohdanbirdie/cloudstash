@@ -4,7 +4,7 @@ import { Effect, Schema } from "effect";
 import {
   MetadataFetchError,
   MetadataParseError,
-  MissingUrlError,
+  MetadataMissingUrlError,
 } from "./errors";
 import { MetadataParser } from "./parser";
 import { OgMetadata, ResolvedUrl } from "./schema";
@@ -74,7 +74,7 @@ export const handleMetadataRequest = Effect.fn("MetadataService.handleMetadataRe
 
     if (!targetUrl) {
       yield* Effect.logWarning("Missing URL parameter");
-      return yield* MissingUrlError.make({});
+      return yield* MetadataMissingUrlError.make({});
     }
 
     const metadata = yield* fetchOgMetadata(targetUrl);
@@ -111,7 +111,7 @@ export const metadataRequestToResponse = (
             Response.json({ error: "Failed to parse metadata" }, { status: 500 })
           )
         ),
-      MissingUrlError: () =>
+      MetadataMissingUrlError: () =>
         Effect.succeed(
           Response.json({ error: "Missing url parameter" }, { status: 400 })
         ),

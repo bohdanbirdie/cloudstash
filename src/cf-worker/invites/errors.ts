@@ -2,13 +2,13 @@ import { Schema } from "effect";
 
 import { InviteId } from "../db/branded";
 
-export class UnauthorizedError extends Schema.TaggedError<UnauthorizedError>()(
-  "UnauthorizedError",
+export class InvitesUnauthorizedError extends Schema.TaggedError<InvitesUnauthorizedError>()(
+  "InvitesUnauthorizedError",
   {}
 ) {}
 
-export class ForbiddenError extends Schema.TaggedError<ForbiddenError>()(
-  "ForbiddenError",
+export class InvitesForbiddenError extends Schema.TaggedError<InvitesForbiddenError>()(
+  "InvitesForbiddenError",
   {}
 ) {}
 
@@ -25,7 +25,7 @@ export class InviteNotFoundError extends Schema.TaggedError<InviteNotFoundError>
 ) {}
 
 export type InviteError =
-  | UnauthorizedError
-  | ForbiddenError
+  | InvitesUnauthorizedError
+  | InvitesForbiddenError
   | InvalidInviteError
   | InviteNotFoundError;

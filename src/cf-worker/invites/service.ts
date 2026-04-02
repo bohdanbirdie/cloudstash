@@ -12,10 +12,10 @@ import {
 import { sendApprovalEmail } from "../email/send-approval-email";
 import type { Env } from "../shared";
 import {
-  ForbiddenError,
+  InvitesForbiddenError,
   InvalidInviteError,
   InviteNotFoundError,
-  UnauthorizedError,
+  InvitesUnauthorizedError,
 } from "./errors";
 import { InviteStore, InviteStoreLive } from "./store";
 
@@ -34,18 +34,18 @@ function generateInviteId(): InviteId {
 
 const getSession = (auth: Auth, headers: Headers) =>
   Effect.tryPromise({
-    catch: () => new UnauthorizedError(),
+    catch: () => new InvitesUnauthorizedError(),
     try: () => auth.api.getSession({ headers }),
   }).pipe(
     Effect.flatMap((session) =>
-      session ? Effect.succeed(session) : Effect.fail(new UnauthorizedError())
+      session ? Effect.succeed(session) : Effect.fail(new InvitesUnauthorizedError())
     )
   );
 
 const requireAdmin = (session: { user: { role?: string | null } }) =>
   session.user.role === "admin"
     ? Effect.void
-    : Effect.fail(new ForbiddenError());
+    : Effect.fail(new InvitesForbiddenError());
 
 const handleCreateInviteRequest = Effect.fn("Invites.handleCreateInviteRequest")(function* (request: Request) {
     const auth = yield* AuthClient;
@@ -90,11 +90,11 @@ export const handleCreateInvite = (
           Effect.succeed(
             Response.json({ error: "Internal server error" }, { status: 500 })
           ),
-        ForbiddenError: () =>
+        InvitesForbiddenError: () =>
           Effect.succeed(
             Response.json({ error: "Admin access required" }, { status: 403 })
           ),
-        UnauthorizedError: () =>
+        InvitesUnauthorizedError: () =>
           Effect.succeed(
             Response.json({ error: "Unauthorized" }, { status: 401 })
           ),
@@ -127,11 +127,11 @@ export const handleListInvites = (
           Effect.succeed(
             Response.json({ error: "Internal server error" }, { status: 500 })
           ),
-        ForbiddenError: () =>
+        InvitesForbiddenError: () =>
           Effect.succeed(
             Response.json({ error: "Admin access required" }, { status: 403 })
           ),
-        UnauthorizedError: () =>
+        InvitesUnauthorizedError: () =>
           Effect.succeed(
             Response.json({ error: "Unauthorized" }, { status: 401 })
           ),
@@ -172,7 +172,7 @@ export const handleDeleteInvite = (
           Effect.succeed(
             Response.json({ error: "Internal server error" }, { status: 500 })
           ),
-        ForbiddenError: () =>
+        InvitesForbiddenError: () =>
           Effect.succeed(
             Response.json({ error: "Admin access required" }, { status: 403 })
           ),
@@ -180,7 +180,7 @@ export const handleDeleteInvite = (
           Effect.succeed(
             Response.json({ error: "Invite not found" }, { status: 404 })
           ),
-        UnauthorizedError: () =>
+        InvitesUnauthorizedError: () =>
           Effect.succeed(
             Response.json({ error: "Unauthorized" }, { status: 401 })
           ),
@@ -248,7 +248,7 @@ export const handleRedeemInvite = (
               { status: 400 }
             )
           ),
-        UnauthorizedError: () =>
+        InvitesUnauthorizedError: () =>
           Effect.succeed(
             Response.json({ error: "Unauthorized" }, { status: 401 })
           ),

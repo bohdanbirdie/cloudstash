@@ -2,8 +2,8 @@ import { Schema } from "effect";
 
 import { UserId } from "../db/branded";
 
-export class UnauthorizedError extends Schema.TaggedError<UnauthorizedError>()(
-  "UnauthorizedError",
+export class ConnectUnauthorizedError extends Schema.TaggedError<ConnectUnauthorizedError>()(
+  "ConnectUnauthorizedError",
   {}
 ) {}
 
@@ -32,7 +32,7 @@ export class InvalidCodeError extends Schema.TaggedError<InvalidCodeError>()(
 ) {}
 
 export type ConnectError =
-  | UnauthorizedError
+  | ConnectUnauthorizedError
   | NoActiveOrgError
   | KeyCreationError
   | MissingCodeError

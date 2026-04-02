@@ -11,7 +11,7 @@ import {
   KeyCreationError,
   MissingCodeError,
   NoActiveOrgError,
-  UnauthorizedError,
+  ConnectUnauthorizedError,
 } from "./errors";
 import { ApiKeyStore, SessionProvider, VerificationStore } from "./services";
 
@@ -24,7 +24,7 @@ export const handleConnectRequest = Effect.fn("RaycastConnect.handleConnectReque
       .getSession(headers)
       .pipe(
         Effect.flatMap((s) =>
-          s ? Effect.succeed(s) : Effect.fail(new UnauthorizedError())
+          s ? Effect.succeed(s) : Effect.fail(new ConnectUnauthorizedError())
         )
       );
 
@@ -217,7 +217,7 @@ export const handleRaycastConnect = (
           Effect.succeed(
             Response.json({ error: "No active organization" }, { status: 400 })
           ),
-        UnauthorizedError: () =>
+        ConnectUnauthorizedError: () =>
           Effect.succeed(
             Response.json({ error: "Unauthorized" }, { status: 401 })
           ),

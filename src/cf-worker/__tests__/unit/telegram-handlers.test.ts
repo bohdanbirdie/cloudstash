@@ -4,10 +4,10 @@ import { expect } from "vitest";
 
 import { OrgId } from "../../db/branded";
 import {
-  InvalidApiKeyError,
-  MissingOrgIdError,
+  TelegramInvalidApiKeyError,
+  TelegramMissingOrgIdError,
   NotConnectedError,
-  QueueSendError,
+  TelegramQueueSendError,
   RateLimitError,
 } from "../../telegram/errors";
 import {
@@ -51,18 +51,18 @@ function createTestSourceAuth(
       if (result === "not-connected")
         return Effect.fail(new NotConnectedError({}));
       if (result === "invalid-key")
-        return Effect.fail(new InvalidApiKeyError({}));
+        return Effect.fail(new TelegramInvalidApiKeyError({}));
       if (result === "rate-limit") return Effect.fail(new RateLimitError({}));
       if (result === "missing-org-id")
-        return Effect.fail(new MissingOrgIdError({}));
+        return Effect.fail(new TelegramMissingOrgIdError({}));
       return Effect.succeed(result);
     },
     verify: (_apiKey) => {
       if (result === "invalid-key")
-        return Effect.fail(new InvalidApiKeyError({}));
+        return Effect.fail(new TelegramInvalidApiKeyError({}));
       if (result === "rate-limit") return Effect.fail(new RateLimitError({}));
       if (result === "missing-org-id")
-        return Effect.fail(new MissingOrgIdError({}));
+        return Effect.fail(new TelegramMissingOrgIdError({}));
       return Effect.void;
     },
   });
@@ -73,7 +73,7 @@ function createTestQueue(shouldFail = false) {
   const layer = Layer.succeed(LinkQueue, {
     enqueue: (url, storeId) => {
       if (shouldFail)
-        return Effect.fail(new QueueSendError({ cause: "Queue send failed" }));
+        return Effect.fail(new TelegramQueueSendError({ cause: "Queue send failed" }));
       enqueued.push({ url, storeId });
       return Effect.void;
     },

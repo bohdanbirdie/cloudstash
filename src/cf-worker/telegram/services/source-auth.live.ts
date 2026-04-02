@@ -5,8 +5,8 @@ import { AppLayerLive, AuthClient } from "../../auth/service";
 import { OrgId } from "../../db/branded";
 import type { Env } from "../../shared";
 import {
-  InvalidApiKeyError,
-  MissingOrgIdError,
+  TelegramInvalidApiKeyError,
+  TelegramMissingOrgIdError,
   NotConnectedError,
   RateLimitError,
 } from "../errors";
@@ -19,16 +19,16 @@ const verifyApiKey = Effect.fn("Telegram.verifyApiKey")(function* (auth: Auth, a
         if (message.includes("Rate limit")) {
           return new RateLimitError({});
         }
-        return new InvalidApiKeyError({});
+        return new TelegramInvalidApiKeyError({});
       },
       try: () => auth.api.verifyApiKey({ body: { key: apiKey } }),
     });
     if (!result.valid || !result.key) {
-      return yield* new InvalidApiKeyError({});
+      return yield* new TelegramInvalidApiKeyError({});
     }
     const orgId = result.key.metadata?.orgId;
     if (typeof orgId !== "string" || orgId.length === 0) {
-      return yield* new MissingOrgIdError({});
+      return yield* new TelegramMissingOrgIdError({});
     }
     return OrgId.make(orgId);
   });

@@ -1,17 +1,17 @@
 import { Schema } from "effect";
 
-export class MissingApiKeyError extends Schema.TaggedError<MissingApiKeyError>()(
-  "MissingApiKeyError",
+export class TelegramMissingApiKeyError extends Schema.TaggedError<TelegramMissingApiKeyError>()(
+  "TelegramMissingApiKeyError",
   {}
 ) {}
 
-export class InvalidApiKeyError extends Schema.TaggedError<InvalidApiKeyError>()(
-  "InvalidApiKeyError",
+export class TelegramInvalidApiKeyError extends Schema.TaggedError<TelegramInvalidApiKeyError>()(
+  "TelegramInvalidApiKeyError",
   {}
 ) {}
 
-export class MissingOrgIdError extends Schema.TaggedError<MissingOrgIdError>()(
-  "MissingOrgIdError",
+export class TelegramMissingOrgIdError extends Schema.TaggedError<TelegramMissingOrgIdError>()(
+  "TelegramMissingOrgIdError",
   {}
 ) {}
 
@@ -25,17 +25,17 @@ export class RateLimitError extends Schema.TaggedError<RateLimitError>()(
   {}
 ) {}
 
-export class QueueSendError extends Schema.TaggedError<QueueSendError>()(
-  "QueueSendError",
+export class TelegramQueueSendError extends Schema.TaggedError<TelegramQueueSendError>()(
+  "TelegramQueueSendError",
   {
     cause: Schema.Unknown,
   }
 ) {}
 
 export type TelegramError =
-  | MissingApiKeyError
-  | InvalidApiKeyError
-  | MissingOrgIdError
+  | TelegramMissingApiKeyError
+  | TelegramInvalidApiKeyError
+  | TelegramMissingOrgIdError
   | NotConnectedError
   | RateLimitError
-  | QueueSendError;
+  | TelegramQueueSendError;

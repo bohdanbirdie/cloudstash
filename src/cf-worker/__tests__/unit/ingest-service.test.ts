@@ -57,26 +57,26 @@ function run(
       Response.json(result, { status: ok ? 200 : 400 })
     ),
     Effect.catchTags({
-      InvalidApiKeyError: () =>
+      IngestInvalidApiKeyError: () =>
         Effect.succeed(
           Response.json({ error: "Invalid API key" }, { status: 401 })
         ),
-      InvalidUrlError: () =>
+      IngestInvalidUrlError: () =>
         Effect.succeed(
           Response.json({ error: "Invalid URL" }, { status: 400 })
         ),
-      MissingApiKeyError: () =>
+      IngestMissingApiKeyError: () =>
         Effect.succeed(
           Response.json({ error: "Missing API key" }, { status: 401 })
         ),
-      MissingOrgIdError: () =>
+      IngestMissingOrgIdError: () =>
         Effect.succeed(
           Response.json(
             { error: "API key missing orgId metadata" },
             { status: 401 }
           )
         ),
-      MissingUrlError: () =>
+      IngestMissingUrlError: () =>
         Effect.succeed(
           Response.json({ error: "Missing url" }, { status: 400 })
         ),

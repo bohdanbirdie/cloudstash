@@ -7,12 +7,12 @@ import type { LinkQueueMessage } from "../link-processor/types";
 import { maskId, safeErrorInfo } from "../log-utils";
 import type { Env } from "../shared";
 import {
-  InvalidApiKeyError,
-  InvalidUrlError,
-  MissingApiKeyError,
-  MissingOrgIdError,
-  MissingUrlError,
-  QueueSendError,
+  IngestInvalidApiKeyError,
+  IngestInvalidUrlError,
+  IngestMissingApiKeyError,
+  IngestMissingOrgIdError,
+  IngestMissingUrlError,
+  IngestQueueSendError,
 } from "./errors";
 
 export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
@@ -20,26 +20,26 @@ export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       yield* Effect.logWarning("Missing API key");
-      return yield* MissingApiKeyError.make({});
+      return yield* IngestMissingApiKeyError.make({});
     }
     const apiKey = authHeader.slice(7);
 
     const auth = yield* AuthClient;
 
     const verifyResult = yield* Effect.tryPromise({
-      catch: () => InvalidApiKeyError.make({}),
+      catch: () => IngestInvalidApiKeyError.make({}),
       try: () => auth.api.verifyApiKey({ body: { key: apiKey } }),
     });
 
     if (!verifyResult.valid || !verifyResult.key) {
       yield* Effect.logWarning("Invalid API key");
-      return yield* InvalidApiKeyError.make({});
+      return yield* IngestInvalidApiKeyError.make({});
     }
 
     const rawOrgId = verifyResult.key.metadata?.orgId as string | undefined;
     if (!rawOrgId) {
       yield* Effect.logWarning("API key missing orgId");
-      return yield* MissingOrgIdError.make({});
+      return yield* IngestMissingOrgIdError.make({});
     }
     const orgId = OrgId.make(rawOrgId);
 
@@ -52,23 +52,23 @@ export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
     });
 
     const body = yield* Effect.tryPromise({
-      catch: () => MissingUrlError.make({}),
+      catch: () => IngestMissingUrlError.make({}),
       try: (): Promise<{ url?: string }> => request.json(),
     });
 
     if (!body.url) {
       yield* Effect.logWarning("Missing URL in request body");
-      return yield* MissingUrlError.make({});
+      return yield* IngestMissingUrlError.make({});
     }
 
     const url = body.url;
 
     yield* Effect.try(() => new URL(url)).pipe(
-      Effect.mapError(() => new InvalidUrlError({ url }))
+      Effect.mapError(() => new IngestInvalidUrlError({ url }))
     );
 
     yield* Effect.tryPromise({
-      catch: (cause) => new QueueSendError({ cause }),
+      catch: (cause) => new IngestQueueSendError({ cause }),
       try: () =>
         env.LINK_QUEUE.send({
           source: "api",
@@ -94,31 +94,31 @@ export const ingestRequestToResponse = (
       Response.json(result, { status: ok ? 200 : 400 })
     ),
     Effect.catchTags({
-      InvalidApiKeyError: () =>
+      IngestInvalidApiKeyError: () =>
         Effect.succeed(
           Response.json({ error: "Invalid API key" }, { status: 401 })
         ),
-      InvalidUrlError: () =>
+      IngestInvalidUrlError: () =>
         Effect.succeed(
           Response.json({ error: "Invalid URL" }, { status: 400 })
         ),
-      MissingApiKeyError: () =>
+      IngestMissingApiKeyError: () =>
         Effect.succeed(
           Response.json({ error: "Missing API key" }, { status: 401 })
         ),
-      MissingOrgIdError: () =>
+      IngestMissingOrgIdError: () =>
         Effect.succeed(
           Response.json(
             { error: "API key missing orgId metadata" },
             { status: 401 }
           )
         ),
-      MissingUrlError: () =>
+      IngestMissingUrlError: () =>
         Effect.succeed(
           Response.json({ error: "Missing url" }, { status: 400 })
         ),
     }),
-    Effect.catchTag("QueueSendError", (error) =>
+    Effect.catchTag("IngestQueueSendError", (error) =>
       Effect.logError("Ingest failed").pipe(
         Effect.annotateLogs(safeErrorInfo(error)),
         Effect.as(Response.json({ error: "Queue send failed" }, { status: 500 }))
