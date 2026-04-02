@@ -8,6 +8,7 @@ import { unstable_batchedUpdates } from "react-dom";
 
 import {
   fetchSyncAuthStatus,
+  sendBroadcast,
   useSyncStatusStore,
 } from "@/stores/sync-status-store";
 
@@ -71,14 +72,17 @@ const useConnectionMonitor = (store: AppStore) => {
       Effect.gen(function* () {
         if (aborted) return;
 
-        const { error, clearError } = useSyncStatusStore.getState();
+        const { status: currentStatus, setStatus } =
+          useSyncStatusStore.getState();
 
         if (status.isConnected) {
-          if (error?.code === "UNKNOWN") clearError();
+          if (currentStatus.state !== "connected") {
+            setStatus({ state: "connected" });
+          }
           return;
         }
 
-        if (error && error.code !== "UNKNOWN") return;
+        if (currentStatus.state === "error") return;
 
         const now = Date.now();
         if (now - lastAuthCheck.current < AUTH_CHECK_COOLDOWN_MS) return;
@@ -89,15 +93,12 @@ const useConnectionMonitor = (store: AppStore) => {
         );
         if (aborted) return;
 
-        const state = useSyncStatusStore.getState();
-
         if (result.type === "auth_failed") {
           yield* Effect.promise(() => store.shutdownPromise().catch(() => {}));
-          state.setError(result.error);
-        } else {
-          state.setError({
-            code: "UNKNOWN",
-            message: "Sync paused. Your changes are saved locally.",
+          useSyncStatusStore.getState().setStatus({
+            state: "error",
+            code: result.code,
+            message: result.message,
           });
         }
       });
@@ -123,8 +124,59 @@ const useConnectionMonitor = (store: AppStore) => {
   }, [store]);
 };
 
+const useRetryStateListener = (storeId: string) => {
+  useEffect(() => {
+    const channelName = `livestore.sync-retry.${storeId}`;
+    const ch = new BroadcastChannel(channelName);
+
+    ch.addEventListener("message", (ev: MessageEvent) => {
+      const { status, setStatus } = useSyncStatusStore.getState();
+      if (status.state === "error") return;
+
+      const data = ev.data;
+      if (data?.type === "reconnecting") {
+        setStatus({ state: "reconnecting", attempt: data.attempt });
+      }
+    });
+
+    return () => ch.close();
+  }, [storeId]);
+};
+
+const useRetryResetOnFocus = (storeId: string) => {
+  useEffect(() => {
+    const channelName = `livestore.sync-retry.${storeId}`;
+
+    const postReset = () => {
+      const { status } = useSyncStatusStore.getState();
+      if (status.state === "connected" || status.state === "error") return;
+      sendBroadcast(channelName, { type: "reset" });
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      postReset();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", handleVisibility);
+    window.addEventListener("online", postReset);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", handleVisibility);
+      window.removeEventListener("online", postReset);
+    };
+  }, [storeId]);
+};
+
 export const ConnectionMonitor = () => {
   const store = useAppStore();
+  useEffect(() => {
+    useSyncStatusStore.getState().setStoreId(store.storeId);
+  }, [store.storeId]);
   useConnectionMonitor(store);
+  useRetryStateListener(store.storeId);
+  useRetryResetOnFocus(store.storeId);
   return null;
 };

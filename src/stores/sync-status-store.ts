@@ -8,27 +8,36 @@ export type SyncErrorCode =
   | "RATE_LIMITED"
   | "UNKNOWN";
 
-export interface SyncError {
-  code: SyncErrorCode;
-  message: string;
-}
+export type SyncStatus =
+  | { state: "connected" }
+  | { state: "reconnecting"; attempt: number }
+  | { state: "error"; code: SyncErrorCode; message: string };
 
 export type SyncAuthResult =
   | { type: "auth_ok" }
-  | { type: "auth_failed"; error: SyncError }
+  | { type: "auth_failed"; code: SyncErrorCode; message: string }
   | { type: "network_error" };
 
 interface SyncStatusState {
-  error: SyncError | null;
-  setError: (error: SyncError) => void;
-  clearError: () => void;
+  storeId: string | null;
+  status: SyncStatus;
+  setStoreId: (storeId: string) => void;
+  setStatus: (status: SyncStatus) => void;
 }
 
 export const useSyncStatusStore = create<SyncStatusState>((set) => ({
-  clearError: () => set({ error: null }),
-  error: null,
-  setError: (error) => set({ error }),
+  storeId: null,
+  status: { state: "connected" },
+  setStoreId: (storeId) => set({ storeId }),
+  setStatus: (status) => set({ status }),
 }));
+
+export function sendBroadcast(channelName: string, data: unknown): void {
+  const ch = new BroadcastChannel(channelName);
+  // oxlint-disable-next-line unicorn/require-post-message-target-origin -- BroadcastChannel, not window
+  ch.postMessage(data);
+  ch.close();
+}
 
 export async function fetchSyncAuthStatus(
   storeId: string
@@ -46,20 +55,16 @@ export async function fetchSyncAuthStatus(
       toast.warning("Too many requests — sync will resume shortly");
       return {
         type: "auth_failed",
-        error: {
-          code: "RATE_LIMITED" satisfies SyncErrorCode,
-          message: "Too many requests. Please wait a moment.",
-        },
+        code: "RATE_LIMITED",
+        message: "Too many requests. Please wait a moment.",
       };
     }
 
     const data: { code?: SyncErrorCode; message?: string } = await res.json();
     return {
       type: "auth_failed",
-      error: {
-        code: data.code ?? "UNKNOWN",
-        message: data.message ?? "Sync connection failed",
-      },
+      code: data.code ?? "UNKNOWN",
+      message: data.message ?? "Sync connection failed",
     };
   } catch {
     return { type: "network_error" };

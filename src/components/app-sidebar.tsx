@@ -20,6 +20,7 @@ import { AdminModal } from "@/components/admin";
 import { useChatPanel } from "@/components/chat/chat-context";
 import { CHAT_HOTKEY } from "@/components/chat/chat-sheet-provider";
 import { IntegrationsModal } from "@/components/integrations";
+import { SyncStatusIndicator } from "@/components/sync-status-indicator";
 import { TagManagerDialog } from "@/components/tags/tag-manager-dialog";
 import {
   AlertDialog,
@@ -180,6 +181,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
+        <SyncStatusIndicator />
         <SidebarMenu>
           {auth.role === "admin" && (
             <SidebarMenuItem>

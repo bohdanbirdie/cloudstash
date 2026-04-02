@@ -1,0 +1,78 @@
+diff --git a/dist/client/transport/ws-rpc-client.js b/dist/client/transport/ws-rpc-client.js
+--- a/dist/client/transport/ws-rpc-client.js
++++ b/dist/client/transport/ws-rpc-client.js
+@@ -1,6 +1,8 @@
+ import { IsOfflineError, SyncBackend, UnknownError } from '@livestore/common';
+ import { splitChunkBySize } from '@livestore/common/sync';
+ import { omit } from '@livestore/utils';
++import * as ScheduleDecision from 'effect/ScheduleDecision';
++import * as ScheduleInterval from 'effect/ScheduleInterval';
+ import { Chunk, Effect, Layer, Option, RpcClient, RpcSerialization, Schedule, Schema, Socket, Stream, SubscriptionRef, UrlParams, } from '@livestore/utils/effect';
+ import { MAX_PUSH_EVENTS_PER_REQUEST, MAX_WS_MESSAGE_BYTES } from "../../common/constants.js";
+ import { SearchParamsSchema } from "../../common/mod.js";
+@@ -36,7 +38,23 @@ export const makeWsSync = (options) => ({ storeId, payload }) => Effect.gen(func
+     const pingInterval = options.ping?.requestInterval ?? 10_000;
+     const ProtocolLive = RpcClient.layerProtocolSocketWithIsConnected({
+         isConnected,
+-        retryTransientErrors: Schedule.exponential('1 seconds').pipe(Schedule.union(Schedule.fixed('30 seconds')), Schedule.jittered),
++        retryTransientErrors: (() => {
++            const channelName = `livestore.sync-retry.${storeId}`;
++            const ch = new BroadcastChannel(channelName);
++            let shouldReset = false;
++            ch.addEventListener('message', (ev) => { if (ev.data?.type === 'reset') shouldReset = true; });
++            return Schedule.makeWithState(0, (now, _input, count) => {
++                if (shouldReset) {
++                    shouldReset = false;
++                    count = 0;
++                }
++                ch.postMessage({ type: 'reconnecting', attempt: count });
++                const baseDelay = Math.min(1000 * Math.pow(2, count), 30000);
++                const jitter = baseDelay * (0.5 + Math.random());
++                const delay = Math.min(jitter, 30000);
++                return Effect.succeed([count + 1, count, ScheduleDecision.continueWith(ScheduleInterval.after(now + delay))]);
++            });
++        })(),
+         pingSchedule: Schedule.once.pipe(Schedule.andThen(Schedule.fixed(pingInterval))),
+         url: wsUrl,
+     }).pipe(Layer.provide(Socket.layerWebSocket(wsUrl)), Layer.provide(Socket.layerWebSocketConstructorGlobal), Layer.provide(RpcSerialization.layerJson));
+diff --git a/src/client/transport/ws-rpc-client.ts b/src/client/transport/ws-rpc-client.ts
+--- a/src/client/transport/ws-rpc-client.ts
++++ b/src/client/transport/ws-rpc-client.ts
+@@ -3,6 +3,8 @@ import type { LiveStoreEvent } from '@livestore/common/schema'
+ import { splitChunkBySize } from '@livestore/common/sync'
+ import { omit } from '@livestore/utils'
+-import {
++import * as ScheduleDecision from 'effect/ScheduleDecision'
++import * as ScheduleInterval from 'effect/ScheduleInterval'
++import {
+   Chunk,
+   type Duration,
+   Effect,
+@@ -96,10 +100,23 @@ export const makeWsSync =
+
+       const ProtocolLive = RpcClient.layerProtocolSocketWithIsConnected({
+         isConnected,
+-        retryTransientErrors: Schedule.exponential('1 seconds').pipe(
+-          Schedule.union(Schedule.fixed('30 seconds')),
+-          Schedule.jittered,
+-        ),
++        retryTransientErrors: (() => {
++          const channelName = `livestore.sync-retry.${storeId}`
++          const ch = new BroadcastChannel(channelName)
++          let shouldReset = false
++          ch.addEventListener('message', (ev: MessageEvent) => { if (ev.data?.type === 'reset') shouldReset = true })
++          return Schedule.makeWithState(0, (now, _input, count) => {
++            if (shouldReset) {
++              shouldReset = false
++              count = 0
++            }
++            ch.postMessage({ type: 'reconnecting', attempt: count })
++            const baseDelay = Math.min(1000 * Math.pow(2, count), 30000)
++            const jitter = baseDelay * (0.5 + Math.random())
++            const delay = Math.min(jitter, 30000)
++            return Effect.succeed([count + 1, count, ScheduleDecision.continueWith(ScheduleInterval.after(now + delay))] as const)
++          })
++        })(),
+         pingSchedule: Schedule.once.pipe(Schedule.andThen(Schedule.fixed(pingInterval))),
+         url: wsUrl,
+       }).pipe(
