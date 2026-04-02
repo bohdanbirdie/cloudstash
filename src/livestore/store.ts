@@ -8,7 +8,6 @@ import { unstable_batchedUpdates } from "react-dom";
 
 import {
   fetchSyncAuthStatus,
-  sendBroadcast,
   useSyncStatusStore,
 } from "@/stores/sync-status-store";
 
@@ -84,6 +83,8 @@ const useConnectionMonitor = (store: AppStore) => {
 
         if (currentStatus.state === "error") return;
 
+        setStatus({ state: "reconnecting" });
+
         const now = Date.now();
         if (now - lastAuthCheck.current < AUTH_CHECK_COOLDOWN_MS) return;
         lastAuthCheck.current = now;
@@ -124,59 +125,8 @@ const useConnectionMonitor = (store: AppStore) => {
   }, [store]);
 };
 
-const useRetryStateListener = (storeId: string) => {
-  useEffect(() => {
-    const channelName = `livestore.sync-retry.${storeId}`;
-    const ch = new BroadcastChannel(channelName);
-
-    ch.addEventListener("message", (ev: MessageEvent) => {
-      const { status, setStatus } = useSyncStatusStore.getState();
-      if (status.state === "error") return;
-
-      const data = ev.data;
-      if (data?.type === "reconnecting") {
-        setStatus({ state: "reconnecting", attempt: data.attempt });
-      }
-    });
-
-    return () => ch.close();
-  }, [storeId]);
-};
-
-const useRetryResetOnFocus = (storeId: string) => {
-  useEffect(() => {
-    const channelName = `livestore.sync-retry.${storeId}`;
-
-    const postReset = () => {
-      const { status } = useSyncStatusStore.getState();
-      if (status.state === "connected" || status.state === "error") return;
-      sendBroadcast(channelName, { type: "reset" });
-    };
-
-    const handleVisibility = () => {
-      if (document.visibilityState !== "visible") return;
-      postReset();
-    };
-
-    document.addEventListener("visibilitychange", handleVisibility);
-    window.addEventListener("focus", handleVisibility);
-    window.addEventListener("online", postReset);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibility);
-      window.removeEventListener("focus", handleVisibility);
-      window.removeEventListener("online", postReset);
-    };
-  }, [storeId]);
-};
-
 export const ConnectionMonitor = () => {
   const store = useAppStore();
-  useEffect(() => {
-    useSyncStatusStore.getState().setStoreId(store.storeId);
-  }, [store.storeId]);
   useConnectionMonitor(store);
-  useRetryStateListener(store.storeId);
-  useRetryResetOnFocus(store.storeId);
   return null;
 };

@@ -10,7 +10,7 @@ export type SyncErrorCode =
 
 export type SyncStatus =
   | { state: "connected" }
-  | { state: "reconnecting"; attempt: number }
+  | { state: "reconnecting" }
   | { state: "error"; code: SyncErrorCode; message: string };
 
 export type SyncAuthResult =
@@ -19,25 +19,14 @@ export type SyncAuthResult =
   | { type: "network_error" };
 
 interface SyncStatusState {
-  storeId: string | null;
   status: SyncStatus;
-  setStoreId: (storeId: string) => void;
   setStatus: (status: SyncStatus) => void;
 }
 
 export const useSyncStatusStore = create<SyncStatusState>((set) => ({
-  storeId: null,
   status: { state: "connected" },
-  setStoreId: (storeId) => set({ storeId }),
   setStatus: (status) => set({ status }),
 }));
-
-export function sendBroadcast(channelName: string, data: unknown): void {
-  const ch = new BroadcastChannel(channelName);
-  // oxlint-disable-next-line unicorn/require-post-message-target-origin -- BroadcastChannel, not window
-  ch.postMessage(data);
-  ch.close();
-}
 
 export async function fetchSyncAuthStatus(
   storeId: string
