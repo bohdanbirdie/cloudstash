@@ -58,6 +58,8 @@ export default defineWorkersConfig({
       "@cloudflare/ai-chat",
       /@ai-sdk\//,
       /@modelcontextprotocol\//,
+      "defuddle",
+      "linkedom",
     ],
   },
   test: {
