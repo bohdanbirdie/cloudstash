@@ -1,4 +1,5 @@
 import { Defuddle } from "defuddle/node";
+import { parseHTML } from "linkedom";
 
 export interface ExtractedContent {
   title: string | null;
@@ -12,7 +13,8 @@ export function extractContent(
   html: string,
   url: string
 ): Promise<ExtractedContent | null> {
-  return Defuddle(html, url, {
+  const { document } = parseHTML(html);
+  return Defuddle(document, url, {
     markdown: true,
     removeImages: true,
     useAsync: false,
