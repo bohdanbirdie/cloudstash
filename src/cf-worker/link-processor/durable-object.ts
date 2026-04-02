@@ -247,8 +247,7 @@ export class LinkProcessorDO
     if (!nextLink) return;
 
     const existingStatus = statusMap.get(nextLink.id);
-    const isReprocess =
-      existingStatus?.status === "reprocess-requested";
+    const isReprocess = existingStatus?.status === "reprocess-requested";
 
     logger.info("Processing link decision", {
       linkId: nextLink.id,

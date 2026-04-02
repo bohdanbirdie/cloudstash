@@ -104,7 +104,18 @@ export const processLink = ({
         yield* Effect.logWarning("No summary generated");
       }
 
-      for (const suggestion of result.suggestedTags) {
+      const existingLinkTagNames = yield* linkStore.queryLinkTagNames(link.id);
+      const existingNameSet = new Set(
+        existingLinkTagNames.map((n) => n.toLowerCase())
+      );
+
+      const newSuggestions = result.suggestedTags.filter((suggestion) => {
+        const matchedTag = findMatchingTag(suggestion, existingTags);
+        const name = matchedTag?.name ?? suggestion;
+        return !existingNameSet.has(name.toLowerCase());
+      });
+
+      for (const suggestion of newSuggestions) {
         const matchedTag = findMatchingTag(suggestion, existingTags);
         yield* linkStore.commit(
           events.tagSuggested({
@@ -118,9 +129,12 @@ export const processLink = ({
         );
       }
 
-      if (result.suggestedTags.length > 0) {
+      if (newSuggestions.length > 0) {
         yield* Effect.logInfo("Tag suggestions emitted").pipe(
-          Effect.annotateLogs({ count: result.suggestedTags.length })
+          Effect.annotateLogs({
+            count: newSuggestions.length,
+            skipped: result.suggestedTags.length - newSuggestions.length,
+          })
         );
       }
     } else {

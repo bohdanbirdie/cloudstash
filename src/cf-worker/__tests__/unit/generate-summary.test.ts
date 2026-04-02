@@ -225,7 +225,15 @@ describe("generateSummary", () => {
     });
 
     return run(
-      { extractedContent: { title: null, content: "x".repeat(5000), author: null, published: null, wordCount: 5000 } },
+      {
+        extractedContent: {
+          title: null,
+          content: "x".repeat(5000),
+          author: null,
+          published: null,
+          wordCount: 5000,
+        },
+      },
       layer
     ).pipe(
       Effect.tap(() =>
@@ -276,7 +284,13 @@ describe("generateSummary", () => {
     return run(
       {
         metadata: { title: "Meta Title" },
-        extractedContent: { title: null, content: "Content here", author: null, published: null, wordCount: 2 },
+        extractedContent: {
+          title: null,
+          content: "Content here",
+          author: null,
+          published: null,
+          wordCount: 2,
+        },
       },
       layer
     ).pipe(

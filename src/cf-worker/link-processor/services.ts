@@ -73,6 +73,9 @@ export class LinkEventStore extends Context.Tag("LinkEventStore")<
     readonly queryTags: () => Effect.Effect<
       readonly { readonly id: TagId; readonly name: string }[]
     >;
+    readonly queryLinkTagNames: (
+      linkId: string
+    ) => Effect.Effect<readonly string[]>;
   }
 >() {}
 
