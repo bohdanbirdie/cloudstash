@@ -17,8 +17,7 @@ import { ApiKeyStore, SessionProvider, VerificationStore } from "./services";
 
 const logger = logSync("RaycastConnect");
 
-export const handleConnectRequest = (headers: Headers) =>
-  Effect.gen(function* () {
+export const handleConnectRequest = Effect.fn("RaycastConnect.handleConnectRequest")(function* (headers: Headers) {
     const sessionProvider = yield* SessionProvider;
     const apiKeyStore = yield* ApiKeyStore;
     const verificationStore = yield* VerificationStore;
@@ -57,11 +56,10 @@ export const handleConnectRequest = (headers: Headers) =>
     return { code };
   });
 
-export const handleExchangeRequest = (body: {
+export const handleExchangeRequest = Effect.fn("RaycastConnect.handleExchangeRequest")(function* (body: {
   code?: string;
   deviceName?: string;
-}) =>
-  Effect.gen(function* () {
+}) {
     const apiKeyStore = yield* ApiKeyStore;
     const verificationStore = yield* VerificationStore;
 

@@ -18,12 +18,11 @@ export class SyncAuthError extends Data.TaggedError("SyncAuthError")<{
  * Currently assumes storeId === activeOrganizationId.
  * Extend this when adding non-org store types.
  */
-export const checkSyncAuth = (
+export const checkSyncAuth = Effect.fn("Auth.checkSyncAuth")(function* (
   cookie: string | null,
   storeId: string,
   auth: Auth
-): Effect.Effect<{ userId: string }, SyncAuthError> =>
-  Effect.gen(function* () {
+) {
     if (!cookie) {
       return yield* new SyncAuthError({
         code: "SESSION_EXPIRED",

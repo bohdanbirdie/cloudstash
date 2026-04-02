@@ -22,8 +22,7 @@ class ForbiddenError {
   readonly _tag = "ForbiddenError";
 }
 
-const getSession = (headers: Headers) =>
-  Effect.gen(function* () {
+const getSession = Effect.fn("Admin.getSession")(function* (headers: Headers) {
     const auth = yield* AuthClient;
     return yield* Effect.tryPromise({
       catch: () => new UnauthorizedError(),

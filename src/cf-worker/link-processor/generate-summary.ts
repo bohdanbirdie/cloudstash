@@ -2,8 +2,6 @@ import { Effect } from "effect";
 import { z } from "zod";
 
 import type { ExtractedContent } from "./content-extractor";
-import type { AiCallError } from "./errors";
-import type { GenerateSummaryResult } from "./services";
 import { LinkProcessorAi } from "./services";
 
 function sanitizeContent(content: string): string {
@@ -69,17 +67,13 @@ interface GenerateSummaryParams {
   existingTags: readonly { readonly id: string; readonly name: string }[];
 }
 
-export const generateSummary = ({
-  url,
-  metadata,
-  extractedContent,
-  existingTags,
-}: GenerateSummaryParams): Effect.Effect<
-  GenerateSummaryResult,
-  AiCallError,
-  LinkProcessorAi
-> =>
-  Effect.gen(function* () {
+export const generateSummary = Effect.fn("LinkProcessor.generateSummary")(
+  function* ({
+    url,
+    metadata,
+    extractedContent,
+    existingTags,
+  }: GenerateSummaryParams) {
     let content: string;
     let contentSource: string;
 
@@ -140,4 +134,5 @@ export const generateSummary = ({
       summary: output.summary,
       suggestedTags: output.suggestedTags,
     };
-  });
+  }
+);

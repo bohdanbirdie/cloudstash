@@ -8,15 +8,15 @@ import { SunsetNotificationEmail } from "./templates/sunset-notification-email";
 
 const logger = logSync("Email");
 
-export const sendSunsetNotification = (params: {
-  email: string;
-  name: string | null;
-  apiKey: string;
-  deadlineDate: string;
-  appUrl: string;
-  emailFrom: string;
-}) =>
-  Effect.gen(function* () {
+export const sendSunsetNotification = Effect.fn("Email.sendSunsetNotification")(
+  function* (params: {
+    email: string;
+    name: string | null;
+    apiKey: string;
+    deadlineDate: string;
+    appUrl: string;
+    emailFrom: string;
+  }) {
     const resend = new Resend(params.apiKey);
 
     const templateProps = {
@@ -62,4 +62,5 @@ export const sendSunsetNotification = (params: {
       email: params.email,
       id: result.data?.id,
     });
-  });
+  }
+);

@@ -43,6 +43,7 @@ const checkChatAgentAccess = (
       )
     );
   }).pipe(
+    Effect.withSpan("ChatAgent.checkChatAgentAccess"),
     Effect.provide(Layer.provideMerge(OrgFeaturesLive, AppLayerLive(env)))
   );
 

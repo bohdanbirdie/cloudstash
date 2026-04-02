@@ -35,6 +35,7 @@ export const handleLinks = (urls: string[]) =>
       );
     }
   }).pipe(
+    Effect.withSpan("Telegram.handleLinks"),
     Effect.catchTags({
       NotConnectedError: () =>
         Messenger.pipe(
@@ -81,6 +82,7 @@ export const handleConnect = (chatId: number, apiKeyText: string | undefined) =>
     yield* keyStore.put(chatId, apiKeyText);
     yield* messenger.reply("Connected! Send me any link to save it.");
   }).pipe(
+    Effect.withSpan("Telegram.handleConnect"),
     Effect.catchTags({
       InvalidApiKeyError: () =>
         Messenger.pipe(
@@ -112,7 +114,7 @@ export const handleDisconnect = (chatId: number) =>
     yield* messenger.reply(
       "Disconnected. Use /connect <api-key> to reconnect."
     );
-  });
+  }).pipe(Effect.withSpan("Telegram.handleDisconnect"));
 
 export const extractUrls = (ctx: Context): string[] => {
   const { message } = ctx;

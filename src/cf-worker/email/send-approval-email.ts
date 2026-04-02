@@ -43,4 +43,4 @@ export const sendApprovalEmail = (
     }
 
     logger.info("Approval email sent", { email, id: result.data?.id });
-  }).pipe(Effect.catchAll(() => Effect.void));
+  }).pipe(Effect.withSpan("Email.sendApprovalEmail"), Effect.catchAll(() => Effect.void));

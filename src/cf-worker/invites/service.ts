@@ -45,8 +45,7 @@ const requireAdmin = (session: { user: { role?: string | null } }) =>
     ? Effect.void
     : Effect.fail(new ForbiddenError());
 
-const handleCreateInviteRequest = (request: Request) =>
-  Effect.gen(function* () {
+const handleCreateInviteRequest = Effect.fn("Invites.handleCreateInviteRequest")(function* (request: Request) {
     const auth = yield* AuthClient;
     const inviteStore = yield* InviteStore;
     const session = yield* getSession(auth, request.headers);
@@ -102,8 +101,7 @@ export const handleCreateInvite = (
     )
   );
 
-const handleListInvitesRequest = (request: Request) =>
-  Effect.gen(function* () {
+const handleListInvitesRequest = Effect.fn("Invites.handleListInvitesRequest")(function* (request: Request) {
     const auth = yield* AuthClient;
     const inviteStore = yield* InviteStore;
     const session = yield* getSession(auth, request.headers);
@@ -140,8 +138,7 @@ export const handleListInvites = (
     )
   );
 
-const handleDeleteInviteRequest = (request: Request, inviteId: string) =>
-  Effect.gen(function* () {
+const handleDeleteInviteRequest = Effect.fn("Invites.handleDeleteInviteRequest")(function* (request: Request, inviteId: string) {
     const auth = yield* AuthClient;
     const inviteStore = yield* InviteStore;
     const session = yield* getSession(auth, request.headers);
@@ -190,8 +187,7 @@ export const handleDeleteInvite = (
     )
   );
 
-const handleRedeemInviteRequest = (request: Request, env: Env) =>
-  Effect.gen(function* () {
+const handleRedeemInviteRequest = Effect.fn("Invites.handleRedeemInviteRequest")(function* (request: Request, env: Env) {
     const auth = yield* AuthClient;
     const inviteStore = yield* InviteStore;
     const session = yield* getSession(auth, request.headers);

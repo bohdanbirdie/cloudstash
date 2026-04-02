@@ -31,6 +31,7 @@ export async function handleListWorkspaces(
       logger.info("List workspaces", { count: workspaces.length });
       return Response.json({ workspaces });
     }).pipe(
+      Effect.withSpan("Admin.handleListWorkspaces"),
       Effect.provide(makeLayer(env)),
       Effect.catchTag("DbError", () =>
         Effect.succeed(
@@ -63,6 +64,7 @@ export async function handleGetOrgSettings(
       logger.debug("Get org settings", { orgId: maskId(orgId) });
       return Response.json({ features });
     }).pipe(
+      Effect.withSpan("Admin.handleGetOrgSettings"),
       Effect.provide(makeLayer(env)),
       Effect.catchTag("DbError", () =>
         Effect.succeed(
@@ -104,6 +106,7 @@ export async function handleUpdateOrgSettings(
       });
       return Response.json({ success: true, features: body.features });
     }).pipe(
+      Effect.withSpan("Admin.handleUpdateOrgSettings"),
       Effect.provide(makeLayer(env)),
       Effect.catchTag("InvalidBodyError", () => {
         logger.warn("Update org settings invalid body", {

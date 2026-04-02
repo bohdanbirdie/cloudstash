@@ -1,6 +1,5 @@
 import { Effect, Data } from "effect";
 
-import type { DbError } from "../db/service";
 import { OrgFeatures } from "../org/features-service";
 
 export class ChatFeatureDisabledError extends Data.TaggedError(
@@ -10,10 +9,8 @@ export class ChatFeatureDisabledError extends Data.TaggedError(
   message: string;
 }> {}
 
-export const checkChatFeatureEnabled = (
-  workspaceId: string
-): Effect.Effect<void, ChatFeatureDisabledError | DbError, OrgFeatures> =>
-  Effect.gen(function* () {
+export const checkChatFeatureEnabled = Effect.fn("ChatAgent.checkChatFeatureEnabled")(
+  function* (workspaceId: string) {
     const orgFeatures = yield* OrgFeatures;
     const features = yield* orgFeatures.get(workspaceId);
 
@@ -23,4 +20,5 @@ export const checkChatFeatureEnabled = (
         status: 403,
       });
     }
-  });
+  }
+);

@@ -87,4 +87,4 @@ export const processToolCalls = <Tools extends ToolSet>(
       ...messages.slice(0, -1),
       { ...msg, parts: processedParts.filter(Boolean) },
     ] as UIMessage[];
-  }).pipe(Effect.runPromise);
+  }).pipe(Effect.withSpan("ChatAgent.processToolCalls"), Effect.runPromise);

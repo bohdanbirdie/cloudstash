@@ -14,19 +14,11 @@ import {
   MissingUrlError,
   QueueSendError,
 } from "./errors";
-import type { IngestError } from "./errors";
 
 const logger = logSync("Ingest");
 
-export const handleIngestRequest = (
-  request: Request,
-  env: Env
-): Effect.Effect<
-  { result: { status: string }; ok: boolean },
-  IngestError,
-  AuthClient
-> =>
-  Effect.gen(function* () {
+export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
+  function* (request: Request, env: Env) {
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       logger.warn("Missing API key");
@@ -93,7 +85,8 @@ export const handleIngestRequest = (
     logger.info("Ingest queued", { url, orgId: maskId(orgId) });
 
     return { ok: true, result: { status: "queued" } };
-  });
+  }
+);
 
 export const ingestRequestToResponse = (
   request: Request,

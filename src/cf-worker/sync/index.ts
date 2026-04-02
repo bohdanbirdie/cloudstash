@@ -58,11 +58,10 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
   }
 }
 
-const validatePayload = (
+const validatePayload = Effect.fn("Sync.validatePayload")(function* (
   _payload: unknown,
   context: { storeId: string; headers: ReadonlyMap<string, string> }
-) =>
-  Effect.gen(function* () {
+) {
     const auth = yield* AuthClient;
     const cookie = context.headers.get("cookie");
     if (!cookie) {

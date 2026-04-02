@@ -142,10 +142,8 @@ export const processLink = ({
 
     yield* Effect.logInfo("Link processing completed");
   }).pipe(
+    Effect.withSpan("processLink", { attributes: { aiSummaryEnabled, isRetry, linkId: link.id } }),
     Effect.annotateLogs({ linkId: link.id }),
-    Effect.withSpan("processLink", {
-      attributes: { aiSummaryEnabled, isRetry, linkId: link.id },
-    }),
     Effect.catchAllCause((cause) =>
       Effect.gen(function* () {
         const linkStore = yield* LinkEventStore;

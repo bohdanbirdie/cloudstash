@@ -25,8 +25,7 @@ const getSession = (auth: Auth, headers: Headers) =>
     )
   );
 
-const getOrgWithFeatures = (auth: Auth, headers: Headers, orgId: string) =>
-  Effect.gen(function* () {
+const getOrgWithFeatures = Effect.fn("Org.getOrgWithFeatures")(function* (auth: Auth, headers: Headers, orgId: string) {
     const apiOrg = yield* Effect.tryPromise({
       catch: () => OrgNotFoundError.make({}),
       try: () =>
@@ -53,8 +52,7 @@ const getOrgWithFeatures = (auth: Auth, headers: Headers, orgId: string) =>
     };
   });
 
-const handleGetMeRequest = (request: Request) =>
-  Effect.gen(function* () {
+const handleGetMeRequest = Effect.fn("Org.handleGetMeRequest")(function* (request: Request) {
     const auth = yield* AuthClient;
     const session = yield* getSession(auth, request.headers);
     const orgId = session.session.activeOrganizationId;
@@ -157,8 +155,7 @@ const getFullOrganization = (
     })
   );
 
-const handleGetOrgRequest = (request: Request, orgId: string) =>
-  Effect.gen(function* () {
+const handleGetOrgRequest = Effect.fn("Org.handleGetOrgRequest")(function* (request: Request, orgId: string) {
     const auth = yield* AuthClient;
     const session = yield* getSession(auth, request.headers);
     return yield* getFullOrganization(

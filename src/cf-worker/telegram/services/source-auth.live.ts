@@ -11,8 +11,7 @@ import {
 } from "../errors";
 import { SourceAuth } from "../services";
 
-const verifyApiKey = (auth: Auth, apiKey: string) =>
-  Effect.gen(function* () {
+const verifyApiKey = Effect.fn("Telegram.verifyApiKey")(function* (auth: Auth, apiKey: string) {
     const result = yield* Effect.tryPromise({
       catch: (error) => {
         const message = String(error);

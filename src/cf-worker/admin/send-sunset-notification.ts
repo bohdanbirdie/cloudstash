@@ -79,6 +79,7 @@ export const handleSendSunsetNotification = async (
       logger.info("Sunset notifications complete", { sent, failed });
       return Response.json({ sent, failed, total: users.length, errors });
     }).pipe(
+      Effect.withSpan("Admin.handleSendSunsetNotification"),
       Effect.provide(AppLayerLive(env)),
       Effect.catchTag("DbError", () =>
         Effect.succeed(

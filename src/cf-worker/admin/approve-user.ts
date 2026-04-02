@@ -45,6 +45,7 @@ export const handleApproveUser = async (
       logger.info("User approved by admin", { userId });
       return Response.json({ success: true });
     }).pipe(
+      Effect.withSpan("Admin.handleApproveUser"),
       Effect.provide(AppLayerLive(env)),
       Effect.catchTag("DbError", () =>
         Effect.succeed(
