@@ -5,7 +5,6 @@ import { INVITE_CODE_CHARS, INVITE_CODE_LENGTH } from "@/lib/invite";
 import type { Auth } from "../auth";
 import { AppLayerLive, AuthClient } from "../auth/service";
 import { sendApprovalEmail } from "../email/send-approval-email";
-import { logSync } from "../logger";
 import type { Env } from "../shared";
 import {
   ForbiddenError,
@@ -14,8 +13,6 @@ import {
   UnauthorizedError,
 } from "./errors";
 import { InviteStore, InviteStoreLive } from "./store";
-
-const logger = logSync("Invites");
 
 function generateInviteCode(): string {
   const array = new Uint8Array(INVITE_CODE_LENGTH);
@@ -71,7 +68,7 @@ const handleCreateInviteRequest = Effect.fn("Invites.handleCreateInviteRequest")
       id: generateInviteId(),
     });
 
-    logger.info("Invite created", { hasExpiry: !!expiresAt });
+    yield* Effect.logInfo("Invite created").pipe(Effect.annotateLogs({ hasExpiry: !!expiresAt }));
     return { code, expiresAt };
   });
 
@@ -108,7 +105,7 @@ const handleListInvitesRequest = Effect.fn("Invites.handleListInvitesRequest")(f
 
     const invites = yield* inviteStore.list();
 
-    logger.debug("List invites", { count: invites.length });
+    yield* Effect.logDebug("List invites").pipe(Effect.annotateLogs({ count: invites.length }));
     return { invites };
   });
 
@@ -146,13 +143,13 @@ const handleDeleteInviteRequest = Effect.fn("Invites.handleDeleteInviteRequest")
     const invite = yield* inviteStore.findById(inviteId);
 
     if (!invite) {
-      logger.info("Delete invite not found");
+      yield* Effect.logInfo("Delete invite not found");
       return yield* new InviteNotFoundError();
     }
 
     yield* inviteStore.deleteById(inviteId);
 
-    logger.info("Invite deleted");
+    yield* Effect.logInfo("Invite deleted");
     return { success: true };
   });
 
@@ -192,7 +189,7 @@ const handleRedeemInviteRequest = Effect.fn("Invites.handleRedeemInviteRequest")
     const session = yield* getSession(auth, request.headers);
 
     if (session.user.approved) {
-      logger.debug("Redeem invite - already approved");
+      yield* Effect.logDebug("Redeem invite - already approved");
       return { success: true };
     }
 
@@ -202,14 +199,14 @@ const handleRedeemInviteRequest = Effect.fn("Invites.handleRedeemInviteRequest")
     });
 
     if (!body.code) {
-      logger.info("Redeem invite - missing code");
+      yield* Effect.logInfo("Redeem invite - missing code");
       return yield* new InvalidInviteError();
     }
 
     const invite = yield* inviteStore.findValidByCode(body.code);
 
     if (!invite) {
-      logger.info("Redeem invite - invalid or expired code");
+      yield* Effect.logInfo("Redeem invite - invalid or expired code");
       return yield* new InvalidInviteError();
     }
 
@@ -222,7 +219,7 @@ const handleRedeemInviteRequest = Effect.fn("Invites.handleRedeemInviteRequest")
       env.EMAIL_FROM
     );
 
-    logger.info("Invite redeemed", { inviteId: invite.id });
+    yield* Effect.logInfo("Invite redeemed").pipe(Effect.annotateLogs({ inviteId: invite.id }));
     return { success: true };
   });
 

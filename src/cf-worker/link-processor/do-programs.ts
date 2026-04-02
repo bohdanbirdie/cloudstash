@@ -15,7 +15,7 @@ interface IngestLinkParams {
   sourceMeta: string | null;
 }
 
-export const ingestLink = Effect.fn("ingestLink")(function* (
+export const ingestLink = Effect.fn("LinkProcessor.ingestLink")(function* (
   params: IngestLinkParams
 ) {
   const repo = yield* LinkRepository;
@@ -73,7 +73,7 @@ export const ingestLink = Effect.fn("ingestLink")(function* (
   return { status: "ingested" as const, linkId };
 });
 
-export const cancelStaleLinks = Effect.fn("cancelStaleLinks")(function* (
+export const cancelStaleLinks = Effect.fn("LinkProcessor.cancelStaleLinks")(function* (
   currentlyProcessing: ReadonlySet<string>,
   now: number
 ) {
@@ -127,7 +127,7 @@ export interface NotifyResultParams {
   suggestedTags: string[];
 }
 
-export const notifyResult = Effect.fn("notifyResult")(function* (
+export const notifyResult = Effect.fn("LinkProcessor.notifyResult")(function* (
   result: NotifyResultParams
 ) {
   const notifier = yield* SourceNotifier;

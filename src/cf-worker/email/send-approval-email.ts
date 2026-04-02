@@ -2,11 +2,8 @@ import { render } from "@react-email/render";
 import { Effect } from "effect";
 import { Resend } from "resend";
 
-import { logSync } from "../logger";
 import { EmailSendError } from "./errors";
 import { ApprovalEmail } from "./templates/approval-email";
-
-const logger = logSync("Email");
 
 export const sendApprovalEmail = (
   email: string,
@@ -31,16 +28,13 @@ export const sendApprovalEmail = (
           html,
           text,
         }),
-      catch: (cause) => {
-        logger.error("Failed to send approval email", { error: cause, email });
-        return new EmailSendError({ cause });
-      },
+      catch: (cause) => new EmailSendError({ cause }),
     });
 
     if (result.error) {
-      logger.error("Resend API error", { email, error: result.error });
+      yield* Effect.logError("Resend API error");
       return yield* new EmailSendError({ cause: result.error });
     }
 
-    logger.info("Approval email sent", { email, id: result.data?.id });
+    yield* Effect.logInfo("Approval email sent").pipe(Effect.annotateLogs({ id: result.data?.id }));
   }).pipe(Effect.withSpan("Email.sendApprovalEmail"), Effect.catchAll(() => Effect.void));

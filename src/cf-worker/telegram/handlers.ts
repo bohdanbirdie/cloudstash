@@ -2,10 +2,7 @@ import { Effect } from "effect";
 import type { Context } from "grammy";
 
 import { safeErrorInfo } from "../log-utils";
-import { logSync } from "../logger";
 import { LinkQueue, Messenger, SourceAuth, TelegramKeyStore } from "./services";
-
-const logger = logSync("Telegram");
 
 export const handleLinks = (urls: string[]) =>
   Effect.gen(function* () {
@@ -21,17 +18,19 @@ export const handleLinks = (urls: string[]) =>
       urls.map((url) => queue.enqueue(url, orgId))
     ).pipe(
       Effect.as("ok" as const),
-      Effect.catchAll((error) => {
-        logger.error("Queue send failed", safeErrorInfo(error));
-        return Effect.succeed("failed" as const);
-      })
+      Effect.catchAll((error) =>
+        Effect.logError("Queue send failed").pipe(
+          Effect.annotateLogs(safeErrorInfo(error)),
+          Effect.as("failed" as const)
+        )
+      )
     );
 
     if (enqueueResult === "failed") {
       yield* messenger.reply("Failed to save link. Please try again later.");
     } else {
-      yield* Effect.sync(() =>
-        logger.info("Links queued", { count: urls.length })
+      yield* Effect.logInfo("Links queued").pipe(
+        Effect.annotateLogs({ count: urls.length })
       );
     }
   }).pipe(

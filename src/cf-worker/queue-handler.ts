@@ -2,13 +2,10 @@ import { Data, Effect } from "effect";
 
 import type { LinkQueueMessage } from "./link-processor/types";
 import { safeErrorInfo } from "./log-utils";
-import { logSync } from "./logger";
 
 class QueueProcessError extends Data.TaggedError("QueueProcessError")<{
   cause: unknown;
 }> {}
-
-const logger = logSync("Queue");
 
 interface LinkProcessorStub {
   ingestAndProcess(
@@ -40,22 +37,21 @@ export async function handleQueueBatch(
           try: () => stub.ingestAndProcess(msg.body),
         });
 
-        logger.info("Queue message processed", {
-          linkId: result.linkId,
-          status: result.status,
-        });
+        yield* Effect.logInfo("Queue message processed").pipe(
+          Effect.annotateLogs({ linkId: result.linkId, status: result.status })
+        );
         msg.ack();
       }).pipe(
         Effect.catchAll((error) =>
-          Effect.sync(() => {
-            logger.error("Queue message failed", {
+          Effect.logError("Queue message failed").pipe(
+            Effect.annotateLogs({
               storeId: msg.body.storeId,
               url: msg.body.url,
               attempt: msg.attempts,
               ...safeErrorInfo(error),
-            });
-            msg.retry();
-          })
+            }),
+            Effect.tap(() => Effect.sync(() => msg.retry()))
+          )
         ),
         Effect.withSpan("Queue.processMessage")
       ),

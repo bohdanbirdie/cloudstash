@@ -65,9 +65,9 @@ const validatePayload = Effect.fn("Sync.validatePayload")(function* (
     const auth = yield* AuthClient;
     const cookie = context.headers.get("cookie");
     if (!cookie) {
-      logger.warn("Sync auth failed: missing cookie", {
-        storeId: maskId(context.storeId),
-      });
+      yield* Effect.logWarning("Sync auth failed: missing cookie").pipe(
+        Effect.annotateLogs({ storeId: maskId(context.storeId) })
+      );
       return yield* new MissingSessionCookieError();
     }
 
@@ -77,26 +77,28 @@ const validatePayload = Effect.fn("Sync.validatePayload")(function* (
     });
 
     if (!session?.session) {
-      logger.warn("Sync auth failed: invalid session", {
-        storeId: maskId(context.storeId),
-      });
+      yield* Effect.logWarning("Sync auth failed: invalid session").pipe(
+        Effect.annotateLogs({ storeId: maskId(context.storeId) })
+      );
       return yield* new InvalidSessionError();
     }
 
     if (session.session.activeOrganizationId !== context.storeId) {
-      logger.warn("Sync auth failed: org mismatch", {
-        storeId: maskId(context.storeId),
-        sessionOrgId: maskId(session.session.activeOrganizationId ?? "none"),
-      });
+      yield* Effect.logWarning("Sync auth failed: org mismatch").pipe(
+        Effect.annotateLogs({
+          storeId: maskId(context.storeId),
+          sessionOrgId: maskId(session.session.activeOrganizationId ?? "none"),
+        })
+      );
       return yield* new OrgAccessDeniedError({
         sessionOrgId: session.session.activeOrganizationId ?? null,
         storeId: context.storeId,
       });
     }
 
-    logger.debug("Sync auth OK", {
-      storeId: maskId(context.storeId),
-    });
+    yield* Effect.logDebug("Sync auth OK").pipe(
+      Effect.annotateLogs({ storeId: maskId(context.storeId) })
+    );
   });
 
 type SyncSearchParams = NonNullable<

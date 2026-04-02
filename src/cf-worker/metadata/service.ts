@@ -1,7 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 import { Effect, Schema } from "effect";
 
-import { logSync } from "../logger";
 import {
   MetadataFetchError,
   MetadataParseError,
@@ -10,9 +9,7 @@ import {
 import { MetadataParser } from "./parser";
 import { OgMetadata, ResolvedUrl } from "./schema";
 
-const logger = logSync("Metadata");
-
-export const fetchOgMetadata = Effect.fn("fetchOgMetadata")(
+export const fetchOgMetadata = Effect.fn("MetadataService.fetchOgMetadata")(
   function* fetchOgMetadata(targetUrl: string) {
     const response = yield* Effect.tryPromise({
       catch: (error) =>
@@ -69,19 +66,19 @@ export const fetchOgMetadata = Effect.fn("fetchOgMetadata")(
   }
 );
 
-export const handleMetadataRequest = Effect.fn("handleMetadataRequest")(
+export const handleMetadataRequest = Effect.fn("MetadataService.handleMetadataRequest")(
   function* handleMetadataRequest(request: Request) {
-    logger.info("Metadata request received");
+    yield* Effect.logInfo("Metadata request received");
     const url = new URL(request.url);
     const targetUrl = url.searchParams.get("url");
 
     if (!targetUrl) {
-      logger.warn("Missing URL parameter");
+      yield* Effect.logWarning("Missing URL parameter");
       return yield* MissingUrlError.make({});
     }
 
     const metadata = yield* fetchOgMetadata(targetUrl);
-    logger.info("Metadata fetched", { hasTitle: !!metadata.title });
+    yield* Effect.logInfo("Metadata fetched").pipe(Effect.annotateLogs({ hasTitle: !!metadata.title }));
     return metadata;
   }
 );
@@ -98,23 +95,22 @@ export const metadataRequestToResponse = (
       })
     ),
     Effect.catchTags({
-      MetadataFetchError: (e) => {
-        logger.info("Metadata fetch failed", { statusCode: e.statusCode });
-        return Effect.succeed(
-          Response.json(
-            { error: `Failed to fetch URL: ${e.statusCode}` },
-            {
-              status: 502,
-            }
+      MetadataFetchError: (e) =>
+        Effect.logInfo("Metadata fetch failed").pipe(
+          Effect.annotateLogs({ statusCode: e.statusCode }),
+          Effect.as(
+            Response.json(
+              { error: `Failed to fetch URL: ${e.statusCode}` },
+              { status: 502 }
+            )
           )
-        );
-      },
-      MetadataParseError: () => {
-        logger.warn("Metadata parse failed");
-        return Effect.succeed(
-          Response.json({ error: "Failed to parse metadata" }, { status: 500 })
-        );
-      },
+        ),
+      MetadataParseError: () =>
+        Effect.logWarning("Metadata parse failed").pipe(
+          Effect.as(
+            Response.json({ error: "Failed to parse metadata" }, { status: 500 })
+          )
+        ),
       MissingUrlError: () =>
         Effect.succeed(
           Response.json({ error: "Missing url parameter" }, { status: 400 })

@@ -4,7 +4,6 @@ import { trackEvent } from "../analytics";
 import { AppLayerLive, AuthClient } from "../auth/service";
 import type { LinkQueueMessage } from "../link-processor/types";
 import { maskId, safeErrorInfo } from "../log-utils";
-import { logSync } from "../logger";
 import type { Env } from "../shared";
 import {
   InvalidApiKeyError,
@@ -15,13 +14,11 @@ import {
   QueueSendError,
 } from "./errors";
 
-const logger = logSync("Ingest");
-
 export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
   function* (request: Request, env: Env) {
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      logger.warn("Missing API key");
+      yield* Effect.logWarning("Missing API key");
       return yield* MissingApiKeyError.make({});
     }
     const apiKey = authHeader.slice(7);
@@ -34,17 +31,17 @@ export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
     });
 
     if (!verifyResult.valid || !verifyResult.key) {
-      logger.warn("Invalid API key");
+      yield* Effect.logWarning("Invalid API key");
       return yield* InvalidApiKeyError.make({});
     }
 
     const orgId = verifyResult.key.metadata?.orgId as string | undefined;
     if (!orgId) {
-      logger.warn("API key missing orgId");
+      yield* Effect.logWarning("API key missing orgId");
       return yield* MissingOrgIdError.make({});
     }
 
-    logger.debug("API key verified", { orgId: maskId(orgId) });
+    yield* Effect.logDebug("API key verified").pipe(Effect.annotateLogs({ orgId: maskId(orgId) }));
 
     trackEvent(env.USAGE_ANALYTICS, {
       userId: verifyResult.key.referenceId ?? "api",
@@ -58,17 +55,14 @@ export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
     });
 
     if (!body.url) {
-      logger.warn("Missing URL in request body");
+      yield* Effect.logWarning("Missing URL in request body");
       return yield* MissingUrlError.make({});
     }
 
     const url = body.url;
 
     yield* Effect.try(() => new URL(url)).pipe(
-      Effect.mapError(() => {
-        logger.warn("Invalid URL format");
-        return new InvalidUrlError({ url });
-      })
+      Effect.mapError(() => new InvalidUrlError({ url }))
     );
 
     yield* Effect.tryPromise({
@@ -82,7 +76,7 @@ export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
         } satisfies LinkQueueMessage),
     });
 
-    logger.info("Ingest queued", { url, orgId: maskId(orgId) });
+    yield* Effect.logInfo("Ingest queued").pipe(Effect.annotateLogs({ url, orgId: maskId(orgId) }));
 
     return { ok: true, result: { status: "queued" } };
   }
@@ -122,10 +116,10 @@ export const ingestRequestToResponse = (
           Response.json({ error: "Missing url" }, { status: 400 })
         ),
     }),
-    Effect.catchAll((error) => {
-      logger.error("Ingest failed", safeErrorInfo(error));
-      return Effect.succeed(
-        Response.json({ error: "Queue send failed" }, { status: 500 })
-      );
-    })
+    Effect.catchAll((error) =>
+      Effect.logError("Ingest failed").pipe(
+        Effect.annotateLogs(safeErrorInfo(error)),
+        Effect.as(Response.json({ error: "Queue send failed" }, { status: 500 }))
+      )
+    )
   );

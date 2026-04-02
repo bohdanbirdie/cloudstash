@@ -2,11 +2,8 @@ import { render } from "@react-email/render";
 import { Effect } from "effect";
 import { Resend } from "resend";
 
-import { logSync } from "../logger";
 import { EmailSendError } from "./errors";
 import { SunsetNotificationEmail } from "./templates/sunset-notification-email";
-
-const logger = logSync("Email");
 
 export const sendSunsetNotification = Effect.fn("Email.sendSunsetNotification")(
   function* (params: {
@@ -41,26 +38,16 @@ export const sendSunsetNotification = Effect.fn("Email.sendSunsetNotification")(
           html,
           text,
         }),
-      catch: (cause) => {
-        logger.error("Failed to send sunset notification", {
-          error: cause,
-          email: params.email,
-        });
-        return new EmailSendError({ cause });
-      },
+      catch: (cause) => new EmailSendError({ cause }),
     });
 
     if (result.error) {
-      logger.error("Resend API error", {
-        email: params.email,
-        error: result.error,
-      });
+      yield* Effect.logError("Resend API error");
       return yield* new EmailSendError({ cause: result.error });
     }
 
-    logger.info("Sunset notification sent", {
-      email: params.email,
-      id: result.data?.id,
-    });
+    yield* Effect.logInfo("Sunset notification sent").pipe(
+      Effect.annotateLogs({ id: result.data?.id })
+    );
   }
 );

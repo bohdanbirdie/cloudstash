@@ -2,10 +2,7 @@ import { Effect } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
 import { sendApprovalEmail } from "../email/send-approval-email";
-import { logSync } from "../logger";
 import type { Env } from "../shared";
-
-const logger = logSync("Admin");
 
 export const handleApproveUser = async (
   request: Request,
@@ -42,7 +39,7 @@ export const handleApproveUser = async (
         env.EMAIL_FROM
       );
 
-      logger.info("User approved by admin", { userId });
+      yield* Effect.logInfo("User approved by admin").pipe(Effect.annotateLogs({ userId }));
       return Response.json({ success: true });
     }).pipe(
       Effect.withSpan("Admin.handleApproveUser"),

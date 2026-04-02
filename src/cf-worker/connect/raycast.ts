@@ -4,7 +4,6 @@ import { Effect, Layer } from "effect";
 import { AppLayerLive, AuthClient } from "../auth/service";
 import * as schema from "../db/schema";
 import { DbClient, query } from "../db/service";
-import { logSync } from "../logger";
 import type { Env } from "../shared";
 import {
   InvalidCodeError,
@@ -14,8 +13,6 @@ import {
   UnauthorizedError,
 } from "./errors";
 import { ApiKeyStore, SessionProvider, VerificationStore } from "./services";
-
-const logger = logSync("RaycastConnect");
 
 export const handleConnectRequest = Effect.fn("RaycastConnect.handleConnectRequest")(function* (headers: Headers) {
     const sessionProvider = yield* SessionProvider;
@@ -51,7 +48,7 @@ export const handleConnectRequest = Effect.fn("RaycastConnect.handleConnectReque
       60_000
     );
 
-    logger.info("Raycast connect code created", { userId });
+    yield* Effect.logInfo("Raycast connect code created").pipe(Effect.annotateLogs({ userId }));
 
     return { code };
   });
@@ -83,7 +80,7 @@ export const handleExchangeRequest = Effect.fn("RaycastConnect.handleExchangeReq
       yield* apiKeyStore.updateName(keyId, `Raycast — ${body.deviceName}`);
     }
 
-    logger.info("Raycast connect code exchanged");
+    yield* Effect.logInfo("Raycast connect code exchanged");
 
     return { apiKey: key };
   });
