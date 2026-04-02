@@ -1,5 +1,6 @@
 import { Effect, Layer, LogLevel, Logger } from "effect";
-import { describe, expect, it } from "vitest";
+import { it, describe } from "@effect/vitest";
+import { expect } from "vitest";
 
 import { LinkId, OrgId } from "../../db/branded";
 import {
@@ -79,183 +80,186 @@ const makeStatus = (overrides: Partial<Status> = {}): Status =>
 const silentLogger = Logger.withMinimumLogLevel(LogLevel.None);
 
 describe("ingestLink", () => {
-  it("ingests a new URL and commits linkCreatedV2", async () => {
+  it.effect("ingests a new URL and commits linkCreatedV2", () => {
     const repo = createTestRepo();
     const notifier = createTestNotifier();
     const testLayer = Layer.mergeAll(repo.layer, notifier.layer);
 
-    const result = await Effect.runPromise(
-      ingestLink({
-        url: "https://example.com",
-        storeId: OrgId.make("org-1"),
-        source: "telegram",
-        sourceMeta: null,
-      }).pipe(Effect.provide(testLayer), silentLogger)
+    return ingestLink({
+      url: "https://example.com",
+      storeId: OrgId.make("org-1"),
+      source: "telegram",
+      sourceMeta: null,
+    }).pipe(
+      Effect.provide(testLayer),
+      silentLogger,
+      Effect.tap((result) => Effect.sync(() => {
+        expect(result.status).toBe("ingested");
+        expect(result.linkId).toBeDefined();
+        expect(repo.committed).toHaveLength(1);
+        expect(repo.committed[0]).toMatchObject({
+          name: "v2.LinkCreated",
+          args: expect.objectContaining({
+            url: "https://example.com",
+            domain: "example.com",
+            source: "telegram",
+          }),
+        });
+      }))
     );
-
-    expect(result.status).toBe("ingested");
-    expect(result.linkId).toBeDefined();
-    expect(repo.committed).toHaveLength(1);
-    expect(repo.committed[0]).toMatchObject({
-      name: "v2.LinkCreated",
-      args: expect.objectContaining({
-        url: "https://example.com",
-        domain: "example.com",
-        source: "telegram",
-      }),
-    });
   });
 
-  it("returns duplicate and notifies when URL already exists", async () => {
+  it.effect("returns duplicate and notifies when URL already exists", () => {
     const existing = makeLink({ id: "existing-1", url: "https://example.com" });
     const repo = createTestRepo([existing]);
     const notifier = createTestNotifier();
     const testLayer = Layer.mergeAll(repo.layer, notifier.layer);
 
-    const result = await Effect.runPromise(
-      ingestLink({
-        url: "https://example.com",
-        storeId: OrgId.make("org-1"),
-        source: "telegram",
-        sourceMeta: null,
-      }).pipe(Effect.provide(testLayer), silentLogger)
+    return ingestLink({
+      url: "https://example.com",
+      storeId: OrgId.make("org-1"),
+      source: "telegram",
+      sourceMeta: null,
+    }).pipe(
+      Effect.provide(testLayer),
+      silentLogger,
+      Effect.tap((result) => Effect.sync(() => {
+        expect(result.status).toBe("duplicate");
+        expect(result.linkId).toBe("existing-1");
+        expect(repo.committed).toHaveLength(0);
+        expect(notifier.replies).toEqual([
+          { source: "telegram", text: "Link already saved." },
+        ]);
+      }))
     );
-
-    expect(result.status).toBe("duplicate");
-    expect(result.linkId).toBe("existing-1");
-    expect(repo.committed).toHaveLength(0);
-    expect(notifier.replies).toEqual([
-      { source: "telegram", text: "Link already saved." },
-    ]);
   });
 
-  it("returns invalid_url for bad URLs", async () => {
+  it.effect("returns invalid_url for bad URLs", () => {
     const repo = createTestRepo();
     const notifier = createTestNotifier();
     const testLayer = Layer.mergeAll(repo.layer, notifier.layer);
 
-    const result = await Effect.runPromise(
-      ingestLink({
-        url: "not-a-url",
-        storeId: OrgId.make("org-1"),
-        source: "telegram",
-        sourceMeta: null,
-      }).pipe(Effect.provide(testLayer), silentLogger)
+    return ingestLink({
+      url: "not-a-url",
+      storeId: OrgId.make("org-1"),
+      source: "telegram",
+      sourceMeta: null,
+    }).pipe(
+      Effect.provide(testLayer),
+      silentLogger,
+      Effect.tap((result) => Effect.sync(() => {
+        expect(result.status).toBe("invalid_url");
+        expect(repo.committed).toHaveLength(0);
+      }))
     );
-
-    expect(result.status).toBe("invalid_url");
-    expect(repo.committed).toHaveLength(0);
   });
 
-  it("strips www from domain", async () => {
+  it.effect("strips www from domain", () => {
     const repo = createTestRepo();
     const notifier = createTestNotifier();
     const testLayer = Layer.mergeAll(repo.layer, notifier.layer);
 
-    await Effect.runPromise(
-      ingestLink({
-        url: "https://www.example.com/page",
-        storeId: OrgId.make("org-1"),
-        source: "app",
-        sourceMeta: null,
-      }).pipe(Effect.provide(testLayer), silentLogger)
+    return ingestLink({
+      url: "https://www.example.com/page",
+      storeId: OrgId.make("org-1"),
+      source: "app",
+      sourceMeta: null,
+    }).pipe(
+      Effect.provide(testLayer),
+      silentLogger,
+      Effect.tap(() => Effect.sync(() => {
+        expect(repo.committed[0]).toMatchObject({
+          args: expect.objectContaining({ domain: "example.com" }),
+        });
+      }))
     );
-
-    expect(repo.committed[0]).toMatchObject({
-      args: expect.objectContaining({ domain: "example.com" }),
-    });
   });
 });
 
 describe("cancelStaleLinks", () => {
   const FIVE_MIN = 5 * 60 * 1000;
 
-  it("cancels a stale link with no status", async () => {
+  it.effect("cancels a stale link with no status", () => {
     const staleLink = makeLink({
       createdAt: new Date(Date.now() - FIVE_MIN - 1000),
     });
     const repo = createTestRepo([staleLink]);
     const now = Date.now();
 
-    const cancelled = await Effect.runPromise(
-      cancelStaleLinks(new Set(), now).pipe(
-        Effect.provide(repo.layer),
-        silentLogger
-      )
+    return cancelStaleLinks(new Set(), now).pipe(
+      Effect.provide(repo.layer),
+      silentLogger,
+      Effect.tap((cancelled) => Effect.sync(() => {
+        expect(cancelled).toBe(1);
+        expect(repo.committed[0]).toMatchObject({
+          name: "v1.LinkProcessingCancelled",
+          args: expect.objectContaining({ linkId: "link-1" }),
+        });
+      }))
     );
-
-    expect(cancelled).toBe(1);
-    expect(repo.committed[0]).toMatchObject({
-      name: "v1.LinkProcessingCancelled",
-      args: expect.objectContaining({ linkId: "link-1" }),
-    });
   });
 
-  it("skips links currently being processed", async () => {
+  it.effect("skips links currently being processed", () => {
     const staleLink = makeLink({
       createdAt: new Date(Date.now() - FIVE_MIN - 1000),
     });
     const repo = createTestRepo([staleLink]);
 
-    const cancelled = await Effect.runPromise(
-      cancelStaleLinks(new Set(["link-1"]), Date.now()).pipe(
-        Effect.provide(repo.layer),
-        silentLogger
-      )
+    return cancelStaleLinks(new Set(["link-1"]), Date.now()).pipe(
+      Effect.provide(repo.layer),
+      silentLogger,
+      Effect.tap((cancelled) => Effect.sync(() => {
+        expect(cancelled).toBe(0);
+        expect(repo.committed).toHaveLength(0);
+      }))
     );
-
-    expect(cancelled).toBe(0);
-    expect(repo.committed).toHaveLength(0);
   });
 
-  it("skips completed and cancelled links", async () => {
+  it.effect("skips completed and cancelled links", () => {
     const link = makeLink({
       createdAt: new Date(Date.now() - FIVE_MIN - 1000),
     });
     const status = makeStatus({ linkId: "link-1", status: "completed" });
     const repo = createTestRepo([link], [status]);
 
-    const cancelled = await Effect.runPromise(
-      cancelStaleLinks(new Set(), Date.now()).pipe(
-        Effect.provide(repo.layer),
-        silentLogger
-      )
+    return cancelStaleLinks(new Set(), Date.now()).pipe(
+      Effect.provide(repo.layer),
+      silentLogger,
+      Effect.tap((cancelled) => Effect.sync(() => {
+        expect(cancelled).toBe(0);
+      }))
     );
-
-    expect(cancelled).toBe(0);
   });
 
-  it("skips failed links", async () => {
+  it.effect("skips failed links", () => {
     const link = makeLink({
       createdAt: new Date(Date.now() - FIVE_MIN - 1000),
     });
     const status = makeStatus({ linkId: "link-1", status: "failed" });
     const repo = createTestRepo([link], [status]);
 
-    const cancelled = await Effect.runPromise(
-      cancelStaleLinks(new Set(), Date.now()).pipe(
-        Effect.provide(repo.layer),
-        silentLogger
-      )
+    return cancelStaleLinks(new Set(), Date.now()).pipe(
+      Effect.provide(repo.layer),
+      silentLogger,
+      Effect.tap((cancelled) => Effect.sync(() => {
+        expect(cancelled).toBe(0);
+        expect(repo.committed).toHaveLength(0);
+      }))
     );
-
-    expect(cancelled).toBe(0);
-    expect(repo.committed).toHaveLength(0);
   });
 
-  it("does not cancel fresh links", async () => {
+  it.effect("does not cancel fresh links", () => {
     const freshLink = makeLink({ createdAt: new Date() });
     const repo = createTestRepo([freshLink]);
 
-    const cancelled = await Effect.runPromise(
-      cancelStaleLinks(new Set(), Date.now()).pipe(
-        Effect.provide(repo.layer),
-        silentLogger
-      )
+    return cancelStaleLinks(new Set(), Date.now()).pipe(
+      Effect.provide(repo.layer),
+      silentLogger,
+      Effect.tap((cancelled) => Effect.sync(() => {
+        expect(cancelled).toBe(0);
+        expect(repo.committed).toHaveLength(0);
+      }))
     );
-
-    expect(cancelled).toBe(0);
-    expect(repo.committed).toHaveLength(0);
   });
 });
 
@@ -313,69 +317,73 @@ describe("notification dedup", () => {
 });
 
 describe("notifyResult", () => {
-  it("passes completed payload and commits notified event", async () => {
+  it.effect("passes completed payload and commits notified event", () => {
     const repo = createTestRepo();
     const notifier = createTestNotifier();
     const testLayer = Layer.mergeAll(repo.layer, notifier.layer);
 
-    await Effect.runPromise(
-      notifyResult({
-        linkId: LinkId.make("link-1"),
-        processingStatus: "completed",
-        source: "telegram",
-        sourceMeta: null,
-        summary: "A summary",
-        suggestedTags: ["tag1"],
-      }).pipe(Effect.provide(testLayer), silentLogger)
+    return notifyResult({
+      linkId: LinkId.make("link-1"),
+      processingStatus: "completed",
+      source: "telegram",
+      sourceMeta: null,
+      summary: "A summary",
+      suggestedTags: ["tag1"],
+    }).pipe(
+      Effect.provide(testLayer),
+      silentLogger,
+      Effect.tap(() => Effect.sync(() => {
+        expect(notifier.finalized).toEqual([
+          {
+            source: "telegram",
+            payload: {
+              processingStatus: "completed",
+              summary: "A summary",
+              suggestedTags: ["tag1"],
+            },
+          },
+        ]);
+        expect(repo.committed).toHaveLength(1);
+        expect(repo.committed[0]).toMatchObject({
+          name: "v1.LinkSourceNotified",
+          args: expect.objectContaining({ linkId: "link-1" }),
+        });
+      }))
     );
-
-    expect(notifier.finalized).toEqual([
-      {
-        source: "telegram",
-        payload: {
-          processingStatus: "completed",
-          summary: "A summary",
-          suggestedTags: ["tag1"],
-        },
-      },
-    ]);
-    expect(repo.committed).toHaveLength(1);
-    expect(repo.committed[0]).toMatchObject({
-      name: "v1.LinkSourceNotified",
-      args: expect.objectContaining({ linkId: "link-1" }),
-    });
   });
 
-  it("passes failed payload and commits notified event", async () => {
+  it.effect("passes failed payload and commits notified event", () => {
     const repo = createTestRepo();
     const notifier = createTestNotifier();
     const testLayer = Layer.mergeAll(repo.layer, notifier.layer);
 
-    await Effect.runPromise(
-      notifyResult({
-        linkId: LinkId.make("link-1"),
-        processingStatus: "failed",
-        source: "telegram",
-        sourceMeta: null,
-        summary: null,
-        suggestedTags: [],
-      }).pipe(Effect.provide(testLayer), silentLogger)
+    return notifyResult({
+      linkId: LinkId.make("link-1"),
+      processingStatus: "failed",
+      source: "telegram",
+      sourceMeta: null,
+      summary: null,
+      suggestedTags: [],
+    }).pipe(
+      Effect.provide(testLayer),
+      silentLogger,
+      Effect.tap(() => Effect.sync(() => {
+        expect(notifier.finalized).toEqual([
+          {
+            source: "telegram",
+            payload: {
+              processingStatus: "failed",
+              summary: null,
+              suggestedTags: [],
+            },
+          },
+        ]);
+        expect(repo.committed).toHaveLength(1);
+        expect(repo.committed[0]).toMatchObject({
+          name: "v1.LinkSourceNotified",
+        });
+      }))
     );
-
-    expect(notifier.finalized).toEqual([
-      {
-        source: "telegram",
-        payload: {
-          processingStatus: "failed",
-          summary: null,
-          suggestedTags: [],
-        },
-      },
-    ]);
-    expect(repo.committed).toHaveLength(1);
-    expect(repo.committed[0]).toMatchObject({
-      name: "v1.LinkSourceNotified",
-    });
   });
 });
 
