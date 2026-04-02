@@ -288,6 +288,13 @@ export const events = {
       id: Schema.String,
     }),
   }),
+  linkUntaggedV2: Events.synced({
+    name: "v2.LinkUntagged",
+    schema: Schema.Struct({
+      linkId: Schema.String,
+      tagId: Schema.String,
+    }),
+  }),
 
   tagSuggested: Events.synced({
     name: "v1.TagSuggested",
@@ -415,8 +422,10 @@ const materializers = State.SQLite.materializers(events, {
   "v1.LinkTagged": ({ id, linkId, tagId, createdAt }) =>
     tables.linkTags
       .insert({ createdAt, id, linkId, tagId })
-      .onConflict("id", "ignore"),
+      .onConflict(["linkId", "tagId"], "ignore"),
   "v1.LinkUntagged": ({ id }) => tables.linkTags.delete().where({ id }),
+  "v2.LinkUntagged": ({ linkId, tagId }) =>
+    tables.linkTags.delete().where({ linkId, tagId }),
 
   "v1.TagSuggested": ({
     id,

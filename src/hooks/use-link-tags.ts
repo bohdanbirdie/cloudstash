@@ -21,8 +21,7 @@ export function useLinkTags(linkId: string) {
 
       for (const id of currentIds) {
         if (!newIds.has(id)) {
-          const linkTagId = `${linkId}-${id}`;
-          store.commit(events.linkUntagged({ id: linkTagId }));
+          store.commit(events.linkUntaggedV2({ linkId, tagId: id }));
           removed++;
         }
       }

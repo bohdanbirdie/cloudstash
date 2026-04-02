@@ -1,5 +1,4 @@
 import { CheckIcon, SparklesIcon, XIcon } from "lucide-react";
-import { nanoid } from "nanoid";
 import slugify from "slugify";
 
 import { TagBadge } from "@/components/tags/tag-badge";
@@ -37,7 +36,7 @@ export function TagSuggestions({ linkId }: TagSuggestionsProps) {
       store.commit(
         events.linkTagged({
           createdAt: new Date(),
-          id: nanoid(),
+          id: `${linkId}-${id}`,
           linkId,
           tagId: id,
         })
@@ -46,7 +45,7 @@ export function TagSuggestions({ linkId }: TagSuggestionsProps) {
       store.commit(
         events.linkTagged({
           createdAt: new Date(),
-          id: nanoid(),
+          id: `${linkId}-${suggestion.tagId}`,
           linkId,
           tagId: suggestion.tagId,
         })
