@@ -1,4 +1,5 @@
-import { OtlpSerialization, OtlpTracer } from "@effect/opentelemetry";
+import * as OtlpSerialization from "@effect/opentelemetry/OtlpSerialization";
+import * as OtlpTracer from "@effect/opentelemetry/OtlpTracer";
 import { FetchHttpClient } from "@effect/platform";
 import { Layer } from "effect";
 
