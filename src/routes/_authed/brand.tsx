@@ -91,6 +91,13 @@ function BrandPage() {
             clipType="circle"
             palette={MIDNIGHT}
           />
+          <ExportVariant
+            label="Square (1024)"
+            cellSize={cellSize}
+            size={1024}
+            clipType="square"
+            palette={MIDNIGHT}
+          />
         </div>
         <CellSizeSlider value={cellSize} onChange={setCellSize} />
       </section>
@@ -127,6 +134,13 @@ function BrandPage() {
             clipType="circle"
             palette={STAGING_PALETTE}
           />
+          <ExportVariant
+            label="Square (1024)"
+            cellSize={cellSize}
+            size={1024}
+            clipType="square"
+            palette={STAGING_PALETTE}
+          />
         </div>
         <CellSizeSlider value={cellSize} onChange={setCellSize} />
       </section>
@@ -137,7 +151,11 @@ function BrandPage() {
         <div className="flex flex-wrap items-start justify-center gap-10">
           <OgPreview cellSize={ogCellSize} />
         </div>
-        <CellSizeSlider value={ogCellSize} onChange={setOgCellSize} />
+        <CellSizeSlider
+          value={ogCellSize}
+          onChange={setOgCellSize}
+          label="OG Cell Size"
+        />
       </section>
     </div>
   );
@@ -154,15 +172,18 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 function CellSizeSlider({
   value,
   onChange,
+  label = "Cell Size",
 }: {
   value: number;
   onChange: (v: number) => void;
+  label?: string;
 }) {
   return (
     <div className="mt-6 flex items-center justify-center gap-3">
-      <span className="text-xs text-muted-foreground">Cell Size</span>
+      <span className="text-xs text-muted-foreground">{label}</span>
       <input
         type="range"
+        aria-label={label}
         min={1}
         max={5}
         step={0.25}
@@ -379,16 +400,21 @@ function LogoVariant({
         </g>
       </svg>
       <Label>{palette.name}</Label>
-      <ExportButton onClick={handleExport} />
+      <ExportButton onClick={handleExport} label={palette.name} />
     </div>
   );
 }
 
 // --- Export format variants (row 3) ---
 
-type ClipType = "squircle" | "circle" | "raycast";
+type ClipType = "squircle" | "circle" | "raycast" | "square";
 
 function clipPathForType(type: ClipType, size: number): Path2D {
+  if (type === "square") {
+    const p = new Path2D();
+    p.rect(0, 0, size, size);
+    return p;
+  }
   if (type === "circle") {
     const p = new Path2D();
     p.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
@@ -412,6 +438,9 @@ function clipPathForType(type: ClipType, size: number): Path2D {
 }
 
 function svgClipForType(type: ClipType): string {
+  if (type === "square") {
+    return "M 8,8 H 112 V 112 H 8 Z";
+  }
   if (type === "circle") {
     return "M 60,8 A 52,52 0 1,1 59.99,8 Z";
   }
@@ -564,7 +593,8 @@ function ExportVariant({
     [cellSize, palette]
   );
   const svgClip = useMemo(() => svgClipForType(clipType), [clipType]);
-  const clipId = `export-${slug}-${clipType}`;
+  const labelSlug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const clipId = `export-${slug}-${clipType}-${labelSlug}`;
 
   const handleExport = useCallback(() => {
     const canvas = renderExportCanvas(cellSize, clipType, size, palette);
@@ -623,7 +653,7 @@ function ExportVariant({
         </g>
       </svg>
       <Label>{label}</Label>
-      <ExportButton onClick={handleExport} />
+      <ExportButton onClick={handleExport} label={label} />
     </div>
   );
 }
@@ -638,10 +668,18 @@ function Label({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ExportButton({ onClick }: { onClick: () => void }) {
+function ExportButton({
+  onClick,
+  label,
+}: {
+  onClick: () => void;
+  label: string;
+}) {
   return (
     <button
+      type="button"
       onClick={onClick}
+      aria-label={`Save ${label} PNG`}
       className="rounded-md border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
     >
       Save PNG
@@ -811,7 +849,7 @@ function OgPreview({ cellSize }: { cellSize: number }) {
         }}
       />
       <Label>OG Image (1200×630)</Label>
-      <ExportButton onClick={handleExport} />
+      <ExportButton onClick={handleExport} label="OG Image" />
     </div>
   );
 }

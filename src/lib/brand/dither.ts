@@ -116,7 +116,7 @@ export function renderLogoToCanvas(
   }
   ctx.putImageData(imgData, 0, 0);
 
-  // 2. Clip to squircle — draw clipped copy
+  // 2. Clip to squircle — draw clipped copy with lighting
   const clipped = document.createElement("canvas");
   clipped.width = exportSize;
   clipped.height = exportSize;
@@ -126,9 +126,32 @@ export function renderLogoToCanvas(
   cCtx.clip(new Path2D(squircleSvgPath));
   cCtx.scale(1 / scale, 1 / scale);
   cCtx.drawImage(canvas, 0, 0);
+
+  // Lighting overlay (matches preview)
+  const hlGrad = cCtx.createRadialGradient(
+    exportSize * 0.5,
+    exportSize * 0.05,
+    0,
+    exportSize * 0.5,
+    exportSize * 0.05,
+    exportSize * 0.8
+  );
+  hlGrad.addColorStop(0, "rgba(255, 255, 255, 0.18)");
+  hlGrad.addColorStop(0.5, "rgba(255, 255, 255, 0.05)");
+  hlGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+  cCtx.fillStyle = hlGrad;
+  cCtx.fillRect(0, 0, exportSize, exportSize);
+
+  const shGrad = cCtx.createLinearGradient(0, 0, 0, exportSize);
+  shGrad.addColorStop(0, "rgba(0, 0, 0, 0)");
+  shGrad.addColorStop(0.7, "rgba(0, 0, 0, 0)");
+  shGrad.addColorStop(1, "rgba(0, 0, 0, 0.22)");
+  cCtx.fillStyle = shGrad;
+  cCtx.fillRect(0, 0, exportSize, exportSize);
+
   cCtx.restore();
 
-  // 3. Draw torus knot
+  // 3. Draw torus knot (scale the SVG path to export size)
   cCtx.save();
   cCtx.translate(exportSize / 2, exportSize / 2);
   cCtx.rotate((45 * Math.PI) / 180);
@@ -137,7 +160,12 @@ export function renderLogoToCanvas(
   cCtx.lineWidth = 4 * scale;
   cCtx.lineCap = "round";
   cCtx.lineJoin = "round";
-  cCtx.stroke(new Path2D(knotSvgPath));
+  const knotPath = new Path2D();
+  knotPath.addPath(
+    new Path2D(knotSvgPath),
+    new DOMMatrix().scale(scale, scale)
+  );
+  cCtx.stroke(knotPath);
   cCtx.restore();
 
   return clipped;
