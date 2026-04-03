@@ -1,5 +1,5 @@
-import { FetchHttpClient } from "@effect/platform";
 import { OtlpSerialization, OtlpTracer } from "@effect/opentelemetry";
+import { FetchHttpClient } from "@effect/platform";
 import { Layer } from "effect";
 
 import type { Env } from "./shared";
