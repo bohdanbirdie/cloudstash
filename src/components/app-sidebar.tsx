@@ -1,4 +1,4 @@
-import { Link, useLocation } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
   InboxIcon,
   CheckCircle2Icon,
@@ -10,6 +10,7 @@ import {
   SearchIcon,
   PuzzleIcon,
   ShieldIcon,
+  PaletteIcon,
   MessageSquareIcon,
   TagsIcon,
 } from "lucide-react";
@@ -62,6 +63,7 @@ import { useSearchStore } from "@/stores/search-store";
 
 export function AppSidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { open: openAddLinkDialog } = useAddLinkDialog();
   const openSearch = useSearchStore((s) => s.setOpen);
   const store = useAppStore();
@@ -184,15 +186,26 @@ export function AppSidebar() {
         <SyncStatusIndicator />
         <SidebarMenu>
           {auth.role === "admin" && (
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                tooltip="Admin"
-                onClick={() => setAdminOpen(true)}
-              >
-                <ShieldIcon />
-                <span>Admin</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            <>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  tooltip="Admin"
+                  onClick={() => setAdminOpen(true)}
+                >
+                  <ShieldIcon />
+                  <span>Admin</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  tooltip="Brand"
+                  onClick={() => navigate({ to: "/brand" })}
+                >
+                  <PaletteIcon />
+                  <span>Brand</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </>
           )}
           {isChatEnabled && (
             <SidebarMenuItem>
