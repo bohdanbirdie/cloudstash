@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { OrgId } from "../../db/branded";
 import type { LinkQueueMessage } from "../../link-processor/types";
 import { handleQueueBatch } from "../../queue-handler";
+import type { Env } from "../../shared";
 
 function createMessage(
   body: LinkQueueMessage,
@@ -54,7 +55,7 @@ async function runQueueHandler(
   const batch = { messages, queue: "cloudstash-link-queue" };
   await handleQueueBatch(
     batch as unknown as MessageBatch<LinkQueueMessage>,
-    env
+    env as unknown as Env
   );
 }
 

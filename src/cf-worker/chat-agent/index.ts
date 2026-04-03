@@ -21,6 +21,7 @@ import { OrgId } from "../db/branded";
 import { DbClientLive } from "../db/service";
 import { OrgFeatures, OrgFeaturesLive } from "../org/features-service";
 import type { Env } from "../shared";
+import { OtelTracingLive } from "../tracing";
 import { CONTEXT_WINDOW_SIZE, SYSTEM_PROMPT } from "./config";
 import {
   extractRetryTime,
@@ -154,7 +155,10 @@ export class ChatAgentDO
   }
 
   private orgFeaturesLayer() {
-    return OrgFeaturesLive.pipe(Layer.provide(DbClientLive(this.env.DB)));
+    return OrgFeaturesLive.pipe(
+      Layer.provide(DbClientLive(this.env.DB)),
+      Layer.provideMerge(OtelTracingLive(this.env))
+    );
   }
 
   private broadcastUsage(): Promise<void> {
@@ -252,6 +256,7 @@ export class ChatAgentDO
               usage.outputTokens ?? 0
             ).pipe(
               Effect.tap(() => Effect.promise(() => this.broadcastUsage())),
+              Effect.provide(OtelTracingLive(this.env)),
               Effect.runPromise
             );
           },
@@ -286,6 +291,7 @@ export class ChatAgentDO
               usage.outputTokens ?? 0
             ).pipe(
               Effect.tap(() => Effect.promise(() => this.broadcastUsage())),
+              Effect.provide(OtelTracingLive(this.env)),
               Effect.runPromise
             );
           },

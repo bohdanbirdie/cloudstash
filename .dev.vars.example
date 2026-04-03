@@ -20,3 +20,5 @@ EMAIL_FROM=YourApp <noreply@yourdomain.com>
 # OPENROUTER_API_KEY=
 # CF_ACCOUNT_ID=
 # CF_ANALYTICS_TOKEN=
+# AXIOM_API_TOKEN=
+# AXIOM_DATASET=cloudstash-traces
