@@ -1,15 +1,15 @@
-import { Link, useLocation } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
   InboxIcon,
   CheckCircle2Icon,
   ListIcon,
   Trash2Icon,
-  LinkIcon,
   PlusIcon,
   LogOutIcon,
   SearchIcon,
   PuzzleIcon,
   ShieldIcon,
+  PaletteIcon,
   MessageSquareIcon,
   TagsIcon,
 } from "lucide-react";
@@ -19,6 +19,7 @@ import { useAddLinkDialog } from "@/components/add-link-dialog";
 import { AdminModal } from "@/components/admin";
 import { useChatPanel } from "@/components/chat/chat-context";
 import { CHAT_HOTKEY } from "@/components/chat/chat-sheet-provider";
+import { CloudstashLogo } from "@/components/cloudstash-logo";
 import { IntegrationsModal } from "@/components/integrations";
 import { SyncStatusIndicator } from "@/components/sync-status-indicator";
 import { TagManagerDialog } from "@/components/tags/tag-manager-dialog";
@@ -62,6 +63,7 @@ import { useSearchStore } from "@/stores/search-store";
 
 export function AppSidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { open: openAddLinkDialog } = useAddLinkDialog();
   const openSearch = useSearchStore((s) => s.setOpen);
   const store = useAppStore();
@@ -108,15 +110,15 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-2">
-        <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
-          <div className="bg-primary text-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg">
-            <LinkIcon className="size-4" />
+      <SidebarHeader className="px-2 py-2">
+        <div className="flex items-center overflow-hidden">
+          <div className="flex aspect-square size-8 shrink-0 items-center justify-center">
+            <CloudstashLogo className="size-8 rounded-lg" variant="branded" />
           </div>
-          <span className="font-semibold group-data-[collapsible=icon]:hidden">
+          <span className="ml-3 font-semibold whitespace-nowrap transition-[opacity,margin,width] duration-200 ease-linear group-data-[collapsible=icon]:ml-0 group-data-[collapsible=icon]:w-0 group-data-[collapsible=icon]:opacity-0">
             Cloudstash
           </span>
-          <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400 group-data-[collapsible=icon]:hidden">
+          <span className="ml-2 shrink-0 overflow-hidden rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600 whitespace-nowrap transition-[opacity,margin,width] duration-100 ease-linear dark:text-amber-400 group-data-[collapsible=icon]:ml-0 group-data-[collapsible=icon]:w-0 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:opacity-0">
             Alpha
           </span>
         </div>
@@ -184,15 +186,26 @@ export function AppSidebar() {
         <SyncStatusIndicator />
         <SidebarMenu>
           {auth.role === "admin" && (
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                tooltip="Admin"
-                onClick={() => setAdminOpen(true)}
-              >
-                <ShieldIcon />
-                <span>Admin</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            <>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  tooltip="Admin"
+                  onClick={() => setAdminOpen(true)}
+                >
+                  <ShieldIcon />
+                  <span>Admin</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  tooltip="Brand"
+                  onClick={() => navigate({ to: "/brand" })}
+                >
+                  <PaletteIcon />
+                  <span>Brand</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </>
           )}
           {isChatEnabled && (
             <SidebarMenuItem>

@@ -15,6 +15,7 @@ import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as ConnectRaycastRouteImport } from './routes/connect/raycast'
 import { Route as AuthedTrashRouteImport } from './routes/_authed/trash'
 import { Route as AuthedCompletedRouteImport } from './routes/_authed/completed'
+import { Route as AuthedBrandRouteImport } from './routes/_authed/brand'
 import { Route as AuthedAllRouteImport } from './routes/_authed/all'
 
 const LoginRoute = LoginRouteImport.update({
@@ -46,6 +47,11 @@ const AuthedCompletedRoute = AuthedCompletedRouteImport.update({
   path: '/completed',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedBrandRoute = AuthedBrandRouteImport.update({
+  id: '/brand',
+  path: '/brand',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedAllRoute = AuthedAllRouteImport.update({
   id: '/all',
   path: '/all',
@@ -56,6 +62,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
   '/all': typeof AuthedAllRoute
+  '/brand': typeof AuthedBrandRoute
   '/completed': typeof AuthedCompletedRoute
   '/trash': typeof AuthedTrashRoute
   '/connect/raycast': typeof ConnectRaycastRoute
@@ -63,6 +70,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/all': typeof AuthedAllRoute
+  '/brand': typeof AuthedBrandRoute
   '/completed': typeof AuthedCompletedRoute
   '/trash': typeof AuthedTrashRoute
   '/connect/raycast': typeof ConnectRaycastRoute
@@ -73,6 +81,7 @@ export interface FileRoutesById {
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authed/all': typeof AuthedAllRoute
+  '/_authed/brand': typeof AuthedBrandRoute
   '/_authed/completed': typeof AuthedCompletedRoute
   '/_authed/trash': typeof AuthedTrashRoute
   '/connect/raycast': typeof ConnectRaycastRoute
@@ -84,16 +93,25 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/all'
+    | '/brand'
     | '/completed'
     | '/trash'
     | '/connect/raycast'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/all' | '/completed' | '/trash' | '/connect/raycast' | '/'
+  to:
+    | '/login'
+    | '/all'
+    | '/brand'
+    | '/completed'
+    | '/trash'
+    | '/connect/raycast'
+    | '/'
   id:
     | '__root__'
     | '/_authed'
     | '/login'
     | '/_authed/all'
+    | '/_authed/brand'
     | '/_authed/completed'
     | '/_authed/trash'
     | '/connect/raycast'
@@ -150,6 +168,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedCompletedRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/brand': {
+      id: '/_authed/brand'
+      path: '/brand'
+      fullPath: '/brand'
+      preLoaderRoute: typeof AuthedBrandRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/all': {
       id: '/_authed/all'
       path: '/all'
@@ -162,6 +187,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthedRouteChildren {
   AuthedAllRoute: typeof AuthedAllRoute
+  AuthedBrandRoute: typeof AuthedBrandRoute
   AuthedCompletedRoute: typeof AuthedCompletedRoute
   AuthedTrashRoute: typeof AuthedTrashRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
@@ -169,6 +195,7 @@ interface AuthedRouteChildren {
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAllRoute: AuthedAllRoute,
+  AuthedBrandRoute: AuthedBrandRoute,
   AuthedCompletedRoute: AuthedCompletedRoute,
   AuthedTrashRoute: AuthedTrashRoute,
   AuthedIndexRoute: AuthedIndexRoute,
