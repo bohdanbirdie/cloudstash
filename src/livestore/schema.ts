@@ -404,7 +404,11 @@ const materializers = State.SQLite.materializers(events, {
         status: "pending",
         updatedAt,
       })
-      .onConflict("linkId", "replace"),
+      .onConflict("linkId", "update", {
+        error: null,
+        status: "pending",
+        updatedAt,
+      }),
   "v1.LinkReprocessRequested": ({ linkId, requestedAt }) =>
     tables.linkProcessingStatus
       .update({

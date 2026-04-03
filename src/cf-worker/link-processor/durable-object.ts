@@ -18,7 +18,7 @@ import { cancelStaleLinks, ingestLink, notifyResult } from "./do-programs";
 import type { NotifyResultParams } from "./do-programs";
 import { runEffect } from "./logger";
 import { processLink } from "./process-link";
-import { FeatureStore, SourceNotifier } from "./services";
+import { FeatureStore } from "./services";
 import { AiSummaryGeneratorLive } from "./services/ai-summary-generator.live";
 import { ContentExtractorLive } from "./services/content-extractor.live";
 import { FeatureStoreLive } from "./services/feature-store.live";
@@ -271,19 +271,6 @@ export class LinkProcessorDO
     this.currentlyProcessing.add(link.id);
 
     logger.info("Processing", { isReprocess, linkId: link.id });
-
-    const doLayer = this.buildDoLayer(store);
-    runEffect(
-      SourceNotifier.pipe(
-        Effect.flatMap((n) =>
-          n.streamProgress(
-            { source: link.source, sourceMeta: link.sourceMeta },
-            "Fetching metadata"
-          )
-        ),
-        Effect.provide(doLayer)
-      )
-    ).catch(() => {});
 
     try {
       const rowsBefore = this.totalRowsWritten;
