@@ -2,16 +2,25 @@ import { Data, Effect } from "effect";
 
 import type { LinkQueueMessage } from "./link-processor/types";
 import { safeErrorInfo } from "./log-utils";
-import type { Env } from "./shared";
-import { OtelTracingLive } from "./tracing";
 
 class QueueProcessError extends Data.TaggedError("QueueProcessError")<{
   cause: unknown;
 }> {}
 
+interface QueueEnv {
+  LINK_PROCESSOR_DO: {
+    idFromName(name: string): unknown;
+    get(id: unknown): {
+      ingestAndProcess(
+        msg: LinkQueueMessage
+      ): Promise<{ status: string; linkId?: string }>;
+    };
+  };
+}
+
 export async function handleQueueBatch(
   batch: MessageBatch<LinkQueueMessage>,
-  env: Env
+  env: QueueEnv
 ): Promise<void> {
   await Effect.forEach(
     batch.messages,
@@ -45,5 +54,5 @@ export async function handleQueueBatch(
         Effect.withSpan("Queue.processMessage")
       ),
     { concurrency: 1, discard: true }
-  ).pipe(Effect.provide(OtelTracingLive(env)), Effect.runPromise);
+  ).pipe(Effect.runPromise);
 }
