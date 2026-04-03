@@ -7,6 +7,7 @@ import type { UserId } from "../db/branded";
 import * as schema from "../db/schema";
 import { DbClient, DbClientLive, DbError, query } from "../db/service";
 import type { Env } from "../shared";
+import { OtelTracingLive } from "../tracing";
 
 type UserRow = typeof schema.user.$inferSelect;
 
@@ -56,4 +57,7 @@ export const AuthClientLive = (env: Env) =>
   );
 
 export const AppLayerLive = (env: Env) =>
-  AuthClientLive(env).pipe(Layer.provideMerge(DbClientLive(env.DB)));
+  AuthClientLive(env).pipe(
+    Layer.provideMerge(DbClientLive(env.DB)),
+    Layer.provideMerge(OtelTracingLive(env))
+  );

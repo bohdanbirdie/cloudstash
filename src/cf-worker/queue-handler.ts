@@ -7,16 +7,14 @@ class QueueProcessError extends Data.TaggedError("QueueProcessError")<{
   cause: unknown;
 }> {}
 
-interface LinkProcessorStub {
-  ingestAndProcess(
-    msg: LinkQueueMessage
-  ): Promise<{ status: string; linkId?: string }>;
-}
-
 interface QueueEnv {
   LINK_PROCESSOR_DO: {
     idFromName(name: string): unknown;
-    get(id: unknown): LinkProcessorStub;
+    get(id: unknown): {
+      ingestAndProcess(
+        msg: LinkQueueMessage
+      ): Promise<{ status: string; linkId?: string }>;
+    };
   };
 }
 

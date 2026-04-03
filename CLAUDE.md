@@ -62,6 +62,7 @@ bun run deploy             # FORBIDDEN
 - Avoid code comments unless absolutely necessary for complex logic
 - No barrel files (index.ts re-exports) - import directly from source files
 - **Patches:** When patching packages with pre-built dist files, patch `dist/*.js` directly (not just `src/*.ts`). Runtime imports from dist, not source.
+- **Tracing:** All worker-side `Effect.runPromise` calls must have `AppLayerLive(env)` (or at minimum `OtelTracingLive(env)`) in their layer chain. `AppLayerLive` already includes tracing — prefer using it for new code.
 
 <!-- effect-solutions:start -->
 

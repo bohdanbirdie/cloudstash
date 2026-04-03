@@ -3,6 +3,7 @@ import { Effect } from "effect";
 import { queryUsage } from "../analytics";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
+import { OtelTracingLive } from "../tracing";
 
 const logger = logSync("Admin");
 
@@ -57,6 +58,7 @@ export async function handleGetUsage(
         Response.json({ error: "Failed to query usage data" }, { status: 500 })
       );
     }),
+    Effect.provide(OtelTracingLive(env)),
     Effect.runPromise
   );
 }

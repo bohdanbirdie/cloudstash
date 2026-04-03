@@ -35,6 +35,7 @@ import { handleQueueBatch } from "./queue-handler";
 import type { Env, HonoVariables } from "./shared";
 import { SyncBackend, handleSyncRequest } from "./sync";
 import { handleTelegramWebhook } from "./telegram";
+import { OtelTracingLive } from "./tracing";
 
 export { SyncBackendDO } from "./sync";
 export { LinkProcessorDO } from "./link-processor";
@@ -114,7 +115,11 @@ app.delete("/api/invites/:id", (c) =>
 app.post("/api/invites/redeem", (c) => handleRedeemInvite(c.req.raw, c.env));
 
 app.get("/api/metadata", (c) =>
-  Effect.runPromise(metadataRequestToResponse(c.req.raw))
+  Effect.runPromise(
+    metadataRequestToResponse(c.req.raw).pipe(
+      Effect.provide(OtelTracingLive(c.env))
+    )
+  )
 );
 
 app.post("/api/ingest", (c) =>
