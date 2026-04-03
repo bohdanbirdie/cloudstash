@@ -72,6 +72,11 @@ export const ingestLink = Effect.fn("LinkProcessor.ingestLink")(function* (
     })
   );
 
+  yield* notifier.streamProgress(
+    { source: params.source, sourceMeta: params.sourceMeta },
+    "Fetching metadata"
+  );
+
   return { status: "ingested" as const, linkId };
 });
 
