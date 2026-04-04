@@ -47,6 +47,7 @@ export class LinkProcessorDO
   private notifiedLinkIds = new Set<string>();
   private hasRunCleanup = false;
   private totalRowsWritten = 0;
+  private static readonly STORE_FORMAT_VERSION = 2;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -56,6 +57,42 @@ export class LinkProcessorDO
       this.totalRowsWritten += cursor.rowsWritten;
       return cursor;
     }) as typeof origExec;
+  }
+
+  private async migrateStoreIfNeeded(): Promise<void> {
+    const version = await this.ctx.storage.get<number>("storeFormatVersion");
+    if (version === LinkProcessorDO.STORE_FORMAT_VERSION) {
+      return;
+    }
+
+    logger.info("Migrating store format", {
+      from: version ?? 0,
+      to: LinkProcessorDO.STORE_FORMAT_VERSION,
+    });
+
+    const tables = [
+      ...this.ctx.storage.sql
+        .exec<{ name: string }>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name != '_cf_KV'"
+        )
+        .toArray(),
+    ];
+
+    for (const { name } of tables) {
+      this.ctx.storage.sql.exec(`DROP TABLE IF EXISTS "${name}"`);
+    }
+
+    const newSessionId = nanoid();
+    await this.ctx.storage.put("sessionId", newSessionId);
+    await this.ctx.storage.put(
+      "storeFormatVersion",
+      LinkProcessorDO.STORE_FORMAT_VERSION
+    );
+
+    logger.info("Store format migration complete", {
+      droppedTables: tables.map((t) => t.name),
+      newSessionId: maskId(newSessionId),
+    });
   }
 
   private async getSessionId(): Promise<string> {
@@ -94,6 +131,7 @@ export class LinkProcessorDO
   }
 
   private async createStoreInternal(): Promise<Store<typeof schema>> {
+    await this.migrateStoreIfNeeded();
     const sessionId = await this.getSessionId();
     logger.info("Creating store", {
       sessionId: maskId(sessionId),
