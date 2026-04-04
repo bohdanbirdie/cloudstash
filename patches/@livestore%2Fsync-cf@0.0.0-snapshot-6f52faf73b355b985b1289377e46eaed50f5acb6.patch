@@ -1,0 +1,33 @@
+diff --git a/dist/client/transport/do-rpc-client.js b/dist/client/transport/do-rpc-client.js
+index d146b41a4d42eea101ce0b7402fc08521cf5faba..fc9ffa044d53df18f1a7dc719a55a87ad60ba762 100644
+--- a/dist/client/transport/do-rpc-client.js
++++ b/dist/client/transport/do-rpc-client.js
+@@ -36,6 +36,7 @@ export const makeDoRpcSync = ({ syncBackendStub, durableObjectContext }) => ({ s
+                 return shouldNeverHappen('There should at least be a no-more page info response');
+             const mailbox = yield* Mailbox.make().pipe(Effect.acquireRelease((mailbox) => mailbox.shutdown));
+             requestIdMailboxMap.set(res.value.rpcRequestId, mailbox);
++            yield* Effect.log(`[do-rpc-client] Mailbox registered for requestId=${res.value.rpcRequestId}, mapSize=${requestIdMailboxMap.size}`);
+             return Mailbox.toStream(mailbox);
+         }).pipe(Stream.unwrapScoped))
+         : identity, Stream.tap((res) => backendIdHelper.lazySet(res.backendId)), Stream.map((res) => omit(res, ['backendId'])), Stream.mapError((cause) => cause._tag === 'UnknownError' || cause._tag === 'BackendIdMismatchError'
+@@ -45,6 +46,7 @@ export const makeDoRpcSync = ({ syncBackendStub, durableObjectContext }) => ({ s
+         if (batch.length === 0) {
+             return;
+         }
++        yield* Effect.log(`[do-rpc-client] Push called, batchSize=${batch.length}, firstSeqNum=${batch[0]?.seqNum?.global ?? '?'}, lastSeqNum=${batch[batch.length - 1]?.seqNum?.global ?? '?'}`);
+         const backendId = backendIdHelper.get();
+         const batchChunks = yield* Chunk.fromIterable(batch).pipe(splitChunkBySize({
+             maxItems: MAX_PUSH_EVENTS_PER_REQUEST,
+@@ -105,10 +107,11 @@ export const handleSyncUpdateRpc = (payload) => Effect.gen(function* () {
+     const pullStreamMailbox = requestIdMailboxMap.get(decodedPayload.requestId);
+     if (pullStreamMailbox === undefined) {
+         // Case: DO was hibernated, so we need to manually update the store
+-        yield* Effect.log(`No mailbox found for ${decodedPayload.requestId}`);
++        yield* Effect.log(`[do-rpc-client] No mailbox found for requestId=${decodedPayload.requestId}, mapSize=${requestIdMailboxMap.size}, knownIds=[${[...requestIdMailboxMap.keys()].join(',')}]`);
+     }
+     else {
+         // Case: DO was still alive, so the existing `pull` will pick up the new events
++        yield* Effect.log(`[do-rpc-client] Mailbox found for requestId=${decodedPayload.requestId}, delivering events`);
+         yield* pullStreamMailbox.offer(decoded);
+     }
+ }).pipe(Effect.withSpan('rpc-sync-client:rpcCallback'), Effect.tapCauseLogPretty, Effect.runPromise);
