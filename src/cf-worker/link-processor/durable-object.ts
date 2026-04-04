@@ -101,11 +101,14 @@ export class LinkProcessorDO
     let eventlogRows = 0;
     let maxSeqNum = 0;
     try {
-      const hasTable = [
-        ...this.ctx.storage.sql
-          .exec<{ count: number }>("SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='eventlog'")
-          .toArray(),
-      ][0]?.count ?? 0;
+      const hasTable =
+        [
+          ...this.ctx.storage.sql
+            .exec<{ count: number }>(
+              "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='eventlog'"
+            )
+            .toArray(),
+        ][0]?.count ?? 0;
 
       if (hasTable > 0) {
         const stats = [
