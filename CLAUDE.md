@@ -54,6 +54,12 @@ bun run deploy             # FORBIDDEN
 - `docs/specs/` — Feature specs and technical decisions. Check before implementing changes.
 - `docs/` — Architecture docs (auth, worker resilience, telegram bot, etc.). Check before modifying related systems.
 
+## Livestore Sync
+
+- **`ServerAheadError` is NOT a failure.** It's a normal part of livestore's eventual consistency protocol. When a client push is rejected (server has newer events), the push fiber parks, the server broadcasts missing events via the live pull stream, the client rebases its pending events on top, and the push fiber restarts with correct sequence numbers. Do not treat this as an error requiring manual intervention or store resets.
+- **`MaterializeError`** wraps SQLite errors during event materialization. With the default `onSyncError: 'ignore'`, the error is silently swallowed but the batch transaction rolls back — the store continues in a degraded state. A common cause is duplicate eventlog inserts (no `ON CONFLICT` guard in livestore's `insertIntoEventlog`).
+- **LinkProcessorDO is a livestore client** that connects to `SyncBackendDO` with `livePull: true`. It must have exclusive access to its DO SQLite — concurrent `createStoreDoPromise` calls on the same storage corrupt the eventlog (PR #30).
+
 ## Conventions
 
 - Path alias: `@/*` maps to `src/*`
