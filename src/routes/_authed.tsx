@@ -16,7 +16,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { Spinner } from "@/components/ui/spinner";
+import { LoadingScreen } from "@/components/loading-screen";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ConnectionMonitor } from "@/livestore/store";
 
@@ -38,9 +38,7 @@ function AuthedLayout() {
       <HotkeysProvider initiallyActiveScopes={["global"]}>
         <Suspense
           fallback={
-            <div className="flex h-screen w-screen items-center justify-center">
-              <Spinner className="size-8" />
-            </div>
+            <LoadingScreen />
           }
         >
           <ConnectionMonitor />
