@@ -41,7 +41,6 @@ export class LinkProcessorDO
 
   private storeId: string | undefined;
   private cachedStore: Store<typeof schema> | undefined;
-  private storeCreationPromise: Promise<Store<typeof schema>> | undefined;
   private subscription: Unsubscribe | undefined;
   private currentlyProcessing = new Set<string>();
   private notifiedLinkIds = new Set<string>();
@@ -74,28 +73,10 @@ export class LinkProcessorDO
       return this.cachedStore;
     }
 
-    if (this.storeCreationPromise) {
-      logger.info("getStore: awaiting existing creation promise");
-      return this.storeCreationPromise;
-    }
-
     if (!this.storeId) {
       throw new Error("storeId not set");
     }
 
-    this.storeCreationPromise = this.createStoreInternal();
-
-    try {
-      const store = await this.storeCreationPromise;
-      return store;
-    } catch (error) {
-      logger.error("getStore: store creation failed", safeErrorInfo(error));
-      this.storeCreationPromise = undefined;
-      throw error;
-    }
-  }
-
-  private async createStoreInternal(): Promise<Store<typeof schema>> {
     const sessionId = await this.getSessionId();
 
     let eventlogRows = 0;
@@ -152,7 +133,6 @@ export class LinkProcessorDO
       storeId: maskId(this.storeId!),
     });
 
-    this.storeCreationPromise = undefined;
     return this.cachedStore;
   }
 
@@ -365,7 +345,6 @@ export class LinkProcessorDO
         linkId: link.id,
       });
       this.cachedStore = undefined;
-      this.storeCreationPromise = undefined;
       this.subscription = undefined;
     } finally {
       this.currentlyProcessing.delete(link.id);
