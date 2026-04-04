@@ -55,7 +55,10 @@ function LoginForm({ className, ...props }: React.ComponentProps<"div">) {
               </Button>
             </FieldGroup>
           </div>
-          <div className="relative hidden md:flex items-center justify-center" style={{ backgroundColor: "hsl(0 0% 93%)" }}>
+          <div
+            className="relative hidden md:flex items-center justify-center"
+            style={{ backgroundColor: "hsl(0 0% 93%)" }}
+          >
             <LoginAnimation variant="light" />
           </div>
         </CardContent>
