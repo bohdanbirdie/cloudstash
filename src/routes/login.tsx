@@ -1,5 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
+import { LoginAnimation } from "@/components/login-animation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FieldGroup, FieldDescription } from "@/components/ui/field";
@@ -22,6 +23,9 @@ function LoginForm({ className, ...props }: React.ComponentProps<"div">) {
         <CardContent className="grid p-0 md:grid-cols-2">
           <div className="flex flex-col justify-center p-6 md:p-8 md:min-h-[400px]">
             <FieldGroup>
+              <div className="flex justify-center md:hidden">
+                <LoginAnimation className="size-36" />
+              </div>
               <div className="flex flex-col items-center gap-2 text-center">
                 <span className="rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">
                   Alpha
@@ -51,12 +55,8 @@ function LoginForm({ className, ...props }: React.ComponentProps<"div">) {
               </Button>
             </FieldGroup>
           </div>
-          <div className="bg-muted relative hidden md:block">
-            <img
-              src="/login.webp"
-              alt="Cloudstash"
-              className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
-            />
+          <div className="relative hidden md:flex items-center justify-center" style={{ backgroundColor: "hsl(0 0% 93%)" }}>
+            <LoginAnimation variant="light" />
           </div>
         </CardContent>
       </Card>
