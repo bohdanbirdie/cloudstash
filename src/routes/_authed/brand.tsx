@@ -74,7 +74,7 @@ function BrandPage() {
             label="Favicon (512)"
             cellSize={cellSize}
             size={512}
-            clipType="circle"
+            clipType="squircle"
             palette={MIDNIGHT}
           />
           <ExportVariant
@@ -117,7 +117,7 @@ function BrandPage() {
             label="Favicon (512)"
             cellSize={cellSize}
             size={512}
-            clipType="circle"
+            clipType="squircle"
             palette={STAGING_PALETTE}
           />
           <ExportVariant

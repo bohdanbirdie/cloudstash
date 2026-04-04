@@ -10,13 +10,13 @@ import { useChatPanel } from "@/components/chat/chat-context";
 import { ChatSheet } from "@/components/chat/chat-sheet";
 import { ChatSheetProvider } from "@/components/chat/chat-sheet-provider";
 import { LinkDetailDialogProvider } from "@/components/link-detail-dialog";
+import { LoadingScreen } from "@/components/loading-screen";
 import { SearchCommand } from "@/components/search-command";
 import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { Spinner } from "@/components/ui/spinner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ConnectionMonitor } from "@/livestore/store";
 
@@ -36,13 +36,7 @@ function AuthedLayout() {
   return (
     <StoreRegistryProvider storeRegistry={storeRegistry}>
       <HotkeysProvider initiallyActiveScopes={["global"]}>
-        <Suspense
-          fallback={
-            <div className="flex h-screen w-screen items-center justify-center">
-              <Spinner className="size-8" />
-            </div>
-          }
-        >
+        <Suspense fallback={<LoadingScreen />}>
           <ConnectionMonitor />
           <LinkDetailDialogProvider>
             <AddLinkDialogProvider>
