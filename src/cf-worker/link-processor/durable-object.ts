@@ -75,6 +75,7 @@ export class LinkProcessorDO
     }
 
     if (this.storeCreationPromise) {
+      logger.info("getStore: awaiting existing creation promise");
       return this.storeCreationPromise;
     }
 
@@ -88,6 +89,7 @@ export class LinkProcessorDO
       const store = await this.storeCreationPromise;
       return store;
     } catch (error) {
+      logger.error("getStore: store creation failed", safeErrorInfo(error));
       this.storeCreationPromise = undefined;
       throw error;
     }
@@ -95,9 +97,39 @@ export class LinkProcessorDO
 
   private async createStoreInternal(): Promise<Store<typeof schema>> {
     const sessionId = await this.getSessionId();
+
+    let eventlogRows = 0;
+    let maxSeqNum = 0;
+    try {
+      const hasTable =
+        [
+          ...this.ctx.storage.sql
+            .exec<{ count: number }>(
+              "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='eventlog'"
+            )
+            .toArray(),
+        ][0]?.count ?? 0;
+
+      if (hasTable > 0) {
+        const stats = [
+          ...this.ctx.storage.sql
+            .exec<{ rows: number; maxSeq: number }>(
+              "SELECT COUNT(*) as rows, COALESCE(MAX(seqNumGlobal), 0) as maxSeq FROM eventlog"
+            )
+            .toArray(),
+        ][0];
+        eventlogRows = stats?.rows ?? 0;
+        maxSeqNum = stats?.maxSeq ?? 0;
+      }
+    } catch {
+      logger.warn("Failed to read eventlog stats");
+    }
+
     logger.info("Creating store", {
       sessionId: maskId(sessionId),
       storeId: maskId(this.storeId!),
+      existingEventlogRows: eventlogRows,
+      maxSeqNumGlobal: maxSeqNum,
     });
 
     this.cachedStore = await createStoreDoPromise({
@@ -114,6 +146,10 @@ export class LinkProcessorDO
       syncBackendStub: this.env.SYNC_BACKEND_DO.get(
         this.env.SYNC_BACKEND_DO.idFromName(this.storeId!)
       ) as never,
+    });
+
+    logger.info("Store created successfully", {
+      storeId: maskId(this.storeId!),
     });
 
     this.storeCreationPromise = undefined;
@@ -364,6 +400,12 @@ export class LinkProcessorDO
       return new Response("Missing storeId", { status: 400 });
     }
 
+    logger.info("fetch called (triggerLinkProcessor)", {
+      hadCachedStore: !!this.cachedStore,
+      hadSubscription: !!this.subscription,
+      storeId: maskId(storeId),
+    });
+
     this.storeId = storeId;
     await this.ctx.storage.put("storeId", storeId);
 
@@ -374,6 +416,14 @@ export class LinkProcessorDO
   async ingestAndProcess(
     msg: LinkQueueMessage
   ): Promise<{ status: string; linkId?: string }> {
+    logger.info("ingestAndProcess called", {
+      source: msg.source,
+      storeId: maskId(msg.storeId),
+      url: msg.url,
+      hadCachedStore: !!this.cachedStore,
+      hadSubscription: !!this.subscription,
+    });
+
     this.storeId = msg.storeId;
     await this.ctx.storage.put("storeId", msg.storeId);
 
@@ -381,7 +431,7 @@ export class LinkProcessorDO
     await this.ensureSubscribed();
 
     const doLayer = this.buildDoLayer(store);
-    return runEffect(
+    const result = await runEffect(
       ingestLink({
         url: msg.url,
         storeId: msg.storeId,
@@ -389,9 +439,23 @@ export class LinkProcessorDO
         sourceMeta: msg.sourceMeta,
       }).pipe(Effect.provide(doLayer))
     );
+
+    logger.info("ingestAndProcess completed", {
+      status: result.status,
+      linkId: result.linkId,
+      totalRowsWritten: this.totalRowsWritten,
+    });
+
+    return result;
   }
 
   async syncUpdateRpc(payload: unknown): Promise<void> {
+    logger.debug("syncUpdateRpc called", {
+      hadCachedStore: !!this.cachedStore,
+      hadSubscription: !!this.subscription,
+      hadStoreId: !!this.storeId,
+    });
+
     if (!this.storeId) {
       this.storeId = await this.ctx.storage.get<string>("storeId");
     }
@@ -402,9 +466,6 @@ export class LinkProcessorDO
 
     await handleSyncUpdateRpc(payload);
 
-    // Fallback: directly check for pending links after sync update.
-    // If the mailbox delivered the update but the subscription didn't fire,
-    // this ensures processing still starts.
     if (this.cachedStore && this.currentlyProcessing.size === 0) {
       this.processNextPending(this.cachedStore);
     }
