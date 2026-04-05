@@ -29,7 +29,8 @@
     "check": "vp check && bun run check:effect",
     "check:effect": "effect-language-service diagnostics --project tsconfig.json --format pretty --strict --lspconfig '{\"allowedDuplicatedPackages\": [\"@livestore/utils\"]}'",
     "fix": "vp check --fix",
-    "prepare": "effect-language-service patch"
+    "prepare": "effect-language-service patch",
+    "clean:local-state": "rm -rf .wrangler/state/v3/cache .wrangler/state/v3/do .wrangler/state/v3/kv .wrangler/state/v3/workflows"
   },
   "dependencies": {
     "@ai-sdk/react": "3.0.136",
@@ -166,6 +167,7 @@
     }
   },
   "patchedDependencies": {
-  "@livestore/sync-cf@0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6": "patches/@livestore%2Fsync-cf@0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6.patch"
-}
+    "@livestore/sync-cf@0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6": "patches/@livestore%2Fsync-cf@0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6.patch",
+    "@livestore/common@0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6": "patches/@livestore%2Fcommon@0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6.patch"
+  }
 }
