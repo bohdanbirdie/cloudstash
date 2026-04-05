@@ -349,13 +349,19 @@ export class LinkProcessorDO
           Effect.succeed({
             title: "Fake title",
             description: "Fake desc",
-            image: null,
-            favicon: null,
+            image: undefined,
+            favicon: undefined,
           }),
       });
       const FakeContentExtractorLive = Layer.succeed(ContentExtractor, {
         extract: () =>
-          Effect.succeed({ title: "Fake title", content: "Fake content" }),
+          Effect.succeed({
+            title: "Fake title",
+            content: "Fake content",
+            author: null,
+            published: null,
+            wordCount: 2,
+          }),
       });
       const FakeAiSummaryGeneratorLive = Layer.succeed(AiSummaryGenerator, {
         generate: () =>

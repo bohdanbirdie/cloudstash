@@ -1,5 +1,5 @@
 diff --git a/dist/sync/transport-chunking.js b/dist/sync/transport-chunking.js
-index 5f1498200011228ce95f30dc918a149ec1c82920..18734da4d53ad5feb0b4d8541f65e81b6c1c1ff1 100644
+index 1c947d6965fbf298adc08c9f48696be1c196721a..a24c3959324408dada5d3917afb45ddddf564c36 100644
 --- a/dist/sync/transport-chunking.js
 +++ b/dist/sync/transport-chunking.js
 @@ -24,6 +24,7 @@ export const splitChunkBySize = (options) => (chunk) => Effect.gen(function* ()
