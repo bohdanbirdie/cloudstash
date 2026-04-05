@@ -1,0 +1,16 @@
+diff --git a/dist/do-rpc/server.js b/dist/do-rpc/server.js
+index 053586432d80472e796b3c09b56f060c163de685..dd7e538d5916174257e1647d5eaecc12664cb955 100644
+--- a/dist/do-rpc/server.js
++++ b/dist/do-rpc/server.js
+@@ -194,8 +194,9 @@ const createStreamingResponse = (rpc, entry, request, parser, layer) => Effect.g
+                 controller.enqueue(exitSerialized);
+                 controller.close();
+             })));
+-            // Run the stream processing
+-            runStream.pipe(Effect.provide(layer), Effect.scoped, Effect.tapCauseLogPretty, Effect.runPromise);
++            // Run the stream processing — return the promise so ReadableStream
++            // keeps the stream open until all chunks are enqueued and close() is called.
++            return runStream.pipe(Effect.provide(layer), Effect.scoped, Effect.tapCauseLogPretty, Effect.runPromise);
+         },
+         // oxlint-disable-next-line typescript-eslint(no-unsafe-type-assertion) -- bridging standard Web API ReadableStream to Cloudflare Worker ReadableStream type
+     });
