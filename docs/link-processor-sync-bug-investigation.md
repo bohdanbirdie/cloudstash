@@ -178,24 +178,33 @@ The RPC method returns the `ReadableStream` before the async fiber finishes. In 
 
 **Why miniflare works:** Miniflare runs DO-to-DO RPC in-process (same V8 isolate). The stream context stays alive long enough for the async fiber to complete. Production uses cross-isolate RPC with more aggressive cleanup.
 
-**Why this never happened before — UNCLEAR.** The fire-and-forget pattern in `do-rpc/server.ts` is identical between the old snapshot (`551e77c106`) and the new one (`6f52faf73b`). The code has been present since the package's first commit. However, the system worked for weeks with many cold boots, so the bug was NOT always manifesting. Possible explanations:
+**Why this never happened before — CONFIRMED: Cloudflare runtime change on April 2.**
 
-1. **`@livestore/sync-cf` error handling refactor:** PR #21 updated the livestore snapshot. While `do-rpc/server.ts` didn't change, `sync-cf` removed `InvalidPushError`/`InvalidPullError` wrappers and surfaced `ServerAheadError`/`BackendIdMismatchError` directly. This could affect how the stream exit message is encoded or how errors propagate through the pipeline, changing the timing of the fire-and-forget race.
-2. **Cloudflare platform change:** CF may have changed `ReadableStream` behavior in DO RPC around this time (more aggressive cleanup/teardown).
-3. **Coincidence with deployment cadence:** April 2 had 5 deployments (PRs #21-#25). Each restarts all DOs. The first cold boot after these deployments used the new snapshot and hit the bug.
+Bisect with old livestore snapshot (`551e77c106`) confirmed the bug reproduces regardless of snapshot version. The livestore code is not the cause.
 
-**Key investigation:** Deploy with the OLD livestore snapshot (`551e77c106`, pre-PR #21) and test whether cold-boot pulls work. If they do, the error handling refactor in `sync-cf` is the trigger. If they don't, it's a CF platform change.
+Research into Cloudflare's `workerd` runtime found no clear culprit among PRs merged April 1-3:
+
+- **workerd PR #6482** ("Fixup consumer ref in backpressure update", April 2) — initially suspected due to date match, but detailed analysis shows it's a lifetime safety fix for backpressure recalculation. Does not alter stream completion, data flow, or enqueue acceptance. Backpressure values don't gate `enqueue()`. Also wasn't in a release until `v1.20260403.1` (April 3).
+- **No other PRs** merged April 1-3 touch RPC stream serialization or DO stub communication paths.
+- **V8 14.6 update** (March 12, PR #6244) — could affect microtask scheduling, but 3 weeks before the bug.
+- **Known community report:** "ReadableStream received over RPC disconnected prematurely during deploys" — similar symptoms, different context.
+
+**The specific workerd change that triggered this remains unidentified.** However, the fix (returning the promise from `start()`) addresses the root vulnerability regardless.
+
+Additional confirmed finding: **The DO never hibernated even in the working state.** Fresh account test (2026-04-05 ~15:01 UTC) showed `hadCachedStore: true` and same `debugInstanceId` across all requests, even after 4+ minutes of inactivity. The `concatWithLastElement` callback never fires (even with 0 events, the `emitIfEmpty` NoMore chunk is dropped), so the mailbox is never registered. The pull fiber hangs waiting for more data → DO never hibernates. This was masked because push-only sync worked (LinkProcessorDO creates events locally and pushes, no incoming events needed). The bug only manifests when another client (browser) creates events the DO hasn't seen → `ServerAheadError`.
+
+Project's `compatibility_date = "2025-01-15"` does not protect against this runtime change.
 
 **Fix options:**
 1. **Upstream fix in `@livestore/common-cf`:** Return the `Effect.runPromise()` promise from `start()` so the `ReadableStream` stays open until processing completes. Per WHATWG Streams spec, `start()` CAN return a Promise.
 2. **Workaround in livestore pull:** Add a trailing no-op/sentinel chunk after `NoMore` so the real last chunk is delivered before the stream teardown race
 3. **Workaround in client:** Detect incomplete pull (received events < total) and re-pull the missing range
-4. **Bisect:** Deploy with old snapshot (`551e77c106`) to confirm whether the error handling refactor introduced the timing change
+4. **Report to Cloudflare:** Something in the runtime changed around April 2 that broke async `ReadableStream.start()` in DO RPC. Minimal repro needed to identify the actual change.
 
 **Code locations:**
 - Fire-and-forget: `@livestore/common-cf/src/do-rpc/server.ts:294` (`Effect.runPromise` not returned from `start()`)
 - Client stream reader: `@livestore/common-cf/src/do-rpc/client.ts:18-60` (breaks loop on `done === true`)
-- Error refactor (new snapshot): `@livestore/sync-cf` — `pull.ts`, `push.ts`, `do-rpc-server.ts` removed `InvalidPushError`/`InvalidPullError` wrappers
+- Fix patch: `patches/@livestore%2Fcommon-cf@...patch` — returns promise from `start()` in `do-rpc/server.js:198`
 
 ---
 
@@ -352,6 +361,26 @@ The RPC method returns the `ReadableStream` before the async fiber finishes. In 
   - head stuck at 0 in `__livestore_sync_status`, 28 `vfs_pages` rows
 - **Conclusion:** Bug is NOT size-dependent. A single-page pull (16 events, 1 chunk) also drops the `NoMore` chunk. Every cold-boot pull is broken in production.
 
+### Attempt 7: Fresh account full lifecycle (2026-04-05 ~15:01-15:16 UTC)
+
+- Dropped BOTH SyncBackendDO and LinkProcessorDO for the fresh account (clean slate)
+- Sent link 1 via Telegram → appeared in UI (0 events to pull, store booted fine)
+- Waited 4+ min → sent link 2 → **appeared in UI**, `hadCachedStore: true`, same `debugInstanceId` as link 1
+- DO **never hibernated** despite 4 min gap — sync fibers keep V8 event loop alive
+- `[do-rpc-client] No mailbox found for requestId=0, mapSize=0` on every `syncUpdateRpc` — mailbox was never registered
+- Sent links 3-5 → all appeared in UI, all `hadCachedStore: true`, same instance
+- **Then:** Saved 2 links via browser UI (not Telegram) → `v2.LinkCreated` pushed to SyncBackendDO → `syncUpdateRpc` callbacks arrived at LinkProcessorDO → `No mailbox found` → silently dropped
+- Links from UI were NOT processed by LinkProcessorDO (subscription didn't fire for them)
+- Sent another Telegram link → processed locally but push failed: `ServerAheadError: minimumExpectedNum 58, providedNum 56` (2 browser events missing from DO's eventlog)
+- Browser refresh: `[sync-storage] getEventsDoSqlite total=0, cursor=58` — SyncBackendDO has 0 events after cursor 58, meaning browser is up to date but LinkProcessorDO's events after seq 56 never synced
+
+**Key findings:**
+1. DO never hibernates — even with 0 events to pull, `concatWithLastElement` never fires (NoMore chunk dropped), pull fiber hangs
+2. Push-only sync works: LinkProcessorDO creates events locally and pushes → server accepts (DO is ahead)
+3. Pull is completely broken: `syncUpdateRpc` callbacks are always dropped (no mailbox)
+4. System breaks the moment another client (browser) creates events the DO hasn't seen
+5. This explains why the system "worked" for weeks: only Telegram links were being saved, no browser-created links between DO boots
+
 ---
 
 ## DO Lifecycle Facts (From Cloudflare Docs)
@@ -424,21 +453,27 @@ Miniflare serializes DO requests. 30+ concurrent ingest requests all processed o
 
 ## Open Questions
 
-1. **Why did the bug start manifesting on April 2?** The fire-and-forget `do-rpc/server.ts` code is identical between old and new livestore snapshots. But the `sync-cf` error handling was refactored (removed wrapper errors). Could that change the stream termination timing? Or was it a CF platform change?
+1. **How to recover production?** Race guard is re-applied. RPC stream drop still blocks cold-boot pulls. Options: patch `do-rpc/server.ts` to return promise from `start()`, or add client-side incomplete-pull detection.
 
-2. **How to recover production?** Race guard is re-applied. RPC stream drop still blocks cold-boot pulls. Options: revert to old snapshot, patch `do-rpc/server.ts` to return promise from `start()`, or add client-side incomplete-pull detection.
+2. **Should we report to Cloudflare?** Something in the runtime changed around April 2 that broke async `ReadableStream.start()` in DO RPC. workerd PR #6482 was ruled out. A minimal repro (standalone worker with two DOs) would help identify the actual change.
+
+3. **Should we report to livestore?** The fire-and-forget pattern in `do-rpc/server.ts` is the root vulnerability. Even if CF reverts PR #6482, the code is inherently racy. The `TODO.md` from the initial commit acknowledges "handle aborts in the ReadableStream" as open work.
 
 ---
 
 ## Next Steps
 
-1. **Bisect the snapshot:** Deploy with old livestore snapshot (`551e77c106`, pre-PR #21) and test cold-boot pull in production. If it works → the `sync-cf` error handling refactor introduced the timing change. If it doesn't → CF platform change or the bug was always there but masked.
+1. ~~**Bisect the snapshot:**~~ DONE. Old snapshot (`551e77c106`) also fails. Not a livestore change.
 
-2. **Minimal repro (regardless of bisect result):** Build a standalone worker with two DOs that returns a `ReadableStream` from an RPC method with fire-and-forget `start()`. Test locally (should pass) and in production (should fail). This isolates whether the issue is CF platform, Effect RPC, or livestore-specific.
+2. **Fix the fire-and-forget:** Patch `@livestore/common-cf/dist/do-rpc/server.js` to return the `Effect.runPromise()` promise from `start()`. Test in production. This is the most direct fix.
 
-3. **Fix the fire-and-forget:** Patch `@livestore/common-cf/dist/do-rpc/server.js` to return the `Effect.runPromise()` promise from `start()`. Test in production.
+3. **Minimal repro:** Build a standalone worker with two DOs that returns a `ReadableStream` from an RPC method with fire-and-forget `start()`. Needed for upstream reports to both Cloudflare and livestore.
 
-4. **Report upstream:** File issue on livestore repo with the minimal repro + findings. The fire-and-forget in `start()` is documented as known incomplete (TODO.md: "handle aborts in the ReadableStream").
+4. **Report to livestore:** File issue with findings. The fire-and-forget in `start()` is documented as known incomplete (TODO.md: "handle aborts in the ReadableStream").
+
+5. **Report to Cloudflare:** Something in the runtime changed around April 2 that broke async `ReadableStream.start()` in DO RPC. workerd PR #6482 ruled out. Minimal repro needed.
+
+6. **Fix DO hibernation:** Even after fixing the stream drop, the `concatWithLastElement` / mailbox pattern needs the `NoMore` chunk to properly transition to live pull. Without it, the pull fiber hangs indefinitely → DO never hibernates → billable duration spike.
 
 ---
 
