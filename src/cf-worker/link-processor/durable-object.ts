@@ -46,6 +46,7 @@ export class LinkProcessorDO
 
   private storeId: string | undefined;
   private cachedStore: Store<typeof schema> | undefined;
+  private storeCreationPromise: Promise<Store<typeof schema>> | undefined;
   private subscription: Unsubscribe | undefined;
   private currentlyProcessing = new Set<string>();
   private notifiedLinkIds = new Set<string>();
@@ -78,10 +79,26 @@ export class LinkProcessorDO
       return this.cachedStore;
     }
 
+    if (this.storeCreationPromise) {
+      return this.storeCreationPromise;
+    }
+
     if (!this.storeId) {
       throw new Error("storeId not set");
     }
 
+    this.storeCreationPromise = this.createStoreInternal();
+
+    try {
+      const store = await this.storeCreationPromise;
+      return store;
+    } catch (error) {
+      this.storeCreationPromise = undefined;
+      throw error;
+    }
+  }
+
+  private async createStoreInternal(): Promise<Store<typeof schema>> {
     const sessionId = await this.getSessionId();
 
     let eventlogRows = 0;
@@ -113,7 +130,7 @@ export class LinkProcessorDO
 
     logger.info("Creating store", {
       sessionId: maskId(sessionId),
-      storeId: maskId(this.storeId),
+      storeId: maskId(this.storeId!),
       existingEventlogRows: eventlogRows,
       maxSeqNumGlobal: maxSeqNum,
     });
@@ -128,16 +145,17 @@ export class LinkProcessorDO
       livePull: true,
       schema,
       sessionId,
-      storeId: this.storeId,
+      storeId: this.storeId!,
       syncBackendStub: this.env.SYNC_BACKEND_DO.get(
-        this.env.SYNC_BACKEND_DO.idFromName(this.storeId)
+        this.env.SYNC_BACKEND_DO.idFromName(this.storeId!)
       ) as never,
     });
 
     logger.info("Store created successfully", {
-      storeId: maskId(this.storeId),
+      storeId: maskId(this.storeId!),
     });
 
+    this.storeCreationPromise = undefined;
     return this.cachedStore;
   }
 
@@ -375,6 +393,7 @@ export class LinkProcessorDO
         linkId: link.id,
       });
       this.cachedStore = undefined;
+      this.storeCreationPromise = undefined;
       this.subscription = undefined;
     } finally {
       this.currentlyProcessing.delete(link.id);
@@ -458,6 +477,7 @@ export class LinkProcessorDO
 
     // Clear cached store so next request creates a fresh one
     this.cachedStore = undefined;
+    this.storeCreationPromise = undefined;
     this.subscription = undefined;
 
     logger.warn("DEBUG: Eventlog corrupted", {
