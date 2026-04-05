@@ -1,6 +1,9 @@
 diff --git a/node_modules/@livestore/sync-cf/.bun-tag-19dd35f92efd512f b/.bun-tag-19dd35f92efd512f
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@livestore/sync-cf/.bun-tag-2227dd09a6e71746 b/.bun-tag-2227dd09a6e71746
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/dist/cf-worker/do/pull.js b/dist/cf-worker/do/pull.js
 index b6419fe5071b859a4d8f2a0f0f1fac30931ce233..fb3ba2db5099a804592fe5cdbe63e8e8856b9d19 100644
 --- a/dist/cf-worker/do/pull.js
@@ -68,18 +71,21 @@ index 139da9227aad767e97bf76947a4cd1dddfd0ccc6..3d075369199337648f228d8e1d564d2a
                  return Option.some([eventsChunk, nextState]);
              },
 diff --git a/dist/client/transport/do-rpc-client.js b/dist/client/transport/do-rpc-client.js
-index d146b41a4d42eea101ce0b7402fc08521cf5faba..fc9ffa044d53df18f1a7dc719a55a87ad60ba762 100644
+index d146b41a4d42eea101ce0b7402fc08521cf5faba..6fbc548f7b69dcdb291b24986f5a330829a2ccbd 100644
 --- a/dist/client/transport/do-rpc-client.js
 +++ b/dist/client/transport/do-rpc-client.js
-@@ -36,6 +36,7 @@ export const makeDoRpcSync = ({ syncBackendStub, durableObjectContext }) => ({ s
+@@ -36,15 +36,17 @@ export const makeDoRpcSync = ({ syncBackendStub, durableObjectContext }) => ({ s
                  return shouldNeverHappen('There should at least be a no-more page info response');
              const mailbox = yield* Mailbox.make().pipe(Effect.acquireRelease((mailbox) => mailbox.shutdown));
              requestIdMailboxMap.set(res.value.rpcRequestId, mailbox);
 +            yield* Effect.log(`[do-rpc-client] Mailbox registered for requestId=${res.value.rpcRequestId}, mapSize=${requestIdMailboxMap.size}`);
              return Mailbox.toStream(mailbox);
          }).pipe(Stream.unwrapScoped))
-         : identity, Stream.tap((res) => backendIdHelper.lazySet(res.backendId)), Stream.map((res) => omit(res, ['backendId'])), Stream.mapError((cause) => cause._tag === 'UnknownError' || cause._tag === 'BackendIdMismatchError'
-@@ -45,6 +46,7 @@ export const makeDoRpcSync = ({ syncBackendStub, durableObjectContext }) => ({ s
+-        : identity, Stream.tap((res) => backendIdHelper.lazySet(res.backendId)), Stream.map((res) => omit(res, ['backendId'])), Stream.mapError((cause) => cause._tag === 'UnknownError' || cause._tag === 'BackendIdMismatchError'
++        : identity, (() => { let pullIdx = 0; return Stream.tap((res) => Effect.log(`[do-rpc-client] Pull chunk received, index=${pullIdx++}, batchSize=${res.batch?.length ?? 0}, pageInfo=${JSON.stringify(res.pageInfo)}`)); })(), Stream.tap((res) => backendIdHelper.lazySet(res.backendId)), Stream.map((res) => omit(res, ['backendId'])), Stream.mapError((cause) => cause._tag === 'UnknownError' || cause._tag === 'BackendIdMismatchError'
+         ? cause
+         : new UnknownError({ cause })), Stream.withSpan('rpc-sync-client:pull'));
+     const push = Effect.fn('rpc-sync-client:push')(function* (batch) {
          if (batch.length === 0) {
              return;
          }
