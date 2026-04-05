@@ -133,6 +133,17 @@ app.post("/api/connect/raycast/exchange", (c) =>
 
 app.post("/api/telegram", (c) => handleTelegramWebhook(c.req.raw, c.env));
 
+// TEMPORARY: debug endpoint to corrupt LinkProcessorDO eventlog for testing
+app.get("/api/debug/corrupt-eventlog", async (c) => {
+  const storeId = c.req.query("storeId");
+  if (!storeId) return c.json({ error: "Missing storeId" }, 400);
+  const doId = c.env.LINK_PROCESSOR_DO.idFromName(storeId);
+  const stub = c.env.LINK_PROCESSOR_DO.get(doId);
+  const res = await stub.fetch(`https://link-processor/debug-corrupt?storeId=${storeId}`);
+  const data = await res.json();
+  return c.json(data);
+});
+
 app.get("/api/sync/auth", async (c) => {
   const rawStoreId = c.req.query("storeId");
   if (!rawStoreId) {
