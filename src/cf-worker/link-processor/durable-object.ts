@@ -468,7 +468,12 @@ export class LinkProcessorDO
     });
 
     return new Response(
-      JSON.stringify({ originalRows: rows, originalMaxSeq: maxSeq, startSeq, inserted }),
+      JSON.stringify({
+        originalRows: rows,
+        originalMaxSeq: maxSeq,
+        startSeq,
+        inserted,
+      }),
       { headers: { "Content-Type": "application/json" } }
     );
   }
