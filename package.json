@@ -168,6 +168,7 @@
   },
   "patchedDependencies": {
     "@livestore/sync-cf@0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6": "patches/@livestore%2Fsync-cf@0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6.patch",
-    "@livestore/common@0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6": "patches/@livestore%2Fcommon@0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6.patch"
+    "@livestore/common@0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6": "patches/@livestore%2Fcommon@0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6.patch",
+    "@livestore/common-cf@0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6": "patches/@livestore%2Fcommon-cf@0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6.patch"
   }
 }
