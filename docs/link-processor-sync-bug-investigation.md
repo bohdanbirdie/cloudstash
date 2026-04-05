@@ -1,7 +1,7 @@
 # LinkProcessorDO Sync Bug Investigation
 
 **Date started:** 2026-04-04
-**Last updated:** 2026-04-05
+**Last updated:** 2026-04-06
 **Status:** Root cause identified — DO-to-DO RPC `ReadableStream` drops last chunk before `controller.close()`. Race guard re-applied. Returning promise from `start()` did NOT fix it. Needs upstream fix or deeper workaround.
 
 ## Symptom
@@ -414,6 +414,14 @@ Project's `compatibility_date = "2025-01-15"` does not protect against this runt
 - **Fix did NOT work.** Returning the promise from `start()` does not prevent the last chunk from being dropped. The issue is not about `start()` completing — the stream IS producing chunks (22 arrive) — the problem is specifically the last `controller.enqueue()` before `controller.close()`.
 
 **Revised understanding:** The race is not between `start()` returning and the stream closing. The race is between the last `enqueue()` and `close()` — the RPC transport may see `close()` and stop reading before the last enqueue's data is flushed. Or the Exit message enqueued after the last chunk interferes with chunk delivery.
+
+### Attempt 10: Restore latest snapshot + update compat date (2026-04-05 ~18:07 UTC, PR #37)
+
+- Restored livestore to latest snapshot (`6f52faf`)
+- Updated `compatibility_date` to `2026-04-05`
+- Removed the `common-cf` `start()` return patch (confirmed unhelpful)
+- Kept diagnostic logging patches on `sync-cf` and `common`
+- Deployed and tested — **same failure**. Updating compat date did not change the behavior.
 
 ---
 
