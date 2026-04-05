@@ -1,0 +1,22 @@
+diff --git a/dist/sync/transport-chunking.js b/dist/sync/transport-chunking.js
+index 5f1498200011228ce95f30dc918a149ec1c82920..18734da4d53ad5feb0b4d8541f65e81b6c1c1ff1 100644
+--- a/dist/sync/transport-chunking.js
++++ b/dist/sync/transport-chunking.js
+@@ -24,6 +24,7 @@ export const splitChunkBySize = (options) => (chunk) => Effect.gen(function* ()
+     };
+     const items = Chunk.toReadonlyArray(chunk);
+     if (items.length === 0) {
++        console.log(`[transport-chunking] splitChunkBySize input=0 items, output=0 sub-chunks`);
+         return Chunk.fromIterable([]);
+     }
+     const result = [];
+@@ -51,6 +52,8 @@ export const splitChunkBySize = (options) => (chunk) => Effect.gen(function* ()
+         }
+     }
+     flushCurrent();
++    const subChunkSizes = result.map(c => Chunk.toReadonlyArray(c).length);
++    console.log(`[transport-chunking] splitChunkBySize input=${items.length} items, output=${result.length} sub-chunks, sizes=[${subChunkSizes.join(',')}]`);
+     return Chunk.fromIterable(result);
+ });
+ //# sourceMappingURL=transport-chunking.js.map
+\ No newline at end of file

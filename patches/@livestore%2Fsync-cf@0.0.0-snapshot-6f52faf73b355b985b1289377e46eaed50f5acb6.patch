@@ -1,3 +1,72 @@
+diff --git a/node_modules/@livestore/sync-cf/.bun-tag-19dd35f92efd512f b/.bun-tag-19dd35f92efd512f
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/dist/cf-worker/do/pull.js b/dist/cf-worker/do/pull.js
+index b6419fe5071b859a4d8f2a0f0f1fac30931ce233..fb3ba2db5099a804592fe5cdbe63e8e8856b9d19 100644
+--- a/dist/cf-worker/do/pull.js
++++ b/dist/cf-worker/do/pull.js
+@@ -27,6 +27,8 @@ export const makeEndingPullStream = ({ req, payload, headers, }) => Effect.gen(f
+         return yield* new BackendIdMismatchError({ expected: backendId, received: req.cursor.value.backendId });
+     }
+     const { stream: storedEvents, total } = yield* storage.getEvents(Option.getOrUndefined(req.cursor)?.eventSequenceNumber);
++    yield* Effect.log(`[pull] Starting pull stream, total=${total}, cursor=${JSON.stringify(Option.getOrUndefined(req.cursor)?.eventSequenceNumber)}`);
++    let pullChunkIndex = 0;
+     return storedEvents.pipe(Stream.mapChunksEffect(splitChunkBySize({
+         maxItems: MAX_PULL_EVENTS_PER_MESSAGE,
+         maxBytes: MAX_WS_MESSAGE_BYTES,
+@@ -34,15 +36,19 @@ export const makeEndingPullStream = ({ req, payload, headers, }) => Effect.gen(f
+     })), Stream.mapAccum(total, (remaining, chunk) => {
+         const asArray = Chunk.toReadonlyArray(chunk);
+         const nextRemaining = Math.max(0, remaining - asArray.length);
++        const pageInfo = nextRemaining > 0 ? SyncBackend.pageInfoMoreKnown(nextRemaining) : SyncBackend.pageInfoNoMore;
+         return [
+             nextRemaining,
+             SyncMessage.PullResponse.make({
+                 batch: asArray,
+-                pageInfo: nextRemaining > 0 ? SyncBackend.pageInfoMoreKnown(nextRemaining) : SyncBackend.pageInfoNoMore,
++                pageInfo,
+                 backendId,
+             }),
+         ];
+     }), Stream.tap(Effect.fn(function* (res) {
++        const batchSize = res.batch?.length ?? 0;
++        yield* Effect.log(`[pull] Chunk emitted, index=${pullChunkIndex++}, batchSize=${batchSize}, pageInfo=${JSON.stringify(res.pageInfo)}`);
++    })), Stream.tap(Effect.fn(function* (res) {
+         if (doOptions?.onPullRes !== undefined) {
+             yield* Effect.tryAll(() => doOptions.onPullRes(res)).pipe(UnknownError.mapToUnknownError);
+         }
+diff --git a/dist/cf-worker/do/sync-storage.js b/dist/cf-worker/do/sync-storage.js
+index 139da9227aad767e97bf76947a4cd1dddfd0ccc6..3d075369199337648f228d8e1d564d2a6fca2475 100644
+--- a/dist/cf-worker/do/sync-storage.js
++++ b/dist/cf-worker/do/sync-storage.js
+@@ -125,8 +125,10 @@ export const makeStorage = (ctx, storeId, engine) => {
+             },
+             catch: (error) => new UnknownError({ cause: error, payload: { dbName, stage: 'count' } }),
+         });
++        yield* Effect.log(`[sync-storage] getEventsDoSqlite total=${total}, cursor=${cursor}`);
+         const DO_PAGE_SIZE = 256;
+         const initialState = { cursor };
++        let pageIndex = 0;
+         const fetchPage = (state) => Effect.try({
+             try: () => {
+                 const sql = state.cursor === undefined
+@@ -139,6 +141,7 @@ export const makeStorage = (ctx, storeId, engine) => {
+                 for (const row of iter)
+                     rows.push(row);
+                 if (rows.length === 0) {
++                    console.log(`[sync-storage] fetchPage page=${pageIndex}, cursor=${state.cursor}, rows=0 (EOF)`);
+                     return Option.none();
+                 }
+                 const decodedRows = Chunk.fromIterable(decodeEventlogRows(rows));
+@@ -147,6 +150,8 @@ export const makeStorage = (ctx, storeId, engine) => {
+                     metadata: Option.some(SyncMetadata.make({ createdAt })),
+                 }));
+                 const lastSeqNum = Chunk.unsafeLast(decodedRows).seqNum;
++                const firstSeqNum = Chunk.unsafeHead(decodedRows).seqNum;
++                console.log(`[sync-storage] fetchPage page=${pageIndex++}, cursor=${state.cursor}, rows=${rows.length}, firstSeqNum=${firstSeqNum}, lastSeqNum=${lastSeqNum}`);
+                 const nextState = { cursor: lastSeqNum };
+                 return Option.some([eventsChunk, nextState]);
+             },
 diff --git a/dist/client/transport/do-rpc-client.js b/dist/client/transport/do-rpc-client.js
 index d146b41a4d42eea101ce0b7402fc08521cf5faba..fc9ffa044d53df18f1a7dc719a55a87ad60ba762 100644
 --- a/dist/client/transport/do-rpc-client.js
