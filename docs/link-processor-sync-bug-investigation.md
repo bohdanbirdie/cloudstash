@@ -2,7 +2,7 @@
 
 **Date started:** 2026-04-04
 **Last updated:** 2026-04-05
-**Status:** Root causes identified. Race guard re-applied. RPC stream drop confirmed — needs upstream fix or workaround.
+**Status:** Root cause identified — DO-to-DO RPC `ReadableStream` drops last chunk before `controller.close()`. Race guard re-applied. Returning promise from `start()` did NOT fix it. Needs upstream fix or deeper workaround.
 
 ## Symptom
 
@@ -16,7 +16,19 @@ Two separate issues prevent sync, both now confirmed:
 
 2. **RPC stream last-element drop** (CONFIRMED): The `@livestore/common-cf` DO-RPC server converts Effect Streams into `ReadableStream` objects using a fire-and-forget async pattern. In production Cloudflare, the RPC connection tears down before the last `controller.enqueue()` completes, dropping the final stream element. This causes every cold-boot pull to lose its last chunk (`pageInfo: NoMore`). Not size-dependent — reproduced with both 1918 events and 16 events. Does NOT reproduce on miniflare (in-process RPC).
 
-**How these interact:** The race condition caused the first eventlog corruption → led to table drop attempts → revealed the RPC stream drop (every fresh pull stalls). The DO stays alive indefinitely because `Effect.never` (from unresolvable ServerAheadError) blocks hibernation, and `executeTransaction` RPCs keep resetting the eviction timer.
+**How these interact:** The race condition caused the first eventlog corruption → led to table drop attempts → revealed the RPC stream drop (every fresh pull stalls). The DO stays alive indefinitely because the pull fiber never receives the stream termination signal, keeping the V8 event loop alive. `syncUpdateRpc` callbacks are always silently dropped (`No mailbox found, mapSize=0`) because the mailbox is never registered (requires the `NoMore` chunk from `concatWithLastElement`). Push-only sync works until a browser client creates events the DO hasn't seen → `ServerAheadError` → deadlock.
+
+**What has been tried and failed:**
+- Returning promise from `ReadableStream.start()` (Attempts 8-9) — did NOT fix the drop
+- Reverting to old livestore snapshot (Attempt bisect) — same failure, not a livestore code change
+- Table drops (Attempts 1-4) — pull always stalls at the same point
+
+**Current deployed state (PR #35 + PR #36):**
+- Old livestore snapshot (`551e77c106`) — was used for bisecting, can be upgraded back
+- Store creation guard (`storeCreationPromise`) — prevents concurrent store race
+- `start()` return patch on `common-cf` — did not fix the issue but is harmless
+- Diagnostic logging patches on `sync-cf`, `common`, `common-cf`
+- Fake AI services stub (100ms) in `durable-object.ts`
 
 ---
 
@@ -195,16 +207,17 @@ Additional confirmed finding: **The DO never hibernated even in the working stat
 
 Project's `compatibility_date = "2025-01-15"` does not protect against this runtime change.
 
-**Fix options:**
-1. **Upstream fix in `@livestore/common-cf`:** Return the `Effect.runPromise()` promise from `start()` so the `ReadableStream` stays open until processing completes. Per WHATWG Streams spec, `start()` CAN return a Promise.
-2. **Workaround in livestore pull:** Add a trailing no-op/sentinel chunk after `NoMore` so the real last chunk is delivered before the stream teardown race
-3. **Workaround in client:** Detect incomplete pull (received events < total) and re-pull the missing range
-4. **Report to Cloudflare:** Something in the runtime changed around April 2 that broke async `ReadableStream.start()` in DO RPC. Minimal repro needed to identify the actual change.
+**Fix options (updated after Attempt 9):**
+1. ~~**Return promise from `start()`**~~ — TRIED, DID NOT WORK (Attempt 9). The stream delivers 22 chunks fine; the issue is the last enqueue before close, not start() lifecycle.
+2. **Workaround in DO-RPC server:** Add a delay or padding between the last `controller.enqueue()` and `controller.close()` to ensure the last chunk is flushed before stream teardown
+3. **Workaround in livestore pull:** Emit an extra trailing no-op chunk after `NoMore` so the real last chunk is delivered before the stream closes
+4. **Workaround in client:** Detect incomplete pull (received events < total) and re-pull the missing range
+5. **Report to Cloudflare:** Something in the runtime changed around April 2. The last `controller.enqueue()` before `controller.close()` is silently dropped in DO RPC `ReadableStream` responses. Minimal repro needed.
 
 **Code locations:**
-- Fire-and-forget: `@livestore/common-cf/src/do-rpc/server.ts:294` (`Effect.runPromise` not returned from `start()`)
+- Stream creation: `@livestore/common-cf/src/do-rpc/server.ts:147-204` (`createStreamingResponse`)
+- Last enqueue + close: `server.ts:179-180` (`controller.enqueue(exitSerialized)` then `controller.close()`)
 - Client stream reader: `@livestore/common-cf/src/do-rpc/client.ts:18-60` (breaks loop on `done === true`)
-- Fix patch: `patches/@livestore%2Fcommon-cf@...patch` — returns promise from `start()` in `do-rpc/server.js:198`
 
 ---
 
@@ -381,6 +394,27 @@ Project's `compatibility_date = "2025-01-15"` does not protect against this runt
 4. System breaks the moment another client (browser) creates events the DO hasn't seen
 5. This explains why the system "worked" for weeks: only Telegram links were being saved, no browser-created links between DO boots
 
+### Attempt 8: Test `start()` return fix on fresh account (2026-04-05 ~15:38 UTC)
+
+- Deployed patch: returning `Effect.runPromise()` promise from `ReadableStream.start()`
+- Fresh account (DOs dropped by deployment), sent 1 Telegram link → appeared in UI
+- `existingEventlogRows: 0` → 0-event pull, no chunks to deliver
+- `No mailbox found, mapSize=0` on `syncUpdateRpc` — mailbox still not registered
+- Saved 1 link via browser UI → `syncUpdateRpc` dropped → LinkProcessorDO missed it
+- Sent another Telegram link → `ServerAheadError: minimumExpectedNum 9, providedNum 8` (1 browser event missing)
+- **Fix did NOT help for 0-event pulls** — the `emitIfEmpty` NoMore chunk is still dropped or never reaches the client
+
+### Attempt 9: Test `start()` return fix on main account (2026-04-05 ~15:46 UTC)
+
+- Dropped LinkProcessorDO for main account (1918 events on SyncBackendDO)
+- Server emitted all 23 chunks including `index=22, batchSize=26, pageInfo=NoMore`
+- Client received chunks 0-21 (22 chunks), **chunk 22 still missing**
+- Same `ServerAheadError: minimumExpectedNum 1918, providedNum 0`
+- Same cascade of `triggerLinkProcessor` fetches, same 2 old links reprocessed
+- **Fix did NOT work.** Returning the promise from `start()` does not prevent the last chunk from being dropped. The issue is not about `start()` completing — the stream IS producing chunks (22 arrive) — the problem is specifically the last `controller.enqueue()` before `controller.close()`.
+
+**Revised understanding:** The race is not between `start()` returning and the stream closing. The race is between the last `enqueue()` and `close()` — the RPC transport may see `close()` and stop reading before the last enqueue's data is flushed. Or the Exit message enqueued after the last chunk interferes with chunk delivery.
+
 ---
 
 ## DO Lifecycle Facts (From Cloudflare Docs)
@@ -453,27 +487,22 @@ Miniflare serializes DO requests. 30+ concurrent ingest requests all processed o
 
 ## Open Questions
 
-1. **How to recover production?** Race guard is re-applied. RPC stream drop still blocks cold-boot pulls. Options: patch `do-rpc/server.ts` to return promise from `start()`, or add client-side incomplete-pull detection.
+1. **Why exactly is the last chunk dropped?** The `start()` return fix proved the issue is NOT about `start()` lifecycle. The stream delivers 22 of 23 chunks fine. The problem is specifically the last `controller.enqueue()` before `controller.close()`. Is `close()` racing with the final enqueue? Is the Exit message (enqueued after the last data chunk) causing interference? Or is the CF RPC layer closing the reader when it sees the stream end signal?
 
-2. **Should we report to Cloudflare?** Something in the runtime changed around April 2 that broke async `ReadableStream.start()` in DO RPC. workerd PR #6482 was ruled out. A minimal repro (standalone worker with two DOs) would help identify the actual change.
+2. **What exactly changed in the CF runtime around April 2?** workerd PR #6482 was ruled out. No other PRs merged April 1-3 touch RPC/stream paths. The trigger remains unidentified.
 
-3. **Should we report to livestore?** The fire-and-forget pattern in `do-rpc/server.ts` is the root vulnerability. Even if CF reverts PR #6482, the code is inherently racy. The `TODO.md` from the initial commit acknowledges "handle aborts in the ReadableStream" as open work.
+3. **Should we report to livestore?** The fire-and-forget pattern in `do-rpc/server.ts` is fragile. The `TODO.md` from the initial commit acknowledges "handle aborts in the ReadableStream" as open work. Even if CF didn't change, this code is vulnerable to timing.
 
 ---
 
 ## Next Steps
 
-1. ~~**Bisect the snapshot:**~~ DONE. Old snapshot (`551e77c106`) also fails. Not a livestore change.
-
-2. **Fix the fire-and-forget:** Patch `@livestore/common-cf/dist/do-rpc/server.js` to return the `Effect.runPromise()` promise from `start()`. Test in production. This is the most direct fix.
-
-3. **Minimal repro:** Build a standalone worker with two DOs that returns a `ReadableStream` from an RPC method with fire-and-forget `start()`. Needed for upstream reports to both Cloudflare and livestore.
-
-4. **Report to livestore:** File issue with findings. The fire-and-forget in `start()` is documented as known incomplete (TODO.md: "handle aborts in the ReadableStream").
-
-5. **Report to Cloudflare:** Something in the runtime changed around April 2 that broke async `ReadableStream.start()` in DO RPC. workerd PR #6482 ruled out. Minimal repro needed.
-
-6. **Fix DO hibernation:** Even after fixing the stream drop, the `concatWithLastElement` / mailbox pattern needs the `NoMore` chunk to properly transition to live pull. Without it, the pull fiber hangs indefinitely → DO never hibernates → billable duration spike.
+1. ~~**Bisect the snapshot:**~~ DONE. Old snapshot also fails. Not a livestore change.
+2. ~~**Return promise from `start()`:**~~ DONE. Did NOT fix the issue (Attempts 8-9).
+3. **Minimal repro:** Build a standalone worker with two DOs — one returns a `ReadableStream` from an RPC method, the other reads it. Test whether the last enqueue before close() is dropped. This isolates whether it's a CF platform issue or an Effect RPC issue, and is needed for upstream reports.
+4. **Deeper investigation of the enqueue/close race:** Add logging between the last `controller.enqueue(exitSerialized)` and `controller.close()` in `do-rpc/server.js` to confirm the server-side execution order. Also log on the client side whether the Exit message is ever received.
+5. **Report to livestore:** File issue with findings regardless of minimal repro outcome.
+6. **Consider alternative transport:** The out-of-band `emitStreamResponse` / `syncUpdateRpc` callback mechanism already exists for live pull. Could the initial pull also use this path instead of `ReadableStream`? This would bypass the broken transport entirely.
 
 ---
 
@@ -509,7 +538,8 @@ Miniflare serializes DO requests. 30+ concurrent ingest requests all processed o
 - `local/livestore/packages/@livestore/adapter-cloudflare/src/make-sqlite-db.ts` — dropped transactions
 - `local/livestore/packages/@livestore/common/src/leader-thread/LeaderSyncProcessor.ts` — push/pull fibers, ServerAheadError, Effect.never
 - `local/livestore/packages/@livestore/common/src/leader-thread/eventlog.ts` — insertIntoEventlog (no ON CONFLICT)
-- `patches/@livestore%2Fsync-cf@0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6.patch` — diagnostic logging patch (server pull, client pull, push)
-- `patches/@livestore%2Fcommon@0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6.patch` — transport-chunking logging
+- `patches/@livestore%2Fsync-cf@0.0.0-snapshot-551e77c106...patch` — diagnostic logging (server pull, client pull, push)
+- `patches/@livestore%2Fcommon@0.0.0-snapshot-551e77c106...patch` — transport-chunking logging
+- `patches/@livestore%2Fcommon-cf@0.0.0-snapshot-551e77c106...patch` — `start()` return fix (did not fix the issue but harmless)
 - `local/livestore/packages/@livestore/common-cf/src/do-rpc/server.ts` — fire-and-forget ReadableStream (root cause of stream drop)
 - `local/livestore/packages/@livestore/common-cf/src/do-rpc/client.ts` — stream consumer
