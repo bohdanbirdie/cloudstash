@@ -1,0 +1,480 @@
+# LinkProcessorDO Sync Bug Investigation
+
+**Date started:** 2026-04-04
+**Last updated:** 2026-04-05
+**Status:** Root causes identified. Race guard re-applied. RPC stream drop confirmed — needs upstream fix or workaround.
+
+## Symptom
+
+Links sent via Telegram are processed successfully by the LinkProcessorDO (metadata fetched, AI summary generated, Telegram notified) but never appear in the browser UI. Last working sync was around April 1.
+
+## Current State (2026-04-05)
+
+Two separate issues prevent sync, both now confirmed:
+
+1. **Race condition** (CONFIRMED, fix re-applied): No guard on `getStore()` allows concurrent `createStoreDoPromise` calls, corrupting the eventlog. Fix: `storeCreationPromise` singleton guard (originally PR #30, reverted in PR #33, now re-applied).
+
+2. **RPC stream last-element drop** (CONFIRMED): The `@livestore/common-cf` DO-RPC server converts Effect Streams into `ReadableStream` objects using a fire-and-forget async pattern. In production Cloudflare, the RPC connection tears down before the last `controller.enqueue()` completes, dropping the final stream element. This causes every cold-boot pull to lose its last chunk (`pageInfo: NoMore`). Not size-dependent — reproduced with both 1918 events and 16 events. Does NOT reproduce on miniflare (in-process RPC).
+
+**How these interact:** The race condition caused the first eventlog corruption → led to table drop attempts → revealed the RPC stream drop (every fresh pull stalls). The DO stays alive indefinitely because `Effect.never` (from unresolvable ServerAheadError) blocks hibernation, and `executeTransaction` RPCs keep resetting the eviction timer.
+
+---
+
+## CONFIRMED Findings
+
+### 1. Concurrent Store Creation Race
+
+**Evidence:** Production logs show 2-3 "Creating store" entries per ingest cycle (different requestIds, same timestamp). Confirmed on 2026-04-04 (20:54 UTC — 3 concurrent stores) and 2026-04-05 (09:49 UTC — 3 concurrent stores after table drop).
+
+**Mechanism:**
+
+1. Queue handler calls `ingestAndProcess` → `getStore()` → `createStoreDoPromise` (awaits)
+2. During await, Cloudflare's input gate allows other requests through
+3. `SyncBackendDO.onPush` sends GET fetches to the same DO (triggered by events in the push batch matching `v2.LinkCreated`)
+4. Each request sees `cachedStore === undefined` and starts its own `createStoreDoPromise`
+5. Multiple stores boot concurrently on the same DO SQLite storage
+
+**Note:** `onPush` fires even when the push is rejected with ServerAheadError — the callback sees the batch before validation. This means even failed pushes trigger `triggerLinkProcessor`, creating more concurrent requests.
+
+**Fix:** PR #30 added `storeCreationPromise` guard. Reverted in PR #33 because the stable store's sync fibers prevented hibernation (the eventlog was already corrupted at that point).
+
+### 2. Dropped SQL Transactions in CF Adapter
+
+**Confirmed in code** (`make-sqlite-db.ts:257-292`):
+
+```
+CF DO SQLite rejects SQL-level transaction control and requires storage.transactionSync() instead.
+The current adapter only detects and suppresses those SQL statements.
+```
+
+The adapter's safety comment says: _"A Durable Object is single-threaded, so no concurrent reader can observe the intermediate inconsistency."_ This assumption is violated by the race condition — two leader-thread instances DO interleave at `await` points.
+
+### 3. ServerAheadError Is Normal (Not Fatal)
+
+ServerAheadError is part of livestore's rebase protocol. When push is rejected:
+
+1. Push fiber parks on `Effect.never` (LeaderSyncProcessor.ts:906-909)
+2. Pull delivers missing events → `SyncState.merge` triggers rebase
+3. Pending events are re-sequenced
+4. Push fiber is interrupted and restarts with correct cursor
+
+This works correctly when the pull CAN deliver events. It fails when the pull stalls or when the client's local eventlog has divergent events.
+
+### 4. Rebase Protocol DOES Work (Partially)
+
+During the 2026-04-05 table drop test, deployment logs showed the rebase climbing:
+
+```
+providedNum: 0 → 100 → 200 → 256 → 356 → ... → 1792 → 1892
+```
+
+All at timestamp `08:41:31.070` — the rebase ran in under a second. Each step: push fails → pull delivers batch → push retries with higher cursor. **But it stalled at 1892, 26 events short of 1918.**
+
+### 5. Browser Sync Works Fine
+
+User logged out, cleared OPFS, logged back in. Events sync correctly between browser clients. The SyncBackendDO is healthy. Problem is exclusively LinkProcessorDO → SyncBackendDO direction.
+
+### 6. DO Never Hibernates When Stuck
+
+Observability data confirms:
+
+- wallTimeMs of 7-30 minutes per request (stuck sync fibers)
+- `executeTransaction` RPCs from SyncBackendDO keep resetting eviction timer
+- DO stays alive indefinitely (observed 53+ minutes continuously)
+- `hadCachedStore: true` on subsequent requests — confirms no hibernation between requests
+
+### 7. Local Eventlog Grows Unboundedly
+
+Each boot adds ~8 events (local link processing). None ever sync:
+
+- 20:06 — 2,079 rows
+- 20:36 — 2,087 rows (+8)
+- 20:54 — 2,095 rows (+8)
+- After table drop + reboot — 1,895 rows (re-pulled + local processing)
+
+### 8. SyncBackendDO Events at seqNums 1893-1918
+
+Queried SyncBackendDO's eventlog in CF dashboard. Events at the stall boundary:
+
+| seqNum | name                       | clientId          |
+| ------ | -------------------------- | ----------------- |
+| 1901   | v1.LinkMetadataFetched     | link-processor-do |
+| 1902   | v1.LinkSummarized          | link-processor-do |
+| 1903   | v1.TagSuggested            | link-processor-do |
+| 1904   | v1.TagSuggested            | link-processor-do |
+| 1905   | v1.LinkProcessingCompleted | link-processor-do |
+| 1906   | v1.LinkSourceNotified      | link-processor-do |
+| 1907   | v2.LinkCreated             | julax (browser)   |
+| 1908+  | various                    | julax (browser)   |
+
+Events 1901-1906 were pushed by the LinkProcessorDO BEFORE the corruption (the last working link, April 1). Events 1907-1918 are from the browser. ~~**It has NOT been confirmed whether these clientId="link-processor-do" events cause the pull to skip them.**~~ Confirmed: no filtering, all events emitted.
+
+### 9. Server-Side Pull Completes, Client Receives Partial
+
+**Evidence (2026-04-05 ~12:47 UTC):** After dropping LinkProcessorDO state and sending 1 Telegram link:
+- SyncBackendDO pull emitted all 1918 events: 8 pages, 23 chunks, final chunk `batchSize=26, pageInfo=NoMore`, EOF at page 8
+- LinkProcessorDO store created with only `totalRowsWritten: 281` — far below the expected ~4200+ for 1918 events
+- First push: `ServerAheadError: minimumExpectedNum 1918, providedNum 0`
+- No rebase climbing observed (previously saw 0→100→200→...→1892)
+- `onPush` callback triggered ~20+ `triggerLinkProcessor` fetches (cascade)
+- Old unprocessed links picked up by subscription (partial pull pulled `LinkCreated` but missed completion events)
+
+**Conclusion:** The problem is NOT server-side. The server emits all events correctly. The RPC client/transport drops events between server emission and client application. This explains why miniflare works (different RPC transport) but production fails.
+
+### 10. Last RPC Pull Chunk Dropped (CONFIRMED)
+
+**Evidence (2026-04-05 ~13:13 UTC):** Client-side logging confirms:
+- Client received chunks index 0-21 (22 chunks, 1892 events total)
+- Client did NOT receive chunk index 22 (`batchSize=26, pageInfo=NoMore`)
+- Server emitted all 23 chunks including index 22
+- DO eventlog export confirms exactly 1892 pulled events (rebaseGen=0) + 8 local events (rebaseGen=1)
+- `totalRowsWritten: 281` is the materializer view state, not eventlog rows
+- Same stall point (1892) reproduced across Attempts 1, 3, and 4
+
+**Root cause:** The DO-to-DO RPC transport drops the final stream-terminating chunk. See Theory D (now confirmed) for full analysis and fix options.
+
+---
+
+## UNCONFIRMED Theories
+
+### Theory C: Eventlog corruption mechanism (concurrent stores)
+
+**Status:** Code analysis only, not confirmed via live trace.
+
+Two concurrent `createStoreDoPromise` calls → both pull from server → both try to insert events → dropped transactions + no ON CONFLICT → UNIQUE constraint violation → MaterializeError swallowed → eventlog inconsistency → divergence.
+
+**Counter-argument:** Could not reproduce the actual race condition locally (miniflare serializes DO requests). 30+ concurrent ingest requests via the API all processed one at a time. Only the aftermath (diverged eventlog → ServerAheadError) was reproduced locally.
+
+### Theory D: RPC transport drops the final stream-terminating chunk
+
+**Status:** CONFIRMED (2026-04-05 ~13:13 UTC).
+
+Server emits 23 chunks (index 0-22). Client receives 22 chunks (index 0-21). The final chunk — `index=22, batchSize=26, pageInfo=NoMore` — is **dropped by the DO-to-DO RPC transport**. This has been reproduced 3 times with identical results (Attempts 1, 3, 4).
+
+**Evidence:**
+- Server logs: `[pull] Chunk emitted, index=22, batchSize=26, pageInfo={"_tag":"NoMore"}`
+- Client logs: last received is `[do-rpc-client] Pull chunk received, index=21, batchSize=100, pageInfo={"_tag":"MoreKnown","remaining":26}`
+- No `index=22` on the client side
+- DO eventlog confirms exactly 1892 events received (1918 - 26 = 1892)
+
+**Root cause:** The `@livestore/common-cf` DO-RPC server (`do-rpc/server.ts:228-294`) converts an Effect Stream into a `ReadableStream`. The stream processing runs as a fire-and-forget async fiber inside `start(controller)`:
+
+```
+new ReadableStream({
+  start(controller) {
+    const runStream = Effect.gen(function* () {
+      yield* Stream.runForEachChunk(stream, (chunk) => controller.enqueue(serialized))
+      controller.enqueue(exitSerialized)  // <-- RACE: may not complete
+      controller.close()
+    })
+    runStream.pipe(Effect.runPromise)  // Fire-and-forget, start() returns immediately
+  },
+})
+```
+
+The RPC method returns the `ReadableStream` before the async fiber finishes. In production Cloudflare, the runtime tears down the stream before the last `controller.enqueue()` completes.
+
+**Confirmed: NOT size-dependent (2026-04-05 ~13:32 UTC).** A fresh account with only 16 events (1 pull chunk) also loses the `NoMore` chunk. The single chunk IS the stream-terminal chunk → client receives zero events → `ServerAheadError: minimumExpectedNum 16, providedNum 0`. **Every cold-boot pull is broken**, not just large ones.
+
+**Why miniflare works:** Miniflare runs DO-to-DO RPC in-process (same V8 isolate). The stream context stays alive long enough for the async fiber to complete. Production uses cross-isolate RPC with more aggressive cleanup.
+
+**Why this never happened before — UNCLEAR.** The fire-and-forget pattern in `do-rpc/server.ts` is identical between the old snapshot (`551e77c106`) and the new one (`6f52faf73b`). The code has been present since the package's first commit. However, the system worked for weeks with many cold boots, so the bug was NOT always manifesting. Possible explanations:
+
+1. **`@livestore/sync-cf` error handling refactor:** PR #21 updated the livestore snapshot. While `do-rpc/server.ts` didn't change, `sync-cf` removed `InvalidPushError`/`InvalidPullError` wrappers and surfaced `ServerAheadError`/`BackendIdMismatchError` directly. This could affect how the stream exit message is encoded or how errors propagate through the pipeline, changing the timing of the fire-and-forget race.
+2. **Cloudflare platform change:** CF may have changed `ReadableStream` behavior in DO RPC around this time (more aggressive cleanup/teardown).
+3. **Coincidence with deployment cadence:** April 2 had 5 deployments (PRs #21-#25). Each restarts all DOs. The first cold boot after these deployments used the new snapshot and hit the bug.
+
+**Key investigation:** Deploy with the OLD livestore snapshot (`551e77c106`, pre-PR #21) and test whether cold-boot pulls work. If they do, the error handling refactor in `sync-cf` is the trigger. If they don't, it's a CF platform change.
+
+**Fix options:**
+1. **Upstream fix in `@livestore/common-cf`:** Return the `Effect.runPromise()` promise from `start()` so the `ReadableStream` stays open until processing completes. Per WHATWG Streams spec, `start()` CAN return a Promise.
+2. **Workaround in livestore pull:** Add a trailing no-op/sentinel chunk after `NoMore` so the real last chunk is delivered before the stream teardown race
+3. **Workaround in client:** Detect incomplete pull (received events < total) and re-pull the missing range
+4. **Bisect:** Deploy with old snapshot (`551e77c106`) to confirm whether the error handling refactor introduced the timing change
+
+**Code locations:**
+- Fire-and-forget: `@livestore/common-cf/src/do-rpc/server.ts:294` (`Effect.runPromise` not returned from `start()`)
+- Client stream reader: `@livestore/common-cf/src/do-rpc/client.ts:18-60` (breaks loop on `done === true`)
+- Error refactor (new snapshot): `@livestore/sync-cf` — `pull.ts`, `push.ts`, `do-rpc-server.ts` removed `InvalidPushError`/`InvalidPullError` wrappers
+
+---
+
+## Denied Theories
+
+### 1. PR #26 Caused the Bug
+
+**Denied.** Materializer change doesn't affect eventlog PK conflict. `schemaHash` is from event schemas, not materializers.
+
+### 2. Drop All DO State via Code Migration
+
+**Denied by user.** Too blunt for production. What about 100k events? Not clear when regression happened.
+
+### 3. MaterializeError During Boot Is the Blocker
+
+**Denied.** Only observed during concurrent store creation. After race fix, no MaterializeError. Blocker is sync, not boot.
+
+### 4. ServerAheadError Is Fatal
+
+**Denied.** Part of rebase protocol. Issue is that rebase can't complete.
+
+### 5. PR #25 (Defuddle) Caused the Bug
+
+**Denied.** Content extraction unrelated to sync/eventlog.
+
+### 6. `livePull: true` Prevents Hibernation
+
+**Denied.** System worked fine for weeks with `livePull: true`. In healthy state, the pull fiber waits on I/O (mailbox) which Cloudflare CAN hibernate through. Only `Effect.never` (from stuck ServerAheadError) prevents hibernation.
+
+### 7. Table Drop + Fresh Boot Fixes the Problem
+
+**Denied.** Tried on 2026-04-05. Dropped all 3 tables (eventlog, \_\_livestore_sync_status, vfs_pages). Store booted fresh, pull started from 0, rebase climbed to 1892 but stalled. New events diverged again. Three concurrent stores created on reboot (race still active). Problem persists.
+
+### 8. setTimeout for Hard DO Lifetime Limit
+
+**Denied by user.** Not the right mechanism for DOs. Platform evicts after 70-140s of no requests, but `executeTransaction` RPCs keep resetting the timer.
+
+### 9. resetPersistence in Code for Auto-Recovery
+
+**Denied by user.** No clear trigger for when to reset. Don't want automated resets.
+
+### 10. Server-Side Pull Streaming Bug (last sub-chunk dropped)
+
+**Denied.** Production logging (2026-04-05 ~12:47 UTC) confirms server emits all 1918 events correctly, including the [100, 26] tail chunk from `splitChunkBySize` with `pageInfo: NoMore` and EOF. The `mapChunksEffect` / `unfoldChunkEffect` pipeline works as designed. Problem is downstream in the RPC transport.
+
+### 11. Pull Stall Caused by clientId Echo Filtering
+
+**Denied.** Production logging (2026-04-05 ~12:47 UTC) shows all 1918 events emitted by server pull with no clientId-based filtering. Events 1901-1906 (`clientId: "link-processor-do"`) were included in the pull stream normally.
+
+---
+
+## Recovery Attempts
+
+### Attempt 1: Table drop (2026-04-05 ~10:41 UTC)
+
+- Dropped all 3 tables via CF dashboard
+- Store booted fresh: `existingEventlogRows: 0, maxSeqNumGlobal: 0`
+- Pull started, rebase climbed from providedNum 0 → 1892
+- Push at 1892: `ServerAheadError: minimumExpectedNum 1918, providedNum 0` (first push before rebase) then stalled at 1892
+- `sync_status.head` stuck at 1892
+- Three telegram links sent, all processed locally, none synced to UI
+- `executeTransaction` RPCs kept DO alive for 53+ minutes
+- **Failed:** pull stalled at 1892, never reached 1918
+
+### Attempt 2: Redeploy (2026-04-05 ~11:47 UTC)
+
+- Redeployed latest commit to force DO restart
+- Deployment logs showed buffered ServerAheadErrors from old boot (providedNum climbing 0→1892)
+- After deploy, sent telegram link — 3 concurrent "Creating store" entries (race active)
+- `existingEventlogRows: 1895` (1892 pulled + 3 local from previous attempt)
+- Head still at 1892
+- **Failed:** same stall, plus race re-corrupted the eventlog
+
+### Local Reproduction: Scale Test (2026-04-05 ~12:07-12:26 UTC)
+
+**Goal:** Test whether the pull stall is related to eventlog size by reproducing locally with miniflare.
+
+**Setup:**
+
+- Sent 300 links via `/api/ingest` with API key auth (source: "api")
+- AI summary stubbed at 100ms (fake services in `durable-object.ts`)
+- All 300 links fully processed and synced to browser UI
+
+**Drop test 1 (~12:22 UTC) — ~10k eventlog rows:**
+
+- Deleted LinkProcessorDO sqlite file, kept SyncBackendDO intact
+- Sent 1 link to trigger fresh boot
+- `existingEventlogRows: 0` → store created in ~1.2s
+- `totalRowsWritten: 10130` — full eventlog pulled successfully
+- Link processed and synced to UI immediately
+- **No stall**
+
+**Drop test 2 (~12:26 UTC) — ~21k eventlog rows:**
+
+- Sent 60 more links (total ~360 links processed), repeated drop
+- `existingEventlogRows: 0` → store created in ~2.1s
+- `totalRowsWritten: 21443` — full eventlog pulled successfully
+- Link processed and synced to UI immediately
+- **No stall**
+
+**Conclusion:** Pull stall is NOT reproducible locally with miniflare, even at event counts 10x above production's 1918. The issue is specific to production Cloudflare's DO-to-DO RPC transport.
+
+**Note:** miniflare runs DO-to-DO RPC in-process (same V8 isolate). Production uses actual RPC between separate isolates, with different buffering/backpressure characteristics.
+
+### Attempt 3: Production table drop with pull logging (2026-04-05 ~12:47 UTC)
+
+- Dropped LinkProcessorDO state (eventlog head was 1892, highestSeqNum 1911, 69 vfs_pages rows)
+- Also cleared browser OPFS for clean browser pull
+- Deployed with server-side pull logging (sync-storage, pull.ts, transport-chunking patches)
+- **Browser pull:** All 1918 events received successfully (23 chunks, EOF at page 8)
+- **LinkProcessorDO pull:** Server emitted all 1918 events (confirmed by logs), BUT:
+  - Store created with only `totalRowsWritten: 281` — client received a fraction
+  - Push immediately failed: `ServerAheadError: minimumExpectedNum 1918, providedNum 0`
+  - No rebase climbing (unlike Attempt 1 which climbed to 1892)
+  - ~20+ `triggerLinkProcessor` fetch cascade from `onPush` callback
+  - Old unprocessed links picked up by subscription (partial pull got `LinkCreated` but missed completion events)
+  - 2 old links reprocessed (1 with real AI summary from pre-stub, 1 with fake summary)
+- **Key finding:** Server-side pull is NOT the problem. All events emitted correctly. Issue is RPC client-side — events lost in transport between SyncBackendDO and LinkProcessorDO.
+- **Failed:** same sync deadlock, but now we know the root cause layer
+
+### Attempt 4: Production table drop with client-side pull logging (2026-04-05 ~13:13 UTC)
+
+- Dropped LinkProcessorDO state again, sent 1 Telegram link
+- Server emitted all 23 chunks (confirmed by server-side logs)
+- **Client received only 22 chunks** (index 0-21), missing chunk 22 (`batchSize=26, pageInfo=NoMore`)
+- Client eventlog: 1892 pulled events + 8 local = 1900 total (confirmed by SQL export)
+- Same `ServerAheadError: providedNum 0`, same cascade, same 2 old links reprocessed
+- **CONFIRMED:** RPC transport drops the final stream-terminating chunk
+
+### Attempt 5: Local test with production data (2026-04-05 ~13:25 UTC)
+
+- Exported production SyncBackendDO eventlog (1918 events) via SQL
+- Imported into local miniflare SyncBackendDO (table name remapped to local storeId)
+- Dropped local LinkProcessorDO state
+- Sent 1 link via API
+- **Client received all 23 chunks** including `index=22, batchSize=26, pageInfo=NoMore`
+- `totalRowsWritten: 9143` — full 1918 events materialized
+- Links processed and synced successfully, no ServerAheadError
+- **Conclusion:** The production data is NOT the problem. The exact same events pull correctly on miniflare. The bug is exclusively in the production Cloudflare DO-to-DO RPC transport.
+
+### Attempt 6: Fresh account reproduction (2026-04-05 ~13:32 UTC)
+
+- Logged in with a different account that had 0 links
+- Sent 2 links via Telegram — both appeared in UI (DO was warm, processed normally)
+- DO hibernated
+- Sent 3rd link — **did NOT appear in UI**
+  - DO woke fresh: `existingEventlogRows: 16, hadCachedStore: false`
+  - Server pull: `total=16`, single chunk `batchSize=16, pageInfo=NoMore`
+  - **No `[do-rpc-client] Pull chunk received` log** — client received zero chunks
+  - Push: `ServerAheadError: minimumExpectedNum 16, providedNum 0`
+  - Race condition also active: TWO concurrent "Creating store" entries (different debugInstanceIds)
+- Sent 4th link — also did not appear
+  - `totalRowsWritten: 40` on boot (only local events materialized, no server events)
+  - head stuck at 0 in `__livestore_sync_status`, 28 `vfs_pages` rows
+- **Conclusion:** Bug is NOT size-dependent. A single-page pull (16 events, 1 chunk) also drops the `NoMore` chunk. Every cold-boot pull is broken in production.
+
+---
+
+## DO Lifecycle Facts (From Cloudflare Docs)
+
+- **No forced shutdown mechanism** — no `ctx.abort()`, no kill switch
+- **Non-hibernatable DOs evicted after 70-140s** of no new requests
+- **`Effect.never`** = unresolved promise → blocks hibernation
+- **`executeTransaction` RPCs** reset eviction timer → DO never reaches idle threshold
+- **`blockConcurrencyWhile()`** has 30s hard timeout, blocks all concurrent requests
+- **`resetPersistence: true`** in `createStoreDoPromise` — livestore's cleanup API (deletes eventlog + sync_status + vfs_pages), used in integration tests
+
+---
+
+## Key Livestore Internals
+
+### Event Materialization
+
+- `MaterializeError` wraps SQLite/schema errors during materialization
+- With `onSyncError: 'ignore'`, errors are silently swallowed, batch transaction rolls back
+- Boot rematerialization uses `skipEventlog: true`
+
+### CF Adapter Sync Transport
+
+- DO-to-DO uses RPC, not WebSocket
+- `livePull` via callback: SyncBackendDO registers client in `rpcSubscriptions`, calls `syncUpdateRpc` and `executeTransaction` on client
+- `requestIdMailboxMap` is module-level — lost on isolate restart
+
+### Store Lifecycle in DOs
+
+- `createStoreDoPromise` assumes exclusive SQLite access
+- Background fibers (push, pull, local apply) are Effect fibers forked during boot
+- Push fiber: infinite loop, waits for queue items, pushes to server
+- Pull fiber: pagination from server, then livePull mailbox wait
+- Neither fiber has a natural termination condition with `livePull: true`
+
+### Push/Pull Constants
+
+- `DO_PAGE_SIZE = 256` (events per SQLite query in pull)
+- `MAX_PULL_EVENTS_PER_MESSAGE = 100` (events per RPC message)
+- Push batch size: 50 events
+
+---
+
+## Local Reproduction
+
+### Diverged eventlog reproduction (WORKS)
+
+1. Start dev server, save a few links normally
+2. Call `curl 'http://localhost:3000/api/debug/corrupt-eventlog?storeId=YOUR_ORG_ID'`
+3. Restart dev server (simulates hibernation)
+4. Send telegram link → ServerAheadError, link doesn't sync to UI
+
+### Race condition reproduction (DOES NOT WORK)
+
+Miniflare serializes DO requests. 30+ concurrent ingest requests all processed one at a time. Cannot trigger concurrent `createStoreDoPromise` locally. The race only happens in production Cloudflare where the input gate allows request interleaving at `await` points.
+
+### Debug endpoints (TEMPORARY — in working tree, not deployed)
+
+- `GET /api/debug/corrupt-eventlog?storeId=...` — injects fake events into LinkProcessorDO's eventlog
+- Fake AI services in `durable-object.ts` (for faster local testing)
+- Code in `src/cf-worker/link-processor/durable-object.ts` and `src/cf-worker/index.ts`
+
+---
+
+## TODO
+
+- [ ] Investigate: after dev server crash/restart, ~40 unprocessed links (status: processing-started pre-crash) are not picked up by `pendingLinks$` subscription. Likely the query excludes links already marked as started. Need a recovery mechanism for links stuck in "started" state after DO restart.
+
+---
+
+## Open Questions
+
+1. **Why did the bug start manifesting on April 2?** The fire-and-forget `do-rpc/server.ts` code is identical between old and new livestore snapshots. But the `sync-cf` error handling was refactored (removed wrapper errors). Could that change the stream termination timing? Or was it a CF platform change?
+
+2. **How to recover production?** Race guard is re-applied. RPC stream drop still blocks cold-boot pulls. Options: revert to old snapshot, patch `do-rpc/server.ts` to return promise from `start()`, or add client-side incomplete-pull detection.
+
+---
+
+## Next Steps
+
+1. **Bisect the snapshot:** Deploy with old livestore snapshot (`551e77c106`, pre-PR #21) and test cold-boot pull in production. If it works → the `sync-cf` error handling refactor introduced the timing change. If it doesn't → CF platform change or the bug was always there but masked.
+
+2. **Minimal repro (regardless of bisect result):** Build a standalone worker with two DOs that returns a `ReadableStream` from an RPC method with fire-and-forget `start()`. Test locally (should pass) and in production (should fail). This isolates whether the issue is CF platform, Effect RPC, or livestore-specific.
+
+3. **Fix the fire-and-forget:** Patch `@livestore/common-cf/dist/do-rpc/server.js` to return the `Effect.runPromise()` promise from `start()`. Test in production.
+
+4. **Report upstream:** File issue on livestore repo with the minimal repro + findings. The fire-and-forget in `start()` is documented as known incomplete (TODO.md: "handle aborts in the ReadableStream").
+
+---
+
+## Diagnostic Logging (Currently Deployed)
+
+### DO-level (durable-object.ts, PR #31)
+
+- `existingEventlogRows` and `maxSeqNumGlobal` on store creation
+- `hadCachedStore` and `hadSubscription` on all entry points
+- `Store created successfully` / `getStore: store creation failed`
+
+### Livestore patches (do-rpc-client.js, pull.js, sync-storage.js, transport-chunking.js)
+
+- `[do-rpc-client] Mailbox registered` — requestId, mapSize
+- `[do-rpc-client] Push called` — batchSize, firstSeqNum, lastSeqNum
+- `[do-rpc-client] Pull chunk received` — index, batchSize, pageInfo (client-side pull reception)
+- `[do-rpc-client] No mailbox found / Mailbox found` — delivery status
+- `[pull] Starting pull stream` — total, cursor (server-side)
+- `[pull] Chunk emitted` — index, batchSize, pageInfo (server-side)
+- `[sync-storage] getEventsDoSqlite` — total, cursor
+- `[sync-storage] fetchPage` — page, cursor, rows, firstSeqNum, lastSeqNum
+- `[transport-chunking] splitChunkBySize` — input items, output sub-chunks, sizes
+
+---
+
+## Files
+
+- `src/cf-worker/link-processor/durable-object.ts` — LinkProcessorDO (race guard re-applied, diagnostic logging deployed)
+- `src/cf-worker/sync/index.ts` — SyncBackendDO with `onPush` → `triggerLinkProcessor`
+- `local/livestore/packages/@livestore/sync-cf/src/cf-worker/do/pull.ts` — server-side pull stream pipeline
+- `local/livestore/packages/@livestore/common/src/sync/transport-chunking.ts` — splitChunkBySize
+- `local/livestore/packages/@livestore/sync-cf/src/cf-worker/do/sync-storage.ts` — unfoldChunkEffect pagination
+- `local/livestore/packages/@livestore/adapter-cloudflare/src/make-sqlite-db.ts` — dropped transactions
+- `local/livestore/packages/@livestore/common/src/leader-thread/LeaderSyncProcessor.ts` — push/pull fibers, ServerAheadError, Effect.never
+- `local/livestore/packages/@livestore/common/src/leader-thread/eventlog.ts` — insertIntoEventlog (no ON CONFLICT)
+- `patches/@livestore%2Fsync-cf@0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6.patch` — diagnostic logging patch (server pull, client pull, push)
+- `patches/@livestore%2Fcommon@0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6.patch` — transport-chunking logging
+- `local/livestore/packages/@livestore/common-cf/src/do-rpc/server.ts` — fire-and-forget ReadableStream (root cause of stream drop)
+- `local/livestore/packages/@livestore/common-cf/src/do-rpc/client.ts` — stream consumer
