@@ -2,7 +2,7 @@
 
 **Date started:** 2026-04-04
 **Last updated:** 2026-04-06
-**Status:** Root cause identified — DO-to-DO RPC `ReadableStream` drops last chunk before `controller.close()`. Race guard re-applied. Returning promise from `start()` did NOT fix it. Needs upstream fix or deeper workaround.
+**Status:** Root cause identified — livestore's `createStreamingResponse` creates a `ReadableStream` without `type: "bytes"`, which CF DO RPC requires for cross-isolate serialization. This causes broken framing on the client, preventing the live pull subscription from ever activating. Fix: add `type: "bytes"` to the `ReadableStream` constructor in `do-rpc/server.js`.
 
 ## Symptom
 
@@ -190,34 +190,42 @@ The RPC method returns the `ReadableStream` before the async fiber finishes. In 
 
 **Why miniflare works:** Miniflare runs DO-to-DO RPC in-process (same V8 isolate). The stream context stays alive long enough for the async fiber to complete. Production uses cross-isolate RPC with more aggressive cleanup.
 
-**Why this never happened before — CONFIRMED: Cloudflare runtime change on April 2.**
+**Why this never happened before — Bug was always there. Push-only sync masked it.**
 
-Bisect with old livestore snapshot (`551e77c106`) confirmed the bug reproduces regardless of snapshot version. The livestore code is not the cause.
+Deployed code from 9 days ago (commit `7b2be3b`) and 2 weeks ago (`46fffcb`) on clean accounts. Same behavior: `No mailbox found for 0` on every `syncUpdateRpc`. The DO-RPC live pull subscription has **never worked** in production.
 
-Research into Cloudflare's `workerd` runtime found no clear culprit among PRs merged April 1-3:
+The system survived because push-only sync was sufficient:
+1. Telegram → LinkProcessorDO creates events locally → pushes to SyncBackendDO → SyncBackendDO broadcasts to browser WebSocket → browser sees events
+2. DO never hibernates (pull fiber hangs on stream that never terminates) → cached store persists
+3. As long as only LinkProcessorDO creates events (no browser-created events), push always succeeds
+4. Browser WebSocket sync uses a completely different mechanism (`Stream.concat(Stream.never)` + direct WS write in `push.ts`) — no mailbox involved, always works
+5. April 2: deployments forced cold boots + user started saving links via UI → exposed the divergence
 
-- **workerd PR #6482** ("Fixup consumer ref in backpressure update", April 2) — initially suspected due to date match, but detailed analysis shows it's a lifetime safety fix for backpressure recalculation. Does not alter stream completion, data flow, or enqueue acceptance. Backpressure values don't gate `enqueue()`. Also wasn't in a release until `v1.20260403.1` (April 3).
-- **No other PRs** merged April 1-3 touch RPC stream serialization or DO stub communication paths.
-- **V8 14.6 update** (March 12, PR #6244) — could affect microtask scheduling, but 3 weeks before the bug.
-- **Known community report:** "ReadableStream received over RPC disconnected prematurely during deploys" — similar symptoms, different context.
+**Root cause: Missing `type: "bytes"` on ReadableStream (confirmed via end-to-end trace, 2026-04-06)**
 
-**The specific workerd change that triggered this remains unidentified.** However, the fix (returning the promise from `start()`) addresses the root vulnerability regardless.
+The `createStreamingResponse` function in `@livestore/common-cf/do-rpc/server.ts` (line 229) creates:
+```js
+new ReadableStream({ start(controller) { ... } })  // NO type: "bytes"
+```
 
-Additional confirmed finding: **The DO never hibernated even in the working state.** Fresh account test (2026-04-05 ~15:01 UTC) showed `hadCachedStore: true` and same `debugInstanceId` across all requests, even after 4+ minutes of inactivity. The `concatWithLastElement` callback never fires (even with 0 events, the `emitIfEmpty` NoMore chunk is dropped), so the mailbox is never registered. The pull fiber hangs waiting for more data → DO never hibernates. This was masked because push-only sync worked (LinkProcessorDO creates events locally and pushes, no incoming events needed). The bug only manifests when another client (browser) creates events the DO hasn't seen → `ServerAheadError`.
+Per [Cloudflare RPC docs](https://developers.cloudflare.com/workers/runtime-apis/rpc/): **"Only byte-oriented streams (streams with an underlying byte source of `type: "bytes"`) are supported"** for DO-to-DO RPC.
 
-Project's `compatibility_date = "2025-01-15"` does not protect against this runtime change.
+Without `type: "bytes"`, the non-byte ReadableStream is not properly serialized across the CF DO RPC boundary. The data arrives at the client with broken framing — multiple `controller.enqueue()` calls are merged into fewer `reader.read()` responses. The msgPack `unpackMultiple` decodes `[[msg1], [msg2], ...]` but the client's unwrapping logic expects `[[message]]` (single), producing `message = [msg1]` (array not object) → `message._tag = undefined` → Effect RPC's `run` callback silently drops the message (hits `default` → `Effect.void`) → inner mailbox never receives data → stream never completes → `concatWithLastElement` never fires → mailbox never registered → `syncUpdateRpc` dropped → push-only sync until divergence → `ServerAheadError` → `Effect.never` → permanent deadlock.
 
-**Fix options (updated after Attempt 9):**
-1. ~~**Return promise from `start()`**~~ — TRIED, DID NOT WORK (Attempt 9). The stream delivers 22 chunks fine; the issue is the last enqueue before close, not start() lifecycle.
-2. **Workaround in DO-RPC server:** Add a delay or padding between the last `controller.enqueue()` and `controller.close()` to ensure the last chunk is flushed before stream teardown
-3. **Workaround in livestore pull:** Emit an extra trailing no-op chunk after `NoMore` so the real last chunk is delivered before the stream closes
-4. **Workaround in client:** Detect incomplete pull (received events < total) and re-pull the missing range
-5. **Report to Cloudflare:** Something in the runtime changed around April 2. The last `controller.enqueue()` before `controller.close()` is silently dropped in DO RPC `ReadableStream` responses. Minimal repro needed.
+**Why miniflare works:** In-process DO RPC passes the `ReadableStream` object directly without Cap'n Proto serialization, so the `type: "bytes"` requirement is not enforced. Each `enqueue()` maps 1:1 to a `reader.read()`.
+
+**Evidence chain:**
+- Attempt 11: Server enqueues 23 Chunk + 1 Exit + close. Client reads only 2-3 times, all `_tag=undefined`, never sees `done=true`.
+- Old code (2+ weeks ago): Same `No mailbox found for 0` behavior.
+- Full protocol trace: `_tag` IS the correct field. When undefined, Effect RPC silently drops → stream never terminates.
+- CF docs explicitly require `type: "bytes"` for RPC-returned ReadableStreams.
+
+**Fix:** Add `type: "bytes"` to the `ReadableStream` constructor in `do-rpc/server.js`. The existing code already enqueues `Uint8Array` (msgPack output), so the byte controller API is compatible.
 
 **Code locations:**
-- Stream creation: `@livestore/common-cf/src/do-rpc/server.ts:147-204` (`createStreamingResponse`)
-- Last enqueue + close: `server.ts:179-180` (`controller.enqueue(exitSerialized)` then `controller.close()`)
-- Client stream reader: `@livestore/common-cf/src/do-rpc/client.ts:18-60` (breaks loop on `done === true`)
+- Bug: `@livestore/common-cf/src/do-rpc/server.ts:229` — `new ReadableStream({...})` missing `type: "bytes"`
+- Client unwrapping: `@livestore/common-cf/src/do-rpc/client.ts:17-28` — fragile for merged buffers (secondary issue)
+- Effect RPC silent drop: `@effect/rpc` `RpcClient.js` `run` callback `default` case returns `Effect.void`
 
 ---
 
@@ -415,6 +423,20 @@ Project's `compatibility_date = "2025-01-15"` does not protect against this runt
 
 **Revised understanding:** The race is not between `start()` returning and the stream closing. The race is between the last `enqueue()` and `close()` — the RPC transport may see `close()` and stop reading before the last enqueue's data is flushed. Or the Exit message enqueued after the last chunk interferes with chunk delivery.
 
+### Attempt 11: Transport-level logging (2026-04-06 ~23:13 UTC, PR #38)
+
+**Server side:** All 23 data chunks enqueued (`enqueue Chunk, valuesCount=1` × 23), `stream forEach complete`, `enqueue Exit`, `controller.close() called`. Server-side is fully complete.
+
+**Client side — CRITICAL FINDING:**
+- Only 2-3 `reader.read()` calls produced data — NOT 23 separate reads. CF DO RPC batches/merges `controller.enqueue()` calls into fewer reads.
+- All decoded messages have `_tag=undefined` — the Chunk/Exit wrappers are lost during serialization.
+- ~180+ messages extracted from read #2 alone — individual values are being unpacked without their wrappers.
+- **No `reader.read() done=true` ever logged** — the client never sees the stream end.
+
+**Revised root cause:** This is NOT a "last chunk dropped" problem. It's a **serialization framing issue**. The server encodes each chunk as `parser.encode([{_tag: 'Chunk', requestId, values}])` — individual msgPack-encoded buffers. But the CF DO RPC layer merges these buffers before delivering them to the client's `reader.read()`. The client then calls `parser.decode()` on the merged buffer, which produces a flat array without the Chunk/Exit wrapper structure. Without seeing `_tag: 'Exit'`, the Effect RPC protocol never knows the stream is finished → client hangs forever.
+
+**Key implication:** The data IS being delivered to the client — but the framing is broken. Miniflare delivers each `enqueue()` as a separate `reader.read()` response (preserving 1:1 framing). Production CF DO RPC merges them, breaking the msgPack message boundaries. This is likely a CF platform behavior change.
+
 ### Attempt 10: Restore latest snapshot + update compat date (2026-04-05 ~18:07 UTC, PR #37)
 
 - Restored livestore to latest snapshot (`6f52faf`)
@@ -495,11 +517,9 @@ Miniflare serializes DO requests. 30+ concurrent ingest requests all processed o
 
 ## Open Questions
 
-1. **Why exactly is the last chunk dropped?** The `start()` return fix proved the issue is NOT about `start()` lifecycle. The stream delivers 22 of 23 chunks fine. The problem is specifically the last `controller.enqueue()` before `controller.close()`. Is `close()` racing with the final enqueue? Is the Exit message (enqueued after the last data chunk) causing interference? Or is the CF RPC layer closing the reader when it sees the stream end signal?
+1. **Does `type: "bytes"` fix the issue?** Patch applied (PR pending). If it fixes the framing, the live pull subscription should activate, the mailbox should register, and `syncUpdateRpc` events should be delivered. This would fix both cold-boot pulls and the DO hibernation issue (pull fiber would complete normally).
 
-2. **What exactly changed in the CF runtime around April 2?** workerd PR #6482 was ruled out. No other PRs merged April 1-3 touch RPC/stream paths. The trigger remains unidentified.
-
-3. **Should we report to livestore?** The fire-and-forget pattern in `do-rpc/server.ts` is fragile. The `TODO.md` from the initial commit acknowledges "handle aborts in the ReadableStream" as open work. Even if CF didn't change, this code is vulnerable to timing.
+2. **Report to livestore:** The missing `type: "bytes"` is a bug in `@livestore/common-cf/do-rpc/server.ts`. Should be reported regardless of whether the fix works. The CF docs explicitly require byte-oriented streams for RPC.
 
 ---
 
@@ -507,10 +527,11 @@ Miniflare serializes DO requests. 30+ concurrent ingest requests all processed o
 
 1. ~~**Bisect the snapshot:**~~ DONE. Old snapshot also fails. Not a livestore change.
 2. ~~**Return promise from `start()`:**~~ DONE. Did NOT fix the issue (Attempts 8-9).
-3. **Minimal repro:** Build a standalone worker with two DOs — one returns a `ReadableStream` from an RPC method, the other reads it. Test whether the last enqueue before close() is dropped. This isolates whether it's a CF platform issue or an Effect RPC issue, and is needed for upstream reports.
-4. **Deeper investigation of the enqueue/close race:** Add logging between the last `controller.enqueue(exitSerialized)` and `controller.close()` in `do-rpc/server.js` to confirm the server-side execution order. Also log on the client side whether the Exit message is ever received.
-5. **Report to livestore:** File issue with findings regardless of minimal repro outcome.
-6. **Consider alternative transport:** The out-of-band `emitStreamResponse` / `syncUpdateRpc` callback mechanism already exists for live pull. Could the initial pull also use this path instead of `ReadableStream`? This would bypass the broken transport entirely.
+3. ~~**Transport-level logging:**~~ DONE. Revealed `_tag=undefined` and merged buffers (Attempt 11).
+4. ~~**Old code test:**~~ DONE. Same bug in code from 2+ weeks ago. Always broken.
+5. **Test `type: "bytes"` fix:** Deploy and test. If it works, the live pull subscription should activate and the mailbox should be registered. Look for `[do-rpc-client-transport] read #N, message._tag=Chunk` (instead of `undefined`) and `Mailbox registered`.
+6. **Report to livestore:** File issue with findings. Missing `type: "bytes"` on `ReadableStream` in `createStreamingResponse`.
+7. **Clean up temporary code:** Remove fake AI stub, diagnostic logging patches, debug endpoints after fix is confirmed.
 
 ---
 

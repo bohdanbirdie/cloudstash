@@ -1,3 +1,6 @@
+diff --git a/node_modules/@livestore/common-cf/.bun-tag-94ca403423c85d58 b/.bun-tag-94ca403423c85d58
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/dist/do-rpc/client.js b/dist/do-rpc/client.js
 index c60fcf328b17855393bf56f33546311f6f34c487..1549b6eaa08dd76f062bc8b48887dba898c5aa04 100644
 --- a/dist/do-rpc/client.js
@@ -27,10 +30,20 @@ index c60fcf328b17855393bf56f33546311f6f34c487..1549b6eaa08dd76f062bc8b48887dba8
              }
          }
 diff --git a/dist/do-rpc/server.js b/dist/do-rpc/server.js
-index 053586432d80472e796b3c09b56f060c163de685..913c187bce6c30d5a90b50cc60f56e4163e6f990 100644
+index 053586432d80472e796b3c09b56f060c163de685..ab529e839f5fe31587bcc6d566df4959e441c9d5 100644
 --- a/dist/do-rpc/server.js
 +++ b/dist/do-rpc/server.js
-@@ -163,7 +163,9 @@ const createStreamingResponse = (rpc, entry, request, parser, layer) => Effect.g
+@@ -144,7 +144,9 @@ const createStreamingResponse = (rpc, entry, request, parser, layer) => Effect.g
+         : // oxlint-disable-next-line typescript-eslint(no-unsafe-type-assertion) -- Schema.Any needs explicit cast for Schema.Array compatibility
+             Schema.encodeUnknown(Schema.Array(Schema.Any));
+     // Convert stream to ReadableStream
++    // type: "bytes" is required for CF DO-to-DO RPC serialization
+     const readableStream = new ReadableStream({
++        type: "bytes",
+         start(controller) {
+             // Run the stream and send chunks + final exit
+             const runStream = Effect.gen(function* () {
+@@ -163,7 +165,9 @@ const createStreamingResponse = (rpc, entry, request, parser, layer) => Effect.g
                      // oxlint-disable-next-line typescript-eslint(no-unsafe-type-assertion) -- msgPack parser.encode returns unknown; cast to expected wire format
                      const serialized = parser.encode([chunkMessage]);
                      controller.enqueue(serialized);
@@ -40,7 +53,7 @@ index 053586432d80472e796b3c09b56f060c163de685..913c187bce6c30d5a90b50cc60f56e41
                  // Send final exit message with proper schema encoding
                  const rawExit = Exit.void;
                  // oxlint-disable-next-line typescript-eslint(no-unsafe-type-assertion) -- Rpc.exitSchema requires AnyWithProps; type narrowing already done above
-@@ -177,7 +179,9 @@ const createStreamingResponse = (rpc, entry, request, parser, layer) => Effect.g
+@@ -177,7 +181,9 @@ const createStreamingResponse = (rpc, entry, request, parser, layer) => Effect.g
                  // oxlint-disable-next-line typescript-eslint(no-unsafe-type-assertion) -- msgPack parser.encode returns unknown; cast to expected wire format
                  const exitSerialized = parser.encode([exitMessage]);
                  controller.enqueue(exitSerialized);
