@@ -1,11 +1,14 @@
 diff --git a/node_modules/@livestore/common-cf/.bun-tag-94ca403423c85d58 b/.bun-tag-94ca403423c85d58
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@livestore/common-cf/.bun-tag-a94f422e80dc309 b/.bun-tag-a94f422e80dc309
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/dist/do-rpc/client.js b/dist/do-rpc/client.js
-index c60fcf328b17855393bf56f33546311f6f34c487..1549b6eaa08dd76f062bc8b48887dba898c5aa04 100644
+index c60fcf328b17855393bf56f33546311f6f34c487..ca4288375cb8603a819ef5f7f0339fbc21b218e9 100644
 --- a/dist/do-rpc/client.js
 +++ b/dist/do-rpc/client.js
-@@ -5,12 +5,15 @@ import { Effect, Fiber, FiberMap, Layer, RpcClient, RpcSerialization, } from '@l
+@@ -5,29 +5,32 @@ import { Effect, Fiber, FiberMap, Layer, RpcClient, RpcSerialization, } from '@l
   */
  const processReadableStream = (stream, parser, writeResponse) => Effect.gen(function* () {
      const reader = stream.getReader();
@@ -20,8 +23,25 @@ index c60fcf328b17855393bf56f33546311f6f34c487..1549b6eaa08dd76f062bc8b48887dba8
 +            clientReadCount++;
              // Decode the chunk
              const decoded = parser.decode(value);
-             // Handle array of messages - we get [[message]] from server
-@@ -28,6 +31,7 @@ const processReadableStream = (stream, parser, writeResponse) => Effect.gen(func
+-            // Handle array of messages - we get [[message]] from server
++            // Handle array of messages from server.
++            // unpackMultiple returns an array of top-level msgPack values.
++            // Server sends parser.encode([message]) per enqueue, so each value is [message].
++            // When CF DO RPC merges enqueues, we get [[msg1], [msg2], ...].
++            // Flatten all nested arrays to extract individual messages.
+             let messages;
+-            if (Array.isArray(decoded) === true && decoded.length === 1 && Array.isArray(decoded[0]) === true) {
+-                // Double-wrapped array [[message]] -> [message]
+-                messages = decoded[0];
+-            }
+-            else if (Array.isArray(decoded) === true) {
+-                // Single array [message]
+-                messages = decoded;
++            if (Array.isArray(decoded) === true) {
++                messages = decoded.flat(1);
+             }
+             else {
+                 messages = [decoded];
              }
              // Write each message
              for (const message of messages) {
