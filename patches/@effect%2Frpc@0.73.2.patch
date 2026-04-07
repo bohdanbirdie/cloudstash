@@ -1,0 +1,15 @@
+diff --git a/dist/esm/RpcSerialization.js b/dist/esm/RpcSerialization.js
+index a28fe2fc7bced37c01657e4664c63b56fcac1c81..05c21234b8a6ca0ac5d7462a0a883bbc824ea5d7 100644
+--- a/dist/esm/RpcSerialization.js
++++ b/dist/esm/RpcSerialization.js
+@@ -272,8 +272,8 @@ export const msgPack = /*#__PURE__*/RpcSerialization.of({
+   contentType: "application/msgpack",
+   includesFraming: true,
+   unsafeMake: () => {
+-    const unpackr = new Msgpackr.Unpackr();
+-    const packr = new Msgpackr.Packr();
++    const unpackr = new Msgpackr.Unpackr({ useRecords: false, int64AsType: 'number' });
++    const packr = new Msgpackr.Packr({ useRecords: false });
+     const encoder = new TextEncoder();
+     let incomplete = undefined;
+     return {
