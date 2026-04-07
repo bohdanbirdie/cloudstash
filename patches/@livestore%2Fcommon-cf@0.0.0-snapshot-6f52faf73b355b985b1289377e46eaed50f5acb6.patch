@@ -4,23 +4,15 @@ index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2
 diff --git a/node_modules/@livestore/common-cf/.bun-tag-a94f422e80dc309 b/.bun-tag-a94f422e80dc309
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@livestore/common-cf/.bun-tag-ad06a85aa6344661 b/.bun-tag-ad06a85aa6344661
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/dist/do-rpc/client.js b/dist/do-rpc/client.js
-index c60fcf328b17855393bf56f33546311f6f34c487..ca4288375cb8603a819ef5f7f0339fbc21b218e9 100644
+index c60fcf328b17855393bf56f33546311f6f34c487..99c1b2ca0cfe50fb84a784f1b0e7d756fee22f4a 100644
 --- a/dist/do-rpc/client.js
 +++ b/dist/do-rpc/client.js
-@@ -5,29 +5,32 @@ import { Effect, Fiber, FiberMap, Layer, RpcClient, RpcSerialization, } from '@l
-  */
- const processReadableStream = (stream, parser, writeResponse) => Effect.gen(function* () {
-     const reader = stream.getReader();
-+    let clientReadCount = 0;
-     yield* Effect.gen(function* () {
-         while (true) {
-             const { done, value } = yield* Effect.tryPromise(() => reader.read()).pipe(Effect.orDie);
-             if (done === true) {
-+                console.log(`[do-rpc-client-transport] reader.read() done=true after ${clientReadCount} reads`);
-                 break;
+@@ -13,15 +13,14 @@ const processReadableStream = (stream, parser, writeResponse) => Effect.gen(func
              }
-+            clientReadCount++;
              // Decode the chunk
              const decoded = parser.decode(value);
 -            // Handle array of messages - we get [[message]] from server
@@ -42,15 +34,8 @@ index c60fcf328b17855393bf56f33546311f6f34c487..ca4288375cb8603a819ef5f7f0339fbc
              }
              else {
                  messages = [decoded];
-             }
-             // Write each message
-             for (const message of messages) {
-+                console.log(`[do-rpc-client-transport] read #${clientReadCount}, message._tag=${message._tag}`);
-                 yield* writeResponse(message);
-             }
-         }
 diff --git a/dist/do-rpc/server.js b/dist/do-rpc/server.js
-index 053586432d80472e796b3c09b56f060c163de685..ab529e839f5fe31587bcc6d566df4959e441c9d5 100644
+index 053586432d80472e796b3c09b56f060c163de685..ff2eedb3f4c72c3ed6ec2e7a3ebf875f9a61bb41 100644
 --- a/dist/do-rpc/server.js
 +++ b/dist/do-rpc/server.js
 @@ -144,7 +144,9 @@ const createStreamingResponse = (rpc, entry, request, parser, layer) => Effect.g
@@ -63,23 +48,3 @@ index 053586432d80472e796b3c09b56f060c163de685..ab529e839f5fe31587bcc6d566df4959
          start(controller) {
              // Run the stream and send chunks + final exit
              const runStream = Effect.gen(function* () {
-@@ -163,7 +165,9 @@ const createStreamingResponse = (rpc, entry, request, parser, layer) => Effect.g
-                     // oxlint-disable-next-line typescript-eslint(no-unsafe-type-assertion) -- msgPack parser.encode returns unknown; cast to expected wire format
-                     const serialized = parser.encode([chunkMessage]);
-                     controller.enqueue(serialized);
-+                    console.log(`[do-rpc-server] enqueue Chunk, valuesCount=${encodedValues.length}`);
-                 }));
-+                console.log(`[do-rpc-server] stream forEach complete`);
-                 // Send final exit message with proper schema encoding
-                 const rawExit = Exit.void;
-                 // oxlint-disable-next-line typescript-eslint(no-unsafe-type-assertion) -- Rpc.exitSchema requires AnyWithProps; type narrowing already done above
-@@ -177,7 +181,9 @@ const createStreamingResponse = (rpc, entry, request, parser, layer) => Effect.g
-                 // oxlint-disable-next-line typescript-eslint(no-unsafe-type-assertion) -- msgPack parser.encode returns unknown; cast to expected wire format
-                 const exitSerialized = parser.encode([exitMessage]);
-                 controller.enqueue(exitSerialized);
-+                console.log(`[do-rpc-server] enqueue Exit`);
-                 controller.close();
-+                console.log(`[do-rpc-server] controller.close() called`);
-             }).pipe(Effect.catchAllCause((cause) => Effect.gen(function* () {
-                 // Send error exit with proper schema encoding
-                 const rawExit = Exit.failCause(cause);

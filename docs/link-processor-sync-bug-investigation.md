@@ -2,33 +2,114 @@
 
 **Date started:** 2026-04-04
 **Last updated:** 2026-04-06
-**Status:** Root cause identified — livestore's `createStreamingResponse` creates a `ReadableStream` without `type: "bytes"`, which CF DO RPC requires for cross-isolate serialization. This causes broken framing on the client, preventing the live pull subscription from ever activating. Fix: add `type: "bytes"` to the `ReadableStream` constructor in `do-rpc/server.js`.
+**Status:** Two bugs identified. Bug 1 (RPC framing) has a working patch. Bug 2 (push fiber interrupted by restartBackendPushing) is the primary blocker — reproduced in minimal repro app, root cause traced to Effect RPC response routing, no fix yet. No upstream PR addresses the specific `syncBackendPushQueue` / `backgroundBackendPushing` pattern where the bug lives.
 
 ## Symptom
 
-Links sent via Telegram are processed successfully by the LinkProcessorDO (metadata fetched, AI summary generated, Telegram notified) but never appear in the browser UI. Last working sync was around April 1.
+Links sent via Telegram are processed successfully by the LinkProcessorDO (metadata fetched, AI summary generated, Telegram notified) but never appear in the browser UI.
 
-## Current State (2026-04-05)
+## Precise Timeline
 
-Two separate issues prevent sync, both now confirmed:
+- **April 1, 07:12 UTC (09:12 Poland):** Last working Telegram link — synced to UI with AI summary. DO was already alive (triggered via `syncUpdateRpc`, no cold boot).
+- **April 1, 19:02 UTC (21:02 Poland):** First broken Telegram link — processed but never appeared in UI. DO cold-booted (`"Creating store"` logged). Same `scriptVersion` as the working instance.
+- **No code deploy between working and broken** — last deploy was March 28 (PR #20), next was April 2 (PR #21).
+- **No "Creating store" event between March 30 and April 1 19:02** — the working DO instance had been alive for 2+ days (booted before observability window).
+- **Conclusion:** Same deployed code, but the long-lived DO instance worked while the cold-booted instance on April 1 did not. Something changed in the CF runtime between when the old instance booted and when the new one started.
 
-1. **Race condition** (CONFIRMED, fix re-applied): No guard on `getStore()` allows concurrent `createStoreDoPromise` calls, corrupting the eventlog. Fix: `storeCreationPromise` singleton guard (originally PR #30, reverted in PR #33, now re-applied).
+## Current State (2026-04-06)
 
-2. **RPC stream last-element drop** (CONFIRMED): The `@livestore/common-cf` DO-RPC server converts Effect Streams into `ReadableStream` objects using a fire-and-forget async pattern. In production Cloudflare, the RPC connection tears down before the last `controller.enqueue()` completes, dropping the final stream element. This causes every cold-boot pull to lose its last chunk (`pageInfo: NoMore`). Not size-dependent — reproduced with both 1918 events and 16 events. Does NOT reproduce on miniflare (in-process RPC).
+Three separate issues found:
 
-**How these interact:** The race condition caused the first eventlog corruption → led to table drop attempts → revealed the RPC stream drop (every fresh pull stalls). The DO stays alive indefinitely because the pull fiber never receives the stream termination signal, keeping the V8 event loop alive. `syncUpdateRpc` callbacks are always silently dropped (`No mailbox found, mapSize=0`) because the mailbox is never registered (requires the `NoMore` chunk from `concatWithLastElement`). Push-only sync works until a browser client creates events the DO hasn't seen → `ServerAheadError` → deadlock.
+### Issue 1: Store creation race (FIXED)
+
+No guard on `getStore()` allows concurrent `createStoreDoPromise` calls, corrupting the eventlog. Fix: `storeCreationPromise` singleton guard (originally PR #30, reverted in PR #33, now re-applied).
+
+### Issue 2: RPC stream framing broken in production (FIXED with patches)
+
+In production CF, `controller.enqueue()` calls are merged into fewer `reader.read()` responses. The livestore DO-RPC client's msgPack unwrapping logic doesn't handle this, producing `_tag=undefined` on all messages.
+
+**Fix:** Two patches to `@livestore/common-cf`:
+
+- `type: "bytes"` on ReadableStream in `do-rpc/server.js` — required by CF DO RPC docs
+- `decoded.flat(1)` in `do-rpc/client.js` — handles merged buffers from CF DO RPC
+
+With these patches: stream terminates (`done=true`), `_tag` correct, mailbox registers, `syncUpdateRpc` callbacks delivered. Verified working in repro app with single ingests and cross-client (browser + DO) sync.
+
+### Issue 3: Push fiber interrupted mid-flight (NOT FIXED — primary blocker)
+
+When two or more `store.commit()` cycles run (even sequentially), the push fiber in `backgroundBackendPushing` gets interrupted by `restartBackendPushing` while a push RPC is in flight. The `callRpc` promise resolves (CF platform delivers the response), but the Effect RPC client's entry has already been cleaned up due to fiber interruption, so the response is silently dropped. Server advances, client never acknowledges → `leader.upstreamHead` frozen permanently.
+
+**Root cause trace:**
+
+1. `backgroundBackendPushing` calls `rpcClient.SyncDoRpc.Push()` → registers entry in Effect RPC `entries` map
+2. RPC protocol forks `send` fiber → calls `callRpc` (DO RPC to SyncBackendDO)
+3. Server processes push, broadcasts back via `syncUpdateRpc` → pull fiber processes events
+4. Pull triggers `restartBackendPushing` → `FiberHandle.clear` interrupts push fiber
+5. Push fiber interrupted → entry in `entries` map cleaned up (discard callback)
+6. `callRpc` promise resolves (already in flight)
+7. `send` fiber calls `writeResponse(response)` — entry is gone → response silently dropped
+
+**Evidence:** `[LeaderSync] Push starting` logs but no `[LeaderSync] Push returned`. `[do-rpc-client] callRpc promise resolved` and `callRpc Effect completed` both log, confirming the CF platform delivered the response. But the Effect layer drops it.
+
+**Reproduction:** `repro-do-sync/` app — `curl /ingest & curl /ingest & wait` → `leader.upstreamHead` freezes while `localHead` advances. Single ingest always works.
+
+**Attempted fixes that did NOT work:**
+
+- `Effect.uninterruptible` on push call (narrow scope) — deferred interrupt fires at `yield*` boundary
+- `Effect.uninterruptible` wrapping push + result handling (wider scope) — same result
+- Removing advance-path `restartBackendPushing` — improved (2 pushes succeed vs 0) but not complete
+- `livePull: false` — same bug (rules out ReadableStream interference)
+- Separate DO stubs for push vs pull — same bug (rules out connection multiplexing)
+- `blockConcurrencyWhile` during ingest — same bug
+- Serializing `ingestItem` calls via queue — same bug
+- RPC vs fetch for ingest — same bug (not CF RPC-specific)
+
+**Upstream:** livestore PRs #1129 and #1130 (both OPEN, not merged) are removing BucketQueue + FiberHandle patterns, but **neither touches the code where our bug lives:**
+
+- PR #1129 removes the push queue from `ClientSessionSyncProcessor` (different component — client-to-leader, not leader-to-backend).
+- PR #1130 removes `localPushesQueue` from `LeaderSyncProcessor` (different queue — local push ingestion, not backend push). The `syncBackendPushQueue` / `backgroundBackendPushing` / `backendPushingFiberHandle` / `restartBackendPushing` code remains untouched.
+- Issue #744 (closed) describes a different root cause (rebase generation tracking causing a Deferred to never resolve) — similar "sync stuck" symptom but different mechanism.
+- Issue #1133 (open) is about the client session push fiber dying on non-RejectedPushError — different component and mechanism.
+- The maintainer (IGassmann) appears to be removing these patterns one queue at a time. A third PR for `syncBackendPushQueue` would be needed to fix our bug — it does not exist yet.
 
 **What has been tried and failed:**
-- Returning promise from `ReadableStream.start()` (Attempts 8-9) — did NOT fix the drop
-- Reverting to old livestore snapshot (Attempt bisect) — same failure, not a livestore code change
-- Table drops (Attempts 1-4) — pull always stalls at the same point
 
-**Current deployed state (PR #35 + PR #36):**
-- Old livestore snapshot (`551e77c106`) — was used for bisecting, can be upgraded back
+- `type: "bytes"` + `decoded.flat(1)` patches (Attempt 12) — fixed framing, didn't fix sync
+- Returning promise from `ReadableStream.start()` (Attempts 8-9) — did NOT fix
+- Reverting to old livestore snapshot — same failure, not a livestore code change
+- Old code from 2+ weeks ago — same failure, not our code
+- Table drops (Attempts 1-4) — pull always stalls
+- Updating `compatibility_date` to `2026-04-05` — no change
+
+**Current deployed state:**
+
+- Latest livestore snapshot (`6f52faf`) with `compatibility_date = "2026-04-05"`
 - Store creation guard (`storeCreationPromise`) — prevents concurrent store race
-- `start()` return patch on `common-cf` — did not fix the issue but is harmless
-- Diagnostic logging patches on `sync-cf`, `common`, `common-cf`
+- Three patches: `sync-cf` (logging), `common` (logging), `common-cf` (`type: "bytes"` + `flat(1)` + logging)
 - Fake AI services stub (100ms) in `durable-object.ts`
+
+## CF Runtime Research (2026-04-06)
+
+### What changed in the CF runtime (confirmed)
+
+- **V8 14.6** deployed March 20 (CF Workers changelog). V8 updates roll out gradually across CF edge.
+- **workerd v1.20260328.1** (March 28): "Graduate enhanced error serialization" — changes error serialization behavior.
+- **workerd v1.20260403.1** (April 3): PR #6482 "Fixup consumer ref in backpressure update" — fixes a **use-after-free in stream backpressure handling** (`queue.h`). The old code captured a raw `QueueImpl&` that could become dangling if the consumer was destroyed during an `UpdateBackpressureScope`. Changed to `WeakRef`. This bug was present in the runtime on April 1.
+- **Two autogates** found in workerd source that could affect behavior:
+  - `ENABLE_DRAINING_READ_ON_STANDARD_STREAMS` — controls how `pumpTo` works during `ReadableStream::serialize` for RPC. New `DrainingReader` path introduced March 2-19, with bug fixes through April.
+  - `RPC_USE_EXTERNAL_PUSHER` — controls RPC stream transport mechanism. New path relies on explicit `end()` signaling.
+- Autogates are **not enabled in miniflare** — only flipped in production CF. This explains the local vs production difference.
+
+### What we can NOT confirm
+
+- Which workerd version was running on April 1 at 19:02 UTC
+- Whether any autogate was flipped around April 1
+- Whether PR #6482's use-after-free is what's hitting us
+- Whether the V8 14.6 gradual rollout reached our region on April 1
+
+### Why "it worked before"
+
+The DO instance that processed the 07:12 UTC link was booted before March 30 (no "Creating store" events in the 7-day observability window). It ran on whatever runtime version was current at its boot time. When evicted and cold-booted at 19:02, it picked up the current runtime — and broke. Same code, different runtime.
 
 ---
 
@@ -124,6 +205,7 @@ Events 1901-1906 were pushed by the LinkProcessorDO BEFORE the corruption (the l
 ### 9. Server-Side Pull Completes, Client Receives Partial
 
 **Evidence (2026-04-05 ~12:47 UTC):** After dropping LinkProcessorDO state and sending 1 Telegram link:
+
 - SyncBackendDO pull emitted all 1918 events: 8 pages, 23 chunks, final chunk `batchSize=26, pageInfo=NoMore`, EOF at page 8
 - LinkProcessorDO store created with only `totalRowsWritten: 281` — far below the expected ~4200+ for 1918 events
 - First push: `ServerAheadError: minimumExpectedNum 1918, providedNum 0`
@@ -136,6 +218,7 @@ Events 1901-1906 were pushed by the LinkProcessorDO BEFORE the corruption (the l
 ### 10. Last RPC Pull Chunk Dropped (CONFIRMED)
 
 **Evidence (2026-04-05 ~13:13 UTC):** Client-side logging confirms:
+
 - Client received chunks index 0-21 (22 chunks, 1892 events total)
 - Client did NOT receive chunk index 22 (`batchSize=26, pageInfo=NoMore`)
 - Server emitted all 23 chunks including index 22
@@ -164,6 +247,7 @@ Two concurrent `createStoreDoPromise` calls → both pull from server → both t
 Server emits 23 chunks (index 0-22). Client receives 22 chunks (index 0-21). The final chunk — `index=22, batchSize=26, pageInfo=NoMore` — is **dropped by the DO-to-DO RPC transport**. This has been reproduced 3 times with identical results (Attempts 1, 3, 4).
 
 **Evidence:**
+
 - Server logs: `[pull] Chunk emitted, index=22, batchSize=26, pageInfo={"_tag":"NoMore"}`
 - Client logs: last received is `[do-rpc-client] Pull chunk received, index=21, batchSize=100, pageInfo={"_tag":"MoreKnown","remaining":26}`
 - No `index=22` on the client side
@@ -190,11 +274,12 @@ The RPC method returns the `ReadableStream` before the async fiber finishes. In 
 
 **Why miniflare works:** Miniflare runs DO-to-DO RPC in-process (same V8 isolate). The stream context stays alive long enough for the async fiber to complete. Production uses cross-isolate RPC with more aggressive cleanup.
 
-**Why this never happened before — Bug was always there. Push-only sync masked it.**
+**Why this never happened before — CF runtime change, not code change.**
 
-Deployed code from 9 days ago (commit `7b2be3b`) and 2 weeks ago (`46fffcb`) on clean accounts. Same behavior: `No mailbox found for 0` on every `syncUpdateRpc`. The DO-RPC live pull subscription has **never worked** in production.
+The DO-to-DO RPC sync **did work** — CF observability confirms links synced via Telegram on April 1 at 07:12 UTC. The DO instance had been alive for 2+ days. When evicted and cold-booted at 19:02 UTC, it picked up a newer CF runtime and broke. Deploying old code (from 9 and 14 days ago) also fails — confirming it's a runtime change, not a code change.
 
-The system survived because push-only sync was sufficient:
+Additionally, push-only sync masked the pull issues:
+
 1. Telegram → LinkProcessorDO creates events locally → pushes to SyncBackendDO → SyncBackendDO broadcasts to browser WebSocket → browser sees events
 2. DO never hibernates (pull fiber hangs on stream that never terminates) → cached store persists
 3. As long as only LinkProcessorDO creates events (no browser-created events), push always succeeds
@@ -204,6 +289,7 @@ The system survived because push-only sync was sufficient:
 **Root cause: Missing `type: "bytes"` on ReadableStream (confirmed via end-to-end trace, 2026-04-06)**
 
 The `createStreamingResponse` function in `@livestore/common-cf/do-rpc/server.ts` (line 229) creates:
+
 ```js
 new ReadableStream({ start(controller) { ... } })  // NO type: "bytes"
 ```
@@ -215,6 +301,7 @@ Without `type: "bytes"`, the non-byte ReadableStream is not properly serialized 
 **Why miniflare works:** In-process DO RPC passes the `ReadableStream` object directly without Cap'n Proto serialization, so the `type: "bytes"` requirement is not enforced. Each `enqueue()` maps 1:1 to a `reader.read()`.
 
 **Evidence chain:**
+
 - Attempt 11: Server enqueues 23 Chunk + 1 Exit + close. Client reads only 2-3 times, all `_tag=undefined`, never sees `done=true`.
 - Old code (2+ weeks ago): Same `No mailbox found for 0` behavior.
 - Full protocol trace: `_tag` IS the correct field. When undefined, Effect RPC silently drops → stream never terminates.
@@ -223,6 +310,7 @@ Without `type: "bytes"`, the non-byte ReadableStream is not properly serialized 
 **Fix:** Add `type: "bytes"` to the `ReadableStream` constructor in `do-rpc/server.js`. The existing code already enqueues `Uint8Array` (msgPack output), so the byte controller API is compatible.
 
 **Code locations:**
+
 - Bug: `@livestore/common-cf/src/do-rpc/server.ts:229` — `new ReadableStream({...})` missing `type: "bytes"`
 - Client unwrapping: `@livestore/common-cf/src/do-rpc/client.ts:17-28` — fragile for merged buffers (secondary issue)
 - Effect RPC silent drop: `@effect/rpc` `RpcClient.js` `run` callback `default` case returns `Effect.void`
@@ -396,6 +484,7 @@ Without `type: "bytes"`, the non-byte ReadableStream is not properly serialized 
 - Browser refresh: `[sync-storage] getEventsDoSqlite total=0, cursor=58` — SyncBackendDO has 0 events after cursor 58, meaning browser is up to date but LinkProcessorDO's events after seq 56 never synced
 
 **Key findings:**
+
 1. DO never hibernates — even with 0 events to pull, `concatWithLastElement` never fires (NoMore chunk dropped), pull fiber hangs
 2. Push-only sync works: LinkProcessorDO creates events locally and pushes → server accepts (DO is ahead)
 3. Pull is completely broken: `syncUpdateRpc` callbacks are always dropped (no mailbox)
@@ -428,6 +517,7 @@ Without `type: "bytes"`, the non-byte ReadableStream is not properly serialized 
 **Server side:** All 23 data chunks enqueued (`enqueue Chunk, valuesCount=1` × 23), `stream forEach complete`, `enqueue Exit`, `controller.close() called`. Server-side is fully complete.
 
 **Client side — CRITICAL FINDING:**
+
 - Only 2-3 `reader.read()` calls produced data — NOT 23 separate reads. CF DO RPC batches/merges `controller.enqueue()` calls into fewer reads.
 - All decoded messages have `_tag=undefined` — the Chunk/Exit wrappers are lost during serialization.
 - ~180+ messages extracted from read #2 alone — individual values are being unpacked without their wrappers.
@@ -444,6 +534,30 @@ Without `type: "bytes"`, the non-byte ReadableStream is not properly serialized 
 - Removed the `common-cf` `start()` return patch (confirmed unhelpful)
 - Kept diagnostic logging patches on `sync-cf` and `common`
 - Deployed and tested — **same failure**. Updating compat date did not change the behavior.
+
+### Attempt 12: `type: "bytes"` + `decoded.flat(1)` fix (2026-04-06 ~10:25 UTC)
+
+Two fixes applied to `@livestore/common-cf`:
+
+1. **`type: "bytes"` on ReadableStream** (`do-rpc/server.js`) — required by CF DO RPC for cross-isolate serialization
+2. **`decoded.flat(1)` on client** (`do-rpc/client.js`) — flattens `[[msg1], [msg2]]` from `unpackMultiple` on merged buffers
+
+**Internal behavior changed:**
+
+- ✅ `message._tag=Chunk` and `message._tag=Exit` — framing now correct (was `undefined` before)
+- ✅ `reader.read() done=true after 1 reads` — stream terminates (never did before)
+- ✅ `Mailbox registered for requestId=5, mapSize=2` — first time ever in production
+- ✅ `Mailbox found for requestId=5, delivering events` — `syncUpdateRpc` callbacks delivered (were dropped before)
+- ✅ Pull chunks received with correct data
+- ✅ UI-created link picked up and processed by LinkProcessorDO
+
+**End-user result unchanged:**
+
+- ❌ Push from LinkProcessorDO to SyncBackendDO incomplete — DO calls push (batchSize=1,2,4,5) but server only receives some. SyncBackendDO has fewer events than LinkProcessorDO.
+- ❌ After saving a link via UI, then sending Telegram link → second Telegram link not synced to UI
+- ❌ The reproduction sequence is identical to before the patches: 1st Telegram link OK, UI link breaks sync, 2nd Telegram link fails
+
+**Assessment:** The patches changed the RPC transport behavior (correct framing, working mailbox, stream termination) but the end-user symptom is unchanged. The problem may be deeper in the livestore sync protocol, or the patches may be necessary-but-not-sufficient (fixing the transport but exposing a different issue in the push/rebase flow).
 
 ---
 
@@ -517,21 +631,66 @@ Miniflare serializes DO requests. 30+ concurrent ingest requests all processed o
 
 ## Open Questions
 
-1. **Does `type: "bytes"` fix the issue?** Patch applied (PR pending). If it fixes the framing, the live pull subscription should activate, the mailbox should register, and `syncUpdateRpc` events should be delivered. This would fix both cold-boot pulls and the DO hibernation issue (pull fiber would complete normally).
+1. **Why do pushes from LinkProcessorDO not reach the server?** Even with the mailbox working and pull delivering events, the DO's push calls (batchSize=4, 5) don't produce corresponding `Push received` logs on SyncBackendDO. Are they failing silently? Stuck in a rebase loop? Or is the push RPC also affected by the same transport issues?
 
-2. **Report to livestore:** The missing `type: "bytes"` is a bug in `@livestore/common-cf/do-rpc/server.ts`. Should be reported regardless of whether the fix works. The CF docs explicitly require byte-oriented streams for RPC.
+2. **Are the patches necessary-but-not-sufficient?** The `type: "bytes"` and `flat(1)` patches fixed the RPC framing (correct `_tag`, stream termination, mailbox registration). But the end-user symptom is unchanged. There may be an additional issue in the livestore sync protocol that only manifests when the live pull subscription is actually active.
+
+3. **Was the DO-RPC live pull EVER tested in production by livestore?** The `type: "bytes"` requirement, the `unpackMultiple` unwrapping issue, and the fire-and-forget `start()` pattern all suggest this transport was developed against miniflare only.
 
 ---
 
 ## Next Steps
 
-1. ~~**Bisect the snapshot:**~~ DONE. Old snapshot also fails. Not a livestore change.
-2. ~~**Return promise from `start()`:**~~ DONE. Did NOT fix the issue (Attempts 8-9).
-3. ~~**Transport-level logging:**~~ DONE. Revealed `_tag=undefined` and merged buffers (Attempt 11).
-4. ~~**Old code test:**~~ DONE. Same bug in code from 2+ weeks ago. Always broken.
-5. **Test `type: "bytes"` fix:** Deploy and test. If it works, the live pull subscription should activate and the mailbox should be registered. Look for `[do-rpc-client-transport] read #N, message._tag=Chunk` (instead of `undefined`) and `Mailbox registered`.
-6. **Report to livestore:** File issue with findings. Missing `type: "bytes"` on `ReadableStream` in `createStreamingResponse`.
-7. **Clean up temporary code:** Remove fake AI stub, diagnostic logging patches, debug endpoints after fix is confirmed.
+1. ~~**Bisect the snapshot:**~~ DONE. Old snapshot also fails.
+2. ~~**Return promise from `start()`:**~~ DONE. Did NOT fix.
+3. ~~**Transport-level logging:**~~ DONE. Revealed `_tag=undefined` and merged buffers.
+4. ~~**Old code test:**~~ DONE. Same bug in code from 2+ weeks ago.
+5. ~~**`type: "bytes"` + `flat(1)` fix:**~~ DONE. Fixed framing internally but end-user symptom unchanged.
+6. **Build minimal repro app:** DONE. `repro-do-sync/` — separate CF worker with two DOs (ClientDO + SyncBackendDO), no auth, no Telegram, just livestore sync. Same livestore snapshot (`6f52faf`), same `compatibility_date` (`2026-04-05`).
+   - **BUG REPRODUCED (2026-04-06 ~12:40 UTC):** Deployed vanilla cf-chat-style app WITHOUT patches. Created 3 items via ClientDO. Push reached SyncBackendDO (`onPush` logged, `Broadcasted to 1 RPC clients`). But every `syncUpdateRpc` callback was dropped: `No mailbox found for 0`. Exact same bug as cloudstash. Confirms the bug is NOT in our code — it's in livestore's DO-RPC transport on production CF.
+   - **PATCHES FIX THE REPRO (2026-04-06 ~12:49 UTC):** Applied `type: "bytes"` + `decoded.flat(1)` patches to repro's node_modules, rebuilt and deployed. Result: `message._tag=Chunk`, `message._tag=Exit`, mailbox registered, `syncUpdateRpc` callbacks delivered. All pushes acknowledged (`upstreamHead === localHead`), 0 pending events.
+   - **CROSS-CLIENT TEST PASSES (2026-04-06 ~12:57 UTC):** With patches, tested DO→browser→DO→browser→DO sequence. All 5 items synced to both browser and ClientDO. No `No mailbox found`. Both WebSocket and RPC broadcasts delivered. The patches fully fix the basic DO-to-DO sync.
+   - **Cloudstash has a second issue: Push RPC hangs (2026-04-06 ~16:52 UTC).** With patches deployed, the transport works (mailbox registered, \_tag correct, stream terminates). But Push RPC calls hang: `callRpc` (i.e. `syncBackendStub.rpc()`) sends the request (server receives and processes it), but the response never returns to the client. The `callRpc returned` log never fires for push requests while the Pull ReadableStream is still open.
+     - Push 1 (id=1): `send called` → `callRpc` hangs (server received it)
+     - Push 2 (id=2): `send called` → `callRpc` hangs
+     - Push 3 (id=3): `send called` → `callRpc returned, type=Uint8Array` (but too late)
+     - **Root cause confirmed (2026-04-06 ~17:05 UTC):** Two concurrent DO RPC `ingestItem()` calls to the same ClientDO are enough to reproduce the stuck push. No `triggerLinkProcessor`, no browser, no complex schema needed. Single ingest works fine; concurrent ingests cause `leader.upstreamHead` to freeze while `localHead` advances.
+     - The push RPC call (`syncBackendStub.rpc()`) hangs — the server receives and processes the push, but the response never returns to the client. This happens when multiple RPC calls are in flight to/from the DO while the livestore Pull ReadableStream is still open (mailbox stream never closes with `livePull: true`).
+     - In cloudstash, the queue handler delivers `ingestAndProcess` via DO RPC while the sync RPC connection to SyncBackendDO is active. The CF DO RPC layer appears unable to handle concurrent non-streaming RPC responses while a streaming RPC (pull) is open on the same stub.
+     - **Why it worked before April 1:** Two possible explanations: (1) the old CF runtime handled concurrent streaming + non-streaming RPC calls correctly, and the runtime change broke this; (2) the pull stream completed quickly on the old runtime (no buffer merging, `type:"bytes"` not enforced), freeing the connection for pushes.
+     - **Why it works locally:** Miniflare runs all DOs in-process — DO-to-DO RPC is a function call, not Cap'n Proto over the wire. No connection multiplexing, no stream blocking. Each `rpc()` call is independent.
+     - **Separate stubs theory DISPROVEN (2026-04-06 ~17:10 UTC):** Patched repro to use a separate `pushSyncBackendStub`. Concurrent ingests still caused `leader.upstreamHead` to freeze. NOT a Cap'n Proto multiplexing issue.
+     - **ROOT CAUSE FOUND (2026-04-06 ~17:52 UTC): Push fiber interrupted mid-flight.** Added `[LeaderSync]` logging to repro. Logs show: multiple `Push starting` with no corresponding `Push returned` — the push fiber is interrupted before the RPC response comes back. The sequence:
+       1. Push fiber sends RPC to SyncBackendDO → server receives and processes it
+       2. Server broadcasts events back via `syncUpdateRpc` → mailbox delivers to ClientDO
+       3. Pull stream emits → rebase logic fires → `restartBackendPushing` calls `FiberHandle.clear`
+       4. This **interrupts the push fiber** before it sees the RPC response
+       5. Server has advanced (push was processed), but client never acknowledges → `upstreamHead` doesn't update
+       6. New push fiber starts, same thing repeats
+     - `backgroundBackendPushing` is `Effect.interruptible` (LeaderSyncProcessor.js:552). `restartBackendPushing` uses `FiberHandle.clear` to interrupt it. When the push echo comes back faster than the RPC response, the fiber is killed mid-flight.
+     - **`Effect.uninterruptible` on push did NOT fix it (2026-04-06 ~18:20 UTC).** Push still hangs — multiple `Push starting` with no `Push returned`. The push RPC call genuinely never resolves, not just fiber interruption.
+     - **`livePull: false` also broken (2026-04-06 ~18:25 UTC).** Concurrent ingests with `livePull: false` (no ReadableStream at all) also cause `leader.upstreamHead` to freeze at e0. **This rules out the ReadableStream/Cap'n Proto multiplexing theory entirely.** The issue is in how concurrent DO RPC calls to the same ClientDO interact with the livestore/Effect RPC push fiber.
+     - **Fetch also broken (2026-04-06 ~18:35 UTC).** Concurrent fetch requests (`/client-do/ingest`) cause the same stuck push (`leader.upstreamHead: e3, localHead: e10`). RPC vs fetch is irrelevant. The issue is: **two concurrent requests to the same DO both calling `store.commit()` on the same livestore store instance causes the push fiber to hang.** This is a livestore concurrency bug, not a CF platform issue.
+     - **ROOT CAUSE CONFIRMED (2026-04-06 ~21:07 UTC):** Added `callRpc` promise-level logging. ALL `callRpc` promises resolve — CF platform delivers all responses correctly. But the Effect RPC client discards the response:
+       1. `backgroundBackendPushing` calls `rpcClient.SyncDoRpc.Push()` → registers entry in Effect RPC `entries` map
+       2. RPC protocol forks `send` fiber → calls `callRpc` (DO RPC to SyncBackendDO)
+       3. While `callRpc` is in flight, pull fiber delivers events → rebase → `restartBackendPushing` → `FiberHandle.clear` interrupts push fiber
+       4. Push fiber interrupted → entry in `entries` map cleaned up (discard callback)
+       5. `callRpc` promise resolves (already in flight, server processed it)
+       6. `send` fiber calls `writeResponse(response)` — entry is gone → response silently dropped
+       7. Server advanced (push processed), client never acknowledges → `upstreamHead` frozen permanently
+     - **Attempted fixes that did NOT work:**
+       - `Effect.uninterruptible` on push call — deferred interrupt fires at `yield*` boundary after uninterruptible region
+       - Wider `Effect.uninterruptible` wrapping push + result handling — `Push returned` still doesn't log for push 3
+       - Removing advance-path `restartBackendPushing` (patch 4) — improved (2 pushes succeed instead of 0) but push 3 still hangs
+       - `livePull: false` — same bug, rules out ReadableStream
+       - Separate DO stubs for push vs pull — same bug, rules out connection multiplexing
+       - `blockConcurrencyWhile` during ingest — same bug
+       - Serializing `ingestItem` calls — same bug
+     - **What we know for certain:** `callRpc` promise resolves for ALL pushes (CF platform is fine). The response arrives as Uint8Array. But somewhere between `callRpc` completion and `writeResponse` routing, the Effect RPC layer loses the response. `Push returned` never logs despite `callRpc Effect completed` logging. This happens ONLY when more than one ingest has been processed by the DO.
+     - **Upstream:** PRs #1129 and #1130 are refactoring away the BucketQueue + FiberHandle pattern entirely. Issue #744 described same symptoms. No exact match for our bug found in issues.
+7. **Find the fix:** Narrow down the root cause in livestore's DO-RPC transport and patch it. We can deploy the repro app locally without git push to iterate quickly.
+8. **Consider workaround:** Bypass the DO-RPC live pull entirely. The `triggerLinkProcessor` fetch already wakes the DO — could the DO re-pull on each wake instead of relying on the broken live subscription?
 
 ---
 

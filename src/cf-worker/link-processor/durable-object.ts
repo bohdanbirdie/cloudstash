@@ -18,12 +18,7 @@ import { cancelStaleLinks, ingestLink, notifyResult } from "./do-programs";
 import type { NotifyResultParams } from "./do-programs";
 import { runEffect } from "./logger";
 import { processLink } from "./process-link";
-import {
-  AiSummaryGenerator,
-  ContentExtractor,
-  FeatureStore,
-  MetadataFetcher,
-} from "./services";
+import { FeatureStore } from "./services";
 import { AiSummaryGeneratorLive } from "./services/ai-summary-generator.live";
 import { ContentExtractorLive } from "./services/content-extractor.live";
 import { FeatureStoreLive } from "./services/feature-store.live";
@@ -343,43 +338,12 @@ export class LinkProcessorDO
         )
       ).catch(() => ({}));
 
-      // TEMPORARY: fake services for race condition testing
-      const FakeMetadataFetcherLive = Layer.succeed(MetadataFetcher, {
-        fetch: () =>
-          Effect.succeed({
-            title: "Fake title",
-            description: "Fake desc",
-            image: undefined,
-            favicon: undefined,
-          }),
-      });
-      const FakeContentExtractorLive = Layer.succeed(ContentExtractor, {
-        extract: () =>
-          Effect.succeed({
-            title: "Fake title",
-            content: "Fake content",
-            author: null,
-            published: null,
-            wordCount: 2,
-          }),
-      });
-      const FakeAiSummaryGeneratorLive = Layer.succeed(AiSummaryGenerator, {
-        generate: () =>
-          Effect.gen(function* () {
-            yield* Effect.sleep("100 millis");
-            return {
-              summary: "Fake summary for testing",
-              suggestedTags: ["test-tag-1", "test-tag-2"],
-            };
-          }),
-      });
-
       const liveLayer = Layer.mergeAll(
-        FakeMetadataFetcherLive,
-        FakeContentExtractorLive,
-        FakeAiSummaryGeneratorLive,
+        MetadataFetcherLive,
+        ContentExtractorLive,
+        AiSummaryGeneratorLive,
         LinkEventStoreLive(store)
-      );
+      ).pipe(Layer.provide(WorkersAiLive(this.env.AI)));
 
       await runEffect(
         processLink({
@@ -426,92 +390,9 @@ export class LinkProcessorDO
     }
   }
 
-  // TEMPORARY: debug endpoint to corrupt eventlog for testing
-  private async debugCorruptEventlog(): Promise<Response> {
-    const hasTable =
-      [
-        ...this.ctx.storage.sql
-          .exec<{ count: number }>(
-            "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='eventlog'"
-          )
-          .toArray(),
-      ][0]?.count ?? 0;
-
-    if (hasTable === 0) {
-      return new Response("No eventlog table", { status: 400 });
-    }
-
-    const stats = [
-      ...this.ctx.storage.sql
-        .exec<{ rows: number; maxSeq: number }>(
-          "SELECT COUNT(*) as rows, COALESCE(MAX(seqNumGlobal), 0) as maxSeq FROM eventlog"
-        )
-        .toArray(),
-    ][0];
-
-    const maxSeq = stats?.maxSeq ?? 0;
-    const rows = stats?.rows ?? 0;
-
-    // Clean up any previous corrupt rows first
-    this.ctx.storage.sql.exec(
-      `DELETE FROM eventlog WHERE sessionId = 'corrupt-session'`
-    );
-
-    // Insert fake divergent events AFTER the current max seqNum.
-    // This simulates what the race condition produces: local events that
-    // were committed locally but never pushed to the server.
-    const startSeq = maxSeq + 1;
-    let inserted = 0;
-    for (let i = 0; i < 20; i++) {
-      const seq = startSeq + i;
-      const parentSeq = seq - 1;
-      try {
-        this.ctx.storage.sql.exec(
-          `INSERT INTO eventlog (
-            seqNumGlobal, seqNumClient, seqNumRebaseGeneration,
-            parentSeqNumGlobal, parentSeqNumClient, parentSeqNumRebaseGeneration,
-            name, argsJson, clientId, sessionId, schemaHash, syncMetadataJson
-          ) VALUES (?, 0, 0, ?, 0, 0, 'v1.LinkProcessingStarted', '{"linkId":"fake-corrupt-${i}"}', 'link-processor-do', 'corrupt-session', 0, '{"_tag":"None"}')`,
-          seq,
-          parentSeq
-        );
-        inserted++;
-      } catch (e) {
-        logger.warn("DEBUG: Insert failed", { seq, error: String(e) });
-      }
-    }
-
-    // Clear cached store so next request creates a fresh one
-    this.cachedStore = undefined;
-    this.storeCreationPromise = undefined;
-    this.subscription = undefined;
-
-    logger.warn("DEBUG: Eventlog corrupted", {
-      originalRows: rows,
-      originalMaxSeq: maxSeq,
-      startSeq,
-      inserted,
-    });
-
-    return new Response(
-      JSON.stringify({
-        originalRows: rows,
-        originalMaxSeq: maxSeq,
-        startSeq,
-        inserted,
-      }),
-      { headers: { "Content-Type": "application/json" } }
-    );
-  }
-
   override async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const storeId = url.searchParams.get("storeId");
-
-    // TEMPORARY: debug endpoint
-    if (url.pathname === "/debug-corrupt") {
-      return this.debugCorruptEventlog();
-    }
 
     if (!storeId) {
       return new Response("Missing storeId", { status: 400 });
