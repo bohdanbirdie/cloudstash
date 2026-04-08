@@ -17,7 +17,7 @@ On 2026-02-09, a cascade failure took down sync for ~1 hour. `auth.api.getSessio
 | **Global SWR config** | SWR retry storms | `errorRetryCount: 3`, `revalidateOnFocus: false`, `dedupingInterval: 10_000`. |
 | **`/me` error boundary** | Unhandled crashes | `Effect.catchAllDefect` + outer `.catch()` → proper 500 JSON. |
 | **Ping interval** | Frequent DO wake-ups from pings | Uses livestore defaults. History: default 10s caused 6 wake-ups/min/user, preventing hibernation. Increased to reduce DO duration. |
-| **Usage analytics** | No visibility into per-user load | CF Analytics Engine, fire-and-forget at 5 instrumentation points. See `docs/specs/usage-analytics.md`. |
+| **Usage analytics** | No visibility into per-user load | CF Analytics Engine, fire-and-forget at 5 instrumentation points. See `docs/features/usage-analytics.md`. |
 
 ## rows_written Quota (2026-02-11)
 
