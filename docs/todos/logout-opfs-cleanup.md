@@ -16,4 +16,4 @@ The key constraint: OPFS files are locked while LiveStore is mounted. The `/logo
 
 - `src/lib/auth.tsx` — current logout function with `RESET_FLAG_KEY`
 - `src/routes/_authed.tsx` — authed layout that mounts LiveStore
-- `docs/architecture/auth.md` — documents the current flag-based approach
+- [[architecture/auth|Auth doc]] — documents the current flag-based approach
