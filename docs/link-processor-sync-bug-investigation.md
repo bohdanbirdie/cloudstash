@@ -1,8 +1,8 @@
 # LinkProcessorDO Sync Bug Investigation
 
 **Date started:** 2026-04-04
-**Last updated:** 2026-04-06
-**Status:** Two bugs identified. Bug 1 (RPC framing) has a working patch. Bug 2 (push fiber interrupted by restartBackendPushing) is the primary blocker — reproduced in minimal repro app, root cause traced to Effect RPC response routing, no fix yet. No upstream PR addresses the specific `syncBackendPushQueue` / `backgroundBackendPushing` pattern where the bug lives.
+**Last updated:** 2026-04-07
+**Status:** RESOLVED. Three bugs found and fixed. Root cause was msgpackr's `useRecords: true` default using `new Function()` JIT compilation, blocked by CF Workers' V8 CSP — silently returning empty arrays from `unpackMultiple()`, making push RPC payloads arrive empty.
 
 ## Symptom
 
@@ -16,9 +16,9 @@ Links sent via Telegram are processed successfully by the LinkProcessorDO (metad
 - **No "Creating store" event between March 30 and April 1 19:02** — the working DO instance had been alive for 2+ days (booted before observability window).
 - **Conclusion:** Same deployed code, but the long-lived DO instance worked while the cold-booted instance on April 1 did not. Something changed in the CF runtime between when the old instance booted and when the new one started.
 
-## Current State (2026-04-06)
+## Current State (2026-04-07)
 
-Three separate issues found:
+**RESOLVED.** Three separate issues found and fixed:
 
 ### Issue 1: Store creation race (FIXED)
 
@@ -35,58 +35,26 @@ In production CF, `controller.enqueue()` calls are merged into fewer `reader.rea
 
 With these patches: stream terminates (`done=true`), `_tag` correct, mailbox registers, `syncUpdateRpc` callbacks delivered. Verified working in repro app with single ingests and cross-client (browser + DO) sync.
 
-### Issue 3: Push fiber interrupted mid-flight (NOT FIXED — primary blocker)
+### Issue 3: msgpackr `useRecords` blocked by CF Workers CSP (FIXED with patch)
 
-When two or more `store.commit()` cycles run (even sequentially), the push fiber in `backgroundBackendPushing` gets interrupted by `restartBackendPushing` while a push RPC is in flight. The `callRpc` promise resolves (CF platform delivers the response), but the Effect RPC client's entry has already been cleaned up due to fiber interruption, so the response is silently dropped. Server advances, client never acknowledges → `leader.upstreamHead` frozen permanently.
+`@effect/rpc`'s `RpcSerialization.msgPack` creates `Msgpackr.Unpackr()` and `Msgpackr.Packr()` with default options. The default `useRecords: true` causes msgpackr to use `new Function()` for JIT compilation, which is blocked by CF Workers' V8 CSP ("Code generation from strings disallowed for this context"). The error is silently swallowed — `unpackMultiple()` returns `[]` instead of decoded messages. This causes push RPC payloads to arrive empty at the SyncBackendDO, making sync permanently stuck.
 
-**Root cause trace:**
+**Fix:** Patch `@effect/rpc`'s `RpcSerialization.js` to pass `{ useRecords: false, int64AsType: 'number' }` to `Unpackr` and `{ useRecords: false }` to `Packr`.
 
-1. `backgroundBackendPushing` calls `rpcClient.SyncDoRpc.Push()` → registers entry in Effect RPC `entries` map
-2. RPC protocol forks `send` fiber → calls `callRpc` (DO RPC to SyncBackendDO)
-3. Server processes push, broadcasts back via `syncUpdateRpc` → pull fiber processes events
-4. Pull triggers `restartBackendPushing` → `FiberHandle.clear` interrupts push fiber
-5. Push fiber interrupted → entry in `entries` map cleaned up (discard callback)
-6. `callRpc` promise resolves (already in flight)
-7. `send` fiber calls `writeResponse(response)` — entry is gone → response silently dropped
+**Why this was hard to find:** The error is completely silent — no logs, no exceptions. The push RPC appears to execute normally from the caller's perspective, but the server receives an empty payload. The symptom (frozen `upstreamHead`) looked identical to a fiber interruption issue, leading to extensive investigation of the push fiber lifecycle. The real cause was one layer deeper — the serialization layer was silently broken.
 
-**Evidence:** `[LeaderSync] Push starting` logs but no `[LeaderSync] Push returned`. `[do-rpc-client] callRpc promise resolved` and `callRpc Effect completed` both log, confirming the CF platform delivered the response. But the Effect layer drops it.
+**Previous misdiagnosis:** This was initially attributed to push fiber interruption by `restartBackendPushing` via `FiberHandle.clear`. While that code path does exist and the fiber lifecycle analysis was accurate, the actual cause of the stuck sync was the empty push payloads from msgpackr CSP failure. The fiber interruption theory explained the symptoms but was a red herring.
 
-**Reproduction:** `repro-do-sync/` app — `curl /ingest & curl /ingest & wait` → `leader.upstreamHead` freezes while `localHead` advances. Single ingest always works.
+**Verified:** 2026-04-07. Three links sent (Telegram, UI, Telegram) — all synced with full processing (metadata, AI summary, tags, notifications).
 
-**Attempted fixes that did NOT work:**
-
-- `Effect.uninterruptible` on push call (narrow scope) — deferred interrupt fires at `yield*` boundary
-- `Effect.uninterruptible` wrapping push + result handling (wider scope) — same result
-- Removing advance-path `restartBackendPushing` — improved (2 pushes succeed vs 0) but not complete
-- `livePull: false` — same bug (rules out ReadableStream interference)
-- Separate DO stubs for push vs pull — same bug (rules out connection multiplexing)
-- `blockConcurrencyWhile` during ingest — same bug
-- Serializing `ingestItem` calls via queue — same bug
-- RPC vs fetch for ingest — same bug (not CF RPC-specific)
-
-**Upstream:** livestore PRs #1129 and #1130 (both OPEN, not merged) are removing BucketQueue + FiberHandle patterns, but **neither touches the code where our bug lives:**
-
-- PR #1129 removes the push queue from `ClientSessionSyncProcessor` (different component — client-to-leader, not leader-to-backend).
-- PR #1130 removes `localPushesQueue` from `LeaderSyncProcessor` (different queue — local push ingestion, not backend push). The `syncBackendPushQueue` / `backgroundBackendPushing` / `backendPushingFiberHandle` / `restartBackendPushing` code remains untouched.
-- Issue #744 (closed) describes a different root cause (rebase generation tracking causing a Deferred to never resolve) — similar "sync stuck" symptom but different mechanism.
-- Issue #1133 (open) is about the client session push fiber dying on non-RejectedPushError — different component and mechanism.
-- The maintainer (IGassmann) appears to be removing these patterns one queue at a time. A third PR for `syncBackendPushQueue` would be needed to fix our bug — it does not exist yet.
-
-**What has been tried and failed:**
-
-- `type: "bytes"` + `decoded.flat(1)` patches (Attempt 12) — fixed framing, didn't fix sync
-- Returning promise from `ReadableStream.start()` (Attempts 8-9) — did NOT fix
-- Reverting to old livestore snapshot — same failure, not a livestore code change
-- Old code from 2+ weeks ago — same failure, not our code
-- Table drops (Attempts 1-4) — pull always stalls
-- Updating `compatibility_date` to `2026-04-05` — no change
-
-**Current deployed state:**
+**Current deployed state (2026-04-07):**
 
 - Latest livestore snapshot (`6f52faf`) with `compatibility_date = "2026-04-05"`
 - Store creation guard (`storeCreationPromise`) — prevents concurrent store race
-- Three patches: `sync-cf` (logging), `common` (logging), `common-cf` (`type: "bytes"` + `flat(1)` + logging)
-- Fake AI services stub (100ms) in `durable-object.ts`
+- Two patches:
+  - `@livestore/common-cf` — `type: "bytes"` + `flat(1)` (RPC stream framing fix)
+  - `@effect/rpc` — `useRecords: false` for msgpackr (CSP compatibility fix)
+- Real AI services restored (no stubs)
 
 ## CF Runtime Research (2026-04-06)
 
