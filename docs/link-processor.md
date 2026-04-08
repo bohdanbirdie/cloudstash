@@ -6,6 +6,8 @@ LinkProcessorDO processes newly saved links: fetches metadata, extracts content,
 
 ## Architecture
 
+![[diagrams/link-processor.excalidraw]]
+
 ```
 PATH 1: BROWSER (direct)               PATH 2: EXTERNAL (queue)
 ─────────────────────────               ────────────────────────
