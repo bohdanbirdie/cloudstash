@@ -5,7 +5,7 @@ During the sync bug, errors were logged but never surfaced to any monitoring fee
 ## Errors to capture
 
 - `MaterializeError` — PK conflicts in eventlog (corrupted store)
-- `ServerAheadError` — sequence number divergence
+- `ServerAheadError` — only if persistent (single occurrences are normal rebase protocol)
 - `processLinkAsync failed` — catch block that resets cachedStore
 - `store.commit()` failures (currently swallowed)
 

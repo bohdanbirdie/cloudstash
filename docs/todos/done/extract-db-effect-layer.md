@@ -19,6 +19,6 @@ Extracted DB access into Effect services with typed errors. All DB operations go
 Handlers → Domain Services → DbClient → D1
 ```
 
-Domain services: OrgFeatures, InviteStore, AuthClient, Connect services (apikey, verification).
+Domain services: OrgFeatures, InviteStore, AuthClient, Connect services (API key, verification).
 
 Key properties: DbClient only visible inside service implementations, all DB calls use `query()` with typed `DbError`, tests swap layers via `Layer.succeed()`.

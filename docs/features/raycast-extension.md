@@ -13,7 +13,7 @@ Save links to Cloudstash directly from Raycast. Separate repo: [bohdanbirdie/clo
 
 **Setup (one-time):** Web app generates a connect code → user enters it in Raycast → extension exchanges code for API key via `/api/connect/raycast/exchange`. Key stored in macOS Keychain (Raycast manages this).
 
-**Link saving:** Extension → `POST /api/ingest` with `Authorization: Bearer <api-key>` → Worker verifies key via Better Auth → enqueues to LinkProcessorDO → returns `{ status: "ingested" | "duplicate", linkId }`.
+**Link saving:** Extension → `POST /api/ingest` with `Authorization: Bearer <api-key>` → Worker verifies key via Better Auth → enqueues to Cloudflare Queue → returns `{ status: "queued" }`.
 
 Server-side connect endpoints live in `src/cf-worker/connect/raycast.ts`. Extension code lives in `local/raycast-extension/src/`. The only connection is the HTTP API contract (no shared imports).
 
@@ -25,10 +25,9 @@ Authorization: Bearer <api-key>
 Content-Type: application/json
 { "url": "https://example.com/article" }
 
-→ 200: { "status": "ingested", "linkId": "..." }
+→ 200: { "status": "queued" }
 → 401: Invalid API key
-→ 400: Invalid URL
-→ 429: Rate limited
+→ 400: Invalid URL / Missing url
 ```
 
 ## vs Telegram Bot

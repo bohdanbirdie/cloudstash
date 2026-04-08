@@ -36,7 +36,7 @@ interface LinkProjection {
 
 ## Data Flow
 
-```
+```text
 open({ linkId, projection? })
   → Dialog queries linkById$(linkId) + projection.query
   → User performs action

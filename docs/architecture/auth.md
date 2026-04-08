@@ -8,7 +8,7 @@ Google OAuth via Better Auth with organization-scoped LiveStore sync and admin a
 User → Google OAuth → Better Auth → Session Cookie → Approval Check → LiveStore (org-scoped)
 ```
 
-1. **Signup:** Google OAuth → Better Auth creates personal org → sets `activeOrgId` on session → cookie + redirect
+1. **Signup:** Google OAuth → Better Auth creates personal org → sets `activeOrganizationId` on session → cookie + redirect
 2. **Route protection:** `beforeLoad` in `__root.tsx` checks auth, redirects to `/login` if unauthenticated
 3. **Sync connection:** `useAppStore()` → WebSocket `/sync?storeId={orgId}` → server validates session cookie + org membership
 
