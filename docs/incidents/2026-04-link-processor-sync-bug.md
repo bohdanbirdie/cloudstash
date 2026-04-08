@@ -52,38 +52,38 @@ CF DO RPC merges multiple `controller.enqueue()` calls into fewer `reader.read()
 
 ## Theories Tried and Denied
 
-| # | Theory | Why denied |
-|---|---|---|
-| 1 | PR #26 materializer change caused it | Doesn't affect eventlog PK conflict or sync |
-| 2 | Drop all DO state via migration | Too blunt, unclear when regression started |
-| 3 | MaterializeError during boot is the blocker | Only during concurrent store creation; after race fix, no MaterializeError |
-| 4 | ServerAheadError is fatal | Normal rebase protocol, not an error |
-| 5 | PR #25 (Defuddle) caused it | Content extraction unrelated to sync |
-| 6 | `livePull: true` prevents hibernation | Worked for weeks; only `Effect.never` from stuck rebase prevents hibernation |
-| 7 | Table drop + fresh boot fixes it | Tried 3 times, same stall every time |
-| 8 | setTimeout for DO lifetime limit | Wrong mechanism for DOs |
-| 9 | resetPersistence for auto-recovery | No clear trigger for when to reset |
-| 10 | Server-side pull drops last chunk | Server logs confirmed all events emitted |
-| 11 | clientId echo filtering in pull | All events including own clientId were emitted |
-| 12 | Returning promise from `start()` | Did not fix — stream produces chunks fine, framing is the issue |
-| 13 | Push fiber interrupted by `FiberHandle.clear` | Accurate analysis but was a red herring — real cause was empty payloads from CSP failure |
-| 14 | Cap'n Proto multiplexing blocks concurrent RPCs | Disproven — separate stubs, `livePull: false`, and plain fetch all show same bug |
+| #   | Theory                                          | Why denied                                                                               |
+| --- | ----------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 1   | PR #26 materializer change caused it            | Doesn't affect eventlog PK conflict or sync                                              |
+| 2   | Drop all DO state via migration                 | Too blunt, unclear when regression started                                               |
+| 3   | MaterializeError during boot is the blocker     | Only during concurrent store creation; after race fix, no MaterializeError               |
+| 4   | ServerAheadError is fatal                       | Normal rebase protocol, not an error                                                     |
+| 5   | PR #25 (Defuddle) caused it                     | Content extraction unrelated to sync                                                     |
+| 6   | `livePull: true` prevents hibernation           | Worked for weeks; only `Effect.never` from stuck rebase prevents hibernation             |
+| 7   | Table drop + fresh boot fixes it                | Tried 3 times, same stall every time                                                     |
+| 8   | setTimeout for DO lifetime limit                | Wrong mechanism for DOs                                                                  |
+| 9   | resetPersistence for auto-recovery              | No clear trigger for when to reset                                                       |
+| 10  | Server-side pull drops last chunk               | Server logs confirmed all events emitted                                                 |
+| 11  | clientId echo filtering in pull                 | All events including own clientId were emitted                                           |
+| 12  | Returning promise from `start()`                | Did not fix — stream produces chunks fine, framing is the issue                          |
+| 13  | Push fiber interrupted by `FiberHandle.clear`   | Accurate analysis but was a red herring — real cause was empty payloads from CSP failure |
+| 14  | Cap'n Proto multiplexing blocks concurrent RPCs | Disproven — separate stubs, `livePull: false`, and plain fetch all show same bug         |
 
 ## Recovery Attempts Summary
 
-| # | What | Result |
-|---|---|---|
-| 1 | Table drop | Pull climbed to 1892/1918, stalled. 3 Telegram links processed locally, none synced. |
-| 2 | Redeploy | Same stall + race re-corrupted eventlog |
-| 3 | Table drop + server-side pull logging | Server emitted all events. Client got `totalRowsWritten: 281`. RPC transport confirmed as problem layer. |
-| 4 | Table drop + client-side pull logging | Client received 22/23 chunks. Chunk 22 (`NoMore`) dropped. |
-| 5 | Production data on local miniflare | All 23 chunks received, 1918 events materialized. Same data works locally. |
-| 6 | Fresh account (16 events) | Single-chunk pull also drops `NoMore`. Every cold-boot pull broken. |
-| 7 | Fresh account full lifecycle | Push-only works while DO warm. Breaks when browser creates events DO hasn't pulled. |
-| 8-9 | `start()` return fix | Did not help for either fresh or main account |
-| 10 | Latest snapshot + compat date update | Same failure |
-| 11 | Transport-level logging | Revealed `_tag=undefined`, merged buffers, no `done=true`. Critical finding. |
-| 12 | `type: "bytes"` + `flat(1)` patches | Fixed framing internally. End-user still broken (led to discovering Bug 3). |
+| #   | What                                  | Result                                                                                                   |
+| --- | ------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 1   | Table drop                            | Pull climbed to 1892/1918, stalled. 3 Telegram links processed locally, none synced.                     |
+| 2   | Redeploy                              | Same stall + race re-corrupted eventlog                                                                  |
+| 3   | Table drop + server-side pull logging | Server emitted all events. Client got `totalRowsWritten: 281`. RPC transport confirmed as problem layer. |
+| 4   | Table drop + client-side pull logging | Client received 22/23 chunks. Chunk 22 (`NoMore`) dropped.                                               |
+| 5   | Production data on local miniflare    | All 23 chunks received, 1918 events materialized. Same data works locally.                               |
+| 6   | Fresh account (16 events)             | Single-chunk pull also drops `NoMore`. Every cold-boot pull broken.                                      |
+| 7   | Fresh account full lifecycle          | Push-only works while DO warm. Breaks when browser creates events DO hasn't pulled.                      |
+| 8-9 | `start()` return fix                  | Did not help for either fresh or main account                                                            |
+| 10  | Latest snapshot + compat date update  | Same failure                                                                                             |
+| 11  | Transport-level logging               | Revealed `_tag=undefined`, merged buffers, no `done=true`. Critical finding.                             |
+| 12  | `type: "bytes"` + `flat(1)` patches   | Fixed framing internally. End-user still broken (led to discovering Bug 3).                              |
 
 ## CF Runtime Research
 

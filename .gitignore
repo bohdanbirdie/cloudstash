@@ -28,3 +28,4 @@ docs/.obsidian/cache/
 docs/.obsidian/plugins/**/main.js
 docs/.obsidian/plugins/**/styles.css
 docs/.obsidian/plugins/**/manifest.json
+docs/.obsidian/plugins/**/data.json

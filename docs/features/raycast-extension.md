@@ -33,9 +33,9 @@ Content-Type: application/json
 
 ## vs Telegram Bot
 
-| Aspect | Telegram Bot | Raycast Extension |
-|---|---|---|
-| Auth setup | `/connect <key>` in chat | Connect code exchange |
-| Save link | Send message with URL | Paste URL → select command |
-| Feedback | Text reply with summary | Toast notification |
-| Platform | Any (Telegram client) | macOS only |
+| Aspect     | Telegram Bot             | Raycast Extension          |
+| ---------- | ------------------------ | -------------------------- |
+| Auth setup | `/connect <key>` in chat | Connect code exchange      |
+| Save link  | Send message with URL    | Paste URL → select command |
+| Feedback   | Text reply with summary  | Toast notification         |
+| Platform   | Any (Telegram client)    | macOS only                 |

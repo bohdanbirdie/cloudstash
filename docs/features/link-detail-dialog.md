@@ -27,12 +27,12 @@ interface LinkProjection {
 }
 ```
 
-| Projection | Actions that remove link |
-|---|---|
-| `inboxProjection` | All (complete, delete) |
-| `allLinksProjection` | Only delete |
-| `completedProjection` | Uncomplete, delete |
-| `trashProjection` | All (restore, delete) |
+| Projection            | Actions that remove link |
+| --------------------- | ------------------------ |
+| `inboxProjection`     | All (complete, delete)   |
+| `allLinksProjection`  | Only delete              |
+| `completedProjection` | Uncomplete, delete       |
+| `trashProjection`     | All (restore, delete)    |
 
 ## Data Flow
 

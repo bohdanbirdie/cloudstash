@@ -22,26 +22,27 @@ useAgentChat({ agent,               → /agents/chat/{workspaceId}
 
 ## Tools
 
-| Tool | Description | Auto/HITL |
-|---|---|---|
-| `listRecentLinks` | List recently saved links | Auto |
-| `saveLink` | Save a new URL | Auto |
-| `searchLinks` | Search by keyword | Auto |
-| `getLink` | Get link details by ID | Auto |
-| `completeLink` | Mark as done | Auto |
-| `uncompleteLink` | Mark as unread | Auto |
-| `deleteLink` | Move to trash | **HITL** |
-| `restoreLink` | Restore from trash | Auto |
-| `completeLinks` | Bulk mark as done | Auto |
-| `deleteLinks` | Bulk move to trash | **HITL** |
-| `getInboxLinks` | List unread links | Auto |
-| `getStats` | Inbox/completed/total counts | Auto |
+| Tool              | Description                  | Auto/HITL |
+| ----------------- | ---------------------------- | --------- |
+| `listRecentLinks` | List recently saved links    | Auto      |
+| `saveLink`        | Save a new URL               | Auto      |
+| `searchLinks`     | Search by keyword            | Auto      |
+| `getLink`         | Get link details by ID       | Auto      |
+| `completeLink`    | Mark as done                 | Auto      |
+| `uncompleteLink`  | Mark as unread               | Auto      |
+| `deleteLink`      | Move to trash                | **HITL**  |
+| `restoreLink`     | Restore from trash           | Auto      |
+| `completeLinks`   | Bulk mark as done            | Auto      |
+| `deleteLinks`     | Bulk move to trash           | **HITL**  |
+| `getInboxLinks`   | List unread links            | Auto      |
+| `getStats`        | Inbox/completed/total counts | Auto      |
 
 HITL tools have no `execute` function → AI SDK stops, frontend shows confirmation UI, `addToolResult()` sends approval back, `processToolCalls()` executes server-side.
 
 ## Authentication & Feature Gating
 
 Auth hooks in `src/cf-worker/agents/hooks.ts` run before connect/request:
+
 1. Validate session cookie via `checkSyncAuth`
 2. Check `chatAgentEnabled` feature flag on org
 

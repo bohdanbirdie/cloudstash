@@ -49,11 +49,11 @@ Auth failures still look identical to network errors at the WebSocket level, so 
 
 ## API Endpoints
 
-| Endpoint | Purpose |
-|---|---|
-| `GET /api/auth/me` | Current user + org info (200 or 401) |
+| Endpoint                          | Purpose                                                    |
+| --------------------------------- | ---------------------------------------------------------- |
+| `GET /api/auth/me`                | Current user + org info (200 or 401)                       |
 | `GET /api/sync/auth?storeId={id}` | Pre-flight sync auth check. Returns error code on failure. |
-| `GET /api/org/:id` | Org details if user is member (200/403/404) |
+| `GET /api/org/:id`                | Org details if user is member (200/403/404)                |
 
 ## Security Checklist
 

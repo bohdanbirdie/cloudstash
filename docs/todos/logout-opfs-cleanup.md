@@ -5,6 +5,7 @@ Currently logout only sets a localStorage flag (`RESET_FLAG_KEY`) and calls `aut
 ## What to do
 
 Create a `/logout` route (outside `_authed` layout) that:
+
 1. Unmounts LiveStore (stops rendering `_authed` children)
 2. Clears OPFS directories via `navigator.storage.getDirectory()` — iterate `livestore-*` entries
 3. Calls `authClient.signOut()`

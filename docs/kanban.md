@@ -1,7 +1,5 @@
 ---
-
 kanban-plugin: board
-
 ---
 
 ## Todo
@@ -40,4 +38,3 @@ kanban-plugin: board
 - [x] [[todos/done/telegram-streaming|Telegram streaming + bot config cleanup]]
 - [x] [[todos/done/monorepo-conversion|Convert project to monorepo]]
 - [x] [[todos/done/raycast-ingestion|Add Raycast ingestion path]]
-

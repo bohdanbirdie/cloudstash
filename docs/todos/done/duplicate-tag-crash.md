@@ -5,6 +5,7 @@
 **Repro:** AI suggests two identical tags → user accepts both → second commit crashes the store.
 
 **Fix:**
+
 1. Duplicate tag deduplication before commit
 2. Livestore commit errors caught gracefully in the UI (toast instead of crash)
 3. Tests added for Livestore operations

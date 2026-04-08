@@ -14,12 +14,12 @@ Scope-based hotkey management using `react-hotkeys-hook`'s `HotkeysProvider` and
 
 ## Scope Hierarchy
 
-| Scope | When Active | Disables |
-|---|---|---|
-| `global` | Always | — |
-| `dialog` | Dialog open | — |
-| `selection` | Items selected | — |
-| `popover` | TagCombobox open | `dialog`, `selection` |
+| Scope       | When Active      | Disables              |
+| ----------- | ---------------- | --------------------- |
+| `global`    | Always           | —                     |
+| `dialog`    | Dialog open      | —                     |
+| `selection` | Items selected   | —                     |
+| `popover`   | TagCombobox open | `dialog`, `selection` |
 
 When a popover opens, it disables the `dialog` scope so parent hotkeys don't fire. `cmd+backspace` in input deletes text only.
 
