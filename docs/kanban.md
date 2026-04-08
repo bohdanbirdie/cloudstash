@@ -25,18 +25,19 @@ kanban-plugin: board
 
 ## Done
 
-- [x] Review and improve usage analytics
-- [x] AI summary re-request sends duplicate Telegram message
-- [x] Restore frequent WebSocket ping + improve offline handling
+- [x] [[todos/done/usage-analytics-review|Review and improve usage analytics]]
+- [x] [[todos/done/telegram-duplicate-message|AI summary re-request sends duplicate Telegram message]]
+- [x] [[todos/done/restore-ws-ping|Restore frequent WebSocket ping + improve offline handling]]
 - [x] Defuddle tool for page parsing
-- [x] Improve data fetching with CF Browser Rendering crawl endpoint
-- [x] Duplicate tag crashes Livestore + error handling + tests
-- [x] Complete Vite+ migration
-- [x] Extract DB into Effect Layer
-- [x] Bug: AI summary returns plain JSON instead of formatted text
-- [x] Better title handling: decode HTML entities
-- [x] Migrate to Vite 8 + upgrade dependencies
-- [x] Telegram streaming + bot config cleanup
-- [x] Convert project to monorepo
-- [x] Add Raycast ingestion path
+- [x] [[todos/done/browser-rendering-crawl|Improve data fetching with CF Browser Rendering crawl endpoint]]
+- [x] [[todos/done/duplicate-tag-crash|Duplicate tag crashes Livestore + error handling + tests]]
+- [x] [[todos/done/viteplus-migration|Complete Vite+ migration]]
+- [x] [[todos/done/extract-db-effect-layer|Extract DB into Effect Layer]]
+- [x] Add free PR review agent
+- [x] [[todos/done/ai-summary-json-bug|Bug: AI summary returns plain JSON instead of formatted text]]
+- [x] [[todos/done/html-entity-titles|Better title handling: decode HTML entities]]
+- [x] [[todos/done/vite8-upgrade|Migrate to Vite 8 + upgrade dependencies]]
+- [x] [[todos/done/telegram-streaming|Telegram streaming + bot config cleanup]]
+- [x] [[todos/done/monorepo-conversion|Convert project to monorepo]]
+- [x] [[todos/done/raycast-ingestion|Add Raycast ingestion path]]
 
