@@ -183,6 +183,10 @@ bun run deploy           # Production deploy (migrations + worker)
 bun run deploy:staging   # Staging deploy
 ```
 
+## Diagrams
+
+Architecture diagrams are in `docs/diagrams/` as `.excalidraw` files. Open them with the [Excalidraw Obsidian plugin](https://github.com/zsviczian/obsidian-excalidraw-plugin) or at [excalidraw.com](https://excalidraw.com).
+
 ## Architecture
 
 ```

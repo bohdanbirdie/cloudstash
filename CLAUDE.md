@@ -51,8 +51,10 @@ bun run deploy             # FORBIDDEN
 
 ## Documentation
 
-- `docs/specs/` — Feature specs and technical decisions. Check before implementing changes.
-- `docs/` — Architecture docs (auth, worker resilience, telegram bot, etc.). Check before modifying related systems.
+- `docs/architecture/` — System architecture (auth, worker resilience, link processor).
+- `docs/features/` — Feature docs and specs. Check before implementing changes.
+- `docs/diagrams/` — Excalidraw diagrams (`.excalidraw` files). Viewable in the Obsidian Excalidraw plugin or at excalidraw.com. Agents can create/edit these files directly as JSON.
+- `docs/` is an Obsidian vault. Use `[[path/filename]]` wiki links for cross-references between docs (no `.md` extension). **Do not use `[[path|alias]]` syntax inside markdown tables** — the `|` conflicts with the table column separator.
 
 ## Livestore Sync
 

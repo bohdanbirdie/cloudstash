@@ -21,3 +21,11 @@ coverage/
 
 # Local clones of external repos (managed by `bun run sync`)
 local/
+
+# Obsidian
+docs/.obsidian/workspace*.json
+docs/.obsidian/cache/
+docs/.obsidian/plugins/**/main.js
+docs/.obsidian/plugins/**/styles.css
+docs/.obsidian/plugins/**/manifest.json
+docs/.obsidian/plugins/**/data.json
