@@ -15,11 +15,13 @@ import { AI_MODEL } from "./types";
 interface ProcessLinkParams {
   aiSummaryEnabled?: boolean;
   link: { id: LinkId; url: string };
+  skipStartedEvent?: boolean;
 }
 
 export const processLink = ({
   aiSummaryEnabled = false,
   link,
+  skipStartedEvent = false,
 }: ProcessLinkParams) =>
   Effect.gen(function* () {
     const metadataFetcher = yield* MetadataFetcher;
@@ -31,9 +33,11 @@ export const processLink = ({
 
     yield* Effect.logInfo("Processing link started");
 
-    yield* linkStore.commit(
-      events.linkProcessingStarted({ linkId: link.id, updatedAt: now })
-    );
+    if (!skipStartedEvent) {
+      yield* linkStore.commit(
+        events.linkProcessingStarted({ linkId: link.id, updatedAt: now })
+      );
+    }
 
     const metadataResult = yield* metadataFetcher.fetch(link.url);
 
@@ -115,19 +119,23 @@ export const processLink = ({
         return !existingNameSet.has(name.toLowerCase());
       });
 
-      for (const suggestion of newSuggestions) {
-        const matchedTag = findMatchingTag(suggestion, existingTags);
-        yield* linkStore.commit(
-          events.tagSuggested({
-            id: nanoid(),
-            linkId: link.id,
-            model: AI_MODEL,
-            suggestedAt: new Date(),
-            suggestedName: matchedTag?.name ?? suggestion,
-            tagId: matchedTag?.id ?? null,
-          })
-        );
-      }
+      yield* Effect.forEach(
+        newSuggestions,
+        (suggestion) => {
+          const matchedTag = findMatchingTag(suggestion, existingTags);
+          return linkStore.commit(
+            events.tagSuggested({
+              id: nanoid(),
+              linkId: link.id,
+              model: AI_MODEL,
+              suggestedAt: new Date(),
+              suggestedName: matchedTag?.name ?? suggestion,
+              tagId: matchedTag?.id ?? null,
+            })
+          );
+        },
+        { discard: true }
+      );
 
       if (newSuggestions.length > 0) {
         yield* Effect.logInfo("Tag suggestions emitted").pipe(
@@ -150,20 +158,19 @@ export const processLink = ({
 
     yield* Effect.logInfo("Link processing completed");
   }).pipe(
-    Effect.withSpan("processLink", {
+    Effect.withSpan("LinkProcessor.processLink", {
       attributes: { aiSummaryEnabled, linkId: link.id },
     }),
     Effect.annotateLogs({ linkId: link.id }),
-    Effect.catchAll((error) =>
+    Effect.catchTag("AiCallError", (error) =>
       Effect.gen(function* () {
         const linkStore = yield* LinkEventStore;
-        const errorTag = "_tag" in error ? error._tag : "UnknownError";
         yield* Effect.logError("Link processing failed").pipe(
-          Effect.annotateLogs({ errorTag })
+          Effect.annotateLogs({ errorTag: "AiCallError", url: error.url })
         );
         yield* linkStore.commit(
           events.linkProcessingFailed({
-            error: errorTag,
+            error: "AiCallError",
             linkId: link.id,
             updatedAt: new Date(),
           })

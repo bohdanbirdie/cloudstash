@@ -3,7 +3,7 @@ import type { Effect } from "effect";
 import type { ZodType } from "zod";
 
 import type { events, tables } from "../../livestore/schema";
-import type { OrgId, TagId } from "../db/branded";
+import type { LinkId, OrgId, TagId } from "../db/branded";
 import type { OrgFeatures } from "../db/schema";
 import type { OgMetadata } from "../metadata/schema";
 import type { ExtractedContent } from "./content-extractor";
@@ -74,7 +74,7 @@ export class LinkEventStore extends Context.Tag("LinkEventStore")<
       readonly { readonly id: TagId; readonly name: string }[]
     >;
     readonly queryLinkTagNames: (
-      linkId: string
+      linkId: LinkId
     ) => Effect.Effect<readonly string[]>;
   }
 >() {}

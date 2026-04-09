@@ -12,13 +12,17 @@ export const handleLinks = (urls: string[]) =>
 
     const { orgId } = yield* auth.authenticate();
 
-    yield* messenger.draft("Saving link");
+    yield* messenger.draft(
+      urls.length > 1 ? `Saving ${urls.length} links` : "Saving link"
+    );
 
-    const enqueueResult = yield* Effect.all(
-      urls.map((url) => queue.enqueue(url, orgId))
+    const enqueueResult = yield* Effect.forEach(
+      urls,
+      (url) => queue.enqueue(url, orgId),
+      { discard: true }
     ).pipe(
       Effect.as("ok" as const),
-      Effect.catchAll((error) =>
+      Effect.catchTag("TelegramQueueSendError", (error) =>
         Effect.logError("Queue send failed").pipe(
           Effect.annotateLogs(safeErrorInfo(error)),
           Effect.as("failed" as const)

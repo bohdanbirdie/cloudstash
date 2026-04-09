@@ -53,6 +53,7 @@ export const ingestLink = Effect.fn("LinkProcessor.ingestLink")(function* (
   }
 
   const linkId = LinkIdBrand.make(nanoid());
+  yield* Effect.annotateCurrentSpan("linkId", linkId);
   yield* Effect.logInfo("Ingesting link from queue").pipe(
     Effect.annotateLogs({
       linkId,
@@ -72,13 +73,14 @@ export const ingestLink = Effect.fn("LinkProcessor.ingestLink")(function* (
     })
   );
 
-  yield* notifier.streamProgress(
-    { source: params.source, sourceMeta: params.sourceMeta },
-    "Fetching metadata"
-  );
-
   return { status: "ingested" as const, linkId };
 });
+
+export interface CancelledLinkInfo {
+  linkId: LinkId;
+  source: string | null;
+  sourceMeta: string | null;
+}
 
 export const cancelStaleLinks = Effect.fn("LinkProcessor.cancelStaleLinks")(
   function* (currentlyProcessing: ReadonlySet<string>, now: number) {
@@ -88,39 +90,46 @@ export const cancelStaleLinks = Effect.fn("LinkProcessor.cancelStaleLinks")(
     const statuses = yield* repo.queryStatuses();
     const statusMap = new Map(statuses.map((s) => [s.linkId, s]));
 
-    let cancelled = 0;
-    for (const link of links) {
-      if (currentlyProcessing.has(link.id)) continue;
-
+    const staleLinks = links.filter((link) => {
+      if (currentlyProcessing.has(link.id)) return false;
       const status = statusMap.get(link.id);
       if (
         status?.status === "completed" ||
         status?.status === "cancelled" ||
         status?.status === "failed"
       )
-        continue;
-
+        return false;
       const updatedAt = status
         ? new Date(status.updatedAt).getTime()
         : new Date(link.createdAt).getTime();
-      if (now - updatedAt <= STUCK_TIMEOUT_MS) continue;
+      return now - updatedAt > STUCK_TIMEOUT_MS;
+    });
 
-      yield* repo.commitEvent(
-        events.linkProcessingCancelled({
-          linkId: link.id,
-          updatedAt: new Date(now),
-        })
-      );
-      cancelled++;
-    }
+    yield* Effect.forEach(
+      staleLinks,
+      (link) =>
+        repo.commitEvent(
+          events.linkProcessingCancelled({
+            linkId: link.id,
+            updatedAt: new Date(now),
+          })
+        ),
+      { discard: true }
+    );
 
-    if (cancelled > 0) {
+    const cancelledLinks: CancelledLinkInfo[] = staleLinks.map((link) => ({
+      linkId: LinkIdBrand.make(link.id),
+      source: link.source,
+      sourceMeta: link.sourceMeta,
+    }));
+
+    if (cancelledLinks.length > 0) {
       yield* Effect.logInfo("Cancelled stale links on startup").pipe(
-        Effect.annotateLogs({ cancelled })
+        Effect.annotateLogs({ cancelled: cancelledLinks.length })
       );
     }
 
-    return cancelled;
+    return cancelledLinks;
   }
 );
 
@@ -139,6 +148,7 @@ export const notifyResult = Effect.fn("LinkProcessor.notifyResult")(function* (
   const notifier = yield* SourceNotifier;
   const repo = yield* LinkRepository;
 
+  yield* Effect.annotateCurrentSpan("linkId", result.linkId);
   yield* Effect.logInfo("Notifying source").pipe(
     Effect.annotateLogs({
       linkId: result.linkId,
