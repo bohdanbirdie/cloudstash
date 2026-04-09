@@ -68,7 +68,7 @@ export async function handleQueueBatch(
           )
         ),
         Effect.withSpan("Queue.processMessage", {
-          attributes: { storeId: msg.body.storeId, url: msg.body.url },
+          attributes: { storeId: msg.body.storeId },
         })
       ),
     { concurrency: BATCH_CONCURRENCY, discard: true }

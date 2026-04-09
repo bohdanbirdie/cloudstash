@@ -8,12 +8,19 @@ import { ContentExtractor } from "../services";
 export const ContentExtractorLive = Layer.succeed(ContentExtractor, {
   extract: (url) =>
     Effect.tryPromise({
-      catch: (cause) =>
-        new ContentExtractionError({
+      catch: (cause) => {
+        let domain: string;
+        try {
+          domain = new URL(url).hostname;
+        } catch {
+          domain = url;
+        }
+        return new ContentExtractionError({
           cause,
-          url,
-          message: `Content extraction failed for ${url}`,
-        }),
+          url: domain,
+          message: `Content extraction failed for ${domain}`,
+        });
+      },
       try: () => fetchAndExtractContent(url),
     }).pipe(
       Effect.timeout("15 seconds"),

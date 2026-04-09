@@ -20,7 +20,7 @@ Durable Object that processes newly saved links: fetches metadata, extracts cont
 
 Processing is driven by a single reactive subscription (`pendingLinks$`) that fires whenever the set of pending links changes. The subscription feeds new links into an `Effect.Semaphore`-gated pipeline:
 
-```
+```text
 pendingLinks$ subscription fires
   │
   ├─ filter out already-submitted links (submittedLinks Set, dedup only)
@@ -39,7 +39,7 @@ pendingLinks$ subscription fires
 
 `processLink()` runs as an Effect pipeline per link:
 
-1. Commit `linkProcessingStarted`
+1. Commit `linkProcessingStarted` (DO commits this before calling `processLink` with `skipStartedEvent: true`)
 2. `MetadataFetcher` — fetch OG metadata (10s timeout, 2x retry, swallow failure)
 3. `ContentExtractor` — extract page content (15s timeout, 2x retry, swallow failure)
 4. `AiSummaryGenerator` — generate summary via Workers AI (30s timeout, no retry, **propagates error**)

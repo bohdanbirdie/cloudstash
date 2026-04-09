@@ -10,9 +10,9 @@ See [[architecture/link-processor]] for the full concurrency model, processing p
 
 ### Stateless draft streaming
 
-Uses `sendMessageDraft` (Bot API 9.3+) — a floating draft bubble tied to the user's original message. The draft is **stateless**: `getProgressDraftText` queries the store and renders current state. No in-memory tracking, no ordering concerns.
+Uses `sendMessageDraft` (Bot API 9.3+) — a floating draft bubble tied to the user's original message. The draft is **stateless**: `getProgressDraftText` queries the store and renders current state. No in-memory tracking — can be called from any code path.
 
-```
+```text
 Processing link: a.com
 Saving link: b.com
 ```

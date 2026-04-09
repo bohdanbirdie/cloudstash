@@ -405,6 +405,7 @@ export class LinkProcessorDO
             Effect.sync(() => {
               this.cachedStore = undefined;
               this.storeCreationPromise = undefined;
+              this.subscription?.();
               this.subscription = undefined;
             })
           )
