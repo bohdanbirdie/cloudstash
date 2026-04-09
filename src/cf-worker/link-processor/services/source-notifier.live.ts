@@ -1,15 +1,9 @@
-import { Effect, Layer, Match, Schema } from "effect";
+import { Effect, Layer, Match } from "effect";
 import { Api } from "grammy";
 
+import { parseMeta } from "../progress-draft";
 import type { NotifyPayload, SourceContext } from "../services";
 import { SourceNotifier } from "../services";
-
-const TelegramMeta = Schema.Struct({
-  chatId: Schema.optional(Schema.Number),
-  messageId: Schema.optional(Schema.Number),
-});
-
-const decodeMeta = Schema.decodeUnknown(Schema.parseJson(TelegramMeta));
 
 const escapeHtml = (s: string) =>
   s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
@@ -41,21 +35,10 @@ export const formatPayload = (payload: NotifyPayload): string =>
     Match.exhaustive
   );
 
-const resolveTelegramMeta = (ctx: SourceContext) =>
-  Effect.gen(function* () {
-    if (ctx.source !== "telegram" || !ctx.sourceMeta) return null;
-
-    const meta = yield* decodeMeta(ctx.sourceMeta).pipe(
-      Effect.catchAll((error) =>
-        Effect.logWarning("Failed to decode source metadata").pipe(
-          Effect.annotateLogs({ error: String(error), source: ctx.source }),
-          Effect.as(null)
-        )
-      )
-    );
-
-    return meta;
-  });
+const resolveTelegramMeta = (ctx: SourceContext) => {
+  if (ctx.source !== "telegram") return null;
+  return parseMeta(ctx.sourceMeta);
+};
 
 export const SourceNotifierLive = (telegramBotToken: string) => {
   const api = new Api(telegramBotToken);
@@ -63,11 +46,11 @@ export const SourceNotifierLive = (telegramBotToken: string) => {
   return Layer.succeed(SourceNotifier, {
     streamProgress: (ctx, text) =>
       Effect.gen(function* () {
-        const meta = yield* resolveTelegramMeta(ctx);
-        if (!meta?.chatId || !meta.messageId) return;
+        const meta = resolveTelegramMeta(ctx);
+        if (!meta) return;
 
         yield* Effect.tryPromise(() =>
-          api.sendMessageDraft(meta.chatId!, meta.messageId!, text)
+          api.sendMessageDraft(meta.chatId, meta.messageId, text)
         );
       }).pipe(
         Effect.catchAll((error) =>
@@ -79,16 +62,14 @@ export const SourceNotifierLive = (telegramBotToken: string) => {
 
     finalizeProgress: (ctx, payload) =>
       Effect.gen(function* () {
-        const meta = yield* resolveTelegramMeta(ctx);
-        if (!meta?.chatId) return;
+        const meta = resolveTelegramMeta(ctx);
+        if (!meta) return;
 
         const text = formatPayload(payload);
         yield* Effect.tryPromise(() =>
-          api.sendMessage(meta.chatId!, text, {
+          api.sendMessage(meta.chatId, text, {
             parse_mode: "HTML",
-            reply_parameters: meta.messageId
-              ? { message_id: meta.messageId }
-              : undefined,
+            reply_parameters: { message_id: meta.messageId },
           })
         );
       }).pipe(
@@ -101,14 +82,12 @@ export const SourceNotifierLive = (telegramBotToken: string) => {
 
     reply: (ctx, text) =>
       Effect.gen(function* () {
-        const meta = yield* resolveTelegramMeta(ctx);
-        if (!meta?.chatId) return;
+        const meta = resolveTelegramMeta(ctx);
+        if (!meta) return;
 
         yield* Effect.tryPromise(() =>
-          api.sendMessage(meta.chatId!, text, {
-            reply_parameters: meta.messageId
-              ? { message_id: meta.messageId }
-              : undefined,
+          api.sendMessage(meta.chatId, text, {
+            reply_parameters: { message_id: meta.messageId },
           })
         );
       }).pipe(
