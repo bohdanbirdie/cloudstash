@@ -7,7 +7,7 @@ import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
 import { DurableObject } from "cloudflare:workers";
 import { Effect, Layer } from "effect";
 
-import { schema, tables } from "../../livestore/schema";
+import { events, schema, tables } from "../../livestore/schema";
 import { LinkId, OrgId } from "../db/branded";
 import { DbClientLive } from "../db/service";
 import { maskId, safeErrorInfo } from "../log-utils";
@@ -18,7 +18,7 @@ import { cancelStaleLinks, ingestLink, notifyResult } from "./do-programs";
 import type { NotifyResultParams } from "./do-programs";
 import { runEffect } from "./logger";
 import { processLink } from "./process-link";
-import { FeatureStore } from "./services";
+import { FeatureStore, SourceNotifier } from "./services";
 import { AiSummaryGeneratorLive } from "./services/ai-summary-generator.live";
 import { ContentExtractorLive } from "./services/content-extractor.live";
 import { FeatureStoreLive } from "./services/feature-store.live";
@@ -30,6 +30,15 @@ import { WorkersAiLive } from "./services/workers-ai.live";
 import type { LinkQueueMessage } from "./types";
 
 const logger = logSync("LinkProcessorDO");
+
+const MAX_CONCURRENT_LINKS = 5;
+const MAX_NOTIFIED_LINK_IDS = 500;
+
+import {
+  evictOldestFromSet,
+  getProgressDraftText,
+  parseMeta,
+} from "./progress-draft";
 
 type Link = typeof tables.links.Type;
 
@@ -43,7 +52,8 @@ export class LinkProcessorDO
   private cachedStore: Store<typeof schema> | undefined;
   private storeCreationPromise: Promise<Store<typeof schema>> | undefined;
   private subscription: Unsubscribe | undefined;
-  private currentlyProcessing = new Set<string>();
+  private submittedLinks = new Set<string>();
+  private semaphore = Effect.unsafeMakeSemaphore(MAX_CONCURRENT_LINKS);
   private notifiedLinkIds = new Set<string>();
   private hasRunCleanup = false;
   private totalRowsWritten = 0;
@@ -96,6 +106,7 @@ export class LinkProcessorDO
   private async createStoreInternal(): Promise<Store<typeof schema>> {
     const sessionId = await this.getSessionId();
 
+    // TODO: likely all thise custom SQL should be deleted, it's might be a leftover from our issue previous week, history is in git
     let eventlogRows = 0;
     let maxSeqNum = 0;
     try {
@@ -190,11 +201,41 @@ export class LinkProcessorDO
     );
 
     this.subscription = store.subscribe(pendingLinks$, (pendingLinks) => {
+      const newLinks = pendingLinks.filter(
+        (l) => !this.submittedLinks.has(l.id)
+      );
+      if (newLinks.length === 0) return;
+
       logger.info("Subscription fired", {
-        pendingCount: pendingLinks.length,
-        pendingLinkIds: pendingLinks.map((l) => l.id).slice(0, 5),
+        newCount: newLinks.length,
+        totalPending: pendingLinks.length,
       });
-      this.onPendingLinksChanged(store, pendingLinks);
+
+      for (const link of newLinks) {
+        this.submittedLinks.add(link.id);
+      }
+
+      const statuses = store.query(
+        queryDb(tables.linkProcessingStatus.where({}))
+      );
+      const statusMap = new Map(statuses.map((s) => [s.linkId, s]));
+
+      void runEffect(
+        Effect.forEach(
+          newLinks,
+          (link) => {
+            const isReprocess =
+              statusMap.get(link.id)?.status === "reprocess-requested";
+            return this.processLinkEffect(store, link, isReprocess).pipe(
+              this.semaphore.withPermits(1),
+              Effect.ensuring(
+                Effect.sync(() => this.submittedLinks.delete(link.id))
+              )
+            );
+          },
+          { concurrency: "unbounded", discard: true }
+        )
+      );
     });
 
     const summaries$ = queryDb(tables.linkSummaries.where({}));
@@ -248,13 +289,38 @@ export class LinkProcessorDO
       for (const r of newResults) {
         this.notifiedLinkIds.add(r.linkId);
       }
+      evictOldestFromSet(this.notifiedLinkIds, MAX_NOTIFIED_LINK_IDS);
       this.notifyResults(store, newResults);
     });
 
     if (!this.hasRunCleanup) {
       this.hasRunCleanup = true;
       runEffect(
-        cancelStaleLinks(this.currentlyProcessing, Date.now()).pipe(
+        cancelStaleLinks(this.submittedLinks, Date.now()).pipe(
+          Effect.tap((cancelledLinks) => {
+            const telegramLinks = cancelledLinks.filter(
+              (cl) => cl.source === "telegram"
+            );
+            const seen = new Set<number>();
+            const unique = telegramLinks.filter((cl) => {
+              const meta = parseMeta(cl.sourceMeta);
+              if (!meta || seen.has(meta.chatId)) return false;
+              seen.add(meta.chatId);
+              return true;
+            });
+            return Effect.gen(function* () {
+              const notifier = yield* SourceNotifier;
+              yield* Effect.forEach(
+                unique,
+                (cl) =>
+                  notifier.reply(
+                    { source: "telegram", sourceMeta: cl.sourceMeta },
+                    "Processing was interrupted. Please resend the link."
+                  ),
+                { discard: true }
+              );
+            });
+          }),
           Effect.provide(this.buildDoLayer(store))
         )
       ).catch((error) => {
@@ -263,80 +329,42 @@ export class LinkProcessorDO
     }
   }
 
-  private onPendingLinksChanged(
-    store: Store<typeof schema>,
-    pendingLinks: readonly Link[]
-  ): void {
-    if (this.currentlyProcessing.size > 0) {
-      logger.debug("Skipping, already processing", {
-        currentIds: [...this.currentlyProcessing],
-        pendingCount: pendingLinks.length,
-      });
-      return;
-    }
-
-    this.processNextPending(store);
-  }
-
-  private processNextPending(store: Store<typeof schema>): void {
-    if (this.currentlyProcessing.size > 0) return;
-
-    const links = store.query(queryDb(tables.links.where({ deletedAt: null })));
-    const statuses = store.query(
-      queryDb(tables.linkProcessingStatus.where({}))
-    );
-    const statusMap = new Map(statuses.map((s) => [s.linkId, s]));
-
-    const nextLink = links.find((link) => {
-      const status = statusMap.get(link.id);
-      return (
-        !status ||
-        status.status === "pending" ||
-        status.status === "reprocess-requested"
-      );
-    });
-
-    if (!nextLink) return;
-
-    const existingStatus = statusMap.get(nextLink.id);
-    const isReprocess = existingStatus?.status === "reprocess-requested";
-
-    logger.info("Processing link decision", {
-      linkId: nextLink.id,
-      status: existingStatus?.status ?? "none",
-      isReprocess,
-    });
-
-    this.processLinkAsync(store, nextLink, isReprocess).catch((error) => {
-      logger.error("processLinkAsync error", {
-        ...safeErrorInfo(error),
-        linkId: nextLink.id,
-      });
-    });
-  }
-
-  private async processLinkAsync(
+  private processLinkEffect(
     store: Store<typeof schema>,
     link: Link,
     isReprocess: boolean
-  ): Promise<void> {
-    this.currentlyProcessing.add(link.id);
+  ): Effect.Effect<void> {
+    return Effect.gen(this, function* () {
+      yield* Effect.logInfo("Processing link").pipe(
+        Effect.annotateLogs({
+          linkId: link.id,
+          isReprocess,
+        })
+      );
 
-    logger.info("Processing", { isReprocess, linkId: link.id });
+      store.commit(
+        events.linkProcessingStarted({
+          linkId: link.id,
+          updatedAt: new Date(),
+        })
+      );
 
-    try {
+      if (link.source === "telegram") {
+        this.sendProgressDraft(store, link.sourceMeta);
+      }
+
       const rowsBefore = this.totalRowsWritten;
-      const features = await Effect.runPromise(
-        FeatureStore.pipe(
-          Effect.flatMap((fs) => fs.getFeatures(OrgId.make(this.storeId!))),
-          Effect.provide(
-            FeatureStoreLive.pipe(
-              Layer.provide(OrgFeaturesLive),
-              Layer.provide(DbClientLive(this.env.DB))
-            )
+
+      const features = yield* FeatureStore.pipe(
+        Effect.flatMap((fs) => fs.getFeatures(OrgId.make(this.storeId!))),
+        Effect.provide(
+          FeatureStoreLive.pipe(
+            Layer.provide(OrgFeaturesLive),
+            Layer.provide(DbClientLive(this.env.DB))
           )
-        )
-      ).catch(() => ({}));
+        ),
+        Effect.catchAllDefect(() => Effect.succeed({}))
+      );
 
       const liveLayer = Layer.mergeAll(
         MetadataFetcherLive,
@@ -345,32 +373,77 @@ export class LinkProcessorDO
         LinkEventStoreLive(store)
       ).pipe(Layer.provide(WorkersAiLive(this.env.AI)));
 
-      await runEffect(
-        processLink({
-          aiSummaryEnabled:
-            (features as { aiSummary?: boolean }).aiSummary ?? false,
-          link: { id: LinkId.make(link.id), url: link.url },
-        }).pipe(Effect.provide(liveLayer))
+      yield* processLink({
+        aiSummaryEnabled:
+          (features as { aiSummary?: boolean }).aiSummary ?? false,
+        link: { id: LinkId.make(link.id), url: link.url },
+        skipStartedEvent: true,
+      }).pipe(Effect.provide(liveLayer));
+
+      yield* Effect.logInfo("Link processed").pipe(
+        Effect.annotateLogs({
+          linkId: link.id,
+          rowsWritten: this.totalRowsWritten - rowsBefore,
+          totalRowsWritten: this.totalRowsWritten,
+        })
       );
-      logger.info("Link processed", {
-        linkId: link.id,
-        rowsWritten: this.totalRowsWritten - rowsBefore,
-        totalRowsWritten: this.totalRowsWritten,
-      });
-    } catch (error) {
-      logger.error("processLinkAsync failed (store likely dead)", {
-        ...safeErrorInfo(error),
-        linkId: link.id,
-      });
-      this.cachedStore = undefined;
-      this.storeCreationPromise = undefined;
-      this.subscription = undefined;
-    } finally {
-      this.currentlyProcessing.delete(link.id);
-      if (this.cachedStore) {
-        this.processNextPending(store);
-      }
-    }
+    }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          if (link.source === "telegram") {
+            this.sendProgressDraft(store, link.sourceMeta);
+          }
+        })
+      ),
+      Effect.catchAllDefect((defect) =>
+        Effect.logError("processLinkEffect failed (store likely dead)").pipe(
+          Effect.annotateLogs({
+            ...safeErrorInfo(defect),
+            linkId: link.id,
+          }),
+          Effect.tap(() =>
+            Effect.sync(() => {
+              this.cachedStore = undefined;
+              this.storeCreationPromise = undefined;
+              this.subscription?.();
+              this.subscription = undefined;
+            })
+          )
+        )
+      ),
+      Effect.withSpan("LinkProcessorDO.processLinkEffect", {
+        attributes: { linkId: link.id, isReprocess },
+      })
+    );
+  }
+
+  private sendProgressDraft(
+    store: Store<typeof schema>,
+    sourceMeta: string | null
+  ): void {
+    const text = getProgressDraftText(store, sourceMeta);
+    if (!text) return;
+
+    const doLayer = SourceNotifierLive(this.env.TELEGRAM_BOT_TOKEN);
+    runEffect(
+      Effect.gen(function* () {
+        const notifier = yield* SourceNotifier;
+        yield* notifier.streamProgress(
+          { source: "telegram", sourceMeta },
+          text
+        );
+      }).pipe(
+        Effect.withSpan("LinkProcessorDO.sendProgressDraft"),
+        Effect.catchAll((error) =>
+          Effect.logWarning("sendProgressDraft failed").pipe(
+            Effect.annotateLogs(safeErrorInfo(error))
+          )
+        ),
+        Effect.provide(doLayer)
+      )
+    ).catch((error) => {
+      logger.error("sendProgressDraft escaped", safeErrorInfo(error));
+    });
   }
 
   private notifyResults(
@@ -379,14 +452,23 @@ export class LinkProcessorDO
   ): void {
     const doLayer = this.buildDoLayer(store);
     for (const result of results) {
-      runEffect(notifyResult(result).pipe(Effect.provide(doLayer))).catch(
-        (error) => {
-          logger.error("notifyResult effect failed", {
-            ...safeErrorInfo(error),
-            linkId: result.linkId,
-          });
-        }
-      );
+      runEffect(
+        notifyResult(result).pipe(
+          Effect.tap(() =>
+            Effect.sync(() => {
+              if (result.source === "telegram") {
+                this.sendProgressDraft(store, result.sourceMeta);
+              }
+            })
+          ),
+          Effect.provide(doLayer)
+        )
+      ).catch((error) => {
+        logger.error("notifyResult effect failed", {
+          ...safeErrorInfo(error),
+          linkId: result.linkId,
+        });
+      });
     }
   }
 
@@ -438,6 +520,14 @@ export class LinkProcessorDO
       }).pipe(Effect.provide(doLayer))
     );
 
+    if (
+      result.status === "ingested" &&
+      result.linkId &&
+      msg.source === "telegram"
+    ) {
+      this.sendProgressDraft(store, msg.sourceMeta);
+    }
+
     logger.info("ingestAndProcess completed", {
       status: result.status,
       linkId: result.linkId,
@@ -463,9 +553,5 @@ export class LinkProcessorDO
     }
 
     await handleSyncUpdateRpc(payload);
-
-    if (this.cachedStore && this.currentlyProcessing.size === 0) {
-      this.processNextPending(this.cachedStore);
-    }
   }
 }

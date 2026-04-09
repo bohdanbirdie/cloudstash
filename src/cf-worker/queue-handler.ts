@@ -1,11 +1,27 @@
-import { Data, Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { LinkQueueMessage } from "./link-processor/types";
 import { safeErrorInfo } from "./log-utils";
 
-class QueueProcessError extends Data.TaggedError("QueueProcessError")<{
-  cause: unknown;
-}> {}
+/**
+ * Queue consumer config — must match wrangler.toml [[queues.consumers]]:
+ *   queue = "cloudstash-link-queue"
+ *   max_batch_size = 5          (messages per batch, matches DO concurrency)
+ *   max_concurrency = 1         (one worker instance consuming at a time)
+ *   max_retries = 3
+ *   dead_letter_queue = "cloudstash-link-dlq"
+ */
+const BATCH_CONCURRENCY = 5;
+
+class QueueProcessError extends Schema.TaggedError<QueueProcessError>()(
+  "QueueProcessError",
+  {
+    message: Schema.optionalWith(Schema.String, {
+      default: () => "Queue message processing failed",
+    }),
+    cause: Schema.Unknown,
+  }
+) {}
 
 interface QueueEnv {
   LINK_PROCESSOR_DO: {
@@ -40,7 +56,7 @@ export async function handleQueueBatch(
         );
         msg.ack();
       }).pipe(
-        Effect.catchAll((error) =>
+        Effect.catchTag("QueueProcessError", (error) =>
           Effect.logError("Queue message failed").pipe(
             Effect.annotateLogs({
               storeId: msg.body.storeId,
@@ -51,8 +67,10 @@ export async function handleQueueBatch(
             Effect.tap(() => Effect.sync(() => msg.retry()))
           )
         ),
-        Effect.withSpan("Queue.processMessage")
+        Effect.withSpan("Queue.processMessage", {
+          attributes: { storeId: msg.body.storeId },
+        })
       ),
-    { concurrency: 1, discard: true }
+    { concurrency: BATCH_CONCURRENCY, discard: true }
   ).pipe(Effect.runPromise);
 }

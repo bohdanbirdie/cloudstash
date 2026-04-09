@@ -65,6 +65,8 @@ queue = "cloudstash-link-queue"
 
 [[queues.consumers]]
 queue = "cloudstash-link-queue"
+max_batch_size = 5
+max_concurrency = 1
 max_retries = 3
 dead_letter_queue = "cloudstash-link-dlq"
 
