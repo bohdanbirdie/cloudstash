@@ -288,6 +288,96 @@ describe("cancelStaleLinks", () => {
     );
   });
 
+  it.effect("does not cancel link at exactly 5 minutes", () => {
+    const link = makeLink({
+      createdAt: new Date(Date.now() - FIVE_MIN),
+    });
+    const repo = createTestRepo([link]);
+
+    return cancelStaleLinks(new Set(), Date.now()).pipe(
+      Effect.provide(repo.layer),
+      silentLogger,
+      Effect.tap((cancelledLinks) =>
+        Effect.sync(() => {
+          expect(cancelledLinks).toHaveLength(0);
+        })
+      )
+    );
+  });
+
+  it.effect(
+    "cancels stale link with pending status using status.updatedAt",
+    () => {
+      const link = makeLink({ createdAt: new Date() });
+      const status = makeStatus({
+        linkId: "link-1",
+        status: "pending",
+        updatedAt: new Date(Date.now() - FIVE_MIN - 1000),
+      });
+      const repo = createTestRepo([link], [status]);
+
+      return cancelStaleLinks(new Set(), Date.now()).pipe(
+        Effect.provide(repo.layer),
+        silentLogger,
+        Effect.tap((cancelledLinks) =>
+          Effect.sync(() => {
+            expect(cancelledLinks).toHaveLength(1);
+          })
+        )
+      );
+    }
+  );
+
+  it.effect("returns source and sourceMeta in cancelled link info", () => {
+    const sm = JSON.stringify({ chatId: 1, messageId: 10 });
+    const link = makeLink({
+      createdAt: new Date(Date.now() - FIVE_MIN - 1000),
+      source: "telegram",
+      sourceMeta: sm,
+    });
+    const repo = createTestRepo([link]);
+
+    return cancelStaleLinks(new Set(), Date.now()).pipe(
+      Effect.provide(repo.layer),
+      silentLogger,
+      Effect.tap((cancelledLinks) =>
+        Effect.sync(() => {
+          expect(cancelledLinks[0]).toMatchObject({
+            source: "telegram",
+            sourceMeta: sm,
+          });
+        })
+      )
+    );
+  });
+
+  it.effect("cancels multiple stale links", () => {
+    const links = [
+      makeLink({
+        id: "link-1",
+        url: "https://a.com",
+        createdAt: new Date(Date.now() - FIVE_MIN - 1000),
+      }),
+      makeLink({
+        id: "link-2",
+        url: "https://b.com",
+        createdAt: new Date(Date.now() - FIVE_MIN - 2000),
+      }),
+    ];
+    const repo = createTestRepo(links);
+
+    return cancelStaleLinks(new Set(), Date.now()).pipe(
+      Effect.provide(repo.layer),
+      silentLogger,
+      Effect.tap((cancelledLinks) =>
+        Effect.sync(() => {
+          expect(cancelledLinks).toHaveLength(2);
+          expect(repo.committed).toHaveLength(2);
+        })
+      )
+    );
+  });
+
   it.effect("does not cancel fresh links", () => {
     const freshLink = makeLink({ createdAt: new Date() });
     const repo = createTestRepo([freshLink]);
@@ -474,6 +564,27 @@ describe("detectStuckLinks", () => {
     const link = makeLink();
 
     const stuck = detectStuckLinks([link], [], new Set(), now);
+
+    expect(stuck).toHaveLength(0);
+  });
+
+  it("skips links with reprocess-requested status", () => {
+    const link = makeLink();
+    const status = makeStatus({
+      status: "reprocess-requested",
+      updatedAt: new Date(now - FIVE_MIN - 1000),
+    });
+
+    const stuck = detectStuckLinks([link], [status], new Set(), now);
+
+    expect(stuck).toHaveLength(0);
+  });
+
+  it("does not detect link at exactly 5 minutes", () => {
+    const link = makeLink();
+    const status = makeStatus({ updatedAt: new Date(now - FIVE_MIN) });
+
+    const stuck = detectStuckLinks([link], [status], new Set(), now);
 
     expect(stuck).toHaveLength(0);
   });
@@ -964,6 +1075,30 @@ describe("buildTelegramProgress — DO lifecycle scenarios", () => {
       1
     );
     expect(renderProgressDraft(result)).toBe("Saving link: a.com");
+  });
+
+  it("link with null source excluded", () => {
+    const nullSourceLink = {
+      id: "l1",
+      source: null,
+      sourceMeta: null,
+      domain: "example.com",
+      url: "https://example.com",
+    };
+    const result = buildTelegramProgress([nullSourceLink], [], 1);
+    expect(result.size).toBe(0);
+  });
+
+  it("telegram link with malformed sourceMeta excluded", () => {
+    const badMetaLink = {
+      id: "l1",
+      source: "telegram" as string | null,
+      sourceMeta: "not-json",
+      domain: "a.com",
+      url: "https://a.com",
+    };
+    const result = buildTelegramProgress([badMetaLink], [], 1);
+    expect(result.size).toBe(0);
   });
 });
 

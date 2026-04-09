@@ -1,6 +1,5 @@
-import { it, describe } from "@effect/vitest";
+import { it, describe, expect } from "@effect/vitest";
 import { Effect, Layer, LogLevel, Logger } from "effect";
-import { expect } from "vitest";
 
 import { LinkId, TagId } from "../../db/branded";
 import { AiCallError } from "../../link-processor/errors";
@@ -340,6 +339,105 @@ describe("processLink", () => {
         )
       )
     ).rejects.toThrow("store dead");
+  });
+
+  it.effect("skipStartedEvent suppresses linkProcessingStarted", () => {
+    const { testLayer, committed } = buildTestLayers({ metadata: null });
+
+    return processLink({ link: testLink, skipStartedEvent: true }).pipe(
+      Effect.provide(testLayer),
+      Logger.withMinimumLogLevel(LogLevel.Error),
+      Effect.tap(() =>
+        Effect.sync(() => {
+          const startedEvents = committed.filter(
+            (e) => e.name === "v1.LinkProcessingStarted"
+          );
+          expect(startedEvents).toHaveLength(0);
+          expect(committed.at(-1)).toMatchObject({
+            name: "v1.LinkProcessingCompleted",
+          });
+        })
+      )
+    );
+  });
+
+  it.effect("default emits linkProcessingStarted as first event", () => {
+    const { testLayer, committed } = buildTestLayers({ metadata: null });
+
+    return processLink({ link: testLink }).pipe(
+      Effect.provide(testLayer),
+      Logger.withMinimumLogLevel(LogLevel.Error),
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(committed[0]).toMatchObject({
+            name: "v1.LinkProcessingStarted",
+            args: expect.objectContaining({ linkId: "link-1" }),
+          });
+        })
+      )
+    );
+  });
+
+  it.effect("AiCallError handler records error tag in failed event", () => {
+    const store = createTestStore();
+    const testLayer = Layer.mergeAll(
+      Layer.succeed(MetadataFetcher, {
+        fetch: () => Effect.succeed(mockMetadata),
+      }),
+      Layer.succeed(ContentExtractor, {
+        extract: () => Effect.succeed(null),
+      }),
+      Layer.succeed(AiSummaryGenerator, {
+        generate: () => Effect.fail(new AiCallError({ cause: "timeout" })),
+      }),
+      store.layer
+    );
+
+    return processLink({ link: testLink, aiSummaryEnabled: true }).pipe(
+      Effect.provide(testLayer),
+      Logger.withMinimumLogLevel(LogLevel.None),
+      Effect.tap(() =>
+        Effect.sync(() => {
+          const failedEvent = store.committed.find(
+            (e) => e.name === "v1.LinkProcessingFailed"
+          );
+          expect(failedEvent).toMatchObject({
+            args: expect.objectContaining({ error: "AiCallError" }),
+          });
+        })
+      )
+    );
+  });
+
+  it.effect("defect handler records Defect in failed event", () => {
+    const store = createTestStore();
+    const testLayer = Layer.mergeAll(
+      Layer.succeed(MetadataFetcher, {
+        fetch: () => Effect.die("crash"),
+      }),
+      Layer.succeed(ContentExtractor, {
+        extract: () => Effect.succeed(null),
+      }),
+      Layer.succeed(AiSummaryGenerator, {
+        generate: () => Effect.succeed({ summary: null, suggestedTags: [] }),
+      }),
+      store.layer
+    );
+
+    return processLink({ link: testLink }).pipe(
+      Effect.provide(testLayer),
+      Logger.withMinimumLogLevel(LogLevel.None),
+      Effect.tap(() =>
+        Effect.sync(() => {
+          const failedEvent = store.committed.find(
+            (e) => e.name === "v1.LinkProcessingFailed"
+          );
+          expect(failedEvent).toMatchObject({
+            args: expect.objectContaining({ error: "Defect" }),
+          });
+        })
+      )
+    );
   });
 
   it.effect("emits one tagSuggested per AI suggestion", () => {
