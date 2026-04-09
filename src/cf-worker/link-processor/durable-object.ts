@@ -440,7 +440,9 @@ export class LinkProcessorDO
         ),
         Effect.provide(doLayer)
       )
-    ).catch(() => {});
+    ).catch((error) => {
+      logger.error("sendProgressDraft escaped", safeErrorInfo(error));
+    });
   }
 
   private notifyResults(
