@@ -6,6 +6,8 @@ Status: **in progress** — core mechanics working, draft streaming needs refine
 
 See [[architecture/link-processor]] for the full concurrency model, processing pipeline, and queue consumer. This doc covers the Telegram-specific draft streaming behavior.
 
+![[diagrams/telegram-draft-flow.excalidraw]]
+
 ### Stateless draft streaming
 
 Uses `sendMessageDraft` (Bot API 9.3+) — a floating draft bubble tied to the user's original message. The draft is **stateless**: `getProgressDraftText` queries the store and renders current state. No in-memory tracking, no ordering concerns.

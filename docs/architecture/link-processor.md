@@ -16,6 +16,8 @@ Durable Object that processes newly saved links: fetches metadata, extracts cont
 
 ## Concurrent Processing
 
+![[diagrams/concurrent-processing.excalidraw]]
+
 Processing is driven by a single reactive subscription (`pendingLinks$`) that fires whenever the set of pending links changes. The subscription feeds new links into an `Effect.Semaphore`-gated pipeline:
 
 ```
