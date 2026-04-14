@@ -42,13 +42,13 @@
     "@lexical/list": "0.42.0",
     "@lexical/markdown": "0.42.0",
     "@lexical/react": "0.42.0",
-    "@livestore/adapter-cloudflare": "0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6",
-    "@livestore/adapter-web": "0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6",
-    "@livestore/livestore": "0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6",
-    "@livestore/peer-deps": "0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6",
-    "@livestore/react": "0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6",
-    "@livestore/sync-cf": "0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6",
-    "@livestore/wa-sqlite": "0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6",
+    "@livestore/adapter-cloudflare": "0.0.0-snapshot-484098f58ebd6bb33e5f7508832e2e91afef823f",
+    "@livestore/adapter-web": "0.0.0-snapshot-484098f58ebd6bb33e5f7508832e2e91afef823f",
+    "@livestore/livestore": "0.0.0-snapshot-484098f58ebd6bb33e5f7508832e2e91afef823f",
+    "@livestore/peer-deps": "0.0.0-snapshot-484098f58ebd6bb33e5f7508832e2e91afef823f",
+    "@livestore/react": "0.0.0-snapshot-484098f58ebd6bb33e5f7508832e2e91afef823f",
+    "@livestore/sync-cf": "0.0.0-snapshot-484098f58ebd6bb33e5f7508832e2e91afef823f",
+    "@livestore/wa-sqlite": "0.0.0-snapshot-484098f58ebd6bb33e5f7508832e2e91afef823f",
     "@openrouter/ai-sdk-provider": "2.3.3",
     "@react-email/body": "0.3.0",
     "@react-email/button": "0.2.1",
@@ -165,9 +165,5 @@
         "description": "Email sender address (e.g. YourApp <noreply@yourdomain.com>)"
       }
     }
-  },
-  "patchedDependencies": {
-    "@livestore/common-cf@0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6": "patches/@livestore%2Fcommon-cf@0.0.0-snapshot-6f52faf73b355b985b1289377e46eaed50f5acb6.patch",
-    "@effect/rpc@0.73.2": "patches/@effect%2Frpc@0.73.2.patch"
   }
 }
