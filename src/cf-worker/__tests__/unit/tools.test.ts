@@ -1,217 +1,162 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+// @vitest-environment jsdom
+import type { ToolCallOptions } from "ai";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import {
+  makeTestStore,
+  testId,
+} from "../../../livestore/__tests__/test-helpers";
+import type { TestStore } from "../../../livestore/__tests__/test-helpers";
+import { events, tables } from "../../../livestore/schema";
+import { createTools, createToolExecutors } from "../../chat-agent/tools";
 
 /** Extract direct result from tool execute (not AsyncIterable) */
 function unwrap<T>(result: T | AsyncIterable<T>): T {
   return result as T;
 }
 
-// Create mock query symbols using vi.hoisted so they're available before vi.mock runs
-const mockQueries = vi.hoisted(() => ({
-  allLinks$: Symbol("allLinks$"),
-  allLinksCount$: Symbol("allLinksCount$"),
-  completedCount$: Symbol("completedCount$"),
-  inboxCount$: Symbol("inboxCount$"),
-  inboxLinks$: Symbol("inboxLinks$"),
-  linkById$: (id: string) => ({ __type: "linkById$", id }),
-  searchLinks$: (query: string) => ({ __type: "searchLinks$", query }),
-}));
+/** Tool executes don't use their second arg; satisfy the signature with this. */
+const stubCtx = {} as ToolCallOptions;
 
-// Mock the queries module
-vi.mock("../../../livestore/queries/links", () => mockQueries);
-
-// Mock nanoid for predictable IDs
-vi.mock("@livestore/livestore", async () => {
-  const actual = await vi.importActual("@livestore/livestore");
-  return {
-    ...actual,
-    nanoid: () => "test-id-123",
-  };
-});
-
-import { createTools, createToolExecutors } from "../../chat-agent/tools";
-
-// Sample link data for tests
-const createLink = (overrides: Record<string, unknown> = {}) => ({
-  id: "link-1",
-  url: "https://example.com",
-  domain: "example.com",
-  title: "Example Title",
-  description: "Example description",
-  summary: "Example summary",
-  status: "unread" as const,
-  createdAt: new Date("2024-01-01"),
-  deletedAt: null as Date | null,
-  ...overrides,
-});
-
-type LinkData = ReturnType<typeof createLink>;
-
-// Create a mock store with flexible query matching
-const createMockStore = () => {
-  const committedEvents: unknown[] = [];
-
-  // Store data that queries will access
-  let allLinks: LinkData[] = [];
-  let inboxLinksData: LinkData[] = [];
-  const linksById = new Map<string, LinkData>();
-  const searchResults = new Map<string, (LinkData & { score: number })[]>();
-  let inboxCount = 0;
-  let completedCount = 0;
-  let allLinksCount = 0;
-
-  const store = {
-    query: vi.fn((queryDef: unknown) => {
-      // Match static queries by symbol
-      if (queryDef === mockQueries.allLinks$) {
-        return allLinks;
-      }
-      if (queryDef === mockQueries.inboxLinks$) {
-        return inboxLinksData;
-      }
-      if (queryDef === mockQueries.inboxCount$) {
-        return inboxCount;
-      }
-      if (queryDef === mockQueries.completedCount$) {
-        return completedCount;
-      }
-      if (queryDef === mockQueries.allLinksCount$) {
-        return allLinksCount;
-      }
-
-      // Match parameterized queries by checking __type
-      if (queryDef && typeof queryDef === "object" && "__type" in queryDef) {
-        const typedQuery = queryDef as {
-          __type: string;
-          id?: string;
-          query?: string;
-        };
-        if (typedQuery.__type === "linkById$" && typedQuery.id) {
-          return linksById.get(typedQuery.id) ?? null;
-        }
-        if (typedQuery.__type === "searchLinks$" && typedQuery.query) {
-          return searchResults.get(typedQuery.query) ?? [];
-        }
-      }
-
-      return undefined;
-    }),
-    commit: vi.fn((event: unknown) => {
-      committedEvents.push(event);
-    }),
-    // Test helpers for setting up data
-    _setAllLinks: (links: LinkData[]) => {
-      allLinks = links;
-    },
-    _setInboxLinks: (links: LinkData[]) => {
-      inboxLinksData = links;
-    },
-    _setLinkById: (id: string, link: LinkData | null) => {
-      if (link) {
-        linksById.set(id, link);
-      } else {
-        linksById.delete(id);
-      }
-    },
-    _setSearchResults: (
-      query: string,
-      results: (LinkData & { score: number })[]
-    ) => {
-      searchResults.set(query, results);
-    },
-    _setCounts: (inbox: number, completed: number, total: number) => {
-      inboxCount = inbox;
-      completedCount = completed;
-      allLinksCount = total;
-    },
-    _getCommittedEvents: () => committedEvents,
-    _clearCommittedEvents: () => {
-      committedEvents.length = 0;
-    },
-  };
-
-  return store;
+type SeedLinkOptions = {
+  id?: string;
+  url?: string;
+  domain?: string;
+  createdAt?: Date;
+  title?: string | null;
+  description?: string | null;
+  summary?: string | null;
+  completed?: boolean;
+  completedAt?: Date;
+  deletedAt?: Date | null;
 };
 
-type MockStore = ReturnType<typeof createMockStore>;
-
 describe("createTools", () => {
-  let mockStore: MockStore;
+  let store: TestStore;
   let tools: ReturnType<typeof createTools>;
 
-  beforeEach(() => {
-    mockStore = createMockStore();
-    tools = createTools(mockStore as any);
-    vi.clearAllMocks();
+  const seedLink = (opts: SeedLinkOptions = {}) => {
+    const id = opts.id ?? testId("link");
+    const url = opts.url ?? `https://example.com/${id}`;
+    const domain = opts.domain ?? "example.com";
+    const createdAt = opts.createdAt ?? new Date("2024-01-01T00:00:00Z");
+
+    store.commit(
+      events.linkCreatedV2({
+        id,
+        url,
+        domain,
+        createdAt,
+        source: "test",
+        sourceMeta: null,
+      })
+    );
+
+    if (opts.title !== undefined || opts.description !== undefined) {
+      store.commit(
+        events.linkMetadataFetched({
+          id: testId("snap"),
+          linkId: id,
+          title: opts.title ?? null,
+          description: opts.description ?? null,
+          image: null,
+          favicon: null,
+          fetchedAt: createdAt,
+        })
+      );
+    }
+
+    if (opts.summary !== undefined && opts.summary !== null) {
+      store.commit(
+        events.linkSummarized({
+          id: testId("sum"),
+          linkId: id,
+          summary: opts.summary,
+          model: "test-model",
+          summarizedAt: createdAt,
+        })
+      );
+    }
+
+    if (opts.completed) {
+      store.commit(
+        events.linkCompleted({
+          id,
+          completedAt: opts.completedAt ?? new Date("2024-01-02T00:00:00Z"),
+        })
+      );
+    }
+
+    if (opts.deletedAt) {
+      store.commit(events.linkDeleted({ id, deletedAt: opts.deletedAt }));
+    }
+
+    return id;
+  };
+
+  beforeEach(async () => {
+    store = await makeTestStore();
+    tools = createTools(store);
+  });
+
+  afterEach(async () => {
+    await store.shutdownPromise?.();
   });
 
   describe("listRecentLinks", () => {
     it("returns empty array when no links exist", async () => {
-      mockStore._setAllLinks([]);
-
       const result = await tools.listRecentLinks.execute!(
         { limit: 5 },
-        {} as any
+        stubCtx
       );
 
       expect(result).toEqual({ links: [] });
     });
 
     it("returns links with default limit of 5", async () => {
-      const links = Array.from({ length: 10 }, (_, i) =>
-        createLink({ id: `link-${i}`, title: `Title ${i}` })
-      );
-      mockStore._setAllLinks(links);
+      for (let i = 0; i < 10; i++) {
+        seedLink({ title: `Title ${i}` });
+      }
 
-      const result = unwrap(
-        await tools.listRecentLinks.execute!({}, {} as any)
-      );
+      const result = unwrap(await tools.listRecentLinks.execute!({}, stubCtx));
 
       expect(result.links).toHaveLength(5);
-      expect(result.links[0].id).toBe("link-0");
     });
 
     it("respects custom limit", async () => {
-      const links = Array.from({ length: 10 }, (_, i) =>
-        createLink({ id: `link-${i}` })
-      );
-      mockStore._setAllLinks(links);
+      for (let i = 0; i < 10; i++) seedLink();
 
       const result = unwrap(
-        await tools.listRecentLinks.execute!({ limit: 3 }, {} as any)
+        await tools.listRecentLinks.execute!({ limit: 3 }, stubCtx)
       );
 
       expect(result.links).toHaveLength(3);
     });
 
     it("caps limit at 20", async () => {
-      const links = Array.from({ length: 30 }, (_, i) =>
-        createLink({ id: `link-${i}` })
-      );
-      mockStore._setAllLinks(links);
+      for (let i = 0; i < 30; i++) seedLink();
 
       const result = unwrap(
-        await tools.listRecentLinks.execute!({ limit: 100 }, {} as any)
+        await tools.listRecentLinks.execute!({ limit: 100 }, stubCtx)
       );
 
       expect(result.links).toHaveLength(20);
     });
 
     it("maps link fields correctly", async () => {
-      const link = createLink({
-        id: "test-id",
+      const id = seedLink({
         url: "https://test.com",
         title: "Test Title",
         description: "Test desc",
         summary: "Test summary",
       });
-      mockStore._setAllLinks([link]);
 
       const result = unwrap(
-        await tools.listRecentLinks.execute!({ limit: 5 }, {} as any)
+        await tools.listRecentLinks.execute!({ limit: 5 }, stubCtx)
       );
 
       expect(result.links[0]).toEqual({
-        id: "test-id",
+        id,
         url: "https://test.com",
         title: "Test Title",
         description: "Test desc",
@@ -220,11 +165,10 @@ describe("createTools", () => {
     });
 
     it("uses domain as title fallback", async () => {
-      const link = createLink({ title: null, domain: "example.com" });
-      mockStore._setAllLinks([link]);
+      seedLink({ title: null, domain: "example.com" });
 
       const result = unwrap(
-        await tools.listRecentLinks.execute!({ limit: 5 }, {} as any)
+        await tools.listRecentLinks.execute!({ limit: 5 }, stubCtx)
       );
 
       expect(result.links[0].title).toBe("example.com");
@@ -232,76 +176,81 @@ describe("createTools", () => {
   });
 
   describe("saveLink", () => {
-    beforeEach(() => {
-      mockStore._setAllLinks([]);
-    });
-
     it("saves a valid URL", async () => {
-      const result = await tools.saveLink.execute!(
+      const result = (await tools.saveLink.execute!(
         { url: "https://example.com/page" },
-        {} as any
+        stubCtx
+      )) as { success: boolean; linkId: string; message: string };
+
+      expect(result.success).toBe(true);
+      expect(typeof result.linkId).toBe("string");
+      expect(result.linkId.length).toBeGreaterThan(0);
+      expect(result.message).toBe(
+        'Saved "https://example.com/page" to workspace'
       );
 
-      expect(result).toEqual({
-        success: true,
-        linkId: "test-id-123",
-        message: 'Saved "https://example.com/page" to workspace',
-      });
-      expect(mockStore.commit).toHaveBeenCalledTimes(1);
+      // Verify state via query
+      const rows = store.query(
+        tables.links.where({ url: "https://example.com/page" })
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0].id).toBe(result.linkId);
+      expect(rows[0].domain).toBe("example.com");
     });
 
     it("extracts domain without www prefix", async () => {
       await tools.saveLink.execute!(
         { url: "https://www.example.com/page" },
-        {} as any
+        stubCtx
       );
 
-      // The event object structure has args.domain
-      expect(mockStore.commit).toHaveBeenCalledTimes(1);
-      const commitArg = mockStore.commit.mock.calls[0][0] as {
-        args: { domain: string };
-      };
-      expect(commitArg.args.domain).toBe("example.com");
+      const rows = store.query(
+        tables.links.where({ url: "https://www.example.com/page" })
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0].domain).toBe("example.com");
     });
 
     it("returns error for invalid URL", async () => {
       const result = await tools.saveLink.execute!(
         { url: "not-a-valid-url" },
-        {} as any
+        stubCtx
       );
 
       expect(result).toEqual({ success: false, error: "Invalid URL" });
-      expect(mockStore.commit).not.toHaveBeenCalled();
+      // No link committed.
+      const rows = store.query(tables.links.where({}));
+      expect(rows).toHaveLength(0);
     });
 
     it("returns error for duplicate URL", async () => {
-      const existingLink = createLink({
-        id: "existing-id",
+      const existingId = seedLink({
         url: "https://example.com",
       });
-      mockStore._setAllLinks([existingLink]);
 
       const result = await tools.saveLink.execute!(
         { url: "https://example.com" },
-        {} as any
+        stubCtx
       );
 
       expect(result).toEqual({
         success: false,
         error: "Link already exists",
-        existingLinkId: "existing-id",
+        existingLinkId: existingId,
       });
-      expect(mockStore.commit).not.toHaveBeenCalled();
+
+      const rows = store.query(
+        tables.links.where({ url: "https://example.com" })
+      );
+      expect(rows).toHaveLength(1);
     });
   });
 
   describe("searchLinks", () => {
     it("returns empty results for no matches", async () => {
-      mockStore._setSearchResults("test", []);
-
       const result = await tools.searchLinks.execute!(
         { query: "test" },
-        {} as any
+        stubCtx
       );
 
       expect(result).toEqual({
@@ -312,68 +261,67 @@ describe("createTools", () => {
     });
 
     it("returns search results with scores", async () => {
-      const links = [
-        { ...createLink({ id: "link-1" }), score: 0.9 },
-        { ...createLink({ id: "link-2" }), score: 0.7 },
-      ];
-      mockStore._setSearchResults("example", links);
+      seedLink({
+        url: "https://a.test/page",
+        domain: "a.test",
+        title: "example story",
+      });
+      seedLink({
+        url: "https://b.test/page",
+        domain: "b.test",
+        title: "another example",
+      });
 
       const result = unwrap(
-        await tools.searchLinks.execute!({ query: "example" }, {} as any)
+        await tools.searchLinks.execute!({ query: "example" }, stubCtx)
       );
 
       expect(result.total).toBe(2);
-      expect(result.results[0].score).toBe(0.9);
-      expect(result.results[1].score).toBe(0.7);
+      expect(result.results[0].score).toBeGreaterThan(0);
+      expect(result.results[1].score).toBeGreaterThan(0);
     });
 
     it("maps result fields correctly", async () => {
-      const link = {
-        ...createLink({
-          id: "search-id",
-          url: "https://search.com",
-          title: "Search Result",
-          description: "Found it",
-          summary: "Summary here",
-        }),
-        score: 0.85,
-      };
-      mockStore._setSearchResults("query", [link]);
-
-      const result = unwrap(
-        await tools.searchLinks.execute!({ query: "query" }, {} as any)
-      );
-
-      expect(result.results[0]).toEqual({
-        id: "search-id",
+      const id = seedLink({
         url: "https://search.com",
-        title: "Search Result",
+        domain: "search.com",
+        title: "query term result",
         description: "Found it",
         summary: "Summary here",
-        score: 0.85,
       });
+
+      const result = unwrap(
+        await tools.searchLinks.execute!({ query: "query" }, stubCtx)
+      );
+
+      expect(result.results).toHaveLength(1);
+      const r = result.results[0];
+      expect(r.id).toBe(id);
+      expect(r.url).toBe("https://search.com");
+      expect(r.title).toBe("query term result");
+      expect(r.description).toBe("Found it");
+      expect(r.summary).toBe("Summary here");
+      expect(typeof r.score).toBe("number");
+      expect(r.score).toBeGreaterThan(0);
     });
   });
 
   describe("getLink", () => {
     it("returns link when found", async () => {
-      const link = createLink({ id: "found-id" });
-      mockStore._setLinkById("found-id", link);
+      const id = seedLink({ title: "Example Title" });
 
-      const result = await tools.getLink.execute!(
-        { id: "found-id" },
-        {} as any
-      );
+      const result = (await tools.getLink.execute!({ id }, stubCtx)) as {
+        link: { id: string; title: string | null };
+      };
 
-      expect(result).toEqual({ link });
+      expect(result.link.id).toBe(id);
+      expect(result.link.title).toBe("Example Title");
     });
 
     it("returns error when link not found", async () => {
-      mockStore._setLinkById("missing-id", null);
-
       const result = await tools.getLink.execute!(
         { id: "missing-id" },
-        {} as any
+        stubCtx
       );
 
       expect(result).toEqual({ error: "Link not found" });
@@ -382,34 +330,27 @@ describe("createTools", () => {
 
   describe("completeLink", () => {
     it("marks link as completed", async () => {
-      const link = createLink({ id: "to-complete", status: "unread" });
-      mockStore._setLinkById("to-complete", link);
+      const id = seedLink({ title: "Example Title" });
 
-      const result = await tools.completeLink.execute!(
-        { id: "to-complete" },
-        {} as any
-      );
+      const result = await tools.completeLink.execute!({ id }, stubCtx);
 
       expect(result).toEqual({
         success: true,
         message: 'Marked "Example Title" as done',
       });
-      expect(mockStore.commit).toHaveBeenCalledTimes(1);
+
+      const row = store.query(tables.links.where({ id }))[0];
+      expect(row.status).toBe("completed");
+      expect(row.completedAt).not.toBeNull();
     });
 
     it("uses URL when title is missing", async () => {
-      const link = createLink({
-        id: "no-title",
-        title: null,
+      const id = seedLink({
         url: "https://notitle.com",
-        status: "unread",
+        domain: "notitle.com",
       });
-      mockStore._setLinkById("no-title", link);
 
-      const result = await tools.completeLink.execute!(
-        { id: "no-title" },
-        {} as any
-      );
+      const result = await tools.completeLink.execute!({ id }, stubCtx);
 
       expect((result as { message: string }).message).toBe(
         'Marked "https://notitle.com" as done'
@@ -417,140 +358,112 @@ describe("createTools", () => {
     });
 
     it("returns error when link not found", async () => {
-      // Don't set any link for "missing"
-
       const result = await tools.completeLink.execute!(
         { id: "missing" },
-        {} as any
+        stubCtx
       );
 
       expect(result).toEqual({ error: "Link not found" });
-      expect(mockStore.commit).not.toHaveBeenCalled();
     });
 
     it("returns error when link is deleted", async () => {
-      const link = createLink({
-        id: "deleted-link",
-        deletedAt: new Date(),
+      const id = seedLink({
+        title: "Example Title",
+        deletedAt: new Date("2024-02-01T00:00:00Z"),
       });
-      mockStore._setLinkById("deleted-link", link);
 
-      const result = await tools.completeLink.execute!(
-        { id: "deleted-link" },
-        {} as any
-      );
+      const result = await tools.completeLink.execute!({ id }, stubCtx);
 
       expect(result).toEqual({ error: "Cannot complete a deleted link" });
-      expect(mockStore.commit).not.toHaveBeenCalled();
+      const row = store.query(tables.links.where({ id }))[0];
+      expect(row.status).toBe("unread");
     });
 
     it("returns error when link already completed", async () => {
-      const link = createLink({ id: "already-done", status: "completed" });
-      mockStore._setLinkById("already-done", link);
+      const id = seedLink({ title: "Example Title", completed: true });
 
-      const result = await tools.completeLink.execute!(
-        { id: "already-done" },
-        {} as any
-      );
+      const result = await tools.completeLink.execute!({ id }, stubCtx);
 
       expect(result).toEqual({ error: "Link already completed" });
-      expect(mockStore.commit).not.toHaveBeenCalled();
     });
   });
 
   describe("uncompleteLink", () => {
     it("marks completed link as unread", async () => {
-      const link = createLink({ id: "to-uncomplete", status: "completed" });
-      mockStore._setLinkById("to-uncomplete", link);
+      const id = seedLink({ title: "Example Title", completed: true });
 
-      const result = await tools.uncompleteLink.execute!(
-        { id: "to-uncomplete" },
-        {} as any
-      );
+      const result = await tools.uncompleteLink.execute!({ id }, stubCtx);
 
       expect(result).toEqual({
         success: true,
         message: 'Marked "Example Title" as unread',
       });
-      expect(mockStore.commit).toHaveBeenCalledTimes(1);
+      const row = store.query(tables.links.where({ id }))[0];
+      expect(row.status).toBe("unread");
+      expect(row.completedAt).toBeNull();
     });
 
     it("returns error when link not found", async () => {
       const result = await tools.uncompleteLink.execute!(
         { id: "missing" },
-        {} as any
+        stubCtx
       );
 
       expect(result).toEqual({ error: "Link not found" });
     });
 
     it("returns error when link already unread", async () => {
-      const link = createLink({ id: "already-unread", status: "unread" });
-      mockStore._setLinkById("already-unread", link);
+      const id = seedLink({ title: "Example Title" });
 
-      const result = await tools.uncompleteLink.execute!(
-        { id: "already-unread" },
-        {} as any
-      );
+      const result = await tools.uncompleteLink.execute!({ id }, stubCtx);
 
       expect(result).toEqual({ error: "Link is already unread" });
-      expect(mockStore.commit).not.toHaveBeenCalled();
     });
   });
 
   describe("restoreLink", () => {
     it("restores deleted link", async () => {
-      const link = createLink({
-        id: "to-restore",
-        deletedAt: new Date(),
+      const id = seedLink({
+        title: "Example Title",
+        deletedAt: new Date("2024-02-01T00:00:00Z"),
       });
-      mockStore._setLinkById("to-restore", link);
 
-      const result = await tools.restoreLink.execute!(
-        { id: "to-restore" },
-        {} as any
-      );
+      const result = await tools.restoreLink.execute!({ id }, stubCtx);
 
       expect(result).toEqual({
         success: true,
         message: 'Restored "Example Title"',
       });
-      expect(mockStore.commit).toHaveBeenCalledTimes(1);
+      const row = store.query(tables.links.where({ id }))[0];
+      expect(row.deletedAt).toBeNull();
     });
 
     it("returns error when link not found", async () => {
       const result = await tools.restoreLink.execute!(
         { id: "missing" },
-        {} as any
+        stubCtx
       );
 
       expect(result).toEqual({ error: "Link not found" });
     });
 
     it("returns error when link is not in trash", async () => {
-      const link = createLink({ id: "not-deleted", deletedAt: null });
-      mockStore._setLinkById("not-deleted", link);
+      const id = seedLink({ title: "Example Title" });
 
-      const result = await tools.restoreLink.execute!(
-        { id: "not-deleted" },
-        {} as any
-      );
+      const result = await tools.restoreLink.execute!({ id }, stubCtx);
 
       expect(result).toEqual({ error: "Link is not in trash" });
-      expect(mockStore.commit).not.toHaveBeenCalled();
     });
   });
 
   describe("completeLinks", () => {
     it("completes multiple links", async () => {
-      const link1 = createLink({ id: "link-1", status: "unread" });
-      const link2 = createLink({ id: "link-2", status: "unread" });
-      mockStore._setLinkById("link-1", link1);
-      mockStore._setLinkById("link-2", link2);
+      const id1 = seedLink({ title: "One" });
+      const id2 = seedLink({ title: "Two" });
 
       const result = await tools.completeLinks.execute!(
-        { ids: ["link-1", "link-2"] },
-        {} as any
+        { ids: [id1, id2] },
+        stubCtx
       );
 
       expect(result).toEqual({
@@ -558,13 +471,15 @@ describe("createTools", () => {
         completed: 2,
         errors: [],
       });
-      expect(mockStore.commit).toHaveBeenCalledTimes(2);
+      const rows = store.query(tables.links.where({}));
+      const statuses = rows.map((r) => r.status).toSorted();
+      expect(statuses).toEqual(["completed", "completed"]);
     });
 
     it("tracks not found errors", async () => {
       const result = await tools.completeLinks.execute!(
         { ids: ["missing-1", "missing-2"] },
-        {} as any
+        stubCtx
       );
 
       expect(result).toEqual({
@@ -575,45 +490,34 @@ describe("createTools", () => {
     });
 
     it("skips already completed links", async () => {
-      const link = createLink({ id: "already-done", status: "completed" });
-      mockStore._setLinkById("already-done", link);
+      const id = seedLink({ title: "Done", completed: true });
 
-      const result = await tools.completeLinks.execute!(
-        { ids: ["already-done"] },
-        {} as any
-      );
+      const result = await tools.completeLinks.execute!({ ids: [id] }, stubCtx);
 
       expect((result as { completed: number }).completed).toBe(0);
       expect((result as { errors: string[] }).errors).toEqual([]);
-      expect(mockStore.commit).not.toHaveBeenCalled();
     });
 
     it("skips deleted links", async () => {
-      const link = createLink({ id: "deleted", deletedAt: new Date() });
-      mockStore._setLinkById("deleted", link);
+      const id = seedLink({
+        title: "Deleted",
+        deletedAt: new Date("2024-02-01T00:00:00Z"),
+      });
 
-      const result = await tools.completeLinks.execute!(
-        { ids: ["deleted"] },
-        {} as any
-      );
+      const result = await tools.completeLinks.execute!({ ids: [id] }, stubCtx);
 
       expect((result as { completed: number }).completed).toBe(0);
-      expect(mockStore.commit).not.toHaveBeenCalled();
+      const row = store.query(tables.links.where({ id }))[0];
+      expect(row.status).toBe("unread");
     });
 
     it("handles mixed success and failure", async () => {
-      const validLink = createLink({ id: "valid", status: "unread" });
-      const completedLink = createLink({
-        id: "completed",
-        status: "completed",
-      });
-      mockStore._setLinkById("valid", validLink);
-      mockStore._setLinkById("completed", completedLink);
-      // "missing" is not set
+      const valid = seedLink({ title: "Valid" });
+      const alreadyDone = seedLink({ title: "AlreadyDone", completed: true });
 
       const result = await tools.completeLinks.execute!(
-        { ids: ["valid", "completed", "missing"] },
-        {} as any
+        { ids: [valid, alreadyDone, "missing"] },
+        stubCtx
       );
 
       expect(result).toEqual({
@@ -621,87 +525,78 @@ describe("createTools", () => {
         completed: 1,
         errors: ["missing: not found"],
       });
+      const validRow = store.query(tables.links.where({ id: valid }))[0];
+      expect(validRow.status).toBe("completed");
     });
   });
 
   describe("getInboxLinks", () => {
     it("returns empty array when inbox is empty", async () => {
-      mockStore._setInboxLinks([]);
-
-      const result = await tools.getInboxLinks.execute!(
-        { limit: 10 },
-        {} as any
-      );
+      const result = await tools.getInboxLinks.execute!({ limit: 10 }, stubCtx);
 
       expect(result).toEqual({ links: [], total: 0 });
     });
 
     it("returns inbox links with default limit of 10", async () => {
-      const links = Array.from({ length: 15 }, (_, i) =>
-        createLink({ id: `inbox-${i}` })
-      );
-      mockStore._setInboxLinks(links);
+      for (let i = 0; i < 15; i++) seedLink();
 
-      const result = unwrap(await tools.getInboxLinks.execute!({}, {} as any));
+      const result = unwrap(await tools.getInboxLinks.execute!({}, stubCtx));
 
       expect(result.links).toHaveLength(10);
       expect(result.total).toBe(15);
     });
 
     it("respects custom limit", async () => {
-      const links = Array.from({ length: 10 }, (_, i) =>
-        createLink({ id: `inbox-${i}` })
-      );
-      mockStore._setInboxLinks(links);
+      for (let i = 0; i < 10; i++) seedLink();
 
       const result = unwrap(
-        await tools.getInboxLinks.execute!({ limit: 3 }, {} as any)
+        await tools.getInboxLinks.execute!({ limit: 3 }, stubCtx)
       );
 
       expect(result.links).toHaveLength(3);
     });
 
     it("caps limit at 20", async () => {
-      const links = Array.from({ length: 30 }, (_, i) =>
-        createLink({ id: `inbox-${i}` })
-      );
-      mockStore._setInboxLinks(links);
+      for (let i = 0; i < 30; i++) seedLink();
 
       const result = unwrap(
-        await tools.getInboxLinks.execute!({ limit: 100 }, {} as any)
+        await tools.getInboxLinks.execute!({ limit: 100 }, stubCtx)
       );
 
       expect(result.links).toHaveLength(20);
     });
 
     it("maps inbox link fields correctly", async () => {
-      const createdAt = new Date("2024-01-15");
-      const link = createLink({
-        id: "inbox-1",
+      const createdAt = new Date("2024-01-15T00:00:00Z");
+      const id = seedLink({
         url: "https://inbox.com",
-        title: "Inbox Item",
+        domain: "inbox.com",
         createdAt,
+        title: "Inbox Item",
       });
-      mockStore._setInboxLinks([link]);
 
       const result = unwrap(
-        await tools.getInboxLinks.execute!({ limit: 10 }, {} as any)
+        await tools.getInboxLinks.execute!({ limit: 10 }, stubCtx)
       );
 
-      expect(result.links[0]).toEqual({
-        id: "inbox-1",
-        url: "https://inbox.com",
-        title: "Inbox Item",
-        createdAt,
-      });
+      expect(result.links).toHaveLength(1);
+      const r = result.links[0];
+      expect(r.id).toBe(id);
+      expect(r.url).toBe("https://inbox.com");
+      expect(r.title).toBe("Inbox Item");
+      expect(new Date(r.createdAt as Date | string | number).getTime()).toBe(
+        createdAt.getTime()
+      );
     });
   });
 
   describe("getStats", () => {
     it("returns workspace statistics", async () => {
-      mockStore._setCounts(5, 10, 15);
+      // 5 inbox, 10 completed, 15 total
+      for (let i = 0; i < 5; i++) seedLink();
+      for (let i = 0; i < 10; i++) seedLink({ completed: true });
 
-      const result = await tools.getStats.execute!({}, {} as any);
+      const result = await tools.getStats.execute!({}, stubCtx);
 
       expect(result).toEqual({
         inbox: 5,
@@ -711,9 +606,7 @@ describe("createTools", () => {
     });
 
     it("returns zeros when no links exist", async () => {
-      mockStore._setCounts(0, 0, 0);
-
-      const result = await tools.getStats.execute!({}, {} as any);
+      const result = await tools.getStats.execute!({}, stubCtx);
 
       expect(result).toEqual({
         inbox: 0,
@@ -725,38 +618,73 @@ describe("createTools", () => {
 });
 
 describe("createToolExecutors", () => {
-  let mockStore: MockStore;
+  let store: TestStore;
   let executors: ReturnType<typeof createToolExecutors>;
 
-  beforeEach(() => {
-    mockStore = createMockStore();
-    executors = createToolExecutors(mockStore as any);
-    vi.clearAllMocks();
+  const seedLink = (opts: SeedLinkOptions = {}) => {
+    const id = opts.id ?? testId("link");
+    const url = opts.url ?? `https://example.com/${id}`;
+    const domain = opts.domain ?? "example.com";
+    const createdAt = opts.createdAt ?? new Date("2024-01-01T00:00:00Z");
+    store.commit(
+      events.linkCreatedV2({
+        id,
+        url,
+        domain,
+        createdAt,
+        source: "test",
+        sourceMeta: null,
+      })
+    );
+    if (opts.title !== undefined) {
+      store.commit(
+        events.linkMetadataFetched({
+          id: testId("snap"),
+          linkId: id,
+          title: opts.title,
+          description: null,
+          image: null,
+          favicon: null,
+          fetchedAt: createdAt,
+        })
+      );
+    }
+    if (opts.deletedAt) {
+      store.commit(events.linkDeleted({ id, deletedAt: opts.deletedAt }));
+    }
+    return id;
+  };
+
+  beforeEach(async () => {
+    store = await makeTestStore();
+    executors = createToolExecutors(store);
+  });
+
+  afterEach(async () => {
+    await store.shutdownPromise?.();
   });
 
   describe("deleteLink", () => {
     it("deletes a link successfully", async () => {
-      const link = createLink({ id: "to-delete", title: "Delete Me" });
-      mockStore._setLinkById("to-delete", link);
+      const id = seedLink({ title: "Delete Me" });
 
-      const result = await executors.deleteLink({ id: "to-delete" });
+      const result = await executors.deleteLink({ id });
 
       expect(JSON.parse(result)).toEqual({
         success: true,
         message: 'Moved "Delete Me" to trash',
       });
-      expect(mockStore.commit).toHaveBeenCalledTimes(1);
+      const row = store.query(tables.links.where({ id }))[0];
+      expect(row.deletedAt).not.toBeNull();
     });
 
     it("uses URL when title is missing", async () => {
-      const link = createLink({
-        id: "no-title",
-        title: null,
+      const id = seedLink({
         url: "https://notitle.com",
+        domain: "notitle.com",
       });
-      mockStore._setLinkById("no-title", link);
 
-      const result = await executors.deleteLink({ id: "no-title" });
+      const result = await executors.deleteLink({ id });
 
       expect(JSON.parse(result).message).toBe(
         'Moved "https://notitle.com" to trash'
@@ -767,35 +695,34 @@ describe("createToolExecutors", () => {
       const result = await executors.deleteLink({ id: "missing" });
 
       expect(JSON.parse(result)).toEqual({ error: "Link not found" });
-      expect(mockStore.commit).not.toHaveBeenCalled();
     });
 
     it("returns error when link already in trash", async () => {
-      const link = createLink({ id: "already-deleted", deletedAt: new Date() });
-      mockStore._setLinkById("already-deleted", link);
+      const id = seedLink({
+        title: "Already",
+        deletedAt: new Date("2024-02-01T00:00:00Z"),
+      });
 
-      const result = await executors.deleteLink({ id: "already-deleted" });
+      const result = await executors.deleteLink({ id });
 
       expect(JSON.parse(result)).toEqual({ error: "Link already in trash" });
-      expect(mockStore.commit).not.toHaveBeenCalled();
     });
   });
 
   describe("deleteLinks", () => {
     it("deletes multiple links successfully", async () => {
-      const link1 = createLink({ id: "link-1" });
-      const link2 = createLink({ id: "link-2" });
-      mockStore._setLinkById("link-1", link1);
-      mockStore._setLinkById("link-2", link2);
+      const id1 = seedLink();
+      const id2 = seedLink();
 
-      const result = await executors.deleteLinks({ ids: ["link-1", "link-2"] });
+      const result = await executors.deleteLinks({ ids: [id1, id2] });
 
       expect(JSON.parse(result)).toEqual({
         success: true,
         deleted: 2,
         errors: [],
       });
-      expect(mockStore.commit).toHaveBeenCalledTimes(2);
+      const rows = store.query(tables.links.where({}));
+      for (const row of rows) expect(row.deletedAt).not.toBeNull();
     });
 
     it("tracks not found errors", async () => {
@@ -811,25 +738,24 @@ describe("createToolExecutors", () => {
     });
 
     it("skips already deleted links", async () => {
-      const link = createLink({ id: "already-deleted", deletedAt: new Date() });
-      mockStore._setLinkById("already-deleted", link);
+      const id = seedLink({
+        deletedAt: new Date("2024-02-01T00:00:00Z"),
+      });
 
-      const result = await executors.deleteLinks({ ids: ["already-deleted"] });
+      const result = await executors.deleteLinks({ ids: [id] });
 
       expect(JSON.parse(result).deleted).toBe(0);
       expect(JSON.parse(result).errors).toEqual([]);
-      expect(mockStore.commit).not.toHaveBeenCalled();
     });
 
     it("handles mixed success and failure", async () => {
-      const validLink = createLink({ id: "valid" });
-      const deletedLink = createLink({ id: "deleted", deletedAt: new Date() });
-      mockStore._setLinkById("valid", validLink);
-      mockStore._setLinkById("deleted", deletedLink);
-      // "missing" is not set
+      const valid = seedLink();
+      const deleted = seedLink({
+        deletedAt: new Date("2024-02-01T00:00:00Z"),
+      });
 
       const result = await executors.deleteLinks({
-        ids: ["valid", "deleted", "missing"],
+        ids: [valid, deleted, "missing"],
       });
 
       expect(JSON.parse(result)).toEqual({
@@ -837,6 +763,8 @@ describe("createToolExecutors", () => {
         deleted: 1,
         errors: ["missing: not found"],
       });
+      const validRow = store.query(tables.links.where({ id: valid }))[0];
+      expect(validRow.deletedAt).not.toBeNull();
     });
   });
 });
