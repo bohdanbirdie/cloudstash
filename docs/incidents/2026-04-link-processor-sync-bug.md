@@ -1,7 +1,7 @@
 # LinkProcessorDO Sync Bug
 
-**Date:** 2026-04-01 → 2026-04-07
-**Status:** RESOLVED
+**Date:** 2026-04-01 → 2026-04-07 (initial), regressed 2026-04-14
+**Status:** RESOLVED (re-resolved 2026-04-14)
 **Impact:** Links sent via Telegram processed successfully but never appeared in browser UI.
 
 ## Problem
@@ -94,16 +94,44 @@ CF DO RPC merges multiple `controller.enqueue()` calls into fewer `reader.read()
 
 ## Current Deployed State
 
-- Livestore snapshot `6f52faf` with `compatibility_date = "2026-04-05"`
+- Livestore snapshot `484098f5` with `compatibility_date = "2026-04-05"`
 - Store creation guard (`storeCreationPromise`)
-- Two active patches:
-  - `@livestore/common-cf` — `flat(1)` for merged RPC buffers. Being fixed upstream via [PR #1163](https://github.com/livestorejs/livestore/pull/1163) — patch can be dropped once merged.
-  - `@effect/rpc` — `useRecords: false` for msgpackr (CSP compatibility). This is an `@effect/rpc` issue, not livestore — needs separate upstream report.
+- Bug 2 (`@livestore/common-cf` `flat(1)`) — merged upstream in [livestorejs/livestore#1167](https://github.com/livestorejs/livestore/pull/1167), present in current snapshot. Patch dropped.
+- Bug 3 (`@effect/rpc` msgpackr CSP) — local patch `patches/@effect%2Frpc@0.75.0.patch`. See "Regression" below.
+
+## Regression (2026-04-14)
+
+PR #42 ("Bump livestore snapshot and drop local patches") removed the `@effect/rpc` patch under the assumption that [livestorejs/livestore#1163](https://github.com/livestorejs/livestore/pull/1163) shipped the fix to consumers. **It did not.** Telegram link sync silently broke in production within hours.
+
+### Why the upstream livestore patch never reached us
+
+PR #1163 added `patches/@effect__rpc@0.75.0.patch` registered in livestore's `pnpm-workspace.yaml`. This patches `@effect/rpc` only inside livestore's own `node_modules` at install time, because:
+
+1. **pnpm `patchedDependencies` are not published.** They are workspace-install metadata. `pnpm publish` strips them.
+2. **`@effect/rpc` is a `peerDependency` of `@livestore/sync-cf`.** No `bundledDependencies`, no inlining. Each consumer installs a fresh copy from npm.
+3. **Livestore's published dist resolves `RpcSerialization` at runtime.** `common-cf/dist/do-rpc/client.js:44` calls `RpcSerialization.msgPack.unsafeMake()` with `RpcSerialization` re-exported from `@livestore/utils/effect`, which resolves to the consumer's `node_modules/@effect/rpc` — unpatched.
+
+Net effect: livestore PR #1163 fixes livestore's own CI / dev / examples. Every downstream CF Workers consumer still hits the CSP block.
+
+### What the livestore fix should have been
+
+Don't patch `@effect/rpc` — ship a CSP-safe `RpcSerialization` from livestore itself. Add an internal module that duplicates `@effect/rpc`'s `msgPack` body but imports `msgpackr/index-no-eval`, then route `common-cf/src/do-rpc/{client,server}.ts` (and ws-rpc equivalents) through it. Because the no-eval import lives inside livestore's own module graph, consumers get the fix automatically with no patching, no overrides, no peer-dep coordination.
+
+### Resolution
+
+- Reapplied `patches/@effect%2Frpc@0.75.0.patch` matching upstream PR #1163 byte-for-byte: swap `msgpackr` for `msgpackr/index-no-eval` in both `dist/cjs/RpcSerialization.js` and `dist/esm/RpcSerialization.js`. Commit `10b3055` on main.
+- Patch shape changed from the original (`{ useRecords: false, int64AsType: 'number' }` constructor args) to the `index-no-eval` import swap, per IGassmann's review on #1163. Cleaner and preserves msgpackr's record/structure optimization.
+
+### Lessons
+
+- "Upstream merged" ≠ "consumers fixed" when the upstream is a workspace-level patch on a peer dependency. Verify by inspecting installed `node_modules` after a clean install, not by reading PR descriptions.
+- The original `@effect/rpc` patch can only be dropped once a real fix lands inside `@effect/rpc` itself (tracked at [Effect-TS/effect#6161](https://github.com/Effect-TS/effect/pull/6161)).
 
 ## TODOs
 
 - [ ] After dev server crash/restart, ~40 unprocessed links (status: processing-started) are not picked up by `pendingLinks$`. Need recovery mechanism for links stuck in "started" state after DO restart.
-- [ ] Report `useRecords` CSP issue to `@effect/rpc`
+- [ ] Push Effect-TS/effect#6161 forward; only that lands a fix that ships to consumers.
+- [ ] Send the "what the livestore fix should have been" section to the livestore team — they may want to revisit #1163 with a runtime fix instead of a workspace patch.
 
 ## Key Livestore Internals (Reference)
 
