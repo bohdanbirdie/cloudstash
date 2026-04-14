@@ -1,6 +1,13 @@
-import { it, describe, expect } from "@effect/vitest";
-import { Effect, Layer, LogLevel, Logger } from "effect";
+// @vitest-environment jsdom
+import { it, describe, expect, beforeEach, afterEach } from "@effect/vitest";
+import { Effect, Layer } from "effect";
 
+import {
+  makeTestStore,
+  silentLogger,
+} from "../../../livestore/__tests__/test-helpers";
+import type { TestStore } from "../../../livestore/__tests__/test-helpers";
+import { events, tables } from "../../../livestore/schema";
 import { LinkId, OrgId } from "../../db/branded";
 import {
   cancelStaleLinks,
@@ -14,28 +21,79 @@ import {
   parseMeta,
   renderProgressDraft,
 } from "../../link-processor/progress-draft";
-import { LinkRepository, SourceNotifier } from "../../link-processor/services";
+import { SourceNotifier } from "../../link-processor/services";
 import type {
   Link,
   NotifyPayload,
   Status,
-  StoreEvent,
 } from "../../link-processor/services";
+import { LinkRepositoryLive } from "../../link-processor/services/link-repository.live";
 
-function createTestRepo(links: Link[] = [], statuses: Status[] = []) {
-  const committed: StoreEvent[] = [];
-  const layer = Layer.succeed(LinkRepository, {
-    findByUrl: (url) =>
-      Effect.succeed(links.find((l) => l.url === url) ?? null),
-    queryActiveLinks: () => Effect.succeed([...links]),
-    queryStatuses: () => Effect.succeed([...statuses]),
-    commitEvent: (event) =>
-      Effect.sync(() => {
-        committed.push(event);
-      }),
-  });
-  return { layer, committed };
-}
+let store: TestStore;
+
+beforeEach(async () => {
+  store = await makeTestStore();
+});
+
+afterEach(async () => {
+  await store.shutdownPromise?.();
+});
+
+const repoLayer = () => LinkRepositoryLive(store);
+
+/**
+ * Seed a link directly via linkCreatedV2 event. Returns the link id.
+ * createdAt is controlled by caller (used by cancelStaleLinks tests).
+ */
+const seedLink = (opts: Partial<Link> = {}) => {
+  const id = opts.id ?? "link-1";
+  const url = opts.url ?? "https://example.com";
+  const domain = opts.domain ?? "example.com";
+  const createdAt = opts.createdAt ?? new Date("2026-01-01T00:00:00Z");
+  store.commit(
+    events.linkCreatedV2({
+      id,
+      url,
+      domain,
+      createdAt,
+      source: opts.source ?? "",
+      sourceMeta: opts.sourceMeta ?? null,
+    })
+  );
+  return id;
+};
+
+/**
+ * Seed a processing status row for a link using linkProcessingStarted plus a
+ * follow-up event for non-pending statuses. `updatedAt` controls the final
+ * updatedAt.
+ */
+const seedStatus = (
+  linkId: string,
+  status: Status["status"],
+  updatedAt: Date
+) => {
+  // Insert via started (pending)
+  store.commit(events.linkProcessingStarted({ linkId, updatedAt }));
+  if (status === "pending") return;
+  if (status === "completed") {
+    store.commit(events.linkProcessingCompleted({ linkId, updatedAt }));
+  } else if (status === "failed") {
+    store.commit(
+      events.linkProcessingFailed({
+        linkId,
+        error: "err",
+        updatedAt,
+      })
+    );
+  } else if (status === "cancelled") {
+    store.commit(events.linkProcessingCancelled({ linkId, updatedAt }));
+  } else if (status === "reprocess-requested") {
+    store.commit(
+      events.linkReprocessRequested({ linkId, requestedAt: updatedAt })
+    );
+  }
+};
 
 function createTestNotifier() {
   const drafts: { source: string | null; text: string }[] = [];
@@ -58,37 +116,32 @@ function createTestNotifier() {
   return { layer, drafts, finalized, replies };
 }
 
-const makeLink = (overrides: Partial<Link> = {}): Link =>
-  ({
-    id: "link-1",
-    url: "https://example.com",
-    domain: "example.com",
-    status: "unread",
-    source: null,
-    sourceMeta: null,
-    createdAt: new Date("2026-01-01"),
-    completedAt: null,
-    deletedAt: null,
-    ...overrides,
-  }) as Link;
+const makeLink = (overrides: Partial<Link> = {}): Link => ({
+  id: "link-1",
+  url: "https://example.com",
+  domain: "example.com",
+  status: "unread",
+  source: null,
+  sourceMeta: null,
+  createdAt: new Date("2026-01-01"),
+  completedAt: null,
+  deletedAt: null,
+  ...overrides,
+});
 
-const makeStatus = (overrides: Partial<Status> = {}): Status =>
-  ({
-    linkId: "link-1",
-    status: "pending",
-    error: null,
-    notified: 0,
-    updatedAt: new Date("2026-01-01"),
-    ...overrides,
-  }) as Status;
-
-const silentLogger = Logger.withMinimumLogLevel(LogLevel.None);
+const makeStatus = (overrides: Partial<Status> = {}): Status => ({
+  linkId: "link-1",
+  status: "pending",
+  error: null,
+  notified: 0,
+  updatedAt: new Date("2026-01-01"),
+  ...overrides,
+});
 
 describe("ingestLink", () => {
   it.effect("ingests a new URL and commits linkCreatedV2", () => {
-    const repo = createTestRepo();
     const notifier = createTestNotifier();
-    const testLayer = Layer.mergeAll(repo.layer, notifier.layer);
+    const testLayer = Layer.mergeAll(repoLayer(), notifier.layer);
 
     return ingestLink({
       url: "https://example.com",
@@ -102,25 +155,21 @@ describe("ingestLink", () => {
         Effect.sync(() => {
           expect(result.status).toBe("ingested");
           expect(result.linkId).toBeDefined();
-          expect(repo.committed).toHaveLength(1);
-          expect(repo.committed[0]).toMatchObject({
-            name: "v2.LinkCreated",
-            args: expect.objectContaining({
-              url: "https://example.com",
-              domain: "example.com",
-              source: "telegram",
-            }),
-          });
+          const rows = store.query(
+            tables.links.where({ url: "https://example.com" })
+          );
+          expect(rows).toHaveLength(1);
+          expect(rows[0].domain).toBe("example.com");
+          expect(rows[0].source).toBe("telegram");
         })
       )
     );
   });
 
   it.effect("returns duplicate and notifies when URL already exists", () => {
-    const existing = makeLink({ id: "existing-1", url: "https://example.com" });
-    const repo = createTestRepo([existing]);
+    seedLink({ id: "existing-1", url: "https://example.com" });
     const notifier = createTestNotifier();
-    const testLayer = Layer.mergeAll(repo.layer, notifier.layer);
+    const testLayer = Layer.mergeAll(repoLayer(), notifier.layer);
 
     return ingestLink({
       url: "https://example.com",
@@ -134,7 +183,11 @@ describe("ingestLink", () => {
         Effect.sync(() => {
           expect(result.status).toBe("duplicate");
           expect(result.linkId).toBe("existing-1");
-          expect(repo.committed).toHaveLength(0);
+          // Still only one row (duplicate URL never inserted).
+          const rows = store.query(
+            tables.links.where({ url: "https://example.com" })
+          );
+          expect(rows).toHaveLength(1);
           expect(notifier.replies).toEqual([
             { source: "telegram", text: "Link already saved." },
           ]);
@@ -144,9 +197,8 @@ describe("ingestLink", () => {
   });
 
   it.effect("returns invalid_url for bad URLs", () => {
-    const repo = createTestRepo();
     const notifier = createTestNotifier();
-    const testLayer = Layer.mergeAll(repo.layer, notifier.layer);
+    const testLayer = Layer.mergeAll(repoLayer(), notifier.layer);
 
     return ingestLink({
       url: "not-a-url",
@@ -159,16 +211,15 @@ describe("ingestLink", () => {
       Effect.tap((result) =>
         Effect.sync(() => {
           expect(result.status).toBe("invalid_url");
-          expect(repo.committed).toHaveLength(0);
+          expect(store.query(tables.links.where({}))).toHaveLength(0);
         })
       )
     );
   });
 
   it.effect("strips www from domain", () => {
-    const repo = createTestRepo();
     const notifier = createTestNotifier();
-    const testLayer = Layer.mergeAll(repo.layer, notifier.layer);
+    const testLayer = Layer.mergeAll(repoLayer(), notifier.layer);
 
     return ingestLink({
       url: "https://www.example.com/page",
@@ -180,9 +231,11 @@ describe("ingestLink", () => {
       silentLogger,
       Effect.tap(() =>
         Effect.sync(() => {
-          expect(repo.committed[0]).toMatchObject({
-            args: expect.objectContaining({ domain: "example.com" }),
-          });
+          const rows = store.query(
+            tables.links.where({ url: "https://www.example.com/page" })
+          );
+          expect(rows).toHaveLength(1);
+          expect(rows[0].domain).toBe("example.com");
         })
       )
     );
@@ -193,73 +246,68 @@ describe("cancelStaleLinks", () => {
   const FIVE_MIN = 5 * 60 * 1000;
 
   it.effect("cancels a stale link with no status", () => {
-    const staleLink = makeLink({
-      createdAt: new Date(Date.now() - FIVE_MIN - 1000),
-    });
-    const repo = createTestRepo([staleLink]);
     const now = Date.now();
+    seedLink({ createdAt: new Date(now - FIVE_MIN - 1000) });
 
     return cancelStaleLinks(new Set(), now).pipe(
-      Effect.provide(repo.layer),
+      Effect.provide(repoLayer()),
       silentLogger,
       Effect.tap((cancelledLinks) =>
         Effect.sync(() => {
           expect(cancelledLinks).toHaveLength(1);
           expect(cancelledLinks[0]).toMatchObject({ linkId: "link-1" });
-          expect(repo.committed[0]).toMatchObject({
-            name: "v1.LinkProcessingCancelled",
-            args: expect.objectContaining({ linkId: "link-1" }),
-          });
+          const status = store.query(
+            tables.linkProcessingStatus.where({ linkId: "link-1" })
+          )[0];
+          expect(status.status).toBe("cancelled");
         })
       )
     );
   });
 
   it.effect("skips links currently being processed", () => {
-    const staleLink = makeLink({
-      createdAt: new Date(Date.now() - FIVE_MIN - 1000),
-    });
-    const repo = createTestRepo([staleLink]);
+    seedLink({ createdAt: new Date(Date.now() - FIVE_MIN - 1000) });
 
     return cancelStaleLinks(new Set(["link-1"]), Date.now()).pipe(
-      Effect.provide(repo.layer),
+      Effect.provide(repoLayer()),
       silentLogger,
       Effect.tap((cancelledLinks) =>
         Effect.sync(() => {
           expect(cancelledLinks).toHaveLength(0);
-          expect(repo.committed).toHaveLength(0);
+          const statusRows = store.query(
+            tables.linkProcessingStatus.where({ linkId: "link-1" })
+          );
+          expect(statusRows).toHaveLength(0);
         })
       )
     );
   });
 
   it.effect("skips completed links", () => {
-    const link = makeLink({
-      createdAt: new Date(Date.now() - FIVE_MIN - 1000),
-    });
-    const status = makeStatus({ linkId: "link-1", status: "completed" });
-    const repo = createTestRepo([link], [status]);
+    seedLink({ createdAt: new Date(Date.now() - FIVE_MIN - 1000) });
+    seedStatus("link-1", "completed", new Date("2026-01-01"));
 
     return cancelStaleLinks(new Set(), Date.now()).pipe(
-      Effect.provide(repo.layer),
+      Effect.provide(repoLayer()),
       silentLogger,
       Effect.tap((cancelledLinks) =>
         Effect.sync(() => {
           expect(cancelledLinks).toHaveLength(0);
+          const status = store.query(
+            tables.linkProcessingStatus.where({ linkId: "link-1" })
+          )[0];
+          expect(status.status).toBe("completed");
         })
       )
     );
   });
 
   it.effect("skips cancelled links", () => {
-    const link = makeLink({
-      createdAt: new Date(Date.now() - FIVE_MIN - 1000),
-    });
-    const status = makeStatus({ linkId: "link-1", status: "cancelled" });
-    const repo = createTestRepo([link], [status]);
+    seedLink({ createdAt: new Date(Date.now() - FIVE_MIN - 1000) });
+    seedStatus("link-1", "cancelled", new Date("2026-01-01"));
 
     return cancelStaleLinks(new Set(), Date.now()).pipe(
-      Effect.provide(repo.layer),
+      Effect.provide(repoLayer()),
       silentLogger,
       Effect.tap((cancelledLinks) =>
         Effect.sync(() => {
@@ -270,32 +318,30 @@ describe("cancelStaleLinks", () => {
   });
 
   it.effect("skips failed links", () => {
-    const link = makeLink({
-      createdAt: new Date(Date.now() - FIVE_MIN - 1000),
-    });
-    const status = makeStatus({ linkId: "link-1", status: "failed" });
-    const repo = createTestRepo([link], [status]);
+    seedLink({ createdAt: new Date(Date.now() - FIVE_MIN - 1000) });
+    seedStatus("link-1", "failed", new Date("2026-01-01"));
 
     return cancelStaleLinks(new Set(), Date.now()).pipe(
-      Effect.provide(repo.layer),
+      Effect.provide(repoLayer()),
       silentLogger,
       Effect.tap((cancelledLinks) =>
         Effect.sync(() => {
           expect(cancelledLinks).toHaveLength(0);
-          expect(repo.committed).toHaveLength(0);
+          const status = store.query(
+            tables.linkProcessingStatus.where({ linkId: "link-1" })
+          )[0];
+          expect(status.status).toBe("failed");
         })
       )
     );
   });
 
   it.effect("does not cancel link at exactly 5 minutes", () => {
-    const link = makeLink({
-      createdAt: new Date(Date.now() - FIVE_MIN),
-    });
-    const repo = createTestRepo([link]);
+    const now = Date.now();
+    seedLink({ createdAt: new Date(now - FIVE_MIN) });
 
-    return cancelStaleLinks(new Set(), Date.now()).pipe(
-      Effect.provide(repo.layer),
+    return cancelStaleLinks(new Set(), now).pipe(
+      Effect.provide(repoLayer()),
       silentLogger,
       Effect.tap((cancelledLinks) =>
         Effect.sync(() => {
@@ -308,16 +354,12 @@ describe("cancelStaleLinks", () => {
   it.effect(
     "cancels stale link with pending status using status.updatedAt",
     () => {
-      const link = makeLink({ createdAt: new Date() });
-      const status = makeStatus({
-        linkId: "link-1",
-        status: "pending",
-        updatedAt: new Date(Date.now() - FIVE_MIN - 1000),
-      });
-      const repo = createTestRepo([link], [status]);
+      const now = Date.now();
+      seedLink({ createdAt: new Date(now) });
+      seedStatus("link-1", "pending", new Date(now - FIVE_MIN - 1000));
 
-      return cancelStaleLinks(new Set(), Date.now()).pipe(
-        Effect.provide(repo.layer),
+      return cancelStaleLinks(new Set(), now).pipe(
+        Effect.provide(repoLayer()),
         silentLogger,
         Effect.tap((cancelledLinks) =>
           Effect.sync(() => {
@@ -330,15 +372,14 @@ describe("cancelStaleLinks", () => {
 
   it.effect("returns source and sourceMeta in cancelled link info", () => {
     const sm = JSON.stringify({ chatId: 1, messageId: 10 });
-    const link = makeLink({
+    seedLink({
       createdAt: new Date(Date.now() - FIVE_MIN - 1000),
       source: "telegram",
       sourceMeta: sm,
     });
-    const repo = createTestRepo([link]);
 
     return cancelStaleLinks(new Set(), Date.now()).pipe(
-      Effect.provide(repo.layer),
+      Effect.provide(repoLayer()),
       silentLogger,
       Effect.tap((cancelledLinks) =>
         Effect.sync(() => {
@@ -352,107 +393,62 @@ describe("cancelStaleLinks", () => {
   });
 
   it.effect("cancels multiple stale links", () => {
-    const links = [
-      makeLink({
-        id: "link-1",
-        url: "https://a.com",
-        createdAt: new Date(Date.now() - FIVE_MIN - 1000),
-      }),
-      makeLink({
-        id: "link-2",
-        url: "https://b.com",
-        createdAt: new Date(Date.now() - FIVE_MIN - 2000),
-      }),
-    ];
-    const repo = createTestRepo(links);
+    seedLink({
+      id: "link-1",
+      url: "https://a.com",
+      createdAt: new Date(Date.now() - FIVE_MIN - 1000),
+    });
+    seedLink({
+      id: "link-2",
+      url: "https://b.com",
+      createdAt: new Date(Date.now() - FIVE_MIN - 2000),
+    });
 
     return cancelStaleLinks(new Set(), Date.now()).pipe(
-      Effect.provide(repo.layer),
+      Effect.provide(repoLayer()),
       silentLogger,
       Effect.tap((cancelledLinks) =>
         Effect.sync(() => {
           expect(cancelledLinks).toHaveLength(2);
-          expect(repo.committed).toHaveLength(2);
+          const s1 = store.query(
+            tables.linkProcessingStatus.where({ linkId: "link-1" })
+          )[0];
+          const s2 = store.query(
+            tables.linkProcessingStatus.where({ linkId: "link-2" })
+          )[0];
+          expect(s1.status).toBe("cancelled");
+          expect(s2.status).toBe("cancelled");
         })
       )
     );
   });
 
   it.effect("does not cancel fresh links", () => {
-    const freshLink = makeLink({ createdAt: new Date() });
-    const repo = createTestRepo([freshLink]);
+    seedLink({ createdAt: new Date() });
 
     return cancelStaleLinks(new Set(), Date.now()).pipe(
-      Effect.provide(repo.layer),
+      Effect.provide(repoLayer()),
       silentLogger,
       Effect.tap((cancelledLinks) =>
         Effect.sync(() => {
           expect(cancelledLinks).toHaveLength(0);
-          expect(repo.committed).toHaveLength(0);
+          const statusRows = store.query(
+            tables.linkProcessingStatus.where({ linkId: "link-1" })
+          );
+          expect(statusRows).toHaveLength(0);
         })
       )
     );
   });
 });
 
-describe("notification dedup", () => {
-  it("filters out already-notified linkIds", () => {
-    const notifiedLinkIds = new Set<string>();
-    const results = [
-      {
-        linkId: "link-1",
-        processingStatus: "completed" as const,
-        source: "telegram",
-        sourceMeta: null,
-      },
-      {
-        linkId: "link-2",
-        processingStatus: "failed" as const,
-        source: "telegram",
-        sourceMeta: null,
-      },
-    ];
-
-    const newResults = results.filter((r) => !notifiedLinkIds.has(r.linkId));
-    for (const r of newResults) notifiedLinkIds.add(r.linkId);
-
-    expect(newResults).toHaveLength(2);
-    expect(notifiedLinkIds.size).toBe(2);
-
-    const secondRun = results.filter((r) => !notifiedLinkIds.has(r.linkId));
-    expect(secondRun).toHaveLength(0);
-  });
-
-  it("allows new linkIds while blocking seen ones", () => {
-    const notifiedLinkIds = new Set<string>(["link-1"]);
-    const results = [
-      {
-        linkId: "link-1",
-        processingStatus: "completed" as const,
-        source: "telegram",
-        sourceMeta: null,
-      },
-      {
-        linkId: "link-3",
-        processingStatus: "completed" as const,
-        source: "telegram",
-        sourceMeta: null,
-      },
-    ];
-
-    const newResults = results.filter((r) => !notifiedLinkIds.has(r.linkId));
-    for (const r of newResults) notifiedLinkIds.add(r.linkId);
-
-    expect(newResults).toHaveLength(1);
-    expect(newResults[0].linkId).toBe("link-3");
-  });
-});
-
 describe("notifyResult", () => {
   it.effect("passes completed payload and commits notified event", () => {
-    const repo = createTestRepo();
+    // Seed a link + pending status so the notified flag can be updated.
+    seedLink({ id: "link-1" });
+    seedStatus("link-1", "pending", new Date("2026-01-01"));
     const notifier = createTestNotifier();
-    const testLayer = Layer.mergeAll(repo.layer, notifier.layer);
+    const testLayer = Layer.mergeAll(repoLayer(), notifier.layer);
 
     return notifyResult({
       linkId: LinkId.make("link-1"),
@@ -476,20 +472,20 @@ describe("notifyResult", () => {
               },
             },
           ]);
-          expect(repo.committed).toHaveLength(1);
-          expect(repo.committed[0]).toMatchObject({
-            name: "v1.LinkSourceNotified",
-            args: expect.objectContaining({ linkId: "link-1" }),
-          });
+          const status = store.query(
+            tables.linkProcessingStatus.where({ linkId: "link-1" })
+          )[0];
+          expect(status.notified).toBe(1);
         })
       )
     );
   });
 
   it.effect("passes failed payload and commits notified event", () => {
-    const repo = createTestRepo();
+    seedLink({ id: "link-1" });
+    seedStatus("link-1", "pending", new Date("2026-01-01"));
     const notifier = createTestNotifier();
-    const testLayer = Layer.mergeAll(repo.layer, notifier.layer);
+    const testLayer = Layer.mergeAll(repoLayer(), notifier.layer);
 
     return notifyResult({
       linkId: LinkId.make("link-1"),
@@ -513,10 +509,10 @@ describe("notifyResult", () => {
               },
             },
           ]);
-          expect(repo.committed).toHaveLength(1);
-          expect(repo.committed[0]).toMatchObject({
-            name: "v1.LinkSourceNotified",
-          });
+          const status = store.query(
+            tables.linkProcessingStatus.where({ linkId: "link-1" })
+          )[0];
+          expect(status.notified).toBe(1);
         })
       )
     );
