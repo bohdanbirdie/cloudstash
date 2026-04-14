@@ -114,6 +114,9 @@
       },
     },
   },
+  "patchedDependencies": {
+    "@effect/rpc@0.75.0": "patches/@effect%2Frpc@0.75.0.patch",
+  },
   "overrides": {
     "undici": "7.18.2",
   },

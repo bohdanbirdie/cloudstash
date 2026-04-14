@@ -165,5 +165,8 @@
         "description": "Email sender address (e.g. YourApp <noreply@yourdomain.com>)"
       }
     }
+  },
+  "patchedDependencies": {
+    "@effect/rpc@0.75.0": "patches/@effect%2Frpc@0.75.0.patch"
   }
 }
