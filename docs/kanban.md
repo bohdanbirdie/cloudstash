@@ -4,7 +4,6 @@ kanban-plugin: board
 
 ## Todo
 
-- [ ] [[todos/logout-opfs-cleanup|Implement proper logout OPFS cleanup]]
 - [ ] [[todos/telegram-login-link|Simplify Telegram bot auth with login link]]
 - [ ] [[todos/e2e-do-sync-testing|E2E testing for DO-to-DO sync]]
 - [ ] [[todos/remove-undici-override|Remove undici 7.18.2 override]]
@@ -20,6 +19,7 @@ kanban-plugin: board
 ## In Progress
 
 - [ ] [[todos/publish-raycast-extension|Publish Raycast extension to Store]]
+- [ ] [[todos/logout-opfs-cleanup|Implement proper logout OPFS cleanup]]
 - [ ] [[todos/surface-do-errors-monitoring|Surface LinkProcessorDO errors to monitoring]]
 
 ## Done
