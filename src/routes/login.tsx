@@ -1,5 +1,5 @@
-import { useEffect } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 import { LoginAnimation } from "@/components/login-animation";
 import { Button } from "@/components/ui/button";
@@ -85,7 +85,7 @@ function LoginForm({ className, ...props }: React.ComponentProps<"div">) {
 
 function LoginPage() {
   useEffect(() => {
-    clearOPFS();
+    void clearOPFS();
   }, []);
 
   return (
