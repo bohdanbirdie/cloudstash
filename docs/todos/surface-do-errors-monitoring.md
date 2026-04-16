@@ -1,20 +1,25 @@
 # Surface LinkProcessorDO errors to monitoring
 
-During the sync bug, errors were logged but never surfaced to any monitoring feed. Links silently failed to sync for days.
+**Status:** Done
 
-## Errors to capture
+## What was done
 
-- `MaterializeError` — PK conflicts in eventlog (corrupted store)
-- `ServerAheadError` — only if persistent (single occurrences are normal rebase protocol)
-- `processLinkAsync failed` — catch block that resets cachedStore
-- `store.commit()` failures (currently swallowed)
+Wired `OtelTracingLive(env)` into LinkProcessorDO's `runEffect` so all `Effect.logError`, `Effect.logWarning`, `Effect.logInfo`, and `Effect.withSpan` calls now export spans and logs to Axiom via the OTel pipeline.
 
-## Key constraint
+### Changes
 
-LinkProcessorDO currently does NOT use `AppLayerLive` or `OtelTracingLive`. Would need to wire tracing into the DO's `runEffect` or add it to the layer chain.
+- `src/cf-worker/link-processor/logger.ts` — `runEffect` now takes `env: Env` and provides a merged layer of the custom logger + `OtelTracingLive(env)`
+- `src/cf-worker/link-processor/durable-object.ts` — all 5 `runEffect(...)` call sites updated to pass `this.env`
 
-## Options
+### What's now monitored
 
-1. **Axiom alerts via OTel** — add error spans from LinkProcessorDO, set up Axiom monitors
-2. **Telegram admin alerts** — reuse SourceNotifierLive for error notifications
-3. **Structured error logging** — ensure errors use `Effect.logError` with annotations (some use `logSync` which bypasses OTel)
+- `processLinkEffect` failures (defects) — via `Effect.logError` + `Effect.withSpan`
+- `AiCallError` and content extraction errors — via `Effect.logError` / `Effect.logWarning`
+- `cancelStaleLinks` failures — via Effect error channel
+- `sendProgressDraft` / `notifyResult` failures — via `Effect.logWarning` / `Effect.catchAll`
+- All `Effect.withSpan` calls (e.g. `LinkProcessorDO.processLinkEffect`, `LinkProcessorDO.sendProgressDraft`)
+
+### Remaining edge cases (acceptable)
+
+- `.catch()` handlers on Promise boundaries still use `logSync` (console.error only) — these fire only when the Effect itself defected past all catch layers, which is extremely rare
+- `store.commit()` at line 345 has no explicit error handling, but throws are caught by `catchAllDefect` on the outer `processLinkEffect` pipe
