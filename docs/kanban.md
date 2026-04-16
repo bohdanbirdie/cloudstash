@@ -1,5 +1,7 @@
 ---
+
 kanban-plugin: board
+
 ---
 
 ## Todo
@@ -16,15 +18,17 @@ kanban-plugin: board
 - [ ] Develop CLI for ingestion and management
 - [ ] Review and consolidate rate limiting / usage limits
 
+
 ## In Progress
 
 - [ ] [[todos/publish-raycast-extension|Publish Raycast extension to Store]]
-- [ ] [[todos/logout-opfs-cleanup|Implement proper logout OPFS cleanup]]
 - [ ] [[todos/surface-do-errors-monitoring|Surface LinkProcessorDO errors to monitoring]]
+
 
 ## Done
 
 - [x] [[todos/queue-config-explicitness|Make queue config explicit in code]]
+- [ ] [[todos/logout-opfs-cleanup|Implement proper logout OPFS cleanup]]
 - [ ] [[todos/drop-livestore-common-cf-patch|Drop @livestore/common-cf patch after PR #1163 merges]]
 - [x] Add concurrency (5 or so) to link processor DO
 - [x] [[todos/done/usage-analytics-review|Review and improve usage analytics]]
@@ -43,10 +47,11 @@ kanban-plugin: board
 - [x] [[todos/done/monorepo-conversion|Convert project to monorepo]]
 - [x] [[todos/done/raycast-ingestion|Add Raycast ingestion path]]
 
-%% kanban:settings
 
+
+
+%% kanban:settings
 ```
 {"kanban-plugin":"board"}
 ```
-
 %%
