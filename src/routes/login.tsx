@@ -1,4 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 import { LoginAnimation } from "@/components/login-animation";
 import { Button } from "@/components/ui/button";
@@ -6,6 +7,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { FieldGroup, FieldDescription } from "@/components/ui/field";
 import { authClient } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+
+async function clearOPFS() {
+  if (typeof navigator === "undefined" || !navigator.storage?.getDirectory)
+    return;
+  const root = await navigator.storage.getDirectory();
+  for await (const name of root.keys()) {
+    if (name.startsWith("livestore")) {
+      await root.removeEntry(name, { recursive: true }).catch(() => {});
+    }
+  }
+}
 
 export const Route = createFileRoute("/login")({
   beforeLoad: ({ context }) => {
@@ -72,6 +84,10 @@ function LoginForm({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 function LoginPage() {
+  useEffect(() => {
+    void clearOPFS();
+  }, []);
+
   return (
     <div className="bg-muted flex min-h-svh flex-col items-center justify-center p-6 md:p-10">
       <div className="w-full max-w-sm md:max-w-3xl">

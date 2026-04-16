@@ -4,7 +4,6 @@ kanban-plugin: board
 
 ## Todo
 
-- [ ] [[todos/logout-opfs-cleanup|Implement proper logout OPFS cleanup]]
 - [ ] [[todos/telegram-login-link|Simplify Telegram bot auth with login link]]
 - [ ] [[todos/e2e-do-sync-testing|E2E testing for DO-to-DO sync]]
 - [ ] [[todos/remove-undici-override|Remove undici 7.18.2 override]]
@@ -25,6 +24,7 @@ kanban-plugin: board
 ## Done
 
 - [x] [[todos/queue-config-explicitness|Make queue config explicit in code]]
+- [ ] [[todos/logout-opfs-cleanup|Implement proper logout OPFS cleanup]]
 - [ ] [[todos/drop-livestore-common-cf-patch|Drop @livestore/common-cf patch after PR #1163 merges]]
 - [x] Add concurrency (5 or so) to link processor DO
 - [x] [[todos/done/usage-analytics-review|Review and improve usage analytics]]
