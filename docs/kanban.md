@@ -7,7 +7,6 @@ kanban-plugin: board
 - [ ] [[todos/telegram-login-link|Simplify Telegram bot auth with login link]]
 - [ ] [[todos/e2e-do-sync-testing|E2E testing for DO-to-DO sync]]
 - [ ] [[todos/remove-undici-override|Remove undici 7.18.2 override]]
-- [ ] [[todos/livestore-testing-data|Livestore data-layer tests (no UI)]]
 - [ ] [[todos/livestore-testing-ui|Livestore UI feature tests (RTL)]]
 - [ ] [[todos/progress-tracker-sqlite-review|Review stateful SQLite ProgressTracker]]
 - [ ] [[todos/managed-effect-runtime-do|Explore ManagedRuntime for LinkProcessorDO]]
@@ -19,13 +18,15 @@ kanban-plugin: board
 ## In Progress
 
 - [ ] [[todos/publish-raycast-extension|Publish Raycast extension to Store]]
-- [ ] [[todos/surface-do-errors-monitoring|Surface LinkProcessorDO errors to monitoring]]
 
 ## Done
 
+- [x] [[todos/surface-do-errors-monitoring|Surface LinkProcessorDO errors to monitoring]]
+
 - [x] [[todos/queue-config-explicitness|Make queue config explicit in code]]
-- [ ] [[todos/logout-opfs-cleanup|Implement proper logout OPFS cleanup]]
-- [ ] [[todos/drop-livestore-common-cf-patch|Drop @livestore/common-cf patch after PR #1163 merges]]
+- [x] [[todos/logout-opfs-cleanup|Implement proper logout OPFS cleanup]]
+- [x] [[todos/drop-livestore-common-cf-patch|Drop @livestore/common-cf patch after PR #1163 merges]]
+- [x] [[todos/livestore-testing-data|Livestore data-layer tests (no UI)]]
 - [x] Add concurrency (5 or so) to link processor DO
 - [x] [[todos/done/usage-analytics-review|Review and improve usage analytics]]
 - [x] [[todos/done/telegram-duplicate-message|AI summary re-request sends duplicate Telegram message]]
