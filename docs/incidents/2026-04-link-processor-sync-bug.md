@@ -149,18 +149,18 @@ For the next send minutes later:
 
 ### Root cause
 
-[livestorejs/livestore#1136](https://github.com/livestorejs/livestore/pull/1136) — "fix: trigger session shutdown when push fiber fails with non-`RejectedPushError`". Closes [issue #1133](https://github.com/livestorejs/livestore/issues/1133): *"Background push fiber dies silently on non-RejectedPushError failures"*.
+[livestorejs/livestore#1136](https://github.com/livestorejs/livestore/pull/1136) — "fix: trigger session shutdown when push fiber fails with non-`RejectedPushError`". Closes [issue #1133](https://github.com/livestorejs/livestore/issues/1133): _"Background push fiber dies silently on non-RejectedPushError failures"_.
 
-Per the issue: *"The background push loop in `ClientSessionSyncProcessor` only recovers `RejectedPushError`. Any other failure (e.g. worker crash, serialization error) kills the fiber via `tapCauseLogPretty` without triggering session shutdown or surfacing a processor-level error. This leaves the processor in a half-alive state: it can still pull events from the leader but can never push again."*
+Per the issue: _"The background push loop in `ClientSessionSyncProcessor` only recovers `RejectedPushError`. Any other failure (e.g. worker crash, serialization error) kills the fiber via `tapCauseLogPretty` without triggering session shutdown or surfacing a processor-level error. This leaves the processor in a half-alive state: it can still pull events from the leader but can never push again."_
 
 That matches the symptom exactly: local commits succeed, no push activity, next session works fine. The `tapCauseLogPretty` path swallows the original error so it never reached our `LinkProcessorDO` logger either.
 
 ### Why our snapshot missed the fix
 
-| Commit       | Timestamp (CET)         | Description                          |
-| ------------ | ----------------------- | ------------------------------------ |
-| `484098f58`  | 2026-04-14 11:41:52     | Our snapshot (PR #42 bump)           |
-| `cd0056eaf`  | 2026-04-14 22:03:11     | PR #1136 merged — ~10h after snapshot|
+| Commit      | Timestamp (CET)     | Description                           |
+| ----------- | ------------------- | ------------------------------------- |
+| `484098f58` | 2026-04-14 11:41:52 | Our snapshot (PR #42 bump)            |
+| `cd0056eaf` | 2026-04-14 22:03:11 | PR #1136 merged — ~10h after snapshot |
 
 `git merge-base --is-ancestor cd0056eaf 484098f58` returns false. The snapshot picked up [PR #1167](https://github.com/livestorejs/livestore/pull/1167) (`flat(1)` for merged DO RPC chunks) and the `toGlobal` doc fix, but predated PR #1136 by about half a day.
 
