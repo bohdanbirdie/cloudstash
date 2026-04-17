@@ -1,7 +1,5 @@
 ---
-
 kanban-plugin: board
-
 ---
 
 ## Todo
@@ -17,10 +15,7 @@ kanban-plugin: board
 - [ ] Develop CLI for ingestion and management
 - [ ] Review and consolidate rate limiting / usage limits
 
-
 ## In Progress
-
-
 
 ## Done
 
@@ -47,11 +42,10 @@ kanban-plugin: board
 - [x] [[todos/done/monorepo-conversion|Convert project to monorepo]]
 - [x] [[todos/done/raycast-ingestion|Add Raycast ingestion path]]
 
-
-
-
 %% kanban:settings
+
 ```
 {"kanban-plugin":"board"}
 ```
+
 %%
