@@ -17,12 +17,10 @@ kanban-plugin: board
 
 ## In Progress
 
-- [ ] [[todos/publish-raycast-extension|Publish Raycast extension to Store]]
-
 ## Done
 
+- [ ] [[todos/publish-raycast-extension|Publish Raycast extension to Store]]
 - [x] [[todos/surface-do-errors-monitoring|Surface LinkProcessorDO errors to monitoring]]
-
 - [x] [[todos/queue-config-explicitness|Make queue config explicit in code]]
 - [x] [[todos/logout-opfs-cleanup|Implement proper logout OPFS cleanup]]
 - [x] [[todos/drop-livestore-common-cf-patch|Drop @livestore/common-cf patch after PR #1163 merges]]

@@ -57,7 +57,7 @@ export function RaycastTab({ keys, isLoading, onRevokeKey }: RaycastTabProps) {
           <li>
             Install Cloudstash from the{" "}
             <a
-              href="https://www.raycast.com/store"
+              href="https://www.raycast.com/birdie/cloudstash"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline inline-flex items-center gap-0.5"
