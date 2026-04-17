@@ -1,7 +1,7 @@
 # LinkProcessorDO Sync Bug
 
-**Date:** 2026-04-01 → 2026-04-07 (initial), regressed 2026-04-14
-**Status:** RESOLVED (re-resolved 2026-04-14)
+**Date:** 2026-04-01 → 2026-04-07 (initial), regressed 2026-04-14, intermittent recurrence 2026-04-17
+**Status:** RESOLVED (re-resolved 2026-04-17 via livestore snapshot bump)
 **Impact:** Links sent via Telegram processed successfully but never appeared in browser UI.
 
 ## Problem
@@ -94,10 +94,11 @@ CF DO RPC merges multiple `controller.enqueue()` calls into fewer `reader.read()
 
 ## Current Deployed State
 
-- Livestore snapshot `484098f5` with `compatibility_date = "2026-04-05"`
+- Livestore snapshot `40be66583` (dev HEAD as of 2026-04-17) with `compatibility_date = "2026-04-05"`
 - Store creation guard (`storeCreationPromise`)
 - Bug 2 (`@livestore/common-cf` `flat(1)`) — merged upstream in [livestorejs/livestore#1167](https://github.com/livestorejs/livestore/pull/1167), present in current snapshot. Patch dropped.
-- Bug 3 (`@effect/rpc` msgpackr CSP) — local patch `patches/@effect%2Frpc@0.75.0.patch`. See "Regression" below.
+- Bug 3 (`@effect/rpc` msgpackr CSP) — local patch `patches/@effect%2Frpc@0.75.0.patch`. See "Regression (2026-04-14)" below.
+- Bug 4 (push fiber dies silently on non-`RejectedPushError`) — fixed upstream in [livestorejs/livestore#1136](https://github.com/livestorejs/livestore/pull/1136), present in current snapshot. See "Intermittent recurrence (2026-04-17)" below.
 
 ## Regression (2026-04-14)
 
@@ -126,6 +127,51 @@ Don't patch `@effect/rpc` — ship a CSP-safe `RpcSerialization` from livestore 
 
 - "Upstream merged" ≠ "consumers fixed" when the upstream is a workspace-level patch on a peer dependency. Verify by inspecting installed `node_modules` after a clean install, not by reading PR descriptions.
 - The original `@effect/rpc` patch can only be dropped once a real fix lands inside `@effect/rpc` itself (tracked at [Effect-TS/effect#6161](https://github.com/Effect-TS/effect/pull/6161)).
+
+## Intermittent recurrence (2026-04-17)
+
+Telegram links intermittently failed to sync from `LinkProcessorDO` to the browser. Unlike the prior incident this was not 100% reproducible — many sends worked, some did not. The next link sent after a broken one would drain the previous link's events along with its own, so backlogs eventually flushed but with arbitrary delay until another link arrived.
+
+### Symptom in production logs
+
+For the broken send:
+
+- `LinkProcessorDO.ingestAndProcess` runs to completion. Local commits succeed (`existingEventlogRows` increases on the next cold boot).
+- No `SyncBackendDO` `Push received` log for the events.
+- No `LinkProcessorDO.syncUpdateRpc` callbacks during processing.
+- No `Broadcasted to N WebSocket clients`.
+- The Telegram confirmation message still goes out (notifier path is independent of livestore push).
+
+For the next send minutes later:
+
+- New cold boot. `existingEventlogRows` shows the prior link's events were persisted locally.
+- Push fiber on the new session pushes the backlog plus the new events. SyncBackend broadcasts to the browser. Both links appear at once.
+
+### Root cause
+
+[livestorejs/livestore#1136](https://github.com/livestorejs/livestore/pull/1136) — "fix: trigger session shutdown when push fiber fails with non-`RejectedPushError`". Closes [issue #1133](https://github.com/livestorejs/livestore/issues/1133): _"Background push fiber dies silently on non-RejectedPushError failures"_.
+
+Per the issue: _"The background push loop in `ClientSessionSyncProcessor` only recovers `RejectedPushError`. Any other failure (e.g. worker crash, serialization error) kills the fiber via `tapCauseLogPretty` without triggering session shutdown or surfacing a processor-level error. This leaves the processor in a half-alive state: it can still pull events from the leader but can never push again."_
+
+That matches the symptom exactly: local commits succeed, no push activity, next session works fine. The `tapCauseLogPretty` path swallows the original error so it never reached our `LinkProcessorDO` logger either.
+
+### Why our snapshot missed the fix
+
+| Commit      | Timestamp (CET)     | Description                           |
+| ----------- | ------------------- | ------------------------------------- |
+| `484098f58` | 2026-04-14 11:41:52 | Our snapshot (PR #42 bump)            |
+| `cd0056eaf` | 2026-04-14 22:03:11 | PR #1136 merged — ~10h after snapshot |
+
+`git merge-base --is-ancestor cd0056eaf 484098f58` returns false. The snapshot picked up [PR #1167](https://github.com/livestorejs/livestore/pull/1167) (`flat(1)` for merged DO RPC chunks) and the `toGlobal` doc fix, but predated PR #1136 by about half a day.
+
+### Resolution
+
+Bumped `@livestore/*` from `484098f58` to dev HEAD `40be66583` (today). Includes PR #1136, PR #1173 (wa-sqlite `changeset_apply` rebase rollback fix), and a few small refactors. `@effect/rpc` is still `0.75.0` on dev so our local patch applies cleanly with no regeneration.
+
+### Lessons
+
+- A snapshot SHA is just a commit pointer — it can be cut moments before an important fix lands. When pinning to a snapshot, check what was merged upstream in the hours/days after that SHA before considering the version "current".
+- Push fiber failures inside livestore are silent at the consumer layer. Symptom is "local commits work, remote pushes don't, next cold boot drains backlog". If you see that pattern, suspect the push-fiber-dead state regardless of any visible error logs.
 
 ## TODOs
 
