@@ -6,16 +6,16 @@ kanban-plugin: board
 
 - [ ] [[todos/telegram-login-link|Simplify Telegram bot auth with login link]]
 - [ ] [[todos/e2e-do-sync-testing|E2E testing for DO-to-DO sync]]
-- [ ] [[todos/remove-undici-override|Remove undici 7.18.2 override]]
 - [ ] [[todos/livestore-testing-ui|Livestore UI feature tests (RTL)]]
 - [ ] [[todos/progress-tracker-sqlite-review|Review stateful SQLite ProgressTracker]]
 - [ ] [[todos/managed-effect-runtime-do|Explore ManagedRuntime for LinkProcessorDO]]
-- [ ] [[todos/links-list-performance|Fix links list rendering performance at 150+ links]]
-- [ ] Rethink app design (inspiration: shiori.sh)
 - [ ] Develop CLI for ingestion and management
 - [ ] Review and consolidate rate limiting / usage limits
 
 ## In Progress
+
+- [ ] Rethink app design (inspiration: shiori.sh)
+- [ ] [[todos/links-list-performance|Fix links list rendering performance at 150+ links]]
 
 ## Done
 
