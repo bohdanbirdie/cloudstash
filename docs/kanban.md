@@ -1,7 +1,5 @@
 ---
-
 kanban-plugin: board
-
 ---
 
 ## Todo
@@ -14,12 +12,10 @@ kanban-plugin: board
 - [ ] Develop CLI for ingestion and management
 - [ ] Review and consolidate rate limiting / usage limits
 
-
 ## In Progress
 
 - [ ] Rethink app design (inspiration: shiori.sh)
 - [ ] [[todos/links-list-performance|Fix links list rendering performance at 150+ links]]
-
 
 ## Done
 
@@ -46,11 +42,10 @@ kanban-plugin: board
 - [x] [[todos/done/monorepo-conversion|Convert project to monorepo]]
 - [x] [[todos/done/raycast-ingestion|Add Raycast ingestion path]]
 
-
-
-
 %% kanban:settings
+
 ```
 {"kanban-plugin":"board"}
 ```
+
 %%
