@@ -16,6 +16,8 @@ kanban-plugin: board
 - [ ] Develop Chrome extension to save links
 - [ ] Review and develop Twitter integrations (https://x.com/mynameistito/status/2046213790623301955)
 - [ ] iOS Shortcut as injection source
+- [ ] Use Cloudflare Email instead of Resend
+- [ ] Replace OpenRouter with Cloudflare AI Gateway
 
 
 ## In Progress
