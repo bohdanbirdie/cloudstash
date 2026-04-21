@@ -54,6 +54,7 @@ bun run deploy             # FORBIDDEN
 - `docs/architecture/` — System architecture (auth, worker resilience, link processor).
 - `docs/features/` — Feature docs and specs. Check before implementing changes.
 - `docs/diagrams/` — Excalidraw diagrams (`.excalidraw` files). Viewable in the Obsidian Excalidraw plugin or at excalidraw.com. Agents can create/edit these files directly as JSON.
+- `docs/kanban.md` — Task board (Obsidian kanban-plugin). Add tasks here as `- [ ] Title` under `## Todo` / `## In Progress` / `## Done`. Link to a `docs/todos/<slug>.md` doc when a task needs more than a one-liner.
 - `docs/` is an Obsidian vault. Use `[[path/filename]]` wiki links for cross-references between docs (no `.md` extension). **Do not use `[[path|alias]]` syntax inside markdown tables** — the `|` conflicts with the table column separator.
 
 ## Livestore Sync
@@ -88,9 +89,3 @@ Never guess at Effect patterns - check the guide first.
 
 <!-- effect-solutions:end -->
 
-## Task Tracking
-
-Private GitHub Project #1: `gh project item-list 1 --owner "@me"`
-
-Use `gh project item-create 1 --owner "@me" --title "..." --body "..."` to add draft items.
-Fields: Status, Type (Bug/Feature/Idea/Tech Debt), Priority (P0-P3).

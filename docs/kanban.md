@@ -1,5 +1,7 @@
 ---
+
 kanban-plugin: board
+
 ---
 
 ## Todo
@@ -11,11 +13,17 @@ kanban-plugin: board
 - [ ] [[todos/managed-effect-runtime-do|Explore ManagedRuntime for LinkProcessorDO]]
 - [ ] Develop CLI for ingestion and management
 - [ ] Review and consolidate rate limiting / usage limits
+- [ ] Develop Chrome extension to save links
+- [ ] Review and develop Twitter integrations (https://x.com/mynameistito/status/2046213790623301955)
+- [ ] iOS Shortcut as injection source
+
 
 ## In Progress
 
 - [ ] Rethink app design (inspiration: shiori.sh)
 - [ ] [[todos/links-list-performance|Fix links list rendering performance at 150+ links]]
+- [ ] GitHub-like grid of activity
+
 
 ## Done
 
@@ -42,10 +50,11 @@ kanban-plugin: board
 - [x] [[todos/done/monorepo-conversion|Convert project to monorepo]]
 - [x] [[todos/done/raycast-ingestion|Add Raycast ingestion path]]
 
-%% kanban:settings
 
+
+
+%% kanban:settings
 ```
 {"kanban-plugin":"board"}
 ```
-
 %%
