@@ -8,8 +8,8 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 
-import { LinkImage } from "@/components/link-card/link-image";
 import { useLinkDetailDialog } from "@/components/link-detail-dialog";
+import { LinkImage } from "@/components/link-image";
 import { TagCombobox } from "@/components/tags/tag-combobox";
 import { Badge } from "@/components/ui/badge";
 import {

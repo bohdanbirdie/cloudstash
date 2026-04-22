@@ -15,7 +15,7 @@ export function LinkImage({
   src,
   alt = "",
   className,
-  iconClassName = "h-8 w-8",
+  iconClassName = "size-8",
   objectFit = "cover",
 }: LinkImageProps) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);

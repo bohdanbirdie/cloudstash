@@ -17,11 +17,16 @@ kanban-plugin: board
 - [ ] Use Cloudflare Email instead of Resend
 - [ ] Replace OpenRouter with Cloudflare AI Gateway
 - [ ] Restore multi-select behaviour for tag filter (currently selects only one tag at a time; toggle semantics via `addTag`/`removeTag` should allow multiple active)
+- [ ] Weekly Digest backend — replace the placeholder paragraph in `src/components/weekly-digest.tsx` with real content. Decide source (server cron on D1 vs on-demand AI vs both) and meta line ("generated from N saves this week · updated X").
+- [ ] Weekly Digest actions — add "✱ ask about this week" (seeds chat/chip) and "⎋ dismiss" with semantics (hide until tomorrow? forever? setting?). See [[todos/app-redesign]] phase 2 decisions.
+- [ ] Keyboard hints footer in right pane — `⌘K · ⌥N · Esc` row beneath the digest. Confirm which three to promote.
+- [ ] Time-grouped list headers (Today / Yesterday / This week / Older) — deferred from phase 2. Measure query impact before landing.
+- [ ] Custom monogram fallback for image-less links — current fallback is the first domain letter on a muted square. Explore better options (generated gradient from domain hash, favicon upscale, brand-color map).
 - [ ] Further list-mount perf improvements — see [[todos/app-redesign|redesign doc]] "Further list-mount perf" open question. Baseline 180ms longtask for 241 links on first route mount; Chrome profiling shows SQL is NOT the bottleneck (Livestore useQuery is 14ms). Leverage points if returning to this: flatten per-card DOM (currently 10+ fiber levels), query pagination with LIMIT + load-more, `startTransition` to chunk the longtask.
 
 ## In Progress
 
-- [ ] [[todos/app-redesign|Rethink app design]]
+- [ ] [[todos/app-redesign|Rethink app design]] — phases 1 & 2 shipped; phase 3 (detail view + multi-select in right pane + animations) next
 - [ ] [[todos/links-list-performance|Fix links list rendering performance at 150+ links]]
 - [ ] GitHub-like grid of activity
 

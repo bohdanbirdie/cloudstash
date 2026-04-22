@@ -16,9 +16,11 @@ import { LinkDetailDialogProvider } from "@/components/link-detail-dialog";
 import { ListDataProvider } from "@/components/list-data-context";
 import { LoadingScreen } from "@/components/loading-screen";
 import { Masthead } from "@/components/masthead";
+import { PageActionsProvider } from "@/components/page-actions-context";
 import { PerfHUD } from "@/components/perf-hud";
 import { SearchCommand } from "@/components/search-command";
 import { TopBar } from "@/components/top-bar";
+import { WeeklyDigest } from "@/components/weekly-digest";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ConnectionMonitor } from "@/livestore/store";
 
@@ -46,7 +48,9 @@ function AuthedLayout() {
             <AddLinkDialogProvider>
               <ChatSheetProvider>
                 <ListDataProvider>
-                  <AuthedShell />
+                  <PageActionsProvider>
+                    <AuthedShell />
+                  </PageActionsProvider>
                 </ListDataProvider>
                 <ContextualChatSheet isMobile={isMobile} />
                 <SearchCommand />
@@ -87,7 +91,7 @@ function AuthedShell() {
           <div className="min-w-0">
             <Outlet />
           </div>
-          <aside aria-hidden="true" />
+          <WeeklyDigest />
         </div>
       </div>
     </div>

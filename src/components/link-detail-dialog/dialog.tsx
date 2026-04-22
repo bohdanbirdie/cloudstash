@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-import { LinkImage } from "@/components/link-card/link-image";
+import { LinkImage } from "@/components/link-image";
 import { TagCombobox } from "@/components/tags/tag-combobox";
 import { TagSuggestions } from "@/components/tags/tag-suggestions";
 import { Badge } from "@/components/ui/badge";

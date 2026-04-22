@@ -2,26 +2,17 @@ import { useCallback, useMemo, useRef } from "react";
 
 import { useListData } from "@/components/list-data-context";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
+import { formatAgo } from "@/lib/time-ago";
 import type { LinkListItem as LinkListItemData } from "@/livestore/queries/links";
 import type { Tag } from "@/livestore/queries/tags";
-import { useViewModeStore } from "@/stores/view-mode-store";
 
-import { LinkCard } from "./link-card";
 import { LinkListItem } from "./link-list-item";
 
-interface LinkGridProps {
+interface LinkListProps {
   links: readonly LinkListItemData[];
   emptyMessage?: string;
   onLinkClick?: (index: number) => void;
 }
-
-const dateFormatter = new Intl.DateTimeFormat(undefined, {
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-  month: "short",
-  year: "numeric",
-});
 
 const EMPTY_TAGS: readonly Tag[] = [];
 
@@ -45,7 +36,7 @@ function useFormattedDatesByLink(
         nextCache.set(link.id, cached);
         continue;
       }
-      const formatted = dateFormatter.format(new Date(link.createdAt));
+      const formatted = formatAgo(link.createdAt);
       out.set(link.id, formatted);
       nextCache.set(link.id, { createdAt: link.createdAt, formatted });
     }
@@ -54,12 +45,11 @@ function useFormattedDatesByLink(
   }, [links]);
 }
 
-export function LinkGrid({
+export function LinkList({
   links,
   emptyMessage = "No links yet",
   onLinkClick,
-}: LinkGridProps) {
-  const viewMode = useViewModeStore((s) => s.viewMode);
+}: LinkListProps) {
   const trackLinkOpen = useTrackLinkOpen();
 
   const { tagsByLink, statusByLink } = useListData();
@@ -93,37 +83,18 @@ export function LinkGrid({
     );
   }
 
-  if (viewMode === "list") {
-    return (
-      <div className="flex flex-col gap-3 min-w-0">
-        {links.map((link) => (
-          <LinkListItem
-            key={link.id}
-            link={link}
-            tags={tagsByLink.get(link.id) ?? EMPTY_TAGS}
-            processingStatus={statusByLink.get(link.id) ?? null}
-            formattedDate={formattedDates.get(link.id) ?? ""}
-            onClick={handleRowClick}
-          />
-        ))}
-      </div>
-    );
-  }
-
   return (
-    <div className="@container">
-      <div className="grid grid-cols-1 gap-4 @sm:grid-cols-2 @lg:grid-cols-3 @3xl:grid-cols-4">
-        {links.map((link) => (
-          <LinkCard
-            key={link.id}
-            link={link}
-            tags={tagsByLink.get(link.id) ?? EMPTY_TAGS}
-            processingStatus={statusByLink.get(link.id) ?? null}
-            formattedDate={formattedDates.get(link.id) ?? ""}
-            onClick={handleRowClick}
-          />
-        ))}
-      </div>
+    <div className="flex flex-col gap-6 min-w-0">
+      {links.map((link) => (
+        <LinkListItem
+          key={link.id}
+          link={link}
+          tags={tagsByLink.get(link.id) ?? EMPTY_TAGS}
+          processingStatus={statusByLink.get(link.id) ?? null}
+          formattedDate={formattedDates.get(link.id) ?? ""}
+          onClick={handleRowClick}
+        />
+      ))}
     </div>
   );
 }

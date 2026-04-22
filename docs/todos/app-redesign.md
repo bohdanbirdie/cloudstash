@@ -23,7 +23,7 @@ Short version: **precise, light, premium.** Light-mode first. Warm orange accent
 _Quick at-a-glance status for resuming work. Detailed history lives in the Progress log at the bottom._
 
 - **Phase 1 — Outer shell**: ✅ shipped (2026-04-22). Sidebar gone; `TopBar` + `Masthead` + `DotsMenu` + `PageShell` in place across `/`, `/all`, `/completed`, `/trash`. Admin/brand keep their own chrome (opt-in via not wrapping in `PageShell`). Modal preview still intact. `_authed.tsx` is neutral (providers + outlet).
-- **Phase 2 — List + right-pane default**: 🟡 partial. Perf strategy landed early (see below); list row anatomy NOT yet redone; right-pane home view NOT yet added; grid view treatment NOT addressed.
+- **Phase 2 — List + right-pane default**: ✅ shipped (2026-04-22). Grid view removed (client-only; livestore schema/events untouched). List row rebuilt to prototype anatomy (grid `1fr 5rem`, title / domain / 2-line desc / tags+ago foot, 80×45 OG-ratio thumb with monogram fallback). Right-pane home view stubbed (`weekly-digest.tsx`) and made sticky (`top-8` + `max-h` + `overflow-y-auto`). `FilterBar` dropped from the list page (masthead tag strip replaces it). Export button moved to the right pane via a small React context (`page-actions-context.tsx`). Relative `formatAgo` now used for list dates. `link-card/` directory flattened → `link-list/` (list-specific files) + `link-image.tsx` moved to top-level (used outside lists).
 - **Phase 2 perf (applied ahead of schedule)**: ✅ lifted `tagsByLink$` + `processingStatusByLink$` queries, `React.memo` with custom comparator on `LinkCard` / `LinkListItem`, `data-id` stable callbacks, `formattedDate` passed from parent, `content-visibility: auto` + `contain-intrinsic-size`, lazy/async images. **Observed result: improved but not yet smooth at 250+ links.** Next step is in-app instrumentation (see "Performance instrumentation" in Phase 2 in-scope).
 - **Phases 3–5**: not started.
 - **Multi-select temporarily disabled** (2026-04-22 evening): selection store / hotkey tracking / modifier-click handling / `SelectionToolbar` all unwired. Card `selected` and `selectionMode` props removed. Reason: selection-mode hotkey was re-rendering all 244 cards on every Cmd keypress. To be rebuilt in Phase 3 as the right-pane selection view. Dead code preserved (`selection-store.ts`, `selection-toolbar.tsx`) for resurrection.
@@ -404,6 +404,49 @@ Supported in modern Chrome, Safari 18+, Firefox 125+. Matches the "optimize for 
 ## Progress log
 
 _Append entries as we iterate, newest first._
+
+### 2026-04-22 (phase 2) — list rebuilt, grid removed, home pane stubbed
+
+**Grid view removed (client-only).** Deleted `src/components/link-card/link-card.tsx`, `src/components/link-card/view-switcher.tsx`, `src/stores/view-mode-store.ts`. The `viewMode` toggle is gone. Livestore schema + event log intentionally untouched (per project rule). `link-image.tsx` survives — still consumed by `add-link-dialog`, `link-mention`, `link-detail-dialog`.
+
+**Directory flattened.** `src/components/link-card/` → `src/components/link-list/` (list-specific files only), with `link-image.tsx` hoisted to `src/components/link-image.tsx` because it's used outside the list. Component rename: `LinkGrid` → `LinkList` (`link-grid.tsx` → `link-list/link-list.tsx`).
+
+**New row anatomy in `link-list-item.tsx`** (follows `local/redesign-prototypes/1-masthead-v3c-home2.html`):
+
+- Grid `1fr 5rem` with `gap-x-5`. Text stack on the left, rectangular thumbnail on the right.
+- Title (semibold / `text-base` / `leading-snug` / `tracking-tight` / `text-pretty`), domain (`text-xs` muted), description (`text-sm` muted `leading-relaxed`, 2-line clamp, `text-pretty`), foot row (tag list muted left / ago right, both `text-xs`, ago `tabular-nums`).
+- Thumbnail: `aspect-[16/9]` filling the grid track (5rem wide) to better fit OG images (1.91:1 canonical). Monogram fallback (first domain letter on `bg-muted`) fills the same rectangle when no image.
+- Relative ago format via `formatAgo` (replaces the previous absolute `Intl.DateTimeFormat`).
+- Tags inline as plain `#name` text (not `TagBadge`) per prototype.
+- Memo comparator simplified to `prev.link === next.link` — Livestore replaces the object reference on any field change, so the prior ten-field walk was ceremony. Other props (tags, processingStatus, formattedDate, onClick) still checked by reference.
+
+**`link-list.tsx` (was `link-grid.tsx`)** flattened: no viewMode branch, no `@container` grid; just a `flex-col` of rows. `useFormattedDatesByLink` now formats via `formatAgo`; cache by `createdAt` keeps the formatted string reference-stable for memo-skip.
+
+**`LinksPageLayout`** simplified: dropped `FilterBar`, `TagsFilterDropdown`, `TagsFilterChips`, `ViewSwitcher`, `ExportDialog`, and the local `exportOpen` state. Registers `{ links, title }` into `PageActionsContext` on effect (clears on unmount) so the shell-level right pane can render the Export button without duplicating the route's query subscription.
+
+**`PageActionsContext`** (`src/components/page-actions-context.tsx`): plain React context — `{ exportAction, setExportAction }`. Provider mounted in `_authed.tsx` inside `ListDataProvider`. Considered and rejected alternatives: a `zustand` store (rejected — prefer staying in-tree), deriving from `useLocation` in the right pane (rejected — ends up duplicating route-to-query mapping and spawning a second subscription), and a Livestore `clientDocument` (over-engineered for a phase-4-disposable feature; filtered list data doesn't belong in SQLite).
+
+**Right-pane home view** (`src/components/weekly-digest.tsx`): section label `This week's digest`, placeholder paragraph (prototype text, for review realism), meta line marking it as a placeholder, and — when a list page is mounted — an Export button + dialog. Sticky on scroll (`sticky top-8 self-start max-h-[calc(100svh-4rem)] overflow-y-auto`) per prototype. Keyboard-hints footer, "ask about this week", and "dismiss" deliberately absent; queued on kanban.
+
+**PX pass + deslop (impeccable skill).** Across `link-list-item.tsx`, `link-list.tsx`, `weekly-digest.tsx`, `link-image.tsx`:
+
+- All arbitrary `px` values replaced with theme tokens (`text-xs`/`text-sm`, `rounded-sm`, `leading-snug`/`leading-relaxed`, `tracking-tight`/`tracking-widest`) or rem in brackets where no token fits.
+- Lucide icons unified on `size-*` (no more `h-4 w-4` pairs).
+- `text-balance` on short headings, `text-pretty` on wrapping body/title.
+- `active:scale-[0.96]` on the Export button. Row-level scale intentionally skipped (feels wrong on a dense list).
+- Redundant classes dropped (`self-start` duplicating grid `items-start`, `w-20` duplicating grid track, default `font-normal`, `tabular-nums` on non-numeric text).
+
+**Kanban TODOs added:**
+
+- Weekly Digest backend (source TBD: D1 cron vs on-demand AI vs both)
+- Weekly Digest actions (ask / dismiss semantics)
+- Keyboard hints footer in right pane
+- Time-grouped list headers (Today / Yesterday / This week / Older) — deferred pending query-impact measurement
+- Custom monogram fallback for image-less links
+
+**Shipped without:** time grouping · selection tick (phase 3) · dismiss action · ask action · keyboard hints · blur-slide animation (phase 3). Modal-based detail still the click target.
+
+**Verification:** 534/534 tests · typecheck clean · lint/format clean. No browser smoke-test this pass (dev port was occupied).
 
 ### 2026-04-22 (late) — cleanup pass + perf floor characterized
 
