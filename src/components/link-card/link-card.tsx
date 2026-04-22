@@ -1,4 +1,4 @@
-import { CheckIcon } from "lucide-react";
+import { memo } from "react";
 
 import { TagBadge } from "@/components/tags/tag-badge";
 import { BorderTrail } from "@/components/ui/border-trail";
@@ -9,63 +9,37 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-import { linkProcessingStatus$ } from "@/livestore/queries/links";
-import type { LinkWithDetails } from "@/livestore/queries/links";
-import { tagsForLink$ } from "@/livestore/queries/tags";
-import { useAppStore } from "@/livestore/store";
+import type { LinkListItem } from "@/livestore/queries/links";
+import type { Tag } from "@/livestore/queries/tags";
 
 import { LinkImage } from "./link-image";
 
 interface LinkCardProps {
-  link: LinkWithDetails;
+  link: LinkListItem;
+  tags: readonly Tag[];
+  processingStatus: string | null;
+  formattedDate: string;
   onClick: (e: React.MouseEvent) => void;
-  selected?: boolean;
-  selectionMode?: boolean;
 }
 
-export function LinkCard({
+function LinkCardImpl({
   link,
+  tags,
+  processingStatus,
+  formattedDate,
   onClick,
-  selected,
-  selectionMode,
 }: LinkCardProps) {
-  const store = useAppStore();
-  const processingRecord = store.useQuery(linkProcessingStatus$(link.id));
-  const isProcessing = processingRecord?.status === "pending";
-  const tags = store.useQuery(tagsForLink$(link.id));
-
+  const isProcessing = processingStatus === "pending";
   const displayTitle = link.title || link.url;
-  const formattedDate = new Date(link.createdAt).toLocaleString(undefined, {
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
 
   return (
     <button
       type="button"
+      data-id={link.id}
       onClick={onClick}
-      className={cn(
-        "block w-full text-left relative transition-all",
-        selectionMode
-          ? "hover:ring-2 hover:ring-primary hover:ring-offset-2"
-          : "[&_[data-slot=card]]:hover:bg-muted/50 [&_[data-slot=card]]:hover:ring-foreground/40"
-      )}
+      className="block w-full text-left relative transition-all [content-visibility:auto] [contain-intrinsic-size:360px] [&_[data-slot=card]]:hover:bg-muted/50 [&_[data-slot=card]]:hover:ring-foreground/40"
     >
-      {selected && (
-        <div className="absolute -top-2 -right-2 z-10 rounded-full bg-primary p-1 shadow-md">
-          <CheckIcon className="h-3 w-3 text-primary-foreground" />
-        </div>
-      )}
-      <Card
-        className={cn(
-          "transition-shadow overflow-hidden h-full pt-0",
-          selected && "ring-2 ring-primary ring-offset-2"
-        )}
-      >
+      <Card className="transition-shadow overflow-hidden h-full pt-0">
         {isProcessing && (
           <BorderTrail
             className="bg-gradient-to-l from-blue-200 via-blue-500 to-blue-200 dark:from-blue-400 dark:via-blue-500 dark:to-blue-700"
@@ -81,7 +55,13 @@ export function LinkCard({
         <CardHeader>
           <div className="flex items-center gap-2">
             {link.favicon && (
-              <img src={link.favicon} alt="" className="h-4 w-4 shrink-0" />
+              <img
+                src={link.favicon}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                className="h-4 w-4 shrink-0"
+              />
             )}
             <span className="text-muted-foreground text-xs truncate">
               {link.domain}
@@ -108,3 +88,28 @@ export function LinkCard({
     </button>
   );
 }
+
+export const LinkCard = memo(LinkCardImpl, (prev, next) => {
+  const prevLink = prev.link;
+  const nextLink = next.link;
+  const linkEqual =
+    prevLink === nextLink ||
+    (prevLink.id === nextLink.id &&
+      prevLink.createdAt === nextLink.createdAt &&
+      prevLink.completedAt === nextLink.completedAt &&
+      prevLink.deletedAt === nextLink.deletedAt &&
+      prevLink.status === nextLink.status &&
+      prevLink.title === nextLink.title &&
+      prevLink.description === nextLink.description &&
+      prevLink.image === nextLink.image &&
+      prevLink.favicon === nextLink.favicon &&
+      prevLink.domain === nextLink.domain &&
+      prevLink.url === nextLink.url);
+  return (
+    linkEqual &&
+    prev.tags === next.tags &&
+    prev.processingStatus === next.processingStatus &&
+    prev.formattedDate === next.formattedDate &&
+    prev.onClick === next.onClick
+  );
+});

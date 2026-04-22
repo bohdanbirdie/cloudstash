@@ -1,11 +1,11 @@
 import { useTagFilter } from "@/hooks/use-tag-filter";
 import type { LinkProjection } from "@/lib/link-projections";
-import type { LinkWithDetails } from "@/livestore/queries/links";
+import type { LinkListItem } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
 
 export function useFilteredLinks(
   projection: LinkProjection,
-  baseLinks: readonly LinkWithDetails[]
+  baseLinks: readonly LinkListItem[]
 ) {
   const store = useAppStore();
   const { tags, untagged, hasFilters } = useTagFilter();

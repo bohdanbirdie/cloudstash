@@ -32,6 +32,8 @@ export function LinkImage({
         <img
           src={src}
           alt={alt}
+          loading="lazy"
+          decoding="async"
           className={cn(
             objectFit === "cover"
               ? "h-full w-full object-cover"

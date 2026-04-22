@@ -12,9 +12,11 @@ import {
 
 export type LinkAction = "complete" | "uncomplete" | "delete" | "restore";
 
+type LinksQuery = typeof inboxLinks$;
+
 export interface LinkProjection {
   /** Base query without filters */
-  query: typeof inboxLinks$;
+  query: LinksQuery;
   /** Status used for filtered queries */
   status: LinkStatus;
   /** Get query with tag filters applied */
@@ -25,7 +27,7 @@ export interface LinkProjection {
 }
 
 function createProjection(
-  query: typeof inboxLinks$,
+  query: LinksQuery,
   status: LinkStatus,
   willActionRemoveLink: (action: LinkAction) => boolean
 ): LinkProjection {

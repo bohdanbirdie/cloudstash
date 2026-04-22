@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-import { LinkImage } from "@/components/link-card";
+import { LinkImage } from "@/components/link-card/link-image";
 import { TagCombobox } from "@/components/tags/tag-combobox";
 import { TagSuggestions } from "@/components/tags/tag-suggestions";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +36,7 @@ import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
 import type { LinkAction, LinkProjection } from "@/lib/link-projections";
 import { cn } from "@/lib/utils";
 import { linkById$, linkProcessingStatus$ } from "@/livestore/queries/links";
-import type { LinkWithDetails } from "@/livestore/queries/links";
+import type { LinkListItem, LinkWithDetails } from "@/livestore/queries/links";
 import { events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
 
@@ -103,7 +103,7 @@ export function LinkDetailDialogContent({
   const [copied, setCopied] = useState(false);
 
   const link = store.useQuery(linkById$(linkId));
-  const links: readonly LinkWithDetails[] = projection
+  const links: readonly LinkListItem[] = projection
     ? store.useQuery(projection.query)
     : [];
 

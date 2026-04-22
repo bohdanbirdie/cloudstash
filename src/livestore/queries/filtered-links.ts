@@ -1,7 +1,7 @@
 import { queryDb } from "@livestore/livestore";
 
 import { allLinks$ } from "./links";
-import { linksWithDetailsSchema } from "./schemas";
+import { linksListSchema } from "./schemas";
 
 export type LinkStatus = "inbox" | "completed" | "all" | "trash";
 
@@ -15,9 +15,8 @@ export const linksWithTag$ = (tagId: string) =>
     {
       bindValues: [tagId],
       query: `
-        SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
-               s.title, s.description, s.image, s.favicon,
-               sum.summary
+        SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+               s.title, s.description, s.image, s.favicon
         FROM links l
         INNER JOIN link_tags lt ON lt.linkId = l.id AND lt.tagId = ?
         INNER JOIN tags t ON t.id = lt.tagId AND t.deletedAt IS NULL
@@ -25,14 +24,10 @@ export const linksWithTag$ = (tagId: string) =>
           SELECT s2.id FROM link_snapshots s2
           WHERE s2.linkId = l.id ORDER BY s2.fetchedAt DESC LIMIT 1
         )
-        LEFT JOIN link_summaries sum ON sum.id = (
-          SELECT sum2.id FROM link_summaries sum2
-          WHERE sum2.linkId = l.id ORDER BY sum2.summarizedAt DESC LIMIT 1
-        )
         WHERE l.deletedAt IS NULL
         ORDER BY l.createdAt DESC
       `,
-      schema: linksWithDetailsSchema,
+      schema: linksListSchema,
     },
     { label: `linksWithTag:${tagId}` }
   );
@@ -40,17 +35,12 @@ export const linksWithTag$ = (tagId: string) =>
 export const untaggedLinks$ = queryDb(
   () => ({
     query: `
-      SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
-             s.title, s.description, s.image, s.favicon,
-             sum.summary
+      SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+             s.title, s.description, s.image, s.favicon
       FROM links l
       LEFT JOIN link_snapshots s ON s.id = (
         SELECT s2.id FROM link_snapshots s2
         WHERE s2.linkId = l.id ORDER BY s2.fetchedAt DESC LIMIT 1
-      )
-      LEFT JOIN link_summaries sum ON sum.id = (
-        SELECT sum2.id FROM link_summaries sum2
-        WHERE sum2.linkId = l.id ORDER BY sum2.summarizedAt DESC LIMIT 1
       )
       WHERE l.deletedAt IS NULL
         AND NOT EXISTS (
@@ -60,7 +50,7 @@ export const untaggedLinks$ = queryDb(
         )
       ORDER BY l.createdAt DESC
     `,
-    schema: linksWithDetailsSchema,
+    schema: linksListSchema,
   }),
   { label: "untaggedLinks" }
 );
@@ -76,17 +66,12 @@ export const linksWithAllTags$ = (tagIds: string[]) => {
     {
       bindValues: [...tagIds, tagIds.length],
       query: `
-        SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
-               s.title, s.description, s.image, s.favicon,
-               sum.summary
+        SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+               s.title, s.description, s.image, s.favicon
         FROM links l
         LEFT JOIN link_snapshots s ON s.id = (
           SELECT s2.id FROM link_snapshots s2
           WHERE s2.linkId = l.id ORDER BY s2.fetchedAt DESC LIMIT 1
-        )
-        LEFT JOIN link_summaries sum ON sum.id = (
-          SELECT sum2.id FROM link_summaries sum2
-          WHERE sum2.linkId = l.id ORDER BY sum2.summarizedAt DESC LIMIT 1
         )
         WHERE l.deletedAt IS NULL
           AND (
@@ -96,7 +81,7 @@ export const linksWithAllTags$ = (tagIds: string[]) => {
           ) = ?
         ORDER BY l.createdAt DESC
       `,
-      schema: linksWithDetailsSchema,
+      schema: linksListSchema,
     },
     { label: `linksWithAllTags:${tagIds.length}` }
   );
@@ -167,17 +152,12 @@ export const filteredLinks$ = (
   const { clause: tagClause, bindValues } = buildTagFilterClause(options);
 
   const query = `
-    SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
-           s.title, s.description, s.image, s.favicon,
-           sum.summary
+    SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+           s.title, s.description, s.image, s.favicon
     FROM links l
     LEFT JOIN link_snapshots s ON s.id = (
       SELECT s2.id FROM link_snapshots s2
       WHERE s2.linkId = l.id ORDER BY s2.fetchedAt DESC LIMIT 1
-    )
-    LEFT JOIN link_summaries sum ON sum.id = (
-      SELECT sum2.id FROM link_summaries sum2
-      WHERE sum2.linkId = l.id ORDER BY sum2.summarizedAt DESC LIMIT 1
     )
     WHERE ${statusClause}
     ${tagClause}
@@ -187,11 +167,8 @@ export const filteredLinks$ = (
   const label = `filteredLinks:${status}:${options.untagged ? "untagged" : options.tagIds.join(",")}`;
 
   if (bindValues.length === 0) {
-    return queryDb({ query, schema: linksWithDetailsSchema }, { label });
+    return queryDb({ query, schema: linksListSchema }, { label });
   }
 
-  return queryDb(
-    { bindValues, query, schema: linksWithDetailsSchema },
-    { label }
-  );
+  return queryDb({ bindValues, query, schema: linksListSchema }, { label });
 };

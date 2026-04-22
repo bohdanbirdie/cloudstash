@@ -8,7 +8,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 
-import { LinkImage } from "@/components/link-card";
+import { LinkImage } from "@/components/link-card/link-image";
 import { useLinkDetailDialog } from "@/components/link-detail-dialog";
 import { TagCombobox } from "@/components/tags/tag-combobox";
 import { Badge } from "@/components/ui/badge";

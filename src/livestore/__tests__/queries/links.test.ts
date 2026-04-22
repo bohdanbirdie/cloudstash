@@ -141,18 +141,18 @@ describe("links queries", () => {
   });
 
   describe("list queries with snapshot/summary joins", () => {
-    it("inboxLinks$ picks the latest snapshot and summary per link", () => {
+    it("inboxLinks$ picks the latest snapshot per link", () => {
       const id = seedLink();
       addSnapshot(id, new Date("2026-01-02T10:00:00Z"), { title: "old title" });
       addSnapshot(id, new Date("2026-01-04T10:00:00Z"), { title: "new title" });
       addSnapshot(id, new Date("2026-01-03T10:00:00Z"), { title: "mid title" });
+      // Summaries no longer appear in list queries (fetched via linkById$ for detail).
       addSummary(id, new Date("2026-01-02T10:00:00Z"), "old summary");
       addSummary(id, new Date("2026-01-05T10:00:00Z"), "new summary");
 
       const rows = store.query(inboxLinks$);
       expect(rows).toHaveLength(1);
       expect(rows[0].title).toBe("new title");
-      expect(rows[0].summary).toBe("new summary");
     });
 
     it("inboxLinks$ returns rows sorted by createdAt DESC and excludes non-unread/deleted", () => {

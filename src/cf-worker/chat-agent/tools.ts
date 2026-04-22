@@ -57,7 +57,6 @@ export function createTools(store: Store<typeof schema>) {
             url: link.url,
             title: link.title || link.domain,
             description: link.description,
-            summary: link.summary,
           })),
         };
       },

@@ -2,12 +2,13 @@ import { queryDb, Schema } from "@livestore/livestore";
 
 import { tables } from "../schema";
 import {
+  linksListSchema,
   linksWithDetailsSchema,
   linkByIdSchema,
   searchResultsSchema,
 } from "./schemas";
 
-export type { LinkWithDetails, SearchResult } from "./schemas";
+export type { LinkListItem, LinkWithDetails, SearchResult } from "./schemas";
 
 export const inboxCount$ = queryDb(
   tables.links.count().where({ deletedAt: null, status: "unread" }),
@@ -40,9 +41,8 @@ export const trashCount$ = queryDb(
 export const inboxLinks$ = queryDb(
   () => ({
     query: `
-      SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
-             s.title, s.description, s.image, s.favicon,
-             sum.summary
+      SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+             s.title, s.description, s.image, s.favicon
       FROM links l
       LEFT JOIN link_snapshots s ON s.id = (
         SELECT s2.id FROM link_snapshots s2
@@ -50,16 +50,10 @@ export const inboxLinks$ = queryDb(
         ORDER BY s2.fetchedAt DESC
         LIMIT 1
       )
-      LEFT JOIN link_summaries sum ON sum.id = (
-        SELECT sum2.id FROM link_summaries sum2
-        WHERE sum2.linkId = l.id
-        ORDER BY sum2.summarizedAt DESC
-        LIMIT 1
-      )
       WHERE l.status = 'unread' AND l.deletedAt IS NULL
       ORDER BY l.createdAt DESC
     `,
-    schema: linksWithDetailsSchema,
+    schema: linksListSchema,
   }),
   { label: "inboxLinks" }
 );
@@ -67,9 +61,8 @@ export const inboxLinks$ = queryDb(
 export const completedLinks$ = queryDb(
   () => ({
     query: `
-      SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
-             s.title, s.description, s.image, s.favicon,
-             sum.summary
+      SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+             s.title, s.description, s.image, s.favicon
       FROM links l
       LEFT JOIN link_snapshots s ON s.id = (
         SELECT s2.id FROM link_snapshots s2
@@ -77,16 +70,10 @@ export const completedLinks$ = queryDb(
         ORDER BY s2.fetchedAt DESC
         LIMIT 1
       )
-      LEFT JOIN link_summaries sum ON sum.id = (
-        SELECT sum2.id FROM link_summaries sum2
-        WHERE sum2.linkId = l.id
-        ORDER BY sum2.summarizedAt DESC
-        LIMIT 1
-      )
       WHERE l.status = 'completed' AND l.deletedAt IS NULL
       ORDER BY l.completedAt DESC
     `,
-    schema: linksWithDetailsSchema,
+    schema: linksListSchema,
   }),
   { label: "completedLinks" }
 );
@@ -94,9 +81,8 @@ export const completedLinks$ = queryDb(
 export const allLinks$ = queryDb(
   () => ({
     query: `
-      SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
-             s.title, s.description, s.image, s.favicon,
-             sum.summary
+      SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+             s.title, s.description, s.image, s.favicon
       FROM links l
       LEFT JOIN link_snapshots s ON s.id = (
         SELECT s2.id FROM link_snapshots s2
@@ -104,16 +90,10 @@ export const allLinks$ = queryDb(
         ORDER BY s2.fetchedAt DESC
         LIMIT 1
       )
-      LEFT JOIN link_summaries sum ON sum.id = (
-        SELECT sum2.id FROM link_summaries sum2
-        WHERE sum2.linkId = l.id
-        ORDER BY sum2.summarizedAt DESC
-        LIMIT 1
-      )
       WHERE l.deletedAt IS NULL
       ORDER BY l.createdAt DESC
     `,
-    schema: linksWithDetailsSchema,
+    schema: linksListSchema,
   }),
   { label: "allLinks" }
 );
@@ -121,9 +101,8 @@ export const allLinks$ = queryDb(
 export const trashLinks$ = queryDb(
   () => ({
     query: `
-      SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
-             s.title, s.description, s.image, s.favicon,
-             sum.summary
+      SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
+             s.title, s.description, s.image, s.favicon
       FROM links l
       LEFT JOIN link_snapshots s ON s.id = (
         SELECT s2.id FROM link_snapshots s2
@@ -131,16 +110,10 @@ export const trashLinks$ = queryDb(
         ORDER BY s2.fetchedAt DESC
         LIMIT 1
       )
-      LEFT JOIN link_summaries sum ON sum.id = (
-        SELECT sum2.id FROM link_summaries sum2
-        WHERE sum2.linkId = l.id
-        ORDER BY sum2.summarizedAt DESC
-        LIMIT 1
-      )
       WHERE l.deletedAt IS NOT NULL
       ORDER BY l.deletedAt DESC
     `,
-    schema: linksWithDetailsSchema,
+    schema: linksListSchema,
   }),
   { label: "trashLinks" }
 );
@@ -149,6 +122,27 @@ export const linkProcessingStatus$ = (linkId: string) =>
   queryDb(tables.linkProcessingStatus.where({ linkId }).first(), {
     label: `linkProcessingStatus:${linkId}`,
   });
+
+export const ProcessingStatusRowSchema = Schema.Struct({
+  linkId: Schema.String,
+  status: Schema.String,
+  error: Schema.NullOr(Schema.String),
+  notified: Schema.Number,
+  updatedAt: Schema.Number,
+});
+
+export type ProcessingStatusRow = typeof ProcessingStatusRowSchema.Type;
+
+export const processingStatusByLink$ = queryDb(
+  () => ({
+    query: `
+      SELECT linkId, status, error, notified, updatedAt
+      FROM link_processing_status
+    `,
+    schema: Schema.Array(ProcessingStatusRowSchema),
+  }),
+  { label: "processingStatusByLink" }
+);
 
 export const linkById$ = (id: string) =>
   queryDb(

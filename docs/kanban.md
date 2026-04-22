@@ -1,7 +1,5 @@
 ---
-
 kanban-plugin: board
-
 ---
 
 ## Todo
@@ -18,14 +16,14 @@ kanban-plugin: board
 - [ ] iOS Shortcut as injection source
 - [ ] Use Cloudflare Email instead of Resend
 - [ ] Replace OpenRouter with Cloudflare AI Gateway
-
+- [ ] Restore multi-select behaviour for tag filter (currently selects only one tag at a time; toggle semantics via `addTag`/`removeTag` should allow multiple active)
+- [ ] Further list-mount perf improvements — see [[todos/app-redesign|redesign doc]] "Further list-mount perf" open question. Baseline 180ms longtask for 241 links on first route mount; Chrome profiling shows SQL is NOT the bottleneck (Livestore useQuery is 14ms). Leverage points if returning to this: flatten per-card DOM (currently 10+ fiber levels), query pagination with LIMIT + load-more, `startTransition` to chunk the longtask.
 
 ## In Progress
 
-- [ ] Rethink app design (inspiration: shiori.sh)
+- [ ] [[todos/app-redesign|Rethink app design]]
 - [ ] [[todos/links-list-performance|Fix links list rendering performance at 150+ links]]
 - [ ] GitHub-like grid of activity
-
 
 ## Done
 
@@ -52,11 +50,10 @@ kanban-plugin: board
 - [x] [[todos/done/monorepo-conversion|Convert project to monorepo]]
 - [x] [[todos/done/raycast-ingestion|Add Raycast ingestion path]]
 
-
-
-
 %% kanban:settings
+
 ```
 {"kanban-plugin":"board"}
 ```
+
 %%

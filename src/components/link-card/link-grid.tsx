@@ -1,70 +1,89 @@
-import { useState, useEffect, useMemo } from "react";
-import { useHotkeys } from "react-hotkeys-hook";
+import { useCallback, useMemo, useRef } from "react";
 
+import { useListData } from "@/components/list-data-context";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
-import type { LinkWithDetails } from "@/livestore/queries/links";
-import { useSelectionStore } from "@/stores/selection-store";
+import type { LinkListItem as LinkListItemData } from "@/livestore/queries/links";
+import type { Tag } from "@/livestore/queries/tags";
 import { useViewModeStore } from "@/stores/view-mode-store";
 
 import { LinkCard } from "./link-card";
 import { LinkListItem } from "./link-list-item";
 
 interface LinkGridProps {
-  links: readonly LinkWithDetails[];
+  links: readonly LinkListItemData[];
   emptyMessage?: string;
-  onSelectionChange?: (selectedLinks: LinkWithDetails[]) => void;
   onLinkClick?: (index: number) => void;
+}
+
+const dateFormatter = new Intl.DateTimeFormat(undefined, {
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  month: "short",
+  year: "numeric",
+});
+
+const EMPTY_TAGS: readonly Tag[] = [];
+
+function useFormattedDatesByLink(
+  links: readonly LinkListItemData[]
+): Map<string, string> {
+  const cacheRef = useRef<
+    Map<string, { createdAt: number; formatted: string }>
+  >(new Map());
+
+  return useMemo(() => {
+    const out = new Map<string, string>();
+    const nextCache = new Map<
+      string,
+      { createdAt: number; formatted: string }
+    >();
+    for (const link of links) {
+      const cached = cacheRef.current.get(link.id);
+      if (cached && cached.createdAt === link.createdAt) {
+        out.set(link.id, cached.formatted);
+        nextCache.set(link.id, cached);
+        continue;
+      }
+      const formatted = dateFormatter.format(new Date(link.createdAt));
+      out.set(link.id, formatted);
+      nextCache.set(link.id, { createdAt: link.createdAt, formatted });
+    }
+    cacheRef.current = nextCache;
+    return out;
+  }, [links]);
 }
 
 export function LinkGrid({
   links,
   emptyMessage = "No links yet",
-  onSelectionChange,
   onLinkClick,
 }: LinkGridProps) {
-  const { selectedIds, anchorIndex, toggle, range, removeStale } =
-    useSelectionStore();
   const viewMode = useViewModeStore((s) => s.viewMode);
-  const [isSelectionMode, setIsSelectionMode] = useState(false);
   const trackLinkOpen = useTrackLinkOpen();
 
-  const linkIds = useMemo(() => links.map((l) => l.id), [links]);
-  const validIdsSet = useMemo(() => new Set(linkIds), [linkIds]);
+  const { tagsByLink, statusByLink } = useListData();
+  const formattedDates = useFormattedDatesByLink(links);
 
-  useHotkeys(
-    "*",
-    (e) => setIsSelectionMode(e.metaKey || e.ctrlKey || e.shiftKey),
-    {
-      keydown: true,
-      keyup: true,
-    }
-  );
+  const linksRef = useRef(links);
+  linksRef.current = links;
 
-  useEffect(() => {
-    onSelectionChange?.(links.filter((link) => selectedIds.has(link.id)));
-  }, [selectedIds, links, onSelectionChange]);
-
-  useEffect(() => {
-    removeStale(validIdsSet);
-  }, [validIdsSet, removeStale]);
-
-  const handleCardClick = (index: number, e: React.MouseEvent) => {
-    const isModifierClick = e.metaKey || e.ctrlKey || e.shiftKey;
-    if (!isModifierClick) {
-      const link = links[index];
+  const handleRowClick = useCallback(
+    (e: React.MouseEvent) => {
+      const target = e.currentTarget as HTMLElement;
+      const id = target.getAttribute("data-id");
+      if (!id) return;
+      const currentLinks = linksRef.current;
+      const index = currentLinks.findIndex((l) => l.id === id);
+      if (index === -1) return;
+      const link = currentLinks[index];
       if (link) {
         trackLinkOpen(link.id);
       }
       onLinkClick?.(index);
-      return;
-    }
-    e.preventDefault();
-    if (e.shiftKey && anchorIndex !== null) {
-      range(index, linkIds);
-    } else {
-      toggle(linkIds[index], index);
-    }
-  };
+    },
+    [trackLinkOpen, onLinkClick]
+  );
 
   if (links.length === 0) {
     return (
@@ -77,13 +96,14 @@ export function LinkGrid({
   if (viewMode === "list") {
     return (
       <div className="flex flex-col gap-3 min-w-0">
-        {links.map((link, index) => (
+        {links.map((link) => (
           <LinkListItem
             key={link.id}
             link={link}
-            selected={selectedIds.has(link.id)}
-            selectionMode={isSelectionMode}
-            onClick={(e) => handleCardClick(index, e)}
+            tags={tagsByLink.get(link.id) ?? EMPTY_TAGS}
+            processingStatus={statusByLink.get(link.id) ?? null}
+            formattedDate={formattedDates.get(link.id) ?? ""}
+            onClick={handleRowClick}
           />
         ))}
       </div>
@@ -93,13 +113,14 @@ export function LinkGrid({
   return (
     <div className="@container">
       <div className="grid grid-cols-1 gap-4 @sm:grid-cols-2 @lg:grid-cols-3 @3xl:grid-cols-4">
-        {links.map((link, index) => (
+        {links.map((link) => (
           <LinkCard
             key={link.id}
             link={link}
-            selected={selectedIds.has(link.id)}
-            selectionMode={isSelectionMode}
-            onClick={(e) => handleCardClick(index, e)}
+            tags={tagsByLink.get(link.id) ?? EMPTY_TAGS}
+            processingStatus={statusByLink.get(link.id) ?? null}
+            formattedDate={formattedDates.get(link.id) ?? ""}
+            onClick={handleRowClick}
           />
         ))}
       </div>

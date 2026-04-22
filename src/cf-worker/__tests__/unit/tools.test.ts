@@ -160,7 +160,6 @@ describe("createTools", () => {
         url: "https://test.com",
         title: "Test Title",
         description: "Test desc",
-        summary: "Test summary",
       });
     });
 

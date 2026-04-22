@@ -16,12 +16,14 @@ import {
   generateLinksMarkdown,
   generatePlainLinks,
 } from "@/lib/export-markdown";
-import type { LinkWithDetails } from "@/livestore/queries/links";
+import { linksByIds$ } from "@/livestore/queries/links";
+import type { LinkListItem, LinkWithDetails } from "@/livestore/queries/links";
+import { useAppStore } from "@/livestore/store";
 
 interface ExportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  links: readonly LinkWithDetails[];
+  links: readonly LinkListItem[];
   pageTitle: string;
 }
 
@@ -34,11 +36,33 @@ export function ExportDialog({
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<"full" | "plain">("full");
 
-  const markdownContent = useMemo(
-    () => generateLinksMarkdown(links, pageTitle),
-    [links, pageTitle]
+  const store = useAppStore();
+  // Fetch summaries on-demand only while the dialog is open to keep list queries lean.
+  const linkIds = useMemo(
+    () => (open ? links.map((l) => l.id) : []),
+    [open, links]
   );
-  const plainContent = useMemo(() => generatePlainLinks(links), [links]);
+  const fullLinksUnordered = store.useQuery(linksByIds$(linkIds));
+
+  const fullLinks = useMemo<readonly LinkWithDetails[]>(() => {
+    if (!open || linkIds.length === 0) return [];
+    const byId = new Map(fullLinksUnordered.map((l) => [l.id, l]));
+    const ordered: LinkWithDetails[] = [];
+    for (const l of links) {
+      const full = byId.get(l.id);
+      if (full) ordered.push(full);
+    }
+    return ordered;
+  }, [open, linkIds, fullLinksUnordered, links]);
+
+  const markdownContent = useMemo(
+    () => generateLinksMarkdown(fullLinks, pageTitle),
+    [fullLinks, pageTitle]
+  );
+  const plainContent = useMemo(
+    () => generatePlainLinks(fullLinks),
+    [fullLinks]
+  );
 
   const currentContent = activeTab === "plain" ? plainContent : markdownContent;
 

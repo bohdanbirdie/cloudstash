@@ -7,41 +7,30 @@ import {
   TagsFilterChips,
   TagsFilterDropdown,
 } from "@/components/filters/tags-filter";
-import { LinkGrid, ViewSwitcher } from "@/components/link-card";
+import { LinkGrid } from "@/components/link-card/link-grid";
+import { ViewSwitcher } from "@/components/link-card/view-switcher";
 import { useLinkDetailDialog } from "@/components/link-detail-dialog";
-import { SelectionToolbar } from "@/components/selection-toolbar";
+import { PerfProfiler } from "@/components/perf-hud";
 import { Button } from "@/components/ui/button";
 import { useFilteredLinks } from "@/hooks/use-filtered-links";
 import { useTagFilter } from "@/hooks/use-tag-filter";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
 import type { LinkProjection } from "@/lib/link-projections";
-import type { LinkWithDetails } from "@/livestore/queries/links";
-import { useSelectionStore } from "@/stores/selection-store";
+import type { LinkListItem } from "@/livestore/queries/links";
 
 interface LinksPageLayoutProps {
   title: string;
-  subtitle: string;
-  links: readonly LinkWithDetails[];
+  links: readonly LinkListItem[];
   emptyMessage: string;
-  toolbarConfig: {
-    onComplete?: (links: LinkWithDetails[]) => void;
-    onDelete: (links: LinkWithDetails[]) => void;
-    isCompleted?: boolean;
-    isTrash?: boolean;
-    showComplete?: boolean;
-  };
   projection: LinkProjection;
 }
 
 export function LinksPageLayout({
   title,
-  subtitle,
   links: baseLinks,
   emptyMessage,
-  toolbarConfig,
   projection,
 }: LinksPageLayoutProps) {
-  const clear = useSelectionStore((s) => s.clear);
   const trackLinkOpen = useTrackLinkOpen();
   const { open: openDialog } = useLinkDetailDialog();
   const { hasFilters, clearFilters } = useTagFilter();
@@ -52,7 +41,6 @@ export function LinksPageLayout({
   );
 
   const [exportOpen, setExportOpen] = useState(false);
-  const [selectedLinks, setSelectedLinks] = useState<LinkWithDetails[]>([]);
 
   const handleLinkClick = useCallback(
     (index: number) => {
@@ -65,30 +53,14 @@ export function LinksPageLayout({
     [links, trackLinkOpen, openDialog, projection]
   );
 
-  const handleBulkComplete = toolbarConfig.onComplete
-    ? () => toolbarConfig.onComplete!(selectedLinks)
-    : undefined;
-
-  const handleBulkDelete = () => toolbarConfig.onDelete(selectedLinks);
-
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">{title}</h1>
-          <p className="text-muted-foreground mt-1">{subtitle}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <ViewSwitcher />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setExportOpen(true)}
-          >
-            <DownloadIcon className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-        </div>
+    <div className="pt-6">
+      <div className="mb-4 flex items-center justify-end gap-2">
+        <ViewSwitcher />
+        <Button variant="outline" size="sm" onClick={() => setExportOpen(true)}>
+          <DownloadIcon className="h-4 w-4 mr-2" />
+          Export
+        </Button>
       </div>
 
       <FilterBar
@@ -101,29 +73,19 @@ export function LinksPageLayout({
         className="mb-4"
       />
 
-      <LinkGrid
-        links={links}
-        emptyMessage={emptyMessage}
-        onSelectionChange={setSelectedLinks}
-        onLinkClick={handleLinkClick}
-      />
-
-      <SelectionToolbar
-        selectedCount={selectedLinks.length}
-        onExport={() => setExportOpen(true)}
-        onComplete={handleBulkComplete}
-        onDelete={handleBulkDelete}
-        onClear={clear}
-        isCompleted={toolbarConfig.isCompleted}
-        isTrash={toolbarConfig.isTrash}
-        showComplete={toolbarConfig.showComplete}
-      />
+      <PerfProfiler id="LinkGrid">
+        <LinkGrid
+          links={links}
+          emptyMessage={emptyMessage}
+          onLinkClick={handleLinkClick}
+        />
+      </PerfProfiler>
 
       <ExportDialog
         open={exportOpen}
         onOpenChange={setExportOpen}
-        links={selectedLinks.length > 0 ? selectedLinks : [...links]}
-        pageTitle={selectedLinks.length > 0 ? "Selected Links" : title}
+        links={links}
+        pageTitle={title}
       />
     </div>
   );

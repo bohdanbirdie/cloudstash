@@ -1,51 +1,34 @@
-import { CheckIcon } from "lucide-react";
+import { memo } from "react";
 
 import { TagBadge } from "@/components/tags/tag-badge";
 import { BorderTrail } from "@/components/ui/border-trail";
-import { cn } from "@/lib/utils";
-import { linkProcessingStatus$ } from "@/livestore/queries/links";
-import type { LinkWithDetails } from "@/livestore/queries/links";
-import { tagsForLink$ } from "@/livestore/queries/tags";
-import { useAppStore } from "@/livestore/store";
+import type { LinkListItem as LinkListItemData } from "@/livestore/queries/links";
+import type { Tag } from "@/livestore/queries/tags";
 
 interface LinkListItemProps {
-  link: LinkWithDetails;
+  link: LinkListItemData;
+  tags: readonly Tag[];
+  processingStatus: string | null;
+  formattedDate: string;
   onClick: (e: React.MouseEvent) => void;
-  selected?: boolean;
-  selectionMode?: boolean;
 }
 
-export function LinkListItem({
+function LinkListItemImpl({
   link,
+  tags,
+  processingStatus,
+  formattedDate,
   onClick,
-  selected,
-  selectionMode,
 }: LinkListItemProps) {
-  const store = useAppStore();
-  const processingRecord = store.useQuery(linkProcessingStatus$(link.id));
-  const isProcessing = processingRecord?.status === "pending";
-  const tags = store.useQuery(tagsForLink$(link.id));
-
+  const isProcessing = processingStatus === "pending";
   const displayTitle = link.title || link.url;
-  const formattedDate = new Date(link.createdAt).toLocaleString(undefined, {
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
 
   return (
     <button
       type="button"
+      data-id={link.id}
       onClick={onClick}
-      className={cn(
-        "relative flex w-full flex-col gap-1 ring-1 ring-foreground/10 bg-card p-3 text-left transition-all",
-        selectionMode
-          ? "hover:ring-2 hover:ring-primary hover:ring-offset-2"
-          : "hover:bg-muted/50 hover:ring-foreground/40",
-        selected && "ring-2 ring-primary ring-offset-2"
-      )}
+      className="relative flex w-full flex-col gap-1 ring-1 ring-foreground/10 bg-card p-3 text-left transition-all [content-visibility:auto] [contain-intrinsic-size:100px] hover:bg-muted/50 hover:ring-foreground/40"
     >
       {isProcessing && (
         <BorderTrail
@@ -58,16 +41,17 @@ export function LinkListItem({
           }}
         />
       )}
-      {selected && (
-        <div className="absolute -top-2 -right-2 z-10 rounded-full bg-primary p-1 shadow-md">
-          <CheckIcon className="h-3 w-3 text-primary-foreground" />
-        </div>
-      )}
       <div className="flex items-center justify-between gap-3">
         <p className="font-medium truncate flex-1 w-0">{displayTitle}</p>
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
           {link.favicon && (
-            <img src={link.favicon} alt="" className="h-4 w-4" />
+            <img
+              src={link.favicon}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="h-4 w-4"
+            />
           )}
           {link.domain}
         </span>
@@ -92,3 +76,27 @@ export function LinkListItem({
     </button>
   );
 }
+
+export const LinkListItem = memo(LinkListItemImpl, (prev, next) => {
+  const prevLink = prev.link;
+  const nextLink = next.link;
+  const linkEqual =
+    prevLink === nextLink ||
+    (prevLink.id === nextLink.id &&
+      prevLink.createdAt === nextLink.createdAt &&
+      prevLink.completedAt === nextLink.completedAt &&
+      prevLink.deletedAt === nextLink.deletedAt &&
+      prevLink.status === nextLink.status &&
+      prevLink.title === nextLink.title &&
+      prevLink.description === nextLink.description &&
+      prevLink.favicon === nextLink.favicon &&
+      prevLink.domain === nextLink.domain &&
+      prevLink.url === nextLink.url);
+  return (
+    linkEqual &&
+    prev.tags === next.tags &&
+    prev.processingStatus === next.processingStatus &&
+    prev.formattedDate === next.formattedDate &&
+    prev.onClick === next.onClick
+  );
+});
