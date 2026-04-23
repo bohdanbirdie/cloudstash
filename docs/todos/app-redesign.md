@@ -49,14 +49,12 @@ Single consolidated list of what's left from the original 5-phase plan, merging 
 - **Keyboard hints footer in the chip** (`↑↓ navigate · ↵ open · esc close`). Skipped during the phase-4 critique pass but still the right move for teaching-via-inline-hints per the brand principle.
 - **Settings / integrations slash-commands in the chip** (`/settings`, `/integrations`, `/export`). Grows the chip from search-only toward a command surface without adding agent mode.
 - **Activity indicator** in the right-side header slot — 7-day bar chart from the prototype. Needs a query aggregating daily link counts. Decide window (last 7d, last 30d, rolling).
-- **Grid view — redesign or deprecate.** Product decision. If keeping, column-count cap, image-less card treatment, density pass. If deprecating, clean up `useViewModeStore` and related code paths.
 - **Mobile treatment** — starts with the chip (480px fixed-width overflows on narrow viewports) and radiates outward (two-column collapse, touch targets, responsive masthead).
 - **Accessibility sweep** — `aria-label` on all icon-only buttons, `:focus-visible` throughout, keyboard list navigation (`j`/`k` or arrows), reduced-motion compliance across the board.
 - **Color token pass** — tint neutrals toward the warm-orange brand hue (OKLCH chroma 0.005–0.01). Currently neutrals read as zinc. Small shift across the token set.
 - **Type scale pass** — 5 sizes with ≥1.25 ratio; pick a display weight for hero moments so the mono voice has internal contrast.
 - **Dark mode pass** — apply the light-mode polish to the dark variant (colors, type scale, shadow alpha, border tokens).
 - **Tabular numerics audit** — every count / date / timestamp uses `font-variant-numeric: tabular-nums`. Sweep via code search.
-- **`Kbd` primitive polish** — `src/components/ui/kbd.tsx` is still shadcn-default (`bg-muted` + `shadow-sm`, no warm tint). For a brand that leans on monospace-as-identity, the Kbd deserves a considered treatment.
 - **Hit-area review** on detail-view action cluster. `[` `]` nav, copy, external-link, `⋯`, and the `Complete` HotkeyButton are all ~28×28, below the 40×40 accessibility floor. Extend via `before:absolute before:inset-[-6px]` pseudo-element to preserve the 28px visual while meeting the hit-box floor. Confirm no overlap between adjacent buttons first.
 - **Further list-mount perf improvements.** Baseline 180ms longtask at 241 links on first route mount. SQL is not the bottleneck (Livestore useQuery is 14ms). Leverage points: flatten per-card DOM (currently 10+ fiber levels), query pagination with LIMIT + load-more, `startTransition` to chunk the longtask.
 

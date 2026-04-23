@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { HotkeyButton } from "@/components/ui/hotkey-button";
+import { Kbd } from "@/components/ui/kbd";
 import { Markdown } from "@/components/ui/markdown";
 import { TextShimmer } from "@/components/ui/text-shimmer";
 import {
@@ -388,10 +389,7 @@ function DetailViewInner({ link }: { link: LinkWithDetails }) {
       </div>
 
       <div className="pt-2 text-xs text-muted-foreground/70">
-        <kbd className="rounded-sm border border-border px-1 font-mono">
-          Esc
-        </kbd>{" "}
-        to close
+        <Kbd aria-hidden="true">Esc</Kbd> to close
       </div>
     </div>
   );

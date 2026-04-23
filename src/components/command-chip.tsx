@@ -249,9 +249,7 @@ export function CommandChip() {
             placeholder="Search links"
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
-          <Kbd aria-hidden="true" className="h-5 min-w-5 px-1 text-[11px]">
-            {getHotkeyLabel("meta+k")}
-          </Kbd>
+          <Kbd aria-hidden="true">{getHotkeyLabel("meta+k")}</Kbd>
         </label>
       </Command>
     </div>
