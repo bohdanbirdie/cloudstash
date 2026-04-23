@@ -1,8 +1,8 @@
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 
 import { useChatContainer } from "@/components/chat/chat-sheet";
-import { useLinkDetailDialog } from "@/components/link-detail-dialog";
 import { LinkImage } from "@/components/link-image";
+import { useRightPane } from "@/components/right-pane-context";
 import { linkByUrl$ } from "@/livestore/queries/links";
 import type { LinkWithDetails } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
@@ -63,7 +63,7 @@ interface LinkMentionProps {
 export function LinkMention({ href, children }: LinkMentionProps) {
   const store = useAppStore();
   const link = store.useQuery(linkByUrl$(href));
-  const { open: openLinkDialog } = useLinkDetailDialog();
+  const { openDetail } = useRightPane();
 
   const childText = typeof children === "string" ? children : null;
   const isPlainUrl = childText === href;
@@ -73,7 +73,7 @@ export function LinkMention({ href, children }: LinkMentionProps) {
     const hasPreview = link.image || link.title;
 
     const handleOpenDetail = () => {
-      openLinkDialog({ linkId: link.id });
+      openDetail({ linkId: link.id });
     };
 
     const linkElement = (

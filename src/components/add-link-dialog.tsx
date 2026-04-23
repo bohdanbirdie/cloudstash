@@ -8,8 +8,8 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 
-import { useLinkDetailDialog } from "@/components/link-detail-dialog";
 import { LinkImage } from "@/components/link-image";
+import { useRightPane } from "@/components/right-pane-context";
 import { TagCombobox } from "@/components/tags/tag-combobox";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -401,7 +401,7 @@ export function AddLinkDialogProvider({
   const [isOpen, setIsOpen] = useState(false);
   const [url, setUrl] = useState("");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
-  const { open: openLinkDialog } = useLinkDetailDialog();
+  const { openDetail } = useRightPane();
 
   const open = useCallback((urlValue?: string) => {
     setUrl(urlValue ?? "");
@@ -417,9 +417,9 @@ export function AddLinkDialogProvider({
 
   const handleViewExisting = useCallback(
     (linkId: string) => {
-      openLinkDialog({ linkId });
+      openDetail({ linkId });
     },
-    [openLinkDialog]
+    [openDetail]
   );
 
   useEffect(() => {

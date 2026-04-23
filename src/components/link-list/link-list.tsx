@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef } from "react";
 
 import { useListData } from "@/components/list-data-context";
-import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
+import { useRightPane } from "@/components/right-pane-context";
 import { formatAgo } from "@/lib/time-ago";
 import type { LinkListItem as LinkListItemData } from "@/livestore/queries/links";
 import type { Tag } from "@/livestore/queries/tags";
@@ -50,7 +50,7 @@ export function LinkList({
   emptyMessage = "No links yet",
   onLinkClick,
 }: LinkListProps) {
-  const trackLinkOpen = useTrackLinkOpen();
+  const { activeLinkId } = useRightPane();
 
   const { tagsByLink, statusByLink } = useListData();
   const formattedDates = useFormattedDatesByLink(links);
@@ -66,13 +66,9 @@ export function LinkList({
       const currentLinks = linksRef.current;
       const index = currentLinks.findIndex((l) => l.id === id);
       if (index === -1) return;
-      const link = currentLinks[index];
-      if (link) {
-        trackLinkOpen(link.id);
-      }
       onLinkClick?.(index);
     },
-    [trackLinkOpen, onLinkClick]
+    [onLinkClick]
   );
 
   if (links.length === 0) {
@@ -84,7 +80,7 @@ export function LinkList({
   }
 
   return (
-    <div className="flex flex-col gap-6 min-w-0">
+    <div className="flex flex-col gap-3 min-w-0">
       {links.map((link) => (
         <LinkListItem
           key={link.id}
@@ -92,6 +88,7 @@ export function LinkList({
           tags={tagsByLink.get(link.id) ?? EMPTY_TAGS}
           processingStatus={statusByLink.get(link.id) ?? null}
           formattedDate={formattedDates.get(link.id) ?? ""}
+          active={link.id === activeLinkId}
           onClick={handleRowClick}
         />
       ))}

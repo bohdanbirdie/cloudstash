@@ -13,9 +13,9 @@ export function WeeklyDigest() {
   const [exportOpen, setExportOpen] = useState(false);
 
   return (
-    <aside className="sticky top-8 flex max-h-[calc(100svh-4rem)] flex-col gap-8 self-start overflow-y-auto pt-6">
+    <div className="flex flex-col gap-8 pt-3 pr-2 pb-8">
       <div>
-        <div className="text-xs font-medium uppercase tracking-widest text-muted-foreground text-balance">
+        <div className="text-xs font-semibold text-muted-foreground text-balance">
           This week's digest
         </div>
         <p className="mt-3 max-w-lg text-sm leading-relaxed text-foreground text-pretty">
@@ -32,7 +32,6 @@ export function WeeklyDigest() {
             variant="outline"
             size="sm"
             onClick={() => setExportOpen(true)}
-            className="transition-transform duration-150 ease-out active:scale-[0.96]"
           >
             <DownloadIcon className="mr-2 size-4" />
             Export
@@ -45,6 +44,6 @@ export function WeeklyDigest() {
           />
         </div>
       )}
-    </aside>
+    </div>
   );
 }

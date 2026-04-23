@@ -8,9 +8,10 @@ export function useFilteredLinks(
   baseLinks: readonly LinkListItem[]
 ) {
   const store = useAppStore();
-  const { tags, untagged, hasFilters } = useTagFilter();
+  const { tag, untagged, hasFilters } = useTagFilter();
 
-  const filteredQuery = projection.filteredQuery({ tagIds: tags, untagged });
+  const tagIds = tag ? [tag] : [];
+  const filteredQuery = projection.filteredQuery({ tagIds, untagged });
   const filteredLinks = store.useQuery(filteredQuery);
 
   const links = hasFilters ? filteredLinks : baseLinks;

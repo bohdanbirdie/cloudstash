@@ -12,15 +12,16 @@ import { AddLinkDialogProvider } from "@/components/add-link-dialog";
 import { useChatPanel } from "@/components/chat/chat-context";
 import { ChatSheet } from "@/components/chat/chat-sheet";
 import { ChatSheetProvider } from "@/components/chat/chat-sheet-provider";
-import { LinkDetailDialogProvider } from "@/components/link-detail-dialog";
 import { ListDataProvider } from "@/components/list-data-context";
 import { LoadingScreen } from "@/components/loading-screen";
 import { Masthead } from "@/components/masthead";
 import { PageActionsProvider } from "@/components/page-actions-context";
 import { PerfHUD } from "@/components/perf-hud";
+import { RightPaneProvider } from "@/components/right-pane-context";
+import { RightPane } from "@/components/right-pane/right-pane";
 import { SearchCommand } from "@/components/search-command";
+import { TagStrip } from "@/components/tag-strip";
 import { TopBar } from "@/components/top-bar";
-import { WeeklyDigest } from "@/components/weekly-digest";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ConnectionMonitor } from "@/livestore/store";
 
@@ -44,7 +45,7 @@ function AuthedLayout() {
       <HotkeysProvider initiallyActiveScopes={["global"]}>
         <Suspense fallback={<LoadingScreen />}>
           <ConnectionMonitor />
-          <LinkDetailDialogProvider>
+          <RightPaneProvider>
             <AddLinkDialogProvider>
               <ChatSheetProvider>
                 <ListDataProvider>
@@ -57,7 +58,7 @@ function AuthedLayout() {
                 {import.meta.env.DEV && <PerfHUD />}
               </ChatSheetProvider>
             </AddLinkDialogProvider>
-          </LinkDetailDialogProvider>
+          </RightPaneProvider>
         </Suspense>
       </HotkeysProvider>
     </StoreRegistryProvider>
@@ -85,13 +86,17 @@ function AuthedShell() {
           <aside aria-hidden="true" />
         </div>
 
+        <div className="mt-6">
+          <TagStrip />
+        </div>
+
         <div className="mt-6 h-px w-full bg-border" aria-hidden="true" />
 
         <div className="grid grid-cols-[minmax(0,820px)_540px] items-start gap-x-10">
           <div className="min-w-0">
             <Outlet />
           </div>
-          <WeeklyDigest />
+          <RightPane />
         </div>
       </div>
     </div>

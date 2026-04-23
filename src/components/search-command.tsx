@@ -2,7 +2,7 @@ import { useNavigate, useRouter } from "@tanstack/react-router";
 import { ArrowRightIcon } from "lucide-react";
 import { useEffect, useMemo, useState, useDeferredValue, useRef } from "react";
 
-import { useLinkDetailDialog } from "@/components/link-detail-dialog";
+import { useRightPane } from "@/components/right-pane-context";
 import { Badge } from "@/components/ui/badge";
 import {
   Command,
@@ -126,7 +126,7 @@ function SearchResultItem({
 export function SearchCommand() {
   const { open, setOpen } = useSearchStore();
   const trackLinkOpen = useTrackLinkOpen();
-  const { open: openLinkDialog } = useLinkDetailDialog();
+  const { openDetail } = useRightPane();
   const store = useAppStore();
   const router = useRouter();
   const navigate = useNavigate();
@@ -172,7 +172,7 @@ export function SearchCommand() {
   const handleSelectLink = (link: LinkWithDetails | SearchResult) => {
     setOpen(false);
     trackLinkOpen(link.id);
-    openLinkDialog({ linkId: link.id });
+    openDetail({ linkId: link.id });
   };
 
   const handleSelectPage = (path: string) => {

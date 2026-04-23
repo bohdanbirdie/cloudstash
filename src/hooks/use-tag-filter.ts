@@ -1,12 +1,7 @@
-import {
-  parseAsArrayOf,
-  parseAsBoolean,
-  parseAsString,
-  useQueryStates,
-} from "nuqs";
+import { parseAsBoolean, parseAsString, useQueryStates } from "nuqs";
 
 const tagFilterParsers = {
-  tags: parseAsArrayOf(parseAsString).withDefault([]),
+  tag: parseAsString,
   untagged: parseAsBoolean.withDefault(false),
 };
 
@@ -15,36 +10,25 @@ export function useTagFilter() {
     history: "replace",
   });
 
-  const addTag = (tagId: string) => {
-    if (state.tags.includes(tagId)) return;
-    void setState({ tags: [...state.tags, tagId], untagged: false });
-  };
-
-  const removeTag = (tagId: string) => {
-    void setState({ tags: state.tags.filter((id) => id !== tagId) });
-  };
-
-  const setTags = (tagIds: string[]) => {
-    void setState({ tags: tagIds, untagged: false });
+  const setTag = (tagId: string | null) => {
+    void setState({ tag: tagId, untagged: false });
   };
 
   const setUntagged = (untagged: boolean) => {
-    void setState({ tags: [], untagged });
+    void setState({ tag: null, untagged });
   };
 
   const clearFilters = () => {
-    void setState({ tags: [], untagged: false });
+    void setState({ tag: null, untagged: false });
   };
 
-  const hasFilters = state.tags.length > 0 || state.untagged;
+  const hasFilters = state.tag !== null || state.untagged;
 
   return {
-    tags: state.tags,
+    tag: state.tag,
     untagged: state.untagged,
     hasFilters,
-    setTags,
-    addTag,
-    removeTag,
+    setTag,
     setUntagged,
     clearFilters,
   };
