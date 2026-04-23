@@ -12,6 +12,7 @@ import { AddLinkDialogProvider } from "@/components/add-link-dialog";
 import { useChatPanel } from "@/components/chat/chat-context";
 import { ChatSheet } from "@/components/chat/chat-sheet";
 import { ChatSheetProvider } from "@/components/chat/chat-sheet-provider";
+import { CommandChip } from "@/components/command-chip";
 import { ListDataProvider } from "@/components/list-data-context";
 import { LoadingScreen } from "@/components/loading-screen";
 import { Masthead } from "@/components/masthead";
@@ -19,7 +20,6 @@ import { PageActionsProvider } from "@/components/page-actions-context";
 import { PerfHUD } from "@/components/perf-hud";
 import { RightPaneProvider } from "@/components/right-pane-context";
 import { RightPane } from "@/components/right-pane/right-pane";
-import { SearchCommand } from "@/components/search-command";
 import { TagStrip } from "@/components/tag-strip";
 import { TopBar } from "@/components/top-bar";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -54,7 +54,7 @@ function AuthedLayout() {
                   </PageActionsProvider>
                 </ListDataProvider>
                 <ContextualChatSheet isMobile={isMobile} />
-                <SearchCommand />
+                <CommandChip />
                 {import.meta.env.DEV && <PerfHUD />}
               </ChatSheetProvider>
             </AddLinkDialogProvider>

@@ -28,11 +28,37 @@ _Quick at-a-glance status for resuming work. Detailed history lives in the Progr
 - **Phase 3a — Detail view in right pane + animations**: ✅ shipped (2026-04-23). Modal `src/components/link-detail-dialog/` deleted. New `right-pane-context.tsx` owns `{ activeLinkId, projection }` + `openDetail` / `closeDetail` / `toggleDetail` / `navigate`. `DetailView` in `src/components/right-pane/detail-view.tsx`: hero image (no outline) or monogram, meta line (domain · ago · source · status), bold 28px title, description, hairline, markdown summary with reprocess, tag editor + suggestions, `BorderTrail` on processing. Sticky action header: prev/next as kbd-style `[` `]` `Button`s + `n/total`, primary `Complete` as text+hotkey chip (⌘↵), copy + external-link + `⋯` overflow all as `Button size="icon-sm" variant="ghost"` (one design-system recipe end-to-end). Delete moved into `⋯` menu. Keyboard scope `"detail"`. `Esc` closes. Hit area for `[` `]` is 28×28 (below 40×40 — accepted given keyboard-first brand). Right pane swaps between `home` (WeeklyDigest) and `detail` via `AnimatePresence mode="wait"` using motion springs (bounce 0, duration 0.22) + 80ms tween exits + reduced-motion fallback to 100ms opacity crossfade. List row gets an `active` bool prop → subtle `bg-muted/60`, with always-on `-mx-3 px-3 py-2` to create the "bleeding bg" hover effect without layout churn. Click on a row toggles the detail; clicking the currently-active row closes.
 - **Phase 3b — Multi-select in right pane**: 🟡 deferred — queued on kanban. Old dead code still preserved (`src/stores/selection-store.ts`, `src/components/selection-toolbar.tsx`).
 - **Phase 3c — further animation polish**: not started. Open: consider disabling the detail→detail swap animation and keeping the animation only on open (home → detail) and close (detail → home). The current behavior animates every link change, which can feel heavy on rapid navigation.
-- **Phases 4–5**: not started.
+- **Phase 4 — Floating command chip (search-only scope)**: ✅ shipped (2026-04-23). Old `CommandDialog`-based search retired: `src/components/search-command.tsx` + `src/stores/search-store.ts` deleted. New `src/components/command-chip.tsx` is a persistent bottom-centered `<label>` pill (480px, `rounded-full`) that expands a panel upward on focus. Reuses existing `searchLinks$` + `recentlyOpenedLinks$` livestore queries; no new queries. ⌘K toggles; Esc / pointer-outside / Tab-away close; clicking the pill focuses the input via native label behavior. `AnimatePresence` on the panel with the project's standard spring (bounce 0, duration 0.22) + 80ms tween exit + reduced-motion opacity crossfade. `highlighted-text.tsx` default yellow swapped to `bg-primary/15 dark:bg-primary/25` — the match highlight is now the first place the warm-orange accent appears in this surface. Rows reduced to favicon + domain + title only; status dots/badges dropped (search is for finding, status lives in the detail view). Layered warm-tinted shadows `rgb(61 40 20 / …)` on both pill and panel (tight 1px contact + wider lift), warm-tinted border `border-primary/10` that tightens to `border-primary/25` on focus. Microcopy: `N matches` (tabular-nums, pluralized) / `Nothing matches "foo"` / `Type to search`. TopBar search button removed (chip is persistent so it's redundant). **Explicitly out of scope:** agent mode, mobile treatment, keyboard hints footer, query scoping (`domain:`, `tag:`), recent-query memory, ⌘↵ open-in-new-pane. The existing chat sheet is still mounted separately — not subsumed.
+- **Phase 5**: not started.
 - **Multi-select temporarily disabled** (2026-04-22 evening): selection store / hotkey tracking / modifier-click handling / `SelectionToolbar` all unwired. Reason: selection-mode hotkey was re-rendering all 244 cards on every Cmd keypress. To be rebuilt in Phase 3b as the right-pane selection view. Dead code preserved (`selection-store.ts`, `selection-toolbar.tsx`) for resurrection.
 - **Perf architecture decision (2026-04-22 late evening)**: pursued and rejected both `<Activity>` keep-alive and CSS `display:none` pre-rendering. Normal TanStack Router mount/unmount per route restored. Approach: keep the queries fast via composite indexes + keep the shell mounted (global work stays mounted across category switches). Accept the per-route mount cost (~77ms for 244 cards) as bounded by React's reconciliation floor. Indexes added on `links(status, deletedAt, createdAt)`, `links(deletedAt, createdAt)`, `links(status, deletedAt, completedAt)`, `links(deletedAt)`.
 - **Phase 1 cleanup pass** (2026-04-22 overnight): deleted `app-sidebar.tsx`, `ui/sidebar.tsx`, and the `link-card/` barrel. Various small polish — inconsistent naming fixed, redundant allocations dropped, inline styles eliminated. 534/534 tests still pass.
 - **Perf floor understood** (2026-04-22 overnight, Chrome DevTools profiling): at 241 links, SQL is fast (14ms total via composite indexes), React scheduling + GC dominates (~110ms combined). IVM shelved — not where the cost lives. Detailed findings in Open Questions below.
+
+## Remaining work
+
+Single consolidated list of what's left from the original 5-phase plan, merging phase 3b / 3c deferrals, phase 4 follow-ups, and the phase 5 tail. Rough priority ordering; re-triage when picking one up. Each item owns its own sub-PR.
+
+- **Phase 3b — Multi-select as a right-pane view.** Revive `src/stores/selection-store.ts` + `src/components/selection-toolbar.tsx`. Add `selection` to the `RightPaneContext` state machine (home/detail/selection). Active-row 12×12 accent checkmark, bulk actions (complete/archive/tag/export/clear), count + top-3 titles + "+N more", modifier hints. Reuse existing `ExportDialog` for export. Decide tag-applier behavior (picker popover with add/remove toggles). Esc priority: selection → detail → home. Also resolves the `SelectionToolbar` / `CommandChip` `fixed bottom-*` collision once the standalone toolbar goes away.
+- **Phase 4 agent mode.** Type → Tab → ask flow inside the chip. Link-attached chat from the detail view (`✱ chat about this`). Streaming responses via existing AI SDK + OpenRouter. Context strategy open: N most recent vs top-K keyword-matched vs hybrid. Chat history persistence TBD.
+- **Chat sheet removal.** `src/components/chat/chat-sheet.tsx` still mounted in `_authed.tsx` alongside the chip. Remove once agent mode lands in the chip so there's a single chat surface.
+- **Query scoping in the chip** (`domain:`, `tag:`, `status:`). Power-user utility given the keyboard-first brand. `searchLinks$` already has the backend shape to support it.
+- **`⌘↵` open-in-new-pane (or new tab) from chip results.** Currently the only action on a result is click/Enter → replace the right-pane detail. Modifier gives a non-destructive path.
+- **Recent-query memory.** Chip's empty state currently shows recently-opened links; add a layer for recently-typed queries.
+- **Phase 3c — detail → detail swap animation + image prefetch.** Currently the swap is instant (the outer `motion.div` is keyed by mode `"detail"`, not linkId). Design a <100ms swap animation inside `DetailView` (cross-fade hero + title + summary; keep action header static, or a per-field blur pulse). Also prefetch hero image + favicon on list-row hover (`<link rel="preload" as="image">` or `new Image().src = url`) to avoid the flash from empty → loaded — worth measuring.
+- **Keyboard hints footer in the chip** (`↑↓ navigate · ↵ open · esc close`). Skipped during the phase-4 critique pass but still the right move for teaching-via-inline-hints per the brand principle.
+- **Settings / integrations slash-commands in the chip** (`/settings`, `/integrations`, `/export`). Grows the chip from search-only toward a command surface without adding agent mode.
+- **Activity indicator** in the right-side header slot — 7-day bar chart from the prototype. Needs a query aggregating daily link counts. Decide window (last 7d, last 30d, rolling).
+- **Grid view — redesign or deprecate.** Product decision. If keeping, column-count cap, image-less card treatment, density pass. If deprecating, clean up `useViewModeStore` and related code paths.
+- **Mobile treatment** — starts with the chip (480px fixed-width overflows on narrow viewports) and radiates outward (two-column collapse, touch targets, responsive masthead).
+- **Accessibility sweep** — `aria-label` on all icon-only buttons, `:focus-visible` throughout, keyboard list navigation (`j`/`k` or arrows), reduced-motion compliance across the board.
+- **Color token pass** — tint neutrals toward the warm-orange brand hue (OKLCH chroma 0.005–0.01). Currently neutrals read as zinc. Small shift across the token set.
+- **Type scale pass** — 5 sizes with ≥1.25 ratio; pick a display weight for hero moments so the mono voice has internal contrast.
+- **Dark mode pass** — apply the light-mode polish to the dark variant (colors, type scale, shadow alpha, border tokens).
+- **Tabular numerics audit** — every count / date / timestamp uses `font-variant-numeric: tabular-nums`. Sweep via code search.
+- **`Kbd` primitive polish** — `src/components/ui/kbd.tsx` is still shadcn-default (`bg-muted` + `shadow-sm`, no warm tint). For a brand that leans on monospace-as-identity, the Kbd deserves a considered treatment.
+- **Hit-area review** on detail-view action cluster. `[` `]` nav, copy, external-link, `⋯`, and the `Complete` HotkeyButton are all ~28×28, below the 40×40 accessibility floor. Extend via `before:absolute before:inset-[-6px]` pseudo-element to preserve the 28px visual while meeting the hit-box floor. Confirm no overlap between adjacent buttons first.
+- **Further list-mount perf improvements.** Baseline 180ms longtask at 241 links on first route mount. SQL is not the bottleneck (Livestore useQuery is 14ms). Leverage points: flatten per-card DOM (currently 10+ fiber levels), query pagination with LIMIT + load-more, `startTransition` to chunk the longtask.
 
 ## Implementation approach
 
@@ -407,6 +433,41 @@ Supported in modern Chrome, Safari 18+, Firefox 125+. Matches the "optimize for 
 ## Progress log
 
 _Append entries as we iterate, newest first._
+
+### 2026-04-23 (phase 4) — floating command chip replaces modal search, search-only scope
+
+**Scoped narrower than the original plan.** The full phase 4 described in the plan below includes agent mode, link-attached chat, and subsumes the existing chat sheet. User scoped this pass to **search only** — agent mode, mobile treatment, and chat sheet removal all deferred to a later pass. The chip is a drop-in replacement for the old Cmd+K modal, nothing more.
+
+**Old surface retired.** Deleted `src/components/search-command.tsx` (the `CommandDialog`-based centered modal) and `src/stores/search-store.ts` (the zustand open/close store). `_authed.tsx` no longer imports them; `top-bar.tsx` no longer renders a search button (the chip is persistent, so a top-bar affordance is redundant).
+
+**`CommandChip`** (`src/components/command-chip.tsx`): `position: fixed; bottom-7 left-1/2 -translate-x-1/2; z-50; w-[480px]`. Outer `<div role="search">`; inner cmdk `<Command shouldFilter={false}>` (livestore does the filtering). The pill itself is a `<label>` — native labeled-input behavior lets clicks on padding / `SearchIcon` / `Kbd` focus the input without a custom `onMouseDown` handler and without a lint rule firing for "div with event handler". `CommandPrimitive.Input` is used directly (not the project's wrapped `CommandInput`, which assumes a Dialog layout) with `aria-label="Search links"`. `Kbd` and `SearchIcon` get `aria-hidden="true"`.
+
+**State.** All local to the component: `open` boolean + `value` string. Opening paths: ⌘K global keydown, input focus (from tab or click-to-focus via label). Closing paths: ⌘K toggle, Esc on input (with `stopPropagation` — belt + suspenders against the detail-scope Esc), `onBlur` with `relatedTarget` check (closes on Tab-away), pointer-outside listener registered only while open. `close` is a `useCallback` so the pointerdown effect has honest deps (no `eslint-disable`).
+
+**Queries.** Reuses existing `searchLinks$(query)` and `recentlyOpenedLinks$` from `src/livestore/queries/links.ts`. `useDeferredValue(value.trim())` keeps typing responsive while the query runs. `lastTrackedQuery` ref dedupes analytics to once per query-change. Livestore dedupes `searchLinks$(q)` by query-content hash — per-render factory calls don't churn subscriptions.
+
+**Panel.** `AnimatePresence initial={false}` wraps a single `motion.div` keyed `"panel"`. Enter: `y: 8 → 0`, `filter: blur(4px) → 0`, spring bounce 0 duration 0.22. Exit: 80ms tween `y: 4`, no blur. Reduced-motion: 100ms opacity crossfade. Height `max-h-96` (~8 rows). Contents: `N matches` heading with tabular-nums on typed queries, `Recently opened` heading on empty state, `Nothing matches "…"` / `Type to search` on empties. Rows are `favicon + domain + title` only — no status dots, no arrow icons, no per-row badges. Status is the detail view's job.
+
+**Color + chrome (post-critique).** First pass was flagged as "default-shadcn-with-animation" with zero warm-accent presence — the critique scored 26/40 Nielsen, 55/100 slop. Addressed:
+
+- `highlighted-text.tsx` default: yellow → `bg-primary/15 dark:bg-primary/25`. Match highlight is now the first visible warm-orange moment in the chip.
+- Shadows rewritten as layered warm-tinted recipes on both pill and panel: `0_1px_2px_rgb(61_40_20_/_0.08),0_10px_28px_-8px_rgb(61_40_20_/_0.24)` on the pill, `0_1px_2px_rgb(61_40_20_/_0.08),0_12px_36px_-10px_rgb(61_40_20_/_0.26)` on the panel. Dark mode falls back to pure-black at higher alpha (warm tints don't read on dark surfaces). Both stay under 25% alpha — within the "no heavy shadows" brand rule.
+- Border: `border-primary/10` → `border-primary/25` on focus. Dark mode falls back to `border-border`.
+- Radii: pill `rounded-full`, panel `rounded-lg` (inner `CommandItem` is `rounded-none` and fills panel edges). Three levels but no longer chaotic.
+- Microcopy tightened: `Results (12)` → `12 matches`, `No links for "foo"` → `Nothing matches "foo"`, `Type to search your links` → `Type to search`.
+
+**Kept generic-but-acceptable.** `Kbd` primitive itself (`ui/kbd.tsx`) is still shadcn-default (`bg-muted` + `shadow-sm`, no warm tint). Out of scope for this pass but flagged in the critique as a future polish target.
+
+**Out of scope this pass:**
+
+- Agent mode and link-attached chat.
+- Chat sheet removal (`src/components/chat/chat-sheet.tsx` still mounted in `_authed.tsx`).
+- Mobile treatment — on small viewports the 480px fixed-width pill will overflow. Deferred.
+- Keyboard hints footer (`↑↓ navigate · ↵ open · esc close`) — user skipped this one in the critique action plan.
+- Query scoping (`domain:`, `tag:`), `⌘↵` open-in-new-pane, recent-query memory.
+- `SelectionToolbar` collision: `selection-toolbar.tsx` is also `fixed bottom-6 left-1/2 z-50`. Multi-select is currently unwired (see 2026-04-22 log), so the collision isn't visible. Phase 3b rebuilds selection as a right-pane view; the standalone toolbar goes away and the collision resolves with it. Noted on the phase 3b kanban item.
+
+**Verification.** 534/534 tests pass, typecheck clean, `vp check` / oxlint / Effect diagnostics all clean. Code review subagent returned "ship it" — no blocking issues. Should-fixes addressed: click-to-focus (via `<label>`), Tab-away close, `aria-hidden` on Kbd/SearchIcon, `aria-label` on input, over-memoized `.trim()` inlined.
 
 ### 2026-04-23 (phase 3a) — detail in right pane, modal retired, animations
 

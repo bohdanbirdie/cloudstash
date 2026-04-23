@@ -1,4 +1,4 @@
-import { PlusIcon, SearchIcon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 
 import { useAddLinkDialog } from "@/components/add-link-dialog";
 import { CategoryNav } from "@/components/category-nav";
@@ -11,11 +11,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { getHotkeyLabel } from "@/lib/hotkey-label";
-import { useSearchStore } from "@/stores/search-store";
 
 export function TopBar() {
   const { open: openAddLinkDialog } = useAddLinkDialog();
-  const openSearch = useSearchStore((s) => s.toggle);
 
   return (
     <header className="flex items-start justify-between gap-6">
@@ -31,23 +29,6 @@ export function TopBar() {
 
       <div className="flex items-center gap-4">
         <SyncStatusIndicator />
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={openSearch}
-                aria-label="Search"
-                className="inline-flex size-5 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:text-foreground"
-              >
-                <SearchIcon className="size-4" strokeWidth={1.75} />
-              </button>
-            }
-          />
-          <TooltipContent side="bottom" align="end">
-            Search · {getHotkeyLabel("meta+k")}
-          </TooltipContent>
-        </Tooltip>
         <Tooltip>
           <TooltipTrigger
             render={
