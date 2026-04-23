@@ -165,7 +165,7 @@ function ExistingLinkCard({ linkId }: { linkId: string }) {
         )}
       </CardHeader>
       <CardContent className="pt-0">
-        <span className="text-muted-foreground text-xs">
+        <span className="text-muted-foreground text-xs tabular-nums">
           Saved on {formattedDate}
         </span>
         {link.status === "completed" && (

@@ -41,7 +41,7 @@ export function KeyList({ keys, isLoading, onRevoke }: KeyListProps) {
             <p className="font-medium text-sm truncate">
               {key.name || "Unnamed key"}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground tabular-nums">
               Created {new Date(key.createdAt).toLocaleDateString()}
               {key.lastRequest && (
                 <>

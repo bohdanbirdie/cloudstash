@@ -79,7 +79,7 @@ export function SelectionToolbar({
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 fade-in duration-200">
       <div className="dark flex items-center gap-2 bg-popover text-popover-foreground border rounded-lg shadow-lg px-4 py-2">
-        <span className="text-sm text-muted-foreground mr-2">
+        <span className="text-sm text-muted-foreground mr-2 tabular-nums">
           {selectedCount} selected
         </span>
 

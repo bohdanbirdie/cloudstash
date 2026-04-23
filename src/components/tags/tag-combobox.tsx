@@ -224,7 +224,7 @@ export function TagCombobox({
                   <span className={cn("px-1.5 py-0.5", styles.badge)}>
                     #{tag.name}
                   </span>
-                  <span className="ml-auto text-muted-foreground">
+                  <span className="ml-auto text-muted-foreground tabular-nums">
                     {count} {count === 1 ? "link" : "links"}
                   </span>
                 </button>

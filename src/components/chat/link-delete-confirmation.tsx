@@ -62,7 +62,7 @@ export function LinkDeleteConfirmation({
       <div className="p-3 space-y-3">
         <div className="flex items-center gap-2">
           <Trash2 className="size-4 text-destructive flex-shrink-0" />
-          <span className="font-medium text-sm">
+          <span className="font-medium text-sm tabular-nums">
             {isBulk
               ? `Move ${validLinks.length} link${validLinks.length !== 1 ? "s" : ""} to trash?`
               : "Move to trash?"}
@@ -91,7 +91,12 @@ export function LinkDeleteConfirmation({
             onClick={onApprove}
           >
             <Trash2 className="size-3 mr-1" />
-            Delete{isBulk ? ` ${validLinks.length}` : ""}
+            Delete
+            {isBulk ? (
+              <span className="tabular-nums">{` ${validLinks.length}`}</span>
+            ) : (
+              ""
+            )}
           </Button>
         </div>
       </div>
