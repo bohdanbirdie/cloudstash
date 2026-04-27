@@ -133,6 +133,16 @@ export const ProcessingStatusRowSchema = Schema.Struct({
 
 export type ProcessingStatusRow = typeof ProcessingStatusRowSchema.Type;
 
+const linkCreatedAtSchema = Schema.Struct({ createdAt: Schema.Number });
+
+export const linkCreatedAts$ = queryDb(
+  () => ({
+    query: `SELECT createdAt FROM links`,
+    schema: Schema.Array(linkCreatedAtSchema),
+  }),
+  { label: "linkCreatedAts" }
+);
+
 export const processingStatusByLink$ = queryDb(
   () => ({
     query: `

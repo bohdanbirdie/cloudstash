@@ -23,19 +23,19 @@ kanban-plugin: board
 - [ ] Custom monogram fallback for image-less links — current fallback is the first domain letter on a muted square. Explore better options (generated gradient from domain hash, favicon upscale, brand-color map).
 - [ ] Rename "Trash" → "Archive" across routes, labels, schema-facing terms where non-breaking. Livestore event names stay; only user-facing copy + route `/trash` considered. Decide if the route slug also changes (breaking for bookmarks) or stay.
 - [ ] Redesign phase 3b — multi-select in the right pane. Revive `src/stores/selection-store.ts` + `src/components/selection-toolbar.tsx` dead code. Add `selection` to the `RightPaneContext` state machine (home/detail/selection), active-row 12×12 accent checkmark, bulk actions (complete/archive/tag/export/clear), count + top-3 titles + "+N more", modifier hints. Reuse existing `ExportDialog` for export. Decide tag-applier behavior (picker popover with add/remove toggles), Esc priority (selection first → detail → home), cmd/shift-click semantics. **Also resolve the layout collision** between `SelectionToolbar` (currently `fixed bottom-6 left-1/2 z-50`) and `CommandChip` (`fixed bottom-7 left-1/2 z-50`) — same spot, same z. If the new selection view lives inside the right pane per this phase, the standalone `SelectionToolbar` goes away and the collision disappears with it; confirm during revival.
-- [ ] Redesign phase 3c — design a nicer detail→detail swap animation. Currently swap is instant (the outer `motion.div` is keyed by mode `"detail"`, not linkId, so `AnimatePresence` doesn't fire between links). Open/close animations live on the outer shell; a per-link swap would need to live inside `DetailView` — ideas: cross-fade the hero+title+summary block only (keep action header static), or a tiny per-field blur pulse. Keep it under ~100ms so `[` / `]` navigation stays snappy. Also try prefetching the hero image (+ favicon) on list-row hover (`<link rel="preload" as="image">` or an in-memory `new Image().src = url`) so the swap renders the new hero instantly instead of flashing from empty → loaded — unclear if it helps given most OG images are already browser-cached by the list thumbs, but worth measuring.
+- [ ] Activity grid → list filtering followup — cell click filters list to that day; multi-cell select (drag or shift-click) filters to a date range. Decide if range updates the URL (`?from=…&to=…`) or stays client-only.
 - [ ] Further list-mount perf improvements — see [[todos/app-redesign|redesign doc]] "Further list-mount perf" open question. Baseline 180ms longtask for 241 links on first route mount; Chrome profiling shows SQL is NOT the bottleneck (Livestore useQuery is 14ms). Leverage points if returning to this: flatten per-card DOM (currently 10+ fiber levels), query pagination with LIMIT + load-more, `startTransition` to chunk the longtask.
 - [ ] Review hit areas on the detail-view action cluster. `[` `]` nav, copy, external-link, `⋯`, and the `Complete` HotkeyButton are all ~28×28 (`icon-sm` / `size="sm"`), below the 40×40 accessibility floor. Keyboard-first brand accepts this visually, but hoverable pointer targets should still meet 40×40. Option: extend hit area via a `before:absolute before:inset-[-6px]` pseudo-element on each — keeps the 28px visual, adds the 40×40 effective hit box. Confirm no overlap between adjacent buttons in the cluster first.
 
 ## In Progress
 
-- [ ] [[todos/app-redesign|Rethink app design]] — phases 1, 2, 3a, 4 (search-only) shipped; 3b (multi-select in right pane), 3c (detail→detail animation polish), and phase 4 follow-ups (agent mode, mobile, chat-sheet removal) pending
+- [ ] [[todos/app-redesign|Rethink app design]] — phases 1, 2, 3a, 3c, 4 (search-only) shipped; 3b (multi-select in right pane) and phase 4 follow-ups (agent mode, mobile, chat-sheet removal) pending
 - [ ] [[todos/links-list-performance|Fix links list rendering performance at 150+ links]]
-- [ ] GitHub-like grid of activity
 
 ## Done
 
 - [ ] [[todos/publish-raycast-extension|Publish Raycast extension to Store]]
+- [x] GitHub-like grid of activity
 - [x] [[todos/surface-do-errors-monitoring|Surface LinkProcessorDO errors to monitoring]]
 - [x] [[todos/queue-config-explicitness|Make queue config explicit in code]]
 - [x] [[todos/logout-opfs-cleanup|Implement proper logout OPFS cleanup]]
