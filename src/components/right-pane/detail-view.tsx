@@ -289,7 +289,6 @@ function DetailViewInner({ link }: { link: LinkWithDetails }) {
           <img
             src={link.image}
             alt=""
-            loading="lazy"
             decoding="async"
             className="size-full object-cover"
           />
