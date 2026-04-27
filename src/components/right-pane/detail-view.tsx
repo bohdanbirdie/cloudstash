@@ -75,8 +75,6 @@ function DetailViewInner({ link }: { link: LinkWithDetails }) {
   const { closeDetail, navigate, projection } = useRightPane();
 
   useHotkeys("escape", closeDetail, { scopes: ["detail"] });
-  useHotkeys("BracketLeft", () => goToPrevious(), { scopes: ["detail"] });
-  useHotkeys("BracketRight", () => goToNext(), { scopes: ["detail"] });
 
   const [copied, setCopied] = useState(false);
 
@@ -91,28 +89,10 @@ function DetailViewInner({ link }: { link: LinkWithDetails }) {
   const { tagIds, setTagIds } = useLinkTags(link.id);
 
   const currentIndex = links.findIndex((l) => l.id === link.id);
-  const hasPrevious = currentIndex > 0;
-  const hasNext = currentIndex < links.length - 1;
 
   const getNextLinkId = (): string | null => {
     const nextLink = links[currentIndex + 1] ?? links[currentIndex - 1];
     return nextLink?.id ?? null;
-  };
-
-  const goToPrevious = () => {
-    const prevLink = links[currentIndex - 1];
-    if (prevLink) {
-      trackLinkOpen(prevLink.id);
-      navigate(prevLink.id);
-    }
-  };
-
-  const goToNext = () => {
-    const nextLink = links[currentIndex + 1];
-    if (nextLink) {
-      trackLinkOpen(nextLink.id);
-      navigate(nextLink.id);
-    }
   };
 
   const handleAction = (action: LinkAction, commitFn: () => void) => {
@@ -190,14 +170,13 @@ function DetailViewInner({ link }: { link: LinkWithDetails }) {
       )}
 
       <div className="sticky top-0 z-10 flex items-center justify-between gap-2 bg-background pt-3 pb-2">
-        <NavHint
-          hasPrevious={hasPrevious}
-          hasNext={hasNext}
-          onPrevious={goToPrevious}
-          onNext={goToNext}
-          currentIndex={currentIndex}
-          total={links.length}
-        />
+        {links.length > 1 ? (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {currentIndex + 1}/{links.length}
+          </span>
+        ) : (
+          <span />
+        )}
 
         <div className="flex items-center gap-1">
           <HotkeyButton
@@ -480,50 +459,5 @@ function IconSwap({
         {children}
       </motion.span>
     </AnimatePresence>
-  );
-}
-
-function NavHint({
-  hasPrevious,
-  hasNext,
-  onPrevious,
-  onNext,
-  currentIndex,
-  total,
-}: {
-  hasPrevious: boolean;
-  hasNext: boolean;
-  onPrevious: () => void;
-  onNext: () => void;
-  currentIndex: number;
-  total: number;
-}) {
-  if (total <= 1) return <span />;
-  return (
-    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-      <Button
-        size="icon-sm"
-        variant="ghost"
-        onClick={onPrevious}
-        disabled={!hasPrevious}
-        aria-label="Previous link"
-        className="font-mono"
-      >
-        [
-      </Button>
-      <Button
-        size="icon-sm"
-        variant="ghost"
-        onClick={onNext}
-        disabled={!hasNext}
-        aria-label="Next link"
-        className="font-mono"
-      >
-        ]
-      </Button>
-      <span className="ml-1 tabular-nums">
-        {currentIndex + 1}/{total}
-      </span>
-    </div>
   );
 }
