@@ -16,6 +16,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
+import { LinkPreviewImage } from "@/components/link-preview-image";
 import { useRightPane } from "@/components/right-pane-context";
 import { TagCombobox } from "@/components/tags/tag-combobox";
 import { TagSuggestions } from "@/components/tags/tag-suggestions";
@@ -154,7 +155,6 @@ function DetailViewInner({ link }: { link: LinkWithDetails }) {
   const isCompleted = link.status === "completed";
   const isDeleted = link.deletedAt !== null;
   const displayTitle = link.title || link.url;
-  const monogram = link.domain?.charAt(0) ?? "";
   const source = link.source && link.source !== "app" ? link.source : null;
   const sourceConfig = source ? SOURCE_CONFIG[source] : null;
   const SourceIcon = sourceConfig?.icon;
@@ -284,19 +284,8 @@ function DetailViewInner({ link }: { link: LinkWithDetails }) {
         </div>
       </div>
 
-      <div className="aspect-video w-full overflow-hidden rounded-sm outline outline-black/10 -outline-offset-1 dark:outline-white/10">
-        {link.image ? (
-          <img
-            src={link.image}
-            alt=""
-            decoding="async"
-            className="size-full object-cover"
-          />
-        ) : (
-          <div className="flex size-full items-center justify-center bg-muted text-4xl font-semibold uppercase leading-none text-muted-foreground">
-            {monogram}
-          </div>
-        )}
+      <div className="aspect-video w-full overflow-hidden rounded-sm">
+        <LinkPreviewImage src={link.image} loading="eager" />
       </div>
 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">

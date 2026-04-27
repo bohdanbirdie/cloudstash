@@ -1,5 +1,6 @@
 import { memo } from "react";
 
+import { LinkPreviewImage } from "@/components/link-preview-image";
 import { TagBadge } from "@/components/tags/tag-badge";
 import { BorderTrail } from "@/components/ui/border-trail";
 import { cn } from "@/lib/utils";
@@ -25,7 +26,6 @@ function LinkListItemImpl({
 }: LinkListItemProps) {
   const isProcessing = processingStatus === "pending";
   const displayTitle = link.title || link.url;
-  const monogram = link.domain?.charAt(0) ?? "";
 
   return (
     <button
@@ -33,7 +33,7 @@ function LinkListItemImpl({
       data-id={link.id}
       onClick={onClick}
       className={cn(
-        "group relative -mx-3 grid w-[calc(100%+1.5rem)] cursor-default grid-cols-[1fr_5rem] items-start gap-x-5 rounded-md px-3 py-2 text-left [content-visibility:auto] [contain-intrinsic-size:7rem] transition-colors hover:bg-muted",
+        "group relative -mx-3 grid w-[calc(100%+1.5rem)] cursor-default grid-cols-[1fr_5rem] items-start gap-x-5 rounded-md px-2 py-2 text-left [content-visibility:auto] [contain-intrinsic-size:7rem] transition-colors hover:bg-muted",
         active && "bg-border hover:bg-border"
       )}
     >
@@ -73,20 +73,8 @@ function LinkListItemImpl({
         </div>
       </div>
 
-      <div className="mt-0.5 aspect-[16/9] overflow-hidden rounded-sm outline outline-black/10 -outline-offset-1 dark:outline-white/10">
-        {link.image ? (
-          <img
-            src={link.image}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            className="block size-full object-cover"
-          />
-        ) : (
-          <div className="flex size-full items-center justify-center bg-muted text-lg font-semibold uppercase leading-none text-muted-foreground">
-            {monogram}
-          </div>
-        )}
+      <div className="mt-0.5 aspect-[16/9] overflow-hidden rounded-sm">
+        <LinkPreviewImage src={link.image} />
       </div>
     </button>
   );

@@ -20,7 +20,6 @@ kanban-plugin: board
 - [ ] Weekly Digest actions — add "✱ ask about this week" (seeds chat/chip) and "⎋ dismiss" with semantics (hide until tomorrow? forever? setting?). See [[todos/app-redesign]] phase 2 decisions.
 - [ ] Keyboard hints footer in right pane — `⌘K · ⌥N · Esc` row beneath the digest. Confirm which three to promote.
 - [ ] Time-grouped list headers (Today / Yesterday / This week / Older) — deferred from phase 2. Measure query impact before landing.
-- [ ] Custom monogram fallback for image-less links — current fallback is the first domain letter on a muted square. Explore better options (generated gradient from domain hash, favicon upscale, brand-color map).
 - [ ] Rename "Trash" → "Archive" across routes, labels, schema-facing terms where non-breaking. Livestore event names stay; only user-facing copy + route `/trash` considered. Decide if the route slug also changes (breaking for bookmarks) or stay.
 - [ ] Redesign phase 3b — multi-select in the right pane. Revive `src/stores/selection-store.ts` + `src/components/selection-toolbar.tsx` dead code. Add `selection` to the `RightPaneContext` state machine (home/detail/selection), active-row 12×12 accent checkmark, bulk actions (complete/archive/tag/export/clear), count + top-3 titles + "+N more", modifier hints. Reuse existing `ExportDialog` for export. Decide tag-applier behavior (picker popover with add/remove toggles), Esc priority (selection first → detail → home), cmd/shift-click semantics. **Also resolve the layout collision** between `SelectionToolbar` (currently `fixed bottom-6 left-1/2 z-50`) and `CommandChip` (`fixed bottom-7 left-1/2 z-50`) — same spot, same z. If the new selection view lives inside the right pane per this phase, the standalone `SelectionToolbar` goes away and the collision disappears with it; confirm during revival.
 - [ ] Activity grid → list filtering followup — cell click filters list to that day; multi-cell select (drag or shift-click) filters to a date range. Decide if range updates the URL (`?from=…&to=…`) or stays client-only.
@@ -35,6 +34,7 @@ kanban-plugin: board
 ## Done
 
 - [ ] [[todos/publish-raycast-extension|Publish Raycast extension to Store]]
+- [x] Image preview component — skeleton loading state with delayed fade-in (200ms), unified `ImageOff` fallback for failed/missing images, replaces inline image+monogram blocks in list rows and detail hero
 - [x] GitHub-like grid of activity
 - [x] [[todos/surface-do-errors-monitoring|Surface LinkProcessorDO errors to monitoring]]
 - [x] [[todos/queue-config-explicitness|Make queue config explicit in code]]
