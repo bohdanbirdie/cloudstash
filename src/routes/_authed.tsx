@@ -34,7 +34,12 @@ export const Route = createFileRoute("/_authed")({
   component: AuthedLayout,
 });
 
-const CATEGORY_PATHS: readonly string[] = ["/", "/all", "/completed", "/trash"];
+const CATEGORY_PATHS: readonly string[] = [
+  "/",
+  "/all",
+  "/completed",
+  "/archive",
+];
 
 function AuthedLayout() {
   const { storeRegistry } = Route.useRouteContext();

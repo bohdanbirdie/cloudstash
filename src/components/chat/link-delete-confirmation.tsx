@@ -64,8 +64,8 @@ export function LinkDeleteConfirmation({
           <Trash2 className="size-4 text-destructive flex-shrink-0" />
           <span className="font-medium text-sm tabular-nums">
             {isBulk
-              ? `Move ${validLinks.length} link${validLinks.length !== 1 ? "s" : ""} to trash?`
-              : "Move to trash?"}
+              ? `Move ${validLinks.length} link${validLinks.length !== 1 ? "s" : ""} to archive?`
+              : "Move to archive?"}
           </span>
         </div>
 

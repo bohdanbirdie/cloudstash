@@ -446,12 +446,12 @@ describe("createTools", () => {
       expect(result).toEqual({ error: "Link not found" });
     });
 
-    it("returns error when link is not in trash", async () => {
+    it("returns error when link is not in archive", async () => {
       const id = seedLink({ title: "Example Title" });
 
       const result = await tools.restoreLink.execute!({ id }, stubCtx);
 
-      expect(result).toEqual({ error: "Link is not in trash" });
+      expect(result).toEqual({ error: "Link is not in archive" });
     });
   });
 
@@ -671,7 +671,7 @@ describe("createToolExecutors", () => {
 
       expect(JSON.parse(result)).toEqual({
         success: true,
-        message: 'Moved "Delete Me" to trash',
+        message: 'Moved "Delete Me" to archive',
       });
       const row = store.query(tables.links.where({ id }))[0];
       expect(row.deletedAt).not.toBeNull();
@@ -686,7 +686,7 @@ describe("createToolExecutors", () => {
       const result = await executors.deleteLink({ id });
 
       expect(JSON.parse(result).message).toBe(
-        'Moved "https://notitle.com" to trash'
+        'Moved "https://notitle.com" to archive'
       );
     });
 
@@ -696,7 +696,7 @@ describe("createToolExecutors", () => {
       expect(JSON.parse(result)).toEqual({ error: "Link not found" });
     });
 
-    it("returns error when link already in trash", async () => {
+    it("returns error when link already in archive", async () => {
       const id = seedLink({
         title: "Already",
         deletedAt: new Date("2024-02-01T00:00:00Z"),
@@ -704,7 +704,7 @@ describe("createToolExecutors", () => {
 
       const result = await executors.deleteLink({ id });
 
-      expect(JSON.parse(result)).toEqual({ error: "Link already in trash" });
+      expect(JSON.parse(result)).toEqual({ error: "Link already in archive" });
     });
   });
 

@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   allLinks$,
   allLinksCount$,
+  archiveCount$,
+  archiveLinks$,
   completedCount$,
   completedLinks$,
   inboxCount$,
@@ -13,8 +15,6 @@ import {
   linksByIds$,
   recentlyOpenedLinks$,
   searchLinks$,
-  trashCount$,
-  trashLinks$,
 } from "../../queries/links";
 import { events } from "../../schema";
 import { makeTestStore, testId } from "../test-helpers";
@@ -129,14 +129,14 @@ describe("links queries", () => {
       expect(store.query(allLinksCount$)).toBe(2);
     });
 
-    it("trashCount$ counts soft-deleted only", () => {
+    it("archiveCount$ counts soft-deleted only", () => {
       seedLink();
       const b = seedLink();
       const c = seedLink();
       deleteLink(b, new Date("2026-01-03T10:00:00Z"));
       deleteLink(c, new Date("2026-01-04T10:00:00Z"));
 
-      expect(store.query(trashCount$)).toEqual({ count: 2 });
+      expect(store.query(archiveCount$)).toEqual({ count: 2 });
     });
   });
 
@@ -202,7 +202,7 @@ describe("links queries", () => {
       expect(rows.map((r) => r.id)).toEqual([b, c, a]);
     });
 
-    it("trashLinks$ returns soft-deleted links sorted by deletedAt DESC", () => {
+    it("archiveLinks$ returns soft-deleted links sorted by deletedAt DESC", () => {
       const a = seedLink();
       const b = seedLink();
       const c = seedLink();
@@ -210,7 +210,7 @@ describe("links queries", () => {
       deleteLink(b, new Date("2026-01-05T10:00:00Z"));
       deleteLink(c, new Date("2026-01-04T10:00:00Z"));
 
-      const rows = store.query(trashLinks$);
+      const rows = store.query(archiveLinks$);
       expect(rows.map((r) => r.id)).toEqual([b, c, a]);
     });
   });

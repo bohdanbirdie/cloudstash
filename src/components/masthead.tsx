@@ -3,9 +3,9 @@ import { useMemo } from "react";
 
 import {
   allLinksCount$,
+  archiveCount$,
   completedCount$,
   inboxCount$,
-  trashCount$,
 } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
 
@@ -13,7 +13,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/": "Inbox",
   "/all": "All",
   "/completed": "Completed",
-  "/trash": "Trash",
+  "/archive": "Archive",
 };
 
 export function Masthead() {
@@ -23,7 +23,7 @@ export function Masthead() {
   const inboxCount = store.useQuery(inboxCount$);
   const completedCount = store.useQuery(completedCount$);
   const allLinksCount = store.useQuery(allLinksCount$);
-  const { count: trashCount } = store.useQuery(trashCount$);
+  const { count: archiveCount } = store.useQuery(archiveCount$);
 
   const path = location.pathname;
   const title = ROUTE_TITLES[path] ?? "Inbox";
@@ -37,14 +37,14 @@ export function Masthead() {
         return completedCount === 0
           ? "0 completed"
           : `${completedCount} completed`;
-      case "/trash":
-        return trashCount === 0
-          ? "0 in trash"
-          : `${trashCount} in trash · auto-expires after 30 days`;
+      case "/archive":
+        return archiveCount === 0
+          ? "0 archived"
+          : `${archiveCount} archived · auto-expires after 30 days`;
       default:
         return "";
     }
-  }, [path, inboxCount, allLinksCount, completedCount, trashCount]);
+  }, [path, inboxCount, allLinksCount, completedCount, archiveCount]);
 
   return (
     <section className="min-w-0">

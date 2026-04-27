@@ -25,17 +25,17 @@ export const allLinksCount$ = queryDb(
   { label: "allLinksCount" }
 );
 
-const trashCountSchema = Schema.Struct({ count: Schema.Number }).pipe(
+const archiveCountSchema = Schema.Struct({ count: Schema.Number }).pipe(
   Schema.Array,
   Schema.headOrElse(() => ({ count: 0 }))
 );
 
-export const trashCount$ = queryDb(
+export const archiveCount$ = queryDb(
   () => ({
     query: "SELECT COUNT(*) as count FROM links WHERE deletedAt IS NOT NULL",
-    schema: trashCountSchema,
+    schema: archiveCountSchema,
   }),
-  { label: "trashCount" }
+  { label: "archiveCount" }
 );
 
 export const inboxLinks$ = queryDb(
@@ -98,7 +98,7 @@ export const allLinks$ = queryDb(
   { label: "allLinks" }
 );
 
-export const trashLinks$ = queryDb(
+export const archiveLinks$ = queryDb(
   () => ({
     query: `
       SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
@@ -115,7 +115,7 @@ export const trashLinks$ = queryDb(
     `,
     schema: linksListSchema,
   }),
-  { label: "trashLinks" }
+  { label: "archiveLinks" }
 );
 
 export const linkProcessingStatus$ = (linkId: string) =>

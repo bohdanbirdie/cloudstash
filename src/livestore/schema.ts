@@ -133,7 +133,7 @@ export const tables = {
         columns: ["status", "deletedAt", "completedAt"],
         name: "idx_links_status_deleted_completed",
       },
-      // Trash: WHERE deletedAt IS NOT NULL ORDER BY deletedAt DESC
+      // Archive: WHERE deletedAt IS NOT NULL ORDER BY deletedAt DESC
       { columns: ["deletedAt"], name: "idx_links_deleted" },
     ],
     name: "links",

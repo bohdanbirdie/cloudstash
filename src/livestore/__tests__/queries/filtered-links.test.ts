@@ -283,7 +283,7 @@ describe("filtered-links queries", () => {
       expect(rows.map((r) => r.id)).toEqual([untagged]);
     });
 
-    it("status=trash returns only soft-deleted links, sorted by deletedAt DESC", () => {
+    it("status=archive returns only soft-deleted links, sorted by deletedAt DESC", () => {
       const a = seedLink({ url: "https://a.test/1" });
       const b = seedLink({ url: "https://a.test/2" });
       const c = seedLink({ url: "https://a.test/3" });
@@ -292,7 +292,7 @@ describe("filtered-links queries", () => {
       // c is not deleted
 
       const rows = store.query(
-        filteredLinks$("trash", { tagIds: [], untagged: false })
+        filteredLinks$("archive", { tagIds: [], untagged: false })
       );
       expect(rows.map((r) => r.id)).toEqual([b, a]);
       expect(rows.map((r) => r.id)).not.toContain(c);

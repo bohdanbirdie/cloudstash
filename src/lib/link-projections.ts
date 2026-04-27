@@ -5,9 +5,9 @@ import type {
 } from "@/livestore/queries/filtered-links";
 import {
   allLinks$,
+  archiveLinks$,
   completedLinks$,
   inboxLinks$,
-  trashLinks$,
 } from "@/livestore/queries/links";
 
 export type LinkAction = "complete" | "uncomplete" | "delete" | "restore";
@@ -57,8 +57,8 @@ export const completedProjection = createProjection(
   (action) => action === "uncomplete" || action === "delete"
 );
 
-export const trashProjection = createProjection(
-  trashLinks$,
-  "trash",
+export const archiveProjection = createProjection(
+  archiveLinks$,
+  "archive",
   () => true
 );

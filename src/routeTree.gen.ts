@@ -13,9 +13,9 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as ConnectRaycastRouteImport } from './routes/connect/raycast'
-import { Route as AuthedTrashRouteImport } from './routes/_authed/trash'
 import { Route as AuthedCompletedRouteImport } from './routes/_authed/completed'
 import { Route as AuthedBrandRouteImport } from './routes/_authed/brand'
+import { Route as AuthedArchiveRouteImport } from './routes/_authed/archive'
 import { Route as AuthedAllRouteImport } from './routes/_authed/all'
 
 const LoginRoute = LoginRouteImport.update({
@@ -37,11 +37,6 @@ const ConnectRaycastRoute = ConnectRaycastRouteImport.update({
   path: '/connect/raycast',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthedTrashRoute = AuthedTrashRouteImport.update({
-  id: '/trash',
-  path: '/trash',
-  getParentRoute: () => AuthedRoute,
-} as any)
 const AuthedCompletedRoute = AuthedCompletedRouteImport.update({
   id: '/completed',
   path: '/completed',
@@ -50,6 +45,11 @@ const AuthedCompletedRoute = AuthedCompletedRouteImport.update({
 const AuthedBrandRoute = AuthedBrandRouteImport.update({
   id: '/brand',
   path: '/brand',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedArchiveRoute = AuthedArchiveRouteImport.update({
+  id: '/archive',
+  path: '/archive',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedAllRoute = AuthedAllRouteImport.update({
@@ -62,17 +62,17 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
   '/all': typeof AuthedAllRoute
+  '/archive': typeof AuthedArchiveRoute
   '/brand': typeof AuthedBrandRoute
   '/completed': typeof AuthedCompletedRoute
-  '/trash': typeof AuthedTrashRoute
   '/connect/raycast': typeof ConnectRaycastRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/all': typeof AuthedAllRoute
+  '/archive': typeof AuthedArchiveRoute
   '/brand': typeof AuthedBrandRoute
   '/completed': typeof AuthedCompletedRoute
-  '/trash': typeof AuthedTrashRoute
   '/connect/raycast': typeof ConnectRaycastRoute
   '/': typeof AuthedIndexRoute
 }
@@ -81,9 +81,9 @@ export interface FileRoutesById {
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authed/all': typeof AuthedAllRoute
+  '/_authed/archive': typeof AuthedArchiveRoute
   '/_authed/brand': typeof AuthedBrandRoute
   '/_authed/completed': typeof AuthedCompletedRoute
-  '/_authed/trash': typeof AuthedTrashRoute
   '/connect/raycast': typeof ConnectRaycastRoute
   '/_authed/': typeof AuthedIndexRoute
 }
@@ -93,17 +93,17 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/all'
+    | '/archive'
     | '/brand'
     | '/completed'
-    | '/trash'
     | '/connect/raycast'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
     | '/all'
+    | '/archive'
     | '/brand'
     | '/completed'
-    | '/trash'
     | '/connect/raycast'
     | '/'
   id:
@@ -111,9 +111,9 @@ export interface FileRouteTypes {
     | '/_authed'
     | '/login'
     | '/_authed/all'
+    | '/_authed/archive'
     | '/_authed/brand'
     | '/_authed/completed'
-    | '/_authed/trash'
     | '/connect/raycast'
     | '/_authed/'
   fileRoutesById: FileRoutesById
@@ -154,13 +154,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConnectRaycastRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authed/trash': {
-      id: '/_authed/trash'
-      path: '/trash'
-      fullPath: '/trash'
-      preLoaderRoute: typeof AuthedTrashRouteImport
-      parentRoute: typeof AuthedRoute
-    }
     '/_authed/completed': {
       id: '/_authed/completed'
       path: '/completed'
@@ -175,6 +168,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedBrandRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/archive': {
+      id: '/_authed/archive'
+      path: '/archive'
+      fullPath: '/archive'
+      preLoaderRoute: typeof AuthedArchiveRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/all': {
       id: '/_authed/all'
       path: '/all'
@@ -187,17 +187,17 @@ declare module '@tanstack/react-router' {
 
 interface AuthedRouteChildren {
   AuthedAllRoute: typeof AuthedAllRoute
+  AuthedArchiveRoute: typeof AuthedArchiveRoute
   AuthedBrandRoute: typeof AuthedBrandRoute
   AuthedCompletedRoute: typeof AuthedCompletedRoute
-  AuthedTrashRoute: typeof AuthedTrashRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAllRoute: AuthedAllRoute,
+  AuthedArchiveRoute: AuthedArchiveRoute,
   AuthedBrandRoute: AuthedBrandRoute,
   AuthedCompletedRoute: AuthedCompletedRoute,
-  AuthedTrashRoute: AuthedTrashRoute,
   AuthedIndexRoute: AuthedIndexRoute,
 }
 

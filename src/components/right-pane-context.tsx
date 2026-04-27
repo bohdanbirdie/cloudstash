@@ -12,9 +12,9 @@ import type { ReactNode } from "react";
 
 import {
   allLinksProjection,
+  archiveProjection,
   completedProjection,
   inboxProjection,
-  trashProjection,
 } from "@/lib/link-projections";
 import type { LinkProjection } from "@/lib/link-projections";
 
@@ -45,7 +45,7 @@ const ROUTE_PROJECTIONS: Record<string, LinkProjection> = {
   "/": inboxProjection,
   "/all": allLinksProjection,
   "/completed": completedProjection,
-  "/trash": trashProjection,
+  "/archive": archiveProjection,
 };
 
 function projectionForPath(pathname: string): LinkProjection | null {

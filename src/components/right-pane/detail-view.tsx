@@ -314,7 +314,7 @@ function DetailViewInner({ link }: { link: LinkWithDetails }) {
         {isDeleted && (
           <>
             <span aria-hidden="true">·</span>
-            <span>Trash</span>
+            <span>Archived</span>
           </>
         )}
         {isCompleted && !isDeleted && (

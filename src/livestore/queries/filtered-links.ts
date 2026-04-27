@@ -3,7 +3,7 @@ import { queryDb } from "@livestore/livestore";
 import { allLinks$ } from "./links";
 import { linksListSchema } from "./schemas";
 
-export type LinkStatus = "inbox" | "completed" | "all" | "trash";
+export type LinkStatus = "inbox" | "completed" | "all" | "archive";
 
 export interface TagFilterOptions {
   tagIds: string[];
@@ -127,7 +127,7 @@ function buildStatusClause(status: LinkStatus): string {
       return "l.status = 'completed' AND l.deletedAt IS NULL";
     case "all":
       return "l.deletedAt IS NULL";
-    case "trash":
+    case "archive":
       return "l.deletedAt IS NOT NULL";
   }
 }
@@ -136,7 +136,7 @@ function buildOrderByClause(status: LinkStatus): string {
   switch (status) {
     case "completed":
       return "ORDER BY l.completedAt DESC";
-    case "trash":
+    case "archive":
       return "ORDER BY l.deletedAt DESC";
     default:
       return "ORDER BY l.createdAt DESC";

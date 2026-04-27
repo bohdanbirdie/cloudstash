@@ -19,7 +19,7 @@ interface SelectionToolbarProps {
   onClear: () => void;
   showComplete?: boolean;
   isCompleted?: boolean;
-  isTrash?: boolean;
+  isArchive?: boolean;
 }
 
 export function SelectionToolbar({
@@ -30,7 +30,7 @@ export function SelectionToolbar({
   onClear,
   showComplete = true,
   isCompleted = false,
-  isTrash = false,
+  isArchive = false,
 }: SelectionToolbarProps) {
   useHotkeyScope("selection", { enabled: selectedCount > 0 });
 
@@ -114,7 +114,7 @@ export function SelectionToolbar({
           hotkeyEnabled={false}
           onClick={onDelete}
         >
-          {isTrash ? (
+          {isArchive ? (
             <>
               <UndoIcon className="h-4 w-4 mr-1" />
               Restore

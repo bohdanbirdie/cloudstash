@@ -6,7 +6,7 @@ const CATEGORIES = [
   { label: "inbox", path: "/" },
   { label: "all", path: "/all" },
   { label: "completed", path: "/completed" },
-  { label: "trash", path: "/trash" },
+  { label: "archive", path: "/archive" },
 ] as const;
 
 export function CategoryNav() {

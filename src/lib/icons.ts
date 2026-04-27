@@ -1,16 +1,16 @@
 import {
+  ArchiveIcon,
   InboxIcon,
   ListIcon,
   CheckCircle2Icon,
-  Trash2Icon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 const iconMap: Record<string, LucideIcon> = {
+  archive: ArchiveIcon,
   "check-circle": CheckCircle2Icon,
   inbox: InboxIcon,
   list: ListIcon,
-  trash: Trash2Icon,
 };
 
 export function getIcon(name: string): LucideIcon | undefined {
