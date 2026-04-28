@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 
 import { useTagFilter } from "@/hooks/use-tag-filter";
 import { cn } from "@/lib/utils";
@@ -7,7 +7,7 @@ import { useAppStore } from "@/livestore/store";
 
 const MAX_VISIBLE_TAGS = 5;
 
-export function TagStrip() {
+export const TagStrip = memo(function TagStrip() {
   const store = useAppStore();
   const tags = store.useQuery(allTagsWithCounts$);
   const { tag: selectedTag, untagged, setTag, setUntagged } = useTagFilter();
@@ -69,4 +69,4 @@ export function TagStrip() {
       )}
     </div>
   );
-}
+});

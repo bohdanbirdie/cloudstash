@@ -13,7 +13,7 @@ import {
   UndoIcon,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { memo, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { LinkPreviewImage } from "@/components/link-preview-image";
@@ -60,22 +60,40 @@ const SOURCE_CONFIG: Record<string, { icon: typeof SendIcon; label: string }> =
   };
 
 export function DetailView({ linkId }: { linkId: string }) {
+  // Defer linkId so rapid cursor movement (held arrow / j / k) doesn't make
+  // the detail subtree fire a fresh livestore query on every keystroke.
+  // React commits the cursor immediately and catches up the detail content
+  // when there's render bandwidth — same feel as Linear / Superhuman.
+  const deferredLinkId = useDeferredValue(linkId);
   const store = useAppStore();
-  const link = store.useQuery(linkById$(linkId));
+  // Memoize the query object so livestore doesn't unsubscribe / resubscribe
+  // when this wrapper re-renders for an urgent prop change while
+  // deferredLinkId hasn't caught up yet.
+  const linkQuery = useMemo(() => linkById$(deferredLinkId), [deferredLinkId]);
+  const link = store.useQuery(linkQuery);
 
   if (!link) return null;
 
   return <DetailViewInner link={link} />;
 }
 
-function DetailViewInner({ link }: { link: LinkWithDetails }) {
+const DetailViewInner = memo(function DetailViewInner({
+  link,
+}: {
+  link: LinkWithDetails;
+}) {
   useHotkeyScope("detail");
 
   const store = useAppStore();
   const trackLinkOpen = useTrackLinkOpen();
   const { closeDetail, navigate, projection } = useRightPane();
 
-  useHotkeys("escape", closeDetail, { scopes: ["detail"] });
+  useHotkeys("escape", closeDetail, {
+    scopes: ["detail"],
+    // role="option" rows are in the default form-tag skip list; whitelist
+    // it so Esc fires when keyboard focus is on a list row.
+    enableOnFormTags: ["option"],
+  });
 
   const [copied, setCopied] = useState(false);
 
@@ -360,7 +378,7 @@ function DetailViewInner({ link }: { link: LinkWithDetails }) {
       </div>
     </div>
   );
-}
+});
 
 function DetailSummary({
   summary,

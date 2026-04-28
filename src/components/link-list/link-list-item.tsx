@@ -13,6 +13,7 @@ interface LinkListItemProps {
   processingStatus: string | null;
   formattedDate: string;
   active: boolean;
+  tabbable: boolean;
   onClick: (e: React.MouseEvent) => void;
 }
 
@@ -22,6 +23,7 @@ function LinkListItemImpl({
   processingStatus,
   formattedDate,
   active,
+  tabbable,
   onClick,
 }: LinkListItemProps) {
   const isProcessing = processingStatus === "pending";
@@ -30,10 +32,13 @@ function LinkListItemImpl({
   return (
     <button
       type="button"
+      role="option"
+      aria-selected={active}
       data-id={link.id}
+      tabIndex={tabbable ? 0 : -1}
       onClick={onClick}
       className={cn(
-        "group relative -mx-3 grid w-[calc(100%+1.5rem)] cursor-default grid-cols-[1fr_5rem] items-start gap-x-5 rounded-md px-2 py-2 text-left [content-visibility:auto] [contain-intrinsic-size:7rem] transition-colors hover:bg-muted",
+        "group relative -mx-3 grid w-[calc(100%+1.5rem)] cursor-default grid-cols-[1fr_5rem] items-start gap-x-5 rounded-md px-2 py-2 text-left outline-none [content-visibility:auto] [contain-intrinsic-size:7rem] transition-colors hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:ring-inset",
         active && "bg-border hover:bg-border"
       )}
     >
@@ -88,5 +93,6 @@ export const LinkListItem = memo(
     prev.processingStatus === next.processingStatus &&
     prev.formattedDate === next.formattedDate &&
     prev.active === next.active &&
+    prev.tabbable === next.tabbable &&
     prev.onClick === next.onClick
 );

@@ -1,6 +1,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef } from "react";
 
+import { PerfProfiler } from "@/components/perf-hud";
 import { useRightPane } from "@/components/right-pane-context";
 import { DetailView } from "@/components/right-pane/detail-view";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -60,7 +61,9 @@ export function RightPane() {
         >
           {activeLinkId ? (
             <ScrollArea className="h-full">
-              <DetailView linkId={activeLinkId} />
+              <PerfProfiler id="DetailView">
+                <DetailView linkId={activeLinkId} />
+              </PerfProfiler>
             </ScrollArea>
           ) : (
             <WeeklyDigest />

@@ -56,8 +56,6 @@ export function RightPaneProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<RightPaneState>(EMPTY);
   const { pathname } = useLocation();
   const lastPathnameRef = useRef(pathname);
-  const stateRef = useRef(state);
-  stateRef.current = state;
 
   // If pathname changed since last render, the route-change effect hasn't
   // committed the reset yet. Present EMPTY to consumers so stale state from
@@ -81,13 +79,7 @@ export function RightPaneProvider({ children }: { children: ReactNode }) {
   );
 
   const closeDetail = useCallback(() => {
-    const prevId = stateRef.current.activeLinkId;
     setState(EMPTY);
-    if (prevId) {
-      requestAnimationFrame(() => {
-        document.querySelector<HTMLElement>(`[data-id="${prevId}"]`)?.focus();
-      });
-    }
   }, []);
 
   const toggleDetail = useCallback(
