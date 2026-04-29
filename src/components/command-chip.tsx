@@ -11,7 +11,7 @@ import {
   useState,
 } from "react";
 
-import { useRightPane } from "@/components/right-pane-context";
+import { useRightPaneActions } from "@/components/right-pane-context";
 import {
   Command,
   CommandEmpty,
@@ -76,7 +76,7 @@ function ResultRow({
 
 export function CommandChip() {
   const store = useAppStore();
-  const { openDetail } = useRightPane();
+  const { openDetail } = useRightPaneActions();
   const trackLinkOpen = useTrackLinkOpen();
   const reducedMotion = useReducedMotion();
 

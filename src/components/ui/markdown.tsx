@@ -28,6 +28,23 @@ function extractLanguage(className?: string): string {
 }
 
 const INITIAL_COMPONENTS: Partial<Components> = {
+  h1: function H1Component({ children }) {
+    return (
+      <h1 className="text-xl font-bold mt-0 mb-3 first:mt-0">{children}</h1>
+    );
+  },
+  h2: function H2Component({ children }) {
+    return <h2 className="text-base font-bold mt-6 mb-3">{children}</h2>;
+  },
+  h3: function H3Component({ children }) {
+    return <h3 className="text-sm font-bold mt-4 mb-2">{children}</h3>;
+  },
+  hr: function HrComponent() {
+    return <hr className="my-6 border-t border-border" />;
+  },
+  p: function ParagraphComponent({ children }) {
+    return <p className="my-2 leading-relaxed">{children}</p>;
+  },
   ul: function UnorderedListComponent({ children }) {
     return <ul className="list-inside list-disc my-2">{children}</ul>;
   },

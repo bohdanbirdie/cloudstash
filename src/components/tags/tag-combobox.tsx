@@ -10,7 +10,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
-import { getTagColor, tagColorStyles } from "@/lib/tag-colors";
 import { cn } from "@/lib/utils";
 import { allTags$, tagCounts$ } from "@/livestore/queries/tags";
 import { events } from "@/livestore/schema";
@@ -207,8 +206,6 @@ export function TagCombobox({
               }
 
               const { tag } = item;
-              const color = getTagColor(tag.name);
-              const styles = tagColorStyles[color];
               const count = getCountForTag(tag.id);
 
               return (
@@ -217,13 +214,11 @@ export function TagCombobox({
                   type="button"
                   onClick={() => handleSelectTag(tag.id)}
                   className={cn(
-                    "flex w-full items-center gap-2 px-2 py-1.5 text-xs hover:bg-muted/50",
+                    "flex w-full items-center gap-2 px-2 py-1.5 text-xs text-foreground hover:bg-muted/50",
                     index === highlightedIndex && "bg-muted/50"
                   )}
                 >
-                  <span className={cn("px-1.5 py-0.5", styles.badge)}>
-                    #{tag.name}
-                  </span>
+                  <span className="font-medium">#{tag.name}</span>
                   <span className="ml-auto text-muted-foreground tabular-nums">
                     {count} {count === 1 ? "link" : "links"}
                   </span>

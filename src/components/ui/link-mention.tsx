@@ -2,7 +2,7 @@ import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 
 import { useChatContainer } from "@/components/chat/chat-sheet";
 import { LinkImage } from "@/components/link-image";
-import { useRightPane } from "@/components/right-pane-context";
+import { useRightPaneActions } from "@/components/right-pane-context";
 import { linkByUrl$ } from "@/livestore/queries/links";
 import type { LinkWithDetails } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
@@ -25,7 +25,11 @@ function LinkMentionWithTooltip({
       <TooltipPrimitive.Root>
         <TooltipPrimitive.Trigger render={linkElement} />
         <TooltipPrimitive.Portal container={chatContainer?.current}>
-          <TooltipPrimitive.Positioner side="top" sideOffset={6}>
+          <TooltipPrimitive.Positioner
+            side="top"
+            sideOffset={6}
+            className="z-[60]"
+          >
             <TooltipPrimitive.Popup
               className="z-50 overflow-hidden max-w-xs bg-background border border-primary shadow-xl animate-in fade-in-0 zoom-in-95 cursor-pointer hover:border-primary/80"
               onClick={onOpenDetail}
@@ -63,7 +67,7 @@ interface LinkMentionProps {
 export function LinkMention({ href, children }: LinkMentionProps) {
   const store = useAppStore();
   const link = store.useQuery(linkByUrl$(href));
-  const { openDetail } = useRightPane();
+  const { openDetail } = useRightPaneActions();
 
   const childText = typeof children === "string" ? children : null;
   const isPlainUrl = childText === href;

@@ -6,6 +6,7 @@ import { PerfProfiler } from "@/components/perf-hud";
 import { useFilteredLinks } from "@/hooks/use-filtered-links";
 import type { LinkProjection } from "@/lib/link-projections";
 import type { LinkListItem } from "@/livestore/queries/links";
+import { useSelectionStore } from "@/stores/selection-store";
 
 interface LinksPageLayoutProps {
   title: string;
@@ -27,6 +28,10 @@ export function LinksPageLayout({
     setExportAction({ links, title });
     return () => setExportAction(null);
   }, [links, title, setExportAction]);
+
+  useEffect(() => {
+    useSelectionStore.getState().clear();
+  }, []);
 
   return (
     <div className="pt-3">

@@ -43,13 +43,10 @@ export function LinkPreviewImage({
   return (
     <div className={cn("relative size-full overflow-hidden", OUTLINE_CLASS)}>
       <div
-        className={cn(
-          "absolute inset-0 transition-opacity duration-300",
-          {
-            "opacity-100 delay-200 starting:opacity-0": status === "loading",
-            "opacity-0": status !== "loading",
-          },
-        )}
+        className={cn("absolute inset-0 transition-opacity duration-300", {
+          "opacity-100 delay-200 starting:opacity-0": status === "loading",
+          "opacity-0": status !== "loading",
+        })}
         aria-hidden="true"
       >
         <div className="absolute inset-0 animate-pulse bg-muted" />

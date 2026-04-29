@@ -9,7 +9,7 @@ import {
 import type { ReactNode } from "react";
 
 import { LinkImage } from "@/components/link-image";
-import { useRightPane } from "@/components/right-pane-context";
+import { useRightPaneActions } from "@/components/right-pane-context";
 import { TagCombobox } from "@/components/tags/tag-combobox";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -401,7 +401,7 @@ export function AddLinkDialogProvider({
   const [isOpen, setIsOpen] = useState(false);
   const [url, setUrl] = useState("");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
-  const { openDetail } = useRightPane();
+  const { openDetail } = useRightPaneActions();
 
   const open = useCallback((urlValue?: string) => {
     setUrl(urlValue ?? "");

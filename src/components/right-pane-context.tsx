@@ -1,7 +1,6 @@
 import { useLocation } from "@tanstack/react-router";
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -28,16 +27,15 @@ interface DetailTarget {
   projection?: LinkProjection;
 }
 
-interface RightPaneContextValue {
-  activeLinkId: string | null;
-  projection: LinkProjection | null;
+interface RightPaneActions {
   openDetail: (target: DetailTarget) => void;
   closeDetail: () => void;
   toggleDetail: (target: DetailTarget) => void;
   navigate: (linkId: string) => void;
 }
 
-const RightPaneContext = createContext<RightPaneContextValue | null>(null);
+const RightPaneStateContext = createContext<RightPaneState | null>(null);
+const RightPaneActionsContext = createContext<RightPaneActions | null>(null);
 
 const EMPTY: RightPaneState = { activeLinkId: null, projection: null };
 
@@ -56,6 +54,8 @@ export function RightPaneProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<RightPaneState>(EMPTY);
   const { pathname } = useLocation();
   const lastPathnameRef = useRef(pathname);
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
 
   // If pathname changed since last render, the route-change effect hasn't
   // committed the reset yet. Present EMPTY to consumers so stale state from
@@ -68,70 +68,64 @@ export function RightPaneProvider({ children }: { children: ReactNode }) {
     setState(EMPTY);
   }, [pathname]);
 
-  const openDetail = useCallback(
-    ({ linkId, projection }: DetailTarget) => {
-      setState({
-        activeLinkId: linkId,
-        projection: projection ?? projectionForPath(pathname),
-      });
-    },
-    [pathname]
-  );
-
-  const closeDetail = useCallback(() => {
-    setState(EMPTY);
-  }, []);
-
-  const toggleDetail = useCallback(
-    ({ linkId, projection }: DetailTarget) => {
-      setState((prev) =>
-        prev.activeLinkId === linkId
-          ? EMPTY
-          : {
-              activeLinkId: linkId,
-              projection: projection ?? projectionForPath(pathname),
-            }
-      );
-    },
-    [pathname]
-  );
-
-  const navigate = useCallback((linkId: string) => {
-    setState((prev) =>
-      prev.activeLinkId ? { ...prev, activeLinkId: linkId } : prev
-    );
-  }, []);
-
-  const value = useMemo(
+  // Stable actions across route changes: read pathname via ref so the
+  // callback identity doesn't change. Actions consumers (CommandChip,
+  // AddLinkDialog, link-mention, DetailView) won't re-render on activeLinkId
+  // changes or route changes.
+  const actions = useMemo<RightPaneActions>(
     () => ({
-      activeLinkId: current.activeLinkId,
-      projection: current.projection,
-      openDetail,
-      closeDetail,
-      toggleDetail,
-      navigate,
+      openDetail: ({ linkId, projection }) => {
+        setState({
+          activeLinkId: linkId,
+          projection: projection ?? projectionForPath(pathnameRef.current),
+        });
+      },
+      closeDetail: () => {
+        setState(EMPTY);
+      },
+      toggleDetail: ({ linkId, projection }) => {
+        setState((prev) =>
+          prev.activeLinkId === linkId
+            ? EMPTY
+            : {
+                activeLinkId: linkId,
+                projection:
+                  projection ?? projectionForPath(pathnameRef.current),
+              }
+        );
+      },
+      navigate: (linkId) => {
+        setState((prev) =>
+          prev.activeLinkId ? { ...prev, activeLinkId: linkId } : prev
+        );
+      },
     }),
-    [
-      current.activeLinkId,
-      current.projection,
-      openDetail,
-      closeDetail,
-      toggleDetail,
-      navigate,
-    ]
+    []
   );
 
   return (
-    <RightPaneContext.Provider value={value}>
-      {children}
-    </RightPaneContext.Provider>
+    <RightPaneActionsContext.Provider value={actions}>
+      <RightPaneStateContext.Provider value={current}>
+        {children}
+      </RightPaneStateContext.Provider>
+    </RightPaneActionsContext.Provider>
   );
 }
 
-export function useRightPane() {
-  const ctx = useContext(RightPaneContext);
+export function useRightPaneState(): RightPaneState {
+  const ctx = useContext(RightPaneStateContext);
   if (!ctx) {
-    throw new Error("useRightPane must be used within RightPaneProvider");
+    throw new Error("useRightPaneState must be used within RightPaneProvider");
+  }
+  return ctx;
+}
+
+export function useRightPaneActions(): RightPaneActions {
+  const ctx = useContext(RightPaneActionsContext);
+  if (!ctx) {
+    throw new Error(
+      "useRightPaneActions must be used within RightPaneProvider"
+    );
   }
   return ctx;
 }

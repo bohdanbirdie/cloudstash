@@ -1,6 +1,6 @@
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import type { CSSProperties } from "react";
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 
 import { TooltipContent } from "@/components/ui/tooltip";
 import { linkCreatedAts$ } from "@/livestore/queries/links";
@@ -22,7 +22,7 @@ const GRID_STYLE: CSSProperties = {
   gridTemplateRows: `auto repeat(${DAYS_PER_WEEK}, ${CELL_PX}px)`,
 };
 
-export function ActivityGrid() {
+export const ActivityGrid = memo(function ActivityGrid() {
   const store = useAppStore();
   const rows = store.useQuery(linkCreatedAts$);
 
@@ -92,4 +92,4 @@ export function ActivityGrid() {
       </TooltipPrimitive.Provider>
     </div>
   );
-}
+});

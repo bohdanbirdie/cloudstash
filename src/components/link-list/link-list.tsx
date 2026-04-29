@@ -1,8 +1,11 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { useListData } from "@/components/list-data-context";
-import { useRightPane } from "@/components/right-pane-context";
+import {
+  useRightPaneActions,
+  useRightPaneState,
+} from "@/components/right-pane-context";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
 import {
   clearKeyboardFocusFromOtherRow,
@@ -13,6 +16,10 @@ import {
 import { formatAgo } from "@/lib/time-ago";
 import type { LinkListItem as LinkListItemData } from "@/livestore/queries/links";
 import type { Tag } from "@/livestore/queries/tags";
+import {
+  useInSelectionMode,
+  useSelectionStore,
+} from "@/stores/selection-store";
 
 import { LinkListItem } from "./link-list-item";
 
@@ -61,7 +68,8 @@ export function LinkList({
   links,
   emptyMessage = "No links yet",
 }: LinkListProps) {
-  const { activeLinkId, openDetail, toggleDetail } = useRightPane();
+  const { activeLinkId } = useRightPaneState();
+  const { openDetail, toggleDetail } = useRightPaneActions();
   const trackLinkOpen = useTrackLinkOpen();
   const { tagsByLink, statusByLink } = useListData();
   const formattedDates = useFormattedDatesByLink(links);
@@ -76,10 +84,36 @@ export function LinkList({
   const [tabStop, setTabStop] = useState<string | null>(null);
   const tabbableId = activeLinkId ?? tabStop ?? links[0]?.id ?? null;
 
+  const inSelectionMode = useInSelectionMode();
+
   const handleRowClick = useCallback(
     (e: React.MouseEvent) => {
       const id = (e.currentTarget as HTMLElement).dataset.id;
       if (!id) return;
+
+      const items = linksRef.current;
+      const index = items.findIndex((l) => l.id === id);
+      if (index === -1) return;
+
+      const selection = useSelectionStore.getState();
+
+      if (e.metaKey || e.ctrlKey) {
+        selection.toggle(id, index);
+        return;
+      }
+
+      if (e.shiftKey) {
+        if (selection.anchorIndex === null) {
+          selection.toggle(id, index);
+        } else {
+          selection.range(
+            index,
+            items.map((l) => l.id)
+          );
+        }
+        return;
+      }
+
       if (id !== activeLinkIdRef.current) trackLinkOpen(id);
       anchorRef.current = id;
       setTabStop(id);
@@ -87,6 +121,35 @@ export function LinkList({
     },
     [trackLinkOpen, toggleDetail]
   );
+
+  useEffect(() => {
+    const validIds = new Set(links.map((l) => l.id));
+    useSelectionStore.getState().removeStale(validIds);
+  }, [links]);
+
+  // Telegraphs "click would toggle / extend" via a primary-color ring on the
+  // hovered row whenever ⌘/⌃/⇧ is held. Mutates a DOM attribute directly —
+  // CSS handles the visual, the 244 memoized rows stay quiet.
+  useEffect(() => {
+    const sync = (e: KeyboardEvent | FocusEvent) => {
+      const node = containerRef.current;
+      if (!node) return;
+      const held =
+        e instanceof KeyboardEvent &&
+        (e.metaKey || e.ctrlKey || e.shiftKey);
+      if (held === node.hasAttribute("data-modifier-held")) return;
+      if (held) node.setAttribute("data-modifier-held", "");
+      else node.removeAttribute("data-modifier-held");
+    };
+    window.addEventListener("keydown", sync);
+    window.addEventListener("keyup", sync);
+    window.addEventListener("blur", sync);
+    return () => {
+      window.removeEventListener("keydown", sync);
+      window.removeEventListener("keyup", sync);
+      window.removeEventListener("blur", sync);
+    };
+  }, []);
 
   const handleMouseOver = (e: React.MouseEvent<HTMLDivElement>) => {
     const row = findRowInContainer(e.target, containerRef.current);
@@ -142,7 +205,9 @@ export function LinkList({
       ref={containerRef}
       role="listbox"
       aria-label="Links"
-      className="flex flex-col gap-3 min-w-0"
+      aria-multiselectable="true"
+      data-selection-mode={inSelectionMode ? "" : undefined}
+      className="group/list flex flex-col gap-3 min-w-0"
       onMouseOver={handleMouseOver}
     >
       {links.map((link) => (

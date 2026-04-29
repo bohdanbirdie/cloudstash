@@ -32,8 +32,7 @@ export function generateLinksMarkdown(
     year: "numeric",
   });
 
-  let markdown = `# ${title} Export\n\n`;
-  markdown += `Exported on ${exportDate}\n\n`;
+  let markdown = `${title} export · exported on ${exportDate}\n\n`;
 
   if (links.length === 0) {
     markdown += `---\n\n`;
@@ -43,7 +42,7 @@ export function generateLinksMarkdown(
 
   for (const link of links) {
     markdown += `---\n\n`;
-    markdown += `## ${link.title || link.url}\n\n`;
+    markdown += `### ${link.title || link.url}\n\n`;
     markdown += `**URL:** ${link.url}\n`;
     markdown += `**Domain:** ${link.domain}\n`;
     markdown += `**Status:** ${formatStatus(link.status)}\n`;
