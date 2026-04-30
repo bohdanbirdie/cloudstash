@@ -1,39 +1,11 @@
-import { DownloadIcon } from "lucide-react";
-import { memo, useState } from "react";
+import { memo } from "react";
 
 import { ActivityGrid } from "@/components/activity-grid/activity-grid";
-import { ExportDialog } from "@/components/export-dialog";
-import { usePageActions } from "@/components/page-actions-context";
-import { Button } from "@/components/ui/button";
 
 export const WeeklyDigest = memo(function WeeklyDigest() {
-  const { exportAction } = usePageActions();
-  const [exportOpen, setExportOpen] = useState(false);
-
   return (
     <div className="flex flex-col gap-8 pt-3 pr-2 pb-8">
       <ActivityGrid />
-
-      {exportAction && (
-        <div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setExportOpen(true)}
-          >
-            <DownloadIcon className="mr-2 size-4" />
-            Export
-          </Button>
-          {exportOpen && (
-            <ExportDialog
-              open={exportOpen}
-              onOpenChange={setExportOpen}
-              links={exportAction.links}
-              pageTitle={exportAction.title}
-            />
-          )}
-        </div>
-      )}
     </div>
   );
 });

@@ -4,7 +4,9 @@ import { useState } from "react";
 
 import { AdminModal } from "@/components/admin";
 import { useChatPanel } from "@/components/chat/chat-context";
+import { ExportDialog } from "@/components/export-dialog";
 import { IntegrationsModal } from "@/components/integrations";
+import { usePageActions } from "@/components/page-actions-context";
 import { TagManagerDialog } from "@/components/tags/tag-manager-dialog";
 import {
   AlertDialog,
@@ -31,11 +33,13 @@ export function DotsMenu() {
   const auth = useAuth();
   const { isChatEnabled } = useOrgFeatures();
   const chatPanel = useChatPanel();
+  const { exportAction } = usePageActions();
 
   const [adminOpen, setAdminOpen] = useState(false);
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const isAdmin = auth.role === "admin";
 
@@ -65,6 +69,11 @@ export function DotsMenu() {
           <DropdownMenuItem onClick={() => setIntegrationsOpen(true)}>
             Integrations
           </DropdownMenuItem>
+          {exportAction && (
+            <DropdownMenuItem onClick={() => setExportOpen(true)}>
+              Export {exportAction.title.toLowerCase()}
+            </DropdownMenuItem>
+          )}
           {isAdmin && (
             <>
               <DropdownMenuSeparator />
@@ -87,6 +96,14 @@ export function DotsMenu() {
         open={tagManagerOpen}
         onOpenChange={setTagManagerOpen}
       />
+      {exportOpen && exportAction && (
+        <ExportDialog
+          open={exportOpen}
+          onOpenChange={setExportOpen}
+          links={exportAction.links}
+          pageTitle={exportAction.title}
+        />
+      )}
       <IntegrationsModal
         open={integrationsOpen}
         onOpenChange={setIntegrationsOpen}

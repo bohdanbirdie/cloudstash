@@ -1,5 +1,8 @@
 import { CheckIcon, CircleIcon } from "lucide-react";
 import { memo } from "react";
+import ReactMarkdown from "react-markdown";
+import type { Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { LinkPreviewImage } from "@/components/link-preview-image";
 import { TagBadge } from "@/components/tags/tag-badge";
@@ -8,6 +11,27 @@ import { cn } from "@/lib/utils";
 import type { LinkListItem as LinkListItemData } from "@/livestore/queries/links";
 import type { Tag } from "@/livestore/queries/tags";
 import { useIsSelected } from "@/stores/selection-store";
+
+const DESCRIPTION_COMPONENTS: Partial<Components> = {
+  p: ({ children }) => <>{children}</>,
+  a: ({ children }) => <>{children}</>,
+  h1: ({ children }) => <>{children}</>,
+  h2: ({ children }) => <>{children}</>,
+  h3: ({ children }) => <>{children}</>,
+  h4: ({ children }) => <>{children}</>,
+  h5: ({ children }) => <>{children}</>,
+  h6: ({ children }) => <>{children}</>,
+  ul: ({ children }) => <>{children}</>,
+  ol: ({ children }) => <>{children}</>,
+  li: ({ children }) => <>{children} </>,
+  hr: () => null,
+  blockquote: ({ children }) => <>{children}</>,
+  pre: ({ children }) => <>{children}</>,
+  strong: ({ children }) => <>{children}</>,
+  em: ({ children }) => <>{children}</>,
+  code: ({ children }) => <>{children}</>,
+  del: ({ children }) => <>{children}</>,
+};
 
 interface LinkListItemProps {
   link: LinkListItemData;
@@ -41,7 +65,7 @@ function LinkListItemImpl({
       tabIndex={tabbable ? 0 : -1}
       onClick={onClick}
       className={cn(
-        "group relative -mx-3 grid w-[calc(100%+1.5rem)] cursor-default grid-cols-[1fr_5rem] items-start gap-x-5 rounded-md px-2 py-2 text-left outline-none [content-visibility:auto] [contain-intrinsic-size:7rem] transition-colors hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:ring-inset",
+        "group relative -mx-3 grid w-[calc(100%+1.5rem)] cursor-default grid-cols-[1fr_4.75rem] items-start gap-x-8 rounded-md px-2 py-2 text-left outline-none [content-visibility:auto] [contain-intrinsic-size:7rem] transition-colors hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:ring-inset group-data-[modifier-held]/list:gap-x-2 group-data-[selection-mode]/list:gap-x-2",
         active && "bg-muted"
       )}
     >
@@ -73,10 +97,7 @@ function LinkListItemImpl({
             <div className="relative size-4">
               <CircleIcon className="absolute inset-0 size-4 text-muted-foreground/40 group-data-[modifier-held]/list:group-hover:opacity-0" />
               <div className="absolute inset-0 flex size-4 items-center justify-center rounded-full bg-muted-foreground/50 opacity-0 group-data-[modifier-held]/list:group-hover:opacity-100">
-                <CheckIcon
-                  className="size-3 text-background"
-                  strokeWidth={3}
-                />
+                <CheckIcon className="size-3 text-background" strokeWidth={3} />
               </div>
             </div>
           )}
@@ -86,24 +107,40 @@ function LinkListItemImpl({
           <div className="truncate text-base font-semibold leading-snug tracking-tight text-foreground text-pretty">
             {displayTitle}
           </div>
-          <div className="mt-0.5 truncate text-xs text-muted-foreground">
-            {link.domain}
+          <div className="mt-0.5 flex min-w-0 items-baseline gap-1.5 overflow-hidden text-xs text-muted-foreground">
+            <span className="truncate">{link.domain}</span>
+            <span aria-hidden="true" className="shrink-0">
+              ·
+            </span>
+            <span className="shrink-0 tabular-nums">{formattedDate}</span>
+            {tags.length > 0 && (
+              <>
+                <span aria-hidden="true" className="shrink-0">
+                  ·
+                </span>
+                <div className="flex shrink-0 items-baseline gap-3">
+                  {tags.slice(0, 2).map((tag) => (
+                    <TagBadge key={tag.id} name={tag.name} />
+                  ))}
+                  {tags.length > 2 && (
+                    <span className="tabular-nums">
+                      +{tags.length - 2} more
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
           </div>
           {link.description && (
             <div className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-muted-foreground text-pretty">
-              {link.description}
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={DESCRIPTION_COMPONENTS}
+              >
+                {link.description}
+              </ReactMarkdown>
             </div>
           )}
-          <div className="mt-2 flex items-baseline justify-between gap-3">
-            <div className="flex min-w-0 flex-wrap items-center gap-1">
-              {tags.map((tag) => (
-                <TagBadge key={tag.id} name={tag.name} />
-              ))}
-            </div>
-            <span className="shrink-0 text-xs font-medium text-muted-foreground tabular-nums">
-              {formattedDate}
-            </span>
-          </div>
         </div>
       </div>
 

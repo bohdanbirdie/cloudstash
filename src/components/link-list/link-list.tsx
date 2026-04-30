@@ -135,8 +135,7 @@ export function LinkList({
       const node = containerRef.current;
       if (!node) return;
       const held =
-        e instanceof KeyboardEvent &&
-        (e.metaKey || e.ctrlKey || e.shiftKey);
+        e instanceof KeyboardEvent && (e.metaKey || e.ctrlKey || e.shiftKey);
       if (held === node.hasAttribute("data-modifier-held")) return;
       if (held) node.setAttribute("data-modifier-held", "");
       else node.removeAttribute("data-modifier-held");
