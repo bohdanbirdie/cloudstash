@@ -1,5 +1,7 @@
 import type { LinkWithDetails } from "@/livestore/queries/links";
 
+import { decodeHtmlEntities } from "./decode-html-entities";
+
 function formatDate(timestamp: number | null): string {
   if (!timestamp) {
     return "";
@@ -41,8 +43,12 @@ export function generateLinksMarkdown(
   }
 
   for (const link of links) {
+    const decodedTitle = link.title ? decodeHtmlEntities(link.title) : null;
+    const decodedDescription = link.description
+      ? decodeHtmlEntities(link.description)
+      : null;
     markdown += `---\n\n`;
-    markdown += `### ${link.title || link.url}\n\n`;
+    markdown += `### ${decodedTitle || link.url}\n\n`;
     markdown += `**URL:** ${link.url}\n`;
     markdown += `**Domain:** ${link.domain}\n`;
     markdown += `**Status:** ${formatStatus(link.status)}\n`;
@@ -53,11 +59,11 @@ export function generateLinksMarkdown(
     }
 
     if (link.image) {
-      markdown += `\n![${link.title || "Preview"}](${link.image})\n`;
+      markdown += `\n![${decodedTitle || "Preview"}](${link.image})\n`;
     }
 
     markdown += `\n### Description\n\n`;
-    markdown += `${link.description || "*No description available*"}\n`;
+    markdown += `${decodedDescription || "*No description available*"}\n`;
 
     markdown += `\n### AI Summary\n\n`;
     markdown += `${link.summary || "*No summary available*"}\n\n`;

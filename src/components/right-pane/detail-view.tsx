@@ -16,6 +16,7 @@ import { Markdown } from "@/components/ui/markdown";
 import { TextShimmer } from "@/components/ui/text-shimmer";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import { useLinkTags } from "@/hooks/use-link-tags";
+import { decodeHtmlEntities } from "@/lib/decode-html-entities";
 import { formatAgo } from "@/lib/time-ago";
 import { linkById$, linkProcessingStatus$ } from "@/livestore/queries/links";
 import type { LinkWithDetails } from "@/livestore/queries/links";
@@ -78,7 +79,7 @@ const DetailViewInner = memo(function DetailViewInner({
 
   const isCompleted = link.status === "completed";
   const isDeleted = link.deletedAt !== null;
-  const displayTitle = link.title || link.url;
+  const displayTitle = link.title ? decodeHtmlEntities(link.title) : link.url;
   const source = link.source && link.source !== "app" ? link.source : null;
   const sourceConfig = source ? SOURCE_CONFIG[source] : null;
   const SourceIcon = sourceConfig?.icon;
@@ -132,7 +133,7 @@ const DetailViewInner = memo(function DetailViewInner({
 
       {link.description && (
         <p className="text-sm leading-relaxed text-muted-foreground text-pretty">
-          {link.description}
+          {decodeHtmlEntities(link.description)}
         </p>
       )}
 

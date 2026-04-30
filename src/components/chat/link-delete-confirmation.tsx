@@ -1,6 +1,7 @@
 import { ExternalLink, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { decodeHtmlEntities } from "@/lib/decode-html-entities";
 import { linksByIds$ } from "@/livestore/queries/links";
 import type { LinkWithDetails } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
@@ -34,7 +35,7 @@ function LinkPreview({ link }: { link: LinkWithDetails | null }) {
       )}
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium truncate">
-          {link.title || link.url}
+          {link.title ? decodeHtmlEntities(link.title) : link.url}
         </div>
         <div className="text-xs text-muted-foreground truncate">
           {link.domain}

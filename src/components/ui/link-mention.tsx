@@ -3,6 +3,7 @@ import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import { useChatContainer } from "@/components/chat/chat-sheet";
 import { LinkImage } from "@/components/link-image";
 import { useRightPaneActions } from "@/components/right-pane-context";
+import { decodeHtmlEntities } from "@/lib/decode-html-entities";
 import { linkByUrl$ } from "@/livestore/queries/links";
 import type { LinkWithDetails } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
@@ -36,18 +37,18 @@ function LinkMentionWithTooltip({
             >
               <LinkImage
                 src={link.image}
-                alt={link.title ?? ""}
+                alt={link.title ? decodeHtmlEntities(link.title) : ""}
                 iconClassName="h-6 w-6"
               />
               <div className="p-2">
                 {link.title && (
                   <p className="font-medium text-sm text-foreground line-clamp-2">
-                    {link.title}
+                    {decodeHtmlEntities(link.title)}
                   </p>
                 )}
                 {link.description && (
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                    {link.description}
+                    {decodeHtmlEntities(link.description)}
                   </p>
                 )}
               </div>
@@ -73,7 +74,9 @@ export function LinkMention({ href, children }: LinkMentionProps) {
   const isPlainUrl = childText === href;
 
   if (link && isPlainUrl) {
-    const displayText = link.title || link.domain;
+    const displayText = link.title
+      ? decodeHtmlEntities(link.title)
+      : link.domain;
     const hasPreview = link.image || link.title;
 
     const handleOpenDetail = () => {

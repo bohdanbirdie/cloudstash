@@ -32,6 +32,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
+import { decodeHtmlEntities } from "@/lib/decode-html-entities";
 import type { LinkAction } from "@/lib/link-projections";
 import { cn } from "@/lib/utils";
 import {
@@ -78,7 +79,7 @@ export function PerLinkHeader({ linkId }: { linkId: string }) {
   const currentIndex = links.findIndex((l) => l.id === link.id);
   const isCompleted = link.status === "completed";
   const isDeleted = link.deletedAt !== null;
-  const displayTitle = link.title || link.url;
+  const displayTitle = link.title ? decodeHtmlEntities(link.title) : link.url;
 
   const getNextLinkId = (): string | null => {
     const nextLink = links[currentIndex + 1] ?? links[currentIndex - 1];

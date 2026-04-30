@@ -7,6 +7,7 @@ import remarkGfm from "remark-gfm";
 import { LinkPreviewImage } from "@/components/link-preview-image";
 import { TagBadge } from "@/components/tags/tag-badge";
 import { BorderTrail } from "@/components/ui/border-trail";
+import { decodeHtmlEntities } from "@/lib/decode-html-entities";
 import { cn } from "@/lib/utils";
 import type { LinkListItem as LinkListItemData } from "@/livestore/queries/links";
 import type { Tag } from "@/livestore/queries/tags";
@@ -54,7 +55,10 @@ function LinkListItemImpl({
 }: LinkListItemProps) {
   const isSelected = useIsSelected(link.id);
   const isProcessing = processingStatus === "pending";
-  const displayTitle = link.title || link.url;
+  const displayTitle = link.title ? decodeHtmlEntities(link.title) : link.url;
+  const displayDescription = link.description
+    ? decodeHtmlEntities(link.description)
+    : null;
 
   return (
     <button
@@ -131,13 +135,13 @@ function LinkListItemImpl({
               </>
             )}
           </div>
-          {link.description && (
+          {displayDescription && (
             <div className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-muted-foreground text-pretty">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={DESCRIPTION_COMPONENTS}
               >
-                {link.description}
+                {displayDescription}
               </ReactMarkdown>
             </div>
           )}

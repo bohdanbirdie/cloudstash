@@ -23,6 +23,7 @@ import { HighlightedText } from "@/components/ui/highlighted-text";
 import { Kbd } from "@/components/ui/kbd";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
 import { track } from "@/lib/analytics";
+import { decodeHtmlEntities } from "@/lib/decode-html-entities";
 import { getHotkeyLabel } from "@/lib/hotkey-label";
 import { cn } from "@/lib/utils";
 import { recentlyOpenedLinks$, searchLinks$ } from "@/livestore/queries/links";
@@ -38,7 +39,7 @@ function ResultRow({
   query?: string;
   onSelect: () => void;
 }) {
-  const title = link.title || link.url;
+  const title = link.title ? decodeHtmlEntities(link.title) : link.url;
   return (
     <CommandItem
       value={link.id}

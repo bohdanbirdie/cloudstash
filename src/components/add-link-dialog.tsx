@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import { track } from "@/lib/analytics";
+import { decodeHtmlEntities } from "@/lib/decode-html-entities";
 import { linkById$ } from "@/livestore/queries/links";
 import { tables, events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
@@ -132,7 +133,7 @@ function ExistingLinkCard({ linkId }: { linkId: string }) {
     return null;
   }
 
-  const displayTitle = link.title || link.url;
+  const displayTitle = link.title ? decodeHtmlEntities(link.title) : link.url;
   const formattedDate = new Date(link.createdAt).toLocaleDateString(undefined, {
     day: "numeric",
     month: "short",
@@ -160,7 +161,7 @@ function ExistingLinkCard({ linkId }: { linkId: string }) {
         <CardTitle className="line-clamp-2 text-base">{displayTitle}</CardTitle>
         {link.description && (
           <CardDescription className="line-clamp-2">
-            {link.description}
+            {decodeHtmlEntities(link.description)}
           </CardDescription>
         )}
       </CardHeader>
