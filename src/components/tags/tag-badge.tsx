@@ -1,6 +1,5 @@
 import { XIcon } from "lucide-react";
 
-import { getTagColor, tagColorStyles } from "@/lib/tag-colors";
 import { cn } from "@/lib/utils";
 
 interface TagBadgeProps {
@@ -16,14 +15,9 @@ export function TagBadge({
   onRemove,
   className,
 }: TagBadgeProps) {
-  const color = getTagColor(name);
-  const styles = tagColorStyles[color];
-
   const sharedClassName = cn(
-    "inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium transition-colors",
-    styles.badge,
-    onClick && styles.badgeHover,
-    onClick && "cursor-pointer",
+    "inline-flex items-center gap-1 text-xs font-medium text-muted-foreground whitespace-nowrap transition-colors",
+    onClick && "cursor-pointer hover:text-foreground",
     className
   );
 

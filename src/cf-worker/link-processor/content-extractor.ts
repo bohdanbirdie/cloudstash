@@ -1,6 +1,8 @@
 import { Defuddle } from "defuddle/node";
 import { parseHTML } from "linkedom";
 
+import { decodeHtmlEntities } from "../metadata/decode-entities";
+
 export interface ExtractedContent {
   title: string | null;
   content: string; // markdown content
@@ -25,7 +27,7 @@ export function extractContent(
 
     return {
       content: result.content,
-      title: result.title || null,
+      title: result.title ? decodeHtmlEntities(result.title) : null,
       author: result.author || null,
       published: result.published || null,
       wordCount: result.wordCount,

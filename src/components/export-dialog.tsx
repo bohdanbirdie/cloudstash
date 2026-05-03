@@ -11,41 +11,61 @@ import {
 } from "@/components/ui/dialog";
 import { Markdown } from "@/components/ui/markdown";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useFlashFlag } from "@/hooks/use-flash-flag";
 import { track } from "@/lib/analytics";
 import {
   generateLinksMarkdown,
   generatePlainLinks,
 } from "@/lib/export-markdown";
+import { linksByIds$ } from "@/livestore/queries/links";
 import type { LinkWithDetails } from "@/livestore/queries/links";
+import { useAppStore } from "@/livestore/store";
 
 interface ExportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  links: readonly LinkWithDetails[];
+  ids: readonly string[];
   pageTitle: string;
 }
 
 export function ExportDialog({
   open,
   onOpenChange,
-  links,
+  ids,
   pageTitle,
 }: ExportDialogProps) {
-  const [copied, setCopied] = useState(false);
+  const { active: copied, trigger: flashCopied } = useFlashFlag();
   const [activeTab, setActiveTab] = useState<"full" | "plain">("full");
 
+  const store = useAppStore();
+  const queryIds = useMemo(() => (open ? [...ids] : []), [open, ids]);
+  const fullLinksUnordered = store.useQuery(linksByIds$(queryIds));
+
+  const fullLinks = useMemo<readonly LinkWithDetails[]>(() => {
+    if (!open || ids.length === 0) return [];
+    const byId = new Map(fullLinksUnordered.map((l) => [l.id, l]));
+    const ordered: LinkWithDetails[] = [];
+    for (const id of ids) {
+      const full = byId.get(id);
+      if (full) ordered.push(full);
+    }
+    return ordered;
+  }, [open, ids, fullLinksUnordered]);
+
   const markdownContent = useMemo(
-    () => generateLinksMarkdown(links, pageTitle),
-    [links, pageTitle]
+    () => generateLinksMarkdown(fullLinks, pageTitle),
+    [fullLinks, pageTitle]
   );
-  const plainContent = useMemo(() => generatePlainLinks(links), [links]);
+  const plainContent = useMemo(
+    () => generatePlainLinks(fullLinks),
+    [fullLinks]
+  );
 
   const currentContent = activeTab === "plain" ? plainContent : markdownContent;
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(currentContent);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    flashCopied();
     track("export_used", { method: "copy", format: activeTab });
   };
 

@@ -1,23 +1,22 @@
 import { StoreRegistryProvider } from "@livestore/react";
+import { FPSMeter } from "@overengineering/fps-meter";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
-// import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { Suspense } from "react";
 import { HotkeysProvider } from "react-hotkeys-hook";
 
 import { AddLinkDialogProvider } from "@/components/add-link-dialog";
-import { AppSidebar } from "@/components/app-sidebar";
 import { useChatPanel } from "@/components/chat/chat-context";
 import { ChatSheet } from "@/components/chat/chat-sheet";
 import { ChatSheetProvider } from "@/components/chat/chat-sheet-provider";
-import { LinkDetailDialogProvider } from "@/components/link-detail-dialog";
+import { CommandChip } from "@/components/command-chip/command-chip";
+import { ListDataProvider } from "@/components/list-data-context";
 import { LoadingScreen } from "@/components/loading-screen";
-import { SearchCommand } from "@/components/search-command";
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
+import { Masthead } from "@/components/masthead";
+import { RightPane } from "@/components/right-pane/right-pane";
+import { TagStrip } from "@/components/tag-strip";
+import { TopBar } from "@/components/top-bar";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePageStaticData } from "@/hooks/use-page-static-data";
 import { ConnectionMonitor } from "@/livestore/store";
 
 export const Route = createFileRoute("/_authed")({
@@ -26,6 +25,9 @@ export const Route = createFileRoute("/_authed")({
       throw redirect({ to: "/login" });
     }
   },
+  validateSearch: (search: Record<string, unknown>): { tag?: string } => ({
+    tag: typeof search.tag === "string" ? search.tag : undefined,
+  }),
   component: AuthedLayout,
 });
 
@@ -38,29 +40,62 @@ function AuthedLayout() {
       <HotkeysProvider initiallyActiveScopes={["global"]}>
         <Suspense fallback={<LoadingScreen />}>
           <ConnectionMonitor />
-          <LinkDetailDialogProvider>
-            <AddLinkDialogProvider>
-              <ChatSheetProvider>
-                <SidebarProvider className="!h-svh !min-h-0 overflow-hidden">
-                  <AppSidebar />
-                  <SidebarInset className="h-full overflow-hidden">
-                    <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-                      <SidebarTrigger className="-ml-1" />
-                    </header>
-                    <main className="flex-1 min-h-0 overflow-auto">
-                      <Outlet />
-                    </main>
-                  </SidebarInset>
-                  <ContextualChatSheet isMobile={isMobile} />
-                  <SearchCommand />
-                  {/*{!isMobile && <TanStackRouterDevtools position="top-left" />}*/}
-                </SidebarProvider>
-              </ChatSheetProvider>
-            </AddLinkDialogProvider>
-          </LinkDetailDialogProvider>
+          <AddLinkDialogProvider>
+            <ChatSheetProvider>
+              <ListDataProvider>
+                <AuthedShell />
+              </ListDataProvider>
+              <ContextualChatSheet isMobile={isMobile} />
+              <CommandChip />
+              {import.meta.env.DEV && (
+                <FPSMeter
+                  className="fixed right-3 bottom-3 z-[9999] border border-gray-600 bg-black"
+                  height={40}
+                />
+              )}
+            </ChatSheetProvider>
+          </AddLinkDialogProvider>
         </Suspense>
       </HotkeysProvider>
     </StoreRegistryProvider>
+  );
+}
+
+function AuthedShell() {
+  const { status } = usePageStaticData();
+
+  if (status == null) {
+    return (
+      <div className="h-svh overflow-auto bg-background">
+        <Outlet />
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-svh overflow-auto bg-background">
+      <div className="mx-auto max-w-7xl px-8 pt-16 pb-24">
+        <TopBar />
+
+        <div className="mt-14 grid grid-cols-[minmax(0,820px)_540px] items-start gap-x-10">
+          <Masthead />
+          <aside aria-hidden="true" />
+        </div>
+
+        <div className="mt-6">
+          <TagStrip />
+        </div>
+
+        <div className="mt-6 h-px w-full bg-border" aria-hidden="true" />
+
+        <div className="grid grid-cols-[minmax(0,820px)_540px] items-start gap-x-10">
+          <div className="min-w-0">
+            <Outlet />
+          </div>
+          <RightPane />
+        </div>
+      </div>
+    </div>
   );
 }
 

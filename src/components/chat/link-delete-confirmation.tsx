@@ -1,6 +1,7 @@
 import { ExternalLink, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { displayTitle } from "@/lib/link-display";
 import { linksByIds$ } from "@/livestore/queries/links";
 import type { LinkWithDetails } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
@@ -33,9 +34,7 @@ function LinkPreview({ link }: { link: LinkWithDetails | null }) {
         <ExternalLink className="size-4 text-muted-foreground flex-shrink-0" />
       )}
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium truncate">
-          {link.title || link.url}
-        </div>
+        <div className="text-sm font-medium truncate">{displayTitle(link)}</div>
         <div className="text-xs text-muted-foreground truncate">
           {link.domain}
         </div>
@@ -62,10 +61,10 @@ export function LinkDeleteConfirmation({
       <div className="p-3 space-y-3">
         <div className="flex items-center gap-2">
           <Trash2 className="size-4 text-destructive flex-shrink-0" />
-          <span className="font-medium text-sm">
+          <span className="font-medium text-sm tabular-nums">
             {isBulk
-              ? `Move ${validLinks.length} link${validLinks.length !== 1 ? "s" : ""} to trash?`
-              : "Move to trash?"}
+              ? `Move ${validLinks.length} link${validLinks.length !== 1 ? "s" : ""} to archive?`
+              : "Move to archive?"}
           </span>
         </div>
 
@@ -91,7 +90,12 @@ export function LinkDeleteConfirmation({
             onClick={onApprove}
           >
             <Trash2 className="size-3 mr-1" />
-            Delete{isBulk ? ` ${validLinks.length}` : ""}
+            Delete
+            {isBulk ? (
+              <span className="tabular-nums">{` ${validLinks.length}`}</span>
+            ) : (
+              ""
+            )}
           </Button>
         </div>
       </div>

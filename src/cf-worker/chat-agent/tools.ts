@@ -57,7 +57,6 @@ export function createTools(store: Store<typeof schema>) {
             url: link.url,
             title: link.title || link.domain,
             description: link.description,
-            summary: link.summary,
           })),
         };
       },
@@ -174,17 +173,17 @@ export function createTools(store: Store<typeof schema>) {
 
     // No execute = requires user confirmation
     deleteLink: tool({
-      description: "Move a link to trash (requires confirmation)",
+      description: "Move a link to archive (requires confirmation)",
       inputSchema: zodSchema(linkIdSchema),
     }),
 
     restoreLink: tool({
-      description: "Restore a link from trash",
+      description: "Restore a link from archive",
       inputSchema: zodSchema(linkIdSchema),
       execute: async ({ id }) => {
         const link = store.query(linkById$(id));
         if (!link) return { error: "Link not found" };
-        if (!link.deletedAt) return { error: "Link is not in trash" };
+        if (!link.deletedAt) return { error: "Link is not in archive" };
 
         store.commit(events.linkRestored({ id }));
         return {
@@ -215,7 +214,7 @@ export function createTools(store: Store<typeof schema>) {
 
     // No execute = requires user confirmation
     deleteLinks: tool({
-      description: "Move multiple links to trash (requires confirmation)",
+      description: "Move multiple links to archive (requires confirmation)",
       inputSchema: zodSchema(linkIdsSchema),
     }),
 
@@ -258,12 +257,12 @@ export function createToolExecutors(store: Store<typeof schema>) {
       const link = store.query(linkById$(id));
       if (!link) return JSON.stringify({ error: "Link not found" });
       if (link.deletedAt)
-        return JSON.stringify({ error: "Link already in trash" });
+        return JSON.stringify({ error: "Link already in archive" });
 
       store.commit(events.linkDeleted({ id, deletedAt: new Date() }));
       return JSON.stringify({
         success: true,
-        message: `Moved "${link.title || link.url}" to trash`,
+        message: `Moved "${link.title || link.url}" to archive`,
       });
     },
 

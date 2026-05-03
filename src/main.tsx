@@ -1,6 +1,5 @@
 import "./styles.css";
 import { RouterProvider } from "@tanstack/react-router";
-import { NuqsAdapter } from "nuqs/adapters/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Toaster } from "sonner";
@@ -9,6 +8,7 @@ import { SWRConfig } from "swr";
 import { PendingApproval } from "./components/pending-approval";
 import { Spinner } from "./components/ui/spinner";
 import { AuthProvider, useAuth } from "./lib/auth";
+import type { LinkStatus } from "./livestore/queries/filtered-links";
 import { getRouter } from "./router";
 
 const router = getRouter();
@@ -16,6 +16,13 @@ const router = getRouter();
 declare module "@tanstack/react-router" {
   interface Register {
     router: typeof router;
+  }
+  interface StaticDataRouteOption {
+    icon?: string;
+    title?: string;
+    noun?: string;
+    status?: LinkStatus;
+    emptyMessage?: string;
   }
 }
 
@@ -47,11 +54,9 @@ createRoot(document.querySelector("#root")!).render(
         dedupingInterval: 10_000,
       }}
     >
-      <NuqsAdapter>
-        <AuthProvider>
-          <InnerApp />
-        </AuthProvider>
-      </NuqsAdapter>
+      <AuthProvider>
+        <InnerApp />
+      </AuthProvider>
       <Toaster position="bottom-right" />
     </SWRConfig>
   </StrictMode>

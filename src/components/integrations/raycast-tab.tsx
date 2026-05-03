@@ -28,7 +28,7 @@ export function RaycastTab({ keys, isLoading, onRevokeKey }: RaycastTabProps) {
           <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 p-3">
             <CheckCircle2Icon className="h-4 w-4 shrink-0 text-emerald-500" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium">
+              <p className="text-sm font-medium tabular-nums">
                 {raycastKeys.length === 1
                   ? "1 device connected"
                   : `${raycastKeys.length} devices connected`}

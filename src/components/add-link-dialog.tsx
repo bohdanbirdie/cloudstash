@@ -8,8 +8,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 
-import { LinkImage } from "@/components/link-card";
-import { useLinkDetailDialog } from "@/components/link-detail-dialog";
+import { LinkImage } from "@/components/link-image";
 import { TagCombobox } from "@/components/tags/tag-combobox";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -32,9 +31,11 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import { track } from "@/lib/analytics";
+import { displayDescription, displayTitle } from "@/lib/link-display";
 import { linkById$ } from "@/livestore/queries/links";
 import { tables, events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
+import { useRightPaneStore } from "@/stores/right-pane-store";
 
 const UrlSchema = Schema.URL;
 
@@ -93,7 +94,7 @@ function LinkPreviewCard({
   metadata: OgMetadata;
   url: string;
 }) {
-  const displayTitle = metadata.title || url;
+  const titleText = metadata.title || url;
   let domain = "";
   try {
     domain = new URL(url).hostname;
@@ -113,7 +114,7 @@ function LinkPreviewCard({
             {domain}
           </span>
         </div>
-        <CardTitle className="line-clamp-2 text-base">{displayTitle}</CardTitle>
+        <CardTitle className="line-clamp-2 text-base">{titleText}</CardTitle>
         {metadata.description && (
           <CardDescription className="line-clamp-3">
             {metadata.description}
@@ -132,7 +133,8 @@ function ExistingLinkCard({ linkId }: { linkId: string }) {
     return null;
   }
 
-  const displayTitle = link.title || link.url;
+  const titleText = displayTitle(link);
+  const descriptionText = displayDescription(link);
   const formattedDate = new Date(link.createdAt).toLocaleDateString(undefined, {
     day: "numeric",
     month: "short",
@@ -157,15 +159,15 @@ function ExistingLinkCard({ linkId }: { linkId: string }) {
             Already saved
           </Badge>
         </div>
-        <CardTitle className="line-clamp-2 text-base">{displayTitle}</CardTitle>
-        {link.description && (
+        <CardTitle className="line-clamp-2 text-base">{titleText}</CardTitle>
+        {descriptionText && (
           <CardDescription className="line-clamp-2">
-            {link.description}
+            {descriptionText}
           </CardDescription>
         )}
       </CardHeader>
       <CardContent className="pt-0">
-        <span className="text-muted-foreground text-xs">
+        <span className="text-muted-foreground text-xs tabular-nums">
           Saved on {formattedDate}
         </span>
         {link.status === "completed" && (
@@ -401,7 +403,7 @@ export function AddLinkDialogProvider({
   const [isOpen, setIsOpen] = useState(false);
   const [url, setUrl] = useState("");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
-  const { open: openLinkDialog } = useLinkDetailDialog();
+  const openDetail = useRightPaneStore((s) => s.openDetail);
 
   const open = useCallback((urlValue?: string) => {
     setUrl(urlValue ?? "");
@@ -417,9 +419,9 @@ export function AddLinkDialogProvider({
 
   const handleViewExisting = useCallback(
     (linkId: string) => {
-      openLinkDialog({ linkId });
+      openDetail(linkId);
     },
-    [openLinkDialog]
+    [openDetail]
   );
 
   useEffect(() => {

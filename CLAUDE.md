@@ -88,4 +88,3 @@ Topics: quick-start, project-setup, tsconfig, basics, services-and-layers, data-
 Never guess at Effect patterns - check the guide first.
 
 <!-- effect-solutions:end -->
-

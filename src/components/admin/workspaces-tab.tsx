@@ -89,17 +89,17 @@ export function WorkspacesTab({
       <div className="flex gap-4 text-xs mb-3">
         <div className="flex items-center gap-1.5">
           <BuildingIcon className="h-4 w-4 text-muted-foreground" />
-          <span className="font-medium">{workspaces.length}</span>
+          <span className="font-medium tabular-nums">{workspaces.length}</span>
           <span className="text-muted-foreground">total</span>
         </div>
         <div className="flex items-center gap-1.5">
           <SparklesIcon className="h-4 w-4 text-blue-500" />
-          <span className="font-medium">{aiEnabledCount}</span>
+          <span className="font-medium tabular-nums">{aiEnabledCount}</span>
           <span className="text-muted-foreground">AI enabled</span>
         </div>
         <div className="flex items-center gap-1.5">
           <MessageSquareIcon className="h-4 w-4 text-green-500" />
-          <span className="font-medium">{chatEnabledCount}</span>
+          <span className="font-medium tabular-nums">{chatEnabledCount}</span>
           <span className="text-muted-foreground">Chat enabled</span>
         </div>
       </div>

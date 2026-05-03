@@ -29,19 +29,19 @@ export function UsersTab({
       <div className="flex gap-4 text-xs mb-3">
         <div className="flex items-center gap-1.5">
           <UsersIcon className="h-4 w-4 text-muted-foreground" />
-          <span className="font-medium">{users.length}</span>
+          <span className="font-medium tabular-nums">{users.length}</span>
           <span className="text-muted-foreground">total</span>
         </div>
         {pendingCount > 0 && (
           <div className="flex items-center gap-1.5">
             <ClockIcon className="h-4 w-4 text-yellow-500" />
-            <span className="font-medium">{pendingCount}</span>
+            <span className="font-medium tabular-nums">{pendingCount}</span>
             <span className="text-muted-foreground">pending</span>
           </div>
         )}
         <div className="flex items-center gap-1.5">
           <CheckIcon className="h-4 w-4 text-green-500" />
-          <span className="font-medium">{activeCount}</span>
+          <span className="font-medium tabular-nums">{activeCount}</span>
           <span className="text-muted-foreground">active</span>
         </div>
       </div>

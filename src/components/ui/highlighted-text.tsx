@@ -12,7 +12,7 @@ export function HighlightedText({
   text,
   query,
   className,
-  highlightClassName = "bg-yellow-200 dark:bg-yellow-900/50 rounded-sm px-0.5",
+  highlightClassName = "bg-primary/15 dark:bg-primary/25 rounded-sm px-0.5",
 }: HighlightedTextProps) {
   const parts = getHighlightParts(text, query);
 

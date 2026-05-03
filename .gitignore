@@ -19,6 +19,9 @@ todos.json
 # Coverage reports
 coverage/
 
+# React Profiler exports
+profiling-data*.json
+
 # Local clones of external repos (managed by `bun run sync`)
 local/
 

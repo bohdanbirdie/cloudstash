@@ -9,6 +9,17 @@ import {
 
 export type { Tag, TagWithCount } from "./schemas";
 
+export const TagByLinkRowSchema = Schema.Struct({
+  linkId: Schema.String,
+  id: Schema.String,
+  name: Schema.String,
+  sortOrder: Schema.Number,
+  createdAt: Schema.Number,
+  deletedAt: Schema.NullOr(Schema.Number),
+});
+
+export type TagByLinkRow = typeof TagByLinkRowSchema.Type;
+
 export const allTags$ = queryDb(
   () => ({
     query: `
@@ -35,6 +46,20 @@ export const tagsForLink$ = (linkId: string) =>
     },
     { label: `tagsForLink:${linkId}` }
   );
+
+export const tagsByLink$ = queryDb(
+  () => ({
+    query: `
+      SELECT lt.linkId, t.id, t.name, t.sortOrder, t.createdAt, t.deletedAt
+      FROM tags t
+      JOIN link_tags lt ON t.id = lt.tagId
+      WHERE t.deletedAt IS NULL
+      ORDER BY lt.linkId ASC, t.sortOrder ASC
+    `,
+    schema: Schema.Array(TagByLinkRowSchema),
+  }),
+  { label: "tagsByLink" }
+);
 
 export const tagCounts$ = queryDb(
   () => ({
@@ -67,25 +92,6 @@ export const allTagsWithCounts$ = queryDb(
     schema: Schema.Array(TagWithCountSchema),
   }),
   { label: "allTagsWithCounts" }
-);
-
-export const untaggedCount$ = queryDb(
-  () => ({
-    query: `
-      SELECT COUNT(*) as count FROM links l
-      WHERE l.deletedAt IS NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM link_tags lt
-          JOIN tags t ON lt.tagId = t.id
-          WHERE lt.linkId = l.id AND t.deletedAt IS NULL
-        )
-    `,
-    schema: Schema.Struct({ count: Schema.Number }).pipe(
-      Schema.Array,
-      Schema.headOrElse(() => ({ count: 0 }))
-    ),
-  }),
-  { label: "untaggedCount" }
 );
 
 export const pendingSuggestionsForLink$ = (linkId: string) =>

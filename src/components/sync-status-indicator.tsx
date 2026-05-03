@@ -1,7 +1,6 @@
 import { Loader2, RefreshCw, WifiOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { SidebarMenu, SidebarMenuItem } from "@/components/ui/sidebar";
 import {
   Tooltip,
   TooltipContent,
@@ -10,11 +9,35 @@ import {
 import { useSyncStatusStore } from "@/stores/sync-status-store";
 
 export function SyncStatusIndicator() {
-  const { status } = useSyncStatusStore();
+  const status = useSyncStatusStore((s) => s.status);
 
-  if (status.state === "connected") return null;
-  if (status.state === "reconnecting") return <ReconnectingItem />;
-  return <ErrorItem status={status} />;
+  if (status.state === "connected") {
+    return <ConnectedBadge />;
+  }
+  if (status.state === "reconnecting") {
+    return <ReconnectingBadge />;
+  }
+  return <ErrorBadge status={status} />;
+}
+
+function ConnectedBadge() {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums"
+        render={<span />}
+      >
+        <span
+          className="inline-block size-1.5 rounded-full bg-primary"
+          aria-hidden="true"
+        />
+        <span>synced</span>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" align="end">
+        Connected
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 function StatusBadge({
@@ -38,43 +61,37 @@ function StatusBadge({
       : "bg-destructive/10 text-destructive";
 
   return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <div className="flex items-center gap-1.5 pr-2 py-1 group-data-[collapsible=icon]:pr-0 group-data-[collapsible=icon]:justify-center">
-          <Tooltip>
-            <TooltipTrigger
-              className={`inline-flex w-fit items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium ${colorClasses}`}
-              render={<div />}
-            >
-              <Icon
-                className={`size-3.5 shrink-0 ${spinning ? "animate-spin" : ""}`}
-              />
-              <span className="group-data-[collapsible=icon]:hidden">
-                {label}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top" align="start">
-              {tooltip}
-            </TooltipContent>
-          </Tooltip>
-          {action && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Retry"
-              className="size-6 shrink-0 group-data-[collapsible=icon]:hidden"
-              onClick={action.onClick}
-            >
-              <RefreshCw className="size-3" />
-            </Button>
-          )}
-        </div>
-      </SidebarMenuItem>
-    </SidebarMenu>
+    <div className="flex items-center gap-1.5">
+      <Tooltip>
+        <TooltipTrigger
+          className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium ${colorClasses}`}
+          render={<span />}
+        >
+          <Icon
+            className={`size-3 shrink-0 ${spinning ? "animate-spin" : ""}`}
+          />
+          <span>{label}</span>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" align="end">
+          {tooltip}
+        </TooltipContent>
+      </Tooltip>
+      {action && (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Retry"
+          className="size-6 shrink-0"
+          onClick={action.onClick}
+        >
+          <RefreshCw className="size-3" />
+        </Button>
+      )}
+    </div>
   );
 }
 
-function ReconnectingItem() {
+function ReconnectingBadge() {
   return (
     <StatusBadge
       icon={Loader2}
@@ -86,7 +103,7 @@ function ReconnectingItem() {
   );
 }
 
-function ErrorItem({ status }: { status: { code: string; message: string } }) {
+function ErrorBadge({ status }: { status: { code: string; message: string } }) {
   const handleAction = () => {
     if (status.code === "SESSION_EXPIRED") {
       window.location.href = "/login";

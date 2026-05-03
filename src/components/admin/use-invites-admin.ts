@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import useSWR from "swr";
 
+import { useFlashFlag } from "@/hooks/use-flash-flag";
 import type {
   InviteWithRelations,
   InvitesListResponse,
@@ -21,7 +22,11 @@ export function useInvitesAdmin(enabled = true) {
   const [isCreating, setIsCreating] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [newInviteCode, setNewInviteCode] = useState<string | null>(null);
-  const [copiedCode, setCopiedCode] = useState(false);
+  const {
+    active: copiedCode,
+    trigger: flashCopiedCode,
+    reset: resetCopiedCode,
+  } = useFlashFlag();
   const [mutationError, setMutationError] = useState<string | null>(null);
 
   const {
@@ -87,16 +92,18 @@ export function useInvitesAdmin(enabled = true) {
     [mutate]
   );
 
-  const handleCopyCode = useCallback(async (code: string) => {
-    await navigator.clipboard.writeText(code);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2000);
-  }, []);
+  const handleCopyCode = useCallback(
+    async (code: string) => {
+      await navigator.clipboard.writeText(code);
+      flashCopiedCode();
+    },
+    [flashCopiedCode]
+  );
 
   const reset = useCallback(() => {
     setNewInviteCode(null);
-    setCopiedCode(false);
-  }, []);
+    resetCopiedCode();
+  }, [resetCopiedCode]);
 
   const availableCount = invites.filter(
     (i) => getInviteStatus(i) === "available"
