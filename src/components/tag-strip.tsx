@@ -1,16 +1,19 @@
+import { Link } from "@tanstack/react-router";
 import { memo, useMemo, useState } from "react";
 
 import { useTagFilter } from "@/hooks/use-tag-filter";
 import { cn } from "@/lib/utils";
 import { allTagsWithCounts$ } from "@/livestore/queries/tags";
 import { useAppStore } from "@/livestore/store";
+import { useSelectionStore } from "@/stores/selection-store";
 
 const MAX_VISIBLE_TAGS = 5;
 
 export const TagStrip = memo(function TagStrip() {
   const store = useAppStore();
   const tags = store.useQuery(allTagsWithCounts$);
-  const { tag: selectedTag, untagged, setTag, setUntagged } = useTagFilter();
+  const { tag: selectedTag } = useTagFilter();
+  const clearSelection = useSelectionStore((s) => s.clear);
 
   const [expanded, setExpanded] = useState(false);
 
@@ -19,7 +22,7 @@ export const TagStrip = memo(function TagStrip() {
     [tags]
   );
 
-  if (sortedTags.length === 0 && !untagged) {
+  if (sortedTags.length === 0) {
     return null;
   }
 
@@ -28,43 +31,30 @@ export const TagStrip = memo(function TagStrip() {
 
   return (
     <div className="flex w-full flex-wrap items-baseline gap-[10px] text-xs font-medium">
-      <button
-        type="button"
-        onClick={() => setUntagged(!untagged)}
-        className={cn(
-          "text-foreground/40 transition-colors hover:text-foreground",
-          untagged && "text-primary"
-        )}
-        aria-pressed={untagged}
-        title="Filter to links with no tags"
-      >
-        untagged
-      </button>
       {visible.map((tag) => {
         const active = selectedTag === tag.id;
         return (
-          <button
+          <Link
             key={tag.id}
-            type="button"
-            onClick={() => setTag(active ? null : tag.id)}
+            to="."
+            search={(prev) => ({ ...prev, tag: active ? undefined : tag.id })}
+            onClick={clearSelection}
             className={cn(
-              "text-foreground/40 transition-colors hover:text-foreground",
+              "cursor-pointer text-foreground/40 transition-colors hover:text-foreground",
               active && "text-primary"
             )}
-            aria-pressed={active}
           >
             #{tag.name}
-          </button>
+          </Link>
         );
       })}
-      {hidden > 0 && (
+      {hidden > 0 && !expanded && (
         <button
           type="button"
-          onClick={() => setExpanded((v) => !v)}
+          onClick={() => setExpanded(true)}
           className="text-foreground/40 transition-colors hover:text-foreground"
-          aria-expanded={expanded}
         >
-          {expanded ? "less" : `+${hidden} more`}
+          +{hidden} more
         </button>
       )}
     </div>

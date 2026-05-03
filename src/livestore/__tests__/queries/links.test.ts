@@ -136,7 +136,7 @@ describe("links queries", () => {
       deleteLink(b, new Date("2026-01-03T10:00:00Z"));
       deleteLink(c, new Date("2026-01-04T10:00:00Z"));
 
-      expect(store.query(archiveCount$)).toEqual({ count: 2 });
+      expect(store.query(archiveCount$)).toBe(2);
     });
   });
 

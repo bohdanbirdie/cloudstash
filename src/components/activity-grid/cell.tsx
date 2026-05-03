@@ -37,10 +37,11 @@ export const ActivityCell = memo(function ActivityCell({
       handle={handle}
       payload={tooltip}
       render={
-        <div
+        <button
+          type="button"
           aria-label={tooltip}
           style={{ gridColumn, gridRow }}
-          className="cursor-default p-px"
+          className="cursor-default p-px focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 rounded-[3px]"
         >
           <div
             className={cn(
@@ -48,7 +49,7 @@ export const ActivityCell = memo(function ActivityCell({
               BUCKET_CLASS[bucket(count)]
             )}
           />
-        </div>
+        </button>
       }
     />
   );

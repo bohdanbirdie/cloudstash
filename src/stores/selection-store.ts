@@ -1,60 +1,61 @@
 import { create } from "zustand";
 
-import { toggleSelection, selectRange, removeStaleIds } from "@/lib/selection";
+import { transition } from "@/lib/selection-model";
+import type { Action, Modifier } from "@/lib/selection-model";
 
-interface SelectionState {
-  selectedIds: Set<string>;
-  anchorIndex: number | null;
-  toggle: (id: string, index: number) => void;
-  range: (targetIndex: number, allIds: readonly string[]) => void;
+interface SelectionStore {
+  ids: ReadonlySet<string>;
+  anchor: string | null;
+  hoveredId: string | null;
+  modifier: Modifier;
+
+  click: (
+    id: string,
+    modifier: Modifier,
+    allIds: readonly string[],
+    activeId: string | null
+  ) => void;
+  toggleCheckbox: (id: string) => void;
   clear: () => void;
-  removeStale: (validIds: Set<string>) => void;
+  prune: (validIds: ReadonlySet<string>) => void;
+
+  setHovered: (id: string | null) => void;
+  setModifier: (m: Modifier) => void;
 }
 
-export const useSelectionStore = create<SelectionState>((set, get) => ({
-  anchorIndex: null,
-  clear: () => set({ anchorIndex: null, selectedIds: new Set() }),
-
-  range: (targetIndex, allIds) => {
-    const { anchorIndex, selectedIds } = get();
-    if (anchorIndex === null) {
-      return;
-    }
-    set({
-      selectedIds: selectRange(selectedIds, anchorIndex, targetIndex, allIds),
+export const useSelectionStore = create<SelectionStore>((set) => {
+  const dispatch = (
+    action: Action,
+    allIds: readonly string[],
+    activeId: string | null
+  ) =>
+    set((s) => {
+      const next = transition(
+        { activeId, allIds, anchor: s.anchor, ids: s.ids },
+        action
+      );
+      if (next.ids === s.ids && next.anchor === s.anchor) return s;
+      return { anchor: next.anchor, ids: next.ids };
     });
-  },
 
-  removeStale: (validIds) =>
-    set((state) => {
-      const next = removeStaleIds(state.selectedIds, validIds);
-      if (next.size === state.selectedIds.size) return state;
-      // Reset the anchor when the selection is wiped — otherwise a stale index
-      // pivots the next shift-click against a row that's no longer there.
-      if (next.size === 0) return { anchorIndex: null, selectedIds: next };
-      return { selectedIds: next };
-    }),
+  return {
+    anchor: null,
+    hoveredId: null,
+    ids: new Set(),
+    modifier: "none",
 
-  selectedIds: new Set(),
+    clear: () => dispatch({ type: "clear" }, [], null),
+    click: (id, modifier, allIds, activeId) =>
+      dispatch({ id, modifier, type: "click" }, allIds, activeId),
+    prune: (validIds) => dispatch({ type: "prune", validIds }, [], null),
+    toggleCheckbox: (id) => dispatch({ id, type: "checkbox" }, [], null),
 
-  toggle: (id, index) =>
-    set({
-      anchorIndex: index,
-      selectedIds: toggleSelection(get().selectedIds, id),
-    }),
-}));
+    setHovered: (id) =>
+      set((s) => (s.hoveredId === id ? s : { hoveredId: id })),
+    setModifier: (m) => set((s) => (s.modifier === m ? s : { modifier: m })),
+  };
+});
 
-export function useIsSelected(id: string): boolean {
-  return useSelectionStore((state) => state.selectedIds.has(id));
-}
-
-export function useSelectionCount(): number {
-  return useSelectionStore((state) => state.selectedIds.size);
-}
-
-// Boolean variant of useSelectionCount — only flips at the 0 ↔ ≥1 threshold,
-// so subscribers don't re-render on every selection toggle when they only
-// care about whether selection mode is active.
 export function useInSelectionMode(): boolean {
-  return useSelectionStore((state) => state.selectedIds.size > 0);
+  return useSelectionStore((s) => s.ids.size > 0);
 }

@@ -1,25 +1,27 @@
+import { useEffect, useMemo } from "react";
+
 import { useTagFilter } from "@/hooks/use-tag-filter";
-import type { LinkProjection } from "@/lib/link-projections";
+import { filteredLinks$ } from "@/livestore/queries/filtered-links";
+import type { LinkStatus } from "@/livestore/queries/filtered-links";
 import type { LinkListItem } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
+import { useSelectionStore } from "@/stores/selection-store";
 
 export function useFilteredLinks(
-  projection: LinkProjection,
-  baseLinks: readonly LinkListItem[]
-) {
+  status: LinkStatus | undefined
+): readonly LinkListItem[] {
   const store = useAppStore();
-  const { tag, untagged, hasFilters } = useTagFilter();
+  const { tag } = useTagFilter();
+  const query = useMemo(
+    () => filteredLinks$(status, { tagIds: tag ? [tag] : [] }),
+    [status, tag]
+  );
+  const links = store.useQuery(query);
 
-  const tagIds = tag ? [tag] : [];
-  const filteredQuery = projection.filteredQuery({ tagIds, untagged });
-  const filteredLinks = store.useQuery(filteredQuery);
+  useEffect(() => {
+    const validIds = new Set(links.map((l) => l.id));
+    useSelectionStore.getState().prune(validIds);
+  }, [links]);
 
-  const links = hasFilters ? filteredLinks : baseLinks;
-
-  return {
-    links,
-    totalCount: baseLinks.length,
-    filteredCount: links.length,
-    hasFilters,
-  };
+  return links;
 }

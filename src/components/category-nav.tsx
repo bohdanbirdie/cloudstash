@@ -1,38 +1,47 @@
-import { Link, useLocation } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 
-import { cn } from "@/lib/utils";
-
-const CATEGORIES = [
-  { label: "inbox", path: "/" },
-  { label: "all", path: "/all" },
-  { label: "completed", path: "/completed" },
-  { label: "archive", path: "/archive" },
-] as const;
+const baseClass = "transition-colors hover:text-foreground";
+const activeClass = "text-foreground";
 
 export function CategoryNav() {
-  const location = useLocation();
-
   return (
     <nav
       aria-label="Categories"
       className="flex items-center gap-3 text-[13px] text-muted-foreground"
     >
-      {CATEGORIES.map((cat) => {
-        const active = location.pathname === cat.path;
-        return (
-          <Link
-            key={cat.path}
-            to={cat.path}
-            search={(prev) => prev}
-            className={cn(
-              "transition-colors hover:text-foreground",
-              active && "text-foreground"
-            )}
-          >
-            {cat.label}
-          </Link>
-        );
-      })}
+      <Link
+        to="/"
+        search={{ tag: undefined }}
+        activeOptions={{ exact: true }}
+        className={baseClass}
+        activeProps={{ className: activeClass, "aria-current": "page" }}
+      >
+        inbox
+      </Link>
+      <Link
+        to="/all"
+        search={{ tag: undefined }}
+        className={baseClass}
+        activeProps={{ className: activeClass, "aria-current": "page" }}
+      >
+        all
+      </Link>
+      <Link
+        to="/completed"
+        search={{ tag: undefined }}
+        className={baseClass}
+        activeProps={{ className: activeClass, "aria-current": "page" }}
+      >
+        completed
+      </Link>
+      <Link
+        to="/archive"
+        search={{ tag: undefined }}
+        className={baseClass}
+        activeProps={{ className: activeClass, "aria-current": "page" }}
+      >
+        archive
+      </Link>
     </nav>
   );
 }

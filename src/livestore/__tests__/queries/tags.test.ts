@@ -7,7 +7,6 @@ import {
   pendingSuggestionsForLink$,
   tagCounts$,
   tagsForLink$,
-  untaggedCount$,
 } from "../../queries/tags";
 import { events } from "../../schema";
 import { makeTestStore, testId } from "../test-helpers";
@@ -183,37 +182,6 @@ describe("tags queries", () => {
 
       const rows = store.query(allTagsWithCounts$);
       expect(rows.map((r) => r.name)).toEqual(["apple", "Banana", "Cherry"]);
-    });
-  });
-
-  describe("untaggedCount$", () => {
-    it("counts non-deleted links that have no non-deleted tag", () => {
-      const taggedLink = seedLink({ url: "https://a.test/1" });
-      seedLink({ url: "https://a.test/2" }); // untagged link — the one counted
-      const deletedLink = seedLink({ url: "https://a.test/3" });
-      const tag = seedTag("alpha", 1);
-      tagLink(taggedLink, tag);
-      store.commit(
-        events.linkDeleted({
-          id: deletedLink,
-          deletedAt: new Date("2026-01-10T10:00:00Z"),
-        })
-      );
-
-      expect(store.query(untaggedCount$)).toEqual({ count: 1 });
-    });
-
-    it("counts a link as untagged when all its tags are soft-deleted", () => {
-      const link = seedLink();
-      const tag = seedTag("alpha", 1);
-      tagLink(link, tag);
-      deleteTag(tag, new Date("2026-01-10T10:00:00Z"));
-
-      expect(store.query(untaggedCount$)).toEqual({ count: 1 });
-    });
-
-    it("returns { count: 0 } when no links exist", () => {
-      expect(store.query(untaggedCount$)).toEqual({ count: 0 });
     });
   });
 

@@ -1,14 +1,14 @@
 import {
   CodeIcon,
+  ExternalLinkIcon,
   MessageSquareIcon,
   RefreshCwIcon,
   SendIcon,
 } from "lucide-react";
-import { memo, useCallback, useDeferredValue, useMemo } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { LinkPreviewImage } from "@/components/link-preview-image";
-import { useRightPaneActions } from "@/components/right-pane-context";
 import { TagCombobox } from "@/components/tags/tag-combobox";
 import { TagSuggestions } from "@/components/tags/tag-suggestions";
 import { Kbd } from "@/components/ui/kbd";
@@ -16,12 +16,13 @@ import { Markdown } from "@/components/ui/markdown";
 import { TextShimmer } from "@/components/ui/text-shimmer";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import { useLinkTags } from "@/hooks/use-link-tags";
-import { decodeHtmlEntities } from "@/lib/decode-html-entities";
+import { displayDescription, displayTitle } from "@/lib/link-display";
 import { formatAgo } from "@/lib/time-ago";
 import { linkById$, linkProcessingStatus$ } from "@/livestore/queries/links";
 import type { LinkWithDetails } from "@/livestore/queries/links";
 import { events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
+import { useRightPaneStore } from "@/stores/right-pane-store";
 import { useInSelectionMode } from "@/stores/selection-store";
 
 const SOURCE_CONFIG: Record<string, { icon: typeof SendIcon; label: string }> =
@@ -32,11 +33,8 @@ const SOURCE_CONFIG: Record<string, { icon: typeof SendIcon; label: string }> =
   };
 
 export function DetailView({ linkId }: { linkId: string }) {
-  // Defer linkId so rapid cursor movement (held arrow / j / k) doesn't make
-  // the detail subtree fire a fresh livestore query on every keystroke.
-  const deferredLinkId = useDeferredValue(linkId);
   const store = useAppStore();
-  const linkQuery = useMemo(() => linkById$(deferredLinkId), [deferredLinkId]);
+  const linkQuery = useMemo(() => linkById$(linkId), [linkId]);
   const link = store.useQuery(linkQuery);
 
   if (!link) return null;
@@ -52,7 +50,7 @@ const DetailViewInner = memo(function DetailViewInner({
   useHotkeyScope("detail");
 
   const store = useAppStore();
-  const { closeDetail } = useRightPaneActions();
+  const closeDetail = useRightPaneStore((s) => s.closeDetail);
   const hasSelection = useInSelectionMode();
 
   useHotkeys("escape", closeDetail, {
@@ -79,7 +77,8 @@ const DetailViewInner = memo(function DetailViewInner({
 
   const isCompleted = link.status === "completed";
   const isDeleted = link.deletedAt !== null;
-  const displayTitle = link.title ? decodeHtmlEntities(link.title) : link.url;
+  const titleText = displayTitle(link);
+  const descriptionText = displayDescription(link);
   const source = link.source && link.source !== "app" ? link.source : null;
   const sourceConfig = source ? SOURCE_CONFIG[source] : null;
   const SourceIcon = sourceConfig?.icon;
@@ -101,6 +100,7 @@ const DetailViewInner = memo(function DetailViewInner({
             <img src={link.favicon} alt="" className="size-3.5" />
           )}
           {link.domain}
+          <ExternalLinkIcon aria-hidden="true" className="size-3" />
         </a>
         <span aria-hidden="true">·</span>
         <span className="tabular-nums">{formatAgo(link.createdAt)}</span>
@@ -128,12 +128,12 @@ const DetailViewInner = memo(function DetailViewInner({
       </div>
 
       <h2 className="text-[28px] font-extrabold leading-tight tracking-tight text-foreground text-balance">
-        {displayTitle}
+        {titleText}
       </h2>
 
-      {link.description && (
+      {descriptionText && (
         <p className="text-sm leading-relaxed text-muted-foreground text-pretty">
-          {decodeHtmlEntities(link.description)}
+          {descriptionText}
         </p>
       )}
 

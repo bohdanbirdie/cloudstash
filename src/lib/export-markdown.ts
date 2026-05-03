@@ -1,6 +1,6 @@
 import type { LinkWithDetails } from "@/livestore/queries/links";
 
-import { decodeHtmlEntities } from "./decode-html-entities";
+import { displayDescription, displayTitle } from "./link-display";
 
 function formatDate(timestamp: number | null): string {
   if (!timestamp) {
@@ -43,10 +43,8 @@ export function generateLinksMarkdown(
   }
 
   for (const link of links) {
-    const decodedTitle = link.title ? decodeHtmlEntities(link.title) : null;
-    const decodedDescription = link.description
-      ? decodeHtmlEntities(link.description)
-      : null;
+    const decodedTitle = link.title ? displayTitle(link) : null;
+    const decodedDescription = displayDescription(link);
     markdown += `---\n\n`;
     markdown += `### ${decodedTitle || link.url}\n\n`;
     markdown += `**URL:** ${link.url}\n`;

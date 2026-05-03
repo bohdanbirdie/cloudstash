@@ -2,11 +2,11 @@ import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 
 import { useChatContainer } from "@/components/chat/chat-sheet";
 import { LinkImage } from "@/components/link-image";
-import { useRightPaneActions } from "@/components/right-pane-context";
-import { decodeHtmlEntities } from "@/lib/decode-html-entities";
+import { displayDescription, displayTitle } from "@/lib/link-display";
 import { linkByUrl$ } from "@/livestore/queries/links";
 import type { LinkWithDetails } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
+import { useRightPaneStore } from "@/stores/right-pane-store";
 
 interface LinkMentionWithTooltipProps {
   link: LinkWithDetails;
@@ -37,18 +37,18 @@ function LinkMentionWithTooltip({
             >
               <LinkImage
                 src={link.image}
-                alt={link.title ? decodeHtmlEntities(link.title) : ""}
+                alt={link.title ? displayTitle(link) : ""}
                 iconClassName="h-6 w-6"
               />
               <div className="p-2">
                 {link.title && (
                   <p className="font-medium text-sm text-foreground line-clamp-2">
-                    {decodeHtmlEntities(link.title)}
+                    {displayTitle(link)}
                   </p>
                 )}
-                {link.description && (
+                {displayDescription(link) && (
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                    {decodeHtmlEntities(link.description)}
+                    {displayDescription(link)}
                   </p>
                 )}
               </div>
@@ -68,19 +68,17 @@ interface LinkMentionProps {
 export function LinkMention({ href, children }: LinkMentionProps) {
   const store = useAppStore();
   const link = store.useQuery(linkByUrl$(href));
-  const { openDetail } = useRightPaneActions();
+  const openDetail = useRightPaneStore((s) => s.openDetail);
 
   const childText = typeof children === "string" ? children : null;
   const isPlainUrl = childText === href;
 
   if (link && isPlainUrl) {
-    const displayText = link.title
-      ? decodeHtmlEntities(link.title)
-      : link.domain;
+    const displayText = link.title ? displayTitle(link) : link.domain;
     const hasPreview = link.image || link.title;
 
     const handleOpenDetail = () => {
-      openDetail({ linkId: link.id });
+      openDetail(link.id);
     };
 
     const linkElement = (

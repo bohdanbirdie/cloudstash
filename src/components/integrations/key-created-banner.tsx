@@ -9,6 +9,7 @@ import { useState } from "react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { useFlashFlag } from "@/hooks/use-flash-flag";
 
 interface KeyCreatedBannerProps {
   generatedKey: string;
@@ -24,20 +25,18 @@ export function KeyCreatedBanner({
   onDone,
 }: KeyCreatedBannerProps) {
   const [keyVisible, setKeyVisible] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [commandCopied, setCommandCopied] = useState(false);
+  const { active: copied, trigger: flashCopied } = useFlashFlag();
+  const { active: commandCopied, trigger: flashCommandCopied } = useFlashFlag();
 
   const handleCopyKey = async () => {
     await navigator.clipboard.writeText(generatedKey);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    flashCopied();
   };
 
   const handleCopyCommand = async () => {
     if (helperCommand) {
       await navigator.clipboard.writeText(helperCommand);
-      setCommandCopied(true);
-      setTimeout(() => setCommandCopied(false), 2000);
+      flashCommandCopied();
     }
   };
 

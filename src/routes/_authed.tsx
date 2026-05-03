@@ -1,10 +1,6 @@
 import { StoreRegistryProvider } from "@livestore/react";
-import {
-  createFileRoute,
-  Outlet,
-  redirect,
-  useLocation,
-} from "@tanstack/react-router";
+import { FPSMeter } from "@overengineering/fps-meter";
+import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { HotkeysProvider } from "react-hotkeys-hook";
 
@@ -12,17 +8,15 @@ import { AddLinkDialogProvider } from "@/components/add-link-dialog";
 import { useChatPanel } from "@/components/chat/chat-context";
 import { ChatSheet } from "@/components/chat/chat-sheet";
 import { ChatSheetProvider } from "@/components/chat/chat-sheet-provider";
-import { CommandChip } from "@/components/command-chip";
+import { CommandChip } from "@/components/command-chip/command-chip";
 import { ListDataProvider } from "@/components/list-data-context";
 import { LoadingScreen } from "@/components/loading-screen";
 import { Masthead } from "@/components/masthead";
-import { PageActionsProvider } from "@/components/page-actions-context";
-import { PerfHUD } from "@/components/perf-hud";
-import { RightPaneProvider } from "@/components/right-pane-context";
 import { RightPane } from "@/components/right-pane/right-pane";
 import { TagStrip } from "@/components/tag-strip";
 import { TopBar } from "@/components/top-bar";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePageStaticData } from "@/hooks/use-page-static-data";
 import { ConnectionMonitor } from "@/livestore/store";
 
 export const Route = createFileRoute("/_authed")({
@@ -31,15 +25,11 @@ export const Route = createFileRoute("/_authed")({
       throw redirect({ to: "/login" });
     }
   },
+  validateSearch: (search: Record<string, unknown>): { tag?: string } => ({
+    tag: typeof search.tag === "string" ? search.tag : undefined,
+  }),
   component: AuthedLayout,
 });
-
-const CATEGORY_PATHS: readonly string[] = [
-  "/",
-  "/all",
-  "/completed",
-  "/archive",
-];
 
 function AuthedLayout() {
   const { storeRegistry } = Route.useRouteContext();
@@ -50,20 +40,21 @@ function AuthedLayout() {
       <HotkeysProvider initiallyActiveScopes={["global"]}>
         <Suspense fallback={<LoadingScreen />}>
           <ConnectionMonitor />
-          <RightPaneProvider>
-            <AddLinkDialogProvider>
-              <ChatSheetProvider>
-                <ListDataProvider>
-                  <PageActionsProvider>
-                    <AuthedShell />
-                  </PageActionsProvider>
-                </ListDataProvider>
-                <ContextualChatSheet isMobile={isMobile} />
-                <CommandChip />
-                {import.meta.env.DEV && <PerfHUD />}
-              </ChatSheetProvider>
-            </AddLinkDialogProvider>
-          </RightPaneProvider>
+          <AddLinkDialogProvider>
+            <ChatSheetProvider>
+              <ListDataProvider>
+                <AuthedShell />
+              </ListDataProvider>
+              <ContextualChatSheet isMobile={isMobile} />
+              <CommandChip />
+              {import.meta.env.DEV && (
+                <FPSMeter
+                  className="fixed right-3 bottom-3 z-[9999] border border-gray-600 bg-black"
+                  height={40}
+                />
+              )}
+            </ChatSheetProvider>
+          </AddLinkDialogProvider>
         </Suspense>
       </HotkeysProvider>
     </StoreRegistryProvider>
@@ -71,9 +62,9 @@ function AuthedLayout() {
 }
 
 function AuthedShell() {
-  const onCategoryRoute = CATEGORY_PATHS.includes(useLocation().pathname);
+  const { status } = usePageStaticData();
 
-  if (!onCategoryRoute) {
+  if (status == null) {
     return (
       <div className="h-svh overflow-auto bg-background">
         <Outlet />

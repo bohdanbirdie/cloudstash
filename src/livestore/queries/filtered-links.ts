@@ -7,7 +7,6 @@ export type LinkStatus = "inbox" | "completed" | "all" | "archive";
 
 export interface TagFilterOptions {
   tagIds: string[];
-  untagged: boolean;
 }
 
 export const linksWithTag$ = (tagId: string) =>
@@ -31,29 +30,6 @@ export const linksWithTag$ = (tagId: string) =>
     },
     { label: `linksWithTag:${tagId}` }
   );
-
-export const untaggedLinks$ = queryDb(
-  () => ({
-    query: `
-      SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
-             s.title, s.description, s.image, s.favicon
-      FROM links l
-      LEFT JOIN link_snapshots s ON s.id = (
-        SELECT s2.id FROM link_snapshots s2
-        WHERE s2.linkId = l.id ORDER BY s2.fetchedAt DESC LIMIT 1
-      )
-      WHERE l.deletedAt IS NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM link_tags lt
-          JOIN tags t ON lt.tagId = t.id
-          WHERE lt.linkId = l.id AND t.deletedAt IS NULL
-        )
-      ORDER BY l.createdAt DESC
-    `,
-    schema: linksListSchema,
-  }),
-  { label: "untaggedLinks" }
-);
 
 export const linksWithAllTags$ = (tagIds: string[]) => {
   if (tagIds.length === 0) {
@@ -91,18 +67,7 @@ function buildTagFilterClause(options: TagFilterOptions): {
   clause: string;
   bindValues: (string | number)[];
 } {
-  const { tagIds, untagged } = options;
-
-  if (untagged) {
-    return {
-      clause: `AND NOT EXISTS (
-        SELECT 1 FROM link_tags lt
-        JOIN tags t ON lt.tagId = t.id
-        WHERE lt.linkId = l.id AND t.deletedAt IS NULL
-      )`,
-      bindValues: [],
-    };
-  }
+  const { tagIds } = options;
 
   if (tagIds.length === 0) {
     return { clause: "", bindValues: [] };
@@ -143,10 +108,17 @@ function buildOrderByClause(status: LinkStatus): string {
   }
 }
 
+const emptyLinks$ = queryDb(
+  { query: "SELECT * FROM links WHERE 0", schema: linksListSchema },
+  { label: "filteredLinks:empty" }
+);
+
 export const filteredLinks$ = (
-  status: LinkStatus,
+  status: LinkStatus | undefined,
   options: TagFilterOptions
 ) => {
+  if (status === undefined) return emptyLinks$;
+
   const statusClause = buildStatusClause(status);
   const orderByClause = buildOrderByClause(status);
   const { clause: tagClause, bindValues } = buildTagFilterClause(options);
@@ -164,7 +136,7 @@ export const filteredLinks$ = (
     ${orderByClause}
   `;
 
-  const label = `filteredLinks:${status}:${options.untagged ? "untagged" : options.tagIds.join(",")}`;
+  const label = `filteredLinks:${status}:${options.tagIds.join(",")}`;
 
   if (bindValues.length === 0) {
     return queryDb({ query, schema: linksListSchema }, { label });

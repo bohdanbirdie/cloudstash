@@ -11,49 +11,46 @@ import {
 } from "@/components/ui/dialog";
 import { Markdown } from "@/components/ui/markdown";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useFlashFlag } from "@/hooks/use-flash-flag";
 import { track } from "@/lib/analytics";
 import {
   generateLinksMarkdown,
   generatePlainLinks,
 } from "@/lib/export-markdown";
 import { linksByIds$ } from "@/livestore/queries/links";
-import type { LinkListItem, LinkWithDetails } from "@/livestore/queries/links";
+import type { LinkWithDetails } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
 
 interface ExportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  links: readonly LinkListItem[];
+  ids: readonly string[];
   pageTitle: string;
 }
 
 export function ExportDialog({
   open,
   onOpenChange,
-  links,
+  ids,
   pageTitle,
 }: ExportDialogProps) {
-  const [copied, setCopied] = useState(false);
+  const { active: copied, trigger: flashCopied } = useFlashFlag();
   const [activeTab, setActiveTab] = useState<"full" | "plain">("full");
 
   const store = useAppStore();
-  // Fetch summaries on-demand only while the dialog is open to keep list queries lean.
-  const linkIds = useMemo(
-    () => (open ? links.map((l) => l.id) : []),
-    [open, links]
-  );
-  const fullLinksUnordered = store.useQuery(linksByIds$(linkIds));
+  const queryIds = useMemo(() => (open ? [...ids] : []), [open, ids]);
+  const fullLinksUnordered = store.useQuery(linksByIds$(queryIds));
 
   const fullLinks = useMemo<readonly LinkWithDetails[]>(() => {
-    if (!open || linkIds.length === 0) return [];
+    if (!open || ids.length === 0) return [];
     const byId = new Map(fullLinksUnordered.map((l) => [l.id, l]));
     const ordered: LinkWithDetails[] = [];
-    for (const l of links) {
-      const full = byId.get(l.id);
+    for (const id of ids) {
+      const full = byId.get(id);
       if (full) ordered.push(full);
     }
     return ordered;
-  }, [open, linkIds, fullLinksUnordered, links]);
+  }, [open, ids, fullLinksUnordered]);
 
   const markdownContent = useMemo(
     () => generateLinksMarkdown(fullLinks, pageTitle),
@@ -68,8 +65,7 @@ export function ExportDialog({
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(currentContent);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    flashCopied();
     track("export_used", { method: "copy", format: activeTab });
   };
 

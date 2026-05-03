@@ -1,11 +1,11 @@
 import { AnimatePresence, motion } from "motion/react";
 
-import { useRightPaneState } from "@/components/right-pane-context";
-import { BulkActionHeader } from "@/components/right-pane/bulk-action-header";
-import { PerLinkHeader } from "@/components/right-pane/per-link-header";
+import { BulkActionHeader } from "@/components/right-pane/headers/bulk/bulk-action-header";
+import { PerLinkHeader } from "@/components/right-pane/headers/per-link/per-link-header";
+import { useRightPaneStore } from "@/stores/right-pane-store";
 
 export function RightPaneHeader() {
-  const { activeLinkId } = useRightPaneState();
+  const activeLinkId = useRightPaneStore((s) => s.activeLinkId);
 
   return (
     <>

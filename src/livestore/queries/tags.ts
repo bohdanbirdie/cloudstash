@@ -94,25 +94,6 @@ export const allTagsWithCounts$ = queryDb(
   { label: "allTagsWithCounts" }
 );
 
-export const untaggedCount$ = queryDb(
-  () => ({
-    query: `
-      SELECT COUNT(*) as count FROM links l
-      WHERE l.deletedAt IS NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM link_tags lt
-          JOIN tags t ON lt.tagId = t.id
-          WHERE lt.linkId = l.id AND t.deletedAt IS NULL
-        )
-    `,
-    schema: Schema.Struct({ count: Schema.Number }).pipe(
-      Schema.Array,
-      Schema.headOrElse(() => ({ count: 0 }))
-    ),
-  }),
-  { label: "untaggedCount" }
-);
-
 export const pendingSuggestionsForLink$ = (linkId: string) =>
   queryDb(
     {

@@ -1,25 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { LinksPageLayout } from "@/components/links-page-layout";
-import { completedProjection } from "@/lib/link-projections";
-import { completedLinks$ } from "@/livestore/queries/links";
-import { useAppStore } from "@/livestore/store";
+import { resetTransientPageState } from "@/lib/route-resets";
 
 export const Route = createFileRoute("/_authed/completed")({
-  component: CompletedPage,
-  staticData: { icon: "check-circle", title: "Completed" },
+  component: LinksPageLayout,
+  onEnter: resetTransientPageState,
+  staticData: {
+    icon: "check-circle",
+    title: "Completed",
+    noun: "completed",
+    status: "completed",
+    emptyMessage: "No completed links yet",
+  },
 });
-
-function CompletedPage() {
-  const store = useAppStore();
-  const links = store.useQuery(completedLinks$);
-
-  return (
-    <LinksPageLayout
-      title="Completed"
-      links={links}
-      emptyMessage="No completed links yet"
-      projection={completedProjection}
-    />
-  );
-}

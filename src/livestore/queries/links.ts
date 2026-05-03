@@ -27,7 +27,11 @@ export const allLinksCount$ = queryDb(
 
 const archiveCountSchema = Schema.Struct({ count: Schema.Number }).pipe(
   Schema.Array,
-  Schema.headOrElse(() => ({ count: 0 }))
+  Schema.headOrElse(() => ({ count: 0 })),
+  Schema.transform(Schema.Number, {
+    decode: (row) => row.count,
+    encode: (count) => ({ count }),
+  })
 );
 
 export const archiveCount$ = queryDb(

@@ -67,7 +67,7 @@ The prototype omits these features that the production app has today. The implem
 
 - **Ingestion sources** beyond manual paste: Telegram bot, Raycast extension, iOS Shortcut, API, Chrome extension (planned). None of these UIs change.
 - **Processing states** for in-flight links: pending, fetching, processing summary, error. Currently visualized via `BorderTrail` animation on the card.
-- **Link actions**: mark complete / uncomplete, archive, restore from trash (within 30 days), delete, reprocess, copy URL, open external.
+- **Link actions**: mark complete / uncomplete, archive, restore from archive, delete, reprocess, copy URL, open external.
 - **Tags**: filter by tag or untagged, manage tags (rename, merge, delete), AI-suggested tags on new links, per-link tag editor.
 - **Multi-select**: modifier-click to toggle, shift-click for range, bulk actions (complete, archive, delete, export, tag).
 - **Export**: selected-links export (format TBD in the new UI; currently exists in the floating toolbar).
@@ -425,6 +425,28 @@ Supported in modern Chrome, Safari 18+, Firefox 125+. Matches the "optimize for 
 
 _Append entries as we iterate, newest first._
 
+### 2026-05-02 — layout collapsed to one component, route-driven query, untagged dropped, nuqs out
+
+**Layout simplified to a single component, query purely route-driven.** `LinksPageLayout` is now ~12 lines: reads its own match's `staticData` via `useMatch({ strict: false })`, runs one `useFilteredLinks(status)` subscription, renders the list. No props, no `useEffect`, no filtered/unfiltered split (the prior two-component dance existed only to gate `useFilteredLinksOnly` on `hasFilters`). Each of the four route files shrinks to `createFileRoute(...)({ component: LinksPageLayout, staticData: { icon, title, status, emptyMessage } })` — five lines, no query call, no wrapper component. Type-augmented `StaticDataRouteOption` in `main.tsx` with `status?: LinkStatus`, `emptyMessage?: string`, `title?: string`, `icon?: string` so the new fields are typed everywhere.
+
+**`PageActionsContext` deleted.** It existed so `LinksPageLayout` could publish `{links, title}` upward via `useEffect` for `DotsMenu` and `BulkActionHeader` to read. Inverted to data-down via route metadata: `DotsMenu` reads the leaf `staticData` via `useMatches({ select })` (narrowed subscription — re-renders only when the leaf changes). `BulkActionHeader` no longer subscribes to a page list at all; its `alreadyCompleted` dedupe is a one-shot `store.query(linksByIds$([...selectedIds]))` inside `handleComplete`. `ExportDialog`'s API changed from `links: readonly LinkListItem[]` to `ids: readonly string[]` and it runs its own `linksByIds$` subscription only while `open` — cold path. `DotsMenu`'s page-export path mounts an `ExportPageDialog` wrapper that calls `useFilteredLinks(status)` only when the dialog is open. Net effect: one livestore subscription on the hot path (the layout's), opt-in subscriptions when the export dialog mounts.
+
+**`useFilteredLinks` honest about undefined status.** Takes `LinkStatus | undefined`; when undefined, `filteredLinks$` returns a stable `WHERE 0` `emptyLinks$` query handle. No `as LinkStatus` cast at the call site — `staticData.status` flows through the type as it really is. The four base queries (`inboxLinks$`/`completedLinks$`/`archiveLinks$`/`allLinks$`) stay only because the cf-worker chat agent + tests still reference them; the React tree uses `filteredLinks$` exclusively.
+
+**`untagged` filter option removed entirely.** The "untagged" toggle pill in `TagStrip` was rarely useful and added code in many places. Dropped: the parser in `useTagFilter`, the `setUntagged` setter, the `untagged` field in `TagFilterOptions`, the `untagged` SQL branch in `buildTagFilterClause`, the standalone `untaggedLinks$` query, and the `untaggedCount$` count query — plus their tests. `useTagFilter` is now read-only (`{ tag }`).
+
+**Tag pills are real `<Link>`s, not `<button>`s.** Filtering by tag IS navigation — it changes the URL — so `<Link to="." search={(prev) => ({ ...prev, tag: active ? undefined : tag.id })} onClick={clearSelection}>` is the honest shape. Cmd-click / right-click / middle-click open in new tab, `cursor-pointer` is native, the URL is bookmarkable. The `less` toggle was removed (once expanded, the strip stays expanded for the page lifetime); `+N more` stays a `<button>` (UI state toggle, no `cursor-pointer` added).
+
+**`nuqs` uninstalled, replaced with TanStack Router native search params.** Symptom that surfaced this: clicking a tag `<Link>` updated the URL but neither active-tag styling nor the filtered list re-rendered. Cause: nuqs's React adapter didn't see TanStack Router's navigation events. Fix: `validateSearch` declared on `_authed` (`tag?: string`); `useTagFilter` reads via `useSearch({ from: "/_authed" })`. One package gone, one less integration seam, every tag click now flows through the router.
+
+**Category nav resets search params.** `CategoryNav` `<Link>`s pass `search={{ tag: undefined }}` instead of `search={(prev) => prev}`, so navigating Inbox / All / Completed / Archive clears any active tag filter — matches "category change = fresh context".
+
+**`PerfHUD` retired.** The custom dev HUD (FPS / longtask counter / `<Profiler>` commit log mounted in `_authed.tsx`) was scaffolding from phase 2. Replaced by `@overengineering/fps-meter` mounted in `_authed.tsx` behind `import.meta.env.DEV`. `src/components/perf-hud.tsx` and all `<PerfProfiler>` wrappers (`LinksPageLayout`, `RightPane`) deleted.
+
+**Per-link header export** uses `ids={[link.id]}` against the new `ExportDialog` API.
+
+**Verification:** typecheck clean, `vp check` (oxlint + oxfmt) + Effect diagnostics clean, 577/577 tests pass (down from 583 — six tests removed alongside `untaggedLinks$` / `untaggedCount$`).
+
 ### 2026-04-23 (phase 4) — floating command chip replaces modal search, search-only scope
 
 **Scoped narrower than the original plan.** The full phase 4 described in the plan below includes agent mode, link-attached chat, and subsumes the existing chat sheet. User scoped this pass to **search only** — agent mode, mobile treatment, and chat sheet removal all deferred to a later pass. The chip is a drop-in replacement for the old Cmd+K modal, nothing more.
@@ -477,8 +499,6 @@ _Append entries as we iterate, newest first._
 **Animations** (`right-pane.tsx` via `motion/react`): `AnimatePresence mode="wait"` keyed by `detail:<linkId>` / `home`. Direction computed from prev/next mode via a tiny `usePrevious` hook. Forward (any → detail, detail→detail): spring enter from `x: -16` + `blur(4px)` (bounce 0, duration 0.22), 80ms tween exit `x: -6`. Reverse (detail → home): spring enter from `x: -4` (no blur), 80ms tween exit `x: 6`. Reduced-motion: 100ms opacity crossfade only, no transform/blur. Follows the impeccable skill's spring-bounce-0 pattern.
 
 **TagStrip moved to full-width row**: previously inside `LinksPageLayout`, now a dedicated row in `_authed.tsx` between the masthead grid and the hairline. Spans both columns (`max-w-7xl`). `TagStrip` and `CategoryNav` extracted from the old `masthead.tsx` into their own files.
-
-**Tag filter single-select** (2026-04-23 late): `useTagFilter` rewritten to a single `tag: string | null` (URL param `?tag=<id>`, nuqs `parseAsString`, nullable). Button handlers call `setTag(active ? null : tag.id)`. `TagBadge` stripped of color coding (no more `getTagColor` / `tagColorStyles` — just `#name` in `text-muted-foreground`). `CategoryNav` uses `search={(prev) => prev}` on each `<Link>` so tag selection rides along on route change. Deleted orphaned `src/components/filters/tags-filter.tsx` and `filter-bar.tsx` (phase-2 survivors that were the last consumers of the multi-select API). `tag-colors.ts` kept because `tags/tag-row.tsx` (tag manager) and `tags/tag-combobox.tsx` (picker) still use it.
 
 **Masthead condensed to title + meta only**. `CategoryNav` lives in `TopBar` (beside the wordmark, `gap-10` from the logo), `TagStrip` is its own full-width row. Eyebrows (digest label, Summary, Tags) switched from `font-medium uppercase tracking-widest` to `font-semibold` — drops the shadcn reflex. Heroes unified: `font-extrabold` + `tracking-tight` on both masthead H1 (52px uppercase) and detail H2 (28px mixed-case).
 

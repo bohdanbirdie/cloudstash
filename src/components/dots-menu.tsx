@@ -1,12 +1,11 @@
 import { useNavigate } from "@tanstack/react-router";
 import { EllipsisVerticalIcon } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { AdminModal } from "@/components/admin";
 import { useChatPanel } from "@/components/chat/chat-context";
 import { ExportDialog } from "@/components/export-dialog";
 import { IntegrationsModal } from "@/components/integrations";
-import { usePageActions } from "@/components/page-actions-context";
 import { TagManagerDialog } from "@/components/tags/tag-manager-dialog";
 import {
   AlertDialog,
@@ -25,15 +24,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useFilteredLinks } from "@/hooks/use-filtered-links";
 import { useOrgFeatures } from "@/hooks/use-org-features";
+import { usePageStaticData } from "@/hooks/use-page-static-data";
 import { useAuth } from "@/lib/auth";
+import type { LinkStatus } from "@/livestore/queries/filtered-links";
 
 export function DotsMenu() {
   const navigate = useNavigate();
   const auth = useAuth();
   const { isChatEnabled } = useOrgFeatures();
   const chatPanel = useChatPanel();
-  const { exportAction } = usePageActions();
+  const { status: pageStatus, title: pageTitle } = usePageStaticData();
 
   const [adminOpen, setAdminOpen] = useState(false);
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
@@ -69,9 +71,9 @@ export function DotsMenu() {
           <DropdownMenuItem onClick={() => setIntegrationsOpen(true)}>
             Integrations
           </DropdownMenuItem>
-          {exportAction && (
+          {pageStatus && pageTitle && (
             <DropdownMenuItem onClick={() => setExportOpen(true)}>
-              Export {exportAction.title.toLowerCase()}
+              Export {pageTitle.toLowerCase()}
             </DropdownMenuItem>
           )}
           {isAdmin && (
@@ -96,12 +98,12 @@ export function DotsMenu() {
         open={tagManagerOpen}
         onOpenChange={setTagManagerOpen}
       />
-      {exportOpen && exportAction && (
-        <ExportDialog
+      {exportOpen && pageStatus && pageTitle && (
+        <ExportPageDialog
+          status={pageStatus}
+          pageTitle={pageTitle}
           open={exportOpen}
           onOpenChange={setExportOpen}
-          links={exportAction.links}
-          pageTitle={exportAction.title}
         />
       )}
       <IntegrationsModal
@@ -128,5 +130,28 @@ export function DotsMenu() {
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+function ExportPageDialog({
+  status,
+  pageTitle,
+  open,
+  onOpenChange,
+}: {
+  status: LinkStatus;
+  pageTitle: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const links = useFilteredLinks(status);
+  const ids = useMemo(() => links.map((l) => l.id), [links]);
+  return (
+    <ExportDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      ids={ids}
+      pageTitle={pageTitle}
+    />
   );
 }
