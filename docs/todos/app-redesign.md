@@ -30,7 +30,7 @@ _Quick at-a-glance status for resuming work. Detailed history lives in the Progr
 - **Phase 3c — further animation polish**: ✅ shipped (2026-04-27). Decided detail→detail = no animation; only home↔detail boundary animates. The existing `motion.div` in `right-pane.tsx:54` is keyed by `mode` (not `linkId`), so detail→detail already remounts nothing and the swap is instant — matches the decision with no code change. Image flash on detail open is also a non-issue: list and detail use the same `link.image` URL with no optimization layer, so the browser HTTP cache serves the second load instantly. Dropped the redundant `loading="lazy"` on the detail hero `<img>` (always in viewport — never deferred).
 - **Activity grid**: ✅ shipped (2026-04-27). 26-week × 7-day GitHub-style heatmap inside `WeeklyDigest`. Folder split: `src/components/activity-grid/{activity-grid.tsx, cell.tsx, build.ts}`. New livestore query `linkCreatedAts$` (no `deletedAt` filter — counts every link). Pure builders in `build.ts` (`buildCells` / `buildMonthLabels` / `buildDayLabels` + `formatTooltipText`); memoized `ActivityCell` with primitive props; padded outer wrapper gives 16×16 hitbox over a 14×14 visible square so quick mouse moves stay in-target. Single `Tooltip.Root` + many `Tooltip.Trigger`s via `Tooltip.createHandle()` — fixes the stuck-tooltip bug from rapid horizontal traversal that 182 per-cell Roots couldn't handle. Provider passes `closeDelay={150}` only (no open delay). `data-[instant]:animate-none` suppresses the swap animation between triggers; `pointer-events-none` is opt-in via new `positionerClassName` prop on `TooltipContent`. Mon-aligned rows (today's calendar week is the rightmost column; future days render as faint placeholders). Month labels filter via running-cursor min-gap rule (drops crowded followers, keeps first). 4-step warm-amber color scale on `--primary` (0 / 1–2 / 3–5 / 6+). Click does nothing in v1 — followup task logged for cell-click → list filter + multi-cell range select.
 - **Phase 4 — Floating command chip (search-only scope)**: ✅ shipped (2026-04-23). Old `CommandDialog`-based search retired: `src/components/search-command.tsx` + `src/stores/search-store.ts` deleted. New `src/components/command-chip.tsx` is a persistent bottom-centered `<label>` pill (480px, `rounded-full`) that expands a panel upward on focus. Reuses existing `searchLinks$` + `recentlyOpenedLinks$` livestore queries; no new queries. ⌘K toggles; Esc / pointer-outside / Tab-away close; clicking the pill focuses the input via native label behavior. `AnimatePresence` on the panel with the project's standard spring (bounce 0, duration 0.22) + 80ms tween exit + reduced-motion opacity crossfade. `highlighted-text.tsx` default yellow swapped to `bg-primary/15 dark:bg-primary/25` — the match highlight is now the first place the warm-orange accent appears in this surface. Rows reduced to favicon + domain + title only; status dots/badges dropped (search is for finding, status lives in the detail view). Layered warm-tinted shadows `rgb(61 40 20 / …)` on both pill and panel (tight 1px contact + wider lift), warm-tinted border `border-primary/10` that tightens to `border-primary/25` on focus. Microcopy: `N matches` (tabular-nums, pluralized) / `Nothing matches "foo"` / `Type to search`. TopBar search button removed (chip is persistent so it's redundant). **Explicitly out of scope:** agent mode, mobile treatment, keyboard hints footer, query scoping (`domain:`, `tag:`), recent-query memory, ⌘↵ open-in-new-pane. The existing chat sheet is still mounted separately — not subsumed.
-- **Phase 5**: not started.
+- **Phase 5**: shipping piecemeal — see [[#Remaining work]].
 - **Multi-select temporarily disabled** (2026-04-22 evening): selection store / hotkey tracking / modifier-click handling / `SelectionToolbar` all unwired. Reason: selection-mode hotkey was re-rendering all 244 cards on every Cmd keypress. To be rebuilt in Phase 3b as the right-pane selection view. Dead code preserved (`selection-store.ts`, `selection-toolbar.tsx`) for resurrection.
 - **Perf architecture decision (2026-04-22 late evening)**: pursued and rejected both `<Activity>` keep-alive and CSS `display:none` pre-rendering. Normal TanStack Router mount/unmount per route restored. Approach: keep the queries fast via composite indexes + keep the shell mounted (global work stays mounted across category switches). Accept the per-route mount cost (~77ms for 244 cards) as bounded by React's reconciliation floor. Indexes added on `links(status, deletedAt, createdAt)`, `links(deletedAt, createdAt)`, `links(status, deletedAt, completedAt)`, `links(deletedAt)`.
 - **Phase 1 cleanup pass** (2026-04-22 overnight): deleted `app-sidebar.tsx`, `ui/sidebar.tsx`, and the `link-card/` barrel. Various small polish — inconsistent naming fixed, redundant allocations dropped, inline styles eliminated. 534/534 tests still pass.
@@ -40,15 +40,25 @@ _Quick at-a-glance status for resuming work. Detailed history lives in the Progr
 
 ## Remaining work
 
-Single consolidated list of what's left from the original 5-phase plan, merging phase 3b / 3c deferrals, phase 4 follow-ups, and the phase 5 tail. Rough priority ordering; re-triage when picking one up. Each item owns its own sub-PR.
+Consolidated tail of the redesign — merges what was originally split between this section and "Phase 5 — Remaining small things". Each item owns its own sub-PR.
 
 - **Recent-query memory.** Chip's empty state currently shows recently-opened links; add a layer for recently-typed queries.
-- **Mobile treatment** — starts with the chip (480px fixed-width overflows on narrow viewports) and radiates outward (two-column collapse, touch targets, responsive masthead).
 - **Accessibility sweep** — `aria-label` on all icon-only buttons, `:focus-visible` throughout, keyboard list navigation (`j`/`k` or arrows), reduced-motion compliance across the board.
-- **Color token pass** — tint neutrals toward the warm-orange brand hue (OKLCH chroma 0.005–0.01). Currently neutrals read as zinc. Small shift across the token set.
-- **Tag text colors** — bring back per-tag color from `tag-colors.ts` (still used by `tag-row.tsx` in the tag manager) but apply only as `color` on the `#name` text, not as a colored background/badge. Touches `TagBadge` (list rows, detail-view editor, tag-strip) and the bulk/single tag pickers in `BulkTagPicker` + `TagCombobox`. Goal: tags stay readable in dense rows but the list still feels typographic, not painted.
 - **Type scale pass** — 5 sizes with ≥1.25 ratio; pick a display weight for hero moments so the mono voice has internal contrast.
-- **Further list-mount perf improvements.** Baseline 180ms longtask at 241 links on first route mount. SQL is not the bottleneck (Livestore useQuery is 14ms). Leverage points: flatten per-card DOM (currently 10+ fiber levels), query pagination with LIMIT + load-more, `startTransition` to chunk the longtask.
+- **Dark mode pass** — apply the type / radius passes to the dark variant.
+- **Tabular numerics audit** — every count / date / timestamp uses `font-variant-numeric: tabular-nums`.
+- **shadcn radius pass** — switch the global shadcn config to rounded corners (bump `--radius` in `globals.css` / `components.json`) and re-install the affected primitives from the registry so components that bake in literal `rounded-none` / fixed-radius classes (button, input, dropdown, dialog, etc.) pick up the new value. Audit local overrides where we forced `rounded-none` and remove any that were compensating for the old default.
+- ~~**Color token pass.**~~ obsolete — neutrals are fine as-is.
+- ~~**Activity indicator** in the right-side header slot.~~ obsolete — superseded by the GitHub-style activity grid in `WeeklyDigest`.
+- ~~**Settings / integrations slash-commands** in the chip.~~ obsolete — slash commands removed entirely.
+- ~~**Grid view re-design.**~~ obsolete — grid view removed in phase 2.
+
+Tracked in [[../kanban|kanban]] as standalone tasks (pulled out of this list):
+
+- [[mobile-view-review|Mobile view review + fixes]]
+- [[tag-text-colors|Per-tag text colors]]
+- [[further-list-mount-perf|Further list-mount perf improvements]]
+- [[agent-context-chips-entry-points|Agent context chips + entry points]]
 
 ## Implementation approach
 
@@ -313,24 +323,7 @@ The prototype omits these features that the production app has today. The implem
 
 ## Phase 5 — Remaining small things
 
-**Goal:** the tail of the redesign. Each item is self-contained — pick them up as sub-PRs.
-
-### Candidate items
-
-- **Activity indicator** in the right-side header slot (horizontal 7-day bar chart from the prototype). Requires a query aggregating daily link counts. Decide window (last 7d, last 30d, rolling).
-- **Settings / integrations slash-commands** in the chip (`/settings`, `/integrations`, `/export`).
-- **Grid view re-design** (if we keep it) — column-count cap, image-less card treatment, density pass.
-- **Color token pass** — tint neutrals toward the brand hue (OKLCH chroma 0.005–0.01 toward the orange). Currently neutrals read as zinc.
-- **Type scale pass** — 5 sizes with ≥1.25 ratio; pick a display weight for hero moments so mono has internal contrast.
-- **Dark mode pass** — apply all of the above to the dark variant.
-- **Accessibility** — `aria-label` on all icon-only buttons, `:focus-visible` throughout, keyboard list navigation (j/k or arrows), reduced-motion compliance across the board.
-- **Mobile polish** — responsive collapse of the two-column grid into a stacked layout with sensible affordances.
-- **Tabular numerics audit** — every count/date/timestamp uses `font-variant-numeric: tabular-nums`.
-- **shadcn radius pass** — switch the global shadcn config to rounded corners (bump `--radius` in `globals.css` / `components.json`) and re-install the affected primitives from the registry so components that bake in literal `rounded-none` / fixed-radius classes (button, input, dropdown, dialog, etc.) pick up the new value. Audit local overrides where we forced `rounded-none` and remove any that were compensating for the old default.
-
-### Decisions
-
-Break each item into its own sub-PR and ask the user at the start of each. Phase 5 is deliberately not over-planned.
+The phase 5 candidate-items list has been merged into [[#Remaining work]] above. Each remaining item still ships as its own sub-PR — phase 5 is deliberately not over-planned.
 
 ---
 
