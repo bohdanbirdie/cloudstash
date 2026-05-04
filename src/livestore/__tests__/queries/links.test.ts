@@ -13,7 +13,6 @@ import {
   linkById$,
   linkByUrl$,
   linksByIds$,
-  recentlyOpenedLinks$,
   searchLinks$,
 } from "../../queries/links";
 import { events } from "../../schema";
@@ -284,55 +283,6 @@ describe("links queries", () => {
       seedLink();
       const rows = store.query(linksByIds$([]));
       expect(rows).toEqual([]);
-    });
-  });
-
-  describe("recentlyOpenedLinks$", () => {
-    const interact = (linkId: string, type: string, occurredAt: Date) =>
-      store.commit(
-        events.linkInteracted({
-          id: testId("intx"),
-          linkId,
-          type,
-          occurredAt,
-        })
-      );
-
-    it("groups by linkId and picks latest opened interaction", () => {
-      const a = seedLink();
-      const b = seedLink();
-      const c = seedLink();
-      interact(a, "opened", new Date("2026-01-01T10:00:00Z"));
-      interact(a, "opened", new Date("2026-01-03T10:00:00Z"));
-      interact(b, "opened", new Date("2026-01-02T10:00:00Z"));
-      interact(c, "clicked", new Date("2026-01-05T10:00:00Z")); // non-opened
-
-      const rows = store.query(recentlyOpenedLinks$);
-      expect(rows.map((r) => r.id)).toEqual([a, b]);
-    });
-
-    it("limits to 10 results", () => {
-      for (let i = 0; i < 12; i++) {
-        const id = seedLink();
-        interact(
-          id,
-          "opened",
-          new Date(`2026-01-${String(i + 1).padStart(2, "0")}T10:00:00Z`)
-        );
-      }
-      const rows = store.query(recentlyOpenedLinks$);
-      expect(rows).toHaveLength(10);
-    });
-
-    it("excludes soft-deleted links", () => {
-      const a = seedLink();
-      const b = seedLink();
-      interact(a, "opened", new Date("2026-01-01T10:00:00Z"));
-      interact(b, "opened", new Date("2026-01-02T10:00:00Z"));
-      deleteLink(b, new Date("2026-01-05T10:00:00Z"));
-
-      const rows = store.query(recentlyOpenedLinks$);
-      expect(rows.map((r) => r.id)).toEqual([a]);
     });
   });
 

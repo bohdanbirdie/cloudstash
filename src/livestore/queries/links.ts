@@ -254,40 +254,6 @@ export const linksByIds$ = (ids: string[]) => {
   );
 };
 
-export const recentlyOpenedLinks$ = queryDb(
-  () => ({
-    query: `
-      SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
-             s.title, s.description, s.image, s.favicon,
-             sum.summary
-      FROM links l
-      INNER JOIN (
-        SELECT linkId, MAX(occurredAt) as lastOpened
-        FROM link_interactions
-        WHERE type = 'opened'
-        GROUP BY linkId
-      ) i ON i.linkId = l.id
-      LEFT JOIN link_snapshots s ON s.id = (
-        SELECT s2.id FROM link_snapshots s2
-        WHERE s2.linkId = l.id
-        ORDER BY s2.fetchedAt DESC
-        LIMIT 1
-      )
-      LEFT JOIN link_summaries sum ON sum.id = (
-        SELECT sum2.id FROM link_summaries sum2
-        WHERE sum2.linkId = l.id
-        ORDER BY sum2.summarizedAt DESC
-        LIMIT 1
-      )
-      WHERE l.deletedAt IS NULL
-      ORDER BY i.lastOpened DESC
-      LIMIT 10
-    `,
-    schema: linksWithDetailsSchema,
-  }),
-  { label: "recentlyOpenedLinks" }
-);
-
 export const searchLinks$ = (query: string) => {
   if (!query.trim()) {
     return queryDb(

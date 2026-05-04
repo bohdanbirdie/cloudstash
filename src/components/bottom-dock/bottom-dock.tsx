@@ -6,10 +6,11 @@ import { useCallback, useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
+import { useRecentLinks } from "@/hooks/use-recent-links";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
 import { track } from "@/lib/analytics";
 import { useAuth } from "@/lib/auth";
-import { recentlyOpenedLinks$, searchLinks$ } from "@/livestore/queries/links";
+import { searchLinks$ } from "@/livestore/queries/links";
 import type { LinkWithDetails, SearchResult } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
 import { useDockStore } from "@/stores/dock-store";
@@ -92,8 +93,8 @@ export function BottomDock() {
   }, [mode, setMode, openAgent]);
 
   const store = useAppStore();
-  const recentLinks = store.useQuery(recentlyOpenedLinks$);
   const searchResults = store.useQuery(searchLinks$(query.trim()));
+  const recentLinks = useRecentLinks();
 
   const openDetail = useRightPaneStore((s) => s.openDetail);
   const trackLinkOpen = useTrackLinkOpen();
