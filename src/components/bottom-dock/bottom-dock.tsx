@@ -27,7 +27,7 @@ function useDismiss(
 ) {
   useHotkeys("esc", () => onDismiss(), {
     enabled: active,
-    enableOnFormTags: ["input", "textarea"],
+    enableOnFormTags: ["input", "textarea", "option"],
     scopes: ["global"],
   });
 
@@ -129,14 +129,14 @@ export function BottomDock() {
     },
     {
       preventDefault: true,
-      enableOnFormTags: ["input", "textarea"],
+      enableOnFormTags: ["input", "textarea", "option"],
       scopes: ["global"],
     }
   );
 
   useHotkeys("meta+j,ctrl+j", toggleAgent, {
     preventDefault: true,
-    enableOnFormTags: ["input", "textarea"],
+    enableOnFormTags: ["input", "textarea", "option"],
     scopes: ["global"],
   });
 
