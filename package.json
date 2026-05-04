@@ -33,10 +33,10 @@
     "clean:local-state": "rm -rf .wrangler/state/v3/cache .wrangler/state/v3/do .wrangler/state/v3/kv .wrangler/state/v3/workflows"
   },
   "dependencies": {
-    "@ai-sdk/react": "3.0.136",
+    "@ai-sdk/react": "3.0.176",
     "@base-ui/react": "1.3.0",
     "@better-auth/api-key": "1.5.5",
-    "@cloudflare/ai-chat": "0.1.9",
+    "@cloudflare/ai-chat": "0.6.2",
     "@effect/opentelemetry": "0.63.0",
     "@fontsource-variable/jetbrains-mono": "5.2.8",
     "@lexical/list": "0.42.0",
@@ -67,8 +67,8 @@
     "@tanstack/react-router": "1.168.1",
     "@tanstack/react-router-devtools": "1.166.10",
     "@tanstack/router-plugin": "1.167.2",
-    "agents": "0.7.9",
-    "ai": "6.0.134",
+    "agents": "0.12.3",
+    "ai": "6.0.174",
     "better-auth": "1.5.5",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",

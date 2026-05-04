@@ -5,17 +5,14 @@ import { Suspense } from "react";
 import { HotkeysProvider } from "react-hotkeys-hook";
 
 import { AddLinkDialogProvider } from "@/components/add-link-dialog";
-import { useChatPanel } from "@/components/chat/chat-context";
-import { ChatSheet } from "@/components/chat/chat-sheet";
-import { ChatSheetProvider } from "@/components/chat/chat-sheet-provider";
-import { CommandChip } from "@/components/command-chip/command-chip";
+import { BottomDock } from "@/components/bottom-dock/bottom-dock";
 import { ListDataProvider } from "@/components/list-data-context";
 import { LoadingScreen } from "@/components/loading-screen";
 import { Masthead } from "@/components/masthead";
 import { RightPane } from "@/components/right-pane/right-pane";
 import { TagStrip } from "@/components/tag-strip";
 import { TopBar } from "@/components/top-bar";
-import { useIsMobile } from "@/hooks/use-mobile";
+// import { useIsMobile } from "@/hooks/use-mobile";
 import { usePageStaticData } from "@/hooks/use-page-static-data";
 import { ConnectionMonitor } from "@/livestore/store";
 
@@ -33,7 +30,6 @@ export const Route = createFileRoute("/_authed")({
 
 function AuthedLayout() {
   const { storeRegistry } = Route.useRouteContext();
-  const isMobile = useIsMobile();
 
   return (
     <StoreRegistryProvider storeRegistry={storeRegistry}>
@@ -41,19 +37,16 @@ function AuthedLayout() {
         <Suspense fallback={<LoadingScreen />}>
           <ConnectionMonitor />
           <AddLinkDialogProvider>
-            <ChatSheetProvider>
-              <ListDataProvider>
-                <AuthedShell />
-              </ListDataProvider>
-              <ContextualChatSheet isMobile={isMobile} />
-              <CommandChip />
-              {import.meta.env.DEV && (
-                <FPSMeter
-                  className="fixed right-3 bottom-3 z-[9999] border border-gray-600 bg-black"
-                  height={40}
-                />
-              )}
-            </ChatSheetProvider>
+            <ListDataProvider>
+              <AuthedShell />
+            </ListDataProvider>
+            <BottomDock />
+            {import.meta.env.DEV && (
+              <FPSMeter
+                className="fixed left-3 top-3 z-[9999] border border-gray-600 bg-black"
+                height={40}
+              />
+            )}
           </AddLinkDialogProvider>
         </Suspense>
       </HotkeysProvider>
@@ -96,16 +89,5 @@ function AuthedShell() {
         </div>
       </div>
     </div>
-  );
-}
-
-function ContextualChatSheet({ isMobile }: { isMobile: boolean }) {
-  const { isOpen, close } = useChatPanel();
-  return (
-    <ChatSheet
-      open={isOpen}
-      onOpenChange={(open) => !open && close()}
-      side={isMobile ? "bottom" : "right"}
-    />
   );
 }

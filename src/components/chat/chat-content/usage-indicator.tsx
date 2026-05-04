@@ -1,22 +1,28 @@
+import type { PreviewCard as PreviewCardPrimitive } from "@base-ui/react/preview-card";
+import { Trash2Icon } from "lucide-react";
+import { useRef } from "react";
+
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  PreviewCard,
+  PreviewCardContent,
+  PreviewCardTrigger,
+} from "@/components/ui/preview-card";
 import { cn } from "@/lib/utils";
 
-export const UsageIndicator = ({
-  usage,
-}: {
+interface UsageIndicatorProps {
   usage: { used: number; limit: number; budget: number };
-}) => {
+  onClear?: () => void;
+}
+
+export const UsageIndicator = ({ usage, onClear }: UsageIndicatorProps) => {
+  const actionsRef = useRef<PreviewCardPrimitive.Root.Actions | null>(null);
   const percent = Math.min(Math.round((usage.used / usage.limit) * 100), 100);
   const spent = usage.budget * (usage.used / usage.limit);
   const isWarning = percent >= 80;
   const isCritical = percent >= 90;
 
-  const size = 16;
-  const strokeWidth = 2.5;
+  const size = 14;
+  const strokeWidth = 2;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const filled = (percent / 100) * circumference;
@@ -27,13 +33,22 @@ export const UsageIndicator = ({
       ? "stroke-amber-500"
       : "stroke-primary";
 
+  const barColor = isCritical
+    ? "bg-destructive"
+    : isWarning
+      ? "bg-amber-500"
+      : "bg-primary";
+
   return (
-    <Tooltip>
-      <TooltipTrigger
+    <PreviewCard actionsRef={actionsRef}>
+      <PreviewCardTrigger
+        delay={120}
+        closeDelay={260}
         render={
           <button
             type="button"
-            className="p-1 rounded-md hover:bg-muted transition-colors"
+            aria-label={`Monthly usage: $${spent.toFixed(2)} of $${usage.budget.toFixed(2)}`}
+            className="flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none"
           >
             <svg
               width={size}
@@ -41,7 +56,6 @@ export const UsageIndicator = ({
               viewBox={`0 0 ${size} ${size}`}
               className="-rotate-90"
             >
-              {/* Background circle */}
               <circle
                 cx={size / 2}
                 cy={size / 2}
@@ -50,7 +64,6 @@ export const UsageIndicator = ({
                 strokeWidth={strokeWidth}
                 className="stroke-muted"
               />
-              {/* Progress circle */}
               <circle
                 cx={size / 2}
                 cy={size / 2}
@@ -66,29 +79,48 @@ export const UsageIndicator = ({
           </button>
         }
       />
-      <TooltipContent side="bottom" align="end">
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between gap-4">
-            <span>Monthly usage</span>
-            <span className="font-medium tabular-nums">
-              ${spent.toFixed(2)} / ${usage.budget.toFixed(2)}
-            </span>
+      <PreviewCardContent
+        side="bottom"
+        align="start"
+        sideOffset={8}
+        className="w-56 rounded-lg p-1"
+      >
+        <div className="flex flex-col">
+          <div className="flex flex-col gap-1.5 px-2 pt-1 pb-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Monthly usage</span>
+              <span className="font-medium tabular-nums">
+                ${spent.toFixed(2)} / ${usage.budget.toFixed(2)}
+              </span>
+            </div>
+            <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all duration-300",
+                  barColor
+                )}
+                style={{ width: `${percent}%` }}
+              />
+            </div>
           </div>
-          <div className="h-1.5 w-full rounded-full bg-background/20 overflow-hidden">
-            <div
-              className={cn(
-                "h-full rounded-full transition-all duration-300",
-                isCritical
-                  ? "bg-destructive"
-                  : isWarning
-                    ? "bg-amber-500"
-                    : "bg-primary"
-              )}
-              style={{ width: `${percent}%` }}
-            />
-          </div>
+          {onClear && (
+            <>
+              <div className="border-t border-border py-0.5 mx-1" />
+              <button
+                type="button"
+                onClick={() => {
+                  onClear();
+                  actionsRef.current?.close();
+                }}
+                className="flex h-7 items-center gap-2 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:outline-none"
+              >
+                <Trash2Icon className="size-3" />
+                Clear conversation
+              </button>
+            </>
+          )}
         </div>
-      </TooltipContent>
-    </Tooltip>
+      </PreviewCardContent>
+    </PreviewCard>
   );
 };

@@ -35,14 +35,13 @@ _Quick at-a-glance status for resuming work. Detailed history lives in the Progr
 - **Perf architecture decision (2026-04-22 late evening)**: pursued and rejected both `<Activity>` keep-alive and CSS `display:none` pre-rendering. Normal TanStack Router mount/unmount per route restored. Approach: keep the queries fast via composite indexes + keep the shell mounted (global work stays mounted across category switches). Accept the per-route mount cost (~77ms for 244 cards) as bounded by React's reconciliation floor. Indexes added on `links(status, deletedAt, createdAt)`, `links(deletedAt, createdAt)`, `links(status, deletedAt, completedAt)`, `links(deletedAt)`.
 - **Phase 1 cleanup pass** (2026-04-22 overnight): deleted `app-sidebar.tsx`, `ui/sidebar.tsx`, and the `link-card/` barrel. Various small polish — inconsistent naming fixed, redundant allocations dropped, inline styles eliminated. 534/534 tests still pass.
 - **Perf floor understood** (2026-04-22 overnight, Chrome DevTools profiling): at 241 links, SQL is fast (14ms total via composite indexes), React scheduling + GC dominates (~110ms combined). IVM shelved — not where the cost lives. Detailed findings in Open Questions below.
+- **Agent UI scaffold (continuing phase 4)**: 🚧 in progress (2026-05-03). Floating chat surface in the bottom dock alongside search; morphing popup with horizontal slide between modes; mode/query state machine; single dismiss path; fake messages only — no backend wiring yet. See "Agent UI" section below for architecture decisions, status, and remaining work.
 - **Listbox keyboard nav**: ✅ shipped (2026-04-29). Up/down + j/k move focus + selection through the list, detail pane updates as you go, Esc restores focus to the row that opened it. Roving tabindex with anchor ref + tabStop state. ARIA `listbox` / `option` semantics. Hover-blur clears the focus ring when the mouse takes over the cursor anchor. The `[` / `]` detail-view nav was removed (arrows replace it). Pure helpers extracted to `src/lib/listbox-keyboard.ts` (`findRowInContainer`, `focusRowById`, `clearKeyboardFocusFromOtherRow`, `computeTargetIndex`) with 30 unit tests under `src/lib/__tests__/listbox-keyboard.test.ts`. Held-key perf regression resolved by stable handler refs (see "Held-key keyboard nav perf" entry on the kanban Done column).
 
 ## Remaining work
 
 Single consolidated list of what's left from the original 5-phase plan, merging phase 3b / 3c deferrals, phase 4 follow-ups, and the phase 5 tail. Rough priority ordering; re-triage when picking one up. Each item owns its own sub-PR.
 
-- **Phase 4 agent mode.** Type → Tab → ask flow inside the chip. Link-attached chat from the detail view (`✱ chat about this`). Streaming responses via existing AI SDK + OpenRouter. Context strategy open: N most recent vs top-K keyword-matched vs hybrid. Chat history persistence TBD.
-- **Chat sheet removal.** `src/components/chat/chat-sheet.tsx` still mounted in `_authed.tsx` alongside the chip. Remove once agent mode lands in the chip so there's a single chat surface.
 - **Recent-query memory.** Chip's empty state currently shows recently-opened links; add a layer for recently-typed queries.
 - **Mobile treatment** — starts with the chip (480px fixed-width overflows on narrow viewports) and radiates outward (two-column collapse, touch targets, responsive masthead).
 - **Accessibility sweep** — `aria-label` on all icon-only buttons, `:focus-visible` throughout, keyboard list navigation (`j`/`k` or arrows), reduced-motion compliance across the board.
@@ -327,10 +326,70 @@ The prototype omits these features that the production app has today. The implem
 - **Accessibility** — `aria-label` on all icon-only buttons, `:focus-visible` throughout, keyboard list navigation (j/k or arrows), reduced-motion compliance across the board.
 - **Mobile polish** — responsive collapse of the two-column grid into a stacked layout with sensible affordances.
 - **Tabular numerics audit** — every count/date/timestamp uses `font-variant-numeric: tabular-nums`.
+- **shadcn radius pass** — switch the global shadcn config to rounded corners (bump `--radius` in `globals.css` / `components.json`) and re-install the affected primitives from the registry so components that bake in literal `rounded-none` / fixed-radius classes (button, input, dropdown, dialog, etc.) pick up the new value. Audit local overrides where we forced `rounded-none` and remove any that were compensating for the old default.
 
 ### Decisions
 
 Break each item into its own sub-PR and ask the user at the start of each. Phase 5 is deliberately not over-planned.
+
+---
+
+## Agent UI
+
+The agent surface lives in the bottom dock alongside search, sharing one morphing popup. Search and agent are mutually-exclusive modes (`mode: "closed" | "search" | "agent"`); the popup never hosts both. The trigger row is a fixed-height anchor that doesn't move when modes change. Continues phase 4, which scoped to search-only.
+
+### Architecture decisions
+
+- **One DO per user, one chat thread per user.** Cloudflare's `AIChatAgent` (`@cloudflare/ai-chat`) is hard-coded to one conversation per DO — the `cf_ai_chat_agent_messages` table has no thread key, and `useAgentChat` connects 1:1 to a named instance. Cloudflare's official multi-chat pattern is sub-agents (one DO per thread), but each chat DO would need its own Livestore client — expensive enough to defer. Sub-agents stay as a phase-2 escape hatch with a parent-routing pattern: chat DOs go light, tool calls RPC into a parent that owns Livestore.
+- **No "New chat" affordance.** Single thread is the model. Replaced with a Reset that clears messages (`CF_AGENT_CHAT_CLEAR`) and auto-summarization when the window grows (Session API `compact()`).
+- **Tools already defined.** `cf-worker/chat-agent/tools.ts` is the existing tool surface — not redesigned.
+- **Single morphing popup with lifted providers.** One `motion.div` morphs between modes (`right` 0 ↔ 48, `transformOrigin` "bottom right" / "bottom", opacity, scale). Search/agent contents swap inside via `AnimatePresence` with directional fade+slide keyed on `displayMode`. The three agent providers (`AgentConnectionProvider` → `AgentInputProvider` → Suspense → `AgentChatProvider`) live _above_ the morphing motion.div and stay mounted once `agentEverOpened` flips true. `AgentPanel` itself mounts/unmounts freely with mode swaps — chat state survives because the providers don't.
+- **Trigger handlers own anchor + position.** `originMV: useMotionValue<string>` and `rightMV: useMotionValue<number>` live in `BottomDock`. `openAgent`/`openSearch` wrappers (used by Cmd+J, Cmd+K, AgentTrigger click, SearchTrigger focus) set both _before_ `setMode`. Closed→open snaps via `mv.set(...)` (synchronous Framer DOM update on next frame); open↔open animates `rightMV` via Framer's imperative `animate(mv, target, spring)`. Putting either in `animate` with `transition: { duration: 0 }` was unreliable — Framer leaked one frame at the old value before snapping.
+- **`sessionRef` remounts inner content on closed→open.** Counter bumps on every closed→open. `ContentSwitcher` is keyed by it, so its `AnimatePresence` remounts fresh each time with `initial={false}` — the new mode's content appears in place, no "old mode briefly visible" flash on reopen.
+- **Lazy chat connection.** `agentEverOpened` flag in `dock-store.ts` flips true on first agent open and never back. The provider stack mounts only after that flag flips. No fetch at app boot, no reconnect on subsequent opens.
+- **Split providers, no bridge, no `useEffect` mirror.** `AgentConnectionProvider` calls `useAgent` (no suspension, exposes `agent.state.usage` and `isConnected` reactively); `AgentInputProvider` holds `draft` + `selectionRef` + `setupTextarea` (so they survive Suspense fallback ↔ resolved swap and mode-swap remounts); `AgentChatProvider` calls `useAgentChat` (suspends on initial fetch, exposes messages/sendMessage/etc). Each just provides React Context. No store, no `useEffect` mirror, no render-null bridge.
+- **Suspense scoped to messages + send, not the whole panel.** Header sits outside the `<Suspense>` boundary (uses connection only — always live). Suspense fallback (`SkeletonAgentPanel`) renders skeleton messages + a real, typeable `<textarea>` with `canSend=false`. ~100-200ms initial load is non-blocking for typing; cursor + draft persist via `AgentInputProvider`.
+
+### Status — single morphing dock with lifted providers (2026-05-04)
+
+What's built end-to-end:
+
+- `BottomDock` with chip + sparkle trigger in a 3-col grid (`1fr | auto | 1fr`); chip stays center-x.
+- Single morphing motion.div (`MorphingPanel`): `right` (0 ↔ 48 via `rightMV`), `transformOrigin` ("bottom right" / "bottom" via `originMV`), opacity, scale. Reference visual pattern: `src/components/ui/navigation-menu.tsx`.
+- Inner content swap: `ContentSwitcher` runs `AnimatePresence mode="popLayout"` keyed by `displayMode`. Enter uses `EASE_OUT` curve with 0.06s delay; exit uses `EASE_IN` 0.08s opacity + 0.18s spring x — tightened for snappier morphs.
+- Trigger handlers (`openAgent`/`openSearch`) own the anchor: set `originMV` and `rightMV` _before_ `setMode`. Closed→open snaps; open↔open uses imperative `animate(rightMV, target, spring)` for the slide.
+- `displayMode` (state) tracks the last open mode — kept stable through close so the panel shows the right content fading out. Bumps a `sessionRef` on every closed→open so `ContentSwitcher` remounts and `AnimatePresence` doesn't run a stale swap.
+- State machine (`dock-store.ts`): `mode`, `query`, `agentEverOpened`, `setMode`, `setQuery`, `close`. Transitions atomically clear `query` when leaving search and flip `agentEverOpened` on first agent visit.
+- Single dismiss path: `useDismiss(rootRef, dismiss, active)` covers Esc + outside-click; `dismiss` blurs focused element + `close()`.
+- ⌘J toggles agent. ⌘K opens search. AgentTrigger and SearchTrigger receive `active: boolean` from parent (no separate store subscription); SearchTrigger takes `onActivate` prop.
+- Compact agent chrome: `h-7` header, `p-1` form, `text-xs` body, `icon-xs` send button. Sparkle trigger has press feedback (`scale: 0.96`).
+- Backend wired: real messages stream from `ChatAgentDO` via `useAgentChat`. Tool calls render via existing `ChatMessage`. Connection dot + monthly `UsageIndicator` in header. All state flows through `useAgentConnection()` / `useAgentChat()` / `useAgentInput()` context hooks.
+- Loading state: `SkeletonAgentPanel` Suspense fallback (skeleton messages + typeable `<textarea>` via `useAgentInput` context). Header live throughout. Cursor + draft survive Suspense resolution and mode-swap remounts.
+- Lexical editor + slash commands removed entirely. Plain `<textarea>` with Enter-to-send, Shift+Enter newline. ⌘K/⌘J pass through.
+- `cmdk` decoupled from layout via `className="contents"` — provides input/list context only.
+- Files: `src/components/agent/{agent-chat-provider,agent-panel,agent-header,agent-messages,agent-input,agent-skeleton}.tsx`, `src/components/bottom-dock/{bottom-dock,morphing-panel,search-trigger,search-content,agent-trigger,result-row}.tsx`, `src/stores/dock-store.ts`, `src/components/chat/chat-container-context.ts`.
+
+SDK versions: `@cloudflare/ai-chat` 0.6.2, `agents` 0.12.3, `@ai-sdk/react` 3.0.176, `ai` 6.0.174.
+
+Old chat sheet code partially removed: `chat-sheet.tsx`, `chat-content/index.tsx`, `chat-loading.tsx`, `chat/lexical/`, `shared/slash-commands.ts` deleted. `ChatContainerContext` extracted. `ChatSheetProvider` + `chat-context.tsx` still mounted because `dots-menu.tsx` uses `useChatPanel` — full removal pending in "Drop chat sheet entirely" item below.
+
+### Remaining work
+
+All Agent UI work that was blocking the redesign has shipped. Remaining follow-ups were moved to the kanban backlog as standalone tasks (see [[../kanban|kanban]]):
+
+- Agent context chips + entry points (combined task — value validation needed before building)
+- Mobile view review + fixes (full-app pass; agent dock is one of the offenders)
+
+Phase-2 escape hatch (sub-agent migration) is dropped — single-thread design is settled.
+
+Done in-phase, kept here for history:
+
+- ~~**Reset / Clear conversation.**~~ ✅ done. Lives inside the usage-indicator preview-card popup in the agent header — hover the progress ring, popup shows monthly usage + a "Clear conversation" button. Uses `clearHistory()` from `useAgentChat`. No modal.
+- ~~**Tool call rendering.**~~ ✅ already shipped via `src/components/ui/tool.tsx` — handles `input-streaming` / `input-available` (with confirm/reject) / `output-available` / `output-error`, expandable args/results. Inherited by the new agent panel via `agent-messages.tsx`.
+- ~~**Empty state.**~~ skipped — current empty state is fine.
+- ~~**Scroll-to-bottom by default + preserve position across mode swaps.**~~ ✅ done.
+- ~~**Drop chat sheet entirely.**~~ ✅ done. Deleted `chat-sheet-provider.tsx` and `chat-context.tsx` (chat-sheet.tsx was already gone), dropped `ChatSheetProvider` from `_authed.tsx`, migrated `dots-menu.tsx` to `useDockStore.getState().setMode("agent")`.
+- ~~**Accessibility.**~~ skipped — revisit if a real need surfaces. Original ask (`role="dialog"` + `aria-modal`, focus trap, `:focus-visible` polish) wasn't validated against actual usage.
 
 ---
 
@@ -424,6 +483,80 @@ Supported in modern Chrome, Safari 18+, Firefox 125+. Matches the "optimize for 
 ## Progress log
 
 _Append entries as we iterate, newest first._
+
+### 2026-05-04 — single morphing dock restored, motion values for origin + position
+
+Reverted the "two independent popups" architecture from the previous session in favor of one morphing motion.div, matching the navigation-menu pattern (`src/components/ui/navigation-menu.tsx`) the user pointed at. The previous session's split was a workaround for "agent panel must stay mounted to keep chat alive" — solved correctly this time by lifting the providers above the morphing motion.div instead.
+
+**Single morphing motion.div in a new `MorphingPanel` component.** One motion.div animates `right`, `transformOrigin`, `opacity`, `scale` between search (right:48, "bottom") and agent (right:0, "bottom right"). Width stays static (480px) — animating width caused message lines to re-wrap mid-morph.
+
+**Trigger handlers own the anchor.** `originMV: useMotionValue<string>` and `rightMV: useMotionValue<number>` in `BottomDock`. `openAgent`/`openSearch` wrappers set both _before_ `setMode`. Closed→open uses `mv.set(...)` for an instant snap (Framer applies the value to DOM on the next animation frame, before the open animation tick); open↔open uses Framer's imperative `animate(rightMV, target, spring)` for the slide. Earlier attempt with `transition: { duration: 0 }` on the `right`/`transformOrigin` keys in the `animate` prop didn't actually snap — there was a one-frame delay where the panel rendered at the previous mode's anchor before correcting, and the user could see it.
+
+**`sessionRef` for inner content remount.** Counter bumped on every closed→open. `ContentSwitcher` is keyed by it, so its `AnimatePresence` remounts fresh on reopen — `initial={false}` makes the new content appear in place. Without this, reopening to a different mode after a close would briefly show the old mode's content cross-fading with the new (because the inner AnimatePresence's previous swap was still mid-flight).
+
+**Lifted draft + selection.** `AgentInputProvider` (above Suspense, above the motion.div) holds `draft`, `selectionRef`, `setupTextarea`. The textarea's value, cursor position, and focus survive the Suspense fallback ↔ resolved tree swap and the mode-swap remount. `setupTextarea` is a `useCallback`-stable callback ref that, on textarea mount, restores `setSelectionRange` from `selectionRef.current` and calls `focus()`.
+
+**Curve tweaks.** Inner content swap: `EASE_OUT [0.22, 1, 0.36, 1]` for enter (smooth, navigation-menu-style), `EASE_IN [0.4, 0, 1, 1]` for exit (front-loaded, fast initial drop). Exit timings: opacity 0.08s, x-spring 0.18s — old content gets out of the way faster on a morph. Enter has a 0.06s opacity delay so old visually clears before new appears.
+
+**Trigger paths consolidated.** All four open paths (Cmd+J, Cmd+K, AgentTrigger click, SearchTrigger focus) route through `openAgent` or `openSearch`. `SearchTrigger` no longer mutates the dock store directly — takes `onActivate` prop. Both triggers receive `active: boolean` from `BottomDock` instead of subscribing to `useDockStore` themselves (three subscriptions reduced to one).
+
+**Cleanups (post-review by general-purpose subagent).** Unused `toggle` action removed from `dock-store.ts` (was orphaned after the split-popup refactor). Trigger components stopped subscribing to `useDockStore` for `active`. The subagent also recommended deriving `displayMode` from `mode` directly — applied, then reverted: derivation flipped `displayMode` to "search" the moment `mode` went to "closed", which made search content slide in during the close-from-agent animation. Kept as `useState` that only updates when `mode` is "search" or "agent".
+
+**Files changed.** New: `src/components/bottom-dock/morphing-panel.tsx`. Modified: `src/components/bottom-dock/{bottom-dock,agent-trigger,search-trigger}.tsx`, `src/components/agent/{agent-chat-provider,agent-panel,agent-input}.tsx`, `src/stores/dock-store.ts`.
+
+**Verification.** Typecheck + lint clean. Browser-verified by user across closed→open, search→agent morph, agent→close→search reopen, agent→close→agent reopen. Two scenarios where the wrong-origin or wrong-position bug surfaced before the motion-value approach were re-tested and confirmed fixed.
+
+### 2026-05-03 — agent backend wired, providers split, panel made persistent
+
+Continues from the morphing-dock scaffold landed earlier today. Three threads of work this session: backend wiring, SDK bumps, and an architecture refactor away from the bridge-and-store pattern toward straight React Context.
+
+**Backend wired.** Fake messages replaced with the real chat. `useAgent` opens the websocket; `useAgentChat` (default `getInitialMessages`, fetches from `/agents/chat/<orgId>/get-messages`) supplies messages, sendMessage, status, error, addToolOutput. Tool calls render via the existing `ChatMessage` + `Tool` components. Header gets the live connection dot and monthly `UsageIndicator` (reading `agent.state?.usage` directly — `agents` 0.8.0+ exposes reactive state). Send button gates on `canSend = isConnected && !isStreaming && !hasPendingConfirmation`; textarea itself is never disabled, so users can compose during streaming and send when ready.
+
+**SDK bumps.** `@cloudflare/ai-chat` 0.1.9 → 0.6.2, `agents` 0.7.9 → 0.12.3, `@ai-sdk/react` 3.0.136 → 3.0.176, `ai` 6.0.134 → 6.0.174. Zero code changes required for compatibility (a subagent verified by reading each changelog and running typecheck + lint + 585 unit tests). DO SQLite migrations apply automatically on first request after deploy — no manual `db:migrate:local` or Wrangler tag bump.
+
+**Lexical editor + slash commands removed.** The lexical-based chat input was eating ⌘K (its contenteditable doesn't match `enableOnFormTags: ["input", "textarea"]`). Swapped to a plain `<textarea>` — Enter to send, Shift+Enter newline, IME composition respected. Slash commands fully removed (`@/shared/slash-commands.ts`, `chat/lexical/`, all the typeahead plumbing). `/help` and `/clear` will be reintroduced as proper UI controls when needed.
+
+**Architecture refactor: bridge → context.** First wiring used a "bridge" component that called `useWorkspaceChat` and `useEffect`-mirrored its return value into a Zustand store. Two complaints surfaced: (a) the render-null component felt off, and (b) `useEffect` for state sync is the kind of thing we want to avoid. After the SDK bump, switched to a Cloudflare-blessed pattern (verified against `cloudflare/agents` examples `ai-chat`, `workspace-chat`, `multi-ai-chat`):
+
+- `AgentConnectionProvider` calls `useAgent` (no suspension), provides connection + usage via Context.
+- `AgentChatProvider` calls `useAgentChat` (suspends on initial fetch), provides messages/sendMessage/etc via Context.
+- No store, no `useEffect` mirror, no bridge.
+
+Suspense placement: connection and header live outside Suspense, messages + input live inside. The fallback renders skeleton messages and the _same_ `<InputForm>` component the real input uses, with `canSend=false` and a no-op submit. `draft` state is lifted into `AgentPanel` so the textarea content survives the fallback → real swap on Suspense resolution. Net effect: ~100-200ms initial load shows skeleton messages, but the input is fully typeable throughout.
+
+**Persistent agent panel.** With the chat hooks living inside the panel via Context, the panel must stay mounted to keep the websocket alive. Refactored `BottomDock`: search and agent are now independent popups. Search uses `AnimatePresence` (mount/unmount on `mode === "search"`); agent renders persistently after `agentEverOpened` flips, with manual opacity/scale animation tied to mode. Trade-off: the morphing-slide animation between the two modes is gone — now they cross-fade at their respective anchor positions. Cleaner architecturally; visual continuity is mildly worse but acceptable.
+
+**`agentEverOpened` flag.** New field in `dock-store.ts`. `setMode`/`toggle` flip it true on first agent visit and never back. The agent popup's outer container is gated on this flag, so the chat hooks only mount once the user explicitly opens the agent — no fetch at app boot.
+
+**Files changed.** Created: `src/components/agent/{agent-chat-provider,agent-skeleton}.tsx`, `src/components/chat/chat-container-context.ts`. Renamed/restructured: `bottom-dock/agent-content.tsx` → `agent/{agent-panel,agent-header,agent-messages,agent-input}.tsx`. Deleted: `agent-chat-store.ts`, `use-workspace-chat.ts`, `chat/lexical/`, `chat/chat-content/index.tsx`, `chat/chat-loading.tsx`, `chat/chat-sheet.tsx`, `shared/slash-commands.ts`. Updated: `bottom-dock.tsx` (split popups), `_authed.tsx` (removed standalone `<AgentChatProvider />`), `dock-store.ts` (added `agentEverOpened`).
+
+**Verification.** `bun run typecheck`, `bun run check` (oxlint + oxfmt + Effect diagnostics) clean throughout. Browser smoke not yet done — first thing to verify when the session resumes.
+
+### 2026-05-03 — agent UI scaffold lands as the morphing dock
+
+Continues what phase 4 deferred. The chip is no longer the only surface in the bottom dock — a sparkle trigger sits next to it and toggles an agent panel that shares the same popup container. No backend wiring yet; this is the surface and the state machine.
+
+**Surface.** `BottomDock` mounts in `_authed.tsx`. Chip + sparkle trigger in a 3-col grid (`1fr | auto | 1fr`) — chip stays center-x, sparkle hangs at the right column with `justify-self-start pl-2`. A single floating popup lives above the trigger column at `bottom-full mb-2 right-{12,0} w-[480px] h-[480px]`. Width and height stay fixed across modes; only `right` morphs (48 ↔ 0) so the popup slides horizontally between two anchors instead of resizing. The trigger row is a fixed-height anchor — opening either mode never moves the chip or sparkle.
+
+**Animation.** Outer popup: scale 0.95 → 1 + opacity (0.22s spring entry, 0.16s exit, `bounce: 0`). `transform-origin` per mode: `bottom` for search, `bottom right` for agent — entry/exit anchors to where the trigger lives. Inner content swap on mode change uses `AnimatePresence mode="popLayout"` with content positioned `absolute inset-0`: 24px x-translate + opacity, direction = "right" when target is agent, "left" when search. No height animation — modes share a fixed 480px frame.
+
+**State machine in the store.** `dock-store.ts` owns `mode` and `query`. Each transition (`setMode`/`toggle`/`close`) atomically clears `query` when leaving search, eliminating the state-sync `useEffect` that did this passively. The single imperative side — blurring whatever's focused inside the dock when dismissing — lives in a small `dismiss` helper that every close path routes through (Esc, outside click, ⌘K close-from-search, search-result select, agent close button).
+
+**`useDismiss(rootRef, dismiss, active)`** consolidates Esc + outside-click into one hook. Replaced three independent close paths (standalone `useHotkeys` for Esc, an inline `mousedown` effect, and the search input's `onBlur`).
+
+**`SearchTrigger` slim API.** Three props: `inputRef`, `value`, `onValueChange`. Reads `mode === "search"` from the store directly for active styling; calls `setMode("search")` on input focus. Dropped `onFocus`/`onBlur`/`active` props (6 → 3 + reading instead of receiving the rest).
+
+**cmdk decoupled from layout.** `CommandPrimitive` is `className="contents"` — only provides input/list context. The grid lives on a separate `<div>`. Removes the previous coupling where cmdk's root was the layout container.
+
+**Auto-focus without `useEffect`.** Agent textarea uses `autoFocus`. The component remounts every time mode becomes "agent" (because the swap unmounts the previous content), so `autoFocus` fires consistently.
+
+**Visual polish.** Agent header trimmed to `h-7` with 12px sparkle, 12px close X, `text-xs` title. Form trimmed to `p-1 gap-1`, `text-xs` textarea, icon-xs send button. Press feedback (`scale: 0.96`) on the sparkle trigger. 22 fake messages render as alternating user/assistant bubbles inside `agent-content.tsx` for visual feedback.
+
+**Old chat sheet temporarily disabled.** `<ContextualChatSheet>` and its imports commented out in `_authed.tsx`. `ChatSheetProvider` stays mounted because `dots-menu.tsx` still uses `useChatPanel`. Will be removed once the new panel is wired up.
+
+**Doc shifted.** "Phase 4 agent mode" and "Chat sheet removal" bullets pulled out of the consolidated "Remaining work" list and into a dedicated `## Agent UI` section that tracks: architecture decisions (one DO per user; sub-agents deferred; no New chat), status, and remaining requirements (backend wiring, deniable context chips, multiple entry points, reset/clear, auto-summarization, tool call rendering, empty state, mobile, reduced motion, a11y).
+
+**Verification:** typecheck clean, `vp check` (oxlint + oxfmt) + Effect diagnostics clean.
 
 ### 2026-05-02 — layout collapsed to one component, route-driven query, untagged dropped, nuqs out
 

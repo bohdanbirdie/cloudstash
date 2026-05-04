@@ -1,6 +1,6 @@
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 
-import { useChatContainer } from "@/components/chat/chat-sheet";
+import { useChatContainer } from "@/components/chat/chat-container-context";
 import { LinkImage } from "@/components/link-image";
 import { displayDescription, displayTitle } from "@/lib/link-display";
 import { linkByUrl$ } from "@/livestore/queries/links";

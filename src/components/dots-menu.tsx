@@ -3,7 +3,6 @@ import { EllipsisVerticalIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { AdminModal } from "@/components/admin";
-import { useChatPanel } from "@/components/chat/chat-context";
 import { ExportDialog } from "@/components/export-dialog";
 import { IntegrationsModal } from "@/components/integrations";
 import { TagManagerDialog } from "@/components/tags/tag-manager-dialog";
@@ -29,12 +28,12 @@ import { useOrgFeatures } from "@/hooks/use-org-features";
 import { usePageStaticData } from "@/hooks/use-page-static-data";
 import { useAuth } from "@/lib/auth";
 import type { LinkStatus } from "@/livestore/queries/filtered-links";
+import { useDockStore } from "@/stores/dock-store";
 
 export function DotsMenu() {
   const navigate = useNavigate();
   const auth = useAuth();
   const { isChatEnabled } = useOrgFeatures();
-  const chatPanel = useChatPanel();
   const { status: pageStatus, title: pageTitle } = usePageStaticData();
 
   const [adminOpen, setAdminOpen] = useState(false);
@@ -61,7 +60,9 @@ export function DotsMenu() {
         />
         <DropdownMenuContent align="end" sideOffset={6} className="w-48">
           {isChatEnabled && (
-            <DropdownMenuItem onClick={chatPanel.toggle}>
+            <DropdownMenuItem
+              onClick={() => useDockStore.getState().setMode("agent")}
+            >
               Agent
             </DropdownMenuItem>
           )}
