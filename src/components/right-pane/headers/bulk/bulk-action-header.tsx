@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 
 import { ExportDialog } from "@/components/export-dialog";
 import { BulkTagPicker } from "@/components/right-pane/headers/bulk/tag-picker";
-import { useSelectionHotkey } from "@/components/right-pane/headers/bulk/use-selection-hotkeys";
 import {
   ACTION_META,
   pageBulkToggle,
@@ -17,6 +16,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import { usePageStaticData } from "@/hooks/use-page-static-data";
+import { useCommand, useDismiss } from "@/lib/keyboard";
 import { linksByIds$ } from "@/livestore/queries/links";
 import { events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
@@ -77,14 +77,10 @@ export function BulkActionHeader() {
     clear();
   };
 
-  useSelectionHotkey("escape", clear, count > 0);
-  useSelectionHotkey(
-    "meta+enter",
-    handlePrimary,
-    count > 0 && primary !== null
-  );
-  useSelectionHotkey("meta+backspace", handleSecondary, count > 0);
-  useSelectionHotkey("meta+e", () => setExportOpen(true), count > 0);
+  useDismiss("selection", clear);
+  useCommand("bulkPrimary", handlePrimary, primary !== null);
+  useCommand("bulkSecondary", handleSecondary);
+  useCommand("bulkExport", () => setExportOpen(true));
 
   return (
     <>

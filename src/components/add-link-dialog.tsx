@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 import { LinkImage } from "@/components/link-image";
 import { TagCombobox } from "@/components/tags/tag-combobox";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardHeader,
@@ -26,11 +27,11 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { HotkeyButton } from "@/components/ui/hotkey-button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import { track } from "@/lib/analytics";
+import { useCommand } from "@/lib/keyboard";
 import { displayDescription, displayTitle } from "@/lib/link-display";
 import { linkById$ } from "@/livestore/queries/links";
 import { tables, events } from "@/livestore/schema";
@@ -332,6 +333,17 @@ function AddLinkDialogContent({
     onClose();
   };
 
+  useCommand(
+    "dialogSubmit",
+    () => {
+      if (existingLink) {
+        onClose();
+        onViewExisting(existingLink.id);
+      }
+    },
+    existingLink !== null
+  );
+
   return (
     <DialogContent>
       <DialogHeader>
@@ -362,34 +374,23 @@ function AddLinkDialogContent({
           </>
         )}
         <DialogFooter className="mt-4">
-          <DialogClose
-            render={
-              <HotkeyButton variant="outline" hotkey="escape" scope="dialog" />
-            }
-          >
+          <DialogClose render={<Button variant="outline" />}>
             Cancel
           </DialogClose>
           {existingLink ? (
-            <HotkeyButton
+            <Button
               type="button"
-              hotkey="enter"
-              scope="dialog"
               onClick={() => {
                 onClose();
                 onViewExisting(existingLink.id);
               }}
             >
               View Saved Link
-            </HotkeyButton>
+            </Button>
           ) : (
-            <HotkeyButton
-              type="submit"
-              disabled={!url.trim()}
-              hotkey="enter"
-              scope="dialog"
-            >
+            <Button type="submit" disabled={!url.trim()}>
               Add
-            </HotkeyButton>
+            </Button>
           )}
         </DialogFooter>
       </form>

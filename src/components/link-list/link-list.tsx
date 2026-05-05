@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { useHotkeys } from "react-hotkeys-hook";
 
 import { useListData } from "@/components/list-data-context";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
+import { useCommand, useNavigation } from "@/lib/keyboard";
 import {
   clearKeyboardFocusFromOtherRow,
   computeTargetIndex,
@@ -19,11 +19,6 @@ import { LinkListItem } from "./link-list-item";
 
 const EMPTY_TAGS: readonly Tag[] = [];
 const EMPTY_PREVIEW: ReadonlySet<string> = new Set();
-
-const LISTBOX_HOTKEY_OPTIONS = {
-  preventDefault: true,
-  enableOnFormTags: ["option"] as const,
-};
 
 interface LinkListProps {
   links: readonly LinkListItemData[];
@@ -55,7 +50,6 @@ export function LinkList({
   const activeLinkIdRef = useRef(activeLinkId);
   activeLinkIdRef.current = activeLinkId;
   const anchorRef = useRef<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const allIds = useMemo(() => links.map((l) => l.id), [links]);
 
@@ -104,6 +98,32 @@ export function LinkList({
 
   const tabbableId = activeLinkId ?? links[0]?.id ?? null;
 
+  const containerRef = useNavigation<HTMLDivElement>("listNav", (dir) => {
+    if (dir === "ArrowDown") moveByKey(1);
+    else if (dir === "ArrowUp") moveByKey(-1);
+    else if (dir === "Home") moveByKey("home");
+    else if (dir === "End") moveByKey("end");
+  });
+
+  useCommand("vimDown", () => moveByKey(1));
+  useCommand("vimUp", () => moveByKey(-1));
+
+  function moveByKey(delta: number | "home" | "end") {
+    const items = linksRef.current;
+    const cursor = activeLinkIdRef.current ?? anchorRef.current;
+    const targetIdx = computeTargetIndex(items, cursor, delta);
+    const target = items[targetIdx];
+    if (!target) return;
+
+    focusRowById(containerRef.current, target.id);
+    anchorRef.current = target.id;
+
+    if (activeLinkIdRef.current && target.id !== activeLinkIdRef.current) {
+      trackLinkOpen(target.id);
+      openDetail(target.id);
+    }
+  }
+
   const handleRowClick = useCallback(
     (e: React.MouseEvent) => {
       const id = (e.currentTarget as HTMLElement).dataset.id;
@@ -131,16 +151,19 @@ export function LinkList({
     useSelectionStore.getState().toggleCheckbox(id);
   }, []);
 
-  const handleRowMouseEnter = useCallback((e: React.MouseEvent) => {
-    const row = e.currentTarget as HTMLElement;
-    const id = row.dataset.id;
-    if (!id) return;
-    anchorRef.current = id;
-    useSelectionStore.getState().setHovered(id);
-    if (containerRef.current) {
-      clearKeyboardFocusFromOtherRow(containerRef.current, row);
-    }
-  }, []);
+  const handleRowMouseEnter = useCallback(
+    (e: React.MouseEvent) => {
+      const row = e.currentTarget as HTMLElement;
+      const id = row.dataset.id;
+      if (!id) return;
+      anchorRef.current = id;
+      useSelectionStore.getState().setHovered(id);
+      if (containerRef.current) {
+        clearKeyboardFocusFromOtherRow(containerRef.current, row);
+      }
+    },
+    [containerRef]
+  );
 
   const handleListMouseLeave = useCallback(() => {
     useSelectionStore.getState().setHovered(null);
@@ -151,27 +174,6 @@ export function LinkList({
     const id = target.dataset?.id;
     if (id) anchorRef.current = id;
   };
-
-  const moveByKey = (delta: number | "home" | "end") => {
-    const items = linksRef.current;
-    const cursor = activeLinkIdRef.current ?? anchorRef.current;
-    const targetIdx = computeTargetIndex(items, cursor, delta);
-    const target = items[targetIdx];
-    if (!target) return;
-
-    focusRowById(containerRef.current, target.id);
-    anchorRef.current = target.id;
-
-    if (activeLinkIdRef.current && target.id !== activeLinkIdRef.current) {
-      trackLinkOpen(target.id);
-      openDetail(target.id);
-    }
-  };
-
-  useHotkeys("down,j", () => moveByKey(1), LISTBOX_HOTKEY_OPTIONS);
-  useHotkeys("up,k", () => moveByKey(-1), LISTBOX_HOTKEY_OPTIONS);
-  useHotkeys("home", () => moveByKey("home"), LISTBOX_HOTKEY_OPTIONS);
-  useHotkeys("end", () => moveByKey("end"), LISTBOX_HOTKEY_OPTIONS);
 
   if (links.length === 0) {
     return (

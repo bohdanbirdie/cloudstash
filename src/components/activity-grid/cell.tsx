@@ -12,6 +12,8 @@ interface ActivityCellProps {
   gridColumn: number;
   gridRow: number;
   handle: TooltipPrimitive.Handle<string>;
+  tabbable: boolean;
+  dataIdx: number;
 }
 
 export const ActivityCell = memo(function ActivityCell({
@@ -21,6 +23,8 @@ export const ActivityCell = memo(function ActivityCell({
   gridColumn,
   gridRow,
   handle,
+  tabbable,
+  dataIdx,
 }: ActivityCellProps) {
   if (isFuture) {
     return (
@@ -40,6 +44,8 @@ export const ActivityCell = memo(function ActivityCell({
         <button
           type="button"
           aria-label={tooltip}
+          tabIndex={tabbable ? 0 : -1}
+          data-cell-idx={dataIdx}
           style={{ gridColumn, gridRow }}
           className="cursor-default p-px focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 rounded-[3px]"
         >

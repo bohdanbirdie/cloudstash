@@ -6,7 +6,6 @@ import {
   SendIcon,
 } from "lucide-react";
 import { memo, useCallback, useMemo } from "react";
-import { useHotkeys } from "react-hotkeys-hook";
 
 import { LinkPreviewImage } from "@/components/link-preview-image";
 import { TagCombobox } from "@/components/tags/tag-combobox";
@@ -16,6 +15,7 @@ import { Markdown } from "@/components/ui/markdown";
 import { TextShimmer } from "@/components/ui/text-shimmer";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import { useLinkTags } from "@/hooks/use-link-tags";
+import { useDismiss } from "@/lib/keyboard";
 import { displayDescription, displayTitle } from "@/lib/link-display";
 import { formatAgo } from "@/lib/time-ago";
 import { linkById$, linkProcessingStatus$ } from "@/livestore/queries/links";
@@ -23,7 +23,6 @@ import type { LinkWithDetails } from "@/livestore/queries/links";
 import { events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
 import { useRightPaneStore } from "@/stores/right-pane-store";
-import { useInSelectionMode } from "@/stores/selection-store";
 
 const SOURCE_CONFIG: Record<string, { icon: typeof SendIcon; label: string }> =
   {
@@ -51,13 +50,8 @@ const DetailViewInner = memo(function DetailViewInner({
 
   const store = useAppStore();
   const closeDetail = useRightPaneStore((s) => s.closeDetail);
-  const hasSelection = useInSelectionMode();
 
-  useHotkeys("escape", closeDetail, {
-    scopes: ["detail"],
-    enableOnFormTags: ["option"],
-    enabled: !hasSelection,
-  });
+  useDismiss("detail", closeDetail);
 
   const processingRecord = store.useQuery(linkProcessingStatus$(link.id));
   const isProcessing = processingRecord?.status === "pending";

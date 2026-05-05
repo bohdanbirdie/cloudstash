@@ -4,12 +4,13 @@ import { Command as CommandPrimitive } from "cmdk";
 import { animate, useMotionValue } from "motion/react";
 import { useCallback, useEffect, useRef } from "react";
 import type { RefObject } from "react";
-import { useHotkeys } from "react-hotkeys-hook";
 
+import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import { useRecentLinks } from "@/hooks/use-recent-links";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
 import { track } from "@/lib/analytics";
 import { useAuth } from "@/lib/auth";
+import { useCommand, useDismiss } from "@/lib/keyboard";
 import { searchLinks$ } from "@/livestore/queries/links";
 import type { LinkWithDetails, SearchResult } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
@@ -20,17 +21,11 @@ import { AgentTrigger } from "./agent-trigger";
 import { MorphingPanel } from "./morphing-panel";
 import { SearchTrigger } from "./search-trigger";
 
-function useDismiss(
+function useOutsideClick(
   rootRef: RefObject<HTMLElement | null>,
   onDismiss: () => void,
   active: boolean
 ) {
-  useHotkeys("esc", () => onDismiss(), {
-    enabled: active,
-    enableOnFormTags: ["input", "textarea", "option"],
-    scopes: ["global"],
-  });
-
   useEffect(() => {
     if (!active) return;
     const handler = (e: MouseEvent) => {
@@ -106,7 +101,9 @@ export function BottomDock() {
     close();
   }, [close]);
 
-  useDismiss(rootRef, dismiss, mode !== "closed");
+  useHotkeyScope("dock", { enabled: mode !== "closed" });
+  useOutsideClick(rootRef, dismiss, mode !== "closed");
+  useDismiss("dock", dismiss);
 
   const handleSelect = useCallback(
     (link: LinkWithDetails | SearchResult) => {
@@ -117,28 +114,16 @@ export function BottomDock() {
     [dismiss, openDetail, trackLinkOpen]
   );
 
-  useHotkeys(
-    "meta+k,ctrl+k",
-    () => {
-      if (mode === "search") {
-        dismiss();
-        return;
-      }
-      openSearch();
-      track("search_used");
-    },
-    {
-      preventDefault: true,
-      enableOnFormTags: ["input", "textarea", "option"],
-      scopes: ["global"],
+  useCommand("openDock", () => {
+    if (mode === "search") {
+      dismiss();
+      return;
     }
-  );
-
-  useHotkeys("meta+j,ctrl+j", toggleAgent, {
-    preventDefault: true,
-    enableOnFormTags: ["input", "textarea", "option"],
-    scopes: ["global"],
+    openSearch();
+    track("search_used");
   });
+
+  useCommand("openAgent", toggleAgent);
 
   return (
     <div ref={rootRef} className="fixed right-0 bottom-7 left-0 z-50">

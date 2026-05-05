@@ -9,12 +9,12 @@ import { CopyUrlButton } from "@/components/right-pane/headers/per-link/copy-url
 import { MoreActionsMenu } from "@/components/right-pane/headers/per-link/more-actions-menu";
 import { useLinkActions } from "@/components/right-pane/headers/per-link/use-link-actions";
 import { Button } from "@/components/ui/button";
-import { HotkeyButton } from "@/components/ui/hotkey-button";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useCommand } from "@/lib/keyboard";
 import { displayTitle } from "@/lib/link-display";
 import { linkById$ } from "@/livestore/queries/links";
 import type { LinkWithDetails } from "@/livestore/queries/schemas";
@@ -47,6 +47,8 @@ function Loaded({ link }: { link: LinkWithDetails }) {
     ? actions.handleRestore
     : actions.handleDelete;
 
+  useCommand("detailComplete", onCompleteToggle, !hasSelection);
+
   return (
     <div className="flex h-full items-center justify-between gap-2 bg-background pt-3 pb-2 pr-2">
       {actions.inList && actions.listLength > 1 ? (
@@ -58,21 +60,17 @@ function Loaded({ link }: { link: LinkWithDetails }) {
       )}
 
       <div className="flex items-center gap-1">
-        <HotkeyButton
+        <Button
           size="sm"
           variant="ghost"
           onClick={onCompleteToggle}
-          onHotkeyPress={onCompleteToggle}
           aria-label={completeMeta.label}
-          hotkey="meta+enter"
-          hotkeyEnabled={!hasSelection}
-          scope="detail"
         >
           <IconSwap iconKey={completeAction}>
             <CompleteIcon />
           </IconSwap>
           <span>{completeMeta.label}</span>
-        </HotkeyButton>
+        </Button>
 
         <CopyUrlButton url={link.url} />
 

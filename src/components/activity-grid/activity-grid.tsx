@@ -1,8 +1,9 @@
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import type { CSSProperties } from "react";
-import { memo, useMemo } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 
 import { TooltipContent } from "@/components/ui/tooltip";
+import { useNavigation } from "@/lib/keyboard";
 import { linkCreatedAts$ } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
 
@@ -37,13 +38,68 @@ export const ActivityGrid = memo(function ActivityGrid() {
     };
   }, [rows]);
 
+  const lastSelectableIdx = useMemo(() => {
+    for (let i = grid.cells.length - 1; i >= 0; i--) {
+      if (!grid.cells[i].isFuture) return i;
+    }
+    return 0;
+  }, [grid.cells]);
+
+  const [storedIdx, setStoredIdx] = useState(lastSelectableIdx);
+  const cellAtStored = grid.cells[storedIdx];
+  const activeIdx =
+    cellAtStored && !cellAtStored.isFuture ? storedIdx : lastSelectableIdx;
+
+  const containerRef = useNavigation<HTMLDivElement>("gridNav", (dir) => {
+    const cells = grid.cells;
+    const cur = activeIdx;
+    let next = cur;
+    switch (dir) {
+      case "ArrowLeft":
+        next = cur - DAYS_PER_WEEK;
+        break;
+      case "ArrowRight":
+        next = cur + DAYS_PER_WEEK;
+        break;
+      case "ArrowUp":
+        if (cur % DAYS_PER_WEEK === 0) return;
+        next = cur - 1;
+        break;
+      case "ArrowDown":
+        if (cur % DAYS_PER_WEEK === DAYS_PER_WEEK - 1) return;
+        next = cur + 1;
+        break;
+      default:
+        return;
+    }
+    if (next < 0 || next >= cells.length || cells[next]?.isFuture) return;
+    setStoredIdx(next);
+    containerRef.current
+      ?.querySelector<HTMLButtonElement>(`[data-cell-idx="${next}"]`)
+      ?.focus();
+  });
+
+  const handleFocus = useCallback((e: React.FocusEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const raw = target.dataset.cellIdx;
+    if (!raw) return;
+    const idx = Number(raw);
+    if (Number.isNaN(idx)) return;
+    setStoredIdx(idx);
+  }, []);
+
   return (
     <div>
       <div className="text-xs font-semibold text-muted-foreground">
         Activity
       </div>
       <TooltipPrimitive.Provider closeDelay={150}>
-        <div className="mt-3 grid w-fit gap-0.5" style={GRID_STYLE}>
+        <div
+          ref={containerRef}
+          onFocus={handleFocus}
+          className="mt-3 grid w-fit gap-0.5"
+          style={GRID_STYLE}
+        >
           {grid.months.map(({ index, label }) => (
             <span
               key={`m-${label}-${index}`}
@@ -73,6 +129,8 @@ export const ActivityGrid = memo(function ActivityGrid() {
               gridColumn={Math.floor(i / DAYS_PER_WEEK) + 2}
               gridRow={(i % DAYS_PER_WEEK) + 2}
               handle={handle}
+              tabbable={i === activeIdx}
+              dataIdx={i}
             />
           ))}
         </div>
