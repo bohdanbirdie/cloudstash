@@ -1,3 +1,5 @@
+const SCROLL_MARGIN_PX = 24;
+
 export function findRowInContainer(
   target: EventTarget | null,
   container: HTMLElement | null
@@ -8,9 +10,10 @@ export function findRowInContainer(
 }
 
 export function focusRowById(container: HTMLElement | null, id: string): void {
-  container
-    ?.querySelector<HTMLElement>(`[data-id="${id}"]`)
-    ?.focus({ preventScroll: true });
+  const row = container?.querySelector<HTMLElement>(`[data-id="${id}"]`);
+  if (!row) return;
+  row.focus({ preventScroll: true });
+  scrollRowIntoView(row);
 }
 
 export function clearKeyboardFocusFromOtherRow(
@@ -24,7 +27,7 @@ export function clearKeyboardFocusFromOtherRow(
     focused.dataset.id &&
     container.contains(focused)
   ) {
-    focused.blur();
+    container.focus({ preventScroll: true });
   }
 }
 
@@ -39,4 +42,36 @@ export function computeTargetIndex<T extends { id: string }>(
   const startIdx = cursorId ? items.findIndex((i) => i.id === cursorId) : -1;
   if (startIdx < 0) return 0;
   return Math.max(0, Math.min(startIdx + delta, items.length - 1));
+}
+
+function scrollRowIntoView(row: HTMLElement): void {
+  const viewport = findScrollableAncestor(row);
+  if (!viewport) return;
+
+  const vp = viewport.getBoundingClientRect();
+  const r = row.getBoundingClientRect();
+
+  const topGap = r.top - (vp.top + SCROLL_MARGIN_PX);
+  const bottomGap = r.bottom - (vp.bottom - SCROLL_MARGIN_PX);
+
+  if (topGap < 0) {
+    viewport.scrollTop += topGap;
+  } else if (bottomGap > 0) {
+    viewport.scrollTop += bottomGap;
+  }
+}
+
+function findScrollableAncestor(el: HTMLElement): HTMLElement | null {
+  let cur: HTMLElement | null = el.parentElement;
+  while (cur) {
+    const overflowY = getComputedStyle(cur).overflowY;
+    if (
+      (overflowY === "auto" || overflowY === "scroll") &&
+      cur.scrollHeight > cur.clientHeight
+    ) {
+      return cur;
+    }
+    cur = cur.parentElement;
+  }
+  return null;
 }

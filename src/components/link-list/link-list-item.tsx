@@ -52,7 +52,7 @@ function LinkListItemImpl({
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       className={cn(
-        "group relative -mx-3 grid w-[calc(100%+1.5rem)] cursor-default grid-cols-[1fr_4.75rem] items-start rounded-md px-2 py-2 text-left outline-none [content-visibility:auto] [contain-intrinsic-size:7rem] transition-colors hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:ring-inset",
+        "group relative -mx-3 grid w-[calc(100%+1.5rem)] cursor-default grid-cols-[1fr_4.75rem] items-start rounded-md px-2 py-2 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:ring-inset",
         showCheckbox ? "gap-x-2" : "gap-x-8",
         active && "bg-muted"
       )}

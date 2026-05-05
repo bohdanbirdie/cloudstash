@@ -50,7 +50,7 @@ function Loaded({ link }: { link: LinkWithDetails }) {
   useCommand("detailComplete", onCompleteToggle, !hasSelection);
 
   return (
-    <div className="flex h-full items-center justify-between gap-2 bg-background pt-3 pb-2 pr-2">
+    <div className="flex h-full items-center justify-between gap-2 bg-background pt-1.5 pb-2 pr-2">
       {actions.inList && actions.listLength > 1 ? (
         <span className="text-xs text-muted-foreground tabular-nums">
           {actions.currentIndex + 1}/{actions.listLength}

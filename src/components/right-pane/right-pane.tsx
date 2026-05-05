@@ -17,7 +17,7 @@ export function RightPane() {
   return (
     <aside
       aria-label={activeLinkId ? "Link details" : "Activity"}
-      className="sticky top-0 flex h-svh flex-col self-start"
+      className="flex h-full min-h-0 flex-col"
     >
       <motion.div
         initial={false}
@@ -29,7 +29,7 @@ export function RightPane() {
       </motion.div>
 
       <div className="relative min-h-0 flex-1">
-        <div className="flex flex-col gap-8 pt-4 pr-2 pb-8">
+        <div className="flex flex-col gap-8 pr-2 pb-8">
           <ActivityGrid />
         </div>
 

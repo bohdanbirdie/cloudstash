@@ -26,6 +26,7 @@ kanban-plugin: board
 - [ ] [[todos/stabilize-dots-menu-refs|Stabilize DotsMenu handler refs]]
 - [ ] [[todos/agent-context-chips-entry-points|Agent context chips + entry points]]
 - [ ] [[todos/mobile-view-review|Mobile view review + fixes]]
+- [ ] Support `#tag` search in the bottom-dock search panel — typing `#` should suggest tags from the workspace and filter by them, complementing free-text search.
 
 ## In Progress
 

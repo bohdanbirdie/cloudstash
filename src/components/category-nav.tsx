@@ -1,13 +1,14 @@
 import { Link } from "@tanstack/react-router";
 
-const baseClass = "transition-colors hover:text-foreground";
-const activeClass = "text-foreground";
+const baseClass =
+  "inline-block px-2 py-1.5 leading-none transition-colors duration-150 ease-out hover:text-foreground";
+const activeClass = "text-foreground [text-shadow:0.5px_0_0_currentColor]";
 
 export function CategoryNav() {
   return (
     <nav
       aria-label="Categories"
-      className="flex items-center gap-3 text-[13px] text-muted-foreground"
+      className="flex items-baseline gap-px text-[13px] text-muted-foreground"
     >
       <Link
         to="/"

@@ -19,9 +19,11 @@ import { ActivityCell } from "./cell";
 const CELL_PX = 16;
 
 const GRID_STYLE: CSSProperties = {
-  gridTemplateColumns: `auto repeat(${WEEKS}, ${CELL_PX}px)`,
+  gridTemplateColumns: `repeat(${WEEKS}, ${CELL_PX}px) auto`,
   gridTemplateRows: `auto repeat(${DAYS_PER_WEEK}, ${CELL_PX}px)`,
 };
+
+const DAY_LABEL_COL = WEEKS + 1;
 
 export const ActivityGrid = memo(function ActivityGrid() {
   const store = useAppStore();
@@ -90,10 +92,10 @@ export const ActivityGrid = memo(function ActivityGrid() {
 
   return (
     <div>
-      <div className="text-xs font-semibold text-muted-foreground">
+      <div className="pt-3 pb-2 text-xs/6 font-semibold text-muted-foreground">
         Activity
       </div>
-      <TooltipPrimitive.Provider closeDelay={150}>
+      <TooltipPrimitive.Provider closeDelay={150} delay={0}>
         <div
           ref={containerRef}
           onFocus={handleFocus}
@@ -103,7 +105,7 @@ export const ActivityGrid = memo(function ActivityGrid() {
           {grid.months.map(({ index, label }) => (
             <span
               key={`m-${label}-${index}`}
-              style={{ gridColumn: index + 2, gridRow: 1 }}
+              style={{ gridColumn: index + 1, gridRow: 1 }}
               className="text-[10px] leading-none whitespace-nowrap text-muted-foreground/70"
             >
               {label}
@@ -113,8 +115,8 @@ export const ActivityGrid = memo(function ActivityGrid() {
           {grid.days.map(({ index, label }) => (
             <span
               key={`d-${index}`}
-              style={{ gridColumn: 1, gridRow: index + 2 }}
-              className="self-center text-[10px] leading-none text-muted-foreground/70 pr-1"
+              style={{ gridColumn: DAY_LABEL_COL, gridRow: index + 2 }}
+              className="self-center pl-1 text-[10px] leading-none text-muted-foreground/70"
             >
               {label}
             </span>
@@ -126,7 +128,7 @@ export const ActivityGrid = memo(function ActivityGrid() {
               count={cell.count}
               dateLabel={cell.dateLabel}
               isFuture={cell.isFuture}
-              gridColumn={Math.floor(i / DAYS_PER_WEEK) + 2}
+              gridColumn={Math.floor(i / DAYS_PER_WEEK) + 1}
               gridRow={(i % DAYS_PER_WEEK) + 2}
               handle={handle}
               tabbable={i === activeIdx}

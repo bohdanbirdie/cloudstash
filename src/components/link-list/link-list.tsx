@@ -4,8 +4,12 @@ import { useListData } from "@/components/list-data-context";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
 import { useCommand, useNavigation } from "@/lib/keyboard";
 import {
+  anchorAfterHover,
+  arrowOpensDetail,
+  moveTarget,
+} from "@/lib/list-nav-rules";
+import {
   clearKeyboardFocusFromOtherRow,
-  computeTargetIndex,
   focusRowById,
 } from "@/lib/listbox-keyboard";
 import { transition } from "@/lib/selection-model";
@@ -109,18 +113,19 @@ export function LinkList({
   useCommand("vimUp", () => moveByKey(-1));
 
   function moveByKey(delta: number | "home" | "end") {
-    const items = linksRef.current;
-    const cursor = activeLinkIdRef.current ?? anchorRef.current;
-    const targetIdx = computeTargetIndex(items, cursor, delta);
-    const target = items[targetIdx];
-    if (!target) return;
+    const snap = {
+      activeId: activeLinkIdRef.current,
+      anchorId: anchorRef.current,
+    };
+    const targetId = moveTarget(snap, linksRef.current, delta);
+    if (!targetId) return;
 
-    focusRowById(containerRef.current, target.id);
-    anchorRef.current = target.id;
+    focusRowById(containerRef.current, targetId);
+    anchorRef.current = targetId;
 
-    if (activeLinkIdRef.current && target.id !== activeLinkIdRef.current) {
-      trackLinkOpen(target.id);
-      openDetail(target.id);
+    if (arrowOpensDetail(snap, targetId)) {
+      trackLinkOpen(targetId);
+      openDetail(targetId);
     }
   }
 
@@ -156,8 +161,11 @@ export function LinkList({
       const row = e.currentTarget as HTMLElement;
       const id = row.dataset.id;
       if (!id) return;
-      anchorRef.current = id;
       useSelectionStore.getState().setHovered(id);
+      anchorRef.current = anchorAfterHover(
+        { activeId: activeLinkIdRef.current, anchorId: anchorRef.current },
+        id
+      );
       if (containerRef.current) {
         clearKeyboardFocusFromOtherRow(containerRef.current, row);
       }
@@ -189,7 +197,8 @@ export function LinkList({
       role="listbox"
       aria-label="Links"
       aria-multiselectable="true"
-      className="flex flex-col gap-3 min-w-0"
+      tabIndex={-1}
+      className="flex flex-col gap-3 min-w-0 outline-none"
       onFocus={handleListFocus}
       onMouseLeave={handleListMouseLeave}
     >

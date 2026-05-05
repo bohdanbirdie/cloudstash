@@ -42,9 +42,11 @@ _Quick at-a-glance status for resuming work. Detailed history lives in the Progr
 
 Consolidated tail of the redesign — merges what was originally split between this section and "Phase 5 — Remaining small things". Each item owns its own sub-PR.
 
-- **Column-with-inner-scroll layout.** Restructure the left side as a fixed-height column with its own scroll container (Linear-style), so the page header / masthead / tag strip stop consuming vertical space and arrow-key navigation can auto-scroll the focused row into view within the column instead of the page. Has the side benefit of unblocking from-cold arrow nav: with the list as the "primary" widget on the page, arrows can drive the list even when focus hasn't been claimed by another widget.
+- ~~**Column-with-inner-scroll layout.**~~ shipped 2026-05-05 — outer shell flipped from page-scroll to per-column scroll; right pane is no longer sticky; left list wrapped in a `<ScrollArea>` with edge fade and lazy thumb. Header tightened, masthead title removed (see progress log).
+- **Filtered-count rewire.** Count placement landed in the list-column header (page name + count, Linear-style — see progress log). The remaining work is to swap the count's data source from the per-status query (`inboxCount$` etc.) to the filtered list length, so it reflects the full filter chain (page × tags × future search). Today the column header still shows the unfiltered category total.
+- **Tag-strip overflow as popover.** Replace the inline "+N more" expand with a `[+]` icon button that opens a popover listing all tags. Tag chips on the strip stay single-line, truncate to fit; `[+]` shows an overflow badge. Keeps the strip from wrapping and avoids the row growing on expand.
 - **Dock focus lock.** Once the search/agent dock opens, focus should be trapped inside until it's dismissed. Today, Tab can move focus out of the dock while it stays visible, leaving the panel open with focus elsewhere. Bug repro: Tab through the page until focus lands on the search pill — blurring the input does not close the popup. Investigation needed: (a) wrap the dock in BaseUI's `Popover` / `Dialog` (inherits `FloatingFocusManager` via `@base-ui/react/floating-ui-react`, but requires reshaping the motion-driven panel around a `useFloatingRootContext`), or (b) add a small custom `useFocusTrap(rootRef, active)` hook that wraps Tab/Shift+Tab within the panel and captures `document.activeElement` on open to restore on dismiss. Either way, decide whether the dock should also block click-through to underlying content while open; today it doesn't.
-- **Accessibility sweep** — `aria-label` on all icon-only buttons, `:focus-visible` throughout, keyboard list navigation (`j`/`k` or arrows), reduced-motion compliance across the board.
+- **Accessibility sweep** — `aria-label` on all icon-only buttons, `:focus-visible` throughout, reduced-motion compliance across the board. (Keyboard nav for list and activity grid is wired via the unified keyboard system; remaining work is everything else.)
 - **Type scale pass** — 5 sizes with ≥1.25 ratio; pick a display weight for hero moments so the mono voice has internal contrast.
 - **Dark mode pass** — apply the type / radius passes to the dark variant.
 - **Tabular numerics audit** — every count / date / timestamp uses `font-variant-numeric: tabular-nums`.
@@ -477,6 +479,69 @@ Supported in modern Chrome, Safari 18+, Firefox 125+. Matches the "optimize for 
 ## Progress log
 
 _Append entries as we iterate, newest first._
+
+### 2026-05-05 — unified keyboard system, header alignment, activity tweaks
+
+**Hotkey listbox-row bug** (committed `984caeb`). `react-hotkeys-hook`'s built-in form-tag detection treats ARIA `role="option"` as a form element. `LinkList` rows are `<button role="option">`, so after clicking a row, focus stayed on the button and the dock's `cmd+K` / `cmd+J` / `Esc` hotkeys were suppressed (their `enableOnFormTags` had `["input", "textarea"]` — no "option"). Existing list-nav hotkeys already included `"option"`; just propagated the same fix to dock hotkeys.
+
+**Activity grid keyboard nav** (already committed earlier as `473b8fc`). Roving tabindex on a column-major calendar grid: one cell at a time has `tabIndex=0`, arrows move the active cell (←/→ ±7 for week, ↑/↓ ±1 within column, no wrap), `data-cell-idx` for direct DOM lookup, focus syncs to `activeIdx` via container `onFocus`. Initial active cell is "today" (last non-future). Future cells are non-focusable.
+
+**Keyboard system unified — `src/lib/keyboard.ts`.** Built manifest + pure resolver + thin hooks, then iterated to a stripped-down version after a hostile review found over-engineering. Final shape (one file, ~75 lines, no comments):
+
+- Two const maps as data: `COMMANDS` (id → `{ keys, scope }`) and `NAV` (id → `{ keys }`).
+- One pure function `topmostScope(active: readonly string[]): Scope | null` walking `ESC_PRECEDENCE = [global, detail, selection, dock, dialog, popover]` — the only piece of logic worth testing in isolation.
+- Three hooks: `useCommand(id, handler, enabled?)`, `useDismiss(scope, handler, enabled?)`, `useNavigation<T>(id, handler)` — each ~10 lines, no internal branching.
+- `enableOnFormTags: ["input", "textarea", "option"]` baked in (so no one forgets `"option"` again).
+
+`useDismiss` doesn't pass `scopes` to `useHotkeys`; it gates via `enabled: topmostScope(activeScopes) === scope`, which makes Esc precedence a single resolver call. `useCommand` does pass `scopes: [shortcut.scope]` so the lib's existing scope filter handles command gating.
+
+Migrations: every call site converted (`bottom-dock`, `detail-view`, `bulk-action-header`, `per-link-header`, `add-link-dialog`, `link-list`, `activity-grid`). Deleted `src/components/ui/hotkey-button.tsx` and `src/components/right-pane/headers/bulk/use-selection-hotkeys.ts` — both became no-ops over the new hooks.
+
+**Dock scope** (Esc-precedence fix). Bug: dock open over an active link → Esc closed the link, not the dock. Added `dock` scope between `selection` and `dialog` in the precedence ladder. Bottom-dock now does `useHotkeyScope("dock", { enabled: mode !== "closed" })` and `useDismiss("dock", dismiss)`. Dialog/popover still beat dock (modal layers above floating).
+
+**Tests.** `src/lib/__tests__/keyboard.test.ts` — 8 cases covering the precedence ladder + edge cases (empty, unknown scope). 597 tests pass.
+
+**Header alignment.** After the column-header (Masthead inside list column) shipped, audited all four header surfaces — Masthead, per-link slot, bulk slot, Activity heading — and found four different text sizes, three different color tokens, inverted top/bottom padding, mix of baseline vs center alignment. User chose right-pane headers as the typography baseline (already looked good; everything else adapts). Final shared contract:
+
+- Vertical padding `pt-3 pb-2` everywhere.
+- Title primary text `text-sm font-semibold text-foreground` (Masthead only — no analogue in the right-pane slot).
+- Counter / secondary text `text-xs text-muted-foreground tabular-nums`.
+- `items-baseline gap-2` for primary+secondary pairs.
+- `bulk-action-header` keeps `text-primary` orange — that's the active-selection-mode tell.
+
+Files: `masthead.tsx` (padding flipped, count down to `text-xs`), `activity-grid.tsx` (heading wrapped in `pt-3 pb-2` shell), `right-pane.tsx` (dropped `pt-4` from the activity wrapper since the heading owns its top padding now).
+
+**Activity-grid tweaks.** Removed `px-2` from heading (now flush-left like the grid). Day labels (Mon / Wed / Fri) moved to the right side: grid template flipped to `repeat(${WEEKS}, 16px) auto`; cell `gridColumn` decremented by 1; day-label column = `WEEKS + 1` with `pl-1` for the leading gap.
+
+**Remaining-work doc updated.** Removed "Recent-query memory" (misunderstanding — only the link-recents were wanted, already shipped). Renamed "Filtered-count placement" → "Filtered-count rewire" (placement decided; data source still uses per-status query, needs wiring to filtered list length). Added "Tag-strip overflow as popover". Added "`#tag` search syntax" to the kanban Todo.
+
+**Next ideas (not yet captured as items).** During this session the user mentioned (a) considering the dock as a real bottom bar (not floating) plus wrapping the 2-pane work area in a bordered card — sketched I/II/III; deferred. (b) The column-with-inner-scroll layout is shipped, but the bordered-card framing is the open variation. Both worth re-opening before a polish pass.
+
+### 2026-05-05 — column scroll layout, edge-faded ScrollArea, masthead title retired
+
+**Outer shell flipped from page-scroll to per-column scroll.** Page was `h-svh overflow-auto` with the right pane `sticky top-0 h-svh self-start` to pin while everything scrolled behind it. New shape: `h-svh overflow-hidden` outer + `flex h-full flex-col` inner; the bottom grid is `flex-1 min-h-0` and each column owns its own scroll. Right pane drops `sticky` + `self-start`, becomes a regular grid cell (`flex h-full min-h-0 flex-col`) — it can never extend past the viewport bottom because the grid cell can't. Top region tightened: `pt-16 pb-24` → `pt-6 pb-6`, `mt-14` → `mt-6`. Left list column wrapped in `<ScrollArea>` (was raw `overflow-y-auto`) for parity with the right pane.
+
+**ScrollArea polish.** Three additions to `src/components/ui/scroll-area.tsx`:
+
+- **Reserved gutter.** `pr-3` on Viewport so list cards never sit underneath the absolutely-positioned thumb. The Scrollbar is `w-1.5` (6px); a 12px reservation gives a 6px gap.
+- **Lazy thumb.** Defaults to `opacity-0`, fades in only when the Scrollbar has `data-hovering` or `data-scrolling` (driven via `group-data-*`). The thumb is mostly absent when stationary, so the JS lag (see below) is mostly invisible.
+- **Edge fade.** Two CSS vars (`--fade-y-start`, `--fade-y-end`) default to `0px` and flip to `1.5rem` when base-ui sets `data-overflow-y-start` / `data-overflow-y-end` on the Viewport. `mask-image: linear-gradient(to bottom, transparent 0, black var(--fade-y-start), black calc(100% - var(--fade-y-end)), transparent 100%)`. At the top of scroll only the bottom fades; mid-scroll both fade; at the end only the top fades. Pure CSS, no JS in the path.
+
+**Negative-margin clip fix.** Link list rows use `-mx-3 w-[calc(100%+1.5rem)]` to bleed hover/active backgrounds past the row's content edge. With per-column scroll the column has `overflow: auto` on one axis, which (per CSS spec) coerces the other axis to `auto` too — the bleed got clipped. Fix: `px-3` on the wrapper inside the Viewport so the row's `-mx-3` lands flush at the column's clipping edge, preserving the existing visual.
+
+**Custom scrollbar lag — known and accepted.** The base-ui thumb tracks scroll position via JS (`onScroll` on the Viewport → imperative `thumb.style.transform = translate3d(0, offset, 0)`). Browsers paint the new scroll position before firing the JS event, so the thumb is structurally one frame behind a native compositor-thread scrollbar — true of every JS-driven scrollbar (radix, base-ui, react-custom-scrollbars, etc.). Discussed swapping to native `overflow-y-auto` with webkit `::-webkit-scrollbar` + Firefox `scrollbar-width/color` (zero lag) but kept base-ui because we wanted the edge fade and themed thumb. The lazy-thumb behaviour above means the lag only surfaces during an active drag of the thumb itself — rare enough to live with.
+
+**Header compaction — masthead title removed.** The 52px `h1` in the masthead duplicated `CategoryNav`'s active-tab signal: which page you're on is already conveyed by which tab is highlighted. Removed the `h1` entirely. `Masthead` is now a count-only component (`{count} {noun}`); kept the file rather than deleting because the count's plumbing (`usePageStaticData`, per-status query map) is still useful. The masthead row's empty 540px right slot (an `<aside aria-hidden>`) is gone. New shape: `[count] [tag strip]` on one `flex items-baseline gap-6` row between `TopBar` and the divider. Net: one full row removed from the header.
+
+**Count placement — landed in list-column header (option C).** Considered three placements: (A) number on the active `CategoryNav` item, (B) count flush-right on the tag-strip row, (C) inside the list column itself. Initial lean was B for cause/effect adjacency, but the user pushed back: with the list column on the _left_ and the count on the right side of a strip above, the count drifts away from the thing it counts. A was rejected because it announces the count _before_ the secondary (tag) filter has been read, inverting the hierarchy. C was the only placement where the count sits where it belongs and follows the full filter chain in reading order: page (TopBar) → tags (above divider) → result (column header).
+
+Sub-agent research confirmed Linear, Height, Mail/Notes all use a column-name + small muted count pattern at the top of a scrolling column. Pattern adopted: `<Masthead />` rendered _outside_ the `<ScrollArea>` at the top of a `flex flex-col min-h-0` left-column wrapper. Header is title (`text-sm font-semibold text-foreground`) + count (`text-[13px] text-muted-foreground tabular-nums`) on a baseline-aligned row. The list scrolls underneath; the existing top-edge fade on the ScrollArea handles the visual transition between header and scrolling content — no divider line needed. Tag-strip stays in its current full-width position above the divider; not moved into the column.
+
+Count source still uses the per-status query (`inboxCount$` etc.), so it doesn't yet reflect the active tag filter. The data-source rewire is captured under "Filtered-count rewire" in [[#Remaining work]].
+
+**Tag overflow + `#tag` search.** Two follow-ups added: (1) tag-strip overflow → `[+]` icon popover (no inline +N expand, no row wrapping), captured in remaining work; (2) `#tag` search syntax in the bottom-dock search panel — typing `#` should suggest tags and filter by them, captured in [[../kanban|kanban]] under Todo.
+
+**Files changed.** `src/routes/_authed.tsx`, `src/components/right-pane/right-pane.tsx`, `src/components/ui/scroll-area.tsx`, `src/components/masthead.tsx`, `src/components/category-nav.tsx`.
 
 ### 2026-05-04 — single morphing dock restored, motion values for origin + position
 
