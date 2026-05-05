@@ -215,6 +215,7 @@ describe("clearKeyboardFocusFromOtherRow", () => {
 
   beforeEach(() => {
     container = document.createElement("div");
+    container.tabIndex = -1;
 
     rowA = document.createElement("div");
     rowA.setAttribute("data-id", "a");
@@ -244,44 +245,37 @@ describe("clearKeyboardFocusFromOtherRow", () => {
     vi.restoreAllMocks();
   });
 
-  it("blurs a different focused row inside the container", () => {
+  it("redirects focus to the container when a different row is focused", () => {
     rowB.focus();
     expect(document.activeElement).toBe(rowB);
 
-    const blurSpy = vi.spyOn(rowB, "blur");
     clearKeyboardFocusFromOtherRow(container, rowA);
 
-    expect(blurSpy).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(container);
   });
 
-  it("does not blur the current row", () => {
+  it("leaves focus on the current row", () => {
     rowA.focus();
-    const blurSpy = vi.spyOn(rowA, "blur");
     clearKeyboardFocusFromOtherRow(container, rowA);
 
-    expect(blurSpy).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(rowA);
   });
 
-  it("does not blur if active element is outside the container", () => {
+  it("does not redirect when active element is outside the container", () => {
     outsideRow.focus();
     expect(document.activeElement).toBe(outsideRow);
 
-    const blurSpy = vi.spyOn(outsideRow, "blur");
     clearKeyboardFocusFromOtherRow(container, rowA);
 
-    expect(blurSpy).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(outsideRow);
   });
 
-  it("does not blur if active element is not a [data-id] element", () => {
+  it("does not redirect when active element is not a [data-id] element", () => {
     nonRow.focus();
     expect(document.activeElement).toBe(nonRow);
 
-    const blurSpy = vi.spyOn(nonRow, "blur");
     clearKeyboardFocusFromOtherRow(container, rowA);
 
-    expect(blurSpy).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(nonRow);
   });
 });

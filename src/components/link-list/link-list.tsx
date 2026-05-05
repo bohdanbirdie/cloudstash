@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
+import { isInActivityGrid } from "@/components/activity-grid/owns-arrows";
+import { isInDock } from "@/components/bottom-dock/owns-arrows";
 import { useListData } from "@/components/list-data-context";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
-import { useCommand, useNavigation } from "@/lib/keyboard";
-import {
-  anchorAfterHover,
-  arrowOpensDetail,
-  moveTarget,
-} from "@/lib/list-nav-rules";
+import { isKeyboardMode } from "@/lib/input-mode";
+import { useCommand, useGlobalNavigation } from "@/lib/keyboard";
 import {
   clearKeyboardFocusFromOtherRow,
+  computeTargetIndex,
   focusRowById,
 } from "@/lib/listbox-keyboard";
 import { transition } from "@/lib/selection-model";
@@ -102,30 +101,35 @@ export function LinkList({
 
   const tabbableId = activeLinkId ?? links[0]?.id ?? null;
 
-  const containerRef = useNavigation<HTMLDivElement>("listNav", (dir) => {
-    if (dir === "ArrowDown") moveByKey(1);
-    else if (dir === "ArrowUp") moveByKey(-1);
-    else if (dir === "Home") moveByKey("home");
-    else if (dir === "End") moveByKey("end");
-  });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useGlobalNavigation(
+    "listNav",
+    (dir) => {
+      if (dir === "ArrowDown") moveByKey(1);
+      else if (dir === "ArrowUp") moveByKey(-1);
+      else if (dir === "Home") moveByKey("home");
+      else if (dir === "End") moveByKey("end");
+    },
+    (e) => isInActivityGrid(e) || isInDock(e)
+  );
 
   useCommand("vimDown", () => moveByKey(1));
   useCommand("vimUp", () => moveByKey(-1));
 
   function moveByKey(delta: number | "home" | "end") {
-    const snap = {
-      activeId: activeLinkIdRef.current,
-      anchorId: anchorRef.current,
-    };
-    const targetId = moveTarget(snap, linksRef.current, delta);
-    if (!targetId) return;
+    const items = linksRef.current;
+    const cursor = activeLinkIdRef.current ?? anchorRef.current;
+    const targetIdx = computeTargetIndex(items, cursor, delta);
+    const target = items[targetIdx];
+    if (!target) return;
 
-    focusRowById(containerRef.current, targetId);
-    anchorRef.current = targetId;
+    focusRowById(containerRef.current, target.id);
+    anchorRef.current = target.id;
 
-    if (arrowOpensDetail(snap, targetId)) {
-      trackLinkOpen(targetId);
-      openDetail(targetId);
+    if (activeLinkIdRef.current && target.id !== activeLinkIdRef.current) {
+      trackLinkOpen(target.id);
+      openDetail(target.id);
     }
   }
 
@@ -158,14 +162,12 @@ export function LinkList({
 
   const handleRowMouseEnter = useCallback(
     (e: React.MouseEvent) => {
+      if (isKeyboardMode()) return;
       const row = e.currentTarget as HTMLElement;
       const id = row.dataset.id;
       if (!id) return;
       useSelectionStore.getState().setHovered(id);
-      anchorRef.current = anchorAfterHover(
-        { activeId: activeLinkIdRef.current, anchorId: anchorRef.current },
-        id
-      );
+      if (!activeLinkIdRef.current) anchorRef.current = id;
       if (containerRef.current) {
         clearKeyboardFocusFromOtherRow(containerRef.current, row);
       }

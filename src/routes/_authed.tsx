@@ -15,6 +15,7 @@ import { TopBar } from "@/components/top-bar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 // import { useIsMobile } from "@/hooks/use-mobile";
 import { usePageStaticData } from "@/hooks/use-page-static-data";
+import { useInputMode } from "@/lib/input-mode";
 import { ConnectionMonitor } from "@/livestore/store";
 
 export const Route = createFileRoute("/_authed")({
@@ -31,6 +32,7 @@ export const Route = createFileRoute("/_authed")({
 
 function AuthedLayout() {
   const { storeRegistry } = Route.useRouteContext();
+  useInputMode();
 
   return (
     <StoreRegistryProvider storeRegistry={storeRegistry}>

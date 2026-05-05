@@ -1,3 +1,4 @@
+import { useCallback, useRef } from "react";
 import type { RefObject } from "react";
 import { useHotkeys, useHotkeysContext } from "react-hotkeys-hook";
 
@@ -102,4 +103,35 @@ export function useNavigation<T extends HTMLElement = HTMLElement>(
       preventDefault: true,
     }
   );
+}
+
+export function useGlobalNavigation(
+  id: NavId,
+  handler: (dir: Direction) => void,
+  skipWhen?: (e: KeyboardEvent) => boolean
+): void {
+  const skipWhenRef = useRef(skipWhen);
+  skipWhenRef.current = skipWhen;
+
+  const ignoreEventWhen = useCallback(
+    (e: KeyboardEvent) =>
+      isContentEditableTarget(e) || (skipWhenRef.current?.(e) ?? false),
+    []
+  );
+
+  useHotkeys(
+    NAV[id].keys,
+    (e) => {
+      if (isDirection(e.key)) handler(e.key);
+    },
+    {
+      enableOnFormTags: ["option"],
+      preventDefault: true,
+      ignoreEventWhen,
+    }
+  );
+}
+
+function isContentEditableTarget(e: KeyboardEvent): boolean {
+  return e.target instanceof HTMLElement && e.target.isContentEditable;
 }
