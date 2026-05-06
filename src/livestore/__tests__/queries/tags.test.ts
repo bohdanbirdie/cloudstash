@@ -175,13 +175,13 @@ describe("tags queries", () => {
       expect(ids).not.toContain(tB);
     });
 
-    it("sorts by LOWER(name) ASC", () => {
-      seedTag("Banana", 5);
-      seedTag("apple", 2);
-      seedTag("Cherry", 8);
+    it("sorts by createdAt ASC", () => {
+      seedTag("Banana", 5, new Date("2026-01-03T10:00:00Z"));
+      seedTag("apple", 2, new Date("2026-01-01T10:00:00Z"));
+      seedTag("Cherry", 8, new Date("2026-01-02T10:00:00Z"));
 
       const rows = store.query(allTagsWithCounts$);
-      expect(rows.map((r) => r.name)).toEqual(["apple", "Banana", "Cherry"]);
+      expect(rows.map((r) => r.name)).toEqual(["apple", "Cherry", "Banana"]);
     });
   });
 

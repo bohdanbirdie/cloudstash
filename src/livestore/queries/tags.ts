@@ -87,7 +87,7 @@ export const allTagsWithCounts$ = queryDb(
              ), 0) as count
       FROM tags t
       WHERE t.deletedAt IS NULL
-      ORDER BY LOWER(t.name) ASC
+      ORDER BY t.createdAt ASC, t.id ASC
     `,
     schema: Schema.Array(TagWithCountSchema),
   }),

@@ -2,8 +2,7 @@ import { Trash2Icon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { getTagColor, tagColorStyles } from "@/lib/tag-colors";
-import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
 
 interface TagRowProps {
   tag: { id: string; name: string };
@@ -43,36 +42,32 @@ export function TagRow({ tag, count, onRename, onDelete }: TagRowProps) {
     setIsEditing(false);
   };
 
-  const color = getTagColor(tag.name);
-  const styles = tagColorStyles[color];
-
   return (
-    <div className="flex items-center gap-2 rounded px-2 py-1.5">
+    <div className="group/row flex items-center gap-2 rounded px-2 py-1.5 hover:bg-muted/50">
       {isEditing ? (
-        <input
+        <Input
           ref={inputRef}
           value={editValue}
           onChange={(e) => setEditValue(e.target.value)}
           onBlur={handleSave}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
+              e.preventDefault();
+              e.stopPropagation();
               handleSave();
             } else if (e.key === "Escape") {
+              e.preventDefault();
+              e.stopPropagation();
               handleCancel();
             }
           }}
-          className="h-6 flex-1 border border-input bg-transparent px-1.5 text-xs outline-none focus:border-ring"
+          className="flex-1"
         />
       ) : (
         <button
           type="button"
           onClick={() => setIsEditing(true)}
-          className={cn(
-            "inline-flex items-center px-1.5 py-0.5 text-xs font-medium transition-colors",
-            styles.badge,
-            styles.badgeHover,
-            "cursor-pointer"
-          )}
+          className="cursor-pointer text-xs font-medium text-foreground underline-offset-4 decoration-dotted decoration-muted-foreground group-hover/row:underline"
         >
           #{tag.name}
         </button>
@@ -85,11 +80,11 @@ export function TagRow({ tag, count, onRename, onDelete }: TagRowProps) {
       <Button
         variant="ghost"
         size="icon-sm"
-        className="text-muted-foreground hover:text-destructive size-6"
         onClick={onDelete}
+        aria-label={`Delete ${tag.name}`}
+        className="text-muted-foreground group-hover/row:text-destructive group-hover/row:hover:bg-destructive/10"
       >
-        <Trash2Icon className="size-3.5" />
-        <span className="sr-only">Delete {tag.name}</span>
+        <Trash2Icon />
       </Button>
     </div>
   );

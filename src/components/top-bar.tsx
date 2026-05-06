@@ -17,7 +17,7 @@ export function TopBar() {
   const { open: openAddLinkDialog } = useAddLinkDialog();
 
   return (
-    <header className="flex items-start justify-between gap-6">
+    <header className="flex items-start justify-between gap-6 px-2">
       <div className="flex items-center gap-10">
         <div className="flex items-center gap-2.5">
           <CloudstashLogo className="size-5 rounded-sm" variant="branded" />

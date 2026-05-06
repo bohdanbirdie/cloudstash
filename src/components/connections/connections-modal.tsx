@@ -23,15 +23,15 @@ interface GeneratedKeyState {
   tab: TabValue;
 }
 
-interface IntegrationsModalProps {
+interface ConnectionsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function IntegrationsModal({
+export function ConnectionsModal({
   open,
   onOpenChange,
-}: IntegrationsModalProps) {
+}: ConnectionsModalProps) {
   const [activeTab, setActiveTab] = useState<TabValue>("telegram");
   const [generatedKeyState, setGeneratedKeyState] =
     useState<GeneratedKeyState | null>(null);
@@ -63,7 +63,7 @@ export function IntegrationsModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Integrations</DialogTitle>
+          <DialogTitle>Connections</DialogTitle>
           <DialogDescription>
             Connect external tools to save links from anywhere.
           </DialogDescription>

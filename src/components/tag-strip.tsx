@@ -7,7 +7,7 @@ import { allTagsWithCounts$ } from "@/livestore/queries/tags";
 import { useAppStore } from "@/livestore/store";
 import { useSelectionStore } from "@/stores/selection-store";
 
-const MAX_VISIBLE_TAGS = 5;
+const MAX_VISIBLE_TAGS = 12;
 
 export const TagStrip = memo(function TagStrip() {
   const store = useAppStore();

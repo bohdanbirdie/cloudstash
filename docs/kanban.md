@@ -31,6 +31,9 @@ kanban-plugin: board
 - [ ] Gate all agent UI on per-user feature flag — when agent is not enabled for a user: hide the AgentTrigger in the dock, ignore the `⌘J` hotkey, skip mounting `AgentChatProvider`/connection, and remove "agent" from any mode switching. Single capability check, applied everywhere.
 - [ ] Replace hand-rolled `InputOTP` with shadcn's `input-otp`-backed component — current `src/components/ui/input-otp.tsx` is a custom implementation skipped during the base-mira refresh. Adopt the registry version (adds `input-otp` dep, exposes `InputOTPGroup`/`InputOTPSlot`/`InputOTPSeparator`) and migrate `pending-approval.tsx` to the compose API.
 - [ ] Restore hotkey-tip overlays when modifier keys are held — when ⌘ (or ⌥/Ctrl/Shift) is pressed, surface contextual hotkey hints next to the actions they trigger (e.g. ⌘V on the Add link button, ⌘K on the dock pill, ⌘J on the agent button, etc.). Was previously implemented; should be reintroduced with the new dock + top-bar layout.
+- [ ] Pop-animate newly added link items in the list — when a link is added via the UI or arrives via livestore sync, animate its entry into the list. Must NOT animate on filter/category changes (only genuinely new items). Likely needs to track "seen" ids and only animate ones that weren't in the previous result set.
+- [ ] Redesign tag combobox/dropdown — current dropdown looks bad, especially with longer tag names. Research best-practice tag-input patterns (truncation, wrapping, max width per chip) and pick a reasonable max tag length. Update both the input chips and the suggestion list.
+- [ ] Make link list items even more vertically compact — tighten vertical padding/line-height in the list rows so more items fit on screen without sacrificing scan-ability.
 
 ## In Progress
 

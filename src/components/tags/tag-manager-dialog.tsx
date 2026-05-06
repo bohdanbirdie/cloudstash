@@ -15,6 +15,8 @@ import {
   InputGroupInput,
   InputGroupText,
 } from "@/components/ui/input-group";
+import { Kbd } from "@/components/ui/kbd";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { track } from "@/lib/analytics";
 import { allTagsWithCounts$ } from "@/livestore/queries/tags";
 import type { TagWithCount } from "@/livestore/queries/tags";
@@ -102,9 +104,9 @@ export function TagManagerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Manage Tags</DialogTitle>
+          <DialogTitle>Manage tags</DialogTitle>
         </DialogHeader>
 
         <InputGroup>
@@ -114,7 +116,7 @@ export function TagManagerDialog({
             </InputGroupText>
           </InputGroupAddon>
           <InputGroupInput
-            placeholder="Search or create tags..."
+            placeholder="Search or add a tag"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => {
@@ -125,36 +127,44 @@ export function TagManagerDialog({
           />
         </InputGroup>
 
-        <div className="max-h-[300px] overflow-y-auto -mx-4 px-4">
-          {canCreateTag && (
-            <button
-              type="button"
-              onClick={handleCreateTag}
-              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs text-primary hover:bg-muted/50"
-            >
-              <PlusIcon className="size-4" />
-              Create &quot;#{inputValue.trim()}&quot;
-            </button>
-          )}
+        {canCreateTag && (
+          <button
+            type="button"
+            onClick={handleCreateTag}
+            className="-mx-1 -my-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-muted/50"
+          >
+            <PlusIcon className="size-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground">
+              Create{" "}
+              <span className="font-medium text-foreground">
+                #{inputValue.trim()}
+              </span>
+            </span>
+            <Kbd className="ml-auto">↵</Kbd>
+          </button>
+        )}
 
-          {filteredTags.length === 0 && !canCreateTag ? (
-            <p className="text-muted-foreground py-8 text-center text-xs">
-              {inputValue ? "No tags match your search" : "No tags yet"}
-            </p>
-          ) : (
-            <div className="flex flex-col gap-1">
-              {filteredTags.map((tag) => (
-                <TagRow
-                  key={tag.id}
-                  tag={tag}
-                  count={tag.count}
-                  onRename={(newName) => handleRenameTag(tag.id, newName)}
-                  onDelete={() => handleDeleteTag(tag.id)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+        <ScrollArea className="-mx-4 max-h-[300px]">
+          <div className="pl-4">
+            {filteredTags.length === 0 ? (
+              <p className="text-muted-foreground py-8 text-center text-xs">
+                {inputValue ? "No tags match your search" : "No tags yet"}
+              </p>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {filteredTags.map((tag) => (
+                  <TagRow
+                    key={tag.id}
+                    tag={tag}
+                    count={tag.count}
+                    onRename={(newName) => handleRenameTag(tag.id, newName)}
+                    onDelete={() => handleDeleteTag(tag.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );

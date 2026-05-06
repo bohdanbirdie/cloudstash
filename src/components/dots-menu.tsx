@@ -1,10 +1,18 @@
 import { useNavigate } from "@tanstack/react-router";
-import { EllipsisVerticalIcon } from "lucide-react";
+import {
+  BlocksIcon,
+  DownloadIcon,
+  EllipsisVerticalIcon,
+  LogOutIcon,
+  PaletteIcon,
+  ShieldIcon,
+  TagIcon,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { AdminModal } from "@/components/admin";
+import { ConnectionsModal } from "@/components/connections/connections-modal";
 import { ExportDialog } from "@/components/export-dialog";
-import { IntegrationsModal } from "@/components/integrations";
 import { TagManagerDialog } from "@/components/tags/tag-manager-dialog";
 import {
   AlertDialog,
@@ -25,20 +33,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useFilteredLinks } from "@/hooks/use-filtered-links";
-import { useOrgFeatures } from "@/hooks/use-org-features";
 import { usePageStaticData } from "@/hooks/use-page-static-data";
 import { useAuth } from "@/lib/auth";
 import type { LinkStatus } from "@/livestore/queries/filtered-links";
-import { useDockStore } from "@/stores/dock-store";
 
 export function DotsMenu() {
   const navigate = useNavigate();
   const auth = useAuth();
-  const { isChatEnabled } = useOrgFeatures();
   const { status: pageStatus, title: pageTitle } = usePageStaticData();
 
   const [adminOpen, setAdminOpen] = useState(false);
-  const [integrationsOpen, setIntegrationsOpen] = useState(false);
+  const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -56,21 +61,17 @@ export function DotsMenu() {
           }
         />
         <DropdownMenuContent align="end" sideOffset={6} className="w-48">
-          {isChatEnabled && (
-            <DropdownMenuItem
-              onClick={() => useDockStore.getState().setMode("agent")}
-            >
-              Agent
-            </DropdownMenuItem>
-          )}
           <DropdownMenuItem onClick={() => setTagManagerOpen(true)}>
-            Tags
+            <TagIcon />
+            Manage tags
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setIntegrationsOpen(true)}>
-            Integrations
+          <DropdownMenuItem onClick={() => setConnectionsOpen(true)}>
+            <BlocksIcon />
+            Connections
           </DropdownMenuItem>
           {pageStatus && pageTitle && (
             <DropdownMenuItem onClick={() => setExportOpen(true)}>
+              <DownloadIcon />
               Export {pageTitle.toLowerCase()}
             </DropdownMenuItem>
           )}
@@ -78,15 +79,18 @@ export function DotsMenu() {
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setAdminOpen(true)}>
+                <ShieldIcon />
                 Admin
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate({ to: "/brand" })}>
+                <PaletteIcon />
                 Brand
               </DropdownMenuItem>
             </>
           )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => setLogoutOpen(true)}>
+            <LogOutIcon />
             Sign out
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -104,9 +108,9 @@ export function DotsMenu() {
           onOpenChange={setExportOpen}
         />
       )}
-      <IntegrationsModal
-        open={integrationsOpen}
-        onOpenChange={setIntegrationsOpen}
+      <ConnectionsModal
+        open={connectionsOpen}
+        onOpenChange={setConnectionsOpen}
       />
       <AdminModal open={adminOpen} onOpenChange={setAdminOpen} />
       <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
