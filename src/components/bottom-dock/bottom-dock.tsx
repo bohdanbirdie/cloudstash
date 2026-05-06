@@ -126,7 +126,7 @@ export function BottomDock() {
   useCommand("openAgent", toggleAgent);
 
   return (
-    <div ref={rootRef} className="fixed right-0 bottom-7 left-0 z-50">
+    <div ref={rootRef} className="relative w-full">
       <CommandPrimitive
         shouldFilter={false}
         className="contents"

@@ -18,7 +18,7 @@ import type { DockMode } from "@/stores/dock-store";
 import { SearchContent } from "./search-content";
 
 const POPUP_CLASS =
-  "absolute bottom-full mb-2 h-[480px] w-[480px] overflow-hidden rounded-lg border border-primary/10 bg-popover text-popover-foreground shadow-[0_1px_2px_rgb(61_40_20_/_0.08),0_12px_36px_-10px_rgb(61_40_20_/_0.26)] dark:border-border dark:shadow-[0_1px_2px_rgb(0_0_0_/_0.3),0_12px_36px_-10px_rgb(0_0_0_/_0.65)]";
+  "absolute bottom-full mb-2 h-[480px] w-[480px] overflow-hidden rounded-lg bg-popover text-popover-foreground shadow-[0_0_0_1px_rgb(0_0_0_/_0.05),0_2px_6px_-1px_rgb(0_0_0_/_0.06),0_18px_44px_-10px_rgb(0_0_0_/_0.2)] dark:shadow-[0_0_0_1px_rgb(255_255_255_/_0.06),0_2px_6px_-1px_rgb(0_0_0_/_0.4),0_18px_44px_-10px_rgb(0_0_0_/_0.65)]";
 
 const EASE_OUT = [0.22, 1, 0.36, 1] as const;
 const EASE_IN = [0.4, 0, 1, 1] as const;

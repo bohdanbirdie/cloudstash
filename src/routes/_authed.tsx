@@ -40,10 +40,18 @@ function AuthedLayout() {
         <Suspense fallback={<LoadingScreen />}>
           <ConnectionMonitor />
           <AddLinkDialogProvider>
-            <ListDataProvider>
-              <AuthedShell />
-            </ListDataProvider>
-            <BottomDock />
+            <div className="bg-background flex h-svh flex-col">
+              <div className="mx-auto flex h-full w-full min-h-0 max-w-7xl flex-col">
+                <div className="min-h-0 flex-1 overflow-hidden">
+                  <ListDataProvider>
+                    <AuthedShell />
+                  </ListDataProvider>
+                </div>
+                <div className="relative z-50 flex h-20 shrink-0 items-center justify-center">
+                  <BottomDock />
+                </div>
+              </div>
+            </div>
             {import.meta.env.DEV && (
               <FPSMeter
                 className="fixed left-3 top-3 z-[9999] border border-gray-600 bg-black"
@@ -62,15 +70,15 @@ function AuthedShell() {
 
   if (status == null) {
     return (
-      <div className="h-svh overflow-auto bg-background">
+      <div className="h-full overflow-auto">
         <Outlet />
       </div>
     );
   }
 
   return (
-    <div className="h-svh overflow-hidden bg-background">
-      <div className="mx-auto flex h-full max-w-7xl flex-col px-8 pt-6 pb-6">
+    <div className="h-full overflow-hidden">
+      <div className="flex h-full flex-col px-8 pt-6 pb-6">
         <TopBar />
 
         <div className="mt-6">
