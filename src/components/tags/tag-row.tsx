@@ -1,4 +1,4 @@
-import { Trash2Icon } from "lucide-react";
+import { PencilIcon, Trash2Icon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -73,9 +73,10 @@ export function TagRow({ tag, count, onRename, onDelete }: TagRowProps) {
         <button
           type="button"
           onClick={() => setIsEditing(true)}
-          className="flex h-7 cursor-pointer items-center text-xs font-medium text-foreground underline-offset-4 decoration-dotted decoration-muted-foreground group-hover/row:underline"
+          className="flex h-7 flex-1 cursor-pointer items-center gap-1 text-xs font-medium text-foreground"
         >
           #{tag.name}
+          <PencilIcon className="size-3 text-muted-foreground opacity-0 transition-opacity group-hover/row:opacity-100" />
         </button>
       )}
 
