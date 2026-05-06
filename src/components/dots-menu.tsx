@@ -96,10 +96,9 @@ export function DotsMenu() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <TagManagerDialog
-        open={tagManagerOpen}
-        onOpenChange={setTagManagerOpen}
-      />
+      {tagManagerOpen && (
+        <TagManagerDialog open onOpenChange={setTagManagerOpen} />
+      )}
       {exportOpen && pageStatus && pageTitle && (
         <ExportPageDialog
           status={pageStatus}
@@ -108,11 +107,10 @@ export function DotsMenu() {
           onOpenChange={setExportOpen}
         />
       )}
-      <ConnectionsModal
-        open={connectionsOpen}
-        onOpenChange={setConnectionsOpen}
-      />
-      <AdminModal open={adminOpen} onOpenChange={setAdminOpen} />
+      {connectionsOpen && (
+        <ConnectionsModal open onOpenChange={setConnectionsOpen} />
+      )}
+      {adminOpen && <AdminModal open onOpenChange={setAdminOpen} />}
       <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

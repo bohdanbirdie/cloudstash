@@ -1,6 +1,5 @@
 import { PlusIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import slugify from "slugify";
 
 import { TagBadge } from "@/components/tags/tag-badge";
 import { Input } from "@/components/ui/input";
@@ -10,6 +9,11 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
+import {
+  deriveNewTag,
+  MAX_TAG_NAME_LENGTH,
+  sanitizeTagName,
+} from "@/lib/tags";
 import { cn } from "@/lib/utils";
 import { allTags$, tagCounts$ } from "@/livestore/queries/tags";
 import { events } from "@/livestore/schema";
@@ -65,16 +69,22 @@ export function TagCombobox({
   );
 
   const filteredTags = useMemo(() => {
-    if (!inputValue.trim()) return availableTags;
-    const query = inputValue.toLowerCase();
-    return availableTags.filter((t) => t.name.toLowerCase().includes(query));
+    const query = sanitizeTagName(inputValue);
+    if (!query) return availableTags;
+    return availableTags.filter((t) => t.id.includes(query));
   }, [availableTags, inputValue]);
 
-  const canCreateTag = useMemo(() => {
-    if (!allowCreate || !inputValue.trim()) return false;
-    const slug = slugify(inputValue.trim(), { lower: true, strict: true });
-    return slug.length > 0 && !allTags.some((t) => t.id === slug);
-  }, [allowCreate, inputValue, allTags]);
+  const existingTagIds = useMemo(
+    () => new Set(allTags.map((t) => t.id)),
+    [allTags]
+  );
+
+  const newTag = useMemo(
+    () => (allowCreate ? deriveNewTag(inputValue, existingTagIds) : null),
+    [allowCreate, inputValue, existingTagIds]
+  );
+
+  const canCreateTag = newTag !== null;
 
   const items: ListItem[] = useMemo(() => {
     const list: ListItem[] = filteredTags.map((t) => ({
@@ -102,22 +112,19 @@ export function TagCombobox({
     tagCounts.find((tc) => tc.tagId === tagId)?.count ?? 0;
 
   const handleCreateTag = () => {
-    const name = inputValue.trim();
-    if (!name) return;
-
-    const id = slugify(name, { lower: true, strict: true });
+    if (!newTag) return;
     const maxSortOrder = Math.max(0, ...allTags.map((t) => t.sortOrder));
 
     store.commit(
       events.tagCreated({
         createdAt: new Date(),
-        id,
-        name,
+        id: newTag.id,
+        name: newTag.name,
         sortOrder: maxSortOrder + 1,
       })
     );
 
-    onChange([...selectedTagIds, id]);
+    onChange([...selectedTagIds, newTag.id]);
     setInputValue("");
   };
 
@@ -176,6 +183,7 @@ export function TagCombobox({
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={placeholder}
+              maxLength={MAX_TAG_NAME_LENGTH}
               className="h-8"
             />
           </div>

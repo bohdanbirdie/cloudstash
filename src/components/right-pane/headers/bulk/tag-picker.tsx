@@ -1,6 +1,5 @@
 import { PlusIcon, TagIcon } from "lucide-react";
-import { useState } from "react";
-import slugify from "slugify";
+import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +20,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
+import { deriveNewTag, MAX_TAG_NAME_LENGTH } from "@/lib/tags";
 import { allTags$, tagsByLink$ } from "@/livestore/queries/tags";
 import { events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
@@ -41,9 +41,12 @@ export function BulkTagPicker({
     disableScopes: ["dialog", "selection"],
   });
 
-  const trimmed = inputValue.trim();
-  const slug = trimmed ? slugify(trimmed, { lower: true, strict: true }) : "";
-  const canCreateTag = slug.length > 0 && !allTags.some((t) => t.id === slug);
+  const existingTagIds = useMemo(
+    () => new Set(allTags.map((t) => t.id)),
+    [allTags]
+  );
+  const newTag = deriveNewTag(inputValue, existingTagIds);
+  const canCreateTag = newTag !== null;
 
   const applyTag = (tagId: string) => {
     const createdAt = new Date();
@@ -63,22 +66,22 @@ export function BulkTagPicker({
   };
 
   const createTagAndApply = () => {
-    if (!canCreateTag) return;
+    if (!newTag) return;
     const createdAt = new Date();
     const maxSortOrder = Math.max(0, ...allTags.map((t) => t.sortOrder));
     store.commit(
       events.tagCreated({
         createdAt,
-        id: slug,
-        name: trimmed,
+        id: newTag.id,
+        name: newTag.name,
         sortOrder: maxSortOrder + 1,
       }),
       ...[...selectedIds].map((linkId) =>
         events.linkTagged({
           createdAt,
-          id: `${linkId}-${slug}`,
+          id: `${linkId}-${newTag.id}`,
           linkId,
-          tagId: slug,
+          tagId: newTag.id,
         })
       )
     );
@@ -112,6 +115,7 @@ export function BulkTagPicker({
             value={inputValue}
             onValueChange={setInputValue}
             placeholder="Search or create tag..."
+            maxLength={MAX_TAG_NAME_LENGTH}
             autoFocus
           />
           <CommandList>
@@ -129,15 +133,15 @@ export function BulkTagPicker({
                 <span className="font-medium">#{tag.name}</span>
               </CommandItem>
             ))}
-            {canCreateTag && (
+            {newTag && (
               <CommandItem
-                value={`__create__${trimmed}`}
+                value={`__create__${newTag.name}`}
                 onSelect={createTagAndApply}
                 forceMount
                 className="text-primary"
               >
                 <PlusIcon className="h-4 w-4" />
-                Create &quot;#{trimmed}&quot;
+                Create &quot;#{newTag.name}&quot;
               </CommandItem>
             )}
           </CommandList>

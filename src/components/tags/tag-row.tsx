@@ -3,6 +3,11 @@ import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  isValidTagName,
+  MAX_TAG_NAME_LENGTH,
+  sanitizeTagName,
+} from "@/lib/tags";
 
 interface TagRowProps {
   tag: { id: string; name: string };
@@ -28,9 +33,9 @@ export function TagRow({ tag, count, onRename, onDelete }: TagRowProps) {
   }, [tag.name]);
 
   const handleSave = () => {
-    const trimmed = editValue.trim();
-    if (trimmed && trimmed !== tag.name) {
-      onRename(trimmed);
+    const sanitized = sanitizeTagName(editValue);
+    if (isValidTagName(sanitized) && sanitized !== tag.name) {
+      onRename(sanitized);
     } else {
       setEditValue(tag.name);
     }
@@ -43,13 +48,14 @@ export function TagRow({ tag, count, onRename, onDelete }: TagRowProps) {
   };
 
   return (
-    <div className="group/row flex items-center gap-2 rounded px-2 py-1.5 hover:bg-muted/50">
+    <div className="group/row flex items-center gap-2 rounded-xl px-1.5 py-1.5 hover:bg-muted/50">
       {isEditing ? (
         <Input
           ref={inputRef}
           value={editValue}
           onChange={(e) => setEditValue(e.target.value)}
           onBlur={handleSave}
+          maxLength={MAX_TAG_NAME_LENGTH}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
@@ -67,7 +73,7 @@ export function TagRow({ tag, count, onRename, onDelete }: TagRowProps) {
         <button
           type="button"
           onClick={() => setIsEditing(true)}
-          className="cursor-pointer text-xs font-medium text-foreground underline-offset-4 decoration-dotted decoration-muted-foreground group-hover/row:underline"
+          className="flex h-7 cursor-pointer items-center text-xs font-medium text-foreground underline-offset-4 decoration-dotted decoration-muted-foreground group-hover/row:underline"
         >
           #{tag.name}
         </button>

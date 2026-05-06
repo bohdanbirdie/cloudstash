@@ -1,6 +1,8 @@
 import { nanoid } from "@livestore/livestore";
 import { Cause, Effect } from "effect";
 
+import { isValidTagName, sanitizeTagName } from "@/lib/tags";
+
 import { events } from "../../livestore/schema";
 import type { LinkId } from "../db/branded";
 import { findMatchingTag } from "./fuzzy-match";
@@ -113,11 +115,14 @@ export const processLink = ({
         existingLinkTagNames.map((n) => n.toLowerCase())
       );
 
-      const newSuggestions = result.suggestedTags.filter((suggestion) => {
-        const matchedTag = findMatchingTag(suggestion, existingTags);
-        const name = matchedTag?.name ?? suggestion;
-        return !existingNameSet.has(name.toLowerCase());
-      });
+      const newSuggestions = result.suggestedTags
+        .map((s) => sanitizeTagName(s))
+        .filter((suggestion) => {
+          const matchedTag = findMatchingTag(suggestion, existingTags);
+          const name = matchedTag?.name ?? suggestion;
+          if (!matchedTag && !isValidTagName(suggestion)) return false;
+          return !existingNameSet.has(name.toLowerCase());
+        });
 
       yield* Effect.forEach(
         newSuggestions,

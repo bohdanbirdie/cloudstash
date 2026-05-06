@@ -1,6 +1,6 @@
 import { PlusIcon, SearchIcon } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
-import slugify from "slugify";
 
 import { TagRow } from "@/components/tags/tag-row";
 import {
@@ -18,6 +18,11 @@ import {
 import { Kbd } from "@/components/ui/kbd";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { track } from "@/lib/analytics";
+import {
+  deriveNewTag,
+  MAX_TAG_NAME_LENGTH,
+  sanitizeTagName,
+} from "@/lib/tags";
 import { allTagsWithCounts$ } from "@/livestore/queries/tags";
 import type { TagWithCount } from "@/livestore/queries/tags";
 import { events } from "@/livestore/schema";
@@ -36,30 +41,32 @@ export function TagManagerDialog({
   const allTagsWithCounts = store.useQuery(allTagsWithCounts$);
   const [inputValue, setInputValue] = useState("");
 
-  const filteredTags = useMemo((): readonly TagWithCount[] => {
-    if (!inputValue) return allTagsWithCounts;
-    const query = inputValue.toLowerCase();
-    return allTagsWithCounts.filter((tag: TagWithCount) =>
-      tag.name.toLowerCase().includes(query)
-    );
-  }, [allTagsWithCounts, inputValue]);
+  const searchQuery = useMemo(
+    () => sanitizeTagName(inputValue),
+    [inputValue]
+  );
 
-  const canCreateTag = useMemo(() => {
-    const trimmed = inputValue.trim();
-    if (!trimmed) return false;
-    const slug = slugify(trimmed, { lower: true, strict: true });
-    return (
-      slug.length > 0 &&
-      !allTagsWithCounts.some((t: TagWithCount) => t.id === slug)
+  const filteredTags = useMemo((): readonly TagWithCount[] => {
+    if (!searchQuery) return allTagsWithCounts;
+    return allTagsWithCounts.filter((tag: TagWithCount) =>
+      tag.id.includes(searchQuery)
     );
-  }, [inputValue, allTagsWithCounts]);
+  }, [allTagsWithCounts, searchQuery]);
+
+  const existingTagIds = useMemo(
+    () => new Set(allTagsWithCounts.map((t: TagWithCount) => t.id)),
+    [allTagsWithCounts]
+  );
+
+  const newTag = useMemo(
+    () => deriveNewTag(inputValue, existingTagIds),
+    [inputValue, existingTagIds]
+  );
+
+  const canCreateTag = newTag !== null;
 
   const handleCreateTag = () => {
-    const name = inputValue.trim();
-    if (!name) return;
-
-    const id = slugify(name, { lower: true, strict: true });
-    if (allTagsWithCounts.some((t: TagWithCount) => t.id === id)) return;
+    if (!newTag) return;
 
     const maxSortOrder = Math.max(
       0,
@@ -68,8 +75,8 @@ export function TagManagerDialog({
 
     store.commit(
       events.tagCreated({
-        id,
-        name,
+        id: newTag.id,
+        name: newTag.name,
         sortOrder: maxSortOrder + 1,
         createdAt: new Date(),
       })
@@ -119,6 +126,7 @@ export function TagManagerDialog({
             placeholder="Search or add a tag"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
+            maxLength={MAX_TAG_NAME_LENGTH}
             onKeyDown={(e) => {
               if (e.key === "Enter" && canCreateTag) {
                 handleCreateTag();
@@ -127,44 +135,77 @@ export function TagManagerDialog({
           />
         </InputGroup>
 
-        {canCreateTag && (
-          <button
-            type="button"
-            onClick={handleCreateTag}
-            className="-mx-1 -my-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-muted/50"
-          >
-            <PlusIcon className="size-3.5 text-muted-foreground" />
-            <span className="text-muted-foreground">
-              Create{" "}
-              <span className="font-medium text-foreground">
-                #{inputValue.trim()}
+        <div className="flex h-[320px] flex-col gap-1">
+          {newTag && (
+            <button
+              type="button"
+              onClick={handleCreateTag}
+              className="-mx-1 flex shrink-0 items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-muted/50"
+            >
+              <PlusIcon className="size-3.5 text-muted-foreground" />
+              <span className="text-muted-foreground">
+                Create{" "}
+                <span className="font-medium text-foreground">
+                  #{newTag.name}
+                </span>
               </span>
-            </span>
-            <Kbd className="ml-auto">↵</Kbd>
-          </button>
-        )}
+              <Kbd className="ml-auto">↵</Kbd>
+            </button>
+          )}
 
-        <ScrollArea className="-mx-4 max-h-[300px]">
+          <ScrollArea className="-mx-4 min-h-0 flex-1">
           <div className="pl-4">
-            {filteredTags.length === 0 ? (
+            {allTagsWithCounts.length === 0 ? (
               <p className="text-muted-foreground py-8 text-center text-xs">
-                {inputValue ? "No tags match your search" : "No tags yet"}
+                No tags yet
               </p>
             ) : (
-              <div className="flex flex-col gap-1">
-                {filteredTags.map((tag) => (
-                  <TagRow
-                    key={tag.id}
-                    tag={tag}
-                    count={tag.count}
-                    onRename={(newName) => handleRenameTag(tag.id, newName)}
-                    onDelete={() => handleDeleteTag(tag.id)}
-                  />
-                ))}
-              </div>
+              <>
+                {filteredTags.length === 0 && (
+                  <p className="text-muted-foreground py-8 text-center text-xs">
+                    No tags match your search
+                  </p>
+                )}
+                <div className="flex flex-col gap-1">
+                  <AnimatePresence initial={false}>
+                    {allTagsWithCounts.map((tag: TagWithCount) => {
+                      const matches =
+                        !searchQuery || tag.id.includes(searchQuery);
+                      return (
+                        <motion.div
+                          key={tag.id}
+                          initial={{ opacity: 0, scale: 0.95, height: 0 }}
+                          animate={{ opacity: 1, scale: 1, height: "auto" }}
+                          exit={{ opacity: 0, scale: 0.95, height: 0 }}
+                          transition={{
+                            type: "spring",
+                            duration: 0.3,
+                            bounce: 0,
+                          }}
+                          style={{
+                            overflow: "hidden",
+                            transformOrigin: "left center",
+                          }}
+                          hidden={!matches}
+                        >
+                          <TagRow
+                            tag={tag}
+                            count={tag.count}
+                            onRename={(newName) =>
+                              handleRenameTag(tag.id, newName)
+                            }
+                            onDelete={() => handleDeleteTag(tag.id)}
+                          />
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+                </div>
+              </>
             )}
           </div>
         </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );
