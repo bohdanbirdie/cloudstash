@@ -25,8 +25,8 @@ export function SearchTrigger({
     <label
       role="search"
       className={cn(
-        "flex h-10 w-[480px] items-center gap-2.5 rounded-full border bg-background px-4 shadow-sm transition-colors",
-        active ? "border-primary/40" : "border-border"
+        "relative flex h-10 w-[480px] items-center gap-2.5 rounded-full border bg-background px-4 shadow-sm transition-colors hover:z-10",
+        active ? "z-10 border-primary/40" : "border-border"
       )}
     >
       <SearchIcon

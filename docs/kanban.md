@@ -34,6 +34,7 @@ kanban-plugin: board
 - [ ] Pop-animate newly added link items in the list — when a link is added via the UI or arrives via livestore sync, animate its entry into the list. Must NOT animate on filter/category changes (only genuinely new items). Likely needs to track "seen" ids and only animate ones that weren't in the previous result set.
 - [ ] Redesign tag combobox/dropdown — current dropdown looks bad, especially with longer tag names. Research best-practice tag-input patterns (truncation, wrapping, max width per chip) and pick a reasonable max tag length. Update both the input chips and the suggestion list.
 - [ ] Make link list items even more vertically compact — tighten vertical padding/line-height in the list rows so more items fit on screen without sacrificing scan-ability.
+- [ ] Scope `j`/`k` link navigation hotkeys away from inputs — currently they fire globally and steal `j`/`k` keystrokes from any focused input/textarea/contenteditable, making it impossible to type those letters. Hotkey handler must check the active element (and respect any popover/dialog/listbox scope) before treating `j`/`k` as link nav.
 
 ## In Progress
 

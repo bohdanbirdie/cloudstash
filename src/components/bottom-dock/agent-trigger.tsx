@@ -17,8 +17,8 @@ export function AgentTrigger({ active, onClick }: AgentTriggerProps) {
       onClick={onClick}
       aria-label={`Agent (${HOTKEY_LABEL})`}
       className={cn(
-        "flex size-10 shrink-0 items-center justify-center rounded-full border bg-background text-foreground shadow-sm transition-[colors,scale] active:scale-[0.96] hover:bg-muted",
-        active ? "border-primary/40" : "border-border"
+        "relative flex size-10 shrink-0 items-center justify-center rounded-full border bg-background text-foreground shadow-sm transition-[colors,scale] active:scale-[0.96] hover:z-10 hover:bg-muted",
+        active ? "z-10 border-primary/40" : "border-border"
       )}
     >
       <SparklesIcon
