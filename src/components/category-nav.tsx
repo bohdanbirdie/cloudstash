@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
 
 const baseClass =
-  "inline-block px-2 py-1.5 leading-none transition-colors duration-150 ease-out hover:text-foreground";
-const activeClass = "text-foreground [text-shadow:0.5px_0_0_currentColor]";
+  "inline-block px-2 py-1.5 leading-none decoration-1 underline-offset-[6px] transition-colors duration-150 ease-out hover:text-foreground hover:underline";
+const activeClass =
+  "text-foreground underline [text-shadow:0.5px_0_0_currentColor]";
 
 export function CategoryNav() {
   return (

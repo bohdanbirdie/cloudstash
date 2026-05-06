@@ -167,7 +167,7 @@ export function TagCombobox({
           <PlusIcon className="h-3 w-3" />
         </PopoverTrigger>
 
-        <PopoverContent className="w-56 p-0">
+        <PopoverContent align="start" className="w-56 p-0">
           <div className="p-2">
             <Input
               ref={inputRef}

@@ -121,7 +121,7 @@ const DetailViewInner = memo(function DetailViewInner({
         )}
       </div>
 
-      <h2 className="text-[28px] font-extrabold leading-tight tracking-tight text-foreground text-balance">
+      <h2 className="text-3xl font-extrabold leading-tight tracking-tight text-foreground text-balance">
         {titleText}
       </h2>
 

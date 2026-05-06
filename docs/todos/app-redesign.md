@@ -50,7 +50,7 @@ Consolidated tail of the redesign — merges what was originally split between t
 - **Type scale pass** — 5 sizes with ≥1.25 ratio; pick a display weight for hero moments so the mono voice has internal contrast.
 - **Dark mode pass** — apply the type / radius passes to the dark variant.
 - **Tabular numerics audit** — every count / date / timestamp uses `font-variant-numeric: tabular-nums`.
-- **shadcn radius pass** — switch the global shadcn config to rounded corners (bump `--radius` in `globals.css` / `components.json`) and re-install the affected primitives from the registry so components that bake in literal `rounded-none` / fixed-radius classes (button, input, dropdown, dialog, etc.) pick up the new value. Audit local overrides where we forced `rounded-none` and remove any that were compensating for the old default.
+- ~~**shadcn radius pass**~~ shipped 2026-05-06 — switched `components.json` style from `base-lyra` to `base-mira`, re-installed every registry-backed shadcn primitive against the new preset (button, alert, alert-dialog, avatar, badge, card, collapsible, command, dialog, dropdown-menu, field, input-group, input, kbd, label, popover, select, separator, skeleton, spinner, switch, tabs, textarea, tooltip), and dropped the multiplicative radius scale. See progress log entry below for details.
 - ~~**Color token pass.**~~ obsolete — neutrals are fine as-is.
 - ~~**Activity indicator** in the right-side header slot.~~ obsolete — superseded by the GitHub-style activity grid in `WeeklyDigest`.
 - ~~**Settings / integrations slash-commands** in the chip.~~ obsolete — slash commands removed entirely.
@@ -479,6 +479,41 @@ Supported in modern Chrome, Safari 18+, Firefox 125+. Matches the "optimize for 
 ## Progress log
 
 _Append entries as we iterate, newest first._
+
+### 2026-05-06 — base-mira refresh: tokens, fonts, shadcn re-install, dead-code sweep
+
+**Theme tokens — switched to base-mira preset.** `components.json` style `base-lyra` → `base-mira`; `menuColor` `inverted` → `default-translucent`; `menuAccent` `bold` → `subtle`. Updated `src/styles.css` to match Mira's token palette in both `:root` and `.dark`:
+
+- `--accent` decoupled from `--primary` (was the same orange in both modes) → neutral gray (`oklch(0.967 0.001 286.375)` light, `oklch(0.274 0.006 286.033)` dark). Hover/active states across the app stop tinting orange.
+- `--primary` softened to Mira's muted orange (`oklch(0.553 0.195 38.402)` light, `oklch(0.47 0.157 37.304)` dark).
+- `--chart-1..5` flipped from orange ramp to grayscale ramp (chart surfaces aren't rendered yet, but matches the stated "mostly grayscale, orange only where it earns it" direction).
+- Sidebar accents follow the same fix (`--sidebar-accent` was orange, now neutral).
+- Radius scale moved from additive (`sm = r-4px`) to multiplicative (`sm = r*0.6`, `md = r*0.8`, `lg = r`, `xl = r*1.4`, etc.). At `--radius: 0.625rem`: `sm` 0.225rem→0.375rem, `md` 0.425rem→0.5rem, `lg`/`xl`/`2xl` unchanged.
+
+**Fonts.** `--font-sans` JetBrains Mono Variable → **Noto Sans Variable**. Added `--font-mono: JetBrains Mono Variable` so all 12 existing `font-mono` callsites (Kbd, code blocks, OTP, admin IDs, exported data, JSON tool output, email addresses) keep working — now via a dedicated mono token instead of inheriting from sans. Geist (Mira's heading font) was evaluated and rejected: only 9 headings in the codebase, none display-sized, and `shadcn/tailwind.css` doesn't auto-apply `--font-heading`. Not earning its keep — revisit when a marketing surface lands.
+
+**Shadcn primitive re-install — alphabetical pass.** Re-ran `bunx shadcn add <name> --overwrite` against the new `base-mira` registry for: button, alert-dialog, alert, avatar, badge, card, collapsible, combobox, command, dialog, dropdown-menu, field, input-group, input, kbd, label, popover, scroll-area (skipped), input-otp (skipped), select, separator, sheet, skeleton, spinner, switch, tabs, textarea, toggle, toggle-group, tooltip. Surfaced visible changes per file before applying — biggest semantic shifts:
+
+- Buttons: `rounded-none` → `rounded-md`, `active:scale-[0.96]` → `active:not-aria-[haspopup]:translate-y-px`, sizes shrink one notch (default `h-8` → `h-7`).
+- Badges: `rounded-none` → `rounded-full` (rectangles → pills), `text-xs` → `text-[0.625rem]`.
+- Card: `rounded-none` → `rounded-lg`; footer no longer has implicit border-top + padding.
+- Dropdown / Select / Combobox popups: gain Mira's `default-translucent` glassmorphic style — `bg-popover/70` + `before:backdrop-blur-2xl backdrop-saturate-150`, hover overlay `bg-foreground/10` (replaces `bg-accent`). Confirmed kept as a deliberate aesthetic choice.
+- Kbd: `font-mono text-[11px] font-normal border bg-muted/50` → `font-sans text-[0.625rem] font-medium bg-muted` (no border).
+- Tooltip: customizations preserved — `hideArrow` and `positionerClassName` props re-added (used by `activity-grid.tsx`); `Tooltip` self-wrap of `TooltipProvider` (delay=0) preserved so tooltips stay instant.
+- Popover: default `align` changed `start` → `center`. Patched `tag-combobox.tsx` to set explicit `align="start"` to keep its existing positioning.
+- Skipped wholesale: `scroll-area.tsx` (kept the local mask-image fade + auto-hiding scrollbar customizations) and `input-otp.tsx` (hand-rolled local impl, deferred to a kanban task to migrate to the shadcn `input-otp`-backed component).
+
+**Dead-code sweep.** After the re-install, audited `src/components/ui/` for components with zero callers (including UI-to-UI imports). Deleted 10 files: `navigation-menu`, `prompt-input`, `resizable`, `scrollable-content`, `sheet`, `toggle-group`, `toggle` (only used by toggle-group, dead by cascade), plus `component-example.tsx` (demo file, not imported anywhere) and its dependents `combobox` + `select`. Verified before each delete with a regex covering `@/components/ui/X`, `./X`, and `../ui/X` import paths.
+
+**Top-bar buttons — replaced custom styling with `Button` component** (post-critique). `top-bar.tsx` add-link `+` button and `dots-menu.tsx` three-dots trigger were custom 20px ghost icons; both now use `<Button variant="ghost" size="icon">`. Also tightened top-bar gap from `gap-4` to `gap-2` since Button has its own padding.
+
+**Category nav active state.** Was `text-foreground [text-shadow:0.5px_0_0_currentColor]` — too subtle. Added `underline decoration-1 underline-offset-[6px]` to the active class and matching `hover:underline` on the base — so resting items underline on hover and active stays underlined permanently. Text-shadow weight bump kept on active for the typewriter feel.
+
+**Detail title size token.** `text-[28px]` magic number → `text-3xl` in `detail-view.tsx:124`. Stays on the type scale; `font-extrabold leading-tight tracking-tight` preserved.
+
+**Kanban tasks queued for follow-up.** Two new entries: (a) replace hand-rolled `InputOTP` with the shadcn `input-otp`-backed component, migrating `pending-approval.tsx` to the compose API; (b) restore hotkey-tip overlays when modifier keys are held (was previously implemented; should reappear with the new dock + top-bar layout).
+
+`bun run check` clean — 816 files formatted, 0 lint errors, 0 effect diagnostics, 0 typecheck errors.
 
 ### 2026-05-05 — unified keyboard system, header alignment, activity tweaks
 

@@ -5,6 +5,7 @@ import { CategoryNav } from "@/components/category-nav";
 import { CloudstashLogo } from "@/components/cloudstash-logo";
 import { DotsMenu } from "@/components/dots-menu";
 import { SyncStatusIndicator } from "@/components/sync-status-indicator";
+import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
@@ -27,19 +28,19 @@ export function TopBar() {
         <CategoryNav />
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2">
         <SyncStatusIndicator />
         <Tooltip>
           <TooltipTrigger
             render={
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => openAddLinkDialog()}
                 aria-label="Add link"
-                className="inline-flex size-5 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:text-foreground"
               >
-                <PlusIcon className="size-4" strokeWidth={1.75} />
-              </button>
+                <PlusIcon strokeWidth={1.75} />
+              </Button>
             }
           />
           <TooltipContent side="bottom" align="end">

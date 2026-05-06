@@ -16,6 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,13 +50,9 @@ export function DotsMenu() {
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <button
-              type="button"
-              aria-label="Menu"
-              className="inline-flex size-5 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:text-foreground"
-            >
-              <EllipsisVerticalIcon className="size-4" strokeWidth={1.75} />
-            </button>
+            <Button variant="ghost" size="icon" aria-label="Menu">
+              <EllipsisVerticalIcon strokeWidth={1.75} />
+            </Button>
           }
         />
         <DropdownMenuContent align="end" sideOffset={6} className="w-48">

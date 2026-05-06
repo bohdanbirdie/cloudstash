@@ -35,7 +35,7 @@ export function AgentMessages() {
 
   return (
     <Conversation>
-      <ConversationContent className="px-2 pb-2">
+      <ConversationContent className="px-3 pb-2">
         {messages.length === 0 && <EmptyState />}
         {messages.map((message) => (
           <ChatMessage
