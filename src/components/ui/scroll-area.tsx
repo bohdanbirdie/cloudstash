@@ -1,6 +1,8 @@
 import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area";
 import type { ComponentProps } from "react";
+import { useState } from "react";
 
+import { PopoverBoundaryProvider } from "@/components/ui/popover-boundary";
 import { cn } from "@/lib/utils";
 
 export function ScrollArea({
@@ -8,16 +10,20 @@ export function ScrollArea({
   children,
   ...props
 }: ComponentProps<typeof ScrollAreaPrimitive.Root>) {
+  const [viewport, setViewport] = useState<HTMLDivElement | null>(null);
   return (
     <ScrollAreaPrimitive.Root
       className={cn("relative overflow-hidden", className)}
       {...props}
     >
       <ScrollAreaPrimitive.Viewport
+        ref={setViewport}
         tabIndex={-1}
         className="size-full pr-3 outline-none [--fade-y-end:0px] [--fade-y-start:0px] [mask-image:linear-gradient(to_bottom,transparent_0,black_var(--fade-y-start),black_calc(100%-var(--fade-y-end)),transparent_100%)] data-[overflow-y-end]:[--fade-y-end:1.5rem] data-[overflow-y-start]:[--fade-y-start:1.5rem]"
       >
-        {children}
+        <PopoverBoundaryProvider value={viewport}>
+          {children}
+        </PopoverBoundaryProvider>
       </ScrollAreaPrimitive.Viewport>
       <ScrollAreaPrimitive.Scrollbar
         orientation="vertical"

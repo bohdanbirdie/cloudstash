@@ -1,6 +1,8 @@
 import {
+  AlignLeftIcon,
   CodeIcon,
   ExternalLinkIcon,
+  HashIcon,
   MessageSquareIcon,
   RefreshCwIcon,
   SendIcon,
@@ -8,8 +10,7 @@ import {
 import { memo, useCallback, useMemo } from "react";
 
 import { LinkPreviewImage } from "@/components/link-preview-image";
-import { TagCombobox } from "@/components/tags/tag-combobox";
-import { TagSuggestions } from "@/components/tags/tag-suggestions";
+import { TagCombobox } from "@/components/tags/tag-combobox/tag-combobox";
 import { Kbd } from "@/components/ui/kbd";
 import { Markdown } from "@/components/ui/markdown";
 import { TextShimmer } from "@/components/ui/text-shimmer";
@@ -17,9 +18,12 @@ import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import { useLinkTags } from "@/hooks/use-link-tags";
 import { useDismiss } from "@/lib/keyboard";
 import { displayDescription, displayTitle } from "@/lib/link-display";
+import { suggestionTagId } from "@/lib/tags";
 import { formatAgo } from "@/lib/time-ago";
 import { linkById$, linkProcessingStatus$ } from "@/livestore/queries/links";
 import type { LinkWithDetails } from "@/livestore/queries/links";
+import type { TagSuggestion } from "@/livestore/queries/schemas";
+import { allTags$, pendingSuggestionsForLink$ } from "@/livestore/queries/tags";
 import { events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
 import { useRightPaneStore } from "@/stores/right-pane-store";
@@ -59,6 +63,12 @@ const DetailViewInner = memo(function DetailViewInner({
   const isFailed = processingRecord?.status === "failed";
 
   const { tagIds, setTagIds } = useLinkTags(link.id);
+  const suggestionsQuery = useMemo(
+    () => pendingSuggestionsForLink$(link.id),
+    [link.id]
+  );
+  const suggestions = store.useQuery(suggestionsQuery);
+  const allTags = store.useQuery(allTags$);
 
   const handleReprocess = useCallback(() => {
     store.commit(
@@ -69,6 +79,40 @@ const DetailViewInner = memo(function DetailViewInner({
     );
   }, [store, link.id]);
 
+  const handleAcceptSuggestion = useCallback(
+    (s: TagSuggestion) => {
+      const id = suggestionTagId(s);
+      if (!s.tagId) {
+        const maxSortOrder = Math.max(0, ...allTags.map((t) => t.sortOrder));
+        store.commit(
+          events.tagCreated({
+            createdAt: new Date(),
+            id,
+            name: s.suggestedName,
+            sortOrder: maxSortOrder + 1,
+          })
+        );
+      }
+      store.commit(
+        events.linkTagged({
+          createdAt: new Date(),
+          id: `${link.id}-${id}`,
+          linkId: link.id,
+          tagId: id,
+        })
+      );
+      store.commit(events.tagSuggestionAccepted({ id: s.id }));
+    },
+    [store, link.id, allTags]
+  );
+
+  const handleDismissSuggestion = useCallback(
+    (s: TagSuggestion) => {
+      store.commit(events.tagSuggestionDismissed({ id: s.id }));
+    },
+    [store]
+  );
+
   const isCompleted = link.status === "completed";
   const isDeleted = link.deletedAt !== null;
   const titleText = displayTitle(link);
@@ -78,7 +122,7 @@ const DetailViewInner = memo(function DetailViewInner({
   const SourceIcon = sourceConfig?.icon;
 
   return (
-    <div className="relative flex flex-col gap-6 pt-3 pr-2 pb-8">
+    <div className="relative flex flex-col gap-6 pl-3 pb-8">
       <div className="aspect-video w-full overflow-hidden rounded-sm">
         <LinkPreviewImage src={link.image} loading="eager" />
       </div>
@@ -142,13 +186,18 @@ const DetailViewInner = memo(function DetailViewInner({
       />
 
       <div className="flex flex-col gap-3">
-        <div className="text-xs font-semibold text-muted-foreground">Tags</div>
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+          <HashIcon className="size-3.5" />
+          Tags
+        </div>
         <TagCombobox
           selectedTagIds={tagIds}
           onChange={setTagIds}
           placeholder="Add tags..."
+          suggestions={suggestions}
+          onAcceptSuggestion={handleAcceptSuggestion}
+          onDismissSuggestion={handleDismissSuggestion}
         />
-        <TagSuggestions linkId={link.id} />
       </div>
 
       <div className="pt-2 text-xs text-muted-foreground/70">
@@ -175,7 +224,8 @@ const DetailSummary = memo(function DetailSummary({
     return (
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <div className="text-xs font-semibold text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+            <AlignLeftIcon className="size-3.5" />
             Summary
           </div>
         </div>
@@ -187,7 +237,8 @@ const DetailSummary = memo(function DetailSummary({
   if (isProcessing || isReprocessing) {
     return (
       <div className="flex flex-col gap-2">
-        <div className="text-xs font-semibold text-muted-foreground">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+          <AlignLeftIcon className="size-3.5" />
           Summary
         </div>
         <TextShimmer className="text-sm" duration={1.5}>
@@ -201,7 +252,8 @@ const DetailSummary = memo(function DetailSummary({
     return (
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <div className="text-xs font-semibold text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+            <AlignLeftIcon className="size-3.5" />
             Summary
           </div>
           <button

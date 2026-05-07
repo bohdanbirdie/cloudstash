@@ -1,3 +1,7 @@
+import slugify from "slugify";
+
+import type { TagSuggestion } from "@/livestore/queries/schemas";
+
 export const MAX_TAG_NAME_LENGTH = 16;
 
 export function isValidTagName(input: string): boolean {
@@ -22,4 +26,8 @@ export function deriveNewTag(
   if (!isValidTagName(name)) return null;
   if (existingTagIds.has(name)) return null;
   return { id: name, name };
+}
+
+export function suggestionTagId(s: TagSuggestion): string {
+  return s.tagId ?? slugify(s.suggestedName, { lower: true, strict: true });
 }

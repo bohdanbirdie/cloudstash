@@ -92,7 +92,7 @@ export function BulkActionHeader() {
             animate={{ opacity: 1, filter: "blur(0px)" }}
             exit={{ opacity: 0, filter: "blur(4px)" }}
             transition={{ duration: 0.12 }}
-            className="absolute inset-0 z-30 flex items-center justify-between gap-2 bg-background pt-1.5 pb-2 pr-2"
+            className="absolute inset-0 z-30 flex items-center justify-between gap-2 bg-background pt-1.5 pb-2 px-3"
           >
             <div className="flex items-center gap-1">
               <span className="text-xs font-semibold text-primary tabular-nums">

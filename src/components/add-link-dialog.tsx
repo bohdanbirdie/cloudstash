@@ -9,7 +9,7 @@ import {
 import type { ReactNode } from "react";
 
 import { LinkImage } from "@/components/link-image";
-import { TagCombobox } from "@/components/tags/tag-combobox";
+import { TagCombobox } from "@/components/tags/tag-combobox/tag-combobox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {

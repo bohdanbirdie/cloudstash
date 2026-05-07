@@ -19,6 +19,12 @@ const ESC_PRECEDENCE: readonly Scope[] = [
   "popover",
 ];
 
+const MODAL_SCOPES: ReadonlySet<Scope> = new Set(["dialog", "popover"]);
+
+function isModalActive(active: readonly string[]): boolean {
+  return active.some((s) => MODAL_SCOPES.has(s as Scope));
+}
+
 const FORM_TAGS = ["input", "textarea", "option"] as const;
 
 const COMMANDS = {
@@ -69,11 +75,21 @@ export function useCommand(
   enabled = true
 ): void {
   const { keys, scope } = COMMANDS[id];
+  const { activeScopes } = useHotkeysContext();
+  const activeScopesRef = useRef(activeScopes);
+  activeScopesRef.current = activeScopes;
+
+  const ignoreEventWhen = useCallback(
+    () => scope === "global" && isModalActive(activeScopesRef.current),
+    [scope]
+  );
+
   useHotkeys(keys, handler, {
     enabled,
     enableOnFormTags: FORM_TAGS,
     preventDefault: true,
     scopes: [scope],
+    ignoreEventWhen,
   });
 }
 
@@ -112,10 +128,15 @@ export function useGlobalNavigation(
 ): void {
   const skipWhenRef = useRef(skipWhen);
   skipWhenRef.current = skipWhen;
+  const { activeScopes } = useHotkeysContext();
+  const activeScopesRef = useRef(activeScopes);
+  activeScopesRef.current = activeScopes;
 
   const ignoreEventWhen = useCallback(
     (e: KeyboardEvent) =>
-      isContentEditableTarget(e) || (skipWhenRef.current?.(e) ?? false),
+      isModalActive(activeScopesRef.current) ||
+      isContentEditableTarget(e) ||
+      (skipWhenRef.current?.(e) ?? false),
     []
   );
 

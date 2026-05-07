@@ -85,7 +85,7 @@ function AuthedShell() {
           <TagStrip />
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,820px)_540px] gap-x-10">
+        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,820px)_540px] gap-x-8">
           <div className="flex min-h-0 min-w-0 flex-col">
             <Masthead />
             <ScrollArea className="min-h-0 flex-1">

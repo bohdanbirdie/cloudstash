@@ -145,7 +145,7 @@ export const ActivityGrid = memo(function ActivityGrid() {
         <div
           ref={containerRef}
           onFocus={handleFocus}
-          className="mt-3 grid w-fit gap-0.5"
+          className="grid w-fit gap-0.5"
           style={GRID_STYLE}
         >
           {monthEls}
