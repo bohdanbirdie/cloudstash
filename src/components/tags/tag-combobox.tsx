@@ -9,12 +9,7 @@ import {
   InputGroupText,
 } from "@/components/ui/input-group";
 import { Kbd } from "@/components/ui/kbd";
-import {
-  createPopoverHandle,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent } from "@/components/ui/popover";
 import { usePopoverBoundary } from "@/components/ui/popover-boundary";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
@@ -98,7 +93,7 @@ export function TagCombobox({
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [orderSnapshot, setOrderSnapshot] = useState<string[] | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const handle = useMemo(() => createPopoverHandle(), []);
+  const anchorRef = useRef<HTMLSpanElement>(null);
   const boundary = usePopoverBoundary();
 
   useHotkeyScope("popover", {
@@ -198,39 +193,45 @@ export function TagCombobox({
   };
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
+    <div
+      className={cn("relative flex flex-wrap items-center gap-1.5", className)}
+    >
+      <span
+        ref={anchorRef}
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 left-0"
+      />
       {selectedTags.map((tag) => (
-        <PopoverTrigger
+        <button
           key={tag.id}
-          handle={handle}
-          id={`tag-${tag.id}`}
+          type="button"
+          aria-haspopup="dialog"
+          aria-expanded={isOpen}
+          onClick={() => setIsOpen(true)}
           className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground whitespace-nowrap transition-colors hover:text-foreground outline-none focus-visible:text-foreground"
         >
           #{tag.name}
-        </PopoverTrigger>
+        </button>
       ))}
-      <PopoverTrigger
-        handle={handle}
-        id="add-tag"
-        render={
-          <Button
-            type="button"
-            size="icon-xs"
-            variant="ghost"
-            aria-label={selectedTags.length > 0 ? "Edit tags" : "Add tags"}
-          >
-            <PlusIcon />
-          </Button>
-        }
-      />
+      <Button
+        type="button"
+        size="icon-xs"
+        variant="ghost"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-label={selectedTags.length > 0 ? "Edit tags" : "Add tags"}
+        onClick={() => setIsOpen(true)}
+      >
+        <PlusIcon />
+      </Button>
 
       <Popover
-        handle={handle}
         open={isOpen}
         onOpenChange={handleOpenChange}
         onOpenChangeComplete={handleOpenChangeComplete}
       >
         <PopoverContent
+          anchor={anchorRef}
           collisionBoundary={boundary ?? "clipping-ancestors"}
           collisionPadding={8}
           align="start"

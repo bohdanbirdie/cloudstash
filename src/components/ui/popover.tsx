@@ -3,8 +3,6 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-const createPopoverHandle = PopoverPrimitive.createHandle;
-
 function Popover({ ...props }: PopoverPrimitive.Root.Props) {
   return <PopoverPrimitive.Root data-slot="popover" {...props} />;
 }
@@ -96,7 +94,6 @@ function PopoverDescription({
 }
 
 export {
-  createPopoverHandle,
   Popover,
   PopoverContent,
   PopoverDescription,
