@@ -100,6 +100,8 @@ describe("deriveNewTag", () => {
   });
 
   it("returns null when canonical name exceeds MAX_TAG_NAME_LENGTH", () => {
-    expect(deriveNewTag("a".repeat(MAX_TAG_NAME_LENGTH + 1), noExisting)).toBeNull();
+    expect(
+      deriveNewTag("a".repeat(MAX_TAG_NAME_LENGTH + 1), noExisting)
+    ).toBeNull();
   });
 });

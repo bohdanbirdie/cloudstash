@@ -35,6 +35,7 @@ kanban-plugin: board
 - [ ] Redesign tag combobox/dropdown — current dropdown looks bad, especially with longer tag names. Research best-practice tag-input patterns (truncation, wrapping, max width per chip) and pick a reasonable max tag length. Update both the input chips and the suggestion list.
 - [ ] Make link list items even more vertically compact — tighten vertical padding/line-height in the list rows so more items fit on screen without sacrificing scan-ability.
 - [ ] Scope `j`/`k` link navigation hotkeys away from inputs — currently they fire globally and steal `j`/`k` keystrokes from any focused input/textarea/contenteditable, making it impossible to type those letters. Hotkey handler must check the active element (and respect any popover/dialog/listbox scope) before treating `j`/`k` as link nav.
+- [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.
 
 ## In Progress
 

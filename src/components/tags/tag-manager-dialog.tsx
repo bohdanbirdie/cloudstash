@@ -18,11 +18,7 @@ import {
 import { Kbd } from "@/components/ui/kbd";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { track } from "@/lib/analytics";
-import {
-  deriveNewTag,
-  MAX_TAG_NAME_LENGTH,
-  sanitizeTagName,
-} from "@/lib/tags";
+import { deriveNewTag, MAX_TAG_NAME_LENGTH, sanitizeTagName } from "@/lib/tags";
 import { allTagsWithCounts$ } from "@/livestore/queries/tags";
 import type { TagWithCount } from "@/livestore/queries/tags";
 import { events } from "@/livestore/schema";
@@ -41,10 +37,7 @@ export function TagManagerDialog({
   const allTagsWithCounts = store.useQuery(allTagsWithCounts$);
   const [inputValue, setInputValue] = useState("");
 
-  const searchQuery = useMemo(
-    () => sanitizeTagName(inputValue),
-    [inputValue]
-  );
+  const searchQuery = useMemo(() => sanitizeTagName(inputValue), [inputValue]);
 
   const filteredTags = useMemo((): readonly TagWithCount[] => {
     if (!searchQuery) return allTagsWithCounts;
@@ -154,57 +147,57 @@ export function TagManagerDialog({
           )}
 
           <ScrollArea className="-mx-4 min-h-0 flex-1">
-          <div className="pl-4">
-            {allTagsWithCounts.length === 0 ? (
-              <p className="text-muted-foreground py-8 text-center text-xs">
-                No tags yet
-              </p>
-            ) : (
-              <>
-                {filteredTags.length === 0 && (
-                  <p className="text-muted-foreground py-8 text-center text-xs">
-                    No tags match your search
-                  </p>
-                )}
-                <div className="flex flex-col gap-1">
-                  <AnimatePresence initial={false}>
-                    {allTagsWithCounts.map((tag: TagWithCount) => {
-                      const matches =
-                        !searchQuery || tag.id.includes(searchQuery);
-                      return (
-                        <motion.div
-                          key={tag.id}
-                          initial={{ opacity: 0, scale: 0.95, height: 0 }}
-                          animate={{ opacity: 1, scale: 1, height: "auto" }}
-                          exit={{ opacity: 0, scale: 0.95, height: 0 }}
-                          transition={{
-                            type: "spring",
-                            duration: 0.3,
-                            bounce: 0,
-                          }}
-                          style={{
-                            overflow: "hidden",
-                            transformOrigin: "left center",
-                          }}
-                          hidden={!matches}
-                        >
-                          <TagRow
-                            tag={tag}
-                            count={tag.count}
-                            onRename={(newName) =>
-                              handleRenameTag(tag.id, newName)
-                            }
-                            onDelete={() => handleDeleteTag(tag.id)}
-                          />
-                        </motion.div>
-                      );
-                    })}
-                  </AnimatePresence>
-                </div>
-              </>
-            )}
-          </div>
-        </ScrollArea>
+            <div className="pl-4">
+              {allTagsWithCounts.length === 0 ? (
+                <p className="text-muted-foreground py-8 text-center text-xs">
+                  No tags yet
+                </p>
+              ) : (
+                <>
+                  {filteredTags.length === 0 && (
+                    <p className="text-muted-foreground py-8 text-center text-xs">
+                      No tags match your search
+                    </p>
+                  )}
+                  <div className="flex flex-col gap-1">
+                    <AnimatePresence initial={false}>
+                      {allTagsWithCounts.map((tag: TagWithCount) => {
+                        const matches =
+                          !searchQuery || tag.id.includes(searchQuery);
+                        return (
+                          <motion.div
+                            key={tag.id}
+                            initial={{ opacity: 0, scale: 0.95, height: 0 }}
+                            animate={{ opacity: 1, scale: 1, height: "auto" }}
+                            exit={{ opacity: 0, scale: 0.95, height: 0 }}
+                            transition={{
+                              type: "spring",
+                              duration: 0.3,
+                              bounce: 0,
+                            }}
+                            style={{
+                              overflow: "hidden",
+                              transformOrigin: "left center",
+                            }}
+                            hidden={!matches}
+                          >
+                            <TagRow
+                              tag={tag}
+                              count={tag.count}
+                              onRename={(newName) =>
+                                handleRenameTag(tag.id, newName)
+                              }
+                              onDelete={() => handleDeleteTag(tag.id)}
+                            />
+                          </motion.div>
+                        );
+                      })}
+                    </AnimatePresence>
+                  </div>
+                </>
+              )}
+            </div>
+          </ScrollArea>
         </div>
       </DialogContent>
     </Dialog>

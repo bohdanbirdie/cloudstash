@@ -1,34 +1,29 @@
-import { PlusIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { CheckIcon, PlusIcon, SearchIcon } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 
-import { TagBadge } from "@/components/tags/tag-badge";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+} from "@/components/ui/input-group";
+import { Kbd } from "@/components/ui/kbd";
+import {
+  createPopoverHandle,
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { usePopoverBoundary } from "@/components/ui/popover-boundary";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
-import {
-  deriveNewTag,
-  MAX_TAG_NAME_LENGTH,
-  sanitizeTagName,
-} from "@/lib/tags";
+import { deriveNewTag, MAX_TAG_NAME_LENGTH, sanitizeTagName } from "@/lib/tags";
 import { cn } from "@/lib/utils";
-import { allTags$, tagCounts$ } from "@/livestore/queries/tags";
+import type { Tag } from "@/livestore/queries/tags";
+import { allTags$ } from "@/livestore/queries/tags";
 import { events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
-
-type TagItem = {
-  type: "tag";
-  tag: { id: string; name: string; sortOrder: number };
-};
-
-type CreateItem = {
-  type: "create";
-};
-
-type ListItem = TagItem | CreateItem;
 
 interface TagComboboxProps {
   selectedTagIds: string[];
@@ -36,6 +31,57 @@ interface TagComboboxProps {
   allowCreate?: boolean;
   placeholder?: string;
   className?: string;
+}
+
+function TagRow({
+  tag,
+  isSelected,
+  isHighlighted,
+  onHighlight,
+  onSelect,
+}: {
+  tag: Tag;
+  isSelected: boolean;
+  isHighlighted: boolean;
+  onHighlight: () => void;
+  onSelect: (closeAfter: boolean) => void;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 px-3 py-1.5 text-xs",
+        isHighlighted && "bg-muted/50"
+      )}
+    >
+      <button
+        type="button"
+        aria-pressed={isSelected}
+        aria-label={
+          isSelected ? `Deselect #${tag.name}` : `Select #${tag.name}`
+        }
+        tabIndex={-1}
+        onMouseEnter={onHighlight}
+        onClick={() => onSelect(false)}
+        className={cn(
+          "flex size-4 shrink-0 items-center justify-center rounded-sm border transition-colors",
+          isSelected
+            ? "border-primary bg-primary text-primary-foreground"
+            : "border-border bg-background"
+        )}
+      >
+        {isSelected && <CheckIcon className="size-3" strokeWidth={2.5} />}
+      </button>
+      <button
+        type="button"
+        tabIndex={-1}
+        onMouseEnter={onHighlight}
+        onClick={() => onSelect(true)}
+        className="flex-1 text-left font-medium"
+      >
+        #{tag.name}
+      </button>
+    </div>
+  );
 }
 
 export function TagCombobox({
@@ -47,192 +93,212 @@ export function TagCombobox({
 }: TagComboboxProps) {
   const store = useAppStore();
   const allTags = store.useQuery(allTags$);
-  const tagCounts = store.useQuery(tagCounts$);
   const [inputValue, setInputValue] = useState("");
   const [isOpen, setIsOpen] = useState(false);
-  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [orderSnapshot, setOrderSnapshot] = useState<string[] | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const handle = useMemo(() => createPopoverHandle(), []);
+  const boundary = usePopoverBoundary();
 
   useHotkeyScope("popover", {
     enabled: isOpen,
     disableScopes: ["dialog", "selection"],
   });
 
-  const selectedTags = useMemo(
-    () => allTags.filter((t) => selectedTagIds.includes(t.id)),
-    [allTags, selectedTagIds]
-  );
+  const selectedSet = new Set(selectedTagIds);
+  const selectedTags = allTags.filter((t) => selectedSet.has(t.id));
+  const searchQuery = sanitizeTagName(inputValue);
+  const matchesQuery = (tag: Tag) =>
+    !searchQuery || tag.id.includes(searchQuery);
+  const newTag = allowCreate
+    ? deriveNewTag(inputValue, new Set(allTags.map((t) => t.id)))
+    : null;
 
-  const availableTags = useMemo(
-    () => allTags.filter((t) => !selectedTagIds.includes(t.id)),
-    [allTags, selectedTagIds]
-  );
+  const orderedTags = useMemo(() => {
+    if (!orderSnapshot) return allTags;
+    const byId = new Map(allTags.map((t) => [t.id, t]));
+    const known = orderSnapshot.flatMap((id) => {
+      const t = byId.get(id);
+      return t ? [t] : [];
+    });
+    const knownIds = new Set(orderSnapshot);
+    const newcomers = allTags.filter((t) => !knownIds.has(t.id));
+    return [...known, ...newcomers];
+  }, [orderSnapshot, allTags]);
 
-  const filteredTags = useMemo(() => {
-    const query = sanitizeTagName(inputValue);
-    if (!query) return availableTags;
-    return availableTags.filter((t) => t.id.includes(query));
-  }, [availableTags, inputValue]);
+  const hasMatches = orderedTags.some(matchesQuery);
 
-  const existingTagIds = useMemo(
-    () => new Set(allTags.map((t) => t.id)),
-    [allTags]
-  );
-
-  const newTag = useMemo(
-    () => (allowCreate ? deriveNewTag(inputValue, existingTagIds) : null),
-    [allowCreate, inputValue, existingTagIds]
-  );
-
-  const canCreateTag = newTag !== null;
-
-  const items: ListItem[] = useMemo(() => {
-    const list: ListItem[] = filteredTags.map((t) => ({
-      type: "tag",
-      tag: t,
-    }));
-    if (canCreateTag) {
-      list.push({ type: "create" });
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if (open) {
+      const sorted = allTags.toSorted((a, b) => a.name.localeCompare(b.name));
+      const selected = sorted.filter((t) => selectedSet.has(t.id));
+      const unselected = sorted.filter((t) => !selectedSet.has(t.id));
+      setOrderSnapshot([...selected, ...unselected].map((t) => t.id));
     }
-    return list;
-  }, [filteredTags, canCreateTag]);
+  };
 
-  useEffect(() => {
-    setHighlightedIndex(0);
-  }, [items.length]);
+  const handleOpenChangeComplete = (open: boolean) => {
+    if (open) return;
+    setOrderSnapshot(null);
+    setInputValue("");
+    setHighlightedId(null);
+  };
 
-  useEffect(() => {
-    if (!isOpen) {
-      setInputValue("");
-      setHighlightedIndex(0);
-    }
-  }, [isOpen]);
+  const toggleTag = (tagId: string) => {
+    onChange(
+      selectedSet.has(tagId)
+        ? selectedTagIds.filter((id) => id !== tagId)
+        : [...selectedTagIds, tagId]
+    );
+  };
 
-  const getCountForTag = (tagId: string) =>
-    tagCounts.find((tc) => tc.tagId === tagId)?.count ?? 0;
-
-  const handleCreateTag = () => {
+  const createTag = () => {
     if (!newTag) return;
-    const maxSortOrder = Math.max(0, ...allTags.map((t) => t.sortOrder));
-
     store.commit(
       events.tagCreated({
         createdAt: new Date(),
         id: newTag.id,
         name: newTag.name,
-        sortOrder: maxSortOrder + 1,
+        sortOrder: (allTags.at(-1)?.sortOrder ?? 0) + 1,
       })
     );
-
     onChange([...selectedTagIds, newTag.id]);
-    setInputValue("");
-  };
-
-  const handleSelectTag = (tagId: string) => {
-    onChange([...selectedTagIds, tagId]);
     setInputValue("");
     inputRef.current?.focus();
   };
 
-  const handleRemoveTag = (tagId: string) => {
-    onChange(selectedTagIds.filter((id) => id !== tagId));
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (items.length === 0) return;
-
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setHighlightedIndex((i) => (i + 1) % items.length);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setHighlightedIndex((i) => (i - 1 + items.length) % items.length);
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      const item = items[highlightedIndex];
-      if (!item) return;
-      if (item.type === "create") {
-        handleCreateTag();
-      } else {
-        handleSelectTag(item.tag.id);
-      }
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Enter") {
+      return;
     }
+    e.preventDefault();
+
+    if (e.key === "Enter" && newTag) {
+      createTag();
+      return;
+    }
+
+    const visibleTags = orderedTags.filter(matchesQuery);
+    if (visibleTags.length === 0) return;
+
+    if (e.key === "Enter") {
+      const tag =
+        visibleTags.find((t) => t.id === highlightedId) ?? visibleTags[0];
+      toggleTag(tag.id);
+      return;
+    }
+
+    const currentIdx = visibleTags.findIndex((t) => t.id === highlightedId);
+    const dir = e.key === "ArrowDown" ? 1 : -1;
+    const n = visibleTags.length;
+    const nextIdx = currentIdx === -1 ? 0 : (currentIdx + dir + n) % n;
+    setHighlightedId(visibleTags[nextIdx].id);
   };
 
   return (
     <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
       {selectedTags.map((tag) => (
-        <TagBadge
+        <PopoverTrigger
           key={tag.id}
-          name={tag.name}
-          onRemove={() => handleRemoveTag(tag.id)}
-        />
-      ))}
-
-      <Popover open={isOpen} onOpenChange={setIsOpen}>
-        <PopoverTrigger className="inline-flex h-5 w-5 items-center justify-center bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground transition-colors">
-          <PlusIcon className="h-3 w-3" />
+          handle={handle}
+          id={`tag-${tag.id}`}
+          className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground whitespace-nowrap transition-colors hover:text-foreground outline-none focus-visible:text-foreground"
+        >
+          #{tag.name}
         </PopoverTrigger>
+      ))}
+      <PopoverTrigger
+        handle={handle}
+        id="add-tag"
+        render={
+          <Button
+            type="button"
+            size="icon-xs"
+            variant="ghost"
+            aria-label={selectedTags.length > 0 ? "Edit tags" : "Add tags"}
+          >
+            <PlusIcon />
+          </Button>
+        }
+      />
 
-        <PopoverContent align="start" className="w-56 p-0">
+      <Popover
+        handle={handle}
+        open={isOpen}
+        onOpenChange={handleOpenChange}
+        onOpenChangeComplete={handleOpenChangeComplete}
+      >
+        <PopoverContent
+          collisionBoundary={boundary ?? "clipping-ancestors"}
+          collisionPadding={8}
+          align="start"
+          className="w-64 gap-1 p-0"
+        >
           <div className="p-2">
-            <Input
-              ref={inputRef}
-              autoFocus
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={placeholder}
-              maxLength={MAX_TAG_NAME_LENGTH}
-              className="h-8"
-            />
+            <InputGroup>
+              <InputGroupAddon align="inline-start">
+                <InputGroupText>
+                  <SearchIcon className="size-3.5" />
+                </InputGroupText>
+              </InputGroupAddon>
+              <InputGroupInput
+                ref={inputRef}
+                autoFocus
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={placeholder}
+                maxLength={MAX_TAG_NAME_LENGTH}
+              />
+            </InputGroup>
           </div>
 
-          <div className="max-h-48 overflow-y-auto">
-            {items.length === 0 && (
-              <div className="px-2 py-3 text-center text-xs text-muted-foreground">
-                No tags found
-              </div>
+          <div className="flex h-60 flex-col">
+            {newTag && (
+              <button
+                type="button"
+                onClick={createTag}
+                className="flex shrink-0 items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted/50"
+              >
+                <PlusIcon className="size-3.5 text-muted-foreground" />
+                <span className="text-muted-foreground">
+                  Create{" "}
+                  <span className="font-medium text-foreground">
+                    #{newTag.name}
+                  </span>
+                </span>
+                <Kbd className="ml-auto">↵</Kbd>
+              </button>
             )}
 
-            {items.map((item, index) => {
-              if (item.type === "create") {
-                return (
-                  <button
-                    key="__create__"
-                    type="button"
-                    onClick={handleCreateTag}
-                    className={cn(
-                      "flex w-full items-center gap-2 px-2 py-1.5 text-xs text-primary hover:bg-muted/50",
-                      index === highlightedIndex && "bg-muted/50"
-                    )}
-                  >
-                    <PlusIcon className="h-4 w-4" />
-                    Create &quot;#{inputValue.trim()}&quot;
-                  </button>
-                );
-              }
-
-              const { tag } = item;
-              const count = getCountForTag(tag.id);
-
-              return (
-                <button
-                  key={tag.id}
-                  type="button"
-                  onClick={() => handleSelectTag(tag.id)}
-                  className={cn(
-                    "flex w-full items-center gap-2 px-2 py-1.5 text-xs text-foreground hover:bg-muted/50",
-                    index === highlightedIndex && "bg-muted/50"
-                  )}
-                >
-                  <span className="font-medium">#{tag.name}</span>
-                  <span className="ml-auto text-muted-foreground tabular-nums">
-                    {count} {count === 1 ? "link" : "links"}
-                  </span>
-                </button>
-              );
-            })}
+            <ScrollArea className="min-h-0 flex-1">
+              {allTags.length === 0 ? (
+                <p className="py-8 text-center text-xs text-muted-foreground">
+                  No tags yet
+                </p>
+              ) : !hasMatches ? (
+                <p className="py-8 text-center text-xs text-muted-foreground">
+                  No tags match your search
+                </p>
+              ) : (
+                orderedTags.map((tag) => (
+                  <div key={tag.id} hidden={!matchesQuery(tag)}>
+                    <TagRow
+                      tag={tag}
+                      isSelected={selectedSet.has(tag.id)}
+                      isHighlighted={tag.id === highlightedId}
+                      onHighlight={() => setHighlightedId(tag.id)}
+                      onSelect={(closeAfter) => {
+                        toggleTag(tag.id);
+                        if (closeAfter) setIsOpen(false);
+                      }}
+                    />
+                  </div>
+                ))
+              )}
+            </ScrollArea>
           </div>
         </PopoverContent>
       </Popover>

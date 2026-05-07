@@ -480,6 +480,57 @@ Supported in modern Chrome, Safari 18+, Firefox 125+. Matches the "optimize for 
 
 _Append entries as we iterate, newest first._
 
+### 2026-05-07 — TagCombobox redesign: multi-select, ordering, anchoring (anchor still WIP)
+
+**Tag picker rebuilt** at `src/components/tags/tag-combobox.tsx` to match Linear's label-picker pattern.
+
+**Behavior shipped:**
+
+- Multi-select with row-level checkbox indicator; **dual click target** per row — checkbox click toggles + stays open, name click toggles + closes. Keyboard `Enter` toggles + stays open (multi-select-friendly); creates a new tag if the input has a creatable canonical name.
+- Single shared `<Popover>` instance via base-ui `PopoverHandle` — every chip and the `+` button is its own `<PopoverTrigger handle={handle} id="...">`. Lazy-mounted on open.
+- Chips are inline `<PopoverTrigger>` elements (no `<TagBadge>` wrapper) — display-only chip text styling, no `×` (removal goes through the popover). The `+` button uses `<Button size="icon-xs" variant="ghost">` so it picks up project rounded styling and `aria-expanded` muted state automatically.
+- Search field uses `<InputGroup>` with leading `SearchIcon`; popover content has `gap-1` (overrides base `gap-4`); list area is wrapped in `<ScrollArea>` for the edge-fade mask matching the tag manager modal; popover height fixed at `h-60` so the Create row appearing/disappearing absorbs the difference inside instead of jumping the popover.
+- Dedicated **Create row** above the list with `<PlusIcon>`, canonical-slug label (`Create #my-tag`, not `Create #My Tag!`), and a trailing `<Kbd>↵</Kbd>` hint. Create stays open and selects the new tag.
+- Distinct empty states: "No tags yet" (cold) vs "No tags match your search" (filter).
+- Pop animations on tag add/remove: `<AnimatePresence>` over `orderedTags`, with `hidden={!matches}` per row so typing into search doesn't fire exit/enter — only true add/remove animates. Spring `duration: 0.3, bounce: 0`, `transformOrigin: "left center"`.
+- **Linear-style frozen ordering**: at open, sort alphabetic (selected first, unselected after); store as `orderSnapshot` (string ids). While open, toggling selection updates checkbox state but does NOT reorder rows. Newly created tags append at the end via the `orderedTags` "newcomers" branch. Snapshot clears on close.
+- **`highlightedId: string | null` (not index)** — survives filter/sort changes without reset effects. Empty state derived as `orderedTags.some(matchesQuery)`. Visible-tags array computed once inside `handleKeyDown` for arrow nav + Enter, never in render.
+- **Zero `useEffect`s in this component.** Open/close state, snapshot setup, and reset all happen inside `handleOpenChange`.
+- `<TagRow>` extracted as a small subcomponent (single `onSelect(closeAfter)` callback collapses what used to be `onToggle` + `onToggleAndClose`).
+
+**Wrappers / context infra added:**
+
+- `src/components/ui/popover.tsx` — exports `createPopoverHandle` and forwards `anchor`, `collisionBoundary`, `collisionPadding`, `collisionAvoidance` to base-ui's `Positioner`.
+- `src/components/ui/popover-boundary.tsx` (new) — `PopoverBoundaryProvider` + `usePopoverBoundary()`. Generic context for telling popovers which container to flip/shift against, instead of the viewport.
+- `src/components/right-pane/right-pane.tsx` — captures `<aside>` via `useState` callback ref and wraps the tree in `PopoverBoundaryProvider`. `TagCombobox` reads it via `usePopoverBoundary()` and passes `collisionBoundary={boundary ?? "clipping-ancestors"}` plus `collisionPadding={8}`. Auto-flips when a chip near the right edge would push the popover past the panel boundary.
+
+**Other tweaks shipped same session:**
+
+- `src/components/bottom-dock/{search-trigger,agent-trigger}.tsx` — active/hovered trigger gets `z-10` so the active panel's shadow doesn't paint over it (was a single-trigger `z-10` before; now per-trigger).
+- `src/components/tags/tag-badge.tsx` — `onClick` signature accepts `MouseEvent`; pointer cursor removed (color-only hover); it remains a display badge for `link-list-item` and `tag-suggestions` (combobox no longer wraps it).
+- `docs/kanban.md` — added "Decouple tag search from id format" task. Currently `TagCombobox` filters via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`.
+
+**Outstanding — popover anchoring is not finalized.**
+
+Goal: when the popover is anchored to a chip and the user **deselects that tag**, the chip element unmounts. The popover should stay at its last position (not jump or hide) until the user explicitly closes.
+
+Approaches tried during this session:
+
+1. **Frozen `DOMRect` snapshot, no handle** (imperative `setIsOpen` + `anchor={virtual}` on Positioner) — fixed the deselect-jump but caused close-then-reopen flicker when clicking a different trigger. base-ui's outside-press treated sibling triggers as "outside."
+2. **`PopoverHandle` + virtual anchor with stable identity** (`useMemo([])`) — multi-trigger re-anchor stopped working. Floating UI's `useFloating` only re-runs middleware on reference (anchor) change; with a stable object identity, switching active trigger didn't reposition the popup.
+3. **`PopoverHandle` + virtual anchor with state-tracked identity** (`useState<HTMLElement>` + `setEl` in `captureAnchor`) — multi-trigger worked, but **open/close animations disappeared.** Each `captureAnchor` produced a new anchor identity → Floating UI saw a new reference → base-ui's `instantType="trigger-change"` machinery interacted with the animation lifecycle. Investigation file: `node_modules/@base-ui/react/popover/positioner/PopoverPositioner.js:91-108`.
+4. **Current state — no anchor override.** Just `<Popover handle={handle}>` + `<PopoverTrigger handle={handle} id={...}>` per chip + `+`. Animations and multi-trigger re-anchor are first-class. **Deselect-while-anchored is unfixed** — the popover may briefly hide / reposition when the registered trigger element unmounts.
+
+The `useStickyAnchor` hook (`src/hooks/use-sticky-anchor.ts`) was removed at the end of the session because its only consumer no longer needed it. If we resurrect a virtual-anchor approach, recreate it (or inline) — the file is in git history.
+
+**Promising directions for next session:**
+
+- Subscribe to base-ui's `activeTriggerElement` via `handle.store.useState('activeTriggerElement')` and **only override `anchor` when it's null/disconnected.** Stable identity in the common case → animations preserved; fallback only when the chip vanishes. Reference: store keys live in `node_modules/@base-ui/react/popover/store/PopoverStore.js`.
+- Or render an invisible "ghost" placeholder in place of the deselected chip until close, so the registered trigger element keeps living in the DOM at its original rect (e.g. `position:absolute; opacity:0; pointer-events:none`). Layout-neutral.
+- Worth checking before either: does base-ui have a built-in "keep last position when anchor disappears" behavior we missed? The earlier subagent investigation only looked at `dismiss` / outside-press paths, not anchor-loss handling. `data-anchor-hidden` semantics in `useAnchorPositioning` may already be relevant.
+
+**Investigation finding worth remembering:** base-ui's `PopoverHandle` natively handles multi-trigger re-anchor without close-then-reopen. `useDismiss.js:187-192` excludes all _registered_ triggers (not just the active one) from outside-press; `useClick.js:99-110` re-anchors instead of toggling when an inactive trigger is clicked. The earlier flicker was caused by our intermediate `open=false → true` flip in `onOpenChange` and/or by passing `anchor` with an unstable identity — not by base-ui itself.
+
 ### 2026-05-06 — base-mira refresh: tokens, fonts, shadcn re-install, dead-code sweep
 
 **Theme tokens — switched to base-mira preset.** `components.json` style `base-lyra` → `base-mira`; `menuColor` `inverted` → `default-translucent`; `menuAccent` `bold` → `subtle`. Updated `src/styles.css` to match Mira's token palette in both `:root` and `.dark`:

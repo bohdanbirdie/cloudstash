@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 interface TagBadgeProps {
   name: string;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   onRemove?: () => void;
   className?: string;
 }
@@ -17,7 +17,7 @@ export function TagBadge({
 }: TagBadgeProps) {
   const sharedClassName = cn(
     "inline-flex items-center gap-1 text-xs font-medium text-muted-foreground whitespace-nowrap transition-colors",
-    onClick && "cursor-pointer hover:text-foreground",
+    onClick && "hover:text-foreground",
     className
   );
 
