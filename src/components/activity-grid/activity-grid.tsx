@@ -90,6 +90,52 @@ export const ActivityGrid = memo(function ActivityGrid() {
     setStoredIdx(idx);
   }, []);
 
+  const monthEls = useMemo(
+    () =>
+      grid.months.map(({ index, label }) => (
+        <span
+          key={`m-${label}-${index}`}
+          style={{ gridColumn: index + 1, gridRow: 1 }}
+          className="text-[10px] leading-none whitespace-nowrap text-muted-foreground/70"
+        >
+          {label}
+        </span>
+      )),
+    [grid.months]
+  );
+
+  const dayEls = useMemo(
+    () =>
+      grid.days.map(({ index, label }) => (
+        <span
+          key={`d-${index}`}
+          style={{ gridColumn: DAY_LABEL_COL, gridRow: index + 2 }}
+          className="self-center pl-1 text-[10px] leading-none text-muted-foreground/70"
+        >
+          {label}
+        </span>
+      )),
+    [grid.days]
+  );
+
+  const cellEls = useMemo(
+    () =>
+      grid.cells.map((cell, i) => (
+        <ActivityCell
+          key={cell.key}
+          count={cell.count}
+          dateLabel={cell.dateLabel}
+          isFuture={cell.isFuture}
+          gridColumn={Math.floor(i / DAYS_PER_WEEK) + 1}
+          gridRow={(i % DAYS_PER_WEEK) + 2}
+          handle={handle}
+          tabbable={i === activeIdx}
+          dataIdx={i}
+        />
+      )),
+    [grid.cells, handle, activeIdx]
+  );
+
   return (
     <div>
       <div className="pt-3 pb-2 text-xs/6 font-semibold text-muted-foreground">
@@ -102,39 +148,9 @@ export const ActivityGrid = memo(function ActivityGrid() {
           className="mt-3 grid w-fit gap-0.5"
           style={GRID_STYLE}
         >
-          {grid.months.map(({ index, label }) => (
-            <span
-              key={`m-${label}-${index}`}
-              style={{ gridColumn: index + 1, gridRow: 1 }}
-              className="text-[10px] leading-none whitespace-nowrap text-muted-foreground/70"
-            >
-              {label}
-            </span>
-          ))}
-
-          {grid.days.map(({ index, label }) => (
-            <span
-              key={`d-${index}`}
-              style={{ gridColumn: DAY_LABEL_COL, gridRow: index + 2 }}
-              className="self-center pl-1 text-[10px] leading-none text-muted-foreground/70"
-            >
-              {label}
-            </span>
-          ))}
-
-          {grid.cells.map((cell, i) => (
-            <ActivityCell
-              key={cell.key}
-              count={cell.count}
-              dateLabel={cell.dateLabel}
-              isFuture={cell.isFuture}
-              gridColumn={Math.floor(i / DAYS_PER_WEEK) + 1}
-              gridRow={(i % DAYS_PER_WEEK) + 2}
-              handle={handle}
-              tabbable={i === activeIdx}
-              dataIdx={i}
-            />
-          ))}
+          {monthEls}
+          {dayEls}
+          {cellEls}
         </div>
 
         <TooltipPrimitive.Root handle={handle}>

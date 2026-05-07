@@ -18,20 +18,18 @@ export const TagStrip = memo(function TagStrip() {
   const [expanded, setExpanded] = useState(false);
 
   const sortedTags = useMemo(
-    () => [...tags].toSorted((a, b) => b.count - a.count),
+    () => tags.toSorted((a, b) => b.count - a.count),
     [tags]
   );
 
-  if (sortedTags.length === 0) {
-    return null;
-  }
+  const visible = useMemo(
+    () => (expanded ? sortedTags : sortedTags.slice(0, MAX_VISIBLE_TAGS)),
+    [expanded, sortedTags]
+  );
 
-  const hidden = Math.max(0, sortedTags.length - MAX_VISIBLE_TAGS);
-  const visible = expanded ? sortedTags : sortedTags.slice(0, MAX_VISIBLE_TAGS);
-
-  return (
-    <div className="flex w-full flex-wrap items-baseline gap-[10px] text-xs font-medium">
-      {visible.map((tag) => {
+  const visibleEls = useMemo(
+    () =>
+      visible.map((tag) => {
         const active = selectedTag === tag.id;
         return (
           <Link
@@ -47,7 +45,19 @@ export const TagStrip = memo(function TagStrip() {
             #{tag.name}
           </Link>
         );
-      })}
+      }),
+    [visible, selectedTag, clearSelection]
+  );
+
+  if (sortedTags.length === 0) {
+    return null;
+  }
+
+  const hidden = Math.max(0, sortedTags.length - MAX_VISIBLE_TAGS);
+
+  return (
+    <div className="flex w-full flex-wrap items-baseline gap-[10px] text-xs font-medium">
+      {visibleEls}
       {hidden > 0 && !expanded && (
         <button
           type="button"

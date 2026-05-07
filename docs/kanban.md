@@ -32,7 +32,6 @@ kanban-plugin: board
 - [ ] Replace hand-rolled `InputOTP` with shadcn's `input-otp`-backed component — current `src/components/ui/input-otp.tsx` is a custom implementation skipped during the base-mira refresh. Adopt the registry version (adds `input-otp` dep, exposes `InputOTPGroup`/`InputOTPSlot`/`InputOTPSeparator`) and migrate `pending-approval.tsx` to the compose API.
 - [ ] Restore hotkey-tip overlays when modifier keys are held — when ⌘ (or ⌥/Ctrl/Shift) is pressed, surface contextual hotkey hints next to the actions they trigger (e.g. ⌘V on the Add link button, ⌘K on the dock pill, ⌘J on the agent button, etc.). Was previously implemented; should be reintroduced with the new dock + top-bar layout.
 - [ ] Pop-animate newly added link items in the list — when a link is added via the UI or arrives via livestore sync, animate its entry into the list. Must NOT animate on filter/category changes (only genuinely new items). Likely needs to track "seen" ids and only animate ones that weren't in the previous result set.
-- [ ] Redesign tag combobox/dropdown — current dropdown looks bad, especially with longer tag names. Research best-practice tag-input patterns (truncation, wrapping, max width per chip) and pick a reasonable max tag length. Update both the input chips and the suggestion list.
 - [ ] Make link list items even more vertically compact — tighten vertical padding/line-height in the list rows so more items fit on screen without sacrificing scan-ability.
 - [ ] Scope `j`/`k` link navigation hotkeys away from inputs — currently they fire globally and steal `j`/`k` keystrokes from any focused input/textarea/contenteditable, making it impossible to type those letters. Hotkey handler must check the active element (and respect any popover/dialog/listbox scope) before treating `j`/`k` as link nav.
 - [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.
@@ -41,10 +40,14 @@ kanban-plugin: board
 
 - [ ] [[todos/app-redesign|Rethink app design]]
 - [ ] [[todos/links-list-performance|Fix links list rendering performance at 150+ links]]
+- [ ] Link generation fails locally after redesign
 
 ## Done
 
 - [ ] [[todos/publish-raycast-extension|Publish Raycast extension to Store]]
+- [x] Tag combobox redesign — Linear-style multi-select, dual click targets, frozen alphabetic ordering, deferred close-frame cleanup
+- [x] Tag manager modal rebuild — opaque dropdown, full-width row click target with pencil affordance, tag validation, modal lifecycle
+- [x] ActivityGrid render-cost cut — memoize cell/month/day element arrays so the ~400 React.createElement calls don't fire on unrelated commits (≈25× drop in self-time per render)
 - [x] [[todos/done/redesign-phase-3b-multi-select|Redesign phase 3b — multi-select]]
 - [x] [[todos/done/held-key-nav-perf|Held-key keyboard nav perf]]
 - [x] [[todos/done/rename-trash-to-archive|Rename "Trash" → "Archive"]]
