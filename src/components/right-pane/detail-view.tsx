@@ -4,7 +4,6 @@ import {
   ExternalLinkIcon,
   HashIcon,
   MessageSquareIcon,
-  RefreshCwIcon,
   SendIcon,
 } from "lucide-react";
 import { memo, useCallback, useMemo } from "react";
@@ -69,15 +68,6 @@ const DetailViewInner = memo(function DetailViewInner({
   );
   const suggestions = store.useQuery(suggestionsQuery);
   const allTags = store.useQuery(allTags$);
-
-  const handleReprocess = useCallback(() => {
-    store.commit(
-      events.linkReprocessRequested({
-        linkId: link.id,
-        requestedAt: new Date(),
-      })
-    );
-  }, [store, link.id]);
 
   const handleAcceptSuggestion = useCallback(
     (s: TagSuggestion) => {
@@ -182,7 +172,6 @@ const DetailViewInner = memo(function DetailViewInner({
         isProcessing={isProcessing}
         isReprocessing={isReprocessing}
         isFailed={isFailed}
-        onReprocess={handleReprocess}
       />
 
       <div className="flex flex-col gap-3">
@@ -212,22 +201,18 @@ const DetailSummary = memo(function DetailSummary({
   isProcessing,
   isReprocessing,
   isFailed,
-  onReprocess,
 }: {
   summary: string | null;
   isProcessing: boolean;
   isReprocessing: boolean;
   isFailed: boolean;
-  onReprocess: () => void;
 }) {
   if (summary) {
     return (
       <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-            <AlignLeftIcon className="size-3.5" />
-            Summary
-          </div>
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+          <AlignLeftIcon className="size-3.5" />
+          Summary
         </div>
         <Markdown className="text-sm leading-relaxed">{summary}</Markdown>
       </div>
@@ -251,19 +236,9 @@ const DetailSummary = memo(function DetailSummary({
   if (isFailed) {
     return (
       <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-            <AlignLeftIcon className="size-3.5" />
-            Summary
-          </div>
-          <button
-            type="button"
-            onClick={onReprocess}
-            className="text-muted-foreground transition-colors hover:text-foreground"
-            aria-label="Retry summary generation"
-          >
-            <RefreshCwIcon className="size-3" />
-          </button>
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+          <AlignLeftIcon className="size-3.5" />
+          Summary
         </div>
         <p className="text-sm text-muted-foreground">
           Summary generation failed
