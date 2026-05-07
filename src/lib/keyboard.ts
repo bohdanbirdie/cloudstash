@@ -80,7 +80,9 @@ export function useCommand(
   activeScopesRef.current = activeScopes;
 
   const ignoreEventWhen = useCallback(
-    () => scope === "global" && isModalActive(activeScopesRef.current),
+    (e: KeyboardEvent) =>
+      isTypingEvent(e) ||
+      (scope === "global" && isModalActive(activeScopesRef.current)),
     [scope]
   );
 
@@ -155,4 +157,15 @@ export function useGlobalNavigation(
 
 function isContentEditableTarget(e: KeyboardEvent): boolean {
   return e.target instanceof HTMLElement && e.target.isContentEditable;
+}
+
+export function isTypingEvent(e: KeyboardEvent): boolean {
+  if (e.metaKey || e.ctrlKey || e.altKey) return false;
+  if (e.isComposing) return false;
+  if (e.key.length !== 1) return false;
+  const t = e.target;
+  if (!(t instanceof HTMLElement)) return false;
+  if (t.isContentEditable) return true;
+  const tag = t.tagName.toLowerCase();
+  return tag === "input" || tag === "textarea";
 }
