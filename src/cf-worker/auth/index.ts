@@ -27,6 +27,7 @@ function googleOAuthPlugin(env: Env) {
         clientSecret: env.GOOGLE_CLIENT_SECRET,
         scopes: ["openid", "email", "profile"],
         pkce: true,
+        overrideUserInfo: true,
       },
     ],
   });

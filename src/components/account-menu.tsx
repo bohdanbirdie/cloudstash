@@ -2,9 +2,9 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   BlocksIcon,
   DownloadIcon,
-  EllipsisVerticalIcon,
   LogOutIcon,
   PaletteIcon,
+  SettingsIcon,
   ShieldIcon,
   TagIcon,
 } from "lucide-react";
@@ -24,7 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,12 +32,27 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useFilteredLinks } from "@/hooks/use-filtered-links";
 import { usePageStaticData } from "@/hooks/use-page-static-data";
 import { useAuth } from "@/lib/auth";
 import type { LinkStatus } from "@/livestore/queries/filtered-links";
 
-export function DotsMenu() {
+function getInitial(name: string | null, email: string | null) {
+  const source = name?.trim() || email?.trim() || "";
+  return source.charAt(0).toUpperCase() || "?";
+}
+
+function getFirstName(name: string | null) {
+  const first = name?.trim().split(/\s+/)[0];
+  return first || null;
+}
+
+export function AccountMenu() {
   const navigate = useNavigate();
   const auth = useAuth();
   const { status: pageStatus, title: pageTitle } = usePageStaticData();
@@ -49,18 +64,59 @@ export function DotsMenu() {
   const [exportOpen, setExportOpen] = useState(false);
 
   const isAdmin = auth.role === "admin";
+  const initial = getInitial(auth.name, auth.email);
+  const firstName = getFirstName(auth.name);
 
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button variant="ghost" size="icon" aria-label="Menu">
-              <EllipsisVerticalIcon strokeWidth={1.75} />
-            </Button>
-          }
-        />
-        <DropdownMenuContent align="end" sideOffset={6} className="w-48">
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <DropdownMenuTrigger
+                aria-label="Account menu"
+                render={
+                  <Avatar
+                    size="sm"
+                    className="cursor-pointer outline-none after:transition-colors hover:after:border-foreground/30 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background data-popup-open:after:border-foreground/30"
+                  >
+                    {auth.image && (
+                      <AvatarImage
+                        src={auth.image}
+                        alt={auth.name ?? auth.email ?? ""}
+                      />
+                    )}
+                    <AvatarFallback>{initial}</AvatarFallback>
+                  </Avatar>
+                }
+              />
+            }
+          />
+          <TooltipContent side="bottom" align="end">
+            Account
+          </TooltipContent>
+        </Tooltip>
+        <DropdownMenuContent align="end" sideOffset={6} className="w-40">
+          {firstName && (
+            <>
+              <div className="flex items-center gap-2 px-2 py-1.5">
+                <Avatar size="sm">
+                  {auth.image && (
+                    <AvatarImage src={auth.image} alt={firstName} />
+                  )}
+                  <AvatarFallback>{initial}</AvatarFallback>
+                </Avatar>
+                <span className="truncate text-xs font-medium text-foreground">
+                  {firstName}
+                </span>
+              </div>
+              <DropdownMenuSeparator />
+            </>
+          )}
+          <DropdownMenuItem disabled>
+            <SettingsIcon />
+            Settings
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setTagManagerOpen(true)}>
             <TagIcon />
             Manage tags

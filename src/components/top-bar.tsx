@@ -2,10 +2,10 @@ import { Option, Schema } from "effect";
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 
+import { AccountMenu } from "@/components/account-menu";
 import { useAddLink } from "@/components/add-link";
 import { CategoryNav } from "@/components/category-nav";
 import { CloudstashLogo } from "@/components/cloudstash-logo";
-import { DotsMenu } from "@/components/dots-menu";
 import { SyncStatusIndicator } from "@/components/sync-status-indicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,7 +101,7 @@ export function TopBar() {
             </form>
           </PopoverContent>
         </Popover>
-        <DotsMenu />
+        <AccountMenu />
       </div>
     </header>
   );

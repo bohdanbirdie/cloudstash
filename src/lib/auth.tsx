@@ -31,6 +31,9 @@ export interface AuthState {
   isAuthenticated: boolean;
   role: string | null;
   approved: boolean;
+  name: string | null;
+  email: string | null;
+  image: string | null;
 }
 
 type AuthContextType = AuthState & {
@@ -52,7 +55,10 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [auth, setAuth] = useState<AuthState>({
     approved: false,
+    email: null,
+    image: null,
     isAuthenticated: false,
+    name: null,
     orgId: null,
     role: null,
     userId: null,
@@ -67,7 +73,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         setAuth({
           approved: isApproved,
+          email: user.email ?? null,
+          image: user.image ?? null,
           isAuthenticated: isApproved && !!session.session.activeOrganizationId,
+          name: user.name ?? null,
           orgId: isApproved
             ? (session.session.activeOrganizationId ?? null)
             : null,
@@ -95,7 +104,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await authClient.signOut();
     setAuth({
       approved: false,
+      email: null,
+      image: null,
       isAuthenticated: false,
+      name: null,
       orgId: null,
       role: null,
       userId: null,
