@@ -92,11 +92,11 @@ function LinkListItemImpl({
           </span>
         )}
 
-        <div className="flex min-w-0 flex-col">
+        <div className="flex min-w-0 flex-col gap-1.5">
           <div className="line-clamp-2 text-base font-medium leading-snug text-foreground text-pretty">
             {titleText}
           </div>
-          <div className="mt-0.5 flex min-w-0 items-center gap-3 overflow-hidden text-xs text-muted-foreground">
+          <div className="flex min-w-0 items-center gap-3 overflow-hidden text-xs text-muted-foreground">
             <a
               href={link.url}
               target="_blank"

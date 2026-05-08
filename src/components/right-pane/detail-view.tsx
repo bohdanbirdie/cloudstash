@@ -123,11 +123,16 @@ const DetailViewInner = memo(function DetailViewInner({
           href={link.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 transition-colors duration-150 hover:text-foreground"
+          className="group/domain inline-flex items-center gap-1 transition-colors duration-150 hover:text-foreground"
         >
           <Favicon src={link.favicon} className="size-3.5" />
-          {link.domain}
-          <ExternalLinkIcon aria-hidden="true" className="size-3" />
+          <span className="group-hover/domain:underline group-hover/domain:decoration-1 group-hover/domain:underline-offset-2">
+            {link.domain}
+          </span>
+          <ExternalLinkIcon
+            aria-hidden="true"
+            className="hidden size-3 group-hover/domain:inline-flex"
+          />
         </a>
         <span aria-hidden="true">·</span>
         <span className="tabular-nums">{formatAgo(link.createdAt)}</span>
