@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { isInActivityGrid } from "@/components/activity-grid/owns-arrows";
@@ -26,6 +27,7 @@ const EMPTY_PREVIEW: ReadonlySet<string> = new Set();
 interface LinkListProps {
   links: readonly LinkListItemData[];
   emptyMessage?: string;
+  listKey?: string;
 }
 
 function modifierFromEvent(e: {
@@ -41,6 +43,7 @@ function modifierFromEvent(e: {
 export function LinkList({
   links,
   emptyMessage = "No links yet",
+  listKey,
 }: LinkListProps) {
   const activeLinkId = useRightPaneStore((s) => s.activeLinkId);
   const openDetail = useRightPaneStore((s) => s.openDetail);
@@ -185,14 +188,6 @@ export function LinkList({
     if (id) anchorRef.current = id;
   };
 
-  if (links.length === 0) {
-    return (
-      <div className="text-muted-foreground text-center py-12">
-        {emptyMessage}
-      </div>
-    );
-  }
-
   return (
     <div
       ref={containerRef}
@@ -204,20 +199,43 @@ export function LinkList({
       onFocus={handleListFocus}
       onMouseLeave={handleListMouseLeave}
     >
-      {links.map((link) => (
-        <LinkListItem
-          key={link.id}
-          link={link}
-          tags={tagsByLink.get(link.id) ?? EMPTY_TAGS}
-          active={link.id === activeLinkId}
-          selected={ids.has(link.id)}
-          previewing={previewSet.has(link.id)}
-          tabbable={link.id === tabbableId}
-          onClick={handleRowClick}
-          onMouseEnter={handleRowMouseEnter}
-          onCheckboxClick={handleCheckboxClick}
-        />
-      ))}
+      <AnimatePresence key={listKey} initial={false} mode="popLayout">
+        {links.length === 0 ? (
+          <motion.div
+            key="empty"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="text-muted-foreground text-center py-12"
+          >
+            {emptyMessage}
+          </motion.div>
+        ) : (
+          links.map((link) => (
+            <motion.div
+              key={link.id}
+              layout="position"
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <LinkListItem
+                link={link}
+                tags={tagsByLink.get(link.id) ?? EMPTY_TAGS}
+                active={link.id === activeLinkId}
+                selected={ids.has(link.id)}
+                previewing={previewSet.has(link.id)}
+                tabbable={link.id === tabbableId}
+                onClick={handleRowClick}
+                onMouseEnter={handleRowMouseEnter}
+                onCheckboxClick={handleCheckboxClick}
+              />
+            </motion.div>
+          ))
+        )}
+      </AnimatePresence>
     </div>
   );
 }
