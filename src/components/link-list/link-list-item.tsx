@@ -3,7 +3,6 @@ import { memo } from "react";
 
 import { Favicon } from "@/components/favicon";
 import { LinkPreviewImage } from "@/components/link-preview-image";
-import { BorderTrail } from "@/components/ui/border-trail";
 import { displayTitle } from "@/lib/link-display";
 import { cn } from "@/lib/utils";
 import type { LinkListItem as LinkListItemData } from "@/livestore/queries/links";
@@ -12,7 +11,6 @@ import type { Tag } from "@/livestore/queries/tags";
 interface LinkListItemProps {
   link: LinkListItemData;
   tags: readonly Tag[];
-  processingStatus: string | null;
   active: boolean;
   selected: boolean;
   previewing: boolean;
@@ -25,7 +23,6 @@ interface LinkListItemProps {
 function LinkListItemImpl({
   link,
   tags,
-  processingStatus,
   active,
   selected,
   previewing,
@@ -34,7 +31,6 @@ function LinkListItemImpl({
   onMouseEnter,
   onCheckboxClick,
 }: LinkListItemProps) {
-  const isProcessing = processingStatus === "pending";
   const titleText = displayTitle(link);
   const showCheckbox = selected || previewing;
 
@@ -53,18 +49,6 @@ function LinkListItemImpl({
         active && "bg-muted"
       )}
     >
-      {isProcessing && (
-        <BorderTrail
-          className="bg-gradient-to-l from-blue-200 via-blue-500 to-blue-200 dark:from-blue-400 dark:via-blue-500 dark:to-blue-700"
-          size={80}
-          transition={{
-            duration: 4,
-            ease: "linear",
-            repeat: Infinity,
-          }}
-        />
-      )}
-
       <div className="flex min-w-0 items-start gap-2">
         {showCheckbox && (
           <span
@@ -137,7 +121,7 @@ function LinkListItemImpl({
         </div>
       </div>
 
-      <div className="mt-0.5 aspect-[16/9] overflow-hidden rounded-sm">
+      <div className="aspect-[16/9] overflow-hidden rounded-sm">
         <LinkPreviewImage src={link.image} />
       </div>
     </button>
@@ -149,7 +133,6 @@ export const LinkListItem = memo(
   (prev, next) =>
     prev.link === next.link &&
     prev.tags === next.tags &&
-    prev.processingStatus === next.processingStatus &&
     prev.active === next.active &&
     prev.selected === next.selected &&
     prev.previewing === next.previewing &&

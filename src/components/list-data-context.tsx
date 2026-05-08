@@ -1,19 +1,16 @@
 import { createContext, useContext, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 
-import { processingStatusByLink$ } from "@/livestore/queries/links";
 import type { Tag } from "@/livestore/queries/tags";
 import { tagsByLink$ } from "@/livestore/queries/tags";
 import { useAppStore } from "@/livestore/store";
 
 export interface ListData {
   tagsByLink: Map<string, readonly Tag[]>;
-  statusByLink: Map<string, string>;
 }
 
 const ListDataContext = createContext<ListData>({
   tagsByLink: new Map(),
-  statusByLink: new Map(),
 });
 
 function useTagsByLink(): Map<string, readonly Tag[]> {
@@ -70,27 +67,10 @@ function useTagsByLink(): Map<string, readonly Tag[]> {
   }, [rows]);
 }
 
-function useStatusByLink(): Map<string, string> {
-  const store = useAppStore();
-  const rows = store.useQuery(processingStatusByLink$);
-
-  return useMemo(() => {
-    const map = new Map<string, string>();
-    for (const row of rows) {
-      map.set(row.linkId, row.status);
-    }
-    return map;
-  }, [rows]);
-}
-
 export function ListDataProvider({ children }: { children: ReactNode }) {
   const tagsByLink = useTagsByLink();
-  const statusByLink = useStatusByLink();
 
-  const value = useMemo(
-    () => ({ tagsByLink, statusByLink }),
-    [tagsByLink, statusByLink]
-  );
+  const value = useMemo(() => ({ tagsByLink }), [tagsByLink]);
 
   return (
     <ListDataContext.Provider value={value}>

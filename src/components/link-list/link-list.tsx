@@ -46,7 +46,7 @@ export function LinkList({
   const openDetail = useRightPaneStore((s) => s.openDetail);
   const toggleDetail = useRightPaneStore((s) => s.toggleDetail);
   const trackLinkOpen = useTrackLinkOpen();
-  const { tagsByLink, statusByLink } = useListData();
+  const { tagsByLink } = useListData();
 
   const linksRef = useRef(links);
   linksRef.current = links;
@@ -209,7 +209,6 @@ export function LinkList({
           key={link.id}
           link={link}
           tags={tagsByLink.get(link.id) ?? EMPTY_TAGS}
-          processingStatus={statusByLink.get(link.id) ?? null}
           active={link.id === activeLinkId}
           selected={ids.has(link.id)}
           previewing={previewSet.has(link.id)}

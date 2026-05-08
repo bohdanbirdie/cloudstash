@@ -127,16 +127,6 @@ export const linkProcessingStatus$ = (linkId: string) =>
     label: `linkProcessingStatus:${linkId}`,
   });
 
-export const ProcessingStatusRowSchema = Schema.Struct({
-  linkId: Schema.String,
-  status: Schema.String,
-  error: Schema.NullOr(Schema.String),
-  notified: Schema.Number,
-  updatedAt: Schema.Number,
-});
-
-export type ProcessingStatusRow = typeof ProcessingStatusRowSchema.Type;
-
 const linkCreatedAtSchema = Schema.Struct({ createdAt: Schema.Number });
 
 export const linkCreatedAts$ = queryDb(
@@ -145,17 +135,6 @@ export const linkCreatedAts$ = queryDb(
     schema: Schema.Array(linkCreatedAtSchema),
   }),
   { label: "linkCreatedAts" }
-);
-
-export const processingStatusByLink$ = queryDb(
-  () => ({
-    query: `
-      SELECT linkId, status, error, notified, updatedAt
-      FROM link_processing_status
-    `,
-    schema: Schema.Array(ProcessingStatusRowSchema),
-  }),
-  { label: "processingStatusByLink" }
 );
 
 export const linkById$ = (id: string) =>
