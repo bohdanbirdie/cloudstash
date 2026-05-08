@@ -4,7 +4,7 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { HotkeysProvider } from "react-hotkeys-hook";
 
-import { AddLinkDialogProvider } from "@/components/add-link-dialog";
+import { AddLinkProvider } from "@/components/add-link";
 import { BottomDock } from "@/components/bottom-dock/bottom-dock";
 import { ListDataProvider } from "@/components/list-data-context";
 import { LoadingScreen } from "@/components/loading-screen";
@@ -39,7 +39,7 @@ function AuthedLayout() {
       <HotkeysProvider initiallyActiveScopes={["global"]}>
         <Suspense fallback={<LoadingScreen />}>
           <ConnectionMonitor />
-          <AddLinkDialogProvider>
+          <AddLinkProvider>
             <div className="bg-background flex h-svh flex-col">
               <div className="mx-auto flex h-full w-full min-h-0 max-w-7xl flex-col">
                 <div className="min-h-0 flex-1 overflow-hidden">
@@ -58,7 +58,7 @@ function AuthedLayout() {
                 height={40}
               />
             )}
-          </AddLinkDialogProvider>
+          </AddLinkProvider>
         </Suspense>
       </HotkeysProvider>
     </StoreRegistryProvider>

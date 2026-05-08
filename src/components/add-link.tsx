@@ -1,0 +1,173 @@
+import { Option, Schema } from "effect";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+} from "react";
+import type { ReactNode } from "react";
+import { toast } from "sonner";
+
+import { track } from "@/lib/analytics";
+import { formatAgo } from "@/lib/time-ago";
+import { tables, events } from "@/livestore/schema";
+import { useAppStore } from "@/livestore/store";
+import { useRightPaneStore } from "@/stores/right-pane-store";
+
+const UrlSchema = Schema.URL;
+
+interface AddLinkContextValue {
+  addLink: (urlInput: string) => void;
+}
+
+const AddLinkContext = createContext<AddLinkContextValue | null>(null);
+
+export function useAddLink() {
+  const context = useContext(AddLinkContext);
+  if (!context) {
+    throw new Error("useAddLink must be used within AddLinkProvider");
+  }
+  return context;
+}
+
+interface OgMetadata {
+  title?: string;
+  description?: string;
+  image?: string;
+  logo?: string;
+  url?: string;
+  error?: string;
+}
+
+function normalizeUrl(urlString: string): string {
+  try {
+    const u = new URL(urlString);
+    return (
+      u.host.replace(/^www\./, "") +
+      u.pathname.replace(/\/$/, "") +
+      u.search +
+      u.hash
+    );
+  } catch {
+    return urlString.toLowerCase().trim();
+  }
+}
+
+async function fetchMetadata(targetUrl: string): Promise<OgMetadata | null> {
+  try {
+    const response = await fetch(
+      `/api/metadata?url=${encodeURIComponent(targetUrl)}`
+    );
+    if (!response.ok) return null;
+    const data: OgMetadata = await response.json();
+    if (data.error) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+export function AddLinkProvider({ children }: { children: ReactNode }) {
+  const store = useAppStore();
+  const openDetail = useRightPaneStore((s) => s.openDetail);
+
+  const addLink = useCallback(
+    (urlInput: string) => {
+      const trimmed = urlInput.trim();
+      if (!trimmed) return;
+
+      const urlResult = Schema.decodeUnknownOption(UrlSchema)(trimmed);
+      if (Option.isNone(urlResult)) {
+        toast.error("That doesn't look like a valid URL");
+        return;
+      }
+
+      const validUrl = urlResult.value.href;
+      const normalized = normalizeUrl(validUrl);
+
+      const existingLinks = store.query(
+        tables.links.where({ deletedAt: null })
+      );
+      const existing = existingLinks.find(
+        (link) => normalizeUrl(link.url) === normalized
+      );
+      if (existing) {
+        toast("Already saved", {
+          description: `Saved ${formatAgo(existing.createdAt)}`,
+          action: {
+            label: "View",
+            onClick: () => openDetail(existing.id),
+          },
+        });
+        return;
+      }
+
+      const domain = new URL(validUrl).hostname;
+      const linkId = crypto.randomUUID();
+      const now = new Date();
+
+      store.commit(
+        events.linkCreatedV2({
+          createdAt: now,
+          domain,
+          id: linkId,
+          source: "app",
+          sourceMeta: null,
+          url: validUrl,
+        })
+      );
+
+      track("link_added");
+      openDetail(linkId);
+
+      void (async () => {
+        const metadata = await fetchMetadata(validUrl);
+        if (!metadata) return;
+        store.commit(
+          events.linkMetadataFetched({
+            description: metadata.description ?? null,
+            favicon: metadata.logo ?? null,
+            fetchedAt: new Date(),
+            id: crypto.randomUUID(),
+            image: metadata.image ?? null,
+            linkId,
+            title: metadata.title ?? null,
+          })
+        );
+      })();
+    },
+    [store, openDetail]
+  );
+
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const { activeElement } = document;
+      if (
+        activeElement instanceof HTMLInputElement ||
+        activeElement instanceof HTMLTextAreaElement ||
+        activeElement?.getAttribute("contenteditable") === "true"
+      ) {
+        return;
+      }
+
+      const text = e.clipboardData?.getData("text/plain")?.trim();
+      if (!text) return;
+
+      const urlResult = Schema.decodeUnknownOption(UrlSchema)(text);
+      if (Option.isSome(urlResult)) {
+        e.preventDefault();
+        addLink(urlResult.value.href);
+      }
+    };
+
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, [addLink]);
+
+  const value = useMemo(() => ({ addLink }), [addLink]);
+
+  return (
+    <AddLinkContext.Provider value={value}>{children}</AddLinkContext.Provider>
+  );
+}

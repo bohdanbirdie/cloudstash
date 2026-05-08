@@ -2,24 +2,17 @@ import { useCallback, useRef } from "react";
 import type { RefObject } from "react";
 import { useHotkeys, useHotkeysContext } from "react-hotkeys-hook";
 
-export type Scope =
-  | "global"
-  | "detail"
-  | "selection"
-  | "dock"
-  | "dialog"
-  | "popover";
+export type Scope = "global" | "detail" | "selection" | "dock" | "popover";
 
 const ESC_PRECEDENCE: readonly Scope[] = [
   "global",
   "detail",
   "selection",
   "dock",
-  "dialog",
   "popover",
 ];
 
-const MODAL_SCOPES: ReadonlySet<Scope> = new Set(["dialog", "popover"]);
+const MODAL_SCOPES: ReadonlySet<Scope> = new Set(["popover"]);
 
 function isModalActive(active: readonly string[]): boolean {
   return active.some((s) => MODAL_SCOPES.has(s as Scope));
@@ -32,7 +25,6 @@ const COMMANDS = {
   openAgent: { keys: "meta+j,ctrl+j", scope: "global" },
   vimDown: { keys: "j", scope: "global" },
   vimUp: { keys: "k", scope: "global" },
-  dialogSubmit: { keys: "enter", scope: "dialog" },
   detailComplete: { keys: "meta+enter,ctrl+enter", scope: "detail" },
   bulkPrimary: { keys: "meta+enter,ctrl+enter", scope: "selection" },
   bulkSecondary: { keys: "meta+backspace,ctrl+backspace", scope: "selection" },

@@ -36,6 +36,7 @@ kanban-plugin: board
 - [ ] Scope `j`/`k` link navigation hotkeys away from inputs — currently they fire globally and steal `j`/`k` keystrokes from any focused input/textarea/contenteditable, making it impossible to type those letters. Hotkey handler must check the active element (and respect any popover/dialog/listbox scope) before treating `j`/`k` as link nav.
 - [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.
 - [ ] Failed-summary state needs a path forward — right-pane detail currently shows a flat "Summary generation failed" with no retry affordance. Surface a one-line cause (when available) and a clear "Try again" action that triggers reprocess. Consider whether the same treatment belongs on the link list row.
+- [ ] ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
 
 ## In Progress
 

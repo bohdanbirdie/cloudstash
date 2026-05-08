@@ -2,8 +2,9 @@ import "./styles.css";
 import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { Toaster } from "sonner";
 import { SWRConfig } from "swr";
+
+import { Toaster } from "@/components/ui/sonner";
 
 import { PendingApproval } from "./components/pending-approval";
 import { Spinner } from "./components/ui/spinner";
@@ -57,7 +58,7 @@ createRoot(document.querySelector("#root")!).render(
       <AuthProvider>
         <InnerApp />
       </AuthProvider>
-      <Toaster position="bottom-right" />
+      <Toaster position="top-center" />
     </SWRConfig>
   </StrictMode>
 );

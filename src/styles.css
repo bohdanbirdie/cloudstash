@@ -140,3 +140,22 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Sonner: brand-aligned entry/exit timings (defaults are 400–500ms). */
+[data-sonner-toaster] {
+  transition: transform 330ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+[data-sonner-toast] {
+  transition:
+    transform 330ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 330ms cubic-bezier(0.16, 1, 0.3, 1),
+    height 330ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+[data-sonner-toast][data-removed="true"][data-front="false"][data-swipe-out="false"][data-expanded="false"] {
+  transition:
+    transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 200ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
