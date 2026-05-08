@@ -1,5 +1,7 @@
 ---
+
 kanban-plugin: board
+
 ---
 
 ## Todo
@@ -16,37 +18,36 @@ kanban-plugin: board
 - [ ] iOS Shortcut as injection source
 - [ ] Use Cloudflare Email instead of Resend
 - [ ] Replace OpenRouter with Cloudflare AI Gateway
+- [ ] [[todos/agent-context-chips-entry-points|Agent context chips + entry points]]
+
+
+## In Progress
+
 - [ ] [[todos/weekly-digest-backend|Weekly Digest backend]]
 - [ ] [[todos/weekly-digest-actions|Weekly Digest actions]]
 - [ ] Keyboard hints footer in right pane — `⌘K · ⌥N · Esc` row beneath the digest. Confirm which three to promote.
 - [ ] Time-grouped list headers (Today / Yesterday / This week / Older) — deferred from phase 2. Measure query impact before landing.
-- [ ] [[todos/tag-text-colors|Per-tag text colors]]
-- [ ] [[todos/further-list-mount-perf|Further list-mount perf improvements]]
-- [ ] [[todos/virtualize-link-list|Virtualize the link list]]
-- [ ] [[todos/stabilize-dots-menu-refs|Stabilize DotsMenu handler refs]]
-- [ ] [[todos/agent-context-chips-entry-points|Agent context chips + entry points]]
-- [ ] [[todos/mobile-view-review|Mobile view review + fixes]]
-- [ ] Support `#tag` search in the bottom-dock search panel — typing `#` should suggest tags from the workspace and filter by them, complementing free-text search.
-- [ ] Reduce monospace font usage — JetBrains Mono is currently `--font-sans` for the entire app. Pair a refined sans for body/UI and reserve mono for tokens that earn it (counts, tags, timestamps, dock input).
-- [ ] Gate all agent UI on per-user feature flag — when agent is not enabled for a user: hide the AgentTrigger in the dock, ignore the `⌘J` hotkey, skip mounting `AgentChatProvider`/connection, and remove "agent" from any mode switching. Single capability check, applied everywhere.
-- [ ] Replace hand-rolled `InputOTP` with shadcn's `input-otp`-backed component — current `src/components/ui/input-otp.tsx` is a custom implementation skipped during the base-mira refresh. Adopt the registry version (adds `input-otp` dep, exposes `InputOTPGroup`/`InputOTPSlot`/`InputOTPSeparator`) and migrate `pending-approval.tsx` to the compose API.
-- [ ] Restore hotkey-tip overlays when modifier keys are held — when ⌘ (or ⌥/Ctrl/Shift) is pressed, surface contextual hotkey hints next to the actions they trigger (e.g. ⌘V on the Add link button, ⌘K on the dock pill, ⌘J on the agent button, etc.). Was previously implemented; should be reintroduced with the new dock + top-bar layout.
-- [ ] Pop-animate newly added link items in the list — when a link is added via the UI or arrives via livestore sync, animate its entry into the list. Must NOT animate on filter/category changes (only genuinely new items). Likely needs to track "seen" ids and only animate ones that weren't in the previous result set.
-- [ ] Make link list items even more vertically compact — tighten vertical padding/line-height in the list rows so more items fit on screen. As part of this, rework the row's processing visuals (currently `BorderTrail`) so the in-flight AI-summary state reads clearly at the new density and is distinguishable from idle and failed.
-- [ ] Scope `j`/`k` link navigation hotkeys away from inputs — currently they fire globally and steal `j`/`k` keystrokes from any focused input/textarea/contenteditable, making it impossible to type those letters. Hotkey handler must check the active element (and respect any popover/dialog/listbox scope) before treating `j`/`k` as link nav.
-- [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.
-- [ ] Failed-summary state needs a path forward — right-pane detail currently shows a flat "Summary generation failed" with no retry affordance. Surface a one-line cause (when available) and a clear "Try again" action that triggers reprocess. Consider whether the same treatment belongs on the link list row.
-- [ ] ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
 - [ ] User settings modal — wire the disabled "Settings" item in the account menu. Should surface profile basics (name, email, avatar source), session management (sign out from other devices), and any future per-user preferences. Email and last name belong here, not in the trigger or menu header. Until this lands, the menu item stays disabled.
+- [ ] ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
+- [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.
+- [ ] Scope `j`/`k` link navigation hotkeys away from inputs — currently they fire globally and steal `j`/`k` keystrokes from any focused input/textarea/contenteditable, making it impossible to type those letters. Hotkey handler must check the active element (and respect any popover/dialog/listbox scope) before treating `j`/`k` as link nav.
+- [ ] Replace hand-rolled `InputOTP` with shadcn's `input-otp`-backed component — current `src/components/ui/input-otp.tsx` is a custom implementation skipped during the base-mira refresh. Adopt the registry version (adds `input-otp` dep, exposes `InputOTPGroup`/`InputOTPSlot`/`InputOTPSeparator`) and migrate `pending-approval.tsx` to the compose API.
+- [ ] Gate all agent UI on per-user feature flag — when agent is not enabled for a user: hide the AgentTrigger in the dock, ignore the `⌘J` hotkey, skip mounting `AgentChatProvider`/connection, and remove "agent" from any mode switching. Single capability check, applied everywhere.
+- [ ] Support `#tag` search in the bottom-dock search panel — typing `#` should suggest tags from the workspace and filter by them, complementing free-text search.
+- [ ] [[todos/mobile-view-review|Mobile view review + fixes]]
 
-## In Progress
-
-- [ ] [[todos/links-list-performance|Fix links list rendering performance at 150+ links]]
 
 ## Done
 
+- [ ] [[todos/links-list-performance|Fix links list rendering performance at 150+ links]]
 - [ ] [[todos/publish-raycast-extension|Publish Raycast extension to Store]]
+- [ ] [[todos/further-list-mount-perf|Further list-mount perf improvements]]
+- [ ] Reduce monospace font usage — JetBrains Mono is currently `--font-sans` for the entire app. Pair a refined sans for body/UI and reserve mono for tokens that earn it (counts, tags, timestamps, dock input).
 - [x] Right-pane summary UI redesign — small-caps SUMMARY/TAGS eyebrows replacing icon-above-heading; page description as italic pullquote with em-dash attribution; inline dot-matrix loader (`dotm-square-11`) next to SUMMARY during processing/reprocessing with `AnimatePresence` enter/exit; "Reading the page…" replacing the shimmer placeholder; 300ms blur-in for summary changes (with `prefers-reduced-motion` respect); CheckIcon for Completed status; redundant hairline divider dropped; title weight dialed back from `text-3xl extrabold tracking-tight` to `text-2xl bold`
+- [ ] Failed-summary state needs a path forward — right-pane detail currently shows a flat "Summary generation failed" with no retry affordance. Surface a one-line cause (when available) and a clear "Try again" action that triggers reprocess. Consider whether the same treatment belongs on the link list row.
+- [ ] Make link list items even more vertically compact — tighten vertical padding/line-height in the list rows so more items fit on screen. As part of this, rework the row's processing visuals (currently `BorderTrail`) so the in-flight AI-summary state reads clearly at the new density and is distinguishable from idle and failed.
+- [ ] Pop-animate newly added link items in the list — when a link is added via the UI or arrives via livestore sync, animate its entry into the list. Must NOT animate on filter/category changes (only genuinely new items). Likely needs to track "seen" ids and only animate ones that weren't in the previous result set.
+- [ ] Restore hotkey-tip overlays when modifier keys are held — when ⌘ (or ⌥/Ctrl/Shift) is pressed, surface contextual hotkey hints next to the actions they trigger (e.g. ⌘V on the Add link button, ⌘K on the dock pill, ⌘J on the agent button, etc.). Was previously implemented; should be reintroduced with the new dock + top-bar layout.
 - [x] Link generation fails locally after redesign — switched from JSON-mode (`Output.object`) to forced tool-calling pattern, upgraded `workers-ai-provider` 3.1.5→3.1.14 (vLLM `toolChoice` mismapping fix), settled on `@cf/meta/llama-3.3-70b-instruct-fp8-fast` for reliable schema adherence (IFEval 92.1, BFCL 77.3)
 - [x] Tag combobox redesign — Linear-style multi-select, dual click targets, frozen alphabetic ordering, deferred close-frame cleanup
 - [x] Tag manager modal rebuild — opaque dropdown, full-width row click target with pencil affordance, tag validation, modal lifecycle
@@ -78,10 +79,11 @@ kanban-plugin: board
 - [x] [[todos/done/monorepo-conversion|Convert project to monorepo]]
 - [x] [[todos/done/raycast-ingestion|Add Raycast ingestion path]]
 
-%% kanban:settings
 
+
+
+%% kanban:settings
 ```
 {"kanban-plugin":"board"}
 ```
-
 %%
