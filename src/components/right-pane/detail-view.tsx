@@ -1,18 +1,18 @@
 import {
-  AlignLeftIcon,
+  CheckIcon,
   CodeIcon,
   ExternalLinkIcon,
-  HashIcon,
   MessageSquareIcon,
   SendIcon,
 } from "lucide-react";
-import { memo, useCallback, useMemo } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { LinkPreviewImage } from "@/components/link-preview-image";
 import { TagCombobox } from "@/components/tags/tag-combobox/tag-combobox";
+import { DotmSquare11 } from "@/components/ui/dotm-square-11";
 import { Kbd } from "@/components/ui/kbd";
 import { Markdown } from "@/components/ui/markdown";
-import { TextShimmer } from "@/components/ui/text-shimmer";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import { useLinkTags } from "@/hooks/use-link-tags";
 import { useDismiss } from "@/lib/keyboard";
@@ -122,7 +122,7 @@ const DetailViewInner = memo(function DetailViewInner({
           href={link.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 hover:text-foreground"
+          className="inline-flex items-center gap-1 transition-colors duration-150 hover:text-foreground"
         >
           {link.favicon && (
             <img src={link.favicon} alt="" className="size-3.5" />
@@ -150,35 +150,39 @@ const DetailViewInner = memo(function DetailViewInner({
         {isCompleted && !isDeleted && (
           <>
             <span aria-hidden="true">·</span>
-            <span className="text-green-600">Completed</span>
+            <span className="inline-flex items-center gap-1">
+              <CheckIcon aria-hidden="true" className="size-3" />
+              Completed
+            </span>
           </>
         )}
       </div>
 
-      <h2 className="text-3xl font-extrabold leading-tight tracking-tight text-foreground text-balance">
+      <h2 className="text-2xl font-bold leading-tight text-foreground text-balance">
         {titleText}
       </h2>
 
       {descriptionText && (
-        <p className="text-sm leading-relaxed text-muted-foreground text-pretty">
-          {descriptionText}
-        </p>
+        <div className="border-l-2 border-muted-foreground/15 pl-3">
+          <p className="text-sm italic leading-relaxed text-muted-foreground text-pretty">
+            {descriptionText}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            &mdash; Page description
+          </p>
+        </div>
       )}
 
-      <div className="h-px w-full bg-border" aria-hidden="true" />
-
       <DetailSummary
+        key={link.id}
         summary={link.summary}
         isProcessing={isProcessing}
         isReprocessing={isReprocessing}
         isFailed={isFailed}
       />
 
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-          <HashIcon className="size-3.5" />
-          Tags
-        </div>
+      <div className="flex flex-col gap-1.5">
+        <SectionEyebrow>Tags</SectionEyebrow>
         <TagCombobox
           selectedTagIds={tagIds}
           onChange={setTagIds}
@@ -189,12 +193,23 @@ const DetailViewInner = memo(function DetailViewInner({
         />
       </div>
 
-      <div className="pt-2 text-xs text-muted-foreground/70">
-        <Kbd aria-hidden="true">Esc</Kbd> to close
+      <div className="pt-2 text-xs text-muted-foreground">
+        <Kbd>Esc</Kbd> to close
       </div>
     </div>
   );
 });
+
+const SUMMARY_PROSE_CLASS =
+  "text-sm leading-relaxed text-pretty [&>:first-child]:mt-0 [&>:last-child]:mb-0";
+
+function SectionEyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+      {children}
+    </div>
+  );
+}
 
 const DetailSummary = memo(function DetailSummary({
   summary,
@@ -207,45 +222,73 @@ const DetailSummary = memo(function DetailSummary({
   isReprocessing: boolean;
   isFailed: boolean;
 }) {
-  if (summary) {
-    return (
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-          <AlignLeftIcon className="size-3.5" />
-          Summary
-        </div>
-        <Markdown className="text-sm leading-relaxed">{summary}</Markdown>
-      </div>
-    );
-  }
+  const isWorking = isProcessing || isReprocessing;
 
-  if (isProcessing || isReprocessing) {
-    return (
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-          <AlignLeftIcon className="size-3.5" />
-          Summary
-        </div>
-        <TextShimmer className="text-sm" duration={1.5}>
-          Generating summary...
-        </TextShimmer>
-      </div>
-    );
-  }
+  if (!summary && !isWorking && !isFailed) return null;
 
-  if (isFailed) {
-    return (
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-          <AlignLeftIcon className="size-3.5" />
-          Summary
-        </div>
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        <SectionEyebrow>Summary</SectionEyebrow>
+        <AnimatePresence>
+          {isWorking && (
+            <motion.div
+              key="summary-loader"
+              initial={{ opacity: 0, scale: 0.6 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.6 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="inline-flex"
+            >
+              <DotmSquare11
+                size={14}
+                dotSize={2}
+                ariaLabel={
+                  isReprocessing ? "Regenerating summary" : "Generating summary"
+                }
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+      {summary ? (
+        <SummaryBody summary={summary} />
+      ) : isWorking ? (
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Reading the page&hellip;
+        </p>
+      ) : (
         <p className="text-sm text-muted-foreground">
           Summary generation failed
         </p>
-      </div>
-    );
+      )}
+    </div>
+  );
+});
+
+function SummaryBody({ summary }: { summary: string }) {
+  const reduceMotion = useReducedMotion();
+  const initialSummaryRef = useRef(summary);
+  const [animationId, setAnimationId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (summary === initialSummaryRef.current) return;
+    initialSummaryRef.current = summary;
+    setAnimationId((id) => (id ?? 0) + 1);
+  }, [summary]);
+
+  if (animationId === null || reduceMotion) {
+    return <Markdown className={SUMMARY_PROSE_CLASS}>{summary}</Markdown>;
   }
 
-  return null;
-});
+  return (
+    <motion.div
+      key={animationId}
+      initial={{ filter: "blur(6px)", opacity: 0 }}
+      animate={{ filter: "blur(0px)", opacity: 1 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+    >
+      <Markdown className={SUMMARY_PROSE_CLASS}>{summary}</Markdown>
+    </motion.div>
+  );
+}
