@@ -41,7 +41,6 @@ kanban-plugin: board
 
 ## In Progress
 
-- [ ] [[todos/app-redesign|Rethink app design]]
 - [ ] [[todos/links-list-performance|Fix links list rendering performance at 150+ links]]
 
 ## Done
