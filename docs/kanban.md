@@ -25,12 +25,9 @@ kanban-plugin: board
 
 - [ ] [[todos/weekly-digest-backend|Weekly Digest backend]]
 - [ ] [[todos/weekly-digest-actions|Weekly Digest actions]]
-- [ ] Keyboard hints footer in right pane — `⌘K · ⌥N · Esc` row beneath the digest. Confirm which three to promote.
-- [ ] Time-grouped list headers (Today / Yesterday / This week / Older) — deferred from phase 2. Measure query impact before landing.
 - [ ] User settings modal — wire the disabled "Settings" item in the account menu. Should surface profile basics (name, email, avatar source), session management (sign out from other devices), and any future per-user preferences. Email and last name belong here, not in the trigger or menu header. Until this lands, the menu item stays disabled.
 - [ ] ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
 - [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.
-- [ ] Scope `j`/`k` link navigation hotkeys away from inputs — currently they fire globally and steal `j`/`k` keystrokes from any focused input/textarea/contenteditable, making it impossible to type those letters. Hotkey handler must check the active element (and respect any popover/dialog/listbox scope) before treating `j`/`k` as link nav.
 - [ ] Replace hand-rolled `InputOTP` with shadcn's `input-otp`-backed component — current `src/components/ui/input-otp.tsx` is a custom implementation skipped during the base-mira refresh. Adopt the registry version (adds `input-otp` dep, exposes `InputOTPGroup`/`InputOTPSlot`/`InputOTPSeparator`) and migrate `pending-approval.tsx` to the compose API.
 - [ ] Gate all agent UI on per-user feature flag — when agent is not enabled for a user: hide the AgentTrigger in the dock, ignore the `⌘J` hotkey, skip mounting `AgentChatProvider`/connection, and remove "agent" from any mode switching. Single capability check, applied everywhere.
 - [ ] Support `#tag` search in the bottom-dock search panel — typing `#` should suggest tags from the workspace and filter by them, complementing free-text search.
@@ -51,6 +48,7 @@ kanban-plugin: board
 - [x] Link generation fails locally after redesign — switched from JSON-mode (`Output.object`) to forced tool-calling pattern, upgraded `workers-ai-provider` 3.1.5→3.1.14 (vLLM `toolChoice` mismapping fix), settled on `@cf/meta/llama-3.3-70b-instruct-fp8-fast` for reliable schema adherence (IFEval 92.1, BFCL 77.3)
 - [x] Tag combobox redesign — Linear-style multi-select, dual click targets, frozen alphabetic ordering, deferred close-frame cleanup
 - [x] Tag manager modal rebuild — opaque dropdown, full-width row click target with pencil affordance, tag validation, modal lifecycle
+- [ ] Scope `j`/`k` link navigation hotkeys away from inputs — currently they fire globally and steal `j`/`k` keystrokes from any focused input/textarea/contenteditable, making it impossible to type those letters. Hotkey handler must check the active element (and respect any popover/dialog/listbox scope) before treating `j`/`k` as link nav.
 - [x] ActivityGrid render-cost cut — memoize cell/month/day element arrays so the ~400 React.createElement calls don't fire on unrelated commits (≈25× drop in self-time per render)
 - [x] [[todos/done/redesign-phase-3b-multi-select|Redesign phase 3b — multi-select]]
 - [x] [[todos/done/held-key-nav-perf|Held-key keyboard nav perf]]
