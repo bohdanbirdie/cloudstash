@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 interface LinkPreviewImageProps {
   src: string | null | undefined;
   loading?: "lazy" | "eager";
+  pending?: boolean;
 }
 
 type Status = "loading" | "loaded" | "error";
@@ -17,6 +18,7 @@ const OUTLINE_CLASS =
 export function LinkPreviewImage({
   src,
   loading = "lazy",
+  pending = false,
 }: LinkPreviewImageProps) {
   const [status, setStatus] = useState<Status>(src ? "loading" : "error");
   const [prevSrc, setPrevSrc] = useState(src);
@@ -27,6 +29,14 @@ export function LinkPreviewImage({
   }
 
   if (!src || status === "error") {
+    if (pending && !src) {
+      return (
+        <div
+          className={cn("size-full animate-pulse bg-muted", OUTLINE_CLASS)}
+          aria-hidden="true"
+        />
+      );
+    }
     return (
       <div
         className={cn(
