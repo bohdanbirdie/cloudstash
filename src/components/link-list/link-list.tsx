@@ -200,7 +200,7 @@ export function LinkList({
       aria-label="Links"
       aria-multiselectable="true"
       tabIndex={-1}
-      className="flex flex-col gap-3 min-w-0 outline-none"
+      className="flex flex-col gap-1 min-w-0 outline-none"
       onFocus={handleListFocus}
       onMouseLeave={handleListMouseLeave}
     >

@@ -8,6 +8,7 @@ import {
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { Favicon } from "@/components/favicon";
 import { LinkPreviewImage } from "@/components/link-preview-image";
 import { TagCombobox } from "@/components/tags/tag-combobox/tag-combobox";
 import { DotmSquare11 } from "@/components/ui/dotm-square-11";
@@ -124,9 +125,7 @@ const DetailViewInner = memo(function DetailViewInner({
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 transition-colors duration-150 hover:text-foreground"
         >
-          {link.favicon && (
-            <img src={link.favicon} alt="" className="size-3.5" />
-          )}
+          <Favicon src={link.favicon} className="size-3.5" />
           {link.domain}
           <ExternalLinkIcon aria-hidden="true" className="size-3" />
         </a>

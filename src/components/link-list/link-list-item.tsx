@@ -1,12 +1,10 @@
-import { CheckIcon } from "lucide-react";
+import { CheckIcon, ExternalLinkIcon } from "lucide-react";
 import { memo } from "react";
 
+import { Favicon } from "@/components/favicon";
 import { LinkPreviewImage } from "@/components/link-preview-image";
-import { TagBadge } from "@/components/tags/tag-badge";
 import { BorderTrail } from "@/components/ui/border-trail";
-import { displayDescription, displayTitle } from "@/lib/link-display";
-import { stripMarkdown } from "@/lib/strip-markdown";
-import { formatAgo } from "@/lib/time-ago";
+import { displayTitle } from "@/lib/link-display";
 import { cn } from "@/lib/utils";
 import type { LinkListItem as LinkListItemData } from "@/livestore/queries/links";
 import type { Tag } from "@/livestore/queries/tags";
@@ -38,8 +36,6 @@ function LinkListItemImpl({
 }: LinkListItemProps) {
   const isProcessing = processingStatus === "pending";
   const titleText = displayTitle(link);
-  const descriptionText = displayDescription(link);
-  const formattedDate = formatAgo(link.createdAt);
   const showCheckbox = selected || previewing;
 
   return (
@@ -52,7 +48,7 @@ function LinkListItemImpl({
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       className={cn(
-        "group relative -mx-3 grid w-[calc(100%+1.5rem)] cursor-default grid-cols-[1fr_4.75rem] items-start rounded-md px-2 py-2 text-left outline-none transition-colors mouse:hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:ring-inset",
+        "group relative -mx-3 grid w-[calc(100%+1.5rem)] cursor-default grid-cols-[1fr_4.75rem] items-start rounded-md px-2 py-2 text-left outline-none transition-colors mouse:hover:[&:not(:has([data-domain-link]:hover))]:bg-muted focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:ring-inset",
         showCheckbox ? "gap-x-2" : "gap-x-8",
         active && "bg-muted"
       )}
@@ -97,38 +93,47 @@ function LinkListItemImpl({
         )}
 
         <div className="flex min-w-0 flex-col">
-          <div className="truncate text-base font-semibold leading-snug tracking-tight text-foreground text-pretty">
+          <div className="line-clamp-2 text-base font-medium leading-snug text-foreground text-pretty">
             {titleText}
           </div>
-          <div className="mt-0.5 flex min-w-0 items-baseline gap-1.5 overflow-hidden text-xs text-muted-foreground">
-            <span className="truncate">{link.domain}</span>
-            <span aria-hidden="true" className="shrink-0">
-              ·
-            </span>
-            <span className="shrink-0 tabular-nums">{formattedDate}</span>
+          <div className="mt-0.5 flex min-w-0 items-center gap-3 overflow-hidden text-xs text-muted-foreground">
+            <a
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              tabIndex={-1}
+              data-domain-link
+              onClick={(e) => e.stopPropagation()}
+              className="group/domain -my-1 -mx-1 flex min-w-0 cursor-pointer items-center rounded-sm px-1 py-1 transition-colors"
+            >
+              <Favicon
+                src={link.favicon}
+                className="mr-1.5 size-3 shrink-0 rounded-[2px]"
+              />
+              <span className="truncate font-medium text-foreground/80 group-hover/domain:text-foreground group-hover/domain:underline group-hover/domain:decoration-1 group-hover/domain:underline-offset-2">
+                {link.domain}
+              </span>
+              <ExternalLinkIcon
+                aria-hidden="true"
+                className="ml-1.5 hidden size-3 shrink-0 group-hover:inline-flex"
+              />
+            </a>
             {tags.length > 0 && (
-              <>
-                <span aria-hidden="true" className="shrink-0">
-                  ·
-                </span>
-                <div className="flex shrink-0 items-baseline gap-3">
-                  {tags.slice(0, 2).map((tag) => (
-                    <TagBadge key={tag.id} name={tag.name} />
-                  ))}
-                  {tags.length > 2 && (
-                    <span className="tabular-nums">
-                      +{tags.length - 2} more
-                    </span>
-                  )}
-                </div>
-              </>
+              <div className="flex shrink-0 items-center gap-2.5">
+                {tags.slice(0, 2).map((tag) => (
+                  <span key={tag.id} className="whitespace-nowrap">
+                    <span className="text-muted-foreground/50">#</span>
+                    {tag.name}
+                  </span>
+                ))}
+                {tags.length > 2 && (
+                  <span className="text-muted-foreground/55">
+                    +{tags.length - 2}
+                  </span>
+                )}
+              </div>
             )}
           </div>
-          {descriptionText && (
-            <div className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-muted-foreground text-pretty">
-              {stripMarkdown(descriptionText)}
-            </div>
-          )}
         </div>
       </div>
 

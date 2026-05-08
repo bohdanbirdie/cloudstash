@@ -1,6 +1,7 @@
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 
 import { useChatContainer } from "@/components/chat/chat-container-context";
+import { Favicon } from "@/components/favicon";
 import { LinkImage } from "@/components/link-image";
 import { displayDescription, displayTitle } from "@/lib/link-display";
 import { linkByUrl$ } from "@/livestore/queries/links";
@@ -88,9 +89,7 @@ export function LinkMention({ href, children }: LinkMentionProps) {
         rel="noopener noreferrer"
         className="inline-flex items-center gap-1 rounded-sm border border-border bg-muted px-1.5 py-0.5 text-xs leading-none font-medium text-foreground no-underline hover:bg-primary hover:border-primary hover:text-primary-foreground transition-colors align-text-bottom"
       >
-        {link.favicon && (
-          <img src={link.favicon} alt="" className="size-3.5 rounded-sm" />
-        )}
+        <Favicon src={link.favicon} className="size-3.5 rounded-sm" />
         <span className="max-w-[200px] truncate">{displayText}</span>
       </a>
     );

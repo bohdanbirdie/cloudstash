@@ -1,3 +1,4 @@
+import { Favicon } from "@/components/favicon";
 import { CommandItem } from "@/components/ui/command";
 import { HighlightedText } from "@/components/ui/highlighted-text";
 import { displayTitle } from "@/lib/link-display";
@@ -19,15 +20,7 @@ export function ResultRow({ link, query, onSelect }: ResultRowProps) {
     >
       <div className="min-w-0 flex-1 space-y-0.5">
         <div className="flex items-center gap-2">
-          {link.favicon && (
-            <img
-              src={link.favicon}
-              alt=""
-              className="size-3.5 shrink-0"
-              loading="lazy"
-              decoding="async"
-            />
-          )}
+          <Favicon src={link.favicon} className="size-3.5 shrink-0" />
           {query ? (
             <HighlightedText
               text={link.domain}

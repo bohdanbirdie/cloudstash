@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 
+import { Favicon } from "@/components/favicon";
 import { LinkImage } from "@/components/link-image";
 import { TagCombobox } from "@/components/tags/tag-combobox/tag-combobox";
 import { Badge } from "@/components/ui/badge";
@@ -147,9 +148,7 @@ function ExistingLinkCard({ linkId }: { linkId: string }) {
       <LinkImage src={link.image} />
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
-          {link.favicon && (
-            <img src={link.favicon} alt="" className="h-4 w-4 shrink-0" />
-          )}
+          <Favicon src={link.favicon} className="h-4 w-4 shrink-0" />
           <span className="text-muted-foreground text-xs truncate">
             {link.domain}
           </span>

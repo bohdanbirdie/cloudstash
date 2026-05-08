@@ -1,5 +1,6 @@
 import { ExternalLink, Trash2 } from "lucide-react";
 
+import { Favicon } from "@/components/favicon";
 import { Button } from "@/components/ui/button";
 import { displayTitle } from "@/lib/link-display";
 import { linksByIds$ } from "@/livestore/queries/links";
@@ -22,13 +23,9 @@ function LinkPreview({ link }: { link: LinkWithDetails | null }) {
   return (
     <div className="flex items-center gap-3 py-1.5">
       {link.favicon ? (
-        <img
+        <Favicon
           src={link.favicon}
-          alt=""
           className="size-4 rounded-sm flex-shrink-0"
-          onError={(e) => {
-            e.currentTarget.style.display = "none";
-          }}
         />
       ) : (
         <ExternalLink className="size-4 text-muted-foreground flex-shrink-0" />
