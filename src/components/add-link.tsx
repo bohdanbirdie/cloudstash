@@ -35,7 +35,7 @@ interface OgMetadata {
   title?: string;
   description?: string;
   image?: string;
-  logo?: string;
+  favicon?: string;
   url?: string;
   error?: string;
 }
@@ -127,7 +127,7 @@ export function AddLinkProvider({ children }: { children: ReactNode }) {
         store.commit(
           events.linkMetadataFetched({
             description: metadata.description ?? null,
-            favicon: metadata.logo ?? null,
+            favicon: metadata.favicon ?? null,
             fetchedAt: new Date(),
             id: crypto.randomUUID(),
             image: metadata.image ?? null,
