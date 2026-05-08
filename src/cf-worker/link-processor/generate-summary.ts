@@ -115,7 +115,7 @@ export const generateSummary = Effect.fn("LinkProcessor.generateSummary")(
     const aiClient = yield* LinkProcessorAi;
 
     const output = yield* aiClient.generateObject({
-      maxOutputTokens: 250,
+      maxOutputTokens: 512,
       schema: summarySchema,
       system: SYSTEM_PROMPT,
       prompt: wrappedContent,

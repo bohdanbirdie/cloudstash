@@ -35,16 +35,17 @@ kanban-plugin: board
 - [ ] Make link list items even more vertically compact — tighten vertical padding/line-height in the list rows so more items fit on screen without sacrificing scan-ability.
 - [ ] Scope `j`/`k` link navigation hotkeys away from inputs — currently they fire globally and steal `j`/`k` keystrokes from any focused input/textarea/contenteditable, making it impossible to type those letters. Hotkey handler must check the active element (and respect any popover/dialog/listbox scope) before treating `j`/`k` as link nav.
 - [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.
+- [ ] Improve link summary UI/UX — better processing visuals on the link item (clearer in-flight state during AI summary generation, distinct from idle vs. failed) and a nicer summary preview in both the list row and the right-pane detail (typography, spacing, fade-in on arrival, possibly truncation+expand affordance for long summaries).
 
 ## In Progress
 
 - [ ] [[todos/app-redesign|Rethink app design]]
 - [ ] [[todos/links-list-performance|Fix links list rendering performance at 150+ links]]
-- [ ] Link generation fails locally after redesign
 
 ## Done
 
 - [ ] [[todos/publish-raycast-extension|Publish Raycast extension to Store]]
+- [x] Link generation fails locally after redesign — switched from JSON-mode (`Output.object`) to forced tool-calling pattern, upgraded `workers-ai-provider` 3.1.5→3.1.14 (vLLM `toolChoice` mismapping fix), settled on `@cf/meta/llama-3.3-70b-instruct-fp8-fast` for reliable schema adherence (IFEval 92.1, BFCL 77.3)
 - [x] Tag combobox redesign — Linear-style multi-select, dual click targets, frozen alphabetic ordering, deferred close-frame cleanup
 - [x] Tag manager modal rebuild — opaque dropdown, full-width row click target with pencil affordance, tag validation, modal lifecycle
 - [x] ActivityGrid render-cost cut — memoize cell/month/day element arrays so the ~400 React.createElement calls don't fire on unrelated commits (≈25× drop in self-time per render)

@@ -5,6 +5,7 @@ import { isValidTagName, sanitizeTagName } from "@/lib/tags";
 
 import { events } from "../../livestore/schema";
 import type { LinkId } from "../db/branded";
+import { safeErrorInfo } from "../log-utils";
 import { findMatchingTag } from "./fuzzy-match";
 import {
   AiSummaryGenerator,
@@ -171,7 +172,11 @@ export const processLink = ({
       Effect.gen(function* () {
         const linkStore = yield* LinkEventStore;
         yield* Effect.logError("Link processing failed").pipe(
-          Effect.annotateLogs({ errorTag: "AiCallError", url: error.url })
+          Effect.annotateLogs({
+            errorTag: "AiCallError",
+            url: error.url,
+            ...safeErrorInfo(error.cause),
+          })
         );
         yield* linkStore.commit(
           events.linkProcessingFailed({
