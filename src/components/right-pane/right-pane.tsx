@@ -2,7 +2,7 @@ import { motion } from "motion/react";
 import { useState } from "react";
 
 import { ActivityGrid } from "@/components/activity-grid/activity-grid";
-import { DetailView } from "@/components/right-pane/detail-view";
+import { DetailView } from "@/components/right-pane/detail-view/detail-view";
 import { RightPaneHeader } from "@/components/right-pane/right-pane-header";
 import { PopoverBoundaryProvider } from "@/components/ui/popover-boundary";
 import { ScrollArea } from "@/components/ui/scroll-area";
