@@ -40,7 +40,7 @@ pendingLinks$ subscription fires
 `processLink()` runs as an Effect pipeline per link:
 
 1. Commit `linkProcessingStarted` (DO commits this before calling `processLink` with `skipStartedEvent: true`)
-2. `MetadataFetcher` — fetch OG metadata (10s timeout, 2x retry, swallow failure)
+2. `MetadataFetcher` — fetch OG metadata (10s timeout, 2x retry, swallow failure). Pipeline: per-host extractors → JSON-LD → OG/Twitter → `<title>`. See [[metadata-extraction]].
 3. `ContentExtractor` — extract page content (15s timeout, 2x retry, swallow failure)
 4. `AiSummaryGenerator` — generate summary via Workers AI (30s timeout, no retry, **propagates error**)
 5. Commit `linkProcessingCompleted` or `linkProcessingFailed`

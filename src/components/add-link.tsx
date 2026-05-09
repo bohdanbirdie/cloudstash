@@ -1,3 +1,4 @@
+import type { Store } from "@livestore/livestore";
 import { Option, Schema } from "effect";
 import {
   createContext,
@@ -11,7 +12,7 @@ import { toast } from "sonner";
 
 import { track } from "@/lib/analytics";
 import { formatAgo } from "@/lib/time-ago";
-import { tables, events } from "@/livestore/schema";
+import { events, schema, tables } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
 import { useRightPaneStore } from "@/stores/right-pane-store";
 
@@ -36,8 +37,6 @@ interface OgMetadata {
   description?: string;
   image?: string;
   favicon?: string;
-  url?: string;
-  error?: string;
 }
 
 function normalizeUrl(urlString: string): string {
@@ -60,11 +59,33 @@ async function fetchMetadata(targetUrl: string): Promise<OgMetadata | null> {
       `/api/metadata?url=${encodeURIComponent(targetUrl)}`
     );
     if (!response.ok) return null;
-    const data: OgMetadata = await response.json();
-    if (data.error) return null;
-    return data;
+    return (await response.json()) as OgMetadata;
   } catch {
     return null;
+  }
+}
+
+async function fetchAndCommitMetadata(
+  store: Store<typeof schema>,
+  linkId: string,
+  url: string
+): Promise<void> {
+  try {
+    const metadata = await fetchMetadata(url);
+    if (!metadata) return;
+    store.commit(
+      events.linkMetadataFetched({
+        description: metadata.description ?? null,
+        favicon: metadata.favicon ?? null,
+        fetchedAt: new Date(),
+        id: crypto.randomUUID(),
+        image: metadata.image ?? null,
+        linkId,
+        title: metadata.title ?? null,
+      })
+    );
+  } catch {
+    // Background commit — never surface to the caller.
   }
 }
 
@@ -121,21 +142,9 @@ export function AddLinkProvider({ children }: { children: ReactNode }) {
       track("link_added");
       openDetail(linkId);
 
-      void (async () => {
-        const metadata = await fetchMetadata(validUrl);
-        if (!metadata) return;
-        store.commit(
-          events.linkMetadataFetched({
-            description: metadata.description ?? null,
-            favicon: metadata.favicon ?? null,
-            fetchedAt: new Date(),
-            id: crypto.randomUUID(),
-            image: metadata.image ?? null,
-            linkId,
-            title: metadata.title ?? null,
-          })
-        );
-      })();
+      // Runs in parallel with LinkProcessorDO — gives a card preview even if
+      // the DO is offline. The two metadata commits race; second one wins.
+      void fetchAndCommitMetadata(store, linkId, validUrl);
     },
     [store, openDetail]
   );

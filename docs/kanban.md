@@ -1,7 +1,5 @@
 ---
-
 kanban-plugin: board
-
 ---
 
 ## Todo
@@ -20,7 +18,6 @@ kanban-plugin: board
 - [ ] Replace OpenRouter with Cloudflare AI Gateway
 - [ ] [[todos/agent-context-chips-entry-points|Agent context chips + entry points]]
 
-
 ## In Progress
 
 - [ ] [[todos/weekly-digest-backend|Weekly Digest backend]]
@@ -32,7 +29,7 @@ kanban-plugin: board
 - [ ] Gate all agent UI on per-user feature flag — when agent is not enabled for a user: hide the AgentTrigger in the dock, ignore the `⌘J` hotkey, skip mounting `AgentChatProvider`/connection, and remove "agent" from any mode switching. Single capability check, applied everywhere.
 - [ ] Support `#tag` search in the bottom-dock search panel — typing `#` should suggest tags from the workspace and filter by them, complementing free-text search.
 - [ ] [[todos/mobile-view-review|Mobile view review + fixes]]
-
+- [ ] Improve link-card UI for failed/error fetches (404, 5xx, Cloudflare bot challenge, login walls). Today the row shows a near-empty card with the URL only. Surface the failure state explicitly (status code or category), keep the URL prominent so the user can verify, and offer a clear "retry" affordance distinct from regular reprocess. Affects link-list rows and the right-pane detail view.
 
 ## Done
 
@@ -77,11 +74,10 @@ kanban-plugin: board
 - [x] [[todos/done/monorepo-conversion|Convert project to monorepo]]
 - [x] [[todos/done/raycast-ingestion|Add Raycast ingestion path]]
 
-
-
-
 %% kanban:settings
+
 ```
 {"kanban-plugin":"board"}
 ```
+
 %%

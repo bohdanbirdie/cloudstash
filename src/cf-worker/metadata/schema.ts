@@ -21,5 +21,4 @@ export class OgMetadata extends Schema.Class<OgMetadata>("OgMetadata")({
   favicon: Schema.optional(Schema.String),
   image: Schema.optional(Schema.String),
   title: Schema.optional(Schema.String),
-  url: Schema.optional(Schema.String),
 }) {}
