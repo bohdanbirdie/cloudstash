@@ -1,7 +1,5 @@
 ---
-
 kanban-plugin: board
-
 ---
 
 ## Todo
@@ -19,7 +17,7 @@ kanban-plugin: board
 - [ ] Use Cloudflare Email instead of Resend
 - [ ] Replace OpenRouter with Cloudflare AI Gateway
 - [ ] [[todos/agent-context-chips-entry-points|Agent context chips + entry points]]
-
+- [ ] Connections modal revamp — current implementation is outdated and complicated. Rethink IA/UX for managing per-user integrations (Telegram, Raycast, API keys); simplify each flow, clarify "connection" vs "API key" framing, and consider how it relates to the new Settings entry point.
 
 ## In Progress
 
@@ -29,15 +27,15 @@ kanban-plugin: board
 - [ ] [[todos/mobile-view-review|Mobile view review + fixes]]
 - [ ] ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
 - [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.
-- [ ] Replace hand-rolled `InputOTP` with shadcn's `input-otp`-backed component — current `src/components/ui/input-otp.tsx` is a custom implementation skipped during the base-mira refresh. Adopt the registry version (adds `input-otp` dep, exposes `InputOTPGroup`/`InputOTPSlot`/`InputOTPSeparator`) and migrate `pending-approval.tsx` to the compose API.
 - [ ] Support `#tag` search in the bottom-dock search panel — typing `#` should suggest tags from the workspace and filter by them, complementing free-text search.
 - [ ] Let LLM suggest more tags from existing ones. Respect domains for tags as a fallback
 - [ ] Improve UX of tags strip, maybe add counters and exclude tags that are unused on the specific page
 - [ ] Reprocess button is useless without AI summary enabled
-
+- [ ] Landing page
 
 ## Done
 
+- [x] Replace hand-rolled `InputOTP` with shadcn's `input-otp`-backed component — current `src/components/ui/input-otp.tsx` is a custom implementation skipped during the base-mira refresh. Adopt the registry version (adds `input-otp` dep, exposes `InputOTPGroup`/`InputOTPSlot`/`InputOTPSeparator`) and migrate `pending-approval.tsx` to the compose API.
 - [ ] [[todos/links-list-performance|Fix links list rendering performance at 150+ links]]
 - [ ] [[todos/publish-raycast-extension|Publish Raycast extension to Store]]
 - [ ] [[todos/further-list-mount-perf|Further list-mount perf improvements]]
@@ -81,11 +79,10 @@ kanban-plugin: board
 - [x] [[todos/done/monorepo-conversion|Convert project to monorepo]]
 - [x] [[todos/done/raycast-ingestion|Add Raycast ingestion path]]
 
-
-
-
 %% kanban:settings
+
 ```
 {"kanban-plugin":"board"}
 ```
+
 %%

@@ -38,7 +38,6 @@ function InnerApp() {
     );
   }
 
-  // Show pending approval screen for unapproved users
   if (auth.userId && !auth.approved) {
     return <PendingApproval />;
   }

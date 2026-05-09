@@ -20,7 +20,7 @@ import { ConnectionMonitor } from "@/livestore/store";
 const DevToolsPanel = lazy(() =>
   import("@/components/dev-tools/dev-tools-panel").then((m) => ({
     default: m.DevToolsPanel,
-  })),
+  }))
 );
 
 export const Route = createFileRoute("/_authed")({
