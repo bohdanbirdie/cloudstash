@@ -14,11 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { SharedTooltipTrigger } from "@/components/ui/shared-tooltip";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import { deriveNewTag, MAX_TAG_NAME_LENGTH } from "@/lib/tags";
 import { allTags$, tagsByLink$ } from "@/livestore/queries/tags";
@@ -95,20 +91,18 @@ export function BulkTagPicker({
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <PopoverTrigger
-              render={
-                <Button size="icon-sm" variant="ghost" aria-label="Add tag">
-                  <TagIcon />
-                </Button>
-              }
-            />
-          }
-        />
-        <TooltipContent>Add tag</TooltipContent>
-      </Tooltip>
+      <SharedTooltipTrigger
+        payload="Add tag"
+        render={
+          <PopoverTrigger
+            render={
+              <Button size="icon-sm" variant="ghost" aria-label="Add tag">
+                <TagIcon />
+              </Button>
+            }
+          />
+        }
+      />
       <PopoverContent align="end" className="w-56 p-0">
         <Command>
           <CommandInput

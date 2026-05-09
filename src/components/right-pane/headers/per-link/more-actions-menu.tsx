@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { SharedTooltipTrigger } from "@/components/ui/shared-tooltip";
 import { cn } from "@/lib/utils";
 import { linkProcessingStatus$ } from "@/livestore/queries/links";
 import { events } from "@/livestore/schema";
@@ -48,11 +49,16 @@ export function MoreActionsMenu({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
+      <SharedTooltipTrigger
+        payload="More"
         render={
-          <Button size="icon-sm" variant="ghost" aria-label="More actions">
-            <EllipsisVerticalIcon />
-          </Button>
+          <DropdownMenuTrigger
+            render={
+              <Button size="icon-sm" variant="ghost" aria-label="More actions">
+                <EllipsisVerticalIcon />
+              </Button>
+            }
+          />
         }
       />
       <DropdownMenuContent align="end">

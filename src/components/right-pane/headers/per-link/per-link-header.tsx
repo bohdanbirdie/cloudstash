@@ -10,10 +10,9 @@ import { MoreActionsMenu } from "@/components/right-pane/headers/per-link/more-a
 import { useLinkActions } from "@/components/right-pane/headers/per-link/use-link-actions";
 import { Button } from "@/components/ui/button";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  SharedTooltipProvider,
+  SharedTooltipTrigger,
+} from "@/components/ui/shared-tooltip";
 import { useCommand } from "@/lib/keyboard";
 import { displayTitle } from "@/lib/link-display";
 import { linkById$ } from "@/livestore/queries/links";
@@ -59,23 +58,24 @@ function Loaded({ link }: { link: LinkWithDetails }) {
         <span />
       )}
 
-      <div className="flex items-center gap-1">
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={onCompleteToggle}
-          aria-label={completeMeta.label}
-        >
-          <IconSwap iconKey={completeAction}>
-            <CompleteIcon />
-          </IconSwap>
-          <span>{completeMeta.label}</span>
-        </Button>
+      <SharedTooltipProvider>
+        <div className="flex items-center gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onCompleteToggle}
+            aria-label={completeMeta.label}
+          >
+            <IconSwap iconKey={completeAction}>
+              <CompleteIcon />
+            </IconSwap>
+            <span>{completeMeta.label}</span>
+          </Button>
 
-        <CopyUrlButton url={link.url} />
+          <CopyUrlButton url={link.url} />
 
-        <Tooltip>
-          <TooltipTrigger
+          <SharedTooltipTrigger
+            payload="Open in new tab"
             render={
               <Button
                 size="icon-sm"
@@ -94,17 +94,16 @@ function Loaded({ link }: { link: LinkWithDetails }) {
               </Button>
             }
           />
-          <TooltipContent>Open in new tab</TooltipContent>
-        </Tooltip>
 
-        <ExportDialogButton ids={[link.id]} pageTitle={displayTitle(link)} />
+          <ExportDialogButton ids={[link.id]} pageTitle={displayTitle(link)} />
 
-        <MoreActionsMenu
-          linkId={link.id}
-          isDeleted={isDeleted}
-          onArchiveToggle={onArchiveToggle}
-        />
-      </div>
+          <MoreActionsMenu
+            linkId={link.id}
+            isDeleted={isDeleted}
+            onArchiveToggle={onArchiveToggle}
+          />
+        </div>
+      </SharedTooltipProvider>
     </div>
   );
 }

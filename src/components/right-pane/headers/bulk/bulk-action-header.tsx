@@ -10,10 +10,9 @@ import {
 } from "@/components/right-pane/headers/page-actions";
 import { Button } from "@/components/ui/button";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  SharedTooltipProvider,
+  SharedTooltipTrigger,
+} from "@/components/ui/shared-tooltip";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import { usePageStaticData } from "@/hooks/use-page-static-data";
 import { useCommand, useDismiss } from "@/lib/keyboard";
@@ -94,12 +93,13 @@ export function BulkActionHeader() {
             transition={{ duration: 0.12 }}
             className="absolute inset-0 z-30 flex items-center justify-between gap-2 bg-background pt-1.5 pb-2 px-3"
           >
-            <div className="flex items-center gap-1">
-              <span className="text-xs font-semibold text-primary tabular-nums">
-                {count} selected
-              </span>
-              <Tooltip>
-                <TooltipTrigger
+            <SharedTooltipProvider>
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-semibold text-primary tabular-nums">
+                  {count} selected
+                </span>
+                <SharedTooltipTrigger
+                  payload="Clear"
                   render={
                     <Button
                       size="icon-sm"
@@ -111,40 +111,38 @@ export function BulkActionHeader() {
                     </Button>
                   }
                 />
-                <TooltipContent>Clear</TooltipContent>
-              </Tooltip>
-            </div>
+              </div>
 
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1">
-                {primaryMeta && PrimaryIcon && (
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1">
+                  {primaryMeta && PrimaryIcon && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handlePrimary}
+                      aria-label={primaryMeta.label}
+                    >
+                      <PrimaryIcon />
+                      <span>{primaryMeta.label}</span>
+                    </Button>
+                  )}
+
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={handlePrimary}
-                    aria-label={primaryMeta.label}
+                    onClick={handleSecondary}
+                    aria-label={secondaryMeta.label}
                   >
-                    <PrimaryIcon />
-                    <span>{primaryMeta.label}</span>
+                    <SecondaryIcon />
+                    <span>{secondaryMeta.label}</span>
                   </Button>
-                )}
+                </div>
 
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleSecondary}
-                  aria-label={secondaryMeta.label}
-                >
-                  <SecondaryIcon />
-                  <span>{secondaryMeta.label}</span>
-                </Button>
-              </div>
+                <div className="flex items-center gap-1">
+                  <BulkTagPicker selectedIds={selectedIds} />
 
-              <div className="flex items-center gap-1">
-                <BulkTagPicker selectedIds={selectedIds} />
-
-                <Tooltip>
-                  <TooltipTrigger
+                  <SharedTooltipTrigger
+                    payload="Export"
                     render={
                       <Button
                         size="icon-sm"
@@ -156,10 +154,9 @@ export function BulkActionHeader() {
                       </Button>
                     }
                   />
-                  <TooltipContent>Export</TooltipContent>
-                </Tooltip>
+                </div>
               </div>
-            </div>
+            </SharedTooltipProvider>
           </motion.div>
         )}
       </AnimatePresence>

@@ -2,11 +2,7 @@ import { CheckCheck, CopyIcon } from "lucide-react";
 
 import { IconSwap } from "@/components/right-pane/headers/icon-swap";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { SharedTooltipTrigger } from "@/components/ui/shared-tooltip";
 import { useFlashFlag } from "@/hooks/use-flash-flag";
 
 export function CopyUrlButton({ url }: { url: string }) {
@@ -18,26 +14,20 @@ export function CopyUrlButton({ url }: { url: string }) {
   };
 
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            onClick={handleCopy}
-            aria-label="Copy URL"
-          >
-            <IconSwap iconKey={copied ? "copied" : "copy"}>
-              {copied ? (
-                <CheckCheck className="text-green-500" />
-              ) : (
-                <CopyIcon />
-              )}
-            </IconSwap>
-          </Button>
-        }
-      />
-      <TooltipContent>{copied ? "Copied" : "Copy URL"}</TooltipContent>
-    </Tooltip>
+    <SharedTooltipTrigger
+      payload={copied ? "Copied" : "Copy URL"}
+      render={
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          onClick={handleCopy}
+          aria-label="Copy URL"
+        >
+          <IconSwap iconKey={copied ? "copied" : "copy"}>
+            {copied ? <CheckCheck className="text-green-500" /> : <CopyIcon />}
+          </IconSwap>
+        </Button>
+      }
+    />
   );
 }

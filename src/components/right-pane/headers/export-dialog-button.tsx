@@ -3,11 +3,7 @@ import { useState } from "react";
 
 import { ExportDialog } from "@/components/export-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { SharedTooltipTrigger } from "@/components/ui/shared-tooltip";
 
 export function ExportDialogButton({
   ids,
@@ -20,21 +16,19 @@ export function ExportDialogButton({
 
   return (
     <>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              size="icon-sm"
-              variant="ghost"
-              onClick={() => setOpen(true)}
-              aria-label="Export"
-            >
-              <DownloadIcon />
-            </Button>
-          }
-        />
-        <TooltipContent>Export</TooltipContent>
-      </Tooltip>
+      <SharedTooltipTrigger
+        payload="Export"
+        render={
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            onClick={() => setOpen(true)}
+            aria-label="Export"
+          >
+            <DownloadIcon />
+          </Button>
+        }
+      />
       {open && (
         <ExportDialog
           open={open}
