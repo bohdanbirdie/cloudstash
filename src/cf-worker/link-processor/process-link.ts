@@ -21,12 +21,43 @@ interface ProcessLinkParams {
   skipStartedEvent?: boolean;
 }
 
+interface RecordFailureParams {
+  error: string;
+  errorTag: string;
+  logLevel: "warning" | "error";
+  logMessage: string;
+  annotations: Record<string, unknown>;
+}
+
 export const processLink = ({
   aiSummaryEnabled = false,
   link,
   skipStartedEvent = false,
-}: ProcessLinkParams) =>
-  Effect.gen(function* () {
+}: ProcessLinkParams) => {
+  const recordFailure = ({
+    error,
+    errorTag,
+    logLevel,
+    logMessage,
+    annotations,
+  }: RecordFailureParams) =>
+    Effect.gen(function* () {
+      const linkStore = yield* LinkEventStore;
+      yield* Effect.annotateCurrentSpan({ errorTag, ...annotations });
+      const log = logLevel === "error" ? Effect.logError : Effect.logWarning;
+      yield* log(logMessage).pipe(
+        Effect.annotateLogs({ errorTag, ...annotations })
+      );
+      yield* linkStore.commit(
+        events.linkProcessingFailed({
+          error,
+          linkId: link.id,
+          updatedAt: new Date(),
+        })
+      );
+    });
+
+  return Effect.gen(function* () {
     const metadataFetcher = yield* MetadataFetcher;
     const contentExtractor = yield* ContentExtractor;
     const aiGenerator = yield* AiSummaryGenerator;
@@ -44,7 +75,13 @@ export const processLink = ({
 
     const metadataResult = yield* metadataFetcher.fetch(link.url);
 
-    if (metadataResult) {
+    const hasAnyMetadata =
+      !!metadataResult.title ||
+      !!metadataResult.description ||
+      !!metadataResult.image ||
+      !!metadataResult.favicon;
+
+    if (hasAnyMetadata) {
       yield* linkStore.commit(
         events.linkMetadataFetched({
           description: metadataResult.description ?? null,
@@ -65,7 +102,9 @@ export const processLink = ({
         })
       );
     } else {
-      yield* Effect.logWarning("No metadata result");
+      yield* Effect.logWarning("Metadata fetched but empty").pipe(
+        Effect.annotateLogs({ url: link.url })
+      );
     }
 
     if (aiSummaryEnabled) {
@@ -168,38 +207,48 @@ export const processLink = ({
       attributes: { aiSummaryEnabled, linkId: link.id },
     }),
     Effect.annotateLogs({ linkId: link.id }),
-    Effect.catchTag("AiCallError", (error) =>
-      Effect.gen(function* () {
-        const linkStore = yield* LinkEventStore;
-        yield* Effect.logError("Link processing failed").pipe(
-          Effect.annotateLogs({
-            errorTag: "AiCallError",
-            url: error.url,
-            ...safeErrorInfo(error.cause),
-          })
-        );
-        yield* linkStore.commit(
-          events.linkProcessingFailed({
-            error: "AiCallError",
-            linkId: link.id,
-            updatedAt: new Date(),
-          })
-        );
-      })
-    ),
+    Effect.catchTags({
+      AiCallError: (error) =>
+        recordFailure({
+          error: "AiCallError",
+          errorTag: "AiCallError",
+          logLevel: "error",
+          logMessage: "Link processing failed",
+          annotations: { url: error.url, ...safeErrorInfo(error.cause) },
+        }),
+      MetadataFetchError: (error) =>
+        recordFailure({
+          error: `fetch:${error.statusCode}`,
+          errorTag: "MetadataFetchError",
+          logLevel: "warning",
+          logMessage: "Link processing failed: metadata fetch",
+          annotations: { statusCode: error.statusCode, url: error.url },
+        }),
+      MetadataParseError: (error) =>
+        recordFailure({
+          error: "fetch:unreadable",
+          errorTag: "MetadataParseError",
+          logLevel: "warning",
+          logMessage: "Link processing failed: metadata parse",
+          annotations: { cause: String(error.cause), url: error.url },
+        }),
+      TimeoutException: () =>
+        recordFailure({
+          error: "fetch:timeout",
+          errorTag: "TimeoutException",
+          logLevel: "warning",
+          logMessage: "Link processing failed: timeout",
+          annotations: { url: link.url },
+        }),
+    }),
     Effect.catchAllDefect((defect) =>
-      Effect.gen(function* () {
-        const linkStore = yield* LinkEventStore;
-        yield* Effect.logError("Link processing failed with defect").pipe(
-          Effect.annotateLogs({ defect: Cause.pretty(Cause.die(defect)) })
-        );
-        yield* linkStore.commit(
-          events.linkProcessingFailed({
-            error: "Defect",
-            linkId: link.id,
-            updatedAt: new Date(),
-          })
-        );
+      recordFailure({
+        error: "Defect",
+        errorTag: "Defect",
+        logLevel: "error",
+        logMessage: "Link processing failed with defect",
+        annotations: { defect: Cause.pretty(Cause.die(defect)) },
       })
     )
   );
+};
