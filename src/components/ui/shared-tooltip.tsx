@@ -3,12 +3,25 @@ import { createContext, useContext, useMemo } from "react";
 import type { ReactElement, ReactNode } from "react";
 
 import { TooltipContent } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 type SharedTooltipHandle = TooltipPrimitive.Handle<string>;
 
 const SharedTooltipContext = createContext<SharedTooltipHandle | null>(null);
 
-export function SharedTooltipProvider({ children }: { children: ReactNode }) {
+interface SharedTooltipProviderProps {
+  children: ReactNode;
+  hideArrow?: boolean;
+  contentClassName?: string;
+  positionerClassName?: string;
+}
+
+export function SharedTooltipProvider({
+  children,
+  hideArrow,
+  contentClassName,
+  positionerClassName,
+}: SharedTooltipProviderProps) {
   const handle = useMemo(() => TooltipPrimitive.createHandle<string>(), []);
   return (
     <SharedTooltipContext.Provider value={handle}>
@@ -16,7 +29,11 @@ export function SharedTooltipProvider({ children }: { children: ReactNode }) {
         {children}
         <TooltipPrimitive.Root handle={handle}>
           {({ payload }) => (
-            <TooltipContent className="data-[instant]:animate-none">
+            <TooltipContent
+              hideArrow={hideArrow}
+              className={cn("data-[instant]:animate-none", contentClassName)}
+              positionerClassName={positionerClassName}
+            >
               {payload}
             </TooltipContent>
           )}

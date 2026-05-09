@@ -1,6 +1,6 @@
-import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import { memo } from "react";
 
+import { SharedTooltipTrigger } from "@/components/ui/shared-tooltip";
 import { cn } from "@/lib/utils";
 
 import { bucket, BUCKET_CLASS, formatTooltipText } from "./build";
@@ -11,7 +11,6 @@ interface ActivityCellProps {
   isFuture: boolean;
   gridColumn: number;
   gridRow: number;
-  handle: TooltipPrimitive.Handle<string>;
   tabbable: boolean;
   dataIdx: number;
 }
@@ -22,7 +21,6 @@ export const ActivityCell = memo(function ActivityCell({
   isFuture,
   gridColumn,
   gridRow,
-  handle,
   tabbable,
   dataIdx,
 }: ActivityCellProps) {
@@ -37,8 +35,7 @@ export const ActivityCell = memo(function ActivityCell({
   const tooltip = formatTooltipText(count, dateLabel);
 
   return (
-    <TooltipPrimitive.Trigger
-      handle={handle}
+    <SharedTooltipTrigger
       payload={tooltip}
       render={
         <button

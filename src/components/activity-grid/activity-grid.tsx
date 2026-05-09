@@ -1,8 +1,7 @@
-import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import type { CSSProperties } from "react";
 import { memo, useCallback, useMemo, useState } from "react";
 
-import { TooltipContent } from "@/components/ui/tooltip";
+import { SharedTooltipProvider } from "@/components/ui/shared-tooltip";
 import { useNavigation } from "@/lib/keyboard";
 import { linkCreatedAts$ } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
@@ -28,8 +27,6 @@ const DAY_LABEL_COL = WEEKS + 1;
 export const ActivityGrid = memo(function ActivityGrid() {
   const store = useAppStore();
   const rows = store.useQuery(linkCreatedAts$);
-
-  const handle = useMemo(() => TooltipPrimitive.createHandle<string>(), []);
 
   const grid = useMemo(() => {
     const cells = buildCells(rows);
@@ -128,12 +125,11 @@ export const ActivityGrid = memo(function ActivityGrid() {
           isFuture={cell.isFuture}
           gridColumn={Math.floor(i / DAYS_PER_WEEK) + 1}
           gridRow={(i % DAYS_PER_WEEK) + 2}
-          handle={handle}
           tabbable={i === activeIdx}
           dataIdx={i}
         />
       )),
-    [grid.cells, handle, activeIdx]
+    [grid.cells, activeIdx]
   );
 
   return (
@@ -141,7 +137,11 @@ export const ActivityGrid = memo(function ActivityGrid() {
       <div className="pt-3 pb-2 text-xs/6 font-semibold text-muted-foreground">
         Activity
       </div>
-      <TooltipPrimitive.Provider closeDelay={150} delay={0}>
+      <SharedTooltipProvider
+        hideArrow
+        contentClassName="pointer-events-none rounded-md"
+        positionerClassName="pointer-events-none"
+      >
         <div
           ref={containerRef}
           onFocus={handleFocus}
@@ -152,20 +152,7 @@ export const ActivityGrid = memo(function ActivityGrid() {
           {dayEls}
           {cellEls}
         </div>
-
-        <TooltipPrimitive.Root handle={handle}>
-          {({ payload }) => (
-            <TooltipContent
-              side="top"
-              hideArrow
-              className="pointer-events-none rounded-md data-[instant]:animate-none"
-              positionerClassName="pointer-events-none"
-            >
-              {payload}
-            </TooltipContent>
-          )}
-        </TooltipPrimitive.Root>
-      </TooltipPrimitive.Provider>
+      </SharedTooltipProvider>
     </div>
   );
 });
