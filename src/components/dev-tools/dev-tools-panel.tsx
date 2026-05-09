@@ -11,7 +11,6 @@ import type { ComponentType } from "react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { useAppStore } from "@/livestore/store";
 
 const MOTEL_TRACES_URL = "http://127.0.0.1:27686/traces";
@@ -26,7 +25,7 @@ export function DevToolsPanel() {
         variant="outline"
         size="icon-sm"
         onClick={() => setCollapsed(false)}
-        className="bg-card/95 fixed bottom-3 left-3 z-40 shadow-md backdrop-blur"
+        className="bg-card/95 fixed bottom-3 left-3 z-[9999] shadow-md backdrop-blur"
         aria-label="Open dev tools"
       >
         <WrenchIcon />
@@ -35,28 +34,33 @@ export function DevToolsPanel() {
   }
 
   return (
-    <div className="bg-card/95 border-border fixed bottom-3 left-3 z-40 flex items-center gap-1 rounded-md border p-1 shadow-md backdrop-blur">
-      <DevToolsLink href={MOTEL_TRACES_URL} icon={ActivityIcon}>
-        Traces
-      </DevToolsLink>
-      <DevToolsLink href={LOCAL_EXPLORER_URL} icon={CompassIcon}>
-        Explorer
-      </DevToolsLink>
-      <LivestoreDevtoolsLink />
-      <Separator orientation="vertical" className="mx-0.5 h-5" />
-      <FPSMeter
-        className="border-border rounded-sm border bg-black"
-        height={28}
-      />
-      <Separator orientation="vertical" className="mx-0.5 h-5" />
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        onClick={() => setCollapsed(true)}
-        aria-label="Collapse dev tools"
-      >
-        <ChevronLeftIcon />
-      </Button>
+    <div className="bg-card/95 border-border fixed bottom-3 left-3 z-[9999] flex flex-col gap-1 rounded-md border p-1 shadow-md backdrop-blur">
+      <div className="flex items-center justify-between gap-1 pl-1">
+        <span className="text-muted-foreground text-xs font-medium">
+          Dev tools
+        </span>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => setCollapsed(true)}
+          aria-label="Collapse dev tools"
+        >
+          <ChevronLeftIcon />
+        </Button>
+      </div>
+      <div className="grid grid-cols-2 gap-1">
+        <DevToolsLink href={MOTEL_TRACES_URL} icon={ActivityIcon}>
+          Traces
+        </DevToolsLink>
+        <DevToolsLink href={LOCAL_EXPLORER_URL} icon={CompassIcon}>
+          Explorer
+        </DevToolsLink>
+        <LivestoreDevtoolsLink />
+        <FPSMeter
+          className="border-border rounded-sm border bg-black"
+          height={24}
+        />
+      </div>
     </div>
   );
 }
