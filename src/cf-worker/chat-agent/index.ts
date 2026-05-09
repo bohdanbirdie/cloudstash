@@ -157,7 +157,7 @@ export class ChatAgentDO
   private orgFeaturesLayer() {
     return OrgFeaturesLive.pipe(
       Layer.provide(DbClientLive(this.env.DB)),
-      Layer.provideMerge(OtelTracingLive(this.env))
+      Layer.provideMerge(OtelTracingLive)
     );
   }
 
@@ -250,13 +250,14 @@ export class ChatAgentDO
           messages,
           tools,
           stopWhen: stepCountIs(5),
+          experimental_telemetry: { isEnabled: true },
           onFinish: ({ usage }) => {
             void this.recordTokenUsage(
               usage.inputTokens ?? 0,
               usage.outputTokens ?? 0
             ).pipe(
               Effect.tap(() => Effect.promise(() => this.broadcastUsage())),
-              Effect.provide(OtelTracingLive(this.env)),
+              Effect.provide(OtelTracingLive),
               Effect.runPromise
             );
           },
@@ -285,13 +286,14 @@ export class ChatAgentDO
           messages,
           tools,
           stopWhen: stepCountIs(5),
+          experimental_telemetry: { isEnabled: true },
           onFinish: ({ usage }) => {
             void this.recordTokenUsage(
               usage.inputTokens ?? 0,
               usage.outputTokens ?? 0
             ).pipe(
               Effect.tap(() => Effect.promise(() => this.broadcastUsage())),
-              Effect.provide(OtelTracingLive(this.env)),
+              Effect.provide(OtelTracingLive),
               Effect.runPromise
             );
           },

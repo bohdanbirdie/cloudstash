@@ -234,8 +234,7 @@ export class LinkProcessorDO
             );
           },
           { concurrency: "unbounded", discard: true }
-        ),
-        this.env
+        )
       );
     });
 
@@ -323,8 +322,7 @@ export class LinkProcessorDO
             });
           }),
           Effect.provide(this.buildDoLayer(store))
-        ),
-        this.env
+        )
       ).catch((error) => {
         logger.error("cancelStaleLinks failed", safeErrorInfo(error));
       });
@@ -442,8 +440,7 @@ export class LinkProcessorDO
           )
         ),
         Effect.provide(doLayer)
-      ),
-      this.env
+      )
     ).catch((error) => {
       logger.error("sendProgressDraft escaped", safeErrorInfo(error));
     });
@@ -465,8 +462,7 @@ export class LinkProcessorDO
             })
           ),
           Effect.provide(doLayer)
-        ),
-        this.env
+        )
       ).catch((error) => {
         logger.error("notifyResult effect failed", {
           ...safeErrorInfo(error),
@@ -521,8 +517,7 @@ export class LinkProcessorDO
         storeId: msg.storeId,
         source: msg.source,
         sourceMeta: msg.sourceMeta,
-      }).pipe(Effect.provide(doLayer)),
-      this.env
+      }).pipe(Effect.provide(doLayer))
     );
 
     if (

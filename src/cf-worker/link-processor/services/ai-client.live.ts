@@ -22,6 +22,7 @@ export const LinkProcessorAiLive = Layer.effect(
             catch: (cause) => new AiCallError({ cause }),
             try: () =>
               generateText({
+                experimental_telemetry: { isEnabled: true },
                 maxOutputTokens,
                 model: workersAI(AI_MODEL),
                 prompt,

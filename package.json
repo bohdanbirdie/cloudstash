@@ -4,9 +4,11 @@
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vp dev --port 3000",
+    "dev": "bunx @kitlangton/motel start && vp dev --port 3000",
     "dev:infra": "bun run --parallel dev:emulate dev:tunnel dev:dashboard dev:raycast",
     "dev:emulate": "bunx emulate start --service google --seed emulate.config.yaml",
+    "motel:tui": "bunx @kitlangton/motel",
+    "motel:stop": "bunx @kitlangton/motel stop",
     "dev:make-admin": "wrangler d1 execute DB --local --command \"UPDATE user SET approved = 1, role = 'admin' WHERE email = 'admin@cloudstash.test'\"",
     "email:dev": "email dev -d src/cf-worker/email/templates -p 3001",
     "dev:tunnel": "bun scripts/telegram-tunnel.ts",

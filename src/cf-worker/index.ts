@@ -116,9 +116,7 @@ app.post("/api/invites/redeem", (c) => handleRedeemInvite(c.req.raw, c.env));
 
 app.get("/api/metadata", (c) =>
   Effect.runPromise(
-    metadataRequestToResponse(c.req.raw).pipe(
-      Effect.provide(OtelTracingLive(c.env))
-    )
+    metadataRequestToResponse(c.req.raw).pipe(Effect.provide(OtelTracingLive))
   )
 );
 

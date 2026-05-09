@@ -2,6 +2,7 @@ import { Effect, Schema } from "effect";
 
 import type { LinkQueueMessage } from "./link-processor/types";
 import { safeErrorInfo } from "./log-utils";
+import { OtelTracingLive } from "./tracing";
 
 /**
  * Queue consumer config — must match wrangler.toml [[queues.consumers]]:
@@ -72,5 +73,5 @@ export async function handleQueueBatch(
         })
       ),
     { concurrency: BATCH_CONCURRENCY, discard: true }
-  ).pipe(Effect.runPromise);
+  ).pipe(Effect.provide(OtelTracingLive), Effect.runPromise);
 }

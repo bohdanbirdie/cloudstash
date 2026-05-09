@@ -59,5 +59,5 @@ export const AuthClientLive = (env: Env) =>
 export const AppLayerLive = (env: Env) =>
   AuthClientLive(env).pipe(
     Layer.provideMerge(DbClientLive(env.DB)),
-    Layer.provideMerge(OtelTracingLive(env))
+    Layer.provideMerge(OtelTracingLive)
   );

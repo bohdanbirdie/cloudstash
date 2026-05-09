@@ -16,6 +16,9 @@ todos.json
 # Localflare generated files
 .localflare/
 
+# Motel local telemetry store
+.motel-data/
+
 # Coverage reports
 coverage/
 
