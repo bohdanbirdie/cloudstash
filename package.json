@@ -1,6 +1,7 @@
 {
   "name": "cloudstash",
   "private": true,
+  "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vp dev --port 3000",

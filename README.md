@@ -236,4 +236,6 @@ Uses `bun` (not npm) and `oxlint`/`oxfmt` via Vite+ (not eslint).
 
 ## License
 
-MIT
+Source available under the [PolyForm Noncommercial 1.0.0](LICENSE) license.
+
+You may clone, modify, and self-host Cloudstash for any non-commercial purpose — personal use, hobby projects, study, contributions back to this repository, etc. Commercial use (including running it as a paid service, monetizing it, or building a paid product on top of it) requires a separate license.
