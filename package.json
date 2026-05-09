@@ -110,9 +110,9 @@
     "zustand": "5.0.12"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.32.3",
+    "@cloudflare/vite-plugin": "1.36.3",
     "@cloudflare/vitest-pool-workers": "0.12.21",
-    "@cloudflare/workers-types": "4.20260414.1",
+    "@cloudflare/workers-types": "4.20260509.1",
     "@effect/language-service": "0.81.0",
     "@effect/vitest": "0.29.0",
     "@livestore/devtools-vite": "0.0.0-snapshot-86c8d65816a9de8b2599654155ffb80951627223.mltzt7p9",
@@ -142,7 +142,7 @@
     "vite-tsconfig-paths": "6.1.1",
     "vitest": "3.2.4",
     "web-vitals": "^5.1.0",
-    "wrangler": "4.83.0"
+    "wrangler": "4.90.0"
   },
   "packageManager": "bun@1.3.11",
   "cloudflare": {
