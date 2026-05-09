@@ -10,8 +10,11 @@ import {
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 
+import { Favicon } from "@/components/favicon";
 import { track } from "@/lib/analytics";
+import { displayTitle } from "@/lib/link-display";
 import { formatAgo } from "@/lib/time-ago";
+import { linkById$ } from "@/livestore/queries/links";
 import { events, schema, tables } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
 import { useRightPaneStore } from "@/stores/right-pane-store";
@@ -114,8 +117,20 @@ export function AddLinkProvider({ children }: { children: ReactNode }) {
         (link) => normalizeUrl(link.url) === normalized
       );
       if (existing) {
+        const details = store.query(linkById$(existing.id));
+        const linkLike = details ?? { title: null, url: existing.url };
         toast("Already saved", {
-          description: `Saved ${formatAgo(existing.createdAt)}`,
+          description: (
+            <div className="flex min-w-0 items-center gap-2">
+              <Favicon
+                src={details?.favicon}
+                className="size-3.5 shrink-0 rounded-[2px]"
+              />
+              <span className="truncate">
+                {displayTitle(linkLike)} · {formatAgo(existing.createdAt)}
+              </span>
+            </div>
+          ),
           action: {
             label: "View",
             onClick: () => openDetail(existing.id),

@@ -21,6 +21,11 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { usePopoverBoundary } from "@/components/ui/popover-boundary";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import {
   deriveNewTag,
@@ -244,31 +249,44 @@ export function TagCombobox({
             #{tag.name}
           </PopoverTrigger>
         ))}
-        <PopoverTrigger
-          render={
-            <Button
-              type="button"
-              size="icon-xs"
-              variant="outline"
-              aria-label={
-                hasSuggestions
-                  ? `Edit tags (${pendingSuggestions.length} suggested)`
-                  : selectedTags.length > 0
-                    ? "Edit tags"
-                    : "Add tags"
-              }
-              className="relative"
-            />
-          }
-        >
-          <PlusIcon />
-          {hasSuggestions && (
-            <span
-              aria-hidden="true"
-              className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary"
-            />
-          )}
-        </PopoverTrigger>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <PopoverTrigger
+                render={
+                  <Button
+                    type="button"
+                    size="icon-xs"
+                    variant="outline"
+                    aria-label={
+                      hasSuggestions
+                        ? `Edit tags (${pendingSuggestions.length} suggested)`
+                        : selectedTags.length > 0
+                          ? "Edit tags"
+                          : "Add tags"
+                    }
+                    className="relative"
+                  />
+                }
+              >
+                <PlusIcon />
+                {hasSuggestions && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary"
+                  />
+                )}
+              </PopoverTrigger>
+            }
+          />
+          <TooltipContent>
+            {hasSuggestions
+              ? `${pendingSuggestions.length} tag suggestion${pendingSuggestions.length === 1 ? "" : "s"}`
+              : selectedTags.length > 0
+                ? "Edit tags"
+                : "Add tags"}
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       <PopoverContent
