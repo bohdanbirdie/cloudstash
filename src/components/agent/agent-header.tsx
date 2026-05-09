@@ -1,4 +1,4 @@
-import { SparklesIcon, XIcon } from "lucide-react";
+import { MessageCircleIcon, XIcon } from "lucide-react";
 
 import { UsageIndicator } from "@/components/chat/chat-content/usage-indicator";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ export function AgentHeader({ onClose }: AgentHeaderProps) {
   return (
     <header className="flex h-7 shrink-0 items-center justify-between border-b border-border px-2">
       <div className="flex items-center gap-1">
-        <SparklesIcon className="size-3 text-primary" />
+        <MessageCircleIcon className="size-3 text-primary" />
         <span className="text-xs font-medium">Assistant</span>
         {!isConnected && (
           <span className="size-1.5 animate-pulse rounded-full bg-yellow-500" />

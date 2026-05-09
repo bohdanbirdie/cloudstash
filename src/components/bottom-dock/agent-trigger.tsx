@@ -1,4 +1,4 @@
-import { SparklesIcon } from "lucide-react";
+import { MessageCircleIcon } from "lucide-react";
 
 import { getHotkeyLabel } from "@/lib/hotkey-label";
 import { cn } from "@/lib/utils";
@@ -21,7 +21,7 @@ export function AgentTrigger({ active, onClick }: AgentTriggerProps) {
         active ? "z-10 border-primary/40" : "border-border"
       )}
     >
-      <SparklesIcon
+      <MessageCircleIcon
         className="size-4 text-muted-foreground"
         strokeWidth={1.75}
       />

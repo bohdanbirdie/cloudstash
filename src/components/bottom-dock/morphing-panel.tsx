@@ -11,7 +11,9 @@ import {
 import { AgentHeader } from "@/components/agent/agent-header";
 import { InputForm } from "@/components/agent/agent-input";
 import { AgentPanel } from "@/components/agent/agent-panel";
+import { AgentPlaceholderPanel } from "@/components/agent/agent-placeholder-panel";
 import { AgentSkeleton } from "@/components/agent/agent-skeleton";
+import { useOrgFeatures } from "@/hooks/use-org-features";
 import type { LinkWithDetails, SearchResult } from "@/livestore/queries/links";
 import type { DockMode } from "@/stores/dock-store";
 
@@ -76,6 +78,8 @@ export function MorphingPanel({
   const isOpen = mode !== "closed";
   const sessionKey = sessionRef.current;
 
+  const { isLoading: isLoadingFeatures, isChatEnabled } = useOrgFeatures();
+
   const searchSlot = (
     <SearchContent
       query={query.trim()}
@@ -84,6 +88,38 @@ export function MorphingPanel({
       onSelect={onSelect}
     />
   );
+
+  const renderSwitcher = (agentSlot: React.ReactNode) => (
+    <ContentSwitcher
+      key={sessionKey}
+      displayMode={nextDisplayMode}
+      searchSlot={searchSlot}
+      agentSlot={agentSlot}
+    />
+  );
+
+  let content: React.ReactNode;
+  if (!orgId || isLoadingFeatures) {
+    content = renderSwitcher(
+      orgId ? <AgentPlaceholderPanel variant="loading" /> : null
+    );
+  } else if (!isChatEnabled) {
+    content = renderSwitcher(<AgentPlaceholderPanel variant="promo" />);
+  } else if (!agentEverOpened) {
+    content = renderSwitcher(null);
+  } else {
+    content = (
+      <AgentConnectionProvider workspaceId={orgId}>
+        <AgentInputProvider textareaRef={agentTextareaRef}>
+          <Suspense fallback={<SkeletonAgentPanel onClose={onClose} />}>
+            <AgentChatProvider>
+              {renderSwitcher(<AgentPanel onClose={onClose} />)}
+            </AgentChatProvider>
+          </Suspense>
+        </AgentInputProvider>
+      </AgentConnectionProvider>
+    );
+  }
 
   return (
     <motion.div
@@ -106,29 +142,7 @@ export function MorphingPanel({
       }}
       className={POPUP_CLASS}
     >
-      {orgId && agentEverOpened ? (
-        <AgentConnectionProvider workspaceId={orgId}>
-          <AgentInputProvider textareaRef={agentTextareaRef}>
-            <Suspense fallback={<SkeletonAgentPanel onClose={onClose} />}>
-              <AgentChatProvider>
-                <ContentSwitcher
-                  key={sessionKey}
-                  displayMode={nextDisplayMode}
-                  searchSlot={searchSlot}
-                  agentSlot={<AgentPanel onClose={onClose} />}
-                />
-              </AgentChatProvider>
-            </Suspense>
-          </AgentInputProvider>
-        </AgentConnectionProvider>
-      ) : (
-        <ContentSwitcher
-          key={sessionKey}
-          displayMode={nextDisplayMode}
-          searchSlot={searchSlot}
-          agentSlot={null}
-        />
-      )}
+      {content}
     </motion.div>
   );
 }

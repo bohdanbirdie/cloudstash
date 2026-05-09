@@ -28,6 +28,7 @@ export function useOrgFeatures() {
 
   return {
     features,
+    isLoading: data === undefined,
     isChatEnabled: features.chatAgentEnabled ?? false,
     isAiSummaryEnabled: features.aiSummary ?? false,
     monthlyTokenBudget: features.monthlyTokenBudget ?? DEFAULT_MONTHLY_BUDGET,
