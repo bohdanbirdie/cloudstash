@@ -95,29 +95,21 @@ const DetailViewInner = memo(function DetailViewInner({
     [store]
   );
 
-  const pending = link.title == null;
   const titleText = displayTitle(link);
   const descriptionText = displayDescription(link);
 
   return (
     <div className="relative flex flex-col gap-6 pl-3 pb-8">
       <div className="aspect-video w-full overflow-hidden rounded-sm">
-        <LinkPreviewImage src={link.image} loading="eager" pending={pending} />
+        <LinkPreviewImage src={link.image} loading="eager" />
       </div>
 
       <MetaRow link={link} />
 
       <div className="flex flex-col gap-2">
-        {pending ? (
-          <div
-            aria-hidden="true"
-            className="my-1 h-6 w-3/4 animate-pulse rounded-sm bg-muted"
-          />
-        ) : (
-          <h2 className="text-2xl font-bold leading-tight text-foreground text-balance">
-            {titleText}
-          </h2>
-        )}
+        <h2 className="text-2xl font-bold leading-tight text-foreground text-balance">
+          {titleText}
+        </h2>
         {descriptionText && <DescriptionBody text={descriptionText} />}
       </div>
 

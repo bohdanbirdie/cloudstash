@@ -31,7 +31,6 @@ function LinkListItemImpl({
   onMouseEnter,
   onCheckboxClick,
 }: LinkListItemProps) {
-  const pending = link.title == null;
   const titleText = displayTitle(link);
   const showCheckbox = selected || previewing;
 
@@ -78,16 +77,9 @@ function LinkListItemImpl({
         )}
 
         <div className="flex min-w-0 flex-col gap-1.5">
-          {pending ? (
-            <div
-              aria-hidden="true"
-              className="my-1 h-3.5 w-3/5 animate-pulse rounded-sm bg-muted"
-            />
-          ) : (
-            <div className="line-clamp-2 text-base font-medium leading-snug text-foreground text-pretty">
-              {titleText}
-            </div>
-          )}
+          <div className="line-clamp-2 text-base font-medium leading-snug text-foreground text-pretty">
+            {titleText}
+          </div>
           <div className="flex min-w-0 items-center gap-3 overflow-hidden text-xs text-muted-foreground">
             <a
               href={link.url}
@@ -130,7 +122,7 @@ function LinkListItemImpl({
       </div>
 
       <div className="aspect-[16/9] overflow-hidden rounded-sm">
-        <LinkPreviewImage src={link.image} pending={pending} />
+        <LinkPreviewImage src={link.image} />
       </div>
     </button>
   );

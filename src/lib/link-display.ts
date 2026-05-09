@@ -7,7 +7,9 @@ interface LinkLike {
 }
 
 export function displayTitle(link: LinkLike): string {
-  return link.title ? decodeHtmlEntities(link.title) : link.url;
+  if (link.title) return decodeHtmlEntities(link.title);
+  const parsed = URL.parse(link.url);
+  return parsed ? `${parsed.origin}${parsed.pathname}` : link.url;
 }
 
 export function displayDescription(link: LinkLike): string | null {
