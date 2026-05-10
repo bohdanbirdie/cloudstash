@@ -151,39 +151,9 @@ export class LinkProcessorDO
   private async createStoreInternal(): Promise<Store<typeof schema>> {
     const sessionId = await this.getSessionId();
 
-    // TODO: likely all thise custom SQL should be deleted, it's might be a leftover from our issue previous week, history is in git
-    let eventlogRows = 0;
-    let maxSeqNum = 0;
-    try {
-      const hasTable =
-        [
-          ...this.ctx.storage.sql
-            .exec<{ count: number }>(
-              "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='eventlog'"
-            )
-            .toArray(),
-        ][0]?.count ?? 0;
-
-      if (hasTable > 0) {
-        const stats = [
-          ...this.ctx.storage.sql
-            .exec<{ rows: number; maxSeq: number }>(
-              "SELECT COUNT(*) as rows, COALESCE(MAX(seqNumGlobal), 0) as maxSeq FROM eventlog"
-            )
-            .toArray(),
-        ][0];
-        eventlogRows = stats?.rows ?? 0;
-        maxSeqNum = stats?.maxSeq ?? 0;
-      }
-    } catch {
-      logger.warn("Failed to read eventlog stats");
-    }
-
     logger.info("Creating store", {
       sessionId: maskId(sessionId),
       storeId: maskId(this.storeId!),
-      existingEventlogRows: eventlogRows,
-      maxSeqNumGlobal: maxSeqNum,
     });
 
     this.cachedStore = await createStoreDoPromise({

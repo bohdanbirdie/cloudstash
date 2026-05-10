@@ -1,5 +1,7 @@
 ---
+
 kanban-plugin: board
+
 ---
 
 ## Todo
@@ -20,6 +22,7 @@ kanban-plugin: board
 - [ ] [[todos/multi-chat-architecture|Multi-chat architecture (separate DOs + central livestore)]]
 - [ ] Connections modal revamp — current implementation is outdated and complicated. Rethink IA/UX for managing per-user integrations (Telegram, Raycast, API keys); simplify each flow, clarify "connection" vs "API key" framing, and consider how it relates to the new Settings entry point.
 
+
 ## In Progress
 
 - [ ] [[todos/weekly-digest-backend|Weekly Digest backend]]
@@ -31,8 +34,8 @@ kanban-plugin: board
 - [ ] Let LLM suggest more tags from existing ones. Respect domains for tags as a fallback
 - [ ] Improve UX of tags strip, maybe add counters and exclude tags that are unused on the specific page
 - [ ] Landing page
-- [ ] Clenaup createStoreInternal
 - [ ] AI summary loading messages like in agents, eg swap phrases
+
 
 ## Done
 
@@ -47,6 +50,7 @@ kanban-plugin: board
 - [ ] Improve link-card UI for failed/error fetches (404, 5xx, Cloudflare bot challenge, login walls). Today the row shows a near-empty card with the URL only. Surface the failure state explicitly (status code or category), keep the URL prominent so the user can verify, and offer a clear "retry" affordance distinct from regular reprocess. Affects link-list rows and the right-pane detail view.
 - [ ] Reprocess button is useless without AI summary enabled
 - [ ] Failed-summary state needs a path forward — right-pane detail currently shows a flat "Summary generation failed" with no retry affordance. Surface a one-line cause (when available) and a clear "Try again" action that triggers reprocess. Consider whether the same treatment belongs on the link list row.
+- [ ] Clenaup createStoreInternal
 - [ ] Gate all agent UI on per-user feature flag — when agent is not enabled for a user: hide the AgentTrigger in the dock, ignore the `⌘J` hotkey, skip mounting `AgentChatProvider`/connection, and remove "agent" from any mode switching. Single capability check, applied everywhere.
 - [ ] Make link list items even more vertically compact — tighten vertical padding/line-height in the list rows so more items fit on screen. As part of this, rework the row's processing visuals (currently `BorderTrail`) so the in-flight AI-summary state reads clearly at the new density and is distinguishable from idle and failed.
 - [ ] Pop-animate newly added link items in the list — when a link is added via the UI or arrives via livestore sync, animate its entry into the list. Must NOT animate on filter/category changes (only genuinely new items). Likely needs to track "seen" ids and only animate ones that weren't in the previous result set.
@@ -83,10 +87,11 @@ kanban-plugin: board
 - [x] [[todos/done/monorepo-conversion|Convert project to monorepo]]
 - [x] [[todos/done/raycast-ingestion|Add Raycast ingestion path]]
 
-%% kanban:settings
 
+
+
+%% kanban:settings
 ```
 {"kanban-plugin":"board"}
 ```
-
 %%
