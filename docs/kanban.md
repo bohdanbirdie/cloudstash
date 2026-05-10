@@ -1,7 +1,5 @@
 ---
-
 kanban-plugin: board
-
 ---
 
 ## Todo
@@ -22,7 +20,6 @@ kanban-plugin: board
 - [ ] [[todos/multi-chat-architecture|Multi-chat architecture (separate DOs + central livestore)]]
 - [ ] Connections modal revamp — current implementation is outdated and complicated. Rethink IA/UX for managing per-user integrations (Telegram, Raycast, API keys); simplify each flow, clarify "connection" vs "API key" framing, and consider how it relates to the new Settings entry point.
 
-
 ## In Progress
 
 - [ ] [[todos/weekly-digest-backend|Weekly Digest backend]]
@@ -37,7 +34,6 @@ kanban-plugin: board
 - [ ] Landing page
 - [ ] Clenaup createStoreInternal
 - [ ] AI summary loading messages like in agents, eg swap phrases
-
 
 ## Done
 
@@ -87,11 +83,10 @@ kanban-plugin: board
 - [x] [[todos/done/monorepo-conversion|Convert project to monorepo]]
 - [x] [[todos/done/raycast-ingestion|Add Raycast ingestion path]]
 
-
-
-
 %% kanban:settings
+
 ```
 {"kanban-plugin":"board"}
 ```
+
 %%

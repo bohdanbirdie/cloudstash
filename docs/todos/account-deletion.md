@@ -42,17 +42,19 @@ Each step idempotent. Step retry: 5 retries, 10s base, exponential backoff, 1m t
 
 Three Effect Tags total — no service ceremony:
 
-| Tag               | Where                                 | Responsibility                                                                                                              |
-| ----------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `DbClient`        | `db/service.ts` (existing)            | Drizzle wrapper                                                                                                             |
-| `DeletionRuntime` | `account-deletion/runtime.ts`         | Wraps env (DO + Workflow bindings) as Effect-typed methods. Single `DeletionRuntimeError` with `op` discriminator.          |
-| `CfStep`          | `account-deletion/workflow.ts`        | Per-invocation: the `step` arg from `WorkflowEntrypoint.run()`. Provided via `Layer.succeed(CfStep, step)` at the workflow entry; tests substitute a duck-typed mock. |
+| Tag               | Where                          | Responsibility                                                                                                                                                        |
+| ----------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DbClient`        | `db/service.ts` (existing)     | Drizzle wrapper                                                                                                                                                       |
+| `DeletionRuntime` | `account-deletion/runtime.ts`  | Wraps env (DO + Workflow bindings) as Effect-typed methods. Single `DeletionRuntimeError` with `op` discriminator.                                                    |
+| `CfStep`          | `account-deletion/workflow.ts` | Per-invocation: the `step` arg from `WorkflowEntrypoint.run()`. Provided via `Layer.succeed(CfStep, step)` at the workflow entry; tests substitute a duck-typed mock. |
 
 The orchestration is one `Effect.gen` over those Tags. A single `step(name, body, options?)` helper bridges Effect → CF's Promise callback in **one place**:
 
 ```ts
-yield* step("purge-telegram", runtime.purgeTelegram(userId, orgId), STEP_RETRY);
-yield* step("wipe-link-processor", runtime.purgeLinkProcessor(orgId), STEP_RETRY);
+yield *
+  step("purge-telegram", runtime.purgeTelegram(userId, orgId), STEP_RETRY);
+yield *
+  step("wipe-link-processor", runtime.purgeLinkProcessor(orgId), STEP_RETRY);
 ```
 
 The CF Workflow class (`workflows/account-deletion.ts`) is a ~30-line shell: decode payload via `Schema.decodeUnknown` **inside** the Effect chain, provide `AppLayerLive(env)`, run with `Effect.tapErrorCause(Cause.pretty)`.
@@ -111,12 +113,12 @@ OPFS clearing on logout / post-deletion is handled by `routes/login.tsx`'s mount
 
 ## Tests
 
-| File                    | Tests |
-| ----------------------- | ----- |
-| `runtime.test.ts`       | 17    |
-| `workflow.test.ts`      | 4     |
-| `prepare.test.ts`       | 6     |
-| `telegram.test.ts`      | 2     |
-| `delete-account.test.ts` (e2e) | 1 |
+| File                           | Tests |
+| ------------------------------ | ----- |
+| `runtime.test.ts`              | 17    |
+| `workflow.test.ts`             | 4     |
+| `prepare.test.ts`              | 6     |
+| `telegram.test.ts`             | 2     |
+| `delete-account.test.ts` (e2e) | 1     |
 
 Pure Effect Layer DI throughout (no `vi.mock` for service replacement).
