@@ -36,4 +36,3 @@ export function actionRemovesFromPage(
       return false;
   }
 }
-

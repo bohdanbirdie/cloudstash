@@ -30,7 +30,6 @@ kanban-plugin: board
 - [ ] Support `#tag` search in the bottom-dock search panel — typing `#` should suggest tags from the workspace and filter by them, complementing free-text search.
 - [ ] Let LLM suggest more tags from existing ones. Respect domains for tags as a fallback
 - [ ] Improve UX of tags strip, maybe add counters and exclude tags that are unused on the specific page
-- [ ] Reprocess button is useless without AI summary enabled
 - [ ] Landing page
 - [ ] Clenaup createStoreInternal
 - [ ] AI summary loading messages like in agents, eg swap phrases
@@ -46,6 +45,7 @@ kanban-plugin: board
 - [x] Right-pane summary UI redesign — small-caps SUMMARY/TAGS eyebrows replacing icon-above-heading; page description as italic pullquote with em-dash attribution; inline dot-matrix loader (`dotm-square-11`) next to SUMMARY during processing/reprocessing with `AnimatePresence` enter/exit; "Reading the page…" replacing the shimmer placeholder; 300ms blur-in for summary changes (with `prefers-reduced-motion` respect); CheckIcon for Completed status; redundant hairline divider dropped; title weight dialed back from `text-3xl extrabold tracking-tight` to `text-2xl bold`
 - [ ] [[todos/account-deletion|Account deletion (backend + workflow)]] — backend code complete and tested (30 unit tests, lint/typecheck/Effect-LS all clean). Remaining: generate D1 migration, manual e2e test, resolve Telegram chat_id resolution (Open Q1). See doc for details.
 - [ ] Improve link-card UI for failed/error fetches (404, 5xx, Cloudflare bot challenge, login walls). Today the row shows a near-empty card with the URL only. Surface the failure state explicitly (status code or category), keep the URL prominent so the user can verify, and offer a clear "retry" affordance distinct from regular reprocess. Affects link-list rows and the right-pane detail view.
+- [ ] Reprocess button is useless without AI summary enabled
 - [ ] Failed-summary state needs a path forward — right-pane detail currently shows a flat "Summary generation failed" with no retry affordance. Surface a one-line cause (when available) and a clear "Try again" action that triggers reprocess. Consider whether the same treatment belongs on the link list row.
 - [ ] Gate all agent UI on per-user feature flag — when agent is not enabled for a user: hide the AgentTrigger in the dock, ignore the `⌘J` hotkey, skip mounting `AgentChatProvider`/connection, and remove "agent" from any mode switching. Single capability check, applied everywhere.
 - [ ] Make link list items even more vertically compact — tighten vertical padding/line-height in the list rows so more items fit on screen. As part of this, rework the row's processing visuals (currently `BorderTrail`) so the in-flight AI-summary state reads clearly at the new density and is distinguishable from idle and failed.
