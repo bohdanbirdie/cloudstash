@@ -2,7 +2,7 @@ import { it, describe } from "@effect/vitest";
 import { Effect, Layer, LogLevel, Logger } from "effect";
 import { expect } from "vitest";
 
-import { OrgId } from "../../db/branded";
+import { OrgId, UserId } from "../../db/branded";
 import {
   TelegramInvalidApiKeyError,
   TelegramMissingOrgIdError,
@@ -40,7 +40,7 @@ function createTestMessenger() {
 
 function createTestSourceAuth(
   result:
-    | { orgId: typeof OrgId.Type }
+    | { orgId: typeof OrgId.Type; userId: typeof UserId.Type }
     | "not-connected"
     | "invalid-key"
     | "rate-limit"
@@ -63,7 +63,12 @@ function createTestSourceAuth(
       if (result === "rate-limit") return Effect.fail(new RateLimitError({}));
       if (result === "missing-org-id")
         return Effect.fail(new TelegramMissingOrgIdError({}));
-      return Effect.void;
+      if (typeof result === "string") {
+        // not-connected only matters for authenticate(); for verify we
+        // treat it as a generic invalid-key signal.
+        return Effect.fail(new TelegramInvalidApiKeyError({}));
+      }
+      return Effect.succeed(result);
     },
   });
 }
@@ -85,6 +90,7 @@ function createTestQueue(shouldFail = false) {
 
 function createTestKeyStore() {
   const stored: Map<number, string> = new Map();
+  const reverseIndex: Map<string, number[]> = new Map();
   const layer = Layer.succeed(TelegramKeyStore, {
     put: (chatId, apiKey) =>
       Effect.sync(() => {
@@ -94,8 +100,29 @@ function createTestKeyStore() {
       Effect.sync(() => {
         stored.delete(chatId);
       }),
+    linkUser: (userId, chatId) =>
+      Effect.sync(() => {
+        const existing = reverseIndex.get(userId) ?? [];
+        if (!existing.includes(chatId)) {
+          reverseIndex.set(userId, [...existing, chatId]);
+        }
+      }),
+    unlinkUser: (userId, chatId) =>
+      Effect.sync(() => {
+        const existing = reverseIndex.get(userId) ?? [];
+        const next = existing.filter((id) => id !== chatId);
+        if (next.length === 0) reverseIndex.delete(userId);
+        else reverseIndex.set(userId, next);
+      }),
+    purgeForUser: (userId) =>
+      Effect.sync(() => {
+        const chatIds = reverseIndex.get(userId) ?? [];
+        for (const chatId of chatIds) stored.delete(chatId);
+        reverseIndex.delete(userId);
+        return { deletedCount: chatIds.length };
+      }),
   });
-  return { layer, stored };
+  return { layer, stored, reverseIndex };
 }
 
 describe("handleLinks", () => {
@@ -104,7 +131,10 @@ describe("handleLinks", () => {
     const queue = createTestQueue();
     const layer = Layer.mergeAll(
       messenger.layer,
-      createTestSourceAuth({ orgId: OrgId.make("org-1") }),
+      createTestSourceAuth({
+        orgId: OrgId.make("org-1"),
+        userId: UserId.make("user-1"),
+      }),
       queue.layer
     );
 
@@ -130,7 +160,10 @@ describe("handleLinks", () => {
       const queue = createTestQueue(true);
       const layer = Layer.mergeAll(
         messenger.layer,
-        createTestSourceAuth({ orgId: OrgId.make("org-1") }),
+        createTestSourceAuth({
+          orgId: OrgId.make("org-1"),
+          userId: UserId.make("user-1"),
+        }),
         queue.layer
       );
 
@@ -224,7 +257,10 @@ describe("handleLinks", () => {
     const queue = createTestQueue();
     const layer = Layer.mergeAll(
       messenger.layer,
-      createTestSourceAuth({ orgId: OrgId.make("org-1") }),
+      createTestSourceAuth({
+        orgId: OrgId.make("org-1"),
+        userId: UserId.make("user-1"),
+      }),
       queue.layer
     );
 
@@ -246,7 +282,10 @@ describe("handleConnect", () => {
     const keyStore = createTestKeyStore();
     const layer = Layer.mergeAll(
       messenger.layer,
-      createTestSourceAuth({ orgId: OrgId.make("org-1") }),
+      createTestSourceAuth({
+        orgId: OrgId.make("org-1"),
+        userId: UserId.make("user-1"),
+      }),
       keyStore.layer
     );
 
@@ -256,6 +295,7 @@ describe("handleConnect", () => {
       Effect.tap(() =>
         Effect.sync(() => {
           expect(keyStore.stored.get(123)).toBe("sk_test_key");
+          expect(keyStore.reverseIndex.get("user-1")).toEqual([123]);
           expect(messenger.replies).toEqual([
             "Connected! Send me any link to save it.",
           ]);
@@ -269,7 +309,10 @@ describe("handleConnect", () => {
     const keyStore = createTestKeyStore();
     const layer = Layer.mergeAll(
       messenger.layer,
-      createTestSourceAuth({ orgId: OrgId.make("org-1") }),
+      createTestSourceAuth({
+        orgId: OrgId.make("org-1"),
+        userId: UserId.make("user-1"),
+      }),
       keyStore.layer
     );
 
@@ -308,23 +351,64 @@ describe("handleConnect", () => {
 });
 
 describe("handleDisconnect", () => {
-  it.effect("removes key and replies", () => {
-    const messenger = createTestMessenger();
-    const keyStore = createTestKeyStore();
-    keyStore.stored.set(123, "sk_test");
-    const layer = Layer.mergeAll(messenger.layer, keyStore.layer);
+  it.effect(
+    "removes forward entry AND reverse index when authenticate resolves the user",
+    () => {
+      const messenger = createTestMessenger();
+      const keyStore = createTestKeyStore();
+      keyStore.stored.set(123, "sk_test");
+      keyStore.reverseIndex.set("user-1", [123, 456]);
+      const layer = Layer.mergeAll(
+        messenger.layer,
+        createTestSourceAuth({
+          orgId: OrgId.make("org-1"),
+          userId: UserId.make("user-1"),
+        }),
+        keyStore.layer
+      );
 
-    return handleDisconnect(123).pipe(
-      Effect.provide(layer),
-      Logger.withMinimumLogLevel(LogLevel.None),
-      Effect.tap(() =>
-        Effect.sync(() => {
-          expect(keyStore.stored.has(123)).toBe(false);
-          expect(messenger.replies).toEqual([
-            "Disconnected. Use /connect <api-key> to reconnect.",
-          ]);
-        })
-      )
-    );
-  });
+      return handleDisconnect(123).pipe(
+        Effect.provide(layer),
+        Logger.withMinimumLogLevel(LogLevel.None),
+        Effect.tap(() =>
+          Effect.sync(() => {
+            expect(keyStore.stored.has(123)).toBe(false);
+            expect(keyStore.reverseIndex.get("user-1")).toEqual([456]);
+            expect(messenger.replies).toEqual([
+              "Disconnected. Use /connect <api-key> to reconnect.",
+            ]);
+          })
+        )
+      );
+    }
+  );
+
+  it.effect(
+    "removes forward entry only when authenticate fails — reverse stays untouched",
+    () => {
+      const messenger = createTestMessenger();
+      const keyStore = createTestKeyStore();
+      keyStore.stored.set(123, "sk_test");
+      keyStore.reverseIndex.set("user-1", [123]);
+      const layer = Layer.mergeAll(
+        messenger.layer,
+        createTestSourceAuth("invalid-key"),
+        keyStore.layer
+      );
+
+      return handleDisconnect(123).pipe(
+        Effect.provide(layer),
+        Logger.withMinimumLogLevel(LogLevel.None),
+        Effect.tap(() =>
+          Effect.sync(() => {
+            expect(keyStore.stored.has(123)).toBe(false);
+            expect(keyStore.reverseIndex.get("user-1")).toEqual([123]);
+            expect(messenger.replies).toEqual([
+              "Disconnected. Use /connect <api-key> to reconnect.",
+            ]);
+          })
+        )
+      );
+    }
+  );
 });

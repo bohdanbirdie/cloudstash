@@ -4,6 +4,7 @@ import type { ChatAgentDO } from "./chat-agent";
 import type { SyncBackendDO } from "./index";
 import type { LinkProcessorDO } from "./link-processor";
 import type { LinkQueueMessage } from "./link-processor/types";
+import type { AccountDeletionParams } from "./workflows/account-deletion";
 
 type BetterAuthSession = NonNullable<
   Awaited<ReturnType<Auth["api"]["getSession"]>>
@@ -25,6 +26,7 @@ export interface Env extends Cloudflare.Env {
   SYNC_BACKEND_DO: DurableObjectNamespace<SyncBackendDO>;
   LINK_PROCESSOR_DO: DurableObjectNamespace<LinkProcessorDO>;
   Chat: DurableObjectNamespace<ChatAgentDO>;
+  ACCOUNT_DELETION: Workflow<AccountDeletionParams>;
   ENABLE_TEST_AUTH?: string;
   GOOGLE_BASE_URL?: string;
   EMAIL_FROM: string;

@@ -54,6 +54,7 @@ export function createBot(env: Env): Bot {
 
     const layer = Layer.mergeAll(
       TelegramMessengerLive(ctx),
+      TelegramSourceAuthLive(env, chatId),
       TelegramKeyStoreLive(env)
     );
 

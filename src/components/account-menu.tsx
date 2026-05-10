@@ -13,6 +13,7 @@ import { useMemo, useState } from "react";
 import { AdminModal } from "@/components/admin";
 import { ConnectionsModal } from "@/components/connections/connections-modal";
 import { ExportDialog } from "@/components/export-dialog";
+import { SettingsModal } from "@/components/settings/settings-modal";
 import { TagManagerDialog } from "@/components/tags/tag-manager-dialog";
 import {
   AlertDialog,
@@ -62,6 +63,7 @@ export function AccountMenu() {
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const isAdmin = auth.role === "admin";
   const initial = getInitial(auth.name, auth.email);
@@ -113,7 +115,7 @@ export function AccountMenu() {
               <DropdownMenuSeparator />
             </>
           )}
-          <DropdownMenuItem disabled>
+          <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
             <SettingsIcon />
             Settings
           </DropdownMenuItem>
@@ -166,6 +168,7 @@ export function AccountMenu() {
       {connectionsOpen && (
         <ConnectionsModal open onOpenChange={setConnectionsOpen} />
       )}
+      {settingsOpen && <SettingsModal open onOpenChange={setSettingsOpen} />}
       {adminOpen && <AdminModal open onOpenChange={setAdminOpen} />}
       <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
         <AlertDialogContent>

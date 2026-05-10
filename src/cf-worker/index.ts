@@ -40,6 +40,7 @@ import { OtelTracingLive } from "./tracing";
 export { SyncBackendDO } from "./sync";
 export { LinkProcessorDO } from "./link-processor";
 export { ChatAgentDO } from "./chat-agent";
+export { AccountDeletionWorkflow } from "./workflows/account-deletion";
 
 const logger = logSync("API");
 

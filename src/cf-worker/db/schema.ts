@@ -61,7 +61,8 @@ export const session = sqliteTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     activeOrganizationId: text("active_organization_id").references(
-      () => organization.id
+      () => organization.id,
+      { onDelete: "set null" }
     ),
     // Admin plugin field (for impersonation)
     impersonatedBy: text("impersonated_by"),
@@ -129,7 +130,9 @@ export const invitation = sqliteTable(
     email: text("email").notNull(),
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
     id: text("id").primaryKey(),
-    inviterId: text("inviter_id").references(() => user.id),
+    inviterId: text("inviter_id").references(() => user.id, {
+      onDelete: "cascade",
+    }),
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),

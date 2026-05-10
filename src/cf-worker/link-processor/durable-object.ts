@@ -14,6 +14,10 @@ import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import { OrgFeaturesLive } from "../org/features-service";
 import type { Env } from "../shared";
+import {
+  isDeletionTombstoneSet,
+  setDeletionTombstone,
+} from "./deletion-tombstone";
 import { cancelStaleLinks, ingestLink, notifyResult } from "./do-programs";
 import type { NotifyResultParams } from "./do-programs";
 import { runEffect } from "./logger";
@@ -66,6 +70,47 @@ export class LinkProcessorDO
       this.totalRowsWritten += cursor.rowsWritten;
       return cursor;
     }) as typeof origExec;
+  }
+
+  /**
+   * Persistent tombstone + tear-down of in-memory store handles. Called by
+   * `AccountDeletionWorkflow` *before* `purgeAll`, so any concurrent queue
+   * message that arrives between this call and the wipe drops on the
+   * tombstone check at the top of `ingestAndProcess`.
+   */
+  async markDeleting(): Promise<void> {
+    await runEffect(
+      Effect.gen(this, function* () {
+        yield* Effect.promise(() => setDeletionTombstone(this.ctx.storage));
+        this.subscription?.();
+        this.subscription = undefined;
+        this.cachedStore = undefined;
+        this.storeCreationPromise = undefined;
+        yield* Effect.logInfo("markDeleting: tombstone set").pipe(
+          Effect.annotateLogs({ storeId: maskId(this.storeId ?? "") })
+        );
+      }).pipe(Effect.withSpan("LinkProcessorDO.markDeleting"))
+    );
+  }
+
+  /**
+   * In-flight Livestore writes can race `deleteAll()` — mitigated by the
+   * tombstone + DO eviction (see account-deletion.md, B1 deferred). The
+   * shutdown-promise + fiber-tracking workaround lives there too if needed.
+   */
+  async purgeAll(): Promise<void> {
+    await runEffect(
+      Effect.gen(this, function* () {
+        this.subscription?.();
+        this.subscription = undefined;
+        this.cachedStore = undefined;
+        this.storeCreationPromise = undefined;
+        yield* Effect.promise(() => this.ctx.storage.deleteAll());
+        yield* Effect.logInfo("purgeAll: storage wiped").pipe(
+          Effect.annotateLogs({ storeId: maskId(this.storeId ?? "") })
+        );
+      }).pipe(Effect.withSpan("LinkProcessorDO.purgeAll"))
+    );
   }
 
   private async getSessionId(): Promise<string> {
@@ -496,6 +541,14 @@ export class LinkProcessorDO
   async ingestAndProcess(
     msg: LinkQueueMessage
   ): Promise<{ status: string; linkId?: string }> {
+    if (await isDeletionTombstoneSet(this.ctx.storage)) {
+      logger.info("ingestAndProcess dropped (deletion in progress)", {
+        storeId: maskId(msg.storeId),
+        url: msg.url,
+      });
+      return { status: "dropped-deletion" };
+    }
+
     logger.info("ingestAndProcess called", {
       source: msg.source,
       storeId: maskId(msg.storeId),

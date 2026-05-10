@@ -17,27 +17,7 @@ import { schema } from "./schema";
 
 type AppStore = Store<typeof schema>;
 
-export const RESET_FLAG_KEY = "livestore-reset-on-logout";
-
-/**
- * Check if we should reset OPFS persistence.
- * Flag is set on logout to clear local data for security.
- */
-const shouldResetPersistence = (): boolean => {
-  try {
-    const flag = localStorage.getItem(RESET_FLAG_KEY);
-    if (flag) {
-      localStorage.removeItem(RESET_FLAG_KEY);
-      return true;
-    }
-  } catch {
-    // localStorage not available
-  }
-  return false;
-};
-
 const adapter = makePersistedAdapter({
-  resetPersistence: shouldResetPersistence(),
   sharedWorker: LiveStoreSharedWorker,
   storage: { type: "opfs" },
   worker: LiveStoreWorker,

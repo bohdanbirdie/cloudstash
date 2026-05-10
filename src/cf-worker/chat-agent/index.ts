@@ -72,6 +72,25 @@ export class ChatAgentDO
     void this.broadcastUsage();
   }
 
+  /**
+   * Wipes all DO storage (chat session id, message history, token usage).
+   * Called by AccountDeletionWorkflow during account deletion.
+   */
+  async purgeAll(): Promise<void> {
+    await Effect.runPromise(
+      Effect.gen(this, function* () {
+        this.cachedStore = undefined;
+        yield* Effect.promise(() => this.ctx.storage.deleteAll());
+        yield* Effect.logInfo("purgeAll: storage wiped").pipe(
+          Effect.annotateLogs({ doId: this.ctx.id.toString() })
+        );
+      }).pipe(
+        Effect.withSpan("ChatAgentDO.purgeAll"),
+        Effect.provide(OtelTracingLive)
+      )
+    );
+  }
+
   private async getSessionId(): Promise<string> {
     const key = "chat-session-id";
     const stored = await this.ctx.storage.get<string>(key);

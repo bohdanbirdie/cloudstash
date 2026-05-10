@@ -4,12 +4,16 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, organization } from "better-auth/plugins";
 import { genericOAuth } from "better-auth/plugins/generic-oauth";
 import { eq } from "drizzle-orm";
+import { Cause, Effect, Schema } from "effect";
 
+import { prepareDeletion } from "../account-deletion/prepare";
 import type { Database } from "../db";
+import { UserId } from "../db/branded";
 import * as schema from "../db/schema";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
+import { AppLayerLive } from "./service";
 
 const logger = logSync("Auth");
 
@@ -136,6 +140,36 @@ export const createAuth = (env: Env, db: Database) => {
           input: false,
           required: false,
           type: "boolean",
+        },
+      },
+      deleteUser: {
+        enabled: true,
+        // No `sendDeleteAccountVerification` defined → route falls through to
+        // the freshAge gate (24h default). Our type-DELETE UI is the user-facing
+        // confirmation. See research lock-in #1.
+        beforeDelete: async (user) => {
+          // Phase 1 — synchronous, fail-loud. Throwing aborts the deletion entirely.
+          // Async cleanup runs in the AccountDeletionWorkflow.
+          await Effect.runPromise(
+            Schema.decodeUnknown(UserId)(user.id).pipe(
+              Effect.flatMap((userId) => prepareDeletion({ userId })),
+              Effect.tapErrorCause((cause) =>
+                Effect.logError("Account deletion Phase 1 failed").pipe(
+                  Effect.annotateLogs({
+                    userId: maskId(user.id),
+                    cause: Cause.pretty(cause),
+                  })
+                )
+              ),
+              Effect.withSpan("Auth.beforeDelete", {
+                attributes: { userId: maskId(user.id) },
+              }),
+              Effect.provide(AppLayerLive(env))
+            )
+          );
+        },
+        afterDelete: async (user) => {
+          logger.info("user deleted", { userId: maskId(user.id) });
         },
       },
     },

@@ -1,7 +1,7 @@
 import { Context } from "effect";
 import type { Effect } from "effect";
 
-import type { OrgId } from "../db/branded";
+import type { OrgId, UserId } from "../db/branded";
 import type {
   TelegramInvalidApiKeyError,
   TelegramMissingOrgIdError,
@@ -22,7 +22,7 @@ export class SourceAuth extends Context.Tag("SourceAuth")<
   SourceAuth,
   {
     readonly authenticate: () => Effect.Effect<
-      { orgId: OrgId },
+      { orgId: OrgId; userId: UserId },
       | NotConnectedError
       | TelegramInvalidApiKeyError
       | RateLimitError
@@ -31,7 +31,7 @@ export class SourceAuth extends Context.Tag("SourceAuth")<
     readonly verify: (
       apiKey: string
     ) => Effect.Effect<
-      void,
+      { orgId: OrgId; userId: UserId },
       TelegramInvalidApiKeyError | RateLimitError | TelegramMissingOrgIdError
     >;
   }
@@ -52,5 +52,13 @@ export class TelegramKeyStore extends Context.Tag("TelegramKeyStore")<
   {
     readonly put: (chatId: number, apiKey: string) => Effect.Effect<void>;
     readonly remove: (chatId: number) => Effect.Effect<void>;
+    readonly linkUser: (userId: UserId, chatId: number) => Effect.Effect<void>;
+    readonly unlinkUser: (
+      userId: UserId,
+      chatId: number
+    ) => Effect.Effect<void>;
+    readonly purgeForUser: (
+      userId: UserId
+    ) => Effect.Effect<{ deletedCount: number }>;
   }
 >() {}

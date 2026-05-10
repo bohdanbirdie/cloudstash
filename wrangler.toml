@@ -40,6 +40,11 @@ new_sqlite_classes = ["LinkProcessorDO"]
 tag = "v3"
 new_sqlite_classes = ["ChatAgentDO"]
 
+[[workflows]]
+name = "account-deletion"
+binding = "ACCOUNT_DELETION"
+class_name = "AccountDeletionWorkflow"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "cloudstash"

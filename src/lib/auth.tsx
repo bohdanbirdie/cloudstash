@@ -13,8 +13,6 @@ import {
   useCallback,
 } from "react";
 
-import { RESET_FLAG_KEY } from "@/livestore/store";
-
 export const authClient = createAuthClient({
   baseURL: window.location.origin,
   plugins: [
@@ -96,11 +94,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [updateAuthFromSession]);
 
   const logout = useCallback(async () => {
-    try {
-      localStorage.setItem(RESET_FLAG_KEY, "true");
-    } catch {
-      // localStorage not available
-    }
     await authClient.signOut();
     setAuth({
       approved: false,

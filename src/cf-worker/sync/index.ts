@@ -7,6 +7,7 @@ import { OrgId } from "../db/branded";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
+import { OtelTracingLive } from "../tracing";
 import {
   InvalidSessionError,
   MissingSessionCookieError,
@@ -40,12 +41,32 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
   },
 }) {
   private _env: Env;
+  private _ctx: CfTypes.DurableObjectState;
 
   constructor(ctx: CfTypes.DurableObjectState, env: Env) {
     super(ctx, env);
     this._env = env;
+    this._ctx = ctx;
     currentSyncBackend = this;
     logger.info("DO woke up", { doId: ctx.id.toString() });
+  }
+
+  /**
+   * Wipes all DO storage (including Livestore eventlog). Called by
+   * AccountDeletionWorkflow during account deletion.
+   */
+  async purgeAll(): Promise<void> {
+    await Effect.runPromise(
+      Effect.gen(this, function* () {
+        yield* Effect.promise(() => this._ctx.storage.deleteAll());
+        yield* Effect.logInfo("purgeAll: storage wiped").pipe(
+          Effect.annotateLogs({ doId: this._ctx.id.toString() })
+        );
+      }).pipe(
+        Effect.withSpan("SyncBackendDO.purgeAll"),
+        Effect.provide(OtelTracingLive)
+      )
+    );
   }
 
   triggerLinkProcessor(storeId: string) {

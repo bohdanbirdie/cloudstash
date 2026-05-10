@@ -20,3 +20,8 @@ export type TagId = typeof TagId.Type;
 
 export const MemberId = Schema.String.pipe(Schema.brand("MemberId"));
 export type MemberId = typeof MemberId.Type;
+
+export const WorkflowInstanceId = Schema.String.pipe(
+  Schema.brand("WorkflowInstanceId")
+);
+export type WorkflowInstanceId = typeof WorkflowInstanceId.Type;

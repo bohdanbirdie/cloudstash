@@ -1,8 +1,8 @@
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Schema } from "effect";
 
 import type { Auth } from "../../auth";
 import { AppLayerLive, AuthClient } from "../../auth/service";
-import { OrgId } from "../../db/branded";
+import { OrgId, UserId } from "../../db/branded";
 import type { Env } from "../../shared";
 import {
   TelegramInvalidApiKeyError,
@@ -33,7 +33,10 @@ const verifyApiKey = Effect.fn("Telegram.verifyApiKey")(function* (
   if (typeof orgId !== "string" || orgId.length === 0) {
     return yield* new TelegramMissingOrgIdError({});
   }
-  return OrgId.make(orgId);
+  const userId = yield* Schema.decodeUnknown(UserId)(
+    result.key.referenceId
+  ).pipe(Effect.mapError(() => new TelegramInvalidApiKeyError({})));
+  return { orgId: OrgId.make(orgId), userId };
 });
 
 export const TelegramSourceAuthLive = (env: Env, chatId: number) =>
@@ -47,10 +50,9 @@ export const TelegramSourceAuthLive = (env: Env, chatId: number) =>
             Effect.flatMap((key) =>
               key ? Effect.succeed(key) : Effect.fail(new NotConnectedError({}))
             ),
-            Effect.flatMap((apiKey) => verifyApiKey(auth, apiKey)),
-            Effect.map((orgId) => ({ orgId }))
+            Effect.flatMap((apiKey) => verifyApiKey(auth, apiKey))
           ),
-        verify: (apiKey) => verifyApiKey(auth, apiKey).pipe(Effect.asVoid),
+        verify: (apiKey) => verifyApiKey(auth, apiKey),
       });
     })
   ).pipe(Layer.provide(AppLayerLive(env)));
