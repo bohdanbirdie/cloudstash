@@ -37,12 +37,3 @@ export function actionRemovesFromPage(
   }
 }
 
-export function pageBulkToggle(page: LinkStatus | undefined): {
-  primary: "complete" | "uncomplete" | null;
-  secondary: "archive" | "restore";
-} {
-  if (page === "archive") return { primary: null, secondary: "restore" };
-  if (page === "completed")
-    return { primary: "uncomplete", secondary: "archive" };
-  return { primary: "complete", secondary: "archive" };
-}

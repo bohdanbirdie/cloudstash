@@ -4,81 +4,75 @@ import { useMemo, useState } from "react";
 
 import { ExportDialog } from "@/components/export-dialog";
 import { BulkTagPicker } from "@/components/right-pane/headers/bulk/tag-picker";
-import {
-  ACTION_META,
-  pageBulkToggle,
-} from "@/components/right-pane/headers/page-actions";
+import { ACTION_META } from "@/components/right-pane/headers/page-actions";
+import type { LinkAction } from "@/components/right-pane/headers/page-actions";
 import { Button } from "@/components/ui/button";
 import {
   SharedTooltipProvider,
   SharedTooltipTrigger,
 } from "@/components/ui/shared-tooltip";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
-import { usePageStaticData } from "@/hooks/use-page-static-data";
 import { useCommand, useDismiss } from "@/lib/keyboard";
 import { linksByIds$ } from "@/livestore/queries/links";
+import type { LinkWithDetails } from "@/livestore/queries/schemas";
 import { events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
 import { useSelectionStore } from "@/stores/selection-store";
+
+const READ_ACTIONS: readonly LinkAction[] = ["complete", "uncomplete"];
+const ARCHIVE_ACTIONS: readonly LinkAction[] = ["archive", "restore"];
+
+function eligibleIds(links: readonly LinkWithDetails[], action: LinkAction) {
+  switch (action) {
+    case "complete":
+      return links.filter((l) => l.status !== "completed").map((l) => l.id);
+    case "uncomplete":
+      return links.filter((l) => l.status === "completed").map((l) => l.id);
+    case "archive":
+      return links.filter((l) => l.deletedAt === null).map((l) => l.id);
+    case "restore":
+      return links.filter((l) => l.deletedAt !== null).map((l) => l.id);
+  }
+}
+
+function buildEvents(action: LinkAction, ids: readonly string[]) {
+  switch (action) {
+    case "complete": {
+      const completedAt = new Date();
+      return ids.map((id) => events.linkCompleted({ completedAt, id }));
+    }
+    case "uncomplete":
+      return ids.map((id) => events.linkUncompleted({ id }));
+    case "archive": {
+      const deletedAt = new Date();
+      return ids.map((id) => events.linkDeleted({ deletedAt, id }));
+    }
+    case "restore":
+      return ids.map((id) => events.linkRestored({ id }));
+  }
+}
 
 export function BulkActionHeader() {
   const store = useAppStore();
   const selectedIds = useSelectionStore((s) => s.ids);
   const clear = useSelectionStore((s) => s.clear);
   const count = selectedIds.size;
-  const { status } = usePageStaticData();
   const [exportOpen, setExportOpen] = useState(false);
 
   useHotkeyScope("selection", { enabled: count > 0 });
 
-  const { primary, secondary } = pageBulkToggle(status);
-  const primaryMeta = primary ? ACTION_META[primary] : null;
-  const secondaryMeta = ACTION_META[secondary];
-  const PrimaryIcon = primaryMeta?.icon;
-  const SecondaryIcon = secondaryMeta.icon;
-
   const selectedIdsArray = useMemo(() => [...selectedIds], [selectedIds]);
 
-  const handlePrimary = () => {
-    if (!primary) return;
-    let eventsToCommit;
-    if (primary === "uncomplete") {
-      eventsToCommit = selectedIdsArray.map((id) =>
-        events.linkUncompleted({ id })
-      );
-    } else {
-      const completedAt = new Date();
-      const existing = store.query(linksByIds$(selectedIdsArray));
-      const alreadyCompleted = new Set(
-        existing.filter((l) => l.status === "completed").map((l) => l.id)
-      );
-      eventsToCommit = selectedIdsArray
-        .filter((id) => !alreadyCompleted.has(id))
-        .map((id) => events.linkCompleted({ completedAt, id }));
-    }
-    if (eventsToCommit.length > 0) store.commit(...eventsToCommit);
-    clear();
-  };
-
-  const handleSecondary = () => {
-    let eventsToCommit;
-    if (secondary === "restore") {
-      eventsToCommit = selectedIdsArray.map((id) =>
-        events.linkRestored({ id })
-      );
-    } else {
-      const deletedAt = new Date();
-      eventsToCommit = selectedIdsArray.map((id) =>
-        events.linkDeleted({ deletedAt, id })
-      );
-    }
-    if (eventsToCommit.length > 0) store.commit(...eventsToCommit);
+  const runAction = (action: LinkAction) => {
+    const links = store.query(linksByIds$(selectedIdsArray));
+    const ids = eligibleIds(links, action);
+    if (ids.length > 0) store.commit(...buildEvents(action, ids));
     clear();
   };
 
   useDismiss("selection", clear);
-  useCommand("bulkPrimary", handlePrimary, primary !== null);
-  useCommand("bulkSecondary", handleSecondary);
+  useCommand("bulkPrimary", () => runAction("complete"));
+  useCommand("bulkSecondary", () => runAction("archive"));
   useCommand("bulkExport", () => setExportOpen(true));
 
   return (
@@ -115,45 +109,47 @@ export function BulkActionHeader() {
 
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1">
-                  {primaryMeta && PrimaryIcon && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={handlePrimary}
-                      aria-label={primaryMeta.label}
-                    >
-                      <PrimaryIcon />
-                      <span>{primaryMeta.label}</span>
-                    </Button>
-                  )}
+                  {READ_ACTIONS.map((action) => {
+                    const meta = ACTION_META[action];
+                    const Icon = meta.icon;
+                    return (
+                      <Button
+                        key={action}
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => runAction(action)}
+                        aria-label={meta.label}
+                      >
+                        <Icon />
+                        <span>{meta.label}</span>
+                      </Button>
+                    );
+                  })}
+                </div>
 
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={handleSecondary}
-                    aria-label={secondaryMeta.label}
-                  >
-                    <SecondaryIcon />
-                    <span>{secondaryMeta.label}</span>
-                  </Button>
+                <div className="flex items-center gap-1">
+                  {ARCHIVE_ACTIONS.map((action) => {
+                    const meta = ACTION_META[action];
+                    const Icon = meta.icon;
+                    return (
+                      <Button
+                        key={action}
+                        size="sm"
+                        variant={action === "archive" ? "destructive" : "ghost"}
+                        onClick={() => runAction(action)}
+                        aria-label={meta.label}
+                      >
+                        <Icon />
+                        <span>{meta.label}</span>
+                      </Button>
+                    );
+                  })}
                 </div>
 
                 <div className="flex items-center gap-1">
                   <BulkTagPicker selectedIds={selectedIds} />
 
-                  <SharedTooltipTrigger
-                    payload="Export"
-                    render={
-                      <Button
-                        size="icon-sm"
-                        variant="ghost"
-                        onClick={() => setExportOpen(true)}
-                        aria-label="Export"
-                      >
-                        <DownloadIcon />
-                      </Button>
-                    }
-                  />
+                  <ExportButton onOpen={() => setExportOpen(true)} />
                 </div>
               </div>
             </SharedTooltipProvider>
@@ -170,5 +166,23 @@ export function BulkActionHeader() {
         />
       )}
     </>
+  );
+}
+
+function ExportButton({ onOpen }: { onOpen: () => void }) {
+  return (
+    <SharedTooltipTrigger
+      payload="Export"
+      render={
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          onClick={onOpen}
+          aria-label="Export"
+        >
+          <DownloadIcon />
+        </Button>
+      }
+    />
   );
 }

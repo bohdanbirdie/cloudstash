@@ -1,4 +1,4 @@
-import { ExternalLinkIcon } from "lucide-react";
+import { ExternalLinkIcon, XIcon } from "lucide-react";
 import { useMemo } from "react";
 
 import { ExportDialogButton } from "@/components/right-pane/headers/export-dialog-button";
@@ -6,18 +6,21 @@ import { IconSwap } from "@/components/right-pane/headers/icon-swap";
 import { ACTION_META } from "@/components/right-pane/headers/page-actions";
 import type { LinkAction } from "@/components/right-pane/headers/page-actions";
 import { CopyUrlButton } from "@/components/right-pane/headers/per-link/copy-url-button";
-import { MoreActionsMenu } from "@/components/right-pane/headers/per-link/more-actions-menu";
+import { ReprocessButton } from "@/components/right-pane/headers/per-link/reprocess-button";
 import { useLinkActions } from "@/components/right-pane/headers/per-link/use-link-actions";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import {
   SharedTooltipProvider,
   SharedTooltipTrigger,
 } from "@/components/ui/shared-tooltip";
 import { useCommand } from "@/lib/keyboard";
 import { displayTitle } from "@/lib/link-display";
+import { cn } from "@/lib/utils";
 import { linkById$ } from "@/livestore/queries/links";
 import type { LinkWithDetails } from "@/livestore/queries/schemas";
 import { useAppStore } from "@/livestore/store";
+import { useRightPaneStore } from "@/stores/right-pane-store";
 import { useInSelectionMode } from "@/stores/selection-store";
 
 export function PerLinkHeader({ linkId }: { linkId: string }) {
@@ -42,15 +45,21 @@ function Loaded({ link }: { link: LinkWithDetails }) {
   const onCompleteToggle = isCompleted
     ? actions.handleUncomplete
     : actions.handleComplete;
+
+  const archiveAction: LinkAction = isDeleted ? "restore" : "archive";
+  const archiveMeta = ACTION_META[archiveAction];
+  const ArchiveIcon = archiveMeta.icon;
   const onArchiveToggle = isDeleted
     ? actions.handleRestore
     : actions.handleDelete;
+
+  const closeDetail = useRightPaneStore((s) => s.closeDetail);
 
   useCommand("detailComplete", onCompleteToggle, !hasSelection);
 
   return (
     <div className="flex h-full items-center justify-between gap-2 bg-background pt-1.5 pb-2 px-3">
-      {actions.inList && actions.listLength > 1 ? (
+      {actions.inList ? (
         <span className="text-xs text-muted-foreground tabular-nums">
           {actions.currentIndex + 1}/{actions.listLength}
         </span>
@@ -71,8 +80,6 @@ function Loaded({ link }: { link: LinkWithDetails }) {
             </IconSwap>
             <span>{completeMeta.label}</span>
           </Button>
-
-          <CopyUrlButton url={link.url} />
 
           <SharedTooltipTrigger
             payload="Open in new tab"
@@ -95,12 +102,48 @@ function Loaded({ link }: { link: LinkWithDetails }) {
             }
           />
 
+          <CopyUrlButton url={link.url} />
+
           <ExportDialogButton ids={[link.id]} pageTitle={displayTitle(link)} />
 
-          <MoreActionsMenu
-            linkId={link.id}
-            isDeleted={isDeleted}
-            onArchiveToggle={onArchiveToggle}
+          <ReprocessButton linkId={link.id} />
+
+          <Separator orientation="vertical" className="mx-1 my-1" />
+
+          <SharedTooltipTrigger
+            payload={archiveMeta.label}
+            render={
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                onClick={onArchiveToggle}
+                aria-label={archiveMeta.label}
+                className={cn(
+                  archiveAction === "archive" &&
+                    "hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20"
+                )}
+              >
+                <IconSwap iconKey={archiveAction}>
+                  <ArchiveIcon />
+                </IconSwap>
+              </Button>
+            }
+          />
+
+          <Separator orientation="vertical" className="mx-1 my-1" />
+
+          <SharedTooltipTrigger
+            payload="Close"
+            render={
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                onClick={closeDetail}
+                aria-label="Close"
+              >
+                <XIcon />
+              </Button>
+            }
           />
         </div>
       </SharedTooltipProvider>
