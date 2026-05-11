@@ -3,11 +3,27 @@ import { memo, useEffect, useRef, useState } from "react";
 
 import { DotmSquare11 } from "@/components/ui/dotm-square-11";
 import { Markdown } from "@/components/ui/markdown";
+import { TextLoop } from "@/components/ui/text-loop";
 
 import { SectionEyebrow } from "./section-eyebrow";
 
 const SUMMARY_PROSE_CLASS =
   "text-sm leading-relaxed text-pretty [&>:first-child]:mt-0 [&>:last-child]:mb-0";
+
+const INITIAL_PHRASES = [
+  "Reading the page…",
+  "Skimming the highlights…",
+  "Distilling the gist…",
+  "Drafting a summary…",
+  "Almost there…",
+] as const;
+
+const REPROCESS_PHRASES = [
+  "Re-reading…",
+  "Reconsidering…",
+  "Refining the summary…",
+  "Polishing…",
+] as const;
 
 export const DetailSummary = memo(function DetailSummary({
   summary,
@@ -52,9 +68,10 @@ export const DetailSummary = memo(function DetailSummary({
       {summary ? (
         <SummaryBody summary={summary} />
       ) : isWorking ? (
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          Reading the page&hellip;
-        </p>
+        <RotatingPhrase
+          key={isReprocessing ? "reprocess" : "initial"}
+          phrases={isReprocessing ? REPROCESS_PHRASES : INITIAL_PHRASES}
+        />
       ) : (
         <p className="text-sm text-muted-foreground">
           No summary for this one.
@@ -63,6 +80,28 @@ export const DetailSummary = memo(function DetailSummary({
     </div>
   );
 });
+
+function RotatingPhrase({
+  phrases,
+  intervalSeconds = 2.5,
+}: {
+  phrases: readonly string[];
+  intervalSeconds?: number;
+}) {
+  const reduceMotion = useReducedMotion();
+
+  return (
+    <TextLoop
+      className="text-sm leading-relaxed text-muted-foreground"
+      interval={intervalSeconds}
+      trigger={!reduceMotion}
+    >
+      {phrases.map((phrase) => (
+        <span key={phrase}>{phrase}</span>
+      ))}
+    </TextLoop>
+  );
+}
 
 function SummaryBody({ summary }: { summary: string }) {
   const reduceMotion = useReducedMotion();
