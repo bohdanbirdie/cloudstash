@@ -221,38 +221,41 @@ const handleSync = async (
   ) as unknown as Response;
 };
 
-export default {
-  async queue(batch: MessageBatch<LinkQueueMessage>, env: Env): Promise<void> {
-    await handleQueueBatch(batch, env);
-  },
+export const fetch = async (
+  request: CfTypes.Request,
+  env: Env,
+  ctx: CfTypes.ExecutionContext
+): Promise<Response> => {
+  const rateLimited = await checkRateLimit(request, env);
+  if (rateLimited) return rateLimited;
 
-  async fetch(
-    request: CfTypes.Request,
-    env: Env,
-    ctx: CfTypes.ExecutionContext
-  ) {
-    const rateLimited = await checkRateLimit(request, env);
-    if (rateLimited) return rateLimited;
+  const url = new URL(request.url);
 
-    const url = new URL(request.url);
-
-    // Handle agent WebSocket connections (/agents/:agent/:name)
-    const agentResponse = await routeAgentRequest(
-      request as unknown as Request,
-      env,
-      {
-        onBeforeConnect: (req, lobby) =>
-          agentHooks.onBeforeConnect(req, lobby, env),
-        onBeforeRequest: (req, lobby) =>
-          agentHooks.onBeforeRequest(req, lobby, env),
-      }
-    );
-    if (agentResponse) return agentResponse;
-
-    if (url.pathname === "/sync") {
-      return handleSync(request, env, ctx);
+  // Handle agent WebSocket connections (/agents/:agent/:name)
+  const agentResponse = await routeAgentRequest(
+    request as unknown as Request,
+    env,
+    {
+      onBeforeConnect: (req, lobby) =>
+        agentHooks.onBeforeConnect(req, lobby, env),
+      onBeforeRequest: (req, lobby) =>
+        agentHooks.onBeforeRequest(req, lobby, env),
     }
+  );
+  if (agentResponse) return agentResponse;
 
-    return app.fetch(request as unknown as Request, env, ctx);
-  },
+  if (url.pathname === "/sync") {
+    return handleSync(request, env, ctx);
+  }
+
+  return app.fetch(request as unknown as Request, env, ctx);
 };
+
+export const queue = async (
+  batch: MessageBatch<LinkQueueMessage>,
+  env: Env
+): Promise<void> => {
+  await handleQueueBatch(batch, env);
+};
+
+export default { fetch, queue };

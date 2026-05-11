@@ -2,9 +2,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { cloudflare } from "@cloudflare/vite-plugin";
-import { livestoreDevtoolsPlugin } from "@livestore/devtools-vite";
+// TODO(tanstack-start): re-import once livestoreDevtoolsPlugin is compatible
+// with Start SSR (see plugins[] below).
+// import { livestoreDevtoolsPlugin } from "@livestore/devtools-vite";
 import tailwindcss from "@tailwindcss/vite";
-import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite-plus";
 
@@ -193,11 +195,20 @@ export default defineConfig({
     include: ["@lexical/code"],
   },
   plugins: [
-    cloudflare({ inspectorPort: 9230 }),
-    TanStackRouterVite(),
+    cloudflare({ inspectorPort: 9230, viteEnvironment: { name: "ssr" } }),
     tailwindcss(),
+    tanstackStart({
+      prerender: { enabled: true },
+      pages: [{ path: "/" }],
+    }),
     viteReact(),
-    livestoreDevtoolsPlugin({ schemaPath: "./src/livestore/schema.ts" }),
+    // TODO(tanstack-start): re-enable once compatible with Start SSR.
+    // The plugin injects @livestore/adapter-web's vite-dev-polyfill (intended
+    // for web shared-worker dev) into SSR module graphs. That polyfill stubs
+    // `document` with createElement/body/head/querySelector but NO
+    // createTextNode, which breaks TanStack Router's script injection during
+    // SSR — `document.createTextNode is not a function` in loadEntries.
+    // livestoreDevtoolsPlugin({ schemaPath: "./src/livestore/schema.ts" }),
   ],
   server: {
     allowedHosts: [".trycloudflare.com"],

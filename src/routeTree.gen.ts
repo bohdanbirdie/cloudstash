@@ -11,8 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedRouteImport } from './routes/_authed'
-import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as ConnectRaycastRouteImport } from './routes/connect/raycast'
+import { Route as AuthedInboxRouteImport } from './routes/_authed/inbox'
 import { Route as AuthedCompletedRouteImport } from './routes/_authed/completed'
 import { Route as AuthedBrandRouteImport } from './routes/_authed/brand'
 import { Route as AuthedArchiveRouteImport } from './routes/_authed/archive'
@@ -27,15 +28,20 @@ const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthedIndexRoute = AuthedIndexRouteImport.update({
+const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AuthedRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ConnectRaycastRoute = ConnectRaycastRouteImport.update({
   id: '/connect/raycast',
   path: '/connect/raycast',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthedInboxRoute = AuthedInboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
+  getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedCompletedRoute = AuthedCompletedRouteImport.update({
   id: '/completed',
@@ -59,33 +65,36 @@ const AuthedAllRoute = AuthedAllRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof AuthedIndexRoute
+  '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/all': typeof AuthedAllRoute
   '/archive': typeof AuthedArchiveRoute
   '/brand': typeof AuthedBrandRoute
   '/completed': typeof AuthedCompletedRoute
+  '/inbox': typeof AuthedInboxRoute
   '/connect/raycast': typeof ConnectRaycastRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/all': typeof AuthedAllRoute
   '/archive': typeof AuthedArchiveRoute
   '/brand': typeof AuthedBrandRoute
   '/completed': typeof AuthedCompletedRoute
+  '/inbox': typeof AuthedInboxRoute
   '/connect/raycast': typeof ConnectRaycastRoute
-  '/': typeof AuthedIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authed/all': typeof AuthedAllRoute
   '/_authed/archive': typeof AuthedArchiveRoute
   '/_authed/brand': typeof AuthedBrandRoute
   '/_authed/completed': typeof AuthedCompletedRoute
+  '/_authed/inbox': typeof AuthedInboxRoute
   '/connect/raycast': typeof ConnectRaycastRoute
-  '/_authed/': typeof AuthedIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -96,29 +105,33 @@ export interface FileRouteTypes {
     | '/archive'
     | '/brand'
     | '/completed'
+    | '/inbox'
     | '/connect/raycast'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/'
     | '/login'
     | '/all'
     | '/archive'
     | '/brand'
     | '/completed'
+    | '/inbox'
     | '/connect/raycast'
-    | '/'
   id:
     | '__root__'
+    | '/'
     | '/_authed'
     | '/login'
     | '/_authed/all'
     | '/_authed/archive'
     | '/_authed/brand'
     | '/_authed/completed'
+    | '/_authed/inbox'
     | '/connect/raycast'
-    | '/_authed/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
   AuthedRoute: typeof AuthedRouteWithChildren
   LoginRoute: typeof LoginRoute
   ConnectRaycastRoute: typeof ConnectRaycastRoute
@@ -140,12 +153,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authed/': {
-      id: '/_authed/'
+    '/': {
+      id: '/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof AuthedIndexRouteImport
-      parentRoute: typeof AuthedRoute
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/connect/raycast': {
       id: '/connect/raycast'
@@ -153,6 +166,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/connect/raycast'
       preLoaderRoute: typeof ConnectRaycastRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authed/inbox': {
+      id: '/_authed/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof AuthedInboxRouteImport
+      parentRoute: typeof AuthedRoute
     }
     '/_authed/completed': {
       id: '/_authed/completed'
@@ -190,7 +210,7 @@ interface AuthedRouteChildren {
   AuthedArchiveRoute: typeof AuthedArchiveRoute
   AuthedBrandRoute: typeof AuthedBrandRoute
   AuthedCompletedRoute: typeof AuthedCompletedRoute
-  AuthedIndexRoute: typeof AuthedIndexRoute
+  AuthedInboxRoute: typeof AuthedInboxRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
@@ -198,13 +218,14 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedArchiveRoute: AuthedArchiveRoute,
   AuthedBrandRoute: AuthedBrandRoute,
   AuthedCompletedRoute: AuthedCompletedRoute,
-  AuthedIndexRoute: AuthedIndexRoute,
+  AuthedInboxRoute: AuthedInboxRoute,
 }
 
 const AuthedRouteWithChildren =
   AuthedRoute._addFileChildren(AuthedRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
   AuthedRoute: AuthedRouteWithChildren,
   LoginRoute: LoginRoute,
   ConnectRaycastRoute: ConnectRaycastRoute,
@@ -212,3 +233,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

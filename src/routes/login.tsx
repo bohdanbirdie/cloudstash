@@ -5,7 +5,7 @@ import { LoginAnimation } from "@/components/login-animation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FieldGroup, FieldDescription } from "@/components/ui/field";
-import { authClient } from "@/lib/auth";
+import { authClient, getSessionServerFn } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 async function clearOPFS() {
@@ -20,10 +20,9 @@ async function clearOPFS() {
 }
 
 export const Route = createFileRoute("/login")({
-  beforeLoad: ({ context }) => {
-    if (context.auth.isAuthenticated) {
-      throw redirect({ to: "/" });
-    }
+  beforeLoad: async ({ serverContext }) => {
+    const auth = serverContext?.auth ?? (await getSessionServerFn());
+    if (auth?.isAuthenticated) throw redirect({ to: "/inbox" });
   },
   component: LoginPage,
 });
@@ -50,7 +49,10 @@ function LoginForm({ className, ...props }: React.ComponentProps<"div">) {
               <Button
                 className="w-full"
                 onClick={() =>
-                  authClient.signIn.oauth2({ providerId: "google" })
+                  authClient.signIn.oauth2({
+                    providerId: "google",
+                    callbackURL: "/inbox",
+                  })
                 }
               >
                 <svg

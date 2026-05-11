@@ -71,7 +71,7 @@ export default defineWorkersConfig({
       workers: {
         singleWorker: true,
         remoteBindings: false,
-        wrangler: { configPath: "./wrangler.toml" },
+        wrangler: { configPath: "./wrangler.jsonc" },
         miniflare: {
           bindings: {
             BETTER_AUTH_SECRET: "test-secret-for-jwt-signing-32chars",

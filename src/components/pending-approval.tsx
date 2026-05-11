@@ -16,7 +16,7 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { Spinner } from "@/components/ui/spinner";
-import { useAuth } from "@/lib/auth";
+import { logout } from "@/lib/auth";
 import { INVITE_CODE_LENGTH } from "@/lib/invite";
 
 import { useRedeemInvite } from "./use-redeem-invite";
@@ -24,7 +24,6 @@ import { useRedeemInvite } from "./use-redeem-invite";
 const HALF = INVITE_CODE_LENGTH / 2;
 
 export function PendingApproval() {
-  const { logout } = useAuth();
   const { redeem, isRedeeming, error, clearError } = useRedeemInvite();
   const [code, setCode] = useState("");
 
@@ -33,9 +32,8 @@ export function PendingApproval() {
     setCode(next.toUpperCase());
   };
 
-  const handleSignOut = async () => {
-    await logout();
-    window.location.reload();
+  const handleSignOut = () => {
+    void logout();
   };
 
   const handleRedeem = async (codeToRedeem?: string) => {
@@ -112,7 +110,7 @@ export function PendingApproval() {
             href="#"
             onClick={(e) => {
               e.preventDefault();
-              void handleSignOut();
+              handleSignOut();
             }}
           >
             Use a different account

@@ -7,7 +7,7 @@ import { safeErrorInfo } from "./log-utils";
 import type { Env } from "./shared";
 
 /**
- * Queue consumer config — must match wrangler.toml [[queues.consumers]]:
+ * Queue consumer config — must match wrangler.jsonc queues.consumers:
  *   queue = "cloudstash-link-queue"
  *   max_batch_size = 5          (messages per batch, matches DO concurrency)
  *   max_concurrency = 1         (one worker instance consuming at a time)

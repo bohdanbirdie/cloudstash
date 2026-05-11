@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { LinksPageLayout } from "@/components/links-page-layout";
 import { resetTransientPageState } from "@/lib/route-resets";
 
-export const Route = createFileRoute("/_authed/")({
+export const Route = createFileRoute("/_authed/inbox")({
   component: LinksPageLayout,
   onEnter: resetTransientPageState,
   staticData: {

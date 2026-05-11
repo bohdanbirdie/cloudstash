@@ -14,9 +14,7 @@ import type { TorusKnotConfig } from "@/lib/brand/torus-knot";
 
 export const Route = createFileRoute("/_authed/brand")({
   beforeLoad: ({ context }) => {
-    if (context.auth.role !== "admin") {
-      throw redirect({ to: "/" });
-    }
+    if (context.auth.role !== "admin") throw redirect({ to: "/inbox" });
   },
   component: BrandPage,
 });

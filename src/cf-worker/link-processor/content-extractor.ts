@@ -1,6 +1,3 @@
-import { Defuddle } from "defuddle/node";
-import { parseHTML } from "linkedom";
-
 import { decodeHtmlEntities } from "../metadata/decode-entities";
 
 export interface ExtractedContent {
@@ -11,28 +8,37 @@ export interface ExtractedContent {
   wordCount: number;
 }
 
-export function extractContent(
+export async function extractContent(
   html: string,
   url: string
 ): Promise<ExtractedContent | null> {
+  // Dynamic imports: defuddle/node and linkedom have module-load side effects
+  // that touch the (incomplete) Worker `document` polyfill. Importing them
+  // lazily keeps them out of any SSR/cold-start path that doesn't actually
+  // need link extraction.
+  const [{ Defuddle }, { parseHTML }] = await Promise.all([
+    import("defuddle/node"),
+    import("linkedom"),
+  ]);
+
   const { document } = parseHTML(html);
-  return Defuddle(document, url, {
+  const result = await Defuddle(document, url, {
     markdown: true,
     removeImages: true,
     useAsync: false,
-  }).then((result) => {
-    if (!result.content || result.wordCount < 20) {
-      return null;
-    }
-
-    return {
-      content: result.content,
-      title: result.title ? decodeHtmlEntities(result.title) : null,
-      author: result.author || null,
-      published: result.published || null,
-      wordCount: result.wordCount,
-    };
   });
+
+  if (!result.content || result.wordCount < 20) {
+    return null;
+  }
+
+  return {
+    content: result.content,
+    title: result.title ? decodeHtmlEntities(result.title) : null,
+    author: result.author || null,
+    published: result.published || null,
+    wordCount: result.wordCount,
+  };
 }
 
 export async function fetchAndExtractContent(

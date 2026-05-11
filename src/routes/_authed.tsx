@@ -8,12 +8,13 @@ import { BottomDock } from "@/components/bottom-dock/bottom-dock";
 import { ListDataProvider } from "@/components/list-data-context";
 import { LoadingScreen } from "@/components/loading-screen";
 import { Masthead } from "@/components/masthead";
+import { PendingApproval } from "@/components/pending-approval";
 import { RightPane } from "@/components/right-pane/right-pane";
 import { TagStrip } from "@/components/tag-strip";
 import { TopBar } from "@/components/top-bar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-// import { useIsMobile } from "@/hooks/use-mobile";
 import { usePageStaticData } from "@/hooks/use-page-static-data";
+import { getSessionServerFn } from "@/lib/auth";
 import { useInputMode } from "@/lib/input-mode";
 import { ConnectionMonitor } from "@/livestore/store";
 
@@ -24,10 +25,17 @@ const DevToolsPanel = lazy(() =>
 );
 
 export const Route = createFileRoute("/_authed")({
-  beforeLoad: ({ context }) => {
-    if (!context.auth.isAuthenticated) {
-      throw redirect({ to: "/login" });
-    }
+  ssr: "data-only",
+  beforeLoad: async ({ serverContext }) => {
+    // SSR: middleware populated `serverContext.auth`. Client-side entry into
+    // the _authed tree (e.g. post-login navigation): no serverContext, so we
+    // RPC for a server-validated session. This fires once per tree entry, not
+    // per navigation between siblings — TanStack Router doesn't re-run a
+    // parent's beforeLoad when a child route changes.
+    const auth = serverContext?.auth ?? (await getSessionServerFn());
+    // Unapproved / no-org users fall through; AuthedLayout shows <PendingApproval />.
+    if (!auth) throw redirect({ to: "/login" });
+    return { auth };
   },
   validateSearch: (search: Record<string, unknown>): { tag?: string } => ({
     tag: typeof search.tag === "string" ? search.tag : undefined,
@@ -36,6 +44,12 @@ export const Route = createFileRoute("/_authed")({
 });
 
 function AuthedLayout() {
+  const { auth } = Route.useRouteContext();
+  if (!auth.isAuthenticated) return <PendingApproval />;
+  return <AuthedShellWrapper />;
+}
+
+function AuthedShellWrapper() {
   const { storeRegistry } = Route.useRouteContext();
   useInputMode();
 

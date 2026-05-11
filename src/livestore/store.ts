@@ -1,11 +1,11 @@
 import { makePersistedAdapter } from "@livestore/adapter-web";
 import type { Store } from "@livestore/livestore";
 import { useStore } from "@livestore/react";
-import { useRouteContext } from "@tanstack/react-router";
 import { Effect, Stream } from "effect";
 import { useEffect, useRef } from "react";
 import { unstable_batchedUpdates } from "react-dom";
 
+import { useAuth } from "@/lib/auth";
 import {
   fetchSyncAuthStatus,
   useSyncStatusStore,
@@ -24,9 +24,9 @@ const adapter = makePersistedAdapter({
 });
 
 export const useAppStore = () => {
-  const { auth } = useRouteContext({ strict: false });
+  const auth = useAuth();
 
-  if (!auth?.isAuthenticated || !auth.orgId) {
+  if (!auth.isAuthenticated || !auth.orgId) {
     throw new Error("useAppStore must be used within an authenticated context");
   }
 

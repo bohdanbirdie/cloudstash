@@ -5,7 +5,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 const links = [
-  { to: "/", label: "inbox", exact: true },
+  { to: "/inbox", label: "inbox", exact: true },
   { to: "/all", label: "all", exact: false },
   { to: "/completed", label: "completed", exact: false },
   { to: "/archive", label: "archive", exact: false },

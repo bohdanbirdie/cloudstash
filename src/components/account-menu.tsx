@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useFilteredLinks } from "@/hooks/use-filtered-links";
 import { usePageStaticData } from "@/hooks/use-page-static-data";
-import { useAuth } from "@/lib/auth";
+import { logout, useAuth } from "@/lib/auth";
 import type { LinkStatus } from "@/livestore/queries/filtered-links";
 
 function getInitial(name: string | null, email: string | null) {
@@ -180,9 +180,7 @@ export function AccountMenu() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => auth.logout().then(() => window.location.reload())}
-            >
+            <AlertDialogAction onClick={() => void logout()}>
               Sign out
             </AlertDialogAction>
           </AlertDialogFooter>

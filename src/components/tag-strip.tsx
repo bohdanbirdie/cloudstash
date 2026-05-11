@@ -35,7 +35,10 @@ export const TagStrip = memo(function TagStrip() {
           <Link
             key={tag.id}
             to="."
-            search={(prev) => ({ ...prev, tag: active ? undefined : tag.id })}
+            search={(prev: { tag?: string }) => ({
+              ...prev,
+              tag: active ? undefined : tag.id,
+            })}
             onClick={clearSelection}
             className={cn(
               "cursor-pointer text-foreground/40 transition-colors hover:text-foreground",
