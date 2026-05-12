@@ -6,6 +6,17 @@ import startHandler from "@tanstack/react-start/server-entry";
 import type { LinkQueueMessage } from "./cf-worker/link-processor/types";
 import type { Env } from "./cf-worker/shared";
 
+// Type the request context passed to startHandler.fetch. Per the TanStack
+// Start docs this augmentation belongs on @tanstack/react-start and lives
+// next to the server entry — not on @tanstack/router-core.
+declare module "@tanstack/react-start" {
+  interface Register {
+    server: {
+      requestContext: { env: Env };
+    };
+  }
+}
+
 // The livestore polyfill stubs `globalThis.document` with a partial shape.
 // Sonner's CSS injection runs at module-eval and gates on
 // `typeof document === 'undefined'` — without this delete it sees the stub,

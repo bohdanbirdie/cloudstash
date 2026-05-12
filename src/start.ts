@@ -2,7 +2,6 @@ import { createMiddleware, createStart } from "@tanstack/react-start";
 
 import { createAuth } from "./cf-worker/auth";
 import { createDb } from "./cf-worker/db";
-import type { Env } from "./cf-worker/shared";
 import { deriveAuthState } from "./lib/auth";
 
 const authMiddleware = createMiddleware().server(
@@ -18,14 +17,5 @@ export const startInstance = createStart(() => ({
   requestMiddleware: [authMiddleware],
 }));
 
-// Start reads `Register.server.requestContext` from `@tanstack/router-core`
-// to type the `context` arg of `startHandler.fetch`. `config` is already
-// declared on `@tanstack/react-start`'s Register by the auto-generated
-// routeTree.gen.ts — don't redeclare it here.
-declare module "@tanstack/router-core" {
-  interface Register {
-    server: {
-      requestContext: { env: Env };
-    };
-  }
-}
+// The `server.requestContext` augmentation that types `context.env` lives in
+// src/server.ts (next to the server entry, per the TanStack Start docs).

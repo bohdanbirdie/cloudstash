@@ -2,10 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { LegalShell } from "@/components/landing/legal-shell";
 import { SITE_URL } from "@/components/landing/seo-data";
-import {
-  META_PIXEL_HEAD_SCRIPTS,
-  MetaPixelNoScript,
-} from "@/lib/meta-pixel";
+import { META_PIXEL_HEAD_SCRIPTS, MetaPixelNoScript } from "@/lib/meta-pixel";
 
 export const Route = createFileRoute("/contact")({
   ssr: true,

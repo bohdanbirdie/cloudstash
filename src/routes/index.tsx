@@ -15,10 +15,7 @@ import {
   SOFTWARE_APPLICATION_LD,
 } from "@/components/landing/seo-data";
 import { TopBar } from "@/components/landing/top-bar";
-import {
-  META_PIXEL_HEAD_SCRIPTS,
-  MetaPixelNoScript,
-} from "@/lib/meta-pixel";
+import { META_PIXEL_HEAD_SCRIPTS, MetaPixelNoScript } from "@/lib/meta-pixel";
 
 export const Route = createFileRoute("/")({
   ssr: true,

@@ -1,7 +1,5 @@
 ---
-
 kanban-plugin: board
-
 ---
 
 ## Todo
@@ -22,7 +20,6 @@ kanban-plugin: board
 - [ ] [[todos/multi-chat-architecture|Multi-chat architecture (separate DOs + central livestore)]]
 - [ ] Connections modal revamp — current implementation is outdated and complicated. Rethink IA/UX for managing per-user integrations (Telegram, Raycast, API keys); simplify each flow, clarify "connection" vs "API key" framing, and consider how it relates to the new Settings entry point.
 
-
 ## In Progress
 
 - [ ] [[todos/weekly-digest-backend|Weekly Digest backend]]
@@ -33,7 +30,6 @@ kanban-plugin: board
 - [ ] Support `#tag` search in the bottom-dock search panel — typing `#` should suggest tags from the workspace and filter by them, complementing free-text search.
 - [ ] Let LLM suggest more tags from existing ones. Respect domains for tags as a fallback
 - [ ] Improve UX of tags strip, maybe add counters and exclude tags that are unused on the specific page
-
 
 ## Done
 
@@ -88,11 +84,10 @@ kanban-plugin: board
 - [x] [[todos/done/monorepo-conversion|Convert project to monorepo]]
 - [x] [[todos/done/raycast-ingestion|Add Raycast ingestion path]]
 
-
-
-
 %% kanban:settings
+
 ```
 {"kanban-plugin":"board"}
 ```
+
 %%
