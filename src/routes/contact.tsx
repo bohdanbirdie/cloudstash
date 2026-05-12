@@ -1,0 +1,42 @@
+import { createFileRoute } from "@tanstack/react-router";
+
+import { LegalShell } from "@/components/landing/legal-shell";
+import { SITE_URL } from "@/components/landing/seo-data";
+
+export const Route = createFileRoute("/contact")({
+  ssr: true,
+  head: () => ({
+    meta: [
+      { title: "Contact — Cloudstash" },
+      {
+        name: "description",
+        content:
+          "Get in touch with the Cloudstash team — feedback, bugs, partnerships.",
+      },
+      { name: "robots", content: "noindex, follow" },
+    ],
+    links: [{ rel: "canonical", href: `${SITE_URL}/contact` }],
+  }),
+  component: ContactPage,
+});
+
+function ContactPage() {
+  return (
+    <LegalShell
+      eyebrow="Get in touch"
+      title="Contact"
+      lead="Feedback, bug reports, partnerships — we read every message."
+    >
+      <p>
+        Email us at{" "}
+        <a
+          href="mailto:hi@cloudstash.dev"
+          className="text-foreground underline decoration-border underline-offset-4 transition-colors hover:decoration-foreground"
+        >
+          hi@cloudstash.dev
+        </a>
+        . A proper contact form is on the way.
+      </p>
+    </LegalShell>
+  );
+}

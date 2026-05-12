@@ -199,7 +199,12 @@ export default defineConfig({
     tailwindcss(),
     tanstackStart({
       prerender: { enabled: true },
-      pages: [{ path: "/" }],
+      pages: [
+        { path: "/" },
+        { path: "/privacy" },
+        { path: "/terms" },
+        { path: "/contact" },
+      ],
     }),
     viteReact(),
     // TODO(tanstack-start): re-enable once compatible with Start SSR.
