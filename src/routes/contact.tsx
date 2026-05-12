@@ -30,10 +30,10 @@ function ContactPage() {
       <p>
         Email us at{" "}
         <a
-          href="mailto:hi@cloudstash.dev"
+          href="mailto:support@cloudstash.dev"
           className="text-foreground underline decoration-border underline-offset-4 transition-colors hover:decoration-foreground"
         >
-          hi@cloudstash.dev
+          support@cloudstash.dev
         </a>
         . A proper contact form is on the way.
       </p>

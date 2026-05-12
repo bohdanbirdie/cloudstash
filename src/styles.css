@@ -4,6 +4,8 @@
 @import "@fontsource-variable/noto-sans";
 @import "@fontsource-variable/jetbrains-mono";
 
+@plugin "@tailwindcss/typography";
+
 @custom-variant dark (&:is(.dark *));
 /* `mouse:` only applies styles when not in keyboard mode. The data attribute is owned by src/lib/input-mode.ts. */
 @custom-variant mouse (&:is(:root:not([data-input-mode="keyboard"]) *));

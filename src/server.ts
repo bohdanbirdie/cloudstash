@@ -25,6 +25,31 @@ const isWorkerRoute = (pathname: string): boolean =>
 // Start SSR bundle's cold start.
 const loadCfWorker = () => import("./cf-worker/index");
 
+const SECURITY_HEADERS: Readonly<Record<string, string>> = {
+  "Strict-Transport-Security": "max-age=15552000; includeSubDomains",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "SAMEORIGIN",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy":
+    "camera=(), microphone=(), geolocation=(), browsing-topics=(), interest-cohort=()",
+};
+
+// WebSocket upgrades (status 101) carry a Workers-specific `webSocket` property
+// that cloning would drop — leave those alone. For everything else, merge the
+// security headers without overriding any header a handler explicitly set.
+const withSecurityHeaders = (response: Response): Response => {
+  if (response.status === 101) return response;
+  const headers = new Headers(response.headers);
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) {
+    if (!headers.has(k)) headers.set(k, v);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+};
+
 export default {
   async fetch(
     request: CfTypes.Request,
@@ -32,13 +57,12 @@ export default {
     ctx: CfTypes.ExecutionContext
   ): Promise<Response> {
     const { pathname } = new URL(request.url);
-    if (isWorkerRoute(pathname)) {
-      const { fetch } = await loadCfWorker();
-      return fetch(request, env, ctx);
-    }
-    return startHandler.fetch(request as unknown as Request, {
-      context: { env },
-    });
+    const response = isWorkerRoute(pathname)
+      ? await (await loadCfWorker()).fetch(request, env, ctx)
+      : await startHandler.fetch(request as unknown as Request, {
+          context: { env },
+        });
+    return withSecurityHeaders(response);
   },
 
   async queue(batch: MessageBatch<LinkQueueMessage>, env: Env): Promise<void> {
