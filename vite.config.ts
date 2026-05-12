@@ -198,7 +198,11 @@ export default defineConfig({
     cloudflare({ inspectorPort: 9230, viteEnvironment: { name: "ssr" } }),
     tailwindcss(),
     tanstackStart({
-      prerender: { enabled: true },
+      prerender: {
+        enabled: true,
+        autoStaticPathsDiscovery: false,
+        crawlLinks: false,
+      },
       pages: [
         { path: "/" },
         { path: "/privacy" },

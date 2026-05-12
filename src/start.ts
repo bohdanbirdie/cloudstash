@@ -6,8 +6,14 @@ import { deriveAuthState } from "./lib/auth";
 
 const authMiddleware = createMiddleware().server(
   async ({ next, request, context }) => {
-    const db = createDb(context.env.DB);
-    const auth = createAuth(context.env, db);
+    // vite's prerender harness invokes the SSR handler from Node without
+    // going through src/server.ts, so context.env is undefined there. At
+    // runtime on Cloudflare, server.ts always passes context.env. The pages
+    // we prerender are public — render anonymous.
+    const env = (context as { env?: typeof context.env }).env;
+    if (!env) return next({ context: { auth: null } });
+    const db = createDb(env.DB);
+    const auth = createAuth(env, db);
     const session = await auth.api.getSession({ headers: request.headers });
     return next({ context: { auth: deriveAuthState(session) } });
   }
