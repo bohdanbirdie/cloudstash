@@ -6,14 +6,16 @@ import { deriveAuthState } from "./lib/auth";
 
 const authMiddleware = createMiddleware().server(
   async ({ next, request, context }) => {
-    // vite's prerender harness invokes the SSR handler from Node without
-    // going through src/server.ts, so context.env is undefined there. At
-    // runtime on Cloudflare, server.ts always passes context.env. The pages
-    // we prerender are public — render anonymous.
-    const env = (context as { env?: typeof context.env }).env;
-    if (!env) return next({ context: { auth: null } });
-    const db = createDb(env.DB);
-    const auth = createAuth(env, db);
+    // BETTER_AUTH_SECRET is a Cloudflare secret, never present in
+    // wrangler.jsonc. The vite-build prerender harness provisions CF
+    // bindings (D1, KV, etc.) but not secrets, so we detect prerender by
+    // its absence and render anonymously — the prerendered pages (/, legal,
+    // contact) are all public.
+    if (!context.env.BETTER_AUTH_SECRET) {
+      return next({ context: { auth: null } });
+    }
+    const db = createDb(context.env.DB);
+    const auth = createAuth(context.env, db);
     const session = await auth.api.getSession({ headers: request.headers });
     return next({ context: { auth: deriveAuthState(session) } });
   }
