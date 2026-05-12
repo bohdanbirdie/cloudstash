@@ -7,6 +7,10 @@ import {
   LegalUpdated,
 } from "@/components/landing/legal-shell";
 import { SITE_URL } from "@/components/landing/seo-data";
+import {
+  META_PIXEL_HEAD_SCRIPTS,
+  MetaPixelNoScript,
+} from "@/lib/meta-pixel";
 
 export const Route = createFileRoute("/terms")({
   ssr: true,
@@ -21,6 +25,7 @@ export const Route = createFileRoute("/terms")({
       { name: "robots", content: "noindex, follow" },
     ],
     links: [{ rel: "canonical", href: `${SITE_URL}/terms` }],
+    scripts: [...META_PIXEL_HEAD_SCRIPTS],
   }),
   component: TermsPage,
 });
@@ -386,6 +391,7 @@ function TermsPage() {
           <LegalAddress />
         </section>
       </LegalArticle>
+      <MetaPixelNoScript />
     </LegalShell>
   );
 }

@@ -21,6 +21,14 @@ import { useRightPaneStore } from "@/stores/right-pane-store";
 
 const UrlSchema = Schema.URL;
 
+function decodeHttpUrl(input: string): Option.Option<URL> {
+  const result = Schema.decodeUnknownOption(UrlSchema)(input);
+  if (Option.isNone(result)) return result;
+  const { protocol } = result.value;
+  if (protocol !== "http:" && protocol !== "https:") return Option.none();
+  return result;
+}
+
 interface AddLinkContextValue {
   addLink: (urlInput: string) => void;
 }
@@ -101,7 +109,7 @@ export function AddLinkProvider({ children }: { children: ReactNode }) {
       const trimmed = urlInput.trim();
       if (!trimmed) return;
 
-      const urlResult = Schema.decodeUnknownOption(UrlSchema)(trimmed);
+      const urlResult = decodeHttpUrl(trimmed);
       if (Option.isNone(urlResult)) {
         toast.error("That doesn't look like a valid URL");
         return;
@@ -178,7 +186,7 @@ export function AddLinkProvider({ children }: { children: ReactNode }) {
       const text = e.clipboardData?.getData("text/plain")?.trim();
       if (!text) return;
 
-      const urlResult = Schema.decodeUnknownOption(UrlSchema)(text);
+      const urlResult = decodeHttpUrl(text);
       if (Option.isSome(urlResult)) {
         e.preventDefault();
         addLink(urlResult.value.href);

@@ -15,6 +15,10 @@ import {
   SOFTWARE_APPLICATION_LD,
 } from "@/components/landing/seo-data";
 import { TopBar } from "@/components/landing/top-bar";
+import {
+  META_PIXEL_HEAD_SCRIPTS,
+  MetaPixelNoScript,
+} from "@/lib/meta-pixel";
 
 export const Route = createFileRoute("/")({
   ssr: true,
@@ -29,6 +33,7 @@ export const Route = createFileRoute("/")({
         type: "application/ld+json",
         children: JSON.stringify(FAQ_LD),
       },
+      ...META_PIXEL_HEAD_SCRIPTS,
     ],
   }),
   component: LandingPage,
@@ -49,6 +54,7 @@ function LandingPage() {
       </main>
       <Footer />
       <MobileStickyCta />
+      <MetaPixelNoScript />
     </div>
   );
 }

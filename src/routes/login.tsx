@@ -7,6 +7,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { FieldGroup, FieldDescription } from "@/components/ui/field";
 import { authClient, getSessionServerFn } from "@/lib/auth";
 import { PALETTES, paintDitherWithEffects } from "@/lib/brand/dither";
+import {
+  META_PIXEL_HEAD_SCRIPTS,
+  MetaPixelNoScript,
+} from "@/lib/meta-pixel";
 import { cn } from "@/lib/utils";
 
 const MIDNIGHT = PALETTES.find((p) => p.name === "Midnight")!;
@@ -47,6 +51,7 @@ export const Route = createFileRoute("/login")({
       { name: "robots", content: "noindex, nofollow" },
     ],
     links: [{ rel: "canonical", href: "https://cloudstash.dev/login" }],
+    scripts: [...META_PIXEL_HEAD_SCRIPTS],
   }),
   component: LoginPage,
 });
@@ -376,6 +381,7 @@ function LoginPage() {
       <div className="w-full max-w-sm md:max-w-3xl">
         <LoginForm />
       </div>
+      <MetaPixelNoScript />
     </div>
   );
 }
