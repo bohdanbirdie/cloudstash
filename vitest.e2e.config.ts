@@ -67,6 +67,10 @@ export default defineWorkersConfig({
   test: {
     include: ["src/cf-worker/__tests__/e2e/**/*.test.ts"],
     exclude: ["**/node_modules/**", "**/local/**"],
+    // CI runners are noticeably slower than local at warming miniflare —
+    // workflow + DO tests that finish in <500ms here time out at 5s on CI.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     poolOptions: {
       workers: {
         singleWorker: true,
