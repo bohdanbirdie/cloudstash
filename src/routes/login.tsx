@@ -24,6 +24,13 @@ export const Route = createFileRoute("/login")({
     const auth = serverContext?.auth ?? (await getSessionServerFn());
     if (auth?.isAuthenticated) throw redirect({ to: "/inbox" });
   },
+  head: () => ({
+    meta: [
+      { title: "Sign in — Cloudstash" },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+    links: [{ rel: "canonical", href: "https://cloudstash.dev/login" }],
+  }),
   component: LoginPage,
 });
 

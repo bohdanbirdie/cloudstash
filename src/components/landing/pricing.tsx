@@ -1,0 +1,205 @@
+import { Link } from "@tanstack/react-router";
+import { motion } from "motion/react";
+
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+import { SectionHeader, SHELL } from "./shared";
+
+type Tier = {
+  name: string;
+  badge?: React.ReactNode;
+  price: string;
+  priceSuffix: string;
+  blurb: string;
+  features: readonly string[];
+  cta: { label: string; href: string };
+};
+
+const TIERS: readonly Tier[] = [
+  {
+    name: "Free",
+    price: "$0",
+    priceSuffix: "/ forever",
+    blurb: "The saving core. Yours forever.",
+    features: [
+      "Save links from the dashboard",
+      "Tag, archive, search",
+      "Sync across your devices",
+      "Export everything, anytime",
+    ],
+    cta: { label: "Save your first link", href: "/login" },
+  },
+  {
+    name: "Plus",
+    badge: (
+      <span className="select-none rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-primary-foreground">
+        Popular
+      </span>
+    ),
+    price: "$5",
+    priceSuffix: "/ month",
+    blurb: "Save from anywhere. AI does the reading.",
+    features: [
+      "Everything in Free",
+      "AI summary on every save",
+      "Save from Telegram, Raycast, iOS, Chrome, and X",
+      "Public API",
+    ],
+    cta: { label: "Start Plus", href: "/login" },
+  },
+  {
+    name: "Pro",
+    price: "$12",
+    priceSuffix: "/ month",
+    blurb: "Bigger AI, deeper access.",
+    features: [
+      "Everything in Plus",
+      "Chat with your archive",
+      "Larger summary model",
+      "MCP server",
+    ],
+    cta: { label: "Start Pro", href: "/login" },
+  },
+];
+
+export function Pricing() {
+  return (
+    <section
+      id="pricing"
+      className="border-y border-border/60 bg-muted/30 py-16 sm:py-20 lg:py-24"
+    >
+      <div className={SHELL}>
+        <SectionHeader
+          eyebrow="Pricing"
+          title={
+            <>
+              Free to save. <span className="text-primary">Pay for power.</span>
+            </>
+          }
+          lead="Saving links is free forever. Pay only when you want AI summaries and integrations."
+        />
+
+        <div className="grid gap-4 sm:gap-5 lg:grid-cols-3">
+          {TIERS.map((tier, i) => (
+            <PricingTile key={tier.name} tier={tier} index={i} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PricingTile({ tier, index }: { tier: Tier; index: number }) {
+  const highlighted = tier.name === "Plus";
+  const inverted = tier.name === "Pro";
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{
+        duration: 0.45,
+        ease: [0.22, 1, 0.36, 1],
+        delay: index * 0.08,
+      }}
+      className={cn(
+        "flex flex-col rounded-lg border p-7 transition-[border-color,box-shadow]",
+        inverted
+          ? "border-foreground/95 bg-foreground text-background shadow-[0_1px_0_oklch(0_0_0_/_0.06),0_18px_40px_-20px_oklch(0_0_0_/_0.35)]"
+          : highlighted
+            ? "border-primary/60 bg-background ring-1 ring-primary/25 shadow-[0_1px_0_oklch(0.553_0.195_38.402_/_0.12),0_12px_28px_-16px_oklch(0.553_0.195_38.402_/_0.25)]"
+            : "border-border/80 bg-background hover:border-border hover:shadow-[0_1px_0_oklch(0_0_0_/_0.04),0_8px_20px_-16px_oklch(0_0_0_/_0.18)]"
+      )}
+    >
+      <div className="mb-5 flex items-center justify-between">
+        <span
+          className={cn(
+            "text-[12px] font-semibold uppercase tracking-[0.08em]",
+            inverted ? "text-background/60" : "text-muted-foreground"
+          )}
+        >
+          {tier.name}
+        </span>
+        {tier.badge}
+        {inverted && (
+          <span className="select-none rounded-full border border-background/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-background/85">
+            Power user
+          </span>
+        )}
+      </div>
+      <div className="mb-2 flex items-baseline gap-1.5">
+        <span
+          className={cn(
+            "text-4xl font-bold tracking-tight tabular-nums",
+            inverted && "text-background"
+          )}
+        >
+          {tier.price}
+        </span>
+        <span
+          className={cn(
+            "text-sm font-medium",
+            inverted ? "text-background/60" : "text-muted-foreground"
+          )}
+        >
+          {tier.priceSuffix}
+        </span>
+      </div>
+      <p
+        className={cn(
+          "mb-7 text-pretty text-sm",
+          inverted ? "text-background/70" : "text-muted-foreground"
+        )}
+      >
+        {tier.blurb}
+      </p>
+      <ul className="mb-8 grid flex-1 content-start gap-3 text-sm">
+        {tier.features.map((it) => (
+          <li key={it} className="flex items-baseline gap-2.5">
+            <span className="inline-flex shrink-0">
+              <PricingCheck inverted={inverted} />
+            </span>
+            <span
+              className={cn(
+                "text-pretty",
+                inverted ? "text-background/90" : "text-foreground/90"
+              )}
+            >
+              {it}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <Button
+        render={<Link to={tier.cta.href} />}
+        size="lg"
+        variant={tier.name === "Free" ? "outline" : "default"}
+        className={cn(
+          "h-11 w-full px-6 text-sm",
+          inverted &&
+            "bg-background text-foreground shadow-[0_1px_0_oklch(0_0_0_/_0.08)] hover:bg-background/90"
+        )}
+      >
+        {tier.cta.label}
+      </Button>
+    </motion.div>
+  );
+}
+
+function PricingCheck({ inverted }: { inverted?: boolean }) {
+  return (
+    <svg
+      className={cn("size-4", inverted ? "text-background" : "text-primary")}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}

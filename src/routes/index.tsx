@@ -1,32 +1,54 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+
+import { Benefits } from "@/components/landing/benefits-section";
+import { Closer } from "@/components/landing/closer";
+import { Faq } from "@/components/landing/faq";
+import { Footer } from "@/components/landing/footer";
+import { Hero } from "@/components/landing/hero";
+import { Integrations } from "@/components/landing/integrations";
+import { MobileStickyCta } from "@/components/landing/mobile-sticky-cta";
+import { Pitch } from "@/components/landing/pitch";
+import { Pricing } from "@/components/landing/pricing";
+import {
+  FAQ_LD,
+  SITE_URL,
+  SOFTWARE_APPLICATION_LD,
+} from "@/components/landing/seo-data";
+import { TopBar } from "@/components/landing/top-bar";
 
 export const Route = createFileRoute("/")({
   ssr: true,
+  head: () => ({
+    links: [{ rel: "canonical", href: `${SITE_URL}/` }],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify(SOFTWARE_APPLICATION_LD),
+      },
+      {
+        type: "application/ld+json",
+        children: JSON.stringify(FAQ_LD),
+      },
+    ],
+  }),
   component: LandingPage,
 });
 
 function LandingPage() {
   return (
-    <main className="bg-background text-foreground flex min-h-svh flex-col items-center justify-center p-6 md:p-10">
-      <div className="flex w-full max-w-2xl flex-col items-center gap-8 text-center">
-        <span className="rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">
-          Alpha
-        </span>
-        <h1 className="text-5xl font-bold tracking-tight md:text-6xl">
-          cloudstash
-        </h1>
-        <p className="text-muted-foreground text-balance text-lg md:text-xl">
-          Save links. Read later. AI-powered summaries.
-        </p>
-        <div className="flex gap-3">
-          <Link
-            to="/login"
-            className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-5 py-2.5 text-sm font-medium transition-colors"
-          >
-            Get started
-          </Link>
-        </div>
-      </div>
-    </main>
+    <div className="min-h-svh scroll-pt-14 bg-background text-foreground">
+      <TopBar />
+      <main className="pb-20 sm:pb-0">
+        <Hero />
+        <Pitch />
+        <Integrations />
+        <Benefits />
+        <Pricing />
+        <Faq />
+        <Closer />
+      </main>
+      <Footer />
+      <MobileStickyCta />
+    </div>
   );
 }
