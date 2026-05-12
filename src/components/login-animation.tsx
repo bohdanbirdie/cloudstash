@@ -26,8 +26,21 @@ export function LoginAnimation({
     const path = pathRef.current!;
     if (!group || !path) return;
 
-    const particleFill = variant === "light" ? "#000000" : "currentColor";
+    function renderStaticPath(R: number) {
+      let d = "";
+      for (let i = 0; i <= 480; i++) {
+        const pt = torusKnotPoint(i / 480, { ...CONFIG, R });
+        d += `${i === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)} `;
+      }
+      path.setAttribute("d", d + "Z");
+    }
+    renderStaticPath(R_BASE);
 
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+
+    const particleFill = variant === "light" ? "#ffffff" : "currentColor";
     const NS = "http://www.w3.org/2000/svg";
     const circles: SVGCircleElement[] = [];
     for (let i = 0; i < PARTICLE_COUNT; i++) {
@@ -49,13 +62,7 @@ export function LoginAnimation({
       const rotation = -((time % 34000) / 34000) * 360;
 
       group.setAttribute("transform", `rotate(${rotation} 50 50)`);
-
-      let d = "";
-      for (let i = 0; i <= 480; i++) {
-        const pt = torusKnotPoint(i / 480, { ...CONFIG, R });
-        d += `${i === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)} `;
-      }
-      path.setAttribute("d", d + "Z");
+      renderStaticPath(R);
 
       for (let idx = 0; idx < circles.length; idx++) {
         const tailOffset = idx / (PARTICLE_COUNT - 1);
@@ -92,7 +99,7 @@ export function LoginAnimation({
           strokeWidth={4.3}
           strokeLinecap="round"
           strokeLinejoin="round"
-          opacity={variant === "light" ? 1 : 0.08}
+          opacity={variant === "light" ? 0.35 : 0.08}
         />
       </g>
     </svg>
