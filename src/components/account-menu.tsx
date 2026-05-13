@@ -10,11 +10,8 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { AdminModal } from "@/components/admin";
-import { ConnectionsModal } from "@/components/connections/connections-modal";
 import { ExportDialog } from "@/components/export-dialog";
-import { SettingsModal } from "@/components/settings/settings-modal";
-import { TagManagerDialog } from "@/components/tags/tag-manager-dialog";
+import type { SettingsSection } from "@/components/settings/settings-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,6 +39,7 @@ import { useFilteredLinks } from "@/hooks/use-filtered-links";
 import { usePageStaticData } from "@/hooks/use-page-static-data";
 import { logout, useAuth } from "@/lib/auth";
 import type { LinkStatus } from "@/livestore/queries/filtered-links";
+import { useSettingsDialog } from "@/stores/settings-dialog-store";
 
 function getInitial(name: string | null, email: string | null) {
   const source = name?.trim() || email?.trim() || "";
@@ -58,16 +56,15 @@ export function AccountMenu() {
   const auth = useAuth();
   const { status: pageStatus, title: pageTitle } = usePageStaticData();
 
-  const [adminOpen, setAdminOpen] = useState(false);
-  const [connectionsOpen, setConnectionsOpen] = useState(false);
-  const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const isAdmin = auth.role === "admin";
   const initial = getInitial(auth.name, auth.email);
   const firstName = getFirstName(auth.name);
+
+  const openSettings = (section: SettingsSection) =>
+    useSettingsDialog.getState().openAt(section);
 
   return (
     <>
@@ -115,15 +112,15 @@ export function AccountMenu() {
               <DropdownMenuSeparator />
             </>
           )}
-          <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+          <DropdownMenuItem onClick={() => openSettings("account")}>
             <SettingsIcon />
             Settings
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setTagManagerOpen(true)}>
+          <DropdownMenuItem onClick={() => openSettings("tags")}>
             <TagIcon />
             Manage tags
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setConnectionsOpen(true)}>
+          <DropdownMenuItem onClick={() => openSettings("connections")}>
             <BlocksIcon />
             Connections
           </DropdownMenuItem>
@@ -136,7 +133,7 @@ export function AccountMenu() {
           {isAdmin && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setAdminOpen(true)}>
+              <DropdownMenuItem onClick={() => openSettings("admin")}>
                 <ShieldIcon />
                 Admin
               </DropdownMenuItem>
@@ -154,9 +151,6 @@ export function AccountMenu() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {tagManagerOpen && (
-        <TagManagerDialog open onOpenChange={setTagManagerOpen} />
-      )}
       {exportOpen && pageStatus && pageTitle && (
         <ExportPageDialog
           status={pageStatus}
@@ -165,11 +159,6 @@ export function AccountMenu() {
           onOpenChange={setExportOpen}
         />
       )}
-      {connectionsOpen && (
-        <ConnectionsModal open onOpenChange={setConnectionsOpen} />
-      )}
-      {settingsOpen && <SettingsModal open onOpenChange={setSettingsOpen} />}
-      {adminOpen && <AdminModal open onOpenChange={setAdminOpen} />}
       <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

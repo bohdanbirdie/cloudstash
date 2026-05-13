@@ -10,6 +10,7 @@ import { LoadingScreen } from "@/components/loading-screen";
 import { Masthead } from "@/components/masthead";
 import { PendingApproval } from "@/components/pending-approval";
 import { RightPane } from "@/components/right-pane/right-pane";
+import { SettingsDialog } from "@/components/settings/settings-dialog";
 import { TagStrip } from "@/components/tag-strip";
 import { TopBar } from "@/components/top-bar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -68,6 +69,7 @@ function AuthedShellWrapper() {
                 </div>
               </div>
             </div>
+            <SettingsDialog />
             {import.meta.env.DEV && (
               <Suspense fallback={null}>
                 <DevToolsPanel />

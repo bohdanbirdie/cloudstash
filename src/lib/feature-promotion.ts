@@ -1,1 +1,1 @@
-export const PROMOTE_PAID_FEATURES = false;
+export const PROMOTE_PAID_FEATURES = true;

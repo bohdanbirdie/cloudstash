@@ -2,66 +2,17 @@ import { Link } from "@tanstack/react-router";
 import { motion } from "motion/react";
 
 import { Button } from "@/components/ui/button";
+import type { PlanInfo, PlanTier } from "@/lib/plan";
+import { PLAN_LIST } from "@/lib/plan";
 import { cn } from "@/lib/utils";
 
-import { SectionHeader, SHELL } from "./shared";
-
-type Tier = {
-  name: string;
-  badge?: React.ReactNode;
-  price: string;
-  priceSuffix: string;
-  blurb: string;
-  features: readonly string[];
-  cta: { label: string; href: string };
+const CTA_BY_TIER: Record<PlanTier, { label: string; href: string }> = {
+  free: { label: "Save your first link", href: "/login" },
+  plus: { label: "Start Plus", href: "/login" },
+  pro: { label: "Start Pro", href: "/login" },
 };
 
-const TIERS: readonly Tier[] = [
-  {
-    name: "Free",
-    price: "$0",
-    priceSuffix: "/ forever",
-    blurb: "The saving core. Yours forever.",
-    features: [
-      "Save links from the dashboard",
-      "Tag, archive, search",
-      "Sync across your devices",
-      "Export everything, anytime",
-    ],
-    cta: { label: "Save your first link", href: "/login" },
-  },
-  {
-    name: "Plus",
-    badge: (
-      <span className="select-none rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-primary-foreground">
-        Popular
-      </span>
-    ),
-    price: "$5",
-    priceSuffix: "/ month",
-    blurb: "Save from anywhere. AI does the reading.",
-    features: [
-      "Everything in Free",
-      "AI summary on every save",
-      "Save from Telegram, Raycast, iOS, Chrome, and X",
-      "Public API",
-    ],
-    cta: { label: "Start Plus", href: "/login" },
-  },
-  {
-    name: "Pro",
-    price: "$12",
-    priceSuffix: "/ month",
-    blurb: "Bigger AI, deeper access.",
-    features: [
-      "Everything in Plus",
-      "Chat with your archive",
-      "Larger summary model",
-      "MCP server",
-    ],
-    cta: { label: "Start Pro", href: "/login" },
-  },
-];
+import { SectionHeader, SHELL } from "./shared";
 
 export function Pricing() {
   return (
@@ -81,8 +32,8 @@ export function Pricing() {
         />
 
         <div className="grid gap-4 sm:gap-5 lg:grid-cols-3">
-          {TIERS.map((tier, i) => (
-            <PricingTile key={tier.name} tier={tier} index={i} />
+          {PLAN_LIST.map((plan, i) => (
+            <PricingTile key={plan.id} plan={plan} index={i} />
           ))}
         </div>
       </div>
@@ -90,9 +41,13 @@ export function Pricing() {
   );
 }
 
-function PricingTile({ tier, index }: { tier: Tier; index: number }) {
-  const highlighted = tier.name === "Plus";
-  const inverted = tier.name === "Pro";
+function PricingTile({ plan, index }: { plan: PlanInfo; index: number }) {
+  const cta = CTA_BY_TIER[plan.id];
+  const cumulative =
+    plan.id === "free"
+      ? plan.features
+      : ["Everything in " + previousTierName(plan.id), ...plan.features];
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -105,9 +60,9 @@ function PricingTile({ tier, index }: { tier: Tier; index: number }) {
       }}
       className={cn(
         "flex flex-col rounded-lg border p-7 transition-[border-color,box-shadow]",
-        inverted
+        plan.inverted
           ? "border-foreground/95 bg-foreground text-background shadow-[0_1px_0_oklch(0_0_0_/_0.06),0_18px_40px_-20px_oklch(0_0_0_/_0.35)]"
-          : highlighted
+          : plan.highlighted
             ? "border-primary/60 bg-background ring-1 ring-primary/25 shadow-[0_1px_0_oklch(0.553_0.195_38.402_/_0.12),0_12px_28px_-16px_oklch(0.553_0.195_38.402_/_0.25)]"
             : "border-border/80 bg-background hover:border-border hover:shadow-[0_1px_0_oklch(0_0_0_/_0.04),0_8px_20px_-16px_oklch(0_0_0_/_0.18)]"
       )}
@@ -116,15 +71,19 @@ function PricingTile({ tier, index }: { tier: Tier; index: number }) {
         <span
           className={cn(
             "text-[12px] font-semibold uppercase tracking-[0.08em]",
-            inverted ? "text-background/60" : "text-muted-foreground"
+            plan.inverted ? "text-background/60" : "text-muted-foreground"
           )}
         >
-          {tier.name}
+          {plan.name}
         </span>
-        {tier.badge}
-        {inverted && (
+        {plan.badge && plan.highlighted && (
+          <span className="select-none rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-primary-foreground">
+            {plan.badge}
+          </span>
+        )}
+        {plan.badge && plan.inverted && (
           <span className="select-none rounded-full border border-background/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-background/85">
-            Power user
+            {plan.badge}
           </span>
         )}
       </div>
@@ -132,38 +91,38 @@ function PricingTile({ tier, index }: { tier: Tier; index: number }) {
         <span
           className={cn(
             "text-4xl font-bold tracking-tight tabular-nums",
-            inverted && "text-background"
+            plan.inverted && "text-background"
           )}
         >
-          {tier.price}
+          ${plan.price}
         </span>
         <span
           className={cn(
             "text-sm font-medium",
-            inverted ? "text-background/60" : "text-muted-foreground"
+            plan.inverted ? "text-background/60" : "text-muted-foreground"
           )}
         >
-          {tier.priceSuffix}
+          {plan.priceSuffix}
         </span>
       </div>
       <p
         className={cn(
           "mb-7 text-pretty text-sm",
-          inverted ? "text-background/70" : "text-muted-foreground"
+          plan.inverted ? "text-background/70" : "text-muted-foreground"
         )}
       >
-        {tier.blurb}
+        {plan.tagline}
       </p>
       <ul className="mb-8 grid flex-1 content-start gap-3 text-sm">
-        {tier.features.map((it) => (
+        {cumulative.map((it) => (
           <li key={it} className="flex items-baseline gap-2.5">
             <span className="inline-flex shrink-0">
-              <PricingCheck inverted={inverted} />
+              <PricingCheck inverted={plan.inverted} />
             </span>
             <span
               className={cn(
                 "text-pretty",
-                inverted ? "text-background/90" : "text-foreground/90"
+                plan.inverted ? "text-background/90" : "text-foreground/90"
               )}
             >
               {it}
@@ -172,19 +131,25 @@ function PricingTile({ tier, index }: { tier: Tier; index: number }) {
         ))}
       </ul>
       <Button
-        render={<Link to={tier.cta.href} />}
+        render={<Link to={cta.href} />}
         size="lg"
-        variant={tier.name === "Free" ? "outline" : "default"}
+        variant={plan.id === "free" ? "outline" : "default"}
         className={cn(
           "h-11 w-full px-6 text-sm",
-          inverted &&
+          plan.inverted &&
             "bg-background text-foreground shadow-[0_1px_0_oklch(0_0_0_/_0.08)] hover:bg-background/90"
         )}
       >
-        {tier.cta.label}
+        {cta.label}
       </Button>
     </motion.div>
   );
+}
+
+function previousTierName(tier: PlanTier): string {
+  if (tier === "plus") return "Free";
+  if (tier === "pro") return "Plus";
+  return "";
 }
 
 function PricingCheck({ inverted }: { inverted?: boolean }) {
