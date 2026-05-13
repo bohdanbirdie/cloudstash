@@ -25,5 +25,5 @@ export const startInstance = createStart(() => ({
   requestMiddleware: [authMiddleware],
 }));
 
-// The `server.requestContext` augmentation that types `context.env` lives in
-// src/server.ts (next to the server entry, per the TanStack Start docs).
+// The `server.requestContext` augmentation that types `context.env` lives
+// in src/server.ts (next to the server entry, per the TanStack Start docs).
