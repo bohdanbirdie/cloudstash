@@ -1,5 +1,6 @@
 import { queryDb, Schema } from "@livestore/livestore";
 
+import type { LinkStatus } from "./filtered-links";
 import {
   TagCountSchema,
   TagSchema,
@@ -93,6 +94,46 @@ export const allTagsWithCounts$ = queryDb(
   }),
   { label: "allTagsWithCounts" }
 );
+
+function linkFilterForStatus(status: LinkStatus): string {
+  switch (status) {
+    case "inbox":
+      return "l.status = 'unread' AND l.deletedAt IS NULL";
+    case "completed":
+      return "l.status = 'completed' AND l.deletedAt IS NULL";
+    case "all":
+      return "l.deletedAt IS NULL";
+    case "archive":
+      return "l.deletedAt IS NOT NULL";
+  }
+}
+
+export const tagsWithCountsForStatus$ = (status: LinkStatus) =>
+  queryDb(
+    {
+      query: `
+        SELECT t.id, t.name, t.sortOrder,
+               (
+                 SELECT COUNT(*) FROM link_tags lt
+                 JOIN links l ON l.id = lt.linkId
+                 WHERE lt.tagId = t.id AND ${linkFilterForStatus(status)}
+               ) AS count
+        FROM tags t
+        WHERE t.deletedAt IS NULL
+          AND EXISTS (SELECT 1 FROM link_tags lt WHERE lt.tagId = t.id)
+        ORDER BY
+          (
+            SELECT COUNT(*) FROM link_tags lt
+            JOIN links l ON l.id = lt.linkId
+            WHERE lt.tagId = t.id
+              AND l.status = 'unread' AND l.deletedAt IS NULL
+          ) DESC,
+          t.name ASC
+      `,
+      schema: Schema.Array(TagWithCountSchema),
+    },
+    { label: `tagsWithCountsForStatus:${status}` }
+  );
 
 export const pendingSuggestionsForLink$ = (linkId: string) =>
   queryDb(

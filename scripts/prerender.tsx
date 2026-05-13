@@ -12,10 +12,8 @@ import {
 import { renderToString } from "react-dom/server";
 import { createServer } from "vite";
 
-import {
-  PRERENDERED_PATHS as PATHS,
-  type PrerenderedPath as Path,
-} from "../src/lib/prerendered-paths";
+import { PRERENDERED_PATHS as PATHS } from "../src/lib/prerendered-paths";
+import type { PrerenderedPath as Path } from "../src/lib/prerendered-paths";
 
 // Marketing routes only. We load them directly via Vite SSR so the full
 // `routeTree.gen.ts` (which pulls in _authed → livestore → browser-only

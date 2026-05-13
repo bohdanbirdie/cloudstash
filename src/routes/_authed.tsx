@@ -96,9 +96,7 @@ function AuthedShell() {
       <div className="flex h-full flex-col px-8 pt-6 pb-6">
         <TopBar />
 
-        <div className="mt-4 mb-2 px-2">
-          <TagStrip />
-        </div>
+        <TagStrip status={status} />
 
         <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,820px)_540px] gap-x-8">
           <div className="flex min-h-0 min-w-0 flex-col">

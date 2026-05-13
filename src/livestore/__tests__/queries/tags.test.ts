@@ -7,6 +7,7 @@ import {
   pendingSuggestionsForLink$,
   tagCounts$,
   tagsForLink$,
+  tagsWithCountsForStatus$,
 } from "../../queries/tags";
 import { events } from "../../schema";
 import { makeTestStore, testId } from "../test-helpers";
@@ -182,6 +183,165 @@ describe("tags queries", () => {
 
       const rows = store.query(allTagsWithCounts$);
       expect(rows.map((r) => r.name)).toEqual(["Banana", "Cherry", "apple"]);
+    });
+  });
+
+  describe("tagsWithCountsForStatus$", () => {
+    const completeLink = (id: string, completedAt: Date) =>
+      store.commit(events.linkCompleted({ id, completedAt }));
+
+    const deleteLink = (id: string, deletedAt: Date) =>
+      store.commit(events.linkDeleted({ id, deletedAt }));
+
+    it("counts only unread, non-deleted links for inbox status", () => {
+      const unread = seedLink({ url: "https://a.test/1" });
+      const done = seedLink({ url: "https://a.test/2" });
+      const trashed = seedLink({ url: "https://a.test/3" });
+      const tA = seedTag("A", 1);
+      tagLink(unread, tA);
+      tagLink(done, tA);
+      tagLink(trashed, tA);
+      completeLink(done, new Date("2026-01-05T10:00:00Z"));
+      deleteLink(trashed, new Date("2026-01-06T10:00:00Z"));
+
+      const rows = store.query(tagsWithCountsForStatus$("inbox"));
+      expect(rows.find((r) => r.id === tA)?.count).toBe(1);
+    });
+
+    it("counts only completed, non-deleted links for completed status", () => {
+      const unread = seedLink({ url: "https://a.test/1" });
+      const done1 = seedLink({ url: "https://a.test/2" });
+      const done2 = seedLink({ url: "https://a.test/3" });
+      const tA = seedTag("A", 1);
+      tagLink(unread, tA);
+      tagLink(done1, tA);
+      tagLink(done2, tA);
+      completeLink(done1, new Date("2026-01-05T10:00:00Z"));
+      completeLink(done2, new Date("2026-01-05T11:00:00Z"));
+
+      const rows = store.query(tagsWithCountsForStatus$("completed"));
+      expect(rows.find((r) => r.id === tA)?.count).toBe(2);
+    });
+
+    it("counts only deleted links for archive status", () => {
+      const live = seedLink({ url: "https://a.test/1" });
+      const trashed = seedLink({ url: "https://a.test/2" });
+      const tA = seedTag("A", 1);
+      tagLink(live, tA);
+      tagLink(trashed, tA);
+      deleteLink(trashed, new Date("2026-01-06T10:00:00Z"));
+
+      const rows = store.query(tagsWithCountsForStatus$("archive"));
+      expect(rows.find((r) => r.id === tA)?.count).toBe(1);
+    });
+
+    it("counts all non-deleted links for all status (regardless of completed)", () => {
+      const unread = seedLink({ url: "https://a.test/1" });
+      const done = seedLink({ url: "https://a.test/2" });
+      const trashed = seedLink({ url: "https://a.test/3" });
+      const tA = seedTag("A", 1);
+      tagLink(unread, tA);
+      tagLink(done, tA);
+      tagLink(trashed, tA);
+      completeLink(done, new Date("2026-01-05T10:00:00Z"));
+      deleteLink(trashed, new Date("2026-01-06T10:00:00Z"));
+
+      const rows = store.query(tagsWithCountsForStatus$("all"));
+      expect(rows.find((r) => r.id === tA)?.count).toBe(2);
+    });
+
+    it("includes tags with count 0 on the current status when they exist elsewhere", () => {
+      const done = seedLink({ url: "https://a.test/1" });
+      const tA = seedTag("only-completed", 1);
+      tagLink(done, tA);
+      completeLink(done, new Date("2026-01-05T10:00:00Z"));
+
+      const inboxRows = store.query(tagsWithCountsForStatus$("inbox"));
+      expect(inboxRows.find((r) => r.id === tA)?.count).toBe(0);
+    });
+
+    it("excludes tags that have never been used anywhere", () => {
+      const used = seedLink();
+      const tUsed = seedTag("used", 1);
+      const tUnused = seedTag("unused", 2);
+      tagLink(used, tUsed);
+
+      const rows = store.query(tagsWithCountsForStatus$("inbox"));
+      const ids = rows.map((r) => r.id);
+      expect(ids).toContain(tUsed);
+      expect(ids).not.toContain(tUnused);
+    });
+
+    it("orders by inbox usage desc then name asc, regardless of current status", () => {
+      const inboxA = seedLink({ url: "https://a.test/1" });
+      const inboxB = seedLink({ url: "https://a.test/2" });
+      const inboxC = seedLink({ url: "https://a.test/3" });
+      const doneA = seedLink({ url: "https://a.test/4" });
+      const doneB = seedLink({ url: "https://a.test/5" });
+      const tInboxHeavy = seedTag("alpha", 1);
+      const tInboxLight = seedTag("beta", 2);
+      const tCompletedOnly = seedTag("zeta", 3);
+      // alpha: 3 inbox links — top by inbox usage
+      tagLink(inboxA, tInboxHeavy);
+      tagLink(inboxB, tInboxHeavy);
+      tagLink(inboxC, tInboxHeavy);
+      // beta: 1 inbox link
+      tagLink(inboxA, tInboxLight);
+      // zeta: 0 inbox, 2 completed — should sort last (0 inbox), name asc breaks ties
+      tagLink(doneA, tCompletedOnly);
+      tagLink(doneB, tCompletedOnly);
+      completeLink(doneA, new Date("2026-01-05T10:00:00Z"));
+      completeLink(doneB, new Date("2026-01-05T11:00:00Z"));
+
+      // Even on the completed page, alpha/beta come first because they
+      // dominate inbox; zeta is last despite owning the completed page.
+      const completedRows = store.query(tagsWithCountsForStatus$("completed"));
+      expect(completedRows.map((r) => r.id)).toEqual([
+        tInboxHeavy,
+        tInboxLight,
+        tCompletedOnly,
+      ]);
+      expect(completedRows.find((r) => r.id === tInboxHeavy)?.count).toBe(0);
+      expect(completedRows.find((r) => r.id === tCompletedOnly)?.count).toBe(2);
+    });
+
+    it("returns the same tag order regardless of which status page is queried", () => {
+      const inboxLink = seedLink({ url: "https://a.test/1" });
+      const doneA = seedLink({ url: "https://a.test/2" });
+      const doneB = seedLink({ url: "https://a.test/3" });
+      const tInbox = seedTag("alpha", 1);
+      const tCompletedOnly = seedTag("zeta", 2);
+      tagLink(inboxLink, tInbox);
+      tagLink(doneA, tCompletedOnly);
+      tagLink(doneB, tCompletedOnly);
+      completeLink(doneA, new Date("2026-01-05T10:00:00Z"));
+      completeLink(doneB, new Date("2026-01-05T11:00:00Z"));
+
+      const inboxOrder = store
+        .query(tagsWithCountsForStatus$("inbox"))
+        .map((r) => r.id);
+      const completedOrder = store
+        .query(tagsWithCountsForStatus$("completed"))
+        .map((r) => r.id);
+      const allOrder = store
+        .query(tagsWithCountsForStatus$("all"))
+        .map((r) => r.id);
+      expect(inboxOrder).toEqual(completedOrder);
+      expect(inboxOrder).toEqual(allOrder);
+    });
+
+    it("excludes soft-deleted tags", () => {
+      const link = seedLink();
+      const tA = seedTag("keep", 1);
+      const tB = seedTag("drop", 2);
+      tagLink(link, tA);
+      tagLink(link, tB);
+      deleteTag(tB, new Date("2026-01-10T10:00:00Z"));
+
+      const rows = store.query(tagsWithCountsForStatus$("inbox"));
+      const ids = rows.map((r) => r.id);
+      expect(ids).toContain(tA);
+      expect(ids).not.toContain(tB);
     });
   });
 
