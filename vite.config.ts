@@ -195,7 +195,15 @@ export default defineConfig({
     include: ["@lexical/code"],
   },
   plugins: [
-    cloudflare({ inspectorPort: 9230, viteEnvironment: { name: "ssr" } }),
+    cloudflare({
+      inspectorPort: 9230,
+      viteEnvironment: { name: "ssr" },
+      // The AI binding is always remote, so the plugin opens a wrangler remote
+      // proxy session at build time and never tears it down — `bun run build`
+      // hangs after prerender because the session keeps the process alive.
+      // Prerendered routes don't call AI, so we don't need it during build.
+      remoteBindings: false,
+    }),
     tailwindcss(),
     tanstackStart({
       prerender: {
@@ -211,6 +219,21 @@ export default defineConfig({
       ],
     }),
     viteReact(),
+    // After TanStack Start's prerender finishes, the cloudflare-vite-plugin
+    // preview miniflare/workerd handles don't all unref, so `bun run build`
+    // hangs indefinitely. The build artifacts are already written, so force
+    // exit once the post-build pipeline completes (build mode only).
+    {
+      name: "cloudstash:exit-after-build",
+      apply: "build",
+      enforce: "post",
+      buildApp: {
+        order: "post",
+        handler() {
+          setImmediate(() => process.exit(0));
+        },
+      },
+    },
     // TODO(tanstack-start): re-enable once compatible with Start SSR.
     // The plugin injects @livestore/adapter-web's vite-dev-polyfill (intended
     // for web shared-worker dev) into SSR module graphs. That polyfill stubs
