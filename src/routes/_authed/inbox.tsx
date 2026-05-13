@@ -4,7 +4,6 @@ import { LinksPageLayout } from "@/components/links-page-layout";
 import { resetTransientPageState } from "@/lib/route-resets";
 
 export const Route = createFileRoute("/_authed/inbox")({
-  component: LinksPageLayout,
   onEnter: resetTransientPageState,
   staticData: {
     icon: "inbox",
@@ -13,4 +12,5 @@ export const Route = createFileRoute("/_authed/inbox")({
     status: "inbox",
     emptyMessage: "No links in your inbox",
   },
+  component: LinksPageLayout,
 });

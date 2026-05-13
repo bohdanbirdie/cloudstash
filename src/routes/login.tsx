@@ -1,11 +1,12 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 
+import { SITE_URL } from "@/components/landing/seo-data";
 import { LoginAnimation } from "@/components/login-animation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FieldGroup, FieldDescription } from "@/components/ui/field";
-import { authClient, getSessionServerFn } from "@/lib/auth";
+import { authClient, loadAuth } from "@/lib/auth";
 import { PALETTES, paintDitherWithEffects } from "@/lib/brand/dither";
 import { META_PIXEL_HEAD_SCRIPTS, MetaPixelNoScript } from "@/lib/meta-pixel";
 import { cn } from "@/lib/utils";
@@ -38,8 +39,8 @@ async function clearOPFS() {
 }
 
 export const Route = createFileRoute("/login")({
-  beforeLoad: async ({ serverContext }) => {
-    const auth = serverContext?.auth ?? (await getSessionServerFn());
+  beforeLoad: async () => {
+    const auth = await loadAuth();
     if (auth?.isAuthenticated) throw redirect({ to: "/inbox" });
   },
   head: () => ({
@@ -47,7 +48,7 @@ export const Route = createFileRoute("/login")({
       { title: "Sign in — Cloudstash" },
       { name: "robots", content: "noindex, nofollow" },
     ],
-    links: [{ rel: "canonical", href: "https://cloudstash.dev/login" }],
+    links: [{ rel: "canonical", href: `${SITE_URL}/login` }],
     scripts: [...META_PIXEL_HEAD_SCRIPTS],
   }),
   component: LoginPage,

@@ -1,16 +1,9 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
 import { cloudflare } from "@cloudflare/vite-plugin";
-// TODO(tanstack-start): re-import once livestoreDevtoolsPlugin is compatible
-// with Start SSR (see plugins[] below).
-// import { livestoreDevtoolsPlugin } from "@livestore/devtools-vite";
+import { livestoreDevtoolsPlugin } from "@livestore/devtools-vite";
 import tailwindcss from "@tailwindcss/vite";
-import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite-plus";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   staged: {
@@ -181,13 +174,6 @@ export default defineConfig({
   },
   resolve: {
     tsconfigPaths: true,
-    alias: {
-      // Stub @react-email/code-block to avoid prismjs (browser-only) in Workers
-      "@react-email/code-block": path.resolve(
-        __dirname,
-        "src/cf-worker/email/stubs/code-block.ts"
-      ),
-    },
   },
   optimizeDeps: {
     // TODO remove once fixed https://github.com/vitejs/vite/issues/8427
@@ -195,52 +181,11 @@ export default defineConfig({
     include: ["@lexical/code"],
   },
   plugins: [
-    cloudflare({
-      inspectorPort: 9230,
-      viteEnvironment: { name: "ssr" },
-      // The AI binding is always remote, so the plugin opens a wrangler remote
-      // proxy session at build time and never tears it down — `bun run build`
-      // hangs after prerender because the session keeps the process alive.
-      // Prerendered routes don't call AI, so we don't need it during build.
-      remoteBindings: false,
-    }),
+    cloudflare({ inspectorPort: 9230 }),
+    TanStackRouterVite(),
     tailwindcss(),
-    tanstackStart({
-      prerender: {
-        enabled: true,
-        autoStaticPathsDiscovery: false,
-        crawlLinks: false,
-      },
-      pages: [
-        { path: "/" },
-        { path: "/privacy" },
-        { path: "/terms" },
-        { path: "/contact" },
-      ],
-    }),
     viteReact(),
-    // After TanStack Start's prerender finishes, the cloudflare-vite-plugin
-    // preview miniflare/workerd handles don't all unref, so `bun run build`
-    // hangs indefinitely. The build artifacts are already written, so force
-    // exit once the post-build pipeline completes (build mode only).
-    {
-      name: "cloudstash:exit-after-build",
-      apply: "build",
-      enforce: "post",
-      buildApp: {
-        order: "post",
-        handler() {
-          setImmediate(() => process.exit(0));
-        },
-      },
-    },
-    // TODO(tanstack-start): re-enable once compatible with Start SSR.
-    // The plugin injects @livestore/adapter-web's vite-dev-polyfill (intended
-    // for web shared-worker dev) into SSR module graphs. That polyfill stubs
-    // `document` with createElement/body/head/querySelector but NO
-    // createTextNode, which breaks TanStack Router's script injection during
-    // SSR — `document.createTextNode is not a function` in loadEntries.
-    // livestoreDevtoolsPlugin({ schemaPath: "./src/livestore/schema.ts" }),
+    livestoreDevtoolsPlugin({ schemaPath: "./src/livestore/schema.ts" }),
   ],
   server: {
     allowedHosts: [".trycloudflare.com"],

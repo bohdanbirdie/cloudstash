@@ -4,12 +4,11 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { getSessionServerFn } from "@/lib/auth";
+import { loadAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/connect/raycast")({
-  ssr: "data-only",
-  beforeLoad: async ({ serverContext }) => {
-    const auth = serverContext?.auth ?? (await getSessionServerFn());
+  beforeLoad: async () => {
+    const auth = await loadAuth();
     if (!auth?.isAuthenticated) throw redirect({ to: "/login" });
   },
   component: ConnectRaycastPage,

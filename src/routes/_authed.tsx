@@ -14,7 +14,7 @@ import { TagStrip } from "@/components/tag-strip";
 import { TopBar } from "@/components/top-bar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { usePageStaticData } from "@/hooks/use-page-static-data";
-import { getSessionServerFn } from "@/lib/auth";
+import { loadAuth, useAuth } from "@/lib/auth";
 import { useInputMode } from "@/lib/input-mode";
 import { ConnectionMonitor } from "@/livestore/store";
 
@@ -25,15 +25,12 @@ const DevToolsPanel = lazy(() =>
 );
 
 export const Route = createFileRoute("/_authed")({
-  ssr: "data-only",
-  beforeLoad: async ({ serverContext }) => {
-    // SSR: middleware populated `serverContext.auth`. Client-side entry into
-    // the _authed tree (e.g. post-login navigation): no serverContext, so we
-    // RPC for a server-validated session. This fires once per tree entry, not
-    // per navigation between siblings — TanStack Router doesn't re-run a
-    // parent's beforeLoad when a child route changes.
-    const auth = serverContext?.auth ?? (await getSessionServerFn());
-    // Unapproved / no-org users fall through; AuthedLayout shows <PendingApproval />.
+  beforeLoad: async () => {
+    const auth = await loadAuth();
+    // TSR convention: `throw redirect(...)` keeps the return type as the
+    // context shape (`{ auth }`) so child routes correctly infer
+    // `context.auth`. A `return redirect(...)` would widen the return into
+    // `{ auth } | Redirect` and collapse child inference to `any`.
     if (!auth) throw redirect({ to: "/login" });
     return { auth };
   },
@@ -44,7 +41,7 @@ export const Route = createFileRoute("/_authed")({
 });
 
 function AuthedLayout() {
-  const { auth } = Route.useRouteContext();
+  const auth = useAuth();
   if (!auth.isAuthenticated) return <PendingApproval />;
   return <AuthedShellWrapper />;
 }

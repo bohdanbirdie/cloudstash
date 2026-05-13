@@ -4,7 +4,6 @@ import { LinksPageLayout } from "@/components/links-page-layout";
 import { resetTransientPageState } from "@/lib/route-resets";
 
 export const Route = createFileRoute("/_authed/archive")({
-  component: LinksPageLayout,
   onEnter: resetTransientPageState,
   staticData: {
     icon: "archive",
@@ -13,4 +12,5 @@ export const Route = createFileRoute("/_authed/archive")({
     status: "archive",
     emptyMessage: "Archive is empty",
   },
+  component: LinksPageLayout,
 });

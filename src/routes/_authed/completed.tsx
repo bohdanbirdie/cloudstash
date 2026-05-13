@@ -4,7 +4,6 @@ import { LinksPageLayout } from "@/components/links-page-layout";
 import { resetTransientPageState } from "@/lib/route-resets";
 
 export const Route = createFileRoute("/_authed/completed")({
-  component: LinksPageLayout,
   onEnter: resetTransientPageState,
   staticData: {
     icon: "check-circle",
@@ -13,4 +12,5 @@ export const Route = createFileRoute("/_authed/completed")({
     status: "completed",
     emptyMessage: "No completed links yet",
   },
+  component: LinksPageLayout,
 });

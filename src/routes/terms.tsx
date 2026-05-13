@@ -10,7 +10,6 @@ import { SITE_URL } from "@/components/landing/seo-data";
 import { META_PIXEL_HEAD_SCRIPTS, MetaPixelNoScript } from "@/lib/meta-pixel";
 
 export const Route = createFileRoute("/terms")({
-  ssr: true,
   head: () => ({
     meta: [
       { title: "Terms of Service — Cloudstash" },
