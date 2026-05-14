@@ -3,15 +3,10 @@ import { CheckCheck, CopyIcon } from "lucide-react";
 import { IconSwap } from "@/components/right-pane/headers/icon-swap";
 import { Button } from "@/components/ui/button";
 import { SharedTooltipTrigger } from "@/components/ui/shared-tooltip";
-import { useFlashFlag } from "@/hooks/use-flash-flag";
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 
 export function CopyUrlButton({ url }: { url: string }) {
-  const { active: copied, trigger: flash } = useFlashFlag();
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(url);
-    flash();
-  };
+  const { copied, copy } = useCopyToClipboard();
 
   return (
     <SharedTooltipTrigger
@@ -20,7 +15,7 @@ export function CopyUrlButton({ url }: { url: string }) {
         <Button
           size="icon-sm"
           variant="ghost"
-          onClick={handleCopy}
+          onClick={() => copy(url)}
           aria-label="Copy URL"
         >
           <IconSwap iconKey={copied ? "copied" : "copy"}>

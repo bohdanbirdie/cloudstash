@@ -9,31 +9,43 @@ import {
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useState } from "react";
+import { createPortal } from "react-dom";
 
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/livestore/store";
 
 const MOTEL_TRACES_URL = "http://127.0.0.1:27686/traces";
 const LOCAL_EXPLORER_URL = "/cdn-cgi/explorer";
+const COLLAPSED_KEY = "devtools:collapsed";
 
 export function DevToolsPanel() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem(COLLAPSED_KEY) === "true"
+  );
 
+  const toggle = (next: boolean) => {
+    setCollapsed(next);
+    localStorage.setItem(COLLAPSED_KEY, String(next));
+  };
+
+  // Portaled to `document.body` so its z-index competes at the top level —
+  // otherwise the body-portaled mobile sheet renders above it.
   if (collapsed) {
-    return (
+    return createPortal(
       <Button
         variant="outline"
         size="icon-sm"
-        onClick={() => setCollapsed(false)}
+        onClick={() => toggle(false)}
         className="bg-card/95 fixed bottom-3 left-3 z-[9999] shadow-md backdrop-blur"
         aria-label="Open dev tools"
       >
         <WrenchIcon />
-      </Button>
+      </Button>,
+      document.body
     );
   }
 
-  return (
+  return createPortal(
     <div className="bg-card/95 border-border fixed bottom-3 left-3 z-[9999] flex flex-col gap-1 rounded-md border p-1 shadow-md backdrop-blur">
       <div className="flex items-center justify-between gap-1 pl-1">
         <span className="text-muted-foreground text-xs font-medium">
@@ -42,7 +54,7 @@ export function DevToolsPanel() {
         <Button
           variant="ghost"
           size="icon-sm"
-          onClick={() => setCollapsed(true)}
+          onClick={() => toggle(true)}
           aria-label="Collapse dev tools"
         >
           <ChevronLeftIcon />
@@ -61,7 +73,8 @@ export function DevToolsPanel() {
           height={24}
         />
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

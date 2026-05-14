@@ -48,7 +48,7 @@ export const UsageIndicator = ({ usage, onClear }: UsageIndicatorProps) => {
           <button
             type="button"
             aria-label={`Monthly usage: $${spent.toFixed(2)} of $${usage.budget.toFixed(2)}`}
-            className="flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none"
+            className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none lg:size-5"
           >
             <svg
               width={size}

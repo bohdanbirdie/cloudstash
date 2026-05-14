@@ -49,7 +49,7 @@ export function LinkPreviewImage({
         })}
         aria-hidden="true"
       >
-        <div className="absolute inset-0 animate-pulse bg-muted" />
+        <div className="absolute inset-0 bg-muted" />
         <div className="absolute inset-0 flex items-center justify-center">
           <CloudstashLogo className="size-1/3 max-h-20 max-w-20 text-zinc-300 dark:text-zinc-600" />
         </div>
@@ -64,6 +64,7 @@ export function LinkPreviewImage({
         alt=""
         loading={loading}
         decoding="async"
+        draggable={false}
         className={cn(
           "relative block size-full object-cover transition-opacity duration-200",
           OUTLINE_CLASS,

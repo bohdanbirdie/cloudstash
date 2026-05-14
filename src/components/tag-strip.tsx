@@ -30,7 +30,7 @@ export const TagStrip = memo(function TagStrip({ status }: TagStripProps) {
   }
 
   return (
-    <div className="mt-4 mb-2 flex w-full flex-wrap items-baseline gap-x-[10px] gap-y-1.5 px-2 text-xs font-medium">
+    <div className="mt-4 mb-2 flex w-full flex-nowrap items-baseline gap-x-[10px] overflow-x-auto px-2 text-xs font-medium [-ms-overflow-style:none] [scrollbar-width:none] lg:flex-wrap lg:gap-y-1.5 lg:overflow-x-visible [&::-webkit-scrollbar]:hidden">
       {tags.map((tag) => {
         const active = selectedTag === tag.id;
         const empty = !active && tag.count === 0;
@@ -44,7 +44,7 @@ export const TagStrip = memo(function TagStrip({ status }: TagStripProps) {
             })}
             onClick={clearSelection}
             className={cn(
-              "relative cursor-pointer transition-colors",
+              "relative shrink-0 cursor-pointer whitespace-nowrap transition-colors",
               active && "text-primary hover:text-primary",
               !active && !empty && "text-foreground/40 hover:text-foreground",
               empty && "text-foreground/20 hover:text-foreground/40"

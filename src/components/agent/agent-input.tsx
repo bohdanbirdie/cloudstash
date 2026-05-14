@@ -35,7 +35,7 @@ export function InputForm({
         onSubmit();
       }}
       className={cn(
-        "flex shrink-0 items-end gap-1 border-t border-border p-1",
+        "flex shrink-0 items-end gap-1.5 border-t border-border p-2 lg:gap-1 lg:p-1",
         muted && "opacity-60"
       )}
     >
@@ -64,7 +64,9 @@ export function InputForm({
         }}
         placeholder={placeholder}
         rows={1}
-        className="flex-1 resize-none bg-transparent px-1.5 py-1 text-xs placeholder:text-muted-foreground focus:outline-none"
+        // 16px text on mobile keeps iOS Safari from zooming the page on focus;
+        // the desktop popup keeps its compact `text-xs`.
+        className="flex-1 resize-none bg-transparent px-2 py-2 text-base placeholder:text-muted-foreground focus:outline-none lg:px-1.5 lg:py-1 lg:text-xs"
       />
       <Button
         type="submit"
@@ -72,9 +74,9 @@ export function InputForm({
         variant="ghost"
         disabled={!canSend || draft.trim().length === 0}
         aria-label="Send"
-        className="[&_svg:not([class*='size-'])]:size-3"
+        className="size-9 lg:size-5"
       >
-        <SendIcon />
+        <SendIcon className="size-4 lg:size-3" />
       </Button>
     </form>
   );

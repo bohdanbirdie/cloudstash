@@ -9,6 +9,7 @@ import { ListDataProvider } from "@/components/list-data-context";
 import { LoadingScreen } from "@/components/loading-screen";
 import { Masthead } from "@/components/masthead";
 import { PendingApproval } from "@/components/pending-approval";
+import { MobileDetailSheet } from "@/components/right-pane/mobile-detail-sheet";
 import { RightPane } from "@/components/right-pane/right-pane";
 import { SettingsDialog } from "@/components/settings/settings-dialog";
 import { TagStrip } from "@/components/tag-strip";
@@ -70,6 +71,7 @@ function AuthedShellWrapper() {
               </div>
             </div>
             <SettingsDialog />
+            <MobileDetailSheet />
             {import.meta.env.DEV && (
               <Suspense fallback={null}>
                 <DevToolsPanel />
@@ -95,21 +97,27 @@ function AuthedShell() {
 
   return (
     <div className="h-full overflow-hidden">
-      <div className="flex h-full flex-col px-8 pt-6 pb-6">
+      <div className="flex h-full flex-col px-4 pt-4 pb-6 lg:px-8 lg:pt-6">
         <TopBar />
 
         <TagStrip status={status} />
 
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,820px)_540px] gap-x-8">
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-x-8 lg:grid-cols-[minmax(0,820px)_540px]">
           <div className="flex min-h-0 min-w-0 flex-col">
             <Masthead />
             <ScrollArea className="min-h-0 flex-1">
-              <div className="px-3">
+              <div className="px-1 lg:px-3">
                 <Outlet />
               </div>
             </ScrollArea>
           </div>
-          <RightPane />
+          {/* CSS-gated (Tailwind `lg` = min-width:1024px): crossing the
+              boundary is a free visibility toggle, not a mount/unmount.
+              The mobile sheet is hidden by the same `lg:` query, so the
+              pane and sheet can never both show. */}
+          <div className="hidden lg:contents">
+            <RightPane />
+          </div>
         </div>
       </div>
     </div>

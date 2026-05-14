@@ -13,9 +13,9 @@ export const AgentHelpHint = () => (
         <button
           type="button"
           aria-label="About the assistant"
-          className="flex size-5 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none"
+          className="flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none lg:size-5"
         >
-          <CircleHelpIcon className="size-3" />
+          <CircleHelpIcon className="size-4 lg:size-3" />
         </button>
       }
     />

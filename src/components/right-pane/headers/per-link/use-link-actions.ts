@@ -25,6 +25,17 @@ export function useLinkActions(link: LinkWithDetails) {
     return nextLink?.id ?? null;
   };
 
+  const navigateTo = (id: string) => {
+    trackLinkOpen(id);
+    navigate(id);
+  };
+
+  const goTo = (index: number) => {
+    const target = links[index];
+    if (!target) return;
+    navigateTo(target.id);
+  };
+
   const act = (action: LinkAction, commit: () => void) => {
     const willRemove = actionRemovesFromPage(action, status);
     const nextLinkId = willRemove ? getNextLinkId() : null;
@@ -32,8 +43,7 @@ export function useLinkActions(link: LinkWithDetails) {
     commit();
 
     if (nextLinkId) {
-      trackLinkOpen(nextLinkId);
-      navigate(nextLinkId);
+      navigateTo(nextLinkId);
     } else if (willRemove) {
       closeDetail();
     }
@@ -43,6 +53,10 @@ export function useLinkActions(link: LinkWithDetails) {
     listLength: links.length,
     currentIndex,
     inList,
+    hasPrev: inList && currentIndex > 0,
+    hasNext: inList && currentIndex < links.length - 1,
+    goToPrev: () => goTo(currentIndex - 1),
+    goToNext: () => goTo(currentIndex + 1),
     handleComplete: () =>
       act("complete", () => {
         store.commit(

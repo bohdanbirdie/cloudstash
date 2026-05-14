@@ -127,7 +127,7 @@
     @apply border-border outline-ring/50;
   }
   html {
-    @apply font-sans;
+    @apply font-sans bg-background;
   }
   body {
     @apply font-sans bg-background text-foreground antialiased;

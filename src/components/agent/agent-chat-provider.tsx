@@ -11,6 +11,7 @@ import {
 import type { ReactNode, RefObject } from "react";
 
 import type { ChatAgentState } from "@/cf-worker/chat-agent/usage";
+import { useNarrowViewport } from "@/hooks/use-narrow-viewport";
 import { TOOLS_REQUIRING_CONFIRMATION } from "@/shared/tool-config";
 
 type Agent = ReturnType<typeof useAgent<ChatAgentState>>;
@@ -152,15 +153,17 @@ export function AgentInputProvider({
   const [draft, setDraft] = useState("");
   const selectionRef = useRef<TextareaSelection>({ start: 0, end: 0 });
 
+  const isNarrow = useNarrowViewport();
+
   const setupTextarea = useCallback(
     (node: HTMLTextAreaElement | null) => {
       textareaRef.current = node;
       if (!node) return;
       const { start, end } = selectionRef.current;
       node.setSelectionRange(start, end);
-      node.focus();
+      if (!isNarrow) node.focus();
     },
-    [textareaRef]
+    [textareaRef, isNarrow]
   );
 
   const value = useMemo<AgentInputValue>(
