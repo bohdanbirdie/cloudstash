@@ -7,7 +7,7 @@ import { SHELL } from "./shared";
 
 const NAV_ANCHORS: readonly { hash: string; label: string }[] = [
   { hash: "how", label: "How" },
-  { hash: "connections", label: "Connections" },
+  { hash: "integrations", label: "Integrations" },
   { hash: "features", label: "Features" },
   { hash: "pricing", label: "Pricing" },
   { hash: "faq", label: "FAQ" },

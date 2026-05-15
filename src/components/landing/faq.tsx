@@ -22,7 +22,7 @@ const FAQ_ITEMS: readonly { q: string; a: string }[] = [
   },
   {
     q: "How do I install Raycast, Telegram, or iOS?",
-    a: "Sign in to the web app and open Connections — each integration has a one-step setup with the link or shortcut you need.",
+    a: "Sign in to the web app and open Integrations — each integration has a one-step setup with the link or shortcut you need.",
   },
   {
     q: "Can I export everything?",

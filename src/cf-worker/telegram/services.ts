@@ -1,4 +1,4 @@
-import { Context } from "effect";
+import { Context, Schema } from "effect";
 import type { Effect } from "effect";
 
 import type { OrgId, UserId } from "../db/branded";
@@ -9,6 +9,14 @@ import type {
   TelegramQueueSendError,
   RateLimitError,
 } from "./errors";
+
+export class TelegramBotApiError extends Schema.TaggedError<TelegramBotApiError>()(
+  "TelegramBotApiError",
+  {
+    op: Schema.Literal("sendMessage", "getMe"),
+    cause: Schema.Defect,
+  }
+) {}
 
 export class Messenger extends Context.Tag("Messenger")<
   Messenger,
@@ -57,8 +65,23 @@ export class TelegramKeyStore extends Context.Tag("TelegramKeyStore")<
       userId: UserId,
       chatId: number
     ) => Effect.Effect<void>;
+    readonly listForUser: (userId: UserId) => Effect.Effect<readonly number[]>;
     readonly purgeForUser: (
       userId: UserId
     ) => Effect.Effect<{ deletedCount: number }>;
+  }
+>() {}
+
+export class TelegramBotApi extends Context.Tag("TelegramBotApi")<
+  TelegramBotApi,
+  {
+    readonly sendMessage: (
+      chatId: number,
+      text: string
+    ) => Effect.Effect<void, TelegramBotApiError>;
+    readonly getMe: () => Effect.Effect<
+      { username: string | null },
+      TelegramBotApiError
+    >;
   }
 >() {}

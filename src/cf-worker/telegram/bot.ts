@@ -3,6 +3,7 @@ import { Bot, webhookCallback } from "grammy";
 
 import { logSync } from "../logger";
 import type { Env } from "../shared";
+import { sendConnectPrompt } from "./connect-prompt";
 import {
   extractUrls,
   handleConnect,
@@ -16,14 +17,30 @@ import { TelegramKeyStoreLive } from "./services/telegram-key-store.live";
 
 const logger = logSync("Telegram");
 
-const HELP_MESSAGE = `Send me a link to save it to cloudstash.dev.
+const HELP_MESSAGE = `Send me any link to save it to cloudstash.dev.
 
 Commands:
-/connect <api-key> - Connect your account
-/disconnect - Disconnect your account`;
+/disconnect — unlink this chat`;
 
-export function createBot(env: Env): Bot {
+const isConnectWithArgs = (text: string): boolean =>
+  /^\/connect(@\w+)?\s+\S/.test(text);
+
+export function createBot(env: Env, publicUrl: string): Bot {
   const bot = new Bot(env.TELEGRAM_BOT_TOKEN);
+
+  bot.use(async (ctx, next) => {
+    const chatId = ctx.chat?.id;
+    if (!chatId || !ctx.message) return next();
+
+    const text = ctx.message.text ?? "";
+    if (isConnectWithArgs(text) || text === "/disconnect") return next();
+
+    const existing = await env.TELEGRAM_KV.get(`telegram:${chatId}`);
+    if (existing) return next();
+
+    logger.info("Unbound chat — sending connect prompt");
+    await sendConnectPrompt(ctx, env, chatId, publicUrl);
+  });
 
   bot.command("connect", (ctx) => {
     const chatId = ctx.chat?.id;
@@ -68,39 +85,23 @@ export function createBot(env: Env): Bot {
     return ctx.reply(HELP_MESSAGE);
   });
 
-  bot.on("message:entities:url", (ctx) => {
+  bot.on("message:text", (ctx) => {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
 
     const urls = extractUrls(ctx);
-    if (urls.length === 0) return;
+    if (urls.length === 0) {
+      if (ctx.message.text.startsWith("/")) return;
+      logger.info("Text with no links — sending hint");
+      return ctx.reply("Please send me a link (or several) to save.");
+    }
 
     logger.info("Links received", { urlCount: urls.length });
 
     const layer = Layer.mergeAll(
       TelegramMessengerLive(ctx),
       TelegramSourceAuthLive(env, chatId),
-      LinkQueueLive(env, chatId, ctx.message?.message_id)
-    );
-
-    return Effect.runPromise(
-      handleLinks(urls).pipe(Effect.provide(layer), Effect.asVoid)
-    );
-  });
-
-  bot.on("message:entities:text_link", (ctx) => {
-    const chatId = ctx.chat?.id;
-    if (!chatId) return;
-
-    const urls = extractUrls(ctx);
-    if (urls.length === 0) return;
-
-    logger.info("Links received", { urlCount: urls.length });
-
-    const layer = Layer.mergeAll(
-      TelegramMessengerLive(ctx),
-      TelegramSourceAuthLive(env, chatId),
-      LinkQueueLive(env, chatId, ctx.message?.message_id)
+      LinkQueueLive(env, chatId, ctx.message.message_id)
     );
 
     return Effect.runPromise(
@@ -111,8 +112,15 @@ export function createBot(env: Env): Bot {
   return bot;
 }
 
-export function createWebhookHandler(env: Env) {
-  return webhookCallback(createBot(env), "cloudflare-mod");
+export function createWebhookHandler(env: Env, publicUrl: string) {
+  return webhookCallback(createBot(env, publicUrl), "cloudflare-mod");
+}
+
+export function resolvePublicUrl(env: Env, request: Request): string {
+  const configured = env.PUBLIC_URL?.trim();
+  if (configured) return configured.replace(/\/$/, "");
+  const { protocol, host } = new URL(request.url);
+  return `${protocol}//${host}`;
 }
 
 export async function handleTelegramWebhook(
@@ -123,5 +131,5 @@ export async function handleTelegramWebhook(
   if (secret !== env.TELEGRAM_WEBHOOK_SECRET) {
     return new Response("Forbidden", { status: 403 });
   }
-  return createWebhookHandler(env)(request);
+  return createWebhookHandler(env, resolvePublicUrl(env, request))(request);
 }

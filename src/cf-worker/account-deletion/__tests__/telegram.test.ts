@@ -42,6 +42,8 @@ const createStubKeyStore = (initial?: {
         if (next.length === 0) state.reverseIndex.delete(userId);
         else state.reverseIndex.set(userId, next);
       }),
+    listForUser: (userId) =>
+      Effect.sync(() => state.reverseIndex.get(userId) ?? []),
     purgeForUser: (userId) =>
       Effect.sync(() => {
         const chatIds = state.reverseIndex.get(userId) ?? [];

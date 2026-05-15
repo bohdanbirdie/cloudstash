@@ -30,4 +30,5 @@ export interface Env extends Cloudflare.Env {
   ENABLE_TEST_AUTH?: string;
   GOOGLE_BASE_URL?: string;
   EMAIL_FROM: string;
+  PUBLIC_URL?: string;
 }

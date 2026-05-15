@@ -101,8 +101,8 @@ export function AccountMenu() {
         kind: "item",
         item: {
           icon: BlocksIcon,
-          label: "Connections",
-          onSelect: () => openSettings("connections"),
+          label: "Integrations",
+          onSelect: () => openSettings("integrations"),
         },
       },
     ];

@@ -70,7 +70,7 @@ export const FAQ_LD = {
       name: "How do I install Raycast, Telegram, or iOS?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Sign in to the web app and open Connections — each integration has a one-step setup with the link or shortcut you need.",
+        text: "Sign in to the web app and open Integrations — each integration has a one-step setup with the link or shortcut you need.",
       },
     },
     {

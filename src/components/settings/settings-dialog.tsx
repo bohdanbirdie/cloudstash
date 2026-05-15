@@ -8,7 +8,7 @@ import {
 import { useEffect, useState } from "react";
 
 import { AdminSection } from "@/components/admin/admin-section";
-import { ConnectionsSection } from "@/components/connections/connections-section";
+import { IntegrationsSection } from "@/components/integrations/integrations-section";
 import { AccountSection } from "@/components/settings/sections/account-section";
 import { PlanSection } from "@/components/settings/sections/plan-section";
 import { TagsSection } from "@/components/tags/tags-section";
@@ -25,7 +25,7 @@ import { useSettingsDialog } from "@/stores/settings-dialog-store";
 export type SettingsSection =
   | "account"
   | "plan"
-  | "connections"
+  | "integrations"
   | "tags"
   | "admin";
 
@@ -39,7 +39,7 @@ interface SectionDef {
 const SECTIONS: readonly SectionDef[] = [
   { id: "account", label: "Account", Icon: UserIcon },
   { id: "plan", label: "Plan", Icon: CreditCardIcon },
-  { id: "connections", label: "Connections", Icon: BlocksIcon },
+  { id: "integrations", label: "Integrations", Icon: BlocksIcon },
   { id: "tags", label: "Tags", Icon: TagIcon },
   { id: "admin", label: "Admin", Icon: ShieldIcon, adminOnly: true },
 ];
@@ -47,7 +47,7 @@ const SECTIONS: readonly SectionDef[] = [
 const SECTION_RENDERERS: Record<SettingsSection, () => React.ReactNode> = {
   account: () => <AccountSection />,
   plan: () => <PlanSection />,
-  connections: () => <ConnectionsSection />,
+  integrations: () => <IntegrationsSection />,
   tags: () => <TagsSection />,
   admin: () => <AdminSection />,
 };
@@ -83,7 +83,7 @@ export function SettingsDialog() {
     : "account";
 
   // Track every visited section so it stays mounted (hidden) on rail nav —
-  // preserves things like the freshly-generated API key in Connections, the
+  // preserves things like the freshly-generated API key in Integrations, the
   // Tags search input, the Admin sub-tab choice.
   useEffect(() => {
     if (!open) return;

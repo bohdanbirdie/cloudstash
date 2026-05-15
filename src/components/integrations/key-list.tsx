@@ -55,9 +55,10 @@ export function KeyList({ keys, isLoading, onRevoke }: KeyListProps) {
             variant="ghost"
             size="icon-sm"
             onClick={() => onRevoke(key.id)}
-            className="text-destructive hover:text-destructive"
+            aria-label={`Revoke ${key.name || "API key"}`}
+            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:ring-destructive/30"
           >
-            <Trash2Icon className="h-4 w-4" />
+            <Trash2Icon />
           </Button>
         </div>
       ))}

@@ -23,11 +23,11 @@ const FOOTER_COLS: readonly {
   {
     title: "Save from",
     links: [
-      { label: "Telegram", to: "/", hash: "connections" },
-      { label: "Raycast", to: "/", hash: "connections" },
-      { label: "iOS Shortcut", to: "/", hash: "connections" },
-      { label: "Chrome extension", to: "/", hash: "connections" },
-      { label: "X bookmarks", to: "/", hash: "connections" },
+      { label: "Telegram", to: "/", hash: "integrations" },
+      { label: "Raycast", to: "/", hash: "integrations" },
+      { label: "iOS Shortcut", to: "/", hash: "integrations" },
+      { label: "Chrome extension", to: "/", hash: "integrations" },
+      { label: "X bookmarks", to: "/", hash: "integrations" },
     ],
   },
   {

@@ -57,19 +57,17 @@ export function KeyCreatedBanner({
           variant="outline"
           size="icon"
           onClick={() => setKeyVisible(!keyVisible)}
+          aria-label={keyVisible ? "Hide key" : "Show key"}
         >
-          {keyVisible ? (
-            <EyeOffIcon className="h-4 w-4" />
-          ) : (
-            <EyeIcon className="h-4 w-4" />
-          )}
+          {keyVisible ? <EyeOffIcon /> : <EyeIcon />}
         </Button>
-        <Button variant="outline" size="icon" onClick={handleCopyKey}>
-          {copied ? (
-            <CheckIcon className="h-4 w-4 text-green-500" />
-          ) : (
-            <CopyIcon className="h-4 w-4" />
-          )}
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleCopyKey}
+          aria-label="Copy key"
+        >
+          {copied ? <CheckIcon className="text-green-500" /> : <CopyIcon />}
         </Button>
       </div>
 
@@ -87,11 +85,12 @@ export function KeyCreatedBanner({
               variant="outline"
               size="icon-sm"
               onClick={handleCopyCommand}
+              aria-label="Copy command"
             >
               {commandCopied ? (
-                <CheckIcon className="h-3 w-3 text-green-500" />
+                <CheckIcon className="text-green-500" />
               ) : (
-                <CopyIcon className="h-3 w-3" />
+                <CopyIcon />
               )}
             </Button>
           </div>

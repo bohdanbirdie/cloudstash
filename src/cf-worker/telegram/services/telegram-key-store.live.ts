@@ -55,6 +55,7 @@ export const TelegramKeyStoreLive = (env: Env) =>
           );
         })
       ),
+    listForUser: (userId) => readReverse(env, userId),
     purgeForUser: (userId) =>
       readReverse(env, userId).pipe(
         Effect.flatMap((chatIds) =>

@@ -17,6 +17,12 @@ import { AppLayerLive, AuthClient } from "./auth/service";
 import { checkSyncAuth, SyncAuthError } from "./auth/sync-auth";
 import { agentHooks } from "./chat-agent/hooks";
 import { handleRaycastConnect, handleRaycastExchange } from "./connect/raycast";
+import {
+  handleTelegramCheck,
+  handleTelegramConfirm,
+  handleTelegramDisconnect,
+  handleTelegramStatus,
+} from "./connect/telegram";
 import { InviteId, OrgId, UserId } from "./db/branded";
 import { ingestRequestToResponse } from "./ingest/service";
 import {
@@ -123,6 +129,19 @@ app.post("/api/ingest", (c) =>
 app.post("/api/connect/raycast", (c) => handleRaycastConnect(c.req.raw, c.env));
 app.post("/api/connect/raycast/exchange", (c) =>
   handleRaycastExchange(c.req.raw, c.env)
+);
+
+app.get("/api/connect/telegram/check", (c) =>
+  handleTelegramCheck(c.req.raw, c.env)
+);
+app.post("/api/connect/telegram/confirm", (c) =>
+  handleTelegramConfirm(c.req.raw, c.env)
+);
+app.get("/api/connect/telegram/status", (c) =>
+  handleTelegramStatus(c.req.raw, c.env)
+);
+app.delete("/api/connect/telegram", (c) =>
+  handleTelegramDisconnect(c.req.raw, c.env)
 );
 
 app.post("/api/telegram", (c) => handleTelegramWebhook(c.req.raw, c.env));

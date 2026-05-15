@@ -17,6 +17,10 @@ EMAIL_FROM=YourApp <noreply@yourdomain.com>
 # --- Optional (see README for details) ---
 # TELEGRAM_BOT_TOKEN=
 # TELEGRAM_WEBHOOK_SECRET=
+# Canonical public URL used to mint outbound links from the worker
+# (e.g. Telegram inline-keyboard buttons). Falls back to the incoming
+# request host when unset — set this in prod to avoid Host-header trust.
+# PUBLIC_URL=https://cloudstash.dev
 # OPENROUTER_API_KEY=
 # CF_ACCOUNT_ID=
 # CF_ANALYTICS_TOKEN=

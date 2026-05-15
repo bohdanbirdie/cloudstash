@@ -114,6 +114,7 @@ function createTestKeyStore() {
         if (next.length === 0) reverseIndex.delete(userId);
         else reverseIndex.set(userId, next);
       }),
+    listForUser: (userId) => Effect.sync(() => reverseIndex.get(userId) ?? []),
     purgeForUser: (userId) =>
       Effect.sync(() => {
         const chatIds = reverseIndex.get(userId) ?? [];
