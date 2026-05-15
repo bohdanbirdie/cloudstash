@@ -3,6 +3,7 @@ import type { Effect } from "effect";
 
 import type { OrgId, UserId } from "../db/branded";
 import type { DbError } from "../db/service";
+import type { SessionLookupError } from "./errors";
 
 export class InvalidVerificationPayloadError extends Schema.TaggedError<InvalidVerificationPayloadError>()(
   "InvalidVerificationPayloadError",
@@ -34,9 +35,12 @@ export interface SessionData {
 export class SessionProvider extends Context.Tag("SessionProvider")<
   SessionProvider,
   {
+    // Returns null when there's no session; fails with SessionLookupError when
+    // the auth backend itself is unreachable. Callers can map the two to
+    // 401 vs 5xx.
     readonly getSession: (
       headers: Headers
-    ) => Effect.Effect<SessionData | null>;
+    ) => Effect.Effect<SessionData | null, SessionLookupError>;
   }
 >() {}
 
@@ -67,10 +71,9 @@ export class VerificationStore extends Context.Tag("VerificationStore")<
       data: VerificationData,
       ttlMs: number
     ) => Effect.Effect<void, DbError>;
-    readonly findValid: (
+    readonly consumeByIdentifier: (
       identifier: string
     ) => Effect.Effect<VerificationRecord | null, DbError>;
-    readonly deleteById: (id: string) => Effect.Effect<void, DbError>;
   }
 >() {}
 

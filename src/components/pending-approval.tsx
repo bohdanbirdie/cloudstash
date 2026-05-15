@@ -91,7 +91,9 @@ export function PendingApproval() {
                     ))}
                   </InputOTPGroup>
                 </InputOTP>
-                {error ? <FieldError>{error}</FieldError> : null}
+                {error ? (
+                  <FieldError className="text-center">{error}</FieldError>
+                ) : null}
               </Field>
               <Button
                 className="w-full"

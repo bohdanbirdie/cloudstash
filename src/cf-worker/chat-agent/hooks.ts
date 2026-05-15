@@ -1,20 +1,32 @@
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Match } from "effect";
 
 import { trackEvent } from "../analytics";
 import { AppLayerLive, AuthClient } from "../auth/service";
 import { checkSyncAuth } from "../auth/sync-auth";
 import type { SyncAuthError } from "../auth/sync-auth";
 import { OrgId } from "../db/branded";
+import { maskId } from "../log-utils";
 import { OrgFeaturesLive } from "../org/features-service";
 import type { Env } from "../shared";
-import { ChatFeatureDisabledError, checkChatFeatureEnabled } from "./auth";
+import {
+  ChatFeatureDisabledError,
+  FeatureCheckUnavailableError,
+  UnknownAgentPartyError,
+  checkChatFeatureEnabled,
+} from "./auth";
 
 interface Lobby {
   party: string;
   name: string;
 }
 
-type ChatAccessError = SyncAuthError | ChatFeatureDisabledError;
+const KNOWN_PARTIES = new Set<string>(["chat"]);
+
+type ChatAccessError =
+  | SyncAuthError
+  | ChatFeatureDisabledError
+  | FeatureCheckUnavailableError
+  | UnknownAgentPartyError;
 
 const checkChatAgentAccess = (
   request: Request,
@@ -22,7 +34,13 @@ const checkChatAgentAccess = (
   env: Env
 ): Effect.Effect<void, ChatAccessError> =>
   Effect.gen(function* () {
-    if (lobby.party !== "chat") return;
+    if (!KNOWN_PARTIES.has(lobby.party)) {
+      return yield* new UnknownAgentPartyError({
+        message: "Unknown agent",
+        party: lobby.party,
+        status: 404,
+      });
+    }
 
     const auth = yield* AuthClient;
     const cookie = request.headers.get("cookie");
@@ -35,25 +53,57 @@ const checkChatAgentAccess = (
       orgId: lobby.name,
     });
     yield* checkChatFeatureEnabled(workspaceId).pipe(
-      Effect.catchTag("DbError", () =>
-        Effect.fail(
-          new ChatFeatureDisabledError({
-            message: "Failed to check features",
+      Effect.catchTag("DbError", (cause) =>
+        Effect.gen(function* () {
+          yield* Effect.logError("Feature check unavailable").pipe(
+            Effect.annotateLogs({ orgId: lobby.name })
+          );
+          return yield* new FeatureCheckUnavailableError({
+            cause,
+            message: "Failed to check chat feature flag",
             status: 500,
-          })
-        )
+          });
+        })
       )
     );
   }).pipe(
-    Effect.withSpan("ChatAgent.checkChatAgentAccess"),
+    Effect.withSpan("ChatAgent.checkChatAgentAccess", {
+      attributes: { orgId: maskId(lobby.name), party: lobby.party },
+    }),
     Effect.provide(Layer.provideMerge(OrgFeaturesLive, AppLayerLive(env)))
   );
 
-const errorToResponse = (error: ChatAccessError): Response =>
-  new Response(JSON.stringify(error), {
+const errorToResponse = (error: ChatAccessError): Response => {
+  const payload = Match.value(error).pipe(
+    Match.tag("UnknownAgentPartyError", (e) => ({
+      _tag: e._tag,
+      message: e.message,
+      status: e.status,
+      party: e.party,
+    })),
+    Match.tag("SyncAuthError", (e) => ({
+      _tag: e._tag,
+      message: e.message,
+      status: e.status,
+      code: e.code,
+    })),
+    Match.tag("ChatFeatureDisabledError", (e) => ({
+      _tag: e._tag,
+      message: e.message,
+      status: e.status,
+    })),
+    Match.tag("FeatureCheckUnavailableError", (e) => ({
+      _tag: e._tag,
+      message: e.message,
+      status: e.status,
+    })),
+    Match.exhaustive
+  );
+  return new Response(JSON.stringify(payload), {
     headers: { "Content-Type": "application/json" },
     status: error.status,
   });
+};
 
 const runChatAgentAccess = (
   request: Request,

@@ -19,6 +19,7 @@ import { Effect, Layer } from "effect";
 import { schema } from "../../livestore/schema";
 import { OrgId } from "../db/branded";
 import { DbClientLive } from "../db/service";
+import { maskId } from "../log-utils";
 import { OrgFeatures, OrgFeaturesLive } from "../org/features-service";
 import type { Env } from "../shared";
 import { OtelTracingLive } from "../tracing";
@@ -33,12 +34,15 @@ import { writeTextMessage } from "./stream-helpers";
 import { createTools, createToolExecutors } from "./tools";
 import {
   DEFAULT_MONTHLY_BUDGET,
+  ESTIMATED_TOKENS_PER_CALL,
   LIMIT_REACHED_MESSAGE,
   budgetToTokenLimit,
   getCurrentPeriod,
   getUsageKey,
 } from "./usage";
 import type { ChatAgentState, UsageData } from "./usage";
+import { reconcileTokenUsageIn, reserveTokensIn } from "./usage-core";
+import type { UsageStorage } from "./usage-core";
 import { hasToolConfirmation, processToolCalls } from "./utils";
 
 function formatError(error: unknown): string {
@@ -129,22 +133,94 @@ export class ChatAgentDO
     await handleSyncUpdateRpc(payload);
   }
 
+  private usageStorage(): UsageStorage {
+    const key = getUsageKey(getCurrentPeriod());
+    return {
+      get: () => this.ctx.storage.get<UsageData>(key),
+      put: (data) => this.ctx.storage.put(key, data),
+    };
+  }
+
+  private async reserveTokens(estimate: number): Promise<boolean> {
+    return Effect.runPromise(
+      Effect.gen(this, function* () {
+        const { limit } = yield* this.resolveBudget();
+        const storage = this.usageStorage();
+        const reserved = yield* Effect.promise(() =>
+          this.ctx.blockConcurrencyWhile(() =>
+            reserveTokensIn(storage, estimate, limit)
+          )
+        );
+        yield* Effect.annotateCurrentSpan({
+          estimate,
+          limit,
+          reserved: reserved ? "yes" : "no",
+        });
+        return reserved;
+      }).pipe(
+        Effect.withSpan("ChatAgentDO.reserveTokens", {
+          attributes: { orgId: maskId(this.name) },
+        }),
+        Effect.provide(this.orgFeaturesLayer())
+      )
+    );
+  }
+
   private recordTokenUsage(
     promptTokens: number,
-    completionTokens: number
+    completionTokens: number,
+    releaseReservation: number
   ): Effect.Effect<void> {
-    const key = getUsageKey(getCurrentPeriod());
+    const storage = this.usageStorage();
+    return Effect.promise(() =>
+      this.ctx.blockConcurrencyWhile(() =>
+        reconcileTokenUsageIn(
+          storage,
+          promptTokens,
+          completionTokens,
+          releaseReservation
+        )
+      )
+    ).pipe(
+      Effect.withSpan("ChatAgentDO.recordTokenUsage", {
+        attributes: {
+          completionTokens,
+          orgId: maskId(this.name),
+          promptTokens,
+          releaseReservation,
+        },
+      })
+    );
+  }
+
+  private resolveBudget(): Effect.Effect<
+    { budget: number; limit: number },
+    never,
+    OrgFeatures
+  > {
     return Effect.gen(this, function* () {
-      const current = yield* Effect.promise(() =>
-        this.ctx.storage.get<UsageData>(key)
+      const orgFeatures = yield* OrgFeatures;
+      const features = yield* orgFeatures.get(OrgId.make(this.name)).pipe(
+        Effect.catchTag("DbError", (cause) =>
+          Effect.logWarning("Falling back to default budget").pipe(
+            Effect.annotateLogs({
+              cause: String(cause),
+              orgId: maskId(this.name),
+            }),
+            Effect.as({})
+          )
+        )
       );
-      yield* Effect.promise(() =>
-        this.ctx.storage.put(key, {
-          promptTokens: (current?.promptTokens ?? 0) + promptTokens,
-          completionTokens: (current?.completionTokens ?? 0) + completionTokens,
-        })
-      );
-    });
+      const budget =
+        ("monthlyTokenBudget" in features
+          ? features.monthlyTokenBudget
+          : undefined) ?? DEFAULT_MONTHLY_BUDGET;
+      return { budget, limit: budgetToTokenLimit(budget) };
+    }).pipe(
+      Effect.withSpan("ChatAgentDO.resolveBudget", {
+        attributes: { orgId: maskId(this.name) },
+      })
+    );
   }
 
   private getUsage(): Effect.Effect<
@@ -157,18 +233,12 @@ export class ChatAgentDO
       const usage = yield* Effect.promise(() =>
         this.ctx.storage.get<UsageData>(getUsageKey(period))
       );
-      const used = (usage?.promptTokens ?? 0) + (usage?.completionTokens ?? 0);
+      const used =
+        (usage?.promptTokens ?? 0) +
+        (usage?.completionTokens ?? 0) +
+        (usage?.reservedTokens ?? 0);
 
-      const orgFeatures = yield* OrgFeatures;
-      const features = yield* orgFeatures
-        .get(OrgId.make(this.name))
-        .pipe(Effect.catchTag("DbError", () => Effect.succeed({})));
-      const budget =
-        ("monthlyTokenBudget" in features
-          ? features.monthlyTokenBudget
-          : undefined) ?? DEFAULT_MONTHLY_BUDGET;
-      const limit = budgetToTokenLimit(budget);
-
+      const { budget, limit } = yield* this.resolveBudget();
       return { used, limit, budget, period };
     });
   }
@@ -189,19 +259,11 @@ export class ChatAgentDO
     );
   }
 
-  private isWithinTokenLimit(): Promise<boolean> {
-    return this.getUsage().pipe(
-      Effect.provide(this.orgFeaturesLayer()),
-      Effect.map(({ used, limit }) => used < limit),
-      Effect.runPromise
-    );
-  }
-
   override async onChatMessage() {
     await this.broadcastUsage();
 
-    const withinLimit = await this.isWithinTokenLimit();
-    if (!withinLimit) {
+    const reserved = await this.reserveTokens(ESTIMATED_TOKENS_PER_CALL);
+    if (!reserved) {
       const limitStream = createUIMessageStream({
         execute: ({ writer }) => {
           writeTextMessage(writer, LIMIT_REACHED_MESSAGE, "limit");
@@ -271,13 +333,17 @@ export class ChatAgentDO
           stopWhen: stepCountIs(5),
           experimental_telemetry: { isEnabled: true },
           onFinish: ({ usage }) => {
-            void this.recordTokenUsage(
-              usage.inputTokens ?? 0,
-              usage.outputTokens ?? 0
-            ).pipe(
-              Effect.tap(() => Effect.promise(() => this.broadcastUsage())),
-              Effect.provide(OtelTracingLive),
-              Effect.runPromise
+            // ctx.waitUntil so DO eviction can't drop the usage write.
+            this.ctx.waitUntil(
+              this.recordTokenUsage(
+                usage.inputTokens ?? 0,
+                usage.outputTokens ?? 0,
+                ESTIMATED_TOKENS_PER_CALL
+              ).pipe(
+                Effect.tap(() => Effect.promise(() => this.broadcastUsage())),
+                Effect.provide(OtelTracingLive),
+                Effect.runPromise
+              )
             );
           },
         });
@@ -307,13 +373,17 @@ export class ChatAgentDO
           stopWhen: stepCountIs(5),
           experimental_telemetry: { isEnabled: true },
           onFinish: ({ usage }) => {
-            void this.recordTokenUsage(
-              usage.inputTokens ?? 0,
-              usage.outputTokens ?? 0
-            ).pipe(
-              Effect.tap(() => Effect.promise(() => this.broadcastUsage())),
-              Effect.provide(OtelTracingLive),
-              Effect.runPromise
+            // ctx.waitUntil so DO eviction can't drop the usage write.
+            this.ctx.waitUntil(
+              this.recordTokenUsage(
+                usage.inputTokens ?? 0,
+                usage.outputTokens ?? 0,
+                ESTIMATED_TOKENS_PER_CALL
+              ).pipe(
+                Effect.tap(() => Effect.promise(() => this.broadcastUsage())),
+                Effect.provide(OtelTracingLive),
+                Effect.runPromise
+              )
             );
           },
         });

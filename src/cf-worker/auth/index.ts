@@ -6,7 +6,7 @@ import { genericOAuth } from "better-auth/plugins/generic-oauth";
 import { eq } from "drizzle-orm";
 import { Cause, Effect, Schema } from "effect";
 
-import { prepareDeletion } from "../account-deletion/prepare";
+import { personalOrgSlug, prepareDeletion } from "../account-deletion/prepare";
 import type { Database } from "../db";
 import { UserId } from "../db/branded";
 import * as schema from "../db/schema";
@@ -56,12 +56,10 @@ export const createAuth = (env: Env, db: Database) => {
       session: {
         create: {
           before: async (session) => {
-            // Check if user already has an org
             let membership = await db.query.member.findFirst({
               where: eq(schema.member.userId, session.userId),
             });
 
-            // First session for this user — create their personal workspace
             if (!membership) {
               try {
                 const user = await db.query.user.findFirst({
@@ -73,7 +71,7 @@ export const createAuth = (env: Env, db: Database) => {
                 const org = await auth.api.createOrganization({
                   body: {
                     name: orgName,
-                    slug: `user-${session.userId}`,
+                    slug: personalOrgSlug(UserId.make(session.userId)),
                     userId: session.userId,
                   },
                 });
@@ -88,6 +86,12 @@ export const createAuth = (env: Env, db: Database) => {
                   "Failed to create organization",
                   safeErrorInfo(error)
                 );
+                // Re-fetch in case a concurrent first-session race lost on
+                // the unique-slug constraint — the winner's member row is
+                // already there and we'd otherwise return null.
+                membership = await db.query.member.findFirst({
+                  where: eq(schema.member.userId, session.userId),
+                });
               }
             }
 

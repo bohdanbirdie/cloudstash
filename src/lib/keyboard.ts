@@ -2,13 +2,20 @@ import { useCallback, useRef } from "react";
 import type { RefObject } from "react";
 import { useHotkeys, useHotkeysContext } from "react-hotkeys-hook";
 
-export type Scope = "global" | "detail" | "selection" | "dock" | "popover";
+export type Scope =
+  | "global"
+  | "detail"
+  | "selection"
+  | "dock"
+  | "dialog"
+  | "popover";
 
 const ESC_PRECEDENCE: readonly Scope[] = [
   "global",
   "detail",
   "selection",
   "dock",
+  "dialog",
   "popover",
 ];
 

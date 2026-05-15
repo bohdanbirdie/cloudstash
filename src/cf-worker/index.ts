@@ -49,7 +49,12 @@ export { AccountDeletionWorkflow } from "./workflows/account-deletion";
 
 const logger = logSync("API");
 
-const RATE_LIMITED_PREFIXES = ["/sync", "/api/sync/", "/api/auth/"];
+const RATE_LIMITED_PREFIXES = [
+  "/sync",
+  "/api/sync/",
+  "/api/auth/",
+  "/api/invites/redeem",
+];
 
 const isRateLimited = (pathname: string): boolean =>
   RATE_LIMITED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));

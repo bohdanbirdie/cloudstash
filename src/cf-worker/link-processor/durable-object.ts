@@ -52,7 +52,7 @@ export class LinkProcessorDO
 {
   override __DURABLE_OBJECT_BRAND = "link-processor-do" as never;
 
-  private storeId: string | undefined;
+  private storeId: OrgId | undefined;
   private cachedStore: Store<typeof schema> | undefined;
   private storeCreationPromise: Promise<Store<typeof schema>> | undefined;
   private subscription: Unsubscribe | undefined;
@@ -371,7 +371,7 @@ export class LinkProcessorDO
       const rowsBefore = this.totalRowsWritten;
 
       const features = yield* FeatureStore.pipe(
-        Effect.flatMap((fs) => fs.getFeatures(OrgId.make(this.storeId!))),
+        Effect.flatMap((fs) => fs.getFeatures(this.storeId!)),
         Effect.provide(
           FeatureStoreLive.pipe(
             Layer.provide(OrgFeaturesLive),
@@ -495,13 +495,32 @@ export class LinkProcessorDO
       return new Response("Missing storeId", { status: 400 });
     }
 
+    if (this.ctx.id.name !== storeId) {
+      await runEffect(
+        Effect.logError("storeId mismatch in fetch").pipe(
+          Effect.annotateLogs({
+            expected: maskId(this.ctx.id.name ?? ""),
+            storeId: maskId(storeId),
+          }),
+          Effect.withSpan("LinkProcessorDO.storeIdMismatch", {
+            attributes: {
+              expected: maskId(this.ctx.id.name ?? ""),
+              route: "fetch",
+              storeId: maskId(storeId),
+            },
+          })
+        )
+      );
+      return new Response("storeId mismatch", { status: 400 });
+    }
+
     logger.info("fetch called (triggerLinkProcessor)", {
       hadCachedStore: !!this.cachedStore,
       hadSubscription: !!this.subscription,
       storeId: maskId(storeId),
     });
 
-    this.storeId = storeId;
+    this.storeId = OrgId.make(storeId);
     await this.ctx.storage.put("storeId", storeId);
 
     await this.ensureSubscribed();
@@ -511,6 +530,25 @@ export class LinkProcessorDO
   async ingestAndProcess(
     msg: LinkQueueMessage
   ): Promise<{ status: string; linkId?: string }> {
+    if (this.ctx.id.name !== msg.storeId) {
+      await runEffect(
+        Effect.logError("storeId mismatch in ingestAndProcess").pipe(
+          Effect.annotateLogs({
+            expected: maskId(this.ctx.id.name ?? ""),
+            storeId: maskId(msg.storeId),
+          }),
+          Effect.withSpan("LinkProcessorDO.storeIdMismatch", {
+            attributes: {
+              expected: maskId(this.ctx.id.name ?? ""),
+              route: "ingestAndProcess",
+              storeId: maskId(msg.storeId),
+            },
+          })
+        )
+      );
+      return { status: "rejected-storeid-mismatch" };
+    }
+
     if (await isDeletionTombstoneSet(this.ctx.storage)) {
       logger.info("ingestAndProcess dropped (deletion in progress)", {
         storeId: maskId(msg.storeId),
@@ -568,7 +606,8 @@ export class LinkProcessorDO
     });
 
     if (!this.storeId) {
-      this.storeId = await this.ctx.storage.get<string>("storeId");
+      const stored = await this.ctx.storage.get<string>("storeId");
+      this.storeId = stored ? OrgId.make(stored) : undefined;
     }
 
     if (this.storeId) {

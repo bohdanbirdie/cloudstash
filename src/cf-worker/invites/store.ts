@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 
 import type { InviteId, UserId } from "../db/branded";
@@ -29,10 +29,12 @@ export class InviteStore extends Context.Tag("@cloudstash/InviteStore")<
       code: string
     ) => Effect.Effect<InviteRow | null, DbError>;
     readonly deleteById: (id: InviteId) => Effect.Effect<void, DbError>;
+    // Returns true if this caller won the race and the user is now approved;
+    // false if another caller had already redeemed the invite.
     readonly redeemAndApproveUser: (
       inviteId: InviteId,
       userId: UserId
-    ) => Effect.Effect<void, DbError>;
+    ) => Effect.Effect<boolean, DbError>;
   }
 >() {}
 
@@ -67,7 +69,7 @@ export const InviteStoreLive = Layer.effect(
           db.query.invite.findFirst({
             where: and(
               eq(schema.invite.code, code.toUpperCase()),
-              isNull(schema.invite.usedByUserId),
+              isNull(schema.invite.usedAt),
               or(
                 isNull(schema.invite.expiresAt),
                 gt(schema.invite.expiresAt, new Date())
@@ -87,13 +89,24 @@ export const InviteStoreLive = Layer.effect(
             db
               .update(schema.invite)
               .set({ usedAt: new Date(), usedByUserId: userId })
-              .where(eq(schema.invite.id, inviteId)),
+              .where(
+                and(
+                  eq(schema.invite.id, inviteId),
+                  isNull(schema.invite.usedAt)
+                )
+              )
+              .returning({ id: schema.invite.id }),
             db
               .update(schema.user)
               .set({ approved: true })
-              .where(eq(schema.user.id, userId)),
+              .where(
+                and(
+                  eq(schema.user.id, userId),
+                  sql`exists (select 1 from invite where id = ${inviteId} and used_by_user_id = ${userId})`
+                )
+              ),
           ])
-        ).pipe(Effect.asVoid),
+        ).pipe(Effect.map(([claimed]) => claimed.length > 0)),
     });
   })
 );

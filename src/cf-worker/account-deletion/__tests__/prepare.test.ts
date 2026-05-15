@@ -1,29 +1,44 @@
-import { it } from "@effect/vitest";
+import { describe, expect, it } from "@effect/vitest";
 import { Effect, Either, Layer } from "effect";
-import { describe, expect } from "vitest";
 
 import { UserId, WorkflowInstanceId } from "../../db/branded";
 import { DbClient, DbError } from "../../db/service";
-import { MissingActiveOrgError, prepareDeletion } from "../prepare";
+import { prepareDeletion } from "../prepare";
 import { DeletionRuntime, DeletionRuntimeError } from "../runtime";
 import type { AccountDeletionParams } from "../runtime";
 
 const USER_ID = UserId.make("user-1");
+const ORG_ID = "org-1";
 
-const makeDbStub = (
-  membership: { organizationId: string } | undefined,
-  memberLookupError?: unknown
-) =>
-  Layer.succeed(DbClient, {
+interface DbStubOptions {
+  org?: { id: string } | undefined;
+  membership?: { role: string } | undefined;
+  orgLookupError?: unknown;
+  memberLookupError?: unknown;
+}
+
+const makeDbStub = (opts: DbStubOptions = {}) => {
+  // Use `in` to distinguish "explicitly undefined" (caller wants the absence
+  // case) from "not provided" (use the happy-path default).
+  const orgRow = "org" in opts ? opts.org : { id: ORG_ID };
+  const memberRow = "membership" in opts ? opts.membership : { role: "owner" };
+  return Layer.succeed(DbClient, {
     query: {
+      organization: {
+        findFirst: async () => {
+          if (opts.orgLookupError) throw opts.orgLookupError;
+          return orgRow;
+        },
+      },
       member: {
         findFirst: async () => {
-          if (memberLookupError) throw memberLookupError;
-          return membership;
+          if (opts.memberLookupError) throw opts.memberLookupError;
+          return memberRow;
         },
       },
     },
   } as never);
+};
 
 interface RuntimeRec {
   ensures: AccountDeletionParams[];
@@ -62,19 +77,16 @@ describe("prepareDeletion (happy path)", () => {
     const rec: RuntimeRec = { ensures: [] };
 
     return prepareDeletion({ userId: USER_ID }).pipe(
-      provideTestLayers(
-        stubRuntime(rec),
-        makeDbStub({ organizationId: "org-1" })
-      ),
+      provideTestLayers(stubRuntime(rec), makeDbStub()),
       Effect.tap((result) =>
         Effect.sync(() => {
           expect(rec.ensures).toHaveLength(1);
           expect(rec.ensures[0]).toMatchObject({
             userId: "user-1",
-            orgId: "org-1",
+            orgId: ORG_ID,
           });
           expect(result).toMatchObject({
-            orgId: "org-1",
+            orgId: ORG_ID,
             workflowInstanceId: "wf-fresh",
           });
         })
@@ -96,12 +108,74 @@ describe("prepareDeletion (idempotency)", () => {
       return prepareDeletion({ userId: USER_ID }).pipe(
         provideTestLayers(
           stubRuntime(rec, { id: WorkflowInstanceId.make("wf-existing") }),
-          makeDbStub({ organizationId: "org-1" })
+          makeDbStub()
         ),
         Effect.tap((result) =>
           Effect.sync(() => {
             expect(rec.ensures).toHaveLength(1);
-            expect(result.workflowInstanceId).toBe("wf-existing");
+            expect(result?.workflowInstanceId).toBe("wf-existing");
+          })
+        )
+      );
+    }
+  );
+});
+
+describe("prepareDeletion (no purge needed)", () => {
+  // These users have nothing tenant-scoped to purge (e.g. their bootstrap
+  // createOrganization swallowed an error). Better Auth still removes the
+  // user row — we just skip the workflow.
+  it.effect("returns null when the personal org doesn't exist", () => {
+    const rec: RuntimeRec = { ensures: [] };
+
+    return prepareDeletion({ userId: UserId.make("user-no-org") }).pipe(
+      provideTestLayers(stubRuntime(rec), makeDbStub({ org: undefined })),
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(result).toBeNull();
+          expect(rec.ensures).toEqual([]);
+        })
+      )
+    );
+  });
+
+  it.effect(
+    "returns null when the user is not a member of the personal org",
+    () => {
+      const rec: RuntimeRec = { ensures: [] };
+
+      return prepareDeletion({ userId: USER_ID }).pipe(
+        provideTestLayers(
+          stubRuntime(rec),
+          makeDbStub({ membership: undefined })
+        ),
+        Effect.tap((result) =>
+          Effect.sync(() => {
+            expect(result).toBeNull();
+            expect(rec.ensures).toEqual([]);
+          })
+        )
+      );
+    }
+  );
+
+  it.effect(
+    "returns null when the user is a non-owner member of the personal org",
+    () => {
+      // Defense in depth: refuses to purge if the bootstrap ownership
+      // invariant doesn't hold for the personal-slug org (it should, but
+      // we won't act on a row that doesn't match).
+      const rec: RuntimeRec = { ensures: [] };
+
+      return prepareDeletion({ userId: USER_ID }).pipe(
+        provideTestLayers(
+          stubRuntime(rec),
+          makeDbStub({ membership: { role: "member" } })
+        ),
+        Effect.tap((result) =>
+          Effect.sync(() => {
+            expect(result).toBeNull();
+            expect(rec.ensures).toEqual([]);
           })
         )
       );
@@ -110,27 +184,6 @@ describe("prepareDeletion (idempotency)", () => {
 });
 
 describe("prepareDeletion (error paths)", () => {
-  it.effect(
-    "fails with MissingActiveOrgError when the user has no membership",
-    () => {
-      const rec: RuntimeRec = { ensures: [] };
-
-      return prepareDeletion({ userId: UserId.make("user-no-org") }).pipe(
-        provideTestLayers(stubRuntime(rec), makeDbStub(undefined)),
-        Effect.either,
-        Effect.tap((result) =>
-          Effect.sync(() => {
-            expect(Either.isLeft(result)).toBe(true);
-            if (Either.isLeft(result)) {
-              expect(result.left).toBeInstanceOf(MissingActiveOrgError);
-            }
-            expect(rec.ensures).toEqual([]);
-          })
-        )
-      );
-    }
-  );
-
   it.effect("propagates DeletionRuntimeError from ensureWorkflow", () => {
     const rec: RuntimeRec = { ensures: [] };
     const failure = new DeletionRuntimeError({
@@ -139,10 +192,7 @@ describe("prepareDeletion (error paths)", () => {
     });
 
     return prepareDeletion({ userId: USER_ID }).pipe(
-      provideTestLayers(
-        stubRuntime(rec, failure),
-        makeDbStub({ organizationId: "org-1" })
-      ),
+      provideTestLayers(stubRuntime(rec, failure), makeDbStub()),
       Effect.either,
       Effect.tap((result) =>
         Effect.sync(() => {
@@ -155,13 +205,13 @@ describe("prepareDeletion (error paths)", () => {
     );
   });
 
-  it.effect("propagates DbError from member lookup", () => {
+  it.effect("propagates DbError from organization lookup", () => {
     const rec: RuntimeRec = { ensures: [] };
 
     return prepareDeletion({ userId: USER_ID }).pipe(
       provideTestLayers(
         stubRuntime(rec),
-        makeDbStub(undefined, new Error("connection lost"))
+        makeDbStub({ orgLookupError: new Error("connection lost") })
       ),
       Effect.either,
       Effect.tap((result) =>
@@ -176,30 +226,27 @@ describe("prepareDeletion (error paths)", () => {
     );
   });
 
-  it.effect(
-    "rejects (as DbError) when membership.organizationId fails OrgId decode",
-    () => {
-      // Defensive: a corrupted member row with a non-string organizationId
-      // would otherwise silently propagate a fake brand. The Schema decode
-      // at prepare.ts catches it before the workflow is spawned.
-      const rec: RuntimeRec = { ensures: [] };
+  it.effect("rejects (as DbError) when org.id fails OrgId decode", () => {
+    // Defensive: a corrupted organization row with a non-string id would
+    // otherwise silently propagate a fake brand. The Schema decode in
+    // prepare.ts catches it before the workflow is spawned.
+    const rec: RuntimeRec = { ensures: [] };
 
-      return prepareDeletion({ userId: USER_ID }).pipe(
-        provideTestLayers(
-          stubRuntime(rec),
-          makeDbStub({ organizationId: 42 as unknown as string })
-        ),
-        Effect.either,
-        Effect.tap((result) =>
-          Effect.sync(() => {
-            expect(Either.isLeft(result)).toBe(true);
-            if (Either.isLeft(result)) {
-              expect(result.left).toBeInstanceOf(DbError);
-            }
-            expect(rec.ensures).toEqual([]);
-          })
-        )
-      );
-    }
-  );
+    return prepareDeletion({ userId: USER_ID }).pipe(
+      provideTestLayers(
+        stubRuntime(rec),
+        makeDbStub({ org: { id: 42 as unknown as string } })
+      ),
+      Effect.either,
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(Either.isLeft(result)).toBe(true);
+          if (Either.isLeft(result)) {
+            expect(result.left).toBeInstanceOf(DbError);
+          }
+          expect(rec.ensures).toEqual([]);
+        })
+      )
+    );
+  });
 });

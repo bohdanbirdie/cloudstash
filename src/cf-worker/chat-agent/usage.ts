@@ -36,7 +36,12 @@ export function budgetToTokenLimit(
 export type UsageData = {
   promptTokens: number;
   completionTokens: number;
+  // In-flight reservation; counts against the cap so concurrent messages
+  // can't all observe the same pre-stream usage and bypass it together.
+  reservedTokens?: number;
 };
+
+export const ESTIMATED_TOKENS_PER_CALL = 10_000;
 
 const USAGE_KEY_PREFIX = "usage:";
 

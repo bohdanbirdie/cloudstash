@@ -1,6 +1,5 @@
-import { it, describe } from "@effect/vitest";
+import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer } from "effect";
-import { expect } from "vitest";
 
 import { InviteId, UserId } from "../../db/branded";
 import { DbError } from "../../db/service";
@@ -13,7 +12,7 @@ function makeInviteStoreLayer(overrides: Partial<InviteStore["Type"]> = {}) {
     findById: () => Effect.succeed(null),
     findValidByCode: () => Effect.succeed(null),
     deleteById: () => Effect.void,
-    redeemAndApproveUser: () => Effect.void,
+    redeemAndApproveUser: () => Effect.succeed(true),
     ...overrides,
   });
 }
@@ -136,23 +135,39 @@ describe("InviteStore service contract", () => {
     }).pipe(Effect.provide(layer));
   });
 
-  it.effect("redeemAndApproveUser captures both IDs", () => {
+  it.effect("redeemAndApproveUser captures both IDs and reports win", () => {
     let capturedArgs: { inviteId: string; userId: string } | null = null;
 
     const layer = makeInviteStoreLayer({
       redeemAndApproveUser: (inviteId, userId) => {
         capturedArgs = { inviteId, userId };
-        return Effect.void;
+        return Effect.succeed(true);
       },
     });
 
     return Effect.gen(function* () {
       const store = yield* InviteStore;
-      yield* store.redeemAndApproveUser(
+      const won = yield* store.redeemAndApproveUser(
         InviteId.make("inv-1"),
         UserId.make("user-1")
       );
       expect(capturedArgs).toEqual({ inviteId: "inv-1", userId: "user-1" });
+      expect(won).toBe(true);
+    }).pipe(Effect.provide(layer));
+  });
+
+  it.effect("redeemAndApproveUser returns false on race-lost", () => {
+    const layer = makeInviteStoreLayer({
+      redeemAndApproveUser: () => Effect.succeed(false),
+    });
+
+    return Effect.gen(function* () {
+      const store = yield* InviteStore;
+      const won = yield* store.redeemAndApproveUser(
+        InviteId.make("inv-1"),
+        UserId.make("user-1")
+      );
+      expect(won).toBe(false);
     }).pipe(Effect.provide(layer));
   });
 

@@ -15,6 +15,7 @@ import {
   KeyCreationError,
   MissingCodeError,
   NoActiveOrgError,
+  SessionLookupError,
 } from "./errors";
 import {
   ApiKeyStore,
@@ -336,8 +337,10 @@ const SessionProviderLive = Layer.effect(
     const auth = yield* AuthClient;
     return SessionProvider.of({
       getSession: (headers) =>
-        Effect.tryPromise(() => auth.api.getSession({ headers })).pipe(
-          Effect.orElseSucceed(() => null),
+        Effect.tryPromise({
+          catch: (cause) => new SessionLookupError({ cause }),
+          try: () => auth.api.getSession({ headers }),
+        }).pipe(
           Effect.map((session) =>
             session?.session
               ? {
@@ -446,6 +449,10 @@ export const handleTelegramConfirm = (
         Effect.succeed(
           Response.json({ error: "Failed to create API key" }, { status: 500 })
         ),
+      SessionLookupError: () =>
+        Effect.succeed(
+          Response.json({ error: "Auth backend unavailable" }, { status: 503 })
+        ),
       DbError: (e) => unexpected500(e.cause),
     }),
     Effect.catchAllCause((cause) => unexpected500(cause)),
@@ -468,6 +475,13 @@ export const handleTelegramCheck = (
           ),
         InvalidVerificationPayloadError: () =>
           Effect.succeed(Response.json({ valid: false })),
+        SessionLookupError: () =>
+          Effect.succeed(
+            Response.json(
+              { error: "Auth backend unavailable" },
+              { status: 503 }
+            )
+          ),
         DbError: (e) => unexpected500(e.cause),
       }),
       Effect.catchAllCause((cause) => unexpected500(cause))
@@ -488,6 +502,13 @@ export const handleTelegramStatus = (
           Effect.succeed(
             Response.json({ error: "Unauthorized" }, { status: 401 })
           ),
+        SessionLookupError: () =>
+          Effect.succeed(
+            Response.json(
+              { error: "Auth backend unavailable" },
+              { status: 503 }
+            )
+          ),
       }),
       Effect.catchAllCause((cause) => unexpected500(cause))
     )
@@ -505,6 +526,13 @@ export const handleTelegramDisconnect = (
         ConnectUnauthorizedError: () =>
           Effect.succeed(
             Response.json({ error: "Unauthorized" }, { status: 401 })
+          ),
+        SessionLookupError: () =>
+          Effect.succeed(
+            Response.json(
+              { error: "Auth backend unavailable" },
+              { status: 503 }
+            )
           ),
       }),
       Effect.catchAllCause((cause) => unexpected500(cause))

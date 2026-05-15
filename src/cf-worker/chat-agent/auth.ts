@@ -11,6 +11,24 @@ export class ChatFeatureDisabledError extends Schema.TaggedError<ChatFeatureDisa
   }
 ) {}
 
+export class FeatureCheckUnavailableError extends Schema.TaggedError<FeatureCheckUnavailableError>()(
+  "FeatureCheckUnavailableError",
+  {
+    status: Schema.Number,
+    message: Schema.String,
+    cause: Schema.Defect,
+  }
+) {}
+
+export class UnknownAgentPartyError extends Schema.TaggedError<UnknownAgentPartyError>()(
+  "UnknownAgentPartyError",
+  {
+    status: Schema.Number,
+    message: Schema.String,
+    party: Schema.String,
+  }
+) {}
+
 export const checkChatFeatureEnabled = Effect.fn(
   "ChatAgent.checkChatFeatureEnabled"
 )(function* (workspaceId: OrgId) {

@@ -243,6 +243,57 @@ describe("createTools", () => {
       );
       expect(rows).toHaveLength(1);
     });
+
+    it.each([
+      ["javascript:alert(1)"],
+      ["data:text/html,<script>alert(1)</script>"],
+      ["vbscript:msgbox(1)"],
+      ["file:///etc/passwd"],
+      ["ftp://example.com"],
+    ])("rejects non-http(s) scheme: %s", async (url) => {
+      const result = await tools.saveLink.execute!({ url }, stubCtx);
+
+      expect(result).toEqual({ success: false, error: "Invalid URL" });
+      const rows = store.query(tables.links.where({}));
+      expect(rows).toHaveLength(0);
+    });
+
+    it("surfaces existing id when post-commit re-resolve finds a different winner", async () => {
+      // The materializer's ON CONFLICT IGNORE on `url` swallows duplicate
+      // inserts; saveLink re-resolves by URL and reports the surviving id.
+      // We simulate that race by seeding a row with the same URL between the
+      // pre-check and the commit — done here by patching `store.commit` to
+      // seed the conflicting row before letting the original commit fire.
+      const url = "https://race.example.com";
+      const existingId = "existing-link-id";
+
+      const realCommit = store.commit.bind(store);
+      let raced = false;
+      store.commit = ((event: unknown) => {
+        if (!raced) {
+          raced = true;
+          realCommit(
+            events.linkCreatedV2({
+              createdAt: new Date(),
+              domain: "race.example.com",
+              id: existingId,
+              source: "test",
+              sourceMeta: null,
+              url,
+            })
+          );
+        }
+        return realCommit(event as Parameters<typeof realCommit>[0]);
+      }) as typeof store.commit;
+
+      const result = await tools.saveLink.execute!({ url }, stubCtx);
+
+      expect(result).toEqual({
+        success: false,
+        error: "Link already exists",
+        existingLinkId: existingId,
+      });
+    });
   });
 
   describe("searchLinks", () => {
