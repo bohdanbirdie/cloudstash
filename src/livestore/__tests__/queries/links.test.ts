@@ -396,5 +396,65 @@ describe("links queries", () => {
       const rows = store.query(searchLinks$("zebra"));
       expect(rows).toEqual([]);
     });
+
+    it("matches via tag name when no other field matches", () => {
+      const tagId = testId("tag");
+      store.commit(
+        events.tagCreated({
+          id: tagId,
+          name: "to-read",
+          sortOrder: 0,
+          createdAt: new Date("2026-01-01T10:00:00Z"),
+        })
+      );
+      const linkId = seedLink({
+        url: "https://example.com/post",
+        domain: "example.com",
+      });
+      addSnapshot(linkId, new Date("2026-01-02T10:00:00Z"), {
+        title: "Some interesting article",
+        description: "About a topic",
+      });
+      store.commit(
+        events.linkTagged({
+          id: testId("lt"),
+          linkId,
+          tagId,
+          createdAt: new Date("2026-01-02T10:00:00Z"),
+        })
+      );
+
+      const rows = store.query(searchLinks$("to-read"));
+      expect(rows.map((r) => r.id)).toEqual([linkId]);
+    });
+
+    it("does not match links whose tags were soft-deleted", () => {
+      const tagId = testId("tag");
+      store.commit(
+        events.tagCreated({
+          id: tagId,
+          name: "to-read",
+          sortOrder: 0,
+          createdAt: new Date("2026-01-01T10:00:00Z"),
+        })
+      );
+      const linkId = seedLink();
+      store.commit(
+        events.linkTagged({
+          id: testId("lt"),
+          linkId,
+          tagId,
+          createdAt: new Date("2026-01-02T10:00:00Z"),
+        })
+      );
+      store.commit(
+        events.tagDeleted({
+          id: tagId,
+          deletedAt: new Date("2026-01-03T10:00:00Z"),
+        })
+      );
+
+      expect(store.query(searchLinks$("to-read"))).toEqual([]);
+    });
   });
 });

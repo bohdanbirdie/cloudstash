@@ -263,11 +263,18 @@ export const searchLinks$ = (query: string) => {
     .map(
       (_, i) => `
       (
-        LOWER(COALESCE(s.title, '')) LIKE ?${i * 5 + 1}
-        OR LOWER(l.domain) LIKE ?${i * 5 + 2}
-        OR LOWER(COALESCE(s.description, '')) LIKE ?${i * 5 + 3}
-        OR LOWER(COALESCE(sum.summary, '')) LIKE ?${i * 5 + 4}
-        OR LOWER(l.url) LIKE ?${i * 5 + 5}
+        LOWER(COALESCE(s.title, '')) LIKE ?${i * 6 + 1}
+        OR LOWER(l.domain) LIKE ?${i * 6 + 2}
+        OR LOWER(COALESCE(s.description, '')) LIKE ?${i * 6 + 3}
+        OR LOWER(COALESCE(sum.summary, '')) LIKE ?${i * 6 + 4}
+        OR LOWER(l.url) LIKE ?${i * 6 + 5}
+        OR EXISTS (
+          SELECT 1 FROM link_tags lt
+          JOIN tags t ON t.id = lt.tagId
+          WHERE lt.linkId = l.id
+            AND t.deletedAt IS NULL
+            AND LOWER(t.name) LIKE ?${i * 6 + 6}
+        )
       )`
     )
     .join(" AND ");
@@ -275,17 +282,24 @@ export const searchLinks$ = (query: string) => {
   const scoreExpressions = words
     .map(
       (_, i) => `
-      CASE WHEN LOWER(COALESCE(s.title, '')) LIKE ?${i * 5 + 1} THEN 100 ELSE 0 END +
-      CASE WHEN LOWER(l.domain) LIKE ?${i * 5 + 2} THEN 50 ELSE 0 END +
-      CASE WHEN LOWER(COALESCE(s.description, '')) LIKE ?${i * 5 + 3} THEN 30 ELSE 0 END +
-      CASE WHEN LOWER(COALESCE(sum.summary, '')) LIKE ?${i * 5 + 4} THEN 20 ELSE 0 END +
-      CASE WHEN LOWER(l.url) LIKE ?${i * 5 + 5} THEN 10 ELSE 0 END`
+      CASE WHEN LOWER(COALESCE(s.title, '')) LIKE ?${i * 6 + 1} THEN 100 ELSE 0 END +
+      CASE WHEN EXISTS (
+        SELECT 1 FROM link_tags lt
+        JOIN tags t ON t.id = lt.tagId
+        WHERE lt.linkId = l.id
+          AND t.deletedAt IS NULL
+          AND LOWER(t.name) LIKE ?${i * 6 + 6}
+      ) THEN 80 ELSE 0 END +
+      CASE WHEN LOWER(l.domain) LIKE ?${i * 6 + 2} THEN 50 ELSE 0 END +
+      CASE WHEN LOWER(COALESCE(s.description, '')) LIKE ?${i * 6 + 3} THEN 30 ELSE 0 END +
+      CASE WHEN LOWER(COALESCE(sum.summary, '')) LIKE ?${i * 6 + 4} THEN 20 ELSE 0 END +
+      CASE WHEN LOWER(l.url) LIKE ?${i * 6 + 5} THEN 10 ELSE 0 END`
     )
     .join(" + ");
 
   const bindValues = words.flatMap((word) => {
     const pattern = `%${word}%`;
-    return [pattern, pattern, pattern, pattern, pattern];
+    return [pattern, pattern, pattern, pattern, pattern, pattern];
   });
 
   return queryDb(
