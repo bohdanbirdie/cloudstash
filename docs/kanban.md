@@ -4,6 +4,7 @@ kanban-plugin: board
 
 ## Todo
 
+- [ ] [[todos/mobile-settings-polish|Mobile settings polish — delete flow, Connections overhaul, tab look]]
 - [ ] [[todos/telegram-login-link|Simplify Telegram bot auth with login link]]
 - [ ] [[todos/e2e-do-sync-testing|E2E testing for DO-to-DO sync]]
 - [ ] [[todos/livestore-testing-ui|Livestore UI feature tests (RTL)]]

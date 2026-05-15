@@ -143,6 +143,15 @@
   transition: transform 330ms cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
+/* Sonner mobile: its own stylesheet sets the list to `width: 100%` *and*
+   `left/right` offsets, so the list overflows the viewport. Letting the
+   offsets size it keeps the centered toast inside the screen. */
+@media (max-width: 600px) {
+  [data-sonner-toaster] {
+    width: auto !important;
+  }
+}
+
 [data-sonner-toast] {
   transition:
     transform 330ms cubic-bezier(0.16, 1, 0.3, 1),

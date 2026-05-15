@@ -94,15 +94,24 @@ export function SettingsDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-3xl h-[min(620px,85vh)] gap-0 overflow-hidden p-0">
+      <DialogContent
+        fullScreenOnMobile
+        className="sm:max-w-3xl sm:h-[min(620px,85vh)] gap-0 overflow-hidden p-0"
+      >
         <DialogHeader className="sr-only">
           <DialogTitle>Settings</DialogTitle>
         </DialogHeader>
 
-        <div className="flex h-full min-h-0">
+        <div className="flex h-full min-h-0 flex-col lg:flex-row">
+          <div className="flex items-center border-b border-border/60 px-4 py-3 lg:hidden">
+            <span className="text-sm font-medium text-foreground">
+              Settings
+            </span>
+          </div>
+
           <nav
             aria-label="Settings sections"
-            className="flex w-44 shrink-0 flex-col gap-0.5 border-r border-border/60 bg-muted/30 p-3"
+            className="flex shrink-0 gap-0.5 border-border/60 bg-muted/30 max-lg:flex-row max-lg:overflow-x-auto max-lg:border-b max-lg:p-2 lg:w-44 lg:flex-col lg:border-r lg:p-3"
           >
             {visible.map(({ id, label, Icon }) => {
               const isActive = id === effective;
@@ -112,16 +121,26 @@ export function SettingsDialog() {
                   type="button"
                   onClick={() => setActive(id)}
                   aria-current={isActive ? "page" : undefined}
+                  aria-label={label}
                   className={cn(
-                    "relative flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs transition-colors outline-none",
+                    "relative flex shrink-0 items-center gap-2 rounded-md text-left text-xs transition-colors outline-none",
+                    "max-sm:size-10 max-sm:justify-center sm:px-2.5 sm:py-1.5",
                     "focus-visible:ring-2 focus-visible:ring-ring/50",
                     isActive
-                      ? "font-semibold text-primary before:absolute before:top-1.5 before:bottom-1.5 before:-left-3 before:w-[2px] before:rounded-r-full before:bg-primary"
+                      ? "font-semibold text-primary max-lg:bg-foreground/[0.06] lg:before:absolute lg:before:top-1.5 lg:before:bottom-1.5 lg:before:-left-3 lg:before:w-[2px] lg:before:rounded-r-full lg:before:bg-primary"
                       : "text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground"
                   )}
                 >
-                  <Icon className="size-3.5 shrink-0" />
-                  <span className="truncate">{label}</span>
+                  <Icon className="size-4 shrink-0 sm:size-3.5" />
+                  <span className="grid max-sm:hidden">
+                    <span
+                      aria-hidden
+                      className="invisible font-semibold whitespace-nowrap [grid-area:1/1]"
+                    >
+                      {label}
+                    </span>
+                    <span className="truncate [grid-area:1/1]">{label}</span>
+                  </span>
                 </button>
               );
             })}
@@ -136,7 +155,7 @@ export function SettingsDialog() {
                   key={id}
                   aria-hidden={!isActive}
                   hidden={!isActive}
-                  className="min-h-0 flex-1 overflow-y-auto px-8 py-7"
+                  className="min-h-0 flex-1 overflow-y-auto px-5 py-5 lg:px-8 lg:py-7"
                 >
                   {SECTION_RENDERERS[id]()}
                 </div>

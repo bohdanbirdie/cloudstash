@@ -86,7 +86,10 @@ export function ExportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl h-[70vh] flex flex-col">
+      <DialogContent
+        fullScreenOnMobile
+        className="sm:max-w-4xl sm:h-[70vh] flex flex-col"
+      >
         <DialogHeader>
           <DialogTitle>Export Links</DialogTitle>
         </DialogHeader>
@@ -102,7 +105,7 @@ export function ExportDialog({
           </TabsList>
 
           <TabsContent value="full" className="flex-1 min-h-0">
-            <div className="grid grid-cols-2 gap-4 h-full">
+            <div className="grid grid-cols-1 grid-rows-2 gap-4 h-full lg:grid-cols-2 lg:grid-rows-1">
               <div className="flex flex-col min-h-0">
                 <p className="text-xs text-muted-foreground mb-2">
                   Raw Markdown
