@@ -39,6 +39,14 @@ function googleOAuthPlugin(env: Env) {
 
 export const createAuth = (env: Env, db: Database) => {
   const auth = betterAuth({
+    account: {
+      encryptOAuthTokens: true,
+    },
+    advanced: {
+      ipAddress: {
+        ipAddressHeaders: ["cf-connecting-ip"],
+      },
+    },
     baseURL: env.BETTER_AUTH_URL,
     database: drizzleAdapter(db, {
       provider: "sqlite",
