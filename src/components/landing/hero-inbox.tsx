@@ -353,7 +353,7 @@ function DemoList({
   onToggle: (id: string) => void;
 }) {
   return (
-    <div className="h-80 overflow-y-auto px-2 py-1 sm:h-[28.75rem]">
+    <div className="h-80 overflow-hidden px-2 py-1 sm:h-[28.75rem] lg:overflow-y-auto">
       {items.length === 0 ? (
         <div className="grid h-full place-items-center text-xs text-muted-foreground">
           {emptyLabel}
