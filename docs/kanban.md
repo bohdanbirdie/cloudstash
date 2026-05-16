@@ -6,6 +6,7 @@ kanban-plugin: board
 
 - [ ] [[todos/link-processor-stuck-after-eviction|LinkProcessor: self-heal after DO eviction]]
 - [ ] [[todos/admin-server-ahead-alert|Admin alert for stuck LinkProcessorDO sync (Telegram via Tail Worker)]]
+- [ ] [[architecture/livestore-do-rpc-stream-stall|Upstream livestore PR — DO-RPC stream-framing fix (drain-then-decode + return runStream)]]
 - [ ] [[todos/e2e-do-sync-testing|E2E testing for DO-to-DO sync]]
 - [ ] [[todos/livestore-testing-ui|Livestore UI feature tests (RTL)]]
 - [ ] [[todos/progress-tracker-sqlite-review|Review stateful SQLite ProgressTracker]]

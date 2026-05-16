@@ -17,7 +17,7 @@ If the extension were ever truly "save button only," HTTP ingest would win on si
 
 ## Architecture
 
-Extension origin is `chrome-extension://<id>` — a *separate* origin from `app.cloudstash.io`. SharedWorker and OPFS are origin-scoped, so the extension gets its own coordination + storage, isolated from the web app. Sync still converges through `SyncBackendDO`.
+Extension origin is `chrome-extension://<id>` — a _separate_ origin from `app.cloudstash.io`. SharedWorker and OPFS are origin-scoped, so the extension gets its own coordination + storage, isolated from the web app. Sync still converges through `SyncBackendDO`.
 
 Contexts and roles:
 
@@ -72,6 +72,7 @@ cloudstash/
 Extension imports schema via `import { schema } from "@web/livestore/schema"`. Schema changes auto-propagate on rebuild — no publishing, no versioning. When a third client lands (mobile/electron), upgrade to extracted packages then.
 
 Why NOT separate repo (à la Raycast):
+
 - Raycast can't share Livestore so HTTP-only is fine. Chrome must share the schema — different release cadences become a tax.
 - Same package manager (bun), same build (Vite), same TS — composes cleanly in one repo.
 
@@ -80,6 +81,7 @@ Why NOT separate repo (à la Raycast):
 [wxt.dev](https://wxt.dev) — Vite-based MV3 framework. File-based entrypoints generate the manifest, HMR works in all contexts (including content scripts), `wxt zip` produces the Chrome Web Store artifact, MV2 Firefox build is free. React 19 supported via `@wxt-dev/module-react`. Tailwind 4 plugin drops in unchanged.
 
 Alternatives considered:
+
 - **CRXJS Vite plugin** — bare Vite plugin, you write `manifest.json` by hand. More control, more boilerplate. Fine if WXT's conventions ever become a liability.
 - **Plasmo** — heavier React-opinionated framework, drags in its own routing/UI. Overkill.
 - **Hand-rolled** — don't.
