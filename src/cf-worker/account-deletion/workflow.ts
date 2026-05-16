@@ -130,6 +130,11 @@ export const runAccountDeletion = Effect.fn("AccountDeletion.runWorkflow")(
       runtime.purgeTelegram(userId, orgId),
       STEP_RETRY
     );
+    yield* step(
+      "purge-x-bookmark-sync",
+      runtime.purgeXBookmarkSync(userId),
+      STEP_RETRY
+    );
     yield* step("delete-org", deleteOrg(orgId), STEP_RETRY);
 
     yield* Effect.logInfo("Workflow complete").pipe(

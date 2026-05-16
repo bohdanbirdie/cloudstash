@@ -1,8 +1,5 @@
-import * as OtlpSerialization from "@effect/opentelemetry/OtlpSerialization";
-import * as OtlpTracer from "@effect/opentelemetry/OtlpTracer";
 import * as Resource from "@effect/opentelemetry/Resource";
 import * as Tracer from "@effect/opentelemetry/Tracer";
-import { FetchHttpClient } from "@effect/platform";
 import { Layer } from "effect";
 
 const resource = {
@@ -10,18 +7,10 @@ const resource = {
   serviceVersion: "1.0.0",
 };
 
-const ProductionTracingLive = Tracer.layerGlobal.pipe(
+// Dev OTLP exporter (FetchHttpClient) was triggering "Disallowed operation
+// called within global scope" in workerd while we investigate the LP↔SB
+// livestore desync. Use the no-op global tracer everywhere until that's
+// resolved; flip back when ready to re-enable local OTLP.
+export const OtelTracingLive = Tracer.layerGlobal.pipe(
   Layer.provide(Resource.layer(resource))
 );
-
-const DevTracingLive = OtlpTracer.layer({
-  url: "http://127.0.0.1:27686/v1/traces",
-  resource,
-}).pipe(
-  Layer.provide(FetchHttpClient.layer),
-  Layer.provide(OtlpSerialization.layerJson)
-);
-
-export const OtelTracingLive = import.meta.env.DEV
-  ? DevTracingLive
-  : ProductionTracingLive;

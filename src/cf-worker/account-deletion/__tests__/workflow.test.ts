@@ -57,6 +57,7 @@ const stubDbLayer = (rec: DbRec) =>
 
 interface RuntimeRec {
   purgeTelegram: number;
+  purgeXBookmarkSync: number;
   markLinkProcessorDeleting: number;
   purgeLinkProcessor: number;
   purgeSyncBackend: number;
@@ -87,6 +88,7 @@ const stubRuntime = (rec: RuntimeRec, failOn?: RuntimeMethod) => {
       purgeSyncBackend: () => method("purgeSyncBackend"),
       purgeChatAgent: () => method("purgeChatAgent"),
       purgeTelegram: () => method("purgeTelegram"),
+      purgeXBookmarkSync: () => method("purgeXBookmarkSync"),
       ensureWorkflow: () =>
         Effect.fail(
           new DeletionRuntimeError({
@@ -100,6 +102,7 @@ const stubRuntime = (rec: RuntimeRec, failOn?: RuntimeMethod) => {
 
 const newRuntimeRec = (): RuntimeRec => ({
   purgeTelegram: 0,
+  purgeXBookmarkSync: 0,
   markLinkProcessorDeleting: 0,
   purgeLinkProcessor: 0,
   purgeSyncBackend: 0,
@@ -118,6 +121,7 @@ const EXPECTED_STEPS = [
   "wipe-sync-backend",
   "wipe-chat-agent",
   "purge-telegram",
+  "purge-x-bookmark-sync",
   "delete-org",
 ] as const;
 
@@ -148,6 +152,7 @@ describe("runAccountDeletion (happy path)", () => {
         Effect.sync(() => {
           expect(rec).toEqual({
             purgeTelegram: 1,
+            purgeXBookmarkSync: 1,
             markLinkProcessorDeleting: 1,
             purgeLinkProcessor: 1,
             purgeSyncBackend: 1,
@@ -225,6 +230,43 @@ describe("runAccountDeletion (failure path)", () => {
               "wipe-link-processor",
               "wipe-sync-backend",
               "wipe-chat-agent",
+            ]);
+            expect(dbRec.deletes).toBe(0);
+          })
+        )
+      );
+    }
+  );
+
+  it.effect(
+    "purgeXBookmarkSync failure: tags step purge-x-bookmark-sync, delete-org never runs",
+    () => {
+      const { step, calls } = makeStep();
+      const dbRec: DbRec = { deletes: 0 };
+
+      return runAccountDeletion(payload).pipe(
+        provideTestLayers(
+          stubRuntime(newRuntimeRec(), "purgeXBookmarkSync"),
+          stubDbLayer(dbRec),
+          step
+        ),
+        Effect.either,
+        Effect.tap((result) =>
+          Effect.sync(() => {
+            expect(Either.isLeft(result)).toBe(true);
+            if (Either.isLeft(result)) {
+              const error = result.left;
+              expect(error._tag).toBe("WorkflowOrchestrationError");
+              expect(error.step).toBe("purge-x-bookmark-sync");
+              expect(String(error.cause)).toContain("purgeXBookmarkSync boom");
+            }
+            expect(calls.map((c) => c.name)).toEqual([
+              "mark-link-processor-deleting",
+              "wipe-link-processor",
+              "wipe-sync-backend",
+              "wipe-chat-agent",
+              "purge-telegram",
+              "purge-x-bookmark-sync",
             ]);
             expect(dbRec.deletes).toBe(0);
           })

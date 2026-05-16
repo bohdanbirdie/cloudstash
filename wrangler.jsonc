@@ -24,6 +24,7 @@
       { "name": "SYNC_BACKEND_DO", "class_name": "SyncBackendDO" },
       { "name": "LINK_PROCESSOR_DO", "class_name": "LinkProcessorDO" },
       { "name": "Chat", "class_name": "ChatAgentDO" },
+      { "name": "X_BOOKMARK_SYNC_DO", "class_name": "XBookmarkSyncDO" },
     ],
   },
 
@@ -31,6 +32,7 @@
     { "tag": "v1", "new_sqlite_classes": ["SyncBackendDO"] },
     { "tag": "v2", "new_sqlite_classes": ["LinkProcessorDO"] },
     { "tag": "v3", "new_sqlite_classes": ["ChatAgentDO"] },
+    { "tag": "v4", "new_sqlite_classes": ["XBookmarkSyncDO"] },
   ],
 
   "workflows": [

@@ -23,6 +23,12 @@ import {
   handleTelegramDisconnect,
   handleTelegramStatus,
 } from "./connect/telegram";
+import {
+  handleXDisconnect,
+  handleXPause,
+  handleXResume,
+  handleXStatus,
+} from "./connect/x";
 import { InviteId, OrgId, UserId } from "./db/branded";
 import { ingestRequestToResponse } from "./ingest/service";
 import {
@@ -45,6 +51,7 @@ import { OtelTracingLive } from "./tracing";
 export { SyncBackendDO } from "./sync";
 export { LinkProcessorDO } from "./link-processor";
 export { ChatAgentDO } from "./chat-agent";
+export { XBookmarkSyncDO } from "./x-sync";
 export { AccountDeletionWorkflow } from "./workflows/account-deletion";
 
 const logger = logSync("API");
@@ -148,6 +155,11 @@ app.get("/api/connect/telegram/status", (c) =>
 app.delete("/api/connect/telegram", (c) =>
   handleTelegramDisconnect(c.req.raw, c.env)
 );
+
+app.get("/api/connect/x/status", (c) => handleXStatus(c.req.raw, c.env));
+app.delete("/api/connect/x", (c) => handleXDisconnect(c.req.raw, c.env));
+app.post("/api/connect/x/pause", (c) => handleXPause(c.req.raw, c.env));
+app.post("/api/connect/x/resume", (c) => handleXResume(c.req.raw, c.env));
 
 app.post("/api/telegram", (c) => handleTelegramWebhook(c.req.raw, c.env));
 

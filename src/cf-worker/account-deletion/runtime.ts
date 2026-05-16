@@ -24,6 +24,7 @@ export class DeletionRuntimeError extends Schema.TaggedError<DeletionRuntimeErro
       "purgeSyncBackend",
       "purgeChatAgent",
       "purgeTelegram",
+      "purgeXBookmarkSync",
       "ensureWorkflow"
     ),
     step: Schema.optional(Schema.Literal("status", "restart", "create")),
@@ -54,6 +55,9 @@ export class DeletionRuntime extends Context.Tag("@cloudstash/DeletionRuntime")<
     readonly purgeTelegram: (
       userId: UserId,
       orgId: OrgId
+    ) => Effect.Effect<void, DeletionRuntimeError>;
+    readonly purgeXBookmarkSync: (
+      userId: UserId
     ) => Effect.Effect<void, DeletionRuntimeError>;
     readonly ensureWorkflow: (
       params: AccountDeletionParams
@@ -133,6 +137,16 @@ export const DeletionRuntimeLive = (env: Env) =>
             attributes: { userId, orgId },
           }),
           Effect.provide(TelegramKeyStoreLive(env))
+        ),
+      purgeXBookmarkSync: (userId) =>
+        tryDO("purgeXBookmarkSync", () =>
+          env.X_BOOKMARK_SYNC_DO.get(
+            env.X_BOOKMARK_SYNC_DO.idFromName(userId)
+          ).disconnect()
+        ).pipe(
+          Effect.withSpan("DeletionRuntime.purgeXBookmarkSync", {
+            attributes: { userId },
+          })
         ),
       ensureWorkflow: (params) =>
         Effect.gen(function* () {

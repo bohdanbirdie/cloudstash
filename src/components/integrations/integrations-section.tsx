@@ -4,6 +4,7 @@ import { DevelopersCard } from "./developers-card";
 import { RaycastCard } from "./raycast-card";
 import { TelegramCard } from "./telegram-card";
 import { useApiKeys } from "./use-api-keys";
+import { XCard } from "./x-card";
 
 export function IntegrationsSection() {
   const apiKeys = useApiKeys(true);
@@ -17,6 +18,8 @@ export function IntegrationsSection() {
       )}
 
       <TelegramCard />
+
+      <XCard />
 
       <RaycastCard
         keys={apiKeys.keys}

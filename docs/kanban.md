@@ -4,6 +4,7 @@ kanban-plugin: board
 
 ## Todo
 
+- [ ] [[todos/link-processor-stuck-after-eviction|LinkProcessor: self-heal after DO eviction]]
 - [ ] [[todos/e2e-do-sync-testing|E2E testing for DO-to-DO sync]]
 - [ ] [[todos/livestore-testing-ui|Livestore UI feature tests (RTL)]]
 - [ ] [[todos/progress-tracker-sqlite-review|Review stateful SQLite ProgressTracker]]
@@ -18,6 +19,7 @@ kanban-plugin: board
 - [ ] [[todos/multi-chat-architecture|Multi-chat architecture (separate DOs + central livestore)]]
 - [ ] Shrink Worker output further — current upload is 2421 KiB gzipped (deploy 2026-05-13), only 633 KiB headroom under the 3 MiB free-tier cap. Two levers worth evaluating before the budget gets tight again: (a) split into separate Workers (web/assets vs. API/DOs) joined by a service binding, so each subsystem gets its own 3 MiB; (b) trim heavy chunks in place — defuddle/linkedom/htmlparser2 (HTML readability in LinkProcessorDO), @ai-sdk/react + livestore client on the authed entry, Effect tracer surface. Decide which lever first based on what's growing.
 - [ ] AI summary should not block the metadata fetching
+- [ ] Extend Pro plan with twitter historical sync of bookmarks
 
 ## In Progress
 

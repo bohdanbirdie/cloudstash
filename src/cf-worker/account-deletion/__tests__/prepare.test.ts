@@ -58,6 +58,7 @@ const stubRuntime = (
       purgeSyncBackend: () => Effect.void,
       purgeChatAgent: () => Effect.void,
       purgeTelegram: () => Effect.void,
+      purgeXBookmarkSync: () => Effect.void,
       ensureWorkflow: (params) => {
         rec.ensures.push(params);
         return result instanceof DeletionRuntimeError

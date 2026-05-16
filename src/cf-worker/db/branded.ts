@@ -25,3 +25,12 @@ export const WorkflowInstanceId = Schema.String.pipe(
   Schema.brand("WorkflowInstanceId")
 );
 export type WorkflowInstanceId = typeof WorkflowInstanceId.Type;
+
+export const XUserId = Schema.String.pipe(Schema.brand("XUserId"));
+export type XUserId = typeof XUserId.Type;
+
+export const XTweetId = Schema.String.pipe(Schema.brand("XTweetId"));
+export type XTweetId = typeof XTweetId.Type;
+
+export const XUsername = Schema.String.pipe(Schema.brand("XUsername"));
+export type XUsername = typeof XUsername.Type;

@@ -6,6 +6,11 @@ GOOGLE_CLIENT_SECRET=
 
 # Better Auth (required)
 # Generate secret: openssl rand -hex 32
+# NOTE: if you plan to use the X (Twitter) integration in dev, set this to
+# `http://127.0.0.1:3000` (X rejects `localhost` for OAuth callbacks). You'll
+# then need to access the app at http://127.0.0.1:3000 in your browser, and
+# add http://127.0.0.1:3000/api/auth/oauth2/callback/google to your Google
+# OAuth app's authorized redirect URIs.
 BETTER_AUTH_SECRET=
 BETTER_AUTH_URL=http://localhost:3000
 
@@ -15,6 +20,14 @@ RESEND_API_KEY=
 EMAIL_FROM=YourApp <noreply@yourdomain.com>
 
 # --- Optional (see README for details) ---
+# X (Twitter) OAuth — for bookmark sync integration
+# Create app at https://developer.x.com (Confidential client, Read permission).
+# Callback URI to register: http://127.0.0.1:3000/api/auth/oauth2/callback/x
+# Requires BETTER_AUTH_URL=http://127.0.0.1:3000 (see note above) and you must
+# access the app via http://127.0.0.1:3000 in your browser for the session
+# cookie to flow through the X OAuth callback.
+# X_CLIENT_ID=
+# X_CLIENT_SECRET=
 # TELEGRAM_BOT_TOKEN=
 # TELEGRAM_WEBHOOK_SECRET=
 # Canonical public URL used to mint outbound links from the worker

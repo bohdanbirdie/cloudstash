@@ -19,19 +19,68 @@ const logger = logSync("Auth");
 
 const DEFAULT_GOOGLE_BASE_URL = "https://accounts.google.com";
 
-function googleOAuthPlugin(env: Env) {
-  const baseUrl = env.GOOGLE_BASE_URL ?? DEFAULT_GOOGLE_BASE_URL;
+// Note: X (Twitter) rejects `localhost` for callback URIs and requires the
+// loopback IP literal `127.0.0.1` (RFC 8252). For local dev this means
+// BETTER_AUTH_URL must be set to `http://127.0.0.1:3000` (not `localhost`),
+// and the browser must hit the app via `127.0.0.1` so the session cookie
+// is set on the same origin the X callback lands on. See .dev.vars.example.
+
+function oauthProvidersPlugin(env: Env) {
+  const googleBaseUrl = env.GOOGLE_BASE_URL ?? DEFAULT_GOOGLE_BASE_URL;
 
   return genericOAuth({
     config: [
       {
         providerId: "google",
-        discoveryUrl: `${baseUrl}/.well-known/openid-configuration`,
+        discoveryUrl: `${googleBaseUrl}/.well-known/openid-configuration`,
         clientId: env.GOOGLE_CLIENT_ID,
         clientSecret: env.GOOGLE_CLIENT_SECRET,
         scopes: ["openid", "email", "profile"],
         pkce: true,
         overrideUserInfo: true,
+      },
+      {
+        providerId: "x",
+        authorizationUrl: "https://twitter.com/i/oauth2/authorize",
+        tokenUrl: "https://api.twitter.com/2/oauth2/token",
+        clientId: env.X_CLIENT_ID,
+        clientSecret: env.X_CLIENT_SECRET,
+        scopes: ["bookmark.read", "tweet.read", "users.read", "offline.access"],
+        pkce: true,
+        // X requires HTTP Basic Auth for confidential clients on its
+        // token + refresh endpoints; body-based credentials get 401'd.
+        authentication: "basic",
+        getUserInfo: async (tokens) => {
+          const resp = await fetch(
+            "https://api.twitter.com/2/users/me?user.fields=username,name,profile_image_url",
+            {
+              headers: { Authorization: `Bearer ${tokens.accessToken}` },
+            }
+          );
+          if (!resp.ok) {
+            throw new Error(`X getUserInfo failed: ${resp.status}`);
+          }
+          const data = (await resp.json()) as {
+            data: {
+              id: string;
+              username: string;
+              name: string;
+              profile_image_url?: string;
+            };
+          };
+          return {
+            id: data.data.id,
+            name: data.data.name,
+            // X doesn't expose email by default; synthetic placeholder so
+            // Better Auth's User shape is satisfied. The linking flow does
+            // not overwrite the primary user's email.
+            email: `${data.data.username}@x.local`,
+            emailVerified: false,
+            image: data.data.profile_image_url,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+        },
       },
     ],
   });
@@ -41,6 +90,14 @@ export const createAuth = (env: Env, db: Database) => {
   const auth = betterAuth({
     account: {
       encryptOAuthTokens: true,
+      accountLinking: {
+        // Permit linking OAuth accounts whose email differs from the primary
+        // user. Required for the X integration: X doesn't expose email by
+        // default, so our getUserInfo synthesizes `<username>@x.local`, which
+        // will never match the user's Google email. Linking only runs from an
+        // already-authenticated session, so the security risk is minimal.
+        allowDifferentEmails: true,
+      },
     },
     advanced: {
       ipAddress: {
@@ -53,6 +110,31 @@ export const createAuth = (env: Env, db: Database) => {
       schema,
     }),
     databaseHooks: {
+      account: {
+        create: {
+          after: async (account) => {
+            if (account.providerId !== "x") return;
+            try {
+              // DO.start() fetches /users/me, persists identity in its own
+              // storage, pins watermark to current head (cost safety: no
+              // backfill of existing bookmarks), and arms the alarm.
+              const stub = env.X_BOOKMARK_SYNC_DO.get(
+                env.X_BOOKMARK_SYNC_DO.idFromName(account.userId)
+              );
+              await stub.start();
+
+              logger.info("x-link: DO started", {
+                userId: maskId(account.userId),
+              });
+            } catch (error) {
+              logger.error("x-link: post-link setup failed", {
+                ...safeErrorInfo(error),
+                userId: maskId(account.userId),
+              });
+            }
+          },
+        },
+      },
       session: {
         create: {
           before: async (session) => {
@@ -134,7 +216,7 @@ export const createAuth = (env: Env, db: Database) => {
       admin({
         defaultRole: "user",
       }),
-      googleOAuthPlugin(env),
+      oauthProvidersPlugin(env),
     ],
     secret: env.BETTER_AUTH_SECRET,
     session: {
