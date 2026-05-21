@@ -22,12 +22,12 @@ kanban-plugin: board
 - [ ] [[todos/multi-chat-architecture|Multi-chat architecture (separate DOs + central livestore)]]
 - [ ] Shrink Worker output further — current upload is 2421 KiB gzipped (deploy 2026-05-13), only 633 KiB headroom under the 3 MiB free-tier cap. Two levers worth evaluating before the budget gets tight again: (a) split into separate Workers (web/assets vs. API/DOs) joined by a service binding, so each subsystem gets its own 3 MiB; (b) trim heavy chunks in place — defuddle/linkedom/htmlparser2 (HTML readability in LinkProcessorDO), @ai-sdk/react + livestore client on the authed entry, Effect tracer surface. Decide which lever first based on what's growing.
 - [ ] Extend Pro plan with twitter historical sync of bookmarks
+- [ ] X (twitter) content sub-processing feature for Pro users
 
 ## In Progress
 
 - [ ] [[todos/weekly-digest-backend|Weekly Digest backend]]
 - [ ] [[todos/weekly-digest-actions|Weekly Digest actions]]
-- [ ] [[todos/mobile-view-review|Mobile view review + fixes]]
 - [ ] ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
 - [ ] AI summary should not block the metadata fetching
 - [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.
@@ -36,6 +36,7 @@ kanban-plugin: board
 ## Done
 
 - [ ] Review and develop Twitter integrations (https://x.com/mynameistito/status/2046213790623301955)
+- [ ] [[todos/mobile-view-review|Mobile view review + fixes]]
 - [x] [[architecture/livestore-do-rpc-stream-stall|Livestore DO-RPC stream stall — root cause, fix, postmortem]]
 - [ ] [[todos/mobile-settings-polish|Mobile settings polish — delete flow, Connections overhaul, tab look]]
 - [ ] [[todos/telegram-login-link|Simplify Telegram bot auth with login link]]
