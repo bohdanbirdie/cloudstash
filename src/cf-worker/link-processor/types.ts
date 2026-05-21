@@ -10,6 +10,9 @@ export type LivestoreInstance = Store<typeof schema>;
 // returning suggestedTags as a comma-separated string instead of an array).
 export const AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
+export const MAX_CONCURRENT_METADATA = 8;
+export const MAX_CONCURRENT_AI = 3;
+
 export interface LinkQueueMessage {
   url: string;
   storeId: OrgId;

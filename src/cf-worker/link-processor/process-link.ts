@@ -15,10 +15,14 @@ import {
 } from "./services";
 import { AI_MODEL } from "./types";
 
+const unboundedSemaphore = Effect.unsafeMakeSemaphore(Number.MAX_SAFE_INTEGER);
+
 interface ProcessLinkParams {
   aiSummaryEnabled?: boolean;
   link: { id: LinkId; url: string };
   skipStartedEvent?: boolean;
+  metadataSemaphore?: Effect.Semaphore;
+  aiSemaphore?: Effect.Semaphore;
 }
 
 interface RecordFailureParams {
@@ -33,6 +37,8 @@ export const processLink = ({
   aiSummaryEnabled = false,
   link,
   skipStartedEvent = false,
+  metadataSemaphore = unboundedSemaphore,
+  aiSemaphore = unboundedSemaphore,
 }: ProcessLinkParams) => {
   const recordFailure = ({
     error,
@@ -73,7 +79,12 @@ export const processLink = ({
       );
     }
 
-    const metadataResult = yield* metadataFetcher.fetch(link.url);
+    const metadataResult = yield* metadataFetcher
+      .fetch(link.url)
+      .pipe(
+        metadataSemaphore.withPermits(1),
+        Effect.withSpan("LinkProcessor.fetchMetadata")
+      );
 
     const hasAnyMetadata =
       !!metadataResult.title ||
@@ -110,25 +121,30 @@ export const processLink = ({
     if (aiSummaryEnabled) {
       const existingTags = yield* linkStore.queryTags();
 
-      const extractedContent = yield* contentExtractor.extract(link.url);
+      const result = yield* Effect.gen(function* () {
+        const extractedContent = yield* contentExtractor.extract(link.url);
 
-      if (extractedContent) {
-        yield* Effect.logInfo("Content extracted").pipe(
-          Effect.annotateLogs({
-            contentLength: extractedContent.content.length,
-            hasTitle: !!extractedContent.title,
-          })
-        );
-      } else {
-        yield* Effect.logWarning("No content extracted");
-      }
+        if (extractedContent) {
+          yield* Effect.logInfo("Content extracted").pipe(
+            Effect.annotateLogs({
+              contentLength: extractedContent.content.length,
+              hasTitle: !!extractedContent.title,
+            })
+          );
+        } else {
+          yield* Effect.logWarning("No content extracted");
+        }
 
-      const result = yield* aiGenerator.generate({
-        existingTags,
-        extractedContent,
-        metadata: metadataResult,
-        url: link.url,
-      });
+        return yield* aiGenerator.generate({
+          existingTags,
+          extractedContent,
+          metadata: metadataResult,
+          url: link.url,
+        });
+      }).pipe(
+        aiSemaphore.withPermits(1),
+        Effect.withSpan("LinkProcessor.aiSummarize")
+      );
 
       if (result.summary) {
         yield* linkStore.commit(

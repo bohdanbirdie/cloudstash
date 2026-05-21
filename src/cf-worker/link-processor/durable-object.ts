@@ -31,11 +31,11 @@ import { LinkRepositoryLive } from "./services/link-repository.live";
 import { MetadataFetcherLive } from "./services/metadata-fetcher.live";
 import { SourceNotifierLive } from "./services/source-notifier.live";
 import { WorkersAiLive } from "./services/workers-ai.live";
+import { MAX_CONCURRENT_AI, MAX_CONCURRENT_METADATA } from "./types";
 import type { LinkQueueMessage } from "./types";
 
 const logger = logSync("LinkProcessorDO");
 
-const MAX_CONCURRENT_LINKS = 5;
 const MAX_NOTIFIED_LINK_IDS = 500;
 
 import {
@@ -57,7 +57,10 @@ export class LinkProcessorDO
   private storeCreationPromise: Promise<Store<typeof schema>> | undefined;
   private subscription: Unsubscribe | undefined;
   private submittedLinks = new Set<string>();
-  private semaphore = Effect.unsafeMakeSemaphore(MAX_CONCURRENT_LINKS);
+  private metadataSemaphore = Effect.unsafeMakeSemaphore(
+    MAX_CONCURRENT_METADATA
+  );
+  private aiSemaphore = Effect.unsafeMakeSemaphore(MAX_CONCURRENT_AI);
   private notifiedLinkIds = new Set<string>();
   private hasRunCleanup = false;
   private totalRowsWritten = 0;
@@ -242,13 +245,12 @@ export class LinkProcessorDO
             const isReprocess =
               statusMap.get(link.id)?.status === "reprocess-requested";
             return this.processLinkEffect(store, link, isReprocess).pipe(
-              this.semaphore.withPermits(1),
               Effect.ensuring(
                 Effect.sync(() => this.submittedLinks.delete(link.id))
               )
             );
           },
-          { concurrency: "unbounded", discard: true }
+          { concurrency: MAX_CONCURRENT_METADATA, discard: true }
         )
       );
     });
@@ -409,6 +411,8 @@ export class LinkProcessorDO
         aiSummaryEnabled: capabilities.aiSummary,
         link: { id: LinkId.make(link.id), url: link.url },
         skipStartedEvent: true,
+        metadataSemaphore: this.metadataSemaphore,
+        aiSemaphore: this.aiSemaphore,
       }).pipe(Effect.provide(liveLayer));
 
       yield* Effect.logInfo("Link processed").pipe(
