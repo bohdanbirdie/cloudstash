@@ -24,7 +24,7 @@ export const SOFTWARE_APPLICATION_LD = {
       price: "5",
       priceCurrency: "USD",
       description:
-        "AI summary on every save and integrations with Telegram, Raycast, iOS, Chrome, and X.",
+        "AI summary on every save and integrations with Telegram, Raycast, iOS, and Chrome.",
     },
     {
       "@type": "Offer",
@@ -32,7 +32,7 @@ export const SOFTWARE_APPLICATION_LD = {
       price: "12",
       priceCurrency: "USD",
       description:
-        "Chat with your archive, larger summary model, and MCP server access.",
+        "X bookmark sync, chat with your archive, larger summary model, and MCP server access.",
     },
   ],
 };

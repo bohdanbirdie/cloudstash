@@ -2,17 +2,19 @@ import { and, eq, gt } from "drizzle-orm";
 import { Effect, Layer } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
+import { capabilityDeniedResponse } from "../billing/errors";
+import { requireCapability } from "../billing/service";
 import { OrgId, UserId } from "../db/branded";
 import * as schema from "../db/schema";
 import { DbClient, query } from "../db/service";
-import { maskId } from "../log-utils";
+import { maskId, safeErrorInfo } from "../log-utils";
 import type { Env } from "../shared";
 import {
+  ConnectUnauthorizedError,
   InvalidCodeError,
   KeyCreationError,
   MissingCodeError,
   NoActiveOrgError,
-  ConnectUnauthorizedError,
   SessionLookupError,
 } from "./errors";
 import { ApiKeyStore, SessionProvider, VerificationStore } from "./services";
@@ -37,19 +39,13 @@ export const handleConnectRequest = Effect.fn(
     return yield* new NoActiveOrgError({ userId });
   }
 
-  const result = yield* apiKeyStore
-    .create(headers, { orgId, source: "raycast" }, "Raycast Extension")
-    .pipe(
-      Effect.flatMap((r) =>
-        r
-          ? Effect.succeed(r)
-          : Effect.fail(
-              new KeyCreationError({
-                cause: new Error("API key creation returned null"),
-              })
-            )
-      )
-    );
+  yield* requireCapability(orgId, "integrations");
+
+  const result = yield* apiKeyStore.create(
+    headers,
+    { orgId, source: "raycast" },
+    "Raycast Extension"
+  );
 
   const code = crypto.randomUUID();
 
@@ -142,15 +138,20 @@ const makeLiveLayer = (env: Env) =>
               db.delete(schema.apikey).where(eq(schema.apikey.id, id))
             ).pipe(Effect.asVoid),
           create: (headers, metadata, name) =>
-            Effect.tryPromise(() =>
-              auth.api.createApiKey({ body: { metadata, name }, headers })
-            ).pipe(
-              Effect.map((result) =>
+            Effect.tryPromise({
+              try: () =>
+                auth.api.createApiKey({ body: { metadata, name }, headers }),
+              catch: (cause) => new KeyCreationError({ cause }),
+            }).pipe(
+              Effect.flatMap((result) =>
                 result?.key && result?.id
-                  ? { key: result.key, id: result.id }
-                  : null
-              ),
-              Effect.orElseSucceed(() => null)
+                  ? Effect.succeed({ key: result.key, id: result.id })
+                  : Effect.fail(
+                      new KeyCreationError({
+                        cause: new Error("createApiKey returned null"),
+                      })
+                    )
+              )
             ),
           updateName: (id, name) =>
             query(
@@ -200,11 +201,11 @@ const makeLiveLayer = (env: Env) =>
         });
       })
     )
-  ).pipe(Layer.provide(AppLayerLive(env)));
+  ).pipe(Layer.provideMerge(AppLayerLive(env)));
 
 const unexpected500 = (cause: unknown): Effect.Effect<Response> =>
   Effect.logError("Raycast handler crashed").pipe(
-    Effect.annotateLogs({ cause: String(cause) }),
+    Effect.annotateLogs(safeErrorInfo(cause)),
     Effect.as(Response.json({ error: "Internal error" }, { status: 500 }))
   );
 
@@ -217,6 +218,8 @@ export const handleRaycastConnect = (
       Effect.provide(makeLiveLayer(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
+        CapabilityDisabledError: (e) =>
+          Effect.succeed(capabilityDeniedResponse(e)),
         ConnectUnauthorizedError: () =>
           Effect.succeed(
             Response.json({ error: "Unauthorized" }, { status: 401 })
@@ -231,6 +234,10 @@ export const handleRaycastConnect = (
         NoActiveOrgError: () =>
           Effect.succeed(
             Response.json({ error: "No active organization" }, { status: 400 })
+          ),
+        OrgNotFoundError: () =>
+          Effect.succeed(
+            Response.json({ error: "Organization not found" }, { status: 404 })
           ),
         SessionLookupError: () =>
           Effect.succeed(

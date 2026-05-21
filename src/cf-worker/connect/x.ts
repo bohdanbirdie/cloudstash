@@ -1,14 +1,21 @@
 import { Effect, Layer } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
+import { capabilityDeniedResponse } from "../billing/errors";
+import { requireCapability } from "../billing/service";
 import { OrgId, UserId } from "../db/branded";
+import { maskId, safeErrorInfo } from "../log-utils";
 import type { Env } from "../shared";
 import type {
   XBookmarkSyncDO,
   XStatusResponse,
 } from "../x-sync/durable-object";
 import { sideEffectError } from "../x-sync/effects-helpers";
-import { ConnectUnauthorizedError, SessionLookupError } from "./errors";
+import {
+  ConnectUnauthorizedError,
+  NoActiveOrgError,
+  SessionLookupError,
+} from "./errors";
 import { SessionProvider } from "./services";
 
 type ActionResult = { ok: true } | { kind: "not_connected" };
@@ -21,10 +28,10 @@ const requireSession = Effect.fn("XConnect.requireSession")(function* (
     .getSession(headers)
     .pipe(
       Effect.flatMap((s) =>
-        s ? Effect.succeed(s) : Effect.fail(new ConnectUnauthorizedError())
+        s ? Effect.succeed(s) : new ConnectUnauthorizedError()
       )
     );
-  yield* Effect.annotateCurrentSpan("userId", session.userId);
+  yield* Effect.annotateCurrentSpan("userId", maskId(session.userId));
   return session.userId;
 });
 
@@ -42,7 +49,9 @@ const callDO = <A>(
     try: () =>
       fn(env.X_BOOKMARK_SYNC_DO.get(env.X_BOOKMARK_SYNC_DO.idFromName(userId))),
     catch: sideEffectError(op),
-  }).pipe(Effect.withSpan(spanName, { attributes: { userId } }));
+  }).pipe(
+    Effect.withSpan(spanName, { attributes: { userId: maskId(userId) } })
+  );
 
 const safeStatus = (env: Env, userId: UserId) =>
   callDO(
@@ -54,7 +63,7 @@ const safeStatus = (env: Env, userId: UserId) =>
   ).pipe(
     Effect.catchTag("XSyncSideEffectError", (e) =>
       Effect.logWarning("X RPC: status failed").pipe(
-        Effect.annotateLogs({ userId, cause: String(e.cause) }),
+        Effect.annotateLogs({ userId: maskId(userId), cause: String(e.cause) }),
         Effect.as({ connected: false } satisfies XStatusResponse)
       )
     )
@@ -85,7 +94,7 @@ export const xDisconnectRequest = Effect.fn("XConnect.disconnect")(function* (
   ).pipe(
     Effect.catchTag("XSyncSideEffectError", (e) =>
       Effect.logWarning("X disconnect: DO stub.disconnect() failed").pipe(
-        Effect.annotateLogs({ userId, cause: String(e.cause) })
+        Effect.annotateLogs({ userId: maskId(userId), cause: String(e.cause) })
       )
     )
   );
@@ -101,14 +110,16 @@ export const xDisconnectRequest = Effect.fn("XConnect.disconnect")(function* (
   }).pipe(
     Effect.catchTag("XSyncSideEffectError", (e) =>
       Effect.logWarning("X disconnect: unlinkAccount failed").pipe(
-        Effect.annotateLogs({ userId, cause: String(e.cause) })
+        Effect.annotateLogs({ userId: maskId(userId), cause: String(e.cause) })
       )
     ),
-    Effect.withSpan("XConnect.unlinkAccount", { attributes: { userId } })
+    Effect.withSpan("XConnect.unlinkAccount", {
+      attributes: { userId: maskId(userId) },
+    })
   );
 
   yield* Effect.logInfo("X disconnect complete").pipe(
-    Effect.annotateLogs({ userId })
+    Effect.annotateLogs({ userId: maskId(userId) })
   );
 
   return { ok: true } satisfies ActionResult;
@@ -132,7 +143,7 @@ export const xPauseRequest = Effect.fn("XConnect.pause")(function* (
   ).pipe(
     Effect.catchTag("XSyncSideEffectError", (e) =>
       Effect.logWarning("X pause: DO stub.pause() failed").pipe(
-        Effect.annotateLogs({ userId, cause: String(e.cause) })
+        Effect.annotateLogs({ userId: maskId(userId), cause: String(e.cause) })
       )
     )
   );
@@ -144,7 +155,20 @@ export const xResumeRequest = Effect.fn("XConnect.resume")(function* (
   request: Request,
   env: Env
 ) {
-  const userId = yield* requireSession(request.headers);
+  const sessionProvider = yield* SessionProvider;
+  const session = yield* sessionProvider
+    .getSession(request.headers)
+    .pipe(
+      Effect.flatMap((s) =>
+        s ? Effect.succeed(s) : new ConnectUnauthorizedError()
+      )
+    );
+  const { userId, orgId } = session;
+  yield* Effect.annotateCurrentSpan("userId", maskId(userId));
+  if (!orgId) {
+    return yield* new NoActiveOrgError({ userId });
+  }
+  yield* requireCapability(orgId, "xBookmarkSync");
 
   const status = yield* safeStatus(env, userId);
   if (!status.connected) {
@@ -160,7 +184,7 @@ export const xResumeRequest = Effect.fn("XConnect.resume")(function* (
   ).pipe(
     Effect.catchTag("XSyncSideEffectError", (e) =>
       Effect.logWarning("X resume: DO stub.resume() failed").pipe(
-        Effect.annotateLogs({ userId, cause: String(e.cause) })
+        Effect.annotateLogs({ userId: maskId(userId), cause: String(e.cause) })
       )
     )
   );
@@ -198,7 +222,7 @@ const makeLiveLayer = (env: Env) =>
 
 const unexpected500 = (cause: unknown): Effect.Effect<Response> =>
   Effect.logError("X connect handler crashed").pipe(
-    Effect.annotateLogs({ cause: String(cause) }),
+    Effect.annotateLogs(safeErrorInfo(cause)),
     Effect.as(Response.json({ error: "Internal error" }, { status: 500 }))
   );
 
@@ -254,7 +278,20 @@ export const handleXResume = (request: Request, env: Env): Promise<Response> =>
     xResumeRequest(request, env).pipe(
       Effect.provide(makeLiveLayer(env)),
       Effect.map(mapActionResult),
-      Effect.catchTags(commonErrorTags),
+      Effect.catchTags({
+        ...commonErrorTags,
+        CapabilityDisabledError: (e) =>
+          Effect.succeed(capabilityDeniedResponse(e)),
+        NoActiveOrgError: () =>
+          Effect.succeed(
+            Response.json({ error: "No active organization" }, { status: 400 })
+          ),
+        OrgNotFoundError: () =>
+          Effect.succeed(
+            Response.json({ error: "Organization not found" }, { status: 404 })
+          ),
+        DbError: (cause) => unexpected500(cause),
+      }),
       Effect.catchAllCause((cause) => unexpected500(cause))
     )
   );

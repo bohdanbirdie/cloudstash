@@ -8,11 +8,13 @@ import { Hono } from "hono";
 import {
   handleGetOrgSettings,
   handleListWorkspaces,
-  handleUpdateOrgSettings,
+  handleSetOverride,
+  handleSetTier,
 } from "./admin";
 import { handleApproveUser } from "./admin/approve-user";
 import { handleGetUsage } from "./admin/usage";
 import { trackEvent } from "./analytics";
+import { gateUserApiKeyCreate } from "./auth/api-key-gate";
 import { AppLayerLive, AuthClient } from "./auth/service";
 import { checkSyncAuth, SyncAuthError } from "./auth/sync-auth";
 import { agentHooks } from "./chat-agent/hooks";
@@ -43,6 +45,7 @@ import { metadataRequestToResponse } from "./metadata/service";
 import { requireAdmin } from "./middleware/require-admin";
 import { handleGetMe, handleGetOrg } from "./org";
 import { handleQueueBatch } from "./queue-handler";
+import { runHandler } from "./runtime";
 import type { Env, HonoVariables } from "./shared";
 import { SyncBackend, handleSyncRequest } from "./sync";
 import { handleTelegramWebhook } from "./telegram";
@@ -100,8 +103,11 @@ app.get("/api/org/:id", (c) =>
 app.get("/api/org/:id/settings", requireAdmin, (c) =>
   handleGetOrgSettings(c.req.raw, OrgId.make(c.req.param("id")), c.env)
 );
-app.put("/api/org/:id/settings", requireAdmin, (c) =>
-  handleUpdateOrgSettings(c.req.raw, OrgId.make(c.req.param("id")), c.env)
+app.put("/api/org/:id/tier", requireAdmin, (c) =>
+  handleSetTier(c.req.raw, OrgId.make(c.req.param("id")), c.env)
+);
+app.put("/api/org/:id/overrides", requireAdmin, (c) =>
+  handleSetOverride(c.req.raw, OrgId.make(c.req.param("id")), c.env)
 );
 app.get("/api/admin/workspaces", requireAdmin, (c) =>
   handleListWorkspaces(c.req.raw, c.env)
@@ -113,11 +119,14 @@ app.get("/api/admin/usage", requireAdmin, (c) =>
   handleGetUsage(c.req.raw, c.env)
 );
 app.on(["GET", "POST"], "/api/auth/*", (c) =>
-  Effect.runPromise(
+  runHandler(
+    c.env,
     Effect.gen(function* () {
+      const denied = yield* gateUserApiKeyCreate(c.req.raw);
+      if (denied) return denied;
       const auth = yield* AuthClient;
       return yield* Effect.promise(() => auth.handler(c.req.raw));
-    }).pipe(Effect.provide(AppLayerLive(c.env)))
+    })
   )
 );
 

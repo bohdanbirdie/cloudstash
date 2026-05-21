@@ -1,13 +1,18 @@
 import { it } from "@effect/vitest";
-import { Effect, Exit, Layer } from "effect";
+import { Effect, Layer } from "effect";
 import { describe, expect } from "vitest";
 
+import type { TierCapabilities } from "@/lib/plan";
+import { capabilitiesFor } from "@/lib/plan";
+
+import { Billing } from "../../billing/service";
 import { OrgId, UserId } from "../../db/branded";
 import {
   TelegramBotApi,
   TelegramBotApiError,
   TelegramKeyStore,
 } from "../../telegram/services";
+import { KeyCreationError } from "../errors";
 import {
   ApiKeyStore,
   SessionProvider,
@@ -35,6 +40,23 @@ const sessionStub = (
     getSession: () => Effect.succeed(session),
   });
 
+const billingStub = (caps: TierCapabilities = capabilitiesFor("plus")) => {
+  const notImpl = <A>(): Effect.Effect<A> =>
+    Effect.die("Billing stub method not implemented in test");
+  return Layer.succeed(
+    Billing,
+    new Billing({
+      capabilities: () => Effect.succeed(caps),
+      tier: notImpl,
+      getOverrides: notImpl,
+      setTier: notImpl,
+      setOverride: notImpl,
+      exists: notImpl,
+      listWithOwners: notImpl,
+    })
+  );
+};
+
 interface ApiKeyState {
   created: { metadata: { orgId: OrgId; source: string }; name: string }[];
   deleted: string[];
@@ -51,11 +73,19 @@ const apiKeyStub = (args?: {
         state.deleted.push(id);
       }),
     create: (_headers, metadata, name) =>
-      Effect.sync(() => {
+      Effect.suspend(() => {
         state.created.push({ metadata, name });
-        return args?.createResult === undefined
-          ? { key: "new-key", id: "new-key-id" }
-          : args.createResult;
+        if (args?.createResult === undefined) {
+          return Effect.succeed({ key: "new-key", id: "new-key-id" });
+        }
+        if (args.createResult === null) {
+          return Effect.fail(
+            new KeyCreationError({
+              cause: new Error("createApiKey returned null"),
+            })
+          );
+        }
+        return Effect.succeed(args.createResult);
       }),
     updateName: () => Effect.void,
   });
@@ -229,15 +259,12 @@ describe("checkRequest", () => {
 
   it.effect("fails with ConnectUnauthorizedError without a session", () => {
     const layer = Layer.mergeAll(sessionStub(null), connectStoreStub().layer);
-    return Effect.exit(
-      checkRequest(HEADERS, "any").pipe(Effect.provide(layer))
-    ).pipe(
-      Effect.tap((exit) =>
+    return checkRequest(HEADERS, "any").pipe(
+      Effect.provide(layer),
+      Effect.flip,
+      Effect.tap((error) =>
         Effect.sync(() => {
-          expect(Exit.isFailure(exit)).toBe(true);
-          if (Exit.isFailure(exit)) {
-            expect(exit.cause.toString()).toContain("ConnectUnauthorizedError");
-          }
+          expect(error._tag).toBe("ConnectUnauthorizedError");
         })
       )
     );
@@ -253,6 +280,7 @@ describe("confirmRequest", () => {
     records?: Map<string, { recordId: string; chatId: number }>;
     createResult?: { key: string; id: string } | null;
     sendMessageFails?: boolean;
+    caps?: TierCapabilities;
   }) => {
     const { layer: connect, state: connectState } = connectStoreStub(
       overrides?.records
@@ -269,7 +297,8 @@ describe("confirmRequest", () => {
       connect,
       apiKey,
       keys,
-      bot
+      bot,
+      billingStub(overrides?.caps)
     );
     return { layer, connectState, apiKeyState, keysState, botState };
   };
@@ -315,15 +344,12 @@ describe("confirmRequest", () => {
 
   it.effect("fails InvalidCodeError when code is unknown", () => {
     const { layer } = allDeps();
-    return Effect.exit(
-      confirmRequest(HEADERS, { code: "missing" }).pipe(Effect.provide(layer))
-    ).pipe(
-      Effect.tap((exit) =>
+    return confirmRequest(HEADERS, { code: "missing" }).pipe(
+      Effect.provide(layer),
+      Effect.flip,
+      Effect.tap((error) =>
         Effect.sync(() => {
-          expect(Exit.isFailure(exit)).toBe(true);
-          if (Exit.isFailure(exit)) {
-            expect(exit.cause.toString()).toContain("InvalidCodeError");
-          }
+          expect(error._tag).toBe("InvalidCodeError");
         })
       )
     );
@@ -338,17 +364,37 @@ describe("confirmRequest", () => {
       return Effect.gen(function* () {
         const first = yield* confirmRequest(HEADERS, { code: "good" });
         expect(first).toEqual({ ok: true });
-        const second = yield* Effect.exit(
-          confirmRequest(HEADERS, { code: "good" })
+        const second = yield* confirmRequest(HEADERS, { code: "good" }).pipe(
+          Effect.flip
         );
-        expect(Exit.isFailure(second)).toBe(true);
-        if (Exit.isFailure(second)) {
-          expect(second.cause.toString()).toContain("InvalidCodeError");
-        }
+        expect(second._tag).toBe("InvalidCodeError");
         // Only one binding and one API key created across both attempts.
         expect(apiKeyState.created).toHaveLength(1);
         expect(keysState.forward.get(42)).toBe("new-key");
       }).pipe(Effect.provide(layer));
+    }
+  );
+
+  it.effect(
+    "fails CapabilityDisabledError when org is on the free tier (no integrations)",
+    () => {
+      const { layer } = allDeps({
+        records: validRecords(),
+        caps: capabilitiesFor("free"),
+      });
+      return confirmRequest(HEADERS, { code: "good" }).pipe(
+        Effect.provide(layer),
+        Effect.flip,
+        Effect.tap((error) =>
+          Effect.sync(() => {
+            expect(error._tag).toBe("CapabilityDisabledError");
+            if (error._tag === "CapabilityDisabledError") {
+              expect(error.capability).toBe("integrations");
+              expect(error.requiredTier).toBe("plus");
+            }
+          })
+        )
+      );
     }
   );
 
@@ -357,15 +403,12 @@ describe("confirmRequest", () => {
       records: validRecords(),
       createResult: null,
     });
-    return Effect.exit(
-      confirmRequest(HEADERS, { code: "good" }).pipe(Effect.provide(layer))
-    ).pipe(
-      Effect.tap((exit) =>
+    return confirmRequest(HEADERS, { code: "good" }).pipe(
+      Effect.provide(layer),
+      Effect.flip,
+      Effect.tap((error) =>
         Effect.sync(() => {
-          expect(Exit.isFailure(exit)).toBe(true);
-          if (Exit.isFailure(exit)) {
-            expect(exit.cause.toString()).toContain("KeyCreationError");
-          }
+          expect(error._tag).toBe("KeyCreationError");
         })
       )
     );

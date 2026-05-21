@@ -1,21 +1,20 @@
 import { Effect, Schema } from "effect";
 
-import type { OrgId } from "../db/branded";
-import { OrgFeatures } from "../org/features-service";
+import { Billing } from "../billing/service";
+import { OrgId } from "../db/branded";
+import { maskId } from "../log-utils";
 
 export class ChatFeatureDisabledError extends Schema.TaggedError<ChatFeatureDisabledError>()(
   "ChatFeatureDisabledError",
   {
-    status: Schema.Number,
-    message: Schema.String,
+    orgId: OrgId,
   }
 ) {}
 
 export class FeatureCheckUnavailableError extends Schema.TaggedError<FeatureCheckUnavailableError>()(
   "FeatureCheckUnavailableError",
   {
-    status: Schema.Number,
-    message: Schema.String,
+    orgId: OrgId,
     cause: Schema.Defect,
   }
 ) {}
@@ -23,8 +22,6 @@ export class FeatureCheckUnavailableError extends Schema.TaggedError<FeatureChec
 export class UnknownAgentPartyError extends Schema.TaggedError<UnknownAgentPartyError>()(
   "UnknownAgentPartyError",
   {
-    status: Schema.Number,
-    message: Schema.String,
     party: Schema.String,
   }
 ) {}
@@ -32,13 +29,25 @@ export class UnknownAgentPartyError extends Schema.TaggedError<UnknownAgentParty
 export const checkChatFeatureEnabled = Effect.fn(
   "ChatAgent.checkChatFeatureEnabled"
 )(function* (workspaceId: OrgId) {
-  const orgFeatures = yield* OrgFeatures;
-  const features = yield* orgFeatures.get(workspaceId);
+  const billing = yield* Billing;
+  const caps = yield* billing.capabilities(workspaceId);
 
-  if (!features.chatAgentEnabled) {
-    return yield* new ChatFeatureDisabledError({
-      message: "Chat feature is not enabled for this workspace",
-      status: 403,
-    });
+  yield* Effect.annotateCurrentSpan({
+    chatAgent: caps.chatAgent,
+    orgId: maskId(workspaceId),
+  });
+
+  if (!caps.chatAgent) {
+    yield* Effect.logInfo("ChatAgent gate denied").pipe(
+      Effect.annotateLogs({ orgId: maskId(workspaceId) })
+    );
+    return yield* new ChatFeatureDisabledError({ orgId: workspaceId });
   }
+
+  yield* Effect.logDebug("ChatAgent gate allowed").pipe(
+    Effect.annotateLogs({
+      orgId: maskId(workspaceId),
+      monthlyChatBudgetUsd: caps.monthlyChatBudgetUsd,
+    })
+  );
 });

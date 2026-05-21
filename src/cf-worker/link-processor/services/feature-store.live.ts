@@ -1,18 +1,43 @@
 import { Effect, Layer } from "effect";
 
+import { capabilitiesFor } from "@/lib/plan";
+
+import { Billing } from "../../billing/service";
 import type { OrgId } from "../../db/branded";
-import { OrgFeatures } from "../../org/features-service";
+import { maskId } from "../../log-utils";
 import { FeatureStore } from "../services";
 
 export const FeatureStoreLive = Layer.effect(
   FeatureStore,
   Effect.gen(function* () {
-    const orgFeatures = yield* OrgFeatures;
+    const billing = yield* Billing;
     return {
-      getFeatures: (storeId: OrgId) =>
-        orgFeatures
-          .get(storeId)
-          .pipe(Effect.catchTag("DbError", () => Effect.succeed({}))),
+      getCapabilities: Effect.fn("FeatureStore.getCapabilities")(function* (
+        storeId: OrgId
+      ) {
+        yield* Effect.annotateCurrentSpan({ orgId: maskId(storeId) });
+        return yield* billing.capabilities(storeId).pipe(
+          Effect.catchTags({
+            DbError: (cause) =>
+              Effect.logWarning(
+                "FeatureStore: DbError, falling back to free tier"
+              ).pipe(
+                Effect.annotateLogs({
+                  cause: String(cause),
+                  orgId: maskId(storeId),
+                }),
+                Effect.as(capabilitiesFor("free"))
+              ),
+            OrgNotFoundError: () =>
+              Effect.logWarning(
+                "FeatureStore: org missing, falling back to free tier"
+              ).pipe(
+                Effect.annotateLogs({ orgId: maskId(storeId) }),
+                Effect.as(capabilitiesFor("free"))
+              ),
+          })
+        );
+      }),
     };
   })
 );

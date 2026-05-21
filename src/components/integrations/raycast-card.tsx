@@ -14,8 +14,10 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { useOrgFeatures } from "@/hooks/use-org-features";
 
 import { KeyList } from "./key-list";
+import { UpgradeCta } from "./upgrade-cta";
 import type { ApiKey } from "./use-api-keys";
 
 interface RaycastCardProps {
@@ -29,10 +31,12 @@ export function RaycastCard({
   isLoading,
   onRevokeKey,
 }: RaycastCardProps) {
+  const { capabilities } = useOrgFeatures();
   const raycastKeys = keys.filter(
     (k) => k.name === "Raycast Extension" || k.name?.startsWith("Raycast — ")
   );
   const isConnected = raycastKeys.length > 0;
+  const requiresUpgrade = !isConnected && !capabilities.integrations;
 
   return (
     <Card>
@@ -73,6 +77,13 @@ export function RaycastCard({
               </p>
             </CollapsibleContent>
           </Collapsible>
+        ) : requiresUpgrade ? (
+          <div className="space-y-3">
+            <p className="text-muted-foreground">
+              Save with a keyboard shortcut from anywhere on your Mac.
+            </p>
+            <UpgradeCta tier="plus" />
+          </div>
         ) : (
           <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
             <li>

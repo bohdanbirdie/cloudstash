@@ -2,9 +2,12 @@ import { and, eq, gt, like } from "drizzle-orm";
 import { Effect, Layer, Schema } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
+import { capabilityDeniedResponse } from "../billing/errors";
+import { requireCapability } from "../billing/service";
 import { OrgId, UserId } from "../db/branded";
 import * as schema from "../db/schema";
 import { DbClient, query } from "../db/service";
+import { safeErrorInfo } from "../log-utils";
 import type { Env } from "../shared";
 import { TelegramBotApi, TelegramKeyStore } from "../telegram/services";
 import { TelegramBotApiLive } from "../telegram/services/bot-api.live";
@@ -30,6 +33,13 @@ const VERIFICATION_PREFIX = "telegram-connect:";
 const TelegramVerificationPayload = Schema.Struct({
   chatId: Schema.Number,
 });
+
+const TelegramVerificationPayloadJson = Schema.parseJson(
+  TelegramVerificationPayload
+);
+
+const encodePayload = (chatId: number): string =>
+  Schema.encodeSync(TelegramVerificationPayloadJson)({ chatId });
 
 export const initiateRequest = Effect.fn("TelegramConnect.initiate")(function* (
   chatId: number
@@ -78,7 +88,7 @@ export const confirmRequest = Effect.fn("TelegramConnect.confirm")(function* (
   headers: Headers,
   body: { code?: string }
 ) {
-  if (!body.code) return yield* Effect.fail(new MissingCodeError());
+  if (!body.code) return yield* new MissingCodeError();
 
   const sessionProvider = yield* SessionProvider;
   const apiKeyStore = yield* ApiKeyStore;
@@ -97,26 +107,20 @@ export const confirmRequest = Effect.fn("TelegramConnect.confirm")(function* (
   const { userId, orgId } = session;
   yield* Effect.annotateCurrentSpan("userId", userId);
 
-  if (!orgId) return yield* Effect.fail(new NoActiveOrgError({ userId }));
+  if (!orgId) return yield* new NoActiveOrgError({ userId });
+
+  yield* requireCapability(orgId, "integrations");
 
   const record = yield* connectStore.consumeByCode(body.code);
-  if (!record) return yield* Effect.fail(new InvalidCodeError());
+  if (!record) return yield* new InvalidCodeError();
 
   yield* Effect.annotateCurrentSpan("chatId", record.chatId);
 
-  const created = yield* apiKeyStore
-    .create(headers, { orgId, source: "telegram" }, "Telegram")
-    .pipe(
-      Effect.flatMap((r) =>
-        r
-          ? Effect.succeed(r)
-          : Effect.fail(
-              new KeyCreationError({
-                cause: new Error("API key creation returned null"),
-              })
-            )
-      )
-    );
+  const created = yield* apiKeyStore.create(
+    headers,
+    { orgId, source: "telegram" },
+    "Telegram"
+  );
 
   yield* keyStore.put(record.chatId, created.key);
   yield* keyStore.linkUser(userId, record.chatId);
@@ -243,9 +247,7 @@ export const disconnectRequest = Effect.fn("TelegramConnect.disconnect")(
 );
 
 const decodePayload = (identifier: string, value: string) =>
-  Schema.decodeUnknown(Schema.parseJson(TelegramVerificationPayload))(
-    value
-  ).pipe(
+  Schema.decodeUnknown(TelegramVerificationPayloadJson)(value).pipe(
     Effect.mapError(() => new InvalidVerificationPayloadError({ identifier }))
   );
 
@@ -267,7 +269,7 @@ const TelegramConnectStoreLive = Layer.effect(
                     schema.verification.identifier,
                     `${VERIFICATION_PREFIX}%`
                   ),
-                  eq(schema.verification.value, JSON.stringify({ chatId })),
+                  eq(schema.verification.value, encodePayload(chatId)),
                   gt(schema.verification.expiresAt, now)
                 )
               )
@@ -281,7 +283,7 @@ const TelegramConnectStoreLive = Layer.effect(
             db.insert(schema.verification).values({
               id: crypto.randomUUID(),
               identifier: `${VERIFICATION_PREFIX}${code}`,
-              value: JSON.stringify({ chatId }),
+              value: encodePayload(chatId),
               createdAt: now,
               expiresAt: new Date(now.getTime() + CODE_TTL_MS),
               updatedAt: now,
@@ -377,15 +379,20 @@ const ApiKeyStoreLive = Layer.effect(
           Effect.asVoid
         ),
       create: (headers, metadata, name) =>
-        Effect.tryPromise(() =>
-          auth.api.createApiKey({ body: { metadata, name }, headers })
-        ).pipe(
-          Effect.map((result) =>
+        Effect.tryPromise({
+          try: () =>
+            auth.api.createApiKey({ body: { metadata, name }, headers }),
+          catch: (cause) => new KeyCreationError({ cause }),
+        }).pipe(
+          Effect.flatMap((result) =>
             result?.key && result?.id
-              ? { key: result.key, id: result.id }
-              : null
-          ),
-          Effect.orElseSucceed(() => null)
+              ? Effect.succeed({ key: result.key, id: result.id })
+              : Effect.fail(
+                  new KeyCreationError({
+                    cause: new Error("createApiKey returned null"),
+                  })
+                )
+          )
         ),
       updateName: (id, name) =>
         query(
@@ -406,7 +413,7 @@ const makeLiveLayer = (env: Env) =>
 
 const unexpected500 = (cause: unknown): Effect.Effect<Response> =>
   Effect.logError("Connect handler crashed").pipe(
-    Effect.annotateLogs({ cause: String(cause) }),
+    Effect.annotateLogs(safeErrorInfo(cause)),
     Effect.as(Response.json({ error: "Internal error" }, { status: 500 }))
   );
 
@@ -425,6 +432,8 @@ export const handleTelegramConfirm = (
     ),
     Effect.map((data) => Response.json(data)),
     Effect.catchTags({
+      CapabilityDisabledError: (e) =>
+        Effect.succeed(capabilityDeniedResponse(e)),
       ConnectUnauthorizedError: () =>
         Effect.succeed(
           Response.json({ error: "Unauthorized" }, { status: 401 })
@@ -432,6 +441,10 @@ export const handleTelegramConfirm = (
       NoActiveOrgError: () =>
         Effect.succeed(
           Response.json({ error: "No active organization" }, { status: 400 })
+        ),
+      OrgNotFoundError: () =>
+        Effect.succeed(
+          Response.json({ error: "Organization not found" }, { status: 404 })
         ),
       MissingCodeError: () =>
         Effect.succeed(

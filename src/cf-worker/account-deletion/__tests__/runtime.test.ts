@@ -186,9 +186,7 @@ describe("DeletionRuntimeLive — DO RPC dispatch", () => {
         expect(telegramKv.has(`telegram-user:${USER_ID}`)).toBe(false);
         // other user's entries untouched
         expect(telegramKv.get("telegram:999")).toBe("sk_other");
-        expect(telegramKv.get("telegram-user:other")).toBe(
-          JSON.stringify([999])
-        );
+        expect(telegramKv.get("telegram-user:other")).toBe("[999]");
       }).pipe(Effect.provide(DeletionRuntimeLive(fixture.env)));
     }
   );

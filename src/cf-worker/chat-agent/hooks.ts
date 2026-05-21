@@ -1,12 +1,13 @@
-import { Effect, Layer, Match } from "effect";
+import { Effect, Match } from "effect";
 
 import { trackEvent } from "../analytics";
-import { AppLayerLive, AuthClient } from "../auth/service";
+import { AuthClient } from "../auth/service";
 import { checkSyncAuth } from "../auth/sync-auth";
 import type { SyncAuthError } from "../auth/sync-auth";
 import { OrgId } from "../db/branded";
 import { maskId } from "../log-utils";
-import { OrgFeaturesLive } from "../org/features-service";
+import { OrgNotFoundError } from "../org/errors";
+import { getAppLayer } from "../runtime";
 import type { Env } from "../shared";
 import {
   ChatFeatureDisabledError,
@@ -26,84 +27,94 @@ type ChatAccessError =
   | SyncAuthError
   | ChatFeatureDisabledError
   | FeatureCheckUnavailableError
-  | UnknownAgentPartyError;
+  | UnknownAgentPartyError
+  | OrgNotFoundError;
 
 const checkChatAgentAccess = (
   request: Request,
   lobby: Lobby,
   env: Env
-): Effect.Effect<void, ChatAccessError> =>
-  Effect.gen(function* () {
+): Effect.Effect<void, ChatAccessError> => {
+  const workspaceId = OrgId.make(lobby.name);
+  return Effect.gen(function* () {
     if (!KNOWN_PARTIES.has(lobby.party)) {
-      return yield* new UnknownAgentPartyError({
-        message: "Unknown agent",
-        party: lobby.party,
-        status: 404,
-      });
+      return yield* new UnknownAgentPartyError({ party: lobby.party });
     }
 
     const auth = yield* AuthClient;
     const cookie = request.headers.get("cookie");
-    const workspaceId = OrgId.make(lobby.name);
 
     const { userId } = yield* checkSyncAuth(cookie, workspaceId, auth);
     trackEvent(env.USAGE_ANALYTICS, {
       userId,
       event: "chat",
-      orgId: lobby.name,
+      orgId: workspaceId,
     });
     yield* checkChatFeatureEnabled(workspaceId).pipe(
       Effect.catchTag("DbError", (cause) =>
-        Effect.gen(function* () {
-          yield* Effect.logError("Feature check unavailable").pipe(
-            Effect.annotateLogs({ orgId: lobby.name })
-          );
-          return yield* new FeatureCheckUnavailableError({
-            cause,
-            message: "Failed to check chat feature flag",
-            status: 500,
-          });
-        })
+        Effect.logError("Feature check unavailable").pipe(
+          Effect.annotateLogs({
+            orgId: maskId(workspaceId),
+            cause: String(cause),
+          }),
+          Effect.flatMap(() =>
+            Effect.fail(
+              new FeatureCheckUnavailableError({ cause, orgId: workspaceId })
+            )
+          )
+        )
       )
     );
   }).pipe(
     Effect.withSpan("ChatAgent.checkChatAgentAccess", {
-      attributes: { orgId: maskId(lobby.name), party: lobby.party },
+      attributes: { orgId: maskId(workspaceId), party: lobby.party },
     }),
-    Effect.provide(Layer.provideMerge(OrgFeaturesLive, AppLayerLive(env)))
+    Effect.provide(getAppLayer(env))
   );
+};
 
-const errorToResponse = (error: ChatAccessError): Response => {
-  const payload = Match.value(error).pipe(
-    Match.tag("UnknownAgentPartyError", (e) => ({
-      _tag: e._tag,
-      message: e.message,
-      status: e.status,
-      party: e.party,
-    })),
-    Match.tag("SyncAuthError", (e) => ({
-      _tag: e._tag,
-      message: e.message,
-      status: e.status,
-      code: e.code,
-    })),
-    Match.tag("ChatFeatureDisabledError", (e) => ({
-      _tag: e._tag,
-      message: e.message,
-      status: e.status,
-    })),
-    Match.tag("FeatureCheckUnavailableError", (e) => ({
-      _tag: e._tag,
-      message: e.message,
-      status: e.status,
-    })),
+const errorToResponse = (error: ChatAccessError): Response =>
+  Match.value(error).pipe(
+    Match.tag("UnknownAgentPartyError", (e) =>
+      Response.json(
+        { _tag: e._tag, message: "Unknown agent", party: e.party, status: 404 },
+        { status: 404 }
+      )
+    ),
+    Match.tag("SyncAuthError", (e) =>
+      Response.json(
+        { _tag: e._tag, code: e.code, message: e.message, status: e.status },
+        { status: e.status }
+      )
+    ),
+    Match.tag("ChatFeatureDisabledError", (e) =>
+      Response.json(
+        {
+          _tag: e._tag,
+          message: "Chat feature is not enabled for this workspace",
+          status: 403,
+        },
+        { status: 403 }
+      )
+    ),
+    Match.tag("FeatureCheckUnavailableError", (e) =>
+      Response.json(
+        {
+          _tag: e._tag,
+          message: "Failed to check chat feature flag",
+          status: 500,
+        },
+        { status: 500 }
+      )
+    ),
+    Match.tag("OrgNotFoundError", (e) =>
+      Response.json(
+        { _tag: e._tag, message: "Workspace not found", status: 404 },
+        { status: 404 }
+      )
+    ),
     Match.exhaustive
   );
-  return new Response(JSON.stringify(payload), {
-    headers: { "Content-Type": "application/json" },
-    status: error.status,
-  });
-};
 
 const runChatAgentAccess = (
   request: Request,

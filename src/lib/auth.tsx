@@ -52,27 +52,43 @@ function deriveAuthState(session: Session): AuthState | null {
   };
 }
 
-// `beforeLoad` reads session state from Better-Auth on every match. Better-Auth
-// caches the session cookie server-side for 5 minutes, so repeat calls are
-// effectively free — no in-memory cache layer needed on top.
-export async function loadAuth(): Promise<AuthState | null> {
+// `/api/auth/*` is rate-limited at 30/60s, so coalesce and cache sessions.
+const AUTH_TTL_MS = 30_000;
+let authCache: { value: AuthState | null; expiresAt: number } | null = null;
+let inflight: Promise<AuthState | null> | null = null;
+
+const fetchAuth = async (): Promise<AuthState | null> => {
   const { data } = await authClient.getSession();
-  return deriveAuthState(data);
+  const value = deriveAuthState(data);
+  authCache = { expiresAt: Date.now() + AUTH_TTL_MS, value };
+  return value;
+};
+
+export async function loadAuth(): Promise<AuthState | null> {
+  if (authCache && authCache.expiresAt > Date.now()) {
+    return authCache.value;
+  }
+  if (!inflight) {
+    inflight = fetchAuth().finally(() => {
+      inflight = null;
+    });
+  }
+  return inflight;
 }
 
-// `_authed.beforeLoad` returns `{ auth }`, so any component under that route
-// can read the resolved AuthState from router context. Outside `_authed` you
-// should call `loadAuth()` directly — there's no auth to read in context.
+export function invalidateAuthCache(): void {
+  authCache = null;
+  inflight = null;
+}
+
 export function useAuth(): AuthState {
   return useRouteContext({ from: "/_authed", select: (ctx) => ctx.auth });
 }
 
-// Bypasses Better-Auth's 5-min cookie cache (so the next `getSession()` sees
-// fresh server state) and re-runs `beforeLoad` via `router.invalidate()`.
-// Used after flipping `user.approved` through invite redemption.
 export function useRefreshAuth(): () => Promise<void> {
   const router = useRouter();
   return useCallback(async () => {
+    invalidateAuthCache();
     await authClient.getSession({
       fetchOptions: { query: { disableCookieCache: "true" } },
     });
@@ -81,6 +97,7 @@ export function useRefreshAuth(): () => Promise<void> {
 }
 
 export async function logout(): Promise<void> {
+  invalidateAuthCache();
   await authClient.signOut();
   window.location.href = "/";
 }

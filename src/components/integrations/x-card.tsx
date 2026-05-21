@@ -21,7 +21,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useOrgFeatures } from "@/hooks/use-org-features";
 
+import { UpgradeCta } from "./upgrade-cta";
 import { useXStatus } from "./use-x-status";
 
 function formatRelative(ts: number | null): string {
@@ -38,6 +40,7 @@ function formatRelative(ts: number | null): string {
 
 export function XCard() {
   const status = useXStatus();
+  const { capabilities, isLoading: capsLoading } = useOrgFeatures();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const handleDisconnect = async () => {
@@ -46,7 +49,11 @@ export function XCard() {
   };
 
   const needsReconnect = status.status === "needs_reconnect";
-  const isLoadingInitial = status.isLoading && status.status === null;
+  const isLoadingInitial =
+    (status.isLoading && status.status === null) || capsLoading;
+  // Only gate the initial connect. Already-connected users keep teardown
+  // controls so a downgraded user isn't trapped with a live integration.
+  const requiresUpgrade = !status.isConnected && !capabilities.xBookmarkSync;
 
   return (
     <Card>
@@ -86,10 +93,7 @@ export function XCard() {
         )}
       </CardHeader>
 
-      {/* min-h on the content reserves the height of the connected layout
-          (2 paragraphs + button row) so the skeleton → loaded transition
-          doesn't shift the surrounding integrations grid. */}
-      <CardContent className="min-h-[7.5rem] space-y-3">
+      <CardContent className="space-y-3">
         {isLoadingInitial ? (
           <>
             <Skeleton className="h-4 w-3/4" />
@@ -161,12 +165,18 @@ export function XCard() {
             <p className="text-muted-foreground text-xs">
               Only new bookmarks are synced — your existing ones stay on X.
             </p>
-            <Button
-              onClick={() => void status.connect()}
-              disabled={status.isMutating}
-            >
-              {status.mutatingAction === "connect" ? "Opening X…" : "Connect X"}
-            </Button>
+            {requiresUpgrade ? (
+              <UpgradeCta tier="pro" />
+            ) : (
+              <Button
+                onClick={() => void status.connect()}
+                disabled={status.isMutating}
+              >
+                {status.mutatingAction === "connect"
+                  ? "Opening X…"
+                  : "Connect X"}
+              </Button>
+            )}
           </>
         )}
       </CardContent>

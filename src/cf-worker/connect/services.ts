@@ -3,7 +3,7 @@ import type { Effect } from "effect";
 
 import type { OrgId, UserId } from "../db/branded";
 import type { DbError } from "../db/service";
-import type { SessionLookupError } from "./errors";
+import type { KeyCreationError, SessionLookupError } from "./errors";
 
 export class InvalidVerificationPayloadError extends Schema.TaggedError<InvalidVerificationPayloadError>()(
   "InvalidVerificationPayloadError",
@@ -55,7 +55,7 @@ export class ApiKeyStore extends Context.Tag("ApiKeyStore")<
       headers: Headers,
       metadata: { orgId: OrgId; source: string },
       name: string
-    ) => Effect.Effect<{ key: string; id: string } | null>;
+    ) => Effect.Effect<{ key: string; id: string }, KeyCreationError>;
     readonly updateName: (
       id: string,
       name: string

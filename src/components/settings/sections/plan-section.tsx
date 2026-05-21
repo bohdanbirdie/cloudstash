@@ -1,13 +1,13 @@
-import { ArrowRightIcon } from "lucide-react";
+import { ArrowRightIcon, CheckIcon } from "lucide-react";
 
 import { SectionEyebrow } from "@/components/right-pane/detail-view/section-eyebrow";
 import { Button } from "@/components/ui/button";
+import { useOrgFeatures } from "@/hooks/use-org-features";
 import { changePlan } from "@/lib/billing";
 import type { PlanInfo, PlanTier } from "@/lib/plan";
-import { PLAN_LIST, PLAN_ORDER, PLANS } from "@/lib/plan";
+import { PLAN_ORDER, PLANS } from "@/lib/plan";
+import { MICRO_LABEL, MICRO_LABEL_SM } from "@/lib/typography";
 import { cn } from "@/lib/utils";
-
-const CURRENT_TIER: PlanTier = "free";
 
 type TileAction = "current" | "upgrade" | "downgrade";
 
@@ -18,11 +18,24 @@ function tileAction(planId: PlanTier, current: PlanTier): TileAction {
   return a > b ? "upgrade" : "downgrade";
 }
 
+function dividerLabelFor(tier: PlanTier): string {
+  if (tier === "free") return "or start with less";
+  if (tier === "plus") return "your current plan";
+  return "or step down";
+}
+
+function primaryFeatures(planId: PlanTier): readonly string[] {
+  if (planId === "pro") return [...PLANS.plus.features, ...PLANS.pro.features];
+  if (planId === "plus") return PLANS.plus.features;
+  return PLANS.free.features;
+}
+
 export function PlanSection() {
-  const currentPlan = PLANS[CURRENT_TIER];
+  const { tier } = useOrgFeatures();
+  const currentPlan = PLANS[tier];
 
   return (
-    <div className="flex flex-col gap-7">
+    <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-1.5">
         <SectionEyebrow>Your plan</SectionEyebrow>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
@@ -35,123 +48,139 @@ export function PlanSection() {
         </div>
       </header>
 
-      <div className="flex flex-col gap-3">
-        {PLAN_LIST.map((plan) => (
-          <PlanTile
-            key={plan.id}
-            plan={plan}
-            action={tileAction(plan.id, CURRENT_TIER)}
-          />
-        ))}
+      <div className="flex flex-col gap-5">
+        <PrimaryTile plan={PLANS.pro} action={tileAction("pro", tier)} />
+
+        <Divider label={dividerLabelFor(tier)} />
+
+        <SecondaryTile plan={PLANS.plus} action={tileAction("plus", tier)} />
       </div>
+
+      {tier !== "free" && (
+        <button
+          type="button"
+          onClick={() => changePlan("free")}
+          className="self-end text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+        >
+          downgrade to free
+        </button>
+      )}
     </div>
   );
 }
 
-function PlanTile({ plan, action }: { plan: PlanInfo; action: TileAction }) {
-  const cumulative =
-    plan.id === "free"
-      ? plan.features
-      : [`Everything in ${previousTierName(plan.id)}`, ...plan.features];
+function PrimaryTile({ plan, action }: { plan: PlanInfo; action: TileAction }) {
+  const features = primaryFeatures(plan.id);
 
   return (
-    <article
-      className={cn(
-        "flex flex-col gap-4 rounded-lg border p-5",
-        plan.inverted
-          ? "border-foreground/95 bg-foreground text-background shadow-[0_1px_0_oklch(0_0_0_/_0.06),0_18px_40px_-20px_oklch(0_0_0_/_0.35)]"
-          : plan.highlighted
-            ? "border-primary/60 bg-background ring-1 ring-primary/25 shadow-[0_1px_0_oklch(0.553_0.195_38.402_/_0.12),0_12px_28px_-16px_oklch(0.553_0.195_38.402_/_0.25)]"
-            : "border-border/80 bg-background"
-      )}
-    >
-      <header className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={cn(
-                "text-[11px] font-semibold uppercase tracking-[0.08em]",
-                plan.inverted ? "text-background/60" : "text-muted-foreground"
-              )}
-            >
-              {plan.name}
+    <article className="flex flex-col gap-5 rounded-lg border border-border/80 bg-background p-5">
+      <header className="flex flex-col gap-3">
+        <div className="flex h-5 items-center gap-2">
+          <span className={cn(MICRO_LABEL_SM, "text-muted-foreground")}>
+            {plan.name}
+          </span>
+          {plan.badge && (
+            <span className="select-none rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-primary">
+              {plan.badge}
             </span>
-            {plan.badge && (
-              <span
-                className={cn(
-                  "select-none rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em]",
-                  plan.inverted
-                    ? "border border-background/25 text-background/85"
-                    : "bg-primary text-primary-foreground"
-                )}
-              >
-                {plan.badge}
-              </span>
-            )}
-          </div>
-          <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-            <span
-              className={cn(
-                "text-3xl font-bold tracking-tight tabular-nums",
-                plan.inverted ? "text-background" : "text-foreground"
-              )}
-            >
-              ${plan.price}
-            </span>
-            <span
-              className={cn(
-                "text-xs font-medium",
-                plan.inverted ? "text-background/60" : "text-muted-foreground"
-              )}
-            >
-              {plan.priceSuffix}
-            </span>
-          </div>
+          )}
         </div>
-        <TileCta plan={plan} action={action} />
+        <div className="flex items-baseline gap-x-1.5">
+          <span className="text-3xl font-bold tracking-tight text-foreground tabular-nums">
+            ${plan.price}
+          </span>
+          <span className="text-xs font-medium text-muted-foreground">
+            {plan.priceSuffix}
+          </span>
+        </div>
+        <p className="text-pretty text-sm text-muted-foreground">
+          {plan.tagline}
+        </p>
       </header>
 
-      <p
-        className={cn(
-          "text-pretty text-sm",
-          plan.inverted ? "text-background/70" : "text-muted-foreground"
-        )}
-      >
-        {plan.tagline}
-      </p>
+      <FeatureColumns features={features} />
 
-      <ul className="grid gap-2 text-sm">
-        {cumulative.map((feature) => (
-          <li key={feature} className="flex items-baseline gap-2.5">
-            <Check inverted={plan.inverted} />
-            <span
-              className={cn(
-                "text-pretty",
-                plan.inverted ? "text-background/90" : "text-foreground/90"
-              )}
-            >
-              {feature}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <TileCta plan={plan} action={action} variant="primary" />
     </article>
   );
 }
 
-function TileCta({ plan, action }: { plan: PlanInfo; action: TileAction }) {
+function SecondaryTile({
+  plan,
+  action,
+}: {
+  plan: PlanInfo;
+  action: TileAction;
+}) {
+  return (
+    <article className="ml-6 flex flex-col gap-3 rounded-lg border border-dashed border-border/70 bg-background/40 p-4">
+      <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <div className="flex items-center gap-2">
+          <span className={cn(MICRO_LABEL_SM, "text-muted-foreground")}>
+            {plan.name}
+          </span>
+          {plan.badge && (
+            <span className="text-[10px] font-medium uppercase tracking-[0.06em] text-muted-foreground/80">
+              · {plan.badge}
+            </span>
+          )}
+        </div>
+        <div className="flex items-baseline gap-x-1">
+          <span className="text-lg font-semibold text-foreground tabular-nums">
+            ${plan.price}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {plan.priceSuffix}
+          </span>
+        </div>
+      </header>
+      <p className="text-pretty text-sm text-muted-foreground">
+        {plan.tagline}
+      </p>
+      <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-foreground/75">
+        {plan.features.map((feature) => (
+          <span key={feature} className="inline-flex items-baseline gap-1">
+            <span className="text-muted-foreground/70">+</span>
+            <span>{feature}</span>
+          </span>
+        ))}
+      </div>
+      <TileCta plan={plan} action={action} variant="secondary" />
+    </article>
+  );
+}
+
+function Divider({ label }: { label: string }) {
+  return (
+    <div className="ml-6 flex items-center gap-3" aria-hidden>
+      <span className={cn(MICRO_LABEL, "text-muted-foreground/80")}>
+        {label}
+      </span>
+      <span className="h-px flex-1 bg-border/70" />
+    </div>
+  );
+}
+
+function TileCta({
+  plan,
+  action,
+  variant,
+}: {
+  plan: PlanInfo;
+  action: TileAction;
+  variant: "primary" | "secondary";
+}) {
   if (action === "current") {
     return (
-      <span
+      <div
         className={cn(
-          "select-none rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.06em]",
-          plan.inverted
-            ? "bg-background/15 text-background"
-            : "bg-foreground/[0.06] text-muted-foreground"
+          MICRO_LABEL_SM,
+          "select-none rounded-md bg-foreground/[0.06] text-center text-muted-foreground",
+          variant === "secondary" ? "px-3 py-1.5" : "px-3 py-2"
         )}
       >
-        Current
-      </span>
+        Current plan
+      </div>
     );
   }
 
@@ -160,47 +189,41 @@ function TileCta({ plan, action }: { plan: PlanInfo; action: TileAction }) {
   return (
     <Button
       type="button"
-      size="sm"
-      variant={isUpgrade ? "default" : "outline"}
+      variant={variant === "primary" && isUpgrade ? "default" : "outline"}
+      size={variant === "secondary" ? "sm" : "default"}
       onClick={() => changePlan(plan.id)}
-      className={cn(
-        "shrink-0",
-        plan.inverted &&
-          isUpgrade &&
-          "bg-background text-foreground hover:bg-background/90",
-        plan.inverted &&
-          !isUpgrade &&
-          "border-background/30 bg-transparent text-background hover:bg-background/10"
-      )}
+      className={cn("w-full", variant === "secondary" && "h-9")}
     >
-      {isUpgrade ? "Upgrade" : "Downgrade"}
+      {isUpgrade ? `Upgrade to ${plan.name}` : `Downgrade to ${plan.name}`}
       {isUpgrade && <ArrowRightIcon className="size-3.5" />}
     </Button>
   );
 }
 
-function Check({ inverted }: { inverted?: boolean }) {
+function FeatureColumns({ features }: { features: readonly string[] }) {
+  const mid = Math.floor(features.length / 2);
+  const left = features.slice(0, mid);
+  const right = features.slice(mid);
   return (
-    <svg
-      aria-hidden
-      className={cn(
-        "size-3.5 shrink-0 translate-y-[1px]",
-        inverted ? "text-background" : "text-primary"
-      )}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
+    <div className="grid gap-2 text-sm sm:grid-cols-2 sm:gap-x-5">
+      <FeatureList items={left} />
+      <FeatureList items={right} />
+    </div>
   );
 }
 
-function previousTierName(tier: PlanTier): string {
-  if (tier === "plus") return "Free";
-  if (tier === "pro") return "Plus";
-  return "";
+function FeatureList({ items }: { items: readonly string[] }) {
+  return (
+    <ul className="space-y-2">
+      {items.map((feature) => (
+        <li key={feature} className="flex items-baseline gap-2.5">
+          <CheckIcon
+            aria-hidden
+            className="size-3.5 shrink-0 translate-y-[1px] text-muted-foreground/70"
+          />
+          <span className="text-pretty text-foreground/90">{feature}</span>
+        </li>
+      ))}
+    </ul>
+  );
 }

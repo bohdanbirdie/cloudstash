@@ -5,6 +5,7 @@ import { AuthClient } from "../auth/service";
 import { OrgId, UserId } from "../db/branded";
 import * as schema from "../db/schema";
 import { DbClient, query } from "../db/service";
+import { maskId } from "../log-utils";
 import { sideEffectError } from "./effects-helpers";
 import { NoAccessTokenError } from "./errors";
 import type { XBookmarkTweet } from "./services";
@@ -29,7 +30,7 @@ export type PollOutcome =
 
 export const getAccessTokenEffect = Effect.fn("XBookmarkSyncDO.getAccessToken")(
   function* (userId: UserId) {
-    yield* Effect.annotateCurrentSpan("userId", userId);
+    yield* Effect.annotateCurrentSpan("userId", maskId(userId));
     const auth = yield* AuthClient;
     const result = yield* Effect.tryPromise({
       try: () => auth.api.getAccessToken({ body: { providerId: "x", userId } }),
@@ -37,7 +38,11 @@ export const getAccessTokenEffect = Effect.fn("XBookmarkSyncDO.getAccessToken")(
     }).pipe(
       Effect.catchTag("XSyncSideEffectError", (e) =>
         Effect.logWarning("getAccessToken failed").pipe(
-          Effect.annotateLogs({ userId, op: e.op, cause: String(e.cause) }),
+          Effect.annotateLogs({
+            userId: maskId(userId),
+            op: e.op,
+            cause: String(e.cause),
+          }),
           Effect.as(null)
         )
       )
@@ -49,7 +54,7 @@ export const getAccessTokenEffect = Effect.fn("XBookmarkSyncDO.getAccessToken")(
 const getOrgIdEffect = Effect.fn("XBookmarkSyncDO.getOrgId")(function* (
   userId: UserId
 ) {
-  yield* Effect.annotateCurrentSpan("userId", userId);
+  yield* Effect.annotateCurrentSpan("userId", maskId(userId));
   const db = yield* DbClient;
   const member = yield* query(
     db.query.member.findFirst({
@@ -64,7 +69,7 @@ const enqueueBookmarksEffect = Effect.fn("XBookmarkSyncDO.enqueueBookmarks")(
     const orgId = yield* getOrgIdEffect(userId);
     if (!orgId) {
       yield* Effect.logWarning("enqueueBookmarks: no org for user").pipe(
-        Effect.annotateLogs({ userId })
+        Effect.annotateLogs({ userId: maskId(userId) })
       );
       return;
     }
@@ -88,7 +93,7 @@ const enqueueBookmarksEffect = Effect.fn("XBookmarkSyncDO.enqueueBookmarks")(
             Effect.catchTag("XSyncSideEffectError", (e) =>
               Effect.logWarning("enqueueBookmarks: queue send failed").pipe(
                 Effect.annotateLogs({
-                  userId,
+                  userId: maskId(userId),
                   tweetId: b.id,
                   cause: String(e.cause),
                 })
@@ -98,9 +103,13 @@ const enqueueBookmarksEffect = Effect.fn("XBookmarkSyncDO.enqueueBookmarks")(
       { concurrency: 5, discard: true }
     );
     yield* Effect.annotateCurrentSpan("count", bookmarks.length);
-    yield* Effect.annotateCurrentSpan("orgId", orgId);
+    yield* Effect.annotateCurrentSpan("orgId", maskId(orgId));
     yield* Effect.logInfo("enqueueBookmarks").pipe(
-      Effect.annotateLogs({ userId, orgId, count: bookmarks.length })
+      Effect.annotateLogs({
+        userId: maskId(userId),
+        orgId: maskId(orgId),
+        count: bookmarks.length,
+      })
     );
   }
 );
@@ -117,18 +126,20 @@ const enqueueBookmarksEffect = Effect.fn("XBookmarkSyncDO.enqueueBookmarks")(
 export const initializeWatermarkEffect = Effect.fn(
   "XBookmarkSyncDO.initializeWatermark"
 )(function* (userId: UserId) {
-  yield* Effect.annotateCurrentSpan("userId", userId);
+  yield* Effect.annotateCurrentSpan("userId", maskId(userId));
   const store = yield* XSyncStateStore;
-  const state = yield* store
-    .get()
-    .pipe(
-      Effect.catchTag("XSyncStorageError", (e) =>
-        Effect.logWarning("initializeWatermark: storage get failed").pipe(
-          Effect.annotateLogs({ userId, op: e.op, cause: String(e.cause) }),
-          Effect.as(null)
-        )
+  const state = yield* store.get().pipe(
+    Effect.catchTag("XSyncStorageError", (e) =>
+      Effect.logWarning("initializeWatermark: storage get failed").pipe(
+        Effect.annotateLogs({
+          userId: maskId(userId),
+          op: e.op,
+          cause: String(e.cause),
+        }),
+        Effect.as(null)
       )
-    );
+    )
+  );
   if (!state) return;
 
   const accessToken = yield* getAccessTokenEffect(userId);
@@ -148,22 +159,31 @@ export const initializeWatermarkEffect = Effect.fn(
         if (!newestId) {
           return Effect.logInfo(
             "initializeWatermark: no existing bookmarks"
-          ).pipe(Effect.annotateLogs({ userId, xUserId: state.xUserId }));
+          ).pipe(
+            Effect.annotateLogs({
+              userId: maskId(userId),
+              xUserId: maskId(state.xUserId),
+            })
+          );
         }
         return store.setWatermark(newestId).pipe(
           Effect.tap(() => Effect.annotateCurrentSpan("watermark", newestId)),
           Effect.tap(() =>
             Effect.logInfo("initializeWatermark: pinned").pipe(
               Effect.annotateLogs({
-                userId,
-                xUserId: state.xUserId,
+                userId: maskId(userId),
+                xUserId: maskId(state.xUserId),
                 watermark: newestId,
               })
             )
           ),
           Effect.catchTag("XSyncStorageError", (e) =>
             Effect.logWarning("initializeWatermark: storage write failed").pipe(
-              Effect.annotateLogs({ userId, op: e.op, cause: String(e.cause) })
+              Effect.annotateLogs({
+                userId: maskId(userId),
+                op: e.op,
+                cause: String(e.cause),
+              })
             )
           )
         );
@@ -172,24 +192,24 @@ export const initializeWatermarkEffect = Effect.fn(
         XUnauthorizedError: (e) =>
           Effect.logWarning("initializeWatermark: 401").pipe(
             Effect.annotateLogs({
-              userId,
-              xUserId: state.xUserId,
+              userId: maskId(userId),
+              xUserId: maskId(state.xUserId),
               endpoint: e.endpoint,
             })
           ),
         XPaymentRequiredError: (e) =>
           Effect.logWarning("initializeWatermark: 402").pipe(
             Effect.annotateLogs({
-              userId,
-              xUserId: state.xUserId,
+              userId: maskId(userId),
+              xUserId: maskId(state.xUserId),
               endpoint: e.endpoint,
             })
           ),
         XRateLimitedError: (e) =>
           Effect.logWarning("initializeWatermark: 429").pipe(
             Effect.annotateLogs({
-              userId,
-              xUserId: state.xUserId,
+              userId: maskId(userId),
+              xUserId: maskId(state.xUserId),
               endpoint: e.endpoint,
               retryAfterMs: e.retryAfterMs,
             })
@@ -197,8 +217,8 @@ export const initializeWatermarkEffect = Effect.fn(
         XApiError: (e) =>
           Effect.logWarning("initializeWatermark: api error").pipe(
             Effect.annotateLogs({
-              userId,
-              xUserId: state.xUserId,
+              userId: maskId(userId),
+              xUserId: maskId(state.xUserId),
               endpoint: e.endpoint,
               status: e.status,
               message: e.message,
@@ -211,23 +231,25 @@ export const initializeWatermarkEffect = Effect.fn(
 export const pollOnceEffect = Effect.fn("XBookmarkSyncDO.pollOnce")(function* (
   userId: UserId
 ) {
-  yield* Effect.annotateCurrentSpan("userId", userId);
+  yield* Effect.annotateCurrentSpan("userId", maskId(userId));
   const store = yield* XSyncStateStore;
-  const state = yield* store
-    .get()
-    .pipe(
-      Effect.catchTag("XSyncStorageError", (e) =>
-        Effect.logWarning("pollOnce: storage get failed").pipe(
-          Effect.annotateLogs({ userId, op: e.op, cause: String(e.cause) }),
-          Effect.as(null)
-        )
+  const state = yield* store.get().pipe(
+    Effect.catchTag("XSyncStorageError", (e) =>
+      Effect.logWarning("pollOnce: storage get failed").pipe(
+        Effect.annotateLogs({
+          userId: maskId(userId),
+          op: e.op,
+          cause: String(e.cause),
+        }),
+        Effect.as(null)
       )
-    );
+    )
+  );
   if (!state) {
     return { kind: "not_initialized" } satisfies PollOutcome;
   }
 
-  yield* Effect.annotateCurrentSpan("xUserId", state.xUserId);
+  yield* Effect.annotateCurrentSpan("xUserId", maskId(state.xUserId));
   yield* Effect.annotateCurrentSpan(
     "watermarkTweetId",
     state.watermarkTweetId ?? "none"
@@ -235,15 +257,17 @@ export const pollOnceEffect = Effect.fn("XBookmarkSyncDO.pollOnce")(function* (
 
   const accessToken = yield* getAccessTokenEffect(userId);
   if (!accessToken) {
-    yield* store
-      .setStatus("needs_reconnect")
-      .pipe(
-        Effect.catchTag("XSyncStorageError", (e) =>
-          Effect.logWarning("pollOnce: setStatus failed").pipe(
-            Effect.annotateLogs({ userId, op: e.op, cause: String(e.cause) })
-          )
+    yield* store.setStatus("needs_reconnect").pipe(
+      Effect.catchTag("XSyncStorageError", (e) =>
+        Effect.logWarning("pollOnce: setStatus failed").pipe(
+          Effect.annotateLogs({
+            userId: maskId(userId),
+            op: e.op,
+            cause: String(e.cause),
+          })
         )
-      );
+      )
+    );
     return yield* new NoAccessTokenError({ userId });
   }
 
@@ -288,7 +312,7 @@ export const pollOnceEffect = Effect.fn("XBookmarkSyncDO.pollOnce")(function* (
               Effect.catchTag("XSyncStorageError", (e) =>
                 Effect.logWarning("pollOnce: setWatermark failed").pipe(
                   Effect.annotateLogs({
-                    userId,
+                    userId: maskId(userId),
                     op: e.op,
                     cause: String(e.cause),
                   })
@@ -299,8 +323,8 @@ export const pollOnceEffect = Effect.fn("XBookmarkSyncDO.pollOnce")(function* (
               "pollOnce: established watermark from first poll"
             ).pipe(
               Effect.annotateLogs({
-                userId,
-                xUserId: state.xUserId,
+                userId: maskId(userId),
+                xUserId: maskId(state.xUserId),
                 watermark: newestId,
               })
             );
@@ -336,54 +360,56 @@ export const pollOnceEffect = Effect.fn("XBookmarkSyncDO.pollOnce")(function* (
               .pipe(
                 Effect.catchTags({
                   XUnauthorizedError: (e) =>
-                    Effect.logWarning("pollOnce: pagination truncated (401)")
-                      .pipe(
-                        Effect.annotateLogs({
-                          userId,
-                          xUserId: state.xUserId,
-                          endpoint: e.endpoint,
-                          pagesWalked,
-                        })
-                      )
-                      .pipe(Effect.as({ truncated: "unauthorized" as const })),
+                    Effect.logWarning(
+                      "pollOnce: pagination truncated (401)"
+                    ).pipe(
+                      Effect.annotateLogs({
+                        userId: maskId(userId),
+                        xUserId: maskId(state.xUserId),
+                        endpoint: e.endpoint,
+                        pagesWalked,
+                      }),
+                      Effect.as({ truncated: "unauthorized" as const })
+                    ),
                   XPaymentRequiredError: (e) =>
-                    Effect.logWarning("pollOnce: pagination truncated (402)")
-                      .pipe(
-                        Effect.annotateLogs({
-                          userId,
-                          xUserId: state.xUserId,
-                          endpoint: e.endpoint,
-                          pagesWalked,
-                        })
-                      )
-                      .pipe(
-                        Effect.as({ truncated: "payment_required" as const })
-                      ),
+                    Effect.logWarning(
+                      "pollOnce: pagination truncated (402)"
+                    ).pipe(
+                      Effect.annotateLogs({
+                        userId: maskId(userId),
+                        xUserId: maskId(state.xUserId),
+                        endpoint: e.endpoint,
+                        pagesWalked,
+                      }),
+                      Effect.as({ truncated: "payment_required" as const })
+                    ),
                   XRateLimitedError: (e) =>
-                    Effect.logWarning("pollOnce: pagination truncated (429)")
-                      .pipe(
-                        Effect.annotateLogs({
-                          userId,
-                          xUserId: state.xUserId,
-                          endpoint: e.endpoint,
-                          retryAfterMs: e.retryAfterMs,
-                          pagesWalked,
-                        })
-                      )
-                      .pipe(Effect.as({ truncated: "rate_limited" as const })),
+                    Effect.logWarning(
+                      "pollOnce: pagination truncated (429)"
+                    ).pipe(
+                      Effect.annotateLogs({
+                        userId: maskId(userId),
+                        xUserId: maskId(state.xUserId),
+                        endpoint: e.endpoint,
+                        retryAfterMs: e.retryAfterMs,
+                        pagesWalked,
+                      }),
+                      Effect.as({ truncated: "rate_limited" as const })
+                    ),
                   XApiError: (e) =>
-                    Effect.logWarning("pollOnce: pagination truncated (api)")
-                      .pipe(
-                        Effect.annotateLogs({
-                          userId,
-                          xUserId: state.xUserId,
-                          endpoint: e.endpoint,
-                          status: e.status,
-                          message: e.message,
-                          pagesWalked,
-                        })
-                      )
-                      .pipe(Effect.as({ truncated: "api_error" as const })),
+                    Effect.logWarning(
+                      "pollOnce: pagination truncated (api)"
+                    ).pipe(
+                      Effect.annotateLogs({
+                        userId: maskId(userId),
+                        xUserId: maskId(state.xUserId),
+                        endpoint: e.endpoint,
+                        status: e.status,
+                        message: e.message,
+                        pagesWalked,
+                      }),
+                      Effect.as({ truncated: "api_error" as const })
+                    ),
                 })
               );
             if ("truncated" in page) {
@@ -416,8 +442,8 @@ export const pollOnceEffect = Effect.fn("XBookmarkSyncDO.pollOnce")(function* (
               "pollOnce: pagination truncated before watermark — deferring"
             ).pipe(
               Effect.annotateLogs({
-                userId,
-                xUserId: state.xUserId,
+                userId: maskId(userId),
+                xUserId: maskId(state.xUserId),
                 reason: truncatedReason,
                 pagesWalked,
               })
@@ -443,7 +469,7 @@ export const pollOnceEffect = Effect.fn("XBookmarkSyncDO.pollOnce")(function* (
             Effect.catchTag("XSyncStorageError", (e) =>
               Effect.logWarning("pollOnce: setWatermark failed").pipe(
                 Effect.annotateLogs({
-                  userId,
+                  userId: maskId(userId),
                   op: e.op,
                   cause: String(e.cause),
                 })
@@ -460,31 +486,35 @@ export const pollOnceEffect = Effect.fn("XBookmarkSyncDO.pollOnce")(function* (
         })
       ),
       Effect.catchTag("XRateLimitedError", (e) =>
-        Effect.logWarning("pollOnce: rate limited")
-          .pipe(
-            Effect.annotateLogs({
-              userId,
-              xUserId: state.xUserId,
-              retryAfterMs: e.retryAfterMs,
-            })
-          )
-          .pipe(
-            Effect.as<PollOutcome>({
-              kind: "rate_limited",
-              retryAfterMs: e.retryAfterMs,
-            })
-          )
+        Effect.logWarning("pollOnce: rate limited").pipe(
+          Effect.annotateLogs({
+            userId: maskId(userId),
+            xUserId: maskId(state.xUserId),
+            retryAfterMs: e.retryAfterMs,
+          }),
+          Effect.as<PollOutcome>({
+            kind: "rate_limited",
+            retryAfterMs: e.retryAfterMs,
+          })
+        )
       ),
       Effect.catchTag("XUnauthorizedError", () =>
         store.setStatus("needs_reconnect").pipe(
           Effect.catchTag("XSyncStorageError", (e) =>
             Effect.logWarning("pollOnce: setStatus failed").pipe(
-              Effect.annotateLogs({ userId, op: e.op, cause: String(e.cause) })
+              Effect.annotateLogs({
+                userId: maskId(userId),
+                op: e.op,
+                cause: String(e.cause),
+              })
             )
           ),
           Effect.tap(() =>
             Effect.logWarning("pollOnce: 401 from X, needs reconnect").pipe(
-              Effect.annotateLogs({ userId, xUserId: state.xUserId })
+              Effect.annotateLogs({
+                userId: maskId(userId),
+                xUserId: maskId(state.xUserId),
+              })
             )
           ),
           Effect.as<PollOutcome>({ kind: "needs_reconnect" })
@@ -494,13 +524,22 @@ export const pollOnceEffect = Effect.fn("XBookmarkSyncDO.pollOnce")(function* (
         store.setStatus("needs_reconnect").pipe(
           Effect.catchTag("XSyncStorageError", (e) =>
             Effect.logWarning("pollOnce: setStatus failed").pipe(
-              Effect.annotateLogs({ userId, op: e.op, cause: String(e.cause) })
+              Effect.annotateLogs({
+                userId: maskId(userId),
+                op: e.op,
+                cause: String(e.cause),
+              })
             )
           ),
           Effect.tap(() =>
             Effect.logWarning(
               "pollOnce: 402 from X (billing not configured), pausing"
-            ).pipe(Effect.annotateLogs({ userId, xUserId: state.xUserId }))
+            ).pipe(
+              Effect.annotateLogs({
+                userId: maskId(userId),
+                xUserId: maskId(state.xUserId),
+              })
+            )
           ),
           Effect.as<PollOutcome>({ kind: "needs_reconnect" })
         )

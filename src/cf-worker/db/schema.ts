@@ -1,11 +1,9 @@
 import { relations, sql } from "drizzle-orm";
 import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
 
-export type OrgFeatures = {
-  aiSummary?: boolean;
-  chatAgentEnabled?: boolean;
-  monthlyTokenBudget?: number; // USD, defaults to 0.50
-};
+import type { CapabilityOverrides, PlanTier } from "@/lib/plan";
+
+export type TierSource = "stripe" | "admin";
 
 export const user = sqliteTable("user", {
   id: text("id").primaryKey(),
@@ -40,7 +38,21 @@ export const organization = sqliteTable("organization", {
   metadata: text("metadata"),
   name: text("name").notNull(),
   slug: text("slug").unique(),
-  features: text("features", { mode: "json" }).$type<OrgFeatures>().default({}),
+  featureOverrides: text("feature_overrides", { mode: "json" })
+    .$type<CapabilityOverrides>()
+    .default({}),
+  tier: text("tier").$type<PlanTier>().default("free").notNull(),
+  tierSource: text("tier_source")
+    .$type<TierSource>()
+    .default("stripe")
+    .notNull(),
+  stripeCustomerId: text("stripe_customer_id").unique(),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  subscriptionStatus: text("subscription_status"),
+  currentPeriodEnd: integer("current_period_end", { mode: "timestamp_ms" }),
+  cancelAtPeriodEnd: integer("cancel_at_period_end", { mode: "boolean" })
+    .default(false)
+    .notNull(),
 });
 
 export const session = sqliteTable(

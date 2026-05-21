@@ -18,7 +18,7 @@ import type { UsagePeriod } from "./use-usage-admin";
 import { useUsersAdmin } from "./use-users-admin";
 import { useWorkspacesAdmin } from "./use-workspaces-admin";
 import { UsersTab } from "./users-tab";
-import { WorkspacesTab } from "./workspaces-tab";
+import { WorkspacesTab } from "./workspaces-tab/workspaces-tab";
 
 export function AdminSection() {
   const [activeTab, setActiveTab] = useState<string | null>("users");
@@ -92,12 +92,12 @@ export function AdminSection() {
         isLoading={workspaces.isLoading}
         error={workspaces.error}
         isMutating={workspaces.isMutating}
-        aiEnabledCount={workspaces.aiEnabledCount}
-        chatEnabledCount={workspaces.chatEnabledCount}
+        tierCounts={workspaces.tierCounts}
+        overrideCount={workspaces.overrideCount}
         currentOrgId={orgId}
-        onToggleAiSummary={workspaces.toggleAiSummary}
-        onToggleChatAgent={workspaces.toggleChatAgent}
-        onUpdateTokenBudget={workspaces.updateTokenBudget}
+        onSetTier={workspaces.setTier}
+        onSetOverride={workspaces.setOverride}
+        onCycleBooleanOverride={workspaces.cycleBooleanOverride}
       />
 
       <UsageTab

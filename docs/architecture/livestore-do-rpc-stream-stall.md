@@ -115,14 +115,24 @@ Two independent bugs in `@livestore/common-cf`, both in `dist/do-rpc/`.
 
 ```js
 // before
-runStream.pipe(Effect.provide(layer), Effect.scoped, Effect.tapCauseLogPretty, Effect.runPromise)
+runStream.pipe(
+  Effect.provide(layer),
+  Effect.scoped,
+  Effect.tapCauseLogPretty,
+  Effect.runPromise
+);
 ```
 
 The Cloudflare runtime needs the promise returned from `start()` to know when the stream is done producing chunks. Without `return`, CF could tear the stream down before the second-and-later `controller.enqueue` calls fired, dropping the tail of any multi-chunk payload.
 
 ```js
 // after
-return runStream.pipe(Effect.provide(layer), Effect.scoped, Effect.tapCauseLogPretty, Effect.runPromise)
+return runStream.pipe(
+  Effect.provide(layer),
+  Effect.scoped,
+  Effect.tapCauseLogPretty,
+  Effect.runPromise
+);
 ```
 
 ### Bug 2 — client: decode-per-chunk with no buffer alignment
@@ -131,10 +141,10 @@ return runStream.pipe(Effect.provide(layer), Effect.scoped, Effect.tapCauseLogPr
 
 ```js
 while (true) {
-  const { done, value } = await reader.read()
-  if (done) break
-  const decoded = parser.decode(value)  // ← decodes partial msgpack frame
-  for (const msg of normalize(decoded)) await writeResponse(msg)
+  const { done, value } = await reader.read();
+  if (done) break;
+  const decoded = parser.decode(value); // ← decodes partial msgpack frame
+  for (const msg of normalize(decoded)) await writeResponse(msg);
 }
 ```
 
@@ -147,15 +157,15 @@ End result: LP sees the first ~4KB of catchup events successfully parsed, the re
 **Fix:** drain the entire stream into one buffer before decoding:
 
 ```js
-const chunks = []
+const chunks = [];
 while (true) {
-  const { done, value } = await reader.read()
-  if (done) break
-  chunks.push(value)
+  const { done, value } = await reader.read();
+  if (done) break;
+  chunks.push(value);
 }
-const combined = concat(chunks)
-const decoded = parser.decode(combined)  // ← guaranteed complete buffer
-for (const msg of normalize(decoded)) await writeResponse(msg)
+const combined = concat(chunks);
+const decoded = parser.decode(combined); // ← guaranteed complete buffer
+for (const msg of normalize(decoded)) await writeResponse(msg);
 ```
 
 ### Why both bugs were active at once
@@ -166,10 +176,10 @@ Bug 1 had been fixed upstream-in-source at some point but the published `dist` o
 
 Two patches via `bun patch`, persisted in `patches/`:
 
-| Patch file | What it fixes |
-|---|---|
-| `patches/@livestore%2Fcommon-cf@0.0.0-snapshot-6e9abadf4...patch` | Bug 1 (return runStream) + Bug 2 (drain-first decode) |
-| `patches/@effect%2Frpc@0.75.1.patch` | Production CSP (`msgpackr` → `msgpackr/index-no-eval`) |
+| Patch file                                                        | What it fixes                                          |
+| ----------------------------------------------------------------- | ------------------------------------------------------ |
+| `patches/@livestore%2Fcommon-cf@0.0.0-snapshot-6e9abadf4...patch` | Bug 1 (return runStream) + Bug 2 (drain-first decode)  |
+| `patches/@effect%2Frpc@0.75.1.patch`                              | Production CSP (`msgpackr` → `msgpackr/index-no-eval`) |
 
 The third patch (msgpackr/index-no-eval) is unrelated to the stream stall — it's a separate production-only fix for CF Workers' CSP blocking `new Function()`. Kept here because it was also lost in the same livestore bump and bears the same maintenance burden.
 
@@ -183,6 +193,7 @@ The fix was verified against two independent stuck states:
 2. **Bohdan's natural stuck store** (`NpIIlgcNci2NFRCuc6icHUOvPdeAHHEC`): production-like state with 292 events past head and 176 SB events LP hadn't seen acknowledged. Healed on first paste, head advanced 3288 → 3625, all pending events caught up and the 45 new events from continued processing landed cleanly.
 
 In both cases:
+
 - Server emitted a multi-chunk payload (`totalChunks: 2`) — the exact pattern that previously broke
 - Client drained all chunks before decoding — the fix in action
 - Zero `ParseError`, zero unrecoverable `ServerAheadError`
@@ -237,7 +248,7 @@ LP being a livestore client is correct. The bug is in the library, not the consu
 
 - **NoSuchElementException from missing backendId on cold boot** — `backendIdHelper` is populated from eventlog's `syncMetadataJson` column on boot. Cold-boot pull always has `backendId = Some`.
 - **BackendIdMismatchError silently swallowed by `onSyncError: 'ignore'`** — confirmed via instrumentation that backendIds match on both sides. SB returns the right number of events from `storage.getEvents`.
-- **msgpackr records cross-contamination across RPC responses** — disabling `useRecords` produced *different* corruption patterns. The shared record dictionary is not the issue; the truncated-decode is.
+- **msgpackr records cross-contamination across RPC responses** — disabling `useRecords` produced _different_ corruption patterns. The shared record dictionary is not the issue; the truncated-decode is.
 - **Wire transport drops bytes past 8KB** — initial byte-level dumps suggested only 8192 bytes arrived. Once we added a drain-first diagnostic, all 18297 bytes were confirmed to arrive. The client's read loop was aborting before draining the rest.
 
 ### Three downstream sync-cf bugs that turned out to be red herrings

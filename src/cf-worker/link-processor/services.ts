@@ -2,9 +2,10 @@ import { Context } from "effect";
 import type { Effect, Cause } from "effect";
 import type { ZodType } from "zod";
 
+import type { TierCapabilities } from "@/lib/plan";
+
 import type { events, tables } from "../../livestore/schema";
 import type { LinkId, OrgId, TagId } from "../db/branded";
-import type { OrgFeatures } from "../db/schema";
 import type {
   MetadataFetchError,
   MetadataParseError,
@@ -121,7 +122,9 @@ export class SourceNotifier extends Context.Tag("SourceNotifier")<
 export class FeatureStore extends Context.Tag("FeatureStore")<
   FeatureStore,
   {
-    readonly getFeatures: (storeId: OrgId) => Effect.Effect<OrgFeatures>;
+    readonly getCapabilities: (
+      storeId: OrgId
+    ) => Effect.Effect<TierCapabilities>;
   }
 >() {}
 

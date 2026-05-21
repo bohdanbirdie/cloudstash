@@ -4,6 +4,7 @@ import { Context, Effect, Layer } from "effect";
 import type { Auth } from ".";
 import { createAuth } from ".";
 import { DeletionRuntimeLive } from "../account-deletion/runtime";
+import { Billing } from "../billing/service";
 import type { UserId } from "../db/branded";
 import * as schema from "../db/schema";
 import { DbClient, DbClientLive, DbError, query } from "../db/service";
@@ -58,7 +59,8 @@ export const AuthClientLive = (env: Env) =>
   );
 
 export const AppLayerLive = (env: Env) =>
-  AuthClientLive(env).pipe(
+  Billing.Default.pipe(
+    Layer.provideMerge(AuthClientLive(env)),
     Layer.provideMerge(DeletionRuntimeLive(env)),
     Layer.provideMerge(DbClientLive(env.DB)),
     Layer.provideMerge(OtelTracingLive)

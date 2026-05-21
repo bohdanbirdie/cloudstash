@@ -1,6 +1,11 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer, LogLevel, Logger } from "effect";
 
+import type { TierCapabilities } from "@/lib/plan";
+import { capabilitiesFor } from "@/lib/plan";
+
+import { Billing } from "../../billing/service";
+import { KeyCreationError } from "../../connect/errors";
 import {
   handleConnectRequest,
   handleExchangeRequest,
@@ -39,17 +44,36 @@ function makeVerificationLayer(
   });
 }
 
+function makeBillingLayer(caps: TierCapabilities = capabilitiesFor("plus")) {
+  const notImpl = <A>(): Effect.Effect<A> =>
+    Effect.die("Billing stub method not implemented in test");
+  return Layer.succeed(
+    Billing,
+    new Billing({
+      capabilities: () => Effect.succeed(caps),
+      tier: notImpl,
+      getOverrides: notImpl,
+      setTier: notImpl,
+      setOverride: notImpl,
+      exists: notImpl,
+      listWithOwners: notImpl,
+    })
+  );
+}
+
 function runConnect(
   options: {
     session?: SessionData | null;
     apiKeyStore?: Partial<ApiKeyStore["Type"]>;
     verificationStore?: Partial<VerificationStore["Type"]>;
+    caps?: TierCapabilities;
   } = {}
 ) {
   const layer = Layer.mergeAll(
     makeSessionLayer(options.session ?? null),
     makeApiKeyLayer(options.apiKeyStore),
-    makeVerificationLayer(options.verificationStore)
+    makeVerificationLayer(options.verificationStore),
+    makeBillingLayer(options.caps)
   );
 
   return handleConnectRequest(new Headers()).pipe(
@@ -68,7 +92,8 @@ function runExchange(
   const layer = Layer.mergeAll(
     makeSessionLayer(null),
     makeApiKeyLayer(options.apiKeyStore),
-    makeVerificationLayer(options.verificationStore)
+    makeVerificationLayer(options.verificationStore),
+    makeBillingLayer()
   );
 
   return handleExchangeRequest(body).pipe(
@@ -102,10 +127,35 @@ describe("handleConnectRequest", () => {
     )
   );
 
-  it.effect("fails with KeyCreationError when create returns null", () =>
+  it.effect(
+    "fails with CapabilityDisabledError when org is on the free tier (no integrations)",
+    () =>
+      runConnect({
+        session: { userId: UserId.make("user-1"), orgId: OrgId.make("org-1") },
+        caps: capabilitiesFor("free"),
+      }).pipe(
+        Effect.flip,
+        Effect.tap((error) =>
+          Effect.sync(() => {
+            expect(error._tag).toBe("CapabilityDisabledError");
+            if (error._tag === "CapabilityDisabledError") {
+              expect(error.capability).toBe("integrations");
+              expect(error.requiredTier).toBe("plus");
+            }
+          })
+        )
+      )
+  );
+
+  it.effect("propagates KeyCreationError from create", () =>
     runConnect({
       session: { userId: UserId.make("user-1"), orgId: OrgId.make("org-1") },
-      apiKeyStore: { create: () => Effect.succeed(null) },
+      apiKeyStore: {
+        create: () =>
+          Effect.fail(
+            new KeyCreationError({ cause: new Error("createApiKey threw") })
+          ),
+      },
     }).pipe(
       Effect.flip,
       Effect.tap((error) =>

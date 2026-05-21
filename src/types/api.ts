@@ -1,4 +1,5 @@
-import type { invite, user, OrgFeatures } from "@/cf-worker/db/schema";
+import type { invite, user } from "@/cf-worker/db/schema";
+import type { PlanTier, TierCapabilities } from "@/lib/plan";
 
 export type InviteRow = typeof invite.$inferSelect;
 export type UserRow = typeof user.$inferSelect;
@@ -8,7 +9,8 @@ export interface MeResponse {
     id: string;
     name: string;
     slug: string;
-    features: OrgFeatures;
+    tier: PlanTier;
+    capabilities: TierCapabilities;
   } | null;
   session: {
     activeOrganizationId: string | null;

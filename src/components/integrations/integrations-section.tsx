@@ -17,9 +17,9 @@ export function IntegrationsSection() {
         </Alert>
       )}
 
-      <TelegramCard />
-
       <XCard />
+
+      <TelegramCard />
 
       <RaycastCard
         keys={apiKeys.keys}

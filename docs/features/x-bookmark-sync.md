@@ -155,12 +155,12 @@ All entitlement checks go through a single `requireXSyncFeature` function so the
 
 ### Defense in depth
 
-| Layer               | Behavior                                                                                            |
-| ------------------- | --------------------------------------------------------------------------------------------------- |
-| OAuth post-callback | If the feature is off → unlink the account immediately and skip starting the DO.                    |
-| HTTP handlers       | First check after session auth. Returns `XSyncFeatureDisabledError` (HTTP 403).                     |
-| DO alarm self-heal  | Re-reads org features once per alarm. If revoked → purge DO storage, unlink, kill alarm.            |
-| UI                  | Card renders an upgrade CTA instead of Connect when the feature is off.                             |
+| Layer               | Behavior                                                                                 |
+| ------------------- | ---------------------------------------------------------------------------------------- |
+| OAuth post-callback | If the feature is off → unlink the account immediately and skip starting the DO.         |
+| HTTP handlers       | First check after session auth. Returns `XSyncFeatureDisabledError` (HTTP 403).          |
+| DO alarm self-heal  | Re-reads org features once per alarm. If revoked → purge DO storage, unlink, kill alarm. |
+| UI                  | Card renders an upgrade CTA instead of Connect when the feature is off.                  |
 
 ### Downgrade behavior
 

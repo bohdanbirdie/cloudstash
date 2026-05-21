@@ -21,12 +21,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useOrgFeatures } from "@/hooks/use-org-features";
 
+import { UpgradeCta } from "./upgrade-cta";
 import { useTelegramStatus } from "./use-telegram-status";
 
 export function TelegramCard() {
   const status = useTelegramStatus();
+  const { capabilities } = useOrgFeatures();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const requiresUpgrade = !status.isConnected && !capabilities.integrations;
 
   const botHandle = status.botUsername ? `@${status.botUsername}` : "the bot";
   const botUrl = status.botUsername
@@ -85,6 +89,14 @@ export function TelegramCard() {
                 ? `Disconnect all ${status.count} chats`
                 : "Disconnect"}
             </Button>
+          </>
+        ) : requiresUpgrade ? (
+          <>
+            <p className="text-muted-foreground">
+              Forward links straight from chat — they land in your vault in
+              seconds.
+            </p>
+            <UpgradeCta tier="plus" />
           </>
         ) : (
           <>
