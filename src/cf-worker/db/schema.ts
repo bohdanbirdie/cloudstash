@@ -1,11 +1,9 @@
 import { relations, sql } from "drizzle-orm";
 import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
 
-export type OrgFeatures = {
-  aiSummary?: boolean;
-  chatAgentEnabled?: boolean;
-  monthlyTokenBudget?: number; // USD, defaults to 0.50
-};
+import type { CapabilityOverrides, PlanTier } from "@/lib/plan";
+
+export type TierSource = "stripe" | "admin";
 
 export const user = sqliteTable("user", {
   id: text("id").primaryKey(),
@@ -40,7 +38,21 @@ export const organization = sqliteTable("organization", {
   metadata: text("metadata"),
   name: text("name").notNull(),
   slug: text("slug").unique(),
-  features: text("features", { mode: "json" }).$type<OrgFeatures>().default({}),
+  featureOverrides: text("feature_overrides", { mode: "json" })
+    .$type<CapabilityOverrides>()
+    .default({}),
+  tier: text("tier").$type<PlanTier>().default("free").notNull(),
+  tierSource: text("tier_source")
+    .$type<TierSource>()
+    .default("stripe")
+    .notNull(),
+  stripeCustomerId: text("stripe_customer_id").unique(),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  subscriptionStatus: text("subscription_status"),
+  currentPeriodEnd: integer("current_period_end", { mode: "timestamp_ms" }),
+  cancelAtPeriodEnd: integer("cancel_at_period_end", { mode: "boolean" })
+    .default(false)
+    .notNull(),
 });
 
 export const session = sqliteTable(
@@ -61,7 +73,8 @@ export const session = sqliteTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     activeOrganizationId: text("active_organization_id").references(
-      () => organization.id
+      () => organization.id,
+      { onDelete: "set null" }
     ),
     // Admin plugin field (for impersonation)
     impersonatedBy: text("impersonated_by"),
@@ -129,7 +142,9 @@ export const invitation = sqliteTable(
     email: text("email").notNull(),
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
     id: text("id").primaryKey(),
-    inviterId: text("inviter_id").references(() => user.id),
+    inviterId: text("inviter_id").references(() => user.id, {
+      onDelete: "cascade",
+    }),
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
@@ -226,6 +241,15 @@ export const invite = sqliteTable(
   },
   (table) => [index("invite_code_idx").on(table.code)]
 );
+
+export const appSettings = sqliteTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
 
 export const userRelations = relations(user, ({ many, one }) => ({
   accounts: many(account),

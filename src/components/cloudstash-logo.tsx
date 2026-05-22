@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 
 import { generateDitheredDataUrl, PALETTES } from "@/lib/brand/dither";
 import { squirclePath } from "@/lib/brand/squircle";
@@ -40,7 +40,10 @@ export function CloudstashLogo({
 }
 
 function BrandedLogo({ className }: { className?: string }) {
-  const ditherUrl = useMemo(() => generateDitheredDataUrl(3.5, MIDNIGHT), []);
+  const [ditherUrl, setDitherUrl] = useState("");
+  useEffect(() => {
+    setDitherUrl(generateDitheredDataUrl(3.5, MIDNIGHT));
+  }, []);
 
   return (
     <svg

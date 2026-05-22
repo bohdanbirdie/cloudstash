@@ -5,6 +5,8 @@ import { Effect, Array as A, Option } from "effect";
 
 import { requiresConfirmation } from "@/shared/tool-config";
 
+import { OtelTracingLive } from "../tracing";
+
 export const APPROVAL = {
   NO: "No, denied.",
   YES: "Yes, confirmed.",
@@ -92,4 +94,8 @@ export const processToolCalls = <Tools extends ToolSet>(
       ...messages.slice(0, -1),
       { ...msg, parts: processedParts.filter(Boolean) },
     ] as UIMessage[];
-  }).pipe(Effect.withSpan("ChatAgent.processToolCalls"), Effect.runPromise);
+  }).pipe(
+    Effect.withSpan("ChatAgent.processToolCalls"),
+    Effect.provide(OtelTracingLive),
+    Effect.runPromise
+  );

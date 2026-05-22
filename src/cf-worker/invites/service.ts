@@ -1,4 +1,4 @@
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Schema } from "effect";
 
 import { INVITE_CODE_CHARS, INVITE_CODE_LENGTH } from "@/lib/invite";
 
@@ -14,10 +14,23 @@ import type { Env } from "../shared";
 import {
   InvitesForbiddenError,
   InvalidInviteError,
+  InvalidInviteRequestError,
   InviteNotFoundError,
   InvitesUnauthorizedError,
 } from "./errors";
 import { InviteStore, InviteStoreLive } from "./store";
+
+export const MAX_EXPIRES_IN_DAYS = 365;
+
+export const CreateInviteBody = Schema.Struct({
+  expiresInDays: Schema.optional(
+    Schema.Number.pipe(
+      Schema.int(),
+      Schema.positive(),
+      Schema.lessThanOrEqualTo(MAX_EXPIRES_IN_DAYS)
+    )
+  ),
+});
 
 function generateInviteCode(): string {
   const array = new Uint8Array(INVITE_CODE_LENGTH);
@@ -57,17 +70,27 @@ const handleCreateInviteRequest = Effect.fn(
   const session = yield* getSession(auth, request.headers);
   yield* requireAdmin(session);
 
-  const expiresInDays = yield* Effect.tryPromise({
-    catch: () => undefined,
-    try: (): Promise<{ expiresInDays?: number }> => request.json(),
-  }).pipe(
-    Effect.map((body) => body.expiresInDays),
-    Effect.catchAll(() => Effect.void)
+  const rawBody = yield* Effect.tryPromise(
+    (): Promise<unknown> => request.json()
+  ).pipe(Effect.orElseSucceed(() => ({})));
+
+  const decoded = yield* Schema.decodeUnknown(CreateInviteBody)(rawBody).pipe(
+    Effect.mapError(
+      (error) =>
+        new InvalidInviteRequestError({
+          reason: error.message,
+        })
+    ),
+    Effect.tapError((error) =>
+      Effect.logInfo("Invite create rejected").pipe(
+        Effect.annotateLogs({ reason: error.reason })
+      )
+    )
   );
 
   const code = generateInviteCode();
-  const expiresAt = expiresInDays
-    ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
+  const expiresAt = decoded.expiresInDays
+    ? new Date(Date.now() + decoded.expiresInDays * 24 * 60 * 60 * 1000)
     : null;
 
   yield* inviteStore.create({
@@ -95,6 +118,10 @@ export const handleCreateInvite = (
         DbError: () =>
           Effect.succeed(
             Response.json({ error: "Internal server error" }, { status: 500 })
+          ),
+        InvalidInviteRequestError: (error) =>
+          Effect.succeed(
+            Response.json({ error: error.reason }, { status: 400 })
           ),
         InvitesForbiddenError: () =>
           Effect.succeed(
@@ -229,10 +256,14 @@ const handleRedeemInviteRequest = Effect.fn(
     return yield* new InvalidInviteError();
   }
 
-  yield* inviteStore.redeemAndApproveUser(
+  const claimed = yield* inviteStore.redeemAndApproveUser(
     InviteIdBrand.make(invite.id),
     UserIdBrand.make(session.user.id)
   );
+  if (!claimed) {
+    yield* Effect.logInfo("Redeem invite - race lost (already claimed)");
+    return yield* new InvalidInviteError();
+  }
 
   yield* sendApprovalEmail(
     session.user.email,

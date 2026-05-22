@@ -1,11 +1,13 @@
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 
-import { useChatContainer } from "@/components/chat/chat-sheet";
-import { LinkImage } from "@/components/link-card/link-image";
-import { useLinkDetailDialog } from "@/components/link-detail-dialog";
+import { useChatContainer } from "@/components/chat/chat-container-context";
+import { Favicon } from "@/components/favicon";
+import { LinkImage } from "@/components/link-image";
+import { displayDescription, displayTitle } from "@/lib/link-display";
 import { linkByUrl$ } from "@/livestore/queries/links";
 import type { LinkWithDetails } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
+import { useRightPaneStore } from "@/stores/right-pane-store";
 
 interface LinkMentionWithTooltipProps {
   link: LinkWithDetails;
@@ -25,25 +27,29 @@ function LinkMentionWithTooltip({
       <TooltipPrimitive.Root>
         <TooltipPrimitive.Trigger render={linkElement} />
         <TooltipPrimitive.Portal container={chatContainer?.current}>
-          <TooltipPrimitive.Positioner side="top" sideOffset={6}>
+          <TooltipPrimitive.Positioner
+            side="top"
+            sideOffset={6}
+            className="z-[60]"
+          >
             <TooltipPrimitive.Popup
               className="z-50 overflow-hidden max-w-xs bg-background border border-primary shadow-xl animate-in fade-in-0 zoom-in-95 cursor-pointer hover:border-primary/80"
               onClick={onOpenDetail}
             >
               <LinkImage
                 src={link.image}
-                alt={link.title ?? ""}
+                alt={link.title ? displayTitle(link) : ""}
                 iconClassName="h-6 w-6"
               />
               <div className="p-2">
                 {link.title && (
                   <p className="font-medium text-sm text-foreground line-clamp-2">
-                    {link.title}
+                    {displayTitle(link)}
                   </p>
                 )}
-                {link.description && (
+                {displayDescription(link) && (
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                    {link.description}
+                    {displayDescription(link)}
                   </p>
                 )}
               </div>
@@ -63,17 +69,17 @@ interface LinkMentionProps {
 export function LinkMention({ href, children }: LinkMentionProps) {
   const store = useAppStore();
   const link = store.useQuery(linkByUrl$(href));
-  const { open: openLinkDialog } = useLinkDetailDialog();
+  const openDetail = useRightPaneStore((s) => s.openDetail);
 
   const childText = typeof children === "string" ? children : null;
   const isPlainUrl = childText === href;
 
   if (link && isPlainUrl) {
-    const displayText = link.title || link.domain;
+    const displayText = link.title ? displayTitle(link) : link.domain;
     const hasPreview = link.image || link.title;
 
     const handleOpenDetail = () => {
-      openLinkDialog({ linkId: link.id });
+      openDetail(link.id);
     };
 
     const linkElement = (
@@ -83,9 +89,7 @@ export function LinkMention({ href, children }: LinkMentionProps) {
         rel="noopener noreferrer"
         className="inline-flex items-center gap-1 rounded-sm border border-border bg-muted px-1.5 py-0.5 text-xs leading-none font-medium text-foreground no-underline hover:bg-primary hover:border-primary hover:text-primary-foreground transition-colors align-text-bottom"
       >
-        {link.favicon && (
-          <img src={link.favicon} alt="" className="size-3.5 rounded-sm" />
-        )}
+        <Favicon src={link.favicon} className="size-3.5 rounded-sm" />
         <span className="max-w-[200px] truncate">{displayText}</span>
       </a>
     );

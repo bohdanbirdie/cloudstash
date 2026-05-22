@@ -58,7 +58,7 @@ export async function handleGetUsage(
         Response.json({ error: "Failed to query usage data" }, { status: 500 })
       );
     }),
-    Effect.provide(OtelTracingLive(env)),
+    Effect.provide(OtelTracingLive),
     Effect.runPromise
   );
 }

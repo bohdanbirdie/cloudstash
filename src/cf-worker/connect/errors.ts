@@ -31,9 +31,17 @@ export class InvalidCodeError extends Schema.TaggedError<InvalidCodeError>()(
   {}
 ) {}
 
+export class SessionLookupError extends Schema.TaggedError<SessionLookupError>()(
+  "SessionLookupError",
+  {
+    cause: Schema.Defect,
+  }
+) {}
+
 export type ConnectError =
   | ConnectUnauthorizedError
   | NoActiveOrgError
   | KeyCreationError
   | MissingCodeError
-  | InvalidCodeError;
+  | InvalidCodeError
+  | SessionLookupError;

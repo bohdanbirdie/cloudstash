@@ -3,6 +3,7 @@ import type { Store } from "@livestore/livestore";
 import { tool, zodSchema } from "ai";
 import { z } from "zod";
 
+import { parseHttpUrl } from "../../lib/http-url";
 import {
   allLinks$,
   allLinksCount$,
@@ -10,9 +11,11 @@ import {
   inboxCount$,
   inboxLinks$,
   linkById$,
+  linkByUrl$,
   searchLinks$,
 } from "../../livestore/queries/links";
 import { events, schema } from "../../livestore/schema";
+import { LinkId } from "../db/branded";
 
 const listRecentLinksSchema = z.object({
   limit: z
@@ -57,7 +60,6 @@ export function createTools(store: Store<typeof schema>) {
             url: link.url,
             title: link.title || link.domain,
             description: link.description,
-            summary: link.summary,
           })),
         };
       },
@@ -67,12 +69,11 @@ export function createTools(store: Store<typeof schema>) {
       description: "Save a new link to the workspace",
       inputSchema: zodSchema(saveLinkSchema),
       execute: async ({ url }) => {
-        let domain: string;
-        try {
-          domain = new URL(url).hostname.replace(/^www\./, "");
-        } catch {
+        const parsed = parseHttpUrl(url);
+        if (!parsed) {
           return { success: false, error: "Invalid URL" };
         }
+        const domain = parsed.hostname.replace(/^www\./, "");
 
         const existing = store.query(allLinks$).find((l) => l.url === url);
         if (existing) {
@@ -94,6 +95,18 @@ export function createTools(store: Store<typeof schema>) {
             sourceMeta: null,
           })
         );
+
+        // The materializer's ON CONFLICT IGNORE on `url` may have dropped
+        // our insert if a concurrent saveLink raced ahead — re-resolve and
+        // report the surviving id.
+        const persisted = store.query(linkByUrl$(url));
+        if (persisted && persisted.id !== linkId) {
+          return {
+            success: false,
+            error: "Link already exists",
+            existingLinkId: persisted.id,
+          };
+        }
 
         return {
           success: true,
@@ -131,7 +144,8 @@ export function createTools(store: Store<typeof schema>) {
       description: "Get details of a specific link by ID",
       inputSchema: zodSchema(linkIdSchema),
       execute: async ({ id }) => {
-        const link = store.query(linkById$(id));
+        const linkId = LinkId.make(id);
+        const link = store.query(linkById$(linkId));
         if (!link) return { error: "Link not found" };
         return { link };
       },
@@ -141,13 +155,16 @@ export function createTools(store: Store<typeof schema>) {
       description: "Mark a link as completed/done",
       inputSchema: zodSchema(linkIdSchema),
       execute: async ({ id }) => {
-        const link = store.query(linkById$(id));
+        const linkId = LinkId.make(id);
+        const link = store.query(linkById$(linkId));
         if (!link) return { error: "Link not found" };
         if (link.deletedAt) return { error: "Cannot complete a deleted link" };
         if (link.status === "completed")
           return { error: "Link already completed" };
 
-        store.commit(events.linkCompleted({ id, completedAt: new Date() }));
+        store.commit(
+          events.linkCompleted({ id: linkId, completedAt: new Date() })
+        );
         return {
           success: true,
           message: `Marked "${link.title || link.url}" as done`,
@@ -159,12 +176,13 @@ export function createTools(store: Store<typeof schema>) {
       description: "Mark a completed link back as unread",
       inputSchema: zodSchema(linkIdSchema),
       execute: async ({ id }) => {
-        const link = store.query(linkById$(id));
+        const linkId = LinkId.make(id);
+        const link = store.query(linkById$(linkId));
         if (!link) return { error: "Link not found" };
         if (link.status === "unread")
           return { error: "Link is already unread" };
 
-        store.commit(events.linkUncompleted({ id }));
+        store.commit(events.linkUncompleted({ id: linkId }));
         return {
           success: true,
           message: `Marked "${link.title || link.url}" as unread`,
@@ -174,19 +192,20 @@ export function createTools(store: Store<typeof schema>) {
 
     // No execute = requires user confirmation
     deleteLink: tool({
-      description: "Move a link to trash (requires confirmation)",
+      description: "Move a link to archive (requires confirmation)",
       inputSchema: zodSchema(linkIdSchema),
     }),
 
     restoreLink: tool({
-      description: "Restore a link from trash",
+      description: "Restore a link from archive",
       inputSchema: zodSchema(linkIdSchema),
       execute: async ({ id }) => {
-        const link = store.query(linkById$(id));
+        const linkId = LinkId.make(id);
+        const link = store.query(linkById$(linkId));
         if (!link) return { error: "Link not found" };
-        if (!link.deletedAt) return { error: "Link is not in trash" };
+        if (!link.deletedAt) return { error: "Link is not in archive" };
 
-        store.commit(events.linkRestored({ id }));
+        store.commit(events.linkRestored({ id: linkId }));
         return {
           success: true,
           message: `Restored "${link.title || link.url}"`,
@@ -200,13 +219,16 @@ export function createTools(store: Store<typeof schema>) {
       execute: async ({ ids }) => {
         const results = { completed: 0, errors: [] as string[] };
         for (const id of ids) {
-          const link = store.query(linkById$(id));
+          const linkId = LinkId.make(id);
+          const link = store.query(linkById$(linkId));
           if (!link) {
             results.errors.push(`${id}: not found`);
             continue;
           }
           if (link.deletedAt || link.status === "completed") continue;
-          store.commit(events.linkCompleted({ id, completedAt: new Date() }));
+          store.commit(
+            events.linkCompleted({ id: linkId, completedAt: new Date() })
+          );
           results.completed++;
         }
         return { success: true, ...results };
@@ -215,7 +237,7 @@ export function createTools(store: Store<typeof schema>) {
 
     // No execute = requires user confirmation
     deleteLinks: tool({
-      description: "Move multiple links to trash (requires confirmation)",
+      description: "Move multiple links to archive (requires confirmation)",
       inputSchema: zodSchema(linkIdsSchema),
     }),
 
@@ -255,28 +277,30 @@ export function createTools(store: Store<typeof schema>) {
 export function createToolExecutors(store: Store<typeof schema>) {
   return {
     deleteLink: async ({ id }: { id: string }): Promise<string> => {
-      const link = store.query(linkById$(id));
+      const linkId = LinkId.make(id);
+      const link = store.query(linkById$(linkId));
       if (!link) return JSON.stringify({ error: "Link not found" });
       if (link.deletedAt)
-        return JSON.stringify({ error: "Link already in trash" });
+        return JSON.stringify({ error: "Link already in archive" });
 
-      store.commit(events.linkDeleted({ id, deletedAt: new Date() }));
+      store.commit(events.linkDeleted({ id: linkId, deletedAt: new Date() }));
       return JSON.stringify({
         success: true,
-        message: `Moved "${link.title || link.url}" to trash`,
+        message: `Moved "${link.title || link.url}" to archive`,
       });
     },
 
     deleteLinks: async ({ ids }: { ids: string[] }): Promise<string> => {
       const results = { deleted: 0, errors: [] as string[] };
       for (const id of ids) {
-        const link = store.query(linkById$(id));
+        const linkId = LinkId.make(id);
+        const link = store.query(linkById$(linkId));
         if (!link) {
           results.errors.push(`${id}: not found`);
           continue;
         }
         if (link.deletedAt) continue;
-        store.commit(events.linkDeleted({ id, deletedAt: new Date() }));
+        store.commit(events.linkDeleted({ id: linkId, deletedAt: new Date() }));
         results.deleted++;
       }
       return JSON.stringify({ success: true, ...results });

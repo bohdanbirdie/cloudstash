@@ -1,9 +1,13 @@
-import { Trash2Icon } from "lucide-react";
+import { PencilIcon, Trash2Icon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { getTagColor, tagColorStyles } from "@/lib/tag-colors";
-import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import {
+  isValidTagName,
+  MAX_TAG_NAME_LENGTH,
+  sanitizeTagName,
+} from "@/lib/tags";
 
 interface TagRowProps {
   tag: { id: string; name: string };
@@ -29,9 +33,9 @@ export function TagRow({ tag, count, onRename, onDelete }: TagRowProps) {
   }, [tag.name]);
 
   const handleSave = () => {
-    const trimmed = editValue.trim();
-    if (trimmed && trimmed !== tag.name) {
-      onRename(trimmed);
+    const sanitized = sanitizeTagName(editValue);
+    if (isValidTagName(sanitized) && sanitized !== tag.name) {
+      onRename(sanitized);
     } else {
       setEditValue(tag.name);
     }
@@ -43,38 +47,36 @@ export function TagRow({ tag, count, onRename, onDelete }: TagRowProps) {
     setIsEditing(false);
   };
 
-  const color = getTagColor(tag.name);
-  const styles = tagColorStyles[color];
-
   return (
-    <div className="flex items-center gap-2 rounded px-2 py-1.5">
+    <div className="group/row flex items-center gap-2 rounded-xl px-1.5 py-1.5 hover:bg-muted/50">
       {isEditing ? (
-        <input
+        <Input
           ref={inputRef}
           value={editValue}
           onChange={(e) => setEditValue(e.target.value)}
           onBlur={handleSave}
+          maxLength={MAX_TAG_NAME_LENGTH}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
+              e.preventDefault();
+              e.stopPropagation();
               handleSave();
             } else if (e.key === "Escape") {
+              e.preventDefault();
+              e.stopPropagation();
               handleCancel();
             }
           }}
-          className="h-6 flex-1 border border-input bg-transparent px-1.5 text-xs outline-none focus:border-ring"
+          className="flex-1"
         />
       ) : (
         <button
           type="button"
           onClick={() => setIsEditing(true)}
-          className={cn(
-            "inline-flex items-center px-1.5 py-0.5 text-xs font-medium transition-colors",
-            styles.badge,
-            styles.badgeHover,
-            "cursor-pointer"
-          )}
+          className="flex h-7 flex-1 cursor-pointer items-center gap-1 text-xs font-medium text-foreground"
         >
           #{tag.name}
+          <PencilIcon className="size-3 text-muted-foreground opacity-0 transition-opacity group-hover/row:opacity-100" />
         </button>
       )}
 
@@ -85,11 +87,11 @@ export function TagRow({ tag, count, onRename, onDelete }: TagRowProps) {
       <Button
         variant="ghost"
         size="icon-sm"
-        className="text-muted-foreground hover:text-destructive size-6"
         onClick={onDelete}
+        aria-label={`Delete ${tag.name}`}
+        className="text-muted-foreground group-hover/row:text-destructive group-hover/row:hover:bg-destructive/10"
       >
-        <Trash2Icon className="size-3.5" />
-        <span className="sr-only">Delete {tag.name}</span>
+        <Trash2Icon />
       </Button>
     </div>
   );

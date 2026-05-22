@@ -31,6 +31,12 @@
       "sourceType": "github",
       "computedHash": "3350d2586521fe9ef2089af20dfeeaa3ccc13cea9d23d908ea2f4dcb03fab411"
     },
+    "motel-debug": {
+      "source": "kitlangton/motel",
+      "sourceType": "github",
+      "skillPath": "skills/motel-debug/SKILL.md",
+      "computedHash": "94acc52fed666636f9d4c4a58c00a483fa627e86b0eeaa422771dba5a105101d"
+    },
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",

@@ -9,6 +9,7 @@ import { useState } from "react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { useFlashFlag } from "@/hooks/use-flash-flag";
 
 interface KeyCreatedBannerProps {
   generatedKey: string;
@@ -24,20 +25,18 @@ export function KeyCreatedBanner({
   onDone,
 }: KeyCreatedBannerProps) {
   const [keyVisible, setKeyVisible] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [commandCopied, setCommandCopied] = useState(false);
+  const { active: copied, trigger: flashCopied } = useFlashFlag();
+  const { active: commandCopied, trigger: flashCommandCopied } = useFlashFlag();
 
   const handleCopyKey = async () => {
     await navigator.clipboard.writeText(generatedKey);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    flashCopied();
   };
 
   const handleCopyCommand = async () => {
     if (helperCommand) {
       await navigator.clipboard.writeText(helperCommand);
-      setCommandCopied(true);
-      setTimeout(() => setCommandCopied(false), 2000);
+      flashCommandCopied();
     }
   };
 
@@ -58,19 +57,17 @@ export function KeyCreatedBanner({
           variant="outline"
           size="icon"
           onClick={() => setKeyVisible(!keyVisible)}
+          aria-label={keyVisible ? "Hide key" : "Show key"}
         >
-          {keyVisible ? (
-            <EyeOffIcon className="h-4 w-4" />
-          ) : (
-            <EyeIcon className="h-4 w-4" />
-          )}
+          {keyVisible ? <EyeOffIcon /> : <EyeIcon />}
         </Button>
-        <Button variant="outline" size="icon" onClick={handleCopyKey}>
-          {copied ? (
-            <CheckIcon className="h-4 w-4 text-green-500" />
-          ) : (
-            <CopyIcon className="h-4 w-4" />
-          )}
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleCopyKey}
+          aria-label="Copy key"
+        >
+          {copied ? <CheckIcon className="text-green-500" /> : <CopyIcon />}
         </Button>
       </div>
 
@@ -88,11 +85,12 @@ export function KeyCreatedBanner({
               variant="outline"
               size="icon-sm"
               onClick={handleCopyCommand}
+              aria-label="Copy command"
             >
               {commandCopied ? (
-                <CheckIcon className="h-3 w-3 text-green-500" />
+                <CheckIcon className="text-green-500" />
               ) : (
-                <CopyIcon className="h-3 w-3" />
+                <CopyIcon />
               )}
             </Button>
           </div>

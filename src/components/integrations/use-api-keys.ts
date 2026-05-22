@@ -1,8 +1,7 @@
 import { useState, useCallback } from "react";
 import useSWR from "swr";
 
-import { authClient } from "@/lib/auth";
-import { Route } from "@/routes/__root";
+import { authClient, useAuth } from "@/lib/auth";
 
 export interface ApiKey {
   id: string;
@@ -20,7 +19,7 @@ async function fetchApiKeys(): Promise<ApiKey[]> {
 }
 
 export function useApiKeys(enabled = true) {
-  const { auth } = Route.useRouteContext();
+  const auth = useAuth();
   const [isGenerating, setIsGenerating] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
 

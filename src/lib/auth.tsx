@@ -1,23 +1,20 @@
 import { apiKeyClient } from "@better-auth/api-key/client";
+import { useRouteContext, useRouter } from "@tanstack/react-router";
 import {
   adminClient,
   genericOAuthClient,
+  inferAdditionalFields,
   organizationClient,
 } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-} from "react";
+import { useCallback } from "react";
 
-import { RESET_FLAG_KEY } from "@/livestore/store";
+import type { Auth as ServerAuth } from "@/cf-worker/auth";
 
 export const authClient = createAuthClient({
   baseURL: window.location.origin,
   plugins: [
+    inferAdditionalFields<ServerAuth>(),
     organizationClient(),
     apiKeyClient(),
     adminClient(),
@@ -26,97 +23,81 @@ export const authClient = createAuthClient({
 });
 
 export interface AuthState {
-  userId: string | null;
+  userId: string;
   orgId: string | null;
   isAuthenticated: boolean;
-  role: string | null;
+  role: string;
   approved: boolean;
+  name: string | null;
+  email: string;
+  image: string | null;
 }
 
-type AuthContextType = AuthState & {
-  isLoading: boolean;
-  logout: () => Promise<void>;
-  refresh: (opts?: { disableCookieCache?: boolean }) => Promise<void>;
+type Session = Awaited<ReturnType<typeof authClient.getSession>>["data"];
+
+function deriveAuthState(session: Session): AuthState | null {
+  if (!session?.user) return null;
+  const user = session.user;
+  const approved = user.approved ?? false;
+  const orgId = session.session?.activeOrganizationId ?? null;
+  return {
+    approved,
+    email: user.email,
+    image: user.image ?? null,
+    isAuthenticated: approved && !!orgId,
+    name: user.name ?? null,
+    orgId: approved ? orgId : null,
+    role: user.role ?? "user",
+    userId: user.id,
+  };
+}
+
+// `/api/auth/*` is rate-limited at 30/60s, so coalesce and cache sessions.
+const AUTH_TTL_MS = 30_000;
+let authCache: { value: AuthState | null; expiresAt: number } | null = null;
+let inflight: Promise<AuthState | null> | null = null;
+
+const fetchAuth = async (): Promise<AuthState | null> => {
+  const { data } = await authClient.getSession();
+  const value = deriveAuthState(data);
+  authCache = { expiresAt: Date.now() + AUTH_TTL_MS, value };
+  return value;
 };
 
-const AuthContext = createContext<AuthContextType | null>(null);
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
+export async function loadAuth(): Promise<AuthState | null> {
+  if (authCache && authCache.expiresAt > Date.now()) {
+    return authCache.value;
   }
-  return context;
+  if (!inflight) {
+    inflight = fetchAuth().finally(() => {
+      inflight = null;
+    });
+  }
+  return inflight;
 }
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [auth, setAuth] = useState<AuthState>({
-    approved: false,
-    isAuthenticated: false,
-    orgId: null,
-    role: null,
-    userId: null,
-  });
-  const [isLoading, setIsLoading] = useState(true);
+export function invalidateAuthCache(): void {
+  authCache = null;
+  inflight = null;
+}
 
-  const updateAuthFromSession = useCallback(
-    (session: Awaited<ReturnType<typeof authClient.getSession>>["data"]) => {
-      if (session?.user) {
-        const user = session.user;
-        const isApproved = user.approved ?? false;
+export function useAuth(): AuthState {
+  return useRouteContext({ from: "/_authed", select: (ctx) => ctx.auth });
+}
 
-        setAuth({
-          approved: isApproved,
-          isAuthenticated: isApproved && !!session.session.activeOrganizationId,
-          orgId: isApproved
-            ? (session.session.activeOrganizationId ?? null)
-            : null,
-          role: user.role ?? "user",
-          userId: user.id,
-        });
-      }
-    },
-    []
-  );
-
-  useEffect(() => {
-    void authClient.getSession().then(({ data: session }) => {
-      updateAuthFromSession(session);
-      setIsLoading(false);
+export function useRefreshAuth(): () => Promise<void> {
+  const router = useRouter();
+  return useCallback(async () => {
+    invalidateAuthCache();
+    await authClient.getSession({
+      fetchOptions: { query: { disableCookieCache: "true" } },
     });
-  }, [updateAuthFromSession]);
+    await router.invalidate();
+  }, [router]);
+}
 
-  const logout = useCallback(async () => {
-    try {
-      localStorage.setItem(RESET_FLAG_KEY, "true");
-    } catch {
-      // localStorage not available
-    }
-    await authClient.signOut();
-    setAuth({
-      approved: false,
-      isAuthenticated: false,
-      orgId: null,
-      role: null,
-      userId: null,
-    });
-  }, []);
-
-  const refresh = useCallback(
-    async (opts?: { disableCookieCache?: boolean }) => {
-      const { data: session } = await authClient.getSession({
-        fetchOptions: opts?.disableCookieCache
-          ? { query: { disableCookieCache: "true" } }
-          : undefined,
-      });
-      updateAuthFromSession(session);
-    },
-    [updateAuthFromSession]
-  );
-
-  return (
-    <AuthContext.Provider value={{ ...auth, isLoading, logout, refresh }}>
-      {children}
-    </AuthContext.Provider>
-  );
+export async function logout(): Promise<void> {
+  invalidateAuthCache();
+  await authClient.signOut();
+  window.location.href = "/";
 }

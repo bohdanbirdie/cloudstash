@@ -1,8 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { it } from "@effect/vitest";
+import { Effect } from "effect";
+import { describe, expect, vi } from "vitest";
 
 import { OrgId } from "../../db/branded";
 import type { LinkQueueMessage } from "../../link-processor/types";
-import { handleQueueBatch } from "../../queue-handler";
+import { handleQueueBatchEffect } from "../../queue-handler";
+import type { LinkProcessorBinding } from "../../queue-handler";
 
 function createMessage(
   body: LinkQueueMessage,
@@ -18,27 +21,23 @@ function createMessage(
   };
 }
 
-function createEnv(
+const makeProcessor = (
   rpcResult: { status: string; linkId?: string } | Error = {
     status: "ingested",
     linkId: "link-1",
   }
-) {
+) => {
   const ingestAndProcess =
     rpcResult instanceof Error
       ? vi.fn().mockRejectedValue(rpcResult)
       : vi.fn().mockResolvedValue(rpcResult);
-
   const stub = { ingestAndProcess };
-  const env = {
-    LINK_PROCESSOR_DO: {
-      idFromName: vi.fn().mockReturnValue("do-id"),
-      get: vi.fn().mockReturnValue(stub),
-    },
+  const binding: LinkProcessorBinding = {
+    idFromName: vi.fn().mockReturnValue("do-id"),
+    get: vi.fn().mockReturnValue(stub),
   };
-
-  return { env, stub, ingestAndProcess };
-}
+  return { binding, stub, ingestAndProcess };
+};
 
 const testMessage: LinkQueueMessage = {
   url: "https://example.com",
@@ -47,62 +46,84 @@ const testMessage: LinkQueueMessage = {
   sourceMeta: null,
 };
 
-async function runQueueHandler(
+const runBatch = (
   messages: ReturnType<typeof createMessage>[],
-  env: ReturnType<typeof createEnv>["env"]
-) {
-  const batch = { messages, queue: "cloudstash-link-queue" };
-  await handleQueueBatch(
-    batch as unknown as MessageBatch<LinkQueueMessage>,
-    env
+  binding: LinkProcessorBinding
+) =>
+  handleQueueBatchEffect(
+    {
+      messages,
+      queue: "cloudstash-link-queue",
+    } as unknown as MessageBatch<LinkQueueMessage>,
+    binding
   );
-}
 
-describe("queue handler", () => {
-  it("acks message on successful ingest", async () => {
+describe("handleQueueBatchEffect", () => {
+  it.effect("acks message on successful ingest", () => {
     const msg = createMessage(testMessage);
-    const { env } = createEnv({ status: "ingested", linkId: "link-1" });
+    const { binding } = makeProcessor();
 
-    await runQueueHandler([msg], env);
-
-    expect(msg.ack).toHaveBeenCalledOnce();
-    expect(msg.retry).not.toHaveBeenCalled();
+    return runBatch([msg], binding).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(msg.ack).toHaveBeenCalledOnce();
+          expect(msg.retry).not.toHaveBeenCalled();
+        })
+      )
+    );
   });
 
-  it("acks message on duplicate (not an error)", async () => {
+  it.effect("acks message on duplicate (not an error)", () => {
     const msg = createMessage(testMessage);
-    const { env } = createEnv({ status: "duplicate", linkId: "existing-1" });
+    const { binding } = makeProcessor({
+      status: "duplicate",
+      linkId: "existing-1",
+    });
 
-    await runQueueHandler([msg], env);
-
-    expect(msg.ack).toHaveBeenCalledOnce();
-    expect(msg.retry).not.toHaveBeenCalled();
+    return runBatch([msg], binding).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(msg.ack).toHaveBeenCalledOnce();
+          expect(msg.retry).not.toHaveBeenCalled();
+        })
+      )
+    );
   });
 
-  it("retries message when DO throws", async () => {
+  it.effect("retries message when DO throws", () => {
     const msg = createMessage(testMessage, { attempts: 1 });
-    const { env } = createEnv(new Error("DO unavailable"));
+    const { binding } = makeProcessor(new Error("DO unavailable"));
 
-    await runQueueHandler([msg], env);
-
-    expect(msg.retry).toHaveBeenCalledOnce();
-    expect(msg.ack).not.toHaveBeenCalled();
+    return runBatch([msg], binding).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(msg.retry).toHaveBeenCalledOnce();
+          expect(msg.ack).not.toHaveBeenCalled();
+        })
+      )
+    );
   });
 
-  it("routes to correct DO based on storeId", async () => {
+  it.effect("routes to correct DO based on storeId", () => {
     const msg = createMessage({
       ...testMessage,
       storeId: OrgId.make("org-42"),
     });
-    const { env } = createEnv({ status: "ingested", linkId: "link-1" });
+    const { binding } = makeProcessor();
+    const idFromName = binding.idFromName;
+    const get = binding.get;
 
-    await runQueueHandler([msg], env);
-
-    expect(env.LINK_PROCESSOR_DO.idFromName).toHaveBeenCalledWith("org-42");
-    expect(env.LINK_PROCESSOR_DO.get).toHaveBeenCalledWith("do-id");
+    return runBatch([msg], binding).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(idFromName).toHaveBeenCalledWith("org-42");
+          expect(get).toHaveBeenCalledWith("do-id");
+        })
+      )
+    );
   });
 
-  it("passes full message body to ingestAndProcess", async () => {
+  it.effect("passes full message body to ingestAndProcess", () => {
     const body: LinkQueueMessage = {
       url: "https://test.com",
       storeId: OrgId.make("org-1"),
@@ -110,17 +131,18 @@ describe("queue handler", () => {
       sourceMeta: JSON.stringify({ chatId: 123 }),
     };
     const msg = createMessage(body);
-    const { env, ingestAndProcess } = createEnv({
-      status: "ingested",
-      linkId: "link-1",
-    });
+    const { binding, ingestAndProcess } = makeProcessor();
 
-    await runQueueHandler([msg], env);
-
-    expect(ingestAndProcess).toHaveBeenCalledWith(body);
+    return runBatch([msg], binding).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(ingestAndProcess).toHaveBeenCalledWith(body);
+        })
+      )
+    );
   });
 
-  it("processes multiple messages independently", async () => {
+  it.effect("processes multiple messages independently", () => {
     const msg1 = createMessage(testMessage);
     const msg2 = createMessage({ ...testMessage, url: "https://other.com" });
 
@@ -129,16 +151,18 @@ describe("queue handler", () => {
       .mockResolvedValueOnce({ status: "ingested", linkId: "link-1" })
       .mockRejectedValueOnce(new Error("fail"));
 
-    const env = {
-      LINK_PROCESSOR_DO: {
-        idFromName: vi.fn().mockReturnValue("do-id"),
-        get: vi.fn().mockReturnValue({ ingestAndProcess }),
-      },
+    const binding: LinkProcessorBinding = {
+      idFromName: vi.fn().mockReturnValue("do-id"),
+      get: vi.fn().mockReturnValue({ ingestAndProcess }),
     };
 
-    await runQueueHandler([msg1, msg2], env);
-
-    expect(msg1.ack).toHaveBeenCalledOnce();
-    expect(msg2.retry).toHaveBeenCalledOnce();
+    return runBatch([msg1, msg2], binding).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(msg1.ack).toHaveBeenCalledOnce();
+          expect(msg2.retry).toHaveBeenCalledOnce();
+        })
+      )
+    );
   });
 });

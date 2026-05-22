@@ -1,6 +1,7 @@
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import type { Context } from "grammy";
 
+import type { UserId } from "../db/branded";
 import { safeErrorInfo } from "../log-utils";
 import { LinkQueue, Messenger, SourceAuth, TelegramKeyStore } from "./services";
 
@@ -81,8 +82,9 @@ export const handleConnect = (chatId: number, apiKeyText: string | undefined) =>
       return yield* messenger.reply("Usage: /connect <api-key>");
     }
 
-    yield* auth.verify(apiKeyText);
+    const { userId } = yield* auth.verify(apiKeyText);
     yield* keyStore.put(chatId, apiKeyText);
+    yield* keyStore.linkUser(userId, chatId);
     yield* messenger.reply("Connected! Send me any link to save it.");
   }).pipe(
     Effect.withSpan("Telegram.handleConnect"),
@@ -112,8 +114,17 @@ export const handleDisconnect = Effect.fn("Telegram.handleDisconnect")(
   function* (chatId: number) {
     const messenger = yield* Messenger;
     const keyStore = yield* TelegramKeyStore;
+    const auth = yield* SourceAuth;
+
+    const userId = yield* auth.authenticate().pipe(
+      Effect.map(({ userId: id }) => Option.some(id)),
+      Effect.catchAll(() => Effect.succeed(Option.none<UserId>()))
+    );
 
     yield* keyStore.remove(chatId);
+    if (Option.isSome(userId)) {
+      yield* keyStore.unlinkUser(userId.value, chatId);
+    }
     yield* messenger.reply(
       "Disconnected. Use /connect <api-key> to reconnect."
     );

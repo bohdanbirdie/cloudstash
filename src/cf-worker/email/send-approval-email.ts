@@ -1,9 +1,15 @@
-import { render } from "@react-email/render";
 import { Effect } from "effect";
 import { Resend } from "resend";
 
 import { EmailSendError } from "./errors";
-import { ApprovalEmail } from "./templates/approval-email";
+
+const renderApprovalText = (displayName: string): string =>
+  `Hi ${displayName},
+
+Your CloudStash account has been approved. You can now start saving and organizing your links.
+
+Go to Cloudstash: https://cloudstash.dev
+`;
 
 export const sendApprovalEmail = (
   email: string,
@@ -13,11 +19,7 @@ export const sendApprovalEmail = (
 ) =>
   Effect.gen(function* () {
     const resend = new Resend(apiKey);
-
-    const html = yield* Effect.promise(() => render(ApprovalEmail({ name })));
-    const text = yield* Effect.promise(() =>
-      render(ApprovalEmail({ name }), { plainText: true })
-    );
+    const text = renderApprovalText(name || "there");
 
     const result = yield* Effect.tryPromise({
       try: () =>
@@ -25,7 +27,6 @@ export const sendApprovalEmail = (
           from: emailFrom,
           to: email,
           subject: "Your CloudStash account has been approved!",
-          html,
           text,
         }),
       catch: (cause) => new EmailSendError({ cause }),

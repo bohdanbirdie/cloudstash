@@ -67,7 +67,7 @@ bun run deploy             # FORBIDDEN
 
 - Path alias: `@/*` maps to `src/*`
 - Routes in `src/routes/_authed/` require authentication
-- Database migrations: `bun run db:generate` then `bun run db:migrate:local`
+- Database migrations: `bun run db:generate` then `bun run db:migrate:local`. **Review generated SQL before committing** — a table rebuild (`__new_<table>`/`DROP TABLE`) for an unrelated change means snapshot drift and can cascade-delete child rows. See `drizzle/migrations/MANUAL_SNAPSHOT_FIXES.md` (records a hand-edit to `0010_snapshot.json` and why).
 - Avoid code comments unless absolutely necessary for complex logic
 - No barrel files (index.ts re-exports) - import directly from source files
 - **Patches:** When patching packages with pre-built dist files, patch `dist/*.js` directly (not just `src/*.ts`). Runtime imports from dist, not source.
@@ -88,4 +88,3 @@ Topics: quick-start, project-setup, tsconfig, basics, services-and-layers, data-
 Never guess at Effect patterns - check the guide first.
 
 <!-- effect-solutions:end -->
-

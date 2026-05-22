@@ -1,11 +1,11 @@
 import { makePersistedAdapter } from "@livestore/adapter-web";
 import type { Store } from "@livestore/livestore";
 import { useStore } from "@livestore/react";
-import { useRouteContext } from "@tanstack/react-router";
 import { Effect, Stream } from "effect";
 import { useEffect, useRef } from "react";
 import { unstable_batchedUpdates } from "react-dom";
 
+import { useAuth } from "@/lib/auth";
 import {
   fetchSyncAuthStatus,
   useSyncStatusStore,
@@ -17,36 +17,16 @@ import { schema } from "./schema";
 
 type AppStore = Store<typeof schema>;
 
-export const RESET_FLAG_KEY = "livestore-reset-on-logout";
-
-/**
- * Check if we should reset OPFS persistence.
- * Flag is set on logout to clear local data for security.
- */
-const shouldResetPersistence = (): boolean => {
-  try {
-    const flag = localStorage.getItem(RESET_FLAG_KEY);
-    if (flag) {
-      localStorage.removeItem(RESET_FLAG_KEY);
-      return true;
-    }
-  } catch {
-    // localStorage not available
-  }
-  return false;
-};
-
 const adapter = makePersistedAdapter({
-  resetPersistence: shouldResetPersistence(),
   sharedWorker: LiveStoreSharedWorker,
   storage: { type: "opfs" },
   worker: LiveStoreWorker,
 });
 
 export const useAppStore = () => {
-  const { auth } = useRouteContext({ strict: false });
+  const auth = useAuth();
 
-  if (!auth?.isAuthenticated || !auth.orgId) {
+  if (!auth.isAuthenticated || !auth.orgId) {
     throw new Error("useAppStore must be used within an authenticated context");
   }
 

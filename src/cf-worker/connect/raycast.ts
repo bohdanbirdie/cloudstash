@@ -2,16 +2,20 @@ import { and, eq, gt } from "drizzle-orm";
 import { Effect, Layer } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
+import { capabilityDeniedResponse } from "../billing/errors";
+import { requireCapability } from "../billing/service";
 import { OrgId, UserId } from "../db/branded";
 import * as schema from "../db/schema";
 import { DbClient, query } from "../db/service";
+import { maskId, safeErrorInfo } from "../log-utils";
 import type { Env } from "../shared";
 import {
+  ConnectUnauthorizedError,
   InvalidCodeError,
   KeyCreationError,
   MissingCodeError,
   NoActiveOrgError,
-  ConnectUnauthorizedError,
+  SessionLookupError,
 } from "./errors";
 import { ApiKeyStore, SessionProvider, VerificationStore } from "./services";
 
@@ -35,19 +39,13 @@ export const handleConnectRequest = Effect.fn(
     return yield* new NoActiveOrgError({ userId });
   }
 
-  const result = yield* apiKeyStore
-    .create(headers, { orgId, source: "raycast" }, "Raycast Extension")
-    .pipe(
-      Effect.flatMap((r) =>
-        r
-          ? Effect.succeed(r)
-          : Effect.fail(
-              new KeyCreationError({
-                cause: new Error("API key creation returned null"),
-              })
-            )
-      )
-    );
+  yield* requireCapability(orgId, "integrations");
+
+  const result = yield* apiKeyStore.create(
+    headers,
+    { orgId, source: "raycast" },
+    "Raycast Extension"
+  );
 
   const code = crypto.randomUUID();
 
@@ -58,7 +56,7 @@ export const handleConnectRequest = Effect.fn(
   );
 
   yield* Effect.logInfo("Raycast connect code created").pipe(
-    Effect.annotateLogs({ userId })
+    Effect.annotateLogs({ userId: maskId(userId) })
   );
 
   return { code };
@@ -76,13 +74,11 @@ export const handleExchangeRequest = Effect.fn(
 
   const identifier = `raycast-connect:${body.code}`;
 
-  const record = yield* verificationStore.findValid(identifier);
+  const record = yield* verificationStore.consumeByIdentifier(identifier);
 
   if (!record) {
     return yield* new InvalidCodeError();
   }
-
-  yield* verificationStore.deleteById(record.id);
 
   const { key, keyId } = record.data;
 
@@ -103,8 +99,10 @@ const makeLiveLayer = (env: Env) =>
         const auth = yield* AuthClient;
         return SessionProvider.of({
           getSession: (headers) =>
-            Effect.tryPromise(() => auth.api.getSession({ headers })).pipe(
-              Effect.orElseSucceed(() => null),
+            Effect.tryPromise({
+              catch: (cause) => new SessionLookupError({ cause }),
+              try: () => auth.api.getSession({ headers }),
+            }).pipe(
               Effect.map((session) =>
                 session?.session
                   ? {
@@ -140,15 +138,20 @@ const makeLiveLayer = (env: Env) =>
               db.delete(schema.apikey).where(eq(schema.apikey.id, id))
             ).pipe(Effect.asVoid),
           create: (headers, metadata, name) =>
-            Effect.tryPromise(() =>
-              auth.api.createApiKey({ body: { metadata, name }, headers })
-            ).pipe(
-              Effect.map((result) =>
+            Effect.tryPromise({
+              try: () =>
+                auth.api.createApiKey({ body: { metadata, name }, headers }),
+              catch: (cause) => new KeyCreationError({ cause }),
+            }).pipe(
+              Effect.flatMap((result) =>
                 result?.key && result?.id
-                  ? { key: result.key, id: result.id }
-                  : null
-              ),
-              Effect.orElseSucceed(() => null)
+                  ? Effect.succeed({ key: result.key, id: result.id })
+                  : Effect.fail(
+                      new KeyCreationError({
+                        cause: new Error("createApiKey returned null"),
+                      })
+                    )
+              )
             ),
           updateName: (id, name) =>
             query(
@@ -178,33 +181,33 @@ const makeLiveLayer = (env: Env) =>
               })
             ).pipe(Effect.asVoid);
           },
-          findValid: (identifier) =>
+          consumeByIdentifier: (identifier) =>
             query(
               db
-                .select()
-                .from(schema.verification)
+                .delete(schema.verification)
                 .where(
                   and(
                     eq(schema.verification.identifier, identifier),
                     gt(schema.verification.expiresAt, new Date())
                   )
                 )
-                .get()
+                .returning()
             ).pipe(
-              Effect.map((r) =>
-                r ? { id: r.id, data: JSON.parse(r.value) } : null
-              )
+              Effect.map((rows) => {
+                const r = rows[0];
+                return r ? { id: r.id, data: JSON.parse(r.value) } : null;
+              })
             ),
-          deleteById: (id) =>
-            query(
-              db
-                .delete(schema.verification)
-                .where(eq(schema.verification.id, id))
-            ).pipe(Effect.asVoid),
         });
       })
     )
-  ).pipe(Layer.provide(AppLayerLive(env)));
+  ).pipe(Layer.provideMerge(AppLayerLive(env)));
+
+const unexpected500 = (cause: unknown): Effect.Effect<Response> =>
+  Effect.logError("Raycast handler crashed").pipe(
+    Effect.annotateLogs(safeErrorInfo(cause)),
+    Effect.as(Response.json({ error: "Internal error" }, { status: 500 }))
+  );
 
 export const handleRaycastConnect = (
   request: Request,
@@ -215,6 +218,12 @@ export const handleRaycastConnect = (
       Effect.provide(makeLiveLayer(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
+        CapabilityDisabledError: (e) =>
+          Effect.succeed(capabilityDeniedResponse(e)),
+        ConnectUnauthorizedError: () =>
+          Effect.succeed(
+            Response.json({ error: "Unauthorized" }, { status: 401 })
+          ),
         KeyCreationError: () =>
           Effect.succeed(
             Response.json(
@@ -226,11 +235,20 @@ export const handleRaycastConnect = (
           Effect.succeed(
             Response.json({ error: "No active organization" }, { status: 400 })
           ),
-        ConnectUnauthorizedError: () =>
+        OrgNotFoundError: () =>
           Effect.succeed(
-            Response.json({ error: "Unauthorized" }, { status: 401 })
+            Response.json({ error: "Organization not found" }, { status: 404 })
           ),
-      })
+        SessionLookupError: () =>
+          Effect.succeed(
+            Response.json(
+              { error: "Auth backend unavailable" },
+              { status: 503 }
+            )
+          ),
+        DbError: (e) => unexpected500(e.cause),
+      }),
+      Effect.catchAllCause((cause) => unexpected500(cause))
     )
   );
 
@@ -255,6 +273,8 @@ export const handleRaycastExchange = (
         Effect.succeed(
           Response.json({ error: "Missing code" }, { status: 400 })
         ),
+      DbError: (e) => unexpected500(e.cause),
     }),
+    Effect.catchAllCause((cause) => unexpected500(cause)),
     Effect.runPromise
   );

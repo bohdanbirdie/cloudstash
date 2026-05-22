@@ -1,7 +1,11 @@
-import { it, describe } from "@effect/vitest";
+import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer, LogLevel, Logger } from "effect";
-import { expect } from "vitest";
 
+import type { TierCapabilities } from "@/lib/plan";
+import { capabilitiesFor } from "@/lib/plan";
+
+import { Billing } from "../../billing/service";
+import { KeyCreationError } from "../../connect/errors";
 import {
   handleConnectRequest,
   handleExchangeRequest,
@@ -35,10 +39,27 @@ function makeVerificationLayer(
 ) {
   return Layer.succeed(VerificationStore, {
     save: () => Effect.void,
-    findValid: () => Effect.succeed(null),
-    deleteById: () => Effect.void,
+    consumeByIdentifier: () => Effect.succeed(null),
     ...overrides,
   });
+}
+
+function makeBillingLayer(caps: TierCapabilities = capabilitiesFor("plus")) {
+  const notImpl = <A>(): Effect.Effect<A> =>
+    Effect.die("Billing stub method not implemented in test");
+  return Layer.succeed(
+    Billing,
+    new Billing({
+      capabilities: () => Effect.succeed(caps),
+      tier: notImpl,
+      subscription: notImpl,
+      getOverrides: notImpl,
+      setTier: notImpl,
+      setOverride: notImpl,
+      exists: notImpl,
+      listWithOwners: notImpl,
+    })
+  );
 }
 
 function runConnect(
@@ -46,12 +67,14 @@ function runConnect(
     session?: SessionData | null;
     apiKeyStore?: Partial<ApiKeyStore["Type"]>;
     verificationStore?: Partial<VerificationStore["Type"]>;
+    caps?: TierCapabilities;
   } = {}
 ) {
   const layer = Layer.mergeAll(
     makeSessionLayer(options.session ?? null),
     makeApiKeyLayer(options.apiKeyStore),
-    makeVerificationLayer(options.verificationStore)
+    makeVerificationLayer(options.verificationStore),
+    makeBillingLayer(options.caps)
   );
 
   return handleConnectRequest(new Headers()).pipe(
@@ -70,7 +93,8 @@ function runExchange(
   const layer = Layer.mergeAll(
     makeSessionLayer(null),
     makeApiKeyLayer(options.apiKeyStore),
-    makeVerificationLayer(options.verificationStore)
+    makeVerificationLayer(options.verificationStore),
+    makeBillingLayer()
   );
 
   return handleExchangeRequest(body).pipe(
@@ -104,10 +128,35 @@ describe("handleConnectRequest", () => {
     )
   );
 
-  it.effect("fails with KeyCreationError when create returns null", () =>
+  it.effect(
+    "fails with CapabilityDisabledError when org is on the free tier (no integrations)",
+    () =>
+      runConnect({
+        session: { userId: UserId.make("user-1"), orgId: OrgId.make("org-1") },
+        caps: capabilitiesFor("free"),
+      }).pipe(
+        Effect.flip,
+        Effect.tap((error) =>
+          Effect.sync(() => {
+            expect(error._tag).toBe("CapabilityDisabledError");
+            if (error._tag === "CapabilityDisabledError") {
+              expect(error.capability).toBe("integrations");
+              expect(error.requiredTier).toBe("plus");
+            }
+          })
+        )
+      )
+  );
+
+  it.effect("propagates KeyCreationError from create", () =>
     runConnect({
       session: { userId: UserId.make("user-1"), orgId: OrgId.make("org-1") },
-      apiKeyStore: { create: () => Effect.succeed(null) },
+      apiKeyStore: {
+        create: () =>
+          Effect.fail(
+            new KeyCreationError({ cause: new Error("createApiKey threw") })
+          ),
+      },
     }).pipe(
       Effect.flip,
       Effect.tap((error) =>
@@ -209,8 +258,8 @@ describe("handleExchangeRequest", () => {
       )
   );
 
-  it.effect("returns apiKey and deletes verification on success", () => {
-    let deletedId: string | null = null;
+  it.effect("returns apiKey and consumes verification on success", () => {
+    let consumedIdentifier: string | null = null;
     const storedData = {
       key: "lb_test_key_123",
       keyId: "key-id-1",
@@ -220,13 +269,11 @@ describe("handleExchangeRequest", () => {
       { code: "valid-code" },
       {
         verificationStore: {
-          findValid: (identifier) =>
-            identifier === "raycast-connect:valid-code"
+          consumeByIdentifier: (identifier) => {
+            consumedIdentifier = identifier;
+            return identifier === "raycast-connect:valid-code"
               ? Effect.succeed({ id: "ver-1", data: storedData })
-              : Effect.succeed(null),
-          deleteById: (id) => {
-            deletedId = id;
-            return Effect.void;
+              : Effect.succeed(null);
           },
         },
       }
@@ -234,11 +281,48 @@ describe("handleExchangeRequest", () => {
       Effect.tap((result) =>
         Effect.sync(() => {
           expect(result).toEqual({ apiKey: "lb_test_key_123" });
-          expect(deletedId).toBe("ver-1");
+          expect(consumedIdentifier).toBe("raycast-connect:valid-code");
         })
       )
     );
   });
+
+  it.effect(
+    "second concurrent exchange of the same code yields InvalidCodeError",
+    () => {
+      // Models the race-lost path: the first concurrent caller wins the
+      // DELETE...RETURNING and the row is gone; the second sees null.
+      let calls = 0;
+      const storedData = {
+        key: "lb_test_key_123",
+        keyId: "key-id-1",
+      };
+
+      const verificationStore: Partial<VerificationStore["Type"]> = {
+        consumeByIdentifier: (identifier) => {
+          calls += 1;
+          if (calls === 1 && identifier === "raycast-connect:valid-code") {
+            return Effect.succeed({ id: "ver-1", data: storedData });
+          }
+          return Effect.succeed(null);
+        },
+      };
+
+      return Effect.gen(function* () {
+        const winner = yield* runExchange(
+          { code: "valid-code" },
+          { verificationStore }
+        );
+        expect(winner).toEqual({ apiKey: "lb_test_key_123" });
+
+        const loser = yield* runExchange(
+          { code: "valid-code" },
+          { verificationStore }
+        ).pipe(Effect.flip);
+        expect(loser._tag).toBe("InvalidCodeError");
+      });
+    }
+  );
 
   it.effect("updates key name with device name when provided", () => {
     let updatedId: string | null = null;
@@ -259,11 +343,10 @@ describe("handleExchangeRequest", () => {
           },
         },
         verificationStore: {
-          findValid: (identifier) =>
+          consumeByIdentifier: (identifier) =>
             identifier === "raycast-connect:valid-code"
               ? Effect.succeed({ id: "ver-1", data: storedData })
               : Effect.succeed(null),
-          deleteById: () => Effect.void,
         },
       }
     ).pipe(
@@ -293,11 +376,10 @@ describe("handleExchangeRequest", () => {
           },
         },
         verificationStore: {
-          findValid: (identifier) =>
+          consumeByIdentifier: (identifier) =>
             identifier === "raycast-connect:valid-code"
               ? Effect.succeed({ id: "ver-1", data: storedData })
               : Effect.succeed(null),
-          deleteById: () => Effect.void,
         },
       }
     ).pipe(

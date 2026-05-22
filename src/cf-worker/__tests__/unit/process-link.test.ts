@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { it, describe, expect, beforeEach, afterEach } from "@effect/vitest";
-import { Effect, Layer } from "effect";
+import { Cause, Effect, Layer } from "effect";
 
 import {
   makeTestStore,
@@ -18,7 +18,10 @@ import {
   LinkEventStore,
   MetadataFetcher,
 } from "../../link-processor/services";
+import type { MetadataFetchFailure } from "../../link-processor/services";
 import { LinkEventStoreLive } from "../../link-processor/services/link-event-store.live";
+import { MetadataFetchError, MetadataParseError } from "../../metadata/errors";
+import { OgMetadata } from "../../metadata/schema";
 
 const testLink = { id: LinkId.make("link-1"), url: "https://example.com" };
 
@@ -81,7 +84,8 @@ function buildTestLayers(
       description?: string;
       favicon?: string;
       image?: string;
-    } | null;
+    };
+    metadataError?: MetadataFetchFailure;
     content?: {
       title: string | null;
       content: string;
@@ -94,7 +98,10 @@ function buildTestLayers(
 ) {
   return Layer.mergeAll(
     Layer.succeed(MetadataFetcher, {
-      fetch: () => Effect.succeed(options.metadata ?? null),
+      fetch: () =>
+        options.metadataError
+          ? Effect.fail(options.metadataError)
+          : Effect.succeed(OgMetadata.make(options.metadata ?? {})),
     }),
     Layer.succeed(ContentExtractor, {
       extract: () => Effect.succeed(options.content ?? null),
@@ -131,22 +138,24 @@ describe("processLink", () => {
     )
   );
 
-  it.effect("completes without metadata when fetch returns null", () =>
-    processLink({ link: testLink }).pipe(
-      Effect.provide(buildTestLayers({ metadata: null })),
-      silentLogger,
-      Effect.tap(() =>
-        Effect.sync(() => {
-          const status = store.query(
-            tables.linkProcessingStatus.where({ linkId: testLink.id })
-          )[0];
-          expect(status.status).toBe("completed");
-          expect(
-            store.query(tables.linkSnapshots.where({ linkId: testLink.id }))
-          ).toHaveLength(0);
-        })
+  it.effect(
+    "completes without writing a snapshot when fetch yields empty metadata",
+    () =>
+      processLink({ link: testLink }).pipe(
+        Effect.provide(buildTestLayers({})),
+        silentLogger,
+        Effect.tap(() =>
+          Effect.sync(() => {
+            const status = store.query(
+              tables.linkProcessingStatus.where({ linkId: testLink.id })
+            )[0];
+            expect(status.status).toBe("completed");
+            expect(
+              store.query(tables.linkSnapshots.where({ linkId: testLink.id }))
+            ).toHaveLength(0);
+          })
+        )
       )
-    )
   );
 
   it.effect("generates summary and suggests tags when AI enabled", () =>
@@ -238,6 +247,82 @@ describe("processLink", () => {
           )[0];
           expect(status.status).toBe("failed");
           expect(status.error).toBe("Defect");
+        })
+      )
+    )
+  );
+
+  it.effect(
+    "records fetch:<code> when metadata fetch fails with HTTP status",
+    () =>
+      processLink({ link: testLink }).pipe(
+        Effect.provide(
+          buildTestLayers({
+            metadataError: new MetadataFetchError({
+              statusCode: 404,
+              url: testLink.url,
+            }),
+          })
+        ),
+        silentLogger,
+        Effect.tap(() =>
+          Effect.sync(() => {
+            const status = store.query(
+              tables.linkProcessingStatus.where({ linkId: testLink.id })
+            )[0];
+            expect(status.status).toBe("failed");
+            expect(status.error).toBe("fetch:404");
+            // Snapshot is not written when fetch fails.
+            expect(
+              store.query(tables.linkSnapshots.where({ linkId: testLink.id }))
+            ).toHaveLength(0);
+          })
+        )
+      )
+  );
+
+  it.effect("records fetch:unreadable when metadata parsing fails", () =>
+    processLink({ link: testLink }).pipe(
+      Effect.provide(
+        buildTestLayers({
+          metadataError: new MetadataParseError({
+            cause: new Error("malformed html"),
+            url: testLink.url,
+          }),
+        })
+      ),
+      silentLogger,
+      Effect.tap(() =>
+        Effect.sync(() => {
+          const status = store.query(
+            tables.linkProcessingStatus.where({ linkId: testLink.id })
+          )[0];
+          expect(status.status).toBe("failed");
+          expect(status.error).toBe("fetch:unreadable");
+          expect(
+            store.query(tables.linkSnapshots.where({ linkId: testLink.id }))
+          ).toHaveLength(0);
+        })
+      )
+    )
+  );
+
+  it.effect("records fetch:timeout when metadata fetch times out", () =>
+    processLink({ link: testLink }).pipe(
+      Effect.provide(
+        buildTestLayers({ metadataError: new Cause.TimeoutException() })
+      ),
+      silentLogger,
+      Effect.tap(() =>
+        Effect.sync(() => {
+          const status = store.query(
+            tables.linkProcessingStatus.where({ linkId: testLink.id })
+          )[0];
+          expect(status.status).toBe("failed");
+          expect(status.error).toBe("fetch:timeout");
+          expect(
+            store.query(tables.linkSnapshots.where({ linkId: testLink.id }))
+          ).toHaveLength(0);
         })
       )
     )
@@ -409,7 +494,7 @@ describe("processLink", () => {
 
   it.effect("skipStartedEvent suppresses linkProcessingStarted", () =>
     processLink({ link: testLink, skipStartedEvent: true }).pipe(
-      Effect.provide(buildTestLayers({ metadata: null })),
+      Effect.provide(buildTestLayers({})),
       silentLogger,
       Effect.tap(() =>
         Effect.sync(() => {
@@ -426,7 +511,7 @@ describe("processLink", () => {
 
   it.effect("default emits linkProcessingStarted as first event", () =>
     processLink({ link: testLink }).pipe(
-      Effect.provide(buildTestLayers({ metadata: null })),
+      Effect.provide(buildTestLayers({})),
       silentLogger,
       Effect.tap(() =>
         Effect.sync(() => {

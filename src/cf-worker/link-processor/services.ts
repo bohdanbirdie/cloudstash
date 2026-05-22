@@ -1,13 +1,23 @@
 import { Context } from "effect";
-import type { Effect } from "effect";
+import type { Effect, Cause } from "effect";
 import type { ZodType } from "zod";
+
+import type { TierCapabilities } from "@/lib/plan";
 
 import type { events, tables } from "../../livestore/schema";
 import type { LinkId, OrgId, TagId } from "../db/branded";
-import type { OrgFeatures } from "../db/schema";
+import type {
+  MetadataFetchError,
+  MetadataParseError,
+} from "../metadata/errors";
 import type { OgMetadata } from "../metadata/schema";
 import type { ExtractedContent } from "./content-extractor";
 import type { AiCallError } from "./errors";
+
+export type MetadataFetchFailure =
+  | MetadataFetchError
+  | MetadataParseError
+  | Cause.TimeoutException;
 
 type EventCreators = typeof events;
 export type StoreEvent = {
@@ -19,7 +29,11 @@ export type Status = typeof tables.linkProcessingStatus.Type;
 
 export class MetadataFetcher extends Context.Tag("MetadataFetcher")<
   MetadataFetcher,
-  { readonly fetch: (url: string) => Effect.Effect<OgMetadata | null> }
+  {
+    readonly fetch: (
+      url: string
+    ) => Effect.Effect<OgMetadata, MetadataFetchFailure>;
+  }
 >() {}
 
 export class ContentExtractor extends Context.Tag("ContentExtractor")<
@@ -108,7 +122,9 @@ export class SourceNotifier extends Context.Tag("SourceNotifier")<
 export class FeatureStore extends Context.Tag("FeatureStore")<
   FeatureStore,
   {
-    readonly getFeatures: (storeId: OrgId) => Effect.Effect<OrgFeatures>;
+    readonly getCapabilities: (
+      storeId: OrgId
+    ) => Effect.Effect<TierCapabilities>;
   }
 >() {}
 

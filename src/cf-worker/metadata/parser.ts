@@ -1,23 +1,45 @@
 /// <reference types="@cloudflare/workers-types" />
-import { Match, Schema } from "effect";
+import { Match, Option, Schema } from "effect";
 
 import { decodeHtmlEntities } from "./decode-entities";
+import { parseJsonLd } from "./jsonld";
 import { ResolvedUrl } from "./schema";
+
+export interface MetadataResult {
+  title?: string;
+  description?: string;
+  image?: string;
+  favicon?: string;
+}
 
 export class MetadataParser implements HTMLRewriterElementContentHandlers {
   title: string | undefined;
   description: string | undefined;
   image: string | undefined;
   favicon: string | undefined;
-  ogUrl: string | undefined;
 
   private resolveUrl: (url: string) => string;
   private titleText = "";
   private inTitle = false;
 
+  private inJsonLd = false;
+  private jsonLdRaw = "";
+  private jsonLdTitle: string | undefined;
+  private jsonLdDescription: string | undefined;
+  private jsonLdImage: string | undefined;
+
   constructor(baseUrl: string) {
     const urlSchema = ResolvedUrl(baseUrl);
     this.resolveUrl = (url: string) => Schema.decodeUnknownSync(urlSchema)(url);
+  }
+
+  getResult(): MetadataResult {
+    return {
+      title: this.jsonLdTitle ?? this.title,
+      description: this.jsonLdDescription ?? this.description,
+      image: this.jsonLdImage ?? this.image,
+      favicon: this.favicon,
+    };
   }
 
   element(element: Element) {
@@ -25,6 +47,15 @@ export class MetadataParser implements HTMLRewriterElementContentHandlers {
 
     if (tagName === "title") {
       this.inTitle = true;
+      return;
+    }
+
+    if (tagName === "script") {
+      const type = element.getAttribute("type");
+      if (type === "application/ld+json") {
+        this.inJsonLd = true;
+        this.jsonLdRaw = "";
+      }
       return;
     }
 
@@ -37,38 +68,23 @@ export class MetadataParser implements HTMLRewriterElementContentHandlers {
         return;
       }
 
-      const isTitle = (p: string | null) =>
-        p === "og:title" || p === "twitter:title";
-      const isDescription = (p: string | null) =>
-        p === "og:description" ||
-        p === "twitter:description" ||
-        p === "description";
-      const isImage = (p: string | null) =>
-        p === "og:image" || p === "twitter:image";
-
-      Match.value(property).pipe(
-        Match.when(isTitle, () => {
-          if (!this.title) {
-            this.title = decodeHtmlEntities(content);
-          }
-        }),
-        Match.when(isDescription, () => {
-          if (!this.description) {
-            this.description = decodeHtmlEntities(content);
-          }
-        }),
-        Match.when(isImage, () => {
-          if (!this.image) {
-            this.image = this.resolveUrl(content);
-          }
-        }),
-        Match.when("og:url", () => {
-          if (!this.ogUrl) {
-            this.ogUrl = content;
-          }
-        }),
-        Match.orElse(() => {})
+      const field = Match.value(property).pipe(
+        Match.whenOr("og:title", "twitter:title", () => "title" as const),
+        Match.whenOr(
+          "og:description",
+          "twitter:description",
+          "description",
+          () => "description" as const
+        ),
+        Match.whenOr("og:image", "twitter:image", () => "image" as const),
+        Match.option
       );
+
+      if (Option.isNone(field) || this[field.value]) return;
+
+      const decoded = decodeHtmlEntities(content);
+      this[field.value] =
+        field.value === "image" ? this.resolveUrl(decoded) : decoded;
     }
 
     if (tagName === "link") {
@@ -82,7 +98,7 @@ export class MetadataParser implements HTMLRewriterElementContentHandlers {
           rel === "apple-touch-icon")
       ) {
         if (!this.favicon) {
-          this.favicon = this.resolveUrl(href);
+          this.favicon = this.resolveUrl(decodeHtmlEntities(href));
         }
       }
     }
@@ -95,6 +111,27 @@ export class MetadataParser implements HTMLRewriterElementContentHandlers {
         this.inTitle = false;
         if (!this.title && this.titleText.trim()) {
           this.title = decodeHtmlEntities(this.titleText.trim());
+        }
+      }
+    }
+
+    if (this.inJsonLd) {
+      this.jsonLdRaw += text.text;
+      if (text.lastInTextNode) {
+        this.inJsonLd = false;
+        const parsed = parseJsonLd(this.jsonLdRaw);
+        this.jsonLdRaw = "";
+        if (!this.jsonLdTitle && parsed.title) {
+          this.jsonLdTitle = decodeHtmlEntities(parsed.title);
+        }
+        if (!this.jsonLdDescription && parsed.description) {
+          this.jsonLdDescription = decodeHtmlEntities(parsed.description);
+        }
+        if (!this.jsonLdImage && parsed.image) {
+          // JSON-LD lives inside <script>, which HTML5 spec leaves as raw text
+          // (entities are NOT decoded). Image URLs therefore arrive with literal
+          // `&amp;` etc. and must be decoded before use.
+          this.jsonLdImage = this.resolveUrl(decodeHtmlEntities(parsed.image));
         }
       }
     }

@@ -74,6 +74,12 @@ export const tables = {
       favicon: State.SQLite.text({ nullable: true }),
       fetchedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
     },
+    indexes: [
+      {
+        columns: ["linkId", "fetchedAt"],
+        name: "idx_link_snapshots_link_fetched",
+      },
+    ],
     name: "link_snapshots",
   }),
   linkSummaries: State.SQLite.table({
@@ -84,6 +90,12 @@ export const tables = {
       model: State.SQLite.text({ default: "" }),
       summarizedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
     },
+    indexes: [
+      {
+        columns: ["linkId", "summarizedAt"],
+        name: "idx_link_summaries_link_summarized",
+      },
+    ],
     name: "link_summaries",
   }),
   links: State.SQLite.table({
@@ -106,6 +118,23 @@ export const tables = {
     },
     indexes: [
       { name: "idx_links_url_unique", columns: ["url"], isUnique: true },
+      // Inbox: WHERE status = 'unread' AND deletedAt IS NULL ORDER BY createdAt DESC
+      {
+        columns: ["status", "deletedAt", "createdAt"],
+        name: "idx_links_status_deleted_created",
+      },
+      // All: WHERE deletedAt IS NULL ORDER BY createdAt DESC
+      {
+        columns: ["deletedAt", "createdAt"],
+        name: "idx_links_deleted_created",
+      },
+      // Completed: WHERE status = 'completed' AND deletedAt IS NULL ORDER BY completedAt DESC
+      {
+        columns: ["status", "deletedAt", "completedAt"],
+        name: "idx_links_status_deleted_completed",
+      },
+      // Archive: WHERE deletedAt IS NOT NULL ORDER BY deletedAt DESC
+      { columns: ["deletedAt"], name: "idx_links_deleted" },
     ],
     name: "links",
   }),

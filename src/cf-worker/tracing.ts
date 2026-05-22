@@ -1,29 +1,16 @@
-import * as OtlpSerialization from "@effect/opentelemetry/OtlpSerialization";
-import * as OtlpTracer from "@effect/opentelemetry/OtlpTracer";
-import { FetchHttpClient } from "@effect/platform";
+import * as Resource from "@effect/opentelemetry/Resource";
+import * as Tracer from "@effect/opentelemetry/Tracer";
 import { Layer } from "effect";
 
-import type { Env } from "./shared";
-
-export const OtelTracingLive = (env: Env) => {
-  if (!env.AXIOM_API_TOKEN) {
-    return Layer.empty;
-  }
-
-  const dataset = env.AXIOM_DATASET ?? "cloudstash-traces";
-
-  return OtlpTracer.layer({
-    url: `https://api.axiom.co/v1/traces`,
-    headers: {
-      Authorization: `Bearer ${env.AXIOM_API_TOKEN}`,
-      "X-Axiom-Dataset": dataset,
-    },
-    resource: {
-      serviceName: "cloudstash-worker",
-      serviceVersion: "1.0.0",
-    },
-  }).pipe(
-    Layer.provide(FetchHttpClient.layer),
-    Layer.provide(OtlpSerialization.layerJson)
-  );
+const resource = {
+  serviceName: "cloudstash-worker",
+  serviceVersion: "1.0.0",
 };
+
+// Dev OTLP exporter (FetchHttpClient) was triggering "Disallowed operation
+// called within global scope" in workerd while we investigate the LP↔SB
+// livestore desync. Use the no-op global tracer everywhere until that's
+// resolved; flip back when ready to re-enable local OTLP.
+export const OtelTracingLive = Tracer.layerGlobal.pipe(
+  Layer.provide(Resource.layer(resource))
+);

@@ -1,5 +1,6 @@
 export {
   handleListWorkspaces,
   handleGetOrgSettings,
-  handleUpdateOrgSettings,
+  handleSetTier,
+  handleSetOverride,
 } from "./workspaces";

@@ -53,7 +53,7 @@ export function ConversationScrollButton({
   return (
     <Button
       className={cn(
-        "absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full",
+        "absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-background shadow-sm",
         className
       )}
       onClick={handleScrollToBottom}

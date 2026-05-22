@@ -1,0 +1,66 @@
+import { Effect } from "effect";
+
+import { maskId } from "../../log-utils";
+import type { Env } from "../../shared";
+import { StripeConfigError } from "../errors";
+import { StripeClient } from "../stripe-client";
+import { getOrCreateStripeCustomer } from "../stripe-sync";
+import {
+  configErrorResponse,
+  dbErrorResponse,
+  forbidden,
+  invalidBodyResponse,
+  sessionErrorTags,
+  stripeErrorResponse,
+} from "./responses";
+import { isCrossSite, runBilling } from "./runtime";
+import { appBaseUrl, CheckoutBody, decodeBody, requireOrg } from "./shared";
+
+const checkoutRequest = Effect.fn("Billing.checkout")(function* (
+  request: Request,
+  env: Env
+) {
+  const { orgId } = yield* requireOrg(request.headers);
+  const body = yield* decodeBody(request, CheckoutBody);
+  const stripe = yield* StripeClient;
+
+  const priceId = stripe.priceForTier(body.tier);
+  if (!priceId) {
+    return yield* new StripeConfigError({
+      message: `no price configured for tier ${body.tier}`,
+    });
+  }
+
+  const customerId = yield* getOrCreateStripeCustomer(orgId);
+  const base = appBaseUrl(request, env);
+
+  const session = yield* stripe.createCheckoutSession({
+    customerId,
+    priceId,
+    successUrl: `${base}/api/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancelUrl: `${base}/inbox`,
+    idempotencyKey: crypto.randomUUID(),
+  });
+
+  yield* Effect.annotateCurrentSpan({ orgId: maskId(orgId), tier: body.tier });
+  return Response.json({ url: session.url });
+});
+
+export const checkoutProgram = (request: Request, env: Env) =>
+  checkoutRequest(request, env).pipe(
+    Effect.catchTags({
+      ...sessionErrorTags,
+      InvalidBodyError: invalidBodyResponse,
+      StripeConfigError: configErrorResponse,
+      StripeApiError: stripeErrorResponse,
+      DbError: dbErrorResponse,
+    })
+  );
+
+export const handleBillingCheckout = (
+  request: Request,
+  env: Env
+): Promise<Response> => {
+  if (isCrossSite(request)) return Promise.resolve(forbidden());
+  return runBilling(checkoutProgram(request, env), env);
+};

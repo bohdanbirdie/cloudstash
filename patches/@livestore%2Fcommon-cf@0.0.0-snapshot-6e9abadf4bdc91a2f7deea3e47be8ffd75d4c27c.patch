@@ -1,0 +1,86 @@
+diff --git a/dist/do-rpc/client.js b/dist/do-rpc/client.js
+index 6aa2a24a0956bcf373c14179e6e6d0917942b2fa..fb4f75dc7bfc00393be80232e7058971a8324ce8 100644
+--- a/dist/do-rpc/client.js
++++ b/dist/do-rpc/client.js
+@@ -6,28 +6,48 @@ import { Effect, Fiber, FiberMap, Layer, RpcClient, RpcSerialization, } from '@l
+ const processReadableStream = (stream, parser, writeResponse) => Effect.gen(function* () {
+     const reader = stream.getReader();
+     yield* Effect.gen(function* () {
++        // Drain the full stream into one buffer BEFORE decoding.
++        //
++        // Why: with msgpackr's `useRecords: true`, the parser greedily reads N
++        // record-references for an array(N) header even when the buffer is
++        // truncated mid-record. It returns a "successful" but garbage decode
++        // instead of throwing `incomplete`. If we then try to writeResponse the
++        // garbage, schema validation throws, which aborts this loop before any
++        // remaining stream chunks get read — so we permanently lose the rest of
++        // the stream's bytes. Draining first guarantees the decoder always sees
++        // a complete buffer.
++        const chunks = [];
++        let totalBytes = 0;
+         while (true) {
+             const { done, value } = yield* Effect.tryPromise(() => reader.read()).pipe(Effect.orDie);
+             if (done === true) {
+                 break;
+             }
+-            // Decode the chunk
+-            const decoded = parser.decode(value);
+-            // Handle array of messages from server.
+-            // Server sends `parser.encode([message])` per enqueue, so each decoded value is `[message]`.
+-            // When CF DO RPC merges enqueues in production, we get `[[msg1], [msg2], ...]`.
+-            // `flat(1)` normalizes both single and merged cases to `[msg1, msg2, ...]`.
+-            let messages;
+-            if (Array.isArray(decoded) === true) {
+-                messages = decoded.flat(1);
+-            }
+-            else {
+-                messages = [decoded];
+-            }
+-            // Write each message
+-            for (const message of messages) {
+-                yield* writeResponse(message);
+-            }
++            chunks.push(value);
++            totalBytes += value.byteLength;
++        }
++        const combined = new Uint8Array(totalBytes);
++        let off = 0;
++        for (const c of chunks) {
++            combined.set(c, off);
++            off += c.byteLength;
++        }
++        // Decode the full buffer
++        const decoded = parser.decode(combined);
++        // Handle array of messages from server.
++        // Server sends `parser.encode([message])` per enqueue, so each decoded value is `[message]`.
++        // When CF DO RPC merges enqueues in production, we get `[[msg1], [msg2], ...]`.
++        // `flat(1)` normalizes both single and merged cases to `[msg1, msg2, ...]`.
++        let messages;
++        if (Array.isArray(decoded) === true) {
++            messages = decoded.flat(1);
++        }
++        else {
++            messages = [decoded];
++        }
++        // Write each message
++        for (const message of messages) {
++            yield* writeResponse(message);
+         }
+     }).pipe(Effect.withSpan('do-rpc-client:processReadableStream'), Effect.ensuring(Effect.promise(() => reader.cancel()).pipe(Effect.andThen(() => Effect.sync(() => reader.releaseLock())))));
+ });
+diff --git a/dist/do-rpc/server.js b/dist/do-rpc/server.js
+index 053586432d80472e796b3c09b56f060c163de685..dd7e538d5916174257e1647d5eaecc12664cb955 100644
+--- a/dist/do-rpc/server.js
++++ b/dist/do-rpc/server.js
+@@ -194,8 +194,9 @@ const createStreamingResponse = (rpc, entry, request, parser, layer) => Effect.g
+                 controller.enqueue(exitSerialized);
+                 controller.close();
+             })));
+-            // Run the stream processing
+-            runStream.pipe(Effect.provide(layer), Effect.scoped, Effect.tapCauseLogPretty, Effect.runPromise);
++            // Run the stream processing — return the promise so ReadableStream
++            // keeps the stream open until all chunks are enqueued and close() is called.
++            return runStream.pipe(Effect.provide(layer), Effect.scoped, Effect.tapCauseLogPretty, Effect.runPromise);
+         },
+         // oxlint-disable-next-line typescript-eslint(no-unsafe-type-assertion) -- bridging standard Web API ReadableStream to Cloudflare Worker ReadableStream type
+     });

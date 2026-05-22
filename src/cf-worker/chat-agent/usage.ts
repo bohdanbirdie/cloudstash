@@ -5,8 +5,6 @@ export const MODEL_PRICING: Record<
   "google/gemini-2.5-flash": { inputPer1M: 0.3, outputPer1M: 2.5 },
 };
 
-export const DEFAULT_MONTHLY_BUDGET = 0.5; // USD
-
 /** Chat workloads are roughly 4:1 input:output */
 export const INPUT_OUTPUT_RATIO = 4;
 
@@ -36,7 +34,12 @@ export function budgetToTokenLimit(
 export type UsageData = {
   promptTokens: number;
   completionTokens: number;
+  // In-flight reservation; counts against the cap so concurrent messages
+  // can't all observe the same pre-stream usage and bypass it together.
+  reservedTokens?: number;
 };
+
+export const ESTIMATED_TOKENS_PER_CALL = 10_000;
 
 const USAGE_KEY_PREFIX = "usage:";
 
@@ -50,6 +53,9 @@ export function getCurrentPeriod(): string {
 
 export const LIMIT_REACHED_MESSAGE =
   "You've reached your monthly usage limit for the chat agent. Your limit resets at the start of next month. If you need a higher limit, please contact your workspace admin.";
+
+export const BUDGET_UNAVAILABLE_MESSAGE =
+  "Chat is temporarily unavailable while we verify your workspace's plan. Please try again in a moment.";
 
 /** State broadcast from ChatAgentDO to connected clients */
 export type ChatAgentState = {

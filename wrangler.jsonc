@@ -1,0 +1,100 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cloudstash",
+  "main": "./src/cf-worker/index.ts",
+  "compatibility_date": "2026-04-14",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // SPA + API model: Cloudflare's edge serves the static build (HTML, JS,
+  // CSS, favicons) directly. `run_worker_first` paths bypass the assets
+  // binding and go to the Worker — everything else falls back to index.html
+  // so client-side routing handles /inbox, /all, etc.
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/sync*", "/api/*", "/agents/*"],
+  },
+
+  "ai": {
+    "binding": "AI",
+  },
+
+  "durable_objects": {
+    "bindings": [
+      { "name": "SYNC_BACKEND_DO", "class_name": "SyncBackendDO" },
+      { "name": "LINK_PROCESSOR_DO", "class_name": "LinkProcessorDO" },
+      { "name": "Chat", "class_name": "ChatAgentDO" },
+      { "name": "X_BOOKMARK_SYNC_DO", "class_name": "XBookmarkSyncDO" },
+    ],
+  },
+
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["SyncBackendDO"] },
+    { "tag": "v2", "new_sqlite_classes": ["LinkProcessorDO"] },
+    { "tag": "v3", "new_sqlite_classes": ["ChatAgentDO"] },
+    { "tag": "v4", "new_sqlite_classes": ["XBookmarkSyncDO"] },
+  ],
+
+  "workflows": [
+    {
+      "name": "account-deletion",
+      "binding": "ACCOUNT_DELETION",
+      "class_name": "AccountDeletionWorkflow",
+    },
+  ],
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cloudstash",
+      "database_id": "9b96a105-9bb7-4ba5-bbe8-1ded0b148f29",
+      "migrations_dir": "drizzle/migrations",
+    },
+  ],
+
+  "kv_namespaces": [
+    {
+      "binding": "TELEGRAM_KV",
+      "id": "2ba7eb003f494031ae9fee505ee6111a",
+    },
+  ],
+
+  "ratelimits": [
+    {
+      "name": "SYNC_RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 30, "period": 60 },
+    },
+  ],
+
+  "analytics_engine_datasets": [
+    { "binding": "USAGE_ANALYTICS", "dataset": "cloudstash_usage" },
+  ],
+
+  "queues": {
+    "producers": [
+      { "binding": "LINK_QUEUE", "queue": "cloudstash-link-queue" },
+    ],
+    "consumers": [
+      {
+        "queue": "cloudstash-link-queue",
+        "max_batch_size": 5,
+        "max_concurrency": 1,
+        "max_retries": 3,
+        "dead_letter_queue": "cloudstash-link-dlq",
+      },
+    ],
+  },
+
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+    },
+  },
+}

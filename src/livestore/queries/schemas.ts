@@ -36,6 +36,24 @@ export const TagSuggestionSchema = Schema.Struct({
 
 export type TagSuggestion = typeof TagSuggestionSchema.Type;
 
+export const LinkListItemSchema = Schema.Struct({
+  id: Schema.String,
+  url: Schema.String,
+  domain: Schema.String,
+  status: Schema.String,
+  createdAt: Schema.Number,
+  completedAt: Schema.NullOr(Schema.Number),
+  deletedAt: Schema.NullOr(Schema.Number),
+  title: Schema.NullOr(Schema.String),
+  description: Schema.NullOr(Schema.String),
+  image: Schema.NullOr(Schema.String),
+  favicon: Schema.NullOr(Schema.String),
+});
+
+export type LinkListItem = typeof LinkListItemSchema.Type;
+
+export const linksListSchema = Schema.Array(LinkListItemSchema);
+
 export const LinkWithDetailsSchema = Schema.Struct({
   id: Schema.String,
   url: Schema.String,

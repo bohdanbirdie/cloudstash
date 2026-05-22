@@ -1,3 +1,8 @@
 # https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /_authed/
+Disallow: /api/
+Disallow: /connect/
+
+Sitemap: https://cloudstash.dev/sitemap.xml

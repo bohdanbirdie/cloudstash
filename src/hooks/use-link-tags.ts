@@ -1,5 +1,3 @@
-import { useCallback, useMemo } from "react";
-
 import { track } from "@/lib/analytics";
 import { tagsForLink$ } from "@/livestore/queries/tags";
 import { events } from "@/livestore/schema";
@@ -8,44 +6,35 @@ import { useAppStore } from "@/livestore/store";
 export function useLinkTags(linkId: string) {
   const store = useAppStore();
   const tags = store.useQuery(tagsForLink$(linkId));
+  const tagIds = tags.map((t) => t.id);
 
-  const tagIds = useMemo(() => tags.map((t) => t.id), [tags]);
+  const setTagIds = (newTagIds: string[]) => {
+    const currentIds = new Set(tagIds);
+    const newIds = new Set(newTagIds);
+    const createdAt = new Date();
 
-  const setTagIds = useCallback(
-    (newTagIds: string[]) => {
-      const currentIds = new Set(tagIds);
-      const newIds = new Set(newTagIds);
+    const removeEvents = [...currentIds]
+      .filter((id) => !newIds.has(id))
+      .map((id) => events.linkUntaggedV2({ linkId, tagId: id }));
 
-      let added = 0;
-      let removed = 0;
+    const addEvents = [...newIds]
+      .filter((id) => !currentIds.has(id))
+      .map((id) =>
+        events.linkTagged({
+          createdAt,
+          id: `${linkId}-${id}`,
+          linkId,
+          tagId: id,
+        })
+      );
 
-      for (const id of currentIds) {
-        if (!newIds.has(id)) {
-          store.commit(events.linkUntaggedV2({ linkId, tagId: id }));
-          removed++;
-        }
-      }
+    if (removeEvents.length === 0 && addEvents.length === 0) return;
 
-      for (const id of newIds) {
-        if (!currentIds.has(id)) {
-          const linkTagId = `${linkId}-${id}`;
-          store.commit(
-            events.linkTagged({
-              createdAt: new Date(),
-              id: linkTagId,
-              linkId,
-              tagId: id,
-            })
-          );
-          added++;
-        }
-      }
+    store.commit(...removeEvents, ...addEvents);
+    if (addEvents.length > 0) track("link_tagged", { count: addEvents.length });
+    if (removeEvents.length > 0)
+      track("link_untagged", { count: removeEvents.length });
+  };
 
-      if (added > 0) track("link_tagged", { count: added });
-      if (removed > 0) track("link_untagged", { count: removed });
-    },
-    [store, linkId, tagIds]
-  );
-
-  return { tags, tagIds, setTagIds };
+  return { tagIds, setTagIds };
 }

@@ -314,7 +314,7 @@ describe("generateSummary", () => {
           expect(getParams().system).toContain(
             "summarization and categorization"
           );
-          expect(getParams().maxOutputTokens).toBe(250);
+          expect(getParams().maxOutputTokens).toBe(512);
         })
       )
     );

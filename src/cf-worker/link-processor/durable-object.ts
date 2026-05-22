@@ -8,12 +8,16 @@ import { DurableObject } from "cloudflare:workers";
 import { Effect, Layer } from "effect";
 
 import { events, schema, tables } from "../../livestore/schema";
+import { Billing } from "../billing/service";
 import { LinkId, OrgId } from "../db/branded";
 import { DbClientLive } from "../db/service";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
-import { OrgFeaturesLive } from "../org/features-service";
 import type { Env } from "../shared";
+import {
+  isDeletionTombstoneSet,
+  setDeletionTombstone,
+} from "./deletion-tombstone";
 import { cancelStaleLinks, ingestLink, notifyResult } from "./do-programs";
 import type { NotifyResultParams } from "./do-programs";
 import { runEffect } from "./logger";
@@ -27,11 +31,11 @@ import { LinkRepositoryLive } from "./services/link-repository.live";
 import { MetadataFetcherLive } from "./services/metadata-fetcher.live";
 import { SourceNotifierLive } from "./services/source-notifier.live";
 import { WorkersAiLive } from "./services/workers-ai.live";
+import { MAX_CONCURRENT_AI, MAX_CONCURRENT_METADATA } from "./types";
 import type { LinkQueueMessage } from "./types";
 
 const logger = logSync("LinkProcessorDO");
 
-const MAX_CONCURRENT_LINKS = 5;
 const MAX_NOTIFIED_LINK_IDS = 500;
 
 import {
@@ -48,12 +52,15 @@ export class LinkProcessorDO
 {
   override __DURABLE_OBJECT_BRAND = "link-processor-do" as never;
 
-  private storeId: string | undefined;
+  private storeId: OrgId | undefined;
   private cachedStore: Store<typeof schema> | undefined;
   private storeCreationPromise: Promise<Store<typeof schema>> | undefined;
   private subscription: Unsubscribe | undefined;
   private submittedLinks = new Set<string>();
-  private semaphore = Effect.unsafeMakeSemaphore(MAX_CONCURRENT_LINKS);
+  private metadataSemaphore = Effect.unsafeMakeSemaphore(
+    MAX_CONCURRENT_METADATA
+  );
+  private aiSemaphore = Effect.unsafeMakeSemaphore(MAX_CONCURRENT_AI);
   private notifiedLinkIds = new Set<string>();
   private hasRunCleanup = false;
   private totalRowsWritten = 0;
@@ -66,6 +73,47 @@ export class LinkProcessorDO
       this.totalRowsWritten += cursor.rowsWritten;
       return cursor;
     }) as typeof origExec;
+  }
+
+  /**
+   * Persistent tombstone + tear-down of in-memory store handles. Called by
+   * `AccountDeletionWorkflow` *before* `purgeAll`, so any concurrent queue
+   * message that arrives between this call and the wipe drops on the
+   * tombstone check at the top of `ingestAndProcess`.
+   */
+  async markDeleting(): Promise<void> {
+    await runEffect(
+      Effect.gen(this, function* () {
+        yield* Effect.promise(() => setDeletionTombstone(this.ctx.storage));
+        this.subscription?.();
+        this.subscription = undefined;
+        this.cachedStore = undefined;
+        this.storeCreationPromise = undefined;
+        yield* Effect.logInfo("markDeleting: tombstone set").pipe(
+          Effect.annotateLogs({ storeId: maskId(this.storeId ?? "") })
+        );
+      }).pipe(Effect.withSpan("LinkProcessorDO.markDeleting"))
+    );
+  }
+
+  /**
+   * In-flight Livestore writes can race `deleteAll()` — mitigated by the
+   * tombstone + DO eviction (see account-deletion.md, B1 deferred). The
+   * shutdown-promise + fiber-tracking workaround lives there too if needed.
+   */
+  async purgeAll(): Promise<void> {
+    await runEffect(
+      Effect.gen(this, function* () {
+        this.subscription?.();
+        this.subscription = undefined;
+        this.cachedStore = undefined;
+        this.storeCreationPromise = undefined;
+        yield* Effect.promise(() => this.ctx.storage.deleteAll());
+        yield* Effect.logInfo("purgeAll: storage wiped").pipe(
+          Effect.annotateLogs({ storeId: maskId(this.storeId ?? "") })
+        );
+      }).pipe(Effect.withSpan("LinkProcessorDO.purgeAll"))
+    );
   }
 
   private async getSessionId(): Promise<string> {
@@ -106,39 +154,9 @@ export class LinkProcessorDO
   private async createStoreInternal(): Promise<Store<typeof schema>> {
     const sessionId = await this.getSessionId();
 
-    // TODO: likely all thise custom SQL should be deleted, it's might be a leftover from our issue previous week, history is in git
-    let eventlogRows = 0;
-    let maxSeqNum = 0;
-    try {
-      const hasTable =
-        [
-          ...this.ctx.storage.sql
-            .exec<{ count: number }>(
-              "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='eventlog'"
-            )
-            .toArray(),
-        ][0]?.count ?? 0;
-
-      if (hasTable > 0) {
-        const stats = [
-          ...this.ctx.storage.sql
-            .exec<{ rows: number; maxSeq: number }>(
-              "SELECT COUNT(*) as rows, COALESCE(MAX(seqNumGlobal), 0) as maxSeq FROM eventlog"
-            )
-            .toArray(),
-        ][0];
-        eventlogRows = stats?.rows ?? 0;
-        maxSeqNum = stats?.maxSeq ?? 0;
-      }
-    } catch {
-      logger.warn("Failed to read eventlog stats");
-    }
-
     logger.info("Creating store", {
       sessionId: maskId(sessionId),
       storeId: maskId(this.storeId!),
-      existingEventlogRows: eventlogRows,
-      maxSeqNumGlobal: maxSeqNum,
     });
 
     this.cachedStore = await createStoreDoPromise({
@@ -227,15 +245,13 @@ export class LinkProcessorDO
             const isReprocess =
               statusMap.get(link.id)?.status === "reprocess-requested";
             return this.processLinkEffect(store, link, isReprocess).pipe(
-              this.semaphore.withPermits(1),
               Effect.ensuring(
                 Effect.sync(() => this.submittedLinks.delete(link.id))
               )
             );
           },
-          { concurrency: "unbounded", discard: true }
-        ),
-        this.env
+          { concurrency: MAX_CONCURRENT_METADATA, discard: true }
+        )
       );
     });
 
@@ -323,8 +339,7 @@ export class LinkProcessorDO
             });
           }),
           Effect.provide(this.buildDoLayer(store))
-        ),
-        this.env
+        )
       ).catch((error) => {
         logger.error("cancelStaleLinks failed", safeErrorInfo(error));
       });
@@ -357,15 +372,32 @@ export class LinkProcessorDO
 
       const rowsBefore = this.totalRowsWritten;
 
-      const features = yield* FeatureStore.pipe(
-        Effect.flatMap((fs) => fs.getFeatures(OrgId.make(this.storeId!))),
+      const capabilities = yield* FeatureStore.pipe(
+        Effect.flatMap((fs) => fs.getCapabilities(this.storeId!)),
         Effect.provide(
           FeatureStoreLive.pipe(
-            Layer.provide(OrgFeaturesLive),
+            Layer.provide(Billing.Default),
             Layer.provide(DbClientLive(this.env.DB))
           )
         ),
-        Effect.catchAllDefect(() => Effect.succeed({}))
+        Effect.catchAllDefect((defect) =>
+          Effect.logError(
+            "LinkProcessor: feature-store defect, downgrading capabilities"
+          ).pipe(
+            Effect.annotateLogs({
+              storeId: this.storeId,
+              cause: String(defect),
+            }),
+            Effect.as({ aiSummary: false } as { aiSummary: boolean })
+          )
+        )
+      );
+
+      yield* Effect.logDebug("LinkProcessor capabilities").pipe(
+        Effect.annotateLogs({
+          linkId: link.id,
+          aiSummary: capabilities.aiSummary,
+        })
       );
 
       const liveLayer = Layer.mergeAll(
@@ -376,10 +408,11 @@ export class LinkProcessorDO
       ).pipe(Layer.provide(WorkersAiLive(this.env.AI)));
 
       yield* processLink({
-        aiSummaryEnabled:
-          (features as { aiSummary?: boolean }).aiSummary ?? false,
+        aiSummaryEnabled: capabilities.aiSummary,
         link: { id: LinkId.make(link.id), url: link.url },
         skipStartedEvent: true,
+        metadataSemaphore: this.metadataSemaphore,
+        aiSemaphore: this.aiSemaphore,
       }).pipe(Effect.provide(liveLayer));
 
       yield* Effect.logInfo("Link processed").pipe(
@@ -442,8 +475,7 @@ export class LinkProcessorDO
           )
         ),
         Effect.provide(doLayer)
-      ),
-      this.env
+      )
     ).catch((error) => {
       logger.error("sendProgressDraft escaped", safeErrorInfo(error));
     });
@@ -465,8 +497,7 @@ export class LinkProcessorDO
             })
           ),
           Effect.provide(doLayer)
-        ),
-        this.env
+        )
       ).catch((error) => {
         logger.error("notifyResult effect failed", {
           ...safeErrorInfo(error),
@@ -484,13 +515,32 @@ export class LinkProcessorDO
       return new Response("Missing storeId", { status: 400 });
     }
 
+    if (this.ctx.id.name !== storeId) {
+      await runEffect(
+        Effect.logError("storeId mismatch in fetch").pipe(
+          Effect.annotateLogs({
+            expected: maskId(this.ctx.id.name ?? ""),
+            storeId: maskId(storeId),
+          }),
+          Effect.withSpan("LinkProcessorDO.storeIdMismatch", {
+            attributes: {
+              expected: maskId(this.ctx.id.name ?? ""),
+              route: "fetch",
+              storeId: maskId(storeId),
+            },
+          })
+        )
+      );
+      return new Response("storeId mismatch", { status: 400 });
+    }
+
     logger.info("fetch called (triggerLinkProcessor)", {
       hadCachedStore: !!this.cachedStore,
       hadSubscription: !!this.subscription,
       storeId: maskId(storeId),
     });
 
-    this.storeId = storeId;
+    this.storeId = OrgId.make(storeId);
     await this.ctx.storage.put("storeId", storeId);
 
     await this.ensureSubscribed();
@@ -500,6 +550,33 @@ export class LinkProcessorDO
   async ingestAndProcess(
     msg: LinkQueueMessage
   ): Promise<{ status: string; linkId?: string }> {
+    if (this.ctx.id.name !== msg.storeId) {
+      await runEffect(
+        Effect.logError("storeId mismatch in ingestAndProcess").pipe(
+          Effect.annotateLogs({
+            expected: maskId(this.ctx.id.name ?? ""),
+            storeId: maskId(msg.storeId),
+          }),
+          Effect.withSpan("LinkProcessorDO.storeIdMismatch", {
+            attributes: {
+              expected: maskId(this.ctx.id.name ?? ""),
+              route: "ingestAndProcess",
+              storeId: maskId(msg.storeId),
+            },
+          })
+        )
+      );
+      return { status: "rejected-storeid-mismatch" };
+    }
+
+    if (await isDeletionTombstoneSet(this.ctx.storage)) {
+      logger.info("ingestAndProcess dropped (deletion in progress)", {
+        storeId: maskId(msg.storeId),
+        url: msg.url,
+      });
+      return { status: "dropped-deletion" };
+    }
+
     logger.info("ingestAndProcess called", {
       source: msg.source,
       storeId: maskId(msg.storeId),
@@ -521,8 +598,7 @@ export class LinkProcessorDO
         storeId: msg.storeId,
         source: msg.source,
         sourceMeta: msg.sourceMeta,
-      }).pipe(Effect.provide(doLayer)),
-      this.env
+      }).pipe(Effect.provide(doLayer))
     );
 
     if (
@@ -550,7 +626,8 @@ export class LinkProcessorDO
     });
 
     if (!this.storeId) {
-      this.storeId = await this.ctx.storage.get<string>("storeId");
+      const stored = await this.ctx.storage.get<string>("storeId");
+      this.storeId = stored ? OrgId.make(stored) : undefined;
     }
 
     if (this.storeId) {

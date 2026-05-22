@@ -160,7 +160,6 @@ describe("createTools", () => {
         url: "https://test.com",
         title: "Test Title",
         description: "Test desc",
-        summary: "Test summary",
       });
     });
 
@@ -243,6 +242,57 @@ describe("createTools", () => {
         tables.links.where({ url: "https://example.com" })
       );
       expect(rows).toHaveLength(1);
+    });
+
+    it.each([
+      ["javascript:alert(1)"],
+      ["data:text/html,<script>alert(1)</script>"],
+      ["vbscript:msgbox(1)"],
+      ["file:///etc/passwd"],
+      ["ftp://example.com"],
+    ])("rejects non-http(s) scheme: %s", async (url) => {
+      const result = await tools.saveLink.execute!({ url }, stubCtx);
+
+      expect(result).toEqual({ success: false, error: "Invalid URL" });
+      const rows = store.query(tables.links.where({}));
+      expect(rows).toHaveLength(0);
+    });
+
+    it("surfaces existing id when post-commit re-resolve finds a different winner", async () => {
+      // The materializer's ON CONFLICT IGNORE on `url` swallows duplicate
+      // inserts; saveLink re-resolves by URL and reports the surviving id.
+      // We simulate that race by seeding a row with the same URL between the
+      // pre-check and the commit — done here by patching `store.commit` to
+      // seed the conflicting row before letting the original commit fire.
+      const url = "https://race.example.com";
+      const existingId = "existing-link-id";
+
+      const realCommit = store.commit.bind(store);
+      let raced = false;
+      store.commit = ((event: unknown) => {
+        if (!raced) {
+          raced = true;
+          realCommit(
+            events.linkCreatedV2({
+              createdAt: new Date(),
+              domain: "race.example.com",
+              id: existingId,
+              source: "test",
+              sourceMeta: null,
+              url,
+            })
+          );
+        }
+        return realCommit(event as Parameters<typeof realCommit>[0]);
+      }) as typeof store.commit;
+
+      const result = await tools.saveLink.execute!({ url }, stubCtx);
+
+      expect(result).toEqual({
+        success: false,
+        error: "Link already exists",
+        existingLinkId: existingId,
+      });
     });
   });
 
@@ -447,12 +497,12 @@ describe("createTools", () => {
       expect(result).toEqual({ error: "Link not found" });
     });
 
-    it("returns error when link is not in trash", async () => {
+    it("returns error when link is not in archive", async () => {
       const id = seedLink({ title: "Example Title" });
 
       const result = await tools.restoreLink.execute!({ id }, stubCtx);
 
-      expect(result).toEqual({ error: "Link is not in trash" });
+      expect(result).toEqual({ error: "Link is not in archive" });
     });
   });
 
@@ -672,7 +722,7 @@ describe("createToolExecutors", () => {
 
       expect(JSON.parse(result)).toEqual({
         success: true,
-        message: 'Moved "Delete Me" to trash',
+        message: 'Moved "Delete Me" to archive',
       });
       const row = store.query(tables.links.where({ id }))[0];
       expect(row.deletedAt).not.toBeNull();
@@ -687,7 +737,7 @@ describe("createToolExecutors", () => {
       const result = await executors.deleteLink({ id });
 
       expect(JSON.parse(result).message).toBe(
-        'Moved "https://notitle.com" to trash'
+        'Moved "https://notitle.com" to archive'
       );
     });
 
@@ -697,7 +747,7 @@ describe("createToolExecutors", () => {
       expect(JSON.parse(result)).toEqual({ error: "Link not found" });
     });
 
-    it("returns error when link already in trash", async () => {
+    it("returns error when link already in archive", async () => {
       const id = seedLink({
         title: "Already",
         deletedAt: new Date("2024-02-01T00:00:00Z"),
@@ -705,7 +755,7 @@ describe("createToolExecutors", () => {
 
       const result = await executors.deleteLink({ id });
 
-      expect(JSON.parse(result)).toEqual({ error: "Link already in trash" });
+      expect(JSON.parse(result)).toEqual({ error: "Link already in archive" });
     });
   });
 

@@ -3,9 +3,12 @@ import { Context, Effect, Layer } from "effect";
 
 import type { Auth } from ".";
 import { createAuth } from ".";
+import { DeletionRuntimeLive } from "../account-deletion/runtime";
+import { Billing } from "../billing/service";
 import type { UserId } from "../db/branded";
 import * as schema from "../db/schema";
 import { DbClient, DbClientLive, DbError, query } from "../db/service";
+import { AppSettings } from "../settings/service";
 import type { Env } from "../shared";
 import { OtelTracingLive } from "../tracing";
 
@@ -57,7 +60,9 @@ export const AuthClientLive = (env: Env) =>
   );
 
 export const AppLayerLive = (env: Env) =>
-  AuthClientLive(env).pipe(
+  Layer.mergeAll(Billing.Default, AppSettings.Default).pipe(
+    Layer.provideMerge(AuthClientLive(env)),
+    Layer.provideMerge(DeletionRuntimeLive(env)),
     Layer.provideMerge(DbClientLive(env.DB)),
-    Layer.provideMerge(OtelTracingLive(env))
+    Layer.provideMerge(OtelTracingLive)
   );

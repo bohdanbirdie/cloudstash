@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   allLinks$,
   allLinksCount$,
+  archiveCount$,
+  archiveLinks$,
   completedCount$,
   completedLinks$,
   inboxCount$,
@@ -11,10 +13,7 @@ import {
   linkById$,
   linkByUrl$,
   linksByIds$,
-  recentlyOpenedLinks$,
   searchLinks$,
-  trashCount$,
-  trashLinks$,
 } from "../../queries/links";
 import { events } from "../../schema";
 import { makeTestStore, testId } from "../test-helpers";
@@ -129,30 +128,30 @@ describe("links queries", () => {
       expect(store.query(allLinksCount$)).toBe(2);
     });
 
-    it("trashCount$ counts soft-deleted only", () => {
+    it("archiveCount$ counts soft-deleted only", () => {
       seedLink();
       const b = seedLink();
       const c = seedLink();
       deleteLink(b, new Date("2026-01-03T10:00:00Z"));
       deleteLink(c, new Date("2026-01-04T10:00:00Z"));
 
-      expect(store.query(trashCount$)).toEqual({ count: 2 });
+      expect(store.query(archiveCount$)).toBe(2);
     });
   });
 
   describe("list queries with snapshot/summary joins", () => {
-    it("inboxLinks$ picks the latest snapshot and summary per link", () => {
+    it("inboxLinks$ picks the latest snapshot per link", () => {
       const id = seedLink();
       addSnapshot(id, new Date("2026-01-02T10:00:00Z"), { title: "old title" });
       addSnapshot(id, new Date("2026-01-04T10:00:00Z"), { title: "new title" });
       addSnapshot(id, new Date("2026-01-03T10:00:00Z"), { title: "mid title" });
+      // Summaries no longer appear in list queries (fetched via linkById$ for detail).
       addSummary(id, new Date("2026-01-02T10:00:00Z"), "old summary");
       addSummary(id, new Date("2026-01-05T10:00:00Z"), "new summary");
 
       const rows = store.query(inboxLinks$);
       expect(rows).toHaveLength(1);
       expect(rows[0].title).toBe("new title");
-      expect(rows[0].summary).toBe("new summary");
     });
 
     it("inboxLinks$ returns rows sorted by createdAt DESC and excludes non-unread/deleted", () => {
@@ -202,7 +201,7 @@ describe("links queries", () => {
       expect(rows.map((r) => r.id)).toEqual([b, c, a]);
     });
 
-    it("trashLinks$ returns soft-deleted links sorted by deletedAt DESC", () => {
+    it("archiveLinks$ returns soft-deleted links sorted by deletedAt DESC", () => {
       const a = seedLink();
       const b = seedLink();
       const c = seedLink();
@@ -210,7 +209,7 @@ describe("links queries", () => {
       deleteLink(b, new Date("2026-01-05T10:00:00Z"));
       deleteLink(c, new Date("2026-01-04T10:00:00Z"));
 
-      const rows = store.query(trashLinks$);
+      const rows = store.query(archiveLinks$);
       expect(rows.map((r) => r.id)).toEqual([b, c, a]);
     });
   });
@@ -284,55 +283,6 @@ describe("links queries", () => {
       seedLink();
       const rows = store.query(linksByIds$([]));
       expect(rows).toEqual([]);
-    });
-  });
-
-  describe("recentlyOpenedLinks$", () => {
-    const interact = (linkId: string, type: string, occurredAt: Date) =>
-      store.commit(
-        events.linkInteracted({
-          id: testId("intx"),
-          linkId,
-          type,
-          occurredAt,
-        })
-      );
-
-    it("groups by linkId and picks latest opened interaction", () => {
-      const a = seedLink();
-      const b = seedLink();
-      const c = seedLink();
-      interact(a, "opened", new Date("2026-01-01T10:00:00Z"));
-      interact(a, "opened", new Date("2026-01-03T10:00:00Z"));
-      interact(b, "opened", new Date("2026-01-02T10:00:00Z"));
-      interact(c, "clicked", new Date("2026-01-05T10:00:00Z")); // non-opened
-
-      const rows = store.query(recentlyOpenedLinks$);
-      expect(rows.map((r) => r.id)).toEqual([a, b]);
-    });
-
-    it("limits to 10 results", () => {
-      for (let i = 0; i < 12; i++) {
-        const id = seedLink();
-        interact(
-          id,
-          "opened",
-          new Date(`2026-01-${String(i + 1).padStart(2, "0")}T10:00:00Z`)
-        );
-      }
-      const rows = store.query(recentlyOpenedLinks$);
-      expect(rows).toHaveLength(10);
-    });
-
-    it("excludes soft-deleted links", () => {
-      const a = seedLink();
-      const b = seedLink();
-      interact(a, "opened", new Date("2026-01-01T10:00:00Z"));
-      interact(b, "opened", new Date("2026-01-02T10:00:00Z"));
-      deleteLink(b, new Date("2026-01-05T10:00:00Z"));
-
-      const rows = store.query(recentlyOpenedLinks$);
-      expect(rows.map((r) => r.id)).toEqual([a]);
     });
   });
 
@@ -445,6 +395,66 @@ describe("links queries", () => {
 
       const rows = store.query(searchLinks$("zebra"));
       expect(rows).toEqual([]);
+    });
+
+    it("matches via tag name when no other field matches", () => {
+      const tagId = testId("tag");
+      store.commit(
+        events.tagCreated({
+          id: tagId,
+          name: "to-read",
+          sortOrder: 0,
+          createdAt: new Date("2026-01-01T10:00:00Z"),
+        })
+      );
+      const linkId = seedLink({
+        url: "https://example.com/post",
+        domain: "example.com",
+      });
+      addSnapshot(linkId, new Date("2026-01-02T10:00:00Z"), {
+        title: "Some interesting article",
+        description: "About a topic",
+      });
+      store.commit(
+        events.linkTagged({
+          id: testId("lt"),
+          linkId,
+          tagId,
+          createdAt: new Date("2026-01-02T10:00:00Z"),
+        })
+      );
+
+      const rows = store.query(searchLinks$("to-read"));
+      expect(rows.map((r) => r.id)).toEqual([linkId]);
+    });
+
+    it("does not match links whose tags were soft-deleted", () => {
+      const tagId = testId("tag");
+      store.commit(
+        events.tagCreated({
+          id: tagId,
+          name: "to-read",
+          sortOrder: 0,
+          createdAt: new Date("2026-01-01T10:00:00Z"),
+        })
+      );
+      const linkId = seedLink();
+      store.commit(
+        events.linkTagged({
+          id: testId("lt"),
+          linkId,
+          tagId,
+          createdAt: new Date("2026-01-02T10:00:00Z"),
+        })
+      );
+      store.commit(
+        events.tagDeleted({
+          id: tagId,
+          deletedAt: new Date("2026-01-03T10:00:00Z"),
+        })
+      );
+
+      expect(store.query(searchLinks$("to-read"))).toEqual([]);
     });
   });
 });

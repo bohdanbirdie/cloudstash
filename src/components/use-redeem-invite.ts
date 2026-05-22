@@ -1,10 +1,10 @@
 import { useState, useCallback } from "react";
 
-import { useAuth } from "@/lib/auth";
+import { useRefreshAuth } from "@/lib/auth";
 import type { ApiErrorResponse } from "@/types/api";
 
 export function useRedeemInvite() {
-  const { refresh } = useAuth();
+  const refresh = useRefreshAuth();
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,7 +31,7 @@ export function useRedeemInvite() {
           return false;
         }
 
-        await refresh({ disableCookieCache: true });
+        await refresh();
         return true;
       } catch {
         setError("Failed to redeem invite");

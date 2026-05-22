@@ -41,7 +41,7 @@ export function KeyList({ keys, isLoading, onRevoke }: KeyListProps) {
             <p className="font-medium text-sm truncate">
               {key.name || "Unnamed key"}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground tabular-nums">
               Created {new Date(key.createdAt).toLocaleDateString()}
               {key.lastRequest && (
                 <>
@@ -55,9 +55,10 @@ export function KeyList({ keys, isLoading, onRevoke }: KeyListProps) {
             variant="ghost"
             size="icon-sm"
             onClick={() => onRevoke(key.id)}
-            className="text-destructive hover:text-destructive"
+            aria-label={`Revoke ${key.name || "API key"}`}
+            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:ring-destructive/30"
           >
-            <Trash2Icon className="h-4 w-4" />
+            <Trash2Icon />
           </Button>
         </div>
       ))}

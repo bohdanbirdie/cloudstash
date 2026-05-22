@@ -1,14 +1,9 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { livestoreDevtoolsPlugin } from "@livestore/devtools-vite";
 import tailwindcss from "@tailwindcss/vite";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite-plus";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   staged: {
@@ -179,13 +174,6 @@ export default defineConfig({
   },
   resolve: {
     tsconfigPaths: true,
-    alias: {
-      // Stub @react-email/code-block to avoid prismjs (browser-only) in Workers
-      "@react-email/code-block": path.resolve(
-        __dirname,
-        "src/cf-worker/email/stubs/code-block.ts"
-      ),
-    },
   },
   optimizeDeps: {
     // TODO remove once fixed https://github.com/vitejs/vite/issues/8427

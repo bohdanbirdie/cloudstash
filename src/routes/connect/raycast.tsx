@@ -4,12 +4,13 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { loadAuth } from "@/lib/auth";
+import { isAllowedRedirectUri } from "@/lib/raycast-redirect";
 
 export const Route = createFileRoute("/connect/raycast")({
-  beforeLoad: ({ context }) => {
-    if (!context.auth.isAuthenticated) {
-      throw redirect({ to: "/login" });
-    }
+  beforeLoad: async () => {
+    const auth = await loadAuth();
+    if (!auth?.isAuthenticated) throw redirect({ to: "/login" });
   },
   component: ConnectRaycastPage,
 });
@@ -24,11 +25,12 @@ function ConnectRaycastPage() {
   const state = searchParams.get("state");
   const redirectUri = searchParams.get("redirect_uri");
 
-  const hasRequiredParams = !!state && !!redirectUri;
+  const redirectAllowed = isAllowedRedirectUri(redirectUri);
+  const hasRequiredParams = !!state && redirectAllowed;
 
   const handleConnect = async () => {
-    if (!state || !redirectUri) {
-      setError("Missing required parameters");
+    if (!state || !redirectAllowed) {
+      setError("Missing or invalid parameters");
       setStatus("error");
       return;
     }
@@ -51,7 +53,6 @@ function ConnectRaycastPage() {
 
       setStatus("success");
 
-      // Redirect back to Raycast using the redirect_uri it provided
       const callbackUrl = new URL(redirectUri);
       callbackUrl.searchParams.set("code", code);
       callbackUrl.searchParams.set("state", state);
@@ -82,9 +83,9 @@ function ConnectRaycastPage() {
           </div>
 
           {status === "success" ? (
-            <div className="flex items-center gap-2 text-sm text-green-600">
-              <CheckCircleIcon className="h-4 w-4" />
-              Connected! Redirecting to Raycast...
+            <div className="flex items-center gap-2 text-sm text-green-500">
+              <CheckCircleIcon className="size-4" />
+              Connected — redirecting to Raycast…
             </div>
           ) : (
             <Button
@@ -94,8 +95,8 @@ function ConnectRaycastPage() {
             >
               {status === "connecting" ? (
                 <>
-                  <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
-                  Connecting...
+                  <Loader2Icon className="animate-spin" />
+                  Connecting…
                 </>
               ) : (
                 "Connect to Cloudstash"

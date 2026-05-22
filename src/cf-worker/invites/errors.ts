@@ -24,8 +24,16 @@ export class InviteNotFoundError extends Schema.TaggedError<InviteNotFoundError>
   }
 ) {}
 
+export class InvalidInviteRequestError extends Schema.TaggedError<InvalidInviteRequestError>()(
+  "InvalidInviteRequestError",
+  {
+    reason: Schema.String,
+  }
+) {}
+
 export type InviteError =
   | InvitesUnauthorizedError
   | InvitesForbiddenError
   | InvalidInviteError
-  | InviteNotFoundError;
+  | InviteNotFoundError
+  | InvalidInviteRequestError;

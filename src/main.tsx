@@ -1,44 +1,18 @@
 import "./styles.css";
 import { RouterProvider } from "@tanstack/react-router";
-import { NuqsAdapter } from "nuqs/adapters/react";
 import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import { Toaster } from "sonner";
+import { createRoot, hydrateRoot } from "react-dom/client";
 import { SWRConfig } from "swr";
 
-import { PendingApproval } from "./components/pending-approval";
-import { Spinner } from "./components/ui/spinner";
-import { AuthProvider, useAuth } from "./lib/auth";
+import { Toaster } from "@/components/ui/sonner";
+import { PRERENDERED_PATHS } from "@/lib/prerendered-paths";
+
 import { getRouter } from "./router";
 
 const router = getRouter();
+const root = document.querySelector("#root")!;
 
-declare module "@tanstack/react-router" {
-  interface Register {
-    router: typeof router;
-  }
-}
-
-function InnerApp() {
-  const auth = useAuth();
-
-  if (auth.isLoading) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center">
-        <Spinner className="size-8" />
-      </div>
-    );
-  }
-
-  // Show pending approval screen for unapproved users
-  if (auth.userId && !auth.approved) {
-    return <PendingApproval />;
-  }
-
-  return <RouterProvider router={router} context={{ auth }} />;
-}
-
-createRoot(document.querySelector("#root")!).render(
+const tree = (
   <StrictMode>
     <SWRConfig
       value={{
@@ -47,12 +21,23 @@ createRoot(document.querySelector("#root")!).render(
         dedupingInterval: 10_000,
       }}
     >
-      <NuqsAdapter>
-        <AuthProvider>
-          <InnerApp />
-        </AuthProvider>
-      </NuqsAdapter>
-      <Toaster position="bottom-right" />
+      <RouterProvider router={router} />
+      <Toaster position="top-center" />
     </SWRConfig>
   </StrictMode>
 );
+
+// Routes we ship as prerendered HTML get hydrateRoot so React reuses the
+// existing DOM (no flash, no wasted first paint). Everything else hits
+// the SPA fallback (which serves the prerendered landing's HTML) and
+// must use createRoot — hydrating against the wrong route's DOM would
+// throw mismatches.
+const isPrerendered = (PRERENDERED_PATHS as readonly string[]).includes(
+  window.location.pathname
+);
+
+if (isPrerendered) {
+  hydrateRoot(root, tree);
+} else {
+  createRoot(root).render(tree);
+}

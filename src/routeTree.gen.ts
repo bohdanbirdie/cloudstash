@@ -9,37 +9,68 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WelcomeRouteImport } from './routes/welcome'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as ContactRouteImport } from './routes/contact'
 import { Route as AuthedRouteImport } from './routes/_authed'
-import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as ConnectTelegramRouteImport } from './routes/connect/telegram'
 import { Route as ConnectRaycastRouteImport } from './routes/connect/raycast'
-import { Route as AuthedTrashRouteImport } from './routes/_authed/trash'
+import { Route as AuthedInboxRouteImport } from './routes/_authed/inbox'
 import { Route as AuthedCompletedRouteImport } from './routes/_authed/completed'
 import { Route as AuthedBrandRouteImport } from './routes/_authed/brand'
+import { Route as AuthedArchiveRouteImport } from './routes/_authed/archive'
 import { Route as AuthedAllRouteImport } from './routes/_authed/all'
 
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthedIndexRoute = AuthedIndexRouteImport.update({
+const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AuthedRoute,
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConnectTelegramRoute = ConnectTelegramRouteImport.update({
+  id: '/connect/telegram',
+  path: '/connect/telegram',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ConnectRaycastRoute = ConnectRaycastRouteImport.update({
   id: '/connect/raycast',
   path: '/connect/raycast',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthedTrashRoute = AuthedTrashRouteImport.update({
-  id: '/trash',
-  path: '/trash',
+const AuthedInboxRoute = AuthedInboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedCompletedRoute = AuthedCompletedRouteImport.update({
@@ -52,6 +83,11 @@ const AuthedBrandRoute = AuthedBrandRouteImport.update({
   path: '/brand',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedArchiveRoute = AuthedArchiveRouteImport.update({
+  id: '/archive',
+  path: '/archive',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedAllRoute = AuthedAllRouteImport.update({
   id: '/all',
   path: '/all',
@@ -59,78 +95,148 @@ const AuthedAllRoute = AuthedAllRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof AuthedIndexRoute
+  '/': typeof IndexRoute
+  '/contact': typeof ContactRoute
   '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
+  '/welcome': typeof WelcomeRoute
   '/all': typeof AuthedAllRoute
+  '/archive': typeof AuthedArchiveRoute
   '/brand': typeof AuthedBrandRoute
   '/completed': typeof AuthedCompletedRoute
-  '/trash': typeof AuthedTrashRoute
+  '/inbox': typeof AuthedInboxRoute
   '/connect/raycast': typeof ConnectRaycastRoute
+  '/connect/telegram': typeof ConnectTelegramRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof IndexRoute
+  '/contact': typeof ContactRoute
   '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
+  '/welcome': typeof WelcomeRoute
   '/all': typeof AuthedAllRoute
+  '/archive': typeof AuthedArchiveRoute
   '/brand': typeof AuthedBrandRoute
   '/completed': typeof AuthedCompletedRoute
-  '/trash': typeof AuthedTrashRoute
+  '/inbox': typeof AuthedInboxRoute
   '/connect/raycast': typeof ConnectRaycastRoute
-  '/': typeof AuthedIndexRoute
+  '/connect/telegram': typeof ConnectTelegramRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
   '/_authed': typeof AuthedRouteWithChildren
+  '/contact': typeof ContactRoute
   '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
+  '/welcome': typeof WelcomeRoute
   '/_authed/all': typeof AuthedAllRoute
+  '/_authed/archive': typeof AuthedArchiveRoute
   '/_authed/brand': typeof AuthedBrandRoute
   '/_authed/completed': typeof AuthedCompletedRoute
-  '/_authed/trash': typeof AuthedTrashRoute
+  '/_authed/inbox': typeof AuthedInboxRoute
   '/connect/raycast': typeof ConnectRaycastRoute
-  '/_authed/': typeof AuthedIndexRoute
+  '/connect/telegram': typeof ConnectTelegramRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/contact'
     | '/login'
+    | '/privacy'
+    | '/terms'
+    | '/welcome'
     | '/all'
+    | '/archive'
     | '/brand'
     | '/completed'
-    | '/trash'
+    | '/inbox'
     | '/connect/raycast'
+    | '/connect/telegram'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/'
+    | '/contact'
     | '/login'
+    | '/privacy'
+    | '/terms'
+    | '/welcome'
     | '/all'
+    | '/archive'
     | '/brand'
     | '/completed'
-    | '/trash'
+    | '/inbox'
     | '/connect/raycast'
-    | '/'
+    | '/connect/telegram'
   id:
     | '__root__'
+    | '/'
     | '/_authed'
+    | '/contact'
     | '/login'
+    | '/privacy'
+    | '/terms'
+    | '/welcome'
     | '/_authed/all'
+    | '/_authed/archive'
     | '/_authed/brand'
     | '/_authed/completed'
-    | '/_authed/trash'
+    | '/_authed/inbox'
     | '/connect/raycast'
-    | '/_authed/'
+    | '/connect/telegram'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
   AuthedRoute: typeof AuthedRouteWithChildren
+  ContactRoute: typeof ContactRoute
   LoginRoute: typeof LoginRoute
+  PrivacyRoute: typeof PrivacyRoute
+  TermsRoute: typeof TermsRoute
+  WelcomeRoute: typeof WelcomeRoute
   ConnectRaycastRoute: typeof ConnectRaycastRoute
+  ConnectTelegramRoute: typeof ConnectTelegramRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authed': {
@@ -140,12 +246,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authed/': {
-      id: '/_authed/'
+    '/': {
+      id: '/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof AuthedIndexRouteImport
-      parentRoute: typeof AuthedRoute
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/connect/telegram': {
+      id: '/connect/telegram'
+      path: '/connect/telegram'
+      fullPath: '/connect/telegram'
+      preLoaderRoute: typeof ConnectTelegramRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/connect/raycast': {
       id: '/connect/raycast'
@@ -154,11 +267,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConnectRaycastRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authed/trash': {
-      id: '/_authed/trash'
-      path: '/trash'
-      fullPath: '/trash'
-      preLoaderRoute: typeof AuthedTrashRouteImport
+    '/_authed/inbox': {
+      id: '/_authed/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof AuthedInboxRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/completed': {
@@ -175,6 +288,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedBrandRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/archive': {
+      id: '/_authed/archive'
+      path: '/archive'
+      fullPath: '/archive'
+      preLoaderRoute: typeof AuthedArchiveRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/all': {
       id: '/_authed/all'
       path: '/all'
@@ -187,27 +307,33 @@ declare module '@tanstack/react-router' {
 
 interface AuthedRouteChildren {
   AuthedAllRoute: typeof AuthedAllRoute
+  AuthedArchiveRoute: typeof AuthedArchiveRoute
   AuthedBrandRoute: typeof AuthedBrandRoute
   AuthedCompletedRoute: typeof AuthedCompletedRoute
-  AuthedTrashRoute: typeof AuthedTrashRoute
-  AuthedIndexRoute: typeof AuthedIndexRoute
+  AuthedInboxRoute: typeof AuthedInboxRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAllRoute: AuthedAllRoute,
+  AuthedArchiveRoute: AuthedArchiveRoute,
   AuthedBrandRoute: AuthedBrandRoute,
   AuthedCompletedRoute: AuthedCompletedRoute,
-  AuthedTrashRoute: AuthedTrashRoute,
-  AuthedIndexRoute: AuthedIndexRoute,
+  AuthedInboxRoute: AuthedInboxRoute,
 }
 
 const AuthedRouteWithChildren =
   AuthedRoute._addFileChildren(AuthedRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
   AuthedRoute: AuthedRouteWithChildren,
+  ContactRoute: ContactRoute,
   LoginRoute: LoginRoute,
+  PrivacyRoute: PrivacyRoute,
+  TermsRoute: TermsRoute,
+  WelcomeRoute: WelcomeRoute,
   ConnectRaycastRoute: ConnectRaycastRoute,
+  ConnectTelegramRoute: ConnectTelegramRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

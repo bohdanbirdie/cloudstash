@@ -1,5 +1,7 @@
 import type { LinkWithDetails } from "@/livestore/queries/links";
 
+import { displayDescription, displayTitle } from "./link-display";
+
 function formatDate(timestamp: number | null): string {
   if (!timestamp) {
     return "";
@@ -32,8 +34,7 @@ export function generateLinksMarkdown(
     year: "numeric",
   });
 
-  let markdown = `# ${title} Export\n\n`;
-  markdown += `Exported on ${exportDate}\n\n`;
+  let markdown = `${title} export · exported on ${exportDate}\n\n`;
 
   if (links.length === 0) {
     markdown += `---\n\n`;
@@ -42,8 +43,10 @@ export function generateLinksMarkdown(
   }
 
   for (const link of links) {
+    const decodedTitle = link.title ? displayTitle(link) : null;
+    const decodedDescription = displayDescription(link);
     markdown += `---\n\n`;
-    markdown += `## ${link.title || link.url}\n\n`;
+    markdown += `### ${decodedTitle || link.url}\n\n`;
     markdown += `**URL:** ${link.url}\n`;
     markdown += `**Domain:** ${link.domain}\n`;
     markdown += `**Status:** ${formatStatus(link.status)}\n`;
@@ -54,11 +57,11 @@ export function generateLinksMarkdown(
     }
 
     if (link.image) {
-      markdown += `\n![${link.title || "Preview"}](${link.image})\n`;
+      markdown += `\n![${decodedTitle || "Preview"}](${link.image})\n`;
     }
 
     markdown += `\n### Description\n\n`;
-    markdown += `${link.description || "*No description available*"}\n`;
+    markdown += `${decodedDescription || "*No description available*"}\n`;
 
     markdown += `\n### AI Summary\n\n`;
     markdown += `${link.summary || "*No summary available*"}\n\n`;

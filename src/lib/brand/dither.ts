@@ -52,6 +52,129 @@ export const STAGING_PALETTE: DitherPalette = {
   b: { r: 0xb8, g: 0x5f, b: 0x2d },
 };
 
+export function paintDitherToContext(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  cellSize: number,
+  palette: DitherPalette
+): void {
+  const imageData = ctx.createImageData(width, height);
+  const data = imageData.data;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const t = (x + y) / (width + height - 2);
+      const bx = Math.floor(x / cellSize) % 8;
+      const by = Math.floor(y / cellSize) % 8;
+      const threshold = (BAYER8[by][bx] + 0.5) / 64;
+      const c = t > threshold ? palette.b : palette.a;
+      const i = (y * width + x) * 4;
+      data[i] = c.r;
+      data[i + 1] = c.g;
+      data[i + 2] = c.b;
+      data[i + 3] = 255;
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+}
+
+export interface DitherWave {
+  phase: number;
+  sigma: number;
+  amplitude: number;
+  frequency: number;
+  spacing: number;
+}
+
+export interface DitherCursor {
+  x: number;
+  y: number;
+  sigma: number;
+  amplitude: number;
+  frequency: number;
+  phase: number;
+}
+
+export function paintDitherWithEffects(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  cellSize: number,
+  palette: DitherPalette,
+  wave: DitherWave | null,
+  cursor: DitherCursor | null
+): void {
+  const imageData = ctx.createImageData(width, height);
+  const data = imageData.data;
+  const denom = width + height - 2;
+
+  const w = wave !== null && wave.amplitude !== 0 ? wave : null;
+  const waveTwoSigma2 = w ? 2 * w.sigma * w.sigma : 0;
+  const waveCutoff = w ? 3 * w.sigma : 0;
+  const waveSpacing = w ? w.spacing : 1;
+
+  const c0 = cursor !== null && cursor.amplitude !== 0 ? cursor : null;
+  const cursorTwoSigma2 = c0 ? 2 * c0.sigma * c0.sigma : 0;
+  const cursorCutoff = c0 ? 2 * c0.sigma : 0;
+  const cursorCutoff2 = cursorCutoff * cursorCutoff;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const diag = x + y;
+      let t = diag / denom;
+
+      if (w) {
+        const rel = diag - w.phase;
+        const wrapped = rel - waveSpacing * Math.round(rel / waveSpacing);
+        const absWrapped = wrapped < 0 ? -wrapped : wrapped;
+        if (absWrapped < waveCutoff) {
+          const env = Math.exp(-(wrapped * wrapped) / waveTwoSigma2);
+          t += w.amplitude * env * Math.sin(wrapped * w.frequency);
+        }
+      }
+
+      if (c0) {
+        const dx = x - c0.x;
+        const dy = y - c0.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < cursorCutoff2) {
+          const d = Math.sqrt(d2);
+          const env = Math.exp(-d2 / cursorTwoSigma2);
+          t += c0.amplitude * env * Math.sin(d * c0.frequency - c0.phase);
+        }
+      }
+
+      const bx = Math.floor(x / cellSize) % 8;
+      const by = Math.floor(y / cellSize) % 8;
+      const threshold = (BAYER8[by][bx] + 0.5) / 64;
+      const c = t > threshold ? palette.b : palette.a;
+      const i = (y * width + x) * 4;
+      data[i] = c.r;
+      data[i + 1] = c.g;
+      data[i + 2] = c.b;
+      data[i + 3] = 255;
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+}
+
+export function generateDitheredDataUrlRect(
+  cellSize: number,
+  palette: DitherPalette,
+  width: number,
+  height: number
+): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d")!;
+  paintDitherToContext(ctx, width, height, cellSize, palette);
+  return canvas.toDataURL();
+}
+
 export function generateDitheredDataUrl(
   cellSize: number,
   palette: DitherPalette,

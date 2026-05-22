@@ -1,22 +1,44 @@
 /// <reference types="@cloudflare/workers-types" />
-import { Effect, Schema } from "effect";
+import { Effect } from "effect";
 
 import {
   MetadataFetchError,
   MetadataParseError,
   MetadataMissingUrlError,
 } from "./errors";
+import { tryExtract } from "./extractors";
 import { MetadataParser } from "./parser";
-import { OgMetadata, ResolvedUrl } from "./schema";
+import { OgMetadata } from "./schema";
 
 export const fetchOgMetadata = Effect.fn("MetadataService.fetchOgMetadata")(
-  function* fetchOgMetadata(targetUrl: string) {
+  function* (targetUrl: string) {
+    const parsedUrl = URL.parse(targetUrl);
+    yield* Effect.annotateCurrentSpan({
+      hostname: parsedUrl?.hostname ?? "",
+      url: targetUrl,
+    });
+
+    const extracted = parsedUrl ? yield* tryExtract(parsedUrl) : null;
+
+    if (extracted) {
+      yield* Effect.annotateCurrentSpan({
+        extractor: extracted.extractor,
+        extractorAuthoritative: extracted.authoritative,
+      });
+      yield* Effect.logInfo("Per-host extractor matched").pipe(
+        Effect.annotateLogs({
+          authoritative: extracted.authoritative,
+          extractor: extracted.extractor,
+          hostname: parsedUrl?.hostname,
+        })
+      );
+      if (extracted.authoritative) {
+        return OgMetadata.make(extracted.result);
+      }
+    }
+
     const response = yield* Effect.tryPromise({
-      catch: (error) =>
-        MetadataParseError.make({
-          error,
-          url: targetUrl,
-        }),
+      catch: (cause) => MetadataParseError.make({ cause, url: targetUrl }),
       try: () =>
         fetch(targetUrl, {
           headers: {
@@ -27,6 +49,7 @@ export const fetchOgMetadata = Effect.fn("MetadataService.fetchOgMetadata")(
     });
 
     if (!response.ok) {
+      yield* Effect.annotateCurrentSpan({ statusCode: response.status });
       return yield* MetadataFetchError.make({
         statusCode: response.status,
         url: targetUrl,
@@ -36,39 +59,36 @@ export const fetchOgMetadata = Effect.fn("MetadataService.fetchOgMetadata")(
     const parser = new MetadataParser(targetUrl);
 
     yield* Effect.tryPromise({
-      catch: (error) =>
-        MetadataParseError.make({
-          error,
-          url: targetUrl,
-        }),
+      catch: (cause) => MetadataParseError.make({ cause, url: targetUrl }),
       try: () =>
         new HTMLRewriter()
           .on("title", parser)
           .on("meta", parser)
           .on("link", parser)
+          .on("script", parser)
           .transform(response)
           .text(),
     });
 
-    const favicon =
-      parser.favicon ??
-      (yield* Schema.decodeUnknown(ResolvedUrl(targetUrl))("/favicon.ico").pipe(
-        Effect.orElseSucceed(() => "/favicon.ico")
-      ));
+    const result = parser.getResult();
 
+    const ext = extracted?.result;
     return OgMetadata.make({
-      description: parser.description,
-      favicon,
-      image: parser.image,
-      title: parser.title,
-      url: parser.ogUrl,
+      description: ext?.description ?? result.description,
+      favicon:
+        ext?.favicon ??
+        result.favicon ??
+        URL.parse("/favicon.ico", targetUrl)?.href ??
+        "/favicon.ico",
+      image: ext?.image ?? result.image,
+      title: ext?.title ?? result.title,
     });
   }
 );
 
-export const handleMetadataRequest = Effect.fn(
+const handleMetadataRequest = Effect.fn(
   "MetadataService.handleMetadataRequest"
-)(function* handleMetadataRequest(request: Request) {
+)(function* (request: Request) {
   yield* Effect.logInfo("Metadata request received");
   const url = new URL(request.url);
   const targetUrl = url.searchParams.get("url");
@@ -78,9 +98,16 @@ export const handleMetadataRequest = Effect.fn(
     return yield* MetadataMissingUrlError.make({});
   }
 
+  yield* Effect.annotateCurrentSpan({ url: targetUrl });
+
   const metadata = yield* fetchOgMetadata(targetUrl);
   yield* Effect.logInfo("Metadata fetched").pipe(
-    Effect.annotateLogs({ hasTitle: !!metadata.title })
+    Effect.annotateLogs({
+      hasDescription: !!metadata.description,
+      hasImage: !!metadata.image,
+      hasTitle: !!metadata.title,
+      hostname: URL.parse(targetUrl)?.hostname,
+    })
   );
   return metadata;
 });
@@ -91,34 +118,26 @@ export const metadataRequestToResponse = (
   handleMetadataRequest(request).pipe(
     Effect.map((metadata) =>
       Response.json(metadata, {
-        headers: {
-          "Cache-Control": "public, max-age=86400",
-        },
+        headers: { "Cache-Control": "public, max-age=86400" },
       })
     ),
     Effect.catchTags({
       MetadataFetchError: (e) =>
         Effect.logInfo("Metadata fetch failed").pipe(
-          Effect.annotateLogs({ statusCode: e.statusCode }),
+          Effect.annotateLogs({ statusCode: e.statusCode, url: e.url }),
           Effect.as(
             Response.json(
-              { error: `Failed to fetch URL: ${e.statusCode}` },
+              { error: e.message, statusCode: e.statusCode },
               { status: 502 }
             )
           )
         ),
-      MetadataParseError: () =>
+      MetadataMissingUrlError: (e) =>
+        Effect.succeed(Response.json({ error: e.message }, { status: 400 })),
+      MetadataParseError: (e) =>
         Effect.logWarning("Metadata parse failed").pipe(
-          Effect.as(
-            Response.json(
-              { error: "Failed to parse metadata" },
-              { status: 500 }
-            )
-          )
-        ),
-      MetadataMissingUrlError: () =>
-        Effect.succeed(
-          Response.json({ error: "Missing url parameter" }, { status: 400 })
+          Effect.annotateLogs({ cause: String(e.cause), url: e.url }),
+          Effect.as(Response.json({ error: e.message }, { status: 500 }))
         ),
     })
   );
