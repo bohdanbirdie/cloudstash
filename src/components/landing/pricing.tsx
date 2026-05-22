@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { motion } from "motion/react";
+import { motion, useInView } from "motion/react";
+import { useCallback, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import type { PlanInfo, PlanTier } from "@/lib/plan";
@@ -48,16 +49,33 @@ function PricingTile({ plan, index }: { plan: PlanInfo; index: number }) {
       ? plan.features
       : ["Everything in " + previousTierName(plan.id), ...plan.features];
 
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-60px" });
+  // When the page is reloaded already scrolled to Pricing, the tiles are on
+  // screen at first paint — show them instantly instead of replaying the
+  // slide-in, which otherwise reads as the section jumping on every refresh.
+  const [onScreenAtMount, setOnScreenAtMount] = useState<boolean | null>(null);
+  const measureRef = useCallback((node: HTMLDivElement | null) => {
+    ref.current = node;
+    if (node) {
+      const r = node.getBoundingClientRect();
+      setOnScreenAtMount(r.top < window.innerHeight && r.bottom > 0);
+    }
+  }, []);
+
+  const instant = onScreenAtMount === true;
+  const shown = instant || inView;
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-60px" }}
-      transition={{
-        duration: 0.45,
-        ease: [0.22, 1, 0.36, 1],
-        delay: index * 0.08,
-      }}
+      ref={measureRef}
+      initial={false}
+      animate={{ opacity: shown ? 1 : 0, y: shown ? 0 : 16 }}
+      transition={
+        instant
+          ? { duration: 0 }
+          : { duration: 0.45, ease: [0.22, 1, 0.36, 1], delay: index * 0.08 }
+      }
       className={cn(
         "flex flex-col rounded-lg border p-7 transition-[border-color,box-shadow]",
         plan.inverted
