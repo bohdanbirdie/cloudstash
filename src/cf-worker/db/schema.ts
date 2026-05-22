@@ -242,6 +242,15 @@ export const invite = sqliteTable(
   (table) => [index("invite_code_idx").on(table.code)]
 );
 
+export const appSettings = sqliteTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
 export const userRelations = relations(user, ({ many, one }) => ({
   accounts: many(account),
   createdInvites: many(invite, { relationName: "createdInvites" }),

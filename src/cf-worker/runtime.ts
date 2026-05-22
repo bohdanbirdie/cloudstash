@@ -5,9 +5,10 @@ import type { AuthClient } from "./auth/service";
 import { AppLayerLive } from "./auth/service";
 import type { Billing } from "./billing/service";
 import type { DbClient } from "./db/service";
+import type { AppSettings } from "./settings/service";
 import type { Env } from "./shared";
 
-export type AppCtx = Billing | AuthClient | DbClient;
+export type AppCtx = Billing | AppSettings | AuthClient | DbClient;
 
 // Share one built layer per isolate: a fresh `AppLayerLive(env)` per request
 // would defeat Layer memoization and re-instantiate Db/Auth/Billing each time.

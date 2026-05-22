@@ -12,11 +12,16 @@ import {
   handleSetTier,
 } from "./admin";
 import { handleApproveUser } from "./admin/approve-user";
+import { handleGetSignupGate, handleSetSignupGate } from "./admin/signup-gate";
 import { handleGetUsage } from "./admin/usage";
 import { trackEvent } from "./analytics";
 import { gateUserApiKeyCreate } from "./auth/api-key-gate";
 import { AppLayerLive, AuthClient } from "./auth/service";
 import { checkSyncAuth, SyncAuthError } from "./auth/sync-auth";
+import { handleBillingCheckout } from "./billing/routes/checkout";
+import { handleBillingPortal } from "./billing/routes/portal";
+import { handleStripeSuccess } from "./billing/routes/success";
+import { handleStripeWebhook } from "./billing/routes/webhook";
 import { agentHooks } from "./chat-agent/hooks";
 import { handleRaycastConnect, handleRaycastExchange } from "./connect/raycast";
 import {
@@ -118,6 +123,12 @@ app.post("/api/admin/users/:id/approve", requireAdmin, (c) =>
 app.get("/api/admin/usage", requireAdmin, (c) =>
   handleGetUsage(c.req.raw, c.env)
 );
+app.get("/api/admin/signup-gate", requireAdmin, (c) =>
+  handleGetSignupGate(c.req.raw, c.env)
+);
+app.put("/api/admin/signup-gate", requireAdmin, (c) =>
+  handleSetSignupGate(c.req.raw, c.env)
+);
 app.on(["GET", "POST"], "/api/auth/*", (c) =>
   runHandler(
     c.env,
@@ -169,6 +180,13 @@ app.get("/api/connect/x/status", (c) => handleXStatus(c.req.raw, c.env));
 app.delete("/api/connect/x", (c) => handleXDisconnect(c.req.raw, c.env));
 app.post("/api/connect/x/pause", (c) => handleXPause(c.req.raw, c.env));
 app.post("/api/connect/x/resume", (c) => handleXResume(c.req.raw, c.env));
+
+app.post("/api/billing/checkout", (c) =>
+  handleBillingCheckout(c.req.raw, c.env)
+);
+app.post("/api/billing/portal", (c) => handleBillingPortal(c.req.raw, c.env));
+app.get("/api/stripe/success", (c) => handleStripeSuccess(c.req.raw, c.env));
+app.post("/api/stripe/webhook", (c) => handleStripeWebhook(c.req.raw, c.env));
 
 app.post("/api/telegram", (c) => handleTelegramWebhook(c.req.raw, c.env));
 

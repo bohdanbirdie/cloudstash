@@ -23,13 +23,13 @@ kanban-plugin: board
 - [ ] Shrink Worker output further — current upload is 2421 KiB gzipped (deploy 2026-05-13), only 633 KiB headroom under the 3 MiB free-tier cap. Two levers worth evaluating before the budget gets tight again: (a) split into separate Workers (web/assets vs. API/DOs) joined by a service binding, so each subsystem gets its own 3 MiB; (b) trim heavy chunks in place — defuddle/linkedom/htmlparser2 (HTML readability in LinkProcessorDO), @ai-sdk/react + livestore client on the authed entry, Effect tracer surface. Decide which lever first based on what's growing.
 - [ ] Extend Pro plan with twitter historical sync of bookmarks
 - [ ] X (twitter) content sub-processing feature for Pro users
+- [ ] Finish env-var cleanup in `src/cf-worker/shared.ts`. After running `cf-typegen`, the custom `Env` was slimmed to only what typegen can't express: 4 vars (`ENABLE_TEST_AUTH`, `GOOGLE_BASE_URL`, `EMAIL_FROM`, `PUBLIC_URL`) + the `LINK_QUEUE: Queue<LinkQueueMessage>` narrowing. Move the two real prod-config vars — `EMAIL_FROM` and `PUBLIC_URL` — into `wrangler.jsonc` `vars` (+ `.dev.vars`) so they're version-controlled and generated into `Cloudflare.Env`, then drop them from the custom interface (confirm prod has both set first). Leave `ENABLE_TEST_AUTH` (e2e-only, injected by `vitest.e2e.config.ts`) and `GOOGLE_BASE_URL` (local OAuth emulator override, optional w/ prod fallback) as custom-`Env` optionals — they should NOT go in wrangler vars. End state: `Env` keeps only `LINK_QUEUE` + the two emulator/test optionals.
 
 ## In Progress
 
 - [ ] [[todos/weekly-digest-backend|Weekly Digest backend]]
 - [ ] [[todos/weekly-digest-actions|Weekly Digest actions]]
 - [ ] ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
-- [ ] AI summary should not block the metadata fetching
 - [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.
 - [ ] Let LLM suggest more tags from existing ones. Respect domains for tags as a fallback
 
@@ -39,6 +39,7 @@ kanban-plugin: board
 - [ ] [[todos/mobile-view-review|Mobile view review + fixes]]
 - [x] [[architecture/livestore-do-rpc-stream-stall|Livestore DO-RPC stream stall — root cause, fix, postmortem]]
 - [ ] [[todos/mobile-settings-polish|Mobile settings polish — delete flow, Connections overhaul, tab look]]
+- [ ] AI summary should not block the metadata fetching
 - [ ] [[todos/telegram-login-link|Simplify Telegram bot auth with login link]]
 - [x] Landing page — TanStack Start SSR landing on `/` with hero/pitch/integrations/benefits/pricing/FAQ/closer/footer; SEO hardening (canonical, OG, JSON-LD SoftwareApplication + FAQPage, sitemap.xml, robots.txt, noindex on /login)
 - [x] User settings modal (UI) — wired the disabled "Settings" item in the account menu, surfaces full name + email, plan placeholder, danger-zone Delete account with type-DELETE confirmation. Backend deletion split out as its own task (see Account deletion above).

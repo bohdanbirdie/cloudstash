@@ -28,6 +28,31 @@ export class CapabilityDisabledError extends Schema.TaggedError<CapabilityDisabl
   }
 }
 
+export class StripeApiError extends Schema.TaggedError<StripeApiError>()(
+  "StripeApiError",
+  {
+    message: Schema.String,
+    code: Schema.optional(Schema.String),
+    requestId: Schema.optional(Schema.String),
+    cause: Schema.optional(Schema.Defect),
+  }
+) {}
+
+export class StripeConfigError extends Schema.TaggedError<StripeConfigError>()(
+  "StripeConfigError",
+  {
+    message: Schema.String,
+  }
+) {}
+
+export class WebhookVerificationError extends Schema.TaggedError<WebhookVerificationError>()(
+  "WebhookVerificationError",
+  {
+    message: Schema.String,
+    cause: Schema.optional(Schema.Defect),
+  }
+) {}
+
 /**
  * Standard 402 Payment Required response for a denied capability gate.
  * Shape is stable so the client can drive an "Upgrade to <tier>" CTA without

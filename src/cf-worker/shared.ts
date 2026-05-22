@@ -1,11 +1,6 @@
-import type { Auth } from "./auth";
-import type { ChatAgentDO } from "./chat-agent";
 /// <reference types="@cloudflare/workers-types" />
-import type { SyncBackendDO } from "./index";
-import type { LinkProcessorDO } from "./link-processor";
+import type { Auth } from "./auth";
 import type { LinkQueueMessage } from "./link-processor/types";
-import type { AccountDeletionParams } from "./workflows/account-deletion";
-import type { XBookmarkSyncDO } from "./x-sync";
 
 type BetterAuthSession = NonNullable<
   Awaited<ReturnType<Auth["api"]["getSession"]>>
@@ -22,17 +17,14 @@ export interface HonoVariables {
   session: AdminSession;
 }
 
+// Bindings/secrets are generated into `Cloudflare.Env` by `bun run cf-typegen`.
+// This interface only adds what typegen can't express:
 export interface Env extends Cloudflare.Env {
-  LINK_QUEUE: Queue<LinkQueueMessage>;
-  SYNC_BACKEND_DO: DurableObjectNamespace<SyncBackendDO>;
-  LINK_PROCESSOR_DO: DurableObjectNamespace<LinkProcessorDO>;
-  X_BOOKMARK_SYNC_DO: DurableObjectNamespace<XBookmarkSyncDO>;
-  Chat: DurableObjectNamespace<ChatAgentDO>;
-  ACCOUNT_DELETION: Workflow<AccountDeletionParams>;
+  // Vars not declared in wrangler.jsonc / .dev.vars, so absent from typegen.
   ENABLE_TEST_AUTH?: string;
   GOOGLE_BASE_URL?: string;
   EMAIL_FROM: string;
   PUBLIC_URL?: string;
-  X_CLIENT_ID: string;
-  X_CLIENT_SECRET: string;
+  // Typegen emits an untyped `Queue`; narrow to the message type.
+  LINK_QUEUE: Queue<LinkQueueMessage>;
 }

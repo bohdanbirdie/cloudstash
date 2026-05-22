@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as LoginRouteImport } from './routes/login'
@@ -23,6 +24,11 @@ import { Route as AuthedBrandRouteImport } from './routes/_authed/brand'
 import { Route as AuthedArchiveRouteImport } from './routes/_authed/archive'
 import { Route as AuthedAllRouteImport } from './routes/_authed/all'
 
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
+  '/welcome': typeof WelcomeRoute
   '/all': typeof AuthedAllRoute
   '/archive': typeof AuthedArchiveRoute
   '/brand': typeof AuthedBrandRoute
@@ -108,6 +115,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
+  '/welcome': typeof WelcomeRoute
   '/all': typeof AuthedAllRoute
   '/archive': typeof AuthedArchiveRoute
   '/brand': typeof AuthedBrandRoute
@@ -124,6 +132,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
+  '/welcome': typeof WelcomeRoute
   '/_authed/all': typeof AuthedAllRoute
   '/_authed/archive': typeof AuthedArchiveRoute
   '/_authed/brand': typeof AuthedBrandRoute
@@ -140,6 +149,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/privacy'
     | '/terms'
+    | '/welcome'
     | '/all'
     | '/archive'
     | '/brand'
@@ -154,6 +164,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/privacy'
     | '/terms'
+    | '/welcome'
     | '/all'
     | '/archive'
     | '/brand'
@@ -169,6 +180,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/privacy'
     | '/terms'
+    | '/welcome'
     | '/_authed/all'
     | '/_authed/archive'
     | '/_authed/brand'
@@ -185,12 +197,20 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   PrivacyRoute: typeof PrivacyRoute
   TermsRoute: typeof TermsRoute
+  WelcomeRoute: typeof WelcomeRoute
   ConnectRaycastRoute: typeof ConnectRaycastRoute
   ConnectTelegramRoute: typeof ConnectTelegramRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/terms': {
       id: '/terms'
       path: '/terms'
@@ -311,6 +331,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   PrivacyRoute: PrivacyRoute,
   TermsRoute: TermsRoute,
+  WelcomeRoute: WelcomeRoute,
   ConnectRaycastRoute: ConnectRaycastRoute,
   ConnectTelegramRoute: ConnectTelegramRoute,
 }

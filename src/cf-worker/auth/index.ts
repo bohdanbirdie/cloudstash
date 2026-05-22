@@ -3,16 +3,21 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, organization } from "better-auth/plugins";
 import { genericOAuth } from "better-auth/plugins/generic-oauth";
-import { eq } from "drizzle-orm";
 import { Cause, Effect, Schema } from "effect";
 
-import { personalOrgSlug, prepareDeletion } from "../account-deletion/prepare";
+import { prepareDeletion } from "../account-deletion/prepare";
 import type { Database } from "../db";
 import { UserId } from "../db/branded";
 import * as schema from "../db/schema";
-import { maskId, safeErrorInfo } from "../log-utils";
+import { maskId } from "../log-utils";
 import { logSync } from "../logger";
+import { getAppLayer } from "../runtime";
 import type { Env } from "../shared";
+import {
+  autoApproveUser,
+  resolveActiveOrg,
+  startXBookmarkSyncForAccount,
+} from "./hooks";
 import { AppLayerLive } from "./service";
 
 const logger = logSync("Auth");
@@ -110,79 +115,70 @@ export const createAuth = (env: Env, db: Database) => {
       schema,
     }),
     databaseHooks: {
+      user: {
+        create: {
+          after: async (createdUser) => {
+            const userId = UserId.make(createdUser.id);
+            await Effect.runPromise(
+              autoApproveUser(userId).pipe(
+                Effect.catchAllCause((cause) =>
+                  Effect.logError("signup auto-approve failed").pipe(
+                    Effect.annotateLogs({
+                      userId: maskId(userId),
+                      cause: Cause.pretty(cause),
+                    })
+                  )
+                ),
+                Effect.withSpan("Auth.user.create.after"),
+                Effect.provide(getAppLayer(env))
+              )
+            );
+          },
+        },
+      },
       account: {
         create: {
           after: async (account) => {
-            if (account.providerId !== "x") return;
-            try {
-              // DO.start() fetches /users/me, persists identity in its own
-              // storage, pins watermark to current head (cost safety: no
-              // backfill of existing bookmarks), and arms the alarm.
-              const stub = env.X_BOOKMARK_SYNC_DO.get(
-                env.X_BOOKMARK_SYNC_DO.idFromName(account.userId)
-              );
-              await stub.start();
-
-              logger.info("x-link: DO started", {
-                userId: maskId(account.userId),
-              });
-            } catch (error) {
-              logger.error("x-link: post-link setup failed", {
-                ...safeErrorInfo(error),
-                userId: maskId(account.userId),
-              });
-            }
+            await Effect.runPromise(
+              startXBookmarkSyncForAccount(
+                account,
+                env.X_BOOKMARK_SYNC_DO
+              ).pipe(
+                Effect.catchAllCause((cause) =>
+                  Effect.logError("x-link: post-link setup failed").pipe(
+                    Effect.annotateLogs({
+                      userId: maskId(account.userId),
+                      cause: Cause.pretty(cause),
+                    })
+                  )
+                ),
+                Effect.withSpan("Auth.account.create.after"),
+                Effect.provide(getAppLayer(env))
+              )
+            );
           },
         },
       },
       session: {
         create: {
           before: async (session) => {
-            let membership = await db.query.member.findFirst({
-              where: eq(schema.member.userId, session.userId),
-            });
+            const activeOrganizationId = await Effect.runPromise(
+              resolveActiveOrg(session, {
+                // Explicit return type breaks the self-referential inference
+                // cycle (auth → before → resolveActiveOrg → this arrow → auth).
+                createOrganization: (
+                  body
+                ): Promise<{ id: string } | null | undefined> =>
+                  auth.api.createOrganization({ body }),
+              }).pipe(
+                Effect.withSpan("Auth.session.create.before", {
+                  attributes: { userId: maskId(session.userId) },
+                }),
+                Effect.provide(getAppLayer(env))
+              )
+            );
 
-            if (!membership) {
-              try {
-                const user = await db.query.user.findFirst({
-                  where: eq(schema.user.id, session.userId),
-                });
-                const orgName = user?.name
-                  ? `${user.name}'s Workspace`
-                  : "My Workspace";
-                const org = await auth.api.createOrganization({
-                  body: {
-                    name: orgName,
-                    slug: personalOrgSlug(UserId.make(session.userId)),
-                    userId: session.userId,
-                  },
-                });
-                logger.info("Created organization", {
-                  orgId: maskId(org?.id ?? ""),
-                });
-                membership = await db.query.member.findFirst({
-                  where: eq(schema.member.userId, session.userId),
-                });
-              } catch (error) {
-                logger.error(
-                  "Failed to create organization",
-                  safeErrorInfo(error)
-                );
-                // Re-fetch in case a concurrent first-session race lost on
-                // the unique-slug constraint — the winner's member row is
-                // already there and we'd otherwise return null.
-                membership = await db.query.member.findFirst({
-                  where: eq(schema.member.userId, session.userId),
-                });
-              }
-            }
-
-            return {
-              data: {
-                ...session,
-                activeOrganizationId: membership?.organizationId ?? null,
-              },
-            };
+            return { data: { ...session, activeOrganizationId } };
           },
         },
       },

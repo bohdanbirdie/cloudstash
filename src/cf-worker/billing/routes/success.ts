@@ -1,0 +1,48 @@
+import { Effect } from "effect";
+
+import { DbError } from "../../db/service";
+import { maskId, safeErrorInfo } from "../../log-utils";
+import type { Env } from "../../shared";
+import { StripeApiError } from "../errors";
+import { getStripeCustomerId, syncFromStripe } from "../stripe-sync";
+import { dbErrorResponse, sessionErrorTags } from "./responses";
+import { runBilling } from "./runtime";
+import { appBaseUrl, requireOrg } from "./shared";
+
+const successRequest = Effect.fn("Billing.success")(function* (
+  request: Request,
+  env: Env
+) {
+  const { orgId } = yield* requireOrg(request.headers);
+  yield* Effect.annotateCurrentSpan({ orgId: maskId(orgId) });
+  const customerId = yield* getStripeCustomerId(orgId);
+
+  if (customerId) {
+    const backstop = (error: DbError | StripeApiError) =>
+      Effect.logWarning(
+        "Billing.success sync failed; webhook will backstop"
+      ).pipe(
+        Effect.annotateLogs({ orgId: maskId(orgId), ...safeErrorInfo(error) })
+      );
+    yield* syncFromStripe(customerId).pipe(
+      Effect.catchTags({ DbError: backstop, StripeApiError: backstop })
+    );
+  }
+
+  return Response.redirect(`${appBaseUrl(request, env)}/welcome`, 302);
+});
+
+export const successProgram = (request: Request, env: Env) =>
+  successRequest(request, env).pipe(
+    Effect.catchTags({
+      ConnectUnauthorizedError: sessionErrorTags.ConnectUnauthorizedError,
+      SessionLookupError: sessionErrorTags.SessionLookupError,
+      NoActiveOrgError: sessionErrorTags.NoActiveOrgError,
+      DbError: dbErrorResponse,
+    })
+  );
+
+export const handleStripeSuccess = (
+  request: Request,
+  env: Env
+): Promise<Response> => runBilling(successProgram(request, env), env);
