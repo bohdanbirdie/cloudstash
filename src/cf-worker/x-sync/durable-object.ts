@@ -218,11 +218,11 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
 
   async disconnect(): Promise<void> {
     this.lastSyncedAt = null;
-    await this.runEffect(this.disconnectEffect(this.userId));
+    await this.runEffect(this.disconnectEffect(this.ctx.id.name ?? "unknown"));
   }
 
   private disconnectEffect = Effect.fn("XBookmarkSyncDO.disconnect")(
-    (userId: UserId) =>
+    (userId: string) =>
       Effect.gen(this, function* () {
         yield* Effect.annotateCurrentSpan("userId", userId);
         yield* Effect.logInfo("disconnect").pipe(

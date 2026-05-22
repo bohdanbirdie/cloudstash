@@ -119,7 +119,7 @@ describe("sync Connection Auth E2E", () => {
 
       expect(res.status).toBe(403);
       const text = await res.text();
-      expect(text).toContain("UNAPPROVED");
+      expect(text).toContain("ACCESS_DENIED");
     });
 
     it("rejects when storeId is non-existent org", async () => {
@@ -129,7 +129,7 @@ describe("sync Connection Auth E2E", () => {
 
       expect(res.status).toBe(403);
       const text = await res.text();
-      expect(text).toContain("UNAPPROVED");
+      expect(text).toContain("ACCESS_DENIED");
     });
   });
 
@@ -166,7 +166,7 @@ describe("sync Connection Auth E2E", () => {
 
       expect(res.status).toBe(403);
       const text = await res.text();
-      expect(text).toContain("UNAPPROVED");
+      expect(text).toContain("ACCESS_DENIED");
     });
   });
 });
