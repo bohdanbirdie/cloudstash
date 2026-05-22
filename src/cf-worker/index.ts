@@ -306,6 +306,12 @@ export const fetch = async (
     return handleSync(request, env, ctx);
   }
 
+  if (url.pathname === "/") {
+    return env.ASSETS.fetch(
+      new Request(new URL("/__landing.html", url))
+    ) as unknown as Promise<Response>;
+  }
+
   return app.fetch(request as unknown as Request, env, ctx);
 };
 

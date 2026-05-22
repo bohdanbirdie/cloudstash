@@ -8,11 +8,15 @@
   // SPA + API model: Cloudflare's edge serves the static build (HTML, JS,
   // CSS, favicons) directly. `run_worker_first` paths bypass the assets
   // binding and go to the Worker — everything else falls back to index.html
-  // so client-side routing handles /inbox, /all, etc.
+  // (an empty shell) so client-side routing handles /inbox, /all, etc.
+  // `/` is worker-first so the Worker can serve the prerendered landing
+  // (__landing.html); the SPA fallback stays an empty shell, avoiding a
+  // landing flash when refreshing an app route.
   "assets": {
+    "binding": "ASSETS",
     "directory": "./dist",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/sync*", "/api/*", "/agents/*"],
+    "run_worker_first": ["/sync*", "/api/*", "/agents/*", "/"],
   },
 
   "ai": {

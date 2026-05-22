@@ -4,5 +4,6 @@ Allow: /
 Disallow: /_authed/
 Disallow: /api/
 Disallow: /connect/
+Disallow: /__landing
 
 Sitemap: https://cloudstash.dev/sitemap.xml
