@@ -30,7 +30,7 @@ const HEAD_MARKER = "<!--prerender:head-->";
 
 function outputPath(path: Path): string {
   return path === "/"
-    ? "dist/client/index.html"
+    ? "dist/client/__landing.html"
     : `dist/client${path}/index.html`;
 }
 
@@ -221,6 +221,9 @@ async function main(): Promise<void> {
       );
       console.log(`prerendered ${path} -> ${out}`);
     }
+
+    await writeFile("dist/client/index.html", shell.replace(HEAD_MARKER, ""));
+    console.log("wrote empty SPA shell -> dist/client/index.html");
   } finally {
     await vite.close();
   }
