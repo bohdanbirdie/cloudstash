@@ -149,6 +149,10 @@
     "web-vitals": "^5.1.0",
     "wrangler": "4.90.0"
   },
+  "overrides": {
+    "@xmldom/xmldom": "0.8.13",
+    "hono": "4.12.21"
+  },
   "packageManager": "bun@1.3.11",
   "cloudflare": {
     "bindings": {
@@ -178,9 +182,9 @@
       }
     }
   },
-  "overrides": {
-    "@xmldom/xmldom": "0.8.13",
-    "hono": "4.12.21"
+  "patchedDependencies": {
+    "@effect/rpc@0.75.1": "patches/@effect%2Frpc@0.75.1.patch",
+    "@livestore/common-cf@0.0.0-snapshot-6e9abadf4bdc91a2f7deea3e47be8ffd75d4c27c": "patches/@livestore%2Fcommon-cf@0.0.0-snapshot-6e9abadf4bdc91a2f7deea3e47be8ffd75d4c27c.patch"
   },
   "trustedDependencies": [
     "better-sqlite3",
@@ -189,9 +193,5 @@
     "sharp",
     "msgpackr-extract",
     "msw"
-  ],
-  "patchedDependencies": {
-    "@effect/rpc@0.75.1": "patches/@effect%2Frpc@0.75.1.patch",
-    "@livestore/common-cf@0.0.0-snapshot-6e9abadf4bdc91a2f7deea3e47be8ffd75d4c27c": "patches/@livestore%2Fcommon-cf@0.0.0-snapshot-6e9abadf4bdc91a2f7deea3e47be8ffd75d4c27c.patch"
-  }
+  ]
 }
