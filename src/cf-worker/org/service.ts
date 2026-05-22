@@ -50,6 +50,7 @@ const getOrgWithCapabilities = Effect.fn("Org.getOrgWithCapabilities")(
     const billing = yield* Billing;
     const tier = yield* billing.tier(orgId);
     const capabilities = yield* billing.capabilities(orgId);
+    const subscription = yield* billing.subscription(orgId);
 
     yield* Effect.annotateCurrentSpan({ tier });
 
@@ -59,6 +60,8 @@ const getOrgWithCapabilities = Effect.fn("Org.getOrgWithCapabilities")(
       slug: apiOrg.slug,
       tier,
       capabilities,
+      cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+      currentPeriodEnd: subscription.currentPeriodEnd,
     };
   }
 );

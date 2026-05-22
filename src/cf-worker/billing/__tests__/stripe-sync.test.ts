@@ -50,7 +50,9 @@ const sub = (
   ({
     id: opts.id ?? "sub_1",
     status,
-    cancel_at_period_end: opts.cancelAtPeriodEnd ?? false,
+    cancel_at: opts.cancelAtPeriodEnd
+      ? (opts.periodEnd ?? 1_700_000_000)
+      : null,
     items: {
       data: opts.noItems
         ? []
@@ -163,6 +165,38 @@ describe("syncFromStripe", () => {
       )
     );
   });
+
+  it.effect(
+    "flags a scheduled cancellation (cancel_at set, still active)",
+    () => {
+      const updates: Record<string, unknown>[] = [];
+      return syncFromStripe(CUSTOMER_ID).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            stripeStub({
+              listSubscriptions: () =>
+                Effect.succeed([
+                  sub("active", {
+                    id: "sub_pro",
+                    priceId: "price_pro",
+                    cancelAtPeriodEnd: true,
+                  }),
+                ]),
+            }),
+            syncDb({ org: ORG, updates })
+          )
+        ),
+        quiet,
+        Effect.tap(() =>
+          Effect.sync(() => {
+            const v = updates[0];
+            expect(v.tier).toBe("pro");
+            expect(v.cancelAtPeriodEnd).toBe(true);
+          })
+        )
+      );
+    }
+  );
 
   it.effect("prefers the active sub over a newer canceled one (S1)", () => {
     const updates: Record<string, unknown>[] = [];

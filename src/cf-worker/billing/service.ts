@@ -86,6 +86,23 @@ export class Billing extends Effect.Service<Billing>()("@cloudstash/Billing", {
         return row.tier;
       }),
 
+      subscription: Effect.fn("Billing.subscription")(function* (orgId: OrgId) {
+        const row = yield* query(
+          db.query.organization.findFirst({
+            where: eq(schema.organization.id, orgId),
+            columns: { cancelAtPeriodEnd: true, currentPeriodEnd: true },
+          })
+        ).pipe(
+          Effect.flatMap((r) =>
+            r ? Effect.succeed(r) : OrgNotFoundError.make({ orgId })
+          )
+        );
+        return {
+          cancelAtPeriodEnd: row.cancelAtPeriodEnd,
+          currentPeriodEnd: row.currentPeriodEnd?.toISOString() ?? null,
+        };
+      }),
+
       getOverrides: Effect.fn("Billing.getOverrides")(function* (orgId: OrgId) {
         const row = yield* fetchOrgRow(orgId);
         yield* Effect.annotateCurrentSpan({ orgId: maskId(orgId) });

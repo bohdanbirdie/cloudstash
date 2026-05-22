@@ -39,6 +39,8 @@ export function useOrgFeatures() {
 
   const capabilities = data?.organization?.capabilities ?? FREE_CAPS;
   const tier = data?.organization?.tier ?? "free";
+  const cancelAtPeriodEnd = data?.organization?.cancelAtPeriodEnd ?? false;
+  const currentPeriodEnd = data?.organization?.currentPeriodEnd ?? null;
 
   const isLoading = data === undefined && error === undefined;
   const isFallback = data === undefined && error !== undefined;
@@ -46,6 +48,8 @@ export function useOrgFeatures() {
   return {
     capabilities,
     tier,
+    cancelAtPeriodEnd,
+    currentPeriodEnd,
     error: error ?? null,
     isLoading,
     isFallback,

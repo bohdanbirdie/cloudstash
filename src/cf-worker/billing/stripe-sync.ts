@@ -175,7 +175,7 @@ export const syncFromStripe = Effect.fn("Billing.syncFromStripe")(function* (
           Option.getOrNull
         ),
         cancelAtPeriodEnd: subscription.pipe(
-          Option.map((s) => s.cancel_at_period_end),
+          Option.map((s) => s.cancel_at != null),
           Option.getOrElse(() => false)
         ),
       })
@@ -191,7 +191,7 @@ export const syncFromStripe = Effect.fn("Billing.syncFromStripe")(function* (
         Option.getOrElse(() => "none")
       ),
       cancelAtPeriodEnd: subscription.pipe(
-        Option.map((s) => s.cancel_at_period_end),
+        Option.map((s) => s.cancel_at != null),
         Option.getOrElse(() => false)
       ),
     })

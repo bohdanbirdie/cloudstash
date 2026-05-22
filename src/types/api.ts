@@ -11,6 +11,8 @@ export interface MeResponse {
     slug: string;
     tier: PlanTier;
     capabilities: TierCapabilities;
+    cancelAtPeriodEnd: boolean;
+    currentPeriodEnd: string | null;
   } | null;
   session: {
     activeOrganizationId: string | null;

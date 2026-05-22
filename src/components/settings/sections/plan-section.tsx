@@ -7,7 +7,11 @@ import { SectionEyebrow } from "@/components/right-pane/detail-view/section-eyeb
 import { Button } from "@/components/ui/button";
 import { useOrgFeatures } from "@/hooks/use-org-features";
 import { changePlan } from "@/lib/billing";
-import { PLAN_CHANGE_COPY } from "@/lib/billing-copy";
+import {
+  cancelKeepsFeaturesCopy,
+  formatRenewalDate,
+  PLAN_CHANGE_COPY,
+} from "@/lib/billing-copy";
 import type { PlanInfo, PlanTier } from "@/lib/plan";
 import { PLAN_ORDER, PLANS } from "@/lib/plan";
 import { MICRO_LABEL, MICRO_LABEL_SM } from "@/lib/typography";
@@ -41,8 +45,10 @@ function changeNote(action: TileAction): string | null {
 }
 
 export function PlanSection() {
-  const { tier } = useOrgFeatures();
+  const { tier, cancelAtPeriodEnd, currentPeriodEnd } = useOrgFeatures();
   const currentPlan = PLANS[tier];
+  const renewalDate = formatRenewalDate(currentPeriodEnd);
+  const isCanceling = cancelAtPeriodEnd && tier !== "free";
 
   const [pending, setPending] = useState<PlanTier | null>(null);
 
@@ -63,7 +69,7 @@ export function PlanSection() {
         {pending ? "Opening billing…" : ""}
       </span>
 
-      <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+      <header className="flex flex-wrap items-baseline-last justify-between gap-x-4 gap-y-2">
         <div className="flex flex-col gap-1.5">
           <SectionEyebrow>Your plan</SectionEyebrow>
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
@@ -76,7 +82,7 @@ export function PlanSection() {
           </div>
         </div>
 
-        {tier !== "free" && (
+        {tier !== "free" && !isCanceling && (
           <div className="flex flex-col items-end gap-0.5 text-right max-sm:items-start max-sm:text-left">
             <button
               type="button"
@@ -96,6 +102,32 @@ export function PlanSection() {
           </div>
         )}
       </header>
+
+      {isCanceling && (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-lg bg-muted/60 px-4 py-3.5">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-semibold text-foreground tabular-nums">
+              Ends {renewalDate ?? "at period end"}
+            </span>
+            <span className="text-pretty text-xs text-muted-foreground">
+              {cancelKeepsFeaturesCopy(currentPlan.name)}
+            </span>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => handleChange(tier)}
+            disabled={pending !== null && pending !== tier}
+            aria-busy={pending === tier}
+          >
+            Resume {currentPlan.name}
+            {pending === tier && (
+              <Loader2Icon className="size-3.5 animate-spin" aria-hidden />
+            )}
+          </Button>
+        </div>
+      )}
 
       <div className="flex flex-col gap-5">
         <PrimaryTile

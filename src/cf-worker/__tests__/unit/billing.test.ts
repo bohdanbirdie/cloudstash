@@ -22,6 +22,8 @@ function makeBillingLayer(overrides: Partial<BillingImpl> = {}) {
   const defaults: BillingImpl = {
     capabilities: () => Effect.succeed(capabilitiesFor("free")),
     tier: () => Effect.succeed("free"),
+    subscription: () =>
+      Effect.succeed({ cancelAtPeriodEnd: false, currentPeriodEnd: null }),
     getOverrides: () => Effect.succeed({}),
     setTier: () => Effect.void,
     setOverride: () => Effect.void,

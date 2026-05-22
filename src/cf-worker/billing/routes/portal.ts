@@ -27,7 +27,8 @@ const portalRequest = Effect.fn("Billing.portal")(function* (
   const stripe = yield* StripeClient;
 
   const customerId = yield* getOrCreateStripeCustomer(orgId);
-  const returnUrl = `${appBaseUrl(request, env)}/welcome`;
+  // Eager-sync endpoint, not /welcome: a portal action otherwise only syncs via the webhook.
+  const returnUrl = `${appBaseUrl(request, env)}/api/stripe/success`;
 
   const subscriptions = yield* stripe.listSubscriptions(customerId);
   const flow = Option.match(selectSubscription(subscriptions), {

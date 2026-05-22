@@ -5,7 +5,6 @@ import { maskId, safeErrorInfo } from "../../log-utils";
 import type { Env } from "../../shared";
 import { StripeApiError } from "../errors";
 import { getStripeCustomerId, syncFromStripe } from "../stripe-sync";
-import { dbErrorResponse, sessionErrorTags } from "./responses";
 import { runBilling } from "./runtime";
 import { appBaseUrl, requireOrg } from "./shared";
 
@@ -34,12 +33,13 @@ const successRequest = Effect.fn("Billing.success")(function* (
 
 export const successProgram = (request: Request, env: Env) =>
   successRequest(request, env).pipe(
-    Effect.catchTags({
-      ConnectUnauthorizedError: sessionErrorTags.ConnectUnauthorizedError,
-      SessionLookupError: sessionErrorTags.SessionLookupError,
-      NoActiveOrgError: sessionErrorTags.NoActiveOrgError,
-      DbError: dbErrorResponse,
-    })
+    // Browser-only endpoint (Checkout + Portal redirects): land on a page, never JSON.
+    Effect.catchAll((error) =>
+      Effect.logWarning("Billing.success failed; redirecting to /welcome").pipe(
+        Effect.annotateLogs(safeErrorInfo(error)),
+        Effect.as(Response.redirect(`${appBaseUrl(request, env)}/welcome`, 302))
+      )
+    )
   );
 
 export const handleStripeSuccess = (

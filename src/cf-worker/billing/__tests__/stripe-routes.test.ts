@@ -300,6 +300,15 @@ describe("successProgram", () => {
     expect(res.headers.get("location")).toBe("https://app.test/welcome");
   });
 
+  it("redirects to /welcome (not JSON) when the session is gone", async () => {
+    const res = await run(
+      successProgram(get(), ENV),
+      Layer.mergeAll(stripeStub({}), authStub(null), orgDb(undefined))
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://app.test/welcome");
+  });
+
   it("redirects even when the sync fails (webhook backstops)", async () => {
     const res = await run(
       successProgram(get(), ENV),
