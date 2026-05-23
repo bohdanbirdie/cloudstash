@@ -200,6 +200,11 @@ async function main(): Promise<void> {
       const router = createRouter({
         routeTree,
         history: createMemoryHistory({ initialEntries: [path] }),
+        // Mirror the runtime router so <Match> emits TSR's inline scroll
+        // restoration script into the prerendered HTML — it runs in <body>
+        // before hydration and restores the saved scroll synchronously,
+        // preventing the paint-at-top-then-jump on refresh.
+        scrollRestoration: true,
       });
       await router.load();
       const html = renderToString(<RouterProvider router={router} />);
