@@ -97,6 +97,42 @@ describe("tag-suggestions materializer", () => {
         status: "pending",
       });
     });
+
+    it("ignores a second insert with the same id (rebase re-materialize safe)", () => {
+      const linkId = testId("link");
+      seedLink(linkId);
+
+      const id = testId("sug");
+      const firstSuggestedAt = new Date("2026-01-02T10:00:00Z");
+      store.commit(
+        events.tagSuggested({
+          id,
+          linkId,
+          tagId: null,
+          suggestedName: "First",
+          model: "gpt-4o-mini",
+          suggestedAt: firstSuggestedAt,
+        })
+      );
+
+      expect(() =>
+        store.commit(
+          events.tagSuggested({
+            id,
+            linkId,
+            tagId: null,
+            suggestedName: "Second",
+            model: "gpt-4o-mini",
+            suggestedAt: new Date("2026-01-03T10:00:00Z"),
+          })
+        )
+      ).not.toThrow();
+
+      const rows = store.query(tables.tagSuggestions.where({ id }));
+      expect(rows).toHaveLength(1);
+      expect(rows[0].suggestedName).toBe("First");
+      expect(rows[0].suggestedAt.getTime()).toBe(firstSuggestedAt.getTime());
+    });
   });
 
   describe("v1.TagSuggestionAccepted", () => {
