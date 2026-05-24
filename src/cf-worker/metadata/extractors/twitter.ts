@@ -11,7 +11,7 @@ interface TweetMediaDetail {
   media_url_https?: string;
 }
 
-interface TweetResponse {
+interface TweetBase {
   text?: string;
   display_text_range?: [number, number];
   user?: { name?: string; screen_name?: string };
@@ -19,7 +19,11 @@ interface TweetResponse {
     urls?: TweetEntity[];
     media?: TweetEntity[];
   };
+}
+
+interface TweetResponse extends TweetBase {
   mediaDetails?: TweetMediaDetail[];
+  quoted_tweet?: TweetBase;
 }
 
 function tweetIdFromUrl(url: URL): string | null {
@@ -36,7 +40,7 @@ function syndicationToken(id: string): string {
 
 const TITLE_BODY_MAX = 140;
 
-function expandText(data: TweetResponse): string | null {
+function expandText(data: TweetBase): string | null {
   if (!data.text) return null;
   // display_text_range marks the displayable tweet body, excluding auto-appended
   // trailing media URLs (the "https://t.co/..." that points to a photo/video).
@@ -120,9 +124,22 @@ export const twitterExtractor: Extractor = {
       const author = data.user?.name ?? data.user?.screen_name;
       const image = data.mediaDetails?.[0]?.media_url_https;
 
+      const quotedText = data.quoted_tweet
+        ? expandText(data.quoted_tweet)
+        : null;
+      const quotedHandle = data.quoted_tweet?.user?.screen_name;
+      const quotedSegment = quotedText
+        ? `Quoting ${quotedHandle ? `@${quotedHandle}` : "another tweet"}: ${quotedText}`
+        : null;
+
       const titleBody = firstChunk(fullText, TITLE_BODY_MAX);
       const title = author ? `${author}: ${titleBody}` : titleBody;
-      const description = titleBody === fullText ? undefined : fullText;
+      const mainDescription = titleBody === fullText ? undefined : fullText;
+      const description = quotedSegment
+        ? mainDescription
+          ? `${mainDescription}\n\n${quotedSegment}`
+          : quotedSegment
+        : mainDescription;
 
       return {
         title,

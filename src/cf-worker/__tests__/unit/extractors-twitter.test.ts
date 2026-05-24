@@ -223,4 +223,75 @@ describe("twitterExtractor", () => {
     const result = await extract("https://x.com/foo/status/123");
     expect(result?.title).toBe("Author Name: Check this https://example.com/x");
   });
+
+  it("folds quoted-tweet body into description when main fits in title", async () => {
+    mockFetch.mockResolvedValueOnce(
+      tweetResponse({
+        quoted_tweet: {
+          text: "original take https://t.co/zzz",
+          display_text_range: [0, 13],
+          user: { name: "Quoted Author", screen_name: "quotedhandle" },
+          entities: { urls: [], media: [] },
+        },
+      })
+    );
+    const result = await extract("https://x.com/foo/status/123");
+    expect(result?.title).toBe("Author Name: short tweet body");
+    expect(result?.description).toBe("Quoting @quotedhandle: original take");
+  });
+
+  it("appends quoted segment after full body when main spills past title", async () => {
+    const longText =
+      "First sentence ends here. Second sentence continues. Third sentence has more content. Fourth sentence keeps going. Fifth sentence pushes past the 140-character title budget so we exercise the chunk path.";
+    mockFetch.mockResolvedValueOnce(
+      tweetResponse({
+        text: longText,
+        display_text_range: [0, longText.length],
+        entities: { urls: [], media: [] },
+        mediaDetails: [],
+        user: { name: "Long Tweet Author", screen_name: "longtweetauthor" },
+        quoted_tweet: {
+          text: "the thing being quoted",
+          display_text_range: [0, 22],
+          user: { name: "Quoted Author", screen_name: "quotedhandle" },
+          entities: { urls: [], media: [] },
+        },
+      })
+    );
+    const result = await extract("https://x.com/foo/status/123");
+    expect(result?.title).toBe("Long Tweet Author: First sentence ends here.");
+    expect(result?.description).toBe(
+      `${longText}\n\nQuoting @quotedhandle: the thing being quoted`
+    );
+  });
+
+  it("falls back to 'another tweet' when quoted tweet has no screen_name", async () => {
+    mockFetch.mockResolvedValueOnce(
+      tweetResponse({
+        quoted_tweet: {
+          text: "anonymous quoted body",
+          display_text_range: [0, 21],
+          entities: { urls: [], media: [] },
+        },
+      })
+    );
+    const result = await extract("https://x.com/foo/status/123");
+    expect(result?.description).toBe(
+      "Quoting another tweet: anonymous quoted body"
+    );
+  });
+
+  it("ignores quoted_tweet when its text is empty", async () => {
+    mockFetch.mockResolvedValueOnce(
+      tweetResponse({
+        quoted_tweet: {
+          text: "",
+          user: { screen_name: "quotedhandle" },
+          entities: { urls: [], media: [] },
+        },
+      })
+    );
+    const result = await extract("https://x.com/foo/status/123");
+    expect(result?.description).toBeUndefined();
+  });
 });
