@@ -409,7 +409,9 @@ const materializers = State.SQLite.materializers(events, {
   "v1.LinkDeleted": ({ id, deletedAt }) =>
     tables.links.update({ deletedAt }).where({ id }),
   "v1.LinkInteracted": ({ id, linkId, type, occurredAt }) =>
-    tables.linkInteractions.insert({ id, linkId, occurredAt, type }),
+    tables.linkInteractions
+      .insert({ id, linkId, occurredAt, type })
+      .onConflict("id", "ignore"),
   "v1.LinkMetadataFetched": ({
     id,
     linkId,
@@ -419,15 +421,17 @@ const materializers = State.SQLite.materializers(events, {
     favicon,
     fetchedAt,
   }) =>
-    tables.linkSnapshots.insert({
-      description,
-      favicon,
-      fetchedAt,
-      id,
-      image,
-      linkId,
-      title,
-    }),
+    tables.linkSnapshots
+      .insert({
+        description,
+        favicon,
+        fetchedAt,
+        id,
+        image,
+        linkId,
+        title,
+      })
+      .onConflict("id", "ignore"),
   "v1.LinkProcessingCancelled": ({ linkId, updatedAt }) =>
     tables.linkProcessingStatus
       .insert({
@@ -473,7 +477,9 @@ const materializers = State.SQLite.materializers(events, {
   "v1.LinkRestored": ({ id }) =>
     tables.links.update({ deletedAt: null }).where({ id }),
   "v1.LinkSummarized": ({ id, linkId, summary, model, summarizedAt }) =>
-    tables.linkSummaries.insert({ id, linkId, model, summarizedAt, summary }),
+    tables.linkSummaries
+      .insert({ id, linkId, model, summarizedAt, summary })
+      .onConflict("id", "ignore"),
   "v1.LinkUncompleted": ({ id }) =>
     tables.links.update({ completedAt: null, status: "unread" }).where({ id }),
 
@@ -505,15 +511,17 @@ const materializers = State.SQLite.materializers(events, {
     model,
     suggestedAt,
   }) =>
-    tables.tagSuggestions.insert({
-      id,
-      linkId,
-      model,
-      status: "pending",
-      suggestedAt,
-      suggestedName,
-      tagId,
-    }),
+    tables.tagSuggestions
+      .insert({
+        id,
+        linkId,
+        model,
+        status: "pending",
+        suggestedAt,
+        suggestedName,
+        tagId,
+      })
+      .onConflict("id", "ignore"),
   "v1.TagSuggestionAccepted": ({ id }) =>
     tables.tagSuggestions.update({ status: "accepted" }).where({ id }),
   "v1.TagSuggestionDismissed": ({ id }) =>

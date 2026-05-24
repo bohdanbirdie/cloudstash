@@ -90,6 +90,44 @@ describe("link-content materializers", () => {
       });
       expect(row.fetchedAt.getTime()).toBe(fetchedAt.getTime());
     });
+
+    it("ignores a second insert with the same id (rebase re-materialize safe)", () => {
+      const linkId = testId("link");
+      seedLink(linkId);
+
+      const snapshotId = testId("snap");
+      const firstFetchedAt = new Date("2026-01-02T10:00:00Z");
+      store.commit(
+        events.linkMetadataFetched({
+          id: snapshotId,
+          linkId,
+          title: "First",
+          description: null,
+          image: null,
+          favicon: null,
+          fetchedAt: firstFetchedAt,
+        })
+      );
+
+      expect(() =>
+        store.commit(
+          events.linkMetadataFetched({
+            id: snapshotId,
+            linkId,
+            title: "Second",
+            description: null,
+            image: null,
+            favicon: null,
+            fetchedAt: new Date("2026-01-03T10:00:00Z"),
+          })
+        )
+      ).not.toThrow();
+
+      const rows = store.query(tables.linkSnapshots.where({ id: snapshotId }));
+      expect(rows).toHaveLength(1);
+      expect(rows[0].title).toBe("First");
+      expect(rows[0].fetchedAt.getTime()).toBe(firstFetchedAt.getTime());
+    });
   });
 
   describe("v1.LinkSummarized", () => {
@@ -120,6 +158,40 @@ describe("link-content materializers", () => {
       expect(rows[0].summarizedAt).toBeInstanceOf(Date);
       expect(rows[0].summarizedAt.getTime()).toBe(summarizedAt.getTime());
     });
+
+    it("ignores a second insert with the same id (rebase re-materialize safe)", () => {
+      const linkId = testId("link");
+      seedLink(linkId);
+
+      const id = testId("sum");
+      const firstSummarizedAt = new Date("2026-01-02T10:00:00Z");
+      store.commit(
+        events.linkSummarized({
+          id,
+          linkId,
+          summary: "First summary.",
+          model: "gpt-4o-mini",
+          summarizedAt: firstSummarizedAt,
+        })
+      );
+
+      expect(() =>
+        store.commit(
+          events.linkSummarized({
+            id,
+            linkId,
+            summary: "Second summary.",
+            model: "gpt-4o-mini",
+            summarizedAt: new Date("2026-01-03T10:00:00Z"),
+          })
+        )
+      ).not.toThrow();
+
+      const rows = store.query(tables.linkSummaries.where({ id }));
+      expect(rows).toHaveLength(1);
+      expect(rows[0].summary).toBe("First summary.");
+      expect(rows[0].summarizedAt.getTime()).toBe(firstSummarizedAt.getTime());
+    });
   });
 
   describe("v1.LinkInteracted", () => {
@@ -147,6 +219,37 @@ describe("link-content materializers", () => {
       });
       expect(rows[0].occurredAt).toBeInstanceOf(Date);
       expect(rows[0].occurredAt.getTime()).toBe(occurredAt.getTime());
+    });
+
+    it("ignores a second insert with the same id (rebase re-materialize safe)", () => {
+      const linkId = testId("link");
+      seedLink(linkId);
+
+      const id = testId("int");
+      const firstOccurredAt = new Date("2026-01-02T10:00:00Z");
+      store.commit(
+        events.linkInteracted({
+          id,
+          linkId,
+          type: "opened",
+          occurredAt: firstOccurredAt,
+        })
+      );
+
+      expect(() =>
+        store.commit(
+          events.linkInteracted({
+            id,
+            linkId,
+            type: "opened",
+            occurredAt: new Date("2026-01-03T10:00:00Z"),
+          })
+        )
+      ).not.toThrow();
+
+      const rows = store.query(tables.linkInteractions.where({ id }));
+      expect(rows).toHaveLength(1);
+      expect(rows[0].occurredAt.getTime()).toBe(firstOccurredAt.getTime());
     });
   });
 });
