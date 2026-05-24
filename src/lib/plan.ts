@@ -35,6 +35,7 @@ export const PLANS: Readonly<Record<PlanTier, PlanInfo>> = {
     features: [
       "AI summary on every save",
       "Save from Telegram, Raycast, iOS, and Chrome",
+      "Weekly digest of what you read",
       "Public API",
     ],
     highlighted: true,
@@ -70,6 +71,7 @@ export interface TierCapabilities {
   xBookmarkSync: boolean;
   publicApi: boolean;
   mcpServer: boolean;
+  weeklyDigest: boolean;
   monthlyChatBudgetUsd: number;
 }
 
@@ -81,6 +83,7 @@ export const TIER_CAPABILITIES: Readonly<Record<PlanTier, TierCapabilities>> = {
     xBookmarkSync: false,
     publicApi: false,
     mcpServer: false,
+    weeklyDigest: false,
     monthlyChatBudgetUsd: 0,
   },
   plus: {
@@ -90,6 +93,7 @@ export const TIER_CAPABILITIES: Readonly<Record<PlanTier, TierCapabilities>> = {
     xBookmarkSync: false,
     publicApi: true,
     mcpServer: false,
+    weeklyDigest: true,
     monthlyChatBudgetUsd: 0,
   },
   pro: {
@@ -99,6 +103,7 @@ export const TIER_CAPABILITIES: Readonly<Record<PlanTier, TierCapabilities>> = {
     xBookmarkSync: true,
     publicApi: true,
     mcpServer: true,
+    weeklyDigest: true,
     monthlyChatBudgetUsd: 5,
   },
 };

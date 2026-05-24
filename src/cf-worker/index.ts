@@ -13,6 +13,7 @@ import {
 } from "./admin";
 import { handleApproveUser } from "./admin/approve-user";
 import { handleGetSignupGate, handleSetSignupGate } from "./admin/signup-gate";
+import { handleTriggerDigest } from "./admin/trigger-digest";
 import { handleGetUsage } from "./admin/usage";
 import { trackEvent } from "./analytics";
 import { gateUserApiKeyCreate } from "./auth/api-key-gate";
@@ -128,6 +129,9 @@ app.get("/api/admin/signup-gate", requireAdmin, (c) =>
 );
 app.put("/api/admin/signup-gate", requireAdmin, (c) =>
   handleSetSignupGate(c.req.raw, c.env)
+);
+app.post("/api/weekly-digest/trigger", requireAdmin, (c) =>
+  handleTriggerDigest(c.req.raw, c.env)
 );
 app.on(["GET", "POST"], "/api/auth/*", (c) =>
   runHandler(

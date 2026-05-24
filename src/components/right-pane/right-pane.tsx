@@ -6,6 +6,7 @@ import { DetailView } from "@/components/right-pane/detail-view/detail-view";
 import { RightPaneHeader } from "@/components/right-pane/right-pane-header";
 import { PopoverBoundaryProvider } from "@/components/ui/popover-boundary";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { WeeklyDigest } from "@/components/weekly-digest";
 import { useRightPaneStore } from "@/stores/right-pane-store";
 import { useInSelectionMode } from "@/stores/selection-store";
 
@@ -34,12 +35,15 @@ export function RightPane() {
         </motion.div>
 
         <div className="relative min-h-0 flex-1">
-          <div
+          <ScrollArea
             inert={activeLinkId ? true : undefined}
-            className="flex flex-col gap-8 px-3 pb-8"
+            className="h-full"
           >
-            <ActivityGrid />
-          </div>
+            <div className="flex flex-col gap-8 px-3 pb-8">
+              <ActivityGrid />
+              <WeeklyDigest />
+            </div>
+          </ScrollArea>
 
           {activeLinkId && (
             <div className="absolute inset-0 bg-background">

@@ -164,6 +164,18 @@ export const tables = {
     indexes: [{ columns: ["linkId"], name: "idx_tag_suggestions_link" }],
     name: "tag_suggestions",
   }),
+  weeklyDigests: State.SQLite.table({
+    columns: {
+      id: State.SQLite.text({ primaryKey: true }),
+      period: State.SQLite.text({ default: "" }),
+      contentMd: State.SQLite.text({ default: "" }),
+      generatedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+    },
+    indexes: [
+      { columns: ["generatedAt"], name: "idx_weekly_digests_generated" },
+    ],
+    name: "weekly_digests",
+  }),
 };
 
 export const events = {
@@ -355,6 +367,16 @@ export const events = {
       id: Schema.String,
     }),
   }),
+
+  weeklyDigestGenerated: Events.synced({
+    name: "v1.WeeklyDigestGenerated",
+    schema: Schema.Struct({
+      contentMd: Schema.String,
+      generatedAt: Schema.Date,
+      id: Schema.String,
+      period: Schema.String,
+    }),
+  }),
 };
 
 const materializers = State.SQLite.materializers(events, {
@@ -496,6 +518,11 @@ const materializers = State.SQLite.materializers(events, {
     tables.tagSuggestions.update({ status: "accepted" }).where({ id }),
   "v1.TagSuggestionDismissed": ({ id }) =>
     tables.tagSuggestions.update({ status: "dismissed" }).where({ id }),
+
+  "v1.WeeklyDigestGenerated": ({ id, period, contentMd, generatedAt }) =>
+    tables.weeklyDigests
+      .insert({ contentMd, generatedAt, id, period })
+      .onConflict("id", "ignore"),
 });
 
 const state = State.SQLite.makeState({ materializers, tables });
