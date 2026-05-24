@@ -18,6 +18,9 @@ export type SessionId = typeof SessionId.Type;
 export const TagId = Schema.String.pipe(Schema.brand("TagId"));
 export type TagId = typeof TagId.Type;
 
+export const DigestId = Schema.String.pipe(Schema.brand("DigestId"));
+export type DigestId = typeof DigestId.Type;
+
 export const MemberId = Schema.String.pipe(Schema.brand("MemberId"));
 export type MemberId = typeof MemberId.Type;
 

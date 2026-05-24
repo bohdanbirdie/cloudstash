@@ -5,7 +5,10 @@ import type { Store, Unsubscribe } from "@livestore/livestore";
 import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
 /// <reference types="@cloudflare/workers-types" />
 import { DurableObject } from "cloudflare:workers";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Option } from "effect";
+
+import { capabilitiesFor } from "@/lib/plan";
+import type { TierCapabilities } from "@/lib/plan";
 
 import { events, schema, tables } from "../../livestore/schema";
 import { Billing } from "../billing/service";
@@ -37,6 +40,16 @@ import type { LinkQueueMessage } from "./types";
 const logger = logSync("LinkProcessorDO");
 
 const MAX_NOTIFIED_LINK_IDS = 500;
+
+import type { WeeklyDigestRpcResult } from "../weekly-digest/rpc";
+import { runDigestGeneration } from "../weekly-digest/run-digest";
+import {
+  DigestScheduler,
+  DigestSchedulerLive,
+} from "../weekly-digest/scheduler";
+import type { DigestSchedulerDeps } from "../weekly-digest/scheduler";
+
+export type { WeeklyDigestRpcResult };
 
 import {
   evictOldestFromSet,
@@ -344,6 +357,33 @@ export class LinkProcessorDO
         logger.error("cancelStaleLinks failed", safeErrorInfo(error));
       });
     }
+
+    this.ensureDigestScheduled().catch((error) => {
+      logger.error("ensureDigestScheduled failed", safeErrorInfo(error));
+    });
+  }
+
+  private capabilities(): Effect.Effect<TierCapabilities> {
+    return FeatureStore.pipe(
+      Effect.flatMap((fs) => fs.getCapabilities(this.storeId!)),
+      Effect.provide(
+        FeatureStoreLive.pipe(
+          Layer.provide(Billing.Default),
+          Layer.provide(DbClientLive(this.env.DB))
+        )
+      ),
+      Effect.catchAllDefect((defect) =>
+        Effect.logError(
+          "LinkProcessor: feature-store defect, defaulting to free tier"
+        ).pipe(
+          Effect.annotateLogs({
+            storeId: maskId(this.storeId ?? ""),
+            cause: String(defect),
+          }),
+          Effect.as(capabilitiesFor("free"))
+        )
+      )
+    );
   }
 
   private processLinkEffect(
@@ -385,10 +425,10 @@ export class LinkProcessorDO
             "LinkProcessor: feature-store defect, downgrading capabilities"
           ).pipe(
             Effect.annotateLogs({
-              storeId: this.storeId,
+              storeId: maskId(this.storeId ?? ""),
               cause: String(defect),
             }),
-            Effect.as({ aiSummary: false } as { aiSummary: boolean })
+            Effect.as(capabilitiesFor("free"))
           )
         )
       );
@@ -616,6 +656,60 @@ export class LinkProcessorDO
     });
 
     return result;
+  }
+
+  private digestSchedulerDeps(): DigestSchedulerDeps {
+    return {
+      storage: this.ctx.storage,
+      getStoreId: Effect.sync(() => Option.fromNullable(this.storeId)),
+      setStoreId: (id) =>
+        Effect.sync(() => {
+          this.storeId = id;
+        }),
+      getCapabilities: this.capabilities(),
+      isDeletionTombstoned: Effect.promise(() =>
+        isDeletionTombstoneSet(this.ctx.storage)
+      ),
+      runDigest: (storeId, trigger) =>
+        Effect.gen(this, function* () {
+          const store = yield* Effect.promise(() => this.getStore());
+          return yield* runDigestGeneration({
+            env: this.env,
+            store,
+            storeId,
+            trigger,
+          });
+        }),
+    };
+  }
+
+  async ensureDigestScheduled(): Promise<void> {
+    await runEffect(
+      Effect.gen(function* () {
+        const scheduler = yield* DigestScheduler;
+        yield* scheduler.ensureScheduled;
+      }).pipe(Effect.provide(DigestSchedulerLive(this.digestSchedulerDeps())))
+    );
+  }
+
+  override async alarm(): Promise<void> {
+    await runEffect(
+      Effect.gen(function* () {
+        const scheduler = yield* DigestScheduler;
+        yield* scheduler.handleAlarm;
+      }).pipe(Effect.provide(DigestSchedulerLive(this.digestSchedulerDeps())))
+    );
+  }
+
+  async triggerDigest(storeId: OrgId): Promise<WeeklyDigestRpcResult> {
+    this.storeId = storeId;
+    await this.ensureSubscribed();
+    return runEffect(
+      Effect.gen(function* () {
+        const scheduler = yield* DigestScheduler;
+        return yield* scheduler.triggerDigest(storeId);
+      }).pipe(Effect.provide(DigestSchedulerLive(this.digestSchedulerDeps())))
+    );
   }
 
   async syncUpdateRpc(payload: unknown): Promise<void> {

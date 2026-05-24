@@ -1,6 +1,6 @@
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
+import { useCallback, useState } from "react";
 
-import { useChatContainer } from "@/components/chat/chat-container-context";
 import { Favicon } from "@/components/favicon";
 import { LinkImage } from "@/components/link-image";
 import { displayDescription, displayTitle } from "@/lib/link-display";
@@ -9,24 +9,64 @@ import type { LinkWithDetails } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
 import { useRightPaneStore } from "@/stores/right-pane-store";
 
+const LINK_PILL_CLASS =
+  "inline-flex items-baseline gap-1 rounded-sm border border-border bg-muted px-1.5 py-0.5 text-xs leading-tight font-medium text-foreground no-underline hover:bg-primary hover:border-primary hover:text-primary-foreground transition-colors";
+
+const PillContent = ({
+  link,
+  displayText,
+}: {
+  link: LinkWithDetails;
+  displayText: string;
+}) => (
+  <>
+    <Favicon src={link.favicon} className="size-3.5 self-center rounded-sm" />
+    <span className="max-w-[200px] truncate leading-tight">{displayText}</span>
+  </>
+);
+
 interface LinkMentionWithTooltipProps {
   link: LinkWithDetails;
-  linkElement: React.ReactElement;
+  href: string;
+  displayText: string;
   onOpenDetail: () => void;
 }
 
 function LinkMentionWithTooltip({
   link,
-  linkElement,
+  href,
+  displayText,
   onOpenDetail,
 }: LinkMentionWithTooltipProps) {
-  const chatContainer = useChatContainer();
+  const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+
+  const handlePopupClick = () => {
+    close();
+    onOpenDetail();
+  };
 
   return (
-    <TooltipPrimitive.Provider delay={400}>
-      <TooltipPrimitive.Root>
-        <TooltipPrimitive.Trigger render={linkElement} />
-        <TooltipPrimitive.Portal container={chatContainer?.current}>
+    <TooltipPrimitive.Provider delay={150}>
+      <TooltipPrimitive.Root open={open} onOpenChange={setOpen}>
+        <TooltipPrimitive.Trigger
+          render={(triggerProps) => (
+            <a
+              {...triggerProps}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                triggerProps.onClick?.(e);
+                close();
+              }}
+              className={LINK_PILL_CLASS}
+            >
+              <PillContent link={link} displayText={displayText} />
+            </a>
+          )}
+        />
+        <TooltipPrimitive.Portal>
           <TooltipPrimitive.Positioner
             side="top"
             sideOffset={6}
@@ -34,7 +74,7 @@ function LinkMentionWithTooltip({
           >
             <TooltipPrimitive.Popup
               className="z-50 overflow-hidden max-w-xs bg-background border border-primary shadow-xl animate-in fade-in-0 zoom-in-95 cursor-pointer hover:border-primary/80"
-              onClick={onOpenDetail}
+              onClick={handlePopupClick}
             >
               <LinkImage
                 src={link.image}
@@ -82,26 +122,26 @@ export function LinkMention({ href, children }: LinkMentionProps) {
       openDetail(link.id);
     };
 
-    const linkElement = (
+    if (hasPreview) {
+      return (
+        <LinkMentionWithTooltip
+          link={link}
+          href={href}
+          displayText={displayText}
+          onOpenDetail={handleOpenDetail}
+        />
+      );
+    }
+
+    return (
       <a
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 rounded-sm border border-border bg-muted px-1.5 py-0.5 text-xs leading-none font-medium text-foreground no-underline hover:bg-primary hover:border-primary hover:text-primary-foreground transition-colors align-text-bottom"
+        className={LINK_PILL_CLASS}
       >
-        <Favicon src={link.favicon} className="size-3.5 rounded-sm" />
-        <span className="max-w-[200px] truncate">{displayText}</span>
+        <PillContent link={link} displayText={displayText} />
       </a>
-    );
-
-    return hasPreview ? (
-      <LinkMentionWithTooltip
-        link={link}
-        linkElement={linkElement}
-        onOpenDetail={handleOpenDetail}
-      />
-    ) : (
-      linkElement
     );
   }
 
