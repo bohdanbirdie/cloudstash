@@ -4,8 +4,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   allTags$,
   allTagsWithCounts$,
+  newTagSuggestionsWithCountsForStatus$,
   pendingSuggestionsForLink$,
+  pendingTagsByLink$,
   tagCounts$,
+  tagsByLink$,
   tagsForLink$,
   tagsWithCountsForStatus$,
 } from "../../queries/tags";
@@ -345,31 +348,328 @@ describe("tags queries", () => {
     });
   });
 
-  describe("pendingSuggestionsForLink$", () => {
-    const suggest = (
-      linkId: string,
-      suggestedName: string,
-      suggestedAt: Date
-    ) => {
-      const id = testId("sug");
+  const suggest = (
+    linkId: string,
+    opts: {
+      tagId?: string | null;
+      suggestedName: string;
+      suggestedAt?: Date;
+    }
+  ) => {
+    const id = testId("sug");
+    store.commit(
+      events.tagSuggested({
+        id,
+        linkId,
+        tagId: opts.tagId ?? null,
+        suggestedName: opts.suggestedName,
+        model: "test-model",
+        suggestedAt: opts.suggestedAt ?? new Date("2026-01-02T10:00:00Z"),
+      })
+    );
+    return id;
+  };
+
+  describe("tagsWithCountsForStatus$ with suggestions", () => {
+    it("surfaces an existing tag whose only association is a pending suggestion", () => {
+      const link = seedLink();
+      const tag = seedTag("focus", 1);
+      suggest(link, { tagId: tag, suggestedName: "focus" });
+
+      const rows = store.query(tagsWithCountsForStatus$("inbox"));
+      expect(rows.find((r) => r.id === tag)?.count).toBe(1);
+    });
+
+    it("counts applied + suggested links as DISTINCT", () => {
+      const linkA = seedLink({ url: "https://a.test/1" });
+      const linkB = seedLink({ url: "https://a.test/2" });
+      const tag = seedTag("focus", 1);
+      tagLink(linkA, tag);
+      // linkB has it only as a pending suggestion
+      suggest(linkB, { tagId: tag, suggestedName: "focus" });
+      // linkA also has a redundant pending suggestion — must not double-count
+      suggest(linkA, { tagId: tag, suggestedName: "focus" });
+
+      const rows = store.query(tagsWithCountsForStatus$("inbox"));
+      expect(rows.find((r) => r.id === tag)?.count).toBe(2);
+    });
+
+    it("ignores accepted or dismissed suggestions", () => {
+      const link = seedLink();
+      const tag = seedTag("focus", 1);
+      const s1 = suggest(link, { tagId: tag, suggestedName: "focus" });
+      store.commit(events.tagSuggestionDismissed({ id: s1 }));
+
+      const rows = store.query(tagsWithCountsForStatus$("inbox"));
+      // No applied + no pending → tag should not surface
+      expect(rows.find((r) => r.id === tag)).toBeUndefined();
+    });
+
+    it("counts orphan suggestion (tagId=null) whose suggestedName matches a tag's id", () => {
+      const link = seedLink();
+      // Create a tag whose id is the slug "focus" by using "focus" as name.
+      // testId would produce a random id, so seed manually.
       store.commit(
-        events.tagSuggested({
-          id,
-          linkId,
-          tagId: null,
-          suggestedName,
-          model: "test-model",
-          suggestedAt,
+        events.tagCreated({
+          id: "focus",
+          name: "focus",
+          sortOrder: 1,
+          createdAt: new Date("2026-01-01T10:00:00Z"),
         })
       );
-      return id;
-    };
+      suggest(link, { suggestedName: "focus" });
 
+      const rows = store.query(tagsWithCountsForStatus$("inbox"));
+      expect(rows.find((r) => r.id === "focus")?.count).toBe(1);
+    });
+
+    it("does not double-count when link has both applied tag and orphan suggestion with matching name", () => {
+      const link = seedLink();
+      store.commit(
+        events.tagCreated({
+          id: "focus",
+          name: "focus",
+          sortOrder: 1,
+          createdAt: new Date("2026-01-01T10:00:00Z"),
+        })
+      );
+      tagLink(link, "focus");
+      suggest(link, { suggestedName: "focus" });
+
+      const rows = store.query(tagsWithCountsForStatus$("inbox"));
+      expect(rows.find((r) => r.id === "focus")?.count).toBe(1);
+    });
+  });
+
+  describe("newTagSuggestionsWithCountsForStatus$", () => {
+    it("returns rows for tagId=null suggestions grouped by suggestedName", () => {
+      const linkA = seedLink({ url: "https://a.test/1" });
+      const linkB = seedLink({ url: "https://a.test/2" });
+      const linkC = seedLink({ url: "https://a.test/3" });
+      suggest(linkA, { suggestedName: "bullmq" });
+      suggest(linkB, { suggestedName: "bullmq" });
+      suggest(linkC, { suggestedName: "fastify" });
+
+      const rows = store.query(newTagSuggestionsWithCountsForStatus$("inbox"));
+      const byName = Object.fromEntries(rows.map((r) => [r.name, r.count]));
+      expect(byName["bullmq"]).toBe(2);
+      expect(byName["fastify"]).toBe(1);
+    });
+
+    it("uses suggestedName as the id (slug-based, not row id)", () => {
+      const link = seedLink();
+      suggest(link, { suggestedName: "react-hooks" });
+
+      const rows = store.query(newTagSuggestionsWithCountsForStatus$("inbox"));
+      expect(rows[0]?.id).toBe("react-hooks");
+      expect(rows[0]?.name).toBe("react-hooks");
+    });
+
+    it("respects link status filter", () => {
+      const inboxLink = seedLink({ url: "https://a.test/1" });
+      const completedLink = seedLink({ url: "https://a.test/2" });
+      suggest(inboxLink, { suggestedName: "bullmq" });
+      suggest(completedLink, { suggestedName: "bullmq" });
+      store.commit(
+        events.linkCompleted({
+          id: completedLink,
+          completedAt: new Date("2026-01-05T10:00:00Z"),
+        })
+      );
+
+      const inboxRows = store.query(
+        newTagSuggestionsWithCountsForStatus$("inbox")
+      );
+      expect(inboxRows.find((r) => r.name === "bullmq")?.count).toBe(1);
+      const completedRows = store.query(
+        newTagSuggestionsWithCountsForStatus$("completed")
+      );
+      expect(completedRows.find((r) => r.name === "bullmq")?.count).toBe(1);
+    });
+
+    it("excludes existing-tag suggestions (only tagId IS NULL)", () => {
+      const link = seedLink();
+      const tag = seedTag("focus", 1);
+      suggest(link, { tagId: tag, suggestedName: "focus" });
+
+      const rows = store.query(newTagSuggestionsWithCountsForStatus$("inbox"));
+      expect(rows).toEqual([]);
+    });
+
+    it("excludes dismissed suggestions", () => {
+      const link = seedLink();
+      const s = suggest(link, { suggestedName: "bullmq" });
+      store.commit(events.tagSuggestionDismissed({ id: s }));
+
+      const rows = store.query(newTagSuggestionsWithCountsForStatus$("inbox"));
+      expect(rows).toEqual([]);
+    });
+
+    it("caps to top 8 by count", () => {
+      // 10 distinct new-tag suggestions, each on its own link
+      for (let i = 0; i < 10; i++) {
+        const link = seedLink({ url: `https://a.test/${i}` });
+        suggest(link, { suggestedName: `tag-${String(i).padStart(2, "0")}` });
+      }
+
+      const rows = store.query(newTagSuggestionsWithCountsForStatus$("inbox"));
+      expect(rows.length).toBe(8);
+    });
+
+    it("excludes orphan suggestions whose suggestedName matches an existing tag's id", () => {
+      const link = seedLink();
+      store.commit(
+        events.tagCreated({
+          id: "bullmq",
+          name: "bullmq",
+          sortOrder: 1,
+          createdAt: new Date("2026-01-01T10:00:00Z"),
+        })
+      );
+      suggest(link, { suggestedName: "bullmq" });
+
+      const rows = store.query(newTagSuggestionsWithCountsForStatus$("inbox"));
+      expect(rows).toEqual([]);
+    });
+
+    it("still surfaces orphan suggestion when the colliding tag is soft-deleted", () => {
+      const link = seedLink();
+      store.commit(
+        events.tagCreated({
+          id: "bullmq",
+          name: "bullmq",
+          sortOrder: 1,
+          createdAt: new Date("2026-01-01T10:00:00Z"),
+        })
+      );
+      deleteTag("bullmq", new Date("2026-01-10T10:00:00Z"));
+      suggest(link, { suggestedName: "bullmq" });
+
+      const rows = store.query(newTagSuggestionsWithCountsForStatus$("inbox"));
+      expect(rows.find((r) => r.name === "bullmq")?.count).toBe(1);
+    });
+  });
+
+  describe("pendingTagsByLink$", () => {
+    it("returns existing-tag suggestion using the tag's id and name", () => {
+      const link = seedLink();
+      const tag = seedTag("focus", 5);
+      suggest(link, { tagId: tag, suggestedName: "focus" });
+
+      const rows = store.query(pendingTagsByLink$);
+      const linkRows = rows.filter((r) => r.linkId === link);
+      expect(linkRows).toHaveLength(1);
+      expect(linkRows[0]?.id).toBe(tag);
+      expect(linkRows[0]?.name).toBe("focus");
+    });
+
+    it("returns new-tag suggestion using suggestedName as id", () => {
+      const link = seedLink();
+      suggest(link, { suggestedName: "bullmq" });
+
+      const rows = store.query(pendingTagsByLink$);
+      const linkRows = rows.filter((r) => r.linkId === link);
+      expect(linkRows[0]?.id).toBe("bullmq");
+      expect(linkRows[0]?.name).toBe("bullmq");
+    });
+
+    it("skips suggestions whose tagId is already applied to that link", () => {
+      const link = seedLink();
+      const tag = seedTag("focus", 1);
+      tagLink(link, tag);
+      suggest(link, { tagId: tag, suggestedName: "focus" });
+
+      const rows = store.query(pendingTagsByLink$);
+      expect(rows.filter((r) => r.linkId === link)).toEqual([]);
+    });
+
+    it("excludes dismissed and accepted suggestions", () => {
+      const link = seedLink();
+      const s1 = suggest(link, { suggestedName: "a" });
+      const s2 = suggest(link, { suggestedName: "b" });
+      store.commit(events.tagSuggestionDismissed({ id: s1 }));
+      store.commit(events.tagSuggestionAccepted({ id: s2 }));
+
+      const rows = store.query(pendingTagsByLink$);
+      expect(rows.filter((r) => r.linkId === link)).toEqual([]);
+    });
+
+    it("excludes suggestions where the underlying tag is soft-deleted", () => {
+      const link = seedLink();
+      const tag = seedTag("focus", 1);
+      suggest(link, { tagId: tag, suggestedName: "focus" });
+      deleteTag(tag, new Date("2026-01-10T10:00:00Z"));
+
+      const rows = store.query(pendingTagsByLink$);
+      expect(rows.filter((r) => r.linkId === link)).toEqual([]);
+    });
+
+    it("promotes orphan suggestion to existing tag when suggestedName matches the tag's id", () => {
+      const link = seedLink();
+      store.commit(
+        events.tagCreated({
+          id: "focus",
+          name: "focus",
+          sortOrder: 7,
+          createdAt: new Date("2026-01-01T10:00:00Z"),
+        })
+      );
+      suggest(link, { suggestedName: "focus" });
+
+      const rows = store.query(pendingTagsByLink$);
+      const linkRows = rows.filter((r) => r.linkId === link);
+      expect(linkRows).toHaveLength(1);
+      // The promoted row uses the existing tag's metadata, not synthetic
+      // suggestion-only values.
+      expect(linkRows[0]?.id).toBe("focus");
+      expect(linkRows[0]?.name).toBe("focus");
+      expect(linkRows[0]?.sortOrder).toBe(7);
+    });
+
+    it("skips orphan suggestion whose suggestedName matches a tag already applied to that link", () => {
+      const link = seedLink();
+      store.commit(
+        events.tagCreated({
+          id: "focus",
+          name: "focus",
+          sortOrder: 1,
+          createdAt: new Date("2026-01-01T10:00:00Z"),
+        })
+      );
+      tagLink(link, "focus");
+      suggest(link, { suggestedName: "focus" });
+
+      const rows = store.query(pendingTagsByLink$);
+      expect(rows.filter((r) => r.linkId === link)).toEqual([]);
+    });
+  });
+
+  describe("tagsByLink$ remains applied-only", () => {
+    it("does not include pending suggestions", () => {
+      const link = seedLink();
+      const tag = seedTag("focus", 1);
+      suggest(link, { tagId: tag, suggestedName: "focus" });
+
+      const rows = store.query(tagsByLink$);
+      expect(rows.filter((r) => r.linkId === link)).toEqual([]);
+    });
+  });
+
+  describe("pendingSuggestionsForLink$", () => {
     it("returns only pending suggestions sorted by suggestedAt ASC", () => {
       const link = seedLink();
-      const s1 = suggest(link, "first", new Date("2026-01-02T10:00:00Z"));
-      const s2 = suggest(link, "second", new Date("2026-01-01T10:00:00Z"));
-      const s3 = suggest(link, "third", new Date("2026-01-03T10:00:00Z"));
+      const s1 = suggest(link, {
+        suggestedName: "first",
+        suggestedAt: new Date("2026-01-02T10:00:00Z"),
+      });
+      const s2 = suggest(link, {
+        suggestedName: "second",
+        suggestedAt: new Date("2026-01-01T10:00:00Z"),
+      });
+      const s3 = suggest(link, {
+        suggestedName: "third",
+        suggestedAt: new Date("2026-01-03T10:00:00Z"),
+      });
 
       store.commit(events.tagSuggestionAccepted({ id: s1 }));
       store.commit(events.tagSuggestionDismissed({ id: s3 }));
@@ -381,8 +681,8 @@ describe("tags queries", () => {
     it("scopes by linkId", () => {
       const linkA = seedLink({ url: "https://a.test/1" });
       const linkB = seedLink({ url: "https://a.test/2" });
-      suggest(linkA, "a", new Date("2026-01-01T10:00:00Z"));
-      const sB = suggest(linkB, "b", new Date("2026-01-01T10:00:00Z"));
+      suggest(linkA, { suggestedName: "a" });
+      const sB = suggest(linkB, { suggestedName: "b" });
 
       const rows = store.query(pendingSuggestionsForLink$(linkB));
       expect(rows.map((r) => r.id)).toEqual([sB]);

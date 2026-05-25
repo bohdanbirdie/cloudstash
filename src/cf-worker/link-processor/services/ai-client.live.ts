@@ -48,7 +48,10 @@ export const LinkProcessorAiLive = Layer.effect(
             );
             return null;
           }
-          return schema.parse(call.input);
+          return yield* Effect.try({
+            catch: (cause) => new AiCallError({ cause }),
+            try: () => schema.parse(call.input),
+          });
         }),
     };
   })
