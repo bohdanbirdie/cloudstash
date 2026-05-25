@@ -34,7 +34,7 @@ kanban-plugin: board
 
 ## Done
 
-- [x] [[todos/x-content-sub-processing|X (twitter) content enrichment — Pro feature]] — single-pass router + syndication-only enrichment + image-fallback chain shipped 2026-05-25; twitterapi.io walk + KV cache + UI chip + inline URL expansion intentionally cut after PR #2's quality made them low-value
+- [x] [[todos/x-content-sub-processing|X (twitter) content enrichment — Pro feature]] — Pro-only enriched AI summaries for x.com bookmarks, hard-capped at 100/org/mo, with image fallback so quoting tweets render a card image
 - [ ] Review and develop Twitter integrations (https://x.com/mynameistito/status/2046213790623301955)
 - [ ] [[todos/mobile-view-review|Mobile view review + fixes]]
 - [x] [[architecture/livestore-do-rpc-stream-stall|Livestore DO-RPC stream stall — root cause, fix, postmortem]]
