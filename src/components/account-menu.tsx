@@ -218,6 +218,7 @@ function DesktopMenu({
           render={
             <DropdownMenuTrigger
               aria-label="Account menu"
+              nativeButton={false}
               render={
                 <Avatar
                   size="sm"
