@@ -94,6 +94,10 @@
     ],
   },
 
+  "vars": {
+    "EMAIL_FROM": "Cloudstash <noreply@cloudstash.dev>",
+  },
+
   "observability": {
     "enabled": true,
     "logs": {
