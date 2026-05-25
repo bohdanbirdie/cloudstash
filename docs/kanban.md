@@ -28,13 +28,13 @@ kanban-plugin: board
 
 - [ ] [[todos/weekly-digest-backend|Weekly Digest backend]]
 - [ ] [[todos/weekly-digest-actions|Weekly Digest actions]]
-- [ ] [[todos/x-content-sub-processing|X (twitter) content sub-processing feature for Pro users]]
 - [ ] ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
 - [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.
 - [ ] Let LLM suggest more tags from existing ones. Respect domains for tags as a fallback
 
 ## Done
 
+- [x] [[todos/x-content-sub-processing|X (twitter) content enrichment — Pro feature]] — single-pass router + syndication-only enrichment + image-fallback chain shipped 2026-05-25; twitterapi.io walk + KV cache + UI chip + inline URL expansion intentionally cut after PR #2's quality made them low-value
 - [ ] Review and develop Twitter integrations (https://x.com/mynameistito/status/2046213790623301955)
 - [ ] [[todos/mobile-view-review|Mobile view review + fixes]]
 - [x] [[architecture/livestore-do-rpc-stream-stall|Livestore DO-RPC stream stall — root cause, fix, postmortem]]
