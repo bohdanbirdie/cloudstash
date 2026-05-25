@@ -1,7 +1,5 @@
 ---
-
 kanban-plugin: board
-
 ---
 
 ## Todo
@@ -24,14 +22,12 @@ kanban-plugin: board
 - [ ] [[todos/multi-chat-architecture|Multi-chat architecture (separate DOs + central livestore)]]
 - [ ] Extend Pro plan with twitter historical sync of bookmarks
 
-
 ## In Progress
 
 - [ ] ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
 - [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.
 - [ ] Shrink Worker output further — current upload is 2421 KiB gzipped (deploy 2026-05-13), only 633 KiB headroom under the 3 MiB free-tier cap. Two levers worth evaluating before the budget gets tight again: (a) split into separate Workers (web/assets vs. API/DOs) joined by a service binding, so each subsystem gets its own 3 MiB; (b) trim heavy chunks in place — defuddle/linkedom/htmlparser2 (HTML readability in LinkProcessorDO), @ai-sdk/react + livestore client on the authed entry, Effect tracer surface. Decide which lever first based on what's growing.
 - [ ] Let LLM suggest more tags from existing ones. Respect domains for tags as a fallback
-
 
 ## Done
 
@@ -98,11 +94,10 @@ kanban-plugin: board
 - [x] [[todos/done/monorepo-conversion|Convert project to monorepo]]
 - [x] [[todos/done/raycast-ingestion|Add Raycast ingestion path]]
 
-
-
-
 %% kanban:settings
+
 ```
 {"kanban-plugin":"board"}
 ```
+
 %%
