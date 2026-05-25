@@ -23,7 +23,6 @@ export interface Env extends Cloudflare.Env {
   // Vars not declared in wrangler.jsonc / .dev.vars, so absent from typegen.
   ENABLE_TEST_AUTH?: string;
   GOOGLE_BASE_URL?: string;
-  EMAIL_FROM: string;
   PUBLIC_URL?: string;
   // Typegen emits an untyped `Queue`; narrow to the message type.
   LINK_QUEUE: Queue<LinkQueueMessage>;

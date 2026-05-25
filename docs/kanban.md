@@ -20,18 +20,18 @@ kanban-plugin: board
 - [ ] Replace OpenRouter with Cloudflare AI Gateway
 - [ ] [[todos/agent-context-chips-entry-points|Agent context chips + entry points]]
 - [ ] [[todos/multi-chat-architecture|Multi-chat architecture (separate DOs + central livestore)]]
-- [ ] Shrink Worker output further — current upload is 2421 KiB gzipped (deploy 2026-05-13), only 633 KiB headroom under the 3 MiB free-tier cap. Two levers worth evaluating before the budget gets tight again: (a) split into separate Workers (web/assets vs. API/DOs) joined by a service binding, so each subsystem gets its own 3 MiB; (b) trim heavy chunks in place — defuddle/linkedom/htmlparser2 (HTML readability in LinkProcessorDO), @ai-sdk/react + livestore client on the authed entry, Effect tracer surface. Decide which lever first based on what's growing.
 - [ ] Extend Pro plan with twitter historical sync of bookmarks
-- [ ] Finish env-var cleanup in `src/cf-worker/shared.ts`. After running `cf-typegen`, the custom `Env` was slimmed to only what typegen can't express: 4 vars (`ENABLE_TEST_AUTH`, `GOOGLE_BASE_URL`, `EMAIL_FROM`, `PUBLIC_URL`) + the `LINK_QUEUE: Queue<LinkQueueMessage>` narrowing. Move the two real prod-config vars — `EMAIL_FROM` and `PUBLIC_URL` — into `wrangler.jsonc` `vars` (+ `.dev.vars`) so they're version-controlled and generated into `Cloudflare.Env`, then drop them from the custom interface (confirm prod has both set first). Leave `ENABLE_TEST_AUTH` (e2e-only, injected by `vitest.e2e.config.ts`) and `GOOGLE_BASE_URL` (local OAuth emulator override, optional w/ prod fallback) as custom-`Env` optionals — they should NOT go in wrangler vars. End state: `Env` keeps only `LINK_QUEUE` + the two emulator/test optionals.
 
 ## In Progress
 
 - [ ] ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
 - [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.
+- [ ] Shrink Worker output further — current upload is 2421 KiB gzipped (deploy 2026-05-13), only 633 KiB headroom under the 3 MiB free-tier cap. Two levers worth evaluating before the budget gets tight again: (a) split into separate Workers (web/assets vs. API/DOs) joined by a service binding, so each subsystem gets its own 3 MiB; (b) trim heavy chunks in place — defuddle/linkedom/htmlparser2 (HTML readability in LinkProcessorDO), @ai-sdk/react + livestore client on the authed entry, Effect tracer surface. Decide which lever first based on what's growing.
 - [ ] Let LLM suggest more tags from existing ones. Respect domains for tags as a fallback
 
 ## Done
 
+- [x] Env-var cleanup in `src/cf-worker/shared.ts` — `EMAIL_FROM` moved into `wrangler.jsonc` `vars` so `cf-typegen` emits it on `Cloudflare.Env`; `PUBLIC_URL` kept as a custom-`Env` optional (both consumers — Telegram webhook URL and Stripe checkout return URL — have request-origin fallbacks, and the value isn't pinned in prod today). End state: `Env` = `LINK_QUEUE` + 3 optionals (`ENABLE_TEST_AUTH`, `GOOGLE_BASE_URL`, `PUBLIC_URL`).
 - [ ] [[todos/weekly-digest-backend|Weekly Digest backend]]
 - [x] [[todos/x-content-sub-processing|X (twitter) content enrichment — Pro feature]] — Pro-only enriched AI summaries for x.com bookmarks, hard-capped at 100/org/mo, with image fallback so quoting tweets render a card image
 - [ ] Review and develop Twitter integrations (https://x.com/mynameistito/status/2046213790623301955)
