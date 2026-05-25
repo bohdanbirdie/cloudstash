@@ -17,6 +17,10 @@ import { DbClientLive } from "../db/service";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
+import { OpenRouterApiKeyLive } from "../weekly-digest/generator";
+import { EnrichmentGenerator } from "../x-enrichment/generator";
+import { ThreadProviderNoopLive } from "../x-enrichment/services/thread-provider-noop.live";
+import { EnrichmentUsageLive } from "../x-enrichment/usage";
 import {
   isDeletionTombstoneSet,
   setDeletionTombstone,
@@ -444,11 +448,19 @@ export class LinkProcessorDO
         MetadataFetcherLive,
         ContentExtractorLive,
         AiSummaryGeneratorLive,
-        LinkEventStoreLive(store)
-      ).pipe(Layer.provide(WorkersAiLive(this.env.AI)));
+        LinkEventStoreLive(store),
+        ThreadProviderNoopLive,
+        EnrichmentGenerator.Default,
+        EnrichmentUsageLive({ kv: this.env.ENRICHMENT_USAGE })
+      ).pipe(
+        Layer.provide(WorkersAiLive(this.env.AI)),
+        Layer.provide(OpenRouterApiKeyLive(this.env.OPENROUTER_API_KEY))
+      );
 
       yield* processLink({
         aiSummaryEnabled: capabilities.aiSummary,
+        xContentEnrichmentEnabled: capabilities.xContentEnrichment,
+        storeId: this.storeId!,
         link: { id: LinkId.make(link.id), url: link.url },
         skipStartedEvent: true,
         metadataSemaphore: this.metadataSemaphore,

@@ -21,6 +21,34 @@ import {
   MAX_CONCURRENT_AI,
   MAX_CONCURRENT_METADATA,
 } from "../../link-processor/types";
+import { EnrichmentGenerator } from "../../x-enrichment/generator";
+import { ThreadProvider } from "../../x-enrichment/services";
+import { EnrichmentUsage } from "../../x-enrichment/usage";
+
+const enrichmentStubs = Layer.mergeAll(
+  Layer.succeed(
+    ThreadProvider,
+    ThreadProvider.of({
+      fetchContext: () =>
+        Effect.die(new Error("unexpected ThreadProvider call in test")),
+    })
+  ),
+  Layer.succeed(
+    EnrichmentGenerator,
+    new EnrichmentGenerator({
+      generate: () =>
+        Effect.die(new Error("unexpected EnrichmentGenerator call in test")),
+    })
+  ),
+  Layer.succeed(EnrichmentUsage, {
+    current: () =>
+      Effect.die(new Error("unexpected EnrichmentUsage.current call in test")),
+    increment: () =>
+      Effect.die(
+        new Error("unexpected EnrichmentUsage.increment call in test")
+      ),
+  })
+);
 
 const linkA = { id: LinkId.make("link-a"), url: "https://a.example" };
 const linkB = { id: LinkId.make("link-b"), url: "https://b.example" };
@@ -113,7 +141,8 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
                 return { summary: "S", suggestedTags: [] };
               }),
           }),
-          signalingEventStore(new Map([[linkB.id, metaB]]))
+          signalingEventStore(new Map([[linkB.id, metaB]])),
+          enrichmentStubs
         );
 
         const run = (link: { id: LinkId; url: string }) =>
@@ -184,7 +213,8 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
                 return { summary: "S", suggestedTags: [] };
               }),
           }),
-          signalingEventStore(new Map())
+          signalingEventStore(new Map()),
+          enrichmentStubs
         );
 
         const fiber = yield* Effect.fork(
@@ -238,7 +268,8 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
                 return { summary: "S", suggestedTags: [] };
               }),
           }),
-          signalingEventStore(new Map())
+          signalingEventStore(new Map()),
+          enrichmentStubs
         );
 
         const links = seedLinks("ai-cap", MAX_CONCURRENT_AI + 2);
@@ -303,7 +334,8 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
           Layer.succeed(AiSummaryGenerator, {
             generate: () => Effect.succeed({ summary: "S", suggestedTags: [] }),
           }),
-          signalingEventStore(new Map())
+          signalingEventStore(new Map()),
+          enrichmentStubs
         );
 
         const links = seedLinks("meta-cap", MAX_CONCURRENT_METADATA + 2);

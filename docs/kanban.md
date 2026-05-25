@@ -28,7 +28,7 @@ kanban-plugin: board
 
 - [ ] [[todos/weekly-digest-backend|Weekly Digest backend]]
 - [ ] [[todos/weekly-digest-actions|Weekly Digest actions]]
-- [ ] X (twitter) content sub-processing feature for Pro users
+- [ ] [[todos/x-content-sub-processing|X (twitter) content sub-processing feature for Pro users]]
 - [ ] ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
 - [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.
 - [ ] Let LLM suggest more tags from existing ones. Respect domains for tags as a fallback

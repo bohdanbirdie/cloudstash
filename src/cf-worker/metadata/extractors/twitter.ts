@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 
+import { MetadataParser } from "../parser";
 import type { Extractor } from "./types";
 
 interface TweetEntity {
@@ -19,10 +20,10 @@ interface TweetBase {
     urls?: TweetEntity[];
     media?: TweetEntity[];
   };
+  mediaDetails?: TweetMediaDetail[];
 }
 
 interface TweetResponse extends TweetBase {
-  mediaDetails?: TweetMediaDetail[];
   quoted_tweet?: TweetBase;
 }
 
@@ -89,6 +90,71 @@ function firstChunk(text: string, max: number): string {
   return truncate(text, max);
 }
 
+const TWITTER_HOSTS = new Set([
+  "x.com",
+  "twitter.com",
+  "t.co",
+  "pic.twitter.com",
+]);
+
+const fetchOgImage = (target: string) =>
+  Effect.gen(function* () {
+    const response = yield* Effect.tryPromise(() =>
+      fetch(target, {
+        headers: {
+          Accept: "text/html",
+          "User-Agent":
+            "Mozilla/5.0 (compatible; CloudstashBot/1.0; +https://cloudstash.app)",
+        },
+      })
+    );
+    if (!response.ok) return null;
+    const parser = new MetadataParser(target);
+    yield* Effect.tryPromise(() =>
+      new HTMLRewriter()
+        .on("meta", parser)
+        .on("link", parser)
+        .on("script", parser)
+        .transform(response)
+        .text()
+    );
+    return parser.getResult().image ?? null;
+  }).pipe(Effect.catchAll(() => Effect.succeed(null)));
+
+function firstExternalUrl(data: TweetResponse): string | null {
+  for (const entity of data.entities?.urls ?? []) {
+    const expanded = entity.expanded_url;
+    if (!expanded) continue;
+    const host = URL.parse(expanded)?.hostname.toLowerCase();
+    if (host && !TWITTER_HOSTS.has(host)) return expanded;
+  }
+  return null;
+}
+
+type FetchOgImage = (target: string) => Effect.Effect<string | null>;
+
+export const pickImage = (
+  data: TweetResponse,
+  tweetUrl: URL,
+  lookupOgImage: FetchOgImage
+) =>
+  Effect.gen(function* () {
+    const own = data.mediaDetails?.[0]?.media_url_https;
+    if (own) return own;
+
+    const quoted = data.quoted_tweet?.mediaDetails?.[0]?.media_url_https;
+    if (quoted) return quoted;
+
+    const linked = firstExternalUrl(data);
+    if (linked) {
+      const og = yield* lookupOgImage(linked);
+      if (og) return og;
+    }
+
+    const fromPage = yield* lookupOgImage(tweetUrl.toString());
+    return fromPage ?? undefined;
+  });
+
 export const twitterExtractor: Extractor = {
   name: "twitter",
   authoritative: true,
@@ -114,15 +180,15 @@ export const twitterExtractor: Extractor = {
       );
       if (!response.ok) return null;
 
-      const data = (yield* Effect.tryPromise(() =>
-        response.json()
-      )) as TweetResponse;
+      const data = yield* Effect.tryPromise(() =>
+        response.json<TweetResponse>()
+      );
 
       const fullText = expandText(data);
       if (!fullText) return null;
 
       const author = data.user?.name ?? data.user?.screen_name;
-      const image = data.mediaDetails?.[0]?.media_url_https;
+      const image = yield* pickImage(data, url, fetchOgImage);
 
       const quotedText = data.quoted_tweet
         ? expandText(data.quoted_tweet)

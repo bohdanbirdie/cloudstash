@@ -4,8 +4,10 @@ import { Cause, Effect } from "effect";
 import { isValidTagName, sanitizeTagName } from "@/lib/tags";
 
 import { events } from "../../livestore/schema";
-import type { LinkId } from "../db/branded";
+import type { LinkId, OrgId } from "../db/branded";
 import { safeErrorInfo } from "../log-utils";
+import { enrichSummary } from "../x-enrichment/enricher";
+import { ENRICHMENT_MODEL, isXTweetUrl } from "../x-enrichment/types";
 import { findMatchingTag } from "./fuzzy-match";
 import {
   AiSummaryGenerator,
@@ -19,6 +21,8 @@ const unboundedSemaphore = Effect.unsafeMakeSemaphore(Number.MAX_SAFE_INTEGER);
 
 interface ProcessLinkParams {
   aiSummaryEnabled?: boolean;
+  xContentEnrichmentEnabled?: boolean;
+  storeId?: OrgId;
   link: { id: LinkId; url: string };
   skipStartedEvent?: boolean;
   metadataSemaphore?: Effect.Semaphore;
@@ -35,6 +39,8 @@ interface RecordFailureParams {
 
 export const processLink = ({
   aiSummaryEnabled = false,
+  xContentEnrichmentEnabled = false,
+  storeId,
   link,
   skipStartedEvent = false,
   metadataSemaphore = unboundedSemaphore,
@@ -121,7 +127,7 @@ export const processLink = ({
     if (aiSummaryEnabled) {
       const existingTags = yield* linkStore.queryTags();
 
-      const result = yield* Effect.gen(function* () {
+      const summarizeBasic = Effect.gen(function* () {
         const extractedContent = yield* contentExtractor.extract(link.url);
 
         if (extractedContent) {
@@ -135,15 +141,104 @@ export const processLink = ({
           yield* Effect.logWarning("No content extracted");
         }
 
-        return yield* aiGenerator.generate({
+        const basic = yield* aiGenerator.generate({
           existingTags,
           extractedContent,
           metadata: metadataResult,
           url: link.url,
         });
-      }).pipe(
+        return { ...basic, model: AI_MODEL };
+      });
+
+      const canEnrich =
+        xContentEnrichmentEnabled &&
+        storeId !== undefined &&
+        isXTweetUrl(link.url);
+
+      const fallbackToBasic = (
+        message: string,
+        fields: Record<string, unknown>
+      ) =>
+        Effect.logWarning(message).pipe(
+          Effect.annotateLogs(fields),
+          Effect.zipRight(summarizeBasic)
+        );
+
+      const summarize = canEnrich
+        ? enrichSummary({ storeId, url: link.url, existingTags }).pipe(
+            Effect.map((enriched) => ({
+              summary: enriched.summary as string | null,
+              suggestedTags: enriched.suggestedTags,
+              model: ENRICHMENT_MODEL,
+            })),
+            Effect.catchTags({
+              EnrichmentBudgetExhaustedError: (e) =>
+                Effect.logInfo(
+                  "Enrichment budget exhausted, falling back to basic"
+                ).pipe(
+                  Effect.annotateLogs({
+                    period: e.period,
+                    used: e.used,
+                    cap: e.cap,
+                  }),
+                  Effect.zipRight(summarizeBasic)
+                ),
+              ThreadProviderInvalidUrlError: (e) =>
+                fallbackToBasic("Enrichment provider: invalid url", {
+                  providerUrl: e.url,
+                }),
+              ThreadProviderTransportError: (e) =>
+                fallbackToBasic("Enrichment provider: transport", {
+                  providerUrl: e.url,
+                  ...safeErrorInfo(e.cause),
+                }),
+              ThreadProviderHttpError: (e) =>
+                fallbackToBasic("Enrichment provider: http", {
+                  providerUrl: e.url,
+                  providerStatus: e.status,
+                  tweetId: e.tweetId ?? null,
+                }),
+              ThreadProviderResponseError: (e) =>
+                fallbackToBasic("Enrichment provider: bad response", {
+                  providerUrl: e.url,
+                  tweetId: e.tweetId ?? null,
+                  ...safeErrorInfo(e.cause),
+                }),
+              ThreadProviderEmptyError: (e) =>
+                fallbackToBasic("Enrichment provider: empty tweet text", {
+                  providerUrl: e.url,
+                  tweetId: e.tweetId,
+                }),
+              ThreadProviderTimeoutError: (e) =>
+                fallbackToBasic("Enrichment provider: timeout", {
+                  providerUrl: e.url,
+                  tweetId: e.tweetId ?? null,
+                }),
+              EnrichmentGenerateError: (e) =>
+                fallbackToBasic("Enrichment generator failed", {
+                  model: e.model,
+                  promptChars: e.promptChars ?? null,
+                  ...safeErrorInfo(e.cause),
+                }),
+              EnrichmentUsageGetError: (e) =>
+                fallbackToBasic("Enrichment usage KV read failed", {
+                  period: e.period,
+                  ...safeErrorInfo(e.cause),
+                }),
+              EnrichmentUsagePutError: (e) =>
+                fallbackToBasic("Enrichment usage KV write failed", {
+                  period: e.period,
+                  ...safeErrorInfo(e.cause),
+                }),
+            })
+          )
+        : summarizeBasic;
+
+      const result = yield* summarize.pipe(
         aiSemaphore.withPermits(1),
-        Effect.withSpan("LinkProcessor.aiSummarize")
+        Effect.withSpan("LinkProcessor.aiSummarize", {
+          attributes: { canEnrich },
+        })
       );
 
       if (result.summary) {
@@ -151,14 +246,14 @@ export const processLink = ({
           events.linkSummarized({
             id: nanoid(),
             linkId: link.id,
-            model: AI_MODEL,
+            model: result.model,
             summarizedAt: new Date(),
             summary: result.summary,
           })
         );
         yield* Effect.logInfo("Summary generated").pipe(
           Effect.annotateLogs({
-            model: AI_MODEL,
+            model: result.model,
             summaryLength: result.summary.length,
           })
         );

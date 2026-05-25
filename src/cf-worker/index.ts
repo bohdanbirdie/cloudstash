@@ -2,7 +2,7 @@
 import "@livestore/adapter-cloudflare/polyfill";
 import type { CfTypes } from "@livestore/sync-cf/cf-worker";
 import { routeAgentRequest } from "agents";
-import { Effect } from "effect";
+import { Effect, Match } from "effect";
 import { Hono } from "hono";
 
 import {
@@ -319,11 +319,13 @@ export const fetch = async (
   return app.fetch(request as unknown as Request, env, ctx);
 };
 
-export const queue = async (
+export const queue = (
   batch: MessageBatch<LinkQueueMessage>,
   env: Env
-): Promise<void> => {
-  await handleQueueBatch(batch, env);
-};
+): Promise<void> =>
+  Match.value(batch.queue).pipe(
+    Match.when("cloudstash-link-queue", () => handleQueueBatch(batch, env)),
+    Match.orElse(() => Promise.resolve())
+  );
 
 export default { fetch, queue };

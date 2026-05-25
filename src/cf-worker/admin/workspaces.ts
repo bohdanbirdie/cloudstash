@@ -24,6 +24,7 @@ const BOOLEAN_CAPABILITY_KEYS = [
   "chatAgent",
   "integrations",
   "xBookmarkSync",
+  "xContentEnrichment",
   "publicApi",
   "mcpServer",
 ] as const;

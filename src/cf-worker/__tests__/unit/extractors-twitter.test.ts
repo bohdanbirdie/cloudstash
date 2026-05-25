@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { twitterExtractor } from "../../metadata/extractors/twitter";
+import { pickImage, twitterExtractor } from "../../metadata/extractors/twitter";
 
 const extract = (urlStr: string) =>
   Effect.runPromise(twitterExtractor.extract(new URL(urlStr)));
@@ -293,5 +293,137 @@ describe("twitterExtractor", () => {
     );
     const result = await extract("https://x.com/foo/status/123");
     expect(result?.description).toBeUndefined();
+  });
+
+  describe("pickImage", () => {
+    const tweetUrl = new URL("https://x.com/foo/status/123");
+
+    const lookupReturning = (responses: Record<string, string | null>) =>
+      vi.fn((target: string) =>
+        Effect.succeed(responses[target] ?? null)
+      ) satisfies Parameters<typeof pickImage>[2];
+
+    const run = async (
+      data: Parameters<typeof pickImage>[0],
+      lookup: Parameters<typeof pickImage>[2]
+    ) => Effect.runPromise(pickImage(data, tweetUrl, lookup));
+
+    it("returns parent media without consulting the og lookup", async () => {
+      const lookup = lookupReturning({});
+      const result = await run(
+        {
+          mediaDetails: [
+            { media_url_https: "https://pbs.twimg.com/media/parent.jpg" },
+          ],
+        },
+        lookup
+      );
+      expect(result).toBe("https://pbs.twimg.com/media/parent.jpg");
+      expect(lookup).not.toHaveBeenCalled();
+    });
+
+    it("falls through to quoted-tweet media when parent has none", async () => {
+      const lookup = lookupReturning({});
+      const result = await run(
+        {
+          mediaDetails: [],
+          quoted_tweet: {
+            mediaDetails: [
+              { media_url_https: "https://pbs.twimg.com/media/quoted.jpg" },
+            ],
+          },
+        },
+        lookup
+      );
+      expect(result).toBe("https://pbs.twimg.com/media/quoted.jpg");
+      expect(lookup).not.toHaveBeenCalled();
+    });
+
+    it("looks up the first non-twitter expanded url and returns its og:image", async () => {
+      const lookup = lookupReturning({
+        "https://example.org/post": "https://example.org/picture.png",
+      });
+      const result = await run(
+        {
+          mediaDetails: [],
+          entities: {
+            urls: [
+              {
+                url: "https://t.co/aaa",
+                expanded_url: "https://x.com/other/status/999",
+              },
+              {
+                url: "https://t.co/bbb",
+                expanded_url: "https://example.org/post",
+              },
+            ],
+          },
+        },
+        lookup
+      );
+      expect(result).toBe("https://example.org/picture.png");
+      expect(lookup).toHaveBeenCalledTimes(1);
+      expect(lookup).toHaveBeenCalledWith("https://example.org/post");
+    });
+
+    it("falls back to the tweet page when the linked url has no og:image", async () => {
+      const lookup = lookupReturning({
+        "https://x.com/foo/status/123": "https://abs.twimg.com/card.jpg",
+      });
+      const result = await run(
+        {
+          mediaDetails: [],
+          entities: {
+            urls: [
+              {
+                url: "https://t.co/ccc",
+                expanded_url: "https://example.com/post",
+              },
+            ],
+          },
+        },
+        lookup
+      );
+      expect(result).toBe("https://abs.twimg.com/card.jpg");
+      expect(lookup).toHaveBeenCalledTimes(2);
+      expect(lookup).toHaveBeenNthCalledWith(1, "https://example.com/post");
+      expect(lookup).toHaveBeenNthCalledWith(2, "https://x.com/foo/status/123");
+    });
+
+    it("falls back to the tweet page directly when there are no external urls", async () => {
+      const lookup = lookupReturning({
+        "https://x.com/foo/status/123": "https://abs.twimg.com/card.jpg",
+      });
+      const result = await run(
+        { mediaDetails: [], entities: { urls: [] } },
+        lookup
+      );
+      expect(result).toBe("https://abs.twimg.com/card.jpg");
+      expect(lookup).toHaveBeenCalledExactlyOnceWith(
+        "https://x.com/foo/status/123"
+      );
+    });
+
+    it("returns undefined when every step yields nothing", async () => {
+      const lookup = lookupReturning({});
+      const result = await run(
+        {
+          mediaDetails: [],
+          entities: {
+            urls: [
+              {
+                url: "https://t.co/ddd",
+                expanded_url: "https://example.com/dead",
+              },
+            ],
+          },
+        },
+        lookup
+      );
+      expect(result).toBeUndefined();
+      expect(lookup).toHaveBeenCalledTimes(2);
+      expect(lookup).toHaveBeenNthCalledWith(1, "https://example.com/dead");
+      expect(lookup).toHaveBeenNthCalledWith(2, "https://x.com/foo/status/123");
+    });
   });
 });
