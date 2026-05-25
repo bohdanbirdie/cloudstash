@@ -65,6 +65,24 @@ describe("filtered-links queries", () => {
       })
     );
 
+  const suggest = (
+    linkId: string,
+    opts: { tagId?: string | null; suggestedName: string }
+  ) => {
+    const id = testId("sug");
+    store.commit(
+      events.tagSuggested({
+        id,
+        linkId,
+        tagId: opts.tagId ?? null,
+        suggestedName: opts.suggestedName,
+        model: "test-model",
+        suggestedAt: new Date("2026-01-02T10:00:00Z"),
+      })
+    );
+    return id;
+  };
+
   const completeLink = (id: string, completedAt: Date) =>
     store.commit(events.linkCompleted({ id, completedAt }));
 
@@ -185,6 +203,64 @@ describe("filtered-links queries", () => {
     });
   });
 
+  describe("linksWithTag$ with suggestions", () => {
+    it("matches links that have the existing tag as a pending suggestion", () => {
+      const applied = seedLink({ url: "https://a.test/1" });
+      const suggested = seedLink({ url: "https://a.test/2" });
+      const untouched = seedLink({ url: "https://a.test/3" });
+      const tag = seedTag("focus", 1);
+      tagLink(applied, tag);
+      suggest(suggested, { tagId: tag, suggestedName: "focus" });
+
+      const rows = store.query(linksWithTag$(tag));
+      expect(rows.map((r) => r.id).toSorted()).toEqual(
+        [applied, suggested].toSorted()
+      );
+      expect(rows.map((r) => r.id)).not.toContain(untouched);
+    });
+
+    it("matches a new-tag suggestion by its suggestedName slug", () => {
+      const link = seedLink();
+      suggest(link, { suggestedName: "bullmq" });
+
+      const rows = store.query(linksWithTag$("bullmq"));
+      expect(rows.map((r) => r.id)).toEqual([link]);
+    });
+
+    it("ignores dismissed and accepted suggestions", () => {
+      const dismissedLink = seedLink({ url: "https://a.test/1" });
+      const acceptedLink = seedLink({ url: "https://a.test/2" });
+      const s1 = suggest(dismissedLink, { suggestedName: "bullmq" });
+      const s2 = suggest(acceptedLink, { suggestedName: "bullmq" });
+      store.commit(events.tagSuggestionDismissed({ id: s1 }));
+      store.commit(events.tagSuggestionAccepted({ id: s2 }));
+
+      expect(store.query(linksWithTag$("bullmq"))).toEqual([]);
+    });
+  });
+
+  describe("linksWithAllTags$ with suggestions", () => {
+    it("counts applied and suggested matches together toward 'all tags' requirement", () => {
+      const link = seedLink();
+      const tA = seedTag("A", 1);
+      tagLink(link, tA);
+      // Second tag is only a new-tag suggestion
+      suggest(link, { suggestedName: "bullmq" });
+
+      const rows = store.query(linksWithAllTags$([tA, "bullmq"]));
+      expect(rows.map((r) => r.id)).toEqual([link]);
+    });
+
+    it("returns nothing when one of the required tags is neither applied nor suggested", () => {
+      const link = seedLink();
+      const tA = seedTag("A", 1);
+      tagLink(link, tA);
+
+      const rows = store.query(linksWithAllTags$([tA, "missing"]));
+      expect(rows).toEqual([]);
+    });
+  });
+
   describe("filteredLinks$ composite", () => {
     it("status=inbox returns only unread, non-deleted links", () => {
       const unread = seedLink({ url: "https://a.test/1" });
@@ -252,6 +328,29 @@ describe("filtered-links queries", () => {
 
       const rows = store.query(filteredLinks$("inbox", { tagIds: [] }));
       expect(rows.map((r) => r.id)).toEqual([b, a]);
+    });
+
+    it("status=inbox + new-tag-suggestion slug returns links with that pending suggestion", () => {
+      const link = seedLink();
+      suggest(link, { suggestedName: "bullmq" });
+
+      const rows = store.query(filteredLinks$("inbox", { tagIds: ["bullmq"] }));
+      expect(rows.map((r) => r.id)).toEqual([link]);
+    });
+
+    it("status=inbox + tagIds matches mixed applied + suggested across links", () => {
+      const applied = seedLink({ url: "https://a.test/1" });
+      const onlySuggested = seedLink({ url: "https://a.test/2" });
+      const unrelated = seedLink({ url: "https://a.test/3" });
+      const tag = seedTag("focus", 1);
+      tagLink(applied, tag);
+      suggest(onlySuggested, { tagId: tag, suggestedName: "focus" });
+
+      const rows = store.query(filteredLinks$("inbox", { tagIds: [tag] }));
+      expect(rows.map((r) => r.id).toSorted()).toEqual(
+        [applied, onlySuggested].toSorted()
+      );
+      expect(rows.map((r) => r.id)).not.toContain(unrelated);
     });
   });
 });

@@ -104,6 +104,14 @@ export function TagCombobox({
   const selectedTags = allTags.filter((t) => selectedSet.has(t.id));
   const pendingSuggestions = suggestions ?? [];
   const hasSuggestions = pendingSuggestions.length > 0;
+  const allTagsById = new Map(allTags.map((t) => [t.id, t]));
+  const visibleSuggestionChips = pendingSuggestions
+    .filter((s) => !s.tagId || !selectedSet.has(s.tagId))
+    .map((s) => ({
+      id: s.id,
+      name:
+        (s.tagId ? allTagsById.get(s.tagId)?.name : null) ?? s.suggestedName,
+    }));
   const searchQuery = sanitizeTagName(inputValue);
   const matchesQuery = (tag: Tag) =>
     !searchQuery || tag.id.includes(searchQuery);
@@ -247,6 +255,20 @@ export function TagCombobox({
             }
           >
             #{tag.name}
+          </PopoverTrigger>
+        ))}
+        {visibleSuggestionChips.map((chip) => (
+          <PopoverTrigger
+            key={`s-${chip.id}`}
+            render={
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground whitespace-nowrap transition-colors hover:text-foreground outline-none focus-visible:text-foreground"
+              />
+            }
+          >
+            <SparklesIcon aria-hidden="true" className="size-3 shrink-0" />#
+            {chip.name}
           </PopoverTrigger>
         ))}
         <Tooltip>

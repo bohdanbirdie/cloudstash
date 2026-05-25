@@ -62,6 +62,36 @@ export const tagsByLink$ = queryDb(
   { label: "tagsByLink" }
 );
 
+export const pendingTagsByLink$ = queryDb(
+  () => ({
+    query: `
+      SELECT
+        ts.linkId,
+        COALESCE(t.id, t_by_name.id, ts.suggestedName) AS id,
+        COALESCE(t.name, t_by_name.name, ts.suggestedName) AS name,
+        COALESCE(t.sortOrder, t_by_name.sortOrder, 0) AS sortOrder,
+        COALESCE(t.createdAt, t_by_name.createdAt, ts.suggestedAt) AS createdAt,
+        NULL AS deletedAt
+      FROM tag_suggestions ts
+      LEFT JOIN tags t ON t.id = ts.tagId AND t.deletedAt IS NULL
+      LEFT JOIN tags t_by_name
+        ON ts.tagId IS NULL
+        AND t_by_name.id = ts.suggestedName
+        AND t_by_name.deletedAt IS NULL
+      WHERE ts.status = 'pending'
+        AND (ts.tagId IS NULL OR t.id IS NOT NULL)
+        AND NOT EXISTS (
+          SELECT 1 FROM link_tags lt
+          WHERE lt.linkId = ts.linkId
+            AND lt.tagId = COALESCE(t.id, t_by_name.id, ts.suggestedName)
+        )
+      ORDER BY ts.linkId ASC, ts.suggestedAt ASC
+    `,
+    schema: Schema.Array(TagByLinkRowSchema),
+  }),
+  { label: "pendingTagsByLink" }
+);
+
 export const tagCounts$ = queryDb(
   () => ({
     query: `
@@ -108,31 +138,83 @@ function linkFilterForStatus(status: LinkStatus): string {
   }
 }
 
+const effectiveLinksForTagUnion = `
+  SELECT lt.linkId FROM link_tags lt WHERE lt.tagId = t.id
+  UNION
+  SELECT ts.linkId FROM tag_suggestions ts
+  WHERE ts.tagId = t.id AND ts.status = 'pending'
+  UNION
+  SELECT ts.linkId FROM tag_suggestions ts
+  WHERE ts.tagId IS NULL AND ts.suggestedName = t.id AND ts.status = 'pending'
+`;
+
 export const tagsWithCountsForStatus$ = (status: LinkStatus) =>
   queryDb(
     {
       query: `
         SELECT t.id, t.name, t.sortOrder,
                (
-                 SELECT COUNT(*) FROM link_tags lt
-                 JOIN links l ON l.id = lt.linkId
-                 WHERE lt.tagId = t.id AND ${linkFilterForStatus(status)}
+                 SELECT COUNT(DISTINCT eff.linkId) FROM (
+                   ${effectiveLinksForTagUnion}
+                 ) eff
+                 JOIN links l ON l.id = eff.linkId
+                 WHERE ${linkFilterForStatus(status)}
                ) AS count
         FROM tags t
         WHERE t.deletedAt IS NULL
-          AND EXISTS (SELECT 1 FROM link_tags lt WHERE lt.tagId = t.id)
+          AND (
+            EXISTS (SELECT 1 FROM link_tags lt WHERE lt.tagId = t.id)
+            OR EXISTS (
+              SELECT 1 FROM tag_suggestions ts
+              WHERE ts.tagId = t.id AND ts.status = 'pending'
+            )
+            OR EXISTS (
+              SELECT 1 FROM tag_suggestions ts
+              WHERE ts.tagId IS NULL
+                AND ts.suggestedName = t.id
+                AND ts.status = 'pending'
+            )
+          )
         ORDER BY
           (
-            SELECT COUNT(*) FROM link_tags lt
-            JOIN links l ON l.id = lt.linkId
-            WHERE lt.tagId = t.id
-              AND l.status = 'unread' AND l.deletedAt IS NULL
+            SELECT COUNT(DISTINCT eff.linkId) FROM (
+              ${effectiveLinksForTagUnion}
+            ) eff
+            JOIN links l ON l.id = eff.linkId
+            WHERE l.status = 'unread' AND l.deletedAt IS NULL
           ) DESC,
           t.name ASC
       `,
       schema: Schema.Array(TagWithCountSchema),
     },
     { label: `tagsWithCountsForStatus:${status}` }
+  );
+
+export const newTagSuggestionsWithCountsForStatus$ = (status: LinkStatus) =>
+  queryDb(
+    {
+      query: `
+        SELECT
+          ts.suggestedName AS id,
+          ts.suggestedName AS name,
+          0 AS sortOrder,
+          COUNT(DISTINCT ts.linkId) AS count
+        FROM tag_suggestions ts
+        JOIN links l ON l.id = ts.linkId
+        WHERE ts.tagId IS NULL
+          AND ts.status = 'pending'
+          AND ${linkFilterForStatus(status)}
+          AND NOT EXISTS (
+            SELECT 1 FROM tags t
+            WHERE t.id = ts.suggestedName AND t.deletedAt IS NULL
+          )
+        GROUP BY ts.suggestedName
+        ORDER BY count DESC, ts.suggestedName ASC
+        LIMIT 8
+      `,
+      schema: Schema.Array(TagWithCountSchema),
+    },
+    { label: `newTagSuggestionsWithCountsForStatus:${status}` }
   );
 
 export const pendingSuggestionsForLink$ = (linkId: string) =>

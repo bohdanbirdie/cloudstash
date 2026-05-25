@@ -456,5 +456,104 @@ describe("links queries", () => {
 
       expect(store.query(searchLinks$("to-read"))).toEqual([]);
     });
+
+    it("matches via pending new-tag suggestion's suggestedName", () => {
+      const linkId = seedLink({
+        url: "https://example.com/post",
+        domain: "example.com",
+      });
+      addSnapshot(linkId, new Date("2026-01-02T10:00:00Z"), {
+        title: "Some interesting article",
+        description: "About a topic",
+      });
+      store.commit(
+        events.tagSuggested({
+          id: testId("sug"),
+          linkId,
+          tagId: null,
+          suggestedName: "bullmq",
+          model: "test-model",
+          suggestedAt: new Date("2026-01-02T10:00:00Z"),
+        })
+      );
+
+      const rows = store.query(searchLinks$("bullmq"));
+      expect(rows.map((r) => r.id)).toEqual([linkId]);
+    });
+
+    it("matches via pending existing-tag suggestion's tag name", () => {
+      const tagId = testId("tag");
+      store.commit(
+        events.tagCreated({
+          id: tagId,
+          name: "to-read",
+          sortOrder: 0,
+          createdAt: new Date("2026-01-01T10:00:00Z"),
+        })
+      );
+      const linkId = seedLink({
+        url: "https://example.com/post",
+        domain: "example.com",
+      });
+      addSnapshot(linkId, new Date("2026-01-02T10:00:00Z"), {
+        title: "Some article",
+      });
+      store.commit(
+        events.tagSuggested({
+          id: testId("sug"),
+          linkId,
+          tagId,
+          suggestedName: "to-read",
+          model: "test-model",
+          suggestedAt: new Date("2026-01-02T10:00:00Z"),
+        })
+      );
+
+      const rows = store.query(searchLinks$("to-read"));
+      expect(rows.map((r) => r.id)).toEqual([linkId]);
+    });
+
+    it("does not match dismissed or accepted suggestions", () => {
+      const dismissedLink = seedLink({
+        url: "https://example.com/a",
+        domain: "example.com",
+      });
+      addSnapshot(dismissedLink, new Date("2026-01-02T10:00:00Z"), {
+        title: "page a",
+      });
+      const acceptedLink = seedLink({
+        url: "https://example.com/b",
+        domain: "example.com",
+      });
+      addSnapshot(acceptedLink, new Date("2026-01-02T10:00:00Z"), {
+        title: "page b",
+      });
+      const sDismiss = testId("sug");
+      const sAccept = testId("sug");
+      store.commit(
+        events.tagSuggested({
+          id: sDismiss,
+          linkId: dismissedLink,
+          tagId: null,
+          suggestedName: "bullmq",
+          model: "test-model",
+          suggestedAt: new Date("2026-01-02T10:00:00Z"),
+        })
+      );
+      store.commit(
+        events.tagSuggested({
+          id: sAccept,
+          linkId: acceptedLink,
+          tagId: null,
+          suggestedName: "bullmq",
+          model: "test-model",
+          suggestedAt: new Date("2026-01-02T10:00:00Z"),
+        })
+      );
+      store.commit(events.tagSuggestionDismissed({ id: sDismiss }));
+      store.commit(events.tagSuggestionAccepted({ id: sAccept }));
+
+      expect(store.query(searchLinks$("bullmq"))).toEqual([]);
+    });
   });
 });

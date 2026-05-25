@@ -1,8 +1,8 @@
 import { createContext, useContext, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 
-import type { Tag } from "@/livestore/queries/tags";
-import { tagsByLink$ } from "@/livestore/queries/tags";
+import type { Tag, TagByLinkRow } from "@/livestore/queries/tags";
+import { pendingTagsByLink$, tagsByLink$ } from "@/livestore/queries/tags";
 import { useAppStore } from "@/livestore/store";
 
 export interface ListData {
@@ -16,11 +16,12 @@ const ListDataContext = createContext<ListData>({
 function useTagsByLink(): Map<string, readonly Tag[]> {
   const store = useAppStore();
   const rows = store.useQuery(tagsByLink$);
+  const pendingRows = store.useQuery(pendingTagsByLink$);
   const cacheRef = useRef<Map<string, readonly Tag[]>>(new Map());
 
   return useMemo(() => {
     const grouped = new Map<string, Tag[]>();
-    for (const row of rows) {
+    const pushRow = (row: TagByLinkRow) => {
       let arr = grouped.get(row.linkId);
       if (!arr) {
         arr = [];
@@ -33,7 +34,9 @@ function useTagsByLink(): Map<string, readonly Tag[]> {
         createdAt: row.createdAt,
         deletedAt: row.deletedAt,
       });
-    }
+    };
+    for (const row of rows) pushRow(row);
+    for (const row of pendingRows) pushRow(row);
 
     const next = new Map<string, readonly Tag[]>();
     for (const [linkId, arr] of grouped) {
@@ -64,7 +67,7 @@ function useTagsByLink(): Map<string, readonly Tag[]> {
     }
     cacheRef.current = next;
     return next;
-  }, [rows]);
+  }, [rows, pendingRows]);
 }
 
 export function ListDataProvider({ children }: { children: ReactNode }) {

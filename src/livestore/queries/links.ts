@@ -259,6 +259,24 @@ export const searchLinks$ = (query: string) => {
     );
   }
 
+  const tagMatchExists = (i: number) => `(
+    EXISTS (
+      SELECT 1 FROM link_tags lt
+      JOIN tags t ON t.id = lt.tagId
+      WHERE lt.linkId = l.id
+        AND t.deletedAt IS NULL
+        AND LOWER(t.name) LIKE ?${i * 6 + 6}
+    )
+    OR EXISTS (
+      SELECT 1 FROM tag_suggestions ts
+      LEFT JOIN tags t ON t.id = ts.tagId
+      WHERE ts.linkId = l.id
+        AND ts.status = 'pending'
+        AND (ts.tagId IS NULL OR t.deletedAt IS NULL)
+        AND LOWER(COALESCE(t.name, ts.suggestedName)) LIKE ?${i * 6 + 6}
+    )
+  )`;
+
   const wordConditions = words
     .map(
       (_, i) => `
@@ -268,13 +286,7 @@ export const searchLinks$ = (query: string) => {
         OR LOWER(COALESCE(s.description, '')) LIKE ?${i * 6 + 3}
         OR LOWER(COALESCE(sum.summary, '')) LIKE ?${i * 6 + 4}
         OR LOWER(l.url) LIKE ?${i * 6 + 5}
-        OR EXISTS (
-          SELECT 1 FROM link_tags lt
-          JOIN tags t ON t.id = lt.tagId
-          WHERE lt.linkId = l.id
-            AND t.deletedAt IS NULL
-            AND LOWER(t.name) LIKE ?${i * 6 + 6}
-        )
+        OR ${tagMatchExists(i)}
       )`
     )
     .join(" AND ");
@@ -283,13 +295,7 @@ export const searchLinks$ = (query: string) => {
     .map(
       (_, i) => `
       CASE WHEN LOWER(COALESCE(s.title, '')) LIKE ?${i * 6 + 1} THEN 100 ELSE 0 END +
-      CASE WHEN EXISTS (
-        SELECT 1 FROM link_tags lt
-        JOIN tags t ON t.id = lt.tagId
-        WHERE lt.linkId = l.id
-          AND t.deletedAt IS NULL
-          AND LOWER(t.name) LIKE ?${i * 6 + 6}
-      ) THEN 80 ELSE 0 END +
+      CASE WHEN ${tagMatchExists(i)} THEN 80 ELSE 0 END +
       CASE WHEN LOWER(l.domain) LIKE ?${i * 6 + 2} THEN 50 ELSE 0 END +
       CASE WHEN LOWER(COALESCE(s.description, '')) LIKE ?${i * 6 + 3} THEN 30 ELSE 0 END +
       CASE WHEN LOWER(COALESCE(sum.summary, '')) LIKE ?${i * 6 + 4} THEN 20 ELSE 0 END +

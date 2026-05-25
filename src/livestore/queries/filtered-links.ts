@@ -9,21 +9,37 @@ export interface TagFilterOptions {
   tagIds: string[];
 }
 
+function effectiveTagMatchClause(placeholders: string): string {
+  return `
+    SELECT lt.tagId AS tagKey FROM link_tags lt
+    JOIN tags t ON lt.tagId = t.id
+    WHERE lt.linkId = l.id AND lt.tagId IN (${placeholders}) AND t.deletedAt IS NULL
+    UNION
+    SELECT ts.tagId AS tagKey FROM tag_suggestions ts
+    JOIN tags t ON t.id = ts.tagId
+    WHERE ts.linkId = l.id AND ts.status = 'pending'
+      AND ts.tagId IN (${placeholders}) AND t.deletedAt IS NULL
+    UNION
+    SELECT ts.suggestedName AS tagKey FROM tag_suggestions ts
+    WHERE ts.linkId = l.id AND ts.status = 'pending'
+      AND ts.tagId IS NULL AND ts.suggestedName IN (${placeholders})
+  `;
+}
+
 export const linksWithTag$ = (tagId: string) =>
   queryDb(
     {
-      bindValues: [tagId],
+      bindValues: [tagId, tagId, tagId],
       query: `
         SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
                s.title, s.description, s.image, s.favicon
         FROM links l
-        INNER JOIN link_tags lt ON lt.linkId = l.id AND lt.tagId = ?
-        INNER JOIN tags t ON t.id = lt.tagId AND t.deletedAt IS NULL
         LEFT JOIN link_snapshots s ON s.id = (
           SELECT s2.id FROM link_snapshots s2
           WHERE s2.linkId = l.id ORDER BY s2.fetchedAt DESC LIMIT 1
         )
         WHERE l.deletedAt IS NULL
+          AND EXISTS (${effectiveTagMatchClause("?")})
         ORDER BY l.createdAt DESC
       `,
       schema: linksListSchema,
@@ -40,7 +56,7 @@ export const linksWithAllTags$ = (tagIds: string[]) => {
 
   return queryDb(
     {
-      bindValues: [...tagIds, tagIds.length],
+      bindValues: [...tagIds, ...tagIds, ...tagIds, tagIds.length],
       query: `
         SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
                s.title, s.description, s.image, s.favicon
@@ -51,9 +67,9 @@ export const linksWithAllTags$ = (tagIds: string[]) => {
         )
         WHERE l.deletedAt IS NULL
           AND (
-            SELECT COUNT(DISTINCT lt.tagId) FROM link_tags lt
-            JOIN tags t ON lt.tagId = t.id
-            WHERE lt.linkId = l.id AND lt.tagId IN (${placeholders}) AND t.deletedAt IS NULL
+            SELECT COUNT(DISTINCT eff.tagKey) FROM (
+              ${effectiveTagMatchClause(placeholders)}
+            ) eff
           ) = ?
         ORDER BY l.createdAt DESC
       `,
@@ -76,11 +92,11 @@ function buildTagFilterClause(options: TagFilterOptions): {
   const placeholders = tagIds.map(() => "?").join(", ");
   return {
     clause: `AND (
-      SELECT COUNT(DISTINCT lt.tagId) FROM link_tags lt
-      JOIN tags t ON lt.tagId = t.id
-      WHERE lt.linkId = l.id AND lt.tagId IN (${placeholders}) AND t.deletedAt IS NULL
+      SELECT COUNT(DISTINCT eff.tagKey) FROM (
+        ${effectiveTagMatchClause(placeholders)}
+      ) eff
     ) = ?`,
-    bindValues: [...tagIds, tagIds.length],
+    bindValues: [...tagIds, ...tagIds, ...tagIds, tagIds.length],
   };
 }
 
