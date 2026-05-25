@@ -87,7 +87,7 @@ export function useCommand(
 
   useHotkeys(keys, handler, {
     enabled,
-    enableOnFormTags: FORM_TAGS,
+    enableOnFormTags: scope === "global" ? FORM_TAGS : false,
     preventDefault: true,
     scopes: [scope],
     ignoreEventWhen,
