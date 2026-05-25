@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { twitterExtractor } from "../../metadata/extractors/twitter";
+import { pickImage, twitterExtractor } from "../../metadata/extractors/twitter";
 
 const extract = (urlStr: string) =>
   Effect.runPromise(twitterExtractor.extract(new URL(urlStr)));
@@ -222,5 +222,208 @@ describe("twitterExtractor", () => {
     );
     const result = await extract("https://x.com/foo/status/123");
     expect(result?.title).toBe("Author Name: Check this https://example.com/x");
+  });
+
+  it("folds quoted-tweet body into description when main fits in title", async () => {
+    mockFetch.mockResolvedValueOnce(
+      tweetResponse({
+        quoted_tweet: {
+          text: "original take https://t.co/zzz",
+          display_text_range: [0, 13],
+          user: { name: "Quoted Author", screen_name: "quotedhandle" },
+          entities: { urls: [], media: [] },
+        },
+      })
+    );
+    const result = await extract("https://x.com/foo/status/123");
+    expect(result?.title).toBe("Author Name: short tweet body");
+    expect(result?.description).toBe("Quoting @quotedhandle: original take");
+  });
+
+  it("appends quoted segment after full body when main spills past title", async () => {
+    const longText =
+      "First sentence ends here. Second sentence continues. Third sentence has more content. Fourth sentence keeps going. Fifth sentence pushes past the 140-character title budget so we exercise the chunk path.";
+    mockFetch.mockResolvedValueOnce(
+      tweetResponse({
+        text: longText,
+        display_text_range: [0, longText.length],
+        entities: { urls: [], media: [] },
+        mediaDetails: [],
+        user: { name: "Long Tweet Author", screen_name: "longtweetauthor" },
+        quoted_tweet: {
+          text: "the thing being quoted",
+          display_text_range: [0, 22],
+          user: { name: "Quoted Author", screen_name: "quotedhandle" },
+          entities: { urls: [], media: [] },
+        },
+      })
+    );
+    const result = await extract("https://x.com/foo/status/123");
+    expect(result?.title).toBe("Long Tweet Author: First sentence ends here.");
+    expect(result?.description).toBe(
+      `${longText}\n\nQuoting @quotedhandle: the thing being quoted`
+    );
+  });
+
+  it("falls back to 'another tweet' when quoted tweet has no screen_name", async () => {
+    mockFetch.mockResolvedValueOnce(
+      tweetResponse({
+        quoted_tweet: {
+          text: "anonymous quoted body",
+          display_text_range: [0, 21],
+          entities: { urls: [], media: [] },
+        },
+      })
+    );
+    const result = await extract("https://x.com/foo/status/123");
+    expect(result?.description).toBe(
+      "Quoting another tweet: anonymous quoted body"
+    );
+  });
+
+  it("ignores quoted_tweet when its text is empty", async () => {
+    mockFetch.mockResolvedValueOnce(
+      tweetResponse({
+        quoted_tweet: {
+          text: "",
+          user: { screen_name: "quotedhandle" },
+          entities: { urls: [], media: [] },
+        },
+      })
+    );
+    const result = await extract("https://x.com/foo/status/123");
+    expect(result?.description).toBeUndefined();
+  });
+
+  describe("pickImage", () => {
+    const tweetUrl = new URL("https://x.com/foo/status/123");
+
+    const lookupReturning = (responses: Record<string, string | null>) =>
+      vi.fn((target: string) =>
+        Effect.succeed(responses[target] ?? null)
+      ) satisfies Parameters<typeof pickImage>[2];
+
+    const run = async (
+      data: Parameters<typeof pickImage>[0],
+      lookup: Parameters<typeof pickImage>[2]
+    ) => Effect.runPromise(pickImage(data, tweetUrl, lookup));
+
+    it("returns parent media without consulting the og lookup", async () => {
+      const lookup = lookupReturning({});
+      const result = await run(
+        {
+          mediaDetails: [
+            { media_url_https: "https://pbs.twimg.com/media/parent.jpg" },
+          ],
+        },
+        lookup
+      );
+      expect(result).toBe("https://pbs.twimg.com/media/parent.jpg");
+      expect(lookup).not.toHaveBeenCalled();
+    });
+
+    it("falls through to quoted-tweet media when parent has none", async () => {
+      const lookup = lookupReturning({});
+      const result = await run(
+        {
+          mediaDetails: [],
+          quoted_tweet: {
+            mediaDetails: [
+              { media_url_https: "https://pbs.twimg.com/media/quoted.jpg" },
+            ],
+          },
+        },
+        lookup
+      );
+      expect(result).toBe("https://pbs.twimg.com/media/quoted.jpg");
+      expect(lookup).not.toHaveBeenCalled();
+    });
+
+    it("looks up the first non-twitter expanded url and returns its og:image", async () => {
+      const lookup = lookupReturning({
+        "https://example.org/post": "https://example.org/picture.png",
+      });
+      const result = await run(
+        {
+          mediaDetails: [],
+          entities: {
+            urls: [
+              {
+                url: "https://t.co/aaa",
+                expanded_url: "https://x.com/other/status/999",
+              },
+              {
+                url: "https://t.co/bbb",
+                expanded_url: "https://example.org/post",
+              },
+            ],
+          },
+        },
+        lookup
+      );
+      expect(result).toBe("https://example.org/picture.png");
+      expect(lookup).toHaveBeenCalledTimes(1);
+      expect(lookup).toHaveBeenCalledWith("https://example.org/post");
+    });
+
+    it("falls back to the tweet page when the linked url has no og:image", async () => {
+      const lookup = lookupReturning({
+        "https://x.com/foo/status/123": "https://abs.twimg.com/card.jpg",
+      });
+      const result = await run(
+        {
+          mediaDetails: [],
+          entities: {
+            urls: [
+              {
+                url: "https://t.co/ccc",
+                expanded_url: "https://example.com/post",
+              },
+            ],
+          },
+        },
+        lookup
+      );
+      expect(result).toBe("https://abs.twimg.com/card.jpg");
+      expect(lookup).toHaveBeenCalledTimes(2);
+      expect(lookup).toHaveBeenNthCalledWith(1, "https://example.com/post");
+      expect(lookup).toHaveBeenNthCalledWith(2, "https://x.com/foo/status/123");
+    });
+
+    it("falls back to the tweet page directly when there are no external urls", async () => {
+      const lookup = lookupReturning({
+        "https://x.com/foo/status/123": "https://abs.twimg.com/card.jpg",
+      });
+      const result = await run(
+        { mediaDetails: [], entities: { urls: [] } },
+        lookup
+      );
+      expect(result).toBe("https://abs.twimg.com/card.jpg");
+      expect(lookup).toHaveBeenCalledExactlyOnceWith(
+        "https://x.com/foo/status/123"
+      );
+    });
+
+    it("returns undefined when every step yields nothing", async () => {
+      const lookup = lookupReturning({});
+      const result = await run(
+        {
+          mediaDetails: [],
+          entities: {
+            urls: [
+              {
+                url: "https://t.co/ddd",
+                expanded_url: "https://example.com/dead",
+              },
+            ],
+          },
+        },
+        lookup
+      );
+      expect(result).toBeUndefined();
+      expect(lookup).toHaveBeenCalledTimes(2);
+      expect(lookup).toHaveBeenNthCalledWith(1, "https://example.com/dead");
+      expect(lookup).toHaveBeenNthCalledWith(2, "https://x.com/foo/status/123");
+    });
   });
 });

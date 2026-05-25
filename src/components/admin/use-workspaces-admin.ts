@@ -105,6 +105,7 @@ export function useWorkspacesAdmin(enabled = true) {
       | "chatAgent"
       | "integrations"
       | "xBookmarkSync"
+      | "xContentEnrichment"
       | "publicApi"
       | "mcpServer"
     >

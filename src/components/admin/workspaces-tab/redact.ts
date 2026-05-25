@@ -6,6 +6,7 @@ export type BooleanCapKey = Extract<
   | "chatAgent"
   | "integrations"
   | "xBookmarkSync"
+  | "xContentEnrichment"
   | "publicApi"
   | "mcpServer"
 >;
@@ -19,6 +20,7 @@ export const BOOLEAN_CAPS: ReadonlyArray<{
   { key: "chatAgent", short: "Chat", label: "Chat agent" },
   { key: "integrations", short: "Int", label: "Integrations" },
   { key: "xBookmarkSync", short: "X", label: "X bookmarks" },
+  { key: "xContentEnrichment", short: "X+", label: "X content enrichment" },
   { key: "publicApi", short: "API", label: "Public API" },
   { key: "mcpServer", short: "MCP", label: "MCP server" },
 ];

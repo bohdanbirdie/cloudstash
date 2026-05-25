@@ -9,7 +9,7 @@ import {
 } from "../../../livestore/__tests__/test-helpers";
 import type { TestStore } from "../../../livestore/__tests__/test-helpers";
 import { events, tables } from "../../../livestore/schema";
-import { LinkId, TagId } from "../../db/branded";
+import { LinkId, OrgId, TagId, XTweetId, XUsername } from "../../db/branded";
 import { AiCallError } from "../../link-processor/errors";
 import { processLink } from "../../link-processor/process-link";
 import {
@@ -20,8 +20,48 @@ import {
 } from "../../link-processor/services";
 import type { MetadataFetchFailure } from "../../link-processor/services";
 import { LinkEventStoreLive } from "../../link-processor/services/link-event-store.live";
+import { AI_MODEL } from "../../link-processor/types";
 import { MetadataFetchError, MetadataParseError } from "../../metadata/errors";
 import { OgMetadata } from "../../metadata/schema";
+import {
+  EnrichmentGenerateError,
+  ThreadProviderEmptyError,
+  ThreadProviderHttpError,
+} from "../../x-enrichment/errors";
+import { EnrichmentGenerator } from "../../x-enrichment/generator";
+import type { EnrichmentOutput } from "../../x-enrichment/generator";
+import { ThreadProvider } from "../../x-enrichment/services";
+import type { ThreadContext } from "../../x-enrichment/services";
+import {
+  ENRICHMENT_MODEL,
+  MONTHLY_ENRICHMENT_CAP,
+} from "../../x-enrichment/types";
+import { EnrichmentUsage } from "../../x-enrichment/usage";
+
+const enrichmentStubs = Layer.mergeAll(
+  Layer.succeed(
+    ThreadProvider,
+    ThreadProvider.of({
+      fetchContext: () =>
+        Effect.die(new Error("unexpected ThreadProvider call in test")),
+    })
+  ),
+  Layer.succeed(
+    EnrichmentGenerator,
+    new EnrichmentGenerator({
+      generate: () =>
+        Effect.die(new Error("unexpected EnrichmentGenerator call in test")),
+    })
+  ),
+  Layer.succeed(EnrichmentUsage, {
+    current: () =>
+      Effect.die(new Error("unexpected EnrichmentUsage.current call in test")),
+    increment: () =>
+      Effect.die(
+        new Error("unexpected EnrichmentUsage.increment call in test")
+      ),
+  })
+);
 
 const testLink = { id: LinkId.make("link-1"), url: "https://example.com" };
 
@@ -112,7 +152,8 @@ function buildTestLayers(
           options.aiResult ?? { summary: null, suggestedTags: [] }
         ),
     }),
-    LinkEventStoreLive(store)
+    LinkEventStoreLive(store),
+    enrichmentStubs
   );
 }
 
@@ -236,7 +277,8 @@ describe("processLink", () => {
             generate: () =>
               Effect.succeed({ summary: null, suggestedTags: [] }),
           }),
-          LinkEventStoreLive(store)
+          LinkEventStoreLive(store),
+          enrichmentStubs
         )
       ),
       silentLogger,
@@ -443,7 +485,8 @@ describe("processLink", () => {
             generate: () =>
               Effect.fail(new AiCallError({ cause: "AI unavailable" })),
           }),
-          LinkEventStoreLive(store)
+          LinkEventStoreLive(store),
+          enrichmentStubs
         )
       ),
       silentLogger,
@@ -474,7 +517,8 @@ describe("processLink", () => {
         commit: () => Effect.die("store dead"),
         queryTags: () => Effect.succeed([]),
         queryLinkTagNames: () => Effect.succeed([]),
-      })
+      }),
+      enrichmentStubs
     );
 
     return processLink({ link: testLink }).pipe(
@@ -543,7 +587,8 @@ describe("processLink", () => {
           Layer.succeed(AiSummaryGenerator, {
             generate: () => Effect.fail(new AiCallError({ cause: "timeout" })),
           }),
-          LinkEventStoreLive(store)
+          LinkEventStoreLive(store),
+          enrichmentStubs
         )
       ),
       silentLogger,
@@ -573,7 +618,8 @@ describe("processLink", () => {
             generate: () =>
               Effect.succeed({ summary: null, suggestedTags: [] }),
           }),
-          LinkEventStoreLive(store)
+          LinkEventStoreLive(store),
+          enrichmentStubs
         )
       ),
       silentLogger,
@@ -619,5 +665,518 @@ describe("processLink", () => {
         })
       )
     )
+  );
+});
+
+const STORE_ID = OrgId.make("org-router-test");
+const X_TWEET_URL = "https://x.com/alice/status/1810000000000000001";
+const X_TWEET_ID = "1810000000000000001";
+const xLink = { id: LinkId.make("link-x-1"), url: X_TWEET_URL };
+
+const seedXLink = () =>
+  store.commit(
+    events.linkCreatedV2({
+      id: xLink.id,
+      url: xLink.url,
+      domain: "x.com",
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      source: "test",
+      sourceMeta: null,
+    })
+  );
+
+const xContext: ThreadContext = {
+  root: {
+    id: XTweetId.make(X_TWEET_ID),
+    text: "main body",
+    authorScreenName: XUsername.make("alice"),
+    authorName: "Alice",
+    createdAt: null,
+    quotedText: null,
+    quotedAuthorScreenName: null,
+    inReplyToId: null,
+    conversationId: XTweetId.make(X_TWEET_ID),
+    externalUrls: [],
+  },
+  authorContinuations: [],
+  isReply: false,
+};
+
+interface EnrichmentLayerOpts {
+  budgetUsed?: number;
+  providerResult?:
+    | ThreadContext
+    | Effect.Effect<never, ThreadProviderHttpError | ThreadProviderEmptyError>;
+  generatorResult?:
+    | EnrichmentOutput
+    | Effect.Effect<never, EnrichmentGenerateError>;
+}
+
+const enrichmentLayer = (opts: EnrichmentLayerOpts = {}) => {
+  const usedRef = { value: opts.budgetUsed ?? 0 };
+  return Layer.mergeAll(
+    Layer.succeed(
+      ThreadProvider,
+      ThreadProvider.of({
+        fetchContext: () =>
+          opts.providerResult === undefined
+            ? Effect.succeed(xContext)
+            : Effect.isEffect(opts.providerResult)
+              ? opts.providerResult
+              : Effect.succeed(opts.providerResult),
+      })
+    ),
+    Layer.succeed(
+      EnrichmentGenerator,
+      new EnrichmentGenerator({
+        generate: () =>
+          opts.generatorResult === undefined
+            ? Effect.succeed({
+                summary: "enriched summary text",
+                suggestedTags: ["pro-tag"],
+              })
+            : Effect.isEffect(opts.generatorResult)
+              ? opts.generatorResult
+              : Effect.succeed(opts.generatorResult),
+      })
+    ),
+    Layer.succeed(EnrichmentUsage, {
+      current: () => Effect.succeed({ used: usedRef.value, period: "2026-05" }),
+      increment: () => {
+        usedRef.value += 1;
+        return Effect.succeed({ used: usedRef.value, period: "2026-05" });
+      },
+    })
+  );
+};
+
+describe("processLink enrichment router", () => {
+  it.effect(
+    "happy path: commits with ENRICHMENT_MODEL and enriched tags",
+    () => {
+      seedXLink();
+      return processLink({
+        link: xLink,
+        aiSummaryEnabled: true,
+        xContentEnrichmentEnabled: true,
+        storeId: STORE_ID,
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Layer.succeed(MetadataFetcher, {
+              fetch: () => Effect.succeed(OgMetadata.make({ title: "T" })),
+            }),
+            Layer.succeed(ContentExtractor, {
+              extract: () =>
+                Effect.die(new Error("basic extract should not run")),
+            }),
+            Layer.succeed(AiSummaryGenerator, {
+              generate: () =>
+                Effect.die(new Error("basic AI generate should not run")),
+            }),
+            LinkEventStoreLive(store),
+            enrichmentLayer()
+          )
+        ),
+        silentLogger,
+        Effect.tap(() =>
+          Effect.sync(() => {
+            const summaries = store.query(
+              tables.linkSummaries.where({ linkId: xLink.id })
+            );
+            expect(summaries).toHaveLength(1);
+            expect(summaries[0].model).toBe(ENRICHMENT_MODEL);
+            expect(summaries[0].summary).toBe("enriched summary text");
+
+            const suggestions = store.query(
+              tables.tagSuggestions.where({ linkId: xLink.id })
+            );
+            expect(suggestions).toHaveLength(1);
+            expect(suggestions[0].suggestedName).toBe("pro-tag");
+          })
+        )
+      );
+    }
+  );
+
+  it.effect(
+    "budget exhausted: falls back to basic, commits with AI_MODEL",
+    () => {
+      seedXLink();
+      return processLink({
+        link: xLink,
+        aiSummaryEnabled: true,
+        xContentEnrichmentEnabled: true,
+        storeId: STORE_ID,
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Layer.succeed(MetadataFetcher, {
+              fetch: () => Effect.succeed(OgMetadata.make({ title: "T" })),
+            }),
+            Layer.succeed(ContentExtractor, {
+              extract: () =>
+                Effect.succeed({
+                  title: "T",
+                  content: "C",
+                  author: null,
+                  published: null,
+                  wordCount: 1,
+                }),
+            }),
+            Layer.succeed(AiSummaryGenerator, {
+              generate: () =>
+                Effect.succeed({
+                  summary: "basic summary",
+                  suggestedTags: ["basic-tag"],
+                }),
+            }),
+            LinkEventStoreLive(store),
+            Layer.succeed(
+              ThreadProvider,
+              ThreadProvider.of({
+                fetchContext: () =>
+                  Effect.die(new Error("provider should not be called")),
+              })
+            ),
+            Layer.succeed(
+              EnrichmentGenerator,
+              new EnrichmentGenerator({
+                generate: () =>
+                  Effect.die(new Error("generator should not be called")),
+              })
+            ),
+            Layer.succeed(EnrichmentUsage, {
+              current: () =>
+                Effect.succeed({
+                  used: MONTHLY_ENRICHMENT_CAP,
+                  period: "2026-05",
+                }),
+              increment: () =>
+                Effect.die(new Error("increment should not be called")),
+            })
+          )
+        ),
+        silentLogger,
+        Effect.tap(() =>
+          Effect.sync(() => {
+            const summaries = store.query(
+              tables.linkSummaries.where({ linkId: xLink.id })
+            );
+            expect(summaries).toHaveLength(1);
+            expect(summaries[0].model).toBe(AI_MODEL);
+            expect(summaries[0].summary).toBe("basic summary");
+          })
+        )
+      );
+    }
+  );
+
+  it.effect(
+    "provider failure (http): falls back to basic, commits with AI_MODEL",
+    () => {
+      seedXLink();
+      return processLink({
+        link: xLink,
+        aiSummaryEnabled: true,
+        xContentEnrichmentEnabled: true,
+        storeId: STORE_ID,
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Layer.succeed(MetadataFetcher, {
+              fetch: () => Effect.succeed(OgMetadata.make({ title: "T" })),
+            }),
+            Layer.succeed(ContentExtractor, {
+              extract: () =>
+                Effect.succeed({
+                  title: "T",
+                  content: "C",
+                  author: null,
+                  published: null,
+                  wordCount: 1,
+                }),
+            }),
+            Layer.succeed(AiSummaryGenerator, {
+              generate: () =>
+                Effect.succeed({
+                  summary: "basic summary",
+                  suggestedTags: [],
+                }),
+            }),
+            LinkEventStoreLive(store),
+            enrichmentLayer({
+              providerResult: Effect.fail(
+                new ThreadProviderHttpError({
+                  url: X_TWEET_URL,
+                  status: 503,
+                  tweetId: XTweetId.make(X_TWEET_ID),
+                })
+              ),
+            })
+          )
+        ),
+        silentLogger,
+        Effect.tap(() =>
+          Effect.sync(() => {
+            const summaries = store.query(
+              tables.linkSummaries.where({ linkId: xLink.id })
+            );
+            expect(summaries).toHaveLength(1);
+            expect(summaries[0].model).toBe(AI_MODEL);
+            expect(summaries[0].summary).toBe("basic summary");
+          })
+        )
+      );
+    }
+  );
+
+  it.effect(
+    "provider failure (empty): falls back to basic, commits with AI_MODEL",
+    () => {
+      seedXLink();
+      return processLink({
+        link: xLink,
+        aiSummaryEnabled: true,
+        xContentEnrichmentEnabled: true,
+        storeId: STORE_ID,
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Layer.succeed(MetadataFetcher, {
+              fetch: () => Effect.succeed(OgMetadata.make({ title: "T" })),
+            }),
+            Layer.succeed(ContentExtractor, {
+              extract: () =>
+                Effect.succeed({
+                  title: "T",
+                  content: "C",
+                  author: null,
+                  published: null,
+                  wordCount: 1,
+                }),
+            }),
+            Layer.succeed(AiSummaryGenerator, {
+              generate: () =>
+                Effect.succeed({
+                  summary: "basic summary",
+                  suggestedTags: [],
+                }),
+            }),
+            LinkEventStoreLive(store),
+            enrichmentLayer({
+              providerResult: Effect.fail(
+                new ThreadProviderEmptyError({
+                  url: X_TWEET_URL,
+                  tweetId: XTweetId.make(X_TWEET_ID),
+                })
+              ),
+            })
+          )
+        ),
+        silentLogger,
+        Effect.tap(() =>
+          Effect.sync(() => {
+            const summaries = store.query(
+              tables.linkSummaries.where({ linkId: xLink.id })
+            );
+            expect(summaries).toHaveLength(1);
+            expect(summaries[0].model).toBe(AI_MODEL);
+          })
+        )
+      );
+    }
+  );
+
+  it.effect(
+    "generator failure: falls back to basic, commits with AI_MODEL",
+    () => {
+      seedXLink();
+      return processLink({
+        link: xLink,
+        aiSummaryEnabled: true,
+        xContentEnrichmentEnabled: true,
+        storeId: STORE_ID,
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Layer.succeed(MetadataFetcher, {
+              fetch: () => Effect.succeed(OgMetadata.make({ title: "T" })),
+            }),
+            Layer.succeed(ContentExtractor, {
+              extract: () =>
+                Effect.succeed({
+                  title: "T",
+                  content: "C",
+                  author: null,
+                  published: null,
+                  wordCount: 1,
+                }),
+            }),
+            Layer.succeed(AiSummaryGenerator, {
+              generate: () =>
+                Effect.succeed({
+                  summary: "basic summary",
+                  suggestedTags: [],
+                }),
+            }),
+            LinkEventStoreLive(store),
+            enrichmentLayer({
+              generatorResult: Effect.fail(
+                new EnrichmentGenerateError({
+                  model: ENRICHMENT_MODEL,
+                  cause: new Error("openrouter 500"),
+                })
+              ),
+            })
+          )
+        ),
+        silentLogger,
+        Effect.tap(() =>
+          Effect.sync(() => {
+            const summaries = store.query(
+              tables.linkSummaries.where({ linkId: xLink.id })
+            );
+            expect(summaries).toHaveLength(1);
+            expect(summaries[0].model).toBe(AI_MODEL);
+          })
+        )
+      );
+    }
+  );
+
+  it.effect("gating: non-X URL with enrichment enabled uses basic path", () =>
+    processLink({
+      link: testLink,
+      aiSummaryEnabled: true,
+      xContentEnrichmentEnabled: true,
+      storeId: STORE_ID,
+    }).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          buildTestLayers({
+            metadata: mockMetadata,
+            content: {
+              title: "T",
+              content: "C",
+              author: null,
+              published: null,
+              wordCount: 1,
+            },
+            aiResult: {
+              summary: "basic summary",
+              suggestedTags: [],
+            },
+          })
+        )
+      ),
+      silentLogger,
+      Effect.tap(() =>
+        Effect.sync(() => {
+          const summaries = store.query(
+            tables.linkSummaries.where({ linkId: testLink.id })
+          );
+          expect(summaries).toHaveLength(1);
+          expect(summaries[0].model).toBe(AI_MODEL);
+        })
+      )
+    )
+  );
+
+  it.effect("gating: X URL but storeId undefined uses basic path", () => {
+    seedXLink();
+    return processLink({
+      link: xLink,
+      aiSummaryEnabled: true,
+      xContentEnrichmentEnabled: true,
+      // storeId omitted
+    }).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          Layer.succeed(MetadataFetcher, {
+            fetch: () => Effect.succeed(OgMetadata.make({ title: "T" })),
+          }),
+          Layer.succeed(ContentExtractor, {
+            extract: () =>
+              Effect.succeed({
+                title: "T",
+                content: "C",
+                author: null,
+                published: null,
+                wordCount: 1,
+              }),
+          }),
+          Layer.succeed(AiSummaryGenerator, {
+            generate: () =>
+              Effect.succeed({
+                summary: "basic summary",
+                suggestedTags: [],
+              }),
+          }),
+          LinkEventStoreLive(store),
+          enrichmentStubs
+        )
+      ),
+      silentLogger,
+      Effect.tap(() =>
+        Effect.sync(() => {
+          const summaries = store.query(
+            tables.linkSummaries.where({ linkId: xLink.id })
+          );
+          expect(summaries).toHaveLength(1);
+          expect(summaries[0].model).toBe(AI_MODEL);
+        })
+      )
+    );
+  });
+
+  it.effect(
+    "gating: X URL but xContentEnrichmentEnabled=false uses basic path",
+    () => {
+      seedXLink();
+      return processLink({
+        link: xLink,
+        aiSummaryEnabled: true,
+        xContentEnrichmentEnabled: false,
+        storeId: STORE_ID,
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Layer.succeed(MetadataFetcher, {
+              fetch: () => Effect.succeed(OgMetadata.make({ title: "T" })),
+            }),
+            Layer.succeed(ContentExtractor, {
+              extract: () =>
+                Effect.succeed({
+                  title: "T",
+                  content: "C",
+                  author: null,
+                  published: null,
+                  wordCount: 1,
+                }),
+            }),
+            Layer.succeed(AiSummaryGenerator, {
+              generate: () =>
+                Effect.succeed({
+                  summary: "basic summary",
+                  suggestedTags: [],
+                }),
+            }),
+            LinkEventStoreLive(store),
+            enrichmentStubs
+          )
+        ),
+        silentLogger,
+        Effect.tap(() =>
+          Effect.sync(() => {
+            const summaries = store.query(
+              tables.linkSummaries.where({ linkId: xLink.id })
+            );
+            expect(summaries).toHaveLength(1);
+            expect(summaries[0].model).toBe(AI_MODEL);
+          })
+        )
+      );
+    }
   );
 });

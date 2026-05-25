@@ -69,6 +69,7 @@ export interface TierCapabilities {
   chatAgent: boolean;
   integrations: boolean;
   xBookmarkSync: boolean;
+  xContentEnrichment: boolean;
   publicApi: boolean;
   mcpServer: boolean;
   weeklyDigest: boolean;
@@ -81,6 +82,7 @@ export const TIER_CAPABILITIES: Readonly<Record<PlanTier, TierCapabilities>> = {
     chatAgent: false,
     integrations: false,
     xBookmarkSync: false,
+    xContentEnrichment: false,
     publicApi: false,
     mcpServer: false,
     weeklyDigest: false,
@@ -91,6 +93,7 @@ export const TIER_CAPABILITIES: Readonly<Record<PlanTier, TierCapabilities>> = {
     chatAgent: false,
     integrations: true,
     xBookmarkSync: false,
+    xContentEnrichment: false,
     publicApi: true,
     mcpServer: false,
     weeklyDigest: true,
@@ -101,6 +104,7 @@ export const TIER_CAPABILITIES: Readonly<Record<PlanTier, TierCapabilities>> = {
     chatAgent: true,
     integrations: true,
     xBookmarkSync: true,
+    xContentEnrichment: false,
     publicApi: true,
     mcpServer: true,
     weeklyDigest: true,

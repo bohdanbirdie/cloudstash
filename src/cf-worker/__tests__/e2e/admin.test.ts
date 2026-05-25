@@ -268,6 +268,7 @@ describe("admin Endpoints E2E", () => {
     const BOOLEAN_OVERRIDE_CASES = [
       { key: "aiSummary", tierDefault: false },
       { key: "xBookmarkSync", tierDefault: false },
+      { key: "xContentEnrichment", tierDefault: false },
       { key: "publicApi", tierDefault: false },
     ] as const;
 

@@ -61,6 +61,10 @@
       "binding": "TELEGRAM_KV",
       "id": "2ba7eb003f494031ae9fee505ee6111a",
     },
+    {
+      "binding": "ENRICHMENT_USAGE",
+      "id": "1fa1f174028b484ba5691c2bfa2ca30c",
+    },
   ],
 
   "ratelimits": [
