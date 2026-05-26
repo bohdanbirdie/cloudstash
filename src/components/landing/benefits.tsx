@@ -10,46 +10,46 @@ export function BenefitsGrid() {
     <div className="grid gap-6 sm:grid-cols-2 sm:gap-x-8 sm:gap-y-10 lg:grid-cols-12">
       <FeatureBenefit
         delay={0}
-        title="Search everything."
-        body="Title, domain, summary, tag. Instant and offline — your whole archive is a keystroke away."
+        title="Find anything in two keystrokes."
+        body="Title, domain, summary, tag — instantly. Your archive is a keystroke away, even offline."
         className="sm:col-span-2 lg:col-span-6"
       >
         <SearchMockup />
       </FeatureBenefit>
       <SmallBenefit
         delay={0.08}
-        title="AI that read it for you."
-        body="Two-paragraph TL;DR on every save. Skim ten before opening one."
+        title="A summary, ready to skim."
+        body="Two paragraphs on every save. Decide what's worth opening, in seconds."
         visual={<TldrCard />}
         className="lg:col-span-3"
       />
       <SmallBenefit
         delay={0.16}
-        title="Tags when you want."
-        body="Tag what matters. Archive when done. Never required to file."
+        title="Tag what matters. Skip the folders."
+        body="Tagging is optional. Archiving is one tap. No folder tree to maintain."
         visual={<TagsRow />}
         className="lg:col-span-3"
       />
 
       <FeatureBenefit
         delay={0.24}
-        title="Chat with your archive."
-        body="Ask a question. Answers cite the links you saved."
+        title="Ask your library a question."
+        body="Forget which article said what. Ask — get a paragraph back, with citations."
         className="sm:col-span-2 lg:col-span-6"
       >
         <ChatMockup />
       </FeatureBenefit>
       <SmallBenefit
         delay={0.32}
-        title="Synced in real time."
-        body="Save on your phone, see it on your laptop the same second. Works offline, too."
+        title="Phone, laptop, web — same second."
+        body="Save anywhere, see it everywhere. Real-time sync, works offline too."
         visual={<SyncRow />}
         className="lg:col-span-3"
       />
       <SmallBenefit
         delay={0.4}
-        title="Yours to keep."
-        body="Export your whole archive anytime — links, summaries, tags. No lock-in."
+        title="Walk away anytime. Take everything."
+        body="Export the whole archive — links, summaries, tags — in one click. No lock-in."
         visual={<ArchiveCard />}
         className="lg:col-span-3"
       />

@@ -9,6 +9,7 @@ import { Integrations } from "@/components/landing/integrations";
 import { MobileStickyCta } from "@/components/landing/mobile-sticky-cta";
 import { Pitch } from "@/components/landing/pitch";
 import { Pricing } from "@/components/landing/pricing";
+import { PullQuote } from "@/components/landing/pullquote";
 import {
   FAQ_LD,
   SITE_URL,
@@ -59,6 +60,7 @@ function LandingPage() {
         <Hero />
         <Pitch />
         <Integrations />
+        <PullQuote />
         <Benefits />
         <Pricing />
         <Faq />

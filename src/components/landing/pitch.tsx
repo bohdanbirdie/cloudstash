@@ -75,10 +75,6 @@ export function Pitch() {
 function PitchSteps() {
   return (
     <ol className="relative mt-8 grid gap-7">
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute left-4 top-4 bottom-4 w-px -translate-x-1/2 bg-border/60"
-      />
       {PITCH_STEPS.map((step, i) => (
         <motion.li
           key={step.n}
@@ -90,8 +86,14 @@ function PitchSteps() {
             ease: [0.22, 1, 0.36, 1],
             delay: 0.2 + i * 0.18,
           }}
-          className="grid grid-cols-[2rem_1fr] items-start gap-4"
+          className="relative grid grid-cols-[2rem_1fr] items-start gap-4"
         >
+          {i < PITCH_STEPS.length - 1 && (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute left-4 top-4 -bottom-7 w-px -translate-x-1/2 bg-border/60"
+            />
+          )}
           <span
             aria-hidden="true"
             className="relative z-10 grid size-8 select-none place-items-center rounded-full border border-border/80 bg-background font-mono text-[10.5px] font-semibold tabular-nums text-primary"
