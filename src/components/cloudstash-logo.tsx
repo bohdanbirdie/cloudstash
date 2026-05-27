@@ -30,7 +30,7 @@ export function CloudstashLogo({
         <path
           d={KNOT_D}
           stroke="currentColor"
-          strokeWidth={6}
+          strokeWidth={4.5}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
