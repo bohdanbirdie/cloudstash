@@ -20,10 +20,12 @@ import { MetaRow } from "@/components/right-pane/detail-view/meta-row";
 import { useLinkActions } from "@/components/right-pane/headers/per-link/use-link-actions";
 import { Button } from "@/components/ui/button";
 import { SheetHandle } from "@/components/ui/sheet-handle";
+import { YouTubeFacade } from "@/components/youtube-facade";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { useNarrowViewport } from "@/hooks/use-narrow-viewport";
 import { useOrgFeatures } from "@/hooks/use-org-features";
 import { displayDescription, displayTitle } from "@/lib/link-display";
+import { parseYouTube } from "@/lib/youtube";
 import { linkById$, linkProcessingStatus$ } from "@/livestore/queries/links";
 import type { LinkWithDetails } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
@@ -247,11 +249,21 @@ function PageContent({ link }: { link: LinkWithDetails }) {
 
   const titleText = displayTitle(link);
   const descriptionText = displayDescription(link);
+  const youtube = parseYouTube(link.url);
 
   return (
     <>
       <div className="aspect-video w-full overflow-hidden rounded-sm">
-        <LinkPreviewImage src={link.image} loading="eager" />
+        {youtube ? (
+          <YouTubeFacade
+            key={link.id}
+            videoId={youtube.videoId}
+            startSeconds={youtube.startSeconds}
+            thumbnail={link.image}
+          />
+        ) : (
+          <LinkPreviewImage src={link.image} loading="eager" />
+        )}
       </div>
 
       <h2 className="mt-4 text-2xl font-bold leading-tight text-balance break-words text-foreground">

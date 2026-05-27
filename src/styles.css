@@ -184,3 +184,15 @@
   font-size: 1.06em;
   letter-spacing: -0.01em;
 }
+
+body.yt-player-dragging {
+  cursor: grabbing !important;
+}
+body.yt-player-dragging * {
+  pointer-events: none !important;
+  cursor: grabbing !important;
+}
+body.yt-player-dragging [data-yt-player],
+body.yt-player-dragging [data-yt-player] * {
+  pointer-events: auto !important;
+}

@@ -15,6 +15,7 @@ import { SettingsDialog } from "@/components/settings/settings-dialog";
 import { TagStrip } from "@/components/tag-strip";
 import { TopBar } from "@/components/top-bar";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { YouTubePlayerHost } from "@/components/youtube-player-host";
 import { usePageStaticData } from "@/hooks/use-page-static-data";
 import { loadAuth, useAuth } from "@/lib/auth";
 import { useInputMode } from "@/lib/input-mode";
@@ -72,6 +73,7 @@ function AuthedShellWrapper() {
             </div>
             <SettingsDialog />
             <MobileDetailSheet />
+            <YouTubePlayerHost />
             {import.meta.env.DEV && (
               <Suspense fallback={null}>
                 <DevToolsPanel />
