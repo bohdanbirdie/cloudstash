@@ -170,6 +170,15 @@ export default defineConfig({
           "typescript/no-unsafe-type-assertion": "off",
         },
       },
+      {
+        files: [
+          "src/components/youtube-facade.tsx",
+          "src/components/youtube-player-host.tsx",
+        ],
+        rules: {
+          "react/iframe-missing-sandbox": "off",
+        },
+      },
     ],
   },
   resolve: {

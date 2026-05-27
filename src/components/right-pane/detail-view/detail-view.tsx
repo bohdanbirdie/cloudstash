@@ -1,5 +1,6 @@
 import { memo, useCallback, useMemo } from "react";
 
+import { DesktopYouTubeSlot } from "@/components/desktop-youtube-slot";
 import { LinkPreviewImage } from "@/components/link-preview-image";
 import { TagCombobox } from "@/components/tags/tag-combobox/tag-combobox";
 import { Kbd } from "@/components/ui/kbd";
@@ -10,6 +11,7 @@ import { PROMOTE_PAID_FEATURES } from "@/lib/feature-promotion";
 import { useDismiss } from "@/lib/keyboard";
 import { displayDescription, displayTitle } from "@/lib/link-display";
 import { suggestionTagId } from "@/lib/tags";
+import { parseYouTube } from "@/lib/youtube";
 import { linkById$, linkProcessingStatus$ } from "@/livestore/queries/links";
 import type { LinkWithDetails } from "@/livestore/queries/links";
 import type { TagSuggestion } from "@/livestore/queries/schemas";
@@ -97,11 +99,21 @@ const DetailViewInner = memo(function DetailViewInner({
 
   const titleText = displayTitle(link);
   const descriptionText = displayDescription(link);
+  const youtube = parseYouTube(link.url);
 
   return (
     <div className="relative flex flex-col gap-6 pl-3 pb-8">
       <div className="aspect-video w-full overflow-hidden rounded-sm">
-        <LinkPreviewImage src={link.image} loading="eager" />
+        {youtube ? (
+          <DesktopYouTubeSlot
+            linkId={link.id}
+            videoId={youtube.videoId}
+            startSeconds={youtube.startSeconds}
+            thumbnail={link.image}
+          />
+        ) : (
+          <LinkPreviewImage src={link.image} loading="eager" />
+        )}
       </div>
 
       <MetaRow link={link} />
