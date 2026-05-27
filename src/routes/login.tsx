@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FieldGroup, FieldDescription } from "@/components/ui/field";
 import { authClient, loadAuth } from "@/lib/auth";
+import type { DitherPalette } from "@/lib/brand/dither";
 import { PALETTES, paintDitherWithEffects } from "@/lib/brand/dither";
 import { META_PIXEL_HEAD_SCRIPTS, MetaPixelNoScript } from "@/lib/meta-pixel";
 import { cn } from "@/lib/utils";
 
-const MIDNIGHT = PALETTES.find((p) => p.name === "Midnight")!;
+const SUNSET = PALETTES.find((p) => p.name === "Sunset")!;
 const DITHER_CELL_SIZE = 3.5;
 const WAVE_VELOCITY_CSS = 0.08;
 const WAVE_SPACING_CSS = 280;
@@ -109,6 +110,26 @@ type AsciiCell = {
   nextChangeMs: number;
 };
 
+function resolveBrandPalette(): DitherPalette {
+  try {
+    const cnv = document.createElement("canvas");
+    cnv.width = 1;
+    cnv.height = 1;
+    const tctx = cnv.getContext("2d");
+    if (!tctx) return SUNSET;
+    const primaryVar = getComputedStyle(document.documentElement)
+      .getPropertyValue("--primary")
+      .trim();
+    if (!primaryVar) return SUNSET;
+    tctx.fillStyle = primaryVar;
+    tctx.fillRect(0, 0, 1, 1);
+    const [r, g, b] = tctx.getImageData(0, 0, 1, 1).data;
+    return { ...SUNSET, b: { r, g, b } };
+  } catch {
+    return SUNSET;
+  }
+}
+
 function pickSymbol(): string {
   return ASCII_CHARS[Math.floor(Math.random() * ASCII_CHARS.length)];
 }
@@ -134,6 +155,7 @@ function BrandPane() {
     const ctx = canvas.getContext("2d")!;
     const asciiCtx = asciiCanvas.getContext("2d")!;
     const dpr = window.devicePixelRatio || 1;
+    const palette = resolveBrandPalette();
 
     let canvasW = 0;
     let canvasH = 0;
@@ -168,7 +190,7 @@ function BrandPane() {
             canvasW,
             canvasH,
             DITHER_CELL_SIZE * dpr,
-            MIDNIGHT,
+            palette,
             null,
             null
           );
@@ -228,7 +250,7 @@ function BrandPane() {
           canvasW,
           canvasH,
           DITHER_CELL_SIZE * dpr,
-          MIDNIGHT,
+          palette,
           {
             phase: wavePhase,
             sigma: waveSigma,
@@ -334,7 +356,7 @@ function BrandPane() {
       ref={paneRef}
       className="relative hidden md:flex items-center justify-center overflow-hidden"
       style={{
-        backgroundColor: `rgb(${MIDNIGHT.a.r} ${MIDNIGHT.a.g} ${MIDNIGHT.a.b})`,
+        backgroundColor: `rgb(${SUNSET.a.r} ${SUNSET.a.g} ${SUNSET.a.b})`,
       }}
     >
       <canvas

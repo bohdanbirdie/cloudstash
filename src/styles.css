@@ -3,6 +3,9 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/noto-sans";
 @import "@fontsource-variable/jetbrains-mono";
+/* Fraunces is loaded for occasional italic accents on the landing only.
+   Never apply as a global body/heading font. Use via the .font-italic-accent class. */
+@import "@fontsource-variable/fraunces";
 
 @plugin "@tailwindcss/typography";
 
@@ -17,7 +20,7 @@
   --card-foreground: oklch(0.141 0.005 285.823);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.553 0.195 38.402);
+  --primary: oklch(0.61 0.22 39);
   --primary-foreground: oklch(0.98 0.016 73.684);
   --secondary: oklch(0.967 0.001 286.375);
   --secondary-foreground: oklch(0.21 0.006 285.885);
@@ -37,7 +40,7 @@
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.553 0.195 38.402);
+  --sidebar-primary: oklch(0.61 0.22 39);
   --sidebar-primary-foreground: oklch(0.98 0.016 73.684);
   --sidebar-accent: oklch(0.967 0.001 286.375);
   --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
@@ -52,7 +55,7 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.21 0.006 285.885);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.47 0.157 37.304);
+  --primary: oklch(0.55 0.18 38);
   --primary-foreground: oklch(0.98 0.016 73.684);
   --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
@@ -71,7 +74,7 @@
   --chart-5: oklch(0.274 0.006 286.033);
   --sidebar: oklch(0.21 0.006 285.885);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.47 0.157 37.304);
+  --sidebar-primary: oklch(0.55 0.18 38);
   --sidebar-primary-foreground: oklch(0.98 0.016 73.684);
   --sidebar-accent: oklch(0.274 0.006 286.033);
   --sidebar-accent-foreground: oklch(0.985 0 0);
@@ -164,4 +167,20 @@
   transition:
     transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
     opacity 200ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* Rare italic accent — reserved for one or two words on the landing.
+   Never apply to whole paragraphs or whole headings.
+   Inherits weight from the parent. Size bumped ~6% for optical parity:
+   Fraunces italic has a smaller x-height than Noto Sans, so at equal
+   em sizes it reads visually smaller. */
+.font-italic-accent {
+  font-family: "Fraunces Variable", ui-serif, Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-optical-sizing: auto;
+  font-variation-settings:
+    "opsz" 144,
+    "SOFT" 30;
+  font-size: 1.06em;
+  letter-spacing: -0.01em;
 }

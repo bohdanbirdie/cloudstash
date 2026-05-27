@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { Option, Schema } from "effect";
 import { ClipboardIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
@@ -77,12 +78,16 @@ export function TopBar() {
   return (
     <header className="flex items-center justify-between gap-4 px-2">
       <div className="flex items-center gap-4 lg:gap-10">
-        <div className="flex items-center gap-2.5">
-          <CloudstashLogo className="size-5 rounded-sm" variant="branded" />
+        <Link
+          to="/"
+          aria-label="Cloudstash home"
+          className="group flex items-center gap-2.5 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
+        >
+          <CloudstashLogo className="size-5 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-safe:group-hover:rotate-[20deg]" />
           <span className="hidden text-[13px] font-medium tracking-[-0.005em] text-foreground lg:inline">
             cloudstash
           </span>
-        </div>
+        </Link>
         <CategoryNav />
       </div>
 

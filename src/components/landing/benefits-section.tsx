@@ -9,8 +9,20 @@ export function Benefits() {
     >
       <div className={SHELL}>
         <SectionHeader
-          eyebrow="What you get"
-          title="What you get with every save."
+          eyebrow="What changes"
+          title={
+            <>
+              The things you{" "}
+              <span
+                className="font-italic-accent text-primary"
+                style={{ fontSize: "1.17em" }}
+              >
+                stop
+              </span>{" "}
+              doing.
+            </>
+          }
+          lead="A summary on every save. An archive you can actually search. The end of “I read that somewhere.”"
         />
         <BenefitsGrid />
         <SectionCta />

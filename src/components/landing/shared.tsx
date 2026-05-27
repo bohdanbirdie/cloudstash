@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
 
-export const SHELL = "mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8";
+export const SHELL = "mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8";
 
 export function LandingEyebrow({ children }: { children: React.ReactNode }) {
   return (

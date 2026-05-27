@@ -44,6 +44,11 @@ export const PALETTES: DitherPalette[] = [
     a: { r: 0x1c, g: 0x2b, b: 0x3a },
     b: { r: 0x4a, g: 0x7c, b: 0x9b },
   },
+  {
+    name: "Sunset",
+    a: { r: 0x1c, g: 0x0a, b: 0x05 },
+    b: { r: 0xe2, g: 0x64, b: 0x0d },
+  },
 ];
 
 export const STAGING_PALETTE: DitherPalette = {
