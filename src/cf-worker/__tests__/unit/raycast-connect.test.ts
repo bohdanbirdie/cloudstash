@@ -16,7 +16,7 @@ import {
   VerificationStore,
 } from "../../connect/services";
 import type { SessionData } from "../../connect/services";
-import { OrgId, UserId } from "../../db/branded";
+import { ApiKey, ApiKeyRowId, OrgId, UserId } from "../../db/branded";
 
 function makeSessionLayer(result: SessionData | null) {
   return Layer.succeed(SessionProvider, {
@@ -28,7 +28,11 @@ function makeApiKeyLayer(overrides: Partial<ApiKeyStore["Type"]> = {}) {
   return Layer.succeed(ApiKeyStore, {
     listByUser: () => Effect.succeed([]),
     deleteById: () => Effect.void,
-    create: () => Effect.succeed({ key: "lb_test_key_123", id: "key-id-1" }),
+    create: () =>
+      Effect.succeed({
+        key: ApiKey.make("lb_test_key_123"),
+        id: ApiKeyRowId.make("key-id-1"),
+      }),
     updateName: () => Effect.void,
     ...overrides,
   });
@@ -154,7 +158,10 @@ describe("handleConnectRequest", () => {
       apiKeyStore: {
         create: () =>
           Effect.fail(
-            new KeyCreationError({ cause: new Error("createApiKey threw") })
+            new KeyCreationError({
+              reason: "auth_backend",
+              cause: new Error("createApiKey threw"),
+            })
           ),
       },
     }).pipe(
@@ -190,7 +197,10 @@ describe("handleConnectRequest", () => {
         create: (_headers, metadata, name) => {
           capturedMetadata = metadata;
           capturedName = name;
-          return Effect.succeed({ key: "lb_key", id: "key-id" });
+          return Effect.succeed({
+            key: ApiKey.make("lb_key"),
+            id: ApiKeyRowId.make("key-id"),
+          });
         },
       },
     }).pipe(
@@ -261,8 +271,8 @@ describe("handleExchangeRequest", () => {
   it.effect("returns apiKey and consumes verification on success", () => {
     let consumedIdentifier: string | null = null;
     const storedData = {
-      key: "lb_test_key_123",
-      keyId: "key-id-1",
+      key: ApiKey.make("lb_test_key_123"),
+      keyId: ApiKeyRowId.make("key-id-1"),
     };
 
     return runExchange(
@@ -294,8 +304,8 @@ describe("handleExchangeRequest", () => {
       // DELETE...RETURNING and the row is gone; the second sees null.
       let calls = 0;
       const storedData = {
-        key: "lb_test_key_123",
-        keyId: "key-id-1",
+        key: ApiKey.make("lb_test_key_123"),
+        keyId: ApiKeyRowId.make("key-id-1"),
       };
 
       const verificationStore: Partial<VerificationStore["Type"]> = {
@@ -328,8 +338,8 @@ describe("handleExchangeRequest", () => {
     let updatedId: string | null = null;
     let updatedName: string | null = null;
     const storedData = {
-      key: "lb_test_key_123",
-      keyId: "key-id-1",
+      key: ApiKey.make("lb_test_key_123"),
+      keyId: ApiKeyRowId.make("key-id-1"),
     };
 
     return runExchange(
@@ -362,8 +372,8 @@ describe("handleExchangeRequest", () => {
   it.effect("skips name update when deviceName is not provided", () => {
     let updateCalled = false;
     const storedData = {
-      key: "lb_test_key_123",
-      keyId: "key-id-1",
+      key: ApiKey.make("lb_test_key_123"),
+      keyId: ApiKeyRowId.make("key-id-1"),
     };
 
     return runExchange(

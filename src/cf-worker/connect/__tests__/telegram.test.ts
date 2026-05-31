@@ -1,12 +1,11 @@
-import { it } from "@effect/vitest";
+import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer } from "effect";
-import { describe, expect } from "vitest";
 
 import type { TierCapabilities } from "@/lib/plan";
 import { capabilitiesFor } from "@/lib/plan";
 
 import { Billing } from "../../billing/service";
-import { OrgId, UserId } from "../../db/branded";
+import { ApiKey, ApiKeyRowId, OrgId, UserId } from "../../db/branded";
 import {
   TelegramBotApi,
   TelegramBotApiError,
@@ -63,8 +62,8 @@ interface ApiKeyState {
   deleted: string[];
 }
 const apiKeyStub = (args?: {
-  keys?: { id: string; metadata: string | null }[];
-  createResult?: { key: string; id: string } | null;
+  keys?: { id: ApiKeyRowId; metadata: string | null }[];
+  createResult?: { key: ApiKey; id: ApiKeyRowId } | null;
 }) => {
   const state: ApiKeyState = { created: [], deleted: [] };
   const layer = Layer.succeed(ApiKeyStore, {
@@ -77,14 +76,13 @@ const apiKeyStub = (args?: {
       Effect.suspend(() => {
         state.created.push({ metadata, name });
         if (args?.createResult === undefined) {
-          return Effect.succeed({ key: "new-key", id: "new-key-id" });
+          return Effect.succeed({
+            key: ApiKey.make("new-key"),
+            id: ApiKeyRowId.make("new-key-id"),
+          });
         }
         if (args.createResult === null) {
-          return Effect.fail(
-            new KeyCreationError({
-              cause: new Error("createApiKey returned null"),
-            })
-          );
+          return Effect.fail(new KeyCreationError({ reason: "missing_key" }));
         }
         return Effect.succeed(args.createResult);
       }),
@@ -279,7 +277,7 @@ describe("confirmRequest", () => {
   const allDeps = (overrides?: {
     session?: { userId: UserId; orgId: OrgId | null } | null;
     records?: Map<string, { recordId: string; chatId: number }>;
-    createResult?: { key: string; id: string } | null;
+    createResult?: { key: ApiKey; id: ApiKeyRowId } | null;
     sendMessageFails?: boolean;
     caps?: TierCapabilities;
   }) => {
@@ -466,11 +464,20 @@ describe("disconnectRequest", () => {
       });
       const { layer: apiKey, state: apiKeyState } = apiKeyStub({
         keys: [
-          { id: "tg-1", metadata: JSON.stringify({ source: "telegram" }) },
-          { id: "tg-2", metadata: JSON.stringify({ source: "telegram" }) },
-          { id: "rc-1", metadata: JSON.stringify({ source: "raycast" }) },
-          { id: "no-meta", metadata: null },
-          { id: "bad-meta", metadata: "{not json" },
+          {
+            id: ApiKeyRowId.make("tg-1"),
+            metadata: JSON.stringify({ source: "telegram" }),
+          },
+          {
+            id: ApiKeyRowId.make("tg-2"),
+            metadata: JSON.stringify({ source: "telegram" }),
+          },
+          {
+            id: ApiKeyRowId.make("rc-1"),
+            metadata: JSON.stringify({ source: "raycast" }),
+          },
+          { id: ApiKeyRowId.make("no-meta"), metadata: null },
+          { id: ApiKeyRowId.make("bad-meta"), metadata: "{not json" },
         ],
       });
       const { layer: bot, state: botState } = botApiStub();
@@ -506,7 +513,12 @@ describe("disconnectRequest", () => {
       reverse: new Map([[USER, [100]]]),
     });
     const { layer: apiKey, state: apiKeyState } = apiKeyStub({
-      keys: [{ id: "tg-1", metadata: JSON.stringify({ source: "telegram" }) }],
+      keys: [
+        {
+          id: ApiKeyRowId.make("tg-1"),
+          metadata: JSON.stringify({ source: "telegram" }),
+        },
+      ],
     });
     const { layer: bot } = botApiStub({ sendMessageFails: true });
 

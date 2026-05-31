@@ -32,7 +32,37 @@ export class OrgAccessDeniedError extends Schema.TaggedError<OrgAccessDeniedErro
   }
 }
 
+export class AuthBackendError extends Schema.TaggedError<AuthBackendError>()(
+  "AuthBackendError",
+  { cause: Schema.Defect }
+) {
+  override get message() {
+    return "Auth backend unavailable";
+  }
+}
+
+export class MissingApiKeyReferenceError extends Schema.TaggedError<MissingApiKeyReferenceError>()(
+  "MissingApiKeyReferenceError",
+  {}
+) {
+  override get message() {
+    return "API key missing user reference";
+  }
+}
+
+export class ForbiddenExtensionOriginError extends Schema.TaggedError<ForbiddenExtensionOriginError>()(
+  "ForbiddenExtensionOriginError",
+  { origin: Schema.String }
+) {
+  override get message() {
+    return "Extension origin is not allow-listed";
+  }
+}
+
 export type SyncAuthError =
   | MissingSessionCookieError
   | InvalidSessionError
-  | OrgAccessDeniedError;
+  | OrgAccessDeniedError
+  | AuthBackendError
+  | MissingApiKeyReferenceError
+  | ForbiddenExtensionOriginError;

@@ -1,10 +1,10 @@
 import { and, eq, gt } from "drizzle-orm";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Schema } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
 import { capabilityDeniedResponse } from "../billing/errors";
 import { requireCapability } from "../billing/service";
-import { OrgId, UserId } from "../db/branded";
+import { ApiKey, ApiKeyRowId, OrgId, UserId } from "../db/branded";
 import * as schema from "../db/schema";
 import { DbClient, query } from "../db/service";
 import { maskId, safeErrorInfo } from "../log-utils";
@@ -17,7 +17,15 @@ import {
   NoActiveOrgError,
   SessionLookupError,
 } from "./errors";
-import { ApiKeyStore, SessionProvider, VerificationStore } from "./services";
+import {
+  ApiKeyStore,
+  InvalidVerificationPayloadError,
+  SessionProvider,
+  VerificationData,
+  VerificationStore,
+} from "./services";
+
+const decodeVerificationData = Schema.decodeUnknown(VerificationData);
 
 export const handleConnectRequest = Effect.fn(
   "RaycastConnect.handleConnectRequest"
@@ -132,6 +140,13 @@ const makeLiveLayer = (env: Env) =>
                 })
                 .from(schema.apikey)
                 .where(eq(schema.apikey.referenceId, userId))
+            ).pipe(
+              Effect.map((rows) =>
+                rows.map((r) => ({
+                  id: ApiKeyRowId.make(r.id),
+                  metadata: r.metadata,
+                }))
+              )
             ),
           deleteById: (id) =>
             query(
@@ -141,17 +156,23 @@ const makeLiveLayer = (env: Env) =>
             Effect.tryPromise({
               try: () =>
                 auth.api.createApiKey({ body: { metadata, name }, headers }),
-              catch: (cause) => new KeyCreationError({ cause }),
+              catch: (cause) =>
+                new KeyCreationError({ reason: "auth_backend", cause }),
             }).pipe(
-              Effect.flatMap((result) =>
-                result?.key && result?.id
-                  ? Effect.succeed({ key: result.key, id: result.id })
-                  : Effect.fail(
-                      new KeyCreationError({
-                        cause: new Error("createApiKey returned null"),
-                      })
-                    )
-              )
+              Effect.flatMap((result) => {
+                if (!result?.key)
+                  return Effect.fail(
+                    new KeyCreationError({ reason: "missing_key" })
+                  );
+                if (!result.id)
+                  return Effect.fail(
+                    new KeyCreationError({ reason: "missing_id" })
+                  );
+                return Effect.succeed({
+                  key: ApiKey.make(result.key),
+                  id: ApiKeyRowId.make(result.id),
+                });
+              })
             ),
           updateName: (id, name) =>
             query(
@@ -193,9 +214,24 @@ const makeLiveLayer = (env: Env) =>
                 )
                 .returning()
             ).pipe(
-              Effect.map((rows) => {
+              Effect.flatMap((rows) => {
                 const r = rows[0];
-                return r ? { id: r.id, data: JSON.parse(r.value) } : null;
+                if (!r) return Effect.succeed(null);
+                return Effect.try({
+                  try: () => JSON.parse(r.value) as unknown,
+                  catch: () =>
+                    new InvalidVerificationPayloadError({ identifier }),
+                }).pipe(
+                  Effect.flatMap((parsed) =>
+                    decodeVerificationData(parsed).pipe(
+                      Effect.mapError(
+                        () =>
+                          new InvalidVerificationPayloadError({ identifier })
+                      ),
+                      Effect.map((data) => ({ id: r.id, data }))
+                    )
+                  )
+                );
               })
             ),
         });
@@ -266,6 +302,10 @@ export const handleRaycastExchange = (
     Effect.map((data) => Response.json(data)),
     Effect.catchTags({
       InvalidCodeError: () =>
+        Effect.succeed(
+          Response.json({ error: "Invalid or expired code" }, { status: 400 })
+        ),
+      InvalidVerificationPayloadError: () =>
         Effect.succeed(
           Response.json({ error: "Invalid or expired code" }, { status: 400 })
         ),

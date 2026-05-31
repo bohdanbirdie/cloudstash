@@ -61,7 +61,11 @@ export default defineConfig({
       pedantic: "off",
       style: "off",
     },
-    ignorePatterns: ["readonly-llm-lookup"],
+    ignorePatterns: [
+      "readonly-llm-lookup",
+      "apps/**/.wxt/**",
+      "apps/**/.output/**",
+    ],
     rules: {
       "no-await-in-loop": "off",
       "max-lines-per-function": "off",
@@ -177,6 +181,13 @@ export default defineConfig({
         ],
         rules: {
           "react/iframe-missing-sandbox": "off",
+        },
+      },
+      {
+        files: ["apps/extension/**/*.{ts,tsx,js,jsx}"],
+        rules: {
+          "unicorn/prefer-add-event-listener": "off",
+          "unicorn/require-post-message-target-origin": "off",
         },
       },
     ],

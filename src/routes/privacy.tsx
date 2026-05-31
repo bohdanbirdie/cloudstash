@@ -34,7 +34,7 @@ function PrivacyPage() {
       lead="What we collect, what we don't, and how you stay in control of your archive."
     >
       <LegalArticle>
-        <LegalUpdated date="May 12, 2026" />
+        <LegalUpdated date="May 29, 2026" />
         <p>We made this short and tried to write it in English, not lawyer.</p>
 
         <section id="tldr">
@@ -121,6 +121,42 @@ function PrivacyPage() {
             We’re working to scope Meta Pixel to the marketing pages only —
             until then, treat the app as if a third-party page-view counter is
             watching, because one is.
+          </p>
+        </section>
+
+        <section id="browser-extension">
+          <h2>The browser extension</h2>
+          <p>
+            The Cloudstash browser extension is a thin client for saving the
+            page you’re on. Here’s exactly what it does with your data:
+          </p>
+          <ul>
+            <li>
+              <strong>It reads the URL of the tab you choose to save</strong> —
+              and only when you click to save it. It does not read page
+              contents, monitor your browsing, or track the sites you visit.
+            </li>
+            <li>
+              <strong>It stores a paired API key locally</strong> in the browser
+              so you only connect once. No password is ever stored in the
+              browser. You connect in one step from the Cloudstash web app — no
+              codes to copy — and you can disconnect at any time from the
+              extension.
+            </li>
+            <li>
+              <strong>It talks to Cloudstash to do its job.</strong> The
+              extension reaches cloudstash.dev over HTTPS to connect and over an
+              encrypted WebSocket (WSS) to sync. The only other thing the popup
+              loads is images: your own account avatar (from your Google
+              account) and the favicons of the sites you’ve saved, so the list
+              looks like the sites you recognize. That’s it — it doesn’t send
+              your data to third parties, read page contents, or track your
+              browsing.
+            </li>
+          </ul>
+          <p>
+            Links you save through the extension are handled exactly like links
+            saved anywhere else, as described above.
           </p>
         </section>
 

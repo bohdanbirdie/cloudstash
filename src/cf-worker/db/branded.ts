@@ -55,3 +55,9 @@ export type StripeSubscriptionItemId = typeof StripeSubscriptionItemId.Type;
 
 export const StripePriceId = Schema.String.pipe(Schema.brand("StripePriceId"));
 export type StripePriceId = typeof StripePriceId.Type;
+
+export const ApiKey = Schema.String.pipe(Schema.brand("ApiKey"));
+export type ApiKey = typeof ApiKey.Type;
+
+export const ApiKeyRowId = Schema.String.pipe(Schema.brand("ApiKeyRowId"));
+export type ApiKeyRowId = typeof ApiKeyRowId.Type;

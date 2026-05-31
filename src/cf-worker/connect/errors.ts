@@ -17,7 +17,8 @@ export class NoActiveOrgError extends Schema.TaggedError<NoActiveOrgError>()(
 export class KeyCreationError extends Schema.TaggedError<KeyCreationError>()(
   "KeyCreationError",
   {
-    cause: Schema.Defect,
+    reason: Schema.Literal("auth_backend", "missing_key", "missing_id"),
+    cause: Schema.optional(Schema.Defect),
   }
 ) {}
 
