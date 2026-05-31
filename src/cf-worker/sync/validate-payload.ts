@@ -148,8 +148,6 @@ const jsonResponse = (body: object, status: number): Response =>
     status,
   });
 
-const internalError = jsonResponse({ error: "Internal error" }, 500);
-
 /**
  * Runs the sync auth check and maps tagged failures to HTTP responses.
  * Returns either the authenticated userId or a Response to short-circuit.
@@ -190,7 +188,7 @@ export const runSyncAuth = (
       Effect.catchAllDefect((cause) =>
         Effect.logError("Sync validatePayload defect").pipe(
           Effect.annotateLogs(safeErrorInfo(cause)),
-          Effect.as(internalError)
+          Effect.as(jsonResponse({ error: "Internal error" }, 500))
         )
       ),
       Effect.provide(AppLayerLive(env))
