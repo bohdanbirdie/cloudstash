@@ -148,6 +148,11 @@ const jsonResponse = (body: object, status: number): Response =>
     status,
   });
 
+// Wire-compatible with the legacy /api/sync/auth body the client parses
+// (`{ code, message }` → SyncErrorCode in src/stores/sync-status-store.ts).
+const authError = (code: string, message: string, status: number): Response =>
+  jsonResponse({ code, message, status }, status);
+
 /**
  * Runs the sync auth check and maps tagged failures to HTTP responses.
  * Returns either the authenticated userId or a Response to short-circuit.
@@ -168,27 +173,35 @@ export const runSyncAuth = (
     validatePayload(payload, { storeId, headers, allowedExtensionIds }).pipe(
       Effect.catchTags({
         MissingSessionCookieError: () =>
-          Effect.succeed(jsonResponse({ error: "No session cookie" }, 401)),
+          Effect.succeed(
+            authError("SESSION_EXPIRED", "No session cookie", 401)
+          ),
         InvalidSessionError: () =>
           Effect.succeed(
-            jsonResponse({ error: "Invalid or expired session" }, 401)
+            authError("SESSION_EXPIRED", "Session expired or invalid", 401)
           ),
         OrgAccessDeniedError: () =>
-          Effect.succeed(jsonResponse({ error: "Access denied" }, 403)),
+          Effect.succeed(
+            authError(
+              "ACCESS_DENIED",
+              "You do not have access to this workspace",
+              403
+            )
+          ),
         AuthBackendError: (e) =>
           Effect.logError("Auth backend unavailable").pipe(
             Effect.annotateLogs(safeErrorInfo(e.cause)),
-            Effect.as(jsonResponse({ error: "Auth backend unavailable" }, 503))
+            Effect.as(authError("UNKNOWN", "Auth backend unavailable", 503))
           ),
         MissingApiKeyReferenceError: () =>
-          Effect.succeed(jsonResponse({ error: "Invalid API key" }, 401)),
+          Effect.succeed(authError("SESSION_EXPIRED", "Invalid API key", 401)),
         ForbiddenExtensionOriginError: () =>
-          Effect.succeed(jsonResponse({ error: "Forbidden" }, 403)),
+          Effect.succeed(authError("ACCESS_DENIED", "Forbidden", 403)),
       }),
       Effect.catchAllDefect((cause) =>
         Effect.logError("Sync validatePayload defect").pipe(
           Effect.annotateLogs(safeErrorInfo(cause)),
-          Effect.as(jsonResponse({ error: "Internal error" }, 500))
+          Effect.as(authError("UNKNOWN", "Internal error", 500))
         )
       ),
       Effect.provide(AppLayerLive(env))
