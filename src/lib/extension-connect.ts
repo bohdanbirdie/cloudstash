@@ -1,11 +1,10 @@
-// Web app → extension messaging over `externally_connectable`. Dev and Web
-// Store builds have different IDs: the manifest `key` pins the dev ID; the
-// Store assigns its own. Prod targets the published ID; VITE_EXTENSION_ID
-// overrides for previews.
+// Two hard-coded IDs: the manifest `key` pins the dev (unpacked) ID; the Web
+// Store assigns its own published ID. Prod targets the published one;
+// VITE_EXTENSION_ID overrides for previews.
 const DEV_EXTENSION_ID = "eelfhpgegemfgccaakcmfgldcaojadfj";
 const PUBLISHED_EXTENSION_ID = "bdommhffamndfanbpnikgmpjncpcobia";
 
-export const EXTENSION_ID =
+const EXTENSION_ID =
   (import.meta.env as Record<string, string | undefined>).VITE_EXTENSION_ID ??
   (import.meta.env.PROD ? PUBLISHED_EXTENSION_ID : DEV_EXTENSION_ID);
 
@@ -56,28 +55,23 @@ function send(message: unknown, timeoutMs: number): Promise<unknown> {
   });
 }
 
-/** True if the extension is installed and responding. */
-export async function pingExtension(): Promise<boolean> {
+async function sendForAck(
+  message: unknown,
+  timeoutMs: number
+): Promise<boolean> {
   try {
-    const res = await send({ type: "cs:ping" }, PING_TIMEOUT_MS);
+    const res = await send(message, timeoutMs);
     return Boolean((res as { ok?: boolean } | undefined)?.ok);
   } catch {
     return false;
   }
 }
 
-/** Hands the minted credentials to the extension. Returns true on ack. */
-export async function sendCredsToExtension(
+export const pingExtension = (): Promise<boolean> =>
+  sendForAck({ type: "cs:ping" }, PING_TIMEOUT_MS);
+
+export const sendCredsToExtension = (
   apiKey: string,
   orgId: string
-): Promise<boolean> {
-  try {
-    const res = await send(
-      { type: "cs:connect", apiKey, orgId },
-      CONNECT_TIMEOUT_MS
-    );
-    return Boolean((res as { ok?: boolean } | undefined)?.ok);
-  } catch {
-    return false;
-  }
-}
+): Promise<boolean> =>
+  sendForAck({ type: "cs:connect", apiKey, orgId }, CONNECT_TIMEOUT_MS);

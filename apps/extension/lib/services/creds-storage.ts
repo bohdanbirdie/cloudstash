@@ -39,7 +39,7 @@ export class CredsStorage extends Context.Tag("@ext/CredsStorage")<
   }
 >() {
   static readonly liveLayer = Layer.sync(CredsStorage, () => {
-    const get = Effect.fn("CredsStorage.get")(function* () {
+    const get = Effect.gen(function* () {
       const data = yield* Effect.tryPromise({
         try: () => chrome.storage.local.get([API_KEY, ORG_ID]),
         catch: (cause) => new StorageError({ op: "get", cause }),
@@ -48,7 +48,7 @@ export class CredsStorage extends Context.Tag("@ext/CredsStorage")<
         apiKey: typeof data[API_KEY] === "string" ? data[API_KEY] : null,
         orgId: typeof data[ORG_ID] === "string" ? data[ORG_ID] : null,
       });
-    })();
+    }).pipe(Effect.withSpan("CredsStorage.get"));
 
     const set = Effect.fn("CredsStorage.set")(function* (creds: Creds | null) {
       yield* Effect.tryPromise({
@@ -99,13 +99,13 @@ export class CredsStorage extends Context.Tag("@ext/CredsStorage")<
     Effect.gen(function* () {
       const messenger = yield* Messenger;
 
-      const get = Effect.fn("CredsStorage.getProxy")(function* () {
+      const get = Effect.gen(function* () {
         const reply = yield* messenger.request(
           { type: "cs:get-creds" },
           CredsPayload
         );
         return toCreds(reply);
-      })();
+      }).pipe(Effect.withSpan("CredsStorage.getProxy"));
 
       const set = (_creds: Creds | null) =>
         Effect.fail(new StorageUnsupportedError({ op: "set" }));

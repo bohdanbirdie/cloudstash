@@ -4,11 +4,8 @@ import { PopupLayer } from "./layers";
 
 const popupRuntime = ManagedRuntime.make(PopupLayer);
 
-type ContextOfLayer<L> =
-  L extends Layer.Layer<infer R, infer _E, infer _RIn> ? R : never;
-export type PopupContext = ContextOfLayer<typeof PopupLayer>;
+export type PopupContext = Layer.Layer.Success<typeof PopupLayer>;
 
-/** Fire-and-forget runner for popup side effects (persist creds, open connect). */
 export const runPopup = <A, E>(
   eff: Effect.Effect<A, E, PopupContext>
 ): void => {
@@ -24,7 +21,6 @@ export type EffectState<A, E> =
   | { status: "ok"; value: A }
   | { status: "error"; error: E | Cause.Cause<E> };
 
-/** Runs an effect to a settled `EffectState` — the async primitive behind the popup data hooks. */
 export const runPopupState = <A, E>(
   eff: Effect.Effect<A, E, PopupContext>
 ): Promise<EffectState<A, E>> =>

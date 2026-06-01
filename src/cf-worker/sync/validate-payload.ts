@@ -13,6 +13,7 @@ import {
   MissingSessionCookieError,
   OrgAccessDeniedError,
 } from "./errors";
+import type { SyncAuthError } from "./errors";
 
 const EXTENSION_ORIGIN_PREFIX = "chrome-extension://";
 
@@ -29,134 +30,107 @@ export const parseExtensionAllowlist = (
       .filter((entry) => entry.length > 0)
   );
 
-export const validatePayload = Effect.fn("Sync.validatePayload")(function* (
-  payload: unknown,
-  context: {
-    storeId: OrgId;
-    headers: ReadonlyMap<string, string>;
-    allowedExtensionIds: ReadonlySet<string>;
-  }
-) {
-  const auth = yield* AuthClient;
-  const cookie = context.headers.get("cookie");
-  const origin = context.headers.get("origin");
-  const isExtensionOrigin =
-    origin?.startsWith(EXTENSION_ORIGIN_PREFIX) ?? false;
-  const { storeId, allowedExtensionIds } = context;
-
-  if (!cookie && isExtensionOrigin) {
-    if (
-      allowedExtensionIds.size > 0 &&
-      (origin === undefined || !allowedExtensionIds.has(extensionId(origin)))
-    ) {
-      yield* Effect.logWarning(
-        "Sync auth failed: extension origin not allow-listed"
-      ).pipe(
-        Effect.annotateLogs({
-          storeId: maskId(storeId),
-          origin: origin ?? "none",
-        })
-      );
-      return yield* new ForbiddenExtensionOriginError({ origin: origin ?? "" });
-    }
-    const decoded = decodeExtensionPayload(payload);
-    if (decoded._tag === "None") {
-      yield* Effect.logWarning("Sync auth failed: missing apiKey").pipe(
-        Effect.annotateLogs({ storeId: maskId(storeId) })
-      );
-      return yield* new InvalidSessionError();
-    }
-    const verify = yield* Effect.tryPromise({
-      catch: (cause) => new AuthBackendError({ cause }),
-      try: () => auth.api.verifyApiKey({ body: { key: decoded.value.apiKey } }),
-    });
-    if (!verify.valid || !verify.key) {
-      yield* Effect.logWarning("Sync auth failed: invalid apiKey").pipe(
-        Effect.annotateLogs({ storeId: maskId(storeId) })
-      );
-      return yield* new InvalidSessionError();
-    }
-    const metadataOpt = decodeApiKeyMetadata(verify.key.metadata);
-    if (metadataOpt._tag === "None") {
-      yield* Effect.logWarning("Sync auth failed: invalid key metadata").pipe(
-        Effect.annotateLogs({ storeId: maskId(storeId) })
-      );
-      return yield* new InvalidSessionError();
-    }
-    if (metadataOpt.value.orgId !== storeId) {
-      return yield* new OrgAccessDeniedError({
-        sessionOrgId: metadataOpt.value.orgId,
-        storeId,
-      });
-    }
-    const referenceId = verify.key.referenceId;
-    if (!referenceId) {
-      yield* Effect.logError("API key missing referenceId").pipe(
-        Effect.annotateLogs({ storeId: maskId(storeId) })
-      );
-      return yield* new MissingApiKeyReferenceError();
-    }
-    yield* Effect.logDebug("Sync auth OK via apiKey").pipe(
-      Effect.annotateLogs({ storeId: maskId(storeId) })
-    );
-    return { userId: UserId.make(referenceId) };
-  }
-
-  if (!cookie) {
-    yield* Effect.logWarning("Sync auth failed: missing cookie").pipe(
-      Effect.annotateLogs({ storeId: maskId(storeId) })
-    );
-    return yield* new MissingSessionCookieError();
-  }
-
-  const session = yield* Effect.tryPromise({
-    catch: (cause) => new AuthBackendError({ cause }),
-    try: () => auth.api.getSession({ headers: new Headers({ cookie }) }),
+const deny = (reason: string, error: SyncAuthError) =>
+  Effect.gen(function* () {
+    yield* Effect.logWarning(`Sync auth failed: ${reason}`);
+    return yield* error;
   });
 
-  if (!session?.session) {
-    yield* Effect.logWarning("Sync auth failed: invalid session").pipe(
-      Effect.annotateLogs({ storeId: maskId(storeId) })
-    );
-    return yield* new InvalidSessionError();
-  }
+export const validatePayload = Effect.fn("Sync.validatePayload")(
+  function* (
+    payload: unknown,
+    context: {
+      storeId: OrgId;
+      headers: ReadonlyMap<string, string>;
+      allowedExtensionIds: ReadonlySet<string>;
+    }
+  ) {
+    const auth = yield* AuthClient;
+    const { storeId, headers, allowedExtensionIds } = context;
+    const cookie = headers.get("cookie");
+    const origin = headers.get("origin");
 
-  if (session.session.activeOrganizationId !== storeId) {
-    yield* Effect.logWarning("Sync auth failed: org mismatch").pipe(
-      Effect.annotateLogs({
-        storeId: maskId(storeId),
-        sessionOrgId: maskId(session.session.activeOrganizationId ?? "none"),
-      })
-    );
-    return yield* new OrgAccessDeniedError({
-      sessionOrgId: session.session.activeOrganizationId
-        ? OrgId.make(session.session.activeOrganizationId)
-        : null,
-      storeId,
+    if (!cookie && origin?.startsWith(EXTENSION_ORIGIN_PREFIX)) {
+      if (
+        allowedExtensionIds.size > 0 &&
+        !allowedExtensionIds.has(extensionId(origin))
+      ) {
+        return yield* deny(
+          `extension origin not allow-listed: ${origin}`,
+          new ForbiddenExtensionOriginError({ origin })
+        );
+      }
+
+      const decoded = decodeExtensionPayload(payload);
+      if (decoded._tag === "None") {
+        return yield* deny("missing apiKey", new InvalidSessionError());
+      }
+
+      const verify = yield* Effect.tryPromise({
+        catch: (cause) => new AuthBackendError({ cause }),
+        try: () =>
+          auth.api.verifyApiKey({ body: { key: decoded.value.apiKey } }),
+      });
+      if (!verify.valid || !verify.key) {
+        return yield* deny("invalid apiKey", new InvalidSessionError());
+      }
+
+      const metadata = decodeApiKeyMetadata(verify.key.metadata);
+      if (metadata._tag === "None") {
+        return yield* deny("invalid key metadata", new InvalidSessionError());
+      }
+      if (metadata.value.orgId !== storeId) {
+        return yield* new OrgAccessDeniedError({
+          sessionOrgId: metadata.value.orgId,
+          storeId,
+        });
+      }
+
+      const referenceId = verify.key.referenceId;
+      if (!referenceId) {
+        yield* Effect.logError("API key missing referenceId");
+        return yield* new MissingApiKeyReferenceError();
+      }
+      return { userId: UserId.make(referenceId) };
+    }
+
+    if (!cookie) {
+      return yield* deny("missing cookie", new MissingSessionCookieError());
+    }
+
+    const session = yield* Effect.tryPromise({
+      catch: (cause) => new AuthBackendError({ cause }),
+      try: () => auth.api.getSession({ headers: new Headers({ cookie }) }),
     });
-  }
+    if (!session?.session) {
+      return yield* deny("invalid session", new InvalidSessionError());
+    }
 
-  yield* Effect.logDebug("Sync auth OK").pipe(
-    Effect.annotateLogs({ storeId: maskId(storeId) })
-  );
-  return { userId: UserId.make(session.user.id) };
-});
+    const sessionOrgId = session.session.activeOrganizationId;
+    if (sessionOrgId !== storeId) {
+      return yield* deny(
+        `org mismatch (session ${maskId(sessionOrgId ?? "none")})`,
+        new OrgAccessDeniedError({
+          sessionOrgId: sessionOrgId ? OrgId.make(sessionOrgId) : null,
+          storeId,
+        })
+      );
+    }
 
-const jsonResponse = (body: object, status: number): Response =>
-  new Response(JSON.stringify(body), {
+    return { userId: UserId.make(session.user.id) };
+  },
+  (effect, _payload, context) =>
+    Effect.annotateLogs(effect, { storeId: maskId(context.storeId) })
+);
+
+// Body shape `{ code, message }` matches the legacy /api/sync/auth contract the
+// client parses into SyncErrorCode (src/stores/sync-status-store.ts).
+const authError = (code: string, message: string, status: number): Response =>
+  new Response(JSON.stringify({ code, message, status }), {
     headers: { "Content-Type": "application/json" },
     status,
   });
 
-// Wire-compatible with the legacy /api/sync/auth body the client parses
-// (`{ code, message }` → SyncErrorCode in src/stores/sync-status-store.ts).
-const authError = (code: string, message: string, status: number): Response =>
-  jsonResponse({ code, message, status }, status);
-
-/**
- * Runs the sync auth check and maps tagged failures to HTTP responses.
- * Returns either the authenticated userId or a Response to short-circuit.
- */
 export const runSyncAuth = (
   payload: unknown,
   rawStoreId: string,
@@ -169,6 +143,7 @@ export const runSyncAuth = (
   const allowedExtensionIds = parseExtensionAllowlist(
     env.EXTENSION_ID_ALLOWLIST
   );
+
   return Effect.runPromise(
     validatePayload(payload, { storeId, headers, allowedExtensionIds }).pipe(
       Effect.catchTags({
@@ -180,6 +155,8 @@ export const runSyncAuth = (
           Effect.succeed(
             authError("SESSION_EXPIRED", "Session expired or invalid", 401)
           ),
+        MissingApiKeyReferenceError: () =>
+          Effect.succeed(authError("SESSION_EXPIRED", "Invalid API key", 401)),
         OrgAccessDeniedError: () =>
           Effect.succeed(
             authError(
@@ -188,15 +165,13 @@ export const runSyncAuth = (
               403
             )
           ),
+        ForbiddenExtensionOriginError: () =>
+          Effect.succeed(authError("ACCESS_DENIED", "Forbidden", 403)),
         AuthBackendError: (e) =>
           Effect.logError("Auth backend unavailable").pipe(
             Effect.annotateLogs(safeErrorInfo(e.cause)),
             Effect.as(authError("UNKNOWN", "Auth backend unavailable", 503))
           ),
-        MissingApiKeyReferenceError: () =>
-          Effect.succeed(authError("SESSION_EXPIRED", "Invalid API key", 401)),
-        ForbiddenExtensionOriginError: () =>
-          Effect.succeed(authError("ACCESS_DENIED", "Forbidden", 403)),
       }),
       Effect.catchAllDefect((cause) =>
         Effect.logError("Sync validatePayload defect").pipe(

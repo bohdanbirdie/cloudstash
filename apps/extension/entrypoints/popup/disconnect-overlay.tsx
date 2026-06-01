@@ -4,9 +4,6 @@ import { useRef } from "react";
 import { Button } from "../../components/ui/button";
 import { KeyboardHint } from "./ui";
 
-// A confirmation that takes over the whole popup surface — the popup is too
-// small for an inline morph to read clearly. Enter confirms, Esc cancels, and
-// Tab is trapped between the two buttons so focus never leaves the dialog.
 export function DisconnectOverlay({
   onConfirm,
   onCancel,
@@ -36,8 +33,6 @@ export function DisconnectOverlay({
           return;
         }
         if (e.key === "Tab") {
-          // Trap focus within the dialog's buttons so it can't escape to the
-          // browser chrome or the inert content behind the overlay.
           const buttons = dialogRef.current?.querySelectorAll("button");
           if (!buttons || buttons.length === 0) return;
           const first = buttons[0];

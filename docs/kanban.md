@@ -22,6 +22,7 @@ kanban-plugin: board
 - [ ] Extend Pro plan with twitter historical sync of bookmarks
 - [ ] [[todos/link-notes|Notes on links (user-authored, agent-aware)]]
 - [ ] [[todos/consolidated-paywall|Consolidated paywall / upgrade system (app-wide)]]
+- [ ] Add real Chrome Web Store install link to `/connect/extension` — the `not_installed` state on `src/routes/connect/extension.tsx` only offers "I've installed it — try again" with no way to actually install. Now that the extension is published (`bdommhffamndfanbpnikgmpjncpcobia`), add a store-listing CTA. Reuse the `CHROME_WEB_STORE_URL` constant in `src/components/integrations/extension-card.tsx` (promote it to a shared module rather than duplicating).
 
 ## In Progress
 

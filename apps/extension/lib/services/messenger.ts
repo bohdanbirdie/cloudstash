@@ -10,24 +10,23 @@ export class Messenger extends Context.Tag("@ext/Messenger")<
     readonly send: (
       message: ExtMessage
     ) => Effect.Effect<unknown, MessengerError>;
-    readonly request: <A, I, R>(
+    readonly request: <S extends Schema.Schema.AnyNoContext>(
       message: ExtMessage,
-      replySchema: Schema.Schema<A, I, R>
-    ) => Effect.Effect<A, MessengerError, R>;
+      replySchema: S
+    ) => Effect.Effect<Schema.Schema.Type<S>, MessengerError>;
     readonly listen: Stream.Stream<ExtMessage, MessengerError>;
   }
 >() {
   static readonly layer = Layer.sync(Messenger, () => {
-    const send = Effect.fn("Messenger.send")(function* (message: ExtMessage) {
-      return yield* Effect.tryPromise({
+    const send = (message: ExtMessage) =>
+      Effect.tryPromise({
         try: () => chrome.runtime.sendMessage(message),
         catch: (cause) => new MessengerError({ cause }),
-      });
-    });
+      }).pipe(Effect.withSpan("Messenger.send"));
 
-    const request = <A, I, R>(
+    const request = <S extends Schema.Schema.AnyNoContext>(
       message: ExtMessage,
-      replySchema: Schema.Schema<A, I, R>
+      replySchema: S
     ) =>
       send(message).pipe(
         Effect.flatMap((reply) =>
@@ -40,12 +39,8 @@ export class Messenger extends Context.Tag("@ext/Messenger")<
 
     const listen = Stream.async<ExtMessage, MessengerError>((emit) => {
       const handler = (msg: unknown) => {
-        Either.match(decodeExtMessage(msg), {
-          onLeft: () => undefined,
-          onRight: (m) => {
-            void emit.single(m);
-          },
-        });
+        const decoded = decodeExtMessage(msg);
+        if (Either.isRight(decoded)) void emit.single(decoded.right);
       };
       chrome.runtime.onMessage.addListener(handler);
       return Effect.sync(() =>

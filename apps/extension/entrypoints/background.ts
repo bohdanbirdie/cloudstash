@@ -1,4 +1,4 @@
-import { Effect, Either, Stream } from "effect";
+import { Effect, Either, ManagedRuntime, Stream } from "effect";
 
 import { APP_URL } from "../lib/config";
 import { BackgroundLayer } from "../lib/layers";
@@ -7,6 +7,8 @@ import type { ConnectExtMsg } from "../lib/messages";
 import { safeErrorInfo } from "../lib/safe-error";
 import { CredsStorage } from "../lib/services/creds-storage";
 import { Offscreen } from "../lib/services/offscreen";
+
+const runtime = ManagedRuntime.make(BackgroundLayer);
 
 const ensureOffscreen = Effect.gen(function* () {
   const offscreen = yield* Offscreen;
@@ -35,9 +37,6 @@ const broadcastCredsChanges = Effect.gen(function* () {
           }),
         catch: (cause) => cause,
       }).pipe(
-        // Receiver-absent (no listener registered) is expected when the
-        // offscreen document hasn't booted yet — silently swallow that
-        // specific shape, but log anything else.
         Effect.tapError((cause) =>
           Effect.logDebug("[background] creds broadcast failed").pipe(
             Effect.annotateLogs(safeErrorInfo(cause))
@@ -75,8 +74,6 @@ const handleGetCreds = (sendResponse: (data: unknown) => void) =>
     )
   );
 
-// Session handoff from the web app: it mints an API key (cookie-authed) and
-// pushes it here over externally_connectable, replacing the manual code.
 const handlePing = (sendResponse: (data: unknown) => void) =>
   Effect.gen(function* () {
     const creds = yield* CredsStorage;
@@ -131,46 +128,35 @@ const handleExternalConnect = (
     Effect.catchAll(() => Effect.sync(() => sendResponse({ ok: false })))
   );
 
-const runP = <A, E>(eff: Effect.Effect<A, E>): Promise<A> =>
-  Effect.runPromise(eff);
-
-const runFork = <A, E>(eff: Effect.Effect<A, E>) => Effect.runFork(eff);
-
 export default defineBackground(() => {
-  const ensure = () =>
-    void runP(ensureOffscreen.pipe(Effect.provide(BackgroundLayer)));
+  const ensure = () => void runtime.runPromise(ensureOffscreen);
 
   chrome.runtime.onInstalled.addListener(ensure);
   chrome.runtime.onStartup.addListener(ensure);
   ensure();
 
-  runFork(broadcastCredsChanges.pipe(Effect.provide(BackgroundLayer)));
+  runtime.runFork(broadcastCredsChanges);
 
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     const decoded = decodeExtMessage(msg);
     if (Either.isLeft(decoded)) return undefined;
     const message = decoded.right;
     if (message.type === "cs:get-creds") {
-      void runP(
-        handleGetCreds(sendResponse).pipe(Effect.provide(BackgroundLayer))
-      );
+      void runtime.runPromise(handleGetCreds(sendResponse));
       return true;
     }
     if (message.type === "cs:open-connect") {
-      void runP(
-        handleOpenConnect(sendResponse).pipe(Effect.provide(BackgroundLayer))
-      );
+      void runtime.runPromise(handleOpenConnect(sendResponse));
       return true;
     }
     return undefined;
   });
 
-  // From the web app only (externally_connectable gates the sender origin).
   chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
     const decoded = decodeExternalMessage(msg);
     if (Either.isLeft(decoded)) return undefined;
     const message = decoded.right;
-    void runP(
+    void runtime.runPromise(
       Effect.logDebug("[background] external message").pipe(
         Effect.annotateLogs({
           origin: sender.origin ?? "unknown",
@@ -179,14 +165,10 @@ export default defineBackground(() => {
       )
     );
     if (message.type === "cs:ping") {
-      void runP(handlePing(sendResponse).pipe(Effect.provide(BackgroundLayer)));
+      void runtime.runPromise(handlePing(sendResponse));
       return true;
     }
-    void runP(
-      handleExternalConnect(message, sendResponse).pipe(
-        Effect.provide(BackgroundLayer)
-      )
-    );
+    void runtime.runPromise(handleExternalConnect(message, sendResponse));
     return true;
   });
 });

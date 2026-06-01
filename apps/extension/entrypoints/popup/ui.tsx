@@ -2,14 +2,9 @@ import type { ReactNode } from "react";
 
 import { Spinner } from "../../components/ui/spinner";
 
-// Locks the popup body so it doesn't reflow as we move between loading,
-// connect, and save screens. Tuned to the longest natural screen height.
 export const POPUP_MIN_HEIGHT = "min-h-[320px]";
 
 export function ErrorLine({ message }: { message: string | null }) {
-  // No reserved height — the message inserts on demand (role=alert announces
-  // it) and pushes the button down. A momentary shift reads better here than a
-  // permanent gap under the input.
   if (!message) return null;
   return (
     <p
