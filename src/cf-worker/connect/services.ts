@@ -1,7 +1,8 @@
 import { Context, Schema } from "effect";
 import type { Effect } from "effect";
 
-import type { OrgId, UserId } from "../db/branded";
+import { ApiKey, ApiKeyRowId, OrgId } from "../db/branded";
+import type { UserId } from "../db/branded";
 import type { DbError } from "../db/service";
 import type { KeyCreationError, SessionLookupError } from "./errors";
 
@@ -13,14 +14,16 @@ export class InvalidVerificationPayloadError extends Schema.TaggedError<InvalidV
 ) {}
 
 export interface ApiKeyInfo {
-  readonly id: string;
+  readonly id: ApiKeyRowId;
   readonly metadata: string | null;
 }
 
-export interface VerificationData {
-  readonly key: string;
-  readonly keyId: string;
-}
+export const VerificationData = Schema.Struct({
+  key: ApiKey,
+  keyId: ApiKeyRowId,
+  orgId: Schema.optional(OrgId),
+});
+export type VerificationData = typeof VerificationData.Type;
 
 export interface VerificationRecord {
   readonly id: string;
@@ -50,14 +53,14 @@ export class ApiKeyStore extends Context.Tag("ApiKeyStore")<
     readonly listByUser: (
       userId: UserId
     ) => Effect.Effect<ApiKeyInfo[], DbError>;
-    readonly deleteById: (id: string) => Effect.Effect<void, DbError>;
+    readonly deleteById: (id: ApiKeyRowId) => Effect.Effect<void, DbError>;
     readonly create: (
       headers: Headers,
       metadata: { orgId: OrgId; source: string },
       name: string
-    ) => Effect.Effect<{ key: string; id: string }, KeyCreationError>;
+    ) => Effect.Effect<{ key: ApiKey; id: ApiKeyRowId }, KeyCreationError>;
     readonly updateName: (
-      id: string,
+      id: ApiKeyRowId,
       name: string
     ) => Effect.Effect<void, DbError>;
   }
@@ -73,7 +76,10 @@ export class VerificationStore extends Context.Tag("VerificationStore")<
     ) => Effect.Effect<void, DbError>;
     readonly consumeByIdentifier: (
       identifier: string
-    ) => Effect.Effect<VerificationRecord | null, DbError>;
+    ) => Effect.Effect<
+      VerificationRecord | null,
+      DbError | InvalidVerificationPayloadError
+    >;
   }
 >() {}
 

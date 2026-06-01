@@ -14,20 +14,22 @@ kanban-plugin: board
 - [ ] Develop CLI for ingestion and management
 - [ ] Review and consolidate rate limiting / usage limits
 - [ ] [[todos/develop-mcp-server|Develop MCP server (pro-only capability)]]
-- [ ] [[todos/chrome-extension|Develop Chrome extension (Livestore-as-client)]]
 - [ ] iOS Shortcut as injection source
 - [ ] Use Cloudflare Email instead of Resend
 - [ ] Replace OpenRouter with Cloudflare AI Gateway
 - [ ] [[todos/agent-context-chips-entry-points|Agent context chips + entry points]]
 - [ ] [[todos/multi-chat-architecture|Multi-chat architecture (separate DOs + central livestore)]]
 - [ ] Extend Pro plan with twitter historical sync of bookmarks
+- [ ] [[todos/link-notes|Notes on links (user-authored, agent-aware)]]
+- [ ] [[todos/consolidated-paywall|Consolidated paywall / upgrade system (app-wide)]]
+- [ ] Add real Chrome Web Store install link to `/connect/extension` — the `not_installed` state on `src/routes/connect/extension.tsx` only offers "I've installed it — try again" with no way to actually install. Now that the extension is published (`bdommhffamndfanbpnikgmpjncpcobia`), add a store-listing CTA. Reuse the `CHROME_WEB_STORE_URL` constant in `src/components/integrations/extension-card.tsx` (promote it to a shared module rather than duplicating).
 
 ## In Progress
 
+- [ ] [[todos/chrome-extension|Develop Chrome extension (Livestore-as-client)]] — built + working locally (popup save + recent + avatar/favicons, sync via paired API key), now FREE (no paywall). Remaining: publishing only — [[chrome-extension-publishing|store listing, screenshots, privacy form]].
 - [ ] ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
 - [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.
 - [ ] Shrink Worker output further — current upload is 2421 KiB gzipped (deploy 2026-05-13), only 633 KiB headroom under the 3 MiB free-tier cap. Two levers worth evaluating before the budget gets tight again: (a) split into separate Workers (web/assets vs. API/DOs) joined by a service binding, so each subsystem gets its own 3 MiB; (b) trim heavy chunks in place — defuddle/linkedom/htmlparser2 (HTML readability in LinkProcessorDO), @ai-sdk/react + livestore client on the authed entry, Effect tracer surface. Decide which lever first based on what's growing.
-- [ ] Let LLM suggest more tags from existing ones. Respect domains for tags as a fallback
 
 ## Done
 
@@ -45,6 +47,7 @@ kanban-plugin: board
 - [x] Replace hand-rolled `InputOTP` with shadcn's `input-otp`-backed component — current `src/components/ui/input-otp.tsx` is a custom implementation skipped during the base-mira refresh. Adopt the registry version (adds `input-otp` dep, exposes `InputOTPGroup`/`InputOTPSlot`/`InputOTPSeparator`) and migrate `pending-approval.tsx` to the compose API.
 - [ ] AI summary loading messages like in agents, eg swap phrases
 - [ ] Improve UX of tags strip, maybe add counters and exclude tags that are unused on the specific page
+- [ ] Let LLM suggest more tags from existing ones. Respect domains for tags as a fallback
 - [ ] Legal pages — followups before launch. Privacy + ToS content shipped on `redesign`. Remaining: Termly cross-check, decide Meta Pixel fate (geo-gate / banner / remove), arbitration vs litigation decision (lawyer call), DMCA agent registration, Stripe checkout consent.
 - [ ] [[todos/links-list-performance|Fix links list rendering performance at 150+ links]]
 - [ ] [[todos/publish-raycast-extension|Publish Raycast extension to Store]]

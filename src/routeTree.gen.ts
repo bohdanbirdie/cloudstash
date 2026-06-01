@@ -18,6 +18,7 @@ import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ConnectTelegramRouteImport } from './routes/connect/telegram'
 import { Route as ConnectRaycastRouteImport } from './routes/connect/raycast'
+import { Route as ConnectExtensionRouteImport } from './routes/connect/extension'
 import { Route as AuthedInboxRouteImport } from './routes/_authed/inbox'
 import { Route as AuthedCompletedRouteImport } from './routes/_authed/completed'
 import { Route as AuthedBrandRouteImport } from './routes/_authed/brand'
@@ -68,6 +69,11 @@ const ConnectRaycastRoute = ConnectRaycastRouteImport.update({
   path: '/connect/raycast',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ConnectExtensionRoute = ConnectExtensionRouteImport.update({
+  id: '/connect/extension',
+  path: '/connect/extension',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthedInboxRoute = AuthedInboxRouteImport.update({
   id: '/inbox',
   path: '/inbox',
@@ -106,6 +112,7 @@ export interface FileRoutesByFullPath {
   '/brand': typeof AuthedBrandRoute
   '/completed': typeof AuthedCompletedRoute
   '/inbox': typeof AuthedInboxRoute
+  '/connect/extension': typeof ConnectExtensionRoute
   '/connect/raycast': typeof ConnectRaycastRoute
   '/connect/telegram': typeof ConnectTelegramRoute
 }
@@ -121,6 +128,7 @@ export interface FileRoutesByTo {
   '/brand': typeof AuthedBrandRoute
   '/completed': typeof AuthedCompletedRoute
   '/inbox': typeof AuthedInboxRoute
+  '/connect/extension': typeof ConnectExtensionRoute
   '/connect/raycast': typeof ConnectRaycastRoute
   '/connect/telegram': typeof ConnectTelegramRoute
 }
@@ -138,6 +146,7 @@ export interface FileRoutesById {
   '/_authed/brand': typeof AuthedBrandRoute
   '/_authed/completed': typeof AuthedCompletedRoute
   '/_authed/inbox': typeof AuthedInboxRoute
+  '/connect/extension': typeof ConnectExtensionRoute
   '/connect/raycast': typeof ConnectRaycastRoute
   '/connect/telegram': typeof ConnectTelegramRoute
 }
@@ -155,6 +164,7 @@ export interface FileRouteTypes {
     | '/brand'
     | '/completed'
     | '/inbox'
+    | '/connect/extension'
     | '/connect/raycast'
     | '/connect/telegram'
   fileRoutesByTo: FileRoutesByTo
@@ -170,6 +180,7 @@ export interface FileRouteTypes {
     | '/brand'
     | '/completed'
     | '/inbox'
+    | '/connect/extension'
     | '/connect/raycast'
     | '/connect/telegram'
   id:
@@ -186,6 +197,7 @@ export interface FileRouteTypes {
     | '/_authed/brand'
     | '/_authed/completed'
     | '/_authed/inbox'
+    | '/connect/extension'
     | '/connect/raycast'
     | '/connect/telegram'
   fileRoutesById: FileRoutesById
@@ -198,6 +210,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   TermsRoute: typeof TermsRoute
   WelcomeRoute: typeof WelcomeRoute
+  ConnectExtensionRoute: typeof ConnectExtensionRoute
   ConnectRaycastRoute: typeof ConnectRaycastRoute
   ConnectTelegramRoute: typeof ConnectTelegramRoute
 }
@@ -267,6 +280,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConnectRaycastRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/connect/extension': {
+      id: '/connect/extension'
+      path: '/connect/extension'
+      fullPath: '/connect/extension'
+      preLoaderRoute: typeof ConnectExtensionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authed/inbox': {
       id: '/_authed/inbox'
       path: '/inbox'
@@ -332,6 +352,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   TermsRoute: TermsRoute,
   WelcomeRoute: WelcomeRoute,
+  ConnectExtensionRoute: ConnectExtensionRoute,
   ConnectRaycastRoute: ConnectRaycastRoute,
   ConnectTelegramRoute: ConnectTelegramRoute,
 }

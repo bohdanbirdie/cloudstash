@@ -96,6 +96,10 @@
 
   "vars": {
     "EMAIL_FROM": "Cloudstash <noreply@cloudstash.dev>",
+    // Comma-separated Chrome extension IDs allowed to open the sync WS. Empty =
+    // any chrome-extension origin. First is the published (Web Store) ID; second
+    // is the local-unpacked dev ID pinned by the manifest key in wxt.config.ts.
+    "EXTENSION_ID_ALLOWLIST": "bdommhffamndfanbpnikgmpjncpcobia,eelfhpgegemfgccaakcmfgldcaojadfj",
   },
 
   "observability": {

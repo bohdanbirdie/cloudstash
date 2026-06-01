@@ -11,6 +11,7 @@ count.txt
 .wrangler
 .output
 .vinxi
+.wxt
 todos.json
 
 # Localflare generated files
@@ -35,3 +36,6 @@ docs/.obsidian/plugins/**/main.js
 docs/.obsidian/plugins/**/styles.css
 docs/.obsidian/plugins/**/manifest.json
 docs/.obsidian/plugins/**/data.json
+
+# Chrome extension signing key (private; public key is committed in wxt.config.ts)
+apps/extension/.keys/

@@ -32,8 +32,18 @@ jobs:
 
       - run: bun run check
 
+      - run: bun run test:unit
+
       - run: bun run test:e2e
         env:
           BETTER_AUTH_SECRET: test-secret-for-ci-only-32chars
           BETTER_AUTH_URL: http://localhost:3000
           ENABLE_TEST_AUTH: "true"
+
+      # Extension app (apps/extension) — own tsconfig + bun:test runner.
+      # wxt prepare generates .wxt/ types that apps/extension/tsconfig extends.
+      - run: bun --cwd apps/extension run postinstall
+
+      - run: bun --cwd apps/extension run compile
+
+      - run: bun run test:ext

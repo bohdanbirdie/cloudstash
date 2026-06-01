@@ -24,6 +24,7 @@ export interface Env extends Cloudflare.Env {
   ENABLE_TEST_AUTH?: string;
   GOOGLE_BASE_URL?: string;
   PUBLIC_URL?: string;
+  EXTENSION_ID_ALLOWLIST?: string;
   // Typegen emits an untyped `Queue`; narrow to the message type.
   LINK_QUEUE: Queue<LinkQueueMessage>;
 }

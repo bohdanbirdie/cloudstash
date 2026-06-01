@@ -1,13 +1,13 @@
 import { and, eq, gt, like } from "drizzle-orm";
-import { Effect, Layer, Schema } from "effect";
+import { Array as Arr, Effect, Layer, Option, Schema } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
 import { capabilityDeniedResponse } from "../billing/errors";
 import { requireCapability } from "../billing/service";
-import { OrgId, UserId } from "../db/branded";
+import { ApiKey, ApiKeyRowId, OrgId, UserId } from "../db/branded";
 import * as schema from "../db/schema";
 import { DbClient, query } from "../db/service";
-import { safeErrorInfo } from "../log-utils";
+import { maskId, safeErrorInfo } from "../log-utils";
 import type { Env } from "../shared";
 import { TelegramBotApi, TelegramKeyStore } from "../telegram/services";
 import { TelegramBotApiLive } from "../telegram/services/bot-api.live";
@@ -41,10 +41,19 @@ const TelegramVerificationPayloadJson = Schema.parseJson(
 const encodePayload = (chatId: number): string =>
   Schema.encodeSync(TelegramVerificationPayloadJson)({ chatId });
 
+const TelegramApiKeyMetadataJson = Schema.parseJson(
+  Schema.Struct({ source: Schema.Literal("telegram") })
+);
+const decodeTelegramMetadata = Schema.decodeUnknownOption(
+  TelegramApiKeyMetadataJson
+);
+
+const maskChatId = (chatId: number): string => maskId(String(chatId));
+
 export const initiateRequest = Effect.fn("TelegramConnect.initiate")(function* (
   chatId: number
 ) {
-  yield* Effect.annotateCurrentSpan("chatId", chatId);
+  yield* Effect.annotateCurrentSpan("chatId", maskChatId(chatId));
   const connectStore = yield* TelegramConnectStore;
   return yield* connectStore.issueCode(chatId);
 });
@@ -105,7 +114,7 @@ export const confirmRequest = Effect.fn("TelegramConnect.confirm")(function* (
     );
 
   const { userId, orgId } = session;
-  yield* Effect.annotateCurrentSpan("userId", userId);
+  yield* Effect.annotateCurrentSpan("userId", maskId(userId));
 
   if (!orgId) return yield* new NoActiveOrgError({ userId });
 
@@ -114,7 +123,7 @@ export const confirmRequest = Effect.fn("TelegramConnect.confirm")(function* (
   const record = yield* connectStore.consumeByCode(body.code);
   if (!record) return yield* new InvalidCodeError();
 
-  yield* Effect.annotateCurrentSpan("chatId", record.chatId);
+  yield* Effect.annotateCurrentSpan("chatId", maskChatId(record.chatId));
 
   const created = yield* apiKeyStore.create(
     headers,
@@ -136,7 +145,10 @@ export const confirmRequest = Effect.fn("TelegramConnect.confirm")(function* (
     );
 
   yield* Effect.logInfo("Telegram connect confirmed").pipe(
-    Effect.annotateLogs({ userId, chatId: record.chatId })
+    Effect.annotateLogs({
+      userId: maskId(userId),
+      chatId: maskChatId(record.chatId),
+    })
   );
 
   return { ok: true as const };
@@ -156,7 +168,7 @@ export const statusRequest = Effect.fn("TelegramConnect.status")(function* (
         s ? Effect.succeed(s) : Effect.fail(new ConnectUnauthorizedError())
       )
     );
-  yield* Effect.annotateCurrentSpan("userId", session.userId);
+  yield* Effect.annotateCurrentSpan("userId", maskId(session.userId));
 
   const chatIds = yield* keyStore.listForUser(session.userId);
   const me = yield* botApi
@@ -187,7 +199,7 @@ export const disconnectRequest = Effect.fn("TelegramConnect.disconnect")(
           s ? Effect.succeed(s) : Effect.fail(new ConnectUnauthorizedError())
         )
       );
-    yield* Effect.annotateCurrentSpan("userId", session.userId);
+    yield* Effect.annotateCurrentSpan("userId", maskId(session.userId));
 
     const chatIds = yield* keyStore.listForUser(session.userId);
     yield* Effect.annotateCurrentSpan("chatCount", chatIds.length);
@@ -203,7 +215,10 @@ export const disconnectRequest = Effect.fn("TelegramConnect.disconnect")(
           .pipe(
             Effect.catchTag("TelegramBotApiError", (error) =>
               Effect.logWarning("Disconnect notify failed").pipe(
-                Effect.annotateLogs({ chatId, cause: error.cause })
+                Effect.annotateLogs({
+                  chatId: maskChatId(chatId),
+                  cause: error.cause,
+                })
               )
             )
           ),
@@ -213,21 +228,11 @@ export const disconnectRequest = Effect.fn("TelegramConnect.disconnect")(
     yield* keyStore.purgeForUser(session.userId);
 
     const userKeys = yield* apiKeyStore.listByUser(session.userId);
-    const telegramKeyIds = userKeys
-      .filter((row) => {
-        if (!row.metadata) return false;
-        try {
-          const parsed: unknown = JSON.parse(row.metadata);
-          return (
-            !!parsed &&
-            typeof parsed === "object" &&
-            (parsed as { source?: unknown }).source === "telegram"
-          );
-        } catch {
-          return false;
-        }
-      })
-      .map((row) => row.id);
+    const telegramKeyIds = Arr.filterMap(userKeys, (row) =>
+      row.metadata
+        ? Option.map(decodeTelegramMetadata(row.metadata), () => row.id)
+        : Option.none()
+    );
     yield* Effect.annotateCurrentSpan("keyCount", telegramKeyIds.length);
 
     yield* Effect.forEach(telegramKeyIds, (id) => apiKeyStore.deleteById(id), {
@@ -236,7 +241,7 @@ export const disconnectRequest = Effect.fn("TelegramConnect.disconnect")(
 
     yield* Effect.logInfo("Telegram disconnect").pipe(
       Effect.annotateLogs({
-        userId: session.userId,
+        userId: maskId(session.userId),
         chatCount: chatIds.length,
         keyCount: telegramKeyIds.length,
       })
@@ -373,6 +378,13 @@ const ApiKeyStoreLive = Layer.effect(
             })
             .from(schema.apikey)
             .where(eq(schema.apikey.referenceId, userId))
+        ).pipe(
+          Effect.map((rows) =>
+            rows.map((r) => ({
+              id: ApiKeyRowId.make(r.id),
+              metadata: r.metadata,
+            }))
+          )
         ),
       deleteById: (id) =>
         query(db.delete(schema.apikey).where(eq(schema.apikey.id, id))).pipe(
@@ -382,17 +394,23 @@ const ApiKeyStoreLive = Layer.effect(
         Effect.tryPromise({
           try: () =>
             auth.api.createApiKey({ body: { metadata, name }, headers }),
-          catch: (cause) => new KeyCreationError({ cause }),
+          catch: (cause) =>
+            new KeyCreationError({ reason: "auth_backend", cause }),
         }).pipe(
-          Effect.flatMap((result) =>
-            result?.key && result?.id
-              ? Effect.succeed({ key: result.key, id: result.id })
-              : Effect.fail(
-                  new KeyCreationError({
-                    cause: new Error("createApiKey returned null"),
-                  })
-                )
-          )
+          Effect.flatMap((result) => {
+            if (!result?.key)
+              return Effect.fail(
+                new KeyCreationError({ reason: "missing_key" })
+              );
+            if (!result.id)
+              return Effect.fail(
+                new KeyCreationError({ reason: "missing_id" })
+              );
+            return Effect.succeed({
+              key: ApiKey.make(result.key),
+              id: ApiKeyRowId.make(result.id),
+            });
+          })
         ),
       updateName: (id, name) =>
         query(
@@ -547,6 +565,7 @@ export const handleTelegramDisconnect = (
               { status: 503 }
             )
           ),
+        DbError: (e) => unexpected500(e.cause),
       }),
       Effect.catchAllCause((cause) => unexpected500(cause))
     )

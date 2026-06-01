@@ -18,12 +18,16 @@ import { handleGetUsage } from "./admin/usage";
 import { trackEvent } from "./analytics";
 import { gateUserApiKeyCreate } from "./auth/api-key-gate";
 import { AppLayerLive, AuthClient } from "./auth/service";
-import { checkSyncAuth, SyncAuthError } from "./auth/sync-auth";
+import { checkSyncAuth } from "./auth/sync-auth";
 import { handleBillingCheckout } from "./billing/routes/checkout";
 import { handleBillingPortal } from "./billing/routes/portal";
 import { handleStripeSuccess } from "./billing/routes/success";
 import { handleStripeWebhook } from "./billing/routes/webhook";
 import { agentHooks } from "./chat-agent/hooks";
+import {
+  handleExtensionAccount,
+  handleExtensionConnect,
+} from "./connect/extension";
 import { handleRaycastConnect, handleRaycastExchange } from "./connect/raycast";
 import {
   handleTelegramCheck,
@@ -53,7 +57,7 @@ import { handleGetMe, handleGetOrg } from "./org";
 import { handleQueueBatch } from "./queue-handler";
 import { runHandler } from "./runtime";
 import type { Env, HonoVariables } from "./shared";
-import { SyncBackend, handleSyncRequest } from "./sync";
+import { SyncBackend, handleSyncRequest, runSyncAuth } from "./sync";
 import { handleTelegramWebhook } from "./telegram";
 import { OtelTracingLive } from "./tracing";
 
@@ -141,7 +145,7 @@ app.on(["GET", "POST"], "/api/auth/*", (c) =>
       if (denied) return denied;
       const auth = yield* AuthClient;
       return yield* Effect.promise(() => auth.handler(c.req.raw));
-    })
+    }).pipe(Effect.withSpan("API.authHandler"))
   )
 );
 
@@ -165,6 +169,13 @@ app.post("/api/ingest", (c) =>
 app.post("/api/connect/raycast", (c) => handleRaycastConnect(c.req.raw, c.env));
 app.post("/api/connect/raycast/exchange", (c) =>
   handleRaycastExchange(c.req.raw, c.env)
+);
+
+app.post("/api/connect/extension", (c) =>
+  handleExtensionConnect(c.req.raw, c.env)
+);
+app.get("/api/connect/extension/account", (c) =>
+  handleExtensionAccount(c.req.raw, c.env)
 );
 
 app.get("/api/connect/telegram/check", (c) =>
@@ -215,7 +226,11 @@ app.get("/api/sync/auth", async (c) => {
         }),
       })
     );
-  }).pipe(Effect.provide(AppLayerLive(c.env)), Effect.runPromise);
+  }).pipe(
+    Effect.withSpan("API.syncAuth"),
+    Effect.provide(AppLayerLive(c.env)),
+    Effect.runPromise
+  );
 
   if ("ok" in result) {
     logger.debug("Sync auth success");
@@ -245,28 +260,16 @@ const handleSync = async (
     });
   }
 
-  const cookie = request.headers.get("cookie");
-  const syncStoreId = OrgId.make(searchParams.storeId);
+  const authResult = await runSyncAuth(
+    searchParams.payload,
+    searchParams.storeId,
+    request.headers as unknown as Headers,
+    env
+  );
 
-  const authResult = await Effect.gen(function* () {
-    const auth = yield* AuthClient;
-    return yield* checkSyncAuth(cookie, syncStoreId, auth).pipe(
-      Effect.match({
-        onFailure: (error) => error,
-        onSuccess: (result) => result,
-      })
-    );
-  }).pipe(Effect.provide(AppLayerLive(env)), Effect.runPromise);
-
-  if (authResult instanceof SyncAuthError) {
-    logger.info("Sync auth rejected", {
-      code: authResult.code,
-      status: authResult.status,
-    });
-    return new Response(JSON.stringify(authResult), {
-      headers: { "Content-Type": "application/json" },
-      status: authResult.status,
-    });
+  if (authResult instanceof Response) {
+    logger.info("Sync auth rejected", { status: authResult.status });
+    return authResult;
   }
 
   trackEvent(env.USAGE_ANALYTICS, {

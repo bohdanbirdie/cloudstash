@@ -21,6 +21,7 @@ export const PLANS: Readonly<Record<PlanTier, PlanInfo>> = {
     tagline: "The saving core. Yours forever.",
     features: [
       "Save links from the dashboard",
+      "Save from the Chrome extension",
       "Tag, archive, search",
       "Sync across your devices",
       "Export everything, anytime",
@@ -34,7 +35,7 @@ export const PLANS: Readonly<Record<PlanTier, PlanInfo>> = {
     tagline: "Every save, summarized by AI.",
     features: [
       "AI summary on every save",
-      "Save from Telegram, Raycast, iOS, and Chrome",
+      "Save from Telegram, Raycast, and iOS",
       "Weekly digest of what you read",
       "Public API",
     ],

@@ -4,6 +4,8 @@
 **Status:** RESOLVED (re-resolved 2026-04-17 via livestore snapshot bump)
 **Impact:** Links sent via Telegram processed successfully but never appeared in browser UI.
 
+> **Superseded for "current state" by [[livestore-do-rpc-stream-stall]] (2026-05-16).** This remains an accurate postmortem of the April bug, but the deployed snapshot and patch set moved on after a later stall. The "Current Deployed State" section below is kept as a historical snapshot — see the May doc for what's actually deployed now.
+
 ## Problem
 
 LinkProcessorDO processes links (metadata, AI summary, Telegram notification) but events never sync to SyncBackendDO → browser never sees them. Browser-to-browser sync works fine. Problem is exclusively LinkProcessorDO → SyncBackendDO direction.
@@ -92,7 +94,9 @@ CF DO RPC merges multiple `controller.enqueue()` calls into fewer `reader.read()
 - **Autogates** (`ENABLE_DRAINING_READ_ON_STANDARD_STREAMS`, `RPC_USE_EXTERNAL_PUSHER`) — not enabled in miniflare, only production. Explains local vs production difference.
 - Cannot confirm which exact workerd version or autogates were active on April 1
 
-## Current Deployed State
+## Deployed State (as of 2026-04-17 — historical, see note at top)
+
+> This records the state immediately after this incident closed. It has since drifted: snapshot bumped `40be66583` → `6e9abadf4`, the `@effect/rpc` patch moved `0.75.0` → `0.75.1`, and a `@livestore/common-cf` patch was re-added (drain-first + return-runStream) during the 2026-05-16 stall. For current deployed state see [[livestore-do-rpc-stream-stall]].
 
 - Livestore snapshot `40be66583` (dev HEAD as of 2026-04-17) with `compatibility_date = "2026-04-05"`
 - Store creation guard (`storeCreationPromise`)

@@ -29,9 +29,51 @@ const STATIC_D = torusKnotPath({ ...ANIMATED_CONFIG, R: 17 });
 
 const MIDNIGHT = PALETTES.find((p) => p.name === "Midnight")!;
 
+const BAYER8 = [
+  [0, 32, 8, 40, 2, 34, 10, 42],
+  [48, 16, 56, 24, 50, 18, 58, 26],
+  [12, 44, 4, 36, 14, 46, 6, 38],
+  [60, 28, 52, 20, 62, 30, 54, 22],
+  [3, 35, 11, 43, 1, 33, 9, 41],
+  [51, 19, 59, 27, 49, 17, 57, 25],
+  [15, 47, 7, 39, 13, 45, 5, 37],
+  [63, 31, 55, 23, 61, 29, 53, 21],
+];
+
+// Paints the diagonal-gradient Bayer dither (the brand's signature texture)
+// across the whole canvas. Shared by the OG and Chrome Web Store renderers.
+function fillDither(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  cellSize: number,
+  palette: DitherPalette = MIDNIGHT
+) {
+  const scaledCell = cellSize * (Math.max(W, H) / 256);
+  const imgData = ctx.createImageData(W, H);
+  const dd = imgData.data;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const t = (x + y) / (W + H - 2);
+      const bx = Math.floor(x / scaledCell) % 8;
+      const by = Math.floor(y / scaledCell) % 8;
+      const threshold = (BAYER8[by][bx] + 0.5) / 64;
+      const c = t > threshold ? palette.b : palette.a;
+      const i = (y * W + x) * 4;
+      dd[i] = c.r;
+      dd[i + 1] = c.g;
+      dd[i + 2] = c.b;
+      dd[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
 function BrandPage() {
   const [cellSize, setCellSize] = useState(3.5);
   const [ogCellSize, setOgCellSize] = useState(1.25);
+  const [cwsCellSize, setCwsCellSize] = useState(1.25);
+  const [iconStroke, setIconStroke] = useState(3.25);
 
   return (
     <div className="space-y-16 p-10">
@@ -150,6 +192,47 @@ function BrandPage() {
           value={ogCellSize}
           onChange={setOgCellSize}
           label="OG Cell Size"
+        />
+      </section>
+
+      <section>
+        <SectionLabel>Extension Icons</SectionLabel>
+        <div className="flex flex-wrap items-start justify-center gap-10">
+          <IconExport cellSize={cellSize} knotStroke={iconStroke} />
+        </div>
+        <CellSizeSlider
+          value={iconStroke}
+          onChange={setIconStroke}
+          label="Knot Weight"
+        />
+      </section>
+
+      <section>
+        <SectionLabel>Chrome Web Store</SectionLabel>
+        <div className="flex flex-wrap items-start justify-center gap-10">
+          <BannerExport
+            w={440}
+            h={280}
+            label="Small Tile (440×280)"
+            cellSize={cwsCellSize}
+          />
+          <BannerExport
+            w={1400}
+            h={560}
+            label="Marquee (1400×560)"
+            cellSize={cwsCellSize}
+          />
+          <BannerExport
+            w={1280}
+            h={800}
+            label="Promo / Screenshot (1280×800)"
+            cellSize={cwsCellSize}
+          />
+        </div>
+        <CellSizeSlider
+          value={cwsCellSize}
+          onChange={setCwsCellSize}
+          label="CWS Cell Size"
         />
       </section>
     </div>
@@ -444,7 +527,8 @@ function renderExportCanvas(
   cellSize: number,
   clipType: ClipType,
   exportSize: number,
-  palette: DitherPalette = MIDNIGHT
+  palette: DitherPalette = MIDNIGHT,
+  knotStroke = 4
 ): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = exportSize;
@@ -458,16 +542,6 @@ function renderExportCanvas(
   const dCtx = ditherCanvas.getContext("2d")!;
   const imgData = dCtx.createImageData(exportSize, exportSize);
   const dd = imgData.data;
-  const BAYER8 = [
-    [0, 32, 8, 40, 2, 34, 10, 42],
-    [48, 16, 56, 24, 50, 18, 58, 26],
-    [12, 44, 4, 36, 14, 46, 6, 38],
-    [60, 28, 52, 20, 62, 30, 54, 22],
-    [3, 35, 11, 43, 1, 33, 9, 41],
-    [51, 19, 59, 27, 49, 17, 57, 25],
-    [15, 47, 7, 39, 13, 45, 5, 37],
-    [63, 31, 55, 23, 61, 29, 53, 21],
-  ];
   const scaledCell = cellSize * (exportSize / 256);
   for (let y = 0; y < exportSize; y++) {
     for (let x = 0; x < exportSize; x++) {
@@ -525,7 +599,7 @@ function renderExportCanvas(
   ctx.rotate((45 * Math.PI) / 180);
   ctx.translate(-exportSize / 2, -exportSize / 2);
   ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 4 * scale;
+  ctx.lineWidth = knotStroke * scale;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
@@ -683,34 +757,7 @@ function renderOgCanvas(cellSize: number): HTMLCanvasElement {
   canvas.height = H;
   const ctx = canvas.getContext("2d")!;
 
-  const BAYER8 = [
-    [0, 32, 8, 40, 2, 34, 10, 42],
-    [48, 16, 56, 24, 50, 18, 58, 26],
-    [12, 44, 4, 36, 14, 46, 6, 38],
-    [60, 28, 52, 20, 62, 30, 54, 22],
-    [3, 35, 11, 43, 1, 33, 9, 41],
-    [51, 19, 59, 27, 49, 17, 57, 25],
-    [15, 47, 7, 39, 13, 45, 5, 37],
-    [63, 31, 55, 23, 61, 29, 53, 21],
-  ];
-  const scaledCell = cellSize * (Math.max(W, H) / 256);
-  const imgData = ctx.createImageData(W, H);
-  const dd = imgData.data;
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const t = (x + y) / (W + H - 2);
-      const bx = Math.floor(x / scaledCell) % 8;
-      const by = Math.floor(y / scaledCell) % 8;
-      const threshold = (BAYER8[by][bx] + 0.5) / 64;
-      const c = t > threshold ? MIDNIGHT.b : MIDNIGHT.a;
-      const i = (y * W + x) * 4;
-      dd[i] = c.r;
-      dd[i + 1] = c.g;
-      dd[i + 2] = c.b;
-      dd[i + 3] = 255;
-    }
-  }
-  ctx.putImageData(imgData, 0, 0);
+  fillDither(ctx, W, H, cellSize);
 
   const fontFamily = "'JetBrains Mono Variable', monospace";
   const knotVisualDiameter = 300 * S;
@@ -807,6 +854,255 @@ function OgPreview({ cellSize }: { cellSize: number }) {
       />
       <Label>OG Image (1200×630)</Label>
       <ExportButton onClick={handleExport} label="OG Image" />
+    </div>
+  );
+}
+
+const BANNER_SUBTITLE = "Save links. Read later.";
+
+// A wordmark-on-dither banner that auto-fits the knot + text block to any
+// aspect ratio, so the same composition reads correctly at every Chrome Web
+// Store tile size. Renders to a high-resolution supersampled canvas; callers
+// downscale to the exact target size. Supersampling is adaptive so even the
+// small 440×280 tile renders from a ~2400px internal canvas — keeping the
+// vector text and knot crisp at any output size.
+function renderBannerSuper(
+  w: number,
+  h: number,
+  cellSize: number
+): HTMLCanvasElement {
+  const S = Math.max(2, Math.ceil(2400 / Math.max(w, h)));
+  const W = w * S;
+  const H = h * S;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+  fillDither(ctx, W, H, cellSize);
+
+  const fontFamily = "'JetBrains Mono Variable', monospace";
+  let knotDia = 0.476 * H;
+  let gap = 0.12 * H;
+  let titleSize = 0.154 * H;
+  let subtitleSize = 0.0635 * H;
+
+  const measureText = () => {
+    ctx.font = `700 ${titleSize}px ${fontFamily}`;
+    const tW = ctx.measureText("Cloudstash").width;
+    ctx.font = `400 ${subtitleSize}px ${fontFamily}`;
+    const sW = ctx.measureText(BANNER_SUBTITLE).width;
+    return Math.max(tW, sW);
+  };
+
+  let textW = measureText();
+  let totalW = knotDia + gap + textW;
+  const availW = W * 0.88;
+  if (totalW > availW) {
+    const fit = availW / totalW;
+    knotDia *= fit;
+    gap *= fit;
+    titleSize *= fit;
+    subtitleSize *= fit;
+    textW = measureText();
+    totalW = knotDia + gap + textW;
+  }
+
+  const startX = (W - totalW) / 2;
+  const knotCx = startX + knotDia / 2;
+  const knotCy = H / 2;
+  const knotScale = knotDia / 2 / 32;
+
+  ctx.save();
+  ctx.translate(knotCx, knotCy);
+  ctx.rotate((45 * Math.PI) / 180);
+  ctx.translate(-knotCx, -knotCy);
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = Math.max(1, 4 * knotScale);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  for (let i = 0; i <= 500; i++) {
+    const pt = torusKnotPoint(i / 500, {
+      R: 22 * knotScale,
+      r: 10 * knotScale,
+      cx: knotCx,
+      cy: knotCy,
+    });
+    if (i === 0) ctx.moveTo(pt.x, pt.y);
+    else ctx.lineTo(pt.x, pt.y);
+  }
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+
+  const textX = startX + knotDia + gap;
+  const gapV = titleSize * 0.35;
+  const blockH = titleSize + gapV + subtitleSize;
+  ctx.fillStyle = "#ffffff";
+  ctx.textBaseline = "middle";
+  ctx.font = `700 ${titleSize}px ${fontFamily}`;
+  ctx.fillText("Cloudstash", textX, H / 2 - blockH / 2 + titleSize / 2);
+  ctx.font = `400 ${subtitleSize}px ${fontFamily}`;
+  ctx.fillText(BANNER_SUBTITLE, textX, H / 2 + blockH / 2 - subtitleSize / 2);
+
+  return canvas;
+}
+
+// High-quality downscale of the supersampled banner to an exact w×h canvas.
+function scaleCanvasTo(
+  src: HTMLCanvasElement,
+  w: number,
+  h: number
+): HTMLCanvasElement {
+  const out = document.createElement("canvas");
+  out.width = w;
+  out.height = h;
+  const ctx = out.getContext("2d")!;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(src, 0, 0, w, h);
+  return out;
+}
+
+function renderBannerCanvas(
+  w: number,
+  h: number,
+  cellSize: number
+): HTMLCanvasElement {
+  return scaleCanvasTo(renderBannerSuper(w, h, cellSize), w, h);
+}
+
+function BannerExport({
+  w,
+  h,
+  label,
+  cellSize,
+}: {
+  w: number;
+  h: number;
+  label: string;
+  cellSize: number;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const previewW = 360;
+  const previewH = Math.round((h / w) * previewW);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    void document.fonts.ready.then(() => {
+      // Draw into a 2× backing store and scale the high-res supersampled
+      // render down with smoothing, so the on-screen preview stays sharp.
+      const backingW = previewW * 2;
+      const backingH = previewH * 2;
+      canvas.width = backingW;
+      canvas.height = backingH;
+      const ctx = canvas.getContext("2d")!;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(
+        renderBannerSuper(w, h, cellSize),
+        0,
+        0,
+        backingW,
+        backingH
+      );
+    });
+  }, [w, h, cellSize, previewH]);
+
+  const handleExport = useCallback(() => {
+    void document.fonts.ready.then(() => {
+      downloadCanvas(
+        renderBannerCanvas(w, h, cellSize),
+        `cloudstash-cws-${w}x${h}.png`
+      );
+    });
+  }, [w, h, cellSize]);
+
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <canvas
+        ref={canvasRef}
+        style={{
+          width: previewW,
+          height: previewH,
+          borderRadius: 8,
+        }}
+      />
+      <Label>{label}</Label>
+      <ExportButton onClick={handleExport} label={label} />
+    </div>
+  );
+}
+
+const ICON_SIZES = [128, 48, 32, 16];
+
+// The Midnight squircle extension icon, with an adjustable knot weight. Each
+// size renders at 512 then downscales with smoothing, so even 16px stays clean.
+function IconExport({
+  cellSize,
+  knotStroke,
+}: {
+  cellSize: number;
+  knotStroke: number;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const src = renderExportCanvas(
+      cellSize,
+      "squircle",
+      256,
+      MIDNIGHT,
+      knotStroke
+    );
+    canvas.width = 256;
+    canvas.height = 256;
+    canvas.getContext("2d")!.drawImage(src, 0, 0);
+  }, [cellSize, knotStroke]);
+
+  const exportSize = useCallback(
+    (size: number) => {
+      const src = renderExportCanvas(
+        cellSize,
+        "squircle",
+        512,
+        MIDNIGHT,
+        knotStroke
+      );
+      downloadCanvas(scaleCanvasTo(src, size, size), `${size}.png`);
+    },
+    [cellSize, knotStroke]
+  );
+
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <canvas
+        ref={canvasRef}
+        style={{
+          width: 128,
+          height: 128,
+          borderRadius: 24,
+          imageRendering: "pixelated",
+        }}
+      />
+      <Label>Extension Icon</Label>
+      <div className="flex gap-2">
+        {ICON_SIZES.map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => exportSize(s)}
+            aria-label={`Save ${s}px icon PNG`}
+            className="rounded-md border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+          >
+            {s}px
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

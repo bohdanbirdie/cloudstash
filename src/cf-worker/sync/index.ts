@@ -2,23 +2,18 @@ import type { CfTypes } from "@livestore/sync-cf/cf-worker";
 import * as SyncBackend from "@livestore/sync-cf/cf-worker";
 import { Effect } from "effect";
 
-import { AppLayerLive, AuthClient } from "../auth/service";
+import { AppLayerLive } from "../auth/service";
 import { OrgId } from "../db/branded";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
-import { OtelTracingLive } from "../tracing";
-import {
-  InvalidSessionError,
-  MissingSessionCookieError,
-  OrgAccessDeniedError,
-} from "./errors";
+
+export { runSyncAuth, validatePayload } from "./validate-payload";
 
 const logger = logSync("SyncBackend");
 
-// Current SyncBackendDO instance - set in constructor so it's always available
 let currentSyncBackend: {
-  triggerLinkProcessor: (storeId: string) => void;
+  triggerLinkProcessor: (storeId: OrgId) => void;
   getEventlogMax: () => number | null;
 } | null = null;
 
@@ -30,8 +25,9 @@ const STUCK_GAP_THRESHOLD = 100;
 
 export class SyncBackendDO extends SyncBackend.makeDurableObject({
   onPush: async (message, context) => {
+    const storeId = OrgId.make(context.storeId);
     logger.info("Push received", {
-      storeId: context.storeId,
+      storeId: maskId(storeId),
       batchSize: message.batch.length,
       events: message.batch.map((e) => e.name),
     });
@@ -43,7 +39,7 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
         event.name === "v1.LinkReprocessRequested"
     );
     if (shouldWakeProcessor && currentSyncBackend) {
-      currentSyncBackend.triggerLinkProcessor(context.storeId);
+      currentSyncBackend.triggerLinkProcessor(storeId);
     }
 
     const firstParent = message.batch[0]?.parentSeqNum;
@@ -51,7 +47,7 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
       const sbMax = currentSyncBackend.getEventlogMax();
       if (sbMax !== null && sbMax - firstParent > STUCK_GAP_THRESHOLD) {
         logger.warn("LP push lags SB eventlog — possible stuck client", {
-          storeId: maskId(context.storeId),
+          storeId: maskId(storeId),
           lpParent: firstParent,
           sbMax,
           gap: sbMax - firstParent,
@@ -107,68 +103,41 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
         );
       }).pipe(
         Effect.withSpan("SyncBackendDO.purgeAll"),
-        Effect.provide(OtelTracingLive)
+        Effect.provide(AppLayerLive(this._env))
       )
     );
   }
 
-  triggerLinkProcessor(storeId: string) {
-    logger.info("Waking up processor", { storeId: maskId(storeId) });
-    const processorId = this._env.LINK_PROCESSOR_DO.idFromName(storeId);
-    const processor = this._env.LINK_PROCESSOR_DO.get(processorId);
-    processor
-      .fetch(`https://link-processor/?storeId=${storeId}`)
-      .then(() => logger.info("Processor fetch succeeded"))
-      .catch((error: unknown) =>
-        logger.error("Processor fetch failed", safeErrorInfo(error))
-      );
+  triggerLinkProcessor(storeId: OrgId) {
+    const env = this._env;
+    const trigger = Effect.fn("SyncBackendDO.triggerLinkProcessor")(
+      function* () {
+        yield* Effect.logInfo("Waking up processor").pipe(
+          Effect.annotateLogs({ storeId: maskId(storeId) })
+        );
+        const processorId = env.LINK_PROCESSOR_DO.idFromName(storeId);
+        const processor = env.LINK_PROCESSOR_DO.get(processorId);
+        yield* Effect.tryPromise({
+          try: () =>
+            processor.fetch(`https://link-processor/?storeId=${storeId}`),
+          catch: (cause) => ({ _tag: "ProcessorFetchError" as const, cause }),
+        });
+        yield* Effect.logInfo("Processor fetch succeeded");
+      }
+    );
+    Effect.runFork(
+      trigger().pipe(
+        Effect.tapError((e) =>
+          Effect.logError("Processor fetch failed").pipe(
+            Effect.annotateLogs(safeErrorInfo(e.cause))
+          )
+        ),
+        Effect.catchAll(() => Effect.void),
+        Effect.provide(AppLayerLive(env))
+      )
+    );
   }
 }
-
-const validatePayload = Effect.fn("Sync.validatePayload")(function* (
-  _payload: unknown,
-  context: { storeId: string; headers: ReadonlyMap<string, string> }
-) {
-  const auth = yield* AuthClient;
-  const cookie = context.headers.get("cookie");
-  if (!cookie) {
-    yield* Effect.logWarning("Sync auth failed: missing cookie").pipe(
-      Effect.annotateLogs({ storeId: maskId(context.storeId) })
-    );
-    return yield* new MissingSessionCookieError();
-  }
-
-  const session = yield* Effect.tryPromise({
-    catch: () => new InvalidSessionError(),
-    try: () => auth.api.getSession({ headers: new Headers({ cookie }) }),
-  });
-
-  if (!session?.session) {
-    yield* Effect.logWarning("Sync auth failed: invalid session").pipe(
-      Effect.annotateLogs({ storeId: maskId(context.storeId) })
-    );
-    return yield* new InvalidSessionError();
-  }
-
-  if (session.session.activeOrganizationId !== context.storeId) {
-    yield* Effect.logWarning("Sync auth failed: org mismatch").pipe(
-      Effect.annotateLogs({
-        storeId: maskId(context.storeId),
-        sessionOrgId: maskId(session.session.activeOrganizationId ?? "none"),
-      })
-    );
-    return yield* new OrgAccessDeniedError({
-      sessionOrgId: session.session.activeOrganizationId
-        ? OrgId.make(session.session.activeOrganizationId)
-        : null,
-      storeId: OrgId.make(context.storeId),
-    });
-  }
-
-  yield* Effect.logDebug("Sync auth OK").pipe(
-    Effect.annotateLogs({ storeId: maskId(context.storeId) })
-  );
-});
 
 type SyncSearchParams = NonNullable<
   ReturnType<typeof SyncBackend.matchSyncRequest>
@@ -178,18 +147,16 @@ export const handleSyncRequest = (
   request: CfTypes.Request,
   searchParams: SyncSearchParams,
   ctx: CfTypes.ExecutionContext,
-  env: Env
+  _env: Env
 ) =>
   SyncBackend.handleSyncRequest({
     ctx,
     request,
     searchParams,
     syncBackendBinding: "SYNC_BACKEND_DO",
-    validatePayload: (payload, context) =>
-      validatePayload(payload, context).pipe(
-        Effect.provide(AppLayerLive(env)),
-        Effect.runPromise
-      ),
+    // Auth already ran in runSyncAuth() upstream; this no-op anchors the
+    // generic TSyncPayload to `unknown` so type inference stays shallow.
+    validatePayload: (_payload: unknown) => {},
   });
 
 export { SyncBackend };
