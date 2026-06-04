@@ -2,11 +2,6 @@ name: Publish Extension
 
 on:
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: "Build and zip only — skip the Chrome Web Store submission"
-        type: boolean
-        default: false
 
 concurrency:
   group: publish-extension
@@ -50,13 +45,8 @@ jobs:
             echo "::error::No *-chrome.zip found in .output/"
             exit 1
           fi
-          DRY=""
-          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
-            DRY="--dry-run"
-            echo "Dry run — checking auth only, no upload or review."
-          fi
-          echo "Submitting $ZIP $DRY"
-          bunx wxt submit $DRY --chrome-zip "$ZIP"
+          echo "Submitting $ZIP"
+          bunx wxt submit --chrome-zip "$ZIP"
         env:
           CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
           CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
