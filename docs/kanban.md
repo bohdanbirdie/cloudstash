@@ -22,6 +22,7 @@ kanban-plugin: board
 - [ ] Extend Pro plan with twitter historical sync of bookmarks
 - [ ] [[todos/link-notes|Notes on links (user-authored, agent-aware)]]
 - [ ] [[todos/consolidated-paywall|Consolidated paywall / upgrade system (app-wide)]]
+- [ ] Bug: accepting a suggested tag stutters the app — committing the tag re-renders the header tag strip, which looks like a heavy operation. Profile the accept path; likely the tag-strip recompute (counts/ordering across all links) runs synchronously on the same commit. Decouple or memoize so accepting a tag doesn't block the frame.
 
 ## In Progress
 
