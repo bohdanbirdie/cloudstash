@@ -143,7 +143,7 @@ The ID is now **load-bearing**: the web app messages the extension by ID for the
 
 ## 11. Automated publishing (CI)
 
-A manual-dispatch workflow exists at `.github/workflows/publish-extension.yml` — it bumps nothing, builds + zips, uploads the zip as an artifact, and (unless `dry_run`) runs `wxt submit --chrome-zip` to push to the Chrome Web Store. It's dormant until the secrets below are set; run it from the Actions tab. Bump `apps/extension/package.json` in the PR first (the Web Store rejects a duplicate version).
+A manual-dispatch workflow exists at `.github/workflows/publish-extension.yml` — it bumps nothing, builds + zips, uploads the zip as an artifact, and runs `wxt submit --chrome-zip` to push to the Chrome Web Store (a real submission for review — there is no dry-run toggle). It's dormant until the secrets below are set; run it from the Actions tab. Bump `apps/extension/package.json` in the PR first (the Web Store rejects a duplicate version).
 
 **One-time setup (≈1 hr, mostly Google Cloud clicking):**
 
