@@ -10,6 +10,7 @@ Save and organize links with AI-powered summaries. Full-stack TypeScript on Clou
 - **AI summaries** powered by OpenRouter (Gemini 2.5 Flash)
 - **Real-time sync** across devices via LiveStore + WebSocket
 - **Telegram bot** for saving links on the go
+- **Chrome extension** for one-click saving from the browser toolbar
 - **AI chat** for asking questions about your saved links
 - **Multi-workspace** support with invite system
 - **Admin panel** with usage analytics
@@ -154,6 +155,12 @@ help - Show help
 connect - Connect with API key
 disconnect - Disconnect account
 ```
+
+## Browser Extension
+
+A Chrome extension for one-click saving lives in `apps/extension` (built with [WXT](https://wxt.dev)). It's published on the [Chrome Web Store](https://chromewebstore.google.com/detail/cloudstash/bdommhffamndfanbpnikgmpjncpcobia) and authenticates with a paired API key — no separate login.
+
+Publishing is automated: bump the version in `apps/extension/package.json`, then run the **Publish Extension** GitHub Action (manual dispatch). It builds, zips, and submits to the Web Store for review. Requires the `CHROME_EXTENSION_ID`, `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`, and `CHROME_REFRESH_TOKEN` repository secrets — full setup in [`docs/todos/chrome-extension-publishing.md`](docs/todos/chrome-extension-publishing.md).
 
 ## Commands
 
