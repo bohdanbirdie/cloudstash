@@ -22,7 +22,6 @@ kanban-plugin: board
 - [ ] Extend Pro plan with twitter historical sync of bookmarks
 - [ ] [[todos/link-notes|Notes on links (user-authored, agent-aware)]]
 - [ ] [[todos/consolidated-paywall|Consolidated paywall / upgrade system (app-wide)]]
-- [ ] Add real Chrome Web Store install link to `/connect/extension` — the `not_installed` state on `src/routes/connect/extension.tsx` only offers "I've installed it — try again" with no way to actually install. Now that the extension is published (`bdommhffamndfanbpnikgmpjncpcobia`), add a store-listing CTA. Reuse the `CHROME_WEB_STORE_URL` constant in `src/components/integrations/extension-card.tsx` (promote it to a shared module rather than duplicating).
 
 ## In Progress
 
@@ -33,6 +32,7 @@ kanban-plugin: board
 
 ## Done
 
+- [x] Add real Chrome Web Store install link — published listing is now live at `https://chromewebstore.google.com/detail/cloudstash/bdommhffamndfanbpnikgmpjncpcobia`. Promoted `CHROME_WEB_STORE_URL` to `src/lib/extension-connect.ts` (built from `PUBLISHED_EXTENSION_ID` + slug), consumed by `extension-card.tsx` and the `not_installed` state on `/connect/extension`, which now shows a primary "Install from the Chrome Web Store" CTA above the retry button.
 - [x] Env-var cleanup in `src/cf-worker/shared.ts` — `EMAIL_FROM` moved into `wrangler.jsonc` `vars` so `cf-typegen` emits it on `Cloudflare.Env`; `PUBLIC_URL` kept as a custom-`Env` optional (both consumers — Telegram webhook URL and Stripe checkout return URL — have request-origin fallbacks, and the value isn't pinned in prod today). End state: `Env` = `LINK_QUEUE` + 3 optionals (`ENABLE_TEST_AUTH`, `GOOGLE_BASE_URL`, `PUBLIC_URL`).
 - [ ] [[todos/weekly-digest-backend|Weekly Digest backend]]
 - [x] [[todos/x-content-sub-processing|X (twitter) content enrichment — Pro feature]] — Pro-only enriched AI summaries for x.com bookmarks, hard-capped at 100/org/mo, with image fallback so quoting tweets render a card image

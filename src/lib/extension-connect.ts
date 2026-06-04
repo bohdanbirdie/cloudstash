@@ -8,6 +8,8 @@ const EXTENSION_ID =
   (import.meta.env as Record<string, string | undefined>).VITE_EXTENSION_ID ??
   (import.meta.env.PROD ? PUBLISHED_EXTENSION_ID : DEV_EXTENSION_ID);
 
+export const CHROME_WEB_STORE_URL = `https://chromewebstore.google.com/detail/cloudstash/${PUBLISHED_EXTENSION_ID}`;
+
 interface ExternalRuntime {
   sendMessage: (
     extensionId: string,

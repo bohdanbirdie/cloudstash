@@ -20,6 +20,8 @@ import { KeyList } from "./key-list";
 import { UpgradeCta } from "./upgrade-cta";
 import type { ApiKey } from "./use-api-keys";
 
+const RAYCAST_STORE_URL = "https://www.raycast.com/birdie/cloudstash";
+
 interface RaycastCardProps {
   keys: ApiKey[];
   isLoading: boolean;
@@ -86,22 +88,21 @@ export function RaycastCard({
           </div>
         ) : (
           <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-            <li>
-              Install Cloudstash from the{" "}
-              <a
-                href="https://www.raycast.com/birdie/cloudstash"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline inline-flex items-center gap-0.5"
-              >
-                Raycast Store
-                <ExternalLinkIcon className="size-3" />
-              </a>
-            </li>
+            <li>Install Cloudstash from the Raycast Store</li>
             <li>Run any Cloudstash command in Raycast</li>
             <li>Sign in when prompted — that&apos;s it!</li>
           </ol>
         )}
+
+        <a
+          href={RAYCAST_STORE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
+        >
+          View in Raycast Store
+          <ExternalLinkIcon className="size-3" aria-hidden />
+        </a>
       </CardContent>
     </Card>
   );

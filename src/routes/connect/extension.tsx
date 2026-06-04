@@ -1,13 +1,22 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Match } from "effect";
-import { CheckCircleIcon, PuzzleIcon, RefreshCwIcon } from "lucide-react";
+import {
+  CheckCircleIcon,
+  ExternalLinkIcon,
+  PuzzleIcon,
+  RefreshCwIcon,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { CloudstashLogo } from "@/components/cloudstash-logo";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { loadAuth } from "@/lib/auth";
-import { pingExtension, sendCredsToExtension } from "@/lib/extension-connect";
+import {
+  CHROME_WEB_STORE_URL,
+  pingExtension,
+  sendCredsToExtension,
+} from "@/lib/extension-connect";
 
 export const Route = createFileRoute("/connect/extension")({
   beforeLoad: async () => {
@@ -166,6 +175,15 @@ function ConnectExtensionPage() {
                   Install it, then reopen this page to finish connecting.
                 </p>
               </div>
+              <a
+                href={CHROME_WEB_STORE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonVariants({ className: "w-full" })}
+              >
+                <ExternalLinkIcon className="size-4" aria-hidden />
+                Install from the Chrome Web Store
+              </a>
               <Button variant="outline" onClick={retry} className="w-full">
                 <RefreshCwIcon className="size-4" />
                 I’ve installed it — try again
