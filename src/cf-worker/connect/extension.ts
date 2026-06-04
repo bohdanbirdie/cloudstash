@@ -126,7 +126,10 @@ export const handleDisconnectRequest = Effect.fn(
       Effect.logError(
         "Extension API key revocation failed; key may still be active"
       ).pipe(
-        Effect.annotateLogs({ keyId: maskId(keyRowId), ...safeErrorInfo(cause) })
+        Effect.annotateLogs({
+          keyId: maskId(keyRowId),
+          ...safeErrorInfo(cause),
+        })
       )
     )
   );
