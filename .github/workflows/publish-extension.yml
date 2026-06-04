@@ -40,6 +40,7 @@ jobs:
           name: cloudstash-extension-${{ github.sha }}
           path: apps/extension/.output/*-chrome.zip
           if-no-files-found: error
+          include-hidden-files: true
 
       - name: Submit to Chrome Web Store
         working-directory: apps/extension
