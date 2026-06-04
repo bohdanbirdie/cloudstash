@@ -14,13 +14,10 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { CHROME_WEB_STORE_URL } from "@/lib/extension-connect";
 
 import { KeyList } from "./key-list";
 import type { ApiKey } from "./use-api-keys";
-
-// Resolves once the listing clears review.
-const CHROME_WEB_STORE_URL =
-  "https://chromewebstore.google.com/detail/bdommhffamndfanbpnikgmpjncpcobia";
 
 interface ExtensionCardProps {
   keys: ApiKey[];
@@ -77,22 +74,21 @@ export function ExtensionCard({
           </Collapsible>
         ) : (
           <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-            <li>
-              Install Cloudstash from the{" "}
-              <a
-                href={CHROME_WEB_STORE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline inline-flex items-center gap-0.5"
-              >
-                Chrome Web Store
-                <ExternalLinkIcon className="size-3" />
-              </a>
-            </li>
+            <li>Install Cloudstash from the Chrome Web Store</li>
             <li>Pin it to your toolbar</li>
             <li>Open the popup and connect — that’s it!</li>
           </ol>
         )}
+
+        <a
+          href={CHROME_WEB_STORE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
+        >
+          View in Chrome Web Store
+          <ExternalLinkIcon className="size-3" aria-hidden />
+        </a>
       </CardContent>
     </Card>
   );

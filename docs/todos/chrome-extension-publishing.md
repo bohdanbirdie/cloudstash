@@ -141,9 +141,24 @@ The ID is now **load-bearing**: the web app messages the extension by ID for the
 - [ ] Set **visibility**: start with _Unlisted_ for a soft launch, switch to _Public_ after a few days.
 - [ ] Submit for review. Typical review time: 1–3 business days; can stretch to 2 weeks for first-time submissions.
 
-## 11. Post-launch
+## 11. Automated publishing (CI)
 
-- [x] Link the extension from the in-app integrations panel — `ExtensionCard` added to `integrations-section.tsx` (mirrors the Raycast card). **Web Store URL is stubbed** (`CHROME_WEB_STORE_URL` in `extension-card.tsx`) — swap for the real listing on publish.
+A manual-dispatch workflow exists at `.github/workflows/publish-extension.yml` — it bumps nothing, builds + zips, uploads the zip as an artifact, and (unless `dry_run`) runs `wxt submit --chrome-zip` to push to the Chrome Web Store. It's dormant until the secrets below are set; run it from the Actions tab. Bump `apps/extension/package.json` in the PR first (the Web Store rejects a duplicate version).
+
+**One-time setup (≈1 hr, mostly Google Cloud clicking):**
+
+1. Google Cloud project → enable the **Chrome Web Store API**.
+2. Configure the **OAuth consent screen** and **publish it to "In production"**. If left in "Testing", the refresh token expires after **7 days** — this is the trap that silently breaks CI publishing.
+3. Create an OAuth **Desktop** client → run `cd apps/extension && bunx wxt submit init` once to mint a refresh token (writes a local `.env.submit`, gitignored).
+4. Add four repo secrets (Settings → Secrets → Actions):
+   - `CHROME_EXTENSION_ID` = `bdommhffamndfanbpnikgmpjncpcobia`
+   - `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`, `CHROME_REFRESH_TOKEN`
+
+**Caveats:** first publish must be manual (the API only _updates_ an existing listing — done); `submit` only uploads + submits for review, it can't skip Google's queue; the same four secrets/`wxt submit` flags extend to Edge/Firefox when those land.
+
+## 12. Post-launch
+
+- [x] Link the extension from the in-app integrations panel — `ExtensionCard` added to `integrations-section.tsx` (mirrors the Raycast card). Web Store URL is live: `CHROME_WEB_STORE_URL` in `src/lib/extension-connect.ts` (shared, points at the published listing).
 - [ ] Announce on the landing page + add an "Install for Chrome" CTA.
 - [ ] Set up Web Store analytics review cadence (weekly for first month).
 - [ ] Decide whether to mirror to **Microsoft Edge Add-ons** and **Firefox AMO** (manifest is MV3-compatible across all three, may need minor `browser_specific_settings`).

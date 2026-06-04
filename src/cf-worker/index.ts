@@ -27,6 +27,7 @@ import { agentHooks } from "./chat-agent/hooks";
 import {
   handleExtensionAccount,
   handleExtensionConnect,
+  handleExtensionDisconnect,
 } from "./connect/extension";
 import { handleRaycastConnect, handleRaycastExchange } from "./connect/raycast";
 import {
@@ -173,6 +174,9 @@ app.post("/api/connect/raycast/exchange", (c) =>
 
 app.post("/api/connect/extension", (c) =>
   handleExtensionConnect(c.req.raw, c.env)
+);
+app.delete("/api/connect/extension", (c) =>
+  handleExtensionDisconnect(c.req.raw, c.env)
 );
 app.get("/api/connect/extension/account", (c) =>
   handleExtensionAccount(c.req.raw, c.env)

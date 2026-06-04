@@ -3,9 +3,13 @@ import { Effect, Layer, LogLevel, Logger } from "effect";
 
 import { AuthClient } from "../../auth/service";
 import { ApiKey, ApiKeyRowId, OrgId, UserId } from "../../db/branded";
-import { DbClient } from "../../db/service";
+import { DbClient, DbError } from "../../db/service";
 import { KeyCreationError } from "../errors";
-import { handleAccountRequest, handleConnectRequest } from "../extension";
+import {
+  handleAccountRequest,
+  handleConnectRequest,
+  handleDisconnectRequest,
+} from "../extension";
 import { ApiKeyStore, SessionProvider } from "../services";
 import type { SessionData } from "../services";
 
@@ -31,7 +35,7 @@ function makeApiKeyLayer(overrides: Partial<ApiKeyStore["Type"]> = {}) {
 
 type VerifyResult = {
   valid: boolean;
-  key: { referenceId: string | null; metadata: unknown } | null;
+  key: { id?: string; referenceId: string | null; metadata: unknown } | null;
 };
 
 function makeDbStub(name: string | null, image: string | null = null) {
@@ -274,6 +278,112 @@ describe("ExtensionConnect.handleAccountRequest", () => {
           expect(result).toEqual({
             user: { name: null, image: null },
           });
+        })
+      )
+    )
+  );
+});
+
+describe("ExtensionConnect.handleDisconnectRequest", () => {
+  const validKey = (): Promise<VerifyResult> =>
+    Promise.resolve({
+      valid: true,
+      key: {
+        id: "ext-key-id-1",
+        referenceId: "user-1",
+        metadata: { orgId: "org-1" },
+      },
+    });
+
+  function runDisconnect(
+    apiKey: string | null,
+    options: {
+      verifyApiKey?: () => Promise<VerifyResult>;
+      apiKeyStore?: Partial<ApiKeyStore["Type"]>;
+    } = {}
+  ) {
+    const layer = Layer.mergeAll(
+      makeAuthClientLayer(
+        options.verifyApiKey ??
+          (() => Promise.resolve<VerifyResult>({ valid: false, key: null }))
+      ),
+      makeApiKeyLayer(options.apiKeyStore)
+    );
+
+    return handleDisconnectRequest(
+      apiKey === null ? null : ApiKey.make(apiKey)
+    ).pipe(Effect.provide(layer), Logger.withMinimumLogLevel(LogLevel.Error));
+  }
+
+  it.effect("fails with ConnectUnauthorizedError when apiKey is missing", () =>
+    runDisconnect(null).pipe(
+      Effect.flip,
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("ConnectUnauthorizedError");
+        })
+      )
+    )
+  );
+
+  it.effect("fails with ConnectUnauthorizedError when key is invalid", () =>
+    runDisconnect("lb_bad", {
+      verifyApiKey: () => Promise.resolve({ valid: false, key: null }),
+    }).pipe(
+      Effect.flip,
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("ConnectUnauthorizedError");
+        })
+      )
+    )
+  );
+
+  it.effect("fails with SessionLookupError when verifyApiKey rejects", () =>
+    runDisconnect("lb_ok", {
+      verifyApiKey: () => Promise.reject(new Error("auth backend down")),
+    }).pipe(
+      Effect.flip,
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("SessionLookupError");
+        })
+      )
+    )
+  );
+
+  it.effect("deletes the verified key's row and returns ok", () => {
+    let deletedId: string | null = null;
+    return runDisconnect("lb_ok", {
+      verifyApiKey: validKey,
+      apiKeyStore: {
+        deleteById: (id) => {
+          deletedId = id;
+          return Effect.void;
+        },
+      },
+    }).pipe(
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(result).toEqual({ ok: true });
+          expect(deletedId).toBe("ext-key-id-1");
+        })
+      )
+    );
+  });
+
+  it.effect("propagates DbError when deleteById fails", () =>
+    runDisconnect("lb_ok", {
+      verifyApiKey: validKey,
+      apiKeyStore: {
+        deleteById: () =>
+          Effect.fail(new DbError({ cause: new Error("d1 down") })),
+      },
+    }).pipe(
+      Effect.flip,
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("DbError");
         })
       )
     )

@@ -1,9 +1,10 @@
 import { StoreRegistryProvider } from "@livestore/react";
 import { Effect } from "effect";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 import type { Creds } from "../../lib/messages";
 import { runPopup } from "../../lib/runtime";
+import { ConnectClient } from "../../lib/services/connect-client";
 import { CredsStorage } from "../../lib/services/creds-storage";
 import { ConnectScreen } from "./connect-screen";
 import { useAccount, useActiveTab, useCreds } from "./data";
@@ -30,6 +31,21 @@ export function App() {
     setOverride(next);
   };
 
+  const disconnect = () => {
+    if (creds) {
+      runPopup(Effect.flatMap(ConnectClient, (svc) => svc.disconnect(creds)));
+    }
+    persist(null);
+  };
+
+  const accountResult =
+    accountState.status === "ok" ? accountState.value : null;
+
+  const revoked = accountResult?.tag === "unauthorized";
+  useEffect(() => {
+    if (revoked) persist(null);
+  }, [revoked]);
+
   if (credsState.status === "loading") {
     return <LoadingShell>One moment</LoadingShell>;
   }
@@ -41,7 +57,7 @@ export function App() {
       ? tabState.value.value
       : null;
 
-  const account = accountState.status === "ok" ? accountState.value : null;
+  const account = accountResult?.tag === "ok" ? accountResult.account : null;
 
   return (
     <StoreRegistryProvider storeRegistry={storeRegistry}>
@@ -50,7 +66,7 @@ export function App() {
           creds={creds}
           tab={tab}
           account={account}
-          onDisconnect={() => persist(null)}
+          onDisconnect={disconnect}
         />
       </Suspense>
     </StoreRegistryProvider>

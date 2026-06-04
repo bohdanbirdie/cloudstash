@@ -1,0 +1,63 @@
+name: Publish Extension
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and zip only — skip the Chrome Web Store submission"
+        type: boolean
+        default: false
+
+concurrency:
+  group: publish-extension
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "25"
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun --cwd apps/extension run postinstall
+
+      - name: Build and zip
+        working-directory: apps/extension
+        run: bun run zip
+
+      - name: Upload zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudstash-extension-${{ github.sha }}
+          path: apps/extension/.output/*-chrome.zip
+          if-no-files-found: error
+
+      - name: Submit to Chrome Web Store
+        working-directory: apps/extension
+        run: |
+          ZIP=$(ls .output/*-chrome.zip | head -1)
+          if [ -z "$ZIP" ]; then
+            echo "::error::No *-chrome.zip found in .output/"
+            exit 1
+          fi
+          DRY=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            DRY="--dry-run"
+            echo "Dry run — checking auth only, no upload or review."
+          fi
+          echo "Submitting $ZIP $DRY"
+          bunx wxt submit $DRY --chrome-zip "$ZIP"
+        env:
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}

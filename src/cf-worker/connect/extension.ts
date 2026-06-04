@@ -97,6 +97,48 @@ export const handleAccountRequest = Effect.fn(
   };
 });
 
+export const handleDisconnectRequest = Effect.fn(
+  "ExtensionConnect.handleDisconnectRequest"
+)(function* (apiKey: ApiKey | null) {
+  if (!apiKey) {
+    return yield* new ConnectUnauthorizedError();
+  }
+  const auth = yield* AuthClient;
+  const apiKeyStore = yield* ApiKeyStore;
+
+  const verify = yield* Effect.tryPromise({
+    catch: (cause) => new SessionLookupError({ cause }),
+    try: () => auth.api.verifyApiKey({ body: { key: apiKey } }),
+  });
+  if (!verify.valid || !verify.key) {
+    yield* Effect.logWarning("Disconnect rejected: invalid API key");
+    return yield* new ConnectUnauthorizedError();
+  }
+
+  const keyRowId = ApiKeyRowId.make(verify.key.id);
+  yield* Effect.annotateCurrentSpan("keyId", maskId(keyRowId));
+  if (verify.key.referenceId) {
+    yield* Effect.annotateCurrentSpan("userId", maskId(verify.key.referenceId));
+  }
+
+  yield* apiKeyStore.deleteById(keyRowId).pipe(
+    Effect.tapError((cause) =>
+      Effect.logError(
+        "Extension API key revocation failed; key may still be active"
+      ).pipe(
+        Effect.annotateLogs({
+          keyId: maskId(keyRowId),
+          ...safeErrorInfo(cause),
+        })
+      )
+    )
+  );
+  yield* Effect.logInfo("Extension API key revoked via disconnect").pipe(
+    Effect.annotateLogs({ keyId: maskId(keyRowId) })
+  );
+  return { ok: true };
+});
+
 const bearerToken = (headers: Headers): ApiKey | null => {
   const authz = headers.get("authorization");
   if (!authz) return null;
@@ -236,6 +278,32 @@ export const handleExtensionConnect = (
               { status: 503 }
             )
           ),
+      }),
+      Effect.catchAllCause((cause) => unexpected500(cause))
+    )
+  );
+
+export const handleExtensionDisconnect = (
+  request: Request,
+  env: Env
+): Promise<Response> =>
+  Effect.runPromise(
+    handleDisconnectRequest(bearerToken(request.headers)).pipe(
+      Effect.provide(makeLiveLayer(env)),
+      Effect.map((data) => Response.json(data)),
+      Effect.catchTags({
+        ConnectUnauthorizedError: () =>
+          Effect.succeed(
+            Response.json({ error: "Unauthorized" }, { status: 401 })
+          ),
+        SessionLookupError: () =>
+          Effect.succeed(
+            Response.json(
+              { error: "Auth backend unavailable" },
+              { status: 503 }
+            )
+          ),
+        DbError: (e) => unexpected500(e.cause),
       }),
       Effect.catchAllCause((cause) => unexpected500(cause))
     )
