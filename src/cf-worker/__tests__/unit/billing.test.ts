@@ -53,6 +53,57 @@ describe("capabilitiesFor (pure)", () => {
     expect(caps.chatAgent).toBe(true);
     expect(caps.mcpServer).toBe(true);
   });
+
+  it("gates X features by tier: enrichment is pro-only, plus stays basic", () => {
+    expect(capabilitiesFor("free").xContentEnrichment).toBe(false);
+    expect(capabilitiesFor("plus").xContentEnrichment).toBe(false);
+    expect(capabilitiesFor("pro").xContentEnrichment).toBe(true);
+
+    expect(capabilitiesFor("free").xBookmarkSync).toBe(false);
+    expect(capabilitiesFor("plus").xBookmarkSync).toBe(false);
+    expect(capabilitiesFor("pro").xBookmarkSync).toBe(true);
+  });
+
+  // Full-matrix lock: a new capability defaulted false across every tier (the
+  // failure mode that shipped enrichment disabled for Pro) can't pass silently —
+  // adding or moving a cap forces a deliberate edit here.
+  it("locks the full tier capability matrix", () => {
+    expect(TIER_CAPABILITIES).toEqual({
+      free: {
+        aiSummary: false,
+        chatAgent: false,
+        integrations: false,
+        xBookmarkSync: false,
+        xContentEnrichment: false,
+        publicApi: false,
+        mcpServer: false,
+        weeklyDigest: false,
+        monthlyChatBudgetUsd: 0,
+      },
+      plus: {
+        aiSummary: true,
+        chatAgent: false,
+        integrations: true,
+        xBookmarkSync: false,
+        xContentEnrichment: false,
+        publicApi: true,
+        mcpServer: false,
+        weeklyDigest: true,
+        monthlyChatBudgetUsd: 0,
+      },
+      pro: {
+        aiSummary: true,
+        chatAgent: true,
+        integrations: true,
+        xBookmarkSync: true,
+        xContentEnrichment: true,
+        publicApi: true,
+        mcpServer: true,
+        weeklyDigest: true,
+        monthlyChatBudgetUsd: 5,
+      },
+    });
+  });
 });
 
 describe("mergeCapabilities", () => {

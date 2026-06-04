@@ -105,7 +105,7 @@ export const TIER_CAPABILITIES: Readonly<Record<PlanTier, TierCapabilities>> = {
     chatAgent: true,
     integrations: true,
     xBookmarkSync: true,
-    xContentEnrichment: false,
+    xContentEnrichment: true,
     publicApi: true,
     mcpServer: true,
     weeklyDigest: true,
