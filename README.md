@@ -162,6 +162,8 @@ A Chrome extension for one-click saving lives in `apps/extension` (built with [W
 
 Publishing is automated: bump the version in `apps/extension/package.json`, then run the **Publish Extension** GitHub Action (manual dispatch). It builds, zips, and submits to the Web Store for review. Requires the `CHROME_EXTENSION_ID`, `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`, and `CHROME_REFRESH_TOKEN` repository secrets — full setup in [`docs/todos/chrome-extension-publishing.md`](docs/todos/chrome-extension-publishing.md).
 
+Track review status and manage the listing in the [Chrome Web Store developer dashboard](https://chrome.google.com/webstore/devconsole).
+
 ## Commands
 
 ```bash
