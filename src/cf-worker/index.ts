@@ -11,6 +11,7 @@ import {
   handleSetOverride,
   handleSetTier,
 } from "./admin";
+import { handleGetActivityStats } from "./admin/activity-stats/handler";
 import { handleApproveUser } from "./admin/approve-user";
 import { handleGetSignupGate, handleSetSignupGate } from "./admin/signup-gate";
 import { handleTriggerDigest } from "./admin/trigger-digest";
@@ -128,6 +129,9 @@ app.post("/api/admin/users/:id/approve", requireAdmin, (c) =>
 );
 app.get("/api/admin/usage", requireAdmin, (c) =>
   handleGetUsage(c.req.raw, c.env)
+);
+app.get("/api/admin/activity", requireAdmin, (c) =>
+  handleGetActivityStats(c.req.raw, c.env)
 );
 app.get("/api/admin/signup-gate", requireAdmin, (c) =>
   handleGetSignupGate(c.req.raw, c.env)

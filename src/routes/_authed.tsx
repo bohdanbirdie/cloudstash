@@ -1,5 +1,10 @@
 import { StoreRegistryProvider } from "@livestore/react";
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Outlet,
+  redirect,
+  useMatchRoute,
+} from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 import { HotkeysProvider } from "react-hotkeys-hook";
 
@@ -52,6 +57,8 @@ function AuthedLayout() {
 function AuthedShellWrapper() {
   const { storeRegistry } = Route.useRouteContext();
   useInputMode();
+  const matchRoute = useMatchRoute();
+  const showDock = !matchRoute({ to: "/admin" });
 
   return (
     <StoreRegistryProvider storeRegistry={storeRegistry}>
@@ -66,9 +73,11 @@ function AuthedShellWrapper() {
                     <AuthedShell />
                   </ListDataProvider>
                 </div>
-                <div className="relative z-50 flex h-20 shrink-0 items-center justify-center">
-                  <BottomDock />
-                </div>
+                {showDock && (
+                  <div className="relative z-50 flex h-20 shrink-0 items-center justify-center">
+                    <BottomDock />
+                  </div>
+                )}
               </div>
             </div>
             <SettingsDialog />

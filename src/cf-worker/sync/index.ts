@@ -7,6 +7,8 @@ import { OrgId } from "../db/branded";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
+import type { PushEvent } from "./activity";
+import { recordActivity } from "./record-activity";
 
 export { runSyncAuth, validatePayload } from "./validate-payload";
 
@@ -15,6 +17,7 @@ const logger = logSync("SyncBackend");
 let currentSyncBackend: {
   triggerLinkProcessor: (storeId: OrgId) => void;
   getEventlogMax: () => number | null;
+  recordActivity: (storeId: OrgId, batch: readonly PushEvent[]) => void;
 } | null = null;
 
 // Stuck-LP tripwire: if a push's first parentSeqNum is more than
@@ -40,6 +43,10 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
     );
     if (shouldWakeProcessor && currentSyncBackend) {
       currentSyncBackend.triggerLinkProcessor(storeId);
+    }
+
+    if (currentSyncBackend) {
+      currentSyncBackend.recordActivity(storeId, message.batch);
     }
 
     const firstParent = message.batch[0]?.parentSeqNum;
@@ -106,6 +113,10 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
         Effect.provide(AppLayerLive(this._env))
       )
     );
+  }
+
+  recordActivity(storeId: OrgId, batch: readonly PushEvent[]) {
+    recordActivity(this._env, storeId, batch);
   }
 
   triggerLinkProcessor(storeId: OrgId) {

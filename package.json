@@ -102,6 +102,7 @@
     "react-hotkeys-hook": "5.2.4",
     "react-markdown": "10.1.0",
     "react-resizable-panels": "4.7.4",
+    "recharts": "3.8.0",
     "remark-breaks": "4.0.0",
     "remark-gfm": "4.0.1",
     "resend": "6.9.4",
