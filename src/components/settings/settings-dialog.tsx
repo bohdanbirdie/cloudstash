@@ -1,13 +1,6 @@
-import {
-  BlocksIcon,
-  CreditCardIcon,
-  ShieldIcon,
-  TagIcon,
-  UserIcon,
-} from "lucide-react";
+import { BlocksIcon, CreditCardIcon, TagIcon, UserIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { AdminSection } from "@/components/admin/admin-section";
 import { IntegrationsSection } from "@/components/integrations/integrations-section";
 import { AccountSection } from "@/components/settings/sections/account-section";
 import { PlanSection } from "@/components/settings/sections/plan-section";
@@ -18,22 +11,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { useSettingsDialog } from "@/stores/settings-dialog-store";
 
-export type SettingsSection =
-  | "account"
-  | "plan"
-  | "integrations"
-  | "tags"
-  | "admin";
+export type SettingsSection = "account" | "plan" | "integrations" | "tags";
 
 interface SectionDef {
   id: SettingsSection;
   label: string;
   Icon: typeof UserIcon;
-  adminOnly?: boolean;
 }
 
 const SECTIONS: readonly SectionDef[] = [
@@ -41,7 +27,6 @@ const SECTIONS: readonly SectionDef[] = [
   { id: "plan", label: "Plan", Icon: CreditCardIcon },
   { id: "integrations", label: "Integrations", Icon: BlocksIcon },
   { id: "tags", label: "Tags", Icon: TagIcon },
-  { id: "admin", label: "Admin", Icon: ShieldIcon, adminOnly: true },
 ];
 
 const SECTION_RENDERERS: Record<SettingsSection, () => React.ReactNode> = {
@@ -49,13 +34,9 @@ const SECTION_RENDERERS: Record<SettingsSection, () => React.ReactNode> = {
   plan: () => <PlanSection />,
   integrations: () => <IntegrationsSection />,
   tags: () => <TagsSection />,
-  admin: () => <AdminSection />,
 };
 
 export function SettingsDialog() {
-  const auth = useAuth();
-  const isAdmin = auth.role === "admin";
-
   const open = useSettingsDialog((s) => s.open);
   const section = useSettingsDialog((s) => s.section);
   const setOpen = useSettingsDialog((s) => s.setOpen);
@@ -77,14 +58,14 @@ export function SettingsDialog() {
     if (!open) setVisited(new Set());
   }, [open]);
 
-  const visible = SECTIONS.filter((s) => !s.adminOnly || isAdmin);
+  const visible = SECTIONS;
   const effective: SettingsSection = visible.some((s) => s.id === active)
     ? active
     : "account";
 
   // Track every visited section so it stays mounted (hidden) on rail nav —
-  // preserves things like the freshly-generated API key in Integrations, the
-  // Tags search input, the Admin sub-tab choice.
+  // preserves things like the freshly-generated API key in Integrations and
+  // the Tags search input.
   useEffect(() => {
     if (!open) return;
     setVisited((prev) =>

@@ -3,6 +3,7 @@ import {
   TicketIcon,
   BuildingIcon,
   BarChart3Icon,
+  LayoutDashboardIcon,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -11,7 +12,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 
 import { InvitesTab } from "./invites-tab";
+import { OverviewTab } from "./overview-tab";
 import { UsageTab } from "./usage-tab";
+import { useActivityStats } from "./use-activity-stats";
 import { useInvitesAdmin } from "./use-invites-admin";
 import { useUsageAdmin } from "./use-usage-admin";
 import type { UsagePeriod } from "./use-usage-admin";
@@ -21,10 +24,11 @@ import { UsersTab } from "./users-tab";
 import { WorkspacesTab } from "./workspaces-tab/workspaces-tab";
 
 export function AdminSection() {
-  const [activeTab, setActiveTab] = useState<string | null>("users");
+  const [activeTab, setActiveTab] = useState<string | null>("overview");
   const [usagePeriod, setUsagePeriod] = useState<UsagePeriod>("24h");
   const { orgId } = useAuth();
 
+  const activity = useActivityStats(true);
   const users = useUsersAdmin(true);
   const invites = useInvitesAdmin(true);
   const workspaces = useWorkspacesAdmin(true);
@@ -37,6 +41,10 @@ export function AdminSection() {
       className="flex flex-1 flex-col min-h-0"
     >
       <TabsList variant="line">
+        <TabsTrigger value="overview">
+          <LayoutDashboardIcon className="h-3.5 w-3.5" />
+          Overview
+        </TabsTrigger>
         <TabsTrigger value="users">
           <UsersIcon className="h-3.5 w-3.5" />
           Users
@@ -64,6 +72,13 @@ export function AdminSection() {
           Usage
         </TabsTrigger>
       </TabsList>
+
+      <OverviewTab
+        data={activity.data}
+        isLoading={activity.isLoading}
+        error={activity.error}
+        onRetry={activity.refresh}
+      />
 
       <UsersTab
         users={users.users}

@@ -123,7 +123,7 @@ export function AccountMenu() {
         item: {
           icon: ShieldIcon,
           label: "Admin",
-          onSelect: () => openSettings("admin"),
+          onSelect: () => navigate({ to: "/admin" }),
         },
       });
       r.push({

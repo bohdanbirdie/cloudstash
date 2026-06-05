@@ -24,6 +24,7 @@ import { Route as AuthedCompletedRouteImport } from './routes/_authed/completed'
 import { Route as AuthedBrandRouteImport } from './routes/_authed/brand'
 import { Route as AuthedArchiveRouteImport } from './routes/_authed/archive'
 import { Route as AuthedAllRouteImport } from './routes/_authed/all'
+import { Route as AuthedAdminRouteImport } from './routes/_authed/admin'
 
 const WelcomeRoute = WelcomeRouteImport.update({
   id: '/welcome',
@@ -99,6 +100,11 @@ const AuthedAllRoute = AuthedAllRouteImport.update({
   path: '/all',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedAdminRoute = AuthedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthedRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/welcome': typeof WelcomeRoute
+  '/admin': typeof AuthedAdminRoute
   '/all': typeof AuthedAllRoute
   '/archive': typeof AuthedArchiveRoute
   '/brand': typeof AuthedBrandRoute
@@ -123,6 +130,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/welcome': typeof WelcomeRoute
+  '/admin': typeof AuthedAdminRoute
   '/all': typeof AuthedAllRoute
   '/archive': typeof AuthedArchiveRoute
   '/brand': typeof AuthedBrandRoute
@@ -141,6 +149,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/welcome': typeof WelcomeRoute
+  '/_authed/admin': typeof AuthedAdminRoute
   '/_authed/all': typeof AuthedAllRoute
   '/_authed/archive': typeof AuthedArchiveRoute
   '/_authed/brand': typeof AuthedBrandRoute
@@ -159,6 +168,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/terms'
     | '/welcome'
+    | '/admin'
     | '/all'
     | '/archive'
     | '/brand'
@@ -175,6 +185,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/terms'
     | '/welcome'
+    | '/admin'
     | '/all'
     | '/archive'
     | '/brand'
@@ -192,6 +203,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/terms'
     | '/welcome'
+    | '/_authed/admin'
     | '/_authed/all'
     | '/_authed/archive'
     | '/_authed/brand'
@@ -322,10 +334,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedAllRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/admin': {
+      id: '/_authed/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthedAdminRouteImport
+      parentRoute: typeof AuthedRoute
+    }
   }
 }
 
 interface AuthedRouteChildren {
+  AuthedAdminRoute: typeof AuthedAdminRoute
   AuthedAllRoute: typeof AuthedAllRoute
   AuthedArchiveRoute: typeof AuthedArchiveRoute
   AuthedBrandRoute: typeof AuthedBrandRoute
@@ -334,6 +354,7 @@ interface AuthedRouteChildren {
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
+  AuthedAdminRoute: AuthedAdminRoute,
   AuthedAllRoute: AuthedAllRoute,
   AuthedArchiveRoute: AuthedArchiveRoute,
   AuthedBrandRoute: AuthedBrandRoute,

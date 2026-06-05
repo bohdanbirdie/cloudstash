@@ -1,5 +1,11 @@
 import { relations, sql } from "drizzle-orm";
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import {
+  sqliteTable,
+  text,
+  integer,
+  index,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 import type { CapabilityOverrides, PlanTier } from "@/lib/plan";
 
@@ -250,6 +256,48 @@ export const appSettings = sqliteTable("app_settings", {
     .$onUpdate(() => new Date())
     .notNull(),
 });
+
+export const ACTIVITY_TYPES = [
+  "link_saved",
+  "link_deleted",
+  "link_completed",
+  "tier_changed",
+] as const;
+export type ActivityType = (typeof ACTIVITY_TYPES)[number];
+
+export const KNOWN_ACTIVITY_SOURCES = [
+  "app",
+  "api",
+  "chat",
+  "telegram",
+  "raycast",
+  "x_bookmark",
+  "stripe",
+  "system",
+] as const;
+export type ActivitySource =
+  | (typeof KNOWN_ACTIVITY_SOURCES)[number]
+  | (string & {});
+
+export const activityEvents = sqliteTable(
+  "activity_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    organizationId: text("organization_id").notNull(),
+    userId: text("user_id"),
+    type: text("type").$type<ActivityType>().notNull(),
+    source: text("source").$type<ActivitySource>(),
+    refId: text("ref_id"),
+    meta: text("meta", { mode: "json" }).$type<Record<string, unknown>>(),
+    occurredAt: integer("occurred_at", { mode: "timestamp_ms" }).notNull(),
+    dedupeKey: text("dedupe_key"),
+  },
+  (table) => [
+    index("activity_org_time_idx").on(table.organizationId, table.occurredAt),
+    index("activity_type_time_idx").on(table.type, table.occurredAt),
+    uniqueIndex("activity_dedupe_idx").on(table.dedupeKey),
+  ]
+);
 
 export const userRelations = relations(user, ({ many, one }) => ({
   accounts: many(account),
