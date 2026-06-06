@@ -1,9 +1,10 @@
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { isInActivityGrid } from "@/components/activity-grid/owns-arrows";
 import { isInDock } from "@/components/bottom-dock/owns-arrows";
 import { useListData } from "@/components/list-data-context";
+import { isInTagStrip } from "@/components/tag-strip/owns-arrows";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
 import { isKeyboardMode } from "@/lib/input-mode";
 import { useCommand, useGlobalNavigation } from "@/lib/keyboard";
@@ -58,6 +59,20 @@ export function LinkList({
   const anchorRef = useRef<string | null>(null);
 
   const allIds = useMemo(() => links.map((l) => l.id), [links]);
+
+  const seenRef = useRef<{ key: string | undefined; ids: Set<string> } | null>(
+    null
+  );
+  const newIds = useMemo(() => {
+    const seen = seenRef.current;
+    if (!seen || seen.key !== listKey) return new Set<string>();
+    const result = new Set<string>();
+    for (const id of allIds) if (!seen.ids.has(id)) result.add(id);
+    return result;
+  }, [allIds, listKey]);
+  useEffect(() => {
+    seenRef.current = { key: listKey, ids: new Set(allIds) };
+  }, [allIds, listKey]);
 
   const ids = useSelectionStore((s) => s.ids);
   const anchor = useSelectionStore((s) => s.anchor);
@@ -114,7 +129,7 @@ export function LinkList({
       else if (dir === "Home") moveByKey("home");
       else if (dir === "End") moveByKey("end");
     },
-    (e) => isInActivityGrid(e) || isInDock(e)
+    (e) => isInActivityGrid(e) || isInDock(e) || isInTagStrip(e)
   );
 
   useCommand("vimDown", () => moveByKey(1));
@@ -188,6 +203,48 @@ export function LinkList({
     if (id) anchorRef.current = id;
   };
 
+  const rows = useMemo(() => {
+    if (links.length === 0) {
+      return (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.18, ease: "easeOut" }}
+          className="text-muted-foreground text-center py-12"
+        >
+          {emptyMessage}
+        </motion.div>
+      );
+    }
+    return links.map((link) => (
+      <LinkListItem
+        key={link.id}
+        link={link}
+        tags={tagsByLink.get(link.id) ?? EMPTY_TAGS}
+        active={link.id === activeLinkId}
+        selected={ids.has(link.id)}
+        previewing={previewSet.has(link.id)}
+        tabbable={link.id === tabbableId}
+        isNew={newIds.has(link.id)}
+        onClick={handleRowClick}
+        onMouseEnter={handleRowMouseEnter}
+        onCheckboxClick={handleCheckboxClick}
+      />
+    ));
+  }, [
+    links,
+    emptyMessage,
+    tagsByLink,
+    activeLinkId,
+    ids,
+    previewSet,
+    tabbableId,
+    newIds,
+    handleRowClick,
+    handleRowMouseEnter,
+    handleCheckboxClick,
+  ]);
+
   return (
     <div
       ref={containerRef}
@@ -199,43 +256,7 @@ export function LinkList({
       onFocus={handleListFocus}
       onMouseLeave={handleListMouseLeave}
     >
-      <AnimatePresence key={listKey} initial={false} mode="popLayout">
-        {links.length === 0 ? (
-          <motion.div
-            key="empty"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18, ease: "easeOut" }}
-            className="text-muted-foreground text-center py-12"
-          >
-            {emptyMessage}
-          </motion.div>
-        ) : (
-          links.map((link) => (
-            <motion.div
-              key={link.id}
-              layout="position"
-              initial={{ scale: 0.92, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.92, opacity: 0 }}
-              transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <LinkListItem
-                link={link}
-                tags={tagsByLink.get(link.id) ?? EMPTY_TAGS}
-                active={link.id === activeLinkId}
-                selected={ids.has(link.id)}
-                previewing={previewSet.has(link.id)}
-                tabbable={link.id === tabbableId}
-                onClick={handleRowClick}
-                onMouseEnter={handleRowMouseEnter}
-                onCheckboxClick={handleCheckboxClick}
-              />
-            </motion.div>
-          ))
-        )}
-      </AnimatePresence>
+      {rows}
     </div>
   );
 }

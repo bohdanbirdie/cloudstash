@@ -66,26 +66,28 @@ const DetailViewInner = memo(function DetailViewInner({
   const handleAcceptSuggestion = useCallback(
     (s: TagSuggestion) => {
       const id = suggestionTagId(s);
-      if (!s.tagId) {
-        const maxSortOrder = Math.max(0, ...allTags.map((t) => t.sortOrder));
-        store.commit(
-          events.tagCreated({
-            createdAt: new Date(),
-            id,
-            name: s.suggestedName,
-            sortOrder: maxSortOrder + 1,
-          })
-        );
+      const linkTagged = events.linkTagged({
+        createdAt: new Date(),
+        id: `${link.id}-${id}`,
+        linkId: link.id,
+        tagId: id,
+      });
+      const accepted = events.tagSuggestionAccepted({ id: s.id });
+      if (s.tagId) {
+        store.commit(linkTagged, accepted);
+        return;
       }
+      const maxSortOrder = Math.max(0, ...allTags.map((t) => t.sortOrder));
       store.commit(
-        events.linkTagged({
+        events.tagCreated({
           createdAt: new Date(),
-          id: `${link.id}-${id}`,
-          linkId: link.id,
-          tagId: id,
-        })
+          id,
+          name: s.suggestedName,
+          sortOrder: maxSortOrder + 1,
+        }),
+        linkTagged,
+        accepted
       );
-      store.commit(events.tagSuggestionAccepted({ id: s.id }));
     },
     [store, link.id, allTags]
   );
