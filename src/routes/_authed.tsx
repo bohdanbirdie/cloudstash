@@ -17,7 +17,7 @@ import { PendingApproval } from "@/components/pending-approval";
 import { MobileDetailSheet } from "@/components/right-pane/mobile-detail-sheet";
 import { RightPane } from "@/components/right-pane/right-pane";
 import { SettingsDialog } from "@/components/settings/settings-dialog";
-import { TagStrip } from "@/components/tag-strip";
+import { TagStrip } from "@/components/tag-strip/tag-strip";
 import { TopBar } from "@/components/top-bar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { YouTubePlayerHost } from "@/components/youtube-player-host";

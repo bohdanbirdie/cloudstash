@@ -253,14 +253,17 @@ describe("tags queries", () => {
       expect(rows.find((r) => r.id === tA)?.count).toBe(2);
     });
 
-    it("includes tags with count 0 on the current status when they exist elsewhere", () => {
+    it("excludes tags with zero matches on the current status, even if used elsewhere", () => {
       const done = seedLink({ url: "https://a.test/1" });
       const tA = seedTag("only-completed", 1);
       tagLink(done, tA);
       completeLink(done, new Date("2026-01-05T10:00:00Z"));
 
       const inboxRows = store.query(tagsWithCountsForStatus$("inbox"));
-      expect(inboxRows.find((r) => r.id === tA)?.count).toBe(0);
+      expect(inboxRows.find((r) => r.id === tA)).toBeUndefined();
+
+      const completedRows = store.query(tagsWithCountsForStatus$("completed"));
+      expect(completedRows.find((r) => r.id === tA)?.count).toBe(1);
     });
 
     it("excludes tags that have never been used anywhere", () => {
@@ -275,40 +278,26 @@ describe("tags queries", () => {
       expect(ids).not.toContain(tUnused);
     });
 
-    it("orders by inbox usage desc then name asc, regardless of current status", () => {
-      const inboxA = seedLink({ url: "https://a.test/1" });
-      const inboxB = seedLink({ url: "https://a.test/2" });
-      const inboxC = seedLink({ url: "https://a.test/3" });
-      const doneA = seedLink({ url: "https://a.test/4" });
-      const doneB = seedLink({ url: "https://a.test/5" });
-      const tInboxHeavy = seedTag("alpha", 1);
-      const tInboxLight = seedTag("beta", 2);
-      const tCompletedOnly = seedTag("zeta", 3);
-      // alpha: 3 inbox links — top by inbox usage
-      tagLink(inboxA, tInboxHeavy);
-      tagLink(inboxB, tInboxHeavy);
-      tagLink(inboxC, tInboxHeavy);
-      // beta: 1 inbox link
-      tagLink(inboxA, tInboxLight);
-      // zeta: 0 inbox, 2 completed — should sort last (0 inbox), name asc breaks ties
-      tagLink(doneA, tCompletedOnly);
-      tagLink(doneB, tCompletedOnly);
-      completeLink(doneA, new Date("2026-01-05T10:00:00Z"));
-      completeLink(doneB, new Date("2026-01-05T11:00:00Z"));
+    it("orders by current-status count desc, then name asc for ties", () => {
+      const i1 = seedLink({ url: "https://a.test/1" });
+      const i2 = seedLink({ url: "https://a.test/2" });
+      const i3 = seedLink({ url: "https://a.test/3" });
+      const tHeavy = seedTag("zeta", 1); // 3 inbox links — top despite z-name
+      const tTieA = seedTag("alpha", 2); // 1 inbox link
+      const tTieB = seedTag("beta", 3); // 1 inbox link — ties with alpha
+      tagLink(i1, tHeavy);
+      tagLink(i2, tHeavy);
+      tagLink(i3, tHeavy);
+      tagLink(i1, tTieA);
+      tagLink(i2, tTieB);
 
-      // Even on the completed page, alpha/beta come first because they
-      // dominate inbox; zeta is last despite owning the completed page.
-      const completedRows = store.query(tagsWithCountsForStatus$("completed"));
-      expect(completedRows.map((r) => r.id)).toEqual([
-        tInboxHeavy,
-        tInboxLight,
-        tCompletedOnly,
-      ]);
-      expect(completedRows.find((r) => r.id === tInboxHeavy)?.count).toBe(0);
-      expect(completedRows.find((r) => r.id === tCompletedOnly)?.count).toBe(2);
+      const rows = store.query(tagsWithCountsForStatus$("inbox"));
+      // count desc puts zeta first; alpha before beta on the count-1 tie.
+      expect(rows.map((r) => r.id)).toEqual([tHeavy, tTieA, tTieB]);
+      expect(rows.find((r) => r.id === tHeavy)?.count).toBe(3);
     });
 
-    it("returns the same tag order regardless of which status page is queried", () => {
+    it("prioritizes per status: each page shows only its own tags, by that count", () => {
       const inboxLink = seedLink({ url: "https://a.test/1" });
       const doneA = seedLink({ url: "https://a.test/2" });
       const doneB = seedLink({ url: "https://a.test/3" });
@@ -320,17 +309,15 @@ describe("tags queries", () => {
       completeLink(doneA, new Date("2026-01-05T10:00:00Z"));
       completeLink(doneB, new Date("2026-01-05T11:00:00Z"));
 
-      const inboxOrder = store
+      // inbox hides zeta (0 inbox); completed hides alpha (0 completed).
+      const inbox = store
         .query(tagsWithCountsForStatus$("inbox"))
         .map((r) => r.id);
-      const completedOrder = store
+      const completed = store
         .query(tagsWithCountsForStatus$("completed"))
         .map((r) => r.id);
-      const allOrder = store
-        .query(tagsWithCountsForStatus$("all"))
-        .map((r) => r.id);
-      expect(inboxOrder).toEqual(completedOrder);
-      expect(inboxOrder).toEqual(allOrder);
+      expect(inbox).toEqual([tInbox]);
+      expect(completed).toEqual([tCompletedOnly]);
     });
 
     it("excludes soft-deleted tags", () => {

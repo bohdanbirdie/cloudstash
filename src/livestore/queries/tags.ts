@@ -138,52 +138,30 @@ function linkFilterForStatus(status: LinkStatus): string {
   }
 }
 
-const effectiveLinksForTagUnion = `
-  SELECT lt.linkId FROM link_tags lt WHERE lt.tagId = t.id
-  UNION
-  SELECT ts.linkId FROM tag_suggestions ts
-  WHERE ts.tagId = t.id AND ts.status = 'pending'
-  UNION
-  SELECT ts.linkId FROM tag_suggestions ts
-  WHERE ts.tagId IS NULL AND ts.suggestedName = t.id AND ts.status = 'pending'
-`;
-
 export const tagsWithCountsForStatus$ = (status: LinkStatus) =>
   queryDb(
     {
       query: `
-        SELECT t.id, t.name, t.sortOrder,
-               (
-                 SELECT COUNT(DISTINCT eff.linkId) FROM (
-                   ${effectiveLinksForTagUnion}
-                 ) eff
-                 JOIN links l ON l.id = eff.linkId
-                 WHERE ${linkFilterForStatus(status)}
-               ) AS count
+        SELECT t.id, t.name, t.sortOrder, c.count AS count
         FROM tags t
+        JOIN (
+          SELECT eff.tagId AS tagId,
+                 COUNT(DISTINCT eff.linkId) AS count
+          FROM (
+            SELECT lt.tagId AS tagId, lt.linkId AS linkId FROM link_tags lt
+            UNION
+            SELECT ts.tagId AS tagId, ts.linkId AS linkId FROM tag_suggestions ts
+              WHERE ts.tagId IS NOT NULL AND ts.status = 'pending'
+            UNION
+            SELECT ts.suggestedName AS tagId, ts.linkId AS linkId FROM tag_suggestions ts
+              WHERE ts.tagId IS NULL AND ts.status = 'pending'
+          ) eff
+          JOIN links l ON l.id = eff.linkId
+          WHERE ${linkFilterForStatus(status)}
+          GROUP BY eff.tagId
+        ) c ON c.tagId = t.id
         WHERE t.deletedAt IS NULL
-          AND (
-            EXISTS (SELECT 1 FROM link_tags lt WHERE lt.tagId = t.id)
-            OR EXISTS (
-              SELECT 1 FROM tag_suggestions ts
-              WHERE ts.tagId = t.id AND ts.status = 'pending'
-            )
-            OR EXISTS (
-              SELECT 1 FROM tag_suggestions ts
-              WHERE ts.tagId IS NULL
-                AND ts.suggestedName = t.id
-                AND ts.status = 'pending'
-            )
-          )
-        ORDER BY
-          (
-            SELECT COUNT(DISTINCT eff.linkId) FROM (
-              ${effectiveLinksForTagUnion}
-            ) eff
-            JOIN links l ON l.id = eff.linkId
-            WHERE l.status = 'unread' AND l.deletedAt IS NULL
-          ) DESC,
-          t.name ASC
+        ORDER BY c.count DESC, t.name ASC
       `,
       schema: Schema.Array(TagWithCountSchema),
     },

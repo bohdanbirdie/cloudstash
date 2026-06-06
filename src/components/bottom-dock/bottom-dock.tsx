@@ -2,7 +2,7 @@
 
 import { Command as CommandPrimitive } from "cmdk";
 import { animate, useMotionValue } from "motion/react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { RefObject } from "react";
 
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
@@ -96,7 +96,8 @@ export function BottomDock() {
   }, [mode, setMode, openAgent]);
 
   const store = useAppStore();
-  const searchResults = store.useQuery(searchLinks$(query.trim()));
+  const searchQuery = useMemo(() => searchLinks$(query.trim()), [query]);
+  const searchResults = store.useQuery(searchQuery);
   const recentLinks = useRecentLinks();
 
   const openDetail = useRightPaneStore((s) => s.openDetail);
