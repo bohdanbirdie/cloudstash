@@ -50,7 +50,7 @@ The original `@effect/vitest` blocker turned out to be **transitively gated on l
 - effect v4 is blocked because `@livestore/peer-deps` hard-pins **`effect@3.21.2`** (and `@effect/vitest@0.29.0`).
 - So "wait for `@effect/vitest` stable" can't resolve until livestore itself moves to effect v4.
 
-We bypassed this by keeping **`@effect/vitest@0.29.0`** (the effect-v3 line) and running it against vitest 4 via a **peer mismatch** — it declares `vitest ^3.2.0`; bun warns but installs; the adapter only uses core test APIs that didn't break across 3→4. Verified green: 1167 unit + 51 e2e tests pass. The combo is *officially unsupported* (low risk within 4.1.x given what `@effect/vitest` uses; the suite is the tripwire) until livestore→effect v4 lets us adopt `@effect/vitest@4.x` cleanly.
+We bypassed this by keeping **`@effect/vitest@0.29.0`** (the effect-v3 line) and running it against vitest 4 via a **peer mismatch** — it declares `vitest ^3.2.0`; bun warns but installs; the adapter only uses core test APIs that didn't break across 3→4. Verified green: 1167 unit + 51 e2e tests pass. The combo is _officially unsupported_ (low risk within 4.1.x given what `@effect/vitest` uses; the suite is the tripwire) until livestore→effect v4 lets us adopt `@effect/vitest@4.x` cleanly.
 
 ### Next steps
 
