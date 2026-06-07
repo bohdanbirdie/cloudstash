@@ -1,7 +1,5 @@
 ---
-
 kanban-plugin: board
-
 ---
 
 ## Todo
@@ -24,7 +22,6 @@ kanban-plugin: board
 - [ ] [[todos/multi-chat-architecture|Multi-chat architecture (separate DOs + central livestore)]]
 - [ ] Extend Pro plan with twitter historical sync of bookmarks
 
-
 ## In Progress
 
 - [ ] [[todos/chrome-extension|Develop Chrome extension (Livestore-as-client)]] — built + working locally (popup save + recent + avatar/favicons, sync via paired API key), now FREE (no paywall). Remaining: publishing only — [[chrome-extension-publishing|store listing, screenshots, privacy form]].
@@ -32,7 +29,6 @@ kanban-plugin: board
 - [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.
 - [ ] [[todos/consolidated-paywall|Consolidated paywall / upgrade system (app-wide)]]
 - [ ] [[todos/link-notes|Notes on links (user-authored, agent-aware)]]
-
 
 ## Done
 
@@ -102,11 +98,10 @@ kanban-plugin: board
 - [x] [[todos/done/monorepo-conversion|Convert project to monorepo]]
 - [x] [[todos/done/raycast-ingestion|Add Raycast ingestion path]]
 
-
-
-
 %% kanban:settings
+
 ```
 {"kanban-plugin":"board"}
 ```
+
 %%
