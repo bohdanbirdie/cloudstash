@@ -69,7 +69,9 @@ function BrandedLogo({ className }: { className?: string }) {
         </linearGradient>
       </defs>
       <g clipPath="url(#sidebar-sq)">
-        <image href={ditherUrl} x={8} y={8} width={104} height={104} />
+        {ditherUrl && (
+          <image href={ditherUrl} x={8} y={8} width={104} height={104} />
+        )}
         <rect x={8} y={8} width={104} height={104} fill="url(#sidebar-hl)" />
         <rect x={8} y={8} width={104} height={104} fill="url(#sidebar-sh)" />
       </g>
