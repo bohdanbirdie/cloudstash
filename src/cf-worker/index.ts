@@ -5,6 +5,8 @@ import { routeAgentRequest } from "agents";
 import { Effect, Match } from "effect";
 import { Hono } from "hono";
 
+import { PERMISSIONS } from "@/lib/permissions";
+
 import {
   handleGetOrgSettings,
   handleListWorkspaces,
@@ -54,7 +56,7 @@ import {
 import type { LinkQueueMessage } from "./link-processor/types";
 import { logSync } from "./logger";
 import { metadataRequestToResponse } from "./metadata/service";
-import { requireAdmin } from "./middleware/require-admin";
+import { requirePermission } from "./middleware/authorize";
 import { handleGetMe, handleGetOrg } from "./org";
 import { handleQueueBatch } from "./queue-handler";
 import { runHandler } from "./runtime";
@@ -112,35 +114,53 @@ app.get("/api/org/:id", (c) =>
   handleGetOrg(c.req.raw, OrgId.make(c.req.param("id")), c.env)
 );
 
-app.get("/api/org/:id/settings", requireAdmin, (c) =>
-  handleGetOrgSettings(c.req.raw, OrgId.make(c.req.param("id")), c.env)
+app.get(
+  "/api/org/:id/settings",
+  requirePermission(PERMISSIONS.viewDashboard),
+  (c) => handleGetOrgSettings(c.req.raw, OrgId.make(c.req.param("id")), c.env)
 );
-app.put("/api/org/:id/tier", requireAdmin, (c) =>
-  handleSetTier(c.req.raw, OrgId.make(c.req.param("id")), c.env)
+app.put(
+  "/api/org/:id/tier",
+  requirePermission(PERMISSIONS.manageBilling),
+  (c) => handleSetTier(c.req.raw, OrgId.make(c.req.param("id")), c.env)
 );
-app.put("/api/org/:id/overrides", requireAdmin, (c) =>
-  handleSetOverride(c.req.raw, OrgId.make(c.req.param("id")), c.env)
+app.put(
+  "/api/org/:id/overrides",
+  requirePermission(PERMISSIONS.manageBilling),
+  (c) => handleSetOverride(c.req.raw, OrgId.make(c.req.param("id")), c.env)
 );
-app.get("/api/admin/workspaces", requireAdmin, (c) =>
-  handleListWorkspaces(c.req.raw, c.env)
+app.get(
+  "/api/admin/workspaces",
+  requirePermission(PERMISSIONS.viewDashboard),
+  (c) => handleListWorkspaces(c.req.raw, c.env)
 );
-app.post("/api/admin/users/:id/approve", requireAdmin, (c) =>
-  handleApproveUser(c.req.raw, UserId.make(c.req.param("id")), c.env)
+app.post(
+  "/api/admin/users/:id/approve",
+  requirePermission(PERMISSIONS.manageMembers),
+  (c) => handleApproveUser(UserId.make(c.req.param("id")), c.env)
 );
-app.get("/api/admin/usage", requireAdmin, (c) =>
+app.get("/api/admin/usage", requirePermission(PERMISSIONS.viewDashboard), (c) =>
   handleGetUsage(c.req.raw, c.env)
 );
-app.get("/api/admin/activity", requireAdmin, (c) =>
-  handleGetActivityStats(c.req.raw, c.env)
+app.get(
+  "/api/admin/activity",
+  requirePermission(PERMISSIONS.viewDashboard),
+  (c) => handleGetActivityStats(c.req.raw, c.env)
 );
-app.get("/api/admin/signup-gate", requireAdmin, (c) =>
-  handleGetSignupGate(c.req.raw, c.env)
+app.get(
+  "/api/admin/signup-gate",
+  requirePermission(PERMISSIONS.viewDashboard),
+  (c) => handleGetSignupGate(c.req.raw, c.env)
 );
-app.put("/api/admin/signup-gate", requireAdmin, (c) =>
-  handleSetSignupGate(c.req.raw, c.env)
+app.put(
+  "/api/admin/signup-gate",
+  requirePermission(PERMISSIONS.manageSystem),
+  (c) => handleSetSignupGate(c.req.raw, c.env)
 );
-app.post("/api/weekly-digest/trigger", requireAdmin, (c) =>
-  handleTriggerDigest(c.req.raw, c.env)
+app.post(
+  "/api/weekly-digest/trigger",
+  requirePermission(PERMISSIONS.manageSystem),
+  (c) => handleTriggerDigest(c.req.raw, c.env)
 );
 app.on(["GET", "POST"], "/api/auth/*", (c) =>
   runHandler(

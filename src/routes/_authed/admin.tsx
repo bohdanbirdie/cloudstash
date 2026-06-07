@@ -3,6 +3,7 @@ import { lazy, Suspense } from "react";
 
 import { TopBar } from "@/components/top-bar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
 const AdminSection = lazy(() =>
   import("@/components/admin/admin-section").then((m) => ({
@@ -12,7 +13,8 @@ const AdminSection = lazy(() =>
 
 export const Route = createFileRoute("/_authed/admin")({
   beforeLoad: ({ context }) => {
-    if (context.auth.role !== "admin") throw redirect({ to: "/inbox" });
+    if (!hasPermission(context.auth.role, PERMISSIONS.viewDashboard))
+      throw redirect({ to: "/inbox" });
   },
   component: AdminPage,
 });

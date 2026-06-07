@@ -10,6 +10,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
 import { InvitesTab } from "./invites-tab";
 import { OverviewTab } from "./overview-tab";
@@ -26,11 +27,13 @@ import { WorkspacesTab } from "./workspaces-tab/workspaces-tab";
 export function AdminSection() {
   const [activeTab, setActiveTab] = useState<string | null>("overview");
   const [usagePeriod, setUsagePeriod] = useState<UsagePeriod>("24h");
-  const { orgId } = useAuth();
+  const { orgId, role, userId } = useAuth();
+  const canManageMembers = hasPermission(role, PERMISSIONS.manageMembers);
+  const canManageBilling = hasPermission(role, PERMISSIONS.manageBilling);
 
   const activity = useActivityStats(true);
-  const users = useUsersAdmin(true);
-  const invites = useInvitesAdmin(true);
+  const users = useUsersAdmin(canManageMembers);
+  const invites = useInvitesAdmin(canManageMembers);
   const workspaces = useWorkspacesAdmin(true);
   const usage = useUsageAdmin(usagePeriod, users.users, true);
 
@@ -45,24 +48,28 @@ export function AdminSection() {
           <LayoutDashboardIcon className="h-3.5 w-3.5" />
           Overview
         </TabsTrigger>
-        <TabsTrigger value="users">
-          <UsersIcon className="h-3.5 w-3.5" />
-          Users
-          {users.pendingCount > 0 && (
-            <Badge variant="outline" className="ml-1 h-4 px-1 text-[10px]">
-              {users.pendingCount}
-            </Badge>
-          )}
-        </TabsTrigger>
-        <TabsTrigger value="invites">
-          <TicketIcon className="h-3.5 w-3.5" />
-          Invites
-          {invites.availableCount > 0 && (
-            <Badge variant="outline" className="ml-1 h-4 px-1 text-[10px]">
-              {invites.availableCount}
-            </Badge>
-          )}
-        </TabsTrigger>
+        {canManageMembers && (
+          <>
+            <TabsTrigger value="users">
+              <UsersIcon className="h-3.5 w-3.5" />
+              Users
+              {users.pendingCount > 0 && (
+                <Badge variant="outline" className="ml-1 h-4 px-1 text-[10px]">
+                  {users.pendingCount}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="invites">
+              <TicketIcon className="h-3.5 w-3.5" />
+              Invites
+              {invites.availableCount > 0 && (
+                <Badge variant="outline" className="ml-1 h-4 px-1 text-[10px]">
+                  {invites.availableCount}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </>
+        )}
         <TabsTrigger value="workspaces">
           <BuildingIcon className="h-3.5 w-3.5" />
           Workspaces
@@ -80,27 +87,32 @@ export function AdminSection() {
         onRetry={activity.refresh}
       />
 
-      <UsersTab
-        users={users.users}
-        isLoading={users.isLoading}
-        error={users.error}
-        pendingCount={users.pendingCount}
-        activeCount={users.activeCount}
-        adminCount={users.adminCount}
-      />
+      {canManageMembers && (
+        <>
+          <UsersTab
+            users={users.users}
+            isLoading={users.isLoading}
+            error={users.error}
+            pendingCount={users.pendingCount}
+            activeCount={users.activeCount}
+            adminCount={users.adminCount}
+            currentUserId={userId}
+          />
 
-      <InvitesTab
-        invites={invites.invites}
-        isLoading={invites.isLoading}
-        error={invites.error}
-        isCreating={invites.isCreating}
-        actionLoading={invites.actionLoading}
-        newInviteCode={invites.newInviteCode}
-        copiedCode={invites.copiedCode}
-        onCreate={invites.handleCreate}
-        onDelete={invites.handleDelete}
-        onCopyCode={invites.handleCopyCode}
-      />
+          <InvitesTab
+            invites={invites.invites}
+            isLoading={invites.isLoading}
+            error={invites.error}
+            isCreating={invites.isCreating}
+            actionLoading={invites.actionLoading}
+            newInviteCode={invites.newInviteCode}
+            copiedCode={invites.copiedCode}
+            onCreate={invites.handleCreate}
+            onDelete={invites.handleDelete}
+            onCopyCode={invites.handleCopyCode}
+          />
+        </>
+      )}
 
       <WorkspacesTab
         workspaces={workspaces.workspaces}
@@ -110,6 +122,7 @@ export function AdminSection() {
         tierCounts={workspaces.tierCounts}
         overrideCount={workspaces.overrideCount}
         currentOrgId={orgId}
+        canManage={canManageBilling}
         onSetTier={workspaces.setTier}
         onSetOverride={workspaces.setOverride}
         onCycleBooleanOverride={workspaces.cycleBooleanOverride}

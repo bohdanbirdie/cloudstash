@@ -1,10 +1,4 @@
-import {
-  CheckIcon,
-  XIcon,
-  BanIcon,
-  ShieldIcon,
-  ShieldOffIcon,
-} from "lucide-react";
+import { CheckIcon, XIcon, BanIcon, ChevronDownIcon } from "lucide-react";
 import { useState } from "react";
 import { mutate } from "swr";
 import useSWRMutation from "swr/mutation";
@@ -23,17 +17,60 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
 import { authClient } from "@/lib/auth";
+import { MICRO_LABEL } from "@/lib/typography";
+import { cn } from "@/lib/utils";
 
 import { getUserStatus } from "./use-users-admin";
+import { IS_DEV, redactEmail } from "./workspaces-tab/redact";
+
+const ASSIGNABLE_ROLES = ["user", "viewer", "admin"] as const;
+type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
+
+const ROLE_LABEL: Record<AssignableRole, string> = {
+  user: "User",
+  viewer: "Viewer",
+  admin: "Admin",
+};
+
+const ROLE_DOT: Record<AssignableRole, string> = {
+  user: "bg-muted-foreground/40",
+  viewer: "bg-primary/50",
+  admin: "bg-primary",
+};
+
+const ROLE_RANK: Record<AssignableRole, number> = {
+  user: 0,
+  viewer: 1,
+  admin: 2,
+};
+
+function isDemotion(from: AssignableRole, to: AssignableRole): boolean {
+  return ROLE_RANK[to] < ROLE_RANK[from];
+}
+
+const ROLE_DESCRIPTION: Record<AssignableRole, string> = {
+  user: "a standard account with no admin access",
+  viewer: "read-only access to the admin dashboard",
+  admin: "full admin access, including managing roles",
+};
 
 interface UserRowProps {
   user: AdminUser;
   adminCount: number;
+  isSelf: boolean;
 }
 
 async function approveUser(_: string, { arg }: { arg: { userId: string } }) {
@@ -77,7 +114,7 @@ async function unbanUser(_: string, { arg }: { arg: { userId: string } }) {
 
 async function setUserRole(
   _: string,
-  { arg }: { arg: { userId: string; role: "admin" | "user" } }
+  { arg }: { arg: { userId: string; role: AssignableRole } }
 ) {
   const { error } = await authClient.admin.setRole({
     role: arg.role,
@@ -89,10 +126,14 @@ async function setUserRole(
   void mutate("admin-users");
 }
 
-export function UserRow({ user, adminCount }: UserRowProps) {
-  const [confirmAction, setConfirmAction] = useState<
-    "make-admin" | "remove-admin" | null
-  >(null);
+function toAssignableRole(role: string | null | undefined): AssignableRole {
+  return ASSIGNABLE_ROLES.includes(role as AssignableRole)
+    ? (role as AssignableRole)
+    : "user";
+}
+
+export function UserRow({ user, adminCount, isSelf }: UserRowProps) {
+  const [pendingRole, setPendingRole] = useState<AssignableRole | null>(null);
 
   const approve = useSWRMutation("approve-user", approveUser);
   const reject = useSWRMutation("reject-user", rejectUser);
@@ -101,6 +142,16 @@ export function UserRow({ user, adminCount }: UserRowProps) {
   const setRole = useSWRMutation("set-user-role", setUserRole);
 
   const status = getUserStatus(user);
+  const currentRole = toAssignableRole(user.role);
+  // Block demoting the last admin so the workspace can't get locked out.
+  const isSoleAdmin = currentRole === "admin" && adminCount <= 1;
+  const isSelfAdmin = isSelf && currentRole === "admin";
+  const lockAdmin = isSoleAdmin || isSelfAdmin;
+  const lockReason = isSelfAdmin
+    ? "You can't change your own role."
+    : isSoleAdmin
+      ? "Keep at least one admin."
+      : null;
   const isLoading =
     approve.isMutating ||
     reject.isMutating ||
@@ -108,22 +159,37 @@ export function UserRow({ user, adminCount }: UserRowProps) {
     unban.isMutating ||
     setRole.isMutating;
 
-  const handleConfirmAction = () => {
-    if (confirmAction === "make-admin") {
-      void setRole.trigger({ role: "admin", userId: user.id });
-    } else if (confirmAction === "remove-admin") {
-      void setRole.trigger({ role: "user", userId: user.id });
+  const handleSelectRole = (next: AssignableRole) => {
+    if (next !== currentRole) setPendingRole(next);
+  };
+
+  const handleConfirmRole = () => {
+    if (pendingRole) {
+      void setRole.trigger({ role: pendingRole, userId: user.id });
     }
-    setConfirmAction(null);
+    setPendingRole(null);
   };
 
   return (
     <>
-      <div className="flex items-center justify-between p-3 bg-muted/50 gap-3">
+      <div
+        className={cn(
+          "flex items-center justify-between gap-3 rounded-md border p-3",
+          isSelf
+            ? "border-primary/30 bg-primary/[0.03]"
+            : "border-border/60 bg-background"
+        )}
+      >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-xs truncate">{user.name}</span>
-            {user.role === "admin" && <Badge variant="secondary">Admin</Badge>}
+            <span className="min-w-0 truncate font-medium text-xs">
+              {user.name}
+            </span>
+            {isSelf && (
+              <span className={cn(MICRO_LABEL, "shrink-0 text-primary/80")}>
+                you
+              </span>
+            )}
             {status === "pending" && (
               <Badge
                 variant="outline"
@@ -141,7 +207,26 @@ export function UserRow({ user, adminCount }: UserRowProps) {
               </Badge>
             )}
           </div>
-          <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+          <div className="text-xs text-muted-foreground truncate">
+            {IS_DEV ? (
+              user.email
+            ) : (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      aria-label="Reveal email"
+                      className="font-mono text-xs text-muted-foreground hover:text-foreground rounded-sm cursor-help focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/60"
+                    >
+                      {redactEmail(user.email)}
+                    </button>
+                  }
+                />
+                <TooltipContent>{user.email}</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
         </div>
 
         <div className="flex gap-1 shrink-0">
@@ -179,56 +264,82 @@ export function UserRow({ user, adminCount }: UserRowProps) {
               </Tooltip>
             </>
           )}
-          {status === "active" && user.role !== "admin" && (
+          {status === "active" && (
             <>
-              <Tooltip>
-                <TooltipTrigger
+              <DropdownMenu>
+                <DropdownMenuTrigger
                   render={
                     <Button
-                      size="icon-sm"
+                      size="sm"
                       variant="outline"
-                      onClick={() => setConfirmAction("make-admin")}
+                      className="bg-background"
                       disabled={isLoading}
                     >
-                      <ShieldIcon className="h-3.5 w-3.5" />
+                      <span
+                        className={cn(
+                          "size-1.5 rounded-full",
+                          ROLE_DOT[currentRole]
+                        )}
+                      />
+                      {ROLE_LABEL[currentRole]}
+                      <ChevronDownIcon className="opacity-60" />
                     </Button>
                   }
                 />
-                <TooltipContent>Make admin</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      size="icon-sm"
-                      variant="outline"
-                      onClick={() => ban.trigger({ userId: user.id })}
-                      disabled={isLoading}
-                    >
-                      <BanIcon className="h-3.5 w-3.5 text-red-600" />
-                    </Button>
-                  }
-                />
-                <TooltipContent>Ban user</TooltipContent>
-              </Tooltip>
-            </>
-          )}
-          {status === "active" && user.role === "admin" && adminCount > 1 && (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="icon-sm"
-                    variant="outline"
-                    onClick={() => setConfirmAction("remove-admin")}
-                    disabled={isLoading}
+                <DropdownMenuContent
+                  align="end"
+                  className={lockReason ? "min-w-52" : undefined}
+                >
+                  <DropdownMenuRadioGroup
+                    value={currentRole}
+                    onValueChange={(value) =>
+                      handleSelectRole(value as AssignableRole)
+                    }
                   >
-                    <ShieldOffIcon className="h-3.5 w-3.5 text-red-600" />
-                  </Button>
-                }
-              />
-              <TooltipContent>Remove admin</TooltipContent>
-            </Tooltip>
+                    {ASSIGNABLE_ROLES.map((role) => (
+                      <DropdownMenuRadioItem
+                        key={role}
+                        value={role}
+                        disabled={lockAdmin && role !== "admin"}
+                      >
+                        <span
+                          className={cn(
+                            "size-1.5 rounded-full",
+                            ROLE_DOT[role]
+                          )}
+                        />
+                        {ROLE_LABEL[role]}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                  {lockReason && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <p className="px-2 py-1.5 text-xs text-muted-foreground/70">
+                        {lockReason}
+                      </p>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {currentRole !== "admin" && (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        size="icon-sm"
+                        variant="outline"
+                        onClick={() => ban.trigger({ userId: user.id })}
+                        disabled={isLoading}
+                      >
+                        <BanIcon className="h-3.5 w-3.5 text-red-600" />
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>Ban user</TooltipContent>
+                </Tooltip>
+              )}
+            </>
           )}
           {status === "banned" && (
             <Tooltip>
@@ -251,29 +362,31 @@ export function UserRow({ user, adminCount }: UserRowProps) {
       </div>
 
       <AlertDialog
-        open={!!confirmAction}
-        onOpenChange={(open) => !open && setConfirmAction(null)}
+        open={!!pendingRole}
+        onOpenChange={(open) => !open && setPendingRole(null)}
       >
         <AlertDialogContent size="sm">
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {confirmAction === "make-admin" ? "Make admin?" : "Remove admin?"}
+              Change role to {pendingRole ? ROLE_LABEL[pendingRole] : ""}?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmAction === "make-admin"
-                ? `This will give ${user.name} full admin privileges.`
-                : `This will remove admin privileges from ${user.name}.`}
+              {pendingRole
+                ? `${user.name} will have ${ROLE_DESCRIPTION[pendingRole]}.`
+                : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               variant={
-                confirmAction === "remove-admin" ? "destructive" : "default"
+                pendingRole && isDemotion(currentRole, pendingRole)
+                  ? "destructive"
+                  : "default"
               }
-              onClick={handleConfirmAction}
+              onClick={handleConfirmRole}
             >
-              {confirmAction === "make-admin" ? "Make admin" : "Remove admin"}
+              Change role
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -6,20 +6,12 @@ import { sendApprovalEmail } from "../email/send-approval-email";
 import type { Env } from "../shared";
 
 export const handleApproveUser = async (
-  request: Request,
   userId: UserId,
   env: Env
 ): Promise<Response> =>
   Effect.runPromise(
     Effect.gen(function* () {
       const auth = yield* AuthClient;
-
-      const session = yield* Effect.promise(() =>
-        auth.api.getSession({ headers: request.headers })
-      );
-      if (!session || (session.user as { role?: string }).role !== "admin") {
-        return Response.json({ error: "Unauthorized" }, { status: 401 });
-      }
 
       const user = yield* auth.findUser(userId);
 

@@ -5,6 +5,8 @@ import { admin, organization } from "better-auth/plugins";
 import { genericOAuth } from "better-auth/plugins/generic-oauth";
 import { Cause, Effect, Schema } from "effect";
 
+import { ac, roles } from "@/lib/permissions";
+
 import { prepareDeletion } from "../account-deletion/prepare";
 import type { Database } from "../db";
 import { UserId } from "../db/branded";
@@ -210,6 +212,9 @@ export const createAuth = (env: Env, db: Database) => {
         },
       }),
       admin({
+        ac,
+        roles,
+        adminRoles: ["admin"],
         defaultRole: "user",
       }),
       oauthProvidersPlugin(env),

@@ -38,6 +38,7 @@ interface WorkspacesTabProps {
   tierCounts: Record<PlanTier, number>;
   overrideCount: number;
   currentOrgId: string | null;
+  canManage: boolean;
   onSetTier: (orgId: string, tier: PlanTier) => void;
   onSetOverride: <K extends keyof TierCapabilities>(
     orgId: string,
@@ -59,6 +60,7 @@ export function WorkspacesTab({
   tierCounts,
   overrideCount,
   currentOrgId,
+  canManage,
   onSetTier,
   onSetOverride,
   onCycleBooleanOverride,
@@ -103,6 +105,7 @@ export function WorkspacesTab({
                 workspace={workspace}
                 isCurrent={workspace.id === currentOrgId}
                 isMutating={isMutating}
+                canManage={canManage}
                 onSetTier={onSetTier}
                 onSetOverride={onSetOverride}
                 onCycleBooleanOverride={onCycleBooleanOverride}

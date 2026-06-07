@@ -31,6 +31,7 @@ export function WorkspaceCard({
   workspace,
   isCurrent,
   isMutating,
+  canManage,
   onSetTier,
   onSetOverride,
   onCycleBooleanOverride,
@@ -38,6 +39,7 @@ export function WorkspaceCard({
   workspace: Workspace;
   isCurrent: boolean;
   isMutating: boolean;
+  canManage: boolean;
   onSetTier: (orgId: string, tier: PlanTier) => void;
   onSetOverride: <K extends keyof TierCapabilities>(
     orgId: string,
@@ -142,7 +144,7 @@ export function WorkspaceCard({
         <div className="flex items-center gap-1.5">
           <TierPicker
             current={workspace.tier}
-            disabled={isMutating}
+            disabled={isMutating || !canManage}
             onChange={(tier) => onSetTier(workspace.id, tier)}
           />
           {workspace.tierSource === "admin" && (
@@ -156,7 +158,7 @@ export function WorkspaceCard({
                       "text-muted-foreground/70 hover:text-foreground rounded-sm cursor-help focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/60"
                     )}
                   >
-                    admin
+                    manual
                   </button>
                 }
               />
@@ -176,7 +178,7 @@ export function WorkspaceCard({
                 tierDefaults[cap.key]
               )}
               override={workspace.overrides[cap.key]}
-              disabled={isMutating}
+              disabled={isMutating || !canManage}
               label={cap.label}
               short={cap.short}
               onClick={() =>
@@ -194,7 +196,7 @@ export function WorkspaceCard({
           <BudgetInput
             override={budgetOverride}
             tierDefault={tierDefaults.monthlyChatBudgetUsd}
-            disabled={isMutating}
+            disabled={isMutating || !canManage}
             onCommit={(value) =>
               onSetOverride(workspace.id, "monthlyChatBudgetUsd", value)
             }
