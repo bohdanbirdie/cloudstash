@@ -24,6 +24,7 @@ kanban-plugin: board
 
 ## In Progress
 
+- [ ] [[todos/chat-approval-needsapproval|Migrate chat approval to server-side needsApproval (drop deprecated toolsRequiringConfirmation)]]
 - [ ] [[todos/chrome-extension|Develop Chrome extension (Livestore-as-client)]] — built + working locally (popup save + recent + avatar/favicons, sync via paired API key), now FREE (no paywall). Remaining: publishing only — [[chrome-extension-publishing|store listing, screenshots, privacy form]].
 - [ ] ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
 - [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.
