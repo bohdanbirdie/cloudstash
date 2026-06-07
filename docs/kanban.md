@@ -1,5 +1,7 @@
 ---
+
 kanban-plugin: board
+
 ---
 
 ## Todo
@@ -18,24 +20,26 @@ kanban-plugin: board
 - [ ] Use Cloudflare Email instead of Resend
 - [ ] Replace OpenRouter with Cloudflare AI Gateway
 - [ ] [[todos/agent-context-chips-entry-points|Agent context chips + entry points]]
+- [ ] Shrink Worker output further — current upload is 2421 KiB gzipped (deploy 2026-05-13), only 633 KiB headroom under the 3 MiB free-tier cap. Two levers worth evaluating before the budget gets tight again: (a) split into separate Workers (web/assets vs. API/DOs) joined by a service binding, so each subsystem gets its own 3 MiB; (b) trim heavy chunks in place — defuddle/linkedom/htmlparser2 (HTML readability in LinkProcessorDO), @ai-sdk/react + livestore client on the authed entry, Effect tracer surface. Decide which lever first based on what's growing.
 - [ ] [[todos/multi-chat-architecture|Multi-chat architecture (separate DOs + central livestore)]]
 - [ ] Extend Pro plan with twitter historical sync of bookmarks
-- [ ] [[todos/link-notes|Notes on links (user-authored, agent-aware)]]
-- [ ] [[todos/consolidated-paywall|Consolidated paywall / upgrade system (app-wide)]]
-- [ ] Bug: accepting a suggested tag stutters the app — committing the tag re-renders the header tag strip, which looks like a heavy operation. Profile the accept path; likely the tag-strip recompute (counts/ordering across all links) runs synchronously on the same commit. Decouple or memoize so accepting a tag doesn't block the frame.
+
 
 ## In Progress
 
 - [ ] [[todos/chrome-extension|Develop Chrome extension (Livestore-as-client)]] — built + working locally (popup save + recent + avatar/favicons, sync via paired API key), now FREE (no paywall). Remaining: publishing only — [[chrome-extension-publishing|store listing, screenshots, privacy form]].
 - [ ] ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
 - [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.
-- [ ] Shrink Worker output further — current upload is 2421 KiB gzipped (deploy 2026-05-13), only 633 KiB headroom under the 3 MiB free-tier cap. Two levers worth evaluating before the budget gets tight again: (a) split into separate Workers (web/assets vs. API/DOs) joined by a service binding, so each subsystem gets its own 3 MiB; (b) trim heavy chunks in place — defuddle/linkedom/htmlparser2 (HTML readability in LinkProcessorDO), @ai-sdk/react + livestore client on the authed entry, Effect tracer surface. Decide which lever first based on what's growing.
+- [ ] [[todos/consolidated-paywall|Consolidated paywall / upgrade system (app-wide)]]
+- [ ] [[todos/link-notes|Notes on links (user-authored, agent-aware)]]
+
 
 ## Done
 
 - [x] Add real Chrome Web Store install link — published listing is now live at `https://chromewebstore.google.com/detail/cloudstash/bdommhffamndfanbpnikgmpjncpcobia`. Promoted `CHROME_WEB_STORE_URL` to `src/lib/extension-connect.ts` (built from `PUBLISHED_EXTENSION_ID` + slug), consumed by `extension-card.tsx` and the `not_installed` state on `/connect/extension`, which now shows a primary "Install from the Chrome Web Store" CTA above the retry button.
 - [x] Env-var cleanup in `src/cf-worker/shared.ts` — `EMAIL_FROM` moved into `wrangler.jsonc` `vars` so `cf-typegen` emits it on `Cloudflare.Env`; `PUBLIC_URL` kept as a custom-`Env` optional (both consumers — Telegram webhook URL and Stripe checkout return URL — have request-origin fallbacks, and the value isn't pinned in prod today). End state: `Env` = `LINK_QUEUE` + 3 optionals (`ENABLE_TEST_AUTH`, `GOOGLE_BASE_URL`, `PUBLIC_URL`).
 - [ ] [[todos/weekly-digest-backend|Weekly Digest backend]]
+- [ ] Bug: accepting a suggested tag stutters the app — committing the tag re-renders the header tag strip, which looks like a heavy operation. Profile the accept path; likely the tag-strip recompute (counts/ordering across all links) runs synchronously on the same commit. Decouple or memoize so accepting a tag doesn't block the frame.
 - [x] [[todos/x-content-sub-processing|X (twitter) content enrichment — Pro feature]] — Pro-only enriched AI summaries for x.com bookmarks, hard-capped at 100/org/mo, with image fallback so quoting tweets render a card image
 - [ ] Review and develop Twitter integrations (https://x.com/mynameistito/status/2046213790623301955)
 - [ ] [[todos/mobile-view-review|Mobile view review + fixes]]
@@ -98,10 +102,11 @@ kanban-plugin: board
 - [x] [[todos/done/monorepo-conversion|Convert project to monorepo]]
 - [x] [[todos/done/raycast-ingestion|Add Raycast ingestion path]]
 
-%% kanban:settings
 
+
+
+%% kanban:settings
 ```
 {"kanban-plugin":"board"}
 ```
-
 %%
