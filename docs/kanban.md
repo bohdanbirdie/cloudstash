@@ -8,6 +8,7 @@ kanban-plugin: board
 - [ ] [[todos/admin-server-ahead-alert|Admin alert for stuck LinkProcessorDO sync (Telegram via Tail Worker)]]
 - [ ] [[architecture/livestore-do-rpc-stream-stall|Upstream livestore PR — DO-RPC stream-framing fix (drain-then-decode + return runStream)]]
 - [ ] [[todos/e2e-do-sync-testing|E2E testing for DO-to-DO sync]]
+- [ ] [[todos/livestore-0.4.0-upgrade|Upgrade LiveStore snapshot → v0.4.0 stable]] — reviewed; low-risk (we already run all v0.4.0 breaking changes, effect doesn't move, patch verified to still apply). Blocked only by the 7-day cooldown — install on/after 2026-06-09.
 - [ ] [[todos/livestore-testing-ui|Livestore UI feature tests (RTL)]]
 - [ ] [[todos/progress-tracker-sqlite-review|Review stateful SQLite ProgressTracker]]
 - [ ] [[todos/managed-effect-runtime-do|Explore ManagedRuntime for LinkProcessorDO]]
@@ -24,6 +25,7 @@ kanban-plugin: board
 
 ## In Progress
 
+- [ ] [[todos/chat-approval-needsapproval|Migrate chat approval to server-side needsApproval (drop deprecated toolsRequiringConfirmation)]]
 - [ ] [[todos/chrome-extension|Develop Chrome extension (Livestore-as-client)]] — built + working locally (popup save + recent + avatar/favicons, sync via paired API key), now FREE (no paywall). Remaining: publishing only — [[chrome-extension-publishing|store listing, screenshots, privacy form]].
 - [ ] ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
 - [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.

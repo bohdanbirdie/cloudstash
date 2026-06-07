@@ -15,31 +15,31 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
-    "@base-ui/react": "1.4.1",
+    "@base-ui/react": "1.5.0",
     "@fontsource-variable/jetbrains-mono": "5.2.8",
     "@livestore/adapter-web": "0.0.0-snapshot-6e9abadf4bdc91a2f7deea3e47be8ffd75d4c27c",
     "@livestore/livestore": "0.0.0-snapshot-6e9abadf4bdc91a2f7deea3e47be8ffd75d4c27c",
     "@livestore/peer-deps": "0.0.0-snapshot-6e9abadf4bdc91a2f7deea3e47be8ffd75d4c27c",
     "@livestore/react": "0.0.0-snapshot-6e9abadf4bdc91a2f7deea3e47be8ffd75d4c27c",
     "@livestore/sync-cf": "0.0.0-snapshot-6e9abadf4bdc91a2f7deea3e47be8ffd75d4c27c",
-    "@tailwindcss/vite": "4.2.2",
+    "@tailwindcss/vite": "4.3.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "effect": "3.21.2",
-    "lucide-react": "0.577.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "shadcn": "4.1.0",
-    "tailwind-merge": "3.5.0",
-    "tailwindcss": "^4.2.2",
+    "lucide-react": "1.17.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "shadcn": "4.9.0",
+    "tailwind-merge": "3.6.0",
+    "tailwindcss": "4.3.0",
     "tw-animate-css": "1.4.0"
   },
   "devDependencies": {
-    "@types/chrome": "^0.0.287",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
-    "@wxt-dev/module-react": "^1.1.3",
-    "typescript": "^5.7.0",
-    "wxt": "^0.20.0"
+    "@types/chrome": "0.1.42",
+    "@types/react": "19.2.15",
+    "@types/react-dom": "19.2.3",
+    "@wxt-dev/module-react": "1.2.2",
+    "typescript": "6.0.3",
+    "wxt": "0.20.26"
   }
 }
