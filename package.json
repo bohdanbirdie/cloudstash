@@ -176,7 +176,7 @@
         "description": "Random string (32+ chars). Generate with: openssl rand -hex 32"
       },
       "BETTER_AUTH_URL": {
-        "description": "Full URL of your deployed Worker (e.g. https://cloudstash.your-subdomain.workers.dev)"
+        "description": "Public site origin (set as a plain var in wrangler.jsonc, e.g. https://cloudstash.dev). Local dev overrides via .dev.vars."
       },
       "RESEND_API_KEY": {
         "description": "API key from [Resend](https://resend.com) for approval emails"

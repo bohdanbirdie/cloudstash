@@ -2,8 +2,6 @@
 
 Save and organize links with AI-powered summaries. Full-stack TypeScript on Cloudflare Workers.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/bohdanbirdie/cloudstash)
-
 ## Features
 
 - **Link saving** with automatic metadata extraction (title, description, favicon)
@@ -24,21 +22,6 @@ Save and organize links with AI-powered summaries. Full-stack TypeScript on Clou
 - **Auth:** Better Auth + Google OAuth
 
 ## Quick Start
-
-### One-Click Deploy
-
-Click the **Deploy to Cloudflare** button above. It will:
-
-1. Fork the repo to your GitHub account
-2. Provision all Cloudflare resources (D1, KV, Durable Objects)
-3. Prompt you for required secrets
-4. Deploy and set up CI/CD
-
-After deploying, you'll need to:
-
-- Set `BETTER_AUTH_URL` to your Worker URL (e.g. `https://cloudstash.your-subdomain.workers.dev`)
-- Configure Google OAuth redirect URI (see [Google OAuth Setup](#google-oauth-setup))
-- Bootstrap the first admin (see [First Admin Setup](#first-admin-setup))
 
 ### Local Development
 
