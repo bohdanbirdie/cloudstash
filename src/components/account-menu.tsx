@@ -41,6 +41,7 @@ import { useFilteredLinks } from "@/hooks/use-filtered-links";
 import { useNarrowViewport } from "@/hooks/use-narrow-viewport";
 import { usePageStaticData } from "@/hooks/use-page-static-data";
 import { logout, useAuth } from "@/lib/auth";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import type { LinkStatus } from "@/livestore/queries/filtered-links";
 import { useSettingsDialog } from "@/stores/settings-dialog-store";
 
@@ -73,6 +74,7 @@ export function AccountMenu() {
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const isAdmin = auth.role === "admin";
+  const canViewAdmin = hasPermission(auth.role, PERMISSIONS.viewDashboard);
   const initial = getInitial(auth.name, auth.email);
   const firstName = getFirstName(auth.name);
 
@@ -116,7 +118,7 @@ export function AccountMenu() {
         },
       });
     }
-    if (isAdmin) {
+    if (canViewAdmin) {
       r.push({ kind: "separator" });
       r.push({
         kind: "item",
@@ -126,14 +128,16 @@ export function AccountMenu() {
           onSelect: () => navigate({ to: "/admin" }),
         },
       });
-      r.push({
-        kind: "item",
-        item: {
-          icon: PaletteIcon,
-          label: "Brand",
-          onSelect: () => navigate({ to: "/brand" }),
-        },
-      });
+      if (isAdmin) {
+        r.push({
+          kind: "item",
+          item: {
+            icon: PaletteIcon,
+            label: "Brand",
+            onSelect: () => navigate({ to: "/brand" }),
+          },
+        });
+      }
     }
     r.push({ kind: "separator" });
     r.push({
@@ -145,7 +149,7 @@ export function AccountMenu() {
       },
     });
     return r;
-  }, [pageStatus, pageTitle, isAdmin, navigate]);
+  }, [pageStatus, pageTitle, canViewAdmin, isAdmin, navigate]);
 
   return (
     <>

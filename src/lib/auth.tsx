@@ -10,6 +10,7 @@ import { createAuthClient } from "better-auth/react";
 import { useCallback } from "react";
 
 import type { Auth as ServerAuth } from "@/cf-worker/auth";
+import { ac, roles } from "@/lib/permissions";
 
 export const authClient = createAuthClient({
   baseURL: window.location.origin,
@@ -17,7 +18,7 @@ export const authClient = createAuthClient({
     inferAdditionalFields<ServerAuth>(),
     organizationClient(),
     apiKeyClient(),
-    adminClient(),
+    adminClient({ ac, roles }),
     genericOAuthClient(),
   ],
 });

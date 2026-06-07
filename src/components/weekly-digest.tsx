@@ -16,6 +16,7 @@ import { Markdown } from "@/components/ui/markdown";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/lib/auth";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import type { WeeklyDigestRow } from "@/livestore/queries/weekly-digest";
 import { weeklyDigests$ } from "@/livestore/queries/weekly-digest";
 import { useAppStore } from "@/livestore/store";
@@ -156,10 +157,10 @@ export function WeeklyDigest() {
   const digests = store.useQuery(weeklyDigests$);
   const latest = digests[0];
   const history = digests.slice(1);
-  const isAdmin = auth.role === "admin";
+  const canTrigger = hasPermission(auth.role, PERMISSIONS.manageSystem);
   const { isTriggering, trigger } = useWeeklyDigestTrigger();
 
-  if (!latest && !isAdmin) return null;
+  if (!latest && !canTrigger) return null;
 
   const handleTrigger = async () => {
     try {
@@ -169,7 +170,7 @@ export function WeeklyDigest() {
     }
   };
 
-  const triggerButton = isAdmin ? (
+  const triggerButton = canTrigger ? (
     <Button
       size="icon-sm"
       variant="ghost"

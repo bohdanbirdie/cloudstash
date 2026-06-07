@@ -1,6 +1,7 @@
 import { Effect, Layer, Schema } from "effect";
 
 import { INVITE_CODE_CHARS, INVITE_CODE_LENGTH } from "@/lib/invite";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
 import type { Auth } from "../auth";
 import { AppLayerLive, AuthClient } from "../auth/service";
@@ -57,8 +58,10 @@ const getSession = (auth: Auth, headers: Headers) =>
     )
   );
 
-const requireAdmin = (session: { user: { role?: string | null } }) =>
-  session.user.role === "admin"
+type Session = Effect.Effect.Success<ReturnType<typeof getSession>>;
+
+const requireMemberManagement = (session: Session) =>
+  hasPermission(session.user.role, PERMISSIONS.manageMembers)
     ? Effect.void
     : Effect.fail(new InvitesForbiddenError());
 
@@ -68,7 +71,7 @@ const handleCreateInviteRequest = Effect.fn(
   const auth = yield* AuthClient;
   const inviteStore = yield* InviteStore;
   const session = yield* getSession(auth, request.headers);
-  yield* requireAdmin(session);
+  yield* requireMemberManagement(session);
 
   const rawBody = yield* Effect.tryPromise(
     (): Promise<unknown> => request.json()
@@ -140,7 +143,7 @@ const handleListInvitesRequest = Effect.fn("Invites.handleListInvitesRequest")(
     const auth = yield* AuthClient;
     const inviteStore = yield* InviteStore;
     const session = yield* getSession(auth, request.headers);
-    yield* requireAdmin(session);
+    yield* requireMemberManagement(session);
 
     const invites = yield* inviteStore.list();
 
@@ -182,7 +185,7 @@ const handleDeleteInviteRequest = Effect.fn(
   const auth = yield* AuthClient;
   const inviteStore = yield* InviteStore;
   const session = yield* getSession(auth, request.headers);
-  yield* requireAdmin(session);
+  yield* requireMemberManagement(session);
 
   const invite = yield* inviteStore.findById(inviteId);
 
