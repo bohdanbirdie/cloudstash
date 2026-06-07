@@ -100,6 +100,11 @@
     // any chrome-extension origin. First is the published (Web Store) ID; second
     // is the local-unpacked dev ID pinned by the manifest key in wxt.config.ts.
     "EXTENSION_ID_ALLOWLIST": "bdommhffamndfanbpnikgmpjncpcobia,eelfhpgegemfgccaakcmfgldcaojadfj",
+    // Public site origin. A plain var (not a secret) so Better Auth's baseURL is
+    // always populated — otherwise server-side auth.api.* calls with no request
+    // context warn "Base URL could not be determined". `.dev.vars` overrides this
+    // for local dev (127.0.0.1:3000).
+    "BETTER_AUTH_URL": "https://cloudstash.dev",
   },
 
   "observability": {

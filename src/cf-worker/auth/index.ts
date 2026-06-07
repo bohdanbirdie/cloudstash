@@ -206,9 +206,7 @@ export const createAuth = (env: Env, db: Database) => {
         defaultPrefix: "lb",
         enableMetadata: true,
         rateLimit: {
-          enabled: true,
-          timeWindow: 1000 * 60 * 60 * 24,
-          maxRequests: 100,
+          enabled: false,
         },
       }),
       admin({
