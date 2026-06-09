@@ -310,7 +310,10 @@ describe("checkoutProgram", () => {
           stripeStub({
             priceForTier: () => "price_pro" as never,
             createCheckoutSession: () =>
-              Effect.succeed({ url: "https://checkout.test/s" } as never),
+              Effect.succeed({
+                id: "cs_test_1",
+                url: "https://checkout.test/s",
+              } as never),
           }),
           authStub(loggedIn),
           orgDb(customerOrg)
@@ -335,7 +338,10 @@ describe("checkoutProgram", () => {
               return "price_pro_yearly" as never;
             },
             createCheckoutSession: () =>
-              Effect.succeed({ url: "https://checkout.test/y" } as never),
+              Effect.succeed({
+                id: "cs_test_2",
+                url: "https://checkout.test/y",
+              } as never),
           }),
           authStub(loggedIn),
           orgDb(customerOrg)
