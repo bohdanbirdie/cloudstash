@@ -32,9 +32,11 @@ export function TierPicker({
             className={cn(
               MICRO_LABEL,
               "rounded-sm px-1.5 py-1 transition-colors",
-              isActive
-                ? "bg-foreground text-background"
-                : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground disabled:opacity-50"
+              {
+                "bg-foreground text-background": isActive,
+                "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground disabled:opacity-50":
+                  !isActive,
+              }
             )}
           >
             {tier}

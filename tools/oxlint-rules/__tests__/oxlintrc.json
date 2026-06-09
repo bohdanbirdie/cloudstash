@@ -1,0 +1,8 @@
+{
+  "plugins": [],
+  "categories": { "correctness": "off" },
+  "jsPlugins": ["../tailwind-cn.mjs"],
+  "rules": {
+    "tailwind-cn/no-cn-ternary": "error"
+  }
+}

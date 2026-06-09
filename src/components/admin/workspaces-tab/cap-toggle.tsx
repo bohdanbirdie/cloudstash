@@ -43,9 +43,10 @@ export function CapToggle({
             className={cn(
               MICRO_LABEL,
               "relative rounded-sm px-1.5 py-1 transition-colors",
-              effective
-                ? "bg-primary/10 text-foreground"
-                : "bg-foreground/[0.04] text-muted-foreground",
+              {
+                "bg-primary/10 text-foreground": effective,
+                "bg-foreground/[0.04] text-muted-foreground": !effective,
+              },
               "hover:bg-primary/15 disabled:opacity-50"
             )}
           >

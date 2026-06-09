@@ -35,9 +35,11 @@ export function ItemRow({
         }}
         className={cn(
           "flex size-4 shrink-0 items-center justify-center rounded-sm border transition-colors",
-          selected
-            ? "border-primary bg-primary text-primary-foreground hover:bg-primary/80"
-            : "border-border bg-background hover:border-primary/60"
+          {
+            "border-primary bg-primary text-primary-foreground hover:bg-primary/80":
+              selected,
+            "border-border bg-background hover:border-primary/60": !selected,
+          }
         )}
       >
         {selected && <CheckIcon className="size-3" strokeWidth={2.5} />}

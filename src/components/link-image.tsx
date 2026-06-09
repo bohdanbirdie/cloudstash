@@ -34,11 +34,10 @@ export function LinkImage({
           alt={alt}
           loading="lazy"
           decoding="async"
-          className={cn(
-            objectFit === "cover"
-              ? "h-full w-full object-cover"
-              : "max-h-full max-w-full object-contain"
-          )}
+          className={cn({
+            "h-full w-full object-cover": objectFit === "cover",
+            "max-h-full max-w-full object-contain": objectFit !== "cover",
+          })}
           onError={() => setFailedSrc(src ?? null)}
         />
       ) : (

@@ -74,7 +74,10 @@ export function WorkspaceCard({
                     type="button"
                     className={cn(
                       "rounded-sm font-mono text-xs cursor-help focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/60",
-                      isCurrent ? "text-primary" : "text-foreground"
+                      {
+                        "text-primary": isCurrent,
+                        "text-foreground": !isCurrent,
+                      }
                     )}
                   >
                     {shortId}

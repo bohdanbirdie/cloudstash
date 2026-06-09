@@ -168,12 +168,10 @@ function TagChip({
 }) {
   return (
     <span
-      className={cn(
-        "rounded-sm px-1.5 py-0.5 font-mono text-[10.5px]",
-        primary
-          ? "bg-primary/10 text-primary"
-          : "bg-muted/60 text-foreground/80"
-      )}
+      className={cn("rounded-sm px-1.5 py-0.5 font-mono text-[10.5px]", {
+        "bg-primary/10 text-primary": primary,
+        "bg-muted/60 text-foreground/80": !primary,
+      })}
     >
       <span
         className={primary ? "text-primary/60" : "text-muted-foreground/55"}

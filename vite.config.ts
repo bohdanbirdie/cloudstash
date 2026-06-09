@@ -36,9 +36,11 @@ export default defineConfig({
       "src/routeTree.gen.ts",
       "coverage",
       "readonly-llm-lookup",
+      "tools/oxlint-rules/__tests__/fixtures/**",
     ],
   },
   lint: {
+    jsPlugins: ["./tools/oxlint-rules/tailwind-cn.mjs"],
     plugins: [
       "eslint",
       "typescript",
@@ -65,6 +67,7 @@ export default defineConfig({
       "readonly-llm-lookup",
       "apps/**/.wxt/**",
       "apps/**/.output/**",
+      "tools/oxlint-rules/__tests__/fixtures/**",
     ],
     rules: {
       "no-await-in-loop": "off",
@@ -158,6 +161,8 @@ export default defineConfig({
 
       "require-hook": "off",
       "consistent-function-scoping": "off",
+
+      "tailwind-cn/no-cn-ternary": "error",
     },
     options: {
       typeAware: true,

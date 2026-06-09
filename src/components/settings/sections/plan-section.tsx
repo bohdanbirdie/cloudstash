@@ -323,7 +323,10 @@ function TileCta({
         className={cn(
           MICRO_LABEL_SM,
           "select-none rounded-md bg-muted text-center text-muted-foreground",
-          variant === "secondary" ? "px-3 py-1.5" : "px-3 py-2"
+          {
+            "px-3 py-1.5": variant === "secondary",
+            "px-3 py-2": variant !== "secondary",
+          }
         )}
       >
         Current plan

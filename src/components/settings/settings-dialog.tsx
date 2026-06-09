@@ -107,9 +107,12 @@ export function SettingsDialog() {
                     "relative flex shrink-0 items-center gap-2 rounded-md text-left text-xs transition-colors outline-none",
                     "max-sm:size-10 max-sm:justify-center sm:px-2.5 sm:py-1.5",
                     "focus-visible:ring-2 focus-visible:ring-ring/50",
-                    isActive
-                      ? "font-semibold text-primary max-lg:bg-foreground/[0.06] lg:before:absolute lg:before:top-1.5 lg:before:bottom-1.5 lg:before:-left-3 lg:before:w-[2px] lg:before:rounded-r-full lg:before:bg-primary"
-                      : "text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground"
+                    {
+                      "font-semibold text-primary max-lg:bg-foreground/[0.06] lg:before:absolute lg:before:top-1.5 lg:before:bottom-1.5 lg:before:-left-3 lg:before:w-[2px] lg:before:rounded-r-full lg:before:bg-primary":
+                        isActive,
+                      "text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground":
+                        !isActive,
+                    }
                   )}
                 >
                   <Icon className="size-4 shrink-0 sm:size-3.5" />

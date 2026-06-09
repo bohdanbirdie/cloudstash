@@ -6,7 +6,12 @@
     "prettier.config.js",
     "vite.config.js"
   ],
-  "exclude": ["local", "scripts", "apps"],
+  "exclude": [
+    "local",
+    "scripts",
+    "apps",
+    "tools/oxlint-rules/__tests__/fixtures"
+  ],
 
   "compilerOptions": {
     "target": "ES2022",
