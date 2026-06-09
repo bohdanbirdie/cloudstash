@@ -1,5 +1,5 @@
 import { ArrowDownIcon, SearchIcon } from "lucide-react";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { Fragment } from "react";
 
 import { Kbd } from "@/components/ui/kbd";
@@ -109,13 +109,11 @@ const ringPulse = (delay: number) => ({
 });
 
 export function PitchVisual() {
-  const reduceMotion = useReducedMotion();
-
   return (
     <motion.div
-      initial={reduceMotion ? "visible" : "hidden"}
-      whileInView={reduceMotion ? undefined : "visible"}
-      viewport={reduceMotion ? undefined : { once: true, margin: "-60px" }}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, margin: "-60px" }}
       className="flex select-none flex-col items-stretch gap-3"
     >
       <motion.div

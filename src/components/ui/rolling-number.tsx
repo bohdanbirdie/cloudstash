@@ -1,4 +1,4 @@
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import type { Transition, Variants } from "motion/react";
 
 import { cn } from "@/lib/utils";
@@ -32,16 +32,6 @@ export function RollingNumber({
   direction: number;
   className?: string;
 }) {
-  const reduce = useReducedMotion();
-
-  if (reduce) {
-    return (
-      <span className={cn("relative inline-block tabular-nums", className)}>
-        {value}
-      </span>
-    );
-  }
-
   return (
     <span className={cn("relative inline-block tabular-nums", className)}>
       <AnimatePresence custom={direction} initial={false} mode="popLayout">

@@ -40,7 +40,10 @@ export default defineConfig({
     ],
   },
   lint: {
-    jsPlugins: ["./tools/oxlint-rules/tailwind-cn.mjs"],
+    jsPlugins: [
+      "./tools/oxlint-rules/tailwind-cn.mjs",
+      "./tools/oxlint-rules/motion.mjs",
+    ],
     plugins: [
       "eslint",
       "typescript",
@@ -163,6 +166,7 @@ export default defineConfig({
       "consistent-function-scoping": "off",
 
       "tailwind-cn/no-cn-ternary": "error",
+      "motion/no-use-reduced-motion": "error",
     },
     options: {
       typeAware: true,

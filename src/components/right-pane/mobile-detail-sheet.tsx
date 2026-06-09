@@ -9,7 +9,7 @@ import {
   UndoIcon,
   XIcon,
 } from "lucide-react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { Drawer } from "vaul";
 
@@ -40,13 +40,6 @@ const pageTransition = {
   duration: 0.26,
   ease: [0.22, 1, 0.36, 1] as const,
 };
-
-const fadeVariants = {
-  enter: { opacity: 0 },
-  center: { opacity: 1 },
-  exit: { opacity: 0 },
-};
-const fadeTransition = { duration: 0.12 };
 
 // Commit a page when the drag passes either a distance or a flick-velocity bar.
 const SWIPE_OFFSET = 60;
@@ -110,7 +103,6 @@ function SheetContent({ linkId }: { linkId: string }) {
 function SheetBody({ link }: { link: LinkWithDetails }) {
   const actions = useLinkActions(link);
   const closeDetail = useRightPaneStore((s) => s.closeDetail);
-  const reduce = useReducedMotion();
 
   // `direction` drives the paged slide; set at the moment of navigation.
   const [direction, setDirection] = useState(1);
@@ -142,12 +134,12 @@ function SheetBody({ link }: { link: LinkWithDetails }) {
           <motion.div
             key={link.id}
             custom={direction}
-            variants={reduce ? fadeVariants : pageVariants}
+            variants={pageVariants}
             initial="enter"
             animate="center"
             exit="exit"
-            transition={reduce ? fadeTransition : pageTransition}
-            drag={reduce ? false : "x"}
+            transition={pageTransition}
+            drag="x"
             dragDirectionLock
             dragConstraints={{ left: 0, right: 0 }}
             dragElastic={0.5}
@@ -318,10 +310,7 @@ function PageContent({ link }: { link: LinkWithDetails }) {
 
 function CopyChip({ url }: { url: string }) {
   const { copied, copy } = useCopyToClipboard();
-  const reduce = useReducedMotion();
-  const transition = reduce
-    ? { duration: 0 }
-    : { duration: 0.18, ease: [0.25, 1, 0.5, 1] as const };
+  const transition = { duration: 0.18, ease: [0.25, 1, 0.5, 1] as const };
 
   return (
     <Button
