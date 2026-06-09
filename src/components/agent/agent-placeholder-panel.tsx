@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSettingsDialog } from "@/stores/settings-dialog-store";
+import { usePaywall } from "@/stores/paywall-store";
 
 interface AgentPlaceholderPanelProps {
   variant: "loading" | "promo";
@@ -34,7 +34,7 @@ function LoadingState() {
 }
 
 function PromoState() {
-  const openAt = useSettingsDialog((s) => s.openAt);
+  const openPaywall = usePaywall((s) => s.openPaywall);
   return (
     <div className="flex h-full flex-col justify-between p-8">
       <div className="flex flex-col gap-3">
@@ -49,7 +49,16 @@ function PromoState() {
         <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           Available on Pro
         </span>
-        <Button type="button" size="default" onClick={() => openAt("plan")}>
+        <Button
+          type="button"
+          size="default"
+          onClick={() =>
+            openPaywall({
+              highlightTier: "pro",
+              reason: "AI Chat is a Pro feature.",
+            })
+          }
+        >
           See plans
         </Button>
       </div>

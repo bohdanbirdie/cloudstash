@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { AccountMenu } from "@/components/account-menu";
 import { useAddLink } from "@/components/add-link";
+import { UPGRADE_ICON } from "@/components/billing/plan-icon";
 import { CategoryNav } from "@/components/category-nav";
 import { CloudstashLogo } from "@/components/cloudstash-logo";
 import { SyncStatusIndicator } from "@/components/sync-status-indicator";
@@ -22,7 +23,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useNarrowViewport } from "@/hooks/use-narrow-viewport";
+import { useOrgFeatures } from "@/hooks/use-org-features";
 import { getHotkeyLabel } from "@/lib/hotkey-label";
+import { usePaywall } from "@/stores/paywall-store";
 
 const UrlSchema = Schema.URL;
 
@@ -41,6 +44,8 @@ async function readClipboardUrl(): Promise<string | null> {
 export function TopBar() {
   const { addLink } = useAddLink();
   const isNarrow = useNarrowViewport();
+  const { tier } = useOrgFeatures();
+  const openPaywall = usePaywall((s) => s.openPaywall);
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
   const [clipboardUrl, setClipboardUrl] = useState<string | null>(null);
@@ -92,6 +97,18 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-2">
+        {tier !== "pro" && (
+          <Button
+            variant="default"
+            size="sm"
+            aria-label="Upgrade"
+            onClick={() => openPaywall()}
+            className="gap-1.5"
+          >
+            <UPGRADE_ICON className="size-3.5" aria-hidden />
+            <span className="max-sm:hidden">Upgrade</span>
+          </Button>
+        )}
         <SyncStatusIndicator />
         <Popover open={open} onOpenChange={handleOpenChange}>
           <Tooltip>
@@ -100,7 +117,7 @@ export function TopBar() {
                 <PopoverTrigger
                   render={
                     <Button variant="ghost" size="icon" aria-label="Add link">
-                      <PlusIcon strokeWidth={1.75} />
+                      <PlusIcon strokeWidth={1.75} aria-hidden />
                     </Button>
                   }
                 />

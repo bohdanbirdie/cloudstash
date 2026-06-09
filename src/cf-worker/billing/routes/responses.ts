@@ -45,13 +45,19 @@ export const configErrorResponse = loggedResponse(
   "Internal error"
 );
 
-export const invalidBodyResponse = (): Effect.Effect<Response> =>
-  Effect.succeed(json(400, "Invalid request body"));
+export const invalidBodyResponse = (cause: unknown): Effect.Effect<Response> =>
+  Effect.logInfo("Billing: invalid request body").pipe(
+    Effect.annotateLogs(safeErrorInfo(cause)),
+    Effect.as(json(400, "Invalid request body"))
+  );
 
 export const sessionErrorTags = {
   ConnectUnauthorizedError: () => Effect.succeed(json(401, "Unauthorized")),
-  SessionLookupError: () =>
-    Effect.succeed(json(503, "Auth backend unavailable")),
+  SessionLookupError: loggedResponse(
+    "Billing: auth backend unavailable",
+    503,
+    "Auth backend unavailable"
+  ),
   NoActiveOrgError: () => Effect.succeed(json(400, "No active organization")),
   OrgNotFoundError: () => Effect.succeed(json(404, "Organization not found")),
 } as const;

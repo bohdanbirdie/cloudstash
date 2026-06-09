@@ -11,6 +11,7 @@ import {
 import { useMemo, useState } from "react";
 import { Drawer } from "vaul";
 
+import { UPGRADE_ICON } from "@/components/billing/plan-icon";
 import { ExportDialog } from "@/components/export-dialog";
 import type { SettingsSection } from "@/components/settings/settings-dialog";
 import {
@@ -39,10 +40,12 @@ import {
 } from "@/components/ui/tooltip";
 import { useFilteredLinks } from "@/hooks/use-filtered-links";
 import { useNarrowViewport } from "@/hooks/use-narrow-viewport";
+import { useOrgFeatures } from "@/hooks/use-org-features";
 import { usePageStaticData } from "@/hooks/use-page-static-data";
 import { logout, useAuth } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import type { LinkStatus } from "@/livestore/queries/filtered-links";
+import { usePaywall } from "@/stores/paywall-store";
 import { useSettingsDialog } from "@/stores/settings-dialog-store";
 
 function getInitial(name: string | null, email: string | null) {
@@ -66,6 +69,7 @@ type Row = { kind: "item"; item: ItemDef } | { kind: "separator" };
 export function AccountMenu() {
   const navigate = useNavigate();
   const auth = useAuth();
+  const { tier } = useOrgFeatures();
   const { status: pageStatus, title: pageTitle } = usePageStaticData();
   const isNarrow = useNarrowViewport();
 
@@ -148,8 +152,21 @@ export function AccountMenu() {
         onSelect: () => setLogoutOpen(true),
       },
     });
+
+    if (tier !== "pro") {
+      r.unshift({ kind: "separator" });
+      r.unshift({
+        kind: "item",
+        item: {
+          icon: UPGRADE_ICON,
+          label: "Upgrade",
+          onSelect: () => usePaywall.getState().openPaywall(),
+        },
+      });
+    }
+
     return r;
-  }, [pageStatus, pageTitle, canViewAdmin, isAdmin, navigate]);
+  }, [pageStatus, pageTitle, canViewAdmin, isAdmin, navigate, tier]);
 
   return (
     <>
