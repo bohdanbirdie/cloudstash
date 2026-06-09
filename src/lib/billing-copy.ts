@@ -7,6 +7,11 @@ export const PLAN_CHANGE_COPY = {
     "Upgrades unlock now. Switching down or canceling takes effect at your next renewal — you keep your current features until then.",
 } as const;
 
+export function billingPeriodNote(interval: "month" | "year"): string {
+  const billed = interval === "year" ? "annually" : "monthly";
+  return `Billed ${billed}. To switch billing period, contact support.`;
+}
+
 export function formatRenewalDate(iso: string | null): string | null {
   if (!iso) return null;
   const date = new Date(iso);

@@ -1,6 +1,6 @@
 import { toast } from "sonner";
 
-import type { PlanTier } from "@/lib/plan";
+import type { BillingInterval, PlanTier } from "@/lib/plan";
 
 interface BillingUrlResponse {
   url?: string;
@@ -22,11 +22,12 @@ async function openBillingUrl(path: string, body?: unknown): Promise<void> {
 
 export async function changePlan(
   target: PlanTier,
-  currentTier: PlanTier
+  currentTier: PlanTier,
+  interval: BillingInterval = "month"
 ): Promise<void> {
   try {
     if (currentTier === "free" && target !== "free") {
-      await openBillingUrl("/api/billing/checkout", { tier: target });
+      await openBillingUrl("/api/billing/checkout", { tier: target, interval });
     } else {
       await openBillingUrl("/api/billing/portal", { tier: target });
     }

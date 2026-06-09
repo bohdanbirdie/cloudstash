@@ -1,8 +1,8 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Either, Layer, LogLevel, Logger } from "effect";
+import { Effect, Either, Layer, LogLevel, Logger, Option } from "effect";
 import type StripeSdk from "stripe";
 
-import type { PlanTier } from "@/lib/plan";
+import type { BillingInterval, PlanTier } from "@/lib/plan";
 
 import { OrgId, StripeCustomerId } from "../../db/branded";
 import { DbClient } from "../../db/service";
@@ -45,6 +45,7 @@ const sub = (
     cancelAtPeriodEnd?: boolean;
     periodEnd?: number;
     noItems?: boolean;
+    interval?: BillingInterval;
   } = {}
 ): StripeSdk.Subscription =>
   ({
@@ -59,7 +60,10 @@ const sub = (
         : [
             {
               id: "si_1",
-              price: { id: opts.priceId ?? "price_pro" },
+              price: {
+                id: opts.priceId ?? "price_pro",
+                recurring: { interval: opts.interval ?? "month" },
+              },
               current_period_end: opts.periodEnd ?? 1_700_000_000,
             },
           ],
@@ -161,6 +165,35 @@ describe("syncFromStripe", () => {
           expect(v.subscriptionStatus).toBe("active");
           expect(v.cancelAtPeriodEnd).toBe(false);
           expect(v.currentPeriodEnd).toBeInstanceOf(Date);
+          expect(v.billingInterval).toBe("month");
+        })
+      )
+    );
+  });
+
+  it.effect("records the yearly billing interval", () => {
+    const updates: Record<string, unknown>[] = [];
+    return syncFromStripe(CUSTOMER_ID).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          stripeStub({
+            listSubscriptions: () =>
+              Effect.succeed([
+                sub("active", {
+                  id: "sub_pro_y",
+                  priceId: "price_pro",
+                  interval: "year",
+                }),
+              ]),
+          }),
+          syncDb({ org: ORG, updates })
+        )
+      ),
+      quiet,
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(updates[0]?.tier).toBe("pro");
+          expect(updates[0]?.billingInterval).toBe("year");
         })
       )
     );
@@ -244,6 +277,8 @@ describe("syncFromStripe", () => {
         Effect.sync(() => {
           expect(updates[0]?.tier).toBe("free");
           expect(updates[0]?.subscriptionStatus).toBe("canceled");
+          // No active plan → no interval.
+          expect(updates[0]?.billingInterval).toBeNull();
         })
       )
     );
@@ -268,6 +303,8 @@ describe("syncFromStripe", () => {
         Effect.sync(() => {
           // Unknown price → keep the org's current tier rather than guessing.
           expect(updates[0]?.tier).toBe("plus");
+          // …but the active sub's interval is still recorded.
+          expect(updates[0]?.billingInterval).toBe("month");
         })
       )
     );
@@ -287,24 +324,30 @@ describe("getStripeCustomerId", () => {
       },
     } as never);
 
-  it.effect("returns the branded id when present", () =>
+  it.effect("returns some branded id when present", () =>
     getStripeCustomerId(ORG_ID).pipe(
       Effect.provide(db("cus_abc")),
-      Effect.tap((id) => Effect.sync(() => expect(id).toBe("cus_abc")))
+      Effect.tap((id) =>
+        Effect.sync(() => expect(Option.getOrNull(id)).toBe("cus_abc"))
+      )
     )
   );
 
-  it.effect("returns null when the column is empty", () =>
+  it.effect("returns none when the column is empty", () =>
     getStripeCustomerId(ORG_ID).pipe(
       Effect.provide(db(null)),
-      Effect.tap((id) => Effect.sync(() => expect(id).toBeNull()))
+      Effect.tap((id) =>
+        Effect.sync(() => expect(Option.isNone(id)).toBe(true))
+      )
     )
   );
 
-  it.effect("returns null when the org row is missing", () =>
+  it.effect("returns none when the org row is missing", () =>
     getStripeCustomerId(ORG_ID).pipe(
       Effect.provide(db(undefined)),
-      Effect.tap((id) => Effect.sync(() => expect(id).toBeNull()))
+      Effect.tap((id) =>
+        Effect.sync(() => expect(Option.isNone(id)).toBe(true))
+      )
     )
   );
 });

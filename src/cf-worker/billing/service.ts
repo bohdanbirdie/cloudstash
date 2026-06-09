@@ -90,16 +90,26 @@ export class Billing extends Effect.Service<Billing>()("@cloudstash/Billing", {
         const row = yield* query(
           db.query.organization.findFirst({
             where: eq(schema.organization.id, orgId),
-            columns: { cancelAtPeriodEnd: true, currentPeriodEnd: true },
+            columns: {
+              cancelAtPeriodEnd: true,
+              currentPeriodEnd: true,
+              billingInterval: true,
+            },
           })
         ).pipe(
           Effect.flatMap((r) =>
             r ? Effect.succeed(r) : OrgNotFoundError.make({ orgId })
           )
         );
+        yield* Effect.annotateCurrentSpan({
+          orgId: maskId(orgId),
+          interval: row.billingInterval ?? "none",
+          cancelAtPeriodEnd: row.cancelAtPeriodEnd,
+        });
         return {
           cancelAtPeriodEnd: row.cancelAtPeriodEnd,
           currentPeriodEnd: row.currentPeriodEnd?.toISOString() ?? null,
+          billingInterval: row.billingInterval ?? null,
         };
       }),
 

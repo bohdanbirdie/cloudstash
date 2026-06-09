@@ -7,7 +7,13 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
-import type { CapabilityOverrides, PlanTier } from "@/lib/plan";
+import type {
+  BillingInterval,
+  CapabilityOverrides,
+  PlanTier,
+} from "@/lib/plan";
+
+import type { StripeCustomerId, StripeSubscriptionId } from "./branded";
 
 export type TierSource = "stripe" | "admin";
 
@@ -52,13 +58,18 @@ export const organization = sqliteTable("organization", {
     .$type<TierSource>()
     .default("stripe")
     .notNull(),
-  stripeCustomerId: text("stripe_customer_id").unique(),
-  stripeSubscriptionId: text("stripe_subscription_id"),
+  stripeCustomerId: text("stripe_customer_id")
+    .$type<StripeCustomerId>()
+    .unique(),
+  stripeSubscriptionId: text(
+    "stripe_subscription_id"
+  ).$type<StripeSubscriptionId>(),
   subscriptionStatus: text("subscription_status"),
   currentPeriodEnd: integer("current_period_end", { mode: "timestamp_ms" }),
   cancelAtPeriodEnd: integer("cancel_at_period_end", { mode: "boolean" })
     .default(false)
     .notNull(),
+  billingInterval: text("billing_interval").$type<BillingInterval>(),
 });
 
 export const session = sqliteTable(

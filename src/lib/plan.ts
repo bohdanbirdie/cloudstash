@@ -1,10 +1,16 @@
 export type PlanTier = "free" | "plus" | "pro";
 
+export type BillingInterval = "month" | "year";
+
+export interface PlanPricing {
+  monthly: number;
+  yearly: number;
+}
+
 export interface PlanInfo {
   id: PlanTier;
   name: string;
-  price: number;
-  priceSuffix: string;
+  pricing: PlanPricing | null;
   tagline: string;
   features: readonly string[];
   highlighted?: boolean;
@@ -16,8 +22,7 @@ export const PLANS: Readonly<Record<PlanTier, PlanInfo>> = {
   free: {
     id: "free",
     name: "Free",
-    price: 0,
-    priceSuffix: "/ forever",
+    pricing: null,
     tagline: "The saving core. Yours forever.",
     features: [
       "Save links from the dashboard",
@@ -30,8 +35,7 @@ export const PLANS: Readonly<Record<PlanTier, PlanInfo>> = {
   plus: {
     id: "plus",
     name: "Plus",
-    price: 5,
-    priceSuffix: "/ month",
+    pricing: { monthly: 5, yearly: 50 },
     tagline: "Every save, summarized by AI.",
     features: [
       "AI summary on every save",
@@ -45,8 +49,7 @@ export const PLANS: Readonly<Record<PlanTier, PlanInfo>> = {
   pro: {
     id: "pro",
     name: "Pro",
-    price: 12,
-    priceSuffix: "/ month",
+    pricing: { monthly: 12, yearly: 120 },
     tagline: "The full Cloudstash. AI everywhere.",
     features: [
       "X bookmark sync",
@@ -62,6 +65,30 @@ export const PLANS: Readonly<Record<PlanTier, PlanInfo>> = {
 export const PLAN_ORDER: readonly PlanTier[] = ["free", "plus", "pro"];
 
 export const PLAN_LIST: readonly PlanInfo[] = PLAN_ORDER.map((id) => PLANS[id]);
+
+export const planPriceDisplay = (plan: PlanInfo, interval: BillingInterval) => {
+  if (!plan.pricing) return { amount: 0, suffix: "/ forever" };
+  return interval === "year"
+    ? { amount: plan.pricing.yearly, suffix: "/ year" }
+    : { amount: plan.pricing.monthly, suffix: "/ month" };
+};
+
+export const monthlyPriceUsd = (tier: PlanTier) =>
+  PLANS[tier].pricing?.monthly ?? 0;
+
+export const yearlySavings = (plan: PlanInfo) => {
+  if (!plan.pricing) return null;
+  const full = plan.pricing.monthly * 12;
+  const amount = full - plan.pricing.yearly;
+  if (amount <= 0) return null;
+  return { amount, pct: Math.round((amount / full) * 100) };
+};
+
+export const maxYearlySavingsPct = () =>
+  PLAN_ORDER.reduce((max, id) => {
+    const savings = yearlySavings(PLANS[id]);
+    return savings && savings.pct > max ? savings.pct : max;
+  }, 0);
 
 // Runtime capability surface — what an org can actually do at a given tier.
 // Separate from `PlanInfo.features` (marketing copy) on purpose.

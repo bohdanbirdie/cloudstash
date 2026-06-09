@@ -2,7 +2,7 @@ import { describe, expect, it } from "@effect/vitest";
 import { Effect, Option } from "effect";
 import type StripeSdk from "stripe";
 
-import type { PlanTier } from "@/lib/plan";
+import type { BillingInterval, PlanTier } from "@/lib/plan";
 
 import { StripePriceId } from "../../db/branded";
 import type { Env } from "../../shared";
@@ -23,6 +23,7 @@ const sub = (
     noItems?: boolean;
     cancelAtPeriodEnd?: boolean;
     periodEnd?: number;
+    interval?: BillingInterval;
   } = {}
 ): StripeSdk.Subscription =>
   ({
@@ -35,7 +36,10 @@ const sub = (
         : [
             {
               id: opts.itemId ?? "si_1",
-              price: { id: opts.priceId ?? "price_plus" },
+              price: {
+                id: opts.priceId ?? "price_plus",
+                recurring: { interval: opts.interval ?? "month" },
+              },
               current_period_end: opts.periodEnd ?? 1_700_000_000,
             },
           ],
@@ -43,14 +47,26 @@ const sub = (
   }) as unknown as StripeSdk.Subscription;
 
 const prices = {
-  priceForTier: (t: PlanTier): StripePriceId | null =>
-    t === "plus"
-      ? StripePriceId.make("price_plus")
-      : t === "pro"
-        ? StripePriceId.make("price_pro")
-        : null,
+  priceForTier: (
+    t: PlanTier,
+    interval: BillingInterval
+  ): StripePriceId | null => {
+    if (t === "plus")
+      return StripePriceId.make(
+        interval === "year" ? "price_plus_yearly" : "price_plus"
+      );
+    if (t === "pro")
+      return StripePriceId.make(
+        interval === "year" ? "price_pro_yearly" : "price_pro"
+      );
+    return null;
+  },
   tierForPrice: (id: string): PlanTier | null =>
-    id === "price_plus" ? "plus" : id === "price_pro" ? "pro" : null,
+    id === "price_plus" || id === "price_plus_yearly"
+      ? "plus"
+      : id === "price_pro" || id === "price_pro_yearly"
+        ? "pro"
+        : null,
 };
 
 describe("selectSubscription", () => {
@@ -138,6 +154,50 @@ describe("decidePortalFlow", () => {
     ).toEqual({ kind: "pick", subscriptionId: "sub_2" });
   });
 
+  it("preserves a yearly interval when upgrading (targets the yearly price)", () => {
+    expect(
+      decidePortalFlow(
+        sub("active", {
+          id: "sub_y",
+          itemId: "si_y",
+          priceId: "price_plus_yearly",
+          interval: "year",
+        }),
+        "pro",
+        prices
+      )
+    ).toEqual({
+      kind: "update",
+      subscriptionId: "sub_y",
+      itemId: "si_y",
+      priceId: "price_pro_yearly",
+    });
+  });
+
+  it("preserves a yearly interval when downgrading (picks at period end)", () => {
+    expect(
+      decidePortalFlow(
+        sub("active", {
+          id: "sub_yd",
+          priceId: "price_pro_yearly",
+          interval: "year",
+        }),
+        "plus",
+        prices
+      )
+    ).toEqual({ kind: "pick", subscriptionId: "sub_yd" });
+  });
+
+  it("returns undefined when already on the target yearly price", () => {
+    expect(
+      decidePortalFlow(
+        sub("active", { priceId: "price_pro_yearly", interval: "year" }),
+        "pro",
+        prices
+      )
+    ).toBeUndefined();
+  });
+
   it("treats an unrecognized current price as a non-downgrade (update)", () => {
     const result = decidePortalFlow(
       sub("active", { id: "sub_3", itemId: "si_3", priceId: "price_legacy" }),
@@ -203,21 +263,36 @@ describe("StripeClientLive price maps", () => {
     STRIPE_WEBHOOK_SECRET: "whsec_x",
     STRIPE_PRICE_PLUS: "price_plus",
     STRIPE_PRICE_PRO: "price_pro",
+    STRIPE_PRICE_PLUS_YEARLY: "price_plus_yearly",
+    STRIPE_PRICE_PRO_YEARLY: "price_pro_yearly",
   } as unknown as Env;
 
-  it.effect("maps tier <-> price both ways and rejects unknowns", () =>
-    Effect.gen(function* () {
-      const stripe = yield* StripeClient;
-      expect(stripe.priceForTier("plus")).toBe("price_plus");
-      expect(stripe.priceForTier("pro")).toBe("price_pro");
-      expect(stripe.priceForTier("free")).toBeNull();
-      expect(stripe.tierForPrice(StripePriceId.make("price_plus"))).toBe(
-        "plus"
-      );
-      expect(stripe.tierForPrice(StripePriceId.make("price_pro"))).toBe("pro");
-      expect(
-        stripe.tierForPrice(StripePriceId.make("price_unknown"))
-      ).toBeNull();
-    }).pipe(Effect.provide(StripeClientLive(env)))
+  it.effect(
+    "maps tier x interval <-> price both ways and rejects unknowns",
+    () =>
+      Effect.gen(function* () {
+        const stripe = yield* StripeClient;
+        expect(stripe.priceForTier("plus", "month")).toBe("price_plus");
+        expect(stripe.priceForTier("plus", "year")).toBe("price_plus_yearly");
+        expect(stripe.priceForTier("pro", "month")).toBe("price_pro");
+        expect(stripe.priceForTier("pro", "year")).toBe("price_pro_yearly");
+        expect(stripe.priceForTier("free", "month")).toBeNull();
+        expect(stripe.priceForTier("free", "year")).toBeNull();
+        expect(stripe.tierForPrice(StripePriceId.make("price_plus"))).toBe(
+          "plus"
+        );
+        expect(
+          stripe.tierForPrice(StripePriceId.make("price_plus_yearly"))
+        ).toBe("plus");
+        expect(stripe.tierForPrice(StripePriceId.make("price_pro"))).toBe(
+          "pro"
+        );
+        expect(
+          stripe.tierForPrice(StripePriceId.make("price_pro_yearly"))
+        ).toBe("pro");
+        expect(
+          stripe.tierForPrice(StripePriceId.make("price_unknown"))
+        ).toBeNull();
+      }).pipe(Effect.provide(StripeClientLive(env)))
   );
 });

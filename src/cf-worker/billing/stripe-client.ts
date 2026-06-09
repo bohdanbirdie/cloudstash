@@ -2,7 +2,7 @@ import { Array as A, Context, Effect, Layer, Match, Option } from "effect";
 import StripeSdk from "stripe";
 
 import { PLAN_ORDER } from "@/lib/plan";
-import type { PlanTier } from "@/lib/plan";
+import type { BillingInterval, PlanTier } from "@/lib/plan";
 
 import {
   StripePriceId,
@@ -122,7 +122,10 @@ export interface StripeClientShape {
     WebhookVerificationError | StripeApiError
   >;
   readonly tierForPrice: (priceId: StripePriceId) => PlanTier | null;
-  readonly priceForTier: (tier: PlanTier) => StripePriceId | null;
+  readonly priceForTier: (
+    tier: PlanTier,
+    interval: BillingInterval
+  ) => StripePriceId | null;
 }
 
 export class StripeClient extends Context.Tag("@cloudstash/StripeClient")<
@@ -141,8 +144,10 @@ export const decidePortalFlow = (
   const item = subscription.items.data[0];
   if (!item) return undefined;
 
+  const currentInterval =
+    item.price.recurring?.interval === "year" ? "year" : "month";
   const currentPriceId = StripePriceId.make(item.price.id);
-  const targetPrice = prices.priceForTier(targetTier);
+  const targetPrice = prices.priceForTier(targetTier, currentInterval);
   if (!targetPrice || currentPriceId === targetPrice) return undefined;
 
   const currentTier = prices.tierForPrice(currentPriceId);
@@ -182,14 +187,24 @@ export const StripeClientLive = (env: Env): Layer.Layer<StripeClient> =>
       httpClient: StripeSdk.createFetchHttpClient(),
     });
 
+    const plusMonthly = StripePriceId.make(env.STRIPE_PRICE_PLUS);
+    const plusYearly = StripePriceId.make(env.STRIPE_PRICE_PLUS_YEARLY);
+    const proMonthly = StripePriceId.make(env.STRIPE_PRICE_PRO);
+    const proYearly = StripePriceId.make(env.STRIPE_PRICE_PRO_YEARLY);
+
     const priceToTier = new Map<StripePriceId, PlanTier>([
-      [StripePriceId.make(env.STRIPE_PRICE_PLUS), "plus"],
-      [StripePriceId.make(env.STRIPE_PRICE_PRO), "pro"],
+      [plusMonthly, "plus"],
+      [plusYearly, "plus"],
+      [proMonthly, "pro"],
+      [proYearly, "pro"],
     ]);
-    const tierToPrice: Record<PlanTier, StripePriceId | null> = {
-      free: null,
-      plus: StripePriceId.make(env.STRIPE_PRICE_PLUS),
-      pro: StripePriceId.make(env.STRIPE_PRICE_PRO),
+    const tierToPrice: Record<
+      PlanTier,
+      Record<BillingInterval, StripePriceId | null>
+    > = {
+      free: { month: null, year: null },
+      plus: { month: plusMonthly, year: plusYearly },
+      pro: { month: proMonthly, year: proYearly },
     };
 
     return StripeClient.of({
@@ -282,6 +297,7 @@ export const StripeClientLive = (env: Env): Layer.Layer<StripeClient> =>
 
       tierForPrice: (priceId: StripePriceId) =>
         priceToTier.get(priceId) ?? null,
-      priceForTier: (tier: PlanTier) => tierToPrice[tier],
+      priceForTier: (tier: PlanTier, interval: BillingInterval) =>
+        tierToPrice[tier][interval],
     });
   });

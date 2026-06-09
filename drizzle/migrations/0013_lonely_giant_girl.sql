@@ -1,0 +1,1 @@
+ALTER TABLE `organization` ADD `billing_interval` text;

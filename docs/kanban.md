@@ -31,6 +31,7 @@ kanban-plugin: board
 - [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.
 - [ ] [[todos/consolidated-paywall|Consolidated paywall / upgrade system (app-wide)]]
 - [ ] [[todos/link-notes|Notes on links (user-authored, agent-aware)]]
+- [ ] Add GET links API
 
 ## Done
 

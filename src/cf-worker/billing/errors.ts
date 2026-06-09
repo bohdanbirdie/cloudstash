@@ -42,6 +42,8 @@ export class StripeConfigError extends Schema.TaggedError<StripeConfigError>()(
   "StripeConfigError",
   {
     message: Schema.String,
+    tier: Schema.optional(Schema.String),
+    interval: Schema.optional(Schema.String),
   }
 ) {}
 

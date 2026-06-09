@@ -22,27 +22,35 @@ const checkoutRequest = Effect.fn("Billing.checkout")(function* (
 ) {
   const { orgId } = yield* requireOrg(request.headers);
   const body = yield* decodeBody(request, CheckoutBody);
+
+  yield* Effect.annotateCurrentSpan({
+    orgId: maskId(orgId),
+    tier: body.tier,
+    interval: body.interval,
+  });
   const stripe = yield* StripeClient;
 
-  const priceId = stripe.priceForTier(body.tier);
+  const priceId = stripe.priceForTier(body.tier, body.interval);
   if (!priceId) {
     return yield* new StripeConfigError({
-      message: `no price configured for tier ${body.tier}`,
+      message: `no price configured for tier ${body.tier} (${body.interval})`,
+      tier: body.tier,
+      interval: body.interval,
     });
   }
 
   const customerId = yield* getOrCreateStripeCustomer(orgId);
   const base = appBaseUrl(request, env);
+  const idempotencyKey = yield* Effect.sync(() => crypto.randomUUID());
 
   const session = yield* stripe.createCheckoutSession({
     customerId,
     priceId,
     successUrl: `${base}/api/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
     cancelUrl: `${base}/inbox`,
-    idempotencyKey: crypto.randomUUID(),
+    idempotencyKey,
   });
 
-  yield* Effect.annotateCurrentSpan({ orgId: maskId(orgId), tier: body.tier });
   return Response.json({ url: session.url });
 });
 
