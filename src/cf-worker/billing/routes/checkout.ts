@@ -43,13 +43,25 @@ const checkoutRequest = Effect.fn("Billing.checkout")(function* (
   const base = appBaseUrl(request, env);
   const idempotencyKey = yield* Effect.sync(() => crypto.randomUUID());
 
-  const session = yield* stripe.createCheckoutSession({
-    customerId,
-    priceId,
-    successUrl: `${base}/api/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancelUrl: `${base}/inbox`,
-    idempotencyKey,
-  });
+  const session = yield* stripe
+    .createCheckoutSession({
+      customerId,
+      priceId,
+      successUrl: `${base}/api/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${base}/inbox?upgrade=1`,
+      idempotencyKey,
+    })
+    .pipe(
+      Effect.tapErrorTag("StripeApiError", (error) =>
+        Effect.annotateCurrentSpan({
+          stripeCode: error.code ?? "unknown",
+          stripeRequestId: error.requestId ?? "unknown",
+        })
+      )
+    );
+
+  yield* Effect.annotateCurrentSpan({ sessionId: maskId(session.id) });
+  yield* Effect.logInfo("Checkout session created");
 
   return Response.json({ url: session.url });
 });

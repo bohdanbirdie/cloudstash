@@ -9,6 +9,7 @@ import { lazy, Suspense } from "react";
 import { HotkeysProvider } from "react-hotkeys-hook";
 
 import { AddLinkProvider } from "@/components/add-link";
+import { PaywallModal } from "@/components/billing/paywall-modal";
 import { BottomDock } from "@/components/bottom-dock/bottom-dock";
 import { ListDataProvider } from "@/components/list-data-context";
 import { LoadingScreen } from "@/components/loading-screen";
@@ -24,6 +25,8 @@ import { YouTubePlayerHost } from "@/components/youtube-player-host";
 import { usePageStaticData } from "@/hooks/use-page-static-data";
 import { loadAuth, useAuth } from "@/lib/auth";
 import { useInputMode } from "@/lib/input-mode";
+import { openPaywallForIntent, parseUpgradeParam } from "@/lib/upgrade-intent";
+import type { UpgradeParam } from "@/lib/upgrade-intent";
 import { ConnectionMonitor } from "@/livestore/store";
 
 const DevToolsPanel = lazy(() =>
@@ -35,16 +38,25 @@ const DevToolsPanel = lazy(() =>
 export const Route = createFileRoute("/_authed")({
   beforeLoad: async () => {
     const auth = await loadAuth();
-    // TSR convention: `throw redirect(...)` keeps the return type as the
-    // context shape (`{ auth }`) so child routes correctly infer
-    // `context.auth`. A `return redirect(...)` would widen the return into
-    // `{ auth } | Redirect` and collapse child inference to `any`.
     if (!auth) throw redirect({ to: "/login" });
     return { auth };
   },
-  validateSearch: (search: Record<string, unknown>): { tag?: string } => ({
+  validateSearch: (
+    search: Record<string, unknown>
+  ): { tag?: string; upgrade?: UpgradeParam } => ({
     tag: typeof search.tag === "string" ? search.tag : undefined,
+    upgrade: parseUpgradeParam(search.upgrade),
   }),
+  loaderDeps: ({ search }) => ({ upgrade: search.upgrade }),
+  loader: ({ context, deps, location }) => {
+    if (!deps.upgrade || !context.auth.isAuthenticated) return;
+    openPaywallForIntent(deps.upgrade);
+    throw redirect({
+      to: location.pathname,
+      search: (prev) => ({ ...prev, upgrade: undefined }),
+      replace: true,
+    });
+  },
   component: AuthedLayout,
 });
 
@@ -81,6 +93,7 @@ function AuthedShellWrapper() {
               </div>
             </div>
             <SettingsDialog />
+            <PaywallModal />
             <MobileDetailSheet />
             <YouTubePlayerHost />
             {import.meta.env.DEV && (

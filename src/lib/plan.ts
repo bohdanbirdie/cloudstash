@@ -44,7 +44,7 @@ export const PLANS: Readonly<Record<PlanTier, PlanInfo>> = {
       "Public API",
     ],
     highlighted: true,
-    badge: "Popular",
+    badge: "Most popular",
   },
   pro: {
     id: "pro",
@@ -58,13 +58,16 @@ export const PLANS: Readonly<Record<PlanTier, PlanInfo>> = {
       "MCP server",
     ],
     inverted: true,
-    badge: "Power user",
+    badge: "Best value",
   },
 };
 
 export const PLAN_ORDER: readonly PlanTier[] = ["free", "plus", "pro"];
 
 export const PLAN_LIST: readonly PlanInfo[] = PLAN_ORDER.map((id) => PLANS[id]);
+
+export const previousTierName = (tier: PlanTier): string | null =>
+  tier === "plus" ? "Free" : tier === "pro" ? "Plus" : null;
 
 export const planPriceDisplay = (plan: PlanInfo, interval: BillingInterval) => {
   if (!plan.pricing) return { amount: 0, suffix: "/ forever" };

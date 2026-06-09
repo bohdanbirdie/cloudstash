@@ -54,6 +54,7 @@ const DetailViewInner = memo(function DetailViewInner({
   const isFailed = processingRecord?.status === "failed";
 
   const { isAiSummaryEnabled } = useOrgFeatures();
+  const hasSummary = Boolean(link.summary);
 
   const { tagIds, setTagIds } = useLinkTags(link.id);
   const suggestionsQuery = useMemo(
@@ -127,13 +128,13 @@ const DetailViewInner = memo(function DetailViewInner({
         {descriptionText && <DescriptionBody text={descriptionText} />}
       </div>
 
-      {isAiSummaryEnabled ? (
+      {isAiSummaryEnabled || hasSummary ? (
         <DetailSummary
           key={link.id}
           summary={link.summary}
-          isProcessing={isProcessing}
-          isReprocessing={isReprocessing}
-          isFailed={isFailed}
+          isProcessing={isAiSummaryEnabled && isProcessing}
+          isReprocessing={isAiSummaryEnabled && isReprocessing}
+          isFailed={isAiSummaryEnabled && isFailed}
         />
       ) : PROMOTE_PAID_FEATURES ? (
         <AiSummaryPromo />

@@ -246,6 +246,7 @@ function PageContent({ link }: { link: LinkWithDetails }) {
   const isProcessing = processingRecord?.status === "pending";
   const isReprocessing = processingRecord?.status === "reprocess-requested";
   const isFailed = processingRecord?.status === "failed";
+  const hasSummary = Boolean(link.summary);
 
   const titleText = displayTitle(link);
   const descriptionText = displayDescription(link);
@@ -300,14 +301,14 @@ function PageContent({ link }: { link: LinkWithDetails }) {
         </div>
       )}
 
-      {isAiSummaryEnabled && (
+      {(isAiSummaryEnabled || hasSummary) && (
         <div className="mt-6">
           <DetailSummary
             key={link.id}
             summary={link.summary}
-            isProcessing={isProcessing}
-            isReprocessing={isReprocessing}
-            isFailed={isFailed}
+            isProcessing={isAiSummaryEnabled && isProcessing}
+            isReprocessing={isAiSummaryEnabled && isReprocessing}
+            isFailed={isAiSummaryEnabled && isFailed}
           />
         </div>
       )}
