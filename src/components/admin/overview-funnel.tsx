@@ -34,10 +34,10 @@ export function CohortFunnelView({ funnel }: { funnel: CohortFunnel }) {
                 </span>
                 {i > 0 && stage.dropPct > 0 && (
                   <span
-                    className={cn(
-                      "ml-1",
-                      isWorst ? "text-destructive" : "text-muted-foreground"
-                    )}
+                    className={cn("ml-1", {
+                      "text-destructive": isWorst,
+                      "text-muted-foreground": !isWorst,
+                    })}
                   >
                     −{stage.dropPct}%
                   </span>
@@ -46,10 +46,10 @@ export function CohortFunnelView({ funnel }: { funnel: CohortFunnel }) {
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
               <div
-                className={cn(
-                  "h-full rounded-full",
-                  isWorst ? "bg-destructive/70" : "bg-primary"
-                )}
+                className={cn("h-full rounded-full", {
+                  "bg-destructive/70": isWorst,
+                  "bg-primary": !isWorst,
+                })}
                 style={{ width: `${width}%` }}
               />
             </div>

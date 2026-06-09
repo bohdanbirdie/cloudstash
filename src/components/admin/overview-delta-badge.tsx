@@ -22,7 +22,7 @@ export function DeltaBadge({ delta }: { delta: number }) {
       title={title}
       className={cn(
         "inline-flex items-center gap-0.5 font-mono text-xs font-medium tabular-nums",
-        up ? "text-green-600 dark:text-green-500" : "text-destructive"
+        { "text-green-600 dark:text-green-500": up, "text-destructive": !up }
       )}
     >
       {up ? (

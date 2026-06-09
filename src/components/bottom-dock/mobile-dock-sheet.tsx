@@ -140,9 +140,10 @@ function ToggleButton({
       aria-pressed={active}
       className={cn(
         "flex h-9 flex-1 items-center justify-center gap-2 rounded-lg text-sm font-medium transition-colors",
-        active
-          ? "bg-background text-foreground shadow-sm"
-          : "text-muted-foreground"
+        {
+          "bg-background text-foreground shadow-sm": active,
+          "text-muted-foreground": !active,
+        }
       )}
     >
       {icon}

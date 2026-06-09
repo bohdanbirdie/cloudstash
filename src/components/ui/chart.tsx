@@ -235,7 +235,7 @@ function ChartTooltipContent({
                     <div
                       className={cn(
                         "flex flex-1 justify-between leading-none",
-                        nestLabel ? "items-end" : "items-center"
+                        { "items-end": nestLabel, "items-center": !nestLabel }
                       )}
                     >
                       <div className="grid gap-1.5">
@@ -284,7 +284,7 @@ function ChartLegendContent({
     <div
       className={cn(
         "flex items-center justify-center gap-4",
-        verticalAlign === "top" ? "pb-3" : "pt-3",
+        { "pb-3": verticalAlign === "top", "pt-3": verticalAlign !== "top" },
         className
       )}
     >

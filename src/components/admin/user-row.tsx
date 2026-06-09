@@ -175,9 +175,10 @@ export function UserRow({ user, adminCount, isSelf }: UserRowProps) {
       <div
         className={cn(
           "flex items-center justify-between gap-3 rounded-md border p-3",
-          isSelf
-            ? "border-primary/30 bg-primary/[0.03]"
-            : "border-border/60 bg-background"
+          {
+            "border-primary/30 bg-primary/[0.03]": isSelf,
+            "border-border/60 bg-background": !isSelf,
+          }
         )}
       >
         <div className="min-w-0 flex-1">

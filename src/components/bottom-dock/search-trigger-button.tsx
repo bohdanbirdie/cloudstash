@@ -20,7 +20,7 @@ export function SearchTriggerButton({
       aria-label="Search links"
       className={cn(
         "relative flex h-10 min-w-0 flex-1 items-center gap-2.5 rounded-full border bg-background px-4 text-left shadow-sm transition-colors",
-        active ? "border-primary/40" : "border-border"
+        { "border-primary/40": active, "border-border": !active }
       )}
     >
       <SearchIcon

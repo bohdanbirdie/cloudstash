@@ -13,6 +13,7 @@ export default defineConfig({
       "src/lib/__tests__/**/*.test.ts",
       "src/livestore/__tests__/**/*.test.ts",
       "src/stores/__tests__/**/*.test.ts",
+      "tools/**/__tests__/**/*.test.ts",
     ],
     exclude: ["**/node_modules/**", "**/local/**", "**/__tests__/e2e/**"],
     coverage: {

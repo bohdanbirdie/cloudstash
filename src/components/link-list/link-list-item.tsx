@@ -53,7 +53,7 @@ function LinkListItemImpl({
         onMouseEnter={onMouseEnter}
         className={cn(
           "group relative -mx-1 grid w-[calc(100%+0.5rem)] cursor-default grid-cols-[1fr_4.75rem] items-start rounded-md px-2 py-2 text-left outline-none transition-colors lg:-mx-3 lg:w-[calc(100%+1.5rem)] mouse:hover:[&:not(:has([data-domain-link]:hover))]:bg-muted focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:ring-inset",
-          showCheckbox ? "gap-x-2" : "gap-x-8",
+          { "gap-x-2": showCheckbox, "gap-x-8": !showCheckbox },
           active && "bg-muted"
         )}
       >
@@ -67,18 +67,19 @@ function LinkListItemImpl({
               }}
               className={cn(
                 "group/check mt-1 flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-full",
-                previewing
-                  ? "bg-muted-foreground/50"
-                  : "bg-primary group-hover/check:bg-muted-foreground/50"
+                {
+                  "bg-muted-foreground/50": previewing,
+                  "bg-primary group-hover/check:bg-muted-foreground/50":
+                    !previewing,
+                }
               )}
             >
               <CheckIcon
-                className={cn(
-                  "size-3",
-                  previewing
-                    ? "text-background"
-                    : "text-primary-foreground group-hover/check:text-background"
-                )}
+                className={cn("size-3", {
+                  "text-background": previewing,
+                  "text-primary-foreground group-hover/check:text-background":
+                    !previewing,
+                })}
                 strokeWidth={3}
               />
             </span>

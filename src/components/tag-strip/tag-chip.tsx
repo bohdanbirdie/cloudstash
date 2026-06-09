@@ -30,18 +30,21 @@ export function TagChip({ tag, active, tabbable, onClick }: TagChipProps) {
       tabIndex={tabbable ? 0 : -1}
       className={cn(
         "relative inline-flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-        active
-          ? "text-primary hover:text-primary"
-          : "text-foreground/40 hover:text-foreground focus-visible:text-foreground"
+        {
+          "text-primary hover:text-primary": active,
+          "text-foreground/40 hover:text-foreground focus-visible:text-foreground":
+            !active,
+        }
       )}
     >
       <span>#{tag.name}</span>
       <span
         className={cn(
           "rounded px-1 text-[10px] leading-[1.4] tabular-nums transition-colors",
-          active
-            ? "bg-primary/15 text-primary/70"
-            : "bg-foreground/[0.06] text-foreground/50"
+          {
+            "bg-primary/15 text-primary/70": active,
+            "bg-foreground/[0.06] text-foreground/50": !active,
+          }
         )}
       >
         {tag.count}

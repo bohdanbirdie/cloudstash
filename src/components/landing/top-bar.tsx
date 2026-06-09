@@ -41,9 +41,10 @@ export function TopBar() {
     <header
       className={cn(
         "fixed inset-x-0 top-0 z-50 border-b transition-all duration-200",
-        scrolled
-          ? "border-border/60 bg-background text-foreground"
-          : "border-transparent bg-primary text-primary-foreground",
+        {
+          "border-border/60 bg-background text-foreground": scrolled,
+          "border-transparent bg-primary text-primary-foreground": !scrolled,
+        },
         !scrolled &&
           nudged &&
           "shadow-[0_2px_8px_-2px_oklch(0.2_0.08_30_/_0.22)]"
@@ -54,9 +55,12 @@ export function TopBar() {
           to="/"
           className={cn(
             "group flex items-center gap-2.5 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-            scrolled
-              ? "focus-visible:ring-primary/40 focus-visible:ring-offset-background"
-              : "focus-visible:ring-primary-foreground/40 focus-visible:ring-offset-primary"
+            {
+              "focus-visible:ring-primary/40 focus-visible:ring-offset-background":
+                scrolled,
+              "focus-visible:ring-primary-foreground/40 focus-visible:ring-offset-primary":
+                !scrolled,
+            }
           )}
         >
           <CloudstashLogo className="size-5 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-safe:group-hover:rotate-[20deg]" />
@@ -73,9 +77,12 @@ export function TopBar() {
                 hash={a.hash}
                 className={cn(
                   "rounded-sm px-2 py-1 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-offset-2",
-                  scrolled
-                    ? "text-foreground hover:bg-foreground/5 focus-visible:ring-primary/40 focus-visible:ring-offset-background"
-                    : "text-primary-foreground hover:bg-primary-foreground/10 focus-visible:ring-primary-foreground/40 focus-visible:ring-offset-primary"
+                  {
+                    "text-foreground hover:bg-foreground/5 focus-visible:ring-primary/40 focus-visible:ring-offset-background":
+                      scrolled,
+                    "text-primary-foreground hover:bg-primary-foreground/10 focus-visible:ring-primary-foreground/40 focus-visible:ring-offset-primary":
+                      !scrolled,
+                  }
                 )}
               >
                 {a.label}
@@ -86,12 +93,12 @@ export function TopBar() {
             render={<Link to="/login" />}
             variant="ghost"
             size="sm"
-            className={cn(
-              "transition-colors",
-              scrolled
-                ? "text-foreground hover:bg-foreground/5 hover:text-foreground"
-                : "text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
-            )}
+            className={cn("transition-colors", {
+              "text-foreground hover:bg-foreground/5 hover:text-foreground":
+                scrolled,
+              "text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground":
+                !scrolled,
+            })}
           >
             Sign in
           </Button>
