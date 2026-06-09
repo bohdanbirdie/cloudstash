@@ -1,5 +1,5 @@
 import type { invite, user } from "@/cf-worker/db/schema";
-import type { PlanTier, TierCapabilities } from "@/lib/plan";
+import type { BillingInterval, PlanTier, TierCapabilities } from "@/lib/plan";
 
 export type InviteRow = typeof invite.$inferSelect;
 export type UserRow = typeof user.$inferSelect;
@@ -13,6 +13,7 @@ export interface MeResponse {
     capabilities: TierCapabilities;
     cancelAtPeriodEnd: boolean;
     currentPeriodEnd: string | null;
+    billingInterval: BillingInterval | null;
   } | null;
   session: {
     activeOrganizationId: string | null;

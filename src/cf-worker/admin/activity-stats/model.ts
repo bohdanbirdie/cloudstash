@@ -1,7 +1,7 @@
-import { PLAN_ORDER } from "@/lib/plan";
+import { monthlyPriceUsd, PLAN_ORDER } from "@/lib/plan";
 import type { PlanTier } from "@/lib/plan";
 
-import { GROWTH_WEEKS, PAYING_STATUSES, TIER_PRICE_USD } from "./constants";
+import { GROWTH_WEEKS, PAYING_STATUSES } from "./constants";
 import { inGrowthWindow, toMs } from "./helpers";
 import type { Org, OrgFactRow } from "./types";
 
@@ -19,7 +19,7 @@ export const enrichOrg = (row: OrgFactRow): Org => {
     saves7d: row.saves7d,
     isActive7d: row.saves7d >= 1,
     isPaying,
-    priceUsd: isPaying ? TIER_PRICE_USD[tier] : 0,
+    priceUsd: isPaying ? monthlyPriceUsd(tier) : 0,
   };
 };
 

@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 
 import { DbError } from "../../db/service";
 import { maskId, safeErrorInfo } from "../../log-utils";
@@ -16,17 +16,20 @@ const successRequest = Effect.fn("Billing.success")(function* (
   yield* Effect.annotateCurrentSpan({ orgId: maskId(orgId) });
   const customerId = yield* getStripeCustomerId(orgId);
 
-  if (customerId) {
-    const backstop = (error: DbError | StripeApiError) =>
-      Effect.logWarning(
-        "Billing.success sync failed; webhook will backstop"
-      ).pipe(
-        Effect.annotateLogs({ orgId: maskId(orgId), ...safeErrorInfo(error) })
-      );
-    yield* syncFromStripe(customerId).pipe(
-      Effect.catchTags({ DbError: backstop, StripeApiError: backstop })
+  const backstop = (error: DbError | StripeApiError) =>
+    Effect.logWarning(
+      "Billing.success sync failed; webhook will backstop"
+    ).pipe(
+      Effect.annotateLogs({ orgId: maskId(orgId), ...safeErrorInfo(error) })
     );
-  }
+
+  yield* Option.match(customerId, {
+    onNone: () => Effect.void,
+    onSome: (id) =>
+      syncFromStripe(id).pipe(
+        Effect.catchTags({ DbError: backstop, StripeApiError: backstop })
+      ),
+  });
 
   return Response.redirect(`${appBaseUrl(request, env)}/welcome`, 302);
 });

@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { Effect, Option } from "effect";
 
-import type { PlanTier } from "@/lib/plan";
+import type { BillingInterval, PlanTier } from "@/lib/plan";
 
 import {
   StripeCustomerId,
@@ -45,7 +45,7 @@ export const getOrCreateStripeCustomer = Effect.fn(
 
   if (org.stripeCustomerId) {
     yield* Effect.annotateCurrentSpan({ orgId: maskId(orgId), created: false });
-    return StripeCustomerId.make(org.stripeCustomerId);
+    return org.stripeCustomerId;
   }
 
   const customer = yield* stripe.createCustomer({
@@ -58,7 +58,7 @@ export const getOrCreateStripeCustomer = Effect.fn(
   yield* query(
     db
       .update(schema.organization)
-      .set({ stripeCustomerId: customer.id })
+      .set({ stripeCustomerId: StripeCustomerId.make(customer.id) })
       .where(eq(schema.organization.id, orgId))
   );
 
@@ -81,9 +81,7 @@ export const getStripeCustomerId = Effect.fn("Billing.getStripeCustomerId")(
         columns: { stripeCustomerId: true },
       })
     );
-    return org?.stripeCustomerId
-      ? StripeCustomerId.make(org.stripeCustomerId)
-      : null;
+    return Option.fromNullable(org?.stripeCustomerId);
   }
 );
 
@@ -155,6 +153,20 @@ export const syncFromStripe = Effect.fn("Billing.syncFromStripe")(function* (
         }
       );
 
+  const billingInterval: BillingInterval | null = keepsTier
+    ? item.pipe(
+        Option.map((i) =>
+          i.price.recurring?.interval === "year" ? "year" : "month"
+        ),
+        Option.getOrNull
+      )
+    : null;
+
+  yield* Effect.annotateCurrentSpan({
+    tier,
+    billingInterval: billingInterval ?? "none",
+  });
+
   yield* query(
     db
       .update(schema.organization)
@@ -178,6 +190,7 @@ export const syncFromStripe = Effect.fn("Billing.syncFromStripe")(function* (
           Option.map((s) => s.cancel_at != null),
           Option.getOrElse(() => false)
         ),
+        billingInterval,
       })
       .where(eq(schema.organization.id, org.id))
   );
@@ -194,6 +207,7 @@ export const syncFromStripe = Effect.fn("Billing.syncFromStripe")(function* (
         Option.map((s) => s.cancel_at != null),
         Option.getOrElse(() => false)
       ),
+      billingInterval: billingInterval ?? "none",
     })
   );
 });

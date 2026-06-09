@@ -35,6 +35,7 @@
     "typecheck": "tsgo --noEmit",
     "check": "vp check && bun run check:effect",
     "check:effect": "effect-language-service diagnostics --project tsconfig.json --format pretty --strict --lspconfig '{\"allowedDuplicatedPackages\": [\"@livestore/utils\"]}'",
+    "check:pricing": "bun scripts/check-pricing.ts",
     "fix": "vp check --fix",
     "prepare": "effect-language-service patch",
     "clean:local-state": "rm -rf .wrangler/state/v3/cache .wrangler/state/v3/do .wrangler/state/v3/kv .wrangler/state/v3/workflows"

@@ -16,6 +16,7 @@ export class InvalidBodyError extends Schema.TaggedError<InvalidBodyError>()(
 
 export const CheckoutBody = Schema.Struct({
   tier: Schema.Literal("plus", "pro"),
+  interval: Schema.Literal("month", "year"),
 });
 
 export const PortalBody = Schema.Struct({

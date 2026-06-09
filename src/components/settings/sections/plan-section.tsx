@@ -2,18 +2,20 @@ import { ArrowRightIcon, Loader2Icon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { IntervalToggle } from "@/components/billing/interval-toggle";
 import { PlanFeatureList } from "@/components/billing/plan-feature-list";
 import { SectionEyebrow } from "@/components/right-pane/detail-view/section-eyebrow";
 import { Button } from "@/components/ui/button";
 import { useOrgFeatures } from "@/hooks/use-org-features";
 import { changePlan } from "@/lib/billing";
 import {
+  billingPeriodNote,
   cancelKeepsFeaturesCopy,
   formatRenewalDate,
   PLAN_CHANGE_COPY,
 } from "@/lib/billing-copy";
-import type { PlanInfo, PlanTier } from "@/lib/plan";
-import { PLAN_ORDER, PLANS } from "@/lib/plan";
+import type { BillingInterval, PlanInfo, PlanTier } from "@/lib/plan";
+import { PLAN_ORDER, planPriceDisplay, PLANS } from "@/lib/plan";
 import { MICRO_LABEL, MICRO_LABEL_SM } from "@/lib/typography";
 import { cn } from "@/lib/utils";
 
@@ -45,17 +47,24 @@ function changeNote(action: TileAction): string | null {
 }
 
 export function PlanSection() {
-  const { tier, cancelAtPeriodEnd, currentPeriodEnd } = useOrgFeatures();
+  const { tier, cancelAtPeriodEnd, currentPeriodEnd, billingInterval } =
+    useOrgFeatures();
   const currentPlan = PLANS[tier];
   const renewalDate = formatRenewalDate(currentPeriodEnd);
   const isCanceling = cancelAtPeriodEnd && tier !== "free";
+
+  const [selectedInterval, setSelectedInterval] =
+    useState<BillingInterval>("year");
+  const activeInterval: BillingInterval =
+    tier === "free" ? selectedInterval : (billingInterval ?? "month");
+  const currentDisplay = planPriceDisplay(currentPlan, activeInterval);
 
   const [pending, setPending] = useState<PlanTier | null>(null);
 
   const handleChange = (target: PlanTier) => {
     if (pending !== null) return;
     setPending(target);
-    void changePlan(target, tier).catch((err: unknown) => {
+    void changePlan(target, tier, activeInterval).catch((err: unknown) => {
       setPending(null);
       toast.error("Couldn’t open billing", {
         description: err instanceof Error ? err.message : "Please try again.",
@@ -69,7 +78,7 @@ export function PlanSection() {
         {pending ? "Opening billing…" : ""}
       </span>
 
-      <header className="flex flex-wrap items-baseline-last justify-between gap-x-4 gap-y-2">
+      <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <div className="flex flex-col gap-1.5">
           <SectionEyebrow>Your plan</SectionEyebrow>
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
@@ -77,25 +86,32 @@ export function PlanSection() {
               {currentPlan.name}
             </h2>
             <span className="text-sm text-muted-foreground tabular-nums">
-              ${currentPlan.price} {currentPlan.priceSuffix}
+              ${currentDisplay.amount} {currentDisplay.suffix}
             </span>
           </div>
+          {tier !== "free" && (
+            <span className="text-xs text-muted-foreground">
+              {billingPeriodNote(activeInterval)}
+            </span>
+          )}
         </div>
 
         {tier !== "free" && !isCanceling && (
-          <div className="flex flex-col items-end gap-0.5 text-right max-sm:items-start max-sm:text-left">
-            <button
+          <div className="flex shrink-0 flex-col items-start gap-0.5">
+            <Button
               type="button"
+              variant="link"
+              size="sm"
               onClick={() => handleChange("free")}
               disabled={pending !== null && pending !== "free"}
               aria-busy={pending === "free"}
-              className="inline-flex min-h-8 items-center gap-1.5 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50"
+              className="h-auto min-h-8 gap-1.5 p-0 text-sm font-normal text-muted-foreground hover:text-foreground"
             >
               {pending === "free" && (
                 <Loader2Icon className="size-3 animate-spin" aria-hidden />
               )}
               Cancel subscription
-            </button>
+            </Button>
             <span className="text-pretty text-xs text-muted-foreground">
               {PLAN_CHANGE_COPY.cancel}
             </span>
@@ -130,9 +146,17 @@ export function PlanSection() {
       )}
 
       <div className="flex flex-col gap-5">
+        {tier === "free" && (
+          <IntervalToggle
+            value={selectedInterval}
+            onChange={setSelectedInterval}
+          />
+        )}
+
         <PrimaryTile
           plan={PLANS.pro}
           action={tileAction("pro", tier)}
+          interval={activeInterval}
           pending={pending}
           onChange={handleChange}
         />
@@ -142,6 +166,7 @@ export function PlanSection() {
         <SecondaryTile
           plan={PLANS.plus}
           action={tileAction("plus", tier)}
+          interval={activeInterval}
           pending={pending}
           onChange={handleChange}
         />
@@ -153,15 +178,18 @@ export function PlanSection() {
 function PrimaryTile({
   plan,
   action,
+  interval,
   pending,
   onChange,
 }: {
   plan: PlanInfo;
   action: TileAction;
+  interval: BillingInterval;
   pending: PlanTier | null;
   onChange: (target: PlanTier) => void;
 }) {
   const features = primaryFeatures(plan.id);
+  const display = planPriceDisplay(plan, interval);
 
   return (
     <article className="flex flex-col gap-5 rounded-lg border border-border/80 bg-background p-5">
@@ -183,10 +211,10 @@ function PrimaryTile({
         </div>
         <div className="flex items-baseline gap-x-1.5">
           <span className="text-3xl font-bold tracking-tight text-foreground tabular-nums">
-            ${plan.price}
+            ${display.amount}
           </span>
           <span className="text-xs font-medium text-muted-foreground">
-            {plan.priceSuffix}
+            {display.suffix}
           </span>
         </div>
         <p className="text-pretty text-sm text-muted-foreground">
@@ -210,14 +238,17 @@ function PrimaryTile({
 function SecondaryTile({
   plan,
   action,
+  interval,
   pending,
   onChange,
 }: {
   plan: PlanInfo;
   action: TileAction;
+  interval: BillingInterval;
   pending: PlanTier | null;
   onChange: (target: PlanTier) => void;
 }) {
+  const display = planPriceDisplay(plan, interval);
   return (
     <article className="ml-6 flex flex-col gap-3 rounded-lg border border-dashed border-border/70 bg-background/40 p-4">
       <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -233,10 +264,10 @@ function SecondaryTile({
         </div>
         <div className="flex items-baseline gap-x-1">
           <span className="text-lg font-semibold text-foreground tabular-nums">
-            ${plan.price}
+            ${display.amount}
           </span>
           <span className="text-xs text-muted-foreground">
-            {plan.priceSuffix}
+            {display.suffix}
           </span>
         </div>
       </header>
@@ -319,7 +350,7 @@ function TileCta({
         {isPending ? (
           <Loader2Icon className="size-3.5 animate-spin" aria-hidden />
         ) : (
-          isUpgrade && <ArrowRightIcon className="size-3.5" />
+          isUpgrade && <ArrowRightIcon className="size-3.5" aria-hidden />
         )}
       </Button>
       {note && (

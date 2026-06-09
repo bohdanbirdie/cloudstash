@@ -41,6 +41,7 @@ export function useOrgFeatures() {
   const tier = data?.organization?.tier ?? "free";
   const cancelAtPeriodEnd = data?.organization?.cancelAtPeriodEnd ?? false;
   const currentPeriodEnd = data?.organization?.currentPeriodEnd ?? null;
+  const billingInterval = data?.organization?.billingInterval ?? null;
 
   const isLoading = data === undefined && error === undefined;
   const isFallback = data === undefined && error !== undefined;
@@ -50,6 +51,7 @@ export function useOrgFeatures() {
     tier,
     cancelAtPeriodEnd,
     currentPeriodEnd,
+    billingInterval,
     error: error ?? null,
     isLoading,
     isFallback,

@@ -5,6 +5,7 @@ import { trackEvent } from "../analytics";
 import type { Auth } from "../auth";
 import { AuthClient } from "../auth/service";
 import { Billing } from "../billing/service";
+import { SessionLookupError } from "../connect/errors";
 import { OrgId, UserId } from "../db/branded";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { runHandler } from "../runtime";
@@ -21,7 +22,7 @@ const getSession = Effect.fn("Org.getSession")(function* (
   headers: Headers
 ) {
   const session = yield* Effect.tryPromise({
-    catch: () => OrgUnauthorizedError.make({}),
+    catch: (cause) => new SessionLookupError({ cause }),
     try: () => auth.api.getSession({ headers }),
   });
   if (!session) {
@@ -52,7 +53,10 @@ const getOrgWithCapabilities = Effect.fn("Org.getOrgWithCapabilities")(
     const capabilities = yield* billing.capabilities(orgId);
     const subscription = yield* billing.subscription(orgId);
 
-    yield* Effect.annotateCurrentSpan({ tier });
+    yield* Effect.annotateCurrentSpan({
+      tier,
+      interval: subscription.billingInterval ?? "none",
+    });
 
     return {
       id: apiOrg.id,
@@ -62,6 +66,7 @@ const getOrgWithCapabilities = Effect.fn("Org.getOrgWithCapabilities")(
       capabilities,
       cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
       currentPeriodEnd: subscription.currentPeriodEnd,
+      billingInterval: subscription.billingInterval,
     };
   }
 );
@@ -155,6 +160,16 @@ export const handleGetMe = (request: Request, env: Env): Promise<Response> =>
         OrgUnauthorizedError: () =>
           Effect.logDebug("Get me unauthorized").pipe(
             Effect.as(Response.json({ error: "Unauthorized" }, { status: 401 }))
+          ),
+        SessionLookupError: (e) =>
+          Effect.logError("Get me session lookup failed").pipe(
+            Effect.annotateLogs(safeErrorInfo(e.cause)),
+            Effect.as(
+              Response.json(
+                { error: "Auth backend unavailable" },
+                { status: 503 }
+              )
+            )
           ),
       })
     )
@@ -276,6 +291,16 @@ export const handleGetOrg = (
         OrgUnauthorizedError: () =>
           Effect.logDebug("Get org unauthorized").pipe(
             Effect.as(Response.json({ error: "Unauthorized" }, { status: 401 }))
+          ),
+        SessionLookupError: (e) =>
+          Effect.logError("Get org session lookup failed").pipe(
+            Effect.annotateLogs(safeErrorInfo(e.cause)),
+            Effect.as(
+              Response.json(
+                { error: "Auth backend unavailable" },
+                { status: 503 }
+              )
+            )
           ),
       })
     )

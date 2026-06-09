@@ -1,10 +1,15 @@
 import { Link } from "@tanstack/react-router";
-import { motion } from "motion/react";
+import { Match } from "effect";
+import { motion, useReducedMotion } from "motion/react";
+import { useState } from "react";
 
+import { IntervalToggle } from "@/components/billing/interval-toggle";
 import { Button } from "@/components/ui/button";
-import type { PlanInfo, PlanTier } from "@/lib/plan";
-import { PLAN_LIST } from "@/lib/plan";
+import type { BillingInterval, PlanInfo, PlanTier } from "@/lib/plan";
+import { PLAN_LIST, planPriceDisplay, yearlySavings } from "@/lib/plan";
 import { cn } from "@/lib/utils";
+
+import { SectionHeader, SHELL } from "./shared";
 
 const CTA_BY_TIER: Record<PlanTier, { label: string; href: string }> = {
   free: { label: "Save your first link", href: "/login" },
@@ -12,9 +17,9 @@ const CTA_BY_TIER: Record<PlanTier, { label: string; href: string }> = {
   pro: { label: "Start Pro", href: "/login" },
 };
 
-import { SectionHeader, SHELL } from "./shared";
-
 export function Pricing() {
+  const [interval, setInterval] = useState<BillingInterval>("year");
+
   return (
     <section
       id="pricing"
@@ -31,9 +36,18 @@ export function Pricing() {
           lead="Saving links is free forever. Pay only when you want AI summaries and integrations."
         />
 
-        <div className="grid gap-4 sm:gap-5 lg:grid-cols-3">
+        <div className="mb-9 flex justify-center sm:mb-11">
+          <IntervalToggle value={interval} onChange={setInterval} />
+        </div>
+
+        <div className="grid gap-5 sm:gap-6 lg:grid-cols-3 lg:items-stretch">
           {PLAN_LIST.map((plan, i) => (
-            <PricingTile key={plan.id} plan={plan} index={i} />
+            <PricingTile
+              key={plan.id}
+              plan={plan}
+              index={i}
+              interval={interval}
+            />
           ))}
         </div>
       </div>
@@ -41,99 +55,217 @@ export function Pricing() {
   );
 }
 
-function PricingTile({ plan, index }: { plan: PlanInfo; index: number }) {
+function PricingTile({
+  plan,
+  index,
+  interval,
+}: {
+  plan: PlanInfo;
+  index: number;
+  interval: BillingInterval;
+}) {
   const cta = CTA_BY_TIER[plan.id];
-  const cumulative =
-    plan.id === "free"
-      ? plan.features
-      : ["Everything in " + previousTierName(plan.id), ...plan.features];
+  const display = planPriceDisplay(plan, interval);
+  const savings = yearlySavings(plan);
+  const showSavings = interval === "year" && savings !== null;
+  const savingsPct = savings?.pct ?? 0;
+  const fullYearly = Match.value(showSavings).pipe(
+    Match.when(true, () => display.amount + (savings?.amount ?? 0)),
+    Match.orElse(() => 0)
+  );
+  const prevTier = previousTierName(plan.id);
+  const reduce = useReducedMotion();
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      whileInView={{ opacity: 1, y: 0 }}
+      initial={Match.value(reduce).pipe(
+        Match.when(true, () => false),
+        Match.orElse(() => ({ opacity: 0, y: 16 }))
+      )}
+      whileInView={Match.value(reduce).pipe(
+        Match.when(true, () => undefined),
+        Match.orElse(() => ({ opacity: 1, y: 0 }))
+      )}
       viewport={{ once: true, margin: "-60px" }}
-      transition={{
-        duration: 0.45,
-        ease: [0.22, 1, 0.36, 1],
-        delay: index * 0.08,
-      }}
+      transition={Match.value(reduce).pipe(
+        Match.when(true, () => undefined),
+        Match.orElse(() => ({
+          duration: 0.45,
+          ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+          delay: index * 0.08,
+        }))
+      )}
       className={cn(
-        "flex flex-col rounded-lg border p-7 transition-[border-color,box-shadow]",
-        plan.inverted
-          ? "border-foreground/95 bg-foreground text-background shadow-[0_1px_0_oklch(0_0_0_/_0.06),0_18px_40px_-20px_oklch(0_0_0_/_0.35)]"
-          : plan.highlighted
-            ? "border-primary/60 bg-background ring-1 ring-primary/25 shadow-[0_1px_0_oklch(0.553_0.195_38.402_/_0.12),0_12px_28px_-16px_oklch(0.553_0.195_38.402_/_0.25)]"
-            : "border-border/80 bg-background hover:border-border hover:shadow-[0_1px_0_oklch(0_0_0_/_0.04),0_8px_20px_-16px_oklch(0_0_0_/_0.18)]"
+        "flex flex-col rounded-xl border p-7 transition-[border-color,box-shadow] sm:p-8",
+        Match.value(plan).pipe(
+          Match.when(
+            { inverted: true },
+            () =>
+              "border-foreground/95 bg-foreground text-background shadow-[0_1px_0_oklch(0_0_0_/_0.06),0_24px_50px_-26px_oklch(0_0_0_/_0.45)]"
+          ),
+          Match.when(
+            { highlighted: true },
+            () =>
+              "border-primary/50 bg-background ring-1 ring-primary/30 shadow-[0_1px_0_oklch(from_var(--primary)_l_c_h_/_0.14),0_18px_40px_-22px_oklch(from_var(--primary)_l_c_h_/_0.32)]"
+          ),
+          Match.orElse(
+            () =>
+              "border-border/80 bg-background hover:border-border hover:shadow-[0_1px_0_oklch(0_0_0_/_0.04),0_10px_24px_-18px_oklch(0_0_0_/_0.2)]"
+          )
+        )
       )}
     >
-      <div className="mb-5 flex items-center justify-between">
+      <div className="mb-6 flex h-6 items-center justify-between">
         <span
           className={cn(
-            "text-[12px] font-semibold uppercase tracking-[0.08em]",
-            plan.inverted ? "text-background/60" : "text-muted-foreground"
+            "text-[12px] font-semibold uppercase tracking-[0.09em]",
+            Match.value(plan.inverted).pipe(
+              Match.when(true, () => "text-background/60"),
+              Match.orElse(() => "text-muted-foreground")
+            )
           )}
         >
           {plan.name}
         </span>
-        {plan.badge && plan.highlighted && (
-          <span className="select-none rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-primary-foreground">
-            {plan.badge}
-          </span>
-        )}
-        {plan.badge && plan.inverted && (
-          <span className="select-none rounded-full border border-background/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-background/85">
+        {plan.badge && (
+          <span
+            className={cn(
+              "select-none rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.06em]",
+              Match.value(plan.inverted).pipe(
+                Match.when(
+                  true,
+                  () => "border border-background/25 text-background/85"
+                ),
+                Match.orElse(() => "bg-primary text-primary-foreground")
+              )
+            )}
+          >
             {plan.badge}
           </span>
         )}
       </div>
-      <div className="mb-2 flex items-baseline gap-1.5">
+
+      <div className="flex items-baseline gap-1.5">
         <span
           className={cn(
-            "text-4xl font-bold tracking-tight tabular-nums",
+            "text-5xl font-bold leading-none tracking-tight tabular-nums",
             plan.inverted && "text-background"
           )}
         >
-          ${plan.price}
+          ${display.amount}
         </span>
         <span
           className={cn(
             "text-sm font-medium",
-            plan.inverted ? "text-background/60" : "text-muted-foreground"
+            Match.value(plan.inverted).pipe(
+              Match.when(true, () => "text-background/55"),
+              Match.orElse(() => "text-muted-foreground")
+            )
           )}
         >
-          {plan.priceSuffix}
+          {display.suffix}
         </span>
       </div>
+
+      <div className="mt-3 flex h-6 items-center gap-2">
+        {Match.value({ showSavings, isFree: plan.id === "free" }).pipe(
+          Match.when({ showSavings: true }, () => (
+            <>
+              <s
+                aria-hidden="true"
+                className={cn(
+                  "text-[13px] tabular-nums",
+                  Match.value(plan.inverted).pipe(
+                    Match.when(true, () => "text-background/45"),
+                    Match.orElse(() => "text-muted-foreground/70")
+                  )
+                )}
+              >
+                ${fullYearly}
+              </s>
+              <span
+                className={cn(
+                  "select-none rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                  Match.value(plan.inverted).pipe(
+                    Match.when(
+                      true,
+                      () => "bg-primary text-primary-foreground"
+                    ),
+                    Match.orElse(() => "bg-primary/10 text-primary")
+                  )
+                )}
+              >
+                Save {savingsPct}%
+              </span>
+              <span className="sr-only">
+                {`$${fullYearly} per year if billed monthly`}
+              </span>
+            </>
+          )),
+          Match.when({ isFree: true }, () => (
+            <span className="text-[13px] text-muted-foreground">
+              No credit card required
+            </span>
+          )),
+          Match.orElse(() => null)
+        )}
+      </div>
+
       <p
         className={cn(
-          "mb-7 text-pretty text-sm",
-          plan.inverted ? "text-background/70" : "text-muted-foreground"
+          "mt-5 mb-7 text-pretty text-sm leading-relaxed",
+          Match.value(plan.inverted).pipe(
+            Match.when(true, () => "text-background/70"),
+            Match.orElse(() => "text-muted-foreground")
+          )
         )}
       >
         {plan.tagline}
       </p>
-      <ul className="mb-8 grid flex-1 content-start gap-3 text-sm">
-        {cumulative.map((it) => (
-          <li key={it} className="flex items-baseline gap-2.5">
-            <span className="inline-flex shrink-0">
-              <PricingCheck inverted={plan.inverted} />
-            </span>
-            <span
-              className={cn(
-                "text-pretty",
-                plan.inverted ? "text-background/90" : "text-foreground/90"
-              )}
-            >
-              {it}
-            </span>
-          </li>
-        ))}
-      </ul>
+
+      <div className="mb-8 flex flex-1 flex-col">
+        {prevTier && (
+          <p
+            className={cn(
+              "mb-3.5 text-[13px] font-medium",
+              Match.value(plan.inverted).pipe(
+                Match.when(true, () => "text-background/60"),
+                Match.orElse(() => "text-muted-foreground")
+              )
+            )}
+          >
+            Everything in {prevTier}, plus
+          </p>
+        )}
+        <ul className="grid content-start gap-3 text-sm">
+          {plan.features.map((it) => (
+            <li key={it} className="flex items-start gap-2.5">
+              <span className="mt-0.5 inline-flex shrink-0">
+                <PricingCheck inverted={plan.inverted} />
+              </span>
+              <span
+                className={cn(
+                  "text-pretty leading-snug",
+                  Match.value(plan.inverted).pipe(
+                    Match.when(true, () => "text-background/90"),
+                    Match.orElse(() => "text-foreground/90")
+                  )
+                )}
+              >
+                {it}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
       <Button
         render={<Link to={cta.href} />}
         size="lg"
-        variant={plan.id === "free" ? "outline" : "default"}
+        variant={Match.value(plan.id).pipe(
+          Match.when("free", () => "outline" as const),
+          Match.orElse(() => "default" as const)
+        )}
         className={cn(
           "h-11 w-full px-6 text-sm",
           plan.inverted &&
@@ -155,7 +287,13 @@ function previousTierName(tier: PlanTier): string {
 function PricingCheck({ inverted }: { inverted?: boolean }) {
   return (
     <svg
-      className={cn("size-4", inverted ? "text-background" : "text-primary")}
+      className={cn(
+        "size-4",
+        Match.value(inverted).pipe(
+          Match.when(true, () => "text-background"),
+          Match.orElse(() => "text-primary")
+        )
+      )}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"

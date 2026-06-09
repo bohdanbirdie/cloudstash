@@ -31,6 +31,8 @@ declare namespace Cloudflare {
 		STRIPE_WEBHOOK_SECRET: string;
 		STRIPE_PRICE_PLUS: string;
 		STRIPE_PRICE_PRO: string;
+		STRIPE_PRICE_PLUS_YEARLY: string;
+		STRIPE_PRICE_PRO_YEARLY: string;
 		SYNC_BACKEND_DO: DurableObjectNamespace<import("./src/cf-worker/index").SyncBackendDO>;
 		LINK_PROCESSOR_DO: DurableObjectNamespace<import("./src/cf-worker/index").LinkProcessorDO>;
 		Chat: DurableObjectNamespace<import("./src/cf-worker/index").ChatAgentDO>;
@@ -43,5 +45,5 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET" | "BETTER_AUTH_SECRET" | "BETTER_AUTH_URL" | "TELEGRAM_BOT_TOKEN" | "TELEGRAM_WEBHOOK_SECRET" | "RESEND_API_KEY" | "EMAIL_FROM" | "OPENROUTER_API_KEY" | "CF_ACCOUNT_ID" | "CF_ANALYTICS_TOKEN" | "X_CLIENT_ID" | "X_CLIENT_SECRET" | "STRIPE_API_KEY" | "STRIPE_WEBHOOK_SECRET" | "STRIPE_PRICE_PLUS" | "STRIPE_PRICE_PRO">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET" | "BETTER_AUTH_SECRET" | "BETTER_AUTH_URL" | "TELEGRAM_BOT_TOKEN" | "TELEGRAM_WEBHOOK_SECRET" | "RESEND_API_KEY" | "EMAIL_FROM" | "OPENROUTER_API_KEY" | "CF_ACCOUNT_ID" | "CF_ANALYTICS_TOKEN" | "X_CLIENT_ID" | "X_CLIENT_SECRET" | "STRIPE_API_KEY" | "STRIPE_WEBHOOK_SECRET" | "STRIPE_PRICE_PLUS" | "STRIPE_PRICE_PRO" | "STRIPE_PRICE_PLUS_YEARLY" | "STRIPE_PRICE_PRO_YEARLY">> {}
 }
