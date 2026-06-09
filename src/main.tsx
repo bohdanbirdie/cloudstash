@@ -1,5 +1,6 @@
 import "./styles.css";
 import { RouterProvider } from "@tanstack/react-router";
+import { MotionConfig } from "motion/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { SWRConfig } from "swr";
@@ -27,8 +28,10 @@ createRoot(root).render(
         dedupingInterval: 10_000,
       }}
     >
-      <RouterProvider router={router} />
-      <Toaster position="top-center" />
+      <MotionConfig reducedMotion="user">
+        <RouterProvider router={router} />
+        <Toaster position="top-center" />
+      </MotionConfig>
     </SWRConfig>
   </StrictMode>
 );

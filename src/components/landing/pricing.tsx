@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { CheckIcon } from "lucide-react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import type { Transition } from "motion/react";
 import { useState } from "react";
 
@@ -89,22 +89,17 @@ function PricingTile({
   const savingsPct = savings?.pct ?? 0;
   const fullYearly = showSavings ? display.amount + (savings?.amount ?? 0) : 0;
   const prevTier = previousTierName(plan.id);
-  const reduce = useReducedMotion();
 
   return (
     <motion.div
-      initial={reduce ? false : { opacity: 0, y: 16 }}
-      whileInView={reduce ? undefined : { opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 16 }}
+      whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-60px" }}
-      transition={
-        reduce
-          ? undefined
-          : {
-              duration: 0.45,
-              ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
-              delay: index * 0.08,
-            }
-      }
+      transition={{
+        duration: 0.45,
+        ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+        delay: index * 0.08,
+      }}
       className={cn(
         "flex flex-col rounded-xl border p-7 transition-[border-color,box-shadow] sm:p-8",
         {
@@ -161,20 +156,10 @@ function PricingTile({
             <motion.div
               key="savings"
               className="flex origin-left items-center gap-2"
-              initial={
-                reduce ? false : { opacity: 0, scale: 0.8, filter: "blur(4px)" }
-              }
-              animate={
-                reduce
-                  ? { opacity: 1 }
-                  : { opacity: 1, scale: 1, filter: "blur(0px)" }
-              }
-              exit={
-                reduce
-                  ? { opacity: 0 }
-                  : { opacity: 0, scale: 0.8, filter: "blur(4px)" }
-              }
-              transition={reduce ? { duration: 0 } : REVEAL}
+              initial={{ opacity: 0, scale: 0.8, filter: "blur(4px)" }}
+              animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+              exit={{ opacity: 0, scale: 0.8, filter: "blur(4px)" }}
+              transition={REVEAL}
             >
               <s
                 aria-hidden="true"

@@ -25,4 +25,29 @@ non-string branches.
 The autofix flips equality operators (`a === b` → `a !== b`) and strips an
 existing `!` instead of double-negating. oxfmt then re-wraps and de-quotes keys.
 
-Behavior fixtures and tests live in `__tests__/`.
+## `motion/no-use-reduced-motion`
+
+Forbids importing `useReducedMotion` from `motion/react` / `framer-motion`.
+
+```tsx
+// before — hand-gating every animation prop
+const reduce = useReducedMotion();
+<motion.div animate={reduce ? { opacity: 1 } : { scale: 1, opacity: 1 }} />;
+
+// after — one global config, set once at the app root (src/main.tsx)
+<MotionConfig reducedMotion="user">{app}</MotionConfig>;
+<motion.div animate={{ scale: 1, opacity: 1 }} />;
+```
+
+`MotionConfig reducedMotion="user"` disables transform and layout animations
+while keeping `opacity`/`backgroundColor`, so per-component `useReducedMotion`
+plumbing for those cases is redundant. Report-only — there is no safe
+mechanical fix, since removing the hook also means deleting the JSX it gated.
+
+**Caught:** a named import of `useReducedMotion` (incl. aliased) from
+`motion/react` or `framer-motion`.
+
+**Skipped by design:** a same-named import from any other module, and the
+`MotionConfig` / `motion` imports themselves.
+
+Behavior fixtures and tests for both rules live in `__tests__/`.

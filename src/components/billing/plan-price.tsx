@@ -1,4 +1,4 @@
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import type { Transition } from "motion/react";
 
 import { RollingNumber } from "@/components/ui/rolling-number";
@@ -29,7 +29,6 @@ export function PlanPrice({
   const savings = yearlySavings(plan);
   const showSavings = interval === "year" && savings !== null;
   const fullYearly = showSavings ? display.amount + savings.amount : 0;
-  const reduce = useReducedMotion();
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -63,20 +62,10 @@ export function PlanPrice({
             <motion.div
               key="savings"
               className="flex origin-left items-center gap-2"
-              initial={
-                reduce ? false : { opacity: 0, scale: 0.8, filter: "blur(4px)" }
-              }
-              animate={
-                reduce
-                  ? { opacity: 1 }
-                  : { opacity: 1, scale: 1, filter: "blur(0px)" }
-              }
-              exit={
-                reduce
-                  ? { opacity: 0 }
-                  : { opacity: 0, scale: 0.8, filter: "blur(4px)" }
-              }
-              transition={reduce ? { duration: 0 } : REVEAL}
+              initial={{ opacity: 0, scale: 0.8, filter: "blur(4px)" }}
+              animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+              exit={{ opacity: 0, scale: 0.8, filter: "blur(4px)" }}
+              transition={REVEAL}
             >
               <s
                 aria-hidden

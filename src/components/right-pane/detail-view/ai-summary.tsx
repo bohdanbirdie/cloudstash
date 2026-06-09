@@ -1,4 +1,4 @@
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { memo, useEffect, useRef, useState } from "react";
 
 import { DotmSquare11 } from "@/components/ui/dotm-square-11";
@@ -88,13 +88,10 @@ function RotatingPhrase({
   phrases: readonly string[];
   intervalSeconds?: number;
 }) {
-  const reduceMotion = useReducedMotion();
-
   return (
     <TextLoop
       className="text-sm leading-relaxed text-muted-foreground"
       interval={intervalSeconds}
-      trigger={!reduceMotion}
     >
       {phrases.map((phrase) => (
         <span key={phrase}>{phrase}</span>
@@ -104,7 +101,6 @@ function RotatingPhrase({
 }
 
 function SummaryBody({ summary }: { summary: string }) {
-  const reduceMotion = useReducedMotion();
   const initialSummaryRef = useRef(summary);
   const [animationId, setAnimationId] = useState<number | null>(null);
 
@@ -114,7 +110,7 @@ function SummaryBody({ summary }: { summary: string }) {
     setAnimationId((id) => (id ?? 0) + 1);
   }, [summary]);
 
-  if (animationId === null || reduceMotion) {
+  if (animationId === null) {
     return <Markdown className={SUMMARY_PROSE_CLASS}>{summary}</Markdown>;
   }
 
