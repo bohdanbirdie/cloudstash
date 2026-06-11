@@ -14,6 +14,47 @@ export { runSyncAuth, validatePayload } from "./validate-payload";
 
 const logger = logSync("SyncBackend");
 
+// TEMP — production verification for the effect `never` hibernation patch
+// (patches/effect@3.21.2.patch). A pending long-period setInterval is the exact
+// disqualifier for Cloudflare Durable Object WebSocket hibernation; the patched
+// `Effect.never` registers no timer, so this count must stay 0 on every live
+// connection. We warn loudly if any long-period timer is ever created and
+// surface the running count on the "Push received" log, so prod can be confirmed
+// by querying the whale's pushes for `liveLongTimers: 0`. Remove once confirmed.
+let liveLongTimers = 0;
+{
+  const HIBERNATION_TIMER_MS = 1_000_000;
+  type IntervalFn = typeof globalThis.setInterval;
+  type TimerId = ReturnType<IntervalFn>;
+  const realSetInterval: IntervalFn = globalThis.setInterval;
+  const realClearInterval = globalThis.clearInterval;
+  const longTimerIds = new Set<TimerId>();
+  const wrappedSet = (
+    callback: (...cbArgs: unknown[]) => void,
+    msDelay?: number,
+    ...args: unknown[]
+  ): TimerId => {
+    const id: TimerId = realSetInterval(callback, msDelay, ...args);
+    if ((msDelay ?? 0) > HIBERNATION_TIMER_MS) {
+      longTimerIds.add(id);
+      liveLongTimers = longTimerIds.size;
+      logger.warn("[hibernation-timer] long-period setInterval created", {
+        msDelay,
+        liveLongTimers,
+      });
+    }
+    return id;
+  };
+  const wrappedClear = (id?: TimerId): void => {
+    if (id !== undefined && longTimerIds.delete(id)) {
+      liveLongTimers = longTimerIds.size;
+    }
+    realClearInterval(id);
+  };
+  globalThis.setInterval = wrappedSet as IntervalFn;
+  globalThis.clearInterval = wrappedClear as typeof globalThis.clearInterval;
+}
+
 let currentSyncBackend: {
   triggerLinkProcessor: (storeId: OrgId) => void;
   getEventlogMax: () => number | null;
@@ -33,6 +74,7 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
       storeId: maskId(storeId),
       batchSize: message.batch.length,
       events: message.batch.map((e) => e.name),
+      liveLongTimers,
     });
 
     const shouldWakeProcessor = message.batch.some(
