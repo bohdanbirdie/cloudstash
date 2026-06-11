@@ -2,8 +2,13 @@ import { it, describe } from "@effect/vitest";
 import { Effect, Layer, LogLevel, Logger } from "effect";
 import { expect, vi } from "vitest";
 
+import type { TierCapabilities } from "@/lib/plan";
+
 import { AuthClient } from "../../auth/service";
-import { handleIngestRequest } from "../../ingest/service";
+import { Billing } from "../../billing/service";
+import { DbError } from "../../db/service";
+import { handleIngestRequest, ingestResponse } from "../../ingest/service";
+import { OrgNotFoundError } from "../../org/errors";
 
 function createRequest(
   body: unknown,
@@ -46,48 +51,28 @@ function makeAuthLayer(
   } as unknown as AuthClient["Type"]);
 }
 
+function makeBillingLayer(
+  capabilities: Billing["capabilities"]
+): Layer.Layer<Billing> {
+  return Layer.succeed(Billing, { capabilities } as unknown as Billing);
+}
+
+const capsLayer = (publicApi: boolean): Layer.Layer<Billing> =>
+  makeBillingLayer(() => Effect.succeed({ publicApi } as TierCapabilities));
+
+const plusBillingLayer = capsLayer(true);
+
 function run(
   request: Request,
   env: ReturnType<typeof createEnv>,
-  authLayer: Layer.Layer<AuthClient>
+  authLayer: Layer.Layer<AuthClient>,
+  billingLayer: Layer.Layer<Billing> = plusBillingLayer
 ) {
-  return handleIngestRequest(request, env as never).pipe(
-    Effect.provide(authLayer),
-    Effect.map(({ result, ok }) =>
-      Response.json(result, { status: ok ? 200 : 400 })
-    ),
-    Effect.catchTags({
-      IngestInvalidApiKeyError: () =>
-        Effect.succeed(
-          Response.json({ error: "Invalid API key" }, { status: 401 })
-        ),
-      IngestInvalidUrlError: () =>
-        Effect.succeed(
-          Response.json({ error: "Invalid URL" }, { status: 400 })
-        ),
-      IngestMissingApiKeyError: () =>
-        Effect.succeed(
-          Response.json({ error: "Missing API key" }, { status: 401 })
-        ),
-      IngestMissingOrgIdError: () =>
-        Effect.succeed(
-          Response.json(
-            { error: "API key missing orgId metadata" },
-            { status: 401 }
-          )
-        ),
-      IngestMissingUrlError: () =>
-        Effect.succeed(
-          Response.json({ error: "Missing url" }, { status: 400 })
-        ),
-    }),
-    Effect.catchAll(() =>
-      Effect.succeed(
-        Response.json({ error: "Queue send failed" }, { status: 500 })
-      )
-    ),
-    Logger.withMinimumLogLevel(LogLevel.Error)
-  );
+  return ingestResponse(
+    handleIngestRequest(request, env as never).pipe(
+      Effect.provide(Layer.mergeAll(authLayer, billingLayer))
+    )
+  ).pipe(Logger.withMinimumLogLevel(LogLevel.Error));
 }
 
 const validKeyResponse = {
@@ -245,6 +230,73 @@ describe("ingestRequestToResponse", () => {
       )
     );
   });
+
+  it.effect("returns 402 and does not queue when org lacks publicApi", () => {
+    const request = createRequest(
+      { url: "https://example.com" },
+      { Authorization: "Bearer valid-key" }
+    );
+    const env = createEnv();
+
+    return run(request, env, validAuthLayer, capsLayer(false)).pipe(
+      Effect.tap((response) =>
+        Effect.promise(async () => {
+          expect(response.status).toBe(402);
+          expect(await response.json()).toEqual({
+            error: "Upgrade required",
+            capability: "publicApi",
+            requiredTier: "plus",
+          });
+          expect(env._queueSend).not.toHaveBeenCalled();
+        })
+      )
+    );
+  });
+
+  it.effect("returns 500 and does not queue when the org lookup errors", () => {
+    const request = createRequest(
+      { url: "https://example.com" },
+      { Authorization: "Bearer valid-key" }
+    );
+    const env = createEnv();
+    const billingLayer = makeBillingLayer(() => new DbError({ cause: "boom" }));
+
+    return run(request, env, validAuthLayer, billingLayer).pipe(
+      Effect.tap((response) =>
+        Effect.promise(async () => {
+          expect(response.status).toBe(500);
+          expect(await response.json()).toEqual({ error: "Internal error" });
+          expect(env._queueSend).not.toHaveBeenCalled();
+        })
+      )
+    );
+  });
+
+  it.effect(
+    "returns 404 and does not queue when the org no longer exists",
+    () => {
+      const request = createRequest(
+        { url: "https://example.com" },
+        { Authorization: "Bearer valid-key" }
+      );
+      const env = createEnv();
+      const billingLayer = makeBillingLayer((orgId) =>
+        OrgNotFoundError.make({ orgId })
+      );
+
+      return run(request, env, validAuthLayer, billingLayer).pipe(
+        Effect.tap((response) =>
+          Effect.promise(async () => {
+            expect(response.status).toBe(404);
+            expect(await response.json()).toEqual({
+              error: "Organization not found",
+            });
+            expect(env._queueSend).not.toHaveBeenCalled();
+          })
+        )
+      );
+    }
+  );
 
   it.effect("returns 200 and queues link on success", () => {
     const request = createRequest(

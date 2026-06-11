@@ -74,6 +74,26 @@ export type LinkWithDetails = typeof LinkWithDetailsSchema.Type;
 
 export const linksWithDetailsSchema = Schema.Array(LinkWithDetailsSchema);
 
+export const ApiLinkRowSchema = Schema.Struct({
+  id: Schema.String,
+  url: Schema.String,
+  domain: Schema.String,
+  status: Schema.String,
+  source: Schema.NullOr(Schema.String),
+  createdAt: Schema.Number,
+  completedAt: Schema.NullOr(Schema.Number),
+  title: Schema.NullOr(Schema.String),
+  description: Schema.NullOr(Schema.String),
+  image: Schema.NullOr(Schema.String),
+  favicon: Schema.NullOr(Schema.String),
+  summary: Schema.NullOr(Schema.String),
+  processingStatus: Schema.NullOr(Schema.String),
+});
+
+export type ApiLinkRow = typeof ApiLinkRowSchema.Type;
+
+export const apiLinkRowsSchema = Schema.Array(ApiLinkRowSchema);
+
 export const SearchResultSchema = Schema.Struct({
   id: Schema.String,
   url: Schema.String,

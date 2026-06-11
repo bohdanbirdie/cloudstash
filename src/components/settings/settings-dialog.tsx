@@ -1,8 +1,15 @@
-import { BlocksIcon, CreditCardIcon, TagIcon, UserIcon } from "lucide-react";
+import {
+  BlocksIcon,
+  Code2Icon,
+  CreditCardIcon,
+  TagIcon,
+  UserIcon,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { IntegrationsSection } from "@/components/integrations/integrations-section";
 import { AccountSection } from "@/components/settings/sections/account-section";
+import { DevelopersSection } from "@/components/settings/sections/developers-section";
 import { PlanSection } from "@/components/settings/sections/plan-section";
 import { TagsSection } from "@/components/tags/tags-section";
 import {
@@ -14,7 +21,12 @@ import {
 import { cn } from "@/lib/utils";
 import { useSettingsDialog } from "@/stores/settings-dialog-store";
 
-export type SettingsSection = "account" | "plan" | "integrations" | "tags";
+export type SettingsSection =
+  | "account"
+  | "plan"
+  | "integrations"
+  | "developers"
+  | "tags";
 
 interface SectionDef {
   id: SettingsSection;
@@ -26,6 +38,7 @@ const SECTIONS: readonly SectionDef[] = [
   { id: "account", label: "Account", Icon: UserIcon },
   { id: "plan", label: "Plan", Icon: CreditCardIcon },
   { id: "integrations", label: "Integrations", Icon: BlocksIcon },
+  { id: "developers", label: "Developers", Icon: Code2Icon },
   { id: "tags", label: "Tags", Icon: TagIcon },
 ];
 
@@ -33,6 +46,7 @@ const SECTION_RENDERERS: Record<SettingsSection, () => React.ReactNode> = {
   account: () => <AccountSection />,
   plan: () => <PlanSection />,
   integrations: () => <IntegrationsSection />,
+  developers: () => <DevelopersSection />,
   tags: () => <TagsSection />,
 };
 

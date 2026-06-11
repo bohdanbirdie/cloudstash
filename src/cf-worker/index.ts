@@ -54,6 +54,7 @@ import {
   handleRedeemInvite,
 } from "./invites";
 import type { LinkQueueMessage } from "./link-processor/types";
+import { handleListLinks } from "./links/handler";
 import { logSync } from "./logger";
 import { metadataRequestToResponse } from "./metadata/service";
 import { requirePermission } from "./middleware/authorize";
@@ -190,6 +191,8 @@ app.get("/api/metadata", (c) =>
 app.post("/api/ingest", (c) =>
   Effect.runPromise(ingestRequestToResponse(c.req.raw, c.env))
 );
+
+app.get("/api/links", (c) => handleListLinks(c.req.raw, c.env));
 
 app.post("/api/connect/raycast", (c) => handleRaycastConnect(c.req.raw, c.env));
 app.post("/api/connect/raycast/exchange", (c) =>

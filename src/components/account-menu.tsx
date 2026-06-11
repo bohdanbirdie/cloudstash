@@ -1,6 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import {
   BlocksIcon,
+  Code2Icon,
   DownloadIcon,
   LogOutIcon,
   PaletteIcon,
@@ -109,6 +110,14 @@ export function AccountMenu() {
           icon: BlocksIcon,
           label: "Integrations",
           onSelect: () => openSettings("integrations"),
+        },
+      },
+      {
+        kind: "item",
+        item: {
+          icon: Code2Icon,
+          label: "Developers",
+          onSelect: () => openSettings("developers"),
         },
       },
     ];

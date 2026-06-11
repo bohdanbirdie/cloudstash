@@ -59,10 +59,10 @@ export function DevelopersCard({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <KeyIcon className="size-3.5" />
-          Developers
+          API keys
         </CardTitle>
         <CardDescription>
-          API keys for custom integrations and scripts.
+          Keys for custom integrations, scripts, and agents.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

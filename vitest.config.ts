@@ -10,6 +10,7 @@ export default defineConfig({
   test: {
     include: [
       "src/cf-worker/**/__tests__/**/*.test.ts",
+      "src/components/**/__tests__/**/*.test.ts",
       "src/lib/__tests__/**/*.test.ts",
       "src/livestore/__tests__/**/*.test.ts",
       "src/stores/__tests__/**/*.test.ts",

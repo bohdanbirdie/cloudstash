@@ -16,9 +16,14 @@ import {
 import type { LanguageModel } from "ai";
 import { Effect, Match } from "effect";
 
+import type { LinkStatus } from "../../livestore/queries/filtered-links";
+import { apiLinksCount$, apiLinksPage$ } from "../../livestore/queries/links";
+import { pendingTagsByLink$, tagsByLink$ } from "../../livestore/queries/tags";
 import { schema } from "../../livestore/schema";
 import { Billing } from "../billing/service";
 import { OrgId } from "../db/branded";
+import type { ApiLinksPage } from "../links/api";
+import { encodeLinksPage, mergeTagNamesByLink } from "../links/api";
 import { maskId } from "../log-utils";
 import { getAppLayer } from "../runtime";
 import type { Env } from "../shared";
@@ -161,6 +166,45 @@ export class ChatAgentDO
   async syncUpdateRpc(payload: unknown): Promise<void> {
     if (!this.cachedStore) await this.getStore();
     await handleSyncUpdateRpc(payload);
+  }
+
+  // Read-only keyset page over this org's links, exposed to the public links
+  // API. Reuses the per-org store this DO already hosts for chat.
+  async listLinks(params: {
+    state: LinkStatus;
+    limit: number;
+    cursor: { createdAt: number; id: string } | null;
+  }): Promise<ApiLinksPage> {
+    return Effect.runPromise(
+      Effect.gen(this, function* () {
+        const store = yield* Effect.promise(() => this.getStore());
+        const rows = store.query(
+          apiLinksPage$({
+            state: params.state,
+            limitPlusOne: params.limit + 1,
+            cursor: params.cursor,
+          })
+        );
+        const tagRows = store.query(tagsByLink$);
+        const pendingTagRows = store.query(pendingTagsByLink$);
+        const total = store.query(apiLinksCount$(params.state));
+        return encodeLinksPage(
+          rows,
+          mergeTagNamesByLink(tagRows, pendingTagRows),
+          total,
+          params.limit
+        );
+      }).pipe(
+        Effect.withSpan("ChatAgentDO.listLinks", {
+          attributes: {
+            orgId: maskId(this.orgId()),
+            state: params.state,
+            limit: params.limit,
+          },
+        }),
+        Effect.provide(getAppLayer(this.env))
+      )
+    );
   }
 
   private usageStorage(): UsageStorage {
