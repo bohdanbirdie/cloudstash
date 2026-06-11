@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Option, Schema } from "effect";
 import { ClipboardIcon, PlusIcon } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 
 import { AccountMenu } from "@/components/account-menu";
@@ -44,7 +45,8 @@ async function readClipboardUrl(): Promise<string | null> {
 export function TopBar() {
   const { addLink } = useAddLink();
   const isNarrow = useNarrowViewport();
-  const { tier } = useOrgFeatures();
+  const { tier, isLoading } = useOrgFeatures();
+  const showUpgrade = !isLoading && tier !== "pro";
   const openPaywall = usePaywall((s) => s.openPaywall);
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
@@ -84,8 +86,8 @@ export function TopBar() {
     <header className="flex items-center justify-between gap-4 px-2">
       <div className="flex items-center gap-4 lg:gap-10">
         <Link
-          to="/"
-          aria-label="Cloudstash home"
+          to="/inbox"
+          aria-label="Cloudstash inbox"
           className="group flex items-center gap-2.5 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
         >
           <CloudstashLogo className="size-5 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-safe:group-hover:rotate-[20deg]" />
@@ -97,18 +99,41 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-2">
-        {tier !== "pro" && (
-          <Button
-            variant="default"
-            size="sm"
-            aria-label="Upgrade"
-            onClick={() => openPaywall()}
-            className="gap-1.5"
-          >
-            <UPGRADE_ICON className="size-3.5" aria-hidden />
-            <span className="max-sm:hidden">Upgrade</span>
-          </Button>
-        )}
+        <AnimatePresence>
+          {showUpgrade && (
+            <motion.div
+              key="upgrade"
+              initial={{ opacity: 0, x: 8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 8 }}
+              transition={{ type: "spring", duration: 0.3, bounce: 0 }}
+              transformTemplate={(_, generated) =>
+                generated === "none"
+                  ? "translateZ(0)"
+                  : `${generated} translateZ(0)`
+              }
+            >
+              <Button
+                variant="default"
+                size="sm"
+                aria-label="Upgrade"
+                onClick={() => openPaywall()}
+                className="gap-1.5"
+              >
+                <UPGRADE_ICON className="size-3.5" aria-hidden />
+                <motion.span
+                  className="max-sm:hidden"
+                  initial={{ filter: "blur(4px)" }}
+                  animate={{ filter: "blur(0px)" }}
+                  exit={{ filter: "blur(4px)" }}
+                  transition={{ type: "spring", duration: 0.3, bounce: 0 }}
+                >
+                  Upgrade
+                </motion.span>
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <SyncStatusIndicator />
         <Popover open={open} onOpenChange={handleOpenChange}>
           <Tooltip>

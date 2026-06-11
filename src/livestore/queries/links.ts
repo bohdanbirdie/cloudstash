@@ -1,7 +1,9 @@
 import { queryDb, Schema } from "@livestore/livestore";
 
 import { tables } from "../schema";
+import type { LinkStatus } from "./filtered-links";
 import {
+  apiLinkRowsSchema,
   linksListSchema,
   linksWithDetailsSchema,
   linkByIdSchema,
@@ -121,6 +123,96 @@ export const archiveLinks$ = queryDb(
   }),
   { label: "archiveLinks" }
 );
+
+function apiLinkStateFilter(state: LinkStatus): string {
+  switch (state) {
+    case "inbox":
+      return "l.status = 'unread' AND l.deletedAt IS NULL";
+    case "completed":
+      return "l.status = 'completed' AND l.deletedAt IS NULL";
+    case "all":
+      return "l.deletedAt IS NULL";
+    case "archive":
+      return "l.deletedAt IS NOT NULL";
+  }
+}
+
+const API_LINKS_SELECT = `
+  SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt,
+         s.title, s.description, s.image, s.favicon,
+         sum.summary,
+         ps.status AS processingStatus
+  FROM links l
+  LEFT JOIN link_snapshots s ON s.id = (
+    SELECT s2.id FROM link_snapshots s2
+    WHERE s2.linkId = l.id
+    ORDER BY s2.fetchedAt DESC
+    LIMIT 1
+  )
+  LEFT JOIN link_summaries sum ON sum.id = (
+    SELECT sum2.id FROM link_summaries sum2
+    WHERE sum2.linkId = l.id
+    ORDER BY sum2.summarizedAt DESC
+    LIMIT 1
+  )
+  LEFT JOIN link_processing_status ps ON ps.linkId = l.id
+`;
+
+// Keyset (cursor) page over the org's links, ordered createdAt DESC, id DESC.
+// `limitPlusOne` should be the page size + 1 so callers can detect a next page.
+// `cursor` is the (createdAt, id) of the last item from the previous page.
+export const apiLinksPage$ = (opts: {
+  state: LinkStatus;
+  limitPlusOne: number;
+  cursor: { createdAt: number; id: string } | null;
+}) => {
+  const filter = apiLinkStateFilter(opts.state);
+  const limit = Math.max(1, Math.floor(opts.limitPlusOne));
+  const order = "ORDER BY l.createdAt DESC, l.id DESC";
+
+  if (opts.cursor) {
+    return queryDb(
+      {
+        bindValues: [
+          opts.cursor.createdAt,
+          opts.cursor.createdAt,
+          opts.cursor.id,
+        ],
+        query: `${API_LINKS_SELECT}
+          WHERE ${filter}
+            AND (l.createdAt < ? OR (l.createdAt = ? AND l.id < ?))
+          ${order}
+          LIMIT ${limit}`,
+        schema: apiLinkRowsSchema,
+      },
+      { label: `apiLinksPage:${opts.state}:${opts.cursor.id}:${limit}` }
+    );
+  }
+
+  return queryDb(
+    {
+      query: `${API_LINKS_SELECT}
+        WHERE ${filter}
+        ${order}
+        LIMIT ${limit}`,
+      schema: apiLinkRowsSchema,
+    },
+    { label: `apiLinksPage:${opts.state}:head:${limit}` }
+  );
+};
+
+export const apiLinksCount$ = (state: LinkStatus) => {
+  switch (state) {
+    case "inbox":
+      return inboxCount$;
+    case "completed":
+      return completedCount$;
+    case "all":
+      return allLinksCount$;
+    case "archive":
+      return archiveCount$;
+  }
+};
 
 export const linkProcessingStatus$ = (linkId: string) =>
   queryDb(tables.linkProcessingStatus.where({ linkId }).first(), {

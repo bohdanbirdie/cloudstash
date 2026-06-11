@@ -1,6 +1,5 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-import { DevelopersCard } from "./developers-card";
 import { ExtensionCard } from "./extension-card";
 import { RaycastCard } from "./raycast-card";
 import { TelegramCard } from "./telegram-card";
@@ -31,14 +30,6 @@ export function IntegrationsSection() {
       <ExtensionCard
         keys={apiKeys.keys}
         isLoading={apiKeys.isLoading}
-        onRevokeKey={apiKeys.revokeKey}
-      />
-
-      <DevelopersCard
-        keys={apiKeys.keys}
-        isLoading={apiKeys.isLoading}
-        isGenerating={apiKeys.isGenerating}
-        onGenerateKey={apiKeys.generateKey}
         onRevokeKey={apiKeys.revokeKey}
       />
     </div>

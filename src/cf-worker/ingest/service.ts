@@ -2,6 +2,8 @@ import { Effect } from "effect";
 
 import { trackEvent } from "../analytics";
 import { AppLayerLive, AuthClient } from "../auth/service";
+import { capabilityDeniedResponse } from "../billing/errors";
+import { requireCapability } from "../billing/service";
 import { OrgId } from "../db/branded";
 import type { LinkQueueMessage } from "../link-processor/types";
 import { maskId, safeErrorInfo } from "../log-utils";
@@ -47,6 +49,8 @@ export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
       Effect.annotateLogs({ orgId: maskId(orgId) })
     );
 
+    yield* requireCapability(orgId, "publicApi");
+
     trackEvent(env.USAGE_ANALYTICS, {
       userId: verifyResult.key.referenceId ?? "api",
       event: "ingest",
@@ -88,16 +92,24 @@ export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
   }
 );
 
-export const ingestRequestToResponse = (
-  request: Request,
-  env: Env
+export const ingestResponse = (
+  effect: Effect.Effect<
+    Effect.Effect.Success<ReturnType<typeof handleIngestRequest>>,
+    Effect.Effect.Error<ReturnType<typeof handleIngestRequest>>
+  >
 ): Effect.Effect<Response> =>
-  handleIngestRequest(request, env).pipe(
-    Effect.provide(AppLayerLive(env)),
+  effect.pipe(
     Effect.map(({ result, ok }) =>
       Response.json(result, { status: ok ? 200 : 400 })
     ),
     Effect.catchTags({
+      CapabilityDisabledError: (error) =>
+        Effect.succeed(capabilityDeniedResponse(error)),
+      DbError: (cause) =>
+        Effect.logError("Ingest: capability check failed").pipe(
+          Effect.annotateLogs(safeErrorInfo(cause)),
+          Effect.as(Response.json({ error: "Internal error" }, { status: 500 }))
+        ),
       IngestInvalidApiKeyError: () =>
         Effect.succeed(
           Response.json({ error: "Invalid API key" }, { status: 401 })
@@ -121,6 +133,13 @@ export const ingestRequestToResponse = (
         Effect.succeed(
           Response.json({ error: "Missing url" }, { status: 400 })
         ),
+      OrgNotFoundError: (error) =>
+        Effect.logWarning("Ingest: org not found").pipe(
+          Effect.annotateLogs({ orgId: maskId(error.orgId) }),
+          Effect.as(
+            Response.json({ error: "Organization not found" }, { status: 404 })
+          )
+        ),
     }),
     Effect.catchTag("IngestQueueSendError", (error) =>
       Effect.logError("Ingest failed").pipe(
@@ -130,4 +149,12 @@ export const ingestRequestToResponse = (
         )
       )
     )
+  );
+
+export const ingestRequestToResponse = (
+  request: Request,
+  env: Env
+): Effect.Effect<Response> =>
+  ingestResponse(
+    handleIngestRequest(request, env).pipe(Effect.provide(AppLayerLive(env)))
   );
