@@ -1,3 +1,12 @@
+diff --git a/node_modules/@livestore/common-cf/.bun-tag-69ae849ee5fa7119 b/.bun-tag-69ae849ee5fa7119
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@livestore/common-cf/.bun-tag-c513c0eb97a267b7 b/.bun-tag-c513c0eb97a267b7
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@livestore/common-cf/.bun-tag-d4d82b0b00e39780 b/.bun-tag-d4d82b0b00e39780
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/dist/do-rpc/client.js b/dist/do-rpc/client.js
 index 6aa2a24a0956bcf373c14179e6e6d0917942b2fa..fb4f75dc7bfc00393be80232e7058971a8324ce8 100644
 --- a/dist/do-rpc/client.js
@@ -84,3 +93,99 @@ index 053586432d80472e796b3c09b56f060c163de685..dd7e538d5916174257e1647d5eaecc12
          },
          // oxlint-disable-next-line typescript-eslint(no-unsafe-type-assertion) -- bridging standard Web API ReadableStream to Cloudflare Worker ReadableStream type
      });
+diff --git a/dist/ws-rpc/ws-rpc-server.js b/dist/ws-rpc/ws-rpc-server.js
+index 24257601c952a37bf8a1fade96b26dade1fd5e2b..1c292d82eeb7cc3f9636a2ca5f73a9c03281e00a 100644
+--- a/dist/ws-rpc/ws-rpc-server.js
++++ b/dist/ws-rpc/ws-rpc-server.js
+@@ -16,6 +16,9 @@
+  */
+ import { notYetImplemented, omitUndefineds } from '@livestore/utils';
+ import { Context, constVoid, Effect, Exit, Layer, Logger, LogLevel, Mailbox, RpcMessage, RpcSerialization, RpcServer, Scope, Stream, } from '@livestore/utils/effect';
++// CLOUDSTASH PATCH (hibernation): never-resolving, interruptible, NO setInterval
++// (unlike Effect.never) so the DO can WebSocket-hibernate. See livestorejs/livestore#1328.
++const holdForever = Effect.async(() => {});
+ /**
+  * Context service providing access to the current WebSocket.
+  * This is useful for reading WebSocket attachment data (e.g., forwarded headers)
+@@ -102,7 +105,10 @@ export const setupDurableObjectWebSocketRpc = ({ doSelf, rpcLayer, webSocketMode
+             ...omitUndefineds({ onMessage }),
+         }).pipe(Layer.provide(RpcSerialization.layerJson));
+         const ServerLive = rpcLayer.pipe(Layer.provide(ProtocolLive));
+-        yield* Layer.launch(ServerLive).pipe(Effect.tapCauseLogPretty, Effect.forkIn(scope));
++        // CLOUDSTASH PATCH (hibernation, #1328): build into the connection scope instead of
++        // Layer.launch (which parked on Effect.never). The drain-loop `run` (③) is forked into
++        // this same scope and now holds the connection open, so nothing needs this fiber parked.
++        yield* Layer.buildWithScope(ServerLive, scope).pipe(Effect.tapCauseLogPretty);
+         const runtime = yield* Effect.runtime();
+         const ctx = {
+             scope,
+@@ -164,7 +170,6 @@ const makeSocketProtocol = ({ incomingQueue, ws, onMessage }) => Effect.gen(func
+     const serialization = yield* RpcSerialization.RpcSerialization;
+     const disconnects = yield* Mailbox.make();
+     const writeRaw = (msg) => Effect.succeed(ws.send(msg));
+-    let writeRequest;
+     const parser = serialization.unsafeMake();
+     const id = 0;
+     const write = (response) => {
+@@ -179,10 +184,22 @@ const makeSocketProtocol = ({ incomingQueue, ws, onMessage }) => Effect.gen(func
+             return Effect.orDie(writeRaw(parser.encode(RpcMessage.ResponseDefectEncoded(cause))));
+         }
+     };
+-    const protocol = yield* RpcServer.Protocol.make((writeRequest_) => {
+-        writeRequest = writeRequest_;
+-        // Start processing messages now that writeRequest is available
+-        const startProcessing = Mailbox.toStream(incomingQueue).pipe(Stream.tap((data) => {
++    // CLOUDSTASH PATCH (hibernation, livestorejs/livestore#1328): build the Protocol directly
++    // instead of via RpcServer.Protocol.make (= @effect/rpc withRun), whose `run` parks on
++    // Effect.never (a setInterval that defeats DO hibernation). Here `run` IS the inbound drain
++    // loop, parking timer-lessly on the Mailbox; the decode/dispatch body is unchanged and the
++    // old `writeRequest` becomes `run`'s `handleRequest` argument.
++    return {
++        disconnects,
++        send: (_clientId, response) => Effect.orDie(write(response)),
++        end: (_clientId) => Effect.void,
++        // Always just one client
++        clientIds: Effect.sync(() => new Set([id])),
++        initialMessage: Effect.succeedNone,
++        supportsAck: true,
++        supportsTransferables: false,
++        supportsSpanPropagation: true,
++        run: (handleRequest) => Mailbox.toStream(incomingQueue).pipe(Stream.runForEach((data) => {
+             try {
+                 const decoded = parser.decode(data);
+                 if (decoded.length === 0)
+@@ -195,7 +212,7 @@ const makeSocketProtocol = ({ incomingQueue, ws, onMessage }) => Effect.gen(func
+                         if (onMessage !== undefined) {
+                             onMessage(request, ws);
+                         }
+-                        return writeRequest(id, request);
++                        return handleRequest(id, request);
+                     },
+                     step: constVoid,
+                 });
+@@ -203,22 +220,7 @@ const makeSocketProtocol = ({ incomingQueue, ws, onMessage }) => Effect.gen(func
+             catch (cause) {
+                 return Effect.orDie(writeRaw(parser.encode(RpcMessage.ResponseDefectEncoded(cause))));
+             }
+-        }), Stream.runDrain, Effect.tapCauseLogPretty, Effect.fork);
+-        // Start the message processing
+-        return Effect.map(startProcessing, () => ({
+-            disconnects,
+-            send: (_clientId, response) => Effect.orDie(write(response)),
+-            end(_clientId) {
+-                return Effect.void;
+-            },
+-            // Always just one client
+-            clientIds: Effect.sync(() => new Set([id])),
+-            initialMessage: Effect.succeedNone,
+-            supportsAck: true,
+-            supportsTransferables: false,
+-            supportsSpanPropagation: true,
+-        }));
+-    });
+-    return protocol;
++        }), Effect.tapCauseLogPretty, Effect.zipRight(holdForever)),
++    };
+ });
+ //# sourceMappingURL=ws-rpc-server.js.map
+\ No newline at end of file

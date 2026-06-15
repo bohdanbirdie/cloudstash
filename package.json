@@ -198,7 +198,7 @@
   "patchedDependencies": {
     "@effect/rpc@0.75.1": "patches/@effect%2Frpc@0.75.1.patch",
     "@livestore/common-cf@0.0.0-snapshot-6e9abadf4bdc91a2f7deea3e47be8ffd75d4c27c": "patches/@livestore%2Fcommon-cf@0.0.0-snapshot-6e9abadf4bdc91a2f7deea3e47be8ffd75d4c27c.patch",
-    "effect@3.21.2": "patches/effect@3.21.2.patch"
+    "@livestore/sync-cf@0.0.0-snapshot-6e9abadf4bdc91a2f7deea3e47be8ffd75d4c27c": "patches/@livestore%2Fsync-cf@0.0.0-snapshot-6e9abadf4bdc91a2f7deea3e47be8ffd75d4c27c.patch"
   },
   "trustedDependencies": [
     "better-sqlite3",
