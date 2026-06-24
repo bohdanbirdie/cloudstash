@@ -25,4 +25,18 @@ sync_repo() {
 sync_repo "raycast-extension" "git@github.com:bohdanbirdie/cloudstash-raycast.git" "Raycast extension"
 sync_repo "readonly-llm-lookup" "git@github.com:bohdanbirdie/readonly-llm-lookup.git" "LLM lookup reference"
 
+# Vendored livestore fork — a committed git submodule (NOT a local/ clone). It is
+# the default source of livestore code for dev/tests/prod; see
+# docs/architecture/livestore-fork-integration.md.
+echo "Syncing vendored livestore submodule..."
+if git submodule update --init vendor/livestore; then
+  if command -v pnpm >/dev/null 2>&1; then
+    pnpm --dir vendor/livestore install && echo "  ✓ vendor/livestore"
+  else
+    echo "  ! pnpm not found — run \`pnpm --dir vendor/livestore install\` manually"
+  fi
+else
+  echo "  ✗ vendor/livestore submodule init failed"
+fi
+
 echo "Done."

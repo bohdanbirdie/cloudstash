@@ -1,0 +1,4 @@
+[submodule "vendor/livestore"]
+	path = vendor/livestore
+	url = https://github.com/bohdanbirdie/livestore.git
+	branch = bohdan/fix/do-hibernation-chain
