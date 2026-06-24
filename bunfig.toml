@@ -1,5 +1,10 @@
 [install]
 minimumReleaseAge = 604800
 
-[install.security]
-scanner = "@socketsecurity/bun-security-scanner"
+# TEMPORARILY DISABLED 2026-06-24: Socket's free-mode endpoint
+# (firewall-api.socket.dev) is returning 503 and hard-fails `bun install` on
+# every CI/Cloudflare build (the scanner throws on any non-200, no fail-open).
+# Re-enable once Socket recovers, OR set SOCKET_API_KEY to switch to the
+# authenticated api.socket.dev endpoint, then uncomment.
+# [install.security]
+# scanner = "@socketsecurity/bun-security-scanner"
