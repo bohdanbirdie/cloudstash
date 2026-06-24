@@ -16,12 +16,25 @@ fi
 
 if [ ! -d vendor/livestore/node_modules ]; then
   echo "[livestore] installing vendor/livestore deps..."
-  if command -v pnpm >/dev/null 2>&1; then
-    (cd vendor/livestore && pnpm install --frozen-lockfile)
-  else
-    # No global pnpm (e.g. Cloudflare's bun image) — run the pinned pnpm via npx.
-    (cd vendor/livestore && npx --yes pnpm@11.3.0 install --frozen-lockfile)
-  fi
+  (
+    cd vendor/livestore
+    # Pick a usable pnpm (vendor is a pnpm workspace; cloudstash's root uses bun).
+    # Probe by actually RUNNING `pnpm --version` from here — `command -v` is not
+    # enough: Cloudflare's asdf image has a `pnpm` shim that `command -v` finds
+    # but that errors on use. The probe runs in vendor/ (packageManager=pnpm), not
+    # the bun root, so a real local pnpm passes. corepack and npx both ship with
+    # Node and bypass the broken shim.
+    if pnpm --version >/dev/null 2>&1; then
+      pm="pnpm"
+    elif corepack --version >/dev/null 2>&1; then
+      export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+      pm="corepack pnpm"
+    else
+      pm="npx --yes pnpm@11.3.0"
+    fi
+    echo "[livestore] installing with: $pm"
+    $pm install --frozen-lockfile
+  )
 fi
 
 echo "[livestore] vendor/livestore ready"
