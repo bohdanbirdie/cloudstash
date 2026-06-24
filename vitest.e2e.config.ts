@@ -6,7 +6,10 @@ import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
 import viteTsConfigPaths from "vite-tsconfig-paths";
 import { defineConfig } from "vitest/config";
 
+import { livestoreLocalResolve } from "./tools/livestore-local.ts";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const livestoreLocal = livestoreLocalResolve();
 
 // Load migrations in Node.js context
 const migrationsDir = path.resolve(__dirname, "drizzle/migrations");
@@ -47,29 +50,50 @@ export default defineConfig({
     viteTsConfigPaths({ projects: ["./tsconfig.json"] }),
   ],
   resolve: {
-    alias: {
+    dedupe: livestoreLocal.dedupe,
+    alias: [
       // Stub mailparser to avoid Workers-incompatible dependencies in tests
-      mailparser: path.resolve(
-        __dirname,
-        "src/cf-worker/__tests__/stubs/mailparser.ts"
-      ),
+      {
+        find: "mailparser",
+        replacement: path.resolve(
+          __dirname,
+          "src/cf-worker/__tests__/stubs/mailparser.ts"
+        ),
+      },
       // Stub @react-email/code-block to avoid prismjs (browser globals) in tests
-      "@react-email/code-block": path.resolve(
-        __dirname,
-        "src/cf-worker/email/stubs/code-block.ts"
-      ),
+      {
+        find: "@react-email/code-block",
+        replacement: path.resolve(
+          __dirname,
+          "src/cf-worker/email/stubs/code-block.ts"
+        ),
+      },
       // Stub ajv and ajv-formats - MCP SDK imports ajv at top level but agents uses CfWorkerJsonSchemaValidator
       // These are CJS and don't work in Workers Vitest pool
-      ajv: path.resolve(__dirname, "src/cf-worker/__tests__/stubs/ajv.ts"),
-      "ajv-formats": path.resolve(
-        __dirname,
-        "src/cf-worker/__tests__/stubs/ajv-formats.ts"
-      ),
-      "defuddle/node": path.resolve(
-        __dirname,
-        "src/cf-worker/__tests__/stubs/defuddle-node.ts"
-      ),
-    },
+      {
+        find: "ajv",
+        replacement: path.resolve(
+          __dirname,
+          "src/cf-worker/__tests__/stubs/ajv.ts"
+        ),
+      },
+      {
+        find: "ajv-formats",
+        replacement: path.resolve(
+          __dirname,
+          "src/cf-worker/__tests__/stubs/ajv-formats.ts"
+        ),
+      },
+      {
+        find: "defuddle/node",
+        replacement: path.resolve(
+          __dirname,
+          "src/cf-worker/__tests__/stubs/defuddle-node.ts"
+        ),
+      },
+      // When LIVESTORE_LOCAL=1, redirect @livestore/* to local clone source
+      ...livestoreLocal.alias,
+    ],
   },
   ssr: {
     // Bundle these dependencies so Vite can tree-shake unused exports
@@ -88,7 +112,7 @@ export default defineConfig({
   },
   test: {
     include: ["src/cf-worker/__tests__/e2e/**/*.test.ts"],
-    exclude: ["**/node_modules/**", "**/local/**"],
+    exclude: ["**/node_modules/**", "**/local/**", "**/vendor/**"],
     // CI runners are noticeably slower than local at warming miniflare —
     // workflow + DO tests that finish in <500ms here time out at 5s on CI.
     testTimeout: 30_000,

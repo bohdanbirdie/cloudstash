@@ -49,6 +49,8 @@ bun run deploy             # FORBIDDEN
 - `local/raycast-extension/` — Raycast extension (npm, separate repo)
 - `local/readonly-llm-lookup/` — Reference implementations for external libraries (Effect, Livestore, etc.)
 
+Livestore source is the committed `vendor/livestore` submodule (not a `local/` clone) — see [Livestore Source (vendored fork)](#livestore-source-vendored-fork) below.
+
 ## Documentation
 
 - `docs/architecture/` — System architecture (auth, worker resilience, link processor).
@@ -62,6 +64,25 @@ bun run deploy             # FORBIDDEN
 - **`ServerAheadError` is NOT a failure.** It's a normal part of livestore's eventual consistency protocol. When a client push is rejected (server has newer events), the push fiber parks, the server broadcasts missing events via the live pull stream, the client rebases its pending events on top, and the push fiber restarts with correct sequence numbers. Do not treat this as an error requiring manual intervention or store resets.
 - **`MaterializeError`** wraps SQLite errors during event materialization. With the default `onSyncError: 'ignore'`, the error is silently swallowed but the batch transaction rolls back — the store continues in a degraded state. A common cause is duplicate eventlog inserts (no `ON CONFLICT` guard in livestore's `insertIntoEventlog`).
 - **LinkProcessorDO is a livestore client** that connects to `SyncBackendDO` with `livePull: true`. It must have exclusive access to its DO SQLite — concurrent `createStoreDoPromise` calls on the same storage corrupt the eventlog (PR #30).
+
+## Livestore Source (vendored fork)
+
+cloudstash runs a **fork** of livestore (DO hibernation work not in any published snapshot), vendored as a **committed git submodule** at `vendor/livestore`. A Vite alias redirects every `@livestore/*` import to that source for dev, tests, **and production builds** — so what you test locally is exactly what ships (local == prod). Strategy/roadmap: `docs/architecture/livestore-fork-integration.md`; mechanism deep-dive: `docs/architecture/livestore-local-source-linking.md`.
+
+```bash
+bun run livestore:install   # git submodule update --init + pnpm install in vendor/livestore
+# (also run by `bun run sync`). Then just:
+bun dev                     # uses vendor/livestore source by default
+bun run test:unit
+bun run test:e2e
+```
+
+- **On by default** — no env var needed. `wa-sqlite`/`sqlite-wasm` always stay on the published snapshot (their prebuilt wasm only loads from that layout).
+- **Off-switch:** `LIVESTORE_PUBLISHED=1 bun run dev` (or `bun run dev:published`) forces the published snapshot — A/B "is the bug mine or livestore's?". For scratch experiments, just `git checkout` a branch inside `vendor/livestore`; it's the working tree the alias reads.
+- **No build step.** Livestore's package `exports` point at `src/*.ts`; Vite transpiles on the fly. Edit `vendor/livestore/packages/@livestore/<pkg>/src/...` and reload. typecheck (`tsgo`) still resolves types from the published packages in `package.json` — keep those deps.
+- **Mechanics** live in `tools/livestore-local.ts`. It dedupes `effect` to a single copy and excludes the wasm packages — don't change that without reading the doc.
+- **Run livestore's own tests** in the submodule with pnpm: `pnpm --filter @livestore/common-cf test`.
+- **Bump the fork:** develop in `vendor/livestore`, push to the fork branch, then `git add vendor/livestore` in cloudstash to record the new SHA — that commit is what builds and deploys. Re-`pnpm install` and re-validate after any bump. If the fork changes a DO SQLite schema, `bun run clean:local-state` locally and bump `PERSISTENCE_FORMAT_VERSION` for deployed DOs.
 
 ## Conventions
 

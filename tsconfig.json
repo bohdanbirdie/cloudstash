@@ -8,6 +8,7 @@
   ],
   "exclude": [
     "local",
+    "vendor",
     "scripts",
     "apps",
     "tools/oxlint-rules/__tests__/fixtures"

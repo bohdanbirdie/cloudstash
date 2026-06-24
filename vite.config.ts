@@ -3,7 +3,29 @@ import { livestoreDevtoolsPlugin } from "@livestore/devtools-vite";
 import tailwindcss from "@tailwindcss/vite";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import viteReact from "@vitejs/plugin-react";
+import type { Plugin } from "vite";
 import { defineConfig } from "vite-plus";
+
+import {
+  LIVESTORE_LOCAL,
+  LIVESTORE_PUBLISHED,
+  livestoreLocalResolve,
+} from "./tools/livestore-local.ts";
+
+// Redirect @livestore/* to the vendored fork source (default) and fail a
+// production build if the submodule isn't checked out. See
+// docs/architecture/livestore-fork-integration.md.
+const livestoreLocalPlugin: Plugin = {
+  name: "livestore-local",
+  config: (_config, { command }) => {
+    if (command === "build" && !LIVESTORE_PUBLISHED && !LIVESTORE_LOCAL) {
+      throw new Error(
+        "[livestore] vendored fork (vendor/livestore) not found — run `git submodule update --init` then `cd vendor/livestore && pnpm install`, or set LIVESTORE_PUBLISHED=1 to build the published snapshot on purpose."
+      );
+    }
+    return { resolve: livestoreLocalResolve() };
+  },
+};
 
 export default defineConfig({
   staged: {
@@ -31,6 +53,7 @@ export default defineConfig({
     ignorePatterns: [
       "dist",
       "node_modules",
+      "vendor",
       "**/*.d.ts",
       "**/*.gen.ts",
       "src/routeTree.gen.ts",
@@ -68,6 +91,7 @@ export default defineConfig({
     },
     ignorePatterns: [
       "readonly-llm-lookup",
+      "vendor",
       "apps/**/.wxt/**",
       "apps/**/.output/**",
       "tools/oxlint-rules/__tests__/fixtures/**",
@@ -215,6 +239,7 @@ export default defineConfig({
     tailwindcss(),
     viteReact(),
     livestoreDevtoolsPlugin({ schemaPath: "./src/livestore/schema.ts" }),
+    livestoreLocalPlugin,
   ],
   server: {
     allowedHosts: [".trycloudflare.com"],

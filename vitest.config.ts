@@ -1,12 +1,15 @@
 import viteTsConfigPaths from "vite-tsconfig-paths";
 import { defineConfig } from "vitest/config";
 
+import { livestoreLocalResolve } from "./tools/livestore-local.ts";
+
 /**
  * Unit test configuration using standard Vitest.
  * Fast tests that don't require the Workers runtime.
  */
 export default defineConfig({
   plugins: [viteTsConfigPaths({ projects: ["./tsconfig.json"] })],
+  resolve: livestoreLocalResolve(),
   test: {
     include: [
       "src/cf-worker/**/__tests__/**/*.test.ts",
@@ -16,7 +19,12 @@ export default defineConfig({
       "src/stores/__tests__/**/*.test.ts",
       "tools/**/__tests__/**/*.test.ts",
     ],
-    exclude: ["**/node_modules/**", "**/local/**", "**/__tests__/e2e/**"],
+    exclude: [
+      "**/node_modules/**",
+      "**/local/**",
+      "**/vendor/**",
+      "**/__tests__/e2e/**",
+    ],
     coverage: {
       include: ["src/cf-worker/**"],
       exclude: ["src/cf-worker/__tests__/**"],
