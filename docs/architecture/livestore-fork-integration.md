@@ -5,8 +5,10 @@ should be able to read this top-to-bottom and carry the work forward without
 prior context. Deep mechanism detail lives in
 [[architecture/livestore-local-source-linking]]; this doc is the strategy, the
 achieved state, and how to operate it. **Status: the submodule-vendoring target
-is implemented** (2026-06-24) — local builds, tests, and production all consume
-the vendored fork via one Vite alias.
+is implemented and validated on Cloudflare Workers Builds** (2026-06-24, branch
+`chore/livestore-submodule-vendoring`) — local builds, tests, and production all
+consume the vendored fork via one Vite alias. Remaining before the prod cutover:
+re-enable the Socket scanner and merge to `main` (see _Open items_).
 
 ## Goal
 
@@ -49,8 +51,9 @@ dev:published`) forces the published snapshot (A/B "is the bug mine or
 - **CI:** `.github/workflows/ci.yml` checks out with `submodules: true` and runs
   `pnpm install --frozen-lockfile` in `vendor/livestore` (pnpm 11.3.0) before the
   test job.
-- **Setup:** `bun run livestore:install` (also run by `bun run sync`) does
-  `git submodule update --init vendor/livestore && pnpm --dir vendor/livestore install`.
+- **Setup:** `bun run livestore:install` (also run by `bun run sync`, and by
+  `bun run build` / `build:prod`) runs `scripts/ensure-livestore.sh` — inits the
+  submodule and installs its deps. See _Building & deploying on Cloudflare_.
 - **Wiring:** `tools/livestore-local.ts` (alias generator) consumed by
   `vite.config.ts`, `vitest.config.ts`, `vitest.e2e.config.ts`.
 
@@ -114,6 +117,65 @@ test locally is exactly what ships**.
 cross-deps resolve **inside** the vendored workspace (via its own `pnpm
 install`), so there's no per-package version juggling.
 
+## Building & deploying on Cloudflare
+
+Cloudflare Workers Builds (connected to the repo) runs, from the dashboard:
+
+- **Build command:** `bun run build`
+- **Deploy command (prod / `main`):**
+  `bunx wrangler d1 migrations apply cloudstash --remote && bunx wrangler deploy`
+- **Version command (non-prod branches):** `npx wrangler versions upload`
+- Root directory `/`; production branch `main`; non-prod branch builds enabled.
+
+**The build self-bootstraps the submodule.** `bun run build` is
+`bash scripts/ensure-livestore.sh && vp build && bun scripts/prerender.tsx`.
+`ensure-livestore.sh` is idempotent and non-destructive (skips work already
+done, so it won't clobber a vendor checkout you're hacking on): it inits the
+submodule if the source is absent (Cloudflare checks submodules out natively, so
+that's usually a no-op there), then installs the vendor deps. Then `vp build`
+inlines the fork — the build guard in `vite.config.ts` throws if the submodule is
+missing and `LIVESTORE_PUBLISHED` isn't set.
+
+**Deploy ships the Vite output, not a re-bundle from `src`.** `vp build` writes
+`dist/cloudstash/{index.js,wrangler.json}` (the worker, fork inlined, with
+`no_bundle: true`) **and** a redirect at `.wrangler/deploy/config.json` →
+`../../dist/cloudstash/wrangler.json`. A bare `wrangler deploy` /
+`wrangler versions upload` from the repo root **follows that redirect** and ships
+the pre-built worker as-is. (Without it, root `wrangler.jsonc` has
+`main: ./src/cf-worker/index.ts`, so wrangler would re-bundle from source against
+the published `@livestore/*` → no fork. The redirect is why the stock deploy
+command Just Works.) `.wrangler` is gitignored; `vp build` regenerates it each
+run. To confirm a build shipped the fork:
+`grep -c "MAX(generation)" dist/cloudstash/index.js` → `1` for the fork, `0` for
+the published snapshot.
+
+### Build-environment gotchas (Cloudflare/Linux) — fixed in this branch
+
+Each bit us once; the fixes live in `scripts/ensure-livestore.sh` / `bunfig.toml`.
+Don't undo them:
+
+1. **Socket scanner free endpoint 503.** `bunfig.toml`'s
+   `@socketsecurity/bun-security-scanner` runs on every `bun install` and throws
+   on any non-200; its free endpoint (`firewall-api.socket.dev`) was 503-ing and
+   hard-failed install. **Temporarily disabled** (commented out in `bunfig.toml`,
+   2026-06-24). Re-enable once it recovers — ideally after setting `SOCKET_API_KEY`
+   in Cloudflare Variables/secrets, which switches it to the authenticated
+   `api.socket.dev` endpoint instead of the flaky free one.
+2. **asdf `pnpm` shim.** Cloudflare's image uses asdf, which registers a `pnpm`
+   shim with no version behind it — `command -v pnpm` finds it but it errors on
+   use (exit 126). `ensure-livestore.sh` probes by actually running
+   `pnpm --version` from inside `vendor/livestore` (where `packageManager` is
+   pnpm, not the bun root), then falls back to `corepack pnpm` / `npx pnpm@11.3.0`,
+   which ship with Node and bypass the shim.
+3. **pnpm store inside the repo → Vite watcher EINVAL.** vendor's
+   `pnpm-workspace.yaml` sets `storeDir: .devenv/pnpm-store-pure-v1`, a large
+   content-addressable store **inside** the repo. Vite's build watcher recurses
+   into it and crashes on Linux (`EINVAL` on the store's files; macOS FSEvents
+   tolerated it). The store is load-bearing — node_modules hardlinks to it, so
+   don't just delete it. Fix: install with `--store-dir` pointing **outside** the
+   repo (pnpm's normal global-store mode); node_modules still links to it but Vite
+   never sees it.
+
 ## Validation checklist (run before trusting prod / on every fork bump)
 
 - `bun run typecheck`, `bun run check`
@@ -147,8 +209,27 @@ install`), so there's no per-package version juggling.
 
 1. Develop in `vendor/livestore` (real fork checkout), push to the fork branch.
 2. `git add vendor/livestore` in cloudstash to record the new SHA → that commit
-   is what builds and deploys. Re-`pnpm --dir vendor/livestore install`.
+   is what builds and deploys. Re-run `bun run livestore:install` (or
+   `pnpm install` inside `vendor/livestore`).
 3. Run the validation checklist above before deploy.
+
+## Open items (before/around the prod cutover)
+
+- **Re-enable the Socket scanner.** Still commented out in `bunfig.toml` (free
+  endpoint 503). Re-add once it recovers, ideally after setting `SOCKET_API_KEY`
+  in Cloudflare Variables/secrets. The `minimumReleaseAge` cooldown stayed on.
+- **Merge `chore/livestore-submodule-vendoring` → `main`** to cut production
+  over. The `main` deploy command runs the real
+  `wrangler d1 migrations apply --remote` + `wrangler deploy`, so this is a live
+  prod deploy — run the validation checklist first.
+- **Verify the DO schema before the prod deploy.** PR #1338's SyncBackendDO
+  creates `rpc_subscription_7` with a `generation` column. Production currently
+  runs the published snapshot, whose `sync-cf` doesn't create that table at all
+  (verified: published dist has no `rpc_subscription`/`generation`), so a fresh
+  `CREATE TABLE IF NOT EXISTS` on first fork deploy should be clean — **unless**
+  the surgical patch was ever deployed (its `rpc_subscription_7` used
+  `subscribedAt`), which would throw `no such column: generation`. Confirm prod
+  DOs don't already hold a conflicting table; see the DO-schema gotcha above.
 
 ## References
 

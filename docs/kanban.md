@@ -1,7 +1,5 @@
 ---
-
 kanban-plugin: board
-
 ---
 
 ## Todo
@@ -28,7 +26,6 @@ kanban-plugin: board
 - [ ] [[todos/multi-chat-architecture|Multi-chat architecture (separate DOs + central livestore)]]
 - [ ] Extend Pro plan with twitter historical sync of bookmarks
 
-
 ## In Progress
 
 - [ ] [[todos/chat-approval-needsapproval|Migrate chat approval to server-side needsApproval (drop deprecated toolsRequiringConfirmation)]]
@@ -38,7 +35,6 @@ kanban-plugin: board
 - [ ] [[todos/consolidated-paywall|Consolidated paywall / upgrade system (app-wide)]] — **UX design locked 2026-06-09** (marketer brief + competitor isolated-modal). One trigger, many doors: `openPaywall()` → **dedicated isolated modal** (Dialog desktop / `vaul` sheet mobile), state in a Zustand store, **not** a route — a one-shot `?upgrade[=tier]` link trigger opens it then strips the param. Yearly pre-selected + struck price + Best-value/Most-popular tags + BIG buttons. Modal = acquisition; Settings → Plan keeps management; shared `PlanCards` core; repoint `UpgradeCta`/promos. Landing "Start Pro" → `/login` (`callbackURL:"/inbox?upgrade=pro"`) → modal pre-highlighted. $50/$120 are already-discounted Stripe prices (no coupon lever). Billing/Stripe plumbing untouched. Still-open: modal scope, sidebar-per-tier, card layout, soft-gate threshold, instrumentation. See doc.
 - [ ] [[todos/link-notes|Notes on links (user-authored, agent-aware)]]
 - [ ] [[todos/initial-sync-blocking|Make sync blocking]] — with 1400 links the sync happens post-render and causes confusion and delays. Root-caused 2026-06-24 (fresh-client full-eventlog replay; lever = `livestore.worker.ts` `initialSyncOptions` timeout). See doc.
-
 
 ## Done
 
@@ -109,11 +105,10 @@ kanban-plugin: board
 - [x] [[todos/done/monorepo-conversion|Convert project to monorepo]]
 - [x] [[todos/done/raycast-ingestion|Add Raycast ingestion path]]
 
-
-
-
 %% kanban:settings
+
 ```
 {"kanban-plugin":"board"}
 ```
+
 %%
