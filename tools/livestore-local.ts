@@ -38,8 +38,12 @@ type AliasEntry = { find: RegExp; replacement: string };
 /**
  * Vite resolve config that redirects every @livestore/* entrypoint to the
  * vendored fork source (read from each package's `exports` map) and dedupes
- * `effect` so Effect layers stay identical across the cloudstash/livestore
- * boundary. Empty when forced published or the submodule is missing.
+ * `effect`, `react`, and `react-dom` so Effect layers and the React instance
+ * stay identical across the cloudstash/livestore boundary. The submodule pins
+ * its own react (devDep) in its pnpm store; without dedupe the vendored
+ * `@livestore/react` bundles a second React copy → null dispatcher /
+ * invalid-hook-call crash in the prod build. Empty when forced published or the
+ * submodule is missing.
  * See docs/architecture/livestore-fork-integration.md.
  */
 export function livestoreLocalResolve(): {
@@ -84,6 +88,11 @@ export function livestoreLocalResolve(): {
   );
   return {
     alias,
-    dedupe: ["effect", ...[...EXCLUDE].map((n) => `@livestore/${n}`)],
+    dedupe: [
+      "effect",
+      "react",
+      "react-dom",
+      ...[...EXCLUDE].map((n) => `@livestore/${n}`),
+    ],
   };
 }
