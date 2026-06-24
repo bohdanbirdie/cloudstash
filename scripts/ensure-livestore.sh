@@ -32,8 +32,14 @@ if [ ! -d vendor/livestore/node_modules ]; then
     else
       pm="npx --yes pnpm@11.3.0"
     fi
-    echo "[livestore] installing with: $pm"
-    $pm install --frozen-lockfile
+    # vendor's pnpm-workspace.yaml sets `storeDir: .devenv/pnpm-store-pure-v1`,
+    # which drops a huge content-addressable store INSIDE the repo. Vite's watcher
+    # recurses into it and crashes on Linux (EINVAL on the store's files). Override
+    # to a store outside the repo (pnpm's normal global-store mode) — node_modules
+    # still hardlinks to it, but Vite never sees it.
+    store="${HOME:-/tmp}/.pnpm-store-cloudstash-vendor"
+    echo "[livestore] installing with: $pm (store: $store)"
+    $pm install --frozen-lockfile --store-dir "$store"
   )
 fi
 
