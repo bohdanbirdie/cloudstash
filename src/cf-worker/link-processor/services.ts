@@ -1,4 +1,4 @@
-import { Context } from "effect";
+import { ServiceMap } from "effect";
 import type { Effect, Cause } from "effect";
 import type { ZodType } from "zod";
 
@@ -27,19 +27,19 @@ export type StoreEvent = {
 export type Link = typeof tables.links.Type;
 export type Status = typeof tables.linkProcessingStatus.Type;
 
-export class MetadataFetcher extends Context.Tag("MetadataFetcher")<
+export class MetadataFetcher extends ServiceMap.Service<
   MetadataFetcher,
   {
     readonly fetch: (
       url: string
     ) => Effect.Effect<OgMetadata, MetadataFetchFailure>;
   }
->() {}
+>()("MetadataFetcher") {}
 
-export class ContentExtractor extends Context.Tag("ContentExtractor")<
+export class ContentExtractor extends ServiceMap.Service<
   ContentExtractor,
   { readonly extract: (url: string) => Effect.Effect<ExtractedContent | null> }
->() {}
+>()("ContentExtractor") {}
 
 export interface GenerateSummaryResult {
   summary: string | null;
@@ -53,16 +53,18 @@ export interface GenerateParams {
   existingTags: readonly { readonly id: TagId; readonly name: string }[];
 }
 
-export class AiSummaryGenerator extends Context.Tag("AiSummaryGenerator")<
+export class AiSummaryGenerator extends ServiceMap.Service<
   AiSummaryGenerator,
   {
     readonly generate: (
       params: GenerateParams
     ) => Effect.Effect<GenerateSummaryResult, AiCallError>;
   }
->() {}
+>()("AiSummaryGenerator") {}
 
-export class WorkersAi extends Context.Tag("WorkersAi")<WorkersAi, Ai>() {}
+export class WorkersAi extends ServiceMap.Service<WorkersAi, Ai>()(
+  "WorkersAi"
+) {}
 
 export interface LinkProcessorAiParams<T> {
   system: string;
@@ -71,16 +73,16 @@ export interface LinkProcessorAiParams<T> {
   maxOutputTokens: number;
 }
 
-export class LinkProcessorAi extends Context.Tag("LinkProcessorAi")<
+export class LinkProcessorAi extends ServiceMap.Service<
   LinkProcessorAi,
   {
     readonly generateObject: <T>(
       params: LinkProcessorAiParams<T>
     ) => Effect.Effect<T | null, AiCallError>;
   }
->() {}
+>()("LinkProcessorAi") {}
 
-export class LinkEventStore extends Context.Tag("LinkEventStore")<
+export class LinkEventStore extends ServiceMap.Service<
   LinkEventStore,
   {
     readonly commit: (event: StoreEvent) => Effect.Effect<void>;
@@ -91,7 +93,7 @@ export class LinkEventStore extends Context.Tag("LinkEventStore")<
       linkId: LinkId
     ) => Effect.Effect<readonly string[]>;
   }
->() {}
+>()("LinkEventStore") {}
 
 export interface SourceContext {
   source: string | null;
@@ -104,7 +106,7 @@ export interface NotifyPayload {
   suggestedTags: string[];
 }
 
-export class SourceNotifier extends Context.Tag("SourceNotifier")<
+export class SourceNotifier extends ServiceMap.Service<
   SourceNotifier,
   {
     readonly streamProgress: (
@@ -117,18 +119,18 @@ export class SourceNotifier extends Context.Tag("SourceNotifier")<
     ) => Effect.Effect<void>;
     readonly reply: (ctx: SourceContext, text: string) => Effect.Effect<void>;
   }
->() {}
+>()("SourceNotifier") {}
 
-export class FeatureStore extends Context.Tag("FeatureStore")<
+export class FeatureStore extends ServiceMap.Service<
   FeatureStore,
   {
     readonly getCapabilities: (
       storeId: OrgId
     ) => Effect.Effect<TierCapabilities>;
   }
->() {}
+>()("FeatureStore") {}
 
-export class LinkRepository extends Context.Tag("LinkRepository")<
+export class LinkRepository extends ServiceMap.Service<
   LinkRepository,
   {
     readonly findByUrl: (url: string) => Effect.Effect<Link | null>;
@@ -136,4 +138,4 @@ export class LinkRepository extends Context.Tag("LinkRepository")<
     readonly queryStatuses: () => Effect.Effect<Status[]>;
     readonly commitEvent: (event: StoreEvent) => Effect.Effect<void>;
   }
->() {}
+>()("LinkRepository") {}

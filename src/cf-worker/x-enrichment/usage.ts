@@ -1,4 +1,4 @@
-import { Context, Duration, Effect, Layer, Option, Schema } from "effect";
+import { ServiceMap, Duration, Effect, Layer, Option, Schema } from "effect";
 
 import { OrgId } from "../db/branded";
 import { maskId } from "../log-utils";
@@ -32,7 +32,7 @@ export interface EnrichmentUsageBindings {
   readonly kv: KVNamespace;
 }
 
-export class EnrichmentUsage extends Context.Tag("@cloudstash/EnrichmentUsage")<
+export class EnrichmentUsage extends ServiceMap.Service<
   EnrichmentUsage,
   {
     readonly current: (
@@ -48,7 +48,7 @@ export class EnrichmentUsage extends Context.Tag("@cloudstash/EnrichmentUsage")<
       AnyEnrichmentUsageError
     >;
   }
->() {}
+>()("@cloudstash/EnrichmentUsage") {}
 
 const parseUsed = (raw: string | null): number =>
   Option.fromNullable(raw).pipe(

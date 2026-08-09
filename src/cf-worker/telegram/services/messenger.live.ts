@@ -8,7 +8,7 @@ export const TelegramMessengerLive = (ctx: Context) =>
     draft: (text) =>
       Effect.tryPromise(() => ctx.replyWithDraft(text)).pipe(
         Effect.asVoid,
-        Effect.catchAll((error) =>
+        Effect.catch((error) =>
           Effect.logWarning("Telegram messenger: draft failed").pipe(
             Effect.annotateLogs({ error: String(error) })
           )
@@ -23,7 +23,7 @@ export const TelegramMessengerLive = (ctx: Context) =>
         })
       ).pipe(
         Effect.asVoid,
-        Effect.catchAll((error) =>
+        Effect.catch((error) =>
           Effect.logWarning("Telegram messenger: reply failed").pipe(
             Effect.annotateLogs({ error: String(error) })
           )

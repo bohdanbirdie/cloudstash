@@ -1,5 +1,5 @@
 import { and, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
-import { Context, Effect, Layer } from "effect";
+import { ServiceMap, Effect, Layer } from "effect";
 
 import type { InviteId, UserId } from "../db/branded";
 import * as schema from "../db/schema";
@@ -12,7 +12,7 @@ type InviteWithRelations = InviteRow & {
   usedBy: { email: string; id: string; name: string } | null;
 };
 
-export class InviteStore extends Context.Tag("@cloudstash/InviteStore")<
+export class InviteStore extends ServiceMap.Service<
   InviteStore,
   {
     readonly create: (params: {
@@ -36,7 +36,7 @@ export class InviteStore extends Context.Tag("@cloudstash/InviteStore")<
       userId: UserId
     ) => Effect.Effect<boolean, DbError>;
   }
->() {}
+>()("@cloudstash/InviteStore") {}
 
 export const InviteStoreLive = Layer.effect(
   InviteStore,

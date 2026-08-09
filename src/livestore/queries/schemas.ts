@@ -114,11 +114,12 @@ export type SearchResult = typeof SearchResultSchema.Type;
 
 export const searchResultsSchema = Schema.Array(SearchResultSchema);
 
-export const linkByIdSchema = Schema.transform(
-  Schema.Array(LinkWithDetailsSchema),
-  Schema.NullOr(LinkWithDetailsSchema),
-  {
-    decode: (arr) => arr[0] ?? null,
-    encode: (item) => (item ? [item] : []),
-  }
-);
+export const linkByIdSchema =
+  /* TODO(effect-v4-codemod): manual migration required for schema-transform-manual */ Schema.transform(
+    Schema.Array(LinkWithDetailsSchema),
+    Schema.NullOr(LinkWithDetailsSchema),
+    {
+      decode: (arr) => arr[0] ?? null,
+      encode: (item) => (item ? [item] : []),
+    }
+  );

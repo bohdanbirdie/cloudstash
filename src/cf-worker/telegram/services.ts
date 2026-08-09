@@ -1,4 +1,4 @@
-import { Context, Schema } from "effect";
+import { ServiceMap, Schema } from "effect";
 import type { Effect } from "effect";
 
 import type { OrgId, UserId } from "../db/branded";
@@ -13,20 +13,20 @@ import type {
 export class TelegramBotApiError extends Schema.TaggedError<TelegramBotApiError>()(
   "TelegramBotApiError",
   {
-    op: Schema.Literal("sendMessage", "getMe"),
+    op: Schema.Literals(["sendMessage", "getMe"]),
     cause: Schema.Defect,
   }
 ) {}
 
-export class Messenger extends Context.Tag("Messenger")<
+export class Messenger extends ServiceMap.Service<
   Messenger,
   {
     readonly draft: (text: string) => Effect.Effect<void>;
     readonly reply: (text: string) => Effect.Effect<void>;
   }
->() {}
+>()("Messenger") {}
 
-export class SourceAuth extends Context.Tag("SourceAuth")<
+export class SourceAuth extends ServiceMap.Service<
   SourceAuth,
   {
     readonly authenticate: () => Effect.Effect<
@@ -43,9 +43,9 @@ export class SourceAuth extends Context.Tag("SourceAuth")<
       TelegramInvalidApiKeyError | RateLimitError | TelegramMissingOrgIdError
     >;
   }
->() {}
+>()("SourceAuth") {}
 
-export class LinkQueue extends Context.Tag("LinkQueue")<
+export class LinkQueue extends ServiceMap.Service<
   LinkQueue,
   {
     readonly enqueue: (
@@ -53,9 +53,9 @@ export class LinkQueue extends Context.Tag("LinkQueue")<
       storeId: OrgId
     ) => Effect.Effect<void, TelegramQueueSendError>;
   }
->() {}
+>()("LinkQueue") {}
 
-export class TelegramKeyStore extends Context.Tag("TelegramKeyStore")<
+export class TelegramKeyStore extends ServiceMap.Service<
   TelegramKeyStore,
   {
     readonly put: (chatId: number, apiKey: string) => Effect.Effect<void>;
@@ -70,9 +70,9 @@ export class TelegramKeyStore extends Context.Tag("TelegramKeyStore")<
       userId: UserId
     ) => Effect.Effect<{ deletedCount: number }>;
   }
->() {}
+>()("TelegramKeyStore") {}
 
-export class TelegramBotApi extends Context.Tag("TelegramBotApi")<
+export class TelegramBotApi extends ServiceMap.Service<
   TelegramBotApi,
   {
     readonly sendMessage: (
@@ -84,4 +84,4 @@ export class TelegramBotApi extends Context.Tag("TelegramBotApi")<
       TelegramBotApiError
     >;
   }
->() {}
+>()("TelegramBotApi") {}

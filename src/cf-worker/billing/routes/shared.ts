@@ -15,12 +15,12 @@ export class InvalidBodyError extends Schema.TaggedError<InvalidBodyError>()(
 ) {}
 
 export const CheckoutBody = Schema.Struct({
-  tier: Schema.Literal("plus", "pro"),
-  interval: Schema.Literal("month", "year"),
+  tier: Schema.Literals(["plus", "pro"]),
+  interval: Schema.Literals(["month", "year"]),
 });
 
 export const PortalBody = Schema.Struct({
-  tier: Schema.Literal("free", "plus", "pro"),
+  tier: Schema.Literals(["free", "plus", "pro"]),
 });
 
 export const decodeBody = <A, I>(
@@ -32,7 +32,7 @@ export const decodeBody = <A, I>(
     catch: (cause) => new InvalidBodyError({ cause }),
   }).pipe(
     Effect.flatMap((raw) =>
-      Schema.decodeUnknown(schema)(raw).pipe(
+      Schema.decodeUnknownEffect(schema)(raw).pipe(
         Effect.mapError((cause) => new InvalidBodyError({ cause }))
       )
     )

@@ -52,7 +52,7 @@ export const handleSetSignupGate = (
         catch: (cause) => new InvalidBodyError({ cause }),
       }).pipe(
         Effect.flatMap((raw) =>
-          Schema.decodeUnknown(SetSignupGateBody)(raw).pipe(
+          Schema.decodeUnknownEffect(SetSignupGateBody)(raw).pipe(
             Effect.mapError((cause) => new InvalidBodyError({ cause }))
           )
         )

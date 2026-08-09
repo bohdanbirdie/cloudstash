@@ -352,7 +352,7 @@ describe("processLink", () => {
   it.effect("records fetch:timeout when metadata fetch times out", () =>
     processLink({ link: testLink }).pipe(
       Effect.provide(
-        buildTestLayers({ metadataError: new Cause.TimeoutException() })
+        buildTestLayers({ metadataError: new Cause.TimeoutError() })
       ),
       silentLogger,
       Effect.tap(() =>

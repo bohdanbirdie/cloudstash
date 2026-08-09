@@ -73,9 +73,13 @@ export class EnrichmentBudgetExhaustedError extends Schema.TaggedError<Enrichmen
 export class EnrichmentGenerateError extends Schema.TaggedError<EnrichmentGenerateError>()(
   "EnrichmentGenerateError",
   {
-    message: Schema.optionalWith(Schema.String, {
-      default: () => "Enrichment LLM call failed",
-    }),
+    message:
+      /* TODO(effect-v4-codemod): manual migration required for schema-optionalWith-manual */ Schema.optionalWith(
+        Schema.String,
+        {
+          default: () => "Enrichment LLM call failed",
+        }
+      ),
     model: Schema.String,
     promptChars: Schema.optional(Schema.Number),
     inputTokens: Schema.optional(Schema.Number),

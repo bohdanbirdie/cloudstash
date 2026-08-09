@@ -376,7 +376,7 @@ export class LinkProcessorDO
           Layer.provide(DbClientLive(this.env.DB))
         )
       ),
-      Effect.catchAllDefect((defect) =>
+      Effect.catchDefect((defect) =>
         Effect.logError(
           "LinkProcessor: feature-store defect, defaulting to free tier"
         ).pipe(
@@ -417,14 +417,14 @@ export class LinkProcessorDO
       const rowsBefore = this.totalRowsWritten;
 
       const capabilities = yield* FeatureStore.pipe(
-        Effect.flatMap((fs) => fs.getCapabilities(this.storeId!)),
+        Effect.flatMap((fs) => fs.getCapabilities(this.storeId)),
         Effect.provide(
           FeatureStoreLive.pipe(
             Layer.provide(Billing.Default),
             Layer.provide(DbClientLive(this.env.DB))
           )
         ),
-        Effect.catchAllDefect((defect) =>
+        Effect.catchDefect((defect) =>
           Effect.logError(
             "LinkProcessor: feature-store defect, downgrading capabilities"
           ).pipe(
@@ -482,7 +482,7 @@ export class LinkProcessorDO
           }
         })
       ),
-      Effect.catchAllDefect((defect) =>
+      Effect.catchDefect((defect) =>
         Effect.logError("processLinkEffect failed (store likely dead)").pipe(
           Effect.annotateLogs({
             ...safeErrorInfo(defect),
@@ -521,7 +521,7 @@ export class LinkProcessorDO
         );
       }).pipe(
         Effect.withSpan("LinkProcessorDO.sendProgressDraft"),
-        Effect.catchAll((error) =>
+        Effect.catch((error) =>
           Effect.logWarning("sendProgressDraft failed").pipe(
             Effect.annotateLogs(safeErrorInfo(error))
           )

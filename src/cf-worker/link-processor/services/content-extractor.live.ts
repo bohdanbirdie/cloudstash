@@ -38,7 +38,7 @@ export const ContentExtractorLive = Layer.succeed(ContentExtractor, {
             Match.exhaustive
           ),
       }),
-      Effect.catchAll((error) =>
+      Effect.catch((error) =>
         Effect.logWarning("Content extraction failed").pipe(
           Effect.annotateLogs({
             ...safeErrorInfo(error),

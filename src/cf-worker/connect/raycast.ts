@@ -25,7 +25,7 @@ import {
   VerificationStore,
 } from "./services";
 
-const decodeVerificationData = Schema.decodeUnknown(VerificationData);
+const decodeVerificationData = Schema.decodeUnknownEffect(VerificationData);
 
 export const handleConnectRequest = Effect.fn(
   "RaycastConnect.handleConnectRequest"
@@ -284,7 +284,7 @@ export const handleRaycastConnect = (
           ),
         DbError: (e) => unexpected500(e.cause),
       }),
-      Effect.catchAllCause((cause) => unexpected500(cause))
+      Effect.catchCause((cause) => unexpected500(cause))
     )
   );
 
@@ -315,6 +315,6 @@ export const handleRaycastExchange = (
         ),
       DbError: (e) => unexpected500(e.cause),
     }),
-    Effect.catchAllCause((cause) => unexpected500(cause)),
+    Effect.catchCause((cause) => unexpected500(cause)),
     Effect.runPromise
   );

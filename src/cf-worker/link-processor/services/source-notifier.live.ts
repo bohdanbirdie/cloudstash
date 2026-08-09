@@ -53,7 +53,7 @@ export const SourceNotifierLive = (telegramBotToken: string) => {
           api.sendMessageDraft(meta.chatId, meta.messageId, text)
         );
       }).pipe(
-        Effect.catchAll((error) =>
+        Effect.catch((error) =>
           Effect.logWarning("Telegram API: draft progress failed").pipe(
             Effect.annotateLogs({ error: String(error), source: ctx.source })
           )
@@ -73,7 +73,7 @@ export const SourceNotifierLive = (telegramBotToken: string) => {
           })
         );
       }).pipe(
-        Effect.catchAll((error) =>
+        Effect.catch((error) =>
           Effect.logWarning("Telegram API: finalize failed").pipe(
             Effect.annotateLogs({ error: String(error), source: ctx.source })
           )
@@ -91,7 +91,7 @@ export const SourceNotifierLive = (telegramBotToken: string) => {
           })
         );
       }).pipe(
-        Effect.catchAll((error) =>
+        Effect.catch((error) =>
           Effect.logWarning("Telegram API: reply failed").pipe(
             Effect.annotateLogs({ error: String(error), source: ctx.source })
           )

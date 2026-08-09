@@ -88,7 +88,7 @@ const listLinks = (
       catch: (cause) =>
         new LinksError({ status: res.status, body: String(cause) }),
     });
-    return yield* Schema.decodeUnknown(LinksPageSchema)(json).pipe(
+    return yield* Schema.decodeUnknownEffect(LinksPageSchema)(json).pipe(
       Effect.mapError(
         (e) => new LinksError({ status: res.status, body: String(e) })
       )

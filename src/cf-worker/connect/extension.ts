@@ -279,7 +279,7 @@ export const handleExtensionConnect = (
             )
           ),
       }),
-      Effect.catchAllCause((cause) => unexpected500(cause))
+      Effect.catchCause((cause) => unexpected500(cause))
     )
   );
 
@@ -305,7 +305,7 @@ export const handleExtensionDisconnect = (
           ),
         DbError: (e) => unexpected500(e.cause),
       }),
-      Effect.catchAllCause((cause) => unexpected500(cause))
+      Effect.catchCause((cause) => unexpected500(cause))
     )
   );
 
@@ -331,6 +331,6 @@ export const handleExtensionAccount = (
           ),
         DbError: (e) => unexpected500(e.cause),
       }),
-      Effect.catchAllCause((cause) => unexpected500(cause))
+      Effect.catchCause((cause) => unexpected500(cause))
     )
   );

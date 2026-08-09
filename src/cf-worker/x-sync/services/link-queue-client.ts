@@ -1,4 +1,4 @@
-import { Context } from "effect";
+import { ServiceMap } from "effect";
 import type { Effect } from "effect";
 
 import type { LinkQueueMessage } from "../../link-processor/types";
@@ -9,13 +9,11 @@ import type { XSyncSideEffectError } from "../errors";
  * service keeps `pollOnceEffect` free of `env` and lets tests assert queue
  * payloads via a `Layer.succeed(LinkQueueClient, stub)` mock.
  */
-export class LinkQueueClient extends Context.Tag(
-  "@cloudstash/x-sync/LinkQueueClient"
-)<
+export class LinkQueueClient extends ServiceMap.Service<
   LinkQueueClient,
   {
     readonly send: (
       message: LinkQueueMessage
     ) => Effect.Effect<void, XSyncSideEffectError>;
   }
->() {}
+>()("@cloudstash/x-sync/LinkQueueClient") {}

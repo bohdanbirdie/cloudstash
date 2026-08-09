@@ -1,4 +1,4 @@
-import { Context, Schema } from "effect";
+import { ServiceMap, Schema } from "effect";
 import type { Effect } from "effect";
 
 import { XTweetId, XUserId, XUsername } from "../db/branded";
@@ -38,7 +38,7 @@ export interface GetBookmarksParams {
   readonly paginationToken?: string;
 }
 
-export class XApiClient extends Context.Tag("@cloudstash/x-sync/XApiClient")<
+export class XApiClient extends ServiceMap.Service<
   XApiClient,
   {
     readonly getMe: (
@@ -51,4 +51,4 @@ export class XApiClient extends Context.Tag("@cloudstash/x-sync/XApiClient")<
       XUnauthorizedError | XPaymentRequiredError | XRateLimitedError | XApiError
     >;
   }
->() {}
+>()("@cloudstash/x-sync/XApiClient") {}

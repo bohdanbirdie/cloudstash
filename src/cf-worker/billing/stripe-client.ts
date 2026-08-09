@@ -1,4 +1,4 @@
-import { Array as A, Context, Effect, Layer, Match, Option } from "effect";
+import { Array as A, ServiceMap, Effect, Layer, Match, Option } from "effect";
 import StripeSdk from "stripe";
 
 import { PLAN_ORDER } from "@/lib/plan";
@@ -128,10 +128,10 @@ export interface StripeClientShape {
   ) => StripePriceId | null;
 }
 
-export class StripeClient extends Context.Tag("@cloudstash/StripeClient")<
+export class StripeClient extends ServiceMap.Service<
   StripeClient,
   StripeClientShape
->() {}
+>()("@cloudstash/StripeClient") {}
 
 export const decidePortalFlow = (
   subscription: StripeSdk.Subscription,

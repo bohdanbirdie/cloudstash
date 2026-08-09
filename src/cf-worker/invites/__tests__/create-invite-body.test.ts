@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 import { CreateInviteBody, MAX_EXPIRES_IN_DAYS } from "../service";
 
 const decode = (input: unknown) =>
-  Effect.runSync(Effect.either(Schema.decodeUnknown(CreateInviteBody)(input)));
+  Effect.runSync(
+    Effect.either(Schema.decodeUnknownEffect(CreateInviteBody)(input))
+  );
 
 describe("CreateInviteBody schema", () => {
   it("accepts an empty body", () => {

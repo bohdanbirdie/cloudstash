@@ -33,7 +33,7 @@ export const tryExtract = Effect.fn("metadata.tryExtract")(function* (
         })
       )
     ),
-    Effect.catchAllCause(() => Effect.succeed(null))
+    Effect.catchCause(() => Effect.succeed(null))
   );
   if (!result) return null;
   return {

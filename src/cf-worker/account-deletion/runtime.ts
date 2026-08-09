@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Match, Option, Schema } from "effect";
+import { ServiceMap, Effect, Layer, Match, Option, Schema } from "effect";
 
 import type { OrgId, UserId } from "../db/branded";
 import { WorkflowInstanceId } from "../db/branded";
@@ -18,16 +18,16 @@ export interface WorkflowInstanceHandle {
 export class DeletionRuntimeError extends Schema.TaggedError<DeletionRuntimeError>()(
   "DeletionRuntimeError",
   {
-    op: Schema.Literal(
+    op: Schema.Literals([
       "markLinkProcessorDeleting",
       "purgeLinkProcessor",
       "purgeSyncBackend",
       "purgeChatAgent",
       "purgeTelegram",
       "purgeXBookmarkSync",
-      "ensureWorkflow"
-    ),
-    step: Schema.optional(Schema.Literal("status", "restart", "create")),
+      "ensureWorkflow",
+    ]),
+    step: Schema.optional(Schema.Literals(["status", "restart", "create"])),
     cause: Schema.Defect,
   }
 ) {}
@@ -37,7 +37,7 @@ export class DeletionRuntimeError extends Schema.TaggedError<DeletionRuntimeErro
  * compose without per-call Promise bridging. Tests provide
  * `Layer.succeed(DeletionRuntime, fakeImpl)`.
  */
-export class DeletionRuntime extends Context.Tag("@cloudstash/DeletionRuntime")<
+export class DeletionRuntime extends ServiceMap.Service<
   DeletionRuntime,
   {
     readonly markLinkProcessorDeleting: (
@@ -63,7 +63,7 @@ export class DeletionRuntime extends Context.Tag("@cloudstash/DeletionRuntime")<
       params: AccountDeletionParams
     ) => Effect.Effect<WorkflowInstanceHandle, DeletionRuntimeError>;
   }
->() {}
+>()("@cloudstash/DeletionRuntime") {}
 
 const isStatusActive = (status: string): boolean =>
   Match.value(status).pipe(

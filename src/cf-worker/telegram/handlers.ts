@@ -118,7 +118,7 @@ export const handleDisconnect = Effect.fn("Telegram.handleDisconnect")(
 
     const userId = yield* auth.authenticate().pipe(
       Effect.map(({ userId: id }) => Option.some(id)),
-      Effect.catchAll(() => Effect.succeed(Option.none<UserId>()))
+      Effect.catch(() => Effect.succeed(Option.none<UserId>()))
     );
 
     yield* keyStore.remove(chatId);

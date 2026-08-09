@@ -32,6 +32,6 @@ export const runBilling = (
   Effect.runPromise(
     effect.pipe(
       Effect.provide(getBillingLayer(env)),
-      Effect.catchAllCause(unexpected500)
+      Effect.catchCause(unexpected500)
     )
   );

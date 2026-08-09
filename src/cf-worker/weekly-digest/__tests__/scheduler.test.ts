@@ -244,7 +244,7 @@ describe("DigestScheduler.handleAlarm", () => {
           storeIdRef,
         });
         yield* withScheduler(deps, (s) => s.handleAlarm).pipe(
-          Effect.catchAllDefect(() => Effect.void)
+          Effect.catchDefect(() => Effect.void)
         );
         expect(storageState(storage).alarm!).toBeGreaterThanOrEqual(before);
       })

@@ -31,9 +31,13 @@ const LinkQueueMessageSchema = Schema.Struct({
 export class QueueProcessError extends Schema.TaggedError<QueueProcessError>()(
   "QueueProcessError",
   {
-    message: Schema.optionalWith(Schema.String, {
-      default: () => "Queue message processing failed",
-    }),
+    message:
+      /* TODO(effect-v4-codemod): manual migration required for schema-optionalWith-manual */ Schema.optionalWith(
+        Schema.String,
+        {
+          default: () => "Queue message processing failed",
+        }
+      ),
     cause: Schema.Defect,
   }
 ) {}
@@ -41,9 +45,13 @@ export class QueueProcessError extends Schema.TaggedError<QueueProcessError>()(
 export class QueueDecodeError extends Schema.TaggedError<QueueDecodeError>()(
   "QueueDecodeError",
   {
-    message: Schema.optionalWith(Schema.String, {
-      default: () => "Queue message failed to decode",
-    }),
+    message:
+      /* TODO(effect-v4-codemod): manual migration required for schema-optionalWith-manual */ Schema.optionalWith(
+        Schema.String,
+        {
+          default: () => "Queue message failed to decode",
+        }
+      ),
     cause: Schema.Defect,
   }
 ) {}
@@ -76,7 +84,7 @@ export const handleQueueBatchEffect = (
     batch.messages,
     (msg) =>
       Effect.gen(function* () {
-        const body = yield* Schema.decodeUnknown(LinkQueueMessageSchema)(
+        const body = yield* Schema.decodeUnknownEffect(LinkQueueMessageSchema)(
           msg.body
         ).pipe(Effect.mapError((cause) => new QueueDecodeError({ cause })));
         const { storeId } = body;

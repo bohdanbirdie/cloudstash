@@ -26,7 +26,7 @@ class PriceMismatch extends Schema.TaggedError<PriceMismatch>()(
   "PriceMismatch",
   {
     tier: Schema.Literal(...PLAN_ORDER),
-    interval: Schema.Literal("month", "year"),
+    interval: Schema.Literals(["month", "year"]),
     detail: Schema.String,
   }
 ) {}

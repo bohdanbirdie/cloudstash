@@ -153,10 +153,10 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
             aiSemaphore: aiSem,
           }).pipe(Effect.provide(layers));
 
-        const fiberA = yield* Effect.fork(run(linkA));
+        const fiberA = yield* Effect.forkChild(run(linkA));
         yield* Deferred.await(aiStarted);
 
-        const fiberB = yield* Effect.fork(run(linkB));
+        const fiberB = yield* Effect.forkChild(run(linkB));
         yield* Deferred.await(metaB);
 
         expect(
@@ -217,7 +217,7 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
           enrichmentStubs
         );
 
-        const fiber = yield* Effect.fork(
+        const fiber = yield* Effect.forkChild(
           processLink({
             link: linkA,
             aiSummaryEnabled: true,
@@ -274,7 +274,7 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
 
         const links = seedLinks("ai-cap", MAX_CONCURRENT_AI + 2);
         const fibers = yield* Effect.forEach(links, (link) =>
-          Effect.fork(
+          Effect.forkChild(
             processLink({
               link,
               aiSummaryEnabled: true,
@@ -340,7 +340,7 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
 
         const links = seedLinks("meta-cap", MAX_CONCURRENT_METADATA + 2);
         const fibers = yield* Effect.forEach(links, (link) =>
-          Effect.fork(
+          Effect.forkChild(
             processLink({
               link,
               aiSummaryEnabled: true,

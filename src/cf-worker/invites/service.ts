@@ -77,7 +77,9 @@ const handleCreateInviteRequest = Effect.fn(
     (): Promise<unknown> => request.json()
   ).pipe(Effect.orElseSucceed(() => ({})));
 
-  const decoded = yield* Schema.decodeUnknown(CreateInviteBody)(rawBody).pipe(
+  const decoded = yield* Schema.decodeUnknownEffect(CreateInviteBody)(
+    rawBody
+  ).pipe(
     Effect.mapError(
       (error) =>
         new InvalidInviteRequestError({

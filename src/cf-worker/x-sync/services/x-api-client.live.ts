@@ -86,7 +86,7 @@ const getMeImpl = Effect.fn("XApiClient.getMe")(function* (
       }),
   });
 
-  const body = yield* Schema.decodeUnknown(MeResponse)(json).pipe(
+  const body = yield* Schema.decodeUnknownEffect(MeResponse)(json).pipe(
     Effect.mapError(
       (cause) =>
         new XApiError({
@@ -169,7 +169,7 @@ const getBookmarksImpl = Effect.fn("XApiClient.getBookmarks")(function* (
       }),
   });
 
-  const body = yield* Schema.decodeUnknown(BookmarksResponse)(json).pipe(
+  const body = yield* Schema.decodeUnknownEffect(BookmarksResponse)(json).pipe(
     Effect.mapError(
       (cause) =>
         new XApiError({

@@ -47,5 +47,5 @@ export const sendApprovalEmail = (
         Effect.annotateLogs({ error: String(e) })
       )
     ),
-    Effect.catchAll(() => Effect.void)
+    Effect.catch(() => Effect.void)
   );

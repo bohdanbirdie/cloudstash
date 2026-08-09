@@ -185,7 +185,7 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
             Effect.annotateLogs(safeErrorInfo(e.cause))
           )
         ),
-        Effect.catchAll(() => Effect.void),
+        Effect.catch(() => Effect.void),
         Effect.provide(AppLayerLive(env))
       )
     );

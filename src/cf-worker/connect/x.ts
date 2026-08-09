@@ -246,7 +246,7 @@ export const handleXStatus = (request: Request, env: Env): Promise<Response> =>
       Effect.provide(makeLiveLayer(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags(commonErrorTags),
-      Effect.catchAllCause((cause) => unexpected500(cause))
+      Effect.catchCause((cause) => unexpected500(cause))
     )
   );
 
@@ -259,7 +259,7 @@ export const handleXDisconnect = (
       Effect.provide(makeLiveLayer(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags(commonErrorTags),
-      Effect.catchAllCause((cause) => unexpected500(cause))
+      Effect.catchCause((cause) => unexpected500(cause))
     )
   );
 
@@ -269,7 +269,7 @@ export const handleXPause = (request: Request, env: Env): Promise<Response> =>
       Effect.provide(makeLiveLayer(env)),
       Effect.map(mapActionResult),
       Effect.catchTags(commonErrorTags),
-      Effect.catchAllCause((cause) => unexpected500(cause))
+      Effect.catchCause((cause) => unexpected500(cause))
     )
   );
 
@@ -292,6 +292,6 @@ export const handleXResume = (request: Request, env: Env): Promise<Response> =>
           ),
         DbError: (cause) => unexpected500(cause),
       }),
-      Effect.catchAllCause((cause) => unexpected500(cause))
+      Effect.catchCause((cause) => unexpected500(cause))
     )
   );

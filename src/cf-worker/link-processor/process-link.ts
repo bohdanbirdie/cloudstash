@@ -352,7 +352,7 @@ export const processLink = ({
           annotations: { url: link.url },
         }),
     }),
-    Effect.catchAllDefect((defect) =>
+    Effect.catchDefect((defect) =>
       recordFailure({
         error: "Defect",
         errorTag: "Defect",

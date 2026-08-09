@@ -38,7 +38,7 @@ export const runHandler = (
   effect: Effect.Effect<Response, never, AppCtx>
 ): Promise<Response> =>
   effect.pipe(
-    Effect.catchAllDefect(onDefect),
+    Effect.catchDefect(onDefect),
     Effect.provide(getAppLayer(env)),
     Effect.runPromise
   );

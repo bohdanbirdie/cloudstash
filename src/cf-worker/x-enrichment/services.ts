@@ -1,4 +1,4 @@
-import { Context, Schema } from "effect";
+import { ServiceMap, Schema } from "effect";
 import type { Effect } from "effect";
 
 import { XTweetId, XUsername } from "../db/branded";
@@ -29,11 +29,11 @@ export interface FetchThreadParams {
   readonly url: string;
 }
 
-export class ThreadProvider extends Context.Tag("@cloudstash/ThreadProvider")<
+export class ThreadProvider extends ServiceMap.Service<
   ThreadProvider,
   {
     readonly fetchContext: (
       params: FetchThreadParams
     ) => Effect.Effect<ThreadContext, AnyThreadProviderError>;
   }
->() {}
+>()("@cloudstash/ThreadProvider") {}

@@ -1,4 +1,4 @@
-import { Context, Schema } from "effect";
+import { ServiceMap, Schema } from "effect";
 import type { Effect } from "effect";
 
 import { ApiKey, ApiKeyRowId, OrgId } from "../db/branded";
@@ -35,7 +35,7 @@ export interface SessionData {
   readonly orgId: OrgId | null;
 }
 
-export class SessionProvider extends Context.Tag("SessionProvider")<
+export class SessionProvider extends ServiceMap.Service<
   SessionProvider,
   {
     // Returns null when there's no session; fails with SessionLookupError when
@@ -45,9 +45,9 @@ export class SessionProvider extends Context.Tag("SessionProvider")<
       headers: Headers
     ) => Effect.Effect<SessionData | null, SessionLookupError>;
   }
->() {}
+>()("SessionProvider") {}
 
-export class ApiKeyStore extends Context.Tag("ApiKeyStore")<
+export class ApiKeyStore extends ServiceMap.Service<
   ApiKeyStore,
   {
     readonly listByUser: (
@@ -64,9 +64,9 @@ export class ApiKeyStore extends Context.Tag("ApiKeyStore")<
       name: string
     ) => Effect.Effect<void, DbError>;
   }
->() {}
+>()("ApiKeyStore") {}
 
-export class VerificationStore extends Context.Tag("VerificationStore")<
+export class VerificationStore extends ServiceMap.Service<
   VerificationStore,
   {
     readonly save: (
@@ -81,14 +81,14 @@ export class VerificationStore extends Context.Tag("VerificationStore")<
       DbError | InvalidVerificationPayloadError
     >;
   }
->() {}
+>()("VerificationStore") {}
 
 export interface TelegramConnectCode {
   readonly recordId: string;
   readonly chatId: number;
 }
 
-export class TelegramConnectStore extends Context.Tag("TelegramConnectStore")<
+export class TelegramConnectStore extends ServiceMap.Service<
   TelegramConnectStore,
   {
     readonly issueCode: (chatId: number) => Effect.Effect<string, DbError>;
@@ -105,4 +105,4 @@ export class TelegramConnectStore extends Context.Tag("TelegramConnectStore")<
       DbError | InvalidVerificationPayloadError
     >;
   }
->() {}
+>()("TelegramConnectStore") {}

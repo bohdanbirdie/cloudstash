@@ -37,7 +37,7 @@ const successRequest = Effect.fn("Billing.success")(function* (
 export const successProgram = (request: Request, env: Env) =>
   successRequest(request, env).pipe(
     // Browser-only endpoint (Checkout + Portal redirects): land on a page, never JSON.
-    Effect.catchAll((error) =>
+    Effect.catch((error) =>
       Effect.logWarning("Billing.success failed; redirecting to /welcome").pipe(
         Effect.annotateLogs(safeErrorInfo(error)),
         Effect.as(Response.redirect(`${appBaseUrl(request, env)}/welcome`, 302))

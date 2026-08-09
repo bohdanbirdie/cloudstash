@@ -123,7 +123,7 @@ export const createAuth = (env: Env, db: Database) => {
             const userId = UserId.make(createdUser.id);
             await Effect.runPromise(
               autoApproveUser(userId).pipe(
-                Effect.catchAllCause((cause) =>
+                Effect.catchCause((cause) =>
                   Effect.logError("signup auto-approve failed").pipe(
                     Effect.annotateLogs({
                       userId: maskId(userId),
@@ -146,7 +146,7 @@ export const createAuth = (env: Env, db: Database) => {
                 account,
                 env.X_BOOKMARK_SYNC_DO
               ).pipe(
-                Effect.catchAllCause((cause) =>
+                Effect.catchCause((cause) =>
                   Effect.logError("x-link: post-link setup failed").pipe(
                     Effect.annotateLogs({
                       userId: maskId(account.userId),
@@ -244,7 +244,7 @@ export const createAuth = (env: Env, db: Database) => {
           // Phase 1 — synchronous, fail-loud. Throwing aborts the deletion entirely.
           // Async cleanup runs in the AccountDeletionWorkflow.
           await Effect.runPromise(
-            Schema.decodeUnknown(UserId)(user.id).pipe(
+            Schema.decodeUnknownEffect(UserId)(user.id).pipe(
               Effect.flatMap((userId) => prepareDeletion({ userId })),
               Effect.tapErrorCause((cause) =>
                 Effect.logError("Account deletion Phase 1 failed").pipe(

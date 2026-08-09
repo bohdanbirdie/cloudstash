@@ -78,7 +78,7 @@ export const mapDigestFailures = <A>(
           Effect.as(failed("generator", e.message))
         ),
     }),
-    Effect.catchAllDefect((defect) =>
+    Effect.catchDefect((defect) =>
       Effect.logError("Weekly digest failed: defect").pipe(
         Effect.annotateLogs({
           ...safeErrorInfo(defect),

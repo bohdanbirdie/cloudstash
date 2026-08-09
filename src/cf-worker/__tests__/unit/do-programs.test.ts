@@ -1215,7 +1215,7 @@ describe("semaphore concurrency", () => {
               return yield* Effect.die("boom");
             }
             results.push(id);
-          }).pipe(Effect.catchAllDefect(() => Effect.void))
+          }).pipe(Effect.catchDefect(() => Effect.void))
         ),
       { concurrency: "unbounded", discard: true }
     ).pipe(

@@ -11,42 +11,43 @@ export const SIGNUP_GATE_KEY = "signupGateEnabled";
 export const parseGateEnabled = (value: string | undefined): boolean =>
   value === "true";
 
-export class AppSettings extends Effect.Service<AppSettings>()(
-  "@cloudstash/AppSettings",
-  {
-    effect: Effect.gen(function* () {
-      const db = yield* DbClient;
+export class AppSettings
+  extends /* TODO(effect-v4-codemod): manual migration required for effect-service-manual */ Effect.Service<AppSettings>()(
+    "@cloudstash/AppSettings",
+    {
+      effect: Effect.gen(function* () {
+        const db = yield* DbClient;
 
-      return {
-        signupGateEnabled: Effect.fn("AppSettings.signupGateEnabled")(
-          function* () {
-            const row = yield* query(
-              db.query.appSettings.findFirst({
-                where: eq(schema.appSettings.key, SIGNUP_GATE_KEY),
-              })
-            );
-            return parseGateEnabled(row?.value);
-          }
-        ),
-
-        setSignupGateEnabled: Effect.fn("AppSettings.setSignupGateEnabled")(
-          function* (enabled: boolean) {
-            const value = enabled ? "true" : "false";
-            yield* query(
-              db
-                .insert(schema.appSettings)
-                .values({ key: SIGNUP_GATE_KEY, value })
-                .onConflictDoUpdate({
-                  target: schema.appSettings.key,
-                  set: { value, updatedAt: new Date() },
+        return {
+          signupGateEnabled: Effect.fn("AppSettings.signupGateEnabled")(
+            function* () {
+              const row = yield* query(
+                db.query.appSettings.findFirst({
+                  where: eq(schema.appSettings.key, SIGNUP_GATE_KEY),
                 })
-            );
-            yield* Effect.logInfo("AppSettings.signupGate updated").pipe(
-              Effect.annotateLogs({ enabled })
-            );
-          }
-        ),
-      };
-    }),
-  }
-) {}
+              );
+              return parseGateEnabled(row?.value);
+            }
+          ),
+
+          setSignupGateEnabled: Effect.fn("AppSettings.setSignupGateEnabled")(
+            function* (enabled: boolean) {
+              const value = enabled ? "true" : "false";
+              yield* query(
+                db
+                  .insert(schema.appSettings)
+                  .values({ key: SIGNUP_GATE_KEY, value })
+                  .onConflictDoUpdate({
+                    target: schema.appSettings.key,
+                    set: { value, updatedAt: new Date() },
+                  })
+              );
+              yield* Effect.logInfo("AppSettings.signupGate updated").pipe(
+                Effect.annotateLogs({ enabled })
+              );
+            }
+          ),
+        };
+      }),
+    }
+  ) {}

@@ -30,10 +30,13 @@ export const allLinksCount$ = queryDb(
 const archiveCountSchema = Schema.Struct({ count: Schema.Number }).pipe(
   Schema.Array,
   Schema.headOrElse(() => ({ count: 0 })),
-  Schema.transform(Schema.Number, {
-    decode: (row) => row.count,
-    encode: (count) => ({ count }),
-  })
+  /* TODO(effect-v4-codemod): manual migration required for schema-transform-manual */ Schema.transform(
+    Schema.Number,
+    {
+      decode: (row) => row.count,
+      encode: (count) => ({ count }),
+    }
+  )
 );
 
 export const archiveCount$ = queryDb(

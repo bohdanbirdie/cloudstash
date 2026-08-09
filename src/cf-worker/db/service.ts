@@ -1,12 +1,11 @@
-import { Context, Effect, Layer, Schema } from "effect";
+import { ServiceMap, Effect, Layer, Schema } from "effect";
 
 import type { Database } from ".";
 import { createDb } from ".";
 
-export class DbClient extends Context.Tag("@cloudstash/DbClient")<
-  DbClient,
-  Database
->() {}
+export class DbClient extends ServiceMap.Service<DbClient, Database>()(
+  "@cloudstash/DbClient"
+) {}
 
 export class DbError extends Schema.TaggedError<DbError>()("DbError", {
   cause: Schema.Defect,

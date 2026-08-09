@@ -33,7 +33,7 @@ class TriggerDigestMissingOrg extends Schema.TaggedError<TriggerDigestMissingOrg
   {}
 ) {}
 
-const decodeRpcResult = Schema.decodeUnknown(WeeklyDigestRpcResult);
+const decodeRpcResult = Schema.decodeUnknownEffect(WeeklyDigestRpcResult);
 
 export const handleTriggerDigest = (
   request: Request,
