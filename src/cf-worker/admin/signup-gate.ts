@@ -5,9 +5,9 @@ import { runHandler } from "../runtime";
 import { AppSettings } from "../settings/service";
 import type { Env } from "../shared";
 
-class InvalidBodyError extends Schema.TaggedError<InvalidBodyError>()(
+class InvalidBodyError extends Schema.TaggedErrorClass<InvalidBodyError>()(
   "InvalidBodyError",
-  { cause: Schema.Defect }
+  { cause: Schema.Defect() }
 ) {}
 
 const SetSignupGateBody = Schema.Struct({ enabled: Schema.Boolean });

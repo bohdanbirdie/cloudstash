@@ -6,7 +6,7 @@ import type { UserId } from "../db/branded";
 import type { DbError } from "../db/service";
 import type { KeyCreationError, SessionLookupError } from "./errors";
 
-export class InvalidVerificationPayloadError extends Schema.TaggedError<InvalidVerificationPayloadError>()(
+export class InvalidVerificationPayloadError extends Schema.TaggedErrorClass<InvalidVerificationPayloadError>()(
   "InvalidVerificationPayloadError",
   {
     identifier: Schema.String,

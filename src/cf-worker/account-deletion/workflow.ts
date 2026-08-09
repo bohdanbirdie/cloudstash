@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { Context, Effect, Runtime, Schema } from "effect";
+import { Context, Effect, Schema } from "effect";
 
 import * as schema from "../db/schema";
 import { DbClient, query } from "../db/service";
@@ -48,19 +48,21 @@ export class CfStep extends Context.Service<CfStep, CfWorkflowStep>()(
  * A specific step inside the orchestration failed (after CF's own retries).
  * `cause` preserves the original throwable; `step` is the human-readable name.
  */
-export class WorkflowOrchestrationError extends Schema.TaggedError<WorkflowOrchestrationError>()(
+export class WorkflowOrchestrationError extends Schema.TaggedErrorClass<WorkflowOrchestrationError>()(
   "WorkflowOrchestrationError",
   {
     step: Schema.String,
-    cause: Schema.Defect,
+    cause: Schema.Defect(),
   }
 ) {}
 
 /**
- * We do NOT route the body through `Effect.either` because that would resolve
+ * We do NOT route the body through `Effect.result` because that would resolve
  * the Promise even on failure, defeating CF's per-step retry semantics
  * (configured via `STEP_RETRY`). Failure must reject the Promise for CF to
- * retry; `cause: Defect` preserves the original `_tag` + fields for triage.
+ * retry — `Effect.runPromiseWith` rejects on both typed failures and defects,
+ * with the original error (its `_tag` + fields) as the rejection value, which
+ * `cause: Defect` preserves for triage.
  */
 export const step = <A, E, R>(
   name: string,
@@ -69,10 +71,10 @@ export const step = <A, E, R>(
 ): Effect.Effect<A, WorkflowOrchestrationError, R | CfStep> =>
   Effect.gen(function* () {
     const cf = yield* CfStep;
-    const rt = yield* Effect.runtime<R>();
+    const services = yield* Effect.context<R>();
     // CF's `do<T>` callback is `(ctx) => Promise<Serializable<T>>`. Our `T`
     // is always JSON-serializable at runtime; the cast is the single bridge.
-    const fn = (() => Runtime.runPromise(rt)(body)) as never;
+    const fn = (() => Effect.runPromiseWith(services)(body)) as never;
     return yield* Effect.tryPromise({
       try: () => (options ? cf.do<A>(name, options, fn) : cf.do<A>(name, fn)),
       catch: (cause) => new WorkflowOrchestrationError({ step: name, cause }),

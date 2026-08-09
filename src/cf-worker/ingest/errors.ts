@@ -1,33 +1,33 @@
 import { Schema } from "effect";
 
-export class IngestMissingApiKeyError extends Schema.TaggedError<IngestMissingApiKeyError>()(
+export class IngestMissingApiKeyError extends Schema.TaggedErrorClass<IngestMissingApiKeyError>()(
   "IngestMissingApiKeyError",
   {}
 ) {}
 
-export class IngestInvalidApiKeyError extends Schema.TaggedError<IngestInvalidApiKeyError>()(
+export class IngestInvalidApiKeyError extends Schema.TaggedErrorClass<IngestInvalidApiKeyError>()(
   "IngestInvalidApiKeyError",
   {}
 ) {}
 
-export class IngestMissingOrgIdError extends Schema.TaggedError<IngestMissingOrgIdError>()(
+export class IngestMissingOrgIdError extends Schema.TaggedErrorClass<IngestMissingOrgIdError>()(
   "IngestMissingOrgIdError",
   {}
 ) {}
 
-export class IngestMissingUrlError extends Schema.TaggedError<IngestMissingUrlError>()(
+export class IngestMissingUrlError extends Schema.TaggedErrorClass<IngestMissingUrlError>()(
   "IngestMissingUrlError",
   {}
 ) {}
 
-export class IngestInvalidUrlError extends Schema.TaggedError<IngestInvalidUrlError>()(
+export class IngestInvalidUrlError extends Schema.TaggedErrorClass<IngestInvalidUrlError>()(
   "IngestInvalidUrlError",
   {
     url: Schema.String,
   }
 ) {}
 
-export class IngestQueueSendError extends Schema.TaggedError<IngestQueueSendError>()(
+export class IngestQueueSendError extends Schema.TaggedErrorClass<IngestQueueSendError>()(
   "IngestQueueSendError",
   {
     cause: Schema.Unknown,

@@ -39,7 +39,7 @@ const billingStub = (
     Effect.die("Billing stub method not implemented in test");
   return Layer.succeed(
     Billing,
-    new Billing({
+    Billing.of({
       capabilities: override?.capabilities ?? (() => Effect.succeed(caps)),
       tier: notImpl,
       subscription: notImpl,

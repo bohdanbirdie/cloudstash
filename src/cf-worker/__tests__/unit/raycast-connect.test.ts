@@ -53,7 +53,7 @@ function makeBillingLayer(caps: TierCapabilities = capabilitiesFor("plus")) {
     Effect.die("Billing stub method not implemented in test");
   return Layer.succeed(
     Billing,
-    new Billing({
+    Billing.of({
       capabilities: () => Effect.succeed(caps),
       tier: notImpl,
       subscription: notImpl,

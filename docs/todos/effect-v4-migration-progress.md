@@ -13,21 +13,21 @@ risk, independently researched, reconciled below).
 Cycle per unit: Fable/Opus executor subagent → independent reviewer subagent
 → user review → commit. No subagent ever commits.
 
-| Stage                                               | Status   | Commits               |
-| --------------------------------------------------- | -------- | --------------------- |
-| 0 — Preflight (branch, cooldown, baselines)         | ✅       | `d68f762`             |
-| 1 — World flip (submodule + deps, config only)      | ✅       | `39aa07e`             |
-| 2 — Codemod sweep (pure) + dual RG review           | ✅       | `99be60f` + `cafff12` |
-| 3 — Cluster burndown (~8 units)                     | 🔶 4.5/8 | below                 |
-| 4 — Validation battery                              | ⬜       |                       |
-| 5 — Final dual review + rebase + merge              | ⬜       |                       |
-| 6 — Fast-follows (extension, #722, fork retirement) | ⬜       |                       |
+| Stage                                               | Status | Commits               |
+| --------------------------------------------------- | ------ | --------------------- |
+| 0 — Preflight (branch, cooldown, baselines)         | ✅     | `d68f762`             |
+| 1 — World flip (submodule + deps, config only)      | ✅     | `39aa07e`             |
+| 2 — Codemod sweep (pure) + dual RG review           | ✅     | `99be60f` + `cafff12` |
+| 3 — Cluster burndown (~8 units)                     | 🔶 7/8 | below                 |
+| 4 — Validation battery                              | ⬜     |                       |
+| 5 — Final dual review + rebase + merge              | ⬜     |                       |
+| 6 — Fast-follows (extension, #722, fork retirement) | ⬜     |                       |
 
 Stage 3 units: RG-codemod corrections ✅ `bd09696` · C2 foundation ✅
 `8ea6c20` · C8a test harness ✅ `3242c4e` · C3 schema/Date-wire ✅ `738140b`
-· C5+C4 sync glue + LinkProcessorDO ✅ (this commit, combined unit) · C6
-HTTP surface ⬜ · C7 background workers ✅ (this commit) · residual sweep +
-typecheck milestone + marker/docs ⬜.
+· C5+C4 sync glue + LinkProcessorDO ✅ `df85467` · C6
+HTTP surface ✅ (this commit — FINAL cluster) · C7 background workers ✅
+`5496fd7` · residual sweep + typecheck milestone + marker/docs ⬜.
 C9 extension: REMOVED from this PR (Stage 6 fast-follow, user decision;
 all three extension CI steps incl. `test:ext` TEMP-gated as of the C3
 commit — its 4/11 failures are pre-existing mixed-tree v3 breakage,
@@ -43,11 +43,18 @@ declarations poisoning `liveLayer`, zero debt in cluster code)** → **36
 errors / 8 warnings (C7; zero anchored in any C7 file, and the C4
 residual at durable-object.ts:396 CLEARED — the 44 remaining diagnostics
 anchor in C6 prod files + their consuming test files — 17 of them in
-stripe-routes.test + ingest-service.test)**. Unit tests: 566/652 → 849/867 → 891/909 →
+stripe-routes.test + ingest-service.test)** → **0 errors / 0 warnings
+(C6 — BURNDOWN COMPLETE, zero repo-wide)**. Unit tests: 566/652 → 849/867 → 891/909 →
 **1173/1191 passing (C7; +282 newly runnable, +277 newly green; all 18
 reds + 9 import-dead suites are C6-boundary — category (c) BEHAVIOR is
 EMPTY, hotspot-8 process-link-concurrency PASSED 4/4 on its first-ever
-v4 run)**.
+v4 run)** → **1290/1292 (C6; total grew 1191→1292 because the 9
+import-dead suites now register their full test counts; the ONLY 2 reds
+are category (c) — workflow.test.ts `String(error.cause)` assertions,
+see Found issues)**. E2e (FIRST v4 run): **6/6 files, 52 passed /
+3 skipped** (skips = the pre-existing `describe.skip` durability suites
+from the stranding post-mortem #81); the eviction/incarnation probe
+PASSED.
 
 ## Reconciliation notes (where the agents differed or corrected the plan)
 
@@ -593,7 +600,7 @@ live-store-client-do.ts`): set `this.storeId` from the RPC arg, always
      smoke this pair was combined for) stays blocked at worker boot on C7
      `queue-handler.ts` — G2 item, unchanged.
 
-7. [ ] **Commits 8–N — C6 + C7 feature clusters, then frontend, then C9
+7. [x] **Commits 8–N — C6 + C7 feature clusters, then frontend, then C9
        extension.** One commit per cluster; burn down warning-class backlog items
        as their cluster lands. Extension last (after C3 stable), gated by
        `bun run test:ext` + loading the unpacked extension.
@@ -675,6 +682,85 @@ AppSettings({…})` stubs in the TEST files — under v4 the constructed
      that is downstream of the same broken stub, NOT a v4 behavior change
      (root-caused). Fix is the same `.of()` API form when C6/C8 touches
      those files.
+     **Executed C6 (2026-08-09, FINAL cluster — zero clusters remain):**
+   - **Priority 1 — the two silently-broken `Arr.filterMap` sites FIXED
+     and verified:** ① `connect/telegram.ts:231` — the Option pipeline
+     bridged with the established terminal `Result.fromOption(() => null)`;
+     verified by `connect/__tests__/telegram.test.ts` "revokes only
+     telegram-source keys" (asserts deleted == [tg-1, tg-2] against a mixed
+     telegram/raycast/null/bad-json key set) — suite green post-unblock. ②
+     `admin/activity-stats/metrics.ts:192` (`retentionGrid`) — native
+     `Result.succeed`/`Result.fail(null)` callbacks (callback constructed
+     the Option directly, no pipeline to bridge). NO test covers
+     retentionGrid (only e2e admin.test, which doesn't hit activity stats);
+     verified via a scratchpad runtime probe: 2 cohorts with correct
+     per-age retained counts (0 cohorts when broken).
+   - **Hotspot 6 — CF Workflows Runtime bridge migrated
+     (`account-deletion/workflow.ts`):** `Effect.runtime<R>()` +
+     `Runtime.runPromise(rt)(body)` → `Effect.context<R>()` +
+     `Effect.runPromiseWith(services)(body)` — v4 has no v3 `Runtime`
+     (beta.99 `Runtime` module = runMain plumbing only); the replacement is
+     the vendor-canonical form (store.ts:1271, StoreRegistry.ts:300,
+     ws-rpc-server.ts:189). Rejection semantics probe-verified (see
+     Decisions). The rejection-semantics comment updated (sanctioned
+     exception): `Effect.either` → `Effect.result`, plus the v4 rejection
+     value shape. `workflows/account-deletion.ts` (entry) needed ZERO
+     changes — already v4-valid (`Cause.pretty`, `tapCause`, decode).
+   - **Error classes:** 20 v3 `Schema.TaggedError` → `TaggedErrorClass`
+     across 8 files (ingest/errors 6, invites/errors 5, trigger-digest 4,
+     connect/services 1, signup-gate 1, workspaces 1, billing/routes/shared
+     1, account-deletion/workflow 1); `Schema.Defect` → `Defect()` ×4.
+   - **The LAST codemod TODO marker cleared:**
+     `admin/activity-stats/repo.ts` v3 `Effect.Service` → C2 pattern
+     (hoisted `make` + `Context.Service<Self, Effect.Success<typeof make>>`
+     - `Default` static); consumer `handler.ts` unchanged
+       (`ActivityStatsRepo.Default` contract preserved). Repo-wide marker
+       count now **0**.
+   - **Removed-API debt:** stripe-sync.ts `Option.fromNullable` →
+     `fromNullishOr` + `flatMapNullable` → `flatMapNullishOr` ×2 (beta.99
+     kept `flatMapNullishOr` — no restructure needed; its 9 reds → green);
+     trigger-digest `fromNullable` → `fromNullishOr`; invites/service.ts
+     `Schema.Number.pipe(Schema.int(), positive(), lessThanOrEqualTo)` →
+     `.check(Schema.isInt(), isGreaterThan(0), isLessThanOrEqualTo)` (a
+     silent module-eval crash — see Found issues); workspaces.ts
+     `Schema.Literal(...spread)` → `Schema.Literals(arr)` ×3;
+     trigger-digest `catchTag("ParseError")` → `catchTag("SchemaError")`
+     (v4 decode failure tag — the stale tag compiled as dead code, decode
+     failures would have skipped the 502 mapping); `Effect.Effect.Success/
+Error` → `Effect.Success/Error` (ingest + invites services);
+     `Schema.Schema<A, I>` → `Schema.Codec<A, I>` (decodeBody ×2 in
+     workspaces + billing/routes/shared — v4 `Schema` takes 1 type param).
+   - **Test stubs:** v3 `new Billing({…})`/`new AppSettings({…})` →
+     `.of()` in 5 files (api-key-gate, hooks, connect/telegram.test,
+     connect/x.test, raycast-connect) — the api-key-gate `Effect.exit
+smoke` pseudo-assertion failure resolved with the stub as predicted.
+   - **Nothing-needed findings:** `connect/x.ts`, `connect/telegram.ts`
+     (beyond filterMap), `index.ts` worker entry, ingest/service +
+     invites/service handler bodies, billing routes — all already v4-clean
+     from the codemod (`Schema.parseJson` ×2 the plan expected were
+     already `fromJsonString`; the catchTag-dense files had zero
+     residuals). Per-request `Layer.provideMerge(AppLayerLive(env))` sites
+     untouched (C2 parity decision).
+   - **Scoreboard:** check:effect 36/8 → **0/0 — repo-wide ZERO**. Unit
+     1173/1191 → **1290/1292** (total grew: import-dead suites now
+     register; the 2 reds are category (c), see Found issues). E2e first
+     v4 run: **6/6 files green, 52 passed / 3 skipped** (pre-existing
+     `describe.skip` durability suites); **the
+     server-ingest-stranding incarnation probe PASSED** ("in-memory state
+     is destroyed and recreated"); miniflare workflows-binding
+     "Engine was never started"/"instance.not_found" stderr noise in
+     delete-account polling is harness noise, all assertions green.
+     Typecheck (bonus, report-only): **FAIL, 73 errors** — ~60 in test
+     files (raycast-connect 18, extension.test 9, billing.test 9,
+     auth-client.test 8, invite-store.test 7, links/handler.test 4,
+     ingest-service.test 4, scheduler.test 2, + singles), vite.config.ts
+     5, and 3 out-of-cluster prod singles (C3 livestore/queries/schemas.ts
+     transform typing, C4 link-processor/durable-object.ts:740
+     workers-types `DurableObjectState` generic, C7 chat-agent/index.ts:168
+     arity) — the residual sweep (step 8) owns these. `vp check` pass on
+     all 19 changed src files (14 prod + 5 test); zero new
+     casts/suppressions/.skip (the workflow-bridge `as never` is the
+     pre-existing documented cast, retained; diff-grep audit clean).
 
 8. [ ] **Commit N+1 — residual sweep to full green.**
        Clear remaining diagnostics + leftover TODOs; then the branch's first full
@@ -765,7 +851,7 @@ Inventory taken 2026-08-09 against working tree (`main`, 8e36bf3). **Effect surf
 - [x] **C3 — LiveStore schema/events/queries + client store + frontend Effect surface (10 files, M — highest consequence)** — `src/livestore/schema.ts` (538L): 30 `Schema.Date` wire fields + 12 `Schema.DateFromNumber` columns; upstream `ddd1aa16c` proves v4 changed the Date wire form (their fix: `Schema.DateFromString.check(Schema.isDateValid())`). Events are immutable + persisted in prod eventlogs — needs the golden round-trip fixture (matrix rows 1–2) in the same commit. Order: third, before C4/C5/C7. **Landed 2026-08-09 — see step 6 Executed C3 block; recount: 18 wire + 12 column fields.**
 - [x] **C4 — LinkProcessorDO pipeline + metadata (27 files, L)** — 8 `Context.Tag` in `services.ts`; `Effect.unsafeMakeSemaphore` ×3 (class fields crossing the non-Effect boundary); `liveLayer` of 7 merged layers rebuilt per link (memoization change lands here); 4 `catchAllDefect` recovery paths that null the cached Store. Order: after C2+C3, parallel with C5. **Landed 2026-08-09 — see step 6 Executed C5+C4 block; includes the do-rpc adapter-drift migration (syncUpdateRpc storeId recovery arg).**
 - [x] **C5 — Sync backend glue (7 files, M — high blast radius)** — small API surface, all mechanical, but: `sync/index.ts` monkey-patches `setInterval` to prove the no-timer hibernation property — extend to `setTimeout` (v4 runtime may never call setInterval, blinding the probe); `getEventlogMax()` greps `eventlog_*` (verified unchanged at `2e4bcfc68`, re-verify at final SHA). Order: after C2, land with C4 as a pair. **Landed 2026-08-09 — probe extended to setTimeout, see step 6 Executed C5+C4 block.**
-- [ ] **C6 — HTTP surface: routes, connect, admin, invites, ingest, billing routes, account-deletion (42 files, L by volume)** — 11 `Context.Tag`; heaviest `catchTag` density (`connect/x.ts` 13, `connect/telegram.ts` 11); `Schema.parseJson` ×2 → `fromJsonString`. Sharp edge: `workflows/account-deletion.ts:76` is the repo's only `Effect.runtime<R>()` + `Runtime.runPromise` — bridges into CF Workflows `step.do()`; a wrong translation silently disables workflow retries. Order: after C2, parallel with C7.
+- [x] **C6 — HTTP surface: routes, connect, admin, invites, ingest, billing routes, account-deletion (42 files, L by volume)** — 11 `Context.Tag`; heaviest `catchTag` density (`connect/x.ts` 13, `connect/telegram.ts` 11); `Schema.parseJson` ×2 → `fromJsonString`. Sharp edge: `workflows/account-deletion.ts:76` is the repo's only `Effect.runtime<R>()` + `Runtime.runPromise` — bridges into CF Workflows `step.do()`; a wrong translation silently disables workflow retries. Order: after C2, parallel with C7. **Landed 2026-08-09 — see step 7 Executed C6 block; bridge = `Effect.context` + `runPromiseWith`, rejection semantics probe-verified; both filterMap sites fixed; check:effect at repo-wide ZERO.**
 - [x] **C7 — Background feature workers: telegram, x-sync, x-enrichment, weekly-digest, chat-agent, queue-handler (50 files, L)** — 11 `Context.Tag` + 2 `Effect.Service`; highest `catch*` density (`x-sync/effects.ts` 15); `x-sync/durable-object.ts` `get baseLayer` rebuilds AppLayerLive per `runEffect` call — worst-case memoization exhibit; `telegram/bot.ts` reaches AppLayerLive only transitively (tracing convention holds only transitively). Order: after C2+C3. **Landed 2026-08-09 — see step 7 Executed C7 block; hotspot 8 PASSED 4/4 first-ever v4 run; baseLayer rebuild preserved verbatim.**
 - [ ] **C8 — Tests (96 test files; 39 import `@effect/vitest`, L)** — `it.effect` ×361; `Effect.either`→`result` (all 55 in tests); `Either.*`→`Result.*` (109, all tests). Sharp edges: `e2e/admin.test.ts` is the sole `@effect/vitest` × pool-workers intersection (needs a plain-vitest fallback if v4 vitest doesn't boot in workerd); `process-link-concurrency.test.ts` asserts scheduling ORDER — the fiber rewrite can change interleaving with zero API changes (expect debugging, not renames). Colocated tests ride their cluster's commit; harness + `__tests__/` bulk is its own commit.
 - [ ] **C9 — Chrome extension `apps/extension/` (19 files, M) — now a FAST-FOLLOW PR, not part of the flip branch** (user decision 2026-08-09: lags on v3 briefly) — the repo's only `ManagedRuntime` ×2, `Stream.async` ×2 → `Stream.callback`, production `Either` → `Result`; own effect copy, no dedupe config, `bun:test` not `@effect/vitest`, NOT covered by root typecheck (`bun --cwd apps/extension compile`). CSP `script-src 'self' 'wasm-unsafe-eval'` — the msgpackr/eval class could resurface via v4's encoding modules. NOTE: lagging the source does NOT extend anything runtime-wise (the published artifact is a fixed v3 build either way), but matrix row 8's compat window closes only when a v4 build is published — which requires this migration. Don't lag long.
@@ -913,6 +999,23 @@ err})` (TaggedErrorClass instances are yieldable failing Effects, so the
   pipeline with a terminal `Result.fromOption(() => null)`. Same
   silent-failure family as `Option.fromNullable`/`Schema.DateFromNumber`:
   invisible to check:effect, only running code catches it.
+- 2026-08-09 — **C6 CF Workflows bridge (Hotspot 6):** `Effect.runtime<R>()`
+  - `Runtime.runPromise(rt)(body)` → `const services = yield*
+Effect.context<R>()` + `Effect.runPromiseWith(services)(body)`. Beta.99
+    removed the v3 `Runtime` value runtime (the v4 `Runtime` module is runMain
+    plumbing); `runPromiseWith(context)` is the interop that carries captured
+    services, and it is the vendored source's own bridge idiom
+    (livestore store.ts:1271, StoreRegistry.ts:300, ws-rpc-server.ts:189).
+    Rejection semantics probe-verified against a fake retrying `step.do`
+    (scratchpad, repo deps): (a) typed TaggedErrorClass failure → Promise
+    REJECTED → step retried to its limit (3 attempts at limit 2); (b) defect
+    (thrown) → rejected + retried identically; (c) success → resolves, single
+    attempt. CF per-step retries therefore survive the migration. v4 rejection
+    value = `causeSquash(cause)` — the ORIGINAL error instance with `_tag` +
+    fields intact (v3 rejected a FiberFailure wrapper), so
+    `WorkflowOrchestrationError.cause` now holds the typed error directly:
+    structurally richer for triage, but `String(cause)` no longer embeds
+    nested messages — source of the 2 category (c) test reds (Found issues).
 - 2026-08-09 — **D1 verified clean**: migrations at `0013_lonely_giant_girl`
   (14 journal entries), tree clean, no pending/uncommitted migrations; the
   flip requires no schema change. Matrix row 12 stays as a guard against
@@ -1242,3 +1345,60 @@ tracer)` + `layerWithoutOtelTracer`) is the v4-native seam.
   import-blocked connect tests + raycast-connect (latent behind ①). ④
   `admin/trigger-digest.ts` still calls removed `Option.fromNullable`
   (runtime TypeError when the admin digest-trigger route runs; C6).
+- 2026-08-09 (C6) — **CATEGORY (c), the migration's first and only two:**
+  `account-deletion/__tests__/workflow.test.ts` "on a runtime method
+  failing" + "purgeXBookmarkSync failure" — both assert
+  `expect(String(error.cause)).toContain("<op> boom")`. Under v3,
+  `Runtime.runPromise` rejected with a FiberFailure whose string rendering
+  embedded the nested cause message; v4 `runPromiseWith` rejects with
+  `causeSquash(cause)` = the raw `DeletionRuntimeError` instance, whose
+  `String()` is just the tag (no message getter, nested Error lives in the
+  `cause` FIELD, which `String()` never renders). The prod bridge is
+  CORRECT — rejection still fires (retries proven), and the structured
+  error is richer for triage than v3's wrapper; only the stringified
+  observable changed. Left failing per the prime directive (fixing means
+  changing the assertion to look inside `cause.cause` — an assertion
+  change, so it belongs to the user/reviewer, not this unit). These are
+  the only 2 non-green unit tests on the branch (1290/1292).
+- 2026-08-09 (C6) — **another silent module-eval crash class instance:**
+  `Schema.int` / `Schema.positive` / `Schema.lessThanOrEqualTo` do not
+  exist in beta.99 (checks are `Schema.isInt()` / `isGreaterThan(0)` /
+  `isLessThanOrEqualTo(n)` applied via `.check(...)`, and there is NO
+  `isPositive` — positive = `isGreaterThan(0)`).
+  `invites/service.ts`'s `CreateInviteBody` called all three inside
+  `Schema.Number.pipe(...)` → `undefined()` TypeError at module eval,
+  import-killing every invites route. Same lesson as
+  `Option.fromNullable`/`DateFromNumber`: nonexistent namespace members
+  are `undefined`, check:effect stays silent, only running code proves it.
+  `create-invite-body.test.ts` 12/12 green on the `.check` form.
+- 2026-08-09 (C6) — **v4 renamed the schema decode failure: `ParseError`
+  → `SchemaError`.** `admin/trigger-digest.ts` kept
+  `catchTag("ParseError", …)` — compiled fine as dead code (catchTag on a
+  tag the error union doesn't contain), so an RPC-shape decode failure
+  would have fallen through as an unhandled SchemaError (500 via
+  runHandler) instead of the intended 502 DigestRpcDecodeError. Grep-swept
+  the repo: zero other stale `ParseError` tags (all remaining hits are the
+  app's own `MetadataParseError`).
+- 2026-08-09 (C6) — unit-test TOTAL grew 1191 → 1292 with zero test-file
+  additions: the 9 formerly import-dead suites register their full test
+  counts once their prod imports evaluate. Scoreboard comparisons across
+  units must use per-suite numbers, not the total.
+- 2026-08-09 (C6) — e2e harness notes for G2: the pool-workers suite runs
+  clean under v4 end-to-end (hotspot 9 admin.test included — the
+  @effect/vitest × pool-workers three-way pin holds). The 3 skips are the
+  stranding post-mortem's own pre-existing `describe.skip` durability
+  suites (un-skip decision belongs to step 10/G2, gated on the #722
+  durability barrier question). Miniflare's workflows binding logs
+  "Engine was never started" / "instance.not_found" uncaught-exception
+  noise while delete-account polls workflow status — assertions all green;
+  don't chase it.
+- 2026-08-09 (C6) — v4 type-helper renames confirmed while clearing the
+  last check:effect errors: `Effect.Effect.Success<T>`/`Effect.Effect.Error<T>` →
+  `Effect.Success<T>`/`Effect.Error<T>`; type-level `Schema.Schema<A, I>`
+  → `Schema.Codec<A, I>` (v4 `Schema.Schema` takes one parameter). The two
+  checkers have NON-OVERLAPPING blind spots on this class: check:effect
+  flagged the ingest/service.ts site (`any` leaking into E) but stayed
+  silent on the identical form in invites/service.ts, which only tsgo
+  caught (TS2724); a clean check:effect does NOT imply the class is gone —
+  the residual sweep should grep `Effect\.Effect\.` and `Schema\.Schema<`
+  (73 typecheck errors remain, all listed in the Executed C6 scoreboard).

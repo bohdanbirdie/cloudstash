@@ -1,4 +1,4 @@
-import { Array as Arr, Option, Record as Rec, pipe } from "effect";
+import { Array as Arr, Record as Rec, Result, pipe } from "effect";
 
 import { PLAN_ORDER } from "@/lib/plan";
 
@@ -191,7 +191,7 @@ export const retentionGrid = (
     Arr.makeBy(GROWTH_WEEKS, (week) => week),
     Arr.filterMap((week) => {
       const members = membersByCohort[week];
-      if (!members?.length) return Option.none();
+      if (!members?.length) return Result.fail(null);
       const cells = Arr.makeBy(GROWTH_WEEKS - week, (age) => {
         const retained = countIn(
           activeOrgsByWeek.get(week + age) ?? NO_ORGS,
@@ -199,7 +199,7 @@ export const retentionGrid = (
         );
         return { age, retained, retainedPct: pct(retained, members.length) };
       });
-      return Option.some({
+      return Result.succeed({
         weekStart: isoDate(windowStartMs + week * WEEK_MS),
         size: members.length,
         cells,

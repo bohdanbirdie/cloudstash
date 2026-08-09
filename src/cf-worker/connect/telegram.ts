@@ -1,5 +1,5 @@
 import { and, eq, gt, like } from "drizzle-orm";
-import { Array as Arr, Effect, Layer, Option, Schema } from "effect";
+import { Array as Arr, Effect, Layer, Option, Result, Schema } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
 import { capabilityDeniedResponse } from "../billing/errors";
@@ -229,9 +229,12 @@ export const disconnectRequest = Effect.fn("TelegramConnect.disconnect")(
 
     const userKeys = yield* apiKeyStore.listByUser(session.userId);
     const telegramKeyIds = Arr.filterMap(userKeys, (row) =>
-      row.metadata
-        ? Option.map(decodeTelegramMetadata(row.metadata), () => row.id)
-        : Option.none()
+      Result.fromOption(
+        row.metadata
+          ? Option.map(decodeTelegramMetadata(row.metadata), () => row.id)
+          : Option.none(),
+        () => null
+      )
     );
     yield* Effect.annotateCurrentSpan("keyCount", telegramKeyIds.length);
 

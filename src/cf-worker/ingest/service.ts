@@ -94,8 +94,8 @@ export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
 
 export const ingestResponse = (
   effect: Effect.Effect<
-    Effect.Effect.Success<ReturnType<typeof handleIngestRequest>>,
-    Effect.Effect.Error<ReturnType<typeof handleIngestRequest>>
+    Effect.Success<ReturnType<typeof handleIngestRequest>>,
+    Effect.Error<ReturnType<typeof handleIngestRequest>>
   >
 ): Effect.Effect<Response> =>
   effect.pipe(

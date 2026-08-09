@@ -9,9 +9,9 @@ import {
 import { OrgId, UserId } from "../../db/branded";
 import type { Env } from "../../shared";
 
-export class InvalidBodyError extends Schema.TaggedError<InvalidBodyError>()(
+export class InvalidBodyError extends Schema.TaggedErrorClass<InvalidBodyError>()(
   "InvalidBodyError",
-  { cause: Schema.Defect }
+  { cause: Schema.Defect() }
 ) {}
 
 export const CheckoutBody = Schema.Struct({
@@ -25,7 +25,7 @@ export const PortalBody = Schema.Struct({
 
 export const decodeBody = <A, I>(
   request: Request,
-  schema: Schema.Schema<A, I>
+  schema: Schema.Codec<A, I>
 ) =>
   Effect.tryPromise({
     try: () => request.json(),

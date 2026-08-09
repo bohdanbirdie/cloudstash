@@ -22,7 +22,7 @@ const quiet = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
 const settingsStub = (gateEnabled: boolean) =>
   Layer.succeed(
     AppSettings,
-    new AppSettings({
+    AppSettings.of({
       signupGateEnabled: () => Effect.succeed(gateEnabled),
       setSignupGateEnabled: () => Effect.void,
     })
