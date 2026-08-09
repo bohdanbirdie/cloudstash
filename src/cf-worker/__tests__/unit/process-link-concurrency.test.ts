@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { it, describe, expect, beforeEach, afterEach } from "@effect/vitest";
-import { Deferred, Effect, Fiber, Layer, Option, Ref } from "effect";
+import { Deferred, Effect, Fiber, Layer, Option, Ref, Semaphore } from "effect";
 
 import {
   makeTestStore,
@@ -119,8 +119,8 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
     "a stalled AI summary does not block metadata fetching for another link",
     () =>
       Effect.gen(function* () {
-        const metadataSem = yield* Effect.makeSemaphore(8);
-        const aiSem = yield* Effect.makeSemaphore(1);
+        const metadataSem = yield* Semaphore.make(8);
+        const aiSem = yield* Semaphore.make(1);
 
         const release = yield* Deferred.make<void>();
         const aiStarted = yield* Deferred.make<void>();
@@ -199,8 +199,8 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
     "metadata permit is released before the AI lane runs (single link)",
     () =>
       Effect.gen(function* () {
-        const metadataSem = yield* Effect.makeSemaphore(1);
-        const aiSem = yield* Effect.makeSemaphore(1);
+        const metadataSem = yield* Semaphore.make(1);
+        const aiSem = yield* Semaphore.make(1);
         const release = yield* Deferred.make<void>();
         const aiStarted = yield* Deferred.make<void>();
 
@@ -248,10 +248,8 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
     "the AI lane never exceeds MAX_CONCURRENT_AI concurrent summaries",
     () =>
       Effect.gen(function* () {
-        const metadataSem = yield* Effect.makeSemaphore(
-          MAX_CONCURRENT_METADATA
-        );
-        const aiSem = yield* Effect.makeSemaphore(MAX_CONCURRENT_AI);
+        const metadataSem = yield* Semaphore.make(MAX_CONCURRENT_METADATA);
+        const aiSem = yield* Semaphore.make(MAX_CONCURRENT_AI);
 
         const release = yield* Deferred.make<void>();
         const capReached = yield* Deferred.make<void>();
@@ -315,10 +313,8 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
     "the metadata lane never exceeds MAX_CONCURRENT_METADATA concurrent fetches",
     () =>
       Effect.gen(function* () {
-        const metadataSem = yield* Effect.makeSemaphore(
-          MAX_CONCURRENT_METADATA
-        );
-        const aiSem = yield* Effect.makeSemaphore(MAX_CONCURRENT_AI);
+        const metadataSem = yield* Semaphore.make(MAX_CONCURRENT_METADATA);
+        const aiSem = yield* Semaphore.make(MAX_CONCURRENT_AI);
 
         const release = yield* Deferred.make<void>();
         const capReached = yield* Deferred.make<void>();

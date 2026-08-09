@@ -1,5 +1,5 @@
 import { it, describe } from "@effect/vitest";
-import { Effect, Layer, LogLevel, Logger } from "effect";
+import { Effect, Layer, References } from "effect";
 import { expect, vi } from "vitest";
 
 import type { TierCapabilities } from "@/lib/plan";
@@ -72,7 +72,7 @@ function run(
     handleIngestRequest(request, env as never).pipe(
       Effect.provide(Layer.mergeAll(authLayer, billingLayer))
     )
-  ).pipe(Logger.withMinimumLogLevel(LogLevel.Error));
+  ).pipe(Effect.provideService(References.MinimumLogLevel, "Error"));
 }
 
 const validKeyResponse = {

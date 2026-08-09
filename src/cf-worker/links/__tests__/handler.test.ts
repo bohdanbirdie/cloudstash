@@ -1,5 +1,5 @@
 import { it, describe } from "@effect/vitest";
-import { Effect, Layer, LogLevel, Logger } from "effect";
+import { Effect, Layer, References } from "effect";
 import { expect, vi } from "vitest";
 
 import type { TierCapabilities } from "@/lib/plan";
@@ -59,7 +59,7 @@ function run(
     env as never
   ).pipe(
     Effect.provide(Layer.mergeAll(authLayer, billingLayer)),
-    Logger.withMinimumLogLevel(LogLevel.Error)
+    Effect.provideService(References.MinimumLogLevel, "Error")
   );
 }
 

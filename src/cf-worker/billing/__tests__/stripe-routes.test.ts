@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer, LogLevel, Logger } from "effect";
+import { Effect, Layer, References } from "effect";
 import type StripeSdk from "stripe";
 
 import { AuthClient } from "../../auth/service";
@@ -16,7 +16,7 @@ const ENV = { PUBLIC_URL: "https://app.test" } as unknown as Env;
 const ORG_UUID = "11111111-1111-4111-8111-111111111111";
 
 const quiet = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-  effect.pipe(Logger.withMinimumLogLevel(LogLevel.None));
+  effect.pipe(Effect.provideService(References.MinimumLogLevel, "None"));
 
 const run = <R>(
   program: Effect.Effect<Response, never, R>,

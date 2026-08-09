@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Either, Layer } from "effect";
+import { Effect, Layer, Result } from "effect";
 
 import { AuthClient } from "../../auth/service";
 import { OrgId } from "../../db/branded";
@@ -61,13 +61,13 @@ const CTX_NO_AUTH = {
 describe("validatePayload — extension API key path", () => {
   it.effect("InvalidSessionError when payload missing apiKey", () =>
     validatePayload({}, CTX_EXT).pipe(
-      Effect.either,
+      Effect.result,
       Effect.provide(makeAuthLayer({})),
       Effect.tap((result) =>
         Effect.sync(() => {
-          expect(Either.isLeft(result)).toBe(true);
-          if (Either.isLeft(result)) {
-            expect(result.left._tag).toBe("InvalidSessionError");
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure._tag).toBe("InvalidSessionError");
           }
         })
       )
@@ -76,7 +76,7 @@ describe("validatePayload — extension API key path", () => {
 
   it.effect("AuthBackendError when verifyApiKey throws", () =>
     validatePayload({ apiKey: "lb_k" }, CTX_EXT).pipe(
-      Effect.either,
+      Effect.result,
       Effect.provide(
         makeAuthLayer({
           verifyApiKey: () => Promise.reject(new Error("upstream 502")),
@@ -84,9 +84,9 @@ describe("validatePayload — extension API key path", () => {
       ),
       Effect.tap((result) =>
         Effect.sync(() => {
-          expect(Either.isLeft(result)).toBe(true);
-          if (Either.isLeft(result)) {
-            expect(result.left._tag).toBe("AuthBackendError");
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure._tag).toBe("AuthBackendError");
           }
         })
       )
@@ -95,7 +95,7 @@ describe("validatePayload — extension API key path", () => {
 
   it.effect("InvalidSessionError when verify returns valid=false", () =>
     validatePayload({ apiKey: "lb_k" }, CTX_EXT).pipe(
-      Effect.either,
+      Effect.result,
       Effect.provide(
         makeAuthLayer({
           verifyApiKey: () => Promise.resolve({ valid: false, key: null }),
@@ -103,9 +103,9 @@ describe("validatePayload — extension API key path", () => {
       ),
       Effect.tap((result) =>
         Effect.sync(() => {
-          expect(Either.isLeft(result)).toBe(true);
-          if (Either.isLeft(result)) {
-            expect(result.left._tag).toBe("InvalidSessionError");
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure._tag).toBe("InvalidSessionError");
           }
         })
       )
@@ -114,7 +114,7 @@ describe("validatePayload — extension API key path", () => {
 
   it.effect("InvalidSessionError when metadata missing orgId", () =>
     validatePayload({ apiKey: "lb_k" }, CTX_EXT).pipe(
-      Effect.either,
+      Effect.result,
       Effect.provide(
         makeAuthLayer({
           verifyApiKey: () =>
@@ -126,9 +126,9 @@ describe("validatePayload — extension API key path", () => {
       ),
       Effect.tap((result) =>
         Effect.sync(() => {
-          expect(Either.isLeft(result)).toBe(true);
-          if (Either.isLeft(result)) {
-            expect(result.left._tag).toBe("InvalidSessionError");
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure._tag).toBe("InvalidSessionError");
           }
         })
       )
@@ -137,7 +137,7 @@ describe("validatePayload — extension API key path", () => {
 
   it.effect("OrgAccessDeniedError when metadata.orgId != storeId", () =>
     validatePayload({ apiKey: "lb_k" }, CTX_EXT).pipe(
-      Effect.either,
+      Effect.result,
       Effect.provide(
         makeAuthLayer({
           verifyApiKey: () =>
@@ -152,9 +152,9 @@ describe("validatePayload — extension API key path", () => {
       ),
       Effect.tap((result) =>
         Effect.sync(() => {
-          expect(Either.isLeft(result)).toBe(true);
-          if (Either.isLeft(result)) {
-            expect(result.left._tag).toBe("OrgAccessDeniedError");
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure._tag).toBe("OrgAccessDeniedError");
           }
         })
       )
@@ -163,7 +163,7 @@ describe("validatePayload — extension API key path", () => {
 
   it.effect("MissingApiKeyReferenceError when referenceId is null", () =>
     validatePayload({ apiKey: "lb_k" }, CTX_EXT).pipe(
-      Effect.either,
+      Effect.result,
       Effect.provide(
         makeAuthLayer({
           verifyApiKey: () =>
@@ -175,9 +175,9 @@ describe("validatePayload — extension API key path", () => {
       ),
       Effect.tap((result) =>
         Effect.sync(() => {
-          expect(Either.isLeft(result)).toBe(true);
-          if (Either.isLeft(result)) {
-            expect(result.left._tag).toBe("MissingApiKeyReferenceError");
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure._tag).toBe("MissingApiKeyReferenceError");
           }
         })
       )
@@ -241,13 +241,13 @@ describe("validatePayload — extension origin allowlist", () => {
         allowedExtensionIds: new Set(["abc"]),
       }
     ).pipe(
-      Effect.either,
+      Effect.result,
       Effect.provide(okAuth()),
       Effect.tap((result) =>
         Effect.sync(() => {
-          expect(Either.isLeft(result)).toBe(true);
-          if (Either.isLeft(result)) {
-            expect(result.left._tag).toBe("ForbiddenExtensionOriginError");
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure._tag).toBe("ForbiddenExtensionOriginError");
           }
         })
       )
@@ -269,13 +269,13 @@ describe("validatePayload — extension origin allowlist", () => {
           allowedExtensionIds: NO_ALLOWLIST,
         }
       ).pipe(
-        Effect.either,
+        Effect.result,
         Effect.provide(okAuth()),
         Effect.tap((result) =>
           Effect.sync(() => {
-            expect(Either.isRight(result)).toBe(true);
-            if (Either.isRight(result)) {
-              expect(result.right.userId).toBe("user-7");
+            expect(Result.isSuccess(result)).toBe(true);
+            if (Result.isSuccess(result)) {
+              expect(result.success.userId).toBe("user-7");
             }
           })
         )
@@ -302,13 +302,13 @@ describe("validatePayload — cookie path", () => {
     "MissingSessionCookieError when no cookie and no extension origin",
     () =>
       validatePayload(undefined, CTX_NO_AUTH).pipe(
-        Effect.either,
+        Effect.result,
         Effect.provide(makeAuthLayer({})),
         Effect.tap((result) =>
           Effect.sync(() => {
-            expect(Either.isLeft(result)).toBe(true);
-            if (Either.isLeft(result)) {
-              expect(result.left._tag).toBe("MissingSessionCookieError");
+            expect(Result.isFailure(result)).toBe(true);
+            if (Result.isFailure(result)) {
+              expect(result.failure._tag).toBe("MissingSessionCookieError");
             }
           })
         )
@@ -317,7 +317,7 @@ describe("validatePayload — cookie path", () => {
 
   it.effect("AuthBackendError when getSession throws", () =>
     validatePayload(undefined, CTX_COOKIE).pipe(
-      Effect.either,
+      Effect.result,
       Effect.provide(
         makeAuthLayer({
           getSession: () => Promise.reject(new Error("auth backend down")),
@@ -325,9 +325,9 @@ describe("validatePayload — cookie path", () => {
       ),
       Effect.tap((result) =>
         Effect.sync(() => {
-          expect(Either.isLeft(result)).toBe(true);
-          if (Either.isLeft(result)) {
-            expect(result.left._tag).toBe("AuthBackendError");
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure._tag).toBe("AuthBackendError");
           }
         })
       )
@@ -336,7 +336,7 @@ describe("validatePayload — cookie path", () => {
 
   it.effect("InvalidSessionError when session is null", () =>
     validatePayload(undefined, CTX_COOKIE).pipe(
-      Effect.either,
+      Effect.result,
       Effect.provide(
         makeAuthLayer({
           getSession: () => Promise.resolve(null),
@@ -344,9 +344,9 @@ describe("validatePayload — cookie path", () => {
       ),
       Effect.tap((result) =>
         Effect.sync(() => {
-          expect(Either.isLeft(result)).toBe(true);
-          if (Either.isLeft(result)) {
-            expect(result.left._tag).toBe("InvalidSessionError");
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure._tag).toBe("InvalidSessionError");
           }
         })
       )
@@ -355,7 +355,7 @@ describe("validatePayload — cookie path", () => {
 
   it.effect("OrgAccessDeniedError when activeOrganizationId != storeId", () =>
     validatePayload(undefined, CTX_COOKIE).pipe(
-      Effect.either,
+      Effect.result,
       Effect.provide(
         makeAuthLayer({
           getSession: () =>
@@ -367,9 +367,9 @@ describe("validatePayload — cookie path", () => {
       ),
       Effect.tap((result) =>
         Effect.sync(() => {
-          expect(Either.isLeft(result)).toBe(true);
-          if (Either.isLeft(result)) {
-            expect(result.left._tag).toBe("OrgAccessDeniedError");
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure._tag).toBe("OrgAccessDeniedError");
           }
         })
       )

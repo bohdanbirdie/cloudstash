@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Either, Layer, Ref } from "effect";
+import { Effect, Layer, Ref, Result } from "effect";
 
 import {
   DigestEventSinkError,
@@ -156,12 +156,15 @@ describe("runDigest", () => {
         const exit = yield* runDigest({
           now: new Date("2026-05-23T12:00:00Z"),
           trigger: "manual",
-        }).pipe(Effect.provide(layer), Effect.either);
+        }).pipe(Effect.provide(layer), Effect.result);
 
-        expect(Either.isLeft(exit)).toBe(true);
-        if (Either.isLeft(exit) && exit.left._tag === "DigestLinkSourceError") {
-          expect(exit.left.message).toBe("query failed");
-          expect(exit.left.operation).toBe("collect");
+        expect(Result.isFailure(exit)).toBe(true);
+        if (
+          Result.isFailure(exit) &&
+          exit.failure._tag === "DigestLinkSourceError"
+        ) {
+          expect(exit.failure.message).toBe("query failed");
+          expect(exit.failure.operation).toBe("collect");
         } else {
           expect.fail("expected DigestLinkSourceError");
         }
@@ -185,15 +188,15 @@ describe("runDigest", () => {
         const exit = yield* runDigest({
           now: new Date("2026-05-23T12:00:00Z"),
           trigger: "manual",
-        }).pipe(Effect.provide(layer), Effect.either);
+        }).pipe(Effect.provide(layer), Effect.result);
 
-        expect(Either.isLeft(exit)).toBe(true);
+        expect(Result.isFailure(exit)).toBe(true);
         if (
-          Either.isLeft(exit) &&
-          exit.left._tag === "WeeklyDigestGenerateError"
+          Result.isFailure(exit) &&
+          exit.failure._tag === "WeeklyDigestGenerateError"
         ) {
-          expect(exit.left.message).toBe("rate limited");
-          expect(exit.left.statusCode).toBe(429);
+          expect(exit.failure.message).toBe("rate limited");
+          expect(exit.failure.statusCode).toBe(429);
         } else {
           expect.fail("expected WeeklyDigestGenerateError");
         }
@@ -215,12 +218,15 @@ describe("runDigest", () => {
       const exit = yield* runDigest({
         now: new Date("2026-05-23T12:00:00Z"),
         trigger: "manual",
-      }).pipe(Effect.provide(layer), Effect.either);
+      }).pipe(Effect.provide(layer), Effect.result);
 
-      expect(Either.isLeft(exit)).toBe(true);
-      if (Either.isLeft(exit) && exit.left._tag === "DigestEventSinkError") {
-        expect(exit.left.message).toBe("store offline");
-        expect(exit.left.operation).toBe("commit");
+      expect(Result.isFailure(exit)).toBe(true);
+      if (
+        Result.isFailure(exit) &&
+        exit.failure._tag === "DigestEventSinkError"
+      ) {
+        expect(exit.failure.message).toBe("store offline");
+        expect(exit.failure.operation).toBe("commit");
       } else {
         expect.fail("expected DigestEventSinkError");
       }

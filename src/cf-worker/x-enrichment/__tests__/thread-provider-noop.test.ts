@@ -1,4 +1,4 @@
-import { Effect, Either } from "effect";
+import { Effect, Result } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ThreadProvider } from "../services";
@@ -25,7 +25,7 @@ const runFetchContext = (url: string) =>
   Effect.runPromise(fetchContextEffect(url));
 
 const runFetchContextEither = (url: string) =>
-  Effect.runPromise(Effect.either(fetchContextEffect(url)));
+  Effect.runPromise(Effect.result(fetchContextEffect(url)));
 
 const tweetResponse = (overrides: Record<string, unknown> = {}) =>
   new Response(
@@ -98,18 +98,18 @@ describe("ThreadProviderNoop", () => {
     const result = await runFetchContextEither(
       "https://x.com/alice/status/1234567890"
     );
-    expect(Either.isLeft(result)).toBe(true);
-    if (Either.isLeft(result)) {
-      expect(result.left._tag).toBe("ThreadProviderHttpError");
-      expect(result.left).toMatchObject({ status: 404 });
+    expect(Result.isFailure(result)).toBe(true);
+    if (Result.isFailure(result)) {
+      expect(result.failure._tag).toBe("ThreadProviderHttpError");
+      expect(result.failure).toMatchObject({ status: 404 });
     }
   });
 
   it("fails with ThreadProviderInvalidUrlError when no tweet id in URL", async () => {
     const result = await runFetchContextEither("https://x.com/alice");
-    expect(Either.isLeft(result)).toBe(true);
-    if (Either.isLeft(result)) {
-      expect(result.left._tag).toBe("ThreadProviderInvalidUrlError");
+    expect(Result.isFailure(result)).toBe(true);
+    if (Result.isFailure(result)) {
+      expect(result.failure._tag).toBe("ThreadProviderInvalidUrlError");
     }
     expect(mockFetch).not.toHaveBeenCalled();
   });
@@ -119,10 +119,10 @@ describe("ThreadProviderNoop", () => {
     const result = await runFetchContextEither(
       "https://x.com/alice/status/1234567890"
     );
-    expect(Either.isLeft(result)).toBe(true);
-    if (Either.isLeft(result)) {
-      expect(result.left._tag).toBe("ThreadProviderEmptyError");
-      expect(result.left).toMatchObject({ tweetId: "1234567890" });
+    expect(Result.isFailure(result)).toBe(true);
+    if (Result.isFailure(result)) {
+      expect(result.failure._tag).toBe("ThreadProviderEmptyError");
+      expect(result.failure).toMatchObject({ tweetId: "1234567890" });
     }
   });
 
@@ -131,9 +131,9 @@ describe("ThreadProviderNoop", () => {
     const result = await runFetchContextEither(
       "https://x.com/alice/status/1234567890"
     );
-    expect(Either.isLeft(result)).toBe(true);
-    if (Either.isLeft(result)) {
-      expect(result.left._tag).toBe("ThreadProviderTransportError");
+    expect(Result.isFailure(result)).toBe(true);
+    if (Result.isFailure(result)) {
+      expect(result.failure._tag).toBe("ThreadProviderTransportError");
     }
   });
 
@@ -147,9 +147,9 @@ describe("ThreadProviderNoop", () => {
     const result = await runFetchContextEither(
       "https://x.com/alice/status/1234567890"
     );
-    expect(Either.isLeft(result)).toBe(true);
-    if (Either.isLeft(result)) {
-      expect(result.left._tag).toBe("ThreadProviderResponseError");
+    expect(Result.isFailure(result)).toBe(true);
+    if (Result.isFailure(result)) {
+      expect(result.failure._tag).toBe("ThreadProviderResponseError");
     }
   });
 });

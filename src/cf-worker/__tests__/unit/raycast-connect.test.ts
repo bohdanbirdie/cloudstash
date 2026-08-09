@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer, LogLevel, Logger } from "effect";
+import { Effect, Layer, References } from "effect";
 
 import type { TierCapabilities } from "@/lib/plan";
 import { capabilitiesFor } from "@/lib/plan";
@@ -83,7 +83,7 @@ function runConnect(
 
   return handleConnectRequest(new Headers()).pipe(
     Effect.provide(layer),
-    Logger.withMinimumLogLevel(LogLevel.Error)
+    Effect.provideService(References.MinimumLogLevel, "Error")
   );
 }
 
@@ -103,7 +103,7 @@ function runExchange(
 
   return handleExchangeRequest(body).pipe(
     Effect.provide(layer),
-    Logger.withMinimumLogLevel(LogLevel.Error)
+    Effect.provideService(References.MinimumLogLevel, "Error")
   );
 }
 

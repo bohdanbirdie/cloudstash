@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { it, describe, expect, beforeEach, afterEach } from "@effect/vitest";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Semaphore } from "effect";
 
 import {
   makeTestStore,
@@ -1176,7 +1176,7 @@ describe("evictOldestFromSet", () => {
 
 describe("semaphore concurrency", () => {
   it.effect("processes up to N concurrently, queues the rest", () => {
-    const semaphore = Effect.unsafeMakeSemaphore(2);
+    const semaphore = Semaphore.makeUnsafe(2);
     const running = { current: 0, max: 0 };
 
     const process = () =>
@@ -1184,7 +1184,7 @@ describe("semaphore concurrency", () => {
         Effect.gen(function* () {
           running.current++;
           running.max = Math.max(running.max, running.current);
-          yield* Effect.yieldNow();
+          yield* Effect.yieldNow;
           running.current--;
         })
       );
@@ -1203,7 +1203,7 @@ describe("semaphore concurrency", () => {
   });
 
   it.effect("releases permit on defect so other work proceeds", () => {
-    const semaphore = Effect.unsafeMakeSemaphore(1);
+    const semaphore = Semaphore.makeUnsafe(1);
     const results: string[] = [];
 
     return Effect.forEach(

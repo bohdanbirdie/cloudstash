@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Either, Layer } from "effect";
+import { Effect, Layer, Result } from "effect";
 
 import { UserId, WorkflowInstanceId } from "../../db/branded";
 import { DbClient, DbError } from "../../db/service";
@@ -194,12 +194,12 @@ describe("prepareDeletion (error paths)", () => {
 
     return prepareDeletion({ userId: USER_ID }).pipe(
       provideTestLayers(stubRuntime(rec, failure), makeDbStub()),
-      Effect.either,
+      Effect.result,
       Effect.tap((result) =>
         Effect.sync(() => {
-          expect(Either.isLeft(result)).toBe(true);
-          if (Either.isLeft(result)) {
-            expect(result.left).toBeInstanceOf(DeletionRuntimeError);
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure).toBeInstanceOf(DeletionRuntimeError);
           }
         })
       )
@@ -214,12 +214,12 @@ describe("prepareDeletion (error paths)", () => {
         stubRuntime(rec),
         makeDbStub({ orgLookupError: new Error("connection lost") })
       ),
-      Effect.either,
+      Effect.result,
       Effect.tap((result) =>
         Effect.sync(() => {
-          expect(Either.isLeft(result)).toBe(true);
-          if (Either.isLeft(result)) {
-            expect(result.left).toBeInstanceOf(DbError);
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure).toBeInstanceOf(DbError);
           }
           expect(rec.ensures).toEqual([]);
         })
@@ -238,12 +238,12 @@ describe("prepareDeletion (error paths)", () => {
         stubRuntime(rec),
         makeDbStub({ org: { id: 42 as unknown as string } })
       ),
-      Effect.either,
+      Effect.result,
       Effect.tap((result) =>
         Effect.sync(() => {
-          expect(Either.isLeft(result)).toBe(true);
-          if (Either.isLeft(result)) {
-            expect(result.left).toBeInstanceOf(DbError);
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure).toBeInstanceOf(DbError);
           }
           expect(rec.ensures).toEqual([]);
         })

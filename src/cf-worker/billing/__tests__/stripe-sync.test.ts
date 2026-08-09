@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Either, Layer, LogLevel, Logger, Option } from "effect";
+import { Effect, Layer, Option, References, Result } from "effect";
 import type StripeSdk from "stripe";
 
 import type { BillingInterval, PlanTier } from "@/lib/plan";
@@ -19,7 +19,7 @@ const ORG_ID = OrgId.make("11111111-1111-4111-8111-111111111111");
 const CUSTOMER_ID = StripeCustomerId.make("cus_123");
 
 const quiet = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-  effect.pipe(Logger.withMinimumLogLevel(LogLevel.None));
+  effect.pipe(Effect.provideService(References.MinimumLogLevel, "None"));
 
 const notImpl = (): Effect.Effect<never> =>
   Effect.die("StripeClient method not stubbed in test");
@@ -452,12 +452,12 @@ describe("getOrCreateStripeCustomer", () => {
         Layer.mergeAll(stripeStub({}), customerDb({ org: undefined, updates }))
       ),
       quiet,
-      Effect.either,
+      Effect.result,
       Effect.tap((result) =>
         Effect.sync(() => {
-          expect(Either.isLeft(result)).toBe(true);
-          if (Either.isLeft(result)) {
-            expect(result.left).toBeInstanceOf(OrgNotFoundError);
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure).toBeInstanceOf(OrgNotFoundError);
           }
         })
       )

@@ -1,5 +1,5 @@
 import { describe, it } from "@effect/vitest";
-import { Effect, Either } from "effect";
+import { Effect, Result } from "effect";
 import { expect } from "vitest";
 
 import { XUserId } from "../../db/branded";
@@ -91,12 +91,12 @@ describe("XApiClient (Live) — getMe", () => {
       },
       () =>
         Effect.flatMap(XApiClient, (c) => c.getMe("token")).pipe(
-          Effect.either,
+          Effect.result,
           Effect.tap((r) =>
             Effect.sync(() => {
-              expect(Either.isRight(r)).toBe(true);
-              if (Either.isRight(r)) {
-                expect(r.right).toEqual({
+              expect(Result.isSuccess(r)).toBe(true);
+              if (Result.isSuccess(r)) {
+                expect(r.success).toEqual({
                   id: "123",
                   username: "alice",
                   name: "Alice",
@@ -118,11 +118,11 @@ describe("XApiClient (Live) — getMe", () => {
       },
       () =>
         Effect.flatMap(XApiClient, (c) => c.getMe("token")).pipe(
-          Effect.either,
+          Effect.result,
           Effect.tap((r) =>
             Effect.sync(() => {
-              if (Either.isRight(r)) {
-                expect(r.right.profileImageUrl).toBeUndefined();
+              if (Result.isSuccess(r)) {
+                expect(r.success.profileImageUrl).toBeUndefined();
               }
             })
           )
@@ -133,13 +133,15 @@ describe("XApiClient (Live) — getMe", () => {
   it.effect("fails with XUnauthorizedError carrying endpoint on 401", () =>
     runWithFetch({ kind: "json", status: 401, body: {} }, () =>
       Effect.flatMap(XApiClient, (c) => c.getMe("token")).pipe(
-        Effect.either,
+        Effect.result,
         Effect.tap((r) =>
           Effect.sync(() => {
-            expect(Either.isLeft(r)).toBe(true);
-            if (Either.isLeft(r)) {
-              expect(r.left).toBeInstanceOf(XUnauthorizedError);
-              expect((r.left as XUnauthorizedError).endpoint).toBe("users/me");
+            expect(Result.isFailure(r)).toBe(true);
+            if (Result.isFailure(r)) {
+              expect(r.failure).toBeInstanceOf(XUnauthorizedError);
+              expect((r.failure as XUnauthorizedError).endpoint).toBe(
+                "users/me"
+              );
             }
           })
         )
@@ -150,14 +152,14 @@ describe("XApiClient (Live) — getMe", () => {
   it.effect("getMe: 402 maps to XApiError (NOT XPaymentRequiredError)", () =>
     runWithFetch({ kind: "json", status: 402, body: {} }, () =>
       Effect.flatMap(XApiClient, (c) => c.getMe("token")).pipe(
-        Effect.either,
+        Effect.result,
         Effect.tap((r) =>
           Effect.sync(() => {
-            if (Either.isLeft(r)) {
+            if (Result.isFailure(r)) {
               // Pins the deliberate asymmetry: only the bookmarks endpoint
               // distinguishes 402; /users/me falls through to XApiError.
-              expect(r.left).toBeInstanceOf(XApiError);
-              expect((r.left as XApiError).status).toBe(402);
+              expect(r.failure).toBeInstanceOf(XApiError);
+              expect((r.failure as XApiError).status).toBe(402);
             }
           })
         )
@@ -170,12 +172,12 @@ describe("XApiClient (Live) — getMe", () => {
       { kind: "json", status: 429, body: {}, headers: { "retry-after": "10" } },
       () =>
         Effect.flatMap(XApiClient, (c) => c.getMe("token")).pipe(
-          Effect.either,
+          Effect.result,
           Effect.tap((r) =>
             Effect.sync(() => {
-              if (Either.isLeft(r)) {
-                expect(r.left).toBeInstanceOf(XApiError);
-                expect((r.left as XApiError).status).toBe(429);
+              if (Result.isFailure(r)) {
+                expect(r.failure).toBeInstanceOf(XApiError);
+                expect((r.failure as XApiError).status).toBe(429);
               }
             })
           )
@@ -186,13 +188,13 @@ describe("XApiClient (Live) — getMe", () => {
   it.effect("fails with XApiError on 500", () =>
     runWithFetch({ kind: "json", status: 500, body: {} }, () =>
       Effect.flatMap(XApiClient, (c) => c.getMe("token")).pipe(
-        Effect.either,
+        Effect.result,
         Effect.tap((r) =>
           Effect.sync(() => {
-            if (Either.isLeft(r)) {
-              expect(r.left).toBeInstanceOf(XApiError);
-              expect((r.left as XApiError).status).toBe(500);
-              expect((r.left as XApiError).endpoint).toBe("users/me");
+            if (Result.isFailure(r)) {
+              expect(r.failure).toBeInstanceOf(XApiError);
+              expect((r.failure as XApiError).status).toBe(500);
+              expect((r.failure as XApiError).endpoint).toBe("users/me");
             }
           })
         )
@@ -203,12 +205,12 @@ describe("XApiClient (Live) — getMe", () => {
   it.effect("fails with XApiError(status:0) on fetch rejection", () =>
     runWithFetch({ kind: "reject", cause: new Error("ECONNREFUSED") }, () =>
       Effect.flatMap(XApiClient, (c) => c.getMe("token")).pipe(
-        Effect.either,
+        Effect.result,
         Effect.tap((r) =>
           Effect.sync(() => {
-            if (Either.isLeft(r)) {
-              expect(r.left).toBeInstanceOf(XApiError);
-              expect((r.left as XApiError).status).toBe(0);
+            if (Result.isFailure(r)) {
+              expect(r.failure).toBeInstanceOf(XApiError);
+              expect((r.failure as XApiError).status).toBe(0);
             }
           })
         )
@@ -223,12 +225,14 @@ describe("XApiClient (Live) — getMe", () => {
         { kind: "json", status: 200, body: { data: "garbage" } },
         () =>
           Effect.flatMap(XApiClient, (c) => c.getMe("token")).pipe(
-            Effect.either,
+            Effect.result,
             Effect.tap((r) =>
               Effect.sync(() => {
-                if (Either.isLeft(r)) {
-                  expect(r.left).toBeInstanceOf(XApiError);
-                  expect((r.left as XApiError).message).toBe("schema mismatch");
+                if (Result.isFailure(r)) {
+                  expect(r.failure).toBeInstanceOf(XApiError);
+                  expect((r.failure as XApiError).message).toBe(
+                    "schema mismatch"
+                  );
                 }
               })
             )
@@ -256,11 +260,11 @@ describe("XApiClient (Live) — getBookmarks", () => {
             maxResults: 1,
           })
         ).pipe(
-          Effect.either,
+          Effect.result,
           Effect.tap((r) =>
             Effect.sync(() => {
-              if (Either.isRight(r)) {
-                expect(r.right).toEqual({
+              if (Result.isSuccess(r)) {
+                expect(r.success).toEqual({
                   data: [{ id: "t1", text: "hello", author_id: "u1" }],
                   nextToken: "abc",
                 });
@@ -280,11 +284,11 @@ describe("XApiClient (Live) — getBookmarks", () => {
           maxResults: 1,
         })
       ).pipe(
-        Effect.either,
+        Effect.result,
         Effect.tap((r) =>
           Effect.sync(() => {
-            if (Either.isRight(r)) {
-              expect(r.right).toEqual({ data: [], nextToken: undefined });
+            if (Result.isSuccess(r)) {
+              expect(r.success).toEqual({ data: [], nextToken: undefined });
             }
           })
         )
@@ -333,12 +337,14 @@ describe("XApiClient (Live) — getBookmarks", () => {
           maxResults: 1,
         })
       ).pipe(
-        Effect.either,
+        Effect.result,
         Effect.tap((r) =>
           Effect.sync(() => {
-            if (Either.isLeft(r)) {
-              expect(r.left).toBeInstanceOf(XUnauthorizedError);
-              expect((r.left as XUnauthorizedError).endpoint).toBe("bookmarks");
+            if (Result.isFailure(r)) {
+              expect(r.failure).toBeInstanceOf(XUnauthorizedError);
+              expect((r.failure as XUnauthorizedError).endpoint).toBe(
+                "bookmarks"
+              );
             }
           })
         )
@@ -355,11 +361,11 @@ describe("XApiClient (Live) — getBookmarks", () => {
           maxResults: 1,
         })
       ).pipe(
-        Effect.either,
+        Effect.result,
         Effect.tap((r) =>
           Effect.sync(() => {
-            if (Either.isLeft(r)) {
-              expect(r.left).toBeInstanceOf(XPaymentRequiredError);
+            if (Result.isFailure(r)) {
+              expect(r.failure).toBeInstanceOf(XPaymentRequiredError);
             }
           })
         )
@@ -378,12 +384,14 @@ describe("XApiClient (Live) — getBookmarks", () => {
             maxResults: 1,
           })
         ).pipe(
-          Effect.either,
+          Effect.result,
           Effect.tap((r) =>
             Effect.sync(() => {
-              if (Either.isLeft(r)) {
-                expect(r.left).toBeInstanceOf(XRateLimitedError);
-                expect((r.left as XRateLimitedError).retryAfterMs).toBe(90_000);
+              if (Result.isFailure(r)) {
+                expect(r.failure).toBeInstanceOf(XRateLimitedError);
+                expect((r.failure as XRateLimitedError).retryAfterMs).toBe(
+                  90_000
+                );
               }
             })
           )
@@ -400,12 +408,14 @@ describe("XApiClient (Live) — getBookmarks", () => {
           maxResults: 1,
         })
       ).pipe(
-        Effect.either,
+        Effect.result,
         Effect.tap((r) =>
           Effect.sync(() => {
-            if (Either.isLeft(r)) {
-              expect(r.left).toBeInstanceOf(XRateLimitedError);
-              expect((r.left as XRateLimitedError).retryAfterMs).toBe(60_000);
+            if (Result.isFailure(r)) {
+              expect(r.failure).toBeInstanceOf(XRateLimitedError);
+              expect((r.failure as XRateLimitedError).retryAfterMs).toBe(
+                60_000
+              );
             }
           })
         )
@@ -429,11 +439,13 @@ describe("XApiClient (Live) — getBookmarks", () => {
             maxResults: 1,
           })
         ).pipe(
-          Effect.either,
+          Effect.result,
           Effect.tap((r) =>
             Effect.sync(() => {
-              if (Either.isLeft(r)) {
-                expect((r.left as XRateLimitedError).retryAfterMs).toBe(60_000);
+              if (Result.isFailure(r)) {
+                expect((r.failure as XRateLimitedError).retryAfterMs).toBe(
+                  60_000
+                );
               }
             })
           )
@@ -450,13 +462,13 @@ describe("XApiClient (Live) — getBookmarks", () => {
           maxResults: 1,
         })
       ).pipe(
-        Effect.either,
+        Effect.result,
         Effect.tap((r) =>
           Effect.sync(() => {
-            if (Either.isLeft(r)) {
-              expect(r.left).toBeInstanceOf(XApiError);
-              expect((r.left as XApiError).status).toBe(503);
-              expect((r.left as XApiError).endpoint).toBe("bookmarks");
+            if (Result.isFailure(r)) {
+              expect(r.failure).toBeInstanceOf(XApiError);
+              expect((r.failure as XApiError).status).toBe(503);
+              expect((r.failure as XApiError).endpoint).toBe("bookmarks");
             }
           })
         )
@@ -473,12 +485,12 @@ describe("XApiClient (Live) — getBookmarks", () => {
           maxResults: 1,
         })
       ).pipe(
-        Effect.either,
+        Effect.result,
         Effect.tap((r) =>
           Effect.sync(() => {
-            if (Either.isLeft(r)) {
-              expect(r.left).toBeInstanceOf(XApiError);
-              expect((r.left as XApiError).message).toBe("schema mismatch");
+            if (Result.isFailure(r)) {
+              expect(r.failure).toBeInstanceOf(XApiError);
+              expect((r.failure as XApiError).message).toBe("schema mismatch");
             }
           })
         )

@@ -1,5 +1,5 @@
 import { it } from "@effect/vitest";
-import { Effect, Exit, Layer, LogLevel, Logger } from "effect";
+import { Effect, Exit, Layer, References } from "effect";
 import { describe, expect } from "vitest";
 
 import type { TierCapabilities } from "@/lib/plan";
@@ -63,7 +63,7 @@ const provide = (
 ) =>
   effect.pipe(
     Effect.provide(layer),
-    Logger.withMinimumLogLevel(LogLevel.Error)
+    Effect.provideService(References.MinimumLogLevel, "Error")
   );
 
 describe("gateUserApiKeyCreate", () => {

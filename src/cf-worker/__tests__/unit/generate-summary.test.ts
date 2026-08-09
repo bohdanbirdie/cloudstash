@@ -1,5 +1,5 @@
 import { it, describe } from "@effect/vitest";
-import { Effect, Layer, LogLevel, Logger } from "effect";
+import { Effect, Layer, References } from "effect";
 import { expect } from "vitest";
 
 import { TagId } from "@/cf-worker/db/branded";
@@ -51,7 +51,10 @@ function run(
     extractedContent: null,
     existingTags: [],
     ...params,
-  }).pipe(Effect.provide(layer), Logger.withMinimumLogLevel(LogLevel.Error));
+  }).pipe(
+    Effect.provide(layer),
+    Effect.provideService(References.MinimumLogLevel, "Error")
+  );
 }
 
 const emptyAiOutput = (summary: string): AiOutput => ({
@@ -105,7 +108,7 @@ describe("generateSummary", () => {
     }).pipe(
       Effect.flip,
       Effect.provide(layer),
-      Logger.withMinimumLogLevel(LogLevel.None),
+      Effect.provideService(References.MinimumLogLevel, "None"),
       Effect.tap((error) =>
         Effect.sync(() => {
           expect(error).toBeInstanceOf(AiCallError);

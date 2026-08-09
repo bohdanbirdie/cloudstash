@@ -2,7 +2,7 @@
 import { makeInMemoryAdapter } from "@livestore/adapter-web";
 import { createStorePromise } from "@livestore/livestore";
 import type { Store } from "@livestore/livestore";
-import { LogLevel, Logger } from "effect";
+import { Effect, References } from "effect";
 
 import { schema } from "../schema";
 
@@ -30,7 +30,7 @@ export const makeTestStore = (): Promise<TestStore> => {
     schema,
     storeId: nextStoreId(),
     disableDevtools: true,
-    logLevel: LogLevel.None,
+    logLevel: "None",
   });
 };
 
@@ -38,4 +38,7 @@ export const makeTestStore = (): Promise<TestStore> => {
 export const testId = (prefix: string = "id") => `${prefix}-${++idCounter}`;
 
 /** Silences Effect runtime logs during tests. */
-export const silentLogger = Logger.withMinimumLogLevel(LogLevel.None);
+export const silentLogger = Effect.provideService(
+  References.MinimumLogLevel,
+  "None"
+);

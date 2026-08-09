@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer, LogLevel, Logger } from "effect";
+import { Effect, Layer, References } from "effect";
 
 import {
   capabilitiesFor,
@@ -145,7 +145,7 @@ describe("checkChatFeatureEnabled (Billing-backed)", () => {
 
     return checkChatFeatureEnabled(OrgId.make("org-1")).pipe(
       Effect.provide(layer),
-      Logger.withMinimumLogLevel(LogLevel.Error)
+      Effect.provideService(References.MinimumLogLevel, "Error")
     );
   });
 
@@ -159,7 +159,7 @@ describe("checkChatFeatureEnabled (Billing-backed)", () => {
           })
         ),
         Effect.flip,
-        Logger.withMinimumLogLevel(LogLevel.Error),
+        Effect.provideService(References.MinimumLogLevel, "Error"),
         Effect.tap((error) =>
           Effect.sync(() => {
             expect(error._tag).toBe("ChatFeatureDisabledError");
@@ -178,7 +178,7 @@ describe("checkChatFeatureEnabled (Billing-backed)", () => {
         })
       ),
       Effect.flip,
-      Logger.withMinimumLogLevel(LogLevel.Error),
+      Effect.provideService(References.MinimumLogLevel, "Error"),
       Effect.tap((error) =>
         Effect.sync(() => {
           expect(error._tag).toBe("DbError");
@@ -196,7 +196,7 @@ describe("checkChatFeatureEnabled (Billing-backed)", () => {
         })
       ),
       Effect.flip,
-      Logger.withMinimumLogLevel(LogLevel.Error),
+      Effect.provideService(References.MinimumLogLevel, "Error"),
       Effect.tap((error) =>
         Effect.sync(() => {
           expect(error._tag).toBe("OrgNotFoundError");
@@ -217,7 +217,7 @@ describe("checkChatFeatureEnabled (Billing-backed)", () => {
 
     return checkChatFeatureEnabled(OrgId.make("workspace-42")).pipe(
       Effect.provide(layer),
-      Logger.withMinimumLogLevel(LogLevel.Error),
+      Effect.provideService(References.MinimumLogLevel, "Error"),
       Effect.tap(() =>
         Effect.sync(() => {
           expect(capturedOrgId).toBe("workspace-42");

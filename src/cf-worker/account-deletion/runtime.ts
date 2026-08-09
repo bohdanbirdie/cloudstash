@@ -15,7 +15,7 @@ export interface WorkflowInstanceHandle {
   readonly id: WorkflowInstanceId;
 }
 
-export class DeletionRuntimeError extends Schema.TaggedError<DeletionRuntimeError>()(
+export class DeletionRuntimeError extends Schema.TaggedErrorClass<DeletionRuntimeError>()(
   "DeletionRuntimeError",
   {
     op: Schema.Literals([
@@ -28,7 +28,7 @@ export class DeletionRuntimeError extends Schema.TaggedError<DeletionRuntimeErro
       "ensureWorkflow",
     ]),
     step: Schema.optional(Schema.Literals(["status", "restart", "create"])),
-    cause: Schema.Defect,
+    cause: Schema.Defect(),
   }
 ) {}
 

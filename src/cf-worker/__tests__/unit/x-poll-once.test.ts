@@ -1,5 +1,5 @@
 import { describe, it } from "@effect/vitest";
-import { Effect, Either } from "effect";
+import { Effect, Result } from "effect";
 import { expect } from "vitest";
 
 import { UserId, XTweetId } from "../../db/branded";
@@ -432,15 +432,17 @@ describe("pollOnceEffect", () => {
             auth: makeAuthLayer(null),
           })
         ),
-        Effect.either,
+        Effect.result,
         Effect.tap((result) =>
           Effect.sync(() => {
-            expect(Either.isLeft(result)).toBe(true);
-            if (Either.isLeft(result)) {
-              expect(result.left).toBeInstanceOf(NoAccessTokenError);
-              expect(result.left._tag).toBe("NoAccessTokenError");
+            expect(Result.isFailure(result)).toBe(true);
+            if (Result.isFailure(result)) {
+              expect(result.failure).toBeInstanceOf(NoAccessTokenError);
+              expect(result.failure._tag).toBe("NoAccessTokenError");
               // userId context preserved on the tagged error
-              expect((result.left as NoAccessTokenError).userId).toBe(USER_ID);
+              expect((result.failure as NoAccessTokenError).userId).toBe(
+                USER_ID
+              );
             }
             expect(store.rec.setStatusCalls).toEqual(["needs_reconnect"]);
           })
@@ -467,13 +469,13 @@ describe("pollOnceEffect", () => {
 
     return pollOnceEffect(USER_ID).pipe(
       Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
-      Effect.either,
+      Effect.result,
       Effect.tap((result) =>
         Effect.sync(() => {
-          expect(Either.isLeft(result)).toBe(true);
-          if (Either.isLeft(result)) {
-            expect(result.left).toBeInstanceOf(XApiError);
-            expect((result.left as XApiError).status).toBe(503);
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure).toBeInstanceOf(XApiError);
+            expect((result.failure as XApiError).status).toBe(503);
           }
           expect(store.rec.setWatermarkCalls).toEqual([]);
         })

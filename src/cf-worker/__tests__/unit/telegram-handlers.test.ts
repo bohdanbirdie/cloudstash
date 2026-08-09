@@ -1,5 +1,5 @@
 import { it, describe } from "@effect/vitest";
-import { Effect, Layer, LogLevel, Logger } from "effect";
+import { Effect, Layer, References } from "effect";
 import { expect } from "vitest";
 
 import { OrgId, UserId } from "../../db/branded";
@@ -141,7 +141,7 @@ describe("handleLinks", () => {
 
     return handleLinks(["https://example.com"]).pipe(
       Effect.provide(layer),
-      Logger.withMinimumLogLevel(LogLevel.None),
+      Effect.provideService(References.MinimumLogLevel, "None"),
       Effect.tap(() =>
         Effect.sync(() => {
           expect(messenger.drafts).toEqual(["Saving link"]);
@@ -170,7 +170,7 @@ describe("handleLinks", () => {
 
       return handleLinks(["https://example.com"]).pipe(
         Effect.provide(layer),
-        Logger.withMinimumLogLevel(LogLevel.None),
+        Effect.provideService(References.MinimumLogLevel, "None"),
         Effect.tap(() =>
           Effect.sync(() => {
             expect(messenger.drafts).toEqual(["Saving link"]);
@@ -194,7 +194,7 @@ describe("handleLinks", () => {
 
     return handleLinks(["https://example.com"]).pipe(
       Effect.provide(layer),
-      Logger.withMinimumLogLevel(LogLevel.None),
+      Effect.provideService(References.MinimumLogLevel, "None"),
       Effect.tap(() =>
         Effect.sync(() => {
           expect(messenger.drafts).toEqual([]);
@@ -218,7 +218,7 @@ describe("handleLinks", () => {
 
     return handleLinks(["https://example.com"]).pipe(
       Effect.provide(layer),
-      Logger.withMinimumLogLevel(LogLevel.None),
+      Effect.provideService(References.MinimumLogLevel, "None"),
       Effect.tap(() =>
         Effect.sync(() => {
           expect(messenger.drafts).toEqual([]);
@@ -241,7 +241,7 @@ describe("handleLinks", () => {
 
     return handleLinks(["https://example.com"]).pipe(
       Effect.provide(layer),
-      Logger.withMinimumLogLevel(LogLevel.None),
+      Effect.provideService(References.MinimumLogLevel, "None"),
       Effect.tap(() =>
         Effect.sync(() => {
           expect(messenger.drafts).toEqual([]);
@@ -267,7 +267,7 @@ describe("handleLinks", () => {
 
     return handleLinks(["https://a.com", "https://b.com"]).pipe(
       Effect.provide(layer),
-      Logger.withMinimumLogLevel(LogLevel.None),
+      Effect.provideService(References.MinimumLogLevel, "None"),
       Effect.tap(() =>
         Effect.sync(() => {
           expect(queue.enqueued).toHaveLength(2);
@@ -292,7 +292,7 @@ describe("handleConnect", () => {
 
     return handleConnect(123, "sk_test_key").pipe(
       Effect.provide(layer),
-      Logger.withMinimumLogLevel(LogLevel.None),
+      Effect.provideService(References.MinimumLogLevel, "None"),
       Effect.tap(() =>
         Effect.sync(() => {
           expect(keyStore.stored.get(123)).toBe("sk_test_key");
@@ -319,7 +319,7 @@ describe("handleConnect", () => {
 
     return handleConnect(123, undefined).pipe(
       Effect.provide(layer),
-      Logger.withMinimumLogLevel(LogLevel.None),
+      Effect.provideService(References.MinimumLogLevel, "None"),
       Effect.tap(() =>
         Effect.sync(() => {
           expect(keyStore.stored.size).toBe(0);
@@ -340,7 +340,7 @@ describe("handleConnect", () => {
 
     return handleConnect(123, "bad_key").pipe(
       Effect.provide(layer),
-      Logger.withMinimumLogLevel(LogLevel.None),
+      Effect.provideService(References.MinimumLogLevel, "None"),
       Effect.tap(() =>
         Effect.sync(() => {
           expect(keyStore.stored.size).toBe(0);
@@ -370,7 +370,7 @@ describe("handleDisconnect", () => {
 
       return handleDisconnect(123).pipe(
         Effect.provide(layer),
-        Logger.withMinimumLogLevel(LogLevel.None),
+        Effect.provideService(References.MinimumLogLevel, "None"),
         Effect.tap(() =>
           Effect.sync(() => {
             expect(keyStore.stored.has(123)).toBe(false);
@@ -399,7 +399,7 @@ describe("handleDisconnect", () => {
 
       return handleDisconnect(123).pipe(
         Effect.provide(layer),
-        Logger.withMinimumLogLevel(LogLevel.None),
+        Effect.provideService(References.MinimumLogLevel, "None"),
         Effect.tap(() =>
           Effect.sync(() => {
             expect(keyStore.stored.has(123)).toBe(false);

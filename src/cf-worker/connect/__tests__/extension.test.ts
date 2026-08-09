@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer, LogLevel, Logger } from "effect";
+import { Effect, Layer, References } from "effect";
 
 import { AuthClient } from "../../auth/service";
 import { ApiKey, ApiKeyRowId, OrgId, UserId } from "../../db/branded";
@@ -79,7 +79,10 @@ function runAccount(
 
   return handleAccountRequest(
     apiKey === null ? null : ApiKey.make(apiKey)
-  ).pipe(Effect.provide(layer), Logger.withMinimumLogLevel(LogLevel.Error));
+  ).pipe(
+    Effect.provide(layer),
+    Effect.provideService(References.MinimumLogLevel, "Error")
+  );
 }
 
 function runConnect(
@@ -95,7 +98,7 @@ function runConnect(
 
   return handleConnectRequest(new Headers()).pipe(
     Effect.provide(layer),
-    Logger.withMinimumLogLevel(LogLevel.Error)
+    Effect.provideService(References.MinimumLogLevel, "Error")
   );
 }
 
@@ -312,7 +315,10 @@ describe("ExtensionConnect.handleDisconnectRequest", () => {
 
     return handleDisconnectRequest(
       apiKey === null ? null : ApiKey.make(apiKey)
-    ).pipe(Effect.provide(layer), Logger.withMinimumLogLevel(LogLevel.Error));
+    ).pipe(
+      Effect.provide(layer),
+      Effect.provideService(References.MinimumLogLevel, "Error")
+    );
   }
 
   it.effect("fails with ConnectUnauthorizedError when apiKey is missing", () =>

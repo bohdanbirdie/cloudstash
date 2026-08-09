@@ -1,12 +1,38 @@
 # Effect v4 + LiveStore upstream migration — progress tracker
 
-**Status:** planned, not started (2026-08-09). Strategy + rationale live in
-[[todos/effect-v4-livestore-upstream-migration]] — this doc is the living
-tracker and the **authoritative execution plan**: check items off as they land
-on the flip branch, log decisions and found issues at the bottom.
+**Status:** IN FLIGHT (2026-08-09) — Stage 3 midpoint. Strategy + rationale
+live in [[todos/effect-v4-livestore-upstream-migration]] — this doc is the
+living tracker and the **authoritative execution plan**: check items off as
+they land on the flip branch, log decisions and found issues at the bottom.
 
 Filled 2026-08-09 by a three-agent planning pass (sequencing / inventory /
 risk, independently researched, reconciled below).
+
+## Progress at a glance
+
+Cycle per unit: Fable/Opus executor subagent → independent reviewer subagent
+→ user review → commit. No subagent ever commits.
+
+| Stage | Status | Commits |
+| --- | --- | --- |
+| 0 — Preflight (branch, cooldown, baselines) | ✅ | `d68f762` |
+| 1 — World flip (submodule + deps, config only) | ✅ | `39aa07e` |
+| 2 — Codemod sweep (pure) + dual RG review | ✅ | `99be60f` + `cafff12` |
+| 3 — Cluster burndown (~8 units) | 🔶 3.5/8 | below |
+| 4 — Validation battery | ⬜ | |
+| 5 — Final dual review + rebase + merge | ⬜ | |
+| 6 — Fast-follows (extension, #722, fork retirement) | ⬜ | |
+
+Stage 3 units: RG-codemod corrections ✅ `bd09696` · C2 foundation ✅
+`8ea6c20` · C8a test harness ✅ (this commit) · C3 schema/Date-wire ⬜ next ·
+C4 LinkProcessorDO ⬜ · C5 sync glue ⬜ · C6 HTTP surface ⬜ · C7 background
+workers ⬜ · residual sweep + typecheck milestone + marker/docs ⬜. C9
+extension: REMOVED from this PR (Stage 6 fast-follow, user decision).
+
+`check:effect` burndown: 0 (pre-flip) → 218 (flip) → 254 (codemod) → 297
+(corrections; rises = unmasking) → 272 (C2) → **144 (C8a)**. Unit tests:
+**566/652 passing** (86 red, all API-level, pre-categorized to pending
+clusters; zero assertion mismatches).
 
 ## Reconciliation notes (where the agents differed or corrected the plan)
 
@@ -31,8 +57,8 @@ risk, independently researched, reconciled below).
 
 ## Gates
 
-- [ ] **G0 — prep done:** cooldown decision made, baselines captured,
-  playbook commits skimmed
+- [x] **G0 — prep done:** cooldown decision made, baselines captured,
+  playbook commits skimmed (2026-08-09)
 - [ ] **G1 — flip branch red→green:** world flip landed, codemod run, all
   clusters migrated, `bun run check` + `bun run typecheck` green
 - [ ] **G2 — tests green:** `test:unit` + `test:e2e` (incl. eviction e2e +
@@ -311,6 +337,8 @@ risk, independently researched, reconciled below).
      Both are mechanical `TaggedErrorClass` renames of the pattern set here —
      land them with C6 (or as a 2-file pre-C6 unblock). RG note: `connect/
      errors.ts:21,38` additionally need `Schema.Defect` → `Schema.Defect()`.
+     **Resolved: landed as the C8a boundary pre-fix (step 5), C2 at true
+     zero.**
    **RG-cluster verdict (2026-08-09, fable): ACCEPT, zero blockers.** Both
    focal semantic risks independently probe-verified: cache decision AGREED
    (rebuild-per-provide proven empirically in v3 AND v4; in-provide dedupe
@@ -321,10 +349,69 @@ risk, independently researched, reconciled below).
    identifier would leak into `error.name` → `safeErrorInfo` logs). Two
    drift notes added to Found issues; two counts corrected inline.
 
-5. [ ] **Commit 4 — C8a test harness: `@effect/vitest` (39 files).**
+5. [x] **Commit 4 — C8a test harness: `@effect/vitest` (39 files).**
    Makes per-cluster tests runnable for everything after; from here each
    cluster's done-when includes its vitest subset green.
    **Done-when:** one foundation-adjacent test file green end-to-end.
+   **Executed (2026-08-09):**
+   - **Boundary pre-fix rode this unit (C2 → true zero):** `connect/errors.ts`
+     (6 classes → `TaggedErrorClass`, `Defect()` ×2), `account-deletion/
+     prepare.ts`, `account-deletion/runtime.ts` (+ its `Defect()` at :31, same
+     mechanical pattern). `check:effect` 272→260 on the pre-fix alone; zero
+     diagnostics anchored in any C2 or boundary file afterward.
+   - **Harness core:** `@effect/vitest@4.0.0-beta.99` source read end-to-end —
+     `it.effect`/`it.live`/`it.layer`/`layer`/`flakyTest` all survive with
+     unchanged call shapes; `it.effect` now includes `Scope.Scope` (v3
+     `it.scoped`/`it.scopedLive` folded in — repo used neither); test env =
+     `TestConsole.layer + TestClock.layer()` from `effect/testing/*`. All 39
+     import sites already v4-valid. `src/livestore/__tests__/test-helpers.ts`
+     (the import-crash): `Logger.withMinimumLogLevel(LogLevel.None)` →
+     `Effect.provideService(References.MinimumLogLevel, "None")` (pipe shape
+     preserved); `createStorePromise` `logLevel` is a v4 string union →
+     `"None"`. `e2e/setup.ts` + `helpers.ts` + `stubs/*` are effect-free;
+     `_helpers/x-sync.ts` v4-valid as-is.
+   - **Test-file API sweep (25 files):** `Effect.either`→`Effect.result`
+     (~55 sites incl. point-free), `Either.isLeft/isRight`→
+     `Result.isFailure/isSuccess`, `.left/.right`→`.failure/.success` (99
+     accessor sites, all verified Either-typed before the rewrite),
+     `Logger.withMinimumLogLevel(LogLevel.X)`→`provideService(References.
+     MinimumLogLevel, "X")` (11 files, levels preserved), `Effect.
+     makeSemaphore`→`Semaphore.make` ×8 + `unsafeMakeSemaphore`→
+     `Semaphore.makeUnsafe` ×2, `Effect.yieldNow()`→`Effect.yieldNow` ×1.
+     Exhaustive token audit: all 58 distinct `Module.member` tokens used
+     across test files exist in beta.99. Zero assertion values, mock
+     semantics, or test structure touched.
+   - `check:effect`: 272→**144 errors**, 111→**30 warnings**. `vp check`
+     (lint+format) green on all 29 changed files.
+   - **Unit suite: boots for the first time.** Baseline (8ea6c20, measured
+     via stash): 34/92 files, 502 passed / 23 failed tests, 45+ suites
+     import-dead. After: 34/92 files (every harness-fixed file still
+     prod-blocked), **566 passed / 86 failed of 652** (+64 newly passing).
+     Foundation-adjacent green e2e: `auth-payload.test.ts` 10/10 plus 33
+     more files.
+   - **Triage of all 58 non-green files — (c) BEHAVIOR is EMPTY:** zero
+     assertion failures anywhere; all 86 failing tests are API-level.
+     (a) FIXED within still-blocked files: do-programs 0→56 passing,
+     link-event-store.live 0→1, link-repository.live 0→2, stripe-sync 0→5.
+     (b) BLOCKED at import, 45 files: 39 on v3 `Schema.TaggedError` in 19
+     prod files (C4 link-processor/metadata; C5 sync/errors; C6 connect/
+     services, invites, ingest, admin ×3, billing/routes/shared, account-
+     deletion/workflow, chat-agent/auth; C7 telegram ×2, x-sync, x-enrichment
+     ×2, weekly-digest, queue-handler) + 6 on v3 `Schema.transform` in
+     `livestore/queries/schemas.ts` (C3). BLOCKED at runtime: 68 tests in 11
+     store-backed files (materializers ×6, flows ×2, do-programs,
+     link-event-store, link-repository) — C3 Date-wire kills the store (see
+     Found issues); 18 tests on removed `Option.fromNullable`/
+     `flatMapNullable` in `billing/stripe-sync.ts` (C6) +
+     `weekly-digest/build-digest-links.ts` (C7).
+     (d) HARNESS: none observed — `@effect/vitest` beta.99 runs clean under
+     vitest 4.1.7. `process-link-concurrency.test.ts` (hotspot 8) is still
+     import-blocked (C7 `x-enrichment/errors.ts`) — its interleaving
+     assertions have NOT run yet; re-triage when C4/C7 land.
+   - **e2e deferred to G2:** the worker entry imports `queue-handler.ts`
+     (v3 `Schema.TaggedError`) — every e2e suite dies at worker boot for
+     prod reasons; the admin.test.ts pool-workers × @effect/vitest
+     intersection (hotspot 9) is unassessable until C4–C7 land.
 
 6. [ ] **Commits 5–7 — livestore-boundary clusters (highest risk).**
    (5) C3 schema/events — the Date-wire sweep + golden round-trip test IN THE
@@ -578,6 +665,38 @@ _(running list — every surprise found during migration gets a line here)_
   `Effect.runtime` (1). Its pattern matrix covers `Schema.decode*Either →
   decode*Result` only — plain `Either.*`→`Result.*` (109 hits, C8) is NOT
   covered; stays hand-work.
+- 2026-08-09 (C8a) — **matrix row 1 reproduced in unit tests before the C3
+  sweep exists:** every store-backed test (68 tests / 11 files) fails with
+  `SchemaError: Expected number, got 2026-01-01T10:00:00.000Z` during
+  materialization — v4 changed the `Schema.Date` wire form exactly as vendor
+  `ddd1aa16c` predicted. The failure is ASYNC: the store's materialization
+  fiber dies, the store shuts down, and every later `commit`/`query` throws
+  `UnknownError: Store has been shut down` — the SchemaError root cause is
+  only visible at `logLevel: "Debug"`. These 68 failures are C3's
+  ready-made red suite; they must flip green in the C3 commit.
+- 2026-08-09 (C8a) — **`Option.fromNullable` / `Option.flatMapNullable` do
+  not exist in beta.99** (v4 kept `Option.fromNullishOr`); 7 prod files still
+  call them (stripe-sync, build-digest-links, generate-summary,
+  durable-object, trigger-digest, x-enrichment/usage, metadata/schema) and
+  fail at RUNTIME with TypeError, invisible to `check:effect`'s error count —
+  18 test failures today. Also runtime-only: `Effect.yieldNow` is now a
+  value, not a function (`yield* Effect.yieldNow`). The class to remember:
+  check:effect silence ≠ v4-clean; only running code proves it.
+- 2026-08-09 (C8a) — v4 semaphores moved to a dedicated module:
+  `Effect.makeSemaphore`→`Semaphore.make`, `Effect.unsafeMakeSemaphore`→
+  `Semaphore.makeUnsafe`, type `Effect.Semaphore`→`Semaphore.Semaphore`;
+  instance method `.withPermits(n)` unchanged. Prod's 3 sites (C4) still
+  pending.
+- 2026-08-09 (C8a) — baseline nuance for the scoreboard: `stripe-sync.test.ts`
+  and `build-digest-links.test.ts` were ALREADY failing before C8a (the
+  baseline's only 23 failing tests) — on the same removed Option APIs, not on
+  harness debt. The harness crash (`test-helpers.ts`) import-killed 45+ other
+  suites.
+- 2026-08-09 (C8a) — vitest dedupes identical module-eval errors across
+  suites: 19 import-dead suites printed ONE shared `Schema.TaggedError is not
+  a function` block whose stack goes through `telegram/services.ts` (first
+  v3 module evaluated) — per-suite blocker attribution needs the module
+  graph, not the error text.
 - 2026-08-09 (stage 2) — codemod CLI's `--dry-run` prints counts only (no
   file list, no diffs); `-v` is engine debug noise. The modified-file list is
   only observable via the real run + `git status`. Dry-run counts matched the
@@ -636,7 +755,7 @@ _(running list — every surprise found during migration gets a line here)_
   `account-deletion/runtime.ts` (v3 TaggedErrors) leave 5 errors anchored in
   org/service.ts + auth/index.ts. Also NEWLY surfaced `checkout.ts:85` once
   `runBilling`'s types became real — same root file. Two-file mechanical fix,
-  deferred to C6 per cluster scoping.
+  deferred to C6 per cluster scoping. (Landed as C8a's boundary pre-fix.)
 - 2026-08-09 (stage 3, C2) — expected cascade breathing, error total fell for
   the first time (297→272): making Billing/AppSettings real types cleared 16
   cluster errors and surfaced new `missingEffectContext: unknown` reds only

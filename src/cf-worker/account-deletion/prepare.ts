@@ -8,7 +8,7 @@ import { DbClient, DbError, query } from "../db/service";
 import { maskId } from "../log-utils";
 import { DeletionRuntime } from "./runtime";
 
-export class MissingActiveOrgError extends Schema.TaggedError<MissingActiveOrgError>()(
+export class MissingActiveOrgError extends Schema.TaggedErrorClass<MissingActiveOrgError>()(
   "MissingActiveOrgError",
   { userId: UserId }
 ) {}
