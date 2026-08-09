@@ -67,7 +67,7 @@ const FakeGeneratorLive = (
 ) =>
   Layer.succeed(
     EnrichmentGenerator,
-    new EnrichmentGenerator({
+    EnrichmentGenerator.of({
       generate: () => {
         log.events.push("generator.generate");
         return Effect.isEffect(output)

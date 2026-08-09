@@ -65,7 +65,7 @@ export const TelegramKeyStoreLive = (env: Env) =>
               Effect.promise(() => env.TELEGRAM_KV.delete(forwardKey(chatId))),
             { discard: true }
           ).pipe(
-            Effect.zipRight(
+            Effect.andThen(
               Effect.promise(() => env.TELEGRAM_KV.delete(reverseKey(userId)))
             ),
             Effect.as({ deletedCount: chatIds.length })

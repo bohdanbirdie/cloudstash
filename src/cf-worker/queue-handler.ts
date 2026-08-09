@@ -28,31 +28,27 @@ const LinkQueueMessageSchema = Schema.Struct({
   sourceMeta: Schema.NullOr(Schema.String),
 });
 
-export class QueueProcessError extends Schema.TaggedError<QueueProcessError>()(
+export class QueueProcessError extends Schema.TaggedErrorClass<QueueProcessError>()(
   "QueueProcessError",
   {
-    message:
-      /* TODO(effect-v4-codemod): manual migration required for schema-optionalWith-manual */ Schema.optionalWith(
-        Schema.String,
-        {
-          default: () => "Queue message processing failed",
-        }
-      ),
-    cause: Schema.Defect,
+    message: Schema.String.pipe(
+      Schema.withConstructorDefault(
+        Effect.succeed("Queue message processing failed")
+      )
+    ),
+    cause: Schema.Defect(),
   }
 ) {}
 
-export class QueueDecodeError extends Schema.TaggedError<QueueDecodeError>()(
+export class QueueDecodeError extends Schema.TaggedErrorClass<QueueDecodeError>()(
   "QueueDecodeError",
   {
-    message:
-      /* TODO(effect-v4-codemod): manual migration required for schema-optionalWith-manual */ Schema.optionalWith(
-        Schema.String,
-        {
-          default: () => "Queue message failed to decode",
-        }
-      ),
-    cause: Schema.Defect,
+    message: Schema.String.pipe(
+      Schema.withConstructorDefault(
+        Effect.succeed("Queue message failed to decode")
+      )
+    ),
+    cause: Schema.Defect(),
   }
 ) {}
 
@@ -123,7 +119,7 @@ export const handleQueueBatchEffect = (
                 attempt: msg.attempts,
                 ...safeErrorInfo(error),
               }),
-              Effect.zipLeft(Effect.sync(() => msg.retry()))
+              Effect.tap(() => Effect.sync(() => msg.retry()))
             ),
           QueueDecodeError: (error) =>
             // Decode failure is not transient — ack to drop, don't retry.
@@ -132,7 +128,7 @@ export const handleQueueBatchEffect = (
                 attempt: msg.attempts,
                 ...safeErrorInfo(error),
               }),
-              Effect.zipLeft(Effect.sync(() => msg.ack()))
+              Effect.tap(() => Effect.sync(() => msg.ack()))
             ),
         }),
         Effect.withSpan("Queue.processMessage", {

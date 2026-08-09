@@ -52,13 +52,13 @@ const FailingSinkLive = (error: DigestEventSinkError) =>
 const StubGeneratorLive = (markdown: string) =>
   Layer.succeed(
     WeeklyDigestGenerator,
-    new WeeklyDigestGenerator({ generate: () => Effect.succeed(markdown) })
+    WeeklyDigestGenerator.of({ generate: () => Effect.succeed(markdown) })
   );
 
 const FailingGeneratorLive = (error: WeeklyDigestGenerateError) =>
   Layer.succeed(
     WeeklyDigestGenerator,
-    new WeeklyDigestGenerator({ generate: () => Effect.fail(error) })
+    WeeklyDigestGenerator.of({ generate: () => Effect.fail(error) })
   );
 
 interface BuildLayerOverrides {

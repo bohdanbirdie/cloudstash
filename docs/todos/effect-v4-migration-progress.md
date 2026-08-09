@@ -26,8 +26,8 @@ Cycle per unit: Fable/Opus executor subagent → independent reviewer subagent
 Stage 3 units: RG-codemod corrections ✅ `bd09696` · C2 foundation ✅
 `8ea6c20` · C8a test harness ✅ `3242c4e` · C3 schema/Date-wire ✅ `738140b`
 · C5+C4 sync glue + LinkProcessorDO ✅ (this commit, combined unit) · C6
-HTTP surface ⬜ · C7 background workers ⬜ · residual sweep + typecheck
-milestone + marker/docs ⬜.
+HTTP surface ⬜ · C7 background workers ✅ (this commit) · residual sweep +
+typecheck milestone + marker/docs ⬜.
 C9 extension: REMOVED from this PR (Stage 6 fast-follow, user decision;
 all three extension CI steps incl. `test:ext` TEMP-gated as of the C3
 commit — its 4/11 failures are pre-existing mixed-tree v3 breakage,
@@ -39,12 +39,15 @@ flat by construction: C3's debt was runtime-only, invisible to check:effect;
 zero diagnostics anchored in any C3 file before or after) → **121 errors /
 19 warnings (C5+C4; in-scope anchored 35 → 1, and that 1 residual —
 durable-object.ts:396 — is rooted in out-of-cluster C7 `Effect.Service`
-declarations poisoning `liveLayer`, zero debt in cluster code)**. Unit
-tests: 566/652 → 849/867 → **891/909 passing** (+42 newly-runnable green;
-the 18 reds are still exactly the pre-categorized `Option.fromNullable`
-class in C6 stripe-sync + C7 build-digest-links; hotspot-8
-process-link-concurrency is STILL import-blocked on C7 x-enrichment — see
-Found issues).
+declarations poisoning `liveLayer`, zero debt in cluster code)** → **36
+errors / 8 warnings (C7; zero anchored in any C7 file, and the C4
+residual at durable-object.ts:396 CLEARED — the 44 remaining diagnostics
+anchor in C6 prod files + their consuming test files — 17 of them in
+stripe-routes.test + ingest-service.test)**. Unit tests: 566/652 → 849/867 → 891/909 →
+**1173/1191 passing (C7; +282 newly runnable, +277 newly green; all 18
+reds + 9 import-dead suites are C6-boundary — category (c) BEHAVIOR is
+EMPTY, hotspot-8 process-link-concurrency PASSED 4/4 on its first-ever
+v4 run)**.
 
 ## Reconciliation notes (where the agents differed or corrected the plan)
 
@@ -595,6 +598,83 @@ live-store-client-do.ts`): set `this.storeId` from the RPC arg, always
        as their cluster lands. Extension last (after C3 stable), gated by
        `bun run test:ext` + loading the unpacked extension.
        **Review gate — RG-cluster**, batching small clusters 2–3 per review.
+       **Executed C7 (2026-08-09):**
+   - **Hotspot 8 verdict FIRST: PASS.** `process-link-concurrency.test.ts`
+     ran under the v4 fiber runtime for the first time and passed **4/4** —
+     zero interleaving/assertion drift. Unblock order per plan:
+     x-enrichment/errors.ts + usage.ts (TaggedErrorClass, Defect(),
+     fromNullishOr, the optionalWith marker) → generator.ts + the
+     import-chained weekly-digest/generator.ts (both v3 `Effect.Service` →
+     C2 `Context.Service` pattern; no accessor call sites existed) +
+     weekly-digest/errors.ts (chain) → test stubs `new X(shape)` →
+     `X.of(shape)` → run. `process-link.test.ts` + all 5 x-enrichment
+     suites green in the same step (71/71).
+   - **Scope:** 21 files (+205/−242): telegram/{errors,services,
+     services/telegram-key-store.live}, x-sync/{errors,durable-object},
+     x-enrichment/{errors,usage,generator,services/thread-provider-noop.
+     live}, weekly-digest/{errors,generator,rpc,build-digest-links},
+     chat-agent/{auth,index}, queue-handler.ts + 5 test files (API forms
+     only). Tests needed exactly two form classes: `new ServiceClass(shape)`
+     → `ServiceClass.of(shape)` (8 sites, 5 files — RG-corrected; the Decisions entry enumerates them) and zero others (C8a had
+     the rest).
+   - **Error classes:** 32 v3 `Schema.TaggedError` → `TaggedErrorClass`
+     across 8 files (telegram/errors 6, telegram/services 1, x-sync 7,
+     x-enrichment/errors 8, x-enrichment/usage 2, weekly-digest 3,
+     chat-agent/auth 3, queue-handler 2); `Schema.Defect` →
+     `Defect()` ×10; all 8 remaining `schema-optionalWith-manual` markers
+     resolved via the established `withConstructorDefault` pattern
+     (telegram ×5, queue-handler ×2, x-enrichment ×1). Repo-wide codemod
+     TODO markers now **1** (RG-corrected: `admin/activity-stats/repo.ts:10`, a C6 file — the residual-sweep step keys off this count).
+   - **Mechanical:** `Effect.gen(this,…)` → `gen({self:this})` ×10 (x-sync
+     DO ×6, chat-agent DO ×4); `Logger.replace(Logger.defaultLogger,
+XSyncLogger)` → `Logger.layer([XSyncLogger])` (C2/C4 pattern; x-sync
+     `baseLayer` per-call rebuild otherwise UNTOUCHED per the C2 parity
+     decision); `Effect.zipRight` → `andThen` ×1 (telegram-key-store);
+     `Effect.zipLeft(e)` → `Effect.tap(() => e)` ×2 in queue-handler — the
+     retry()/ack() side-effect ordering + error propagation + return value
+     all preserved (tap = run after success, discard result, propagate
+     failure — v3 zipLeft-identical here); `Effect.timeoutFail({duration,
+onTimeout})` → `Effect.timeoutOrElse({duration, orElse})` with the
+     failing TaggedErrorClass instance as the orElse effect
+     (thread-provider-noop — v3-identical: source interrupted, custom error
+     failure); `Schema.Schema.Type<typeof X>` → `typeof X.Type` ×3
+     (weekly-digest rpc ×2 + generator); `Option.fromNullable` →
+     `fromNullishOr` ×3 (usage, build-digest-links, — plus none remained
+     elsewhere in scope).
+   - **v4 `Array.filterMap` contract change (the unit's headline find):**
+     it now takes a `Result`-returning filter (`Result.isSuccess` gate) —
+     an Option-returning callback compiles nowhere but at RUNTIME every
+     element is silently discarded (Option.some is not Result.Success),
+     exactly build-digest-links' 8 reds. Fix: terminal
+     `Result.fromOption(() => null)` bridge on the Option pipeline.
+     `HashMap.get` still returns Option (verified) — only the filterMap
+     boundary needed conversion.
+   - **Scoreboard:** check:effect 121/19 → **36/8**; C7-anchored
+     diagnostics **0**; the C4 residual (link-processor/durable-object.ts: 396) **cleared** as predicted (EnrichmentGenerator/OpenRouterApiKey
+     types now real). Unit 891/909 → **1173/1191**. Newly green incl.
+     hotspot 8 (4/4), process-link, x-enrichment ×5, weekly-digest ×7
+     (60/60), chat-agent ×2, telegram-handlers, x-api-client,
+     x-initialize-watermark, x-poll-once, billing.test (14/14, incl. the 5
+     chat-agent gate tests after its one v3 stub form → `.of`),
+     `sync/__tests__/validate-payload.test.ts` (C5's suite, unblocked as
+     predicted). `vp check` pass on all 21 files; diff audit: zero casts /
+     suppressions / .skip.
+   - **Triage of all 12 non-green files — (c) BEHAVIOR EMPTY, (d) HARNESS
+     EMPTY, everything is (b) C6-boundary:** ① 9 suites import-dead on v3
+     `Schema.TaggedError` in C6 files — `connect/services.ts` (kills
+     connect ×3, raycast-connect, ingest-service, invites/
+     create-invite-body, and C7's own colocated `telegram/__tests__/
+resolve-public-url.test.ts` via telegram/connect-prompt → connect/
+     telegram) and `account-deletion/workflow.ts:51` (kills its own
+     suite). ② stripe-sync 9 reds: `Option.fromNullable`/`flatMapNullable`
+     in billing/stripe-sync.ts (pre-categorized C6, unchanged). ③
+     api-key-gate 6 + hooks 3 reds: v3 `new Billing({…})`/`new
+AppSettings({…})` stubs in the TEST files — under v4 the constructed
+     instance carries no shape, methods are undefined; includes ONE
+     assertion-looking failure (`Effect.exit smoke` expecting success)
+     that is downstream of the same broken stub, NOT a v4 behavior change
+     (root-caused). Fix is the same `.of()` API form when C6/C8 touches
+     those files.
 
 8. [ ] **Commit N+1 — residual sweep to full green.**
        Clear remaining diagnostics + leftover TODOs; then the branch's first full
@@ -686,7 +766,7 @@ Inventory taken 2026-08-09 against working tree (`main`, 8e36bf3). **Effect surf
 - [x] **C4 — LinkProcessorDO pipeline + metadata (27 files, L)** — 8 `Context.Tag` in `services.ts`; `Effect.unsafeMakeSemaphore` ×3 (class fields crossing the non-Effect boundary); `liveLayer` of 7 merged layers rebuilt per link (memoization change lands here); 4 `catchAllDefect` recovery paths that null the cached Store. Order: after C2+C3, parallel with C5. **Landed 2026-08-09 — see step 6 Executed C5+C4 block; includes the do-rpc adapter-drift migration (syncUpdateRpc storeId recovery arg).**
 - [x] **C5 — Sync backend glue (7 files, M — high blast radius)** — small API surface, all mechanical, but: `sync/index.ts` monkey-patches `setInterval` to prove the no-timer hibernation property — extend to `setTimeout` (v4 runtime may never call setInterval, blinding the probe); `getEventlogMax()` greps `eventlog_*` (verified unchanged at `2e4bcfc68`, re-verify at final SHA). Order: after C2, land with C4 as a pair. **Landed 2026-08-09 — probe extended to setTimeout, see step 6 Executed C5+C4 block.**
 - [ ] **C6 — HTTP surface: routes, connect, admin, invites, ingest, billing routes, account-deletion (42 files, L by volume)** — 11 `Context.Tag`; heaviest `catchTag` density (`connect/x.ts` 13, `connect/telegram.ts` 11); `Schema.parseJson` ×2 → `fromJsonString`. Sharp edge: `workflows/account-deletion.ts:76` is the repo's only `Effect.runtime<R>()` + `Runtime.runPromise` — bridges into CF Workflows `step.do()`; a wrong translation silently disables workflow retries. Order: after C2, parallel with C7.
-- [ ] **C7 — Background feature workers: telegram, x-sync, x-enrichment, weekly-digest, chat-agent, queue-handler (50 files, L)** — 11 `Context.Tag` + 2 `Effect.Service`; highest `catch*` density (`x-sync/effects.ts` 15); `x-sync/durable-object.ts` `get baseLayer` rebuilds AppLayerLive per `runEffect` call — worst-case memoization exhibit; `telegram/bot.ts` reaches AppLayerLive only transitively (tracing convention holds only transitively). Order: after C2+C3.
+- [x] **C7 — Background feature workers: telegram, x-sync, x-enrichment, weekly-digest, chat-agent, queue-handler (50 files, L)** — 11 `Context.Tag` + 2 `Effect.Service`; highest `catch*` density (`x-sync/effects.ts` 15); `x-sync/durable-object.ts` `get baseLayer` rebuilds AppLayerLive per `runEffect` call — worst-case memoization exhibit; `telegram/bot.ts` reaches AppLayerLive only transitively (tracing convention holds only transitively). Order: after C2+C3. **Landed 2026-08-09 — see step 7 Executed C7 block; hotspot 8 PASSED 4/4 first-ever v4 run; baseLayer rebuild preserved verbatim.**
 - [ ] **C8 — Tests (96 test files; 39 import `@effect/vitest`, L)** — `it.effect` ×361; `Effect.either`→`result` (all 55 in tests); `Either.*`→`Result.*` (109, all tests). Sharp edges: `e2e/admin.test.ts` is the sole `@effect/vitest` × pool-workers intersection (needs a plain-vitest fallback if v4 vitest doesn't boot in workerd); `process-link-concurrency.test.ts` asserts scheduling ORDER — the fiber rewrite can change interleaving with zero API changes (expect debugging, not renames). Colocated tests ride their cluster's commit; harness + `__tests__/` bulk is its own commit.
 - [ ] **C9 — Chrome extension `apps/extension/` (19 files, M) — now a FAST-FOLLOW PR, not part of the flip branch** (user decision 2026-08-09: lags on v3 briefly) — the repo's only `ManagedRuntime` ×2, `Stream.async` ×2 → `Stream.callback`, production `Either` → `Result`; own effect copy, no dedupe config, `bun:test` not `@effect/vitest`, NOT covered by root typecheck (`bun --cwd apps/extension compile`). CSP `script-src 'self' 'wasm-unsafe-eval'` — the msgpackr/eval class could resurface via v4's encoding modules. NOTE: lagging the source does NOT extend anything runtime-wise (the published artifact is a fixed v3 build either way), but matrix row 8's compat window closes only when a v4 build is published — which requires this migration. Don't lag long.
 
@@ -808,6 +888,31 @@ effect 3.21.2, `@effect/rpc` patch restored) redeploys the fork build.
   `Effect.andThen(x)` (lazy re-evaluation probe-verified). TaggedErrorClass
   supports `override get message()` getters unchanged (sync/errors.ts's 6
   message getters survive verbatim).
+- 2026-08-09 — **C7 pattern: v3 `new ServiceClass(shape)` test stubs →
+  `ServiceClass.of(shape)`.** v4 `Context.Service` classes have a
+  `new (_: never)` constructor whose instances DON'T carry the shape (the
+  runtime KeyClass constructor is a no-op) — `Layer.succeed(X, new X(shape))`
+  compiles nowhere and at runtime provides a method-less object
+  (`x.method is not a function`, or downstream defects). `X.of(shape)` is the
+  v4 identity helper with the same inference ergonomics; the shape object
+  passes through unchanged, so mock semantics are untouched. Applied in 5
+  test sites (process-link ×3 via one replace, process-link-concurrency,
+  enricher, runner ×2, billing.test ×1); the remaining v3 `new Billing`/`new
+AppSettings` sites live in C6/C8-boundary test files (see Found issues).
+- 2026-08-09 — **C7 mechanical patterns:** `Effect.timeoutFail({duration,
+onTimeout: () => err})` → `Effect.timeoutOrElse({duration, orElse: () =>
+err})` (TaggedErrorClass instances are yieldable failing Effects, so the
+  orElse form fails with the same error; source still interrupted on
+  timeout); `Effect.zipLeft(e)` → `Effect.tap(() => e)` (run-after-success +
+  discard-result + propagate-failure, v3-identical; v4 tap takes function
+  form only); `Schema.Schema.Type<typeof X>` → `typeof X.Type` (C3's
+  services.ts idiom, applied to weekly-digest rpc + generator).
+- 2026-08-09 — **v4 `Array.filterMap` takes a `Result`-returning filter,
+  not Option** — Option-returning callbacks are discarded wholesale at
+  runtime (`Result.isSuccess` gate fails on `Some`). Bridge an Option
+  pipeline with a terminal `Result.fromOption(() => null)`. Same
+  silent-failure family as `Option.fromNullable`/`Schema.DateFromNumber`:
+  invisible to check:effect, only running code catches it.
 - 2026-08-09 — **D1 verified clean**: migrations at `0013_lonely_giant_girl`
   (14 journal entries), tree clean, no pending/uncommitted migrations; the
   flip requires no schema change. Matrix row 12 stays as a guard against
@@ -1106,3 +1211,34 @@ tracer)` + `layerWithoutOtelTracer`) is the v4-native seam.
   assert `this.ctx.id.name === storeId` like `fetch`/`ingestAndProcess` do
   (defense-in-depth only — trust analysis showed a wrong-store delivery is
   structurally impossible without server-storage corruption).
+- 2026-08-09 (C7) — **HOTSPOT 8 RESOLVED: PASS.** The interleaving suite
+  (`process-link-concurrency.test.ts`, 4 tests: stalled-AI-doesn't-block-
+  metadata, permit-release ordering, AI-lane cap, metadata-lane cap) ran
+  under the v4 fiber runtime for the first time and passed 4/4 with zero
+  changes beyond two API forms (`new EnrichmentGenerator(…)` → `.of`, plus
+  the C7 prod-file unblocks). The feared fiber-rewrite scheduling drift did
+  not materialize — the Deferred-synchronized design (RG-codemod finding 5's
+  explicit `{startImmediately: true, uninterruptible: "inherit"}`) held.
+- 2026-08-09 (C7) — **TWO SILENTLY-BROKEN out-of-scope `Arr.filterMap`
+  sites remain**, same runtime-only class that produced build-digest-links'
+  8 reds: `connect/telegram.ts:231` (Option-returning callback — telegram
+  disconnect would delete ZERO API keys) and
+  `admin/activity-stats/metrics.ts:192` (`Option.none()` returns — retention
+  cohorts always empty). Both compile and pass check:effect. C6 MUST fix
+  both (grep `filterMap` before closing C6); no test currently covers the
+  connect/telegram one at runtime.
+- 2026-08-09 (C7) — boundary blockers left for C6, verified precisely: ①
+  `connect/services.ts` v3 `Schema.TaggedError` import-kills 7 suites
+  (connect ×3, raycast-connect, ingest-service, create-invite-body, and
+  C7's own `telegram/__tests__/resolve-public-url.test.ts` via
+  telegram/connect-prompt → connect/telegram — the ONLY C7-colocated suite
+  still red). ② `account-deletion/workflow.ts:51`
+  (`WorkflowOrchestrationError`) kills its own suite — C8a's boundary
+  pre-fix covered prepare.ts/runtime.ts but not workflow.ts. ③ v3
+  `new Billing({…})`/`new AppSettings({…})` stubs in
+  auth/**tests**/{api-key-gate,hooks}.test.ts (9 reds; includes the
+  api-key-gate `Effect.exit smoke` assertion failure — root-caused to the
+  method-less stub instance, NOT v4 behavior) and in the three
+  import-blocked connect tests + raycast-connect (latent behind ①). ④
+  `admin/trigger-digest.ts` still calls removed `Option.fromNullable`
+  (runtime TypeError when the admin digest-trigger route runs; C6).

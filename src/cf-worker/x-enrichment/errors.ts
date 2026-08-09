@@ -1,24 +1,24 @@
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 
 import { OrgId, XTweetId } from "../db/branded";
 
-export class ThreadProviderInvalidUrlError extends Schema.TaggedError<ThreadProviderInvalidUrlError>()(
+export class ThreadProviderInvalidUrlError extends Schema.TaggedErrorClass<ThreadProviderInvalidUrlError>()(
   "ThreadProviderInvalidUrlError",
   {
     url: Schema.String,
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
   }
 ) {}
 
-export class ThreadProviderTransportError extends Schema.TaggedError<ThreadProviderTransportError>()(
+export class ThreadProviderTransportError extends Schema.TaggedErrorClass<ThreadProviderTransportError>()(
   "ThreadProviderTransportError",
   {
     url: Schema.String,
-    cause: Schema.Defect,
+    cause: Schema.Defect(),
   }
 ) {}
 
-export class ThreadProviderHttpError extends Schema.TaggedError<ThreadProviderHttpError>()(
+export class ThreadProviderHttpError extends Schema.TaggedErrorClass<ThreadProviderHttpError>()(
   "ThreadProviderHttpError",
   {
     url: Schema.String,
@@ -27,16 +27,16 @@ export class ThreadProviderHttpError extends Schema.TaggedError<ThreadProviderHt
   }
 ) {}
 
-export class ThreadProviderResponseError extends Schema.TaggedError<ThreadProviderResponseError>()(
+export class ThreadProviderResponseError extends Schema.TaggedErrorClass<ThreadProviderResponseError>()(
   "ThreadProviderResponseError",
   {
     url: Schema.String,
     tweetId: Schema.optional(XTweetId),
-    cause: Schema.Defect,
+    cause: Schema.Defect(),
   }
 ) {}
 
-export class ThreadProviderEmptyError extends Schema.TaggedError<ThreadProviderEmptyError>()(
+export class ThreadProviderEmptyError extends Schema.TaggedErrorClass<ThreadProviderEmptyError>()(
   "ThreadProviderEmptyError",
   {
     url: Schema.String,
@@ -44,7 +44,7 @@ export class ThreadProviderEmptyError extends Schema.TaggedError<ThreadProviderE
   }
 ) {}
 
-export class ThreadProviderTimeoutError extends Schema.TaggedError<ThreadProviderTimeoutError>()(
+export class ThreadProviderTimeoutError extends Schema.TaggedErrorClass<ThreadProviderTimeoutError>()(
   "ThreadProviderTimeoutError",
   {
     url: Schema.String,
@@ -60,7 +60,7 @@ export type AnyThreadProviderError =
   | ThreadProviderEmptyError
   | ThreadProviderTimeoutError;
 
-export class EnrichmentBudgetExhaustedError extends Schema.TaggedError<EnrichmentBudgetExhaustedError>()(
+export class EnrichmentBudgetExhaustedError extends Schema.TaggedErrorClass<EnrichmentBudgetExhaustedError>()(
   "EnrichmentBudgetExhaustedError",
   {
     storeId: OrgId,
@@ -70,20 +70,18 @@ export class EnrichmentBudgetExhaustedError extends Schema.TaggedError<Enrichmen
   }
 ) {}
 
-export class EnrichmentGenerateError extends Schema.TaggedError<EnrichmentGenerateError>()(
+export class EnrichmentGenerateError extends Schema.TaggedErrorClass<EnrichmentGenerateError>()(
   "EnrichmentGenerateError",
   {
-    message:
-      /* TODO(effect-v4-codemod): manual migration required for schema-optionalWith-manual */ Schema.optionalWith(
-        Schema.String,
-        {
-          default: () => "Enrichment LLM call failed",
-        }
-      ),
+    message: Schema.String.pipe(
+      Schema.withConstructorDefault(
+        Effect.succeed("Enrichment LLM call failed")
+      )
+    ),
     model: Schema.String,
     promptChars: Schema.optional(Schema.Number),
     inputTokens: Schema.optional(Schema.Number),
     outputTokens: Schema.optional(Schema.Number),
-    cause: Schema.Defect,
+    cause: Schema.Defect(),
   }
 ) {}

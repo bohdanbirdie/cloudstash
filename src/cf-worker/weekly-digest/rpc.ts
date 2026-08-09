@@ -6,9 +6,7 @@ export const WeeklyDigestFailureReason = Schema.Literals([
   "event-sink",
   "defect",
 ]);
-export type WeeklyDigestFailureReason = Schema.Schema.Type<
-  typeof WeeklyDigestFailureReason
->;
+export type WeeklyDigestFailureReason = typeof WeeklyDigestFailureReason.Type;
 
 export const WeeklyDigestRpcResult = Schema.Union([
   Schema.Struct({
@@ -29,6 +27,4 @@ export const WeeklyDigestRpcResult = Schema.Union([
     status: Schema.Literal("dropped-deletion"),
   }),
 ]);
-export type WeeklyDigestRpcResult = Schema.Schema.Type<
-  typeof WeeklyDigestRpcResult
->;
+export type WeeklyDigestRpcResult = typeof WeeklyDigestRpcResult.Type;

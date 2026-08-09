@@ -48,7 +48,7 @@ const enrichmentStubs = Layer.mergeAll(
   ),
   Layer.succeed(
     EnrichmentGenerator,
-    new EnrichmentGenerator({
+    EnrichmentGenerator.of({
       generate: () =>
         Effect.die(new Error("unexpected EnrichmentGenerator call in test")),
     })
@@ -728,7 +728,7 @@ const enrichmentLayer = (opts: EnrichmentLayerOpts = {}) => {
     ),
     Layer.succeed(
       EnrichmentGenerator,
-      new EnrichmentGenerator({
+      EnrichmentGenerator.of({
         generate: () =>
           opts.generatorResult === undefined
             ? Effect.succeed({
@@ -841,7 +841,7 @@ describe("processLink enrichment router", () => {
             ),
             Layer.succeed(
               EnrichmentGenerator,
-              new EnrichmentGenerator({
+              EnrichmentGenerator.of({
                 generate: () =>
                   Effect.die(new Error("generator should not be called")),
               })

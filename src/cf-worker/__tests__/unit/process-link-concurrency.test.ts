@@ -35,7 +35,7 @@ const enrichmentStubs = Layer.mergeAll(
   ),
   Layer.succeed(
     EnrichmentGenerator,
-    new EnrichmentGenerator({
+    EnrichmentGenerator.of({
       generate: () =>
         Effect.die(new Error("unexpected EnrichmentGenerator call in test")),
     })

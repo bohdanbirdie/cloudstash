@@ -34,7 +34,7 @@ function makeBillingLayer(overrides: Partial<BillingImpl> = {}) {
     exists: () => Effect.succeed(true),
     listWithOwners: () => Effect.succeed([]),
   };
-  return Layer.succeed(Billing, new Billing({ ...defaults, ...overrides }));
+  return Layer.succeed(Billing, Billing.of({ ...defaults, ...overrides }));
 }
 
 describe("capabilitiesFor (pure)", () => {

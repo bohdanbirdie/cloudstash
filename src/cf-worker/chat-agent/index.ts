@@ -117,7 +117,7 @@ export class ChatAgentDO
    */
   async purgeAll(): Promise<void> {
     await Effect.runPromise(
-      Effect.gen(this, function* () {
+      Effect.gen({ self: this }, function* () {
         this.cachedStore = undefined;
         yield* Effect.promise(() => this.ctx.storage.deleteAll());
         yield* Effect.logInfo("purgeAll: storage wiped").pipe(
@@ -176,7 +176,7 @@ export class ChatAgentDO
     cursor: { createdAt: number; id: string } | null;
   }): Promise<ApiLinksPage> {
     return Effect.runPromise(
-      Effect.gen(this, function* () {
+      Effect.gen({ self: this }, function* () {
         const store = yield* Effect.promise(() => this.getStore());
         const rows = store.query(
           apiLinksPage$({
@@ -217,7 +217,7 @@ export class ChatAgentDO
 
   private async reserveTokens(estimate: number): Promise<ReserveOutcome> {
     return Effect.runPromise(
-      Effect.gen(this, function* () {
+      Effect.gen({ self: this }, function* () {
         const { limit, unavailable } = yield* this.resolveBudget();
         if (unavailable) {
           yield* Effect.annotateCurrentSpan({
@@ -318,7 +318,7 @@ export class ChatAgentDO
     never,
     Billing
   > {
-    return Effect.gen(this, function* () {
+    return Effect.gen({ self: this }, function* () {
       const period = getCurrentPeriod();
       const usage = yield* Effect.promise(() =>
         this.ctx.storage.get<UsageData>(getUsageKey(period))
