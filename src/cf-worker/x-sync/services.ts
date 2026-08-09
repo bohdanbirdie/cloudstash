@@ -1,4 +1,4 @@
-import { ServiceMap, Schema } from "effect";
+import { Context, Schema } from "effect";
 import type { Effect } from "effect";
 
 import { XTweetId, XUserId, XUsername } from "../db/branded";
@@ -38,7 +38,7 @@ export interface GetBookmarksParams {
   readonly paginationToken?: string;
 }
 
-export class XApiClient extends ServiceMap.Service<
+export class XApiClient extends Context.Service<
   XApiClient,
   {
     readonly getMe: (

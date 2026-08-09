@@ -1,4 +1,4 @@
-import { ServiceMap, Duration, Effect, Layer, Option, Schema } from "effect";
+import { Context, Duration, Effect, Layer, Option, Schema } from "effect";
 
 import { OrgId } from "../db/branded";
 import { maskId } from "../log-utils";
@@ -32,7 +32,7 @@ export interface EnrichmentUsageBindings {
   readonly kv: KVNamespace;
 }
 
-export class EnrichmentUsage extends ServiceMap.Service<
+export class EnrichmentUsage extends Context.Service<
   EnrichmentUsage,
   {
     readonly current: (

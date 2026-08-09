@@ -1,4 +1,4 @@
-import { ServiceMap, Effect, Layer, Match, Option, Schema } from "effect";
+import { Context, Effect, Layer, Match, Option, Schema } from "effect";
 
 import type { OrgId, UserId } from "../db/branded";
 import { WorkflowInstanceId } from "../db/branded";
@@ -37,7 +37,7 @@ export class DeletionRuntimeError extends Schema.TaggedError<DeletionRuntimeErro
  * compose without per-call Promise bridging. Tests provide
  * `Layer.succeed(DeletionRuntime, fakeImpl)`.
  */
-export class DeletionRuntime extends ServiceMap.Service<
+export class DeletionRuntime extends Context.Service<
   DeletionRuntime,
   {
     readonly markLinkProcessorDeleting: (

@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { ServiceMap, Effect, Runtime, Schema } from "effect";
+import { Context, Effect, Runtime, Schema } from "effect";
 
 import * as schema from "../db/schema";
 import { DbClient, query } from "../db/service";
@@ -40,7 +40,7 @@ export interface CfWorkflowStep {
  * so the orchestration is a plain `Effect.gen` — no `step` argument
  * threading, no Promise plumbing inside step bodies.
  */
-export class CfStep extends ServiceMap.Service<CfStep, CfWorkflowStep>()(
+export class CfStep extends Context.Service<CfStep, CfWorkflowStep>()(
   "@cloudstash/CfStep"
 ) {}
 

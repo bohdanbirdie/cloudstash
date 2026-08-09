@@ -202,17 +202,17 @@ risk, independently researched, reconciled below).
    **RG-codemod verdict (2026-08-09): dual ACCEPT with findings** (reviewer A
    = opus, reviewer B = fable, independent; convergent on the top findings).
    These are the **Stage 3 OPENING BACKLOG**, in priority order:
-   1. **`ServiceMap` → `Context` rename, 17 files / 33 conversions** — the
+   1. [x] **`ServiceMap` → `Context` rename, 17 files / 33 conversions** — the
       codemod targets a stale v4 beta (ServiceMap era, renamed back to
       `Context` by beta.99). Shape (`X.Service<Self, Shape>()("id")`) is
       exactly right, all 33 identity strings preserved byte-for-byte —
       mechanical namespace rename. Root cause of the entire +36 error rise
       (both reviewers traced the `missingEffectContext` cascade to it).
-   2. **Restore `this.storeId!` at `link-processor/durable-object.ts:420`** —
+   2. [x] **Restore `this.storeId!` at `link-processor/durable-object.ts:420`** —
       the sole purity violation in 74 files: the codemod's printer dropped a
       non-null assertion (twin at :372 kept it). Currently masked by the
       cascade; latent type error once the DO compiles.
-   3. **Finish the `TimeoutException` → `TimeoutError` rename pair**
+   3. [x] **Finish the `TimeoutException` → `TimeoutError` rename pair**
       (reviewer B's catch): constructor converted in
       `process-link.test.ts:355`, but four dependents still key the OLD tag —
       `process-link.ts:346,349` (`catchTags({TimeoutException:…}`),
@@ -220,11 +220,11 @@ risk, independently researched, reconciled below).
       `ai-summary-generator.live.ts:20` (`catchTag`), `services.ts:20` (type
       ref). Left as-is, real v4 timeouts would silently skip the AI-summary
       timeout fallback. The half-applied-rename class the gate exists for.
-   4. **`tapErrorCause` → `tapCause`, 7 sites, no marker** (auth/index.ts:249,
+   4. [x] **`tapErrorCause` → `tapCause`, 7 sites, no marker** (auth/index.ts:249,
       chat-agent/index.ts ×3, queue-handler.ts:155,
       workflows/account-deletion.ts:40, metadata/extractors/index.ts:28) —
       loud, but the codemod's coverage map missed it entirely.
-   5. **`forkChild` options decision, 5 sites in
+   5. [x] **`forkChild` options decision, 5 sites in
       process-link-concurrency.test.ts** — sole reviewer disagreement:
       A flagged SUSPICIOUS (bare `forkChild` = lazy start + non-inherited
       interruptibility vs v3), B cleared contextually (all 5 are
@@ -238,6 +238,19 @@ risk, independently researched, reconciled below).
    `Schema.headOrElse` (gone, livestore/queries/links.ts),
    `makeSemaphore`/`unsafeMakeSemaphore` naming (13), `Effect.runtime`/
    `Runtime.runPromise` bridge, `timeoutFail`.
+   **Fixed (2026-08-09):** all five landed as Stage 3's opening unit.
+   `check:effect` 254→**297 errors** / 132→**122 warnings** — the error RISE is
+   cascade expansion again (see Found issues), every touched file improved or
+   held. All five findings' API assumptions verified against beta.99 + vendor
+   `c5e06a96a` with zero contradictions. Reviewer gate: ACCEPT with findings
+   — scope purity exemplary (all 33 identity strings byte-verified), tapCause
+   semantics probe-verified identical to v3 tapErrorCause on all four exit
+   shapes, error-rise reproduced to the digit. Two accuracy notes: `vp check`
+   on touched files has 15 pre-existing/transient reds (not clean — see Found
+   issues), and the errorTag telemetry rename is observable;
+   `auth-payload.test.ts` 10/10 green; `process-link-concurrency.test.ts`
+   blocked at import by C8 harness debt (`Logger.withMinimumLogLevel` in
+   `src/livestore/__tests__/test-helpers.ts`), not by the forkChild options.
 
 4. [ ] **Commit 3 — C2 foundation: tracing, AppLayerLive, runtime, logging,
    core services.** `OtelTracingLive` is a rewrite, not a rename (v4 uses
@@ -515,3 +528,42 @@ _(running list — every surprise found during migration gets a line here)_
   changed-files-only: it reformatted both effect-v4 docs
   (markdown list-indent + `*…*`→`_…_`). Reverted to keep commit 2 pure —
   expect those docs to reformat again on any future full `bun run fix`.
+  (Stage 3 note: `bunx vp fmt <file>` scopes to one file — use that instead.)
+- 2026-08-09 (stage 3, opening unit) — **check:effect errors ROSE again after
+  fixing the RG-codemod backlog: 254→297** (warnings 132→122). Same cascade
+  class as stage 2: with `ServiceMap` unresolvable in beta.99, all 33 service
+  classes typed as `any`, suppressing diagnostics at every consuming site;
+  the `Context` rename made the types real and expanded the analyzable
+  surface. New errors sit exclusively in the services' dependents —
+  `*.live.ts` impls + tests (stripe-routes.test 32→50, validate-payload.test
+  0→16, runtime.test 0→4, source-auth.live 0→4, x-api-client.live 0→4) — while
+  every file this unit touched improved or held (chat-agent 6→3, LP
+  durable-object 5→2). Expect the count to keep breathing until the cluster
+  commits land; per-file deltas, not the total, are the burndown signal.
+- 2026-08-09 (stage 3) — beta.99 API verification found zero contradictions
+  with the RG-codemod findings: `Context.Service<Self, Shape>()("id")`
+  (node_modules/effect/src/Context.ts, documented example ~l.185; matches
+  vendor `leader-thread/types.ts:88`), `Effect.timeout` fails with
+  `Cause.TimeoutError` (`_tag: "TimeoutError"`; the `TimeoutException`
+  mentions surviving in Effect.ts are stale doc comments only),
+  `Effect.tapCause` same cause-callback shape as v3 `tapErrorCause`,
+  `forkChild` options `{ startImmediately?: boolean; uninterruptible?:
+  boolean | "inherit" }` — exactly the literals vendor `c5e06a96a` uses.
+- 2026-08-09 (RG review of the corrections unit) — the restored `storeId!` at
+  `link-processor/durable-object.ts:420` trips oxlint
+  `no-unnecessary-type-assertion` (a TRANSIENT: `this` inside
+  `Effect.gen(this, …)` currently resolves to `any` there, so the assertion
+  looks redundant; it becomes necessary once the gen typing lands in C4). Do
+  NOT revert — the twin at :372 shows the correct end state. Self-resolves;
+  +1 red on the already-red `vp check` gate.
+- 2026-08-09 (RG review) — telemetry note: the `errorTag` value
+  `"TimeoutException"` → `"TimeoutError"` flows into
+  `Effect.annotateCurrentSpan`/`annotateLogs` (process-link.ts) — any saved
+  log/trace query filtering the old tag silently stops matching. Not
+  persisted to D1/eventlog; no data migration needed.
+- 2026-08-09 — Effect language-service v4 integration confirmed accounted
+  for: `@effect/language-service@0.87.2` auto-detects the installed Effect
+  major and switches rule sets (v3-only rules off, v4 `outdatedApi` on) — no
+  config change needed; the same package serves both the `check:effect` CLI
+  and the editor tsserver plugin. Editor needs a TS-server restart after the
+  dep bump to load the new plugin version.

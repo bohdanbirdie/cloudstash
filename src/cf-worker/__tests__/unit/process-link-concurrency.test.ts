@@ -153,10 +153,16 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
             aiSemaphore: aiSem,
           }).pipe(Effect.provide(layers));
 
-        const fiberA = yield* Effect.forkChild(run(linkA));
+        const fiberA = yield* Effect.forkChild(run(linkA), {
+          startImmediately: true,
+          uninterruptible: "inherit",
+        });
         yield* Deferred.await(aiStarted);
 
-        const fiberB = yield* Effect.forkChild(run(linkB));
+        const fiberB = yield* Effect.forkChild(run(linkB), {
+          startImmediately: true,
+          uninterruptible: "inherit",
+        });
         yield* Deferred.await(metaB);
 
         expect(
@@ -223,7 +229,8 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
             aiSummaryEnabled: true,
             metadataSemaphore: metadataSem,
             aiSemaphore: aiSem,
-          }).pipe(Effect.provide(layers))
+          }).pipe(Effect.provide(layers)),
+          { startImmediately: true, uninterruptible: "inherit" }
         );
 
         yield* Deferred.await(aiStarted);
@@ -280,7 +287,8 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
               aiSummaryEnabled: true,
               metadataSemaphore: metadataSem,
               aiSemaphore: aiSem,
-            }).pipe(Effect.provide(layers))
+            }).pipe(Effect.provide(layers)),
+            { startImmediately: true, uninterruptible: "inherit" }
           )
         );
 
@@ -346,7 +354,8 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
               aiSummaryEnabled: true,
               metadataSemaphore: metadataSem,
               aiSemaphore: aiSem,
-            }).pipe(Effect.provide(layers))
+            }).pipe(Effect.provide(layers)),
+            { startImmediately: true, uninterruptible: "inherit" }
           )
         );
 

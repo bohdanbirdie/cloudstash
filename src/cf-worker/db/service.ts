@@ -1,9 +1,9 @@
-import { ServiceMap, Effect, Layer, Schema } from "effect";
+import { Context, Effect, Layer, Schema } from "effect";
 
 import type { Database } from ".";
 import { createDb } from ".";
 
-export class DbClient extends ServiceMap.Service<DbClient, Database>()(
+export class DbClient extends Context.Service<DbClient, Database>()(
   "@cloudstash/DbClient"
 ) {}
 

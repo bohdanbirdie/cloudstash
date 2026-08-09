@@ -1,4 +1,4 @@
-import { ServiceMap } from "effect";
+import { Context } from "effect";
 import type { Effect, Cause } from "effect";
 import type { ZodType } from "zod";
 
@@ -17,7 +17,7 @@ import type { AiCallError } from "./errors";
 export type MetadataFetchFailure =
   | MetadataFetchError
   | MetadataParseError
-  | Cause.TimeoutException;
+  | Cause.TimeoutError;
 
 type EventCreators = typeof events;
 export type StoreEvent = {
@@ -27,7 +27,7 @@ export type StoreEvent = {
 export type Link = typeof tables.links.Type;
 export type Status = typeof tables.linkProcessingStatus.Type;
 
-export class MetadataFetcher extends ServiceMap.Service<
+export class MetadataFetcher extends Context.Service<
   MetadataFetcher,
   {
     readonly fetch: (
@@ -36,7 +36,7 @@ export class MetadataFetcher extends ServiceMap.Service<
   }
 >()("MetadataFetcher") {}
 
-export class ContentExtractor extends ServiceMap.Service<
+export class ContentExtractor extends Context.Service<
   ContentExtractor,
   { readonly extract: (url: string) => Effect.Effect<ExtractedContent | null> }
 >()("ContentExtractor") {}
@@ -53,7 +53,7 @@ export interface GenerateParams {
   existingTags: readonly { readonly id: TagId; readonly name: string }[];
 }
 
-export class AiSummaryGenerator extends ServiceMap.Service<
+export class AiSummaryGenerator extends Context.Service<
   AiSummaryGenerator,
   {
     readonly generate: (
@@ -62,9 +62,7 @@ export class AiSummaryGenerator extends ServiceMap.Service<
   }
 >()("AiSummaryGenerator") {}
 
-export class WorkersAi extends ServiceMap.Service<WorkersAi, Ai>()(
-  "WorkersAi"
-) {}
+export class WorkersAi extends Context.Service<WorkersAi, Ai>()("WorkersAi") {}
 
 export interface LinkProcessorAiParams<T> {
   system: string;
@@ -73,7 +71,7 @@ export interface LinkProcessorAiParams<T> {
   maxOutputTokens: number;
 }
 
-export class LinkProcessorAi extends ServiceMap.Service<
+export class LinkProcessorAi extends Context.Service<
   LinkProcessorAi,
   {
     readonly generateObject: <T>(
@@ -82,7 +80,7 @@ export class LinkProcessorAi extends ServiceMap.Service<
   }
 >()("LinkProcessorAi") {}
 
-export class LinkEventStore extends ServiceMap.Service<
+export class LinkEventStore extends Context.Service<
   LinkEventStore,
   {
     readonly commit: (event: StoreEvent) => Effect.Effect<void>;
@@ -106,7 +104,7 @@ export interface NotifyPayload {
   suggestedTags: string[];
 }
 
-export class SourceNotifier extends ServiceMap.Service<
+export class SourceNotifier extends Context.Service<
   SourceNotifier,
   {
     readonly streamProgress: (
@@ -121,7 +119,7 @@ export class SourceNotifier extends ServiceMap.Service<
   }
 >()("SourceNotifier") {}
 
-export class FeatureStore extends ServiceMap.Service<
+export class FeatureStore extends Context.Service<
   FeatureStore,
   {
     readonly getCapabilities: (
@@ -130,7 +128,7 @@ export class FeatureStore extends ServiceMap.Service<
   }
 >()("FeatureStore") {}
 
-export class LinkRepository extends ServiceMap.Service<
+export class LinkRepository extends Context.Service<
   LinkRepository,
   {
     readonly findByUrl: (url: string) => Effect.Effect<Link | null>;

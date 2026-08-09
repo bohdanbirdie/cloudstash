@@ -340,7 +340,7 @@ export class ChatAgentDO
   private broadcastUsage(): Promise<void> {
     return this.getUsage().pipe(
       Effect.tap((usage) => Effect.sync(() => this.setState({ usage }))),
-      Effect.tapErrorCause((cause) =>
+      Effect.tapCause((cause) =>
         Effect.logError("broadcastUsage failed").pipe(
           Effect.annotateLogs({ cause: String(cause) })
         )
@@ -437,7 +437,7 @@ export class ChatAgentDO
                 ESTIMATED_TOKENS_PER_CALL
               ).pipe(
                 Effect.tap(() => Effect.promise(() => this.broadcastUsage())),
-                Effect.tapErrorCause((cause) =>
+                Effect.tapCause((cause) =>
                   Effect.logError("recordTokenUsage failed").pipe(
                     Effect.annotateLogs({ cause: String(cause) })
                   )
@@ -482,7 +482,7 @@ export class ChatAgentDO
                 ESTIMATED_TOKENS_PER_CALL
               ).pipe(
                 Effect.tap(() => Effect.promise(() => this.broadcastUsage())),
-                Effect.tapErrorCause((cause) =>
+                Effect.tapCause((cause) =>
                   Effect.logError("recordTokenUsage failed").pipe(
                     Effect.annotateLogs({ cause: String(cause) })
                   )

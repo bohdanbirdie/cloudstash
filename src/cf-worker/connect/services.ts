@@ -1,4 +1,4 @@
-import { ServiceMap, Schema } from "effect";
+import { Context, Schema } from "effect";
 import type { Effect } from "effect";
 
 import { ApiKey, ApiKeyRowId, OrgId } from "../db/branded";
@@ -35,7 +35,7 @@ export interface SessionData {
   readonly orgId: OrgId | null;
 }
 
-export class SessionProvider extends ServiceMap.Service<
+export class SessionProvider extends Context.Service<
   SessionProvider,
   {
     // Returns null when there's no session; fails with SessionLookupError when
@@ -47,7 +47,7 @@ export class SessionProvider extends ServiceMap.Service<
   }
 >()("SessionProvider") {}
 
-export class ApiKeyStore extends ServiceMap.Service<
+export class ApiKeyStore extends Context.Service<
   ApiKeyStore,
   {
     readonly listByUser: (
@@ -66,7 +66,7 @@ export class ApiKeyStore extends ServiceMap.Service<
   }
 >()("ApiKeyStore") {}
 
-export class VerificationStore extends ServiceMap.Service<
+export class VerificationStore extends Context.Service<
   VerificationStore,
   {
     readonly save: (
@@ -88,7 +88,7 @@ export interface TelegramConnectCode {
   readonly chatId: number;
 }
 
-export class TelegramConnectStore extends ServiceMap.Service<
+export class TelegramConnectStore extends Context.Service<
   TelegramConnectStore,
   {
     readonly issueCode: (chatId: number) => Effect.Effect<string, DbError>;

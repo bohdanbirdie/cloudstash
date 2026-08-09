@@ -1,5 +1,5 @@
 /// <reference types="@cloudflare/workers-types" />
-import { ServiceMap, Duration, Effect, Layer, Option } from "effect";
+import { Context, Duration, Effect, Layer, Option } from "effect";
 
 import type { TierCapabilities } from "@/lib/plan";
 
@@ -23,7 +23,7 @@ export interface DigestSchedulerDeps {
   ) => Effect.Effect<WeeklyDigestRpcResult>;
 }
 
-export class DigestScheduler extends ServiceMap.Service<
+export class DigestScheduler extends Context.Service<
   DigestScheduler,
   {
     readonly ensureScheduled: Effect.Effect<void>;

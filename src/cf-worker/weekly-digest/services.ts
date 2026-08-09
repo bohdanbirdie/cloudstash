@@ -1,4 +1,4 @@
-import { ServiceMap } from "effect";
+import { Context } from "effect";
 import type { Effect } from "effect";
 
 import type { DigestId } from "../db/branded";
@@ -12,7 +12,7 @@ export interface DigestCommitParams {
   readonly generatedAt: Date;
 }
 
-export class DigestLinkSource extends ServiceMap.Service<
+export class DigestLinkSource extends Context.Service<
   DigestLinkSource,
   {
     readonly collect: (
@@ -21,7 +21,7 @@ export class DigestLinkSource extends ServiceMap.Service<
   }
 >()("@cloudstash/DigestLinkSource") {}
 
-export class DigestEventSink extends ServiceMap.Service<
+export class DigestEventSink extends Context.Service<
   DigestEventSink,
   {
     readonly commit: (

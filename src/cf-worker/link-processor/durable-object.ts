@@ -417,7 +417,7 @@ export class LinkProcessorDO
       const rowsBefore = this.totalRowsWritten;
 
       const capabilities = yield* FeatureStore.pipe(
-        Effect.flatMap((fs) => fs.getCapabilities(this.storeId)),
+        Effect.flatMap((fs) => fs.getCapabilities(this.storeId!)),
         Effect.provide(
           FeatureStoreLive.pipe(
             Layer.provide(Billing.Default),

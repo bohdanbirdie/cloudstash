@@ -33,7 +33,7 @@ export const ContentExtractorLive = Layer.succeed(ContentExtractor, {
         ),
         while: (error) =>
           Match.value(error).pipe(
-            Match.tag("TimeoutException", () => true),
+            Match.tag("TimeoutError", () => true),
             Match.tag("ContentExtractionError", (e) => e.reason === "unknown"),
             Match.exhaustive
           ),

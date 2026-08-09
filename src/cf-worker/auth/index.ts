@@ -246,7 +246,7 @@ export const createAuth = (env: Env, db: Database) => {
           await Effect.runPromise(
             Schema.decodeUnknownEffect(UserId)(user.id).pipe(
               Effect.flatMap((userId) => prepareDeletion({ userId })),
-              Effect.tapErrorCause((cause) =>
+              Effect.tapCause((cause) =>
                 Effect.logError("Account deletion Phase 1 failed").pipe(
                   Effect.annotateLogs({
                     userId: maskId(user.id),

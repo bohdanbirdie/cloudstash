@@ -152,7 +152,7 @@ export const handleQueueBatch = (
 ): Promise<void> =>
   Effect.runPromise(
     handleQueueBatchEffect(batch, env.LINK_PROCESSOR_DO).pipe(
-      Effect.tapErrorCause((cause) =>
+      Effect.tapCause((cause) =>
         Effect.logError("Queue batch failed").pipe(
           Effect.annotateLogs({
             batchSize: batch.messages.length,

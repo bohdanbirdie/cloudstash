@@ -1,4 +1,4 @@
-import { ServiceMap, Schema } from "effect";
+import { Context, Schema } from "effect";
 import type { Effect } from "effect";
 
 import { XTweetId, XUsername } from "../db/branded";
@@ -29,7 +29,7 @@ export interface FetchThreadParams {
   readonly url: string;
 }
 
-export class ThreadProvider extends ServiceMap.Service<
+export class ThreadProvider extends Context.Service<
   ThreadProvider,
   {
     readonly fetchContext: (

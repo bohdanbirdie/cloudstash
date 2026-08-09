@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { ServiceMap, Effect, Layer } from "effect";
+import { Context, Effect, Layer } from "effect";
 
 import type { Auth } from ".";
 import { createAuth } from ".";
@@ -14,7 +14,7 @@ import { OtelTracingLive } from "../tracing";
 
 type UserRow = typeof schema.user.$inferSelect;
 
-export class AuthClient extends ServiceMap.Service<
+export class AuthClient extends Context.Service<
   AuthClient,
   Auth & {
     readonly findUser: (

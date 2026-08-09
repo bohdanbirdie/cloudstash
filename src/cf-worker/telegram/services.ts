@@ -1,4 +1,4 @@
-import { ServiceMap, Schema } from "effect";
+import { Context, Schema } from "effect";
 import type { Effect } from "effect";
 
 import type { OrgId, UserId } from "../db/branded";
@@ -18,7 +18,7 @@ export class TelegramBotApiError extends Schema.TaggedError<TelegramBotApiError>
   }
 ) {}
 
-export class Messenger extends ServiceMap.Service<
+export class Messenger extends Context.Service<
   Messenger,
   {
     readonly draft: (text: string) => Effect.Effect<void>;
@@ -26,7 +26,7 @@ export class Messenger extends ServiceMap.Service<
   }
 >()("Messenger") {}
 
-export class SourceAuth extends ServiceMap.Service<
+export class SourceAuth extends Context.Service<
   SourceAuth,
   {
     readonly authenticate: () => Effect.Effect<
@@ -45,7 +45,7 @@ export class SourceAuth extends ServiceMap.Service<
   }
 >()("SourceAuth") {}
 
-export class LinkQueue extends ServiceMap.Service<
+export class LinkQueue extends Context.Service<
   LinkQueue,
   {
     readonly enqueue: (
@@ -55,7 +55,7 @@ export class LinkQueue extends ServiceMap.Service<
   }
 >()("LinkQueue") {}
 
-export class TelegramKeyStore extends ServiceMap.Service<
+export class TelegramKeyStore extends Context.Service<
   TelegramKeyStore,
   {
     readonly put: (chatId: number, apiKey: string) => Effect.Effect<void>;
@@ -72,7 +72,7 @@ export class TelegramKeyStore extends ServiceMap.Service<
   }
 >()("TelegramKeyStore") {}
 
-export class TelegramBotApi extends ServiceMap.Service<
+export class TelegramBotApi extends Context.Service<
   TelegramBotApi,
   {
     readonly sendMessage: (

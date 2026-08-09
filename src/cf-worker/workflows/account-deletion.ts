@@ -37,7 +37,7 @@ export class AccountDeletionWorkflow extends WorkflowEntrypoint<
     await Effect.runPromise(
       Schema.decodeUnknownEffect(PayloadSchema)(event.payload).pipe(
         Effect.flatMap(runAccountDeletion),
-        Effect.tapErrorCause((cause) =>
+        Effect.tapCause((cause) =>
           Effect.logError("AccountDeletionWorkflow failed").pipe(
             Effect.annotateLogs({ cause: Cause.pretty(cause) })
           )

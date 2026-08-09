@@ -1,6 +1,6 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { generateText } from "ai";
-import { ServiceMap, Effect, Layer, Schema } from "effect";
+import { Context, Effect, Layer, Schema } from "effect";
 
 import { weeklyDigestGenerateErrorFromAiSdk } from "./errors";
 
@@ -29,7 +29,7 @@ export interface WeeklyDigestParams {
   readonly generatedAt: Date;
 }
 
-export class OpenRouterApiKey extends ServiceMap.Service<
+export class OpenRouterApiKey extends Context.Service<
   OpenRouterApiKey,
   string
 >()("@cloudstash/OpenRouterApiKey") {}

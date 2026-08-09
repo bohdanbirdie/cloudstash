@@ -1,4 +1,4 @@
-import { ServiceMap } from "effect";
+import { Context } from "effect";
 import type { Effect } from "effect";
 
 import type { XTweetId, XUserId, XUsername } from "../../db/branded";
@@ -19,7 +19,7 @@ export interface XSyncStateSnapshot {
   readonly syncEnabled: boolean;
 }
 
-export class XSyncStateStore extends ServiceMap.Service<
+export class XSyncStateStore extends Context.Service<
   XSyncStateStore,
   {
     /** Returns null if the DO has never been initialized (no identity set). */

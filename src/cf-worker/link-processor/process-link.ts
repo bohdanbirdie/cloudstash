@@ -343,10 +343,10 @@ export const processLink = ({
           logMessage: "Link processing failed: metadata parse",
           annotations: { cause: String(error.cause), url: error.url },
         }),
-      TimeoutException: () =>
+      TimeoutError: () =>
         recordFailure({
           error: "fetch:timeout",
-          errorTag: "TimeoutException",
+          errorTag: "TimeoutError",
           logLevel: "warning",
           logMessage: "Link processing failed: timeout",
           annotations: { url: link.url },
