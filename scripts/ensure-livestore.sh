@@ -30,7 +30,7 @@ if [ ! -d vendor/livestore/node_modules ]; then
       export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
       pm="corepack pnpm"
     else
-      pm="npx --yes pnpm@11.3.0"
+      pm="npx --yes pnpm@11.8.0"
     fi
     # vendor's pnpm-workspace.yaml sets `storeDir: .devenv/pnpm-store-pure-v1`,
     # which drops a huge content-addressable store INSIDE the repo. Vite's watcher

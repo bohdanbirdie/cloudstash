@@ -1,5 +1,6 @@
 [install]
-minimumReleaseAge = 604800
+# TEMP(2026-08-09): cooldown disabled for the effect-v4/livestore flip — the v4 snapshot published 2026-08-09 is inside the 7d window. Restore after Stage 1's install lands.
+# minimumReleaseAge = 604800
 
 # TEMPORARILY DISABLED 2026-06-24: Socket's free-mode endpoint
 # (firewall-api.socket.dev) is returning 503 and hard-fails `bun install` on

@@ -81,7 +81,7 @@ risk, independently researched, reconciled below).
      `type:hibernation` dimension. Reuse the GraphQL duration method from the
      2026-06-11 DO-duration incident for the real capture.
 
-2. [ ] **Commit 1 — the world flip (config only, zero `src/` changes).**
+2. [x] **Commit 1 — the world flip (config only, zero `src/` changes).**
    (a) Submodule → livestorejs/livestore `main` @ `2e4bcfc68` (or newer — the
    published-pin SHA must be re-pinned to match), `.gitmodules` URL + branch
    flip, `git submodule sync`, manual `pnpm install` (outside-repo store;
@@ -111,6 +111,45 @@ risk, independently researched, reconciled below).
    **Review gate — RG-flip (one subagent, checklist audit):** version parity vs
    upstream catalog; pin SHA == submodule SHA everywhere; patch fully gone;
    pnpm bumps present; bunfig exclusion scoped to `@livestore/*` only.
+   **Executed (2026-08-09):**
+   - Submodule: `livestorejs/livestore` `main` @
+     `2e4bcfc68f7ddad5696022a10d515a011f5f785a` ("Merge pull request #1545 from
+     livestorejs/bohdan/fix/do-rpc-client-recovery"), detached HEAD, tree clean.
+     `.gitmodules` url → livestorejs, branch → main; `git submodule sync` run.
+   - Vendor install: pnpm **11.8.0** (local pnpm resolves upstream's
+     `packageManager` pin), `pnpm install --frozen-lockfile --store-dir
+     ~/.pnpm-store-cloudstash-vendor`. First run aborted purging the fork-era
+     node_modules (`ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`); clean success
+     with `CI=true` (pnpm's documented remedy): 2600 packages, 11.7s, lockfile
+     passes supply-chain policies. Engine warnings only (examples want node
+     ≥24, local is v22.23.1).
+   - Root deps set: `effect` + `@effect/opentelemetry` + `@effect/vitest` →
+     `4.0.0-beta.99` exact; `@effect/language-service` → `0.87.2`; all 8
+     `@livestore/*` pins → `0.0.0-snapshot-2e4bcfc68f7ddad5696022a10d515a011f5f785a`;
+     `patchedDependencies` block + `patches/@effect%2Frpc@0.75.1.patch` deleted
+     (patches/ now empty). `bun install` clean (129 packages; bun 1.3.14).
+   - Alias list: `[livestore] aliasing 41 entrypoints` — **identical to the
+     41 baseline**; no new entrypoints appeared (step (d)'s expected
+     `@livestore/common/sync/next`-style additions did not materialize).
+     `tools/livestore-local.ts` loaded against the upstream exports maps with
+     zero errors, no changes needed. `auth-payload.test.ts` even passes 10/10
+     under v4 unchanged.
+   - `check:effect` burndown start: **218 errors, 204 warnings** (572 files).
+   - Effect resolution: root `node_modules/effect` = 4.0.0-beta.99; root
+     `node_modules/@effect/` = language-service + opentelemetry@beta.99 +
+     vitest@beta.99 only; `apps/extension/node_modules/effect` = 3.21.2
+     (expected lag). `bun.lock` holds exactly two effect resolutions (root
+     beta.99 + `@cloudstash/extension/effect` 3.21.2); v3-era `@effect/*`
+     (platform, rpc 0.75.1, cluster, sql, …) survive as lockfile entries for
+     the extension's old-snapshot subtree only, physically confined to
+     `node_modules/.bun/` store dirs (isolated linker) — not reachable from
+     root.
+   - React: root singleton 19.2.6 (`localflare/react` 19.2.4 is a nested
+     dev-dashboard copy, not bundled); vendor has no top-level react — the
+     dedupe assert stays a build-time check (matrix row 6).
+   - pnpm pins 11.3.0 → 11.8.0 in `ci.yml` + `ensure-livestore.sh`; remaining
+     `11.3.0` greps are docs-only (fork-integration doc; updated in the docs
+     commit). Targeted `vp check` on the changed config files: pass.
 
 3. [ ] **Commit 2 — codemod sweep (pure, regenerable).**
    Run effect-v3-to-v4 codemod over `src/`, `apps/extension/`, `tools/`,
@@ -359,3 +398,20 @@ _(running list — every surprise found during migration gets a line here)_
   usage) aborts before exporting `CF_ACCOUNT_ID` (line 22) — an earlier line
   in `.dev.vars` isn't shell-sourceable. Worked around by grep-extracting the
   two `CF_*` vars; the script then ran fine.
+- 2026-08-09 (stage 1) — vendor pnpm install aborts without a TTY when it must
+  purge a pre-existing node_modules (fork → upstream switch):
+  `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`. `CI=true` is pnpm's documented
+  remedy and what CI/Workers Builds already set; harmless locally.
+- 2026-08-09 (stage 1) — alias entrypoint count is **unchanged at 41** between
+  fork base `36dd15dac` and upstream `2e4bcfc68` — the plan's expectation of
+  new exports-map entrypoints (e.g. `@livestore/common/sync/next`) was wrong;
+  `tools/livestore-local.ts` needed zero changes. RG-flip should still eyeball
+  the full alias list diff, but there is none to review by count.
+- 2026-08-09 (stage 1) — `auth-payload.test.ts` passes 10/10 under v4 with
+  zero code changes (expected to fail): that file's surface
+  (schema decode + payload shapes) is v3/v4-stable. Don't read it as "sync
+  glue works" — `check:effect` still reports 218 errors repo-wide.
+- 2026-08-09 (stage 1) — upstream workspace `engines` want node ≥24; local is
+  v22.23.1 (warnings on example packages at install). May bite step 10 when
+  running upstream's own test suites inside the submodule — check node version
+  there first.
