@@ -26,13 +26,15 @@ import { Events, makeSchema, Schema, State } from "@livestore/livestore";
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  */
 
+const EventDate = Schema.DateFromString.check(Schema.isDateValid());
+
 export const tables = {
   linkInteractions: State.SQLite.table({
     columns: {
       id: State.SQLite.text({ primaryKey: true }),
       linkId: State.SQLite.text(),
       type: State.SQLite.text(),
-      occurredAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+      occurredAt: State.SQLite.integer({ schema: Schema.DateFromMillis }),
     },
     name: "link_interactions",
   }),
@@ -41,7 +43,7 @@ export const tables = {
       id: State.SQLite.text({ primaryKey: true }),
       linkId: State.SQLite.text({ default: "" }),
       tagId: State.SQLite.text({ default: "" }),
-      createdAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+      createdAt: State.SQLite.integer({ schema: Schema.DateFromMillis }),
     },
     indexes: [
       { columns: ["linkId"], name: "idx_link_tags_link" },
@@ -60,7 +62,7 @@ export const tables = {
       status: State.SQLite.text({ default: "pending" }),
       error: State.SQLite.text({ nullable: true }),
       notified: State.SQLite.integer({ default: 0 }),
-      updatedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+      updatedAt: State.SQLite.integer({ schema: Schema.DateFromMillis }),
     },
     name: "link_processing_status",
   }),
@@ -72,7 +74,7 @@ export const tables = {
       description: State.SQLite.text({ nullable: true }),
       image: State.SQLite.text({ nullable: true }),
       favicon: State.SQLite.text({ nullable: true }),
-      fetchedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+      fetchedAt: State.SQLite.integer({ schema: Schema.DateFromMillis }),
     },
     indexes: [
       {
@@ -88,7 +90,7 @@ export const tables = {
       linkId: State.SQLite.text({ default: "" }),
       summary: State.SQLite.text({ default: "" }),
       model: State.SQLite.text({ default: "" }),
-      summarizedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+      summarizedAt: State.SQLite.integer({ schema: Schema.DateFromMillis }),
     },
     indexes: [
       {
@@ -106,14 +108,14 @@ export const tables = {
       status: State.SQLite.text({ default: "unread" }),
       source: State.SQLite.text({ nullable: true }),
       sourceMeta: State.SQLite.text({ nullable: true }),
-      createdAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+      createdAt: State.SQLite.integer({ schema: Schema.DateFromMillis }),
       completedAt: State.SQLite.integer({
         nullable: true,
-        schema: Schema.DateFromNumber,
+        schema: Schema.DateFromMillis,
       }),
       deletedAt: State.SQLite.integer({
         nullable: true,
-        schema: Schema.DateFromNumber,
+        schema: Schema.DateFromMillis,
       }),
     },
     indexes: [
@@ -143,10 +145,10 @@ export const tables = {
       id: State.SQLite.text({ primaryKey: true }),
       name: State.SQLite.text({ default: "" }),
       sortOrder: State.SQLite.integer({ default: 0 }),
-      createdAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+      createdAt: State.SQLite.integer({ schema: Schema.DateFromMillis }),
       deletedAt: State.SQLite.integer({
         nullable: true,
-        schema: Schema.DateFromNumber,
+        schema: Schema.DateFromMillis,
       }),
     },
     name: "tags",
@@ -159,7 +161,7 @@ export const tables = {
       suggestedName: State.SQLite.text({ default: "" }),
       status: State.SQLite.text({ default: "pending" }),
       model: State.SQLite.text({ default: "" }),
-      suggestedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+      suggestedAt: State.SQLite.integer({ schema: Schema.DateFromMillis }),
     },
     indexes: [{ columns: ["linkId"], name: "idx_tag_suggestions_link" }],
     name: "tag_suggestions",
@@ -169,7 +171,7 @@ export const tables = {
       id: State.SQLite.text({ primaryKey: true }),
       period: State.SQLite.text({ default: "" }),
       contentMd: State.SQLite.text({ default: "" }),
-      generatedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+      generatedAt: State.SQLite.integer({ schema: Schema.DateFromMillis }),
     },
     indexes: [
       { columns: ["generatedAt"], name: "idx_weekly_digests_generated" },
@@ -181,12 +183,12 @@ export const tables = {
 export const events = {
   linkCompleted: Events.synced({
     name: "v1.LinkCompleted",
-    schema: Schema.Struct({ completedAt: Schema.Date, id: Schema.String }),
+    schema: Schema.Struct({ completedAt: EventDate, id: Schema.String }),
   }),
   linkCreated: Events.synced({
     name: "v1.LinkCreated",
     schema: Schema.Struct({
-      createdAt: Schema.Date,
+      createdAt: EventDate,
       domain: Schema.String,
       id: Schema.String,
       url: Schema.String,
@@ -195,7 +197,7 @@ export const events = {
   linkCreatedV2: Events.synced({
     name: "v2.LinkCreated",
     schema: Schema.Struct({
-      createdAt: Schema.Date,
+      createdAt: EventDate,
       domain: Schema.String,
       id: Schema.String,
       source: Schema.String,
@@ -205,14 +207,14 @@ export const events = {
   }),
   linkDeleted: Events.synced({
     name: "v1.LinkDeleted",
-    schema: Schema.Struct({ deletedAt: Schema.Date, id: Schema.String }),
+    schema: Schema.Struct({ deletedAt: EventDate, id: Schema.String }),
   }),
   linkInteracted: Events.synced({
     name: "v1.LinkInteracted",
     schema: Schema.Struct({
       id: Schema.String,
       linkId: Schema.String,
-      occurredAt: Schema.Date,
+      occurredAt: EventDate,
       type: Schema.String,
     }),
   }),
@@ -221,7 +223,7 @@ export const events = {
     schema: Schema.Struct({
       description: Schema.NullOr(Schema.String),
       favicon: Schema.NullOr(Schema.String),
-      fetchedAt: Schema.Date,
+      fetchedAt: EventDate,
       id: Schema.String,
       image: Schema.NullOr(Schema.String),
       linkId: Schema.String,
@@ -232,14 +234,14 @@ export const events = {
     name: "v1.LinkProcessingCancelled",
     schema: Schema.Struct({
       linkId: Schema.String,
-      updatedAt: Schema.Date,
+      updatedAt: EventDate,
     }),
   }),
   linkProcessingCompleted: Events.synced({
     name: "v1.LinkProcessingCompleted",
     schema: Schema.Struct({
       linkId: Schema.String,
-      updatedAt: Schema.Date,
+      updatedAt: EventDate,
     }),
   }),
   linkProcessingFailed: Events.synced({
@@ -247,28 +249,28 @@ export const events = {
     schema: Schema.Struct({
       error: Schema.String,
       linkId: Schema.String,
-      updatedAt: Schema.Date,
+      updatedAt: EventDate,
     }),
   }),
   linkProcessingStarted: Events.synced({
     name: "v1.LinkProcessingStarted",
     schema: Schema.Struct({
       linkId: Schema.String,
-      updatedAt: Schema.Date,
+      updatedAt: EventDate,
     }),
   }),
   linkReprocessRequested: Events.synced({
     name: "v1.LinkReprocessRequested",
     schema: Schema.Struct({
       linkId: Schema.String,
-      requestedAt: Schema.Date,
+      requestedAt: EventDate,
     }),
   }),
   linkSourceNotified: Events.synced({
     name: "v1.LinkSourceNotified",
     schema: Schema.Struct({
       linkId: Schema.String,
-      notifiedAt: Schema.Date,
+      notifiedAt: EventDate,
     }),
   }),
   linkRestored: Events.synced({
@@ -281,7 +283,7 @@ export const events = {
       id: Schema.String,
       linkId: Schema.String,
       model: Schema.String,
-      summarizedAt: Schema.Date,
+      summarizedAt: EventDate,
       summary: Schema.String,
     }),
   }),
@@ -293,7 +295,7 @@ export const events = {
   tagCreated: Events.synced({
     name: "v1.TagCreated",
     schema: Schema.Struct({
-      createdAt: Schema.Date,
+      createdAt: EventDate,
       id: Schema.String,
       name: Schema.String,
       sortOrder: Schema.Number,
@@ -302,7 +304,7 @@ export const events = {
   tagDeleted: Events.synced({
     name: "v1.TagDeleted",
     schema: Schema.Struct({
-      deletedAt: Schema.Date,
+      deletedAt: EventDate,
       id: Schema.String,
     }),
   }),
@@ -324,7 +326,7 @@ export const events = {
   linkTagged: Events.synced({
     name: "v1.LinkTagged",
     schema: Schema.Struct({
-      createdAt: Schema.Date,
+      createdAt: EventDate,
       id: Schema.String,
       linkId: Schema.String,
       tagId: Schema.String,
@@ -350,7 +352,7 @@ export const events = {
       id: Schema.String,
       linkId: Schema.String,
       model: Schema.String,
-      suggestedAt: Schema.Date,
+      suggestedAt: EventDate,
       suggestedName: Schema.String,
       tagId: Schema.NullOr(Schema.String),
     }),
@@ -372,7 +374,7 @@ export const events = {
     name: "v1.WeeklyDigestGenerated",
     schema: Schema.Struct({
       contentMd: Schema.String,
-      generatedAt: Schema.Date,
+      generatedAt: EventDate,
       id: Schema.String,
       period: Schema.String,
     }),

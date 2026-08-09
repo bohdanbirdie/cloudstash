@@ -28,7 +28,7 @@ import { useOrgFeatures } from "@/hooks/use-org-features";
 import { getHotkeyLabel } from "@/lib/hotkey-label";
 import { usePaywall } from "@/stores/paywall-store";
 
-const UrlSchema = Schema.URL;
+const UrlSchema = Schema.URLFromString;
 
 async function readClipboardUrl(): Promise<string | null> {
   try {

@@ -1,0 +1,444 @@
+{
+  "$provenance": "Generated 2026-08-09 on branch feat/effect-v4-livestore-upstream (C3). encodedV3 strings produced by effect@3.21.2 (apps/extension dependency context) encoding the v1/v2 event arg structs from main:src/livestore/schema.ts (v3 Schema.Date = ISO string wire form). realRows are fork/v3-written eventlog_7_* rows exported from .wrangler/state/v3/do/cloudstash-SyncBackendDO (one earliest row per event type). Regeneration method documented in docs/todos/effect-v4-migration-progress.md (C3 Executed block).",
+  "realRows": [
+    {
+      "name": "v2.LinkCreated",
+      "args": "{\"createdAt\":\"2026-06-24T12:45:27.136Z\",\"domain\":\"www.typeonce.dev\",\"id\":\"941ff392-4dd3-4e02-bb2c-a1d4bc4c6428\",\"source\":\"app\",\"sourceMeta\":null,\"url\":\"https://www.typeonce.dev/course/effect-beginners-complete-getting-started\"}",
+      "seqNum": 1,
+      "parentSeqNum": 0,
+      "createdAt": "2026-06-24T12:45:27.291Z",
+      "clientId": "ZT7Se",
+      "sessionId": "2vizu"
+    },
+    {
+      "name": "v1.LinkProcessingStarted",
+      "args": "{\"linkId\":\"941ff392-4dd3-4e02-bb2c-a1d4bc4c6428\",\"updatedAt\":\"2026-06-24T12:45:27.421Z\"}",
+      "seqNum": 2,
+      "parentSeqNum": 1,
+      "createdAt": "2026-06-24T12:45:27.470Z",
+      "clientId": "link-processor-do",
+      "sessionId": "rKQ1GNTniuTlSwUfu29G2"
+    },
+    {
+      "name": "v1.LinkMetadataFetched",
+      "args": "{\"description\":\"Build production and type-safe Typescript apps with Effect. In this course we go from no knowledge of effect to implementing an API request with Runtime, Layer, Config, and more.\",\"favicon\":\"https://www.typeonce.dev/icon.png?icon.0ew7~7uhfeojo.png\",\"fetchedAt\":\"2026-06-24T12:45:27.478Z\",\"id\":\"66857827-6573-4adb-b3d9-9edc5355f9b7\",\"image\":\"https://www.typeonce.dev/static/images/course/effect-beginners-complete-getting-started.webp\",\"linkId\":\"941ff392-4dd3-4e02-bb2c-a1d4bc4c6428\",\"title\":\"Effect: Beginners Complete Getting Started\"}",
+      "seqNum": 3,
+      "parentSeqNum": 2,
+      "createdAt": "2026-06-24T12:45:27.528Z",
+      "clientId": "ZT7Se",
+      "sessionId": "2vizu"
+    },
+    {
+      "name": "v1.LinkSummarized",
+      "args": "{\"id\":\"Ry53gg_YCEwrNV_kh2Dt4\",\"linkId\":\"941ff392-4dd3-4e02-bb2c-a1d4bc4c6428\",\"model\":\"@cf/meta/llama-3.3-70b-instruct-fp8-fast\",\"summarizedAt\":\"2026-06-24T12:45:35.046Z\",\"summary\":\"The effect library provides a standard library for TypeScript, enabling the building of type-safe production applications. It offers features such as error handling, configuration, mocking, and testing. A course is available to guide learners from zero knowledge to building their first API with effect.\"}",
+      "seqNum": 5,
+      "parentSeqNum": 4,
+      "createdAt": "2026-06-24T12:45:35.081Z",
+      "clientId": "link-processor-do",
+      "sessionId": "rKQ1GNTniuTlSwUfu29G2"
+    },
+    {
+      "name": "v1.TagSuggested",
+      "args": "{\"id\":\"Mt3QrMFBkvGAOLzgR5T6v\",\"linkId\":\"941ff392-4dd3-4e02-bb2c-a1d4bc4c6428\",\"model\":\"@cf/meta/llama-3.3-70b-instruct-fp8-fast\",\"suggestedAt\":\"2026-06-24T12:45:35.052Z\",\"suggestedName\":\"typescript\",\"tagId\":null}",
+      "seqNum": 6,
+      "parentSeqNum": 5,
+      "createdAt": "2026-06-24T12:45:35.095Z",
+      "clientId": "link-processor-do",
+      "sessionId": "rKQ1GNTniuTlSwUfu29G2"
+    },
+    {
+      "name": "v1.LinkProcessingCompleted",
+      "args": "{\"linkId\":\"941ff392-4dd3-4e02-bb2c-a1d4bc4c6428\",\"updatedAt\":\"2026-06-24T12:45:35.057Z\"}",
+      "seqNum": 8,
+      "parentSeqNum": 7,
+      "createdAt": "2026-06-24T12:45:35.095Z",
+      "clientId": "link-processor-do",
+      "sessionId": "rKQ1GNTniuTlSwUfu29G2"
+    },
+    {
+      "name": "v1.LinkProcessingFailed",
+      "args": "{\"error\":\"AiCallError\",\"linkId\":\"f514a6d1-7a04-4a8f-83d7-49a8f7af654a\",\"updatedAt\":\"2026-06-24T12:46:09.293Z\"}",
+      "seqNum": 38,
+      "parentSeqNum": 37,
+      "createdAt": "2026-06-24T12:46:09.307Z",
+      "clientId": "link-processor-do",
+      "sessionId": "rKQ1GNTniuTlSwUfu29G2"
+    },
+    {
+      "name": "v1.LinkSourceNotified",
+      "args": "{\"linkId\":\"mND3qIBCqeMHWuL3wA99D\",\"notifiedAt\":\"2026-06-24T12:57:04.096Z\"}",
+      "seqNum": 83,
+      "parentSeqNum": 82,
+      "createdAt": "2026-06-24T12:57:04.121Z",
+      "clientId": "link-processor-do",
+      "sessionId": "rKQ1GNTniuTlSwUfu29G2"
+    },
+    {
+      "name": "v1.WeeklyDigestGenerated",
+      "args": "{\"contentMd\":\"Your week was dominated by deep dives into TypeScript architecture, specifically through the lens of functional programming and state management. You explored how to build robust, type-safe backends in https://www.typeonce.dev/course/effect-beginners-complete-getting-started and investigated the complex interaction between infrastructure and code in https://github.com/livestorejs/livestore/issues/1328. Between these technical system challenges, you also found time to appreciate the visual design patterns emerging in modern UI development.\",\"generatedAt\":\"2026-06-24T13:52:10.754Z\",\"id\":\"-X7wFffEJ1dHXvrABUp2X\",\"period\":\"2026-W26\"}",
+      "seqNum": 119,
+      "parentSeqNum": 118,
+      "createdAt": "2026-06-24T13:52:12.070Z",
+      "clientId": "link-processor-do",
+      "sessionId": "rKQ1GNTniuTlSwUfu29G2"
+    },
+    {
+      "name": "v1.LinkReprocessRequested",
+      "args": "{\"linkId\":\"rg6KM9qEZKp-vrba8wSz1\",\"requestedAt\":\"2026-06-24T14:23:37.420Z\"}",
+      "seqNum": 3142,
+      "parentSeqNum": 3141,
+      "createdAt": "2026-06-24T14:23:37.539Z",
+      "clientId": "ZT7Se",
+      "sessionId": "2vizu"
+    },
+    {
+      "name": "v1.LinkDeleted",
+      "args": "{\"deletedAt\":\"2026-06-24T15:03:38.728Z\",\"id\":\"-0o-ARV0mOoPpfx6c5qKQ\"}",
+      "seqNum": 9147,
+      "parentSeqNum": 9146,
+      "createdAt": "2026-06-24T15:03:39.212Z",
+      "clientId": "ZT7Se",
+      "sessionId": "2vizu"
+    }
+  ],
+  "synthetic": [
+    {
+      "event": "v1.LinkCompleted",
+      "variant": "canonical",
+      "args": {
+        "completedAt": {
+          "$date": "2026-01-02T09:30:01.101Z"
+        },
+        "id": "link-01"
+      },
+      "encodedV3": "{\"completedAt\":\"2026-01-02T09:30:01.101Z\",\"id\":\"link-01\"}"
+    },
+    {
+      "event": "v1.LinkCreated",
+      "variant": "canonical",
+      "args": {
+        "createdAt": {
+          "$date": "2026-01-03T09:30:02.102Z"
+        },
+        "domain": "example.com",
+        "id": "link-02",
+        "url": "https://example.com/a"
+      },
+      "encodedV3": "{\"createdAt\":\"2026-01-03T09:30:02.102Z\",\"domain\":\"example.com\",\"id\":\"link-02\",\"url\":\"https://example.com/a\"}"
+    },
+    {
+      "event": "v2.LinkCreated",
+      "variant": "canonical",
+      "args": {
+        "createdAt": {
+          "$date": "2026-01-04T09:30:03.103Z"
+        },
+        "domain": "example.com",
+        "id": "link-03",
+        "source": "raycast",
+        "sourceMeta": "{\"deeplink\":\"raycast://x\"}",
+        "url": "https://example.com/b"
+      },
+      "encodedV3": "{\"createdAt\":\"2026-01-04T09:30:03.103Z\",\"domain\":\"example.com\",\"id\":\"link-03\",\"source\":\"raycast\",\"sourceMeta\":\"{\\\"deeplink\\\":\\\"raycast://x\\\"}\",\"url\":\"https://example.com/b\"}"
+    },
+    {
+      "event": "v2.LinkCreated",
+      "variant": "nulls",
+      "args": {
+        "createdAt": {
+          "$date": "2026-01-05T09:30:04.104Z"
+        },
+        "domain": "example.org",
+        "id": "link-04",
+        "source": "app",
+        "sourceMeta": null,
+        "url": "https://example.org/c"
+      },
+      "encodedV3": "{\"createdAt\":\"2026-01-05T09:30:04.104Z\",\"domain\":\"example.org\",\"id\":\"link-04\",\"source\":\"app\",\"sourceMeta\":null,\"url\":\"https://example.org/c\"}"
+    },
+    {
+      "event": "v1.LinkDeleted",
+      "variant": "canonical",
+      "args": {
+        "deletedAt": {
+          "$date": "2026-01-06T09:30:05.105Z"
+        },
+        "id": "link-05"
+      },
+      "encodedV3": "{\"deletedAt\":\"2026-01-06T09:30:05.105Z\",\"id\":\"link-05\"}"
+    },
+    {
+      "event": "v1.LinkInteracted",
+      "variant": "canonical",
+      "args": {
+        "id": "int-06",
+        "linkId": "link-06",
+        "occurredAt": {
+          "$date": "2026-01-07T09:30:06.106Z"
+        },
+        "type": "open"
+      },
+      "encodedV3": "{\"id\":\"int-06\",\"linkId\":\"link-06\",\"occurredAt\":\"2026-01-07T09:30:06.106Z\",\"type\":\"open\"}"
+    },
+    {
+      "event": "v1.LinkMetadataFetched",
+      "variant": "canonical",
+      "args": {
+        "description": "A \"quoted\" description — with unicode ✓ and emoji 🎯",
+        "favicon": "https://example.com/favicon.ico",
+        "fetchedAt": {
+          "$date": "2026-01-08T09:30:07.107Z"
+        },
+        "id": "snap-07",
+        "image": "https://example.com/og.png",
+        "linkId": "link-07",
+        "title": "Example Title"
+      },
+      "encodedV3": "{\"description\":\"A \\\"quoted\\\" description — with unicode ✓ and emoji 🎯\",\"favicon\":\"https://example.com/favicon.ico\",\"fetchedAt\":\"2026-01-08T09:30:07.107Z\",\"id\":\"snap-07\",\"image\":\"https://example.com/og.png\",\"linkId\":\"link-07\",\"title\":\"Example Title\"}"
+    },
+    {
+      "event": "v1.LinkMetadataFetched",
+      "variant": "nulls",
+      "args": {
+        "description": null,
+        "favicon": null,
+        "fetchedAt": {
+          "$date": "2026-01-09T09:30:08.108Z"
+        },
+        "id": "snap-08",
+        "image": null,
+        "linkId": "link-08",
+        "title": null
+      },
+      "encodedV3": "{\"description\":null,\"favicon\":null,\"fetchedAt\":\"2026-01-09T09:30:08.108Z\",\"id\":\"snap-08\",\"image\":null,\"linkId\":\"link-08\",\"title\":null}"
+    },
+    {
+      "event": "v1.LinkProcessingCancelled",
+      "variant": "canonical",
+      "args": {
+        "linkId": "link-09",
+        "updatedAt": {
+          "$date": "2026-01-10T09:30:09.109Z"
+        }
+      },
+      "encodedV3": "{\"linkId\":\"link-09\",\"updatedAt\":\"2026-01-10T09:30:09.109Z\"}"
+    },
+    {
+      "event": "v1.LinkProcessingCompleted",
+      "variant": "canonical",
+      "args": {
+        "linkId": "link-10",
+        "updatedAt": {
+          "$date": "2026-01-11T09:30:10.110Z"
+        }
+      },
+      "encodedV3": "{\"linkId\":\"link-10\",\"updatedAt\":\"2026-01-11T09:30:10.110Z\"}"
+    },
+    {
+      "event": "v1.LinkProcessingFailed",
+      "variant": "canonical",
+      "args": {
+        "error": "MetadataFetchError: timeout after 10s",
+        "linkId": "link-11",
+        "updatedAt": {
+          "$date": "2026-01-12T09:30:11.111Z"
+        }
+      },
+      "encodedV3": "{\"error\":\"MetadataFetchError: timeout after 10s\",\"linkId\":\"link-11\",\"updatedAt\":\"2026-01-12T09:30:11.111Z\"}"
+    },
+    {
+      "event": "v1.LinkProcessingStarted",
+      "variant": "canonical",
+      "args": {
+        "linkId": "link-12",
+        "updatedAt": {
+          "$date": "2026-01-13T09:30:12.112Z"
+        }
+      },
+      "encodedV3": "{\"linkId\":\"link-12\",\"updatedAt\":\"2026-01-13T09:30:12.112Z\"}"
+    },
+    {
+      "event": "v1.LinkReprocessRequested",
+      "variant": "canonical",
+      "args": {
+        "linkId": "link-13",
+        "requestedAt": {
+          "$date": "2026-01-14T09:30:13.113Z"
+        }
+      },
+      "encodedV3": "{\"linkId\":\"link-13\",\"requestedAt\":\"2026-01-14T09:30:13.113Z\"}"
+    },
+    {
+      "event": "v1.LinkSourceNotified",
+      "variant": "canonical",
+      "args": {
+        "linkId": "link-14",
+        "notifiedAt": {
+          "$date": "2026-01-15T09:30:14.114Z"
+        }
+      },
+      "encodedV3": "{\"linkId\":\"link-14\",\"notifiedAt\":\"2026-01-15T09:30:14.114Z\"}"
+    },
+    {
+      "event": "v1.LinkRestored",
+      "variant": "canonical",
+      "args": {
+        "id": "link-15"
+      },
+      "encodedV3": "{\"id\":\"link-15\"}"
+    },
+    {
+      "event": "v1.LinkSummarized",
+      "variant": "canonical",
+      "args": {
+        "id": "sum-16",
+        "linkId": "link-16",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "summarizedAt": {
+          "$date": "2026-01-17T09:30:16.116Z"
+        },
+        "summary": "A concise summary.\nWith a second line."
+      },
+      "encodedV3": "{\"id\":\"sum-16\",\"linkId\":\"link-16\",\"model\":\"@cf/meta/llama-3.3-70b-instruct-fp8-fast\",\"summarizedAt\":\"2026-01-17T09:30:16.116Z\",\"summary\":\"A concise summary.\\nWith a second line.\"}"
+    },
+    {
+      "event": "v1.LinkUncompleted",
+      "variant": "canonical",
+      "args": {
+        "id": "link-17"
+      },
+      "encodedV3": "{\"id\":\"link-17\"}"
+    },
+    {
+      "event": "v1.TagCreated",
+      "variant": "canonical",
+      "args": {
+        "createdAt": {
+          "$date": "2026-01-19T09:30:18.118Z"
+        },
+        "id": "tag-18",
+        "name": "typescript",
+        "sortOrder": 3
+      },
+      "encodedV3": "{\"createdAt\":\"2026-01-19T09:30:18.118Z\",\"id\":\"tag-18\",\"name\":\"typescript\",\"sortOrder\":3}"
+    },
+    {
+      "event": "v1.TagDeleted",
+      "variant": "canonical",
+      "args": {
+        "deletedAt": {
+          "$date": "2026-01-20T09:30:19.119Z"
+        },
+        "id": "tag-19"
+      },
+      "encodedV3": "{\"deletedAt\":\"2026-01-20T09:30:19.119Z\",\"id\":\"tag-19\"}"
+    },
+    {
+      "event": "v1.TagRenamed",
+      "variant": "canonical",
+      "args": {
+        "id": "tag-20",
+        "name": "effect-ts"
+      },
+      "encodedV3": "{\"id\":\"tag-20\",\"name\":\"effect-ts\"}"
+    },
+    {
+      "event": "v1.TagReordered",
+      "variant": "canonical",
+      "args": {
+        "id": "tag-21",
+        "sortOrder": 7
+      },
+      "encodedV3": "{\"id\":\"tag-21\",\"sortOrder\":7}"
+    },
+    {
+      "event": "v1.LinkTagged",
+      "variant": "canonical",
+      "args": {
+        "createdAt": {
+          "$date": "2026-01-23T09:30:22.122Z"
+        },
+        "id": "lt-22",
+        "linkId": "link-22",
+        "tagId": "tag-22"
+      },
+      "encodedV3": "{\"createdAt\":\"2026-01-23T09:30:22.122Z\",\"id\":\"lt-22\",\"linkId\":\"link-22\",\"tagId\":\"tag-22\"}"
+    },
+    {
+      "event": "v1.LinkUntagged",
+      "variant": "canonical",
+      "args": {
+        "id": "lt-23"
+      },
+      "encodedV3": "{\"id\":\"lt-23\"}"
+    },
+    {
+      "event": "v2.LinkUntagged",
+      "variant": "canonical",
+      "args": {
+        "linkId": "link-24",
+        "tagId": "tag-24"
+      },
+      "encodedV3": "{\"linkId\":\"link-24\",\"tagId\":\"tag-24\"}"
+    },
+    {
+      "event": "v1.TagSuggested",
+      "variant": "canonical",
+      "args": {
+        "id": "sug-25",
+        "linkId": "link-25",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "suggestedAt": {
+          "$date": "2026-01-26T09:30:25.125Z"
+        },
+        "suggestedName": "devtools",
+        "tagId": "tag-25"
+      },
+      "encodedV3": "{\"id\":\"sug-25\",\"linkId\":\"link-25\",\"model\":\"@cf/meta/llama-3.3-70b-instruct-fp8-fast\",\"suggestedAt\":\"2026-01-26T09:30:25.125Z\",\"suggestedName\":\"devtools\",\"tagId\":\"tag-25\"}"
+    },
+    {
+      "event": "v1.TagSuggested",
+      "variant": "nulls",
+      "args": {
+        "id": "sug-26",
+        "linkId": "link-26",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "suggestedAt": {
+          "$date": "2026-01-27T09:30:26.126Z"
+        },
+        "suggestedName": "reading-list",
+        "tagId": null
+      },
+      "encodedV3": "{\"id\":\"sug-26\",\"linkId\":\"link-26\",\"model\":\"@cf/meta/llama-3.3-70b-instruct-fp8-fast\",\"suggestedAt\":\"2026-01-27T09:30:26.126Z\",\"suggestedName\":\"reading-list\",\"tagId\":null}"
+    },
+    {
+      "event": "v1.TagSuggestionAccepted",
+      "variant": "canonical",
+      "args": {
+        "id": "sug-27"
+      },
+      "encodedV3": "{\"id\":\"sug-27\"}"
+    },
+    {
+      "event": "v1.TagSuggestionDismissed",
+      "variant": "canonical",
+      "args": {
+        "id": "sug-28"
+      },
+      "encodedV3": "{\"id\":\"sug-28\"}"
+    },
+    {
+      "event": "v1.WeeklyDigestGenerated",
+      "variant": "canonical",
+      "args": {
+        "contentMd": "# Week 5\n\nYou saved 12 links about \"state management\" — mostly https://example.com/x.",
+        "generatedAt": {
+          "$date": "2026-01-30T09:30:29.129Z"
+        },
+        "id": "digest-29",
+        "period": "2026-W05"
+      },
+      "encodedV3": "{\"contentMd\":\"# Week 5\\n\\nYou saved 12 links about \\\"state management\\\" — mostly https://example.com/x.\",\"generatedAt\":\"2026-01-30T09:30:29.129Z\",\"id\":\"digest-29\",\"period\":\"2026-W05\"}"
+    }
+  ]
+}

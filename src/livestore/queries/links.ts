@@ -1,4 +1,5 @@
 import { queryDb, Schema } from "@livestore/livestore";
+import { SchemaTransformation } from "effect";
 
 import { tables } from "../schema";
 import type { LinkStatus } from "./filtered-links";
@@ -27,15 +28,15 @@ export const allLinksCount$ = queryDb(
   { label: "allLinksCount" }
 );
 
-const archiveCountSchema = Schema.Struct({ count: Schema.Number }).pipe(
-  Schema.Array,
-  Schema.headOrElse(() => ({ count: 0 })),
-  /* TODO(effect-v4-codemod): manual migration required for schema-transform-manual */ Schema.transform(
+const archiveCountSchema = Schema.Array(
+  Schema.Struct({ count: Schema.Number })
+).pipe(
+  Schema.decodeTo(
     Schema.Number,
-    {
-      decode: (row) => row.count,
-      encode: (count) => ({ count }),
-    }
+    SchemaTransformation.transform({
+      decode: (rows) => rows[0]?.count ?? 0,
+      encode: (count) => [{ count }],
+    })
   )
 );
 
