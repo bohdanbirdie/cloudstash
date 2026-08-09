@@ -10,8 +10,9 @@ import type { Env } from "./shared";
 
 export type AppCtx = Billing | AppSettings | AuthClient | DbClient;
 
-// Share one built layer per isolate: a fresh `AppLayerLive(env)` per request
-// would defeat Layer memoization and re-instantiate Db/Auth/Billing each time.
+// One layer object per isolate: services still rebuild per request (each
+// top-level Effect.provide creates a fresh MemoMap, v3 and v4 alike), but a
+// stable layer identity is what any future cross-request MemoMap keys on.
 const appLayerCache = new WeakMap<Env, ReturnType<typeof AppLayerLive>>();
 export const getAppLayer = (env: Env): Layer.Layer<AppCtx> => {
   const cached = appLayerCache.get(env);

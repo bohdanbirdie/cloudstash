@@ -7,8 +7,8 @@ export class DbClient extends Context.Service<DbClient, Database>()(
   "@cloudstash/DbClient"
 ) {}
 
-export class DbError extends Schema.TaggedError<DbError>()("DbError", {
-  cause: Schema.Defect,
+export class DbError extends Schema.TaggedErrorClass<DbError>()("DbError", {
+  cause: Schema.Defect(),
 }) {}
 
 export const query = <A>(promise: Promise<A>): Effect.Effect<A, DbError> =>

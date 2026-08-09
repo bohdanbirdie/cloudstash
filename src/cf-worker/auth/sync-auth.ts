@@ -8,7 +8,7 @@ export type SyncAuthErrorCode =
   | "ACCESS_DENIED"
   | "UNAPPROVED";
 
-export class SyncAuthError extends Schema.TaggedError<SyncAuthError>()(
+export class SyncAuthError extends Schema.TaggedErrorClass<SyncAuthError>()(
   "SyncAuthError",
   {
     status: Schema.Number,

@@ -9,14 +9,14 @@ import { maskId, safeErrorInfo } from "../log-utils";
 import { AppSettings } from "../settings/service";
 import type { XBookmarkSyncDO } from "../x-sync";
 
-export class CreateOrganizationError extends Schema.TaggedError<CreateOrganizationError>()(
+export class CreateOrganizationError extends Schema.TaggedErrorClass<CreateOrganizationError>()(
   "CreateOrganizationError",
-  { cause: Schema.Defect }
+  { cause: Schema.Defect() }
 ) {}
 
-export class XBookmarkSyncStartError extends Schema.TaggedError<XBookmarkSyncStartError>()(
+export class XBookmarkSyncStartError extends Schema.TaggedErrorClass<XBookmarkSyncStartError>()(
   "XBookmarkSyncStartError",
-  { cause: Schema.Defect }
+  { cause: Schema.Defect() }
 ) {}
 
 export const autoApproveUser = Effect.fn("Auth.autoApproveUser")(function* (

@@ -252,7 +252,7 @@ risk, independently researched, reconciled below).
    blocked at import by C8 harness debt (`Logger.withMinimumLogLevel` in
    `src/livestore/__tests__/test-helpers.ts`), not by the forkChild options.
 
-4. [ ] **Commit 3 — C2 foundation: tracing, AppLayerLive, runtime, logging,
+4. [x] **Commit 3 — C2 foundation: tracing, AppLayerLive, runtime, logging,
    core services.** `OtelTracingLive` is a rewrite, not a rename (v4 uses
    `OtelTracer.layerWithoutOtelTracer` style; keep the package import style
    the vendored source uses). Re-derive whether the `appLayerCache` /
@@ -262,6 +262,64 @@ risk, independently researched, reconciled below).
    **Review gate — RG-cluster (one subagent, semantic checklist):** Layer
    memoization, `Layer.scoped`→`Layer.effect` finalizer semantics, service
    identity after `Context.Service`.
+   **Executed (2026-08-09):**
+   - `check:effect`: 297→**272 errors**, 122→**111 warnings**. Cluster-anchored
+     diagnostics 21→**5** — and all 5 residuals are rooted in exactly two
+     OUT-of-cluster v3 declarations (boundary blockers below), zero in the
+     cluster's own code.
+   - Decision outcomes (details in Decisions log): (1) tracing.ts →
+     `OtelTracer.layerGlobal` + `Resource.layer` (module rename only; config
+     shape unchanged; still no-op — global provider unregistered).
+     (2) WeakMap caches KEPT-harmless; their v3-era justification was never
+     true (both v3 3.21.2 and beta.99 build a fresh MemoMap per top-level
+     `Effect.provide` — verified in both sources); comments corrected.
+     (3) TaggedError pattern set: `Schema.TaggedErrorClass<Self>()("Tag", f)`
+     with identifier omitted (vendor's `~pkg/X` identifier form would rename
+     `error.name` — observable via `safeErrorInfo`); `Schema.Defect` →
+     `Schema.Defect()`; `Schema.Literal(...arr)` → `Schema.Literals(arr)`;
+     16 error classes across 8 cluster files migrated (RG-corrected count). (4) Effect.Service
+     pattern set: hoisted `const make` + `Context.Service<Self,
+     Effect.Success<typeof make>>` + `static readonly Default =
+     Layer.effect(Self, make)` — preserves the `.Default` contract so the 4
+     consuming files (3 in other clusters) need zero changes; settings +
+     billing migrated, markers removed; activity-stats/repo NOT blocking C2,
+     left for C6. (5) `Schema.brand` ×17: **no change needed** — beta.99
+     brand/`.Type`/`.make` are v3-identical; db/branded.ts already clean; no
+     optionalWith/transform markers exist in cluster files.
+   - logger.ts per `6174ab46d`: `Logger.replace(Logger.defaultLogger, x)` →
+     `Effect.provide(Logger.layer([x]))`; custom logger reads annotations from
+     `fiber.getRef(References.CurrentLogAnnotations)` (v4 `Logger.Options`
+     dropped `annotations`; now a plain record, not HashMap); LogLevel is a
+     string union — `logLevel._tag` comparisons → string equality; `logSync`
+     runSync shim verified live under bun (annotations flow, debug filtered at
+     default Info minimum, no duplicate default-logger output).
+   - Runtime probes (bun, repo deps): logSync/runWithLogger output correct;
+     `withSpan` + `Effect.provide(OtelTracingLive)` inert; migrated error
+     classes keep `_tag` = `name` = tag, instances yieldable, `.make` usable
+     in flatMap position, catchTag/catchTags narrow — all v3-identical.
+   - Gates: `vp check` on all 14 changed files — pass (format + lint, zero
+     reds); `auth-payload.test.ts` 10/10; zero new casts/suppressions (diff
+     grep clean); both cluster codemod markers removed (20 remain, all in
+     other clusters' files).
+   - **Boundary blockers (out-of-scope files poisoning cluster types):**
+     ① `connect/errors.ts` — 6 error classes still v3 `Schema.TaggedError`;
+     `SessionLookupError` poisons `org/service.ts:104/253` (4 of the 5
+     residual cluster errors) and, via `billing/routes/shared.ts`, newly
+     surfaces `checkout.ts:85`. ② `account-deletion/prepare.ts:11`
+     (`MissingActiveOrgError`) + `account-deletion/runtime.ts:18`
+     (`DeletionRuntimeError`) poison `auth/index.ts:247` (the 5th residual).
+     Both are mechanical `TaggedErrorClass` renames of the pattern set here —
+     land them with C6 (or as a 2-file pre-C6 unblock). RG note: `connect/
+     errors.ts:21,38` additionally need `Schema.Defect` → `Schema.Defect()`.
+   **RG-cluster verdict (2026-08-09, fable): ACCEPT, zero blockers.** Both
+   focal semantic risks independently probe-verified: cache decision AGREED
+   (rebuild-per-provide proven empirically in v3 AND v4; in-provide dedupe
+   intact — diamond probe built shared layers exactly once); double-logging
+   definitively ruled out (`Logger.layer` replaces unless
+   `mergeWithExisting`; probe emitted exactly one line). TaggedErrorClass
+   identifier-omission reasoning concretely confirmed (vendor-style
+   identifier would leak into `error.name` → `safeErrorInfo` logs). Two
+   drift notes added to Found issues; two counts corrected inline.
 
 5. [ ] **Commit 4 — C8a test harness: `@effect/vitest` (39 files).**
    Makes per-cluster tests runnable for everything after; from here each
@@ -561,9 +619,91 @@ _(running list — every surprise found during migration gets a line here)_
   `Effect.annotateCurrentSpan`/`annotateLogs` (process-link.ts) — any saved
   log/trace query filtering the old tag silently stops matching. Not
   persisted to D1/eventlog; no data migration needed.
+- 2026-08-09 (stage 3, C2) — worker log lines now print `[Warn]` where v3
+  printed `[Warning]`: v4 `LogLevel` is a string union and the custom logger
+  interpolates it directly (v3 interpolated `logLevel._tag`). Same telemetry
+  class as the errorTag note above — saved log queries matching `[Warning]`
+  stop matching. All other level strings unchanged.
+- 2026-08-09 (stage 3, C2) — v4 `Logger.Options` dropped the `annotations`
+  field: custom loggers must read
+  `options.fiber.getRef(References.CurrentLogAnnotations)`, which is a plain
+  readonly record (v3 passed a HashMap). Pattern for the remaining
+  `Logger.make` site (link-processor/logger.ts, C4).
+- 2026-08-09 (stage 3, C2) — cluster residuals are cross-cluster type poison,
+  not C2 work: `connect/errors.ts` (6 × v3 `Schema.TaggedError`; its
+  `SessionLookupError` is imported by org/service, api-key-gate, and
+  billing/routes/shared) and `account-deletion/prepare.ts` +
+  `account-deletion/runtime.ts` (v3 TaggedErrors) leave 5 errors anchored in
+  org/service.ts + auth/index.ts. Also NEWLY surfaced `checkout.ts:85` once
+  `runBilling`'s types became real — same root file. Two-file mechanical fix,
+  deferred to C6 per cluster scoping.
+- 2026-08-09 (stage 3, C2) — expected cascade breathing, error total fell for
+  the first time (297→272): making Billing/AppSettings real types cleared 16
+  cluster errors and surfaced new `missingEffectContext: unknown` reds only
+  in dependents (x-initialize-watermark.test 0→8, x-poll-once.test 2→15,
+  connect tests, checkout.ts 0→1) — all in their own clusters' backlog.
 - 2026-08-09 — Effect language-service v4 integration confirmed accounted
   for: `@effect/language-service@0.87.2` auto-detects the installed Effect
   major and switches rule sets (v3-only rules off, v4 `outdatedApi` on) — no
   config change needed; the same package serves both the `check:effect` CLI
   and the editor tsserver plugin. Editor needs a TS-server restart after the
   dep bump to load the new plugin version.
+- 2026-08-09 (C2 RG review) — three call sites bypass the `getAppLayer` cache
+  and mint `AppLayerLive(env)` fresh per request: `index.ts:262`,
+  `queue-handler.ts:166`, `auth/index.ts:260`. Pre-existing, harmless today
+  (cache is inert anyway) — but any future cross-request MemoMap plan
+  (matrix row 7) must migrate them to `getAppLayer` first.
+- 2026-08-09 (C2 RG review) — log-format drift inventory, third entry: paths
+  using Effect's DEFAULT logger (no `runWithLogger`) also changed shape with
+  the dep bump — v4 prints `[HH:MM:SS.mmm] INFO (#n): …`. Together with
+  `[Warning]`→`[Warn]` and `errorTag` `TimeoutException`→`TimeoutError`:
+  update any saved log queries after cutover.
+- 2026-08-09 (C2, repo pattern) — **OTel tracing on v4:**
+  `OtelTracer.layerGlobal.pipe(Layer.provide(Resource.layer({...})))` from
+  `@effect/opentelemetry/OtelTracer` + `/Resource` subpath imports (the
+  modules the vendored source itself uses). beta.99 kept `layerGlobal` and
+  `Resource.layer` with an unchanged config shape — the "rewrite" is a module
+  rename (`Tracer` → `OtelTracer`). No-op preserved: `layerGlobal` reads the
+  global otel provider, which stays unregistered (exporter still disabled).
+  When re-enabling OTLP later, the split `layerTracer`/`layerGlobalProvider`
+  (or vendor's `OtelLiveDummy` style: `Layer.succeed(OtelTracer.OtelTracer,
+  tracer)` + `layerWithoutOtelTracer`) is the v4-native seam.
+- 2026-08-09 (C2, repo pattern) — **WeakMap layer caches (`appLayerCache`,
+  `billingLayerCache`): KEEP, reclassified harmless.** Source-verified in BOTH
+  versions: v3 3.21.2 `provideSomeLayer` → `buildWithScope` → fresh
+  `makeMemoMap` per call; beta.99 `provideLayer` → `buildWithScope` →
+  `CurrentMemoMap.forkOrCreate` → fresh map when absent from fiber context
+  (i.e. every top-level `runPromise`), entries ref-counted and finalized when
+  the request scope closes. So services rebuild per request in v3 AND v4 —
+  the caches never delivered cross-request instance sharing and v4 changes
+  nothing. Not harmful either (keyed by `env` object → no stale capture).
+  Kept because a stable per-env layer identity is the prerequisite for any
+  future cross-request MemoMap (matrix row 7) and v4's parent-forking of
+  nested provides keys on it. Comments at both sites corrected.
+- 2026-08-09 (C2, repo pattern) — **Schema.TaggedError v4 shape:**
+  `class X extends Schema.TaggedErrorClass<X>()("Tag", fields) {}` — the
+  identifier argument deliberately OMITTED (defaults to tag). Vendor passes
+  `~@livestore/pkg/X` identifiers, but v4's `makeClass` sets `Error.name`
+  from the identifier — adopting that form would rename `error.name`
+  observable through `safeErrorInfo` log fields; tags are already unique in
+  this single-app repo. Field-level: `Schema.Defect` → `Schema.Defect()`
+  (now a constructor call), `Schema.Literal(...spread)` →
+  `Schema.Literals(array)`, `Schema.optional` unchanged. Runtime-verified:
+  instances remain YieldableError Effects (yield*/flatMap positions), `.make`
+  static intact, catchTag(s) narrowing intact, `_tag` = `name` = tag.
+- 2026-08-09 (C2, repo pattern) — **Effect.Service v4 shape:** hoist the
+  implementation to `const make = Effect.gen(...)`, declare
+  `class X extends Context.Service<X, Effect.Success<typeof make>>()("@cloudstash/X")`
+  with `static readonly Default = Layer.effect(X, make)` inside the class
+  body. Rationale: beta.99 has no `Effect.Service`; vendor idiom is
+  `Context.Service` + separate make/layer (`000e8cb93`); deriving Shape via
+  `Effect.Success<typeof make>` avoids hand-written interfaces; the `Default`
+  static preserves every existing `X.Default` call site unchanged (AppLayerLive
+  + link-processor/durable-object + activity-stats/handler +
+  weekly-digest/run-digest). Applies to the remaining 3 `effect-service-manual`
+  markers (weekly-digest, x-enrichment, activity-stats) in their clusters.
+- 2026-08-09 (C2) — **`Schema.brand` needs NO migration:** beta.99 kept the
+  pipeable `Schema.String.pipe(Schema.brand("X"))` combinator with `.Type`
+  and a same-shape throwing `.make` (`Bottom.make`) — all 17 brands in
+  `db/branded.ts` and every `Brand.make(...)` call site are v4-valid as-is.
+  The inventory's "17 Schema.brand" line is a no-op for the whole repo.

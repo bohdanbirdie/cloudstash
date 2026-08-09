@@ -1,6 +1,6 @@
 import { Effect, Schema } from "effect";
 
-export class AnalyticsQueryError extends Schema.TaggedError<AnalyticsQueryError>()(
+export class AnalyticsQueryError extends Schema.TaggedErrorClass<AnalyticsQueryError>()(
   "AnalyticsQueryError",
   {
     message: Schema.String,
