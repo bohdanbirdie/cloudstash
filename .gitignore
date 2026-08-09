@@ -30,6 +30,9 @@ profiling-data*.json
 # Local clones of external repos (managed by `bun run sync`)
 local/
 
+# Claude session tracker (Claudian Obsidian plugin)
+docs/.claudian/
+
 # Obsidian
 docs/.obsidian/workspace*.json
 docs/.obsidian/cache/

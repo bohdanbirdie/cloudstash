@@ -65,6 +65,11 @@ Livestore source is the committed `vendor/livestore` submodule (not a `local/` c
 - **`MaterializeError`** wraps SQLite errors during event materialization. With the default `onSyncError: 'ignore'`, the error is silently swallowed but the batch transaction rolls back — the store continues in a degraded state. A common cause is duplicate eventlog inserts (no `ON CONFLICT` guard in livestore's `insertIntoEventlog`).
 - **LinkProcessorDO is a livestore client** that connects to `SyncBackendDO` with `livePull: true`. It must have exclusive access to its DO SQLite — concurrent `createStoreDoPromise` calls on the same storage corrupt the eventlog (PR #30).
 
+## Testing DO eviction (local — proven)
+
+- **DO eviction IS reproducible locally, deterministically. This has been proven — do not claim otherwise.** `abortAllDurableObjects()` from `cloudflare:test` (the `@cloudflare/vitest-pool-workers` runtime, which runs locally) tears down a DO's in-memory isolate while preserving its persisted SQLite — exactly the production idle-eviction that kills un-awaited background fibers. Proven by the incarnation-probe test in `src/cf-worker/__tests__/e2e/server-ingest-stranding.test.ts`: a random in-memory id stamped via `runInDurableObject` changes across the abort.
+- Use `abortAllDurableObjects()` + `runInDurableObject` to test eviction-sensitive behavior. Acquire a **fresh** stub after the abort — stubs created before it are poisoned. To assert a write survived eviction, read the persisted source of truth from a fresh stub (e.g. `SYNC_BACKEND_DO` → `getEventlogMax()`), not through the evicted client DO.
+
 ## Livestore Source (vendored fork)
 
 cloudstash runs a **fork** of livestore (DO hibernation work not in any published snapshot), vendored as a **committed git submodule** at `vendor/livestore`. A Vite alias redirects every `@livestore/*` import to that source for dev, tests, **and production builds** — so what you test locally is exactly what ships (local == prod). Strategy/roadmap: `docs/architecture/livestore-fork-integration.md`; mechanism deep-dive: `docs/architecture/livestore-local-source-linking.md`.
