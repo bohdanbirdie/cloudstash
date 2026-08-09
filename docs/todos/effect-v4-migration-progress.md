@@ -151,7 +151,7 @@ risk, independently researched, reconciled below).
      `11.3.0` greps are docs-only (fork-integration doc; updated in the docs
      commit). Targeted `vp check` on the changed config files: pass.
 
-3. [ ] **Commit 2 — codemod sweep (pure, regenerable).**
+3. [x] **Commit 2 — codemod sweep (pure, regenerable).**
    Run effect-v3-to-v4 codemod over `src/`, `apps/extension/`, `tools/`,
    `scripts/` (never `vendor/`); `vp check --fix` for formatting; NO manual
    fixes in this commit; record the exact invocation in the commit message.
@@ -161,6 +161,83 @@ risk, independently researched, reconciled below).
    fable):** deterministic class = scale-anomaly skim; **heuristic class =
    both reviewers verdict every hunk, disagreements escalate**; warning class
    = triage into the cluster backlog, marker-count == backlog-count.
+   **Executed (2026-08-09):**
+   - Invocation (codemod CLI 1.13.19, package `effect-v3-to-v4@0.1.0` by
+     sahilmob, default `EFFECT_V4_MODE=safe`), once per target dir — never
+     repo root (keeps `apps/` + `vendor/` out of the walk):
+     `npx codemod@latest run effect-v3-to-v4 -t <abs>/src --no-interactive`
+     (then `-t <abs>/tools` and `-t <abs>/scripts`, each with
+     `--allow-dirty`). `apps/extension` deliberately NOT swept (lags on v3).
+   - Dry-run first (`--dry-run --no-interactive --no-color`, clean tree):
+     src “Would modify 72 / Unchanged 489”, tools “0 / 7”, scripts “2 / 5”.
+     Real runs matched exactly: 72 + 0 + 2 = 74 files.
+   - Formatting: `bun run fix` (`vp check --fix`); it exits 1 with 126
+     unfixable lint errors (red-valley expected, Stage 3 work). It also
+     reformatted the two migration docs (repo-wide markdown formatter) —
+     reverted via `git checkout -- docs/` to keep the commit pure.
+   - `bun run check:effect`: **254 errors, 132 warnings** (baseline 218/204).
+     Errors ROSE +36; warnings fell −72. Post-run mix: 252
+     `missingEffectContext` + 2 `missingLayerContext` errors; 118
+     `outdatedApi` + 14 other warnings. See Found issues.
+   - TODO markers (`/* TODO(effect-v4-codemod): manual migration required for
+     <rule-id> */`): **22 across 13 files** — rule-ids:
+     `schema-optionalWith-manual` ×14, `effect-service-manual` ×5,
+     `schema-transform-manual` ×3. Files: telegram/errors.ts (5),
+     metadata/errors.ts (3), link-processor/errors.ts (3), queue-handler.ts
+     (2), and 1 each in livestore/queries/schemas.ts, livestore/queries/
+     links.ts, x-enrichment/generator.ts, x-enrichment/errors.ts,
+     weekly-digest/generator.ts, settings/service.ts, metadata/schema.ts,
+     billing/service.ts, admin/activity-stats/repo.ts.
+   - Diff stat: **74 files changed, 741 insertions(+), 663 deletions(-)**;
+     all 74 are `.ts` under `src/` (72) + `scripts/` (2); zero changes to
+     package.json/bun.lock/configs/.github/drizzle/vendor/apps. Largest:
+     billing/service.ts (+193/−182), admin/activity-stats/repo.ts (+88/−87),
+     x-enrichment/generator.ts (+56/−55), weekly-digest/generator.ts
+     (+51/−49), settings/service.ts (+38/−37).
+   - Rewrite fingerprints (diff-grep, for RG-codemod): `Context.Tag` →
+     `ServiceMap.*` (33 removed / 50 added, 17 files gained `ServiceMap`
+     imports), `Effect.catchAll` → `Effect.catch` (19), `Effect.catchAllCause`
+     → `Effect.catchCause` (17), `Effect.fork` → `Effect.forkChild` (5),
+     `Schema.Union(…)` → `Schema.Union([…])` (3).
+   **RG-codemod verdict (2026-08-09): dual ACCEPT with findings** (reviewer A
+   = opus, reviewer B = fable, independent; convergent on the top findings).
+   These are the **Stage 3 OPENING BACKLOG**, in priority order:
+   1. **`ServiceMap` → `Context` rename, 17 files / 33 conversions** — the
+      codemod targets a stale v4 beta (ServiceMap era, renamed back to
+      `Context` by beta.99). Shape (`X.Service<Self, Shape>()("id")`) is
+      exactly right, all 33 identity strings preserved byte-for-byte —
+      mechanical namespace rename. Root cause of the entire +36 error rise
+      (both reviewers traced the `missingEffectContext` cascade to it).
+   2. **Restore `this.storeId!` at `link-processor/durable-object.ts:420`** —
+      the sole purity violation in 74 files: the codemod's printer dropped a
+      non-null assertion (twin at :372 kept it). Currently masked by the
+      cascade; latent type error once the DO compiles.
+   3. **Finish the `TimeoutException` → `TimeoutError` rename pair**
+      (reviewer B's catch): constructor converted in
+      `process-link.test.ts:355`, but four dependents still key the OLD tag —
+      `process-link.ts:346,349` (`catchTags({TimeoutException:…}`),
+      `content-extractor.live.ts:36` (`Match.tag`),
+      `ai-summary-generator.live.ts:20` (`catchTag`), `services.ts:20` (type
+      ref). Left as-is, real v4 timeouts would silently skip the AI-summary
+      timeout fallback. The half-applied-rename class the gate exists for.
+   4. **`tapErrorCause` → `tapCause`, 7 sites, no marker** (auth/index.ts:249,
+      chat-agent/index.ts ×3, queue-handler.ts:155,
+      workflows/account-deletion.ts:40, metadata/extractors/index.ts:28) —
+      loud, but the codemod's coverage map missed it entirely.
+   5. **`forkChild` options decision, 5 sites in
+      process-link-concurrency.test.ts** — sole reviewer disagreement:
+      A flagged SUSPICIOUS (bare `forkChild` = lazy start + non-inherited
+      interruptibility vs v3), B cleared contextually (all 5 are
+      Deferred-synchronized). Resolution: set
+      `{ startImmediately: true, uninterruptible: 'inherit' }` explicitly per
+      upstream's own migration (vendor commit `c5e06a96a`), deliberately.
+   Also for Stage 3's backlog (codemod's known non-coverage, all loud):
+   `Effect.either`→`result` (~55 test sites), `Schema.TaggedError` (32 files,
+   no markers — v4 shape TBD from vendor idiom), spread `Schema.Literal(...)`
+   → `Literals` (5 sites), `Schedule.compose` (gone, 2 files),
+   `Schema.headOrElse` (gone, livestore/queries/links.ts),
+   `makeSemaphore`/`unsafeMakeSemaphore` naming (13), `Effect.runtime`/
+   `Runtime.runPromise` bridge, `timeoutFail`.
 
 4. [ ] **Commit 3 — C2 foundation: tracing, AppLayerLive, runtime, logging,
    core services.** `OtelTracingLive` is a rewrite, not a rename (v4 uses
@@ -415,3 +492,26 @@ _(running list — every surprise found during migration gets a line here)_
   v22.23.1 (warnings on example packages at install). May bite step 10 when
   running upstream's own test suites inside the submodule — check node version
   there first.
+- 2026-08-09 (stage 2) — **check:effect errors ROSE after the codemod:
+  218→254** (warnings fell 204→132). The expected drop happened only on the
+  warning side (`outdatedApi` renames cleared); the error side is dominated by
+  cascading `missingEffectContext`/`missingLayerContext` `any`/`unknown`
+  diagnostics — half-migrated service/tag shapes (e.g. `ServiceMap` rewrites
+  next to still-v3 neighbors) surface new per-usage-site errors. Not fixed
+  here by design; Stage 3 burns it down.
+- 2026-08-09 (stage 2) — codemod v0.1.0 scope gaps (its own remaining
+  `outdatedApi` warnings, no manual analysis): `Effect.either` (55, all
+  tests → `Effect.result`), `Effect.makeSemaphore`/`unsafeMakeSemaphore` (13),
+  `tapErrorCause` (7), the effect-only `Effect.Service` shape (5, warned as
+  `effect-service-manual`), `zipRight`/`zipLeft` (5), `timeoutFail` (1),
+  `Effect.runtime` (1). Its pattern matrix covers `Schema.decode*Either →
+  decode*Result` only — plain `Either.*`→`Result.*` (109 hits, C8) is NOT
+  covered; stays hand-work.
+- 2026-08-09 (stage 2) — codemod CLI's `--dry-run` prints counts only (no
+  file list, no diffs); `-v` is engine debug noise. The modified-file list is
+  only observable via the real run + `git status`. Dry-run counts matched the
+  real run exactly (72/0/2).
+- 2026-08-09 (stage 2) — `vp check --fix` formats repo-wide, not
+  changed-files-only: it reformatted both effect-v4 docs
+  (markdown list-indent + `*…*`→`_…_`). Reverted to keep commit 2 pure —
+  expect those docs to reformat again on any future full `bun run fix`.
