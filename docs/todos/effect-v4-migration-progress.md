@@ -13,19 +13,19 @@ risk, independently researched, reconciled below).
 Cycle per unit: Fable/Opus executor subagent → independent reviewer subagent
 → user review → commit. No subagent ever commits.
 
-| Stage | Status | Commits |
-| --- | --- | --- |
-| 0 — Preflight (branch, cooldown, baselines) | ✅ | `d68f762` |
-| 1 — World flip (submodule + deps, config only) | ✅ | `39aa07e` |
-| 2 — Codemod sweep (pure) + dual RG review | ✅ | `99be60f` + `cafff12` |
-| 3 — Cluster burndown (~8 units) | 🔶 3.5/8 | below |
-| 4 — Validation battery | ⬜ | |
-| 5 — Final dual review + rebase + merge | ⬜ | |
-| 6 — Fast-follows (extension, #722, fork retirement) | ⬜ | |
+| Stage                                               | Status   | Commits               |
+| --------------------------------------------------- | -------- | --------------------- |
+| 0 — Preflight (branch, cooldown, baselines)         | ✅       | `d68f762`             |
+| 1 — World flip (submodule + deps, config only)      | ✅       | `39aa07e`             |
+| 2 — Codemod sweep (pure) + dual RG review           | ✅       | `99be60f` + `cafff12` |
+| 3 — Cluster burndown (~8 units)                     | 🔶 4.5/8 | below                 |
+| 4 — Validation battery                              | ⬜       |                       |
+| 5 — Final dual review + rebase + merge              | ⬜       |                       |
+| 6 — Fast-follows (extension, #722, fork retirement) | ⬜       |                       |
 
 Stage 3 units: RG-codemod corrections ✅ `bd09696` · C2 foundation ✅
-`8ea6c20` · C8a test harness ✅ `3242c4e` · C3 schema/Date-wire ✅ (this
-commit) · C5+C4 sync glue + LinkProcessorDO ⬜ next (combined unit) · C6
+`8ea6c20` · C8a test harness ✅ `3242c4e` · C3 schema/Date-wire ✅ `738140b`
+· C5+C4 sync glue + LinkProcessorDO ✅ (this commit, combined unit) · C6
 HTTP surface ⬜ · C7 background workers ⬜ · residual sweep + typecheck
 milestone + marker/docs ⬜.
 C9 extension: REMOVED from this PR (Stage 6 fast-follow, user decision;
@@ -34,14 +34,17 @@ commit — its 4/11 failures are pre-existing mixed-tree v3 breakage,
 restore + fix in the fast-follow).
 
 `check:effect` burndown: 0 (pre-flip) → 218 (flip) → 254 (codemod) → 297
-(corrections; rises = unmasking) → 272 (C2) → 144 (C8a) → **144 (C3 — total
+(corrections; rises = unmasking) → 272 (C2) → 144 (C8a) → 144 (C3 — total
 flat by construction: C3's debt was runtime-only, invisible to check:effect;
-zero diagnostics anchored in any C3 file before or after)**. Unit tests:
-566/652 → **849/867 passing** (all 68 store-shutdown failures flipped green
-with zero test edits; the 6 suites import-blocked on C3's `Schema.transform`
-also unblocked, surfacing +197 more green tests; the 18 remaining reds are
-exactly the pre-categorized `Option.fromNullable` class in C6 stripe-sync +
-C7 build-digest-links).
+zero diagnostics anchored in any C3 file before or after) → **121 errors /
+19 warnings (C5+C4; in-scope anchored 35 → 1, and that 1 residual —
+durable-object.ts:396 — is rooted in out-of-cluster C7 `Effect.Service`
+declarations poisoning `liveLayer`, zero debt in cluster code)**. Unit
+tests: 566/652 → 849/867 → **891/909 passing** (+42 newly-runnable green;
+the 18 reds are still exactly the pre-categorized `Option.fromNullable`
+class in C6 stripe-sync + C7 build-digest-links; hotspot-8
+process-link-concurrency is STILL import-blocked on C7 x-enrichment — see
+Found issues).
 
 ## Reconciliation notes (where the agents differed or corrected the plan)
 
@@ -67,36 +70,36 @@ C7 build-digest-links).
 ## Gates
 
 - [x] **G0 — prep done:** cooldown decision made, baselines captured,
-  playbook commits skimmed (2026-08-09)
+      playbook commits skimmed (2026-08-09)
 - [ ] **G1 — flip branch red→green:** world flip landed, codemod run, all
-  clusters migrated, `bun run check` + `bun run typecheck` green
+      clusters migrated, `bun run check` + `bun run typecheck` green
 - [ ] **G2 — tests green:** `test:unit` + `test:e2e` (incl. eviction e2e +
-  new wire-format tests), upstream hibernation suites in the submodule,
-  `LIVESTORE_PUBLISHED=1` A/B pass
+      new wire-format tests), upstream hibernation suites in the submodule,
+      `LIVESTORE_PUBLISHED=1` A/B pass
 - [ ] **G3 — build + preview validated:** local `bun run build` + bundle
-  asserts, preview deploy smoke (DO sync + browser store + extension compat)
+      asserts, preview deploy smoke (DO sync + browser store + extension compat)
 - [ ] **G4 — prod cutover:** deploy, hibernation GB-s re-verified vs baseline,
-  probe removed
+      probe removed
 - [ ] **G5 — follow-ups:** push-side strand re-checked, stream-stall item
-  closed, fork retired, docs/memory updated
+      closed, fork retired, docs/memory updated
 
 ## Sequenced steps
 
-**Verdict: (B) swap-first, with the entire world-flip (submodule SHA + `.gitmodules` URL + every dep pin) as one opening config-only commit, codemod immediately after.** The deciding factor is red-phase signal quality: in app-first ordering, `tsgo` resolves `@livestore/*` types from the still-v3 published snapshot while the app sits on effect v4 — bun installs a nested effect@3 to satisfy the snapshot's peer-deps, so every livestore-boundary file (sync glue, DOs, schema — exactly the highest-risk clusters) drowns in cross-instance "two different Effect types" noise, and any fixes made against those v3-typed APIs get redone after the swap because upstream reshaped those APIs in its own v4 sweep. Swap-first makes both levers (published pins for tsgo, submodule for runtime) point at the true v4 world from commit 1, so every subsequent red is a genuine migration task and the invariant *submodule SHA == snapshot pin SHA == effect version parity* holds at every commit on the branch — the red valley is unavoidable either way (the migration is atomic), but B's valley never contains a chimera state that could mislead a bisect or a reviewer. The codemod belongs *after* the flip, not before it, because its v4-idiom output is only checkable once v4 types are installed. Rebasability also favors B: the conflict-prone config files (package.json ×2, .gitmodules, bunfig, CI) are frozen in commit 1; the rebase-fragile codemod commit is kept pure (no manual edits) so it can be *regenerated* on a rebased base instead of conflict-resolved.
+**Verdict: (B) swap-first, with the entire world-flip (submodule SHA + `.gitmodules` URL + every dep pin) as one opening config-only commit, codemod immediately after.** The deciding factor is red-phase signal quality: in app-first ordering, `tsgo` resolves `@livestore/*` types from the still-v3 published snapshot while the app sits on effect v4 — bun installs a nested effect@3 to satisfy the snapshot's peer-deps, so every livestore-boundary file (sync glue, DOs, schema — exactly the highest-risk clusters) drowns in cross-instance "two different Effect types" noise, and any fixes made against those v3-typed APIs get redone after the swap because upstream reshaped those APIs in its own v4 sweep. Swap-first makes both levers (published pins for tsgo, submodule for runtime) point at the true v4 world from commit 1, so every subsequent red is a genuine migration task and the invariant _submodule SHA == snapshot pin SHA == effect version parity_ holds at every commit on the branch — the red valley is unavoidable either way (the migration is atomic), but B's valley never contains a chimera state that could mislead a bisect or a reviewer. The codemod belongs _after_ the flip, not before it, because its v4-idiom output is only checkable once v4 types are installed. Rebasability also favors B: the conflict-prone config files (package.json ×2, .gitmodules, bunfig, CI) are frozen in commit 1; the rebase-fragile codemod commit is kept pure (no manual edits) so it can be _regenerated_ on a rebased base instead of conflict-resolved.
 
 **Verified during planning (2026-08-09):** ① `bunfig.toml` has `minimumReleaseAge = 604800` and the v4 snapshot `0.0.0-snapshot-2e4bcfc68…` was published **today** (2026-08-09T11:35Z) — `bun install` will reject it until ~Aug 16 unless bunfig gets `minimumReleaseAgeExcludes` for the @livestore pins; `effect@4.0.0-beta.99` published 2026-07-17, clear. ② `@effect/vitest@4.0.0-beta.99` peers = `vitest ^3 || ^4` — our vitest 4.1.7 needs no bump. ③ Upstream `packageManager` is `pnpm@11.8.0` (fork: 11.3.0) — CI's pin and `ensure-livestore.sh`'s `npx pnpm@11.3.0` fallback must bump. ④ `PERSISTENCE_FORMAT_VERSION` is **7 on both sides**; upstream's registry lives in DO KV, not SQL, so no `CREATE TABLE` collision — orphaned fork `rpc_subscription_7` tables are acceptable, `eventlog_7_*` data survives. ⑤ The old marker's replacement can't be a negative grep on `0.0.0-snapshot` (current from-source bundle already has 5 hits from published wa-sqlite); adopt the Vite-define marker (matrix row 10). ⑥ `src/livestore-fork.d.ts` does not exist and never did — that strategy-doc step is a verify-only no-op; `whenLeaderSynced` appears only in comments of `server-ingest-stranding.test.ts`. ⑦ `apps/extension` is a second bun workspace with its own `effect 3.21.2` + 5 `@livestore/*` pins and 19 effect-importing files — **superseded 2026-08-09 (user decision): the extension workspace LAGS on v3 and migrates in a fast-follow PR**, see step 2 and C9. ⑧ App-direct `@effect/*` surface is tiny: `@effect/vitest` (39 test files), `@effect/opentelemetry` (2 files); zero `@effect/platform`/`@effect/rpc` imports.
 
 1. [x] **Preflight + branch (no code changes).**
-   Create `feat/effect-v4-livestore-upstream` off main. Resolve the cooldown
-   decision (bunfig `minimumReleaseAgeExcludes` for `@livestore/*` vs install
-   day ≥ 2026-08-16). Capture baselines: `bun run check:effect` error count
-   (expect 0), the `[livestore] aliasing N entrypoints` count,
-   `git -C vendor/livestore log -1`, and the day-before prod
-   `type:hibernation` GB-s number. Skim the six upstream migration playbook
-   commits (`c5e06a96a`, `86edf7ec5`, `000e8cb93`, `207309154`, `434b59cfa`,
-   `ddd1aa16c`).
-   **Done-when:** branch exists; cooldown decision in Decisions log; baselines recorded here.
-   **Baselines (2026-08-09):**
+       Create `feat/effect-v4-livestore-upstream` off main. Resolve the cooldown
+       decision (bunfig `minimumReleaseAgeExcludes` for `@livestore/*` vs install
+       day ≥ 2026-08-16). Capture baselines: `bun run check:effect` error count
+       (expect 0), the `[livestore] aliasing N entrypoints` count,
+       `git -C vendor/livestore log -1`, and the day-before prod
+       `type:hibernation` GB-s number. Skim the six upstream migration playbook
+       commits (`c5e06a96a`, `86edf7ec5`, `000e8cb93`, `207309154`, `434b59cfa`,
+       `ddd1aa16c`).
+       **Done-when:** branch exists; cooldown decision in Decisions log; baselines recorded here.
+       **Baselines (2026-08-09):**
    - `bun run check:effect`: **PASS — 572 files checked, 0 errors, 0 warnings, 0 messages.**
    - Livestore alias count: **41** — `[livestore] aliasing 41 entrypoints to vendor/livestore`
      (captured via `bun vitest run src/cf-worker/sync/__tests__/auth-payload.test.ts`, 10/10 green).
@@ -117,43 +120,43 @@ C7 build-digest-links).
      2026-06-11 DO-duration incident for the real capture.
 
 2. [x] **Commit 1 — the world flip (config only, zero `src/` changes).**
-   (a) Submodule → livestorejs/livestore `main` @ `2e4bcfc68` (or newer — the
-   published-pin SHA must be re-pinned to match), `.gitmodules` URL + branch
-   flip, `git submodule sync`, manual `pnpm install` (outside-repo store;
-   `ensure-livestore.sh` skips when node_modules exists). (b) Deps — ROOT
-   workspace only (`apps/extension` lags on v3, fast-follow PR — user decision
-   2026-08-09): `effect` + `@effect/opentelemetry` + `@effect/vitest` →
-   `4.0.0-beta.99` exact; `@effect/language-service` → newest; the 8 root
-   `@livestore/*` pins → `0.0.0-snapshot-2e4bcfc68…`; delete
-   `patchedDependencies` + `patches/@effect%2Frpc@0.75.1.patch` (the LAST
-   remaining bun patch — livestore patches already died with fork vendoring,
-   PR #79; this empties `patchedDependencies`); `bun install`.
-   **Extension-lag consequence:** `ci.yml` runs
-   `bun --cwd apps/extension run compile`, and the extension imports
-   `@web/livestore/schema` straight from `src/` — the moment C3 migrates
-   `schema.ts` to v4 idioms, that CI step breaks. The flip PR must temporarily
-   skip/gate the two extension CI steps; the fast-follow PR restores them. (c) Toolchain: pnpm
-   11.3.0 → 11.8.0 in `.github/workflows/ci.yml` +
-   `scripts/ensure-livestore.sh`; bunfig cooldown exclusion. (d) Verify the
-   emitted alias-list diff (new entrypoints like `@livestore/common/sync/next`
-   appear; wasm packages stay excluded; scan for NEW platform-conditional
-   exports beyond `utils/cuid`). (e) `bun.lock` holds exactly one `effect`;
-   re-verify react/react-dom dedupe (upstream pins react 19.2.3 vs our 19.2.6
-   — the PR #80 crash class).
-   **Done-when:** installs succeed; alias diff reviewed; one effect copy;
-   `vp check` (lint/format) green; `check:effect` red count recorded as the
-   burndown start.
-   **Review gate — RG-flip (one subagent, checklist audit):** version parity vs
-   upstream catalog; pin SHA == submodule SHA everywhere; patch fully gone;
-   pnpm bumps present; bunfig exclusion scoped to `@livestore/*` only.
-   **Executed (2026-08-09):**
+       (a) Submodule → livestorejs/livestore `main` @ `2e4bcfc68` (or newer — the
+       published-pin SHA must be re-pinned to match), `.gitmodules` URL + branch
+       flip, `git submodule sync`, manual `pnpm install` (outside-repo store;
+       `ensure-livestore.sh` skips when node_modules exists). (b) Deps — ROOT
+       workspace only (`apps/extension` lags on v3, fast-follow PR — user decision
+       2026-08-09): `effect` + `@effect/opentelemetry` + `@effect/vitest` →
+       `4.0.0-beta.99` exact; `@effect/language-service` → newest; the 8 root
+       `@livestore/*` pins → `0.0.0-snapshot-2e4bcfc68…`; delete
+       `patchedDependencies` + `patches/@effect%2Frpc@0.75.1.patch` (the LAST
+       remaining bun patch — livestore patches already died with fork vendoring,
+       PR #79; this empties `patchedDependencies`); `bun install`.
+       **Extension-lag consequence:** `ci.yml` runs
+       `bun --cwd apps/extension run compile`, and the extension imports
+       `@web/livestore/schema` straight from `src/` — the moment C3 migrates
+       `schema.ts` to v4 idioms, that CI step breaks. The flip PR must temporarily
+       skip/gate the two extension CI steps; the fast-follow PR restores them. (c) Toolchain: pnpm
+       11.3.0 → 11.8.0 in `.github/workflows/ci.yml` +
+       `scripts/ensure-livestore.sh`; bunfig cooldown exclusion. (d) Verify the
+       emitted alias-list diff (new entrypoints like `@livestore/common/sync/next`
+       appear; wasm packages stay excluded; scan for NEW platform-conditional
+       exports beyond `utils/cuid`). (e) `bun.lock` holds exactly one `effect`;
+       re-verify react/react-dom dedupe (upstream pins react 19.2.3 vs our 19.2.6
+       — the PR #80 crash class).
+       **Done-when:** installs succeed; alias diff reviewed; one effect copy;
+       `vp check` (lint/format) green; `check:effect` red count recorded as the
+       burndown start.
+       **Review gate — RG-flip (one subagent, checklist audit):** version parity vs
+       upstream catalog; pin SHA == submodule SHA everywhere; patch fully gone;
+       pnpm bumps present; bunfig exclusion scoped to `@livestore/*` only.
+       **Executed (2026-08-09):**
    - Submodule: `livestorejs/livestore` `main` @
      `2e4bcfc68f7ddad5696022a10d515a011f5f785a` ("Merge pull request #1545 from
      livestorejs/bohdan/fix/do-rpc-client-recovery"), detached HEAD, tree clean.
      `.gitmodules` url → livestorejs, branch → main; `git submodule sync` run.
    - Vendor install: pnpm **11.8.0** (local pnpm resolves upstream's
      `packageManager` pin), `pnpm install --frozen-lockfile --store-dir
-     ~/.pnpm-store-cloudstash-vendor`. First run aborted purging the fork-era
+~/.pnpm-store-cloudstash-vendor`. First run aborted purging the fork-era
      node_modules (`ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`); clean success
      with `CI=true` (pnpm's documented remedy): 2600 packages, 11.7s, lockfile
      passes supply-chain policies. Engine warnings only (examples want node
@@ -187,16 +190,16 @@ C7 build-digest-links).
      commit). Targeted `vp check` on the changed config files: pass.
 
 3. [x] **Commit 2 — codemod sweep (pure, regenerable).**
-   Run effect-v3-to-v4 codemod over `src/`, `apps/extension/`, `tools/`,
-   `scripts/` (never `vendor/`); `vp check --fix` for formatting; NO manual
-   fixes in this commit; record the exact invocation in the commit message.
-   **Done-when:** diff == codemod output + formatting; error count drop
-   recorded; warning-class TODO markers counted.
-   **Review gate — RG-codemod (two independent subagents, one opus + one
-   fable):** deterministic class = scale-anomaly skim; **heuristic class =
-   both reviewers verdict every hunk, disagreements escalate**; warning class
-   = triage into the cluster backlog, marker-count == backlog-count.
-   **Executed (2026-08-09):**
+       Run effect-v3-to-v4 codemod over `src/`, `apps/extension/`, `tools/`,
+       `scripts/` (never `vendor/`); `vp check --fix` for formatting; NO manual
+       fixes in this commit; record the exact invocation in the commit message.
+       **Done-when:** diff == codemod output + formatting; error count drop
+       recorded; warning-class TODO markers counted.
+       **Review gate — RG-codemod (two independent subagents, one opus + one
+       fable):** deterministic class = scale-anomaly skim; **heuristic class =
+       both reviewers verdict every hunk, disagreements escalate**; warning class
+       = triage into the cluster backlog, marker-count == backlog-count.
+       **Executed (2026-08-09):**
    - Invocation (codemod CLI 1.13.19, package `effect-v3-to-v4@0.1.0` by
      sahilmob, default `EFFECT_V4_MODE=safe`), once per target dir — never
      repo root (keeps `apps/` + `vendor/` out of the walk):
@@ -215,7 +218,7 @@ C7 build-digest-links).
      `missingEffectContext` + 2 `missingLayerContext` errors; 118
      `outdatedApi` + 14 other warnings. See Found issues.
    - TODO markers (`/* TODO(effect-v4-codemod): manual migration required for
-     <rule-id> */`): **22 across 13 files** — rule-ids:
+<rule-id> */`): **22 across 13 files** — rule-ids:
      `schema-optionalWith-manual` ×14, `effect-service-manual` ×5,
      `schema-transform-manual` ×3. Files: telegram/errors.ts (5),
      metadata/errors.ts (3), link-processor/errors.ts (3), queue-handler.ts
@@ -234,70 +237,70 @@ C7 build-digest-links).
      imports), `Effect.catchAll` → `Effect.catch` (19), `Effect.catchAllCause`
      → `Effect.catchCause` (17), `Effect.fork` → `Effect.forkChild` (5),
      `Schema.Union(…)` → `Schema.Union([…])` (3).
-   **RG-codemod verdict (2026-08-09): dual ACCEPT with findings** (reviewer A
-   = opus, reviewer B = fable, independent; convergent on the top findings).
-   These are the **Stage 3 OPENING BACKLOG**, in priority order:
+     **RG-codemod verdict (2026-08-09): dual ACCEPT with findings** (reviewer A
+     = opus, reviewer B = fable, independent; convergent on the top findings).
+     These are the **Stage 3 OPENING BACKLOG**, in priority order:
    1. [x] **`ServiceMap` → `Context` rename, 17 files / 33 conversions** — the
-      codemod targets a stale v4 beta (ServiceMap era, renamed back to
-      `Context` by beta.99). Shape (`X.Service<Self, Shape>()("id")`) is
-      exactly right, all 33 identity strings preserved byte-for-byte —
-      mechanical namespace rename. Root cause of the entire +36 error rise
-      (both reviewers traced the `missingEffectContext` cascade to it).
+          codemod targets a stale v4 beta (ServiceMap era, renamed back to
+          `Context` by beta.99). Shape (`X.Service<Self, Shape>()("id")`) is
+          exactly right, all 33 identity strings preserved byte-for-byte —
+          mechanical namespace rename. Root cause of the entire +36 error rise
+          (both reviewers traced the `missingEffectContext` cascade to it).
    2. [x] **Restore `this.storeId!` at `link-processor/durable-object.ts:420`** —
-      the sole purity violation in 74 files: the codemod's printer dropped a
-      non-null assertion (twin at :372 kept it). Currently masked by the
-      cascade; latent type error once the DO compiles.
+          the sole purity violation in 74 files: the codemod's printer dropped a
+          non-null assertion (twin at :372 kept it). Currently masked by the
+          cascade; latent type error once the DO compiles.
    3. [x] **Finish the `TimeoutException` → `TimeoutError` rename pair**
-      (reviewer B's catch): constructor converted in
-      `process-link.test.ts:355`, but four dependents still key the OLD tag —
-      `process-link.ts:346,349` (`catchTags({TimeoutException:…}`),
-      `content-extractor.live.ts:36` (`Match.tag`),
-      `ai-summary-generator.live.ts:20` (`catchTag`), `services.ts:20` (type
-      ref). Left as-is, real v4 timeouts would silently skip the AI-summary
-      timeout fallback. The half-applied-rename class the gate exists for.
+          (reviewer B's catch): constructor converted in
+          `process-link.test.ts:355`, but four dependents still key the OLD tag —
+          `process-link.ts:346,349` (`catchTags({TimeoutException:…}`),
+          `content-extractor.live.ts:36` (`Match.tag`),
+          `ai-summary-generator.live.ts:20` (`catchTag`), `services.ts:20` (type
+          ref). Left as-is, real v4 timeouts would silently skip the AI-summary
+          timeout fallback. The half-applied-rename class the gate exists for.
    4. [x] **`tapErrorCause` → `tapCause`, 7 sites, no marker** (auth/index.ts:249,
-      chat-agent/index.ts ×3, queue-handler.ts:155,
-      workflows/account-deletion.ts:40, metadata/extractors/index.ts:28) —
-      loud, but the codemod's coverage map missed it entirely.
+          chat-agent/index.ts ×3, queue-handler.ts:155,
+          workflows/account-deletion.ts:40, metadata/extractors/index.ts:28) —
+          loud, but the codemod's coverage map missed it entirely.
    5. [x] **`forkChild` options decision, 5 sites in
-      process-link-concurrency.test.ts** — sole reviewer disagreement:
-      A flagged SUSPICIOUS (bare `forkChild` = lazy start + non-inherited
-      interruptibility vs v3), B cleared contextually (all 5 are
-      Deferred-synchronized). Resolution: set
-      `{ startImmediately: true, uninterruptible: 'inherit' }` explicitly per
-      upstream's own migration (vendor commit `c5e06a96a`), deliberately.
-   Also for Stage 3's backlog (codemod's known non-coverage, all loud):
-   `Effect.either`→`result` (~55 test sites), `Schema.TaggedError` (32 files,
-   no markers — v4 shape TBD from vendor idiom), spread `Schema.Literal(...)`
-   → `Literals` (5 sites), `Schedule.compose` (gone, 2 files),
-   `Schema.headOrElse` (gone, livestore/queries/links.ts),
-   `makeSemaphore`/`unsafeMakeSemaphore` naming (13), `Effect.runtime`/
-   `Runtime.runPromise` bridge, `timeoutFail`.
-   **Fixed (2026-08-09):** all five landed as Stage 3's opening unit.
-   `check:effect` 254→**297 errors** / 132→**122 warnings** — the error RISE is
-   cascade expansion again (see Found issues), every touched file improved or
-   held. All five findings' API assumptions verified against beta.99 + vendor
-   `c5e06a96a` with zero contradictions. Reviewer gate: ACCEPT with findings
-   — scope purity exemplary (all 33 identity strings byte-verified), tapCause
-   semantics probe-verified identical to v3 tapErrorCause on all four exit
-   shapes, error-rise reproduced to the digit. Two accuracy notes: `vp check`
-   on touched files has 15 pre-existing/transient reds (not clean — see Found
-   issues), and the errorTag telemetry rename is observable;
-   `auth-payload.test.ts` 10/10 green; `process-link-concurrency.test.ts`
-   blocked at import by C8 harness debt (`Logger.withMinimumLogLevel` in
-   `src/livestore/__tests__/test-helpers.ts`), not by the forkChild options.
+          process-link-concurrency.test.ts** — sole reviewer disagreement:
+          A flagged SUSPICIOUS (bare `forkChild` = lazy start + non-inherited
+          interruptibility vs v3), B cleared contextually (all 5 are
+          Deferred-synchronized). Resolution: set
+          `{ startImmediately: true, uninterruptible: 'inherit' }` explicitly per
+          upstream's own migration (vendor commit `c5e06a96a`), deliberately.
+          Also for Stage 3's backlog (codemod's known non-coverage, all loud):
+          `Effect.either`→`result` (~55 test sites), `Schema.TaggedError` (32 files,
+          no markers — v4 shape TBD from vendor idiom), spread `Schema.Literal(...)`
+          → `Literals` (5 sites), `Schedule.compose` (gone, 2 files),
+          `Schema.headOrElse` (gone, livestore/queries/links.ts),
+          `makeSemaphore`/`unsafeMakeSemaphore` naming (13), `Effect.runtime`/
+          `Runtime.runPromise` bridge, `timeoutFail`.
+          **Fixed (2026-08-09):** all five landed as Stage 3's opening unit.
+          `check:effect` 254→**297 errors** / 132→**122 warnings** — the error RISE is
+          cascade expansion again (see Found issues), every touched file improved or
+          held. All five findings' API assumptions verified against beta.99 + vendor
+          `c5e06a96a` with zero contradictions. Reviewer gate: ACCEPT with findings
+          — scope purity exemplary (all 33 identity strings byte-verified), tapCause
+          semantics probe-verified identical to v3 tapErrorCause on all four exit
+          shapes, error-rise reproduced to the digit. Two accuracy notes: `vp check`
+          on touched files has 15 pre-existing/transient reds (not clean — see Found
+          issues), and the errorTag telemetry rename is observable;
+          `auth-payload.test.ts` 10/10 green; `process-link-concurrency.test.ts`
+          blocked at import by C8 harness debt (`Logger.withMinimumLogLevel` in
+          `src/livestore/__tests__/test-helpers.ts`), not by the forkChild options.
 
 4. [x] **Commit 3 — C2 foundation: tracing, AppLayerLive, runtime, logging,
-   core services.** `OtelTracingLive` is a rewrite, not a rename (v4 uses
-   `OtelTracer.layerWithoutOtelTracer` style; keep the package import style
-   the vendored source uses). Re-derive whether the `appLayerCache` /
-   `billingLayerCache` WeakMaps are still needed under v4 memoization — or now
-   harmful (stale `env` capture).
-   **Done-when:** cluster diagnostic-clean; `vp check` green; count down.
-   **Review gate — RG-cluster (one subagent, semantic checklist):** Layer
-   memoization, `Layer.scoped`→`Layer.effect` finalizer semantics, service
-   identity after `Context.Service`.
-   **Executed (2026-08-09):**
+       core services.** `OtelTracingLive` is a rewrite, not a rename (v4 uses
+       `OtelTracer.layerWithoutOtelTracer` style; keep the package import style
+       the vendored source uses). Re-derive whether the `appLayerCache` /
+       `billingLayerCache` WeakMaps are still needed under v4 memoization — or now
+       harmful (stale `env` capture).
+       **Done-when:** cluster diagnostic-clean; `vp check` green; count down.
+       **Review gate — RG-cluster (one subagent, semantic checklist):** Layer
+       memoization, `Layer.scoped`→`Layer.effect` finalizer semantics, service
+       identity after `Context.Service`.
+       **Executed (2026-08-09):**
    - `check:effect`: 297→**272 errors**, 122→**111 warnings**. Cluster-anchored
      diagnostics 21→**5** — and all 5 residuals are rooted in exactly two
      OUT-of-cluster v3 declarations (boundary blockers below), zero in the
@@ -314,8 +317,8 @@ C7 build-digest-links).
      `Schema.Defect()`; `Schema.Literal(...arr)` → `Schema.Literals(arr)`;
      16 error classes across 8 cluster files migrated (RG-corrected count). (4) Effect.Service
      pattern set: hoisted `const make` + `Context.Service<Self,
-     Effect.Success<typeof make>>` + `static readonly Default =
-     Layer.effect(Self, make)` — preserves the `.Default` contract so the 4
+Effect.Success<typeof make>>` + `static readonly Default =
+Layer.effect(Self, make)` — preserves the `.Default` contract so the 4
      consuming files (3 in other clusters) need zero changes; settings +
      billing migrated, markers removed; activity-stats/repo NOT blocking C2,
      left for C6. (5) `Schema.brand` ×17: **no change needed** — beta.99
@@ -345,27 +348,27 @@ C7 build-digest-links).
      (`DeletionRuntimeError`) poison `auth/index.ts:247` (the 5th residual).
      Both are mechanical `TaggedErrorClass` renames of the pattern set here —
      land them with C6 (or as a 2-file pre-C6 unblock). RG note: `connect/
-     errors.ts:21,38` additionally need `Schema.Defect` → `Schema.Defect()`.
+errors.ts:21,38` additionally need `Schema.Defect` → `Schema.Defect()`.
      **Resolved: landed as the C8a boundary pre-fix (step 5), C2 at true
      zero.**
-   **RG-cluster verdict (2026-08-09, fable): ACCEPT, zero blockers.** Both
-   focal semantic risks independently probe-verified: cache decision AGREED
-   (rebuild-per-provide proven empirically in v3 AND v4; in-provide dedupe
-   intact — diamond probe built shared layers exactly once); double-logging
-   definitively ruled out (`Logger.layer` replaces unless
-   `mergeWithExisting`; probe emitted exactly one line). TaggedErrorClass
-   identifier-omission reasoning concretely confirmed (vendor-style
-   identifier would leak into `error.name` → `safeErrorInfo` logs). Two
-   drift notes added to Found issues; two counts corrected inline.
+     **RG-cluster verdict (2026-08-09, fable): ACCEPT, zero blockers.** Both
+     focal semantic risks independently probe-verified: cache decision AGREED
+     (rebuild-per-provide proven empirically in v3 AND v4; in-provide dedupe
+     intact — diamond probe built shared layers exactly once); double-logging
+     definitively ruled out (`Logger.layer` replaces unless
+     `mergeWithExisting`; probe emitted exactly one line). TaggedErrorClass
+     identifier-omission reasoning concretely confirmed (vendor-style
+     identifier would leak into `error.name` → `safeErrorInfo` logs). Two
+     drift notes added to Found issues; two counts corrected inline.
 
 5. [x] **Commit 4 — C8a test harness: `@effect/vitest` (39 files).**
-   Makes per-cluster tests runnable for everything after; from here each
-   cluster's done-when includes its vitest subset green.
-   **Done-when:** one foundation-adjacent test file green end-to-end.
-   **Executed (2026-08-09):**
+       Makes per-cluster tests runnable for everything after; from here each
+       cluster's done-when includes its vitest subset green.
+       **Done-when:** one foundation-adjacent test file green end-to-end.
+       **Executed (2026-08-09):**
    - **Boundary pre-fix rode this unit (C2 → true zero):** `connect/errors.ts`
      (6 classes → `TaggedErrorClass`, `Defect()` ×2), `account-deletion/
-     prepare.ts`, `account-deletion/runtime.ts` (+ its `Defect()` at :31, same
+prepare.ts`, `account-deletion/runtime.ts` (+ its `Defect()` at :31, same
      mechanical pattern). `check:effect` 272→260 on the pre-fix alone; zero
      diagnostics anchored in any C2 or boundary file afterward.
    - **Harness core:** `@effect/vitest@4.0.0-beta.99` source read end-to-end —
@@ -384,8 +387,8 @@ C7 build-digest-links).
      `Result.isFailure/isSuccess`, `.left/.right`→`.failure/.success` (99
      accessor sites, all verified Either-typed before the rewrite),
      `Logger.withMinimumLogLevel(LogLevel.X)`→`provideService(References.
-     MinimumLogLevel, "X")` (11 files, levels preserved), `Effect.
-     makeSemaphore`→`Semaphore.make` ×8 + `unsafeMakeSemaphore`→
+MinimumLogLevel, "X")` (11 files, levels preserved), `Effect.
+makeSemaphore`→`Semaphore.make` ×8 + `unsafeMakeSemaphore`→
      `Semaphore.makeUnsafe` ×2, `Effect.yieldNow()`→`Effect.yieldNow` ×1.
      Exhaustive token audit: all 58 distinct `Module.member` tokens used
      across test files exist in beta.99. Zero assertion values, mock
@@ -422,17 +425,17 @@ C7 build-digest-links).
      prod reasons; the admin.test.ts pool-workers × @effect/vitest
      intersection (hotspot 9) is unassessable until C4–C7 land.
 
-6. [ ] **Commits 5–7 — livestore-boundary clusters (highest risk).**
-   (5) C3 schema/events — the Date-wire sweep + golden round-trip test IN THE
-   SAME COMMIT (matrix rows 1–2). (6) C5 sync glue — leave the
-   `liveLongTimers` probe in place; extend it to wrap `setTimeout` (matrix
-   row 4). (7) C4 LinkProcessorDO pipeline.
-   **Done-when per cluster:** diagnostic-clean + cluster tests green + count down.
-   **Review gate — RG-cluster per cluster (alternate opus/fable):** schema
-   reviewer gets `ddd1aa16c` as required reading; sync/LP reviewers get
-   `88a4b993e` + `3b0326a93` and check Mailbox→Queue backpressure +
-   hibernation-adjacent scope handling.
-   **Executed C3 (2026-08-09):**
+6. [x] **Commits 5–7 — livestore-boundary clusters (highest risk).**
+       (5) C3 schema/events — the Date-wire sweep + golden round-trip test IN THE
+       SAME COMMIT (matrix rows 1–2). (6) C5 sync glue — leave the
+       `liveLongTimers` probe in place; extend it to wrap `setTimeout` (matrix
+       row 4). (7) C4 LinkProcessorDO pipeline.
+       **Done-when per cluster:** diagnostic-clean + cluster tests green + count down.
+       **Review gate — RG-cluster per cluster (alternate opus/fable):** schema
+       reviewer gets `ddd1aa16c` as required reading; sync/LP reviewers get
+       `88a4b993e` + `3b0326a93` and check Mailbox→Queue backpressure +
+       hibernation-adjacent scope handling.
+       **Executed C3 (2026-08-09):**
    - **Wire truth captured FIRST, two sources:** (a) real rows — local
      SyncBackendDO sqlite copied to the scratchpad, `eventlog_7_*` dumped:
      11 of 26 event types present (1 earliest row each exported); all Date
@@ -473,7 +476,7 @@ C7 build-digest-links).
      TEXT; plus a field-by-field decode of the first prod `v2.LinkCreated`.
    - **Mechanical rest:** `Schema.transform` ×2 →
      `from.pipe(Schema.decodeTo(to, SchemaTransformation.transform({decode,
-     encode})))` (queries/schemas.ts `linkByIdSchema`, queries/links.ts
+encode})))` (queries/schemas.ts `linkByIdSchema`, queries/links.ts
      `archiveCountSchema` — the latter also absorbs the removed
      `Schema.headOrElse` as `rows[0]?.count ?? 0`; semantics probe-verified).
      top-bar.tsx `Schema.URL` → `Schema.URLFromString` (v4 `Schema.URL` =
@@ -499,50 +502,137 @@ C7 build-digest-links).
      extension steps (postinstall + compile) in `ci.yml` with the TEMP note.
      `test:ext` (line ~89) left untouched but is ALSO red — pre-existing at
      `3242c4e`, see Found issues.
+     **Executed C5+C4 (2026-08-09, combined unit):**
+   - **Scope:** `sync/{errors,index,validate-payload,record-activity,
+auth-payload,activity}.ts` + `link-processor/**` + `metadata/**` +
+     colocated tests. 11 files changed (+133/−127); tests needed ZERO edits
+     (C8a had already migrated their API forms).
+   - **Adapter-API drift (fork `36dd15dac` → upstream `2e4bcfc68`), the
+     unit's headline:** upstream #1541–#1545 reshaped the do-rpc client
+     callback. ① `handleSyncUpdateRpc(payload)` →
+     `handleSyncUpdateRpc(ctx, payload)` — pull-routing moved from a module
+     global to a per-`DurableObjectState` WeakMap so a reconstructed DO
+     starts empty. ② `ClientDoWithRpcCallback.syncUpdateRpc` gained a
+     second parameter: `(payload: Uint8Array<ArrayBuffer>, storeId: string)`
+     — the sync backend now passes the storeId so a store-less (rebuilt/
+     hibernation-woken) client DO can reload its store BEFORE delivery.
+     Migrated `LinkProcessorDO.syncUpdateRpc` to the upstream-documented
+     minimal pattern (vendor example `cloudflare-todomvc/src/
+live-store-client-do.ts`): set `this.storeId` from the RPC arg, always
+     `ensureSubscribed()`, then `handleSyncUpdateRpc(this.ctx, payload)`.
+     **New-behavior wiring, not a rename:** the old code read the persisted
+     `storeId` from DO storage and SKIPPED store wake when absent; the
+     RPC-provided storeId is always present, so a store-less wake now always
+     recovers (that recovery is exactly upstream #1545's intent). ③
+     Everything else verified UNCHANGED at 2e4bcfc68: `createStoreDoPromise`
+     options shape, `makeDurableObject`/`onPush(message, context)` incl.
+     `batch[].name`/`parentSeqNum`, `handleSyncRequest`/`matchSyncRequest`
+     call shapes, `eventlog_<PERSISTENCE_FORMAT_VERSION>_*` table
+     naming (getEventlogMax's `eventlog_*` GLOB still matches).
+   - **C5 probe (matrix row 4):** `sync/index.ts` monkey-patch extended to
+     wrap `setTimeout`/`clearTimeout` alongside `setInterval`/
+     `clearInterval` — shared `longTimerIds` set, same 1_000_000 ms
+     threshold, same `liveLongTimers` push-log reporting; a long setTimeout
+     additionally untracks itself when it fires (one-shot timers stop being
+     pending). Stale patch reference in the comment updated (sanctioned).
+     NOTE: the extension mirrors the probe's pre-existing `as` casts for the
+     two new global assignments (overloaded globals can't be satisfied
+     structurally) — declared in the unit report.
+   - **Error classes:** `Schema.TaggedError` → C2's
+     `Schema.TaggedErrorClass<Self>()("Tag", fields)` in sync/errors (6),
+     link-processor/errors (3), metadata/errors (3); `Schema.Defect` →
+     `Schema.Defect()` ×2. `override get message()` getters probe-verified
+     to survive on TaggedErrorClass. All 6 `schema-optionalWith-manual`
+     markers resolved via the new `withConstructorDefault` pattern (see
+     Decisions log); `.make` applies constructor defaults (probe-verified).
+   - **Mechanical rest:** `Effect.unsafeMakeSemaphore` →
+     `Semaphore.makeUnsafe` ×3 + type `Effect.Semaphore` →
+     `Semaphore.Semaphore` ×2 (permits identical: 8 metadata / 3 AI /
+     MAX_SAFE_INTEGER unbounded); `Effect.gen(this, fn)` →
+     `Effect.gen({ self: this }, fn)` ×5 (durable-object ×4, sync/index ×1
+     — beta.99's second gen overload takes `{ self }`; this killed the
+     `any`-context poison at durable-object.ts:103/123 and typed `this`
+     for real); `Option.fromNullable` → `Option.fromNullishOr` ×3
+     (durable-object, generate-summary, metadata/schema);
+     `Schedule.compose(Schedule.recurs(2))` → `Schedule.upTo({ times: 2 })`
+     ×2 (probe: 3 attempts, exponential delays preserved — v3-identical);
+     `Effect.zipRight` → `Effect.andThen` ×2 (probe: lazy re-evaluation
+     preserved); `Logger.replace(Logger.defaultLogger, x)` →
+     `Logger.layer([x])` in link-processor/logger.ts (C2 pattern);
+     `Schema.transform` → `decodeTo` + `SchemaTransformation.transform`
+     (metadata/schema.ts `ResolvedUrl`, C3 pattern; decode behavior
+     probe-verified incl. protocol-relative + junk URLs). All 7 remaining
+     C4/metadata codemod markers removed (18 → 11 repo-wide).
+   - **Behavior preserved verbatim:** per-link `liveLayer` rebuild
+     untouched; all `catchDefect` store-null self-heal paths byte-identical;
+     layer composition unchanged; `storeId!` at (now) durable-object.ts:461
+     kept — the oxlint `no-unnecessary-type-assertion` transient RESOLVED
+     (vp check green) because `this` is now really typed inside gen.
+   - **Scoreboard:** check:effect 144/30 → **121/19**; in-scope anchored
+     35 → 1 (the C7-rooted residual above). Unit 849/867 → **891/909**;
+     newly green: content-extractor.test + generate-summary.test (+42
+     tests); in-scope suites green: do-programs 56, link-event-store,
+     link-repository, metadata-jsonld, extractors ×4, decode-entities,
+     fuzzy-match, format-payload, auth-payload 10/10. `vp check` pass on all
+     11 touched files; zero new suppressions/.skip; casts limited to the two
+     declared probe-pattern mirrors.
+   - **Still blocked (boundary, NOT this unit's debt):** ①
+     `process-link.test.ts` + `process-link-concurrency.test.ts` (hotspot 8) import-crash on C7 `x-enrichment/errors.ts` (v3 `Schema.TaggedError`
+     TypeError) via `process-link.ts` → `enricher.ts`; full unblock also
+     needs C7 `x-enrichment/generator.ts` (v3 `Effect.Service` — same
+     module-eval crash class). **Hotspot 8's interleaving assertions have
+     STILL NEVER RUN under v4** — first C7 action item. ②
+     `sync/__tests__/validate-payload.test.ts` (C5's own suite)
+     import-crashes on C7 `telegram/services.ts` via `auth/service` →
+     `account-deletion/runtime` → `telegram-key-store.live`; its 16
+     check:effect diagnostics DID clear with sync/errors.ts, only the
+     runtime import remains blocked. ③ e2e (incl. the LP↔SB round-trip
+     smoke this pair was combined for) stays blocked at worker boot on C7
+     `queue-handler.ts` — G2 item, unchanged.
 
 7. [ ] **Commits 8–N — C6 + C7 feature clusters, then frontend, then C9
-   extension.** One commit per cluster; burn down warning-class backlog items
-   as their cluster lands. Extension last (after C3 stable), gated by
-   `bun run test:ext` + loading the unpacked extension.
-   **Review gate — RG-cluster**, batching small clusters 2–3 per review.
+       extension.** One commit per cluster; burn down warning-class backlog items
+       as their cluster lands. Extension last (after C3 stable), gated by
+       `bun run test:ext` + loading the unpacked extension.
+       **Review gate — RG-cluster**, batching small clusters 2–3 per review.
 
 8. [ ] **Commit N+1 — residual sweep to full green.**
-   Clear remaining diagnostics + leftover TODOs; then the branch's first full
-   `bun run typecheck` and `bun run test:unit`.
-   **Review gate — RG-boundary (one fresh fable subagent):** whole-boundary
-   review of `src/livestore/` + `src/cf-worker/sync/` + LP↔livestore glue
-   against the upstream playbook — hunting v3 semantics that survived
-   compilation.
+       Clear remaining diagnostics + leftover TODOs; then the branch's first full
+       `bun run typecheck` and `bun run test:unit`.
+       **Review gate — RG-boundary (one fresh fable subagent):** whole-boundary
+       review of `src/livestore/` + `src/cf-worker/sync/` + LP↔livestore glue
+       against the upstream playbook — hunting v3 semantics that survived
+       compilation.
 
 9. [ ] **Commit N+2 — marker + docs.** Implement the `__LIVESTORE_BUILD__`
-   define + post-build assert; update
-   [[architecture/livestore-fork-integration]] (status → "vendored upstream")
-   and the strategy doc.
-   **Done-when:** marker documented; docs no longer claim fork-isms.
+       define + post-build assert; update
+       [[architecture/livestore-fork-integration]] (status → "vendored upstream")
+       and the strategy doc.
+       **Done-when:** marker documented; docs no longer claim fork-isms.
 
 10. [ ] **Validation battery (fix-ups as small commits).**
-    `bun run clean:local-state` (registry moved SQL→DO KV; user restarts the
-    dev server). Then: `test:unit`, `test:e2e` (stranding incarnation probe
-    passes), upstream hibernation suites inside the submodule
-    (`tests/sync-provider/src/do-hibernation.test.ts` +
-    `do-rpc-hibernation.test.ts`), `LIVESTORE_PUBLISHED=1` typecheck/build/
-    test pass (near-noop is the assertion), real `bun run build` with marker
-    = 1 and `LIVESTORE_PUBLISHED=1` build with marker = 0, bundle asserts
-    (matrix rows 5–6), extension compat smoke (matrix row 8). Preview deploy
-    ONLY via pushing the branch (Workers Builds `versions upload`) — never
-    local remote wrangler.
-    **Done-when:** every line has a recorded receipt (command + result) below.
+        `bun run clean:local-state` (registry moved SQL→DO KV; user restarts the
+        dev server). Then: `test:unit`, `test:e2e` (stranding incarnation probe
+        passes), upstream hibernation suites inside the submodule
+        (`tests/sync-provider/src/do-hibernation.test.ts` +
+        `do-rpc-hibernation.test.ts`), `LIVESTORE_PUBLISHED=1` typecheck/build/
+        test pass (near-noop is the assertion), real `bun run build` with marker
+        = 1 and `LIVESTORE_PUBLISHED=1` build with marker = 0, bundle asserts
+        (matrix rows 5–6), extension compat smoke (matrix row 8). Preview deploy
+        ONLY via pushing the branch (Workers Builds `versions upload`) — never
+        local remote wrangler.
+        **Done-when:** every line has a recorded receipt (command + result) below.
 
 11. [ ] **Final gate — full-diff review, rebase, merge.**
-    Rebase on main (regenerate commit 2 via the recorded codemod invocation if
-    it conflicts). **Two independent subagents (one opus, one fable) on the
-    full branch diff** with disjoint mandates: A = correctness/behavioral
-    (memoization, fiber semantics, Date encoding, DO lifecycle); B =
-    completeness (banned-idiom greps all zero: `Effect.async(`, `zipRight`,
-    `zipLeft`, `catchAll`, `Layer.scoped`, `Mailbox`, `fromChunk`,
-    `mapChunks`, `FiberRef`, `Effect.either(`; no codemod TODOs; docs updated;
-    every step-10 receipt exists). Both clean (or accepted-with-rationale) →
-    merge. Post-merge: G4/G5 prod items per the strategy doc.
+        Rebase on main (regenerate commit 2 via the recorded codemod invocation if
+        it conflicts). **Two independent subagents (one opus, one fable) on the
+        full branch diff** with disjoint mandates: A = correctness/behavioral
+        (memoization, fiber semantics, Date encoding, DO lifecycle); B =
+        completeness (banned-idiom greps all zero: `Effect.async(`, `zipRight`,
+        `zipLeft`, `catchAll`, `Layer.scoped`, `Mailbox`, `fromChunk`,
+        `mapChunks`, `FiberRef`, `Effect.either(`; no codemod TODOs; docs updated;
+        every step-10 receipt exists). Both clean (or accepted-with-rationale) →
+        merge. Post-merge: G4/G5 prod items per the strategy doc.
 
 ## Cluster checklist
 
@@ -550,51 +640,51 @@ Inventory taken 2026-08-09 against working tree (`main`, 8e36bf3). **Effect surf
 
 **Repo-wide grep counts (non-zero only).** Everything the rename map lists that scored **0** in this repo: `Effect.async`, `Layer.scoped`/`scopedDiscard`, `Mailbox`, `Stream.fromChunk`/`mapChunks`, `Chunk.`, `FiberRef`, `Context.GenericTag`, `ParseResult`, `DateTimeUtc`, `Effect.forkScoped`/`forkDaemon`, `Scope.` (src), direct `@effect/platform` / `@effect/rpc` imports. That kills a large slice of the official rename map before we start.
 
-| pattern | hits / files | where |
-| --- | --- | --- |
-| `Schema.` (all) | 604 / 55 | `db/branded.ts`, `*/errors.ts`, `livestore/schema.ts` |
-| `Layer.` (all) | 350 / 70 | `auth/service.ts`, `link-processor/durable-object.ts` |
-| `Effect.provide` | 295 / 65 | `runtime.ts`, `billing/routes/runtime.ts`, DO files |
-| `it.effect` | 361 / 33 | `src/cf-worker/**/__tests__` |
-| `Effect.annotateLogs` | 218 / 54 | everywhere |
-| `Layer.succeed` / `Layer.mergeAll` | 157 / 51, 125 / 29 | test layers + DO layers |
-| `Effect.annotateCurrentSpan` | 131 / 37 | worker services |
-| `Option.` | 125 / 28 | — |
-| `Either.` | 109 / 14 | **src: 100% test files**; apps: `background.ts`, `messenger.ts` |
-| `Match.` | 102 / 16 | `ui/tool.tsx`, `chat-agent/hooks.ts`, `connect/*` |
-| `Effect.fn("name")` | 101 / 46 | `billing/service.ts` (9), `x-sync/*` |
-| `Schema.TaggedError` | 99 / 31 | 31 `errors.ts`-style files |
-| `Effect.runPromise` | 68 / 33 | 25 prod + 8 test files |
-| `Effect.withSpan` | 65 / 30 | — |
-| `Effect.either` | 55 / 14 | **all test files** → `Effect.result` |
-| `catchTag(` / `catchTags(` | 47 / 17, 46 / 27 | `x-sync/effects.ts` (15), `connect/x.ts` (13) |
-| `@effect/vitest` import | 39 files | unit + 1 e2e |
-| `Schema.Defect` | 33 / 18 | TaggedError `cause` fields |
-| `Context.Tag` declarations | 33 / 17 | see C2/C4/C6/C7 |
-| `LogLevel.` / `Logger.withMinimumLogLevel` | 33 / 13, 30 / 12 | test helpers + `logger.ts` |
-| **`Schema.Date` (wire)** | **30 / 1** | **`src/livestore/schema.ts` — every `Events.synced`** |
-| `Deferred` | 29 / 1 | `__tests__/unit/process-link-concurrency.test.ts` |
-| `catchAll(` / `catchAllCause(` / `catchAllDefect(` | 19 / 14, 17 / 7, 9 / 7 | — |
-| `Schema.brand` | 18 / 1 | `db/branded.ts` (17 brands) |
-| `Layer.effect` / `Layer.provideMerge` | 15 / 10, 14 / 7 | — |
-| `Effect.gen(this, …)` | 15 / 4 | the 4 DO classes |
-| **`Schema.DateFromNumber`** | **12 / 1** | `src/livestore/schema.ts` SQLite columns |
-| `Effect.runSync` | 7 / 3 | `logger.ts` `logSync` shim |
-| `Effect.unsafeMakeSemaphore` | 5 / 3 | `durable-object.ts` ×2, `process-link.ts`, test ×2 |
-| `Logger.replace(Logger.defaultLogger, …)` | 4 / 3 | `logger.ts`, `link-processor/logger.ts`, `x-sync/durable-object.ts` |
-| `ManagedRuntime` | 4 / 2 | **`apps/extension/` only** |
-| `Effect.zipRight` / `zipLeft` | 3 / 2, 2 / 1 | trivial |
-| `Schema.parseJson` | 3 / 2 | → `Schema.fromJsonString` |
-| `Runtime.runPromise` + `Effect.runtime<R>()` | 1 | `workflows/account-deletion.ts:76` |
-| `@effect/opentelemetry` | 2 / 1 | `src/cf-worker/tracing.ts` |
-| `Stream.async` | 2 / 2 | `apps/extension` → `Stream.callback` |
-| `Effect.runFork` | 2 / 2 | `sync/index.ts` |
+| pattern                                            | hits / files           | where                                                               |
+| -------------------------------------------------- | ---------------------- | ------------------------------------------------------------------- |
+| `Schema.` (all)                                    | 604 / 55               | `db/branded.ts`, `*/errors.ts`, `livestore/schema.ts`               |
+| `Layer.` (all)                                     | 350 / 70               | `auth/service.ts`, `link-processor/durable-object.ts`               |
+| `Effect.provide`                                   | 295 / 65               | `runtime.ts`, `billing/routes/runtime.ts`, DO files                 |
+| `it.effect`                                        | 361 / 33               | `src/cf-worker/**/__tests__`                                        |
+| `Effect.annotateLogs`                              | 218 / 54               | everywhere                                                          |
+| `Layer.succeed` / `Layer.mergeAll`                 | 157 / 51, 125 / 29     | test layers + DO layers                                             |
+| `Effect.annotateCurrentSpan`                       | 131 / 37               | worker services                                                     |
+| `Option.`                                          | 125 / 28               | —                                                                   |
+| `Either.`                                          | 109 / 14               | **src: 100% test files**; apps: `background.ts`, `messenger.ts`     |
+| `Match.`                                           | 102 / 16               | `ui/tool.tsx`, `chat-agent/hooks.ts`, `connect/*`                   |
+| `Effect.fn("name")`                                | 101 / 46               | `billing/service.ts` (9), `x-sync/*`                                |
+| `Schema.TaggedError`                               | 99 / 31                | 31 `errors.ts`-style files                                          |
+| `Effect.runPromise`                                | 68 / 33                | 25 prod + 8 test files                                              |
+| `Effect.withSpan`                                  | 65 / 30                | —                                                                   |
+| `Effect.either`                                    | 55 / 14                | **all test files** → `Effect.result`                                |
+| `catchTag(` / `catchTags(`                         | 47 / 17, 46 / 27       | `x-sync/effects.ts` (15), `connect/x.ts` (13)                       |
+| `@effect/vitest` import                            | 39 files               | unit + 1 e2e                                                        |
+| `Schema.Defect`                                    | 33 / 18                | TaggedError `cause` fields                                          |
+| `Context.Tag` declarations                         | 33 / 17                | see C2/C4/C6/C7                                                     |
+| `LogLevel.` / `Logger.withMinimumLogLevel`         | 33 / 13, 30 / 12       | test helpers + `logger.ts`                                          |
+| **`Schema.Date` (wire)**                           | **30 / 1**             | **`src/livestore/schema.ts` — every `Events.synced`**               |
+| `Deferred`                                         | 29 / 1                 | `__tests__/unit/process-link-concurrency.test.ts`                   |
+| `catchAll(` / `catchAllCause(` / `catchAllDefect(` | 19 / 14, 17 / 7, 9 / 7 | —                                                                   |
+| `Schema.brand`                                     | 18 / 1                 | `db/branded.ts` (17 brands)                                         |
+| `Layer.effect` / `Layer.provideMerge`              | 15 / 10, 14 / 7        | —                                                                   |
+| `Effect.gen(this, …)`                              | 15 / 4                 | the 4 DO classes                                                    |
+| **`Schema.DateFromNumber`**                        | **12 / 1**             | `src/livestore/schema.ts` SQLite columns                            |
+| `Effect.runSync`                                   | 7 / 3                  | `logger.ts` `logSync` shim                                          |
+| `Effect.unsafeMakeSemaphore`                       | 5 / 3                  | `durable-object.ts` ×2, `process-link.ts`, test ×2                  |
+| `Logger.replace(Logger.defaultLogger, …)`          | 4 / 3                  | `logger.ts`, `link-processor/logger.ts`, `x-sync/durable-object.ts` |
+| `ManagedRuntime`                                   | 4 / 2                  | **`apps/extension/` only**                                          |
+| `Effect.zipRight` / `zipLeft`                      | 3 / 2, 2 / 1           | trivial                                                             |
+| `Schema.parseJson`                                 | 3 / 2                  | → `Schema.fromJsonString`                                           |
+| `Runtime.runPromise` + `Effect.runtime<R>()`       | 1                      | `workflows/account-deletion.ts:76`                                  |
+| `@effect/opentelemetry`                            | 2 / 1                  | `src/cf-worker/tracing.ts`                                          |
+| `Stream.async`                                     | 2 / 2                  | `apps/extension` → `Stream.callback`                                |
+| `Effect.runFork`                                   | 2 / 2                  | `sync/index.ts`                                                     |
 
 - [ ] **C1 — Dep + vendor + build plumbing (12 files, M)** — both package.jsons, `.gitmodules`, submodule SHA, `tools/livestore-local.ts` (verify, likely no change), 3 vitest/vite configs, the `@effect/rpc` patch (delete), 4 Node scripts. Sharp edges: upstream pins react 19.2.3 vs our 19.2.6 (PR #80 dual-React class — re-verify dedupe); `apps/extension` does NOT go through `livestoreLocalResolve()` (consumes the published snapshot with its own effect copy — must bump same commit); `vitest.e2e.config.ts` `ssr.noExternal` lists `effect` + `@effect/` + `@livestore/` — re-check after consolidation. Order: **first** (= Sequenced step 2).
 - [ ] **C2 — Worker core spine (23 files, L)** — tracing, `AppLayerLive`, runtime, logger, db/auth/settings/billing services. 3 `Context.Tag` here, 3 `Effect.Service`, the 2 `@effect/opentelemetry` imports, 17 `Schema.brand`. Sharp edges: `tracing.ts` is a rewrite (no drop-in v4 form); the two WeakMap layer caches (`runtime.ts`, `billing/routes/runtime.ts`) exist BECAUSE v3 memoization didn't span `Effect.provide` — v4 changed exactly this; `logger.ts` `logSync` runs `Effect.runSync` with only a Logger layer. Order: second.
 - [x] **C3 — LiveStore schema/events/queries + client store + frontend Effect surface (10 files, M — highest consequence)** — `src/livestore/schema.ts` (538L): 30 `Schema.Date` wire fields + 12 `Schema.DateFromNumber` columns; upstream `ddd1aa16c` proves v4 changed the Date wire form (their fix: `Schema.DateFromString.check(Schema.isDateValid())`). Events are immutable + persisted in prod eventlogs — needs the golden round-trip fixture (matrix rows 1–2) in the same commit. Order: third, before C4/C5/C7. **Landed 2026-08-09 — see step 6 Executed C3 block; recount: 18 wire + 12 column fields.**
-- [ ] **C4 — LinkProcessorDO pipeline + metadata (27 files, L)** — 8 `Context.Tag` in `services.ts`; `Effect.unsafeMakeSemaphore` ×3 (class fields crossing the non-Effect boundary); `liveLayer` of 7 merged layers rebuilt per link (memoization change lands here); 4 `catchAllDefect` recovery paths that null the cached Store. Order: after C2+C3, parallel with C5.
-- [ ] **C5 — Sync backend glue (7 files, M — high blast radius)** — small API surface, all mechanical, but: `sync/index.ts` monkey-patches `setInterval` to prove the no-timer hibernation property — extend to `setTimeout` (v4 runtime may never call setInterval, blinding the probe); `getEventlogMax()` greps `eventlog_*` (verified unchanged at `2e4bcfc68`, re-verify at final SHA). Order: after C2, land with C4 as a pair.
+- [x] **C4 — LinkProcessorDO pipeline + metadata (27 files, L)** — 8 `Context.Tag` in `services.ts`; `Effect.unsafeMakeSemaphore` ×3 (class fields crossing the non-Effect boundary); `liveLayer` of 7 merged layers rebuilt per link (memoization change lands here); 4 `catchAllDefect` recovery paths that null the cached Store. Order: after C2+C3, parallel with C5. **Landed 2026-08-09 — see step 6 Executed C5+C4 block; includes the do-rpc adapter-drift migration (syncUpdateRpc storeId recovery arg).**
+- [x] **C5 — Sync backend glue (7 files, M — high blast radius)** — small API surface, all mechanical, but: `sync/index.ts` monkey-patches `setInterval` to prove the no-timer hibernation property — extend to `setTimeout` (v4 runtime may never call setInterval, blinding the probe); `getEventlogMax()` greps `eventlog_*` (verified unchanged at `2e4bcfc68`, re-verify at final SHA). Order: after C2, land with C4 as a pair. **Landed 2026-08-09 — probe extended to setTimeout, see step 6 Executed C5+C4 block.**
 - [ ] **C6 — HTTP surface: routes, connect, admin, invites, ingest, billing routes, account-deletion (42 files, L by volume)** — 11 `Context.Tag`; heaviest `catchTag` density (`connect/x.ts` 13, `connect/telegram.ts` 11); `Schema.parseJson` ×2 → `fromJsonString`. Sharp edge: `workflows/account-deletion.ts:76` is the repo's only `Effect.runtime<R>()` + `Runtime.runPromise` — bridges into CF Workflows `step.do()`; a wrong translation silently disables workflow retries. Order: after C2, parallel with C7.
 - [ ] **C7 — Background feature workers: telegram, x-sync, x-enrichment, weekly-digest, chat-agent, queue-handler (50 files, L)** — 11 `Context.Tag` + 2 `Effect.Service`; highest `catch*` density (`x-sync/effects.ts` 15); `x-sync/durable-object.ts` `get baseLayer` rebuilds AppLayerLive per `runEffect` call — worst-case memoization exhibit; `telegram/bot.ts` reaches AppLayerLive only transitively (tracing convention holds only transitively). Order: after C2+C3.
 - [ ] **C8 — Tests (96 test files; 39 import `@effect/vitest`, L)** — `it.effect` ×361; `Effect.either`→`result` (all 55 in tests); `Either.*`→`Result.*` (109, all tests). Sharp edges: `e2e/admin.test.ts` is the sole `@effect/vitest` × pool-workers intersection (needs a plain-vitest fallback if v4 vitest doesn't boot in workerd); `process-link-concurrency.test.ts` asserts scheduling ORDER — the fiber rewrite can change interleaving with zero API changes (expect debugging, not renames). Colocated tests ride their cluster's commit; harness + `__tests__/` bulk is its own commit.
@@ -615,20 +705,20 @@ Inventory taken 2026-08-09 against working tree (`main`, 8e36bf3). **Effect surf
 
 ## Verification matrix
 
-| # | Risk | Silent-failure mode | Concrete check | Gate |
-|---|------|--------------------|----------------|------|
-| 1 | v4 changed `Schema.Date` wire encoding (vendor `ddd1aa16c`) | v4 store fails to decode existing eventlog `args` (materializer ParseError), or writes an encoding v3 can't read after rollback; server stores `args` opaquely so no server error | Sweep wire `Schema.Date` → `Schema.DateFromString.check(Schema.isDateValid())`; audit the 12 `Schema.DateFromNumber` columns stay epoch-number. New `src/livestore/__tests__/event-wire-format.test.ts`: encode every event against **golden JSON captured on `main` (v3) first**; flip branch must pass identical goldens | G2 |
-| 2 | Eventlog replay of real rows (both directions) | Goldens can miss fields; only real rows prove it | New pool-workers e2e `eventlog-format-compat.test.ts`: seed SyncBackendDO storage with fixture rows exported from `.wrangler/state/v3/do/cloudstash-SyncBackendDO/*.sqlite` (fork-written `eventlog_7_*` + `context_7` incl. `backendId`), boot LP client, assert materialized links + no `BackendIdMismatchError`. Reverse: flip-branch-written rows replayed on `main` **before** cutover | G2 |
-| 3 | DO persistence format drift | A version bump (7→8) on a later pinned SHA silently orphans prod `eventlog_7_*` — v4 serves an empty log, clients fork | Verified at `2e4bcfc68`: version 7 both sides; upstream deleted `rpc_subscription_7` (clean orphan) → KV keys `rpc-sub:*`. **Hard checklist item keyed to the FINAL SHA:** `git -C vendor/livestore diff 36dd15dac <finalSHA> -- packages/@livestore/sync-cf/src/cf-worker/do/sqlite.ts packages/@livestore/sync-cf/src/cf-worker/shared.ts` — version still 7, table names unchanged | G2 |
-| 4 | Hibernation regression from the fiber-runtime rewrite | Idle SyncBackendDO bills full residency again (~1,300×); nothing functional breaks | v4 `Effect.never` verified timer-less (`callback(constVoid)`); upstream parks on `Layer.launch`/`Stream.never`. Run upstream's `tests/sync-provider/src/do-hibernation.test.ts` + `do-rpc-hibernation.test.ts` in the submodule at the pinned SHA. Keep + **extend the `liveLongTimers` probe to wrap `setTimeout`**. Post-cutover: `type:hibernation` GB-s vs the day-before baseline | G2 + G4 |
-| 5 | msgpackr eval under Workers CSP after dropping the `@effect/rpc` patch | First record-struct decode on the LP↔SB DO-RPC path throws "Code generation from strings disallowed" in prod only | Verified: effect v4 statically imports `msgpackr@2.0.4` (no `index-no-eval`), do-rpc still uses `RpcSerialization.msgPack`, BUT msgpackr 2.0.4 has a CF-Workers fallback (`inlineObjectReadThreshold = Infinity`). Checks: e2e do-rpc pass in workerd (codegen forbidden like prod); post-build `grep -c "inlineObjectReadThreshold" dist/cloudstash/index.js` ≥ 1 and `grep -c "msgpackr-extract" …` = 0; preview ingest smoke | G2 + G3 |
-| 6 | Dual effect (or react) copies in the prod bundle | Broken `Context`/`Layer` identity at runtime only; typecheck green (PR #80 class) | Post-build assert **inside `bun run build`**: exactly one `moduleVersion = "` hit, zero `3.21.2` hits, react singleton grep | G2 |
-| 7 | v4 global Layer memoization changes instantiation counts | Module-scope layers (`Billing.Default`, `AppSettings.Default`, `OtelTracingLive`) become per-isolate singletons; a service capturing request-1 context serves request-2 | Unit test: `Layer.effect` build-counter provided via two separate `Effect.runPromise(Effect.provide(…))` calls; assert + document the v4 count. E2e: two sequential authed requests in one isolate through billing/settings. Audit module-scope layers closing over `env` | G2 |
-| 8 | Deployed v3 clients vs v4 server (published Chrome extension + open SPA tabs) | Extension/tabs silently stop syncing after cutover; saves queue local-only in OPFS | G3: run the current published extension against the preview backend — confirm clean local queuing; confirm the v4 extension build reads v3-written OPFS (`liveStoreStorageFormatVersion = 6` both refs — verified) and drains the queue. Submit the v4 extension to the Web Store **before** prod cutover. G4: watch push deliveries + extension errors through the window | G3 + G4 |
-| 9 | Test harness self-destruction (`@effect/vitest` 0.29 → beta.99) | Tests pass vacuously or the pool won't boot | Peers verified compatible (`vitest ^3||^4`; ours 4.1.7; pool-workers peer `^4.1.0`). After the bump: temporarily flip one assertion per suite family to confirm failures still fail; full unit + e2e | G2 |
-| 10 | From-source build marker died with the fork | Alias regression silently ships the published snapshot | Vite define when alias active: `__LIVESTORE_BUILD__ = "vendored@<sha>"`; post-build grep = 1, and = 0 under `LIVESTORE_PUBLISHED=1` (validates the marker itself) | G2 |
-| 11 | OTel layer compile break (`@effect/opentelemetry` 0.63 → beta) | None at runtime — `OtelTracingLive` is currently a no-op (exporter disabled) | Typecheck against the beta subpaths or migrate to `effect/unstable/observability` (vendor re-exports `Otlp`). "Validate traces on preview" is vacuous until the exporter is re-enabled — separate post-swap item | G2 |
-| 12 | Un-revertable side effects riding the flip PR | Rollback restores code but the deploy command's `d1 migrations apply --remote` already mutated D1 | **The flip PR must contain zero D1 migrations** (migrations-dir diff empty); anything needing D1 lands in a separate earlier PR | G2 |
+| #   | Risk                                                                          | Silent-failure mode                                                                                                                                                               | Concrete check                                                                                                                                                                                                                                                                                                                                                                                                                  | Gate    |
+| --- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- |
+| 1   | v4 changed `Schema.Date` wire encoding (vendor `ddd1aa16c`)                   | v4 store fails to decode existing eventlog `args` (materializer ParseError), or writes an encoding v3 can't read after rollback; server stores `args` opaquely so no server error | Sweep wire `Schema.Date` → `Schema.DateFromString.check(Schema.isDateValid())`; audit the 12 `Schema.DateFromNumber` columns stay epoch-number. New `src/livestore/__tests__/event-wire-format.test.ts`: encode every event against **golden JSON captured on `main` (v3) first**; flip branch must pass identical goldens                                                                                                      | G2      |
+| 2   | Eventlog replay of real rows (both directions)                                | Goldens can miss fields; only real rows prove it                                                                                                                                  | New pool-workers e2e `eventlog-format-compat.test.ts`: seed SyncBackendDO storage with fixture rows exported from `.wrangler/state/v3/do/cloudstash-SyncBackendDO/*.sqlite` (fork-written `eventlog_7_*` + `context_7` incl. `backendId`), boot LP client, assert materialized links + no `BackendIdMismatchError`. Reverse: flip-branch-written rows replayed on `main` **before** cutover                                     | G2      |
+| 3   | DO persistence format drift                                                   | A version bump (7→8) on a later pinned SHA silently orphans prod `eventlog_7_*` — v4 serves an empty log, clients fork                                                            | Verified at `2e4bcfc68`: version 7 both sides; upstream deleted `rpc_subscription_7` (clean orphan) → KV keys `rpc-sub:*`. **Hard checklist item keyed to the FINAL SHA:** `git -C vendor/livestore diff 36dd15dac <finalSHA> -- packages/@livestore/sync-cf/src/cf-worker/do/sqlite.ts packages/@livestore/sync-cf/src/cf-worker/shared.ts` — version still 7, table names unchanged                                           | G2      |
+| 4   | Hibernation regression from the fiber-runtime rewrite                         | Idle SyncBackendDO bills full residency again (~1,300×); nothing functional breaks                                                                                                | v4 `Effect.never` verified timer-less (`callback(constVoid)`); upstream parks on `Layer.launch`/`Stream.never`. Run upstream's `tests/sync-provider/src/do-hibernation.test.ts` + `do-rpc-hibernation.test.ts` in the submodule at the pinned SHA. Keep + **extend the `liveLongTimers` probe to wrap `setTimeout`**. Post-cutover: `type:hibernation` GB-s vs the day-before baseline                                          | G2 + G4 |
+| 5   | msgpackr eval under Workers CSP after dropping the `@effect/rpc` patch        | First record-struct decode on the LP↔SB DO-RPC path throws "Code generation from strings disallowed" in prod only                                                                 | Verified: effect v4 statically imports `msgpackr@2.0.4` (no `index-no-eval`), do-rpc still uses `RpcSerialization.msgPack`, BUT msgpackr 2.0.4 has a CF-Workers fallback (`inlineObjectReadThreshold = Infinity`). Checks: e2e do-rpc pass in workerd (codegen forbidden like prod); post-build `grep -c "inlineObjectReadThreshold" dist/cloudstash/index.js` ≥ 1 and `grep -c "msgpackr-extract" …` = 0; preview ingest smoke | G2 + G3 |
+| 6   | Dual effect (or react) copies in the prod bundle                              | Broken `Context`/`Layer` identity at runtime only; typecheck green (PR #80 class)                                                                                                 | Post-build assert **inside `bun run build`**: exactly one `moduleVersion = "` hit, zero `3.21.2` hits, react singleton grep                                                                                                                                                                                                                                                                                                     | G2      |
+| 7   | v4 global Layer memoization changes instantiation counts                      | Module-scope layers (`Billing.Default`, `AppSettings.Default`, `OtelTracingLive`) become per-isolate singletons; a service capturing request-1 context serves request-2           | Unit test: `Layer.effect` build-counter provided via two separate `Effect.runPromise(Effect.provide(…))` calls; assert + document the v4 count. E2e: two sequential authed requests in one isolate through billing/settings. Audit module-scope layers closing over `env`                                                                                                                                                       | G2      |
+| 8   | Deployed v3 clients vs v4 server (published Chrome extension + open SPA tabs) | Extension/tabs silently stop syncing after cutover; saves queue local-only in OPFS                                                                                                | G3: run the current published extension against the preview backend — confirm clean local queuing; confirm the v4 extension build reads v3-written OPFS (`liveStoreStorageFormatVersion = 6` both refs — verified) and drains the queue. Submit the v4 extension to the Web Store **before** prod cutover. G4: watch push deliveries + extension errors through the window                                                      | G3 + G4 |
+| 9   | Test harness self-destruction (`@effect/vitest` 0.29 → beta.99)               | Tests pass vacuously or the pool won't boot                                                                                                                                       | Peers verified compatible (`vitest ^3                                                                                                                                                                                                                                                                                                                                                                                           |         | ^4`; ours 4.1.7; pool-workers peer `^4.1.0`). After the bump: temporarily flip one assertion per suite family to confirm failures still fail; full unit + e2e | G2  |
+| 10  | From-source build marker died with the fork                                   | Alias regression silently ships the published snapshot                                                                                                                            | Vite define when alias active: `__LIVESTORE_BUILD__ = "vendored@<sha>"`; post-build grep = 1, and = 0 under `LIVESTORE_PUBLISHED=1` (validates the marker itself)                                                                                                                                                                                                                                                               | G2      |
+| 11  | OTel layer compile break (`@effect/opentelemetry` 0.63 → beta)                | None at runtime — `OtelTracingLive` is currently a no-op (exporter disabled)                                                                                                      | Typecheck against the beta subpaths or migrate to `effect/unstable/observability` (vendor re-exports `Otlp`). "Validate traces on preview" is vacuous until the exporter is re-enabled — separate post-swap item                                                                                                                                                                                                                | G2      |
+| 12  | Un-revertable side effects riding the flip PR                                 | Rollback restores code but the deploy command's `d1 migrations apply --remote` already mutated D1                                                                                 | **The flip PR must contain zero D1 migrations** (migrations-dir diff empty); anything needing D1 lands in a separate earlier PR                                                                                                                                                                                                                                                                                                 | G2      |
 
 ### Rollback plan
 
@@ -699,6 +789,25 @@ effect 3.21.2, `@effect/rpc` patch restored) redeploys the fork build.
   byte-identical round-trips. Eventlog `schemaHash` drift is warning-only
   (`rematerialize-from-eventlog.ts:65`) and re-registers — decode is the
   compatibility gate.
+- 2026-08-09 — **C5+C4 pattern: `Schema.optionalWith(S, { default: () => v })`
+  → `S.pipe(Schema.withConstructorDefault(Effect.succeed(v)))`** (v4 has no
+  `optionalWith`). Preserves the observable v3 contract for this repo's error
+  classes: constructor/`.make` may omit the field and gets the default, Type
+  side stays non-optional, explicit values win (all probe-verified, incl.
+  literal-union fields like `ContentExtractionError.reason`). Deliberately
+  does NOT add `withDecodingDefault`: none of these TaggedErrors are ever
+  schema-decoded in this repo (in-process construction + catchTag only), and
+  the decode-side default would make the Encoded key optional — surface we
+  don't use. Template for the remaining `schema-optionalWith-manual` markers
+  (telegram/errors.ts ×5 in C7, queue-handler ×2 in C7).
+- 2026-08-09 — **C5+C4 mechanical patterns:** `Effect.gen(this, fn)` →
+  `Effect.gen({ self: this }, fn)` (beta.99 overload; vendor idiom, e.g.
+  sync-cf `durable-object.ts:148`); `Schedule.compose(Schedule.recurs(n))`
+  → `Schedule.upTo({ times: n })` (upstream's own idiom; retry counts +
+  exponential delays probe-identical); `Effect.zipRight(x)` →
+  `Effect.andThen(x)` (lazy re-evaluation probe-verified). TaggedErrorClass
+  supports `override get message()` getters unchanged (sync/errors.ts's 6
+  message getters survive verbatim).
 - 2026-08-09 — **D1 verified clean**: migrations at `0013_lonely_giant_girl`
   (14 journal entries), tree clean, no pending/uncommitted migrations; the
   flip requires no schema change. Matrix row 12 stays as a guard against
@@ -755,7 +864,7 @@ _(running list — every surprise found during migration gets a line here)_
   `tapErrorCause` (7), the effect-only `Effect.Service` shape (5, warned as
   `effect-service-manual`), `zipRight`/`zipLeft` (5), `timeoutFail` (1),
   `Effect.runtime` (1). Its pattern matrix covers `Schema.decode*Either →
-  decode*Result` only — plain `Either.*`→`Result.*` (109 hits, C8) is NOT
+decode*Result` only — plain `Either.*`→`Result.*` (109 hits, C8) is NOT
   covered; stays hand-work.
 - 2026-08-09 (C8a) — **matrix row 1 reproduced in unit tests before the C3
   sweep exists:** every store-backed test (68 tests / 11 files) fails with
@@ -786,7 +895,7 @@ _(running list — every surprise found during migration gets a line here)_
   suites.
 - 2026-08-09 (C8a) — vitest dedupes identical module-eval errors across
   suites: 19 import-dead suites printed ONE shared `Schema.TaggedError is not
-  a function` block whose stack goes through `telegram/services.ts` (first
+a function` block whose stack goes through `telegram/services.ts` (first
   v3 module evaluated) — per-suite blocker attribution needs the module
   graph, not the error text.
 - 2026-08-09 (stage 2) — codemod CLI's `--dry-run` prints counts only (no
@@ -817,7 +926,7 @@ _(running list — every surprise found during migration gets a line here)_
   mentions surviving in Effect.ts are stale doc comments only),
   `Effect.tapCause` same cause-callback shape as v3 `tapErrorCause`,
   `forkChild` options `{ startImmediately?: boolean; uninterruptible?:
-  boolean | "inherit" }` — exactly the literals vendor `c5e06a96a` uses.
+boolean | "inherit" }` — exactly the literals vendor `c5e06a96a` uses.
 - 2026-08-09 (RG review of the corrections unit) — the restored `storeId!` at
   `link-processor/durable-object.ts:420` trips oxlint
   `no-unnecessary-type-assertion` (a TRANSIENT: `this` inside
@@ -878,7 +987,7 @@ _(running list — every surprise found during migration gets a line here)_
   global otel provider, which stays unregistered (exporter still disabled).
   When re-enabling OTLP later, the split `layerTracer`/`layerGlobalProvider`
   (or vendor's `OtelLiveDummy` style: `Layer.succeed(OtelTracer.OtelTracer,
-  tracer)` + `layerWithoutOtelTracer`) is the v4-native seam.
+tracer)` + `layerWithoutOtelTracer`) is the v4-native seam.
 - 2026-08-09 (C2, repo pattern) — **WeakMap layer caches (`appLayerCache`,
   `billingLayerCache`): KEEP, reclassified harmless.** Source-verified in BOTH
   versions: v3 3.21.2 `provideSomeLayer` → `buildWithScope` → fresh
@@ -900,7 +1009,7 @@ _(running list — every surprise found during migration gets a line here)_
   this single-app repo. Field-level: `Schema.Defect` → `Schema.Defect()`
   (now a constructor call), `Schema.Literal(...spread)` →
   `Schema.Literals(array)`, `Schema.optional` unchanged. Runtime-verified:
-  instances remain YieldableError Effects (yield*/flatMap positions), `.make`
+  instances remain YieldableError Effects (yield\*/flatMap positions), `.make`
   static intact, catchTag(s) narrowing intact, `_tag` = `name` = tag.
 - 2026-08-09 (C2, repo pattern) — **Effect.Service v4 shape:** hoist the
   implementation to `const make = Effect.gen(...)`, declare
@@ -910,9 +1019,9 @@ _(running list — every surprise found during migration gets a line here)_
   `Context.Service` + separate make/layer (`000e8cb93`); deriving Shape via
   `Effect.Success<typeof make>` avoids hand-written interfaces; the `Default`
   static preserves every existing `X.Default` call site unchanged (AppLayerLive
-  + link-processor/durable-object + activity-stats/handler +
-  weekly-digest/run-digest). Applies to the remaining 3 `effect-service-manual`
-  markers (weekly-digest, x-enrichment, activity-stats) in their clusters.
+  - link-processor/durable-object + activity-stats/handler +
+    weekly-digest/run-digest). Applies to the remaining 3 `effect-service-manual`
+    markers (weekly-digest, x-enrichment, activity-stats) in their clusters.
 - 2026-08-09 (C3) — **the 68-test store-shutdown killer was the COLUMN
   schema, not the event args schema:** `Schema.DateFromNumber` does not exist
   in beta.99, and `State.SQLite.integer({ schema: undefined })` silently
@@ -955,3 +1064,45 @@ _(running list — every surprise found during migration gets a line here)_
   and a same-shape throwing `.make` (`Bottom.make`) — all 17 brands in
   `db/branded.ts` and every `Brand.make(...)` call site are v4-valid as-is.
   The inventory's "17 Schema.brand" line is a no-op for the whole repo.
+- 2026-08-09 (C5+C4) — **Hotspot 8 (`process-link-concurrency.test.ts`) has
+  STILL not executed under v4** — the plan expected it runnable in this unit,
+  but it (and `process-link.test.ts`) import-crashes on OUT-of-scope C7
+  files: `x-enrichment/errors.ts` (v3 `Schema.TaggedError` module-eval
+  TypeError, reached via `process-link.ts` → `enricher.ts`) and
+  `x-enrichment/generator.ts` (v3 `Effect.Service` — same crash class; the
+  test also constructs `new EnrichmentGenerator(...)` directly). Left
+  unfixed per unit scoping (boundary blockers reported, not fixed). The
+  interleaving-assertion signal the migration most needs is therefore
+  deferred to C7 — make these two files C7's FIRST items and re-run
+  hotspot 8 immediately.
+- 2026-08-09 (C5+C4) — `sync/__tests__/validate-payload.test.ts` (C5's own
+  suite) is import-blocked by the C7 telegram chain (`auth/service` →
+  `account-deletion/runtime` → `telegram-key-store.live` →
+  `telegram/services.ts` v3 TaggedError). Its 16 check:effect diagnostics
+  cleared with sync/errors.ts; only the runtime import blocks. Same chain
+  blocks importing `sync/index.ts` outside workerd, so the extended timer
+  probe is exercised only by e2e (G2).
+- 2026-08-09 (C5+C4) — the sole in-scope residual diagnostic
+  (durable-object.ts:396 `missingEffectContext: any`) is C7 poison, not C4
+  debt: `liveLayer` merges `EnrichmentGenerator.Default` +
+  `OpenRouterApiKeyLive` whose classes still extend v3 `Effect.Service`
+  (types resolve to `any`). Clears when C7 migrates those two files to the
+  C2 `Context.Service` pattern.
+- 2026-08-09 (C5+C4) — upstream `syncUpdateRpc` payload type is
+  `Uint8Array<ArrayBuffer>` (generic `Uint8Array` — TS ≥5.7 syntax); the
+  published-snapshot d.ts carries the same type, so tsgo resolves it. The
+  old `payload: unknown` signature would no longer satisfy
+  `ClientDoWithRpcCallback`.
+- 2026-08-09 (C5+C4 RG review) — **account-deletion purge-ordering race,
+  widened by the always-recover path**: the deletion workflow purges
+  LinkProcessorDO BEFORE SyncBackendDO (`workflow.ts:113-123`), while the SB
+  keeps the LP's `RpcSubscription` in KV — a push landing in that gap now
+  re-boots the store on the just-purged LP DO and re-creates eventlog tables
+  permanently. Pre-existing window (purgeAll never cleared `this.storeId`);
+  the recovery wiring extends it to evicted instances. Cheapest full fix:
+  swap purge order (SB first) in the account-deletion workflow — out of the
+  migration's scope, tracked for the deletion doc/kanban.
+- 2026-08-09 (C5+C4 RG review) — optional hardening: `syncUpdateRpc` could
+  assert `this.ctx.id.name === storeId` like `fetch`/`ingestAndProcess` do
+  (defense-in-depth only — trust analysis showed a wrong-store delivery is
+  structurally impossible without server-storage corruption).

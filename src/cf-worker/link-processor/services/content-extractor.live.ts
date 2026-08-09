@@ -29,7 +29,7 @@ export const ContentExtractorLive = Layer.succeed(ContentExtractor, {
       Effect.timeout("15 seconds"),
       Effect.retry({
         schedule: Schedule.exponential("300 millis").pipe(
-          Schedule.compose(Schedule.recurs(2))
+          Schedule.upTo({ times: 2 })
         ),
         while: (error) =>
           Match.value(error).pipe(

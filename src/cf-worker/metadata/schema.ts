@@ -1,23 +1,24 @@
-import { Option, Schema } from "effect";
+import { Option, Schema, SchemaTransformation } from "effect";
 
 export const ResolvedUrl = (baseUrl: string) =>
-  /* TODO(effect-v4-codemod): manual migration required for schema-transform-manual */ Schema.transform(
-    Schema.String,
-    Schema.String,
-    {
-      decode: (url) => {
-        if (url.startsWith("http://") || url.startsWith("https://")) {
-          return url;
-        }
-        if (url.startsWith("//")) {
-          return `https:${url}`;
-        }
-        return Option.fromNullable(URL.parse(url, baseUrl)?.href).pipe(
-          Option.getOrElse(() => url)
-        );
-      },
-      encode: (url) => url,
-    }
+  Schema.String.pipe(
+    Schema.decodeTo(
+      Schema.String,
+      SchemaTransformation.transform({
+        decode: (url) => {
+          if (url.startsWith("http://") || url.startsWith("https://")) {
+            return url;
+          }
+          if (url.startsWith("//")) {
+            return `https:${url}`;
+          }
+          return Option.fromNullishOr(URL.parse(url, baseUrl)?.href).pipe(
+            Option.getOrElse(() => url)
+          );
+        },
+        encode: (url) => url,
+      })
+    )
   );
 
 export class OgMetadata extends Schema.Class<OgMetadata>("OgMetadata")({

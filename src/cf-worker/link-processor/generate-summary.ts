@@ -109,7 +109,7 @@ export const generateSummary = Effect.fn("LinkProcessor.generateSummary")(
     const sanitizedContent = sanitizeContent(content);
     const truncatedContent = sanitizedContent.slice(0, 4000);
     const existingTagsList = existingTags.map((t) => t.name).join(", ");
-    const domainOption = Option.fromNullable(URL.parse(url)).pipe(
+    const domainOption = Option.fromNullishOr(URL.parse(url)).pipe(
       Option.map((u) => u.hostname.replace(/^www\./, ""))
     );
     if (Option.isNone(domainOption)) {

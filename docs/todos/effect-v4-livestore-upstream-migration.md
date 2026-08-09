@@ -59,11 +59,11 @@ manual fixes with `bun run check` green per cluster); only the merge is atomic.
 
 ## Fork → upstream successor map (why zero carry remains)
 
-| Fork commit | Upstream successor |
-| ----------- | ------------------ |
-| `f38fc7882` idle WS-RPC sync-DO hibernation | Completed upstream; livestorejs#1328 closed COMPLETED 2026-07-21, guarded by our #1427 (WS) + #1435 (DO-RPC) |
+| Fork commit                                                    | Upstream successor                                                                                                                                                                 |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `f38fc7882` idle WS-RPC sync-DO hibernation                    | Completed upstream; livestorejs#1328 closed COMPLETED 2026-07-21, guarded by our #1427 (WS) + #1435 (DO-RPC)                                                                       |
 | `e64268662` DO-RPC live-pull survival (reap-on-client-verdict) | Reworked as #1541/#1542 (backend KV-persisted subscriber registry, keyed per client DO not per storeId) + #1544/#1545 (client-DO reconstruction recovery, closes livestorejs#1415) |
-| `f9e685f2e`, `36dd15dac` (CI/lint) | Irrelevant |
+| `f9e685f2e`, `36dd15dac` (CI/lint)                             | Irrelevant                                                                                                                                                                         |
 
 After the swap the submodule points at `livestorejs/livestore` `main` directly —
 no fork branch, no divergence, no `src/livestore-fork.d.ts` carry.
@@ -231,12 +231,12 @@ map):
 
 ## Risks
 
-| Risk | Mitigation |
-| ---- | ---------- |
-| Beta churn (announcement: "beta releases may include breaking changes") | Pin exact catalog versions; bump only when upstream's catalog bumps |
-| Behavioral changes beyond renames (Layer memoization across `Effect.provide`, fiber-runtime rewrite) | Cluster-wise tests + full e2e + preview smoke before cutover |
-| Date wire encoding / schema drift on the eventlog | `ddd1aa16c` review + e2e sync round-trip against a copy of real local state before prod |
-| DO persistence-format mismatch on deployed DOs | Phase 1 step 6; worst case bump `PERSISTENCE_FORMAT_VERSION` |
-| OTel exporter compat (`@effect/opentelemetry` beta on CF Workers) | Validate traces on preview before cutover |
-| 177-file compile wall | Cluster-by-cluster commits, `bun run check` per cluster, language-service codemods |
-| 7-day install cooldown on fresh betas | Check publish dates before starting Phase 1 |
+| Risk                                                                                                 | Mitigation                                                                              |
+| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Beta churn (announcement: "beta releases may include breaking changes")                              | Pin exact catalog versions; bump only when upstream's catalog bumps                     |
+| Behavioral changes beyond renames (Layer memoization across `Effect.provide`, fiber-runtime rewrite) | Cluster-wise tests + full e2e + preview smoke before cutover                            |
+| Date wire encoding / schema drift on the eventlog                                                    | `ddd1aa16c` review + e2e sync round-trip against a copy of real local state before prod |
+| DO persistence-format mismatch on deployed DOs                                                       | Phase 1 step 6; worst case bump `PERSISTENCE_FORMAT_VERSION`                            |
+| OTel exporter compat (`@effect/opentelemetry` beta on CF Workers)                                    | Validate traces on preview before cutover                                               |
+| 177-file compile wall                                                                                | Cluster-by-cluster commits, `bun run check` per cluster, language-service codemods      |
+| 7-day install cooldown on fresh betas                                                                | Check publish dates before starting Phase 1                                             |

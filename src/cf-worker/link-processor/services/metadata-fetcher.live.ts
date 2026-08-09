@@ -8,9 +8,7 @@ export const MetadataFetcherLive = Layer.succeed(MetadataFetcher, {
     fetchOgMetadata(url).pipe(
       Effect.timeout("10 seconds"),
       Effect.retry(
-        Schedule.exponential("200 millis").pipe(
-          Schedule.compose(Schedule.recurs(2))
-        )
+        Schedule.exponential("200 millis").pipe(Schedule.upTo({ times: 2 }))
       ),
       Effect.withSpan("MetadataFetcher.fetch", { attributes: { url } })
     ),

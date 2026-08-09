@@ -8,10 +8,7 @@ export const LinkProcessorLogger = createLogger("LinkProcessorDO");
 export const runEffect = <A, E>(effect: Effect.Effect<A, E>): Promise<A> =>
   effect.pipe(
     Effect.provide(
-      Layer.merge(
-        Logger.replace(Logger.defaultLogger, LinkProcessorLogger),
-        OtelTracingLive
-      )
+      Layer.merge(Logger.layer([LinkProcessorLogger]), OtelTracingLive)
     ),
     Effect.runPromise
   );

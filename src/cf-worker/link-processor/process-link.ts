@@ -1,5 +1,5 @@
 import { nanoid } from "@livestore/livestore";
-import { Cause, Effect } from "effect";
+import { Cause, Effect, Semaphore } from "effect";
 
 import { isValidTagName, sanitizeTagName } from "@/lib/tags";
 
@@ -17,7 +17,7 @@ import {
 } from "./services";
 import { AI_MODEL } from "./types";
 
-const unboundedSemaphore = Effect.unsafeMakeSemaphore(Number.MAX_SAFE_INTEGER);
+const unboundedSemaphore = Semaphore.makeUnsafe(Number.MAX_SAFE_INTEGER);
 
 interface ProcessLinkParams {
   aiSummaryEnabled?: boolean;
@@ -25,8 +25,8 @@ interface ProcessLinkParams {
   storeId?: OrgId;
   link: { id: LinkId; url: string };
   skipStartedEvent?: boolean;
-  metadataSemaphore?: Effect.Semaphore;
-  aiSemaphore?: Effect.Semaphore;
+  metadataSemaphore?: Semaphore.Semaphore;
+  aiSemaphore?: Semaphore.Semaphore;
 }
 
 interface RecordFailureParams {
@@ -161,7 +161,7 @@ export const processLink = ({
       ) =>
         Effect.logWarning(message).pipe(
           Effect.annotateLogs(fields),
-          Effect.zipRight(summarizeBasic)
+          Effect.andThen(summarizeBasic)
         );
 
       const summarize = canEnrich
@@ -181,7 +181,7 @@ export const processLink = ({
                     used: e.used,
                     cap: e.cap,
                   }),
-                  Effect.zipRight(summarizeBasic)
+                  Effect.andThen(summarizeBasic)
                 ),
               ThreadProviderInvalidUrlError: (e) =>
                 fallbackToBasic("Enrichment provider: invalid url", {

@@ -5,7 +5,7 @@ import type { Store, Unsubscribe } from "@livestore/livestore";
 import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
 /// <reference types="@cloudflare/workers-types" />
 import { DurableObject } from "cloudflare:workers";
-import { Effect, Layer, Option } from "effect";
+import { Effect, Layer, Option, Semaphore } from "effect";
 
 import { capabilitiesFor } from "@/lib/plan";
 import type { TierCapabilities } from "@/lib/plan";
@@ -74,10 +74,8 @@ export class LinkProcessorDO
   private storeCreationPromise: Promise<Store<typeof schema>> | undefined;
   private subscription: Unsubscribe | undefined;
   private submittedLinks = new Set<string>();
-  private metadataSemaphore = Effect.unsafeMakeSemaphore(
-    MAX_CONCURRENT_METADATA
-  );
-  private aiSemaphore = Effect.unsafeMakeSemaphore(MAX_CONCURRENT_AI);
+  private metadataSemaphore = Semaphore.makeUnsafe(MAX_CONCURRENT_METADATA);
+  private aiSemaphore = Semaphore.makeUnsafe(MAX_CONCURRENT_AI);
   private notifiedLinkIds = new Set<string>();
   private hasRunCleanup = false;
   private totalRowsWritten = 0;
@@ -100,7 +98,7 @@ export class LinkProcessorDO
    */
   async markDeleting(): Promise<void> {
     await runEffect(
-      Effect.gen(this, function* () {
+      Effect.gen({ self: this }, function* () {
         yield* Effect.promise(() => setDeletionTombstone(this.ctx.storage));
         this.subscription?.();
         this.subscription = undefined;
@@ -120,7 +118,7 @@ export class LinkProcessorDO
    */
   async purgeAll(): Promise<void> {
     await runEffect(
-      Effect.gen(this, function* () {
+      Effect.gen({ self: this }, function* () {
         this.subscription?.();
         this.subscription = undefined;
         this.cachedStore = undefined;
@@ -395,7 +393,7 @@ export class LinkProcessorDO
     link: Link,
     isReprocess: boolean
   ): Effect.Effect<void> {
-    return Effect.gen(this, function* () {
+    return Effect.gen({ self: this }, function* () {
       yield* Effect.logInfo("Processing link").pipe(
         Effect.annotateLogs({
           linkId: link.id,
@@ -673,7 +671,7 @@ export class LinkProcessorDO
   private digestSchedulerDeps(): DigestSchedulerDeps {
     return {
       storage: this.ctx.storage,
-      getStoreId: Effect.sync(() => Option.fromNullable(this.storeId)),
+      getStoreId: Effect.sync(() => Option.fromNullishOr(this.storeId)),
       setStoreId: (id) =>
         Effect.sync(() => {
           this.storeId = id;
@@ -683,7 +681,7 @@ export class LinkProcessorDO
         isDeletionTombstoneSet(this.ctx.storage)
       ),
       runDigest: (storeId, trigger) =>
-        Effect.gen(this, function* () {
+        Effect.gen({ self: this }, function* () {
           const store = yield* Effect.promise(() => this.getStore());
           return yield* runDigestGeneration({
             env: this.env,
@@ -724,7 +722,10 @@ export class LinkProcessorDO
     );
   }
 
-  async syncUpdateRpc(payload: unknown): Promise<void> {
+  async syncUpdateRpc(
+    payload: Uint8Array<ArrayBuffer>,
+    storeId: string
+  ): Promise<void> {
     logger.debug("syncUpdateRpc called", {
       hadCachedStore: !!this.cachedStore,
       hadSubscription: !!this.subscription,
@@ -732,14 +733,10 @@ export class LinkProcessorDO
     });
 
     if (!this.storeId) {
-      const stored = await this.ctx.storage.get<string>("storeId");
-      this.storeId = stored ? OrgId.make(stored) : undefined;
+      this.storeId = OrgId.make(storeId);
     }
 
-    if (this.storeId) {
-      await this.ensureSubscribed();
-    }
-
-    await handleSyncUpdateRpc(payload);
+    await this.ensureSubscribed();
+    await handleSyncUpdateRpc(this.ctx, payload);
   }
 }
