@@ -1,4 +1,4 @@
-import { Effect, Either, ManagedRuntime, Stream } from "effect";
+import { Effect, ManagedRuntime, Result, Stream } from "effect";
 
 import { APP_URL } from "../lib/config";
 import { BackgroundLayer } from "../lib/layers";
@@ -62,7 +62,7 @@ const handleGetCreds = (sendResponse: (data: unknown) => void) =>
         Effect.annotateLogs(safeErrorInfo(cause))
       )
     ),
-    Effect.catchAll((cause) =>
+    Effect.catch((cause) =>
       Effect.sync(() => {
         const info = safeErrorInfo(cause);
         sendResponse({
@@ -80,7 +80,7 @@ const handlePing = (sendResponse: (data: unknown) => void) =>
     const current = yield* creds.get;
     sendResponse({ ok: true, connected: current !== null });
   }).pipe(
-    Effect.catchAll(() =>
+    Effect.catch(() =>
       Effect.sync(() => sendResponse({ ok: true, connected: false }))
     )
   );
@@ -105,7 +105,7 @@ const handleOpenConnect = (sendResponse: (data: unknown) => void) =>
         Effect.annotateLogs(safeErrorInfo(cause))
       )
     ),
-    Effect.catchAll(() => Effect.sync(() => sendResponse({ ok: false })))
+    Effect.catch(() => Effect.sync(() => sendResponse({ ok: false })))
   );
 
 const handleExternalConnect = (
@@ -125,7 +125,7 @@ const handleExternalConnect = (
         Effect.annotateLogs(safeErrorInfo(cause))
       )
     ),
-    Effect.catchAll(() => Effect.sync(() => sendResponse({ ok: false })))
+    Effect.catch(() => Effect.sync(() => sendResponse({ ok: false })))
   );
 
 export default defineBackground(() => {
@@ -139,8 +139,8 @@ export default defineBackground(() => {
 
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     const decoded = decodeExtMessage(msg);
-    if (Either.isLeft(decoded)) return undefined;
-    const message = decoded.right;
+    if (Result.isFailure(decoded)) return undefined;
+    const message = decoded.success;
     if (message.type === "cs:get-creds") {
       void runtime.runPromise(handleGetCreds(sendResponse));
       return true;
@@ -154,8 +154,8 @@ export default defineBackground(() => {
 
   chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
     const decoded = decodeExternalMessage(msg);
-    if (Either.isLeft(decoded)) return undefined;
-    const message = decoded.right;
+    if (Result.isFailure(decoded)) return undefined;
+    const message = decoded.success;
     void runtime.runPromise(
       Effect.logDebug("[background] external message").pipe(
         Effect.annotateLogs({

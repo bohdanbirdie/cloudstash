@@ -26,12 +26,12 @@ const ok = (account: ExtAccount | null): AccountResult => ({
   account,
 });
 
-export class AccountClient extends Context.Tag("@ext/AccountClient")<
+export class AccountClient extends Context.Service<
   AccountClient,
   {
     readonly get: (creds: Creds) => Effect.Effect<AccountResult>;
   }
->() {
+>()("@ext/AccountClient") {
   static readonly layer = Layer.sync(AccountClient, () => {
     const get = (creds: Creds): Effect.Effect<AccountResult> =>
       Effect.gen(function* () {
@@ -49,14 +49,14 @@ export class AccountClient extends Context.Tag("@ext/AccountClient")<
         const body = yield* Effect.tryPromise(
           () => response.json() as Promise<unknown>
         );
-        const decoded = yield* Schema.decodeUnknown(AccountBody)(body);
+        const decoded = yield* Schema.decodeUnknownEffect(AccountBody)(body);
         return ok(
           decoded.user
             ? { name: decoded.user.name, image: decoded.user.image ?? null }
             : null
         );
       }).pipe(
-        Effect.catchAllCause((cause) =>
+        Effect.catchCause((cause) =>
           Effect.logDebug("AccountClient.get failed; showing no header").pipe(
             Effect.annotateLogs({ cause: Cause.pretty(cause) }),
             Effect.as(ok(null))

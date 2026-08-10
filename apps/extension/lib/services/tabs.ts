@@ -8,12 +8,12 @@ export type ActiveTab = {
   readonly favIconUrl: string | null;
 };
 
-export class Tabs extends Context.Tag("@ext/Tabs")<
+export class Tabs extends Context.Service<
   Tabs,
   {
     readonly activeTab: Effect.Effect<Option.Option<ActiveTab>, TabsError>;
   }
->() {
+>()("@ext/Tabs") {
   static readonly layer = Layer.sync(Tabs, () => {
     const activeTab = Effect.fn("Tabs.activeTab")(function* () {
       const tabs = yield* Effect.tryPromise({

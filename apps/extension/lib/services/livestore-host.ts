@@ -16,14 +16,14 @@ type State = { store: HostedStore; creds: Creds } | null;
 const sameCreds = (a: Creds, b: Creds) =>
   a.apiKey === b.apiKey && a.orgId === b.orgId;
 
-export class LivestoreHost extends Context.Tag("@ext/LivestoreHost")<
+export class LivestoreHost extends Context.Service<
   LivestoreHost,
   {
     readonly reconcile: (
       creds: Creds | null
     ) => Effect.Effect<void, LivestoreBootError>;
   }
->() {
+>()("@ext/LivestoreHost") {
   static readonly layer = Layer.effect(
     LivestoreHost,
     Effect.gen(function* () {

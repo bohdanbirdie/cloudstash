@@ -15,7 +15,7 @@ const supervise = Effect.gen(function* () {
         Effect.annotateLogs(safeErrorInfo(cause))
       )
     ),
-    Effect.catchAll(() => Effect.succeed(null))
+    Effect.catch(() => Effect.succeed(null))
   );
   yield* host.reconcile(initial).pipe(
     Effect.tapError((cause) =>
