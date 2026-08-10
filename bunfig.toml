@@ -1,5 +1,17 @@
 [install]
 minimumReleaseAge = 604800
+# @livestore snapshot pins are first-party (same SHA as the vendor/livestore
+# submodule) and always freshly published — the age gate can never pass them.
+minimumReleaseAgeExcludes = [
+  "@livestore/adapter-cloudflare",
+  "@livestore/adapter-web",
+  "@livestore/devtools-vite",
+  "@livestore/livestore",
+  "@livestore/peer-deps",
+  "@livestore/react",
+  "@livestore/sync-cf",
+  "@livestore/wa-sqlite",
+]
 
 # TEMPORARILY DISABLED 2026-06-24: Socket's free-mode endpoint
 # (firewall-api.socket.dev) is returning 503 and hard-fails `bun install` on

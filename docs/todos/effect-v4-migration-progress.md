@@ -56,12 +56,19 @@ unit 1292/1292, e2e 52/3-skip).
 **Open decisions — ALL RESOLVED 2026-08-10 (user):**
 
 1. Bunfig `minimumReleaseAge` — RESTORED at the full 604800 on the PR
-   branch, same day. Empirically verified: both `bun install
---frozen-lockfile` (CI path) and plain `bun install` pass with the
-   cooldown on, because it applies at resolution time only and the
-   lockfile already pins the snapshot. If an @livestore pin must be
-   RE-resolved before ~2026-08-16 (snapshot bump), add a temporary scoped
-   `minimumReleaseAgeExcludes` for those packages.
+   branch, same day. **Correction 2026-08-10:** the "lockfile-safe"
+   verification held only for UNCHANGED package.json entries — E1's five
+   new `apps/extension` `@livestore/*` pins re-resolve on a cold cache,
+   so the first E2 CI run failed all three checks at `bun install
+--frozen-lockfile` (locally masked by the warm bun cache; reproduced
+   with `BUN_INSTALL_CACHE_DIR=<fresh>`). Fixed as decision #1 always
+   anticipated: `minimumReleaseAgeExcludes` in `bunfig.toml` listing the
+   8 first-party `@livestore/*` pins (same SHA as the vendored
+   submodule; a `"@livestore/*"` glob does NOT work in bun 1.3.14 —
+   explicit names required). Cold-cache frozen install verified green.
+   The exclude is PERMANENT, not temporary: snapshot pins are always
+   freshly published, so the age gate can never pass them — this also
+   un-blocks future snapshot bumps.
 2. Extension: ~~migration = STACKED PR after this one (Stage 6)~~ —
    REVERSED 2026-08-10 (user): migrated IN THIS PR (E1 `583ddaf` + E2
    gates; full-trust autonomy granted for the extension stages,
