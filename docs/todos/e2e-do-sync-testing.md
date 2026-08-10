@@ -52,12 +52,16 @@ The original `@effect/vitest` blocker turned out to be **transitively gated on l
 
 We bypassed this by keeping **`@effect/vitest@0.29.0`** (the effect-v3 line) and running it against vitest 4 via a **peer mismatch** — it declares `vitest ^3.2.0`; bun warns but installs; the adapter only uses core test APIs that didn't break across 3→4. Verified green: 1167 unit + 51 e2e tests pass. The combo is _officially unsupported_ (low risk within 4.1.x given what `@effect/vitest` uses; the suite is the tripwire) until livestore→effect v4 lets us adopt `@effect/vitest@4.x` cleanly.
 
-### Next steps
+## Resolution — PR #46 MERGED (2026-08-10, `e278fd1`)
 
-- Rebase PR #46 onto the vitest-4 / pool-workers-0.16 stack — the e2e config now uses the `cloudflareTest()` plugin instead of `test.poolOptions.workers` (see `vitest.e2e.config.ts`).
-- Re-run on CI (Linux) to confirm the hang is gone now that isolated storage is removed.
-- If green, merge and drop the `isolatedStorage` caveats.
+The effect-v4 cutover ([[todos/effect-v4-migration-progress]]) cleared the last dependency: `@effect/vitest@4.0.0-beta.99` runs natively on vitest 4, retiring the 0.29.0 peer-mismatch hack. The rebase onto main was conflict-free and the April test file landed **byte-identical** — all 12 tests green on macOS and Linux CI. The WAL-sidecar hang is confirmed dead (first CI attempt ran the full suite to completion in 68s).
 
-Alternatives rejected: `isolatedStorage: false` loosens isolation for all e2e tests; skipping on CI defeats the purpose.
+One new fix was required: with per-file storage isolation gone, background DO fibers (livestore push, link processing) keep logging after a file's last test, and vitest's console-intercept RPC raced environment teardown on CI (`EnvironmentTeardownError: Closing rpc while "onUserConsoleLog" was pending`). Fixed suite-wide with `disableConsoleIntercept: true` in `vitest.e2e.config.ts` — e2e output loses per-test log attribution, which is acceptable for diagnostics-only logs.
+
+**Caveat for future e2e work:** `abortAllDurableObjects()` inside `afterAll` reproducibly deadlocks the run (verified A/B: 2/2 hangs with it, 2/2 green without; vitest buffers per-file output, so the hang looks like a silent boot stall). Mid-test aborts, as in `server-ingest-stranding.test.ts`, remain fine — just don't use it as file teardown.
+
+### Remaining coverage (still open)
+
+Critical cases 4–6 and the concurrent-processing list above are uncovered: hibernation recovery, cross-client sync via WebSocket pull (browser path), asserting events actually **arrive** in SyncBackendDO's eventlog (the merged tests assert ingest status, not sync arrival), and the semaphore/dedup/draft concurrency semantics. Scope future work at cloudstash app-level flows (ingest → sync → UI) — upstream livestore now carries the hibernation + reconstruction guard suites itself (#1427/#1435/#1541).
 
 Related: [workers-sdk#11031](https://github.com/cloudflare/workers-sdk/issues/11031).
