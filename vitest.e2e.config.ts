@@ -121,6 +121,10 @@ export default defineConfig({
     // workflow + DO tests that finish in <500ms here time out at 5s on CI.
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    // Background DO fibers (livestore push, link processing) keep logging after
+    // a file's last test; vitest's console-intercept RPC then races environment
+    // teardown ("Closing rpc while onUserConsoleLog was pending") and fails CI.
+    disableConsoleIntercept: true,
     setupFiles: ["src/cf-worker/__tests__/e2e/setup.ts"],
   },
 });
