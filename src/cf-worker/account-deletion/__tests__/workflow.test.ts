@@ -223,7 +223,12 @@ describe("runAccountDeletion (failure path)", () => {
               const error = result.failure;
               expect(error._tag).toBe("WorkflowOrchestrationError");
               expect(error.step).toBe("wipe-chat-agent");
-              expect(String(error.cause)).toContain("purgeChatAgent boom");
+              expect(error.cause).toBeInstanceOf(DeletionRuntimeError);
+              if (error.cause instanceof DeletionRuntimeError) {
+                expect(String(error.cause.cause)).toContain(
+                  "purgeChatAgent boom"
+                );
+              }
             }
             expect(calls.map((c) => c.name)).toEqual([
               "mark-link-processor-deleting",
@@ -258,7 +263,12 @@ describe("runAccountDeletion (failure path)", () => {
               const error = result.failure;
               expect(error._tag).toBe("WorkflowOrchestrationError");
               expect(error.step).toBe("purge-x-bookmark-sync");
-              expect(String(error.cause)).toContain("purgeXBookmarkSync boom");
+              expect(error.cause).toBeInstanceOf(DeletionRuntimeError);
+              if (error.cause instanceof DeletionRuntimeError) {
+                expect(String(error.cause.cause)).toContain(
+                  "purgeXBookmarkSync boom"
+                );
+              }
             }
             expect(calls.map((c) => c.name)).toEqual([
               "mark-link-processor-deleting",

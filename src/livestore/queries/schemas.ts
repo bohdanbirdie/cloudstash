@@ -118,7 +118,10 @@ export const searchResultsSchema = Schema.Array(SearchResultSchema);
 export const linkByIdSchema = Schema.Array(LinkWithDetailsSchema).pipe(
   Schema.decodeTo(
     Schema.NullOr(LinkWithDetailsSchema),
-    SchemaTransformation.transform({
+    SchemaTransformation.transform<
+      LinkWithDetails | null,
+      ReadonlyArray<LinkWithDetails>
+    >({
       decode: (arr) => arr[0] ?? null,
       encode: (item) => (item ? [item] : []),
     })

@@ -24,7 +24,7 @@ function makeLayer(
   ) => Effect.Effect<AiOutput | null, AiCallError>
 ) {
   return Layer.succeed(LinkProcessorAi, {
-    generateObject: impl as LinkProcessorAi["Type"]["generateObject"],
+    generateObject: impl as LinkProcessorAi["Service"]["generateObject"],
   });
 }
 

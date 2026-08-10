@@ -1,35 +1,40 @@
 # Livestore fork integration — strategy, status & roadmap
 
-Canonical entry point for "cloudstash runs a fork of livestore." A fresh agent
+Canonical entry point for "cloudstash vendors livestore source." A fresh agent
 should be able to read this top-to-bottom and carry the work forward without
 prior context. Deep mechanism detail lives in
 [[architecture/livestore-local-source-linking]]; this doc is the strategy, the
-achieved state, and how to operate it. **Status: the submodule-vendoring target
-is implemented and validated on Cloudflare Workers Builds** (2026-06-24, branch
-`chore/livestore-submodule-vendoring`) — local builds, tests, and production all
-consume the vendored fork via one Vite alias. Remaining before the prod cutover:
-re-enable the Socket scanner and merge to `main` (see _Open items_).
+achieved state, and how to operate it. **Status: the submodule vendors
+UPSTREAM — `livestorejs/livestore` `main` @ a pinned SHA (`2e4bcfc68` as of the
+effect-v4 flip, 2026-08-09). No fork branch, no carried patches** — the fork-era
+hibernation work merged upstream, so vendoring is now purely the local==prod
+source-linking mechanism plus the freedom to pin ahead of npm snapshots. Local
+builds, tests, and production all consume the vendored source via one Vite
+alias (validated on Cloudflare Workers Builds since 2026-06-24).
 
-## Goal
+## Goal (historical — the fork era)
 
-cloudstash depends on livestore changes (DO hibernation work) that are **not in a
-published npm snapshot** — they live in a fork/PR. We need to consume that fork's
-code in **both local dev and production**, **reproducibly**, **without
-maintaining a large bun patch**, and **without depending on an upstream merge**
-that may never come.
+cloudstash depended on livestore changes (DO hibernation work) that were **not
+in a published npm snapshot** — they lived in a fork/PR. We needed to consume
+that fork's code in **both local dev and production**, **reproducibly**,
+**without maintaining a large bun patch**, and **without depending on an
+upstream merge** that might never come.
 
-The fork: `bohdanbirdie/livestore`, branch `bohdan/fix/do-hibernation-chain`,
-upstream PR livestorejs/livestore#1338 ("DO hibernation, end to end"). It is the
+The fork was `bohdanbirdie/livestore`, branch `bohdan/fix/do-hibernation-chain`,
+upstream PR livestorejs/livestore#1338 ("DO hibernation, end to end") — the
 upstream version of the surgical hibernation patch cloudstash used to carry.
+That work merged upstream; since the effect-v4 flip the submodule pins
+`livestorejs/livestore` `main` directly and the mechanism below is unchanged.
 
 ## Current state (migrated 2026-06-24)
 
 local == prod: one Vite alias points dev, tests, and the production build at the
 vendored fork source. No more "dev uses the clone, prod ships the snapshot" gap.
 
-- **Vendored fork:** `vendor/livestore` is a **committed git submodule** pinned to
-  `bohdanbirdie/livestore` @ `36dd15dac` (branch `bohdan/fix/do-hibernation-chain`,
-  upstream PR #1338). Recorded in `.gitmodules`; it is the single source of
+- **Vendored upstream:** `vendor/livestore` is a **committed git submodule**
+  pinned to `livestorejs/livestore` `main` @ `2e4bcfc68` (the `.gitmodules` URL
+  points at upstream since the effect-v4 flip; the fork-era
+  `bohdanbirdie/livestore` branch is retired). It is the single source of
   livestore truth.
 - **On by default.** `tools/livestore-local.ts` aliases every `@livestore/*`
   import to the submodule source for `vp dev`, `vp build`, `test:unit`, and
@@ -38,18 +43,21 @@ dev:published`) forces the published snapshot (A/B "is the bug mine or
   livestore's?"). Scratch experiments: `git checkout` a branch inside
   `vendor/livestore` — the alias reads that working tree.
 - **Published pin retained:** every `@livestore/*` in `package.json` stays at
-  `0.0.0-snapshot-6e9abadf4bdc91a2f7deea3e47be8ffd75d4c27c`. Those still provide
-  types for `tsgo` typecheck, the wasm packages, and the `LIVESTORE_PUBLISHED=1`
-  path — **keep them**. `bun.lock` is unchanged by this migration.
-- **Patches:** the two surgical `@livestore/*` bun patches are gone (the fork
-  carries that work now). Only `@effect/rpc@0.75.1` remains in
-  `patchedDependencies` — **keep it**, it patches a different dependency
-  (`RpcSerialization.js`) and is unrelated to the fork.
+  the snapshot matching the submodule SHA
+  (`0.0.0-snapshot-2e4bcfc68f7ddad5696022a10d515a011f5f785a`). Those still
+  provide types for `tsgo` typecheck, the wasm packages, and the
+  `LIVESTORE_PUBLISHED=1` path — **keep them**, and re-pin them to the new SHA
+  on every submodule bump.
+- **Patches:** `patchedDependencies` is empty — the surgical `@livestore/*`
+  patches died with fork vendoring, and the last remaining bun patch
+  (`@effect/rpc@0.75.1`) was deleted in the effect-v4 flip (v4 has no
+  `@effect/rpc`; msgpackr 2.x carries its own CF-Workers fallback, asserted
+  post-build by `scripts/verify-bundle.ts`).
 - **Production build guard:** `vite.config.ts` throws on `vp build` if the
   submodule source is absent and `LIVESTORE_PUBLISHED` isn't set — a missing
   `git submodule update --init` can't silently ship the unpatched snapshot.
 - **CI:** `.github/workflows/ci.yml` checks out with `submodules: true` and runs
-  `pnpm install --frozen-lockfile` in `vendor/livestore` (pnpm 11.3.0) before the
+  `pnpm install --frozen-lockfile` in `vendor/livestore` (pnpm 11.8.0) before the
   test job.
 - **Setup:** `bun run livestore:install` (also run by `bun run sync`, and by
   `bun run build` / `build:prod`) runs `scripts/ensure-livestore.sh` — inits the
@@ -66,7 +74,7 @@ dev:published`) forces the published snapshot (A/B "is the bug mine or
 - **Three gotchas baked into the helper** (full rationale in the mechanism doc):
   1. `dedupe: ['effect']` — clone + cloudstash would otherwise load two copies of
      Effect → broken `Context`/`Layer` identity. Versions must match (both
-     3.21.2 today).
+     4.0.0-beta.99 today).
   2. `wa-sqlite` / `sqlite-wasm` are **excluded from aliasing and deduped to the
      published copy** — their prebuilt wasm only loads from the published dist
      layout, and the clone's pnpm symlinks would otherwise pull broken copies.
@@ -110,8 +118,8 @@ test locally is exactly what ships**.
   prod. Safe here: PR #1338 doesn't touch them and the +96-commit drift changed
   `wa-sqlite` only trivially, so the skew is ≈ 0. (Building them from source
   drags in the emscripten/wasm toolchain — not worth it.)
-- **`effect` dedupe stays.** Re-verify the fork's `effect` version matches
-  cloudstash's on every fork bump (3.21.2 today).
+- **`effect` dedupe stays.** Re-verify the vendored `effect` version matches
+  cloudstash's on every submodule bump (4.0.0-beta.99 today).
 
 **Why vendoring works where git-deps/tarballs don't:** the `workspace:*`
 cross-deps resolve **inside** the vendored workspace (via its own `pnpm
@@ -143,11 +151,15 @@ missing and `LIVESTORE_PUBLISHED` isn't set.
 `wrangler versions upload` from the repo root **follows that redirect** and ships
 the pre-built worker as-is. (Without it, root `wrangler.jsonc` has
 `main: ./src/cf-worker/index.ts`, so wrangler would re-bundle from source against
-the published `@livestore/*` → no fork. The redirect is why the stock deploy
-command Just Works.) `.wrangler` is gitignored; `vp build` regenerates it each
-run. To confirm a build shipped the fork:
-`grep -c "MAX(generation)" dist/cloudstash/index.js` → `1` for the fork, `0` for
-the published snapshot.
+the published `@livestore/*` → no vendored source. The redirect is why the stock
+deploy command Just Works.) `.wrangler` is gitignored; `vp build` regenerates it
+each run. To confirm a build shipped the vendored source, check the
+`__LIVESTORE_BUILD__` marker (which replaced the fork-era `MAX(generation)`
+grep): `grep -c "vendored@$(git -C vendor/livestore rev-parse --short HEAD)"
+dist/cloudstash/index.js` → `1` for the vendored source; under
+`LIVESTORE_PUBLISHED=1` the marker is `"published"` instead. `bun run build`
+asserts this automatically via `bun scripts/verify-bundle.ts` (marker count,
+zero effect-v3 strings, msgpackr CF-fallback present, react singleton).
 
 ### Build-environment gotchas (Cloudflare/Linux) — fixed in this branch
 
@@ -165,7 +177,7 @@ Don't undo them:
    shim with no version behind it — `command -v pnpm` finds it but it errors on
    use (exit 126). `ensure-livestore.sh` probes by actually running
    `pnpm --version` from inside `vendor/livestore` (where `packageManager` is
-   pnpm, not the bun root), then falls back to `corepack pnpm` / `npx pnpm@11.3.0`,
+   pnpm, not the bun root), then falls back to `corepack pnpm` / `npx pnpm@11.8.0`,
    which ship with Node and bypass the shim.
 3. **pnpm store inside the repo → Vite watcher EINVAL.** vendor's
    `pnpm-workspace.yaml` sets `storeDir: .devenv/pnpm-store-pure-v1`, a large
@@ -235,5 +247,7 @@ Don't undo them:
 
 - Mechanism + the three gotchas in depth: [[architecture/livestore-local-source-linking]]
 - Patch removal (superseded by vendoring): [[todos/remove-livestore-patches]]
-- Fork: `bohdanbirdie/livestore`, branch `bohdan/fix/do-hibernation-chain`,
-  upstream PR livestorejs/livestore#1338.
+- Submodule today: `livestorejs/livestore`, branch `main`, pinned SHA in
+  `.gitmodules`/the committed submodule. Fork era (retired):
+  `bohdanbirdie/livestore`, branch `bohdan/fix/do-hibernation-chain`, upstream
+  PR livestorejs/livestore#1338 (merged).

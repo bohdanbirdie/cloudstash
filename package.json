@@ -20,8 +20,8 @@
     "sync": "bash scripts/sync-repos.sh",
     "livestore:install": "bash scripts/ensure-livestore.sh",
     "dev:dashboard": "localflare attach --no-open",
-    "build": "bash scripts/ensure-livestore.sh && vp build && bun scripts/prerender.tsx",
-    "build:prod": "bash scripts/ensure-livestore.sh && wrangler d1 migrations apply DB --remote && vp build",
+    "build": "bash scripts/ensure-livestore.sh && vp build && bun scripts/verify-bundle.ts && bun scripts/prerender.tsx",
+    "build:prod": "bash scripts/ensure-livestore.sh && wrangler d1 migrations apply DB --remote && vp build && bun scripts/verify-bundle.ts",
     "preview": "vp preview",
     "deploy": "wrangler d1 migrations apply DB --remote && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
@@ -156,7 +156,7 @@
     "localflare": "0.5.0",
     "react-email": "6.5.0",
     "typescript": "6.0.3",
-    "vite": "8.0.3",
+    "vite": "8.0.14",
     "vite-plus": "0.1.15-alpha.2",
     "vite-tsconfig-paths": "6.1.1",
     "vitest": "4.1.7",
@@ -164,6 +164,7 @@
     "wrangler": "4.95.0"
   },
   "overrides": {
+    "@cloudflare/workers-types": "4.20260531.1",
     "@xmldom/xmldom": "0.8.13",
     "hono": "4.12.21",
     "kysely": "0.28.17"

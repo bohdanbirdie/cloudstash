@@ -1,12 +1,106 @@
 # Effect v4 + LiveStore upstream migration — progress tracker
 
-**Status:** IN FLIGHT (2026-08-09) — Stage 3 midpoint. Strategy + rationale
+**Status:** IN FLIGHT (2026-08-10) — Stage 3 COMPLETE (residual sweep
+committed after user review), gate G1 closed, Stage 4 validation battery
+IN FLIGHT. Strategy + rationale
 live in [[todos/effect-v4-livestore-upstream-migration]] — this doc is the
 living tracker and the **authoritative execution plan**: check items off as
 they land on the flip branch, log decisions and found issues at the bottom.
 
 Filled 2026-08-09 by a three-agent planning pass (sequencing / inventory /
 risk, independently researched, reconciled below).
+
+## SESSION HANDOFF (2026-08-10) — resume exactly here
+
+**Working state:** branch `feat/effect-v4-livestore-upstream`, HEAD =
+`c919c1f` (C6). The ENTIRE residual-sweep unit is **UNCOMMITTED** in the
+working tree (~31 files: typecheck stabilization incl. vite 8.0.3→8.0.14 pin
+
+- `src/cloudflare-workers-types-bridge.d.ts` + workers-types override +
+  bun.lock; `__LIVESTORE_BUILD__` marker + `scripts/verify-bundle.ts` wired
+  into build; sanctioned workflow.test assertion fix; fork-integration doc
+  truth-up; post-review fixes to `src/cf-worker/chat-agent/index.ts` +
+  `scripts/check-pricing.ts`; this tracker). Last full battery on this exact
+  tree: `bun run check` green, `bun run typecheck` 0×3, unit **1292/1292**,
+  e2e **52 passed / 3 pre-existing skips**.
+
+**RESOLVED (2026-08-10, post-compact):** the user's "not sure it's clean
+enough" concern about the chat-agent single-flight guard was settled by
+collapsing the two-field shape (`cachedStore` + `storeCreationPromise`)
+into ONE memoized-promise field: `storePromise: Promise<Store> | null` on
+`ChatAgentDO` (`src/cf-worker/chat-agent/index.ts`). Same single-flight
+guarantee (concurrent callers share one `createStoreDoPromise` — PR-#30
+class stays closed), half the state, no try/finally dance; the promise is
+cleared only on rejection (guarded self-check) so failures retry;
+`purgeAll` nulls it; `syncUpdateRpc(payload, storeId)` awaits
+`getStore(storeId)` unconditionally (memo makes the warm path a no-op).
+Follow-up queued in Stage 6: migrate LinkProcessorDO's two-field guard
+(`link-processor/durable-object.ts:74`) to the same idiom. User approved
+2026-08-10; landed in the Stage-3-closing residual-sweep commit (child of
+`c919c1f`), full battery green on the committed tree (check, typecheck,
+unit 1292/1292, e2e 52/3-skip).
+
+**Other open decisions (not yet made):**
+
+1. Bunfig `minimumReleaseAge` restore timing — still TEMP-disabled
+   (commented out). Original note said restore after Stage 1's install;
+   the vite 8.0.14 bump also installed under it. Decide: restore in the
+   final Stage-5 commit vs now.
+2. Extension publish timing (matrix row 8 / rollback trade-off): submit the
+   migrated v4 extension to the Web Store BEFORE prod cutover vs after a
+   soak period. (Extension source migration itself = Stage 6 fast-follow.)
+3. `DeletionRuntimeError` message-getter (C6 review option iii): optional
+   observability improvement so CF Workflows per-attempt status shows more
+   than the bare tag — deliberately SEPARATE from the (already-applied)
+   assertion fix. Do it or drop it.
+4. Account-deletion purge-ordering swap (SB before LP — closes the
+   resurrection race the recovery wiring widened): out of migration scope;
+   needs a kanban/deletion-doc entry. Not yet filed anywhere but this doc.
+
+**Stage 4 (next after the residual-sweep commit) — remaining battery:**
+~~`LIVESTORE_PUBLISHED=1` full A/B pass~~ — DROPPED (user decision
+2026-08-10): fork-era rationale is dead (published pins == submodule SHA,
+the published lane never ships, "mine or livestore's?" A/B is meaningless
+on identical code); the marker's bidirectional self-validation was already
+receipted in step 9 and the `bun run build` marker assert covers silent
+alias regression on every build. Upstream hibernation suites inside the
+submodule (`tests/sync-provider/src/do-hibernation.test.ts` +
+`do-rpc-hibernation.test.ts`; caveat: upstream wants node ≥24, local is
+v22.23.1); Layer-memoization request-count probe (matrix row 7 — C2 probes
+covered the unit-level claim, the 2-sequential-requests e2e is unwritten);
+matrix row 2's reverse direction on REAL rows is DONE by construction (C3
+goldens + reviewer's v3 byte-round-trip) but re-check the row-2 fixture
+test wish-list; extension compat smoke (matrix row 8, G3); THEN pushing the
+branch (Workers Builds preview) — **outward-facing, user's call**; G3
+preview smoke MUST include chat-agent live-pull (zero test coverage — the
+`syncUpdateRpc` path is verified by review only). Pre-G4: capture the
+hibernation GB-s baseline (GraphQL duration method from the 2026-06-11
+incident doc; `scripts/do-metrics.sh` can NOT produce it). Post-G4: remove
+the `liveLongTimers` probe, re-verify GB-s vs baseline.
+
+**Stage 5:** rebase on main (check if main moved; regenerate the codemod
+commit via the recorded invocation if it conflicts), final DUAL full-diff
+review (one opus + one fable, disjoint mandates: correctness/behavioral vs
+completeness incl. banned-idiom greps), single merge = atomic landing.
+
+**Stage 6 fast-follows (already queued):** extension workspace migration +
+Web Store publish + restore the 3 gated CI steps; `bun update wxt` (dedupes
+the leftover nested `wxt/vite@8.0.3`); restore bunfig cooldown if not done
+earlier; upstream #722 commit-receipts contribution (cold-DO push-side
+strand — re-check confirmed still unfixed); retire the fork branch on
+GitHub; update memory files (fork → vendored upstream); migrate
+LinkProcessorDO's two-field store guard
+(`link-processor/durable-object.ts:74`) to ChatAgentDO's single
+memoized-promise idiom.
+
+**Working protocol (user-mandated, unchanged):** cycle = I delegate to a
+subagent (Fable executors; Fable/Opus reviewers) → independent RG review →
+USER reviews the diff → only then I commit → next delegation. Subagents
+NEVER commit. Tests prime directive: API-form only, assertion changes need
+explicit user sanction (exactly one granted so far). All commits so far:
+`d68f762` docs → `39aa07e` world flip → `99be60f` codemod → `cafff12` docs
+→ `bd09696` corrections → `8ea6c20` C2 → `3242c4e` C8a → `738140b` C3 →
+`df85467` C5+C4 → `5496fd7` C7 → `c919c1f` C6.
 
 ## Progress at a glance
 
@@ -18,7 +112,7 @@ Cycle per unit: Fable/Opus executor subagent → independent reviewer subagent
 | 0 — Preflight (branch, cooldown, baselines)         | ✅     | `d68f762`             |
 | 1 — World flip (submodule + deps, config only)      | ✅     | `39aa07e`             |
 | 2 — Codemod sweep (pure) + dual RG review           | ✅     | `99be60f` + `cafff12` |
-| 3 — Cluster burndown (~8 units)                     | 🔶 7/8 | below                 |
+| 3 — Cluster burndown (~8 units)                     | ✅ 8/8 | below                 |
 | 4 — Validation battery                              | ⬜     |                       |
 | 5 — Final dual review + rebase + merge              | ⬜     |                       |
 | 6 — Fast-follows (extension, #722, fork retirement) | ⬜     |                       |
@@ -26,8 +120,9 @@ Cycle per unit: Fable/Opus executor subagent → independent reviewer subagent
 Stage 3 units: RG-codemod corrections ✅ `bd09696` · C2 foundation ✅
 `8ea6c20` · C8a test harness ✅ `3242c4e` · C3 schema/Date-wire ✅ `738140b`
 · C5+C4 sync glue + LinkProcessorDO ✅ `df85467` · C6
-HTTP surface ✅ (this commit — FINAL cluster) · C7 background workers ✅
-`5496fd7` · residual sweep + typecheck milestone + marker/docs ⬜.
+HTTP surface ✅ `c919c1f` · C7 background workers ✅
+`5496fd7` · residual sweep + typecheck milestone + marker/docs ✅ (this
+commit — CLOSES Stage 3 + gate G1).
 C9 extension: REMOVED from this PR (Stage 6 fast-follow, user decision;
 all three extension CI steps incl. `test:ext` TEMP-gated as of the C3
 commit — its 4/11 failures are pre-existing mixed-tree v3 breakage,
@@ -51,10 +146,16 @@ EMPTY, hotspot-8 process-link-concurrency PASSED 4/4 on its first-ever
 v4 run)** → **1290/1292 (C6; total grew 1191→1292 because the 9
 import-dead suites now register their full test counts; the ONLY 2 reds
 are category (c) — workflow.test.ts `String(error.cause)` assertions,
-see Found issues)**. E2e (FIRST v4 run): **6/6 files, 52 passed /
+see Found issues)** → **1292/1292 (residual sweep; the 2 category-(c)
+reds fixed via the SANCTIONED assertion strengthening — the migration's
+only assertion change)**. E2e (FIRST v4 run): **6/6 files, 52 passed /
 3 skipped** (skips = the pre-existing `describe.skip` durability suites
 from the stranding post-mortem #81); the eviction/incarnation probe
-PASSED.
+PASSED; re-confirmed identical on the residual-sweep unit. Typecheck:
+UNSTABLE 7/94/73/0 (C6 bonus runs) → characterized (4 sequential runs =
+identical 73) → **STABLE ZERO, 3 consecutive clean runs** (dual-identity
+cliffs removed — see the 2026-08-10 Decisions + Found issues).
+`bun run check`: full chain green (lint 0/0, check:effect 0/0).
 
 ## Reconciliation notes (where the agents differed or corrected the plan)
 
@@ -81,11 +182,12 @@ PASSED.
 
 - [x] **G0 — prep done:** cooldown decision made, baselines captured,
       playbook commits skimmed (2026-08-09)
-- [ ] **G1 — flip branch red→green:** world flip landed, codemod run, all
+- [x] **G1 — flip branch red→green (2026-08-10):** world flip landed, codemod run, all
       clusters migrated, `bun run check` + `bun run typecheck` green
 - [ ] **G2 — tests green:** `test:unit` + `test:e2e` (incl. eviction e2e +
-      new wire-format tests), upstream hibernation suites in the submodule,
-      `LIVESTORE_PUBLISHED=1` A/B pass
+      new wire-format tests), upstream hibernation suites in the submodule
+      (`LIVESTORE_PUBLISHED=1` A/B pass dropped — user decision 2026-08-10,
+      see Stage 4 note in the handoff section)
 - [ ] **G3 — build + preview validated:** local `bun run build` + bundle
       asserts, preview deploy smoke (DO sync + browser store + extension compat)
 - [ ] **G4 — prod cutover:** deploy, hibernation GB-s re-verified vs baseline,
@@ -762,29 +864,98 @@ smoke` pseudo-assertion failure resolved with the stub as predicted.
      casts/suppressions/.skip (the workflow-bridge `as never` is the
      pre-existing documented cast, retained; diff-grep audit clean).
 
-8. [ ] **Commit N+1 — residual sweep to full green.**
+8. [x] **Commit N+1 — residual sweep to full green.**
        Clear remaining diagnostics + leftover TODOs; then the branch's first full
        `bun run typecheck` and `bun run test:unit`.
        **Review gate — RG-boundary (one fresh fable subagent):** whole-boundary
        review of `src/livestore/` + `src/cf-worker/sync/` + LP↔livestore glue
        against the upstream playbook — hunting v3 semantics that survived
        compilation.
+       **Executed (2026-08-10, combined with step 9 in one unit):**
+   - **The sanctioned category-(c) fix (the migration's ONLY assertion
+     change, user-approved):** `workflow.test.ts`'s two
+     `String(error.cause)).toContain("<op> boom")` assertions → the
+     reviewer-prescribed stronger form:
+     `expect(error.cause).toBeInstanceOf(DeletionRuntimeError)` +
+     instanceof-guarded `expect(String(error.cause.cause)).toContain(…)`.
+     Suite 5/5; nothing else in the file changed.
+   - **tsgo characterization first:** 4 sequential runs on the untouched
+     tree were byte-identical — 73 errors each (diffed pairwise; the
+     historical 7/94/73/0 spread did NOT reproduce sequentially; the cliff
+     constructs below explain the order/state sensitivity). Union = the 73.
+     Three `TS2321 Excessive stack depth` seeds sat in vite.config.ts.
+   - **Test-file class (~60 errors):** v4 `Context.Service` class instances
+     carry the shape under `readonly Service`, NOT v3's `Type` —
+     `X["Type"]` → `X["Service"]` (24 sites / 11 test files);
+     `ConstructorParameters<typeof Billing>[0]` → `Billing["Service"]`
+     (the v4 ctor is `new (_: never)`, so ConstructorParameters = never);
+     `Billing["capabilities"]` → `Billing["Service"]["capabilities"]`;
+     pre-existing `as unknown as Billing` casts retargeted to
+     `Billing["Service"]` (no new casts). Every TS7006 implicit-any was
+     downstream contextual-type fallout of these.
+   - **Prod singles:** ① chat-agent/index.ts:168 was a REAL latent runtime
+     bug (see Found issues) — `syncUpdateRpc` migrated to the upstream
+     2-arg callback + `handleSyncUpdateRpc(this.ctx, payload)` (ChatAgentDO
+     derives storeId from `this.name` — RG-CORRECTED: `this.name` THROWS on a cold idFromString RPC wake (PartyServer hydrates it only on fetch/alarm/WS entry), so LP-style wiring IS needed; applied post-review — `getStore(storeId?)` takes the RPC arg, plus a `storeCreationPromise` single-flight guard the DO was missing, closing its PR-#30 concurrent-boot exposure).
+     ② queries/schemas.ts `linkByIdSchema`: explicit
+     `transform<LinkWithDetails | null, ReadonlyArray<LinkWithDetails>>`
+     type args (inference unified the sides wrongly). ③
+     durable-object.ts:740 + the vite.config errors: dual-type-identity
+     fixes per the Decisions entry (bridge d.ts + paths pin,
+     workers-types override, vite 8.0.14, real-vite UserConfig).
+   - **scripts/ v3 leftovers** (outside the tsgo project; pre-existing
+     `vp check` lint reds surfaced them progressively): mock-ingest
+     `Effect.either`/`Either.*` → `result`/`Result.*`,
+     `Schema.TaggedError` → `TaggedErrorClass` ×2 (module-eval crash
+     class), `Stream.asyncPush` → `Stream.callback` + `Queue.offerUnsafe`;
+     check-pricing `Either` → `Result`. Runtime-smoked (TaggedErrorClass
+     instance constructs, `_tag` correct).
+   - **Battery receipts:** `bun run typecheck` **3 consecutive runs, 0
+     errors each** (10+ zero-runs total during stabilization; one
+     transient documented in Found issues). `bun run check` full chain
+     green (format 1147 files, lint 0/0 in 621 files, check:effect **0/0**
+     in 574 files). `bun run test:unit` **1292/1292** (93 files — first
+     fully green unit run of the branch). `bun run test:e2e` **6/6 files,
+     52 passed / 3 skipped** (pre-existing describe.skip durability
+     suites; known miniflare workflows stderr noise only).
 
-9. [ ] **Commit N+2 — marker + docs.** Implement the `__LIVESTORE_BUILD__`
+9. [x] **Commit N+2 — marker + docs.** Implement the `__LIVESTORE_BUILD__`
        define + post-build assert; update
        [[architecture/livestore-fork-integration]] (status → "vendored upstream")
        and the strategy doc.
        **Done-when:** marker documented; docs no longer claim fork-isms.
+       **Executed (2026-08-10, same unit):**
+   - Marker + verify-bundle design and rationale: see the 2026-08-10
+     Decisions entries. Receipts: `bun run build` → all 5 asserts pass,
+     `quoted "vendored@2e4bcfc68" x1`, prerender OK after.
+     `LIVESTORE_PUBLISHED=1 vp build` + `LIVESTORE_PUBLISHED=1 bun
+scripts/verify-bundle.ts` (the closest published invocation — `bun run
+build` also works with the env since every chained script inherits it)
+     → marker flips to `quoted "published" x1`, `vendored@` x0, all asserts
+     pass — validating the marker itself in both directions.
+   - [[architecture/livestore-fork-integration]] truth-up (surgical):
+     status paragraph → vendored UPSTREAM `livestorejs/livestore` `main` @
+     pinned SHA, no fork branch, no carried patches; Goal section marked
+     historical; submodule bullet + `.gitmodules` URL fact; published-pin
+     bullet → 2e4bcfc68 snapshot + re-pin-on-bump rule; patches bullet →
+     patchedDependencies EMPTY (the `@effect/rpc` "keep it" claim was
+     stale-dangerous); the `MAX(generation)` grep instruction → the
+     `__LIVESTORE_BUILD__` marker + verify-bundle; pnpm 11.3.0 → 11.8.0 ×2;
+     effect 3.21.2 → 4.0.0-beta.99 ×2; References split current/historical.
+     The strategy doc's own marker mention (line ~162) already described
+     this plan — left as-is (it's the plan doc, not the status doc).
 
 10. [ ] **Validation battery (fix-ups as small commits).**
         `bun run clean:local-state` (registry moved SQL→DO KV; user restarts the
         dev server). Then: `test:unit`, `test:e2e` (stranding incarnation probe
         passes), upstream hibernation suites inside the submodule
         (`tests/sync-provider/src/do-hibernation.test.ts` +
-        `do-rpc-hibernation.test.ts`), `LIVESTORE_PUBLISHED=1` typecheck/build/
-        test pass (near-noop is the assertion), real `bun run build` with marker
-        = 1 and `LIVESTORE_PUBLISHED=1` build with marker = 0, bundle asserts
-        (matrix rows 5–6), extension compat smoke (matrix row 8). Preview deploy
+        `do-rpc-hibernation.test.ts`), ~~`LIVESTORE_PUBLISHED=1` typecheck/
+        build/test pass~~ (DROPPED, user decision 2026-08-10 — same-SHA lanes
+        make it a packaging tautology; the step-9 receipts already validated
+        the marker in both directions), real `bun run build` with marker = 1,
+        bundle asserts (matrix rows 5–6), extension compat smoke (matrix
+        row 8). Preview deploy
         ONLY via pushing the branch (Workers Builds `versions upload`) — never
         local remote wrangler.
         **Done-when:** every line has a recorded receipt (command + result) below.
@@ -1020,6 +1191,44 @@ Effect.context<R>()` + `Effect.runPromiseWith(services)(body)`. Beta.99
   (14 journal entries), tree clean, no pending/uncommitted migrations; the
   flip requires no schema change. Matrix row 12 stays as a guard against
   riders landing on main between now and the merge.
+- 2026-08-10 — **Build marker design (matrix row 10, implemented):**
+  `tools/livestore-local.ts` exports `livestoreBuildValue()` —
+  `vendored@<short-sha>` (`git rev-parse --short HEAD` in `vendor/livestore`
+  at config-eval time) when the alias is active, `"published"` otherwise —
+  and `livestoreBuildDefine()` wiring it as the `__LIVESTORE_BUILD__` Vite
+  define in `vite.config.ts` + BOTH vitest configs (worker code referencing
+  the global must resolve under every pipeline, incl. pool-workers). Ambient
+  type in `src/ambient.d.ts`. Referenced exactly once, at worker-entry module
+  scope: `logger.debug("livestore build", { build: __LIVESTORE_BUILD__ })` —
+  a side-effectful entry-module call survives tree-shaking, Debug level is
+  filtered at the default Info minimum (zero prod log noise), no new
+  endpoint. Post-build: `scripts/verify-bundle.ts` (wired into `build` AND
+  `build:prod` right after `vp build`) asserts QUOTED marker ×1 (bare-substring
+  counting broke on the published build — "published" appears 34× in prose
+  strings), `"3.21.2"` ×0, `inlineObjectReadThreshold` ≥1,
+  `msgpackr-extract` ×0 (matrix row 5), and the react singleton (row 6) as:
+  distinct react-major `\b19.x.y\b` version strings across
+  `dist/client/assets/*.js` == exactly `[package.json react version]` — the
+  PR-#80 dual-React failure ships upstream's differing react pin as a second
+  distinct version string, and version strings are the only stable
+  minification-surviving anchor (probed on the real bundle: backtick-quoted,
+  6 occurrences, 1 distinct).
+- 2026-08-10 — **tsgo cliff remediation pattern (sanctioned "simplify the
+  construction"):** both residual-sweep checker blowups were DUAL TYPE
+  IDENTITIES of one library in one program, fixed by unification, zero casts:
+  ① root `vite` 8.0.3 → **8.0.14** (dedupes with the 2e4bcfc68
+  devtools-vite's nested `vite@8.0.14`, installed because its peer `^8.0.16`
+  rejects 8.0.3 — main's old snapshot shared root vite, the flip split it);
+  ② `overrides: { "@cloudflare/workers-types": "4.20260531.1" }` (published
+  @livestore packages pulled nested 4.20251118.0 copies); ③
+  `src/cloudflare-workers-types-bridge.d.ts` + tsconfig `paths` pin — see
+  Found issues for the dual-entrypoint mechanics; ④ `vite.config.ts` typed
+  against REAL vite's `UserConfig` + a local `declare module "vite"`
+  augmentation for the vite-plus-only keys (staged/fmt/lint), because
+  vite-plus-core BUNDLES its own 2.5 MB copy of vite's types and comparing
+  real-vite plugin values against that bundled copy is the depth-cliff
+  construct; vp's `defineConfig` is a runtime pass-through for non-lazy
+  configs (source-verified), so the exported object is identical.
 
 ## Found issues
 
@@ -1402,3 +1611,81 @@ tracer)` + `layerWithoutOtelTracer`) is the v4-native seam.
   caught (TS2724); a clean check:effect does NOT imply the class is gone —
   the residual sweep should grep `Effect\.Effect\.` and `Schema\.Schema<`
   (73 typecheck errors remain, all listed in the Executed C6 scoreboard).
+- 2026-08-10 (residual sweep) — **tsgo nondeterminism characterized; root
+  constructs found and removed.** (1) Sequential stability: 4 clean-tree runs
+  were byte-identical (73 errors) — the historical 7/94/73/0 spread did not
+  reproduce run-to-run; the variance axis is checker STATE, proven directly:
+  the exact vite.config.ts content that errors `TS2321 Excessive stack depth`
+  in the full program typechecks CLEAN in an isolated one-file project. The
+  cliff constructs were cross-identity deep-recursive comparisons (real-vite
+  `Plugin` values vs vite-plus-core's BUNDLED 2.5 MB copy of vite's types;
+  plus a second vite identity the flip introduced — the 2e4bcfc68
+  devtools-vite's peer `^8.0.16` rejects root 8.0.3, so bun nested a private
+  vite@8.0.14 where main's old snapshot had shared root vite). Any check-order
+  or cache difference near that depth budget flips which comparisons blow up →
+  different error subsets. All unified away (Decisions 2026-08-10); after the
+  fix, 10+ runs produced identical zero-error output. (2) One residual
+  transient REMAINS possible: a single run (immediately after node_modules
+  churn) reported 5 phantom `TS2307 Cannot find module 'vitest'` errors in
+  e2e files, gone on every subsequent run — smells like a resolution-cache
+  race in tsgo's concurrent resolver on a cold FS cache. Not reproduced in
+  10+ warm runs; if it recurs in CI, re-run before digging.
+- 2026-08-10 (residual sweep) — **@cloudflare/workers-types dual-entrypoint
+  hazard** (the durable-object.ts:740 / chat-agent:171 class): the package
+  ships TWO declaration sets — `index.d.ts` (GLOBAL ambient; the only
+  declarer of `module "cloudflare:workers"`; merges with lib DOM's
+  Request/WebSocket/Headers in this repo's single fullstack tsconfig) and
+  `index.ts` (pure module exports). Under `moduleResolution: "bundler"` a
+  bare import (as in @livestore/common-cf's `CfTypes`) resolves the MODULE
+  variant, so `handleSyncUpdateRpc(ctx: CfTypes.DurableObjectState)` and
+  `this.ctx` (global) were structurally incompatible (DOM-merged Request has
+  cache/credentials/… the module Request lacks; strada tsc 6.0.3 agrees —
+  NOT a tsgo defect). Paths-pinning the specifier to `index.d.ts` was
+  REJECTED: it is not a module, so `CfTypes` silently degrades to any
+  (probe: garbage args accepted). Fix:
+  `src/cloudflare-workers-types-bridge.d.ts` — a module that re-exports the
+  14 names livestore's d.ts actually consumes as ALIASES OF THE GLOBALS —
+  paths-mapped over the specifier; wrong args still rejected (probe-verified)
+  and a missing name fails loudly. Plus `overrides` deduping the nested
+  4.20251118.0 copies to root 4.20260531.1.
+- 2026-08-10 (residual sweep) — **REAL BUG the typecheck union caught:
+  ChatAgentDO.syncUpdateRpc was still the fork-era 1-arg form** — since the
+  flip it called upstream's 2-arg `handleSyncUpdateRpc` as
+  `handleSyncUpdateRpc(payload)`, i.e. ctx=payload/payload=undefined: every
+  do-rpc live-pull delivery to a ChatAgentDO would throw at runtime.
+  Invisible to check:effect; no unit or e2e test exercises chat-agent
+  live-pull delivery (C5+C4 migrated only the LinkProcessorDO callback).
+  Migrated to the upstream 2-arg shape (`this.name` is the storeId source,
+  so no LP-style storeId-recovery wiring needed — WRONG, corrected post-review:
+  cold idFromString wakes can't read `this.name`; the RPC storeId arg is now
+  used, and a single-flight store-boot guard was added). Chat-agent live-sync
+  smoke belongs on the G3 preview checklist.
+- 2026-08-10 (residual sweep) — **scripts/ were silently v3-broken since the
+  flip**: `scripts/mock-ingest/*` + `scripts/check-pricing.ts` still used
+  `Effect.either`/`Either.*`, v3 `Schema.TaggedError` (module-eval crash on
+  first run) and `Stream.asyncPush`. scripts/ are excluded from
+  tsconfig/typecheck AND check:effect; the only net was `vp check`'s
+  import-namespace lint, whose errors surface PROGRESSIVELY (fixing one
+  reveals the next in the same file). All migrated
+  (`Result`, `TaggedErrorClass`, `Stream.callback` + `Queue.offerUnsafe`);
+  TaggedErrorClass runtime-smoked under bun — RG-corrected: check-pricing.ts
+  was NOT covered (3 v3 TaggedError classes + v4-removed
+  `ConfigProvider.fromMap`/`Layer.setConfigProvider`); migrated post-review
+  (`ConfigProvider.make` map-provider + `orElse(fromEnv())` + `layer`) and
+  smoked end-to-end against Stripe (all prices match). Lesson for step 10:
+  `vp check`
+  lint is the only automated coverage scripts/ get — keep it green.
+- 2026-08-10 (residual-sweep RG review) — post-review fixes applied by the
+  orchestrator: ① chat-agent `syncUpdateRpc` now uses the RPC `storeId` arg
+  (cold-wake recovery; `this.name` throws pre-hydration) + single-flight
+  `storeCreationPromise` guard (PR-#30 concurrent `createStoreDoPromise`
+  class — chat-agent lacked LP's funnel while the always-recover path added
+  a new concurrent caller); ② `scripts/check-pricing.ts` fully migrated
+  (TaggedErrorClass ×3, `Literals`, `ConfigProvider.make`+`orElse(fromEnv)` +`layer` replacing v4-removed `fromMap`/`setConfigProvider`) and smoked
+  live. Re-verified after: typecheck 0, unit 1292/1292, e2e 52/3-skip,
+  vp check green. Chat-agent live-pull still has NO test coverage — G3
+  preview smoke remains the gate for it.
+- 2026-08-10 (residual-sweep RG review) — bun.lock note: vite bump left a
+  redundant nested `wxt/vite@8.0.3` subtree (extension workspace only, bun
+  conservatism; `bun update wxt` in the fast-follow dedupes it). vite 8.0.14
+  published 2026-05-21 — well outside the cooldown window.

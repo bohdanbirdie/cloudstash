@@ -46,7 +46,7 @@ type Session = {
 const authStub = (session: Session) =>
   Layer.succeed(AuthClient, {
     api: { getSession: () => Promise.resolve(session) },
-  } as unknown as AuthClient["Type"]);
+  } as unknown as AuthClient["Service"]);
 
 const loggedIn: Session = {
   user: { id: "22222222-2222-4222-8222-222222222222" },

@@ -106,7 +106,7 @@ const makeDeps = (
 
 const withScheduler = <A>(
   deps: DigestSchedulerDeps,
-  f: (s: DigestScheduler["Type"]) => Effect.Effect<A>
+  f: (s: DigestScheduler["Service"]) => Effect.Effect<A>
 ): Effect.Effect<A> =>
   Effect.gen(function* () {
     const scheduler = yield* DigestScheduler;

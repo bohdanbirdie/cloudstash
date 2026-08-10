@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -34,6 +35,26 @@ const PLATFORM_CONDITIONS = new Set([
 ]);
 
 type AliasEntry = { find: RegExp; replacement: string };
+
+/**
+ * Build provenance marker (matrix row 10): `vendored@<sha>` when the alias is
+ * active, `"published"` otherwise. Injected as `__LIVESTORE_BUILD__` via Vite
+ * `define` and asserted post-build by scripts/verify-bundle.ts — an alias
+ * regression silently shipping the published snapshot fails the build.
+ */
+export function livestoreBuildValue(): string {
+  if (!LIVESTORE_LOCAL) return "published";
+  const sha = execSync("git rev-parse --short HEAD", {
+    cwd: path.resolve(__dirname, "../vendor/livestore"),
+  })
+    .toString()
+    .trim();
+  return `vendored@${sha}`;
+}
+
+export function livestoreBuildDefine(): Record<string, string> {
+  return { __LIVESTORE_BUILD__: JSON.stringify(livestoreBuildValue()) };
+}
 
 /**
  * Vite resolve config that redirects every @livestore/* entrypoint to the

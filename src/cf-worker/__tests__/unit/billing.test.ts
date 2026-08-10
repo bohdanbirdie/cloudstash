@@ -16,7 +16,7 @@ import { OrgId } from "../../db/branded";
 import { DbError } from "../../db/service";
 import { OrgNotFoundError } from "../../org/errors";
 
-type BillingImpl = ConstructorParameters<typeof Billing>[0];
+type BillingImpl = Billing["Service"];
 
 function makeBillingLayer(overrides: Partial<BillingImpl> = {}) {
   const defaults: BillingImpl = {

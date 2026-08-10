@@ -19,7 +19,7 @@ function makeSessionLayer(result: SessionData | null) {
   });
 }
 
-function makeApiKeyLayer(overrides: Partial<ApiKeyStore["Type"]> = {}) {
+function makeApiKeyLayer(overrides: Partial<ApiKeyStore["Service"]> = {}) {
   return Layer.succeed(ApiKeyStore, {
     listByUser: () => Effect.succeed([]),
     deleteById: () => Effect.void,
@@ -46,7 +46,7 @@ function makeDbStub(name: string | null, image: string | null = null) {
         where: () => Promise.resolve(rows),
       }),
     }),
-  } as unknown as DbClient["Type"]);
+  } as unknown as DbClient["Service"]);
 }
 
 function makeAuthClientLayer(verifyApiKey: () => Promise<VerifyResult>) {
@@ -55,7 +55,7 @@ function makeAuthClientLayer(verifyApiKey: () => Promise<VerifyResult>) {
       verifyApiKey,
       getSession: () => Promise.resolve(null),
     },
-  } as unknown as AuthClient["Type"]);
+  } as unknown as AuthClient["Service"]);
 }
 
 function runAccount(
@@ -88,7 +88,7 @@ function runAccount(
 function runConnect(
   options: {
     session?: SessionData | null;
-    apiKeyStore?: Partial<ApiKeyStore["Type"]>;
+    apiKeyStore?: Partial<ApiKeyStore["Service"]>;
   } = {}
 ) {
   const layer = Layer.mergeAll(
@@ -302,7 +302,7 @@ describe("ExtensionConnect.handleDisconnectRequest", () => {
     apiKey: string | null,
     options: {
       verifyApiKey?: () => Promise<VerifyResult>;
-      apiKeyStore?: Partial<ApiKeyStore["Type"]>;
+      apiKeyStore?: Partial<ApiKeyStore["Service"]>;
     } = {}
   ) {
     const layer = Layer.mergeAll(

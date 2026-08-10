@@ -24,7 +24,7 @@ function makeSessionLayer(result: SessionData | null) {
   });
 }
 
-function makeApiKeyLayer(overrides: Partial<ApiKeyStore["Type"]> = {}) {
+function makeApiKeyLayer(overrides: Partial<ApiKeyStore["Service"]> = {}) {
   return Layer.succeed(ApiKeyStore, {
     listByUser: () => Effect.succeed([]),
     deleteById: () => Effect.void,
@@ -39,7 +39,7 @@ function makeApiKeyLayer(overrides: Partial<ApiKeyStore["Type"]> = {}) {
 }
 
 function makeVerificationLayer(
-  overrides: Partial<VerificationStore["Type"]> = {}
+  overrides: Partial<VerificationStore["Service"]> = {}
 ) {
   return Layer.succeed(VerificationStore, {
     save: () => Effect.void,
@@ -69,8 +69,8 @@ function makeBillingLayer(caps: TierCapabilities = capabilitiesFor("plus")) {
 function runConnect(
   options: {
     session?: SessionData | null;
-    apiKeyStore?: Partial<ApiKeyStore["Type"]>;
-    verificationStore?: Partial<VerificationStore["Type"]>;
+    apiKeyStore?: Partial<ApiKeyStore["Service"]>;
+    verificationStore?: Partial<VerificationStore["Service"]>;
     caps?: TierCapabilities;
   } = {}
 ) {
@@ -90,8 +90,8 @@ function runConnect(
 function runExchange(
   body: { code?: string; deviceName?: string },
   options: {
-    apiKeyStore?: Partial<ApiKeyStore["Type"]>;
-    verificationStore?: Partial<VerificationStore["Type"]>;
+    apiKeyStore?: Partial<ApiKeyStore["Service"]>;
+    verificationStore?: Partial<VerificationStore["Service"]>;
   } = {}
 ) {
   const layer = Layer.mergeAll(
@@ -308,7 +308,7 @@ describe("handleExchangeRequest", () => {
         keyId: ApiKeyRowId.make("key-id-1"),
       };
 
-      const verificationStore: Partial<VerificationStore["Type"]> = {
+      const verificationStore: Partial<VerificationStore["Service"]> = {
         consumeByIdentifier: (identifier) => {
           calls += 1;
           if (calls === 1 && identifier === "raycast-connect:valid-code") {

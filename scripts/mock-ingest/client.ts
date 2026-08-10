@@ -3,7 +3,7 @@
  * reconciliation programs. Pure HTTP — no knowledge of the mock content server.
  */
 
-import { Effect, Either, Ref, Schema } from "effect";
+import { Effect, Ref, Result, Schema } from "effect";
 
 export const norm = (u: string): string => u.replace(/\/+$/, "");
 
@@ -11,7 +11,7 @@ const bearer = (apiKey: string): Record<string, string> => ({
   Authorization: `Bearer ${apiKey}`,
 });
 
-export class IngestError extends Schema.TaggedError<IngestError>()(
+export class IngestError extends Schema.TaggedErrorClass<IngestError>()(
   "IngestError",
   {
     url: Schema.String,
@@ -20,10 +20,13 @@ export class IngestError extends Schema.TaggedError<IngestError>()(
   }
 ) {}
 
-export class LinksError extends Schema.TaggedError<LinksError>()("LinksError", {
-  status: Schema.Number, // 0 = network/transport error
-  body: Schema.String,
-}) {}
+export class LinksError extends Schema.TaggedErrorClass<LinksError>()(
+  "LinksError",
+  {
+    status: Schema.Number, // 0 = network/transport error
+    body: Schema.String,
+  }
+) {}
 
 export interface IngestOk {
   url: string;
@@ -109,7 +112,7 @@ export const runBurst = (
   urls: readonly string[],
   concurrency: number,
   onProgress: (p: BurstProgress) => Effect.Effect<void>
-): Effect.Effect<ReadonlyArray<Either.Either<IngestOk, IngestError>>> =>
+): Effect.Effect<ReadonlyArray<Result.Result<IngestOk, IngestError>>> =>
   Effect.gen(function* () {
     const progress = yield* Ref.make<BurstProgress>({
       sent: 0,
@@ -120,13 +123,13 @@ export const runBurst = (
     return yield* Effect.forEach(
       urls,
       (url) =>
-        Effect.either(ingest(origin, apiKey, url)).pipe(
+        Effect.result(ingest(origin, apiKey, url)).pipe(
           Effect.tap((result) =>
             Ref.updateAndGet(progress, (p) => ({
               ...p,
               sent: p.sent + 1,
-              acked: p.acked + (Either.isRight(result) ? 1 : 0),
-              failed: p.failed + (Either.isLeft(result) ? 1 : 0),
+              acked: p.acked + (Result.isSuccess(result) ? 1 : 0),
+              failed: p.failed + (Result.isFailure(result) ? 1 : 0),
             })).pipe(Effect.flatMap(onProgress))
           )
         ),
@@ -161,11 +164,11 @@ const reconcileOnce = (
     });
 
     for (let page = 0; page < 500; page++) {
-      const result = yield* Effect.either(listLinks(origin, apiKey, cursor));
-      if (Either.isLeft(result)) {
-        return summarize(`${result.left.status} ${result.left.body}`);
+      const result = yield* Effect.result(listLinks(origin, apiKey, cursor));
+      if (Result.isFailure(result)) {
+        return summarize(`${result.failure.status} ${result.failure.body}`);
       }
-      const data = result.right;
+      const data = result.success;
       for (const l of data.links) {
         scanned++;
         const n = norm(l.url);

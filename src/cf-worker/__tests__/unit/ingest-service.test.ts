@@ -48,13 +48,15 @@ function makeAuthLayer(
 ) {
   return Layer.succeed(AuthClient, {
     api: { verifyApiKey },
-  } as unknown as AuthClient["Type"]);
+  } as unknown as AuthClient["Service"]);
 }
 
 function makeBillingLayer(
-  capabilities: Billing["capabilities"]
+  capabilities: Billing["Service"]["capabilities"]
 ): Layer.Layer<Billing> {
-  return Layer.succeed(Billing, { capabilities } as unknown as Billing);
+  return Layer.succeed(Billing, {
+    capabilities,
+  } as unknown as Billing["Service"]);
 }
 
 const capsLayer = (publicApi: boolean): Layer.Layer<Billing> =>

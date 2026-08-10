@@ -6,9 +6,8 @@ import {
   ConfigProvider,
   Console,
   Effect,
-  Either,
+  Result,
   Exit,
-  Layer,
   Redacted,
   Schema,
 } from "effect";
@@ -17,21 +16,21 @@ import StripeSdk from "stripe";
 import { PLAN_ORDER, PLANS } from "../src/lib/plan";
 import type { BillingInterval, PlanTier } from "../src/lib/plan";
 
-class MissingApiKey extends Schema.TaggedError<MissingApiKey>()(
+class MissingApiKey extends Schema.TaggedErrorClass<MissingApiKey>()(
   "MissingApiKey",
   {}
 ) {}
 
-class PriceMismatch extends Schema.TaggedError<PriceMismatch>()(
+class PriceMismatch extends Schema.TaggedErrorClass<PriceMismatch>()(
   "PriceMismatch",
   {
-    tier: Schema.Literal(...PLAN_ORDER),
+    tier: Schema.Literals(PLAN_ORDER),
     interval: Schema.Literals(["month", "year"]),
     detail: Schema.String,
   }
 ) {}
 
-class PricingDrift extends Schema.TaggedError<PricingDrift>()(
+class PricingDrift extends Schema.TaggedErrorClass<PricingDrift>()(
   "PricingDrift",
   {}
 ) {}
@@ -79,10 +78,14 @@ const readDevVars = (): Map<string, string> => {
   return map;
 };
 
-const ConfigLive = Layer.setConfigProvider(
-  ConfigProvider.fromMap(readDevVars()).pipe(
-    ConfigProvider.orElse(() => ConfigProvider.fromEnv())
-  )
+const devVars = readDevVars();
+const ConfigLive = ConfigProvider.layer(
+  ConfigProvider.make((path) => {
+    const value = devVars.get(path.join("_"));
+    return Effect.succeed(
+      value === undefined ? undefined : ConfigProvider.makeValue(value)
+    );
+  }).pipe(ConfigProvider.orElse(ConfigProvider.fromEnv()))
 );
 
 const checkPrice = (stripe: StripeSdk, check: Check) =>
@@ -146,7 +149,7 @@ const program = Effect.gen(function* () {
 
   const results = yield* Effect.forEach(
     checks,
-    (check) => Effect.either(checkPrice(stripe, check)),
+    (check) => Effect.result(checkPrice(stripe, check)),
     { concurrency: "unbounded" }
   );
 
@@ -155,11 +158,11 @@ const program = Effect.gen(function* () {
     const check = checks[i];
     const result = results[i];
     const label = `${check.tier}/${check.interval}`;
-    if (Either.isRight(result)) {
+    if (Result.isSuccess(result)) {
       yield* Console.log(`✓ ${label}: $${check.expectedUsd} matches Stripe`);
     } else {
       failed = true;
-      yield* Console.error(`✗ ${label}: ${result.left.detail}`);
+      yield* Console.error(`✗ ${label}: ${result.failure.detail}`);
     }
   }
 

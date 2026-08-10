@@ -42,6 +42,9 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
+      "@cloudflare/workers-types": [
+        "./src/cloudflare-workers-types-bridge.d.ts"
+      ],
       "*": ["./*"]
     }
   }

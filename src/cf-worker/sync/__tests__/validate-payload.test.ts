@@ -38,7 +38,7 @@ function makeAuthLayer(stub: {
           Promise.resolve<VerifyApiKeyResult>({ valid: false, key: null })),
       getSession: stub.getSession ?? (() => Promise.resolve(null)),
     },
-  } as unknown as AuthClient["Type"]);
+  } as unknown as AuthClient["Service"]);
 }
 
 const NO_ALLOWLIST = new Set<string>();

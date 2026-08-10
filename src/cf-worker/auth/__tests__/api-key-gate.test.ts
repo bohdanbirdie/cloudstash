@@ -25,7 +25,7 @@ const authStub = (impl: {
       getSession:
         impl.getSession ?? (() => Promise.resolve<GetSessionResult>(null)),
     },
-  } as unknown as AuthClient["Type"]);
+  } as unknown as AuthClient["Service"]);
 
 const billingStub = (
   caps: TierCapabilities,
