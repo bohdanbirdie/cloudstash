@@ -11,15 +11,6 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      # TEMP(2026-08-10): apps/extension is build-broken on the effect-v4 tree —
-      # it imports the v4-migrated src/livestore/schema.ts via the @web alias while
-      # pinned to effect v3. Remove this guard in the extension fast-follow PR
-      # (see docs/todos/effect-v4-migration-progress.md, final-review F1/F2).
-      - name: Guard — extension not yet migrated to effect v4
-        run: |
-          echo "::error::Publishing is blocked: apps/extension is broken until its effect-v4 migration lands (fast-follow PR). Remove this guard there."
-          exit 1
-
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4

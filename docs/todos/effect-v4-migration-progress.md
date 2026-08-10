@@ -13,24 +13,29 @@ risk, independently researched, reconciled below).
 ## SESSION HANDOFF (2026-08-10) — resume exactly here
 
 **Working state:** branch `feat/effect-v4-livestore-upstream`, HEAD = the
-final-review fix-batch commit (child of `ed89bfd`), pushed — **PR #82**
-open, CI GREEN on `ed89bfd` (quality + test + Workers Builds incl.
-verify-bundle). Stages 0–4 COMPLETE (gates G0–G3 closed; G3's preview
-smoke waived by user decision — see the gate note). Stage 5's final dual
-review EXECUTED (A: merge-ready, zero unrecorded behavior deltas; B:
-findings F1–F11 all dispositioned — see step 11's Executed block) and its
-fix batch user-approved + committed. Working tree clean. **Branch is
-MERGE-READY.** Remaining: optional pre-G4 hibernation GB-s baseline
-(user's CF auth) → merge PR #82 (no rebase needed — main unmoved at
-`8e36bf3`; re-check at merge) → G4 cutover per the documented
-expectations (schema-hash warn spam + one-time rematerialization per
-client store; watch chat-agent live-pull + extension sync — the two
-waived-smoke items) → post-G4: GB-s vs baseline, remove `liveLongTimers`
-probe. Last full battery on `ed89bfd` (Reviewer B, independent): check
-0/0/0, typecheck 0, unit **1292/1292**, e2e **7 files / 53 passed / 3
-pre-existing skips**, build 5/5 asserts, upstream hibernation suites
-**2/2 on node 22**; fix batch additionally verified (repo check green,
-scripts probe clean ×4 files).
+extension-gates commit (E2, child of the E1 extension migration
+`583ddaf`), pushed — **PR #82** open. Stages 0–4 COMPLETE (G0–G3 closed;
+G3's preview smoke waived by user decision — see the gate note), Stage 5's
+final dual review EXECUTED with its fix batch committed (`3e45680`), and
+the EXTENSION ADDENDUM landed 2026-08-10: the user REVERSED the
+stacked-PR decision — `apps/extension` is migrated to v4 + upstream pins
+IN THIS PR (E1 `583ddaf`: executor + independent reviewer APPROVE, compile
+clean, test:ext 11/11, build:local green, lockfile evicts the entire
+v3/fork subtree; user granted full-trust autonomy for the extension
+stages, migration-only constraint — zero functionality change) and the
+gates flipped back (E2: 3 CI steps restored, publish-extension guard
+removed). Verify CI GREEN on the E2 push — the FIRST run with the
+extension steps live. **Branch is MERGE-READY once that run is green.**
+Remaining: optional pre-G4 hibernation GB-s baseline (user's CF auth) →
+merge PR #82 (no rebase needed — main unmoved at `8e36bf3`; re-check at
+merge) → G4 cutover per the documented expectations (schema-hash warn
+spam + one-time rematerialization per client store; watch chat-agent
+live-pull + the still-published v3 extension until the Web Store
+re-publish) → post-G4: GB-s vs baseline, remove `liveLongTimers` probe,
+Web Store publish (user-triggered). Last full battery on `ed89bfd`
+(Reviewer B, independent): check 0/0/0, typecheck 0, unit **1292/1292**,
+e2e **7 files / 53 passed / 3 pre-existing skips**, build 5/5 asserts,
+upstream hibernation suites **2/2 on node 22**.
 
 **RESOLVED (2026-08-10, post-compact):** the user's "not sure it's clean
 enough" concern about the chat-agent single-flight guard was settled by
@@ -57,10 +62,11 @@ unit 1292/1292, e2e 52/3-skip).
    lockfile already pins the snapshot. If an @livestore pin must be
    RE-resolved before ~2026-08-16 (snapshot bump), add a temporary scoped
    `minimumReleaseAgeExcludes` for those packages.
-2. Extension: migration = STACKED PR after this one (Stage 6); Web Store
-   publish whenever after — review latency (weeks) accepted, interim
-   v3-extension breakage accepted by the user ("no users, not a
-   tragedy"); compat evidence says it holds anyway.
+2. Extension: ~~migration = STACKED PR after this one (Stage 6)~~ —
+   REVERSED 2026-08-10 (user): migrated IN THIS PR (E1 `583ddaf` + E2
+   gates; full-trust autonomy granted for the extension stages,
+   migration-only constraint). Web Store publish still post-merge
+   whenever — review latency (weeks) accepted.
 3. `DeletionRuntimeError` message-getter — DONE in this PR. Determined
    migration-introduced (v3 `Runtime.runPromise` rejected with a
    FiberFailure whose message embedded the pretty cause; v4
@@ -108,17 +114,16 @@ GB-s baseline (GraphQL duration method from the 2026-06-11 incident doc;
 review EXECUTED — Reviewer A (fable, correctness): **MERGE-READY, zero
 unrecorded behavior deltas** (high-risk claims probe-confirmed); Reviewer
 B (opus, completeness): mechanically clean core, findings F1–F11 →
-dispositions in step 11's Executed block; fix batch applied same day.
-Remaining: user review of the fix batch → commit → merge PR #82 = atomic
-landing.
+dispositions in step 11's Executed block; fix batch applied same day and
+committed (`3e45680`), extension addendum E1/E2 followed. Remaining: CI
+green on the E2 push → merge PR #82 = atomic landing.
 
-**Stage 6 fast-follows (already queued):** extension workspace migration +
-Web Store publish + restore the 3 gated CI steps; `bun update wxt` (dedupes
-the leftover nested `wxt/vite@8.0.3`); restore bunfig cooldown if not done
-earlier; upstream #722 commit-receipts contribution (cold-DO push-side
-strand — re-check confirmed still unfixed); retire the fork branch on
-GitHub; update memory files (fork → vendored upstream); migrate
-LinkProcessorDO's two-field store guard
+**Stage 6 fast-follows (already queued):** Web Store publish of the
+migrated extension (user-triggered, post-merge); `bun update wxt` (dedupes
+the leftover nested `wxt/vite@8.0.3`); upstream #722 commit-receipts
+contribution (cold-DO push-side strand — re-check confirmed still
+unfixed); retire the fork branch on GitHub; update memory files (fork →
+vendored upstream); migrate LinkProcessorDO's two-field store guard
 (`link-processor/durable-object.ts:74`) to ChatAgentDO's single
 memoized-promise idiom.
 
@@ -131,23 +136,25 @@ explicit user sanction (exactly one granted so far). All commits so far:
 → `bd09696` corrections → `8ea6c20` C2 → `3242c4e` C8a → `738140b` C3 →
 `df85467` C5+C4 → `5496fd7` C7 → `c919c1f` C6 → `265fd3e` residual sweep
 (closes Stage 3/G1) → `e5c099e` Stage-4 battery (closes G2) → `ed89bfd`
-parked decisions → final-review fix batch (child of `ed89bfd`, closes
-Stage 5's review fixes).
+parked decisions → `3e45680` final-review fix batch (closes Stage 5's
+review fixes) → `583ddaf` extension E1 (apps/extension → v4 + upstream
+pins) → extension gates E2 (HEAD).
 
 ## Progress at a glance
 
 Cycle per unit: Fable/Opus executor subagent → independent reviewer subagent
 → user review → commit. No subagent ever commits.
 
-| Stage                                               | Status | Commits               |
-| --------------------------------------------------- | ------ | --------------------- |
-| 0 — Preflight (branch, cooldown, baselines)         | ✅     | `d68f762`             |
-| 1 — World flip (submodule + deps, config only)      | ✅     | `39aa07e`             |
-| 2 — Codemod sweep (pure) + dual RG review           | ✅     | `99be60f` + `cafff12` |
-| 3 — Cluster burndown (~8 units)                     | ✅ 8/8 | below                 |
-| 4 — Validation battery                              | ✅     | `e5c099e`             |
-| 5 — Final dual review + rebase + merge              | 🔄     | fix batch in tree     |
-| 6 — Fast-follows (extension, #722, fork retirement) | ⬜     |                       |
+| Stage                                             | Status | Commits               |
+| ------------------------------------------------- | ------ | --------------------- |
+| 0 — Preflight (branch, cooldown, baselines)       | ✅     | `d68f762`             |
+| 1 — World flip (submodule + deps, config only)    | ✅     | `39aa07e`             |
+| 2 — Codemod sweep (pure) + dual RG review         | ✅     | `99be60f` + `cafff12` |
+| 3 — Cluster burndown (~8 units)                   | ✅ 8/8 | below                 |
+| 4 — Validation battery                            | ✅     | `e5c099e`             |
+| 5 — Final dual review + rebase + merge            | 🔄     | `3e45680`             |
+| 5b — Extension addendum (E1 migrate + E2 gates)   | ✅     | `583ddaf` + HEAD      |
+| 6 — Fast-follows (#722, publish, fork retirement) | ⬜     |                       |
 
 Stage 3 units: RG-codemod corrections ✅ `bd09696` · C2 foundation ✅
 `8ea6c20` · C8a test harness ✅ `3242c4e` · C3 schema/Date-wire ✅ `738140b`
@@ -164,6 +171,14 @@ v4-rewritten `src/livestore/schema.ts`, whose `DateFromMillis`/`.check()`
 don't exist in effect 3.21.2), so `apps/extension` is dual-instance and
 UNBUILDABLE in-tree until the fast-follow. `publish-extension.yml` now
 carries a fail-fast guard (F2) so a manual dispatch can't ship it.
+**RESOLVED 2026-08-10 (extension addendum):** the fast-follow was pulled
+INTO this PR — E1 `583ddaf` migrates all 15 extension files + pins
+(effect 4.0.0-beta.99, five `@livestore/*` → `2e4bcfc68`; executor +
+independent reviewer APPROVE; compile clean, test:ext 11/11, build:local
+
+- check green; single hoisted effect copy dissolves the dual-instance
+  hazard), E2 restores the 3 CI steps and deletes the publish guard. F1/F2
+  CLOSED.
 
 `check:effect` burndown: 0 (pre-flip) → 218 (flip) → 254 (codemod) → 297
 (corrections; rises = unmasking) → 272 (C2) → 144 (C8a) → 144 (C3 — total
@@ -1035,7 +1050,10 @@ build` also works with the env since every chained script inherits it)
       applied 2026-08-10, this working tree): **F1** extension
       branch-broken via `@web` alias → recorded honestly (C9 note
       corrected) + **F2** fail-fast guard added to
-      `publish-extension.yml`; **F3** scripts stragglers FIXED
+      `publish-extension.yml` — both SUPERSEDED same day by the extension
+      addendum (E1 `583ddaf` migrates the extension in-branch, E2 removes
+      the guard + restores the CI steps; F1/F2 CLOSED); **F3** scripts
+      stragglers FIXED
       (`tapDefect` now `Cause.pretty(Cause.die(defect))` in
       check-pricing + mock-ingest/index; `Result` annotation in
       mock-ingest/client — `scripts/` stays typecheck-excluded,
