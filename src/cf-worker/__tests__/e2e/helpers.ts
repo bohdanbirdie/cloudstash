@@ -1,4 +1,4 @@
-import { env, SELF } from "cloudflare:test";
+import { env, runInDurableObject, SELF } from "cloudflare:test";
 
 export interface UserInfo {
   cookie: string;
@@ -51,4 +51,41 @@ export async function makeAdmin(userId: string): Promise<void> {
   await env.DB.prepare("UPDATE user SET role = 'admin' WHERE id = ?")
     .bind(userId)
     .run();
+}
+
+export const backendEventlogMax = (storeId: string): Promise<number | null> =>
+  env.SYNC_BACKEND_DO.get(
+    env.SYNC_BACKEND_DO.idFromName(storeId)
+  ).getEventlogMax();
+
+export async function waitForBackendHead(
+  storeId: string,
+  atLeast: number
+): Promise<number> {
+  let head = 0;
+  for (let i = 0; i < 200; i++) {
+    head = (await backendEventlogMax(storeId)) ?? 0;
+    if (head >= atLeast) return head;
+    await new Promise((r) => setTimeout(r, 75));
+  }
+  throw new Error(
+    `SyncBackend eventlog head stuck at ${head}, wanted >= ${atLeast} for store ${storeId}`
+  );
+}
+
+// Close the client store's livePull socket first — aborting with it open
+// deadlocks abortAllDurableObjects (docs/todos/server-ingest-cold-do-stranding.md).
+export async function quiesceLinkProcessor(
+  stub: DurableObjectStub
+): Promise<void> {
+  try {
+    await runInDurableObject(stub, async (instance) => {
+      const holder = instance as unknown as {
+        cachedStore?: { shutdownPromise?: () => Promise<void> };
+      };
+      await holder.cachedStore?.shutdownPromise?.();
+    });
+  } catch {
+    // best-effort
+  }
 }
