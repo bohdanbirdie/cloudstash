@@ -60,8 +60,14 @@ One new fix was required: with per-file storage isolation gone, background DO fi
 
 **Caveat for future e2e work:** `abortAllDurableObjects()` inside `afterAll` reproducibly deadlocks the run (verified A/B: 2/2 hangs with it, 2/2 green without; vitest buffers per-file output, so the hang looks like a silent boot stall). Mid-test aborts, as in `server-ingest-stranding.test.ts`, remain fine — just don't use it as file teardown.
 
-### Remaining coverage (still open)
+## Sync-arrival suite — PR #83 MERGED (2026-08-10, `9e83203`)
 
-Critical cases 4–6 and the concurrent-processing list above are uncovered: hibernation recovery, cross-client sync via WebSocket pull (browser path), asserting events actually **arrive** in SyncBackendDO's eventlog (the merged tests assert ingest status, not sync arrival), and the semaphore/dedup/draft concurrency semantics. Scope future work at cloudstash app-level flows (ingest → sync → UI) — upstream livestore now carries the hibernation + reconstruction guard suites itself (#1427/#1435/#1541).
+`sync-arrival.test.ts` closes the arrival gap (critical case 6, and case 4 via eviction): single, concurrent (×3), and queue-batch ingests are asserted to actually **arrive** in SyncBackendDO's persisted eventlog — fresh-stub `getEventlogMax()` reads — plus eviction survival and cold-boot re-sync via mid-test `abortAllDurableObjects()` (livePull socket quiesced first, per the caveat above). Shared helpers (`backendEventlogMax`, `waitForBackendHead`, `quiesceLinkProcessor`) live in `helpers.ts`. Deliberately excluded as flake bait while there is no hermetic AI stub in the tree: pipeline-settle and duplicate-no-repush assertions — they belong with the [[todos/server-ingest-cold-do-stranding]] / livestorejs#722 work, which re-introduces the stub.
+
+Also re-verified empirically on that branch: durability **at RPC return** still does not exist on upstream `main` (the at-return stranding test was un-skipped for one run — eventlog empty at return), so #722 commit-receipt awaitables remain the fix.
+
+### Residual scope (task closed 2026-08-10)
+
+Cross-client sync via WebSocket pull (browser path, critical case 5) and the concurrent-processing semantics list are the remaining gaps — both gated on heavier harness work (a real livestore client inside the test worker / a hermetic AI stub). True idle-hibernation waits aren't reproducible in miniflare; eviction-based recovery is covered. Scope any future work at cloudstash app-level flows (ingest → sync → UI) — upstream livestore carries the hibernation + reconstruction guard suites itself (#1427/#1435/#1541).
 
 Related: [workers-sdk#11031](https://github.com/cloudflare/workers-sdk/issues/11031).
