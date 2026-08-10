@@ -40,22 +40,30 @@ Follow-up queued in Stage 6: migrate LinkProcessorDO's two-field guard
 `c919c1f`), full battery green on the committed tree (check, typecheck,
 unit 1292/1292, e2e 52/3-skip).
 
-**Other open decisions (not yet made):**
+**Open decisions — ALL RESOLVED 2026-08-10 (user):**
 
-1. Bunfig `minimumReleaseAge` restore timing — still TEMP-disabled
-   (commented out). Original note said restore after Stage 1's install;
-   the vite 8.0.14 bump also installed under it. Decide: restore in the
-   final Stage-5 commit vs now.
-2. Extension publish timing (matrix row 8 / rollback trade-off): submit the
-   migrated v4 extension to the Web Store BEFORE prod cutover vs after a
-   soak period. (Extension source migration itself = Stage 6 fast-follow.)
-3. `DeletionRuntimeError` message-getter (C6 review option iii): optional
-   observability improvement so CF Workflows per-attempt status shows more
-   than the bare tag — deliberately SEPARATE from the (already-applied)
-   assertion fix. Do it or drop it.
-4. Account-deletion purge-ordering swap (SB before LP — closes the
-   resurrection race the recovery wiring widened): out of migration scope;
-   needs a kanban/deletion-doc entry. Not yet filed anywhere but this doc.
+1. Bunfig `minimumReleaseAge` — RESTORED at the full 604800 on the PR
+   branch, same day. Empirically verified: both `bun install
+--frozen-lockfile` (CI path) and plain `bun install` pass with the
+   cooldown on, because it applies at resolution time only and the
+   lockfile already pins the snapshot. If an @livestore pin must be
+   RE-resolved before ~2026-08-16 (snapshot bump), add a temporary scoped
+   `minimumReleaseAgeExcludes` for those packages.
+2. Extension: migration = STACKED PR after this one (Stage 6); Web Store
+   publish whenever after — review latency (weeks) accepted, interim
+   v3-extension breakage accepted by the user ("no users, not a
+   tragedy"); compat evidence says it holds anyway.
+3. `DeletionRuntimeError` message-getter — DONE in this PR. Determined
+   migration-introduced (v3 `Runtime.runPromise` rejected with a
+   FiberFailure whose message embedded the pretty cause; v4
+   `runPromiseWith` rejects with the typed error whose message is empty —
+   probe-verified), so per the user's rule it rides the migration.
+   `override get message()` added to BOTH `DeletionRuntimeError`
+   (`op/step: cause`) and `WorkflowOrchestrationError` (`step: cause`);
+   prototype getter works because the v4 ctor sets no own `message`
+   (probe-verified); account-deletion tests 32/32 untouched.
+4. Account-deletion purge-ordering swap — FILED to `docs/kanban.md` Todo
+   (2026-08-10) as a follow-up task; out of this PR's scope.
 
 **Stage 4 — local battery DONE 2026-08-10 (all receipts in the _Step 10
 receipts_ section):** full battery green on `265fd3e` (check clean,
@@ -1339,6 +1347,43 @@ Effect.context<R>()` + `Effect.runPromiseWith(services)(body)`. Beta.99
 ## Found issues
 
 _(running list — every surprise found during migration gets a line here)_
+
+- 2026-08-10 (user local manual smoke — the de-facto CUTOVER DRESS
+  REHEARSAL: fork-written `.wrangler` state opened by upstream v4 WITHOUT
+  `clean:local-state`, i.e. exactly what prod DOs + browser OPFS stores
+  will do on first boot post-deploy). Result: zero data loss, links
+  visible, paste/Telegram single/6-link-burst all processed, AI summaries
+  - tags fine, post-hibernation cold-DO recovery worked, one
+    ServerAheadError rebase recovered per protocol. Three observations:
+  1. **1k+ `Schema hash mismatch for event definition
+v1.LinkProcessingFailed` WARNs at first boot.** Mechanism
+     (source-verified): eventlog rows are stamped at commit time with
+     `Schema.hash(eventDef.schema)` (`materialize-event.ts`); effect v4's
+     `Schema.hash` differs from v3's, and the v4 table-schema hashes also
+     differ → migrationsReport rebuilds the state tables → FULL
+     rematerialize-from-eventlog replays every historical row and warns
+     per row whose stored v3 hash ≠ current v4 hash
+     (`rematerialize-from-eventlog.ts:65`). HARMLESS: the real gate is
+     the `Schema.decodeUnknownEffect` that follows each warn — it passed
+     on the user's entire ~10k-event real history (wire-preservation/C3
+     goldens doing their job live). One-time per client store; replay of
+     the full log took ~60ms. Residual cosmetic cost: pre-migration rows
+     keep their v3 hashes forever, so any FUTURE rematerialization
+     (e.g. a table-schema change) re-spams the warning for old rows.
+     G4 expectation: this spam will appear once per DO + per browser
+     client on first post-deploy boot — expected, not an incident.
+     `clean:local-state` turned out to be UNNECESSARY (orphaned fork
+     registry tables coexist fine — planning note ④ was right).
+  2. **SyncBackend logs `ServerAheadError` at ERROR level**
+     (`do/transport/do-rpc-server.ts` logs the handler-failure cause)
+     before the client's normal rebase handles it. Protocol-normal per
+     CLAUDE.md; cosmetic log-level noise in prod tails; upstream tweak
+     candidate (downgrade to debug for ServerAheadError specifically).
+  3. One link failed with `AiCallError`/`TimeoutError` (YouTube playlist,
+     no content extracted) — pre-existing app-level AI timeout class,
+     NOT migration-related; the failure path worked end-to-end (new
+     `v1.LinkProcessingFailed` committed + synced under v4, Telegram
+     notified "failed").
 
 - 2026-08-09 (planning) — `docs/todos/effect-v4-livestore-upstream-migration.md`
   step "drop `src/livestore-fork.d.ts`" was stale: the file doesn't exist;

@@ -30,7 +30,12 @@ export class DeletionRuntimeError extends Schema.TaggedErrorClass<DeletionRuntim
     step: Schema.optional(Schema.Literals(["status", "restart", "create"])),
     cause: Schema.Defect(),
   }
-) {}
+) {
+  override get message(): string {
+    const op = this.step === undefined ? this.op : `${this.op}/${this.step}`;
+    return `${op}: ${String(this.cause)}`;
+  }
+}
 
 /**
  * The env seam: DO + Workflow bindings exposed as Effects so step bodies

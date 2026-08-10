@@ -54,7 +54,11 @@ export class WorkflowOrchestrationError extends Schema.TaggedErrorClass<Workflow
     step: Schema.String,
     cause: Schema.Defect(),
   }
-) {}
+) {
+  override get message(): string {
+    return `${this.step}: ${String(this.cause)}`;
+  }
+}
 
 /**
  * We do NOT route the body through `Effect.result` because that would resolve
