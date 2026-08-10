@@ -275,7 +275,7 @@ const interactive = (
 
 void Effect.runPromiseExit(
   Effect.scoped(program).pipe(
-    Effect.tapDefect((cause) => Console.error(Cause.pretty(cause)))
+    Effect.tapDefect((defect) => Console.error(Cause.pretty(Cause.die(defect))))
   )
 ).then((exit) => {
   if (Exit.isFailure(exit)) process.exitCode = 1;

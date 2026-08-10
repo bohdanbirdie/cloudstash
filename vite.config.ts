@@ -28,7 +28,7 @@ declare module "vite" {
   }
 }
 
-// Redirect @livestore/* to the vendored fork source (default) and fail a
+// Redirect @livestore/* to the vendored upstream source (default) and fail a
 // production build if the submodule isn't checked out. See
 // docs/architecture/livestore-fork-integration.md.
 const livestoreLocalPlugin: Plugin = {
@@ -36,7 +36,7 @@ const livestoreLocalPlugin: Plugin = {
   config: (_config, { command }) => {
     if (command === "build" && !LIVESTORE_PUBLISHED && !LIVESTORE_LOCAL) {
       throw new Error(
-        "[livestore] vendored fork (vendor/livestore) not found — run `git submodule update --init` then `cd vendor/livestore && pnpm install`, or set LIVESTORE_PUBLISHED=1 to build the published snapshot on purpose."
+        "[livestore] vendored livestore (vendor/livestore) not found — run `git submodule update --init` then `cd vendor/livestore && pnpm install`, or set LIVESTORE_PUBLISHED=1 to build the published snapshot on purpose."
       );
     }
     return { resolve: livestoreLocalResolve() };

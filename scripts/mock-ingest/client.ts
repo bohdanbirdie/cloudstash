@@ -164,11 +164,13 @@ const reconcileOnce = (
     });
 
     for (let page = 0; page < 500; page++) {
-      const result = yield* Effect.result(listLinks(origin, apiKey, cursor));
+      const result: Result.Result<LinksPage, LinksError> = yield* Effect.result(
+        listLinks(origin, apiKey, cursor)
+      );
       if (Result.isFailure(result)) {
         return summarize(`${result.failure.status} ${result.failure.body}`);
       }
-      const data = result.success;
+      const data: LinksPage = result.success;
       for (const l of data.links) {
         scanned++;
         const n = norm(l.url);

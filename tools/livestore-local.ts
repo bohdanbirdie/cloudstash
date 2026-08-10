@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// The vendored livestore fork (committed git submodule) is the source of
+// The vendored upstream livestore (committed git submodule) is the source of
 // livestore code for dev, tests, and production builds — local == prod.
 const PKGS = path.resolve(__dirname, "../vendor/livestore/packages/@livestore");
 
@@ -58,7 +58,7 @@ export function livestoreBuildDefine(): Record<string, string> {
 
 /**
  * Vite resolve config that redirects every @livestore/* entrypoint to the
- * vendored fork source (read from each package's `exports` map) and dedupes
+ * vendored submodule source (read from each package's `exports` map) and dedupes
  * `effect`, `react`, and `react-dom` so Effect layers and the React instance
  * stay identical across the cloudstash/livestore boundary. The submodule pins
  * its own react (devDep) in its pnpm store; without dedupe the vendored

@@ -173,7 +173,9 @@ const program = Effect.gen(function* () {
     return yield* new PricingDrift({});
   }
   yield* Console.log("\nAll plan prices match Stripe.");
-}).pipe(Effect.tapDefect((cause) => Console.error(Cause.pretty(cause))));
+}).pipe(
+  Effect.tapDefect((defect) => Console.error(Cause.pretty(Cause.die(defect))))
+);
 
 void Effect.runPromiseExit(program.pipe(Effect.provide(ConfigLive))).then(
   (exit) => {

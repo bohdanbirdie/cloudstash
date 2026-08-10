@@ -188,7 +188,7 @@ Don't undo them:
    repo (pnpm's normal global-store mode); node_modules still links to it but Vite
    never sees it.
 
-## Validation checklist (run before trusting prod / on every fork bump)
+## Validation checklist (run before trusting prod / on every submodule bump)
 
 - `bun run typecheck`, `bun run check`
 - `bun run test:unit` and `bun run test:e2e` (default submodule mode, plus a
@@ -213,16 +213,19 @@ Don't undo them:
   `subscribedAt`, so a stale local DO threw `no such column: generation` until a
   `clean:local-state` reset.
 - The deployed worker would be built **from livestore source** — own that build
-  path; smoke-test every fork bump.
-- On each fork bump: `pnpm install` the new SHA, re-verify `effect` version
+  path; smoke-test every submodule bump.
+- On each submodule bump: `pnpm install` the new SHA, re-verify `effect` version
   parity, and re-run the validation suite.
 
-## To ship a new fork state (steady-state workflow)
+## To bump the vendored upstream (steady-state workflow)
 
-1. Develop in `vendor/livestore` (real fork checkout), push to the fork branch.
-2. `git add vendor/livestore` in cloudstash to record the new SHA → that commit
-   is what builds and deploys. Re-run `bun run livestore:install` (or
-   `pnpm install` inside `vendor/livestore`).
+1. Land changes upstream (`livestorejs/livestore` `main`) — or check out a
+   scratch branch inside `vendor/livestore` for local experiments.
+2. Point the submodule at the new upstream SHA and `git add vendor/livestore`
+   in cloudstash to record it → that commit is what builds and deploys. Re-pin
+   the published `@livestore/*` snapshot in `package.json` to the SAME SHA,
+   then re-run `bun run livestore:install` (or `pnpm install` inside
+   `vendor/livestore`).
 3. Run the validation checklist above before deploy.
 
 ## Open items (before/around the prod cutover)
@@ -230,18 +233,12 @@ Don't undo them:
 - **Re-enable the Socket scanner.** Still commented out in `bunfig.toml` (free
   endpoint 503). Re-add once it recovers, ideally after setting `SOCKET_API_KEY`
   in Cloudflare Variables/secrets. The `minimumReleaseAge` cooldown stayed on.
-- **Merge `chore/livestore-submodule-vendoring` → `main`** to cut production
-  over. The `main` deploy command runs the real
-  `wrangler d1 migrations apply --remote` + `wrangler deploy`, so this is a live
-  prod deploy — run the validation checklist first.
-- **Verify the DO schema before the prod deploy.** PR #1338's SyncBackendDO
-  creates `rpc_subscription_7` with a `generation` column. Production currently
-  runs the published snapshot, whose `sync-cf` doesn't create that table at all
-  (verified: published dist has no `rpc_subscription`/`generation`), so a fresh
-  `CREATE TABLE IF NOT EXISTS` on first fork deploy should be clean — **unless**
-  the surgical patch was ever deployed (its `rpc_subscription_7` used
-  `subscribedAt`), which would throw `no such column: generation`. Confirm prod
-  DOs don't already hold a conflicting table; see the DO-schema gotcha above.
+- ~~Merge the vendoring branch~~ / ~~pre-deploy `rpc_subscription_7` schema
+  check~~ — both DONE/obsolete (2026-08-10): vendoring shipped as PR #79/#80;
+  the fork-era `generation` table concern died with the fork — upstream
+  `2e4bcfc68` keeps its registry in DO KV, and orphaned fork tables are
+  harmless (verified live during the effect-v4 cutover dress rehearsal, see
+  [[todos/effect-v4-migration-progress]]).
 
 ## References
 

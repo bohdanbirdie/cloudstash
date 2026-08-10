@@ -12,17 +12,25 @@ risk, independently researched, reconciled below).
 
 ## SESSION HANDOFF (2026-08-10) — resume exactly here
 
-**Working state:** branch `feat/effect-v4-livestore-upstream`, HEAD =
-`265fd3e` (the Stage-3-closing residual-sweep commit, parent `c919c1f` —
-Stage 3 + gate G1 CLOSED). Stage 4's locally-automatable battery is
-EXECUTED and receipted (see "Step 10 receipts (2026-08-10)" below), then
-RG-reviewed; uncommitted in the working tree: this tracker + the new
-row-7 probe `src/cf-worker/__tests__/e2e/layer-memoization.test.ts`
-(slimmed to its one genuine detector per RG review) — awaiting user
-review. Last full battery on `265fd3e` + probe: `bun run check` green,
-`bun run typecheck` 0, unit **1292/1292**, e2e **7 files / 53 passed / 3
-pre-existing skips**, upstream hibernation suites **2/2 on node 22**,
-`bun run build` + verify-bundle all 5 asserts green.
+**Working state:** branch `feat/effect-v4-livestore-upstream`, HEAD = the
+final-review fix-batch commit (child of `ed89bfd`), pushed — **PR #82**
+open, CI GREEN on `ed89bfd` (quality + test + Workers Builds incl.
+verify-bundle). Stages 0–4 COMPLETE (gates G0–G3 closed; G3's preview
+smoke waived by user decision — see the gate note). Stage 5's final dual
+review EXECUTED (A: merge-ready, zero unrecorded behavior deltas; B:
+findings F1–F11 all dispositioned — see step 11's Executed block) and its
+fix batch user-approved + committed. Working tree clean. **Branch is
+MERGE-READY.** Remaining: optional pre-G4 hibernation GB-s baseline
+(user's CF auth) → merge PR #82 (no rebase needed — main unmoved at
+`8e36bf3`; re-check at merge) → G4 cutover per the documented
+expectations (schema-hash warn spam + one-time rematerialization per
+client store; watch chat-agent live-pull + extension sync — the two
+waived-smoke items) → post-G4: GB-s vs baseline, remove `liveLongTimers`
+probe. Last full battery on `ed89bfd` (Reviewer B, independent): check
+0/0/0, typecheck 0, unit **1292/1292**, e2e **7 files / 53 passed / 3
+pre-existing skips**, build 5/5 asserts, upstream hibernation suites
+**2/2 on node 22**; fix batch additionally verified (repo check green,
+scripts probe clean ×4 files).
 
 **RESOLVED (2026-08-10, post-compact):** the user's "not sure it's clean
 enough" concern about the chat-agent single-flight guard was settled by
@@ -67,13 +75,13 @@ unit 1292/1292, e2e 52/3-skip).
 
 **Stage 4 — local battery DONE 2026-08-10 (all receipts in the _Step 10
 receipts_ section):** full battery green on `265fd3e` (check clean,
-typecheck 0, unit 1292/1292, e2e 52/3-skip → 57/3-skip with the new
-probe); upstream hibernation suites PASSED in the submodule (2/2 — the
+typecheck 0, unit 1292/1292, e2e 53/3-skip with the new probe); upstream
+hibernation suites PASSED in the submodule (2/2 — the
 node ≥24 caveat did not bite, no engines gate on the test package); matrix
-row 7's 2-sequential-requests e2e WRITTEN and green (new
-`src/cf-worker/__tests__/e2e/layer-memoization.test.ts`, 5/5 — layer
-identity stable across request windows, services rebuild per provide,
-PUT-visible-to-request-2); `bun run build` verify-bundle all-pass (marker
+row 7's e2e WRITTEN and green (new
+`src/cf-worker/__tests__/e2e/layer-memoization.test.ts`, slimmed post-RG
+to its one genuine detector: services rebuild per top-level provide of the
+memoized layer); `bun run build` verify-bundle all-pass (marker
 `vendored@2e4bcfc68` ×1, `3.21.2` ×0, msgpackr fallback ×3, react
 `[19.2.6]` singleton); extension compat smoke's locally-automatable share
 done (server-surface suites 115/115, response-shape contract match,
@@ -85,23 +93,24 @@ the published lane never ships, "mine or livestore's?" A/B is meaningless
 on identical code); the marker's bidirectional self-validation was already
 receipted in step 9 and the `bun run build` marker assert covers silent
 alias regression on every build.
-**Stage 4 remaining (outward-facing / user's call):** matrix row 2's
-reverse direction on REAL rows is DONE by construction (C3 goldens +
-reviewer's v3 byte-round-trip) but re-check the row-2 fixture test
-wish-list; `bun run clean:local-state` + dev-server restart (user-side);
-THEN pushing the branch (Workers Builds preview); G3 preview smoke MUST
-include chat-agent live-pull (zero test coverage — the `syncUpdateRpc`
-path is verified by review only), the published v3 extension against the
-preview (WS envelope + graceful OPFS queuing — not provable locally), and
-the preview ingest smoke (matrix row 5). Pre-G4: capture the hibernation
+**Stage 4 closed out (2026-08-10):** branch PUSHED, **PR #82** open; G3
+preview smoke WAIVED (user decision — see the G3 gate note; chat-agent
+live-pull + the published-v3-extension WS envelope became G4 watch items);
+`clean:local-state` proven UNNECESSARY by the user's local manual smoke
+(the cutover dress rehearsal in Found issues — fork-written state opens
+clean under upstream v4). Still pending pre-G4: capture the hibernation
 GB-s baseline (GraphQL duration method from the 2026-06-11 incident doc;
 `scripts/do-metrics.sh` can NOT produce it). Post-G4: remove the
 `liveLongTimers` probe, re-verify GB-s vs baseline.
 
-**Stage 5:** rebase on main (check if main moved; regenerate the codemod
-commit via the recorded invocation if it conflicts), final DUAL full-diff
-review (one opus + one fable, disjoint mandates: correctness/behavioral vs
-completeness incl. banned-idiom greps), single merge = atomic landing.
+**Stage 5 (in flight 2026-08-10):** main UNMOVED since branch (merge-base
+= `8e36bf3` — no rebase needed; re-check at merge); final DUAL full-diff
+review EXECUTED — Reviewer A (fable, correctness): **MERGE-READY, zero
+unrecorded behavior deltas** (high-risk claims probe-confirmed); Reviewer
+B (opus, completeness): mechanically clean core, findings F1–F11 →
+dispositions in step 11's Executed block; fix batch applied same day.
+Remaining: user review of the fix batch → commit → merge PR #82 = atomic
+landing.
 
 **Stage 6 fast-follows (already queued):** extension workspace migration +
 Web Store publish + restore the 3 gated CI steps; `bun update wxt` (dedupes
@@ -120,7 +129,10 @@ NEVER commit. Tests prime directive: API-form only, assertion changes need
 explicit user sanction (exactly one granted so far). All commits so far:
 `d68f762` docs → `39aa07e` world flip → `99be60f` codemod → `cafff12` docs
 → `bd09696` corrections → `8ea6c20` C2 → `3242c4e` C8a → `738140b` C3 →
-`df85467` C5+C4 → `5496fd7` C7 → `c919c1f` C6.
+`df85467` C5+C4 → `5496fd7` C7 → `c919c1f` C6 → `265fd3e` residual sweep
+(closes Stage 3/G1) → `e5c099e` Stage-4 battery (closes G2) → `ed89bfd`
+parked decisions → final-review fix batch (child of `ed89bfd`, closes
+Stage 5's review fixes).
 
 ## Progress at a glance
 
@@ -133,20 +145,25 @@ Cycle per unit: Fable/Opus executor subagent → independent reviewer subagent
 | 1 — World flip (submodule + deps, config only)      | ✅     | `39aa07e`             |
 | 2 — Codemod sweep (pure) + dual RG review           | ✅     | `99be60f` + `cafff12` |
 | 3 — Cluster burndown (~8 units)                     | ✅ 8/8 | below                 |
-| 4 — Validation battery                              | ⬜     |                       |
-| 5 — Final dual review + rebase + merge              | ⬜     |                       |
+| 4 — Validation battery                              | ✅     | `e5c099e`             |
+| 5 — Final dual review + rebase + merge              | 🔄     | fix batch in tree     |
 | 6 — Fast-follows (extension, #722, fork retirement) | ⬜     |                       |
 
 Stage 3 units: RG-codemod corrections ✅ `bd09696` · C2 foundation ✅
 `8ea6c20` · C8a test harness ✅ `3242c4e` · C3 schema/Date-wire ✅ `738140b`
 · C5+C4 sync glue + LinkProcessorDO ✅ `df85467` · C6
 HTTP surface ✅ `c919c1f` · C7 background workers ✅
-`5496fd7` · residual sweep + typecheck milestone + marker/docs ✅ (this
-commit — CLOSES Stage 3 + gate G1).
+`5496fd7` · residual sweep + typecheck milestone + marker/docs ✅
+`265fd3e` — CLOSES Stage 3 + gate G1.
 C9 extension: REMOVED from this PR (Stage 6 fast-follow, user decision;
 all three extension CI steps incl. `test:ext` TEMP-gated as of the C3
-commit — its 4/11 failures are pre-existing mixed-tree v3 breakage,
-restore + fix in the fast-follow).
+commit). **Corrected 2026-08-10 (final-review F1):** its 4/11 test
+failures are NOT pre-existing — they are INTRODUCED by this branch: 4
+extension files import root `src/` through the `@web` alias (incl. the
+v4-rewritten `src/livestore/schema.ts`, whose `DateFromMillis`/`.check()`
+don't exist in effect 3.21.2), so `apps/extension` is dual-instance and
+UNBUILDABLE in-tree until the fast-follow. `publish-extension.yml` now
+carries a fail-fast guard (F2) so a manual dispatch can't ship it.
 
 `check:effect` burndown: 0 (pre-flip) → 218 (flip) → 254 (codemod) → 297
 (corrections; rises = unmasking) → 272 (C2) → 144 (C8a) → 144 (C3 — total
@@ -209,8 +226,14 @@ cliffs removed — see the 2026-08-10 Decisions + Found issues).
       wire-format tests + row-7 probe), upstream hibernation suites in the
       submodule 2/2 on node 22 (`LIVESTORE_PUBLISHED=1` A/B pass dropped —
       user decision 2026-08-10, see Stage 4 note in the handoff section)
-- [ ] **G3 — build + preview validated:** local `bun run build` + bundle
-      asserts, preview deploy smoke (DO sync + browser store + extension compat)
+- [x] **G3 — build validated; preview smoke WAIVED (2026-08-10, user
+      decision):** local `bun run build` + all 5 bundle asserts green; the
+      Workers Builds preview smoke is skipped — no proper staging
+      environment (preview lacks real DO/D1/queue state) and no users, so
+      the risk is accepted. Consequence: chat-agent live-pull and the
+      published-v3-extension WS envelope ship review-verified-only →
+      explicit G4 watch items (first real chat session + extension sync
+      after cutover).
 - [ ] **G4 — prod cutover:** deploy, hibernation GB-s re-verified vs baseline,
       probe removed
 - [ ] **G5 — follow-ups:** push-side strand re-checked, stream-stall item
@@ -995,6 +1018,40 @@ build` also works with the env since every chained script inherits it)
         `mapChunks`, `FiberRef`, `Effect.either(`; no codemod TODOs; docs updated;
         every step-10 receipt exists). Both clean (or accepted-with-rationale) →
         merge. Post-merge: G4/G5 prod items per the strategy doc.
+        **Executed (2026-08-10) — dual review on `ed89bfd`, 155 files:**
+    - **Reviewer A (fable, correctness): MERGE-READY.** Zero unrecorded
+      behavior deltas; probe-confirmed: `Schedule.upTo` retry counts
+      (no off-by-one), filterMap polarity ×3, wire goldens 71/71,
+      `runPromiseWith` rejects on failure/defect/interruption, chat-agent
+      `storePromise` races safe, catchTag inventory (~90 sites) — only
+      `TimeoutError`/`SchemaError` built-ins in play, both tag-verified
+      against v4 source. Two informational notes (purgeAll-during-boot is
+      strictly better than main; the setTimeout probe wrappers are
+      behavior-preserving TEMP).
+    - **Reviewer B (opus, completeness):** core clean (22 greps
+      zero-or-false-positive, zero added suppressions, pins/gitlink
+      coherent, blast radius fully mapped, independent battery green) but
+      NOT merge-ready until F1–F11 dispositioned. Dispositions (fix batch
+      applied 2026-08-10, this working tree): **F1** extension
+      branch-broken via `@web` alias → recorded honestly (C9 note
+      corrected) + **F2** fail-fast guard added to
+      `publish-extension.yml`; **F3** scripts stragglers FIXED
+      (`tapDefect` now `Cause.pretty(Cause.die(defect))` in
+      check-pricing + mock-ingest/index; `Result` annotation in
+      mock-ingest/client — `scripts/` stays typecheck-excluded,
+      pre-existing); **F4/F5/F6** tracker reconciled (commit list, stage
+      table, handoff vs G3 waiver); **F7** fork-doc live instructions
+      rewritten to the upstream-bump workflow, obsolete open items
+      struck; **F8** `CLAUDE.md` (vendored upstream + submodule-bump flow
+      - effect-solutions v4 caveat) and `EFFECT.md` (TaggedErrorClass,
+        `Schema.Defect()`) updated; **F9** ACCEPTED — verify-bundle runs on
+        every Workers Builds push (incl. PRs), GH-Actions omission is
+        redundant coverage, not a gap; **F10** ACCEPTED carry (documented
+        in-file + Decisions); **F11** fork→upstream comment sweep done
+        (ci.yml, vite.config.ts, tools/livestore-local.ts).
+        **Fix batch user-approved and committed 2026-08-10.**
+        **Remaining for this step:** merge PR #82 (no rebase needed —
+        main unmoved at `8e36bf3`; re-check at merge time).
 
 ### Step 10 receipts (2026-08-10)
 

@@ -61,7 +61,7 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      # Install the vendored livestore fork (git submodule) so the Vite alias
+      # Install the vendored upstream livestore (git submodule) so the Vite alias
       # resolves @livestore/* to its source for test:unit / test:e2e.
       - uses: pnpm/action-setup@v4
         with:
