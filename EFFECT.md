@@ -248,14 +248,14 @@ const program = Effect.gen(function* () {
 
 ## Error Handling
 
-### Schema.TaggedError
+### Schema.TaggedErrorClass
 
-Define domain errors with `Schema.TaggedError`:
+Define domain errors with `Schema.TaggedErrorClass`:
 
 ```typescript
 import { Schema } from "effect";
 
-class ValidationError extends Schema.TaggedError<ValidationError>()(
+class ValidationError extends Schema.TaggedErrorClass<ValidationError>()(
   "ValidationError",
   {
     field: Schema.String,
@@ -263,7 +263,7 @@ class ValidationError extends Schema.TaggedError<ValidationError>()(
   }
 ) {}
 
-class NotFoundError extends Schema.TaggedError<NotFoundError>()(
+class NotFoundError extends Schema.TaggedErrorClass<NotFoundError>()(
   "NotFoundError",
   {
     resource: Schema.String,
@@ -280,7 +280,7 @@ class NotFoundError extends Schema.TaggedError<NotFoundError>()(
 
 ### Yieldable Errors
 
-`Schema.TaggedError` creates yieldable errors:
+`Schema.TaggedErrorClass` creates yieldable errors:
 
 ```typescript
 // ✅ Good: Yieldable errors can be used directly
@@ -339,10 +339,10 @@ const main = Effect.gen(function* () {
 Use `Schema.Defect` to wrap unknown errors from external libraries:
 
 ```typescript
-class ApiError extends Schema.TaggedError<ApiError>()("ApiError", {
+class ApiError extends Schema.TaggedErrorClass<ApiError>()("ApiError", {
   endpoint: Schema.String,
   statusCode: Schema.Number,
-  error: Schema.Defect, // Wrap the underlying error
+  error: Schema.Defect(), // Wrap the underlying error
 }) {}
 
 const fetchUser = (id: string) =>

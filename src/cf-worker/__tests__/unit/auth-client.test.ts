@@ -25,9 +25,9 @@ const approvedUser = { ...mockUser, approved: true };
 
 function makeAuthClientLayer(
   overrides: Partial<{
-    findUser: AuthClient["Type"]["findUser"];
-    approveUser: AuthClient["Type"]["approveUser"];
-    listApprovedUsers: AuthClient["Type"]["listApprovedUsers"];
+    findUser: AuthClient["Service"]["findUser"];
+    approveUser: AuthClient["Service"]["approveUser"];
+    listApprovedUsers: AuthClient["Service"]["listApprovedUsers"];
     getSession: (opts: { headers: Headers }) => Promise<{
       user: { id: string; role?: string };
       session: unknown;
@@ -42,7 +42,7 @@ function makeAuthClientLayer(
     approveUser: overrides.approveUser ?? (() => Effect.void),
     listApprovedUsers:
       overrides.listApprovedUsers ?? (() => Effect.succeed([])),
-  } as unknown as AuthClient["Type"]);
+  } as unknown as AuthClient["Service"]);
 }
 
 describe("AuthClient enriched methods", () => {

@@ -25,10 +25,10 @@ export const MAX_EXPIRES_IN_DAYS = 365;
 
 export const CreateInviteBody = Schema.Struct({
   expiresInDays: Schema.optional(
-    Schema.Number.pipe(
-      Schema.int(),
-      Schema.positive(),
-      Schema.lessThanOrEqualTo(MAX_EXPIRES_IN_DAYS)
+    Schema.Number.check(
+      Schema.isInt(),
+      Schema.isGreaterThan(0),
+      Schema.isLessThanOrEqualTo(MAX_EXPIRES_IN_DAYS)
     )
   ),
 });
@@ -58,7 +58,7 @@ const getSession = (auth: Auth, headers: Headers) =>
     )
   );
 
-type Session = Effect.Effect.Success<ReturnType<typeof getSession>>;
+type Session = Effect.Success<ReturnType<typeof getSession>>;
 
 const requireMemberManagement = (session: Session) =>
   hasPermission(session.user.role, PERMISSIONS.manageMembers)
@@ -77,7 +77,9 @@ const handleCreateInviteRequest = Effect.fn(
     (): Promise<unknown> => request.json()
   ).pipe(Effect.orElseSucceed(() => ({})));
 
-  const decoded = yield* Schema.decodeUnknown(CreateInviteBody)(rawBody).pipe(
+  const decoded = yield* Schema.decodeUnknownEffect(CreateInviteBody)(
+    rawBody
+  ).pipe(
     Effect.mapError(
       (error) =>
         new InvalidInviteRequestError({

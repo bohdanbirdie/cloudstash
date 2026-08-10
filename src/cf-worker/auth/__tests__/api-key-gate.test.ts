@@ -1,5 +1,5 @@
 import { it } from "@effect/vitest";
-import { Effect, Exit, Layer, LogLevel, Logger } from "effect";
+import { Effect, Exit, Layer, References } from "effect";
 import { describe, expect } from "vitest";
 
 import type { TierCapabilities } from "@/lib/plan";
@@ -25,7 +25,7 @@ const authStub = (impl: {
       getSession:
         impl.getSession ?? (() => Promise.resolve<GetSessionResult>(null)),
     },
-  } as unknown as AuthClient["Type"]);
+  } as unknown as AuthClient["Service"]);
 
 const billingStub = (
   caps: TierCapabilities,
@@ -39,7 +39,7 @@ const billingStub = (
     Effect.die("Billing stub method not implemented in test");
   return Layer.succeed(
     Billing,
-    new Billing({
+    Billing.of({
       capabilities: override?.capabilities ?? (() => Effect.succeed(caps)),
       tier: notImpl,
       subscription: notImpl,
@@ -63,7 +63,7 @@ const provide = (
 ) =>
   effect.pipe(
     Effect.provide(layer),
-    Logger.withMinimumLogLevel(LogLevel.Error)
+    Effect.provideService(References.MinimumLogLevel, "Error")
   );
 
 describe("gateUserApiKeyCreate", () => {

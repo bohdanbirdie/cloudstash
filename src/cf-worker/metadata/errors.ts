@@ -1,33 +1,33 @@
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 
-export class MetadataFetchError extends Schema.TaggedError<MetadataFetchError>()(
+export class MetadataFetchError extends Schema.TaggedErrorClass<MetadataFetchError>()(
   "MetadataFetchError",
   {
-    message: Schema.optionalWith(Schema.String, {
-      default: () => "Metadata fetch failed",
-    }),
+    message: Schema.String.pipe(
+      Schema.withConstructorDefault(Effect.succeed("Metadata fetch failed"))
+    ),
     statusCode: Schema.Number,
     url: Schema.String,
   }
 ) {}
 
-export class MetadataParseError extends Schema.TaggedError<MetadataParseError>()(
+export class MetadataParseError extends Schema.TaggedErrorClass<MetadataParseError>()(
   "MetadataParseError",
   {
-    cause: Schema.Defect,
-    message: Schema.optionalWith(Schema.String, {
-      default: () => "Metadata parse failed",
-    }),
+    cause: Schema.Defect(),
+    message: Schema.String.pipe(
+      Schema.withConstructorDefault(Effect.succeed("Metadata parse failed"))
+    ),
     url: Schema.String,
   }
 ) {}
 
-export class MetadataMissingUrlError extends Schema.TaggedError<MetadataMissingUrlError>()(
+export class MetadataMissingUrlError extends Schema.TaggedErrorClass<MetadataMissingUrlError>()(
   "MetadataMissingUrlError",
   {
-    message: Schema.optionalWith(Schema.String, {
-      default: () => "Missing url parameter",
-    }),
+    message: Schema.String.pipe(
+      Schema.withConstructorDefault(Effect.succeed("Missing url parameter"))
+    ),
   }
 ) {}
 

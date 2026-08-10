@@ -1,5 +1,5 @@
 import { and, eq, gt, like } from "drizzle-orm";
-import { Array as Arr, Effect, Layer, Option, Schema } from "effect";
+import { Array as Arr, Effect, Layer, Option, Result, Schema } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
 import { capabilityDeniedResponse } from "../billing/errors";
@@ -34,14 +34,14 @@ const TelegramVerificationPayload = Schema.Struct({
   chatId: Schema.Number,
 });
 
-const TelegramVerificationPayloadJson = Schema.parseJson(
+const TelegramVerificationPayloadJson = Schema.fromJsonString(
   TelegramVerificationPayload
 );
 
 const encodePayload = (chatId: number): string =>
   Schema.encodeSync(TelegramVerificationPayloadJson)({ chatId });
 
-const TelegramApiKeyMetadataJson = Schema.parseJson(
+const TelegramApiKeyMetadataJson = Schema.fromJsonString(
   Schema.Struct({ source: Schema.Literal("telegram") })
 );
 const decodeTelegramMetadata = Schema.decodeUnknownOption(
@@ -229,9 +229,12 @@ export const disconnectRequest = Effect.fn("TelegramConnect.disconnect")(
 
     const userKeys = yield* apiKeyStore.listByUser(session.userId);
     const telegramKeyIds = Arr.filterMap(userKeys, (row) =>
-      row.metadata
-        ? Option.map(decodeTelegramMetadata(row.metadata), () => row.id)
-        : Option.none()
+      Result.fromOption(
+        row.metadata
+          ? Option.map(decodeTelegramMetadata(row.metadata), () => row.id)
+          : Option.none(),
+        () => null
+      )
     );
     yield* Effect.annotateCurrentSpan("keyCount", telegramKeyIds.length);
 
@@ -252,7 +255,7 @@ export const disconnectRequest = Effect.fn("TelegramConnect.disconnect")(
 );
 
 const decodePayload = (identifier: string, value: string) =>
-  Schema.decodeUnknown(TelegramVerificationPayloadJson)(value).pipe(
+  Schema.decodeUnknownEffect(TelegramVerificationPayloadJson)(value).pipe(
     Effect.mapError(() => new InvalidVerificationPayloadError({ identifier }))
   );
 
@@ -486,7 +489,7 @@ export const handleTelegramConfirm = (
         ),
       DbError: (e) => unexpected500(e.cause),
     }),
-    Effect.catchAllCause((cause) => unexpected500(cause)),
+    Effect.catchCause((cause) => unexpected500(cause)),
     Effect.runPromise
   );
 
@@ -515,7 +518,7 @@ export const handleTelegramCheck = (
           ),
         DbError: (e) => unexpected500(e.cause),
       }),
-      Effect.catchAllCause((cause) => unexpected500(cause))
+      Effect.catchCause((cause) => unexpected500(cause))
     )
   );
 };
@@ -541,7 +544,7 @@ export const handleTelegramStatus = (
             )
           ),
       }),
-      Effect.catchAllCause((cause) => unexpected500(cause))
+      Effect.catchCause((cause) => unexpected500(cause))
     )
   );
 
@@ -567,6 +570,6 @@ export const handleTelegramDisconnect = (
           ),
         DbError: (e) => unexpected500(e.cause),
       }),
-      Effect.catchAllCause((cause) => unexpected500(cause))
+      Effect.catchCause((cause) => unexpected500(cause))
     )
   );

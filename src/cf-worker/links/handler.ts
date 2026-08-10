@@ -37,7 +37,7 @@ export const listLinksEffect = (
     const verify = yield* Effect.tryPromise(() =>
       auth.api.verifyApiKey({ body: { key: apiKey } })
     ).pipe(
-      Effect.catchAll((cause) =>
+      Effect.catch((cause) =>
         Effect.logError("Links API: verifyApiKey failed").pipe(
           Effect.annotateLogs(safeErrorInfo(cause)),
           Effect.as(null)
@@ -98,7 +98,7 @@ export const listLinksEffect = (
         cursor: params.cursor,
       })
     ).pipe(
-      Effect.catchAll((cause) =>
+      Effect.catch((cause) =>
         Effect.logError("Links API: listLinks RPC failed").pipe(
           Effect.annotateLogs({
             orgId: maskId(orgId),

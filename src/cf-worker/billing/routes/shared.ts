@@ -9,30 +9,30 @@ import {
 import { OrgId, UserId } from "../../db/branded";
 import type { Env } from "../../shared";
 
-export class InvalidBodyError extends Schema.TaggedError<InvalidBodyError>()(
+export class InvalidBodyError extends Schema.TaggedErrorClass<InvalidBodyError>()(
   "InvalidBodyError",
-  { cause: Schema.Defect }
+  { cause: Schema.Defect() }
 ) {}
 
 export const CheckoutBody = Schema.Struct({
-  tier: Schema.Literal("plus", "pro"),
-  interval: Schema.Literal("month", "year"),
+  tier: Schema.Literals(["plus", "pro"]),
+  interval: Schema.Literals(["month", "year"]),
 });
 
 export const PortalBody = Schema.Struct({
-  tier: Schema.Literal("free", "plus", "pro"),
+  tier: Schema.Literals(["free", "plus", "pro"]),
 });
 
 export const decodeBody = <A, I>(
   request: Request,
-  schema: Schema.Schema<A, I>
+  schema: Schema.Codec<A, I>
 ) =>
   Effect.tryPromise({
     try: () => request.json(),
     catch: (cause) => new InvalidBodyError({ cause }),
   }).pipe(
     Effect.flatMap((raw) =>
-      Schema.decodeUnknown(schema)(raw).pipe(
+      Schema.decodeUnknownEffect(schema)(raw).pipe(
         Effect.mapError((cause) => new InvalidBodyError({ cause }))
       )
     )

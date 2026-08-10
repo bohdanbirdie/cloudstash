@@ -5,9 +5,9 @@ import { runHandler } from "../runtime";
 import { AppSettings } from "../settings/service";
 import type { Env } from "../shared";
 
-class InvalidBodyError extends Schema.TaggedError<InvalidBodyError>()(
+class InvalidBodyError extends Schema.TaggedErrorClass<InvalidBodyError>()(
   "InvalidBodyError",
-  { cause: Schema.Defect }
+  { cause: Schema.Defect() }
 ) {}
 
 const SetSignupGateBody = Schema.Struct({ enabled: Schema.Boolean });
@@ -52,7 +52,7 @@ export const handleSetSignupGate = (
         catch: (cause) => new InvalidBodyError({ cause }),
       }).pipe(
         Effect.flatMap((raw) =>
-          Schema.decodeUnknown(SetSignupGateBody)(raw).pipe(
+          Schema.decodeUnknownEffect(SetSignupGateBody)(raw).pipe(
             Effect.mapError((cause) => new InvalidBodyError({ cause }))
           )
         )

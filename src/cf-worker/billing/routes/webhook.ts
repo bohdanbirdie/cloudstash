@@ -22,10 +22,10 @@ const RELEVANT_EVENTS: ReadonlySet<string> = new Set([
   "invoice.payment_failed",
 ]);
 
-const CustomerRef = Schema.Union(
+const CustomerRef = Schema.Union([
   Schema.String,
-  Schema.Struct({ id: Schema.String })
-);
+  Schema.Struct({ id: Schema.String }),
+]);
 
 export const extractCustomerId = (
   event: StripeSdk.Event

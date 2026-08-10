@@ -19,9 +19,7 @@ export interface XSyncStateSnapshot {
   readonly syncEnabled: boolean;
 }
 
-export class XSyncStateStore extends Context.Tag(
-  "@cloudstash/x-sync/XSyncStateStore"
-)<
+export class XSyncStateStore extends Context.Service<
   XSyncStateStore,
   {
     /** Returns null if the DO has never been initialized (no identity set). */
@@ -45,4 +43,4 @@ export class XSyncStateStore extends Context.Tag(
     /** Wipe all keys. Called on disconnect / account deletion. */
     readonly clear: () => Effect.Effect<void, XSyncStorageError>;
   }
->() {}
+>()("@cloudstash/x-sync/XSyncStateStore") {}

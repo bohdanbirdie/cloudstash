@@ -17,7 +17,7 @@ export const AiSummaryGeneratorLive = Layer.effect(
         generateSummary(params).pipe(
           Effect.provide(aiClientLayer),
           Effect.timeout("30 seconds"),
-          Effect.catchTag("TimeoutException", (e) =>
+          Effect.catchTag("TimeoutError", (e) =>
             Effect.fail(new AiCallError({ cause: e }))
           ),
           Effect.withSpan("AiSummaryGenerator.generate")

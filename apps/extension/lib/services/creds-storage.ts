@@ -1,4 +1,13 @@
-import { Context, Effect, Layer, Option, Schema, Stream } from "effect";
+import {
+  Context,
+  Effect,
+  Layer,
+  Option,
+  Queue,
+  Result,
+  Schema,
+  Stream,
+} from "effect";
 
 import {
   MessengerError,
@@ -22,7 +31,7 @@ const toCreds = (data: {
   return Option.getOrNull(decodeCreds(data));
 };
 
-export class CredsStorage extends Context.Tag("@ext/CredsStorage")<
+export class CredsStorage extends Context.Service<
   CredsStorage,
   {
     readonly get: Effect.Effect<Creds | null, StorageError | MessengerError>;
@@ -37,7 +46,7 @@ export class CredsStorage extends Context.Tag("@ext/CredsStorage")<
       StorageError | MessengerError
     >;
   }
->() {
+>()("@ext/CredsStorage") {
   static readonly liveLayer = Layer.sync(CredsStorage, () => {
     const get = Effect.gen(function* () {
       const data = yield* Effect.tryPromise({
@@ -63,33 +72,37 @@ export class CredsStorage extends Context.Tag("@ext/CredsStorage")<
       });
     });
 
-    const changes = Stream.async<Creds | null, StorageError>((emit) => {
-      const handler = (
-        diff: Record<string, chrome.storage.StorageChange>,
-        area: string
-      ) => {
-        if (area !== "local") return;
-        if (!(API_KEY in diff) && !(ORG_ID in diff)) return;
-        Effect.runCallback(get, {
-          onExit: (exit) => {
-            if (exit._tag === "Success") {
-              void emit.single(exit.value);
-            } else {
-              const failure = exit.cause;
-              void Effect.runPromise(
-                Effect.logWarning("CredsStorage.changes get failed").pipe(
-                  Effect.annotateLogs(safeErrorInfo(failure))
-                )
-              );
-            }
-          },
-        });
-      };
-      chrome.storage.onChanged.addListener(handler);
-      return Effect.sync(() =>
-        chrome.storage.onChanged.removeListener(handler)
-      );
-    });
+    const changes = Stream.callback<Creds | null, StorageError>((queue) =>
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          const handler = (
+            diff: Record<string, chrome.storage.StorageChange>,
+            area: string
+          ) => {
+            if (area !== "local") return;
+            if (!(API_KEY in diff) && !(ORG_ID in diff)) return;
+            Effect.runCallback(get, {
+              onExit: (exit) => {
+                if (exit._tag === "Success") {
+                  Queue.offerUnsafe(queue, exit.value);
+                } else {
+                  const failure = exit.cause;
+                  void Effect.runPromise(
+                    Effect.logWarning("CredsStorage.changes get failed").pipe(
+                      Effect.annotateLogs(safeErrorInfo(failure))
+                    )
+                  );
+                }
+              },
+            });
+          };
+          chrome.storage.onChanged.addListener(handler);
+          return handler;
+        }),
+        (handler) =>
+          Effect.sync(() => chrome.storage.onChanged.removeListener(handler))
+      )
+    );
 
     return CredsStorage.of({ get, set, changes });
   });
@@ -113,8 +126,8 @@ export class CredsStorage extends Context.Tag("@ext/CredsStorage")<
       const changes = messenger.listen.pipe(
         Stream.filterMap((msg) =>
           msg.type === "cs:creds-changed"
-            ? Option.some(toCreds(msg.creds))
-            : Option.none()
+            ? Result.succeed(toCreds(msg.creds))
+            : Result.fail(null)
         )
       );
 

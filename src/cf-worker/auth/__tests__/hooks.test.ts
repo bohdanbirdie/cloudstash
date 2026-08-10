@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Either, Layer, LogLevel, Logger } from "effect";
+import { Effect, Layer, References, Result } from "effect";
 
 import { UserId } from "../../db/branded";
 import { DbClient, DbError } from "../../db/service";
@@ -17,12 +17,12 @@ const USER_ID = UserId.make("user-1");
 const ORG_ID = "org-1";
 
 const quiet = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-  effect.pipe(Logger.withMinimumLogLevel(LogLevel.None));
+  effect.pipe(Effect.provideService(References.MinimumLogLevel, "None"));
 
 const settingsStub = (gateEnabled: boolean) =>
   Layer.succeed(
     AppSettings,
-    new AppSettings({
+    AppSettings.of({
       signupGateEnabled: () => Effect.succeed(gateEnabled),
       setSignupGateEnabled: () => Effect.void,
     })
@@ -85,12 +85,12 @@ describe("autoApproveUser", () => {
     return autoApproveUser(USER_ID).pipe(
       Effect.provide(Layer.mergeAll(settingsStub(false), db)),
       quiet,
-      Effect.either,
+      Effect.result,
       Effect.tap((result) =>
         Effect.sync(() => {
-          expect(Either.isLeft(result)).toBe(true);
-          if (Either.isLeft(result)) {
-            expect(result.left).toBeInstanceOf(DbError);
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure).toBeInstanceOf(DbError);
           }
         })
       )
@@ -159,12 +159,12 @@ describe("startXBookmarkSyncForAccount", () => {
       namespaceStub(rec, "throw")
     ).pipe(
       quiet,
-      Effect.either,
+      Effect.result,
       Effect.tap((result) =>
         Effect.sync(() => {
-          expect(Either.isLeft(result)).toBe(true);
-          if (Either.isLeft(result)) {
-            expect(result.left).toBeInstanceOf(XBookmarkSyncStartError);
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure).toBeInstanceOf(XBookmarkSyncStartError);
           }
         })
       )
@@ -358,12 +358,12 @@ describe("resolveActiveOrg", () => {
         makeDb(dbRec, { memberLookupError: new Error("connection lost") })
       ),
       quiet,
-      Effect.either,
+      Effect.result,
       Effect.tap((result) =>
         Effect.sync(() => {
-          expect(Either.isLeft(result)).toBe(true);
-          if (Either.isLeft(result)) {
-            expect(result.left).toBeInstanceOf(DbError);
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure).toBeInstanceOf(DbError);
           }
         })
       )

@@ -1,6 +1,6 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { generateObject } from "ai";
-import { Array as Arr, Effect } from "effect";
+import { Array as Arr, Context, Effect, Layer } from "effect";
 import { z } from "zod";
 
 import { MAX_TAG_NAME_LENGTH } from "@/lib/tags";
@@ -109,60 +109,61 @@ export interface EnrichmentGenerateParams {
   readonly existingTags: ReadonlyArray<{ readonly name: string }>;
 }
 
-export class EnrichmentGenerator extends Effect.Service<EnrichmentGenerator>()(
-  "@cloudstash/EnrichmentGenerator",
-  {
-    accessors: true,
-    effect: Effect.gen(function* () {
-      const apiKey = yield* OpenRouterApiKey;
-      const openrouter = createOpenRouter({ apiKey });
-      const model = openrouter(ENRICHMENT_MODEL);
+const make = Effect.gen(function* () {
+  const apiKey = yield* OpenRouterApiKey;
+  const openrouter = createOpenRouter({ apiKey });
+  const model = openrouter(ENRICHMENT_MODEL);
 
-      const generate = Effect.fn("EnrichmentGenerator.generate")(function* (
-        params: EnrichmentGenerateParams
-      ) {
-        yield* Effect.annotateCurrentSpan({
+  const generate = Effect.fn("EnrichmentGenerator.generate")(function* (
+    params: EnrichmentGenerateParams
+  ) {
+    yield* Effect.annotateCurrentSpan({
+      model: ENRICHMENT_MODEL,
+      isReply: params.context.isReply,
+      authorContinuations: params.context.authorContinuations.length,
+      existingTagCount: params.existingTags.length,
+    });
+
+    const prompt = composePrompt(params);
+    const promptChars = prompt.length;
+    yield* Effect.annotateCurrentSpan("promptChars", promptChars);
+
+    const result = yield* Effect.tryPromise({
+      try: () =>
+        generateObject({
+          experimental_telemetry: { isEnabled: true },
+          maxOutputTokens: 512,
+          model,
+          prompt,
+          schema: enrichmentOutputSchema,
+          system: SYSTEM_PROMPT,
+        }),
+      catch: (cause) =>
+        new EnrichmentGenerateError({
           model: ENRICHMENT_MODEL,
-          isReply: params.context.isReply,
-          authorContinuations: params.context.authorContinuations.length,
-          existingTagCount: params.existingTags.length,
-        });
+          promptChars,
+          cause,
+        }),
+    });
 
-        const prompt = composePrompt(params);
-        const promptChars = prompt.length;
-        yield* Effect.annotateCurrentSpan("promptChars", promptChars);
+    const inputTokens = result.usage?.inputTokens ?? 0;
+    const outputTokens = result.usage?.outputTokens ?? 0;
+    yield* Effect.annotateCurrentSpan({
+      inputTokens,
+      outputTokens,
+      summaryLength: result.object.summary.length,
+      suggestedTagsCount: result.object.suggestedTags.length,
+    });
 
-        const result = yield* Effect.tryPromise({
-          try: () =>
-            generateObject({
-              experimental_telemetry: { isEnabled: true },
-              maxOutputTokens: 512,
-              model,
-              prompt,
-              schema: enrichmentOutputSchema,
-              system: SYSTEM_PROMPT,
-            }),
-          catch: (cause) =>
-            new EnrichmentGenerateError({
-              model: ENRICHMENT_MODEL,
-              promptChars,
-              cause,
-            }),
-        });
+    return result.object;
+  });
 
-        const inputTokens = result.usage?.inputTokens ?? 0;
-        const outputTokens = result.usage?.outputTokens ?? 0;
-        yield* Effect.annotateCurrentSpan({
-          inputTokens,
-          outputTokens,
-          summaryLength: result.object.summary.length,
-          suggestedTagsCount: result.object.suggestedTags.length,
-        });
+  return { generate };
+});
 
-        return result.object;
-      });
-
-      return { generate };
-    }),
-  }
-) {}
+export class EnrichmentGenerator extends Context.Service<
+  EnrichmentGenerator,
+  Effect.Success<typeof make>
+>()("@cloudstash/EnrichmentGenerator") {
+  static readonly Default = Layer.effect(EnrichmentGenerator, make);
+}

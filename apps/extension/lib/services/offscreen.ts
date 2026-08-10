@@ -8,12 +8,12 @@ const hasDocumentSupported = () =>
   typeof chrome !== "undefined" &&
   typeof chrome.offscreen?.hasDocument === "function";
 
-export class Offscreen extends Context.Tag("@ext/Offscreen")<
+export class Offscreen extends Context.Service<
   Offscreen,
   {
     readonly ensure: Effect.Effect<void, OffscreenError>;
   }
->() {
+>()("@ext/Offscreen") {
   static readonly layer = Layer.sync(Offscreen, () => {
     const ensure = Effect.gen(function* () {
       if (hasDocumentSupported()) {

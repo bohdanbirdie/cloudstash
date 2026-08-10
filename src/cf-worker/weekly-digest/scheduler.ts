@@ -23,7 +23,7 @@ export interface DigestSchedulerDeps {
   ) => Effect.Effect<WeeklyDigestRpcResult>;
 }
 
-export class DigestScheduler extends Context.Tag("DigestScheduler")<
+export class DigestScheduler extends Context.Service<
   DigestScheduler,
   {
     readonly ensureScheduled: Effect.Effect<void>;
@@ -32,7 +32,7 @@ export class DigestScheduler extends Context.Tag("DigestScheduler")<
       storeId: OrgId
     ) => Effect.Effect<WeeklyDigestRpcResult>;
   }
->() {}
+>()("DigestScheduler") {}
 
 export const DigestSchedulerLive = (
   deps: DigestSchedulerDeps

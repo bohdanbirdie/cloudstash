@@ -8,16 +8,16 @@ import { maskId } from "../log-utils";
 import { runHandler } from "../runtime";
 import type { Env } from "../shared";
 
-class InvalidBodyError extends Schema.TaggedError<InvalidBodyError>()(
+class InvalidBodyError extends Schema.TaggedErrorClass<InvalidBodyError>()(
   "InvalidBodyError",
   {
-    cause: Schema.Defect,
+    cause: Schema.Defect(),
   }
 ) {}
 
 export type { WorkspaceWithOwner } from "../billing/service";
 
-const PlanTierSchema = Schema.Literal(...PLAN_ORDER);
+const PlanTierSchema = Schema.Literals(PLAN_ORDER);
 
 const BOOLEAN_CAPABILITY_KEYS = [
   "aiSummary",
@@ -33,24 +33,24 @@ const NUMBER_CAPABILITY_KEYS = ["monthlyChatBudgetUsd"] as const;
 
 const SetTierBody = Schema.Struct({ tier: PlanTierSchema });
 
-const SetOverrideBody = Schema.Union(
+const SetOverrideBody = Schema.Union([
   Schema.Struct({
-    key: Schema.Literal(...BOOLEAN_CAPABILITY_KEYS),
+    key: Schema.Literals(BOOLEAN_CAPABILITY_KEYS),
     value: Schema.NullOr(Schema.Boolean),
   }),
   Schema.Struct({
-    key: Schema.Literal(...NUMBER_CAPABILITY_KEYS),
+    key: Schema.Literals(NUMBER_CAPABILITY_KEYS),
     value: Schema.NullOr(Schema.Number),
-  })
-);
+  }),
+]);
 
-const decodeBody = <A, I>(request: Request, schema: Schema.Schema<A, I>) =>
+const decodeBody = <A, I>(request: Request, schema: Schema.Codec<A, I>) =>
   Effect.tryPromise({
     try: () => request.json(),
     catch: (cause) => new InvalidBodyError({ cause }),
   }).pipe(
     Effect.flatMap((raw) =>
-      Schema.decodeUnknown(schema)(raw).pipe(
+      Schema.decodeUnknownEffect(schema)(raw).pipe(
         Effect.mapError((cause) => new InvalidBodyError({ cause }))
       )
     )

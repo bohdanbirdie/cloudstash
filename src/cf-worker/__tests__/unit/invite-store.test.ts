@@ -5,7 +5,7 @@ import { InviteId, UserId } from "../../db/branded";
 import { DbError } from "../../db/service";
 import { InviteStore } from "../../invites/store";
 
-function makeInviteStoreLayer(overrides: Partial<InviteStore["Type"]> = {}) {
+function makeInviteStoreLayer(overrides: Partial<InviteStore["Service"]> = {}) {
   return Layer.succeed(InviteStore, {
     create: () => Effect.void,
     list: () => Effect.succeed([]),

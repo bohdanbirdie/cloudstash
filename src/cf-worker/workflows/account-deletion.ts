@@ -35,9 +35,9 @@ export class AccountDeletionWorkflow extends WorkflowEntrypoint<
     // looser `CfWorkflowStep` interface. Runtime values are identical.
     const cfStep = step as unknown as CfWorkflowStep;
     await Effect.runPromise(
-      Schema.decodeUnknown(PayloadSchema)(event.payload).pipe(
+      Schema.decodeUnknownEffect(PayloadSchema)(event.payload).pipe(
         Effect.flatMap(runAccountDeletion),
-        Effect.tapErrorCause((cause) =>
+        Effect.tapCause((cause) =>
           Effect.logError("AccountDeletionWorkflow failed").pipe(
             Effect.annotateLogs({ cause: Cause.pretty(cause) })
           )

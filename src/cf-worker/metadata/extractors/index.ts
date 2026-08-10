@@ -25,7 +25,7 @@ export const tryExtract = Effect.fn("metadata.tryExtract")(function* (
   if (!extractor) return null;
   yield* Effect.annotateCurrentSpan({ extractor: extractor.name });
   const result = yield* extractor.extract(url).pipe(
-    Effect.tapErrorCause((cause) =>
+    Effect.tapCause((cause) =>
       Effect.logWarning("Extractor defect").pipe(
         Effect.annotateLogs({
           cause: String(cause),
@@ -33,7 +33,7 @@ export const tryExtract = Effect.fn("metadata.tryExtract")(function* (
         })
       )
     ),
-    Effect.catchAllCause(() => Effect.succeed(null))
+    Effect.catchCause(() => Effect.succeed(null))
   );
   if (!result) return null;
   return {

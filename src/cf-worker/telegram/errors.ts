@@ -1,51 +1,55 @@
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 
-export class TelegramMissingApiKeyError extends Schema.TaggedError<TelegramMissingApiKeyError>()(
+export class TelegramMissingApiKeyError extends Schema.TaggedErrorClass<TelegramMissingApiKeyError>()(
   "TelegramMissingApiKeyError",
   {
-    message: Schema.optionalWith(Schema.String, {
-      default: () => "No API key provided",
-    }),
+    message: Schema.String.pipe(
+      Schema.withConstructorDefault(Effect.succeed("No API key provided"))
+    ),
   }
 ) {}
 
-export class TelegramInvalidApiKeyError extends Schema.TaggedError<TelegramInvalidApiKeyError>()(
+export class TelegramInvalidApiKeyError extends Schema.TaggedErrorClass<TelegramInvalidApiKeyError>()(
   "TelegramInvalidApiKeyError",
   {
-    message: Schema.optionalWith(Schema.String, {
-      default: () => "Invalid or expired API key",
-    }),
+    message: Schema.String.pipe(
+      Schema.withConstructorDefault(
+        Effect.succeed("Invalid or expired API key")
+      )
+    ),
   }
 ) {}
 
-export class TelegramMissingOrgIdError extends Schema.TaggedError<TelegramMissingOrgIdError>()(
+export class TelegramMissingOrgIdError extends Schema.TaggedErrorClass<TelegramMissingOrgIdError>()(
   "TelegramMissingOrgIdError",
   {
-    message: Schema.optionalWith(Schema.String, {
-      default: () => "API key missing orgId",
-    }),
+    message: Schema.String.pipe(
+      Schema.withConstructorDefault(Effect.succeed("API key missing orgId"))
+    ),
   }
 ) {}
 
-export class NotConnectedError extends Schema.TaggedError<NotConnectedError>()(
+export class NotConnectedError extends Schema.TaggedErrorClass<NotConnectedError>()(
   "NotConnectedError",
   {
-    message: Schema.optionalWith(Schema.String, {
-      default: () => "Telegram chat not connected",
-    }),
+    message: Schema.String.pipe(
+      Schema.withConstructorDefault(
+        Effect.succeed("Telegram chat not connected")
+      )
+    ),
   }
 ) {}
 
-export class RateLimitError extends Schema.TaggedError<RateLimitError>()(
+export class RateLimitError extends Schema.TaggedErrorClass<RateLimitError>()(
   "RateLimitError",
   {
-    message: Schema.optionalWith(Schema.String, {
-      default: () => "Rate limit exceeded",
-    }),
+    message: Schema.String.pipe(
+      Schema.withConstructorDefault(Effect.succeed("Rate limit exceeded"))
+    ),
   }
 ) {}
 
-export class TelegramQueueSendError extends Schema.TaggedError<TelegramQueueSendError>()(
+export class TelegramQueueSendError extends Schema.TaggedErrorClass<TelegramQueueSendError>()(
   "TelegramQueueSendError",
   {
     cause: Schema.Unknown,

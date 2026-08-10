@@ -49,7 +49,7 @@ bun run deploy             # FORBIDDEN
 - `local/raycast-extension/` — Raycast extension (npm, separate repo)
 - `local/readonly-llm-lookup/` — Reference implementations for external libraries (Effect, Livestore, etc.)
 
-Livestore source is the committed `vendor/livestore` submodule (not a `local/` clone) — see [Livestore Source (vendored fork)](#livestore-source-vendored-fork) below.
+Livestore source is the committed `vendor/livestore` submodule (not a `local/` clone) — see [Livestore Source (vendored upstream)](#livestore-source-vendored-upstream) below.
 
 ## Documentation
 
@@ -70,9 +70,9 @@ Livestore source is the committed `vendor/livestore` submodule (not a `local/` c
 - **DO eviction IS reproducible locally, deterministically. This has been proven — do not claim otherwise.** `abortAllDurableObjects()` from `cloudflare:test` (the `@cloudflare/vitest-pool-workers` runtime, which runs locally) tears down a DO's in-memory isolate while preserving its persisted SQLite — exactly the production idle-eviction that kills un-awaited background fibers. Proven by the incarnation-probe test in `src/cf-worker/__tests__/e2e/server-ingest-stranding.test.ts`: a random in-memory id stamped via `runInDurableObject` changes across the abort.
 - Use `abortAllDurableObjects()` + `runInDurableObject` to test eviction-sensitive behavior. Acquire a **fresh** stub after the abort — stubs created before it are poisoned. To assert a write survived eviction, read the persisted source of truth from a fresh stub (e.g. `SYNC_BACKEND_DO` → `getEventlogMax()`), not through the evicted client DO.
 
-## Livestore Source (vendored fork)
+## Livestore Source (vendored upstream)
 
-cloudstash runs a **fork** of livestore (DO hibernation work not in any published snapshot), vendored as a **committed git submodule** at `vendor/livestore`. A Vite alias redirects every `@livestore/*` import to that source for dev, tests, **and production builds** — so what you test locally is exactly what ships (local == prod). Strategy/roadmap: `docs/architecture/livestore-fork-integration.md`; mechanism deep-dive: `docs/architecture/livestore-local-source-linking.md`.
+cloudstash vendors **upstream livestore** (`livestorejs/livestore` `main`, pinned SHA — the former fork is fully merged upstream) as a **committed git submodule** at `vendor/livestore`. A Vite alias redirects every `@livestore/*` import to that source for dev, tests, **and production builds** — so what you test locally is exactly what ships (local == prod). Strategy/roadmap: `docs/architecture/livestore-fork-integration.md`; mechanism deep-dive: `docs/architecture/livestore-local-source-linking.md`.
 
 ```bash
 bun run livestore:install   # git submodule update --init + pnpm install in vendor/livestore
@@ -87,7 +87,7 @@ bun run test:e2e
 - **No build step.** Livestore's package `exports` point at `src/*.ts`; Vite transpiles on the fly. Edit `vendor/livestore/packages/@livestore/<pkg>/src/...` and reload. typecheck (`tsgo`) still resolves types from the published packages in `package.json` — keep those deps.
 - **Mechanics** live in `tools/livestore-local.ts`. It dedupes `effect` to a single copy and excludes the wasm packages — don't change that without reading the doc.
 - **Run livestore's own tests** in the submodule with pnpm: `pnpm --filter @livestore/common-cf test`.
-- **Bump the fork:** develop in `vendor/livestore`, push to the fork branch, then `git add vendor/livestore` in cloudstash to record the new SHA — that commit is what builds and deploys. Re-`pnpm install` and re-validate after any bump. If the fork changes a DO SQLite schema, `bun run clean:local-state` locally and bump `PERSISTENCE_FORMAT_VERSION` for deployed DOs.
+- **Bump the submodule:** land changes upstream (or use a scratch branch inside `vendor/livestore` for experiments), point the submodule at the new upstream SHA, then `git add vendor/livestore` in cloudstash to record it — that commit is what builds and deploys. Re-pin the published `@livestore/*` snapshot in `package.json` to the SAME SHA (typecheck resolves types from it). Re-`pnpm install` and re-validate after any bump. If the bump changes a DO SQLite schema, `bun run clean:local-state` locally and bump `PERSISTENCE_FORMAT_VERSION` for deployed DOs.
 
 ## Conventions
 
@@ -104,6 +104,8 @@ bun run test:e2e
 ## Effect Best Practices
 
 **IMPORTANT:** Always consult effect-solutions before writing Effect code.
+
+**Caveat:** the app is on effect **v4** (`4.0.0-beta.99`) and some effect-solutions guides predate it — cross-check any pattern against the v4 API before using it (`vendor/livestore` and `local/readonly-llm-lookup/effect` are v4-era references; the migration's binding idiom decisions live in `docs/todos/effect-v4-migration-progress.md`).
 
 1. Run `effect-solutions list` to see available guides
 2. Run `effect-solutions show <topic>...` for relevant patterns (supports multiple topics)

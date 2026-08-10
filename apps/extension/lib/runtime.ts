@@ -4,13 +4,13 @@ import { PopupLayer } from "./layers";
 
 const popupRuntime = ManagedRuntime.make(PopupLayer);
 
-export type PopupContext = Layer.Layer.Success<typeof PopupLayer>;
+export type PopupContext = Layer.Success<typeof PopupLayer>;
 
 export const runPopup = <A, E>(
   eff: Effect.Effect<A, E, PopupContext>
 ): void => {
   void popupRuntime.runPromiseExit(eff).then((exit) => {
-    if (Exit.isFailure(exit) && !Cause.isInterruptedOnly(exit.cause)) {
+    if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause)) {
       console.error("[popup] effect failed", Cause.pretty(exit.cause));
     }
   });
@@ -30,7 +30,7 @@ export const runPopupState = <A, E>(
       : {
           status: "error",
           error: Option.getOrElse(
-            Cause.failureOption(exit.cause),
+            Cause.findErrorOption(exit.cause),
             () => exit.cause
           ),
         }

@@ -58,7 +58,7 @@ const processToolPart = <T>(
             Effect.annotateLogs({ toolName, error: String(e) })
           )
         ),
-        Effect.catchAll(() => Effect.succeed("Error: Tool execution failed"))
+        Effect.catch(() => Effect.succeed("Error: Tool execution failed"))
       );
       return { ...part, output: result } as T;
     }

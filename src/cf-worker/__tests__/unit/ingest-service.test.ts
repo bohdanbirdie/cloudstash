@@ -1,5 +1,5 @@
 import { it, describe } from "@effect/vitest";
-import { Effect, Layer, LogLevel, Logger } from "effect";
+import { Effect, Layer, References } from "effect";
 import { expect, vi } from "vitest";
 
 import type { TierCapabilities } from "@/lib/plan";
@@ -48,13 +48,15 @@ function makeAuthLayer(
 ) {
   return Layer.succeed(AuthClient, {
     api: { verifyApiKey },
-  } as unknown as AuthClient["Type"]);
+  } as unknown as AuthClient["Service"]);
 }
 
 function makeBillingLayer(
-  capabilities: Billing["capabilities"]
+  capabilities: Billing["Service"]["capabilities"]
 ): Layer.Layer<Billing> {
-  return Layer.succeed(Billing, { capabilities } as unknown as Billing);
+  return Layer.succeed(Billing, {
+    capabilities,
+  } as unknown as Billing["Service"]);
 }
 
 const capsLayer = (publicApi: boolean): Layer.Layer<Billing> =>
@@ -72,7 +74,7 @@ function run(
     handleIngestRequest(request, env as never).pipe(
       Effect.provide(Layer.mergeAll(authLayer, billingLayer))
     )
-  ).pipe(Logger.withMinimumLogLevel(LogLevel.Error));
+  ).pipe(Effect.provideService(References.MinimumLogLevel, "Error"));
 }
 
 const validKeyResponse = {

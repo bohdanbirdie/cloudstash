@@ -12,22 +12,20 @@ export interface DigestCommitParams {
   readonly generatedAt: Date;
 }
 
-export class DigestLinkSource extends Context.Tag(
-  "@cloudstash/DigestLinkSource"
-)<
+export class DigestLinkSource extends Context.Service<
   DigestLinkSource,
   {
     readonly collect: (
       cutoffMs: number
     ) => Effect.Effect<ReadonlyArray<DigestLinkInput>, DigestLinkSourceError>;
   }
->() {}
+>()("@cloudstash/DigestLinkSource") {}
 
-export class DigestEventSink extends Context.Tag("@cloudstash/DigestEventSink")<
+export class DigestEventSink extends Context.Service<
   DigestEventSink,
   {
     readonly commit: (
       params: DigestCommitParams
     ) => Effect.Effect<void, DigestEventSinkError>;
   }
->() {}
+>()("@cloudstash/DigestEventSink") {}

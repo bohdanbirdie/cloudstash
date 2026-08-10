@@ -14,7 +14,7 @@ import { OtelTracingLive } from "../tracing";
 
 type UserRow = typeof schema.user.$inferSelect;
 
-export class AuthClient extends Context.Tag("@cloudstash/AuthClient")<
+export class AuthClient extends Context.Service<
   AuthClient,
   Auth & {
     readonly findUser: (
@@ -23,7 +23,7 @@ export class AuthClient extends Context.Tag("@cloudstash/AuthClient")<
     readonly approveUser: (userId: UserId) => Effect.Effect<void, DbError>;
     readonly listApprovedUsers: () => Effect.Effect<UserRow[], DbError>;
   }
->() {}
+>()("@cloudstash/AuthClient") {}
 
 export const AuthClientLive = (env: Env) =>
   Layer.effect(

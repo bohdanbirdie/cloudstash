@@ -14,45 +14,82 @@ export { runSyncAuth, validatePayload } from "./validate-payload";
 
 const logger = logSync("SyncBackend");
 
-// TEMP — production verification for the effect `never` hibernation patch
-// (patches/effect@3.21.2.patch). A pending long-period setInterval is the exact
-// disqualifier for Cloudflare Durable Object WebSocket hibernation; the patched
-// `Effect.never` registers no timer, so this count must stay 0 on every live
-// connection. We warn loudly if any long-period timer is ever created and
+// TEMP — production verification for effect v4's timer-less `Effect.never`
+// (formerly the deleted patches/effect@3.21.2.patch). A pending long-period
+// timer — setInterval or setTimeout, the v4 runtime may use either — is the
+// exact disqualifier for Cloudflare Durable Object WebSocket hibernation; a
+// timer-less `Effect.never` registers none, so this count must stay 0 on every
+// live connection. We warn loudly if any long-period timer is ever created and
 // surface the running count on the "Push received" log, so prod can be confirmed
 // by querying the whale's pushes for `liveLongTimers: 0`. Remove once confirmed.
 let liveLongTimers = 0;
 {
   const HIBERNATION_TIMER_MS = 1_000_000;
   type IntervalFn = typeof globalThis.setInterval;
+  type TimeoutFn = typeof globalThis.setTimeout;
   type TimerId = ReturnType<IntervalFn>;
   const realSetInterval: IntervalFn = globalThis.setInterval;
   const realClearInterval = globalThis.clearInterval;
+  const realSetTimeout: TimeoutFn = globalThis.setTimeout;
+  const realClearTimeout = globalThis.clearTimeout;
   const longTimerIds = new Set<TimerId>();
-  const wrappedSet = (
+  const untrack = (id: TimerId): void => {
+    if (longTimerIds.delete(id)) {
+      liveLongTimers = longTimerIds.size;
+    }
+  };
+  const track = (id: TimerId, kind: string, msDelay?: number): void => {
+    longTimerIds.add(id);
+    liveLongTimers = longTimerIds.size;
+    logger.warn(`[hibernation-timer] long-period ${kind} created`, {
+      msDelay,
+      liveLongTimers,
+    });
+  };
+  const wrappedSetInterval = (
     callback: (...cbArgs: unknown[]) => void,
     msDelay?: number,
     ...args: unknown[]
   ): TimerId => {
     const id: TimerId = realSetInterval(callback, msDelay, ...args);
     if ((msDelay ?? 0) > HIBERNATION_TIMER_MS) {
-      longTimerIds.add(id);
-      liveLongTimers = longTimerIds.size;
-      logger.warn("[hibernation-timer] long-period setInterval created", {
-        msDelay,
-        liveLongTimers,
-      });
+      track(id, "setInterval", msDelay);
     }
     return id;
   };
-  const wrappedClear = (id?: TimerId): void => {
-    if (id !== undefined && longTimerIds.delete(id)) {
-      liveLongTimers = longTimerIds.size;
+  const wrappedSetTimeout = (
+    callback: (...cbArgs: unknown[]) => void,
+    msDelay?: number,
+    ...args: unknown[]
+  ): TimerId => {
+    if ((msDelay ?? 0) > HIBERNATION_TIMER_MS) {
+      const id: TimerId = realSetTimeout(
+        (...cbArgs: unknown[]) => {
+          untrack(id);
+          callback(...cbArgs);
+        },
+        msDelay,
+        ...args
+      );
+      track(id, "setTimeout", msDelay);
+      return id;
     }
+    return realSetTimeout(callback, msDelay, ...args);
+  };
+  const wrappedClearInterval = (id?: TimerId): void => {
+    if (id !== undefined) untrack(id);
     realClearInterval(id);
   };
-  globalThis.setInterval = wrappedSet as IntervalFn;
-  globalThis.clearInterval = wrappedClear as typeof globalThis.clearInterval;
+  const wrappedClearTimeout = (id?: TimerId): void => {
+    if (id !== undefined) untrack(id);
+    realClearTimeout(id);
+  };
+  globalThis.setInterval = wrappedSetInterval as IntervalFn;
+  globalThis.setTimeout = wrappedSetTimeout as TimeoutFn;
+  globalThis.clearInterval =
+    wrappedClearInterval as typeof globalThis.clearInterval;
+  globalThis.clearTimeout =
+    wrappedClearTimeout as typeof globalThis.clearTimeout;
 }
 
 let currentSyncBackend: {
@@ -145,7 +182,7 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
    */
   async purgeAll(): Promise<void> {
     await Effect.runPromise(
-      Effect.gen(this, function* () {
+      Effect.gen({ self: this }, function* () {
         yield* Effect.promise(() => this._ctx.storage.deleteAll());
         yield* Effect.logInfo("purgeAll: storage wiped").pipe(
           Effect.annotateLogs({ doId: this._ctx.id.toString() })
@@ -185,7 +222,7 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
             Effect.annotateLogs(safeErrorInfo(e.cause))
           )
         ),
-        Effect.catchAll(() => Effect.void),
+        Effect.catch(() => Effect.void),
         Effect.provide(AppLayerLive(env))
       )
     );

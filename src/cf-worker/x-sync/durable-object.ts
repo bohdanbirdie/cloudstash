@@ -68,7 +68,7 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
       LinkQueueClientLive(this.env.LINK_QUEUE)
     ).pipe(
       Layer.provideMerge(AppLayerLive(this.env)),
-      Layer.provideMerge(Logger.replace(Logger.defaultLogger, XSyncLogger))
+      Layer.provideMerge(Logger.layer([XSyncLogger]))
     );
   }
 
@@ -95,7 +95,7 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
   }
 
   private startEffect = Effect.fn("XBookmarkSyncDO.start")((userId: UserId) =>
-    Effect.gen(this, function* () {
+    Effect.gen({ self: this }, function* () {
       yield* Effect.annotateCurrentSpan("userId", userId);
       const store = yield* XSyncStateStore;
 
@@ -179,7 +179,7 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
   }
 
   private pauseEffect = Effect.fn("XBookmarkSyncDO.pause")((userId: UserId) =>
-    Effect.gen(this, function* () {
+    Effect.gen({ self: this }, function* () {
       yield* Effect.annotateCurrentSpan("userId", userId);
       yield* Effect.logInfo("pause").pipe(Effect.annotateLogs({ userId }));
       const store = yield* XSyncStateStore;
@@ -199,7 +199,7 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
   }
 
   private resumeEffect = Effect.fn("XBookmarkSyncDO.resume")((userId: UserId) =>
-    Effect.gen(this, function* () {
+    Effect.gen({ self: this }, function* () {
       yield* Effect.annotateCurrentSpan("userId", userId);
       yield* Effect.logInfo("resume").pipe(Effect.annotateLogs({ userId }));
       const store = yield* XSyncStateStore;
@@ -223,7 +223,7 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
 
   private disconnectEffect = Effect.fn("XBookmarkSyncDO.disconnect")(
     (userId: string) =>
-      Effect.gen(this, function* () {
+      Effect.gen({ self: this }, function* () {
         yield* Effect.annotateCurrentSpan("userId", userId);
         yield* Effect.logInfo("disconnect").pipe(
           Effect.annotateLogs({ userId })
@@ -244,7 +244,7 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
   }
 
   private statusEffect = Effect.fn("XBookmarkSyncDO.status")((userId: UserId) =>
-    Effect.gen(this, function* () {
+    Effect.gen({ self: this }, function* () {
       yield* Effect.annotateCurrentSpan("userId", userId);
       const store = yield* XSyncStateStore;
       const state = yield* store
@@ -322,7 +322,7 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
   }
 
   private alarmEffect = Effect.fn("XBookmarkSyncDO.alarm")((userId: UserId) =>
-    Effect.gen(this, function* () {
+    Effect.gen({ self: this }, function* () {
       yield* Effect.annotateCurrentSpan("userId", userId);
       yield* Effect.annotateCurrentSpan("retryAttempt", this.retryAttempt);
 

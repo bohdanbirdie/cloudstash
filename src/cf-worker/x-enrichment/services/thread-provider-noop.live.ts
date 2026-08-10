@@ -105,9 +105,9 @@ const fetchContext = Effect.fn("ThreadProviderNoop.fetchContext")(function* ({
       }),
     catch: (cause) => new ThreadProviderTransportError({ url, cause }),
   }).pipe(
-    Effect.timeoutFail({
+    Effect.timeoutOrElse({
       duration: SYNDICATION_TIMEOUT,
-      onTimeout: () => new ThreadProviderTimeoutError({ url, tweetId }),
+      orElse: () => new ThreadProviderTimeoutError({ url, tweetId }),
     })
   );
 

@@ -33,7 +33,7 @@ const verifyApiKey = Effect.fn("Telegram.verifyApiKey")(function* (
   if (typeof orgId !== "string" || orgId.length === 0) {
     return yield* new TelegramMissingOrgIdError({});
   }
-  const userId = yield* Schema.decodeUnknown(UserId)(
+  const userId = yield* Schema.decodeUnknownEffect(UserId)(
     result.key.referenceId
   ).pipe(Effect.mapError(() => new TelegramInvalidApiKeyError({})));
   return { orgId: OrgId.make(orgId), userId };

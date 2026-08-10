@@ -98,7 +98,7 @@ export class ChatAgentDO
   implements ClientDoWithRpcCallback
 {
   override __DURABLE_OBJECT_BRAND = "chat-agent-do" as never;
-  private cachedStore: Store<typeof schema> | undefined;
+  private storePromise: Promise<Store<typeof schema>> | null = null;
   private cachedOrgId: OrgId | undefined;
 
   private orgId(): OrgId {
@@ -117,8 +117,8 @@ export class ChatAgentDO
    */
   async purgeAll(): Promise<void> {
     await Effect.runPromise(
-      Effect.gen(this, function* () {
-        this.cachedStore = undefined;
+      Effect.gen({ self: this }, function* () {
+        this.storePromise = null;
         yield* Effect.promise(() => this.ctx.storage.deleteAll());
         yield* Effect.logInfo("purgeAll: storage wiped").pipe(
           Effect.annotateLogs({ doId: this.ctx.id.toString() })
@@ -130,42 +130,51 @@ export class ChatAgentDO
     );
   }
 
-  private async getSessionId(): Promise<string> {
+  private async getSessionId(storeId: string): Promise<string> {
     const key = "chat-session-id";
     const stored = await this.ctx.storage.get<string>(key);
     if (stored) return stored;
 
-    const newSessionId = `chat-${this.name}-${nanoid()}`;
+    const newSessionId = `chat-${storeId}-${nanoid()}`;
     await this.ctx.storage.put(key, newSessionId);
     return newSessionId;
   }
 
-  private async getStore(): Promise<Store<typeof schema>> {
-    if (this.cachedStore) return this.cachedStore;
+  private getStore(storeId?: string): Promise<Store<typeof schema>> {
+    if (this.storePromise) return this.storePromise;
 
-    const sessionId = await this.getSessionId();
-    this.cachedStore = await createStoreDoPromise({
-      clientId: "chat-agent-do",
-      durableObject: {
-        bindingName: "Chat",
-        ctx: this.ctx,
-        env: this.env,
-      } as never,
-      livePull: true,
-      schema,
-      sessionId,
-      storeId: this.name,
-      syncBackendStub: this.env.SYNC_BACKEND_DO.get(
-        this.env.SYNC_BACKEND_DO.idFromName(this.name)
-      ) as never,
+    const id = storeId ?? this.name;
+    const promise = (async () => {
+      const sessionId = await this.getSessionId(id);
+      return createStoreDoPromise({
+        clientId: "chat-agent-do",
+        durableObject: {
+          bindingName: "Chat",
+          ctx: this.ctx,
+          env: this.env,
+        } as never,
+        livePull: true,
+        schema,
+        sessionId,
+        storeId: id,
+        syncBackendStub: this.env.SYNC_BACKEND_DO.get(
+          this.env.SYNC_BACKEND_DO.idFromName(id)
+        ) as never,
+      });
+    })();
+    promise.catch(() => {
+      if (this.storePromise === promise) this.storePromise = null;
     });
-
-    return this.cachedStore;
+    this.storePromise = promise;
+    return promise;
   }
 
-  async syncUpdateRpc(payload: unknown): Promise<void> {
-    if (!this.cachedStore) await this.getStore();
-    await handleSyncUpdateRpc(payload);
+  async syncUpdateRpc(
+    payload: Uint8Array<ArrayBuffer>,
+    storeId: string
+  ): Promise<void> {
+    await this.getStore(storeId);
+    await handleSyncUpdateRpc(this.ctx, payload);
   }
 
   // Read-only keyset page over this org's links, exposed to the public links
@@ -176,7 +185,7 @@ export class ChatAgentDO
     cursor: { createdAt: number; id: string } | null;
   }): Promise<ApiLinksPage> {
     return Effect.runPromise(
-      Effect.gen(this, function* () {
+      Effect.gen({ self: this }, function* () {
         const store = yield* Effect.promise(() => this.getStore());
         const rows = store.query(
           apiLinksPage$({
@@ -217,7 +226,7 @@ export class ChatAgentDO
 
   private async reserveTokens(estimate: number): Promise<ReserveOutcome> {
     return Effect.runPromise(
-      Effect.gen(this, function* () {
+      Effect.gen({ self: this }, function* () {
         const { limit, unavailable } = yield* this.resolveBudget();
         if (unavailable) {
           yield* Effect.annotateCurrentSpan({
@@ -318,7 +327,7 @@ export class ChatAgentDO
     never,
     Billing
   > {
-    return Effect.gen(this, function* () {
+    return Effect.gen({ self: this }, function* () {
       const period = getCurrentPeriod();
       const usage = yield* Effect.promise(() =>
         this.ctx.storage.get<UsageData>(getUsageKey(period))
@@ -340,7 +349,7 @@ export class ChatAgentDO
   private broadcastUsage(): Promise<void> {
     return this.getUsage().pipe(
       Effect.tap((usage) => Effect.sync(() => this.setState({ usage }))),
-      Effect.tapErrorCause((cause) =>
+      Effect.tapCause((cause) =>
         Effect.logError("broadcastUsage failed").pipe(
           Effect.annotateLogs({ cause: String(cause) })
         )
@@ -437,7 +446,7 @@ export class ChatAgentDO
                 ESTIMATED_TOKENS_PER_CALL
               ).pipe(
                 Effect.tap(() => Effect.promise(() => this.broadcastUsage())),
-                Effect.tapErrorCause((cause) =>
+                Effect.tapCause((cause) =>
                   Effect.logError("recordTokenUsage failed").pipe(
                     Effect.annotateLogs({ cause: String(cause) })
                   )
@@ -482,7 +491,7 @@ export class ChatAgentDO
                 ESTIMATED_TOKENS_PER_CALL
               ).pipe(
                 Effect.tap(() => Effect.promise(() => this.broadcastUsage())),
-                Effect.tapErrorCause((cause) =>
+                Effect.tapCause((cause) =>
                   Effect.logError("recordTokenUsage failed").pipe(
                     Effect.annotateLogs({ cause: String(cause) })
                   )

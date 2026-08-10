@@ -1,23 +1,25 @@
-import { Effect, Either, Schema } from "effect";
+import { Effect, Result, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 
 import { CreateInviteBody, MAX_EXPIRES_IN_DAYS } from "../service";
 
 const decode = (input: unknown) =>
-  Effect.runSync(Effect.either(Schema.decodeUnknown(CreateInviteBody)(input)));
+  Effect.runSync(
+    Effect.result(Schema.decodeUnknownEffect(CreateInviteBody)(input))
+  );
 
 describe("CreateInviteBody schema", () => {
   it("accepts an empty body", () => {
     const result = decode({});
-    expect(Either.isRight(result)).toBe(true);
-    if (Either.isRight(result))
-      expect(result.right.expiresInDays).toBeUndefined();
+    expect(Result.isSuccess(result)).toBe(true);
+    if (Result.isSuccess(result))
+      expect(result.success.expiresInDays).toBeUndefined();
   });
 
   it("accepts a positive integer in range", () => {
     const result = decode({ expiresInDays: 30 });
-    expect(Either.isRight(result)).toBe(true);
-    if (Either.isRight(result)) expect(result.right.expiresInDays).toBe(30);
+    expect(Result.isSuccess(result)).toBe(true);
+    if (Result.isSuccess(result)) expect(result.success.expiresInDays).toBe(30);
   });
 
   it.each([
@@ -31,11 +33,11 @@ describe("CreateInviteBody schema", () => {
     ["null", null],
     ["true", true],
   ])("rejects %s", (_label, value) => {
-    expect(Either.isLeft(decode({ expiresInDays: value }))).toBe(true);
+    expect(Result.isFailure(decode({ expiresInDays: value }))).toBe(true);
   });
 
   it("accepts the upper bound", () => {
     const result = decode({ expiresInDays: MAX_EXPIRES_IN_DAYS });
-    expect(Either.isRight(result)).toBe(true);
+    expect(Result.isSuccess(result)).toBe(true);
   });
 });

@@ -11,8 +11,7 @@ import { unexpected500 } from "./responses";
 export const isCrossSite = (request: Request): boolean =>
   request.headers.get("sec-fetch-site") === "cross-site";
 
-// Memoize per isolate, like `getAppLayer` — avoid rebuilding the layer (and
-// re-instantiating Stripe/Db/Auth/Billing) on every request.
+// One layer object per isolate, like `getAppLayer` — see the note there.
 const billingLayerCache = new WeakMap<
   Env,
   Layer.Layer<StripeClient | AppCtx>
@@ -32,6 +31,6 @@ export const runBilling = (
   Effect.runPromise(
     effect.pipe(
       Effect.provide(getBillingLayer(env)),
-      Effect.catchAllCause(unexpected500)
+      Effect.catchCause(unexpected500)
     )
   );

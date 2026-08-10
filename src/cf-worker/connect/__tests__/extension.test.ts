@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer, LogLevel, Logger } from "effect";
+import { Effect, Layer, References } from "effect";
 
 import { AuthClient } from "../../auth/service";
 import { ApiKey, ApiKeyRowId, OrgId, UserId } from "../../db/branded";
@@ -19,7 +19,7 @@ function makeSessionLayer(result: SessionData | null) {
   });
 }
 
-function makeApiKeyLayer(overrides: Partial<ApiKeyStore["Type"]> = {}) {
+function makeApiKeyLayer(overrides: Partial<ApiKeyStore["Service"]> = {}) {
   return Layer.succeed(ApiKeyStore, {
     listByUser: () => Effect.succeed([]),
     deleteById: () => Effect.void,
@@ -46,7 +46,7 @@ function makeDbStub(name: string | null, image: string | null = null) {
         where: () => Promise.resolve(rows),
       }),
     }),
-  } as unknown as DbClient["Type"]);
+  } as unknown as DbClient["Service"]);
 }
 
 function makeAuthClientLayer(verifyApiKey: () => Promise<VerifyResult>) {
@@ -55,7 +55,7 @@ function makeAuthClientLayer(verifyApiKey: () => Promise<VerifyResult>) {
       verifyApiKey,
       getSession: () => Promise.resolve(null),
     },
-  } as unknown as AuthClient["Type"]);
+  } as unknown as AuthClient["Service"]);
 }
 
 function runAccount(
@@ -79,13 +79,16 @@ function runAccount(
 
   return handleAccountRequest(
     apiKey === null ? null : ApiKey.make(apiKey)
-  ).pipe(Effect.provide(layer), Logger.withMinimumLogLevel(LogLevel.Error));
+  ).pipe(
+    Effect.provide(layer),
+    Effect.provideService(References.MinimumLogLevel, "Error")
+  );
 }
 
 function runConnect(
   options: {
     session?: SessionData | null;
-    apiKeyStore?: Partial<ApiKeyStore["Type"]>;
+    apiKeyStore?: Partial<ApiKeyStore["Service"]>;
   } = {}
 ) {
   const layer = Layer.mergeAll(
@@ -95,7 +98,7 @@ function runConnect(
 
   return handleConnectRequest(new Headers()).pipe(
     Effect.provide(layer),
-    Logger.withMinimumLogLevel(LogLevel.Error)
+    Effect.provideService(References.MinimumLogLevel, "Error")
   );
 }
 
@@ -299,7 +302,7 @@ describe("ExtensionConnect.handleDisconnectRequest", () => {
     apiKey: string | null,
     options: {
       verifyApiKey?: () => Promise<VerifyResult>;
-      apiKeyStore?: Partial<ApiKeyStore["Type"]>;
+      apiKeyStore?: Partial<ApiKeyStore["Service"]>;
     } = {}
   ) {
     const layer = Layer.mergeAll(
@@ -312,7 +315,10 @@ describe("ExtensionConnect.handleDisconnectRequest", () => {
 
     return handleDisconnectRequest(
       apiKey === null ? null : ApiKey.make(apiKey)
-    ).pipe(Effect.provide(layer), Logger.withMinimumLogLevel(LogLevel.Error));
+    ).pipe(
+      Effect.provide(layer),
+      Effect.provideService(References.MinimumLogLevel, "Error")
+    );
   }
 
   it.effect("fails with ConnectUnauthorizedError when apiKey is missing", () =>

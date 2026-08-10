@@ -6,7 +6,7 @@ import type { UserId } from "../db/branded";
 import type { DbError } from "../db/service";
 import type { KeyCreationError, SessionLookupError } from "./errors";
 
-export class InvalidVerificationPayloadError extends Schema.TaggedError<InvalidVerificationPayloadError>()(
+export class InvalidVerificationPayloadError extends Schema.TaggedErrorClass<InvalidVerificationPayloadError>()(
   "InvalidVerificationPayloadError",
   {
     identifier: Schema.String,
@@ -35,7 +35,7 @@ export interface SessionData {
   readonly orgId: OrgId | null;
 }
 
-export class SessionProvider extends Context.Tag("SessionProvider")<
+export class SessionProvider extends Context.Service<
   SessionProvider,
   {
     // Returns null when there's no session; fails with SessionLookupError when
@@ -45,9 +45,9 @@ export class SessionProvider extends Context.Tag("SessionProvider")<
       headers: Headers
     ) => Effect.Effect<SessionData | null, SessionLookupError>;
   }
->() {}
+>()("SessionProvider") {}
 
-export class ApiKeyStore extends Context.Tag("ApiKeyStore")<
+export class ApiKeyStore extends Context.Service<
   ApiKeyStore,
   {
     readonly listByUser: (
@@ -64,9 +64,9 @@ export class ApiKeyStore extends Context.Tag("ApiKeyStore")<
       name: string
     ) => Effect.Effect<void, DbError>;
   }
->() {}
+>()("ApiKeyStore") {}
 
-export class VerificationStore extends Context.Tag("VerificationStore")<
+export class VerificationStore extends Context.Service<
   VerificationStore,
   {
     readonly save: (
@@ -81,14 +81,14 @@ export class VerificationStore extends Context.Tag("VerificationStore")<
       DbError | InvalidVerificationPayloadError
     >;
   }
->() {}
+>()("VerificationStore") {}
 
 export interface TelegramConnectCode {
   readonly recordId: string;
   readonly chatId: number;
 }
 
-export class TelegramConnectStore extends Context.Tag("TelegramConnectStore")<
+export class TelegramConnectStore extends Context.Service<
   TelegramConnectStore,
   {
     readonly issueCode: (chatId: number) => Effect.Effect<string, DbError>;
@@ -105,4 +105,4 @@ export class TelegramConnectStore extends Context.Tag("TelegramConnectStore")<
       DbError | InvalidVerificationPayloadError
     >;
   }
->() {}
+>()("TelegramConnectStore") {}

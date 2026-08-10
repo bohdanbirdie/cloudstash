@@ -26,7 +26,7 @@ export const ingestLink = Effect.fn("LinkProcessor.ingestLink")(function* (
   const domain = yield* Effect.try(() =>
     new URL(params.url).hostname.replace(/^www\./, "")
   ).pipe(
-    Effect.catchAll(() =>
+    Effect.catch(() =>
       Effect.logWarning("Invalid URL in queue message").pipe(
         Effect.annotateLogs({ url: params.url }),
         Effect.as(null)

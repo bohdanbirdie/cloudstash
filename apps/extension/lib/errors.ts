@@ -1,38 +1,41 @@
 import { Schema } from "effect";
 
-export class StorageError extends Schema.TaggedError<StorageError>()(
+export class StorageError extends Schema.TaggedErrorClass<StorageError>()(
   "StorageError",
   {
     op: Schema.String,
-    cause: Schema.Defect,
+    cause: Schema.Defect(),
   }
 ) {}
 
-export class StorageUnsupportedError extends Schema.TaggedError<StorageUnsupportedError>()(
+export class StorageUnsupportedError extends Schema.TaggedErrorClass<StorageUnsupportedError>()(
   "StorageUnsupportedError",
   { op: Schema.String }
 ) {}
 
-export class MessengerError extends Schema.TaggedError<MessengerError>()(
+export class MessengerError extends Schema.TaggedErrorClass<MessengerError>()(
   "MessengerError",
-  { cause: Schema.Defect }
+  { cause: Schema.Defect() }
 ) {}
 
-export class OffscreenError extends Schema.TaggedError<OffscreenError>()(
+export class OffscreenError extends Schema.TaggedErrorClass<OffscreenError>()(
   "OffscreenError",
-  { cause: Schema.Defect }
+  { cause: Schema.Defect() }
 ) {}
 
-export class TabsError extends Schema.TaggedError<TabsError>()("TabsError", {
-  cause: Schema.Defect,
-}) {}
+export class TabsError extends Schema.TaggedErrorClass<TabsError>()(
+  "TabsError",
+  {
+    cause: Schema.Defect(),
+  }
+) {}
 
-export class ConnectNetworkError extends Schema.TaggedError<ConnectNetworkError>()(
+export class ConnectNetworkError extends Schema.TaggedErrorClass<ConnectNetworkError>()(
   "ConnectNetworkError",
-  { cause: Schema.Defect }
+  { cause: Schema.Defect() }
 ) {}
 
-export class ConnectServerError extends Schema.TaggedError<ConnectServerError>()(
+export class ConnectServerError extends Schema.TaggedErrorClass<ConnectServerError>()(
   "ConnectServerError",
   {
     status: Schema.Number,
@@ -40,22 +43,22 @@ export class ConnectServerError extends Schema.TaggedError<ConnectServerError>()
   }
 ) {}
 
-export class InvalidResponseError extends Schema.TaggedError<InvalidResponseError>()(
+export class InvalidResponseError extends Schema.TaggedErrorClass<InvalidResponseError>()(
   "InvalidResponseError",
-  { cause: Schema.Defect }
+  { cause: Schema.Defect() }
 ) {}
 
-export class InvalidUrlError extends Schema.TaggedError<InvalidUrlError>()(
+export class InvalidUrlError extends Schema.TaggedErrorClass<InvalidUrlError>()(
   "InvalidUrlError",
   { input: Schema.String }
 ) {}
 
-export class LivestoreBootError extends Schema.TaggedError<LivestoreBootError>()(
+export class LivestoreBootError extends Schema.TaggedErrorClass<LivestoreBootError>()(
   "LivestoreBootError",
-  { cause: Schema.Defect }
+  { cause: Schema.Defect() }
 ) {}
 
-export class LivestoreShutdownError extends Schema.TaggedError<LivestoreShutdownError>()(
+export class LivestoreShutdownError extends Schema.TaggedErrorClass<LivestoreShutdownError>()(
   "LivestoreShutdownError",
-  { cause: Schema.Defect }
+  { cause: Schema.Defect() }
 ) {}

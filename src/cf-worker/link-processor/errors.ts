@@ -1,42 +1,42 @@
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 
-export class LinkProcessorInvalidUrlError extends Schema.TaggedError<LinkProcessorInvalidUrlError>()(
+export class LinkProcessorInvalidUrlError extends Schema.TaggedErrorClass<LinkProcessorInvalidUrlError>()(
   "LinkProcessorInvalidUrlError",
   {
     url: Schema.String,
   }
 ) {}
 
-export class AiCallError extends Schema.TaggedError<AiCallError>()(
+export class AiCallError extends Schema.TaggedErrorClass<AiCallError>()(
   "AiCallError",
   {
-    message: Schema.optionalWith(Schema.String, {
-      default: () => "AI call failed",
-    }),
+    message: Schema.String.pipe(
+      Schema.withConstructorDefault(Effect.succeed("AI call failed"))
+    ),
     url: Schema.optional(Schema.String),
     model: Schema.optional(Schema.String),
     cause: Schema.Unknown,
   }
 ) {}
 
-export const ContentExtractionReason = Schema.Literal(
+export const ContentExtractionReason = Schema.Literals([
   "scheme-rejected",
   "too-many-redirects",
   "body-too-large",
   "upstream-http-error",
-  "unknown"
-);
+  "unknown",
+]);
 export type ContentExtractionReason = typeof ContentExtractionReason.Type;
 
-export class ContentExtractionError extends Schema.TaggedError<ContentExtractionError>()(
+export class ContentExtractionError extends Schema.TaggedErrorClass<ContentExtractionError>()(
   "ContentExtractionError",
   {
-    message: Schema.optionalWith(Schema.String, {
-      default: () => "Content extraction failed",
-    }),
-    reason: Schema.optionalWith(ContentExtractionReason, {
-      default: () => "unknown" as const,
-    }),
+    message: Schema.String.pipe(
+      Schema.withConstructorDefault(Effect.succeed("Content extraction failed"))
+    ),
+    reason: ContentExtractionReason.pipe(
+      Schema.withConstructorDefault(Effect.succeed("unknown" as const))
+    ),
     url: Schema.optional(Schema.String),
     cause: Schema.Unknown,
   }

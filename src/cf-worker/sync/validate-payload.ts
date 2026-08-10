@@ -173,7 +173,7 @@ export const runSyncAuth = (
             Effect.as(authError("UNKNOWN", "Auth backend unavailable", 503))
           ),
       }),
-      Effect.catchAllDefect((cause) =>
+      Effect.catchDefect((cause) =>
         Effect.logError("Sync validatePayload defect").pipe(
           Effect.annotateLogs(safeErrorInfo(cause)),
           Effect.as(authError("UNKNOWN", "Internal error", 500))

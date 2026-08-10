@@ -1,7 +1,10 @@
 import viteTsConfigPaths from "vite-tsconfig-paths";
 import { defineConfig } from "vitest/config";
 
-import { livestoreLocalResolve } from "./tools/livestore-local.ts";
+import {
+  livestoreBuildDefine,
+  livestoreLocalResolve,
+} from "./tools/livestore-local.ts";
 
 /**
  * Unit test configuration using standard Vitest.
@@ -9,6 +12,7 @@ import { livestoreLocalResolve } from "./tools/livestore-local.ts";
  */
 export default defineConfig({
   plugins: [viteTsConfigPaths({ projects: ["./tsconfig.json"] })],
+  define: livestoreBuildDefine(),
   resolve: livestoreLocalResolve(),
   test: {
     include: [

@@ -3,16 +3,32 @@ import { livestoreDevtoolsPlugin } from "@livestore/devtools-vite";
 import tailwindcss from "@tailwindcss/vite";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import viteReact from "@vitejs/plugin-react";
-import type { Plugin } from "vite";
-import { defineConfig } from "vite-plus";
+import { defineConfig } from "vite";
+import type { Plugin, UserConfig } from "vite";
+import type { UserConfig as VitePlusUserConfig } from "vite-plus";
 
 import {
   LIVESTORE_LOCAL,
   LIVESTORE_PUBLISHED,
+  livestoreBuildDefine,
   livestoreLocalResolve,
 } from "./tools/livestore-local.ts";
 
-// Redirect @livestore/* to the vendored fork source (default) and fail a
+// Typing the config against the real vite identity (augmented with the
+// vite-plus-only keys) instead of vite-plus's bundled type copy: comparing
+// real-vite plugin values against that bundled copy is a cross-identity
+// deep-recursion that sits at the checker's depth limit (nondeterministic
+// "Excessive stack depth"). vp's defineConfig is a runtime pass-through for
+// non-lazy configs, so the exported object is identical either way.
+declare module "vite" {
+  interface UserConfig {
+    staged?: VitePlusUserConfig["staged"];
+    fmt?: VitePlusUserConfig["fmt"];
+    lint?: VitePlusUserConfig["lint"];
+  }
+}
+
+// Redirect @livestore/* to the vendored upstream source (default) and fail a
 // production build if the submodule isn't checked out. See
 // docs/architecture/livestore-fork-integration.md.
 const livestoreLocalPlugin: Plugin = {
@@ -20,14 +36,15 @@ const livestoreLocalPlugin: Plugin = {
   config: (_config, { command }) => {
     if (command === "build" && !LIVESTORE_PUBLISHED && !LIVESTORE_LOCAL) {
       throw new Error(
-        "[livestore] vendored fork (vendor/livestore) not found — run `git submodule update --init` then `cd vendor/livestore && pnpm install`, or set LIVESTORE_PUBLISHED=1 to build the published snapshot on purpose."
+        "[livestore] vendored livestore (vendor/livestore) not found — run `git submodule update --init` then `cd vendor/livestore && pnpm install`, or set LIVESTORE_PUBLISHED=1 to build the published snapshot on purpose."
       );
     }
     return { resolve: livestoreLocalResolve() };
   },
 };
 
-export default defineConfig({
+const config: UserConfig = {
+  define: livestoreBuildDefine(),
   staged: {
     "*": "vp check --fix",
   },
@@ -249,4 +266,6 @@ export default defineConfig({
   worker: {
     format: "es",
   },
-});
+};
+
+export default defineConfig(config);

@@ -6,21 +6,21 @@ import { ENRICHMENT_USAGE_KEY, getCurrentPeriod } from "./types";
 
 const COUNTER_TTL = Duration.days(70);
 
-export class EnrichmentUsageGetError extends Schema.TaggedError<EnrichmentUsageGetError>()(
+export class EnrichmentUsageGetError extends Schema.TaggedErrorClass<EnrichmentUsageGetError>()(
   "EnrichmentUsageGetError",
   {
     storeId: OrgId,
     period: Schema.String,
-    cause: Schema.Defect,
+    cause: Schema.Defect(),
   }
 ) {}
 
-export class EnrichmentUsagePutError extends Schema.TaggedError<EnrichmentUsagePutError>()(
+export class EnrichmentUsagePutError extends Schema.TaggedErrorClass<EnrichmentUsagePutError>()(
   "EnrichmentUsagePutError",
   {
     storeId: OrgId,
     period: Schema.String,
-    cause: Schema.Defect,
+    cause: Schema.Defect(),
   }
 ) {}
 
@@ -32,7 +32,7 @@ export interface EnrichmentUsageBindings {
   readonly kv: KVNamespace;
 }
 
-export class EnrichmentUsage extends Context.Tag("@cloudstash/EnrichmentUsage")<
+export class EnrichmentUsage extends Context.Service<
   EnrichmentUsage,
   {
     readonly current: (
@@ -48,10 +48,10 @@ export class EnrichmentUsage extends Context.Tag("@cloudstash/EnrichmentUsage")<
       AnyEnrichmentUsageError
     >;
   }
->() {}
+>()("@cloudstash/EnrichmentUsage") {}
 
 const parseUsed = (raw: string | null): number =>
-  Option.fromNullable(raw).pipe(
+  Option.fromNullishOr(raw).pipe(
     Option.map((s) => Number.parseInt(s, 10)),
     Option.filter((n) => Number.isFinite(n)),
     Option.getOrElse(() => 0)

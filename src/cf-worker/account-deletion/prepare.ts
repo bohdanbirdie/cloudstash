@@ -8,7 +8,7 @@ import { DbClient, DbError, query } from "../db/service";
 import { maskId } from "../log-utils";
 import { DeletionRuntime } from "./runtime";
 
-export class MissingActiveOrgError extends Schema.TaggedError<MissingActiveOrgError>()(
+export class MissingActiveOrgError extends Schema.TaggedErrorClass<MissingActiveOrgError>()(
   "MissingActiveOrgError",
   { userId: UserId }
 ) {}
@@ -43,7 +43,7 @@ const findPersonalOrgIdForUser = Effect.fn(
     return yield* new MissingActiveOrgError({ userId });
   }
 
-  return yield* Schema.decodeUnknown(OrgId)(org.id).pipe(
+  return yield* Schema.decodeUnknownEffect(OrgId)(org.id).pipe(
     Effect.mapError((cause) => new DbError({ cause }))
   );
 });

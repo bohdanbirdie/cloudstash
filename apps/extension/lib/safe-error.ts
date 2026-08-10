@@ -9,7 +9,7 @@ type ErrorInfo = {
 
 export const safeErrorInfo = (error: unknown): ErrorInfo => {
   if (Cause.isCause(error)) {
-    const failureOpt = Cause.failureOption(error);
+    const failureOpt = Cause.findErrorOption(error);
     if (failureOpt._tag === "Some") return safeErrorInfo(failureOpt.value);
     return { errorType: "Cause", hasMessage: false };
   }

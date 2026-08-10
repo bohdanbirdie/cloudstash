@@ -28,23 +28,27 @@ const LinkQueueMessageSchema = Schema.Struct({
   sourceMeta: Schema.NullOr(Schema.String),
 });
 
-export class QueueProcessError extends Schema.TaggedError<QueueProcessError>()(
+export class QueueProcessError extends Schema.TaggedErrorClass<QueueProcessError>()(
   "QueueProcessError",
   {
-    message: Schema.optionalWith(Schema.String, {
-      default: () => "Queue message processing failed",
-    }),
-    cause: Schema.Defect,
+    message: Schema.String.pipe(
+      Schema.withConstructorDefault(
+        Effect.succeed("Queue message processing failed")
+      )
+    ),
+    cause: Schema.Defect(),
   }
 ) {}
 
-export class QueueDecodeError extends Schema.TaggedError<QueueDecodeError>()(
+export class QueueDecodeError extends Schema.TaggedErrorClass<QueueDecodeError>()(
   "QueueDecodeError",
   {
-    message: Schema.optionalWith(Schema.String, {
-      default: () => "Queue message failed to decode",
-    }),
-    cause: Schema.Defect,
+    message: Schema.String.pipe(
+      Schema.withConstructorDefault(
+        Effect.succeed("Queue message failed to decode")
+      )
+    ),
+    cause: Schema.Defect(),
   }
 ) {}
 
@@ -76,7 +80,7 @@ export const handleQueueBatchEffect = (
     batch.messages,
     (msg) =>
       Effect.gen(function* () {
-        const body = yield* Schema.decodeUnknown(LinkQueueMessageSchema)(
+        const body = yield* Schema.decodeUnknownEffect(LinkQueueMessageSchema)(
           msg.body
         ).pipe(Effect.mapError((cause) => new QueueDecodeError({ cause })));
         const { storeId } = body;
@@ -115,7 +119,7 @@ export const handleQueueBatchEffect = (
                 attempt: msg.attempts,
                 ...safeErrorInfo(error),
               }),
-              Effect.zipLeft(Effect.sync(() => msg.retry()))
+              Effect.tap(() => Effect.sync(() => msg.retry()))
             ),
           QueueDecodeError: (error) =>
             // Decode failure is not transient — ack to drop, don't retry.
@@ -124,7 +128,7 @@ export const handleQueueBatchEffect = (
                 attempt: msg.attempts,
                 ...safeErrorInfo(error),
               }),
-              Effect.zipLeft(Effect.sync(() => msg.ack()))
+              Effect.tap(() => Effect.sync(() => msg.ack()))
             ),
         }),
         Effect.withSpan("Queue.processMessage", {
@@ -144,7 +148,7 @@ export const handleQueueBatch = (
 ): Promise<void> =>
   Effect.runPromise(
     handleQueueBatchEffect(batch, env.LINK_PROCESSOR_DO).pipe(
-      Effect.tapErrorCause((cause) =>
+      Effect.tapCause((cause) =>
         Effect.logError("Queue batch failed").pipe(
           Effect.annotateLogs({
             batchSize: batch.messages.length,

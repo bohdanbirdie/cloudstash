@@ -1,4 +1,4 @@
-import { Effect, Either, Layer } from "effect";
+import { Effect, Layer, Result } from "effect";
 import { describe, expect, it } from "vitest";
 
 import { OrgId, XTweetId, XUsername } from "../../db/branded";
@@ -67,7 +67,7 @@ const FakeGeneratorLive = (
 ) =>
   Layer.succeed(
     EnrichmentGenerator,
-    new EnrichmentGenerator({
+    EnrichmentGenerator.of({
       generate: () => {
         log.events.push("generator.generate");
         return Effect.isEffect(output)
@@ -90,17 +90,17 @@ describe("enrichSummary orchestrator", () => {
     );
 
     const result = await Effect.runPromise(
-      Effect.either(
+      Effect.result(
         enrichSummary({ storeId: STORE_ID, url: URL, existingTags: [] }).pipe(
           Effect.provide(layer)
         )
       )
     );
 
-    expect(Either.isLeft(result)).toBe(true);
-    if (Either.isLeft(result)) {
-      expect(result.left._tag).toBe("EnrichmentBudgetExhaustedError");
-      expect(result.left).toMatchObject({
+    expect(Result.isFailure(result)).toBe(true);
+    if (Result.isFailure(result)) {
+      expect(result.failure._tag).toBe("EnrichmentBudgetExhaustedError");
+      expect(result.failure).toMatchObject({
         storeId: STORE_ID,
         used: MONTHLY_ENRICHMENT_CAP,
         cap: MONTHLY_ENRICHMENT_CAP,
@@ -157,16 +157,16 @@ describe("enrichSummary orchestrator", () => {
     );
 
     const result = await Effect.runPromise(
-      Effect.either(
+      Effect.result(
         enrichSummary({ storeId: STORE_ID, url: URL, existingTags: [] }).pipe(
           Effect.provide(layer)
         )
       )
     );
 
-    expect(Either.isLeft(result)).toBe(true);
-    if (Either.isLeft(result)) {
-      expect(result.left._tag).toBe("ThreadProviderEmptyError");
+    expect(Result.isFailure(result)).toBe(true);
+    if (Result.isFailure(result)) {
+      expect(result.failure._tag).toBe("ThreadProviderEmptyError");
     }
     expect(log.events).toEqual(["usage.current", "provider.fetch"]);
   });
@@ -188,16 +188,16 @@ describe("enrichSummary orchestrator", () => {
     );
 
     const result = await Effect.runPromise(
-      Effect.either(
+      Effect.result(
         enrichSummary({ storeId: STORE_ID, url: URL, existingTags: [] }).pipe(
           Effect.provide(layer)
         )
       )
     );
 
-    expect(Either.isLeft(result)).toBe(true);
-    if (Either.isLeft(result)) {
-      expect(result.left).toMatchObject({
+    expect(Result.isFailure(result)).toBe(true);
+    if (Result.isFailure(result)) {
+      expect(result.failure).toMatchObject({
         _tag: "EnrichmentGenerateError",
         model: ENRICHMENT_MODEL,
       });

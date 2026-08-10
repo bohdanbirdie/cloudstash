@@ -4,13 +4,13 @@ import { APP_URL } from "../config";
 import { ConnectNetworkError } from "../errors";
 import type { Creds } from "../messages";
 
-export class ConnectClient extends Context.Tag("@ext/ConnectClient")<
+export class ConnectClient extends Context.Service<
   ConnectClient,
   {
     readonly openConnectPage: Effect.Effect<void, ConnectNetworkError>;
     readonly disconnect: (creds: Creds) => Effect.Effect<void>;
   }
->() {
+>()("@ext/ConnectClient") {
   static readonly layer = Layer.sync(ConnectClient, () => {
     const openConnectPage = Effect.fn("ConnectClient.openConnectPage")(
       function* () {
@@ -35,7 +35,7 @@ export class ConnectClient extends Context.Tag("@ext/ConnectClient")<
           );
         }
       }).pipe(
-        Effect.catchAllCause((cause) =>
+        Effect.catchCause((cause) =>
           Effect.logWarning("ConnectClient.disconnect failed").pipe(
             Effect.annotateLogs({ cause: Cause.pretty(cause) })
           )

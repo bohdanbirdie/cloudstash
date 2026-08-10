@@ -1,5 +1,5 @@
 import { it } from "@effect/vitest";
-import { Effect, Either } from "effect";
+import { Effect, Result } from "effect";
 import { describe, expect, vi } from "vitest";
 
 import { OrgId, UserId } from "../../db/branded";
@@ -242,13 +242,13 @@ describe("DeletionRuntimeLive — DO RPC failure paths", () => {
         });
         return Effect.gen(function* () {
           const runtime = yield* DeletionRuntime;
-          const result = yield* Effect.either(method(runtime));
-          expect(Either.isLeft(result)).toBe(true);
-          if (Either.isLeft(result)) {
-            expect(result.left).toBeInstanceOf(DeletionRuntimeError);
-            expect(result.left._tag).toBe("DeletionRuntimeError");
-            expect(result.left.op).toBe(op);
-            const cause = result.left.cause;
+          const result = yield* Effect.result(method(runtime));
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure).toBeInstanceOf(DeletionRuntimeError);
+            expect(result.failure._tag).toBe("DeletionRuntimeError");
+            expect(result.failure.op).toBe(op);
+            const cause = result.failure.cause;
             expect(cause).toBeInstanceOf(Error);
             if (cause instanceof Error) {
               expect(cause.message).toContain(`${op} boom`);
@@ -350,13 +350,13 @@ describe("DeletionRuntimeLive.ensureWorkflow", () => {
     );
     return Effect.gen(function* () {
       const runtime = yield* DeletionRuntime;
-      const result = yield* Effect.either(runtime.ensureWorkflow(baseParams));
-      expect(Either.isLeft(result)).toBe(true);
-      if (Either.isLeft(result)) {
-        expect(result.left._tag).toBe("DeletionRuntimeError");
-        expect(result.left.op).toBe("ensureWorkflow");
-        expect(result.left.step).toBe("create");
-        const cause = result.left.cause;
+      const result = yield* Effect.result(runtime.ensureWorkflow(baseParams));
+      expect(Result.isFailure(result)).toBe(true);
+      if (Result.isFailure(result)) {
+        expect(result.failure._tag).toBe("DeletionRuntimeError");
+        expect(result.failure.op).toBe("ensureWorkflow");
+        expect(result.failure.step).toBe("create");
+        const cause = result.failure.cause;
         expect(cause).toBeInstanceOf(Error);
         if (cause instanceof Error) {
           expect(cause.message).toContain("CF Workflows API down");
@@ -394,11 +394,11 @@ describe("DeletionRuntimeLive.ensureWorkflow", () => {
       });
       return Effect.gen(function* () {
         const runtime = yield* DeletionRuntime;
-        const result = yield* Effect.either(runtime.ensureWorkflow(baseParams));
-        expect(Either.isLeft(result)).toBe(true);
-        if (Either.isLeft(result)) {
-          expect(result.left.op).toBe("ensureWorkflow");
-          expect(result.left.step).toBe("status");
+        const result = yield* Effect.result(runtime.ensureWorkflow(baseParams));
+        expect(Result.isFailure(result)).toBe(true);
+        if (Result.isFailure(result)) {
+          expect(result.failure.op).toBe("ensureWorkflow");
+          expect(result.failure.step).toBe("status");
         }
       }).pipe(Effect.provide(DeletionRuntimeLive(fixture.env)));
     }
@@ -417,11 +417,11 @@ describe("DeletionRuntimeLive.ensureWorkflow", () => {
       });
       return Effect.gen(function* () {
         const runtime = yield* DeletionRuntime;
-        const result = yield* Effect.either(runtime.ensureWorkflow(baseParams));
-        expect(Either.isLeft(result)).toBe(true);
-        if (Either.isLeft(result)) {
-          expect(result.left.op).toBe("ensureWorkflow");
-          expect(result.left.step).toBe("restart");
+        const result = yield* Effect.result(runtime.ensureWorkflow(baseParams));
+        expect(Result.isFailure(result)).toBe(true);
+        if (Result.isFailure(result)) {
+          expect(result.failure.op).toBe("ensureWorkflow");
+          expect(result.failure.step).toBe("restart");
         }
       }).pipe(Effect.provide(DeletionRuntimeLive(fixture.env)));
     }

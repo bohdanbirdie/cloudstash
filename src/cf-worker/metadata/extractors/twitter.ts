@@ -119,7 +119,7 @@ const fetchOgImage = (target: string) =>
         .text()
     );
     return parser.getResult().image ?? null;
-  }).pipe(Effect.catchAll(() => Effect.succeed(null)));
+  }).pipe(Effect.catch(() => Effect.succeed(null)));
 
 function firstExternalUrl(data: TweetResponse): string | null {
   for (const entity of data.entities?.urls ?? []) {
@@ -215,6 +215,6 @@ export const twitterExtractor: Extractor = {
       };
     }).pipe(
       Effect.withSpan("extractor.twitter.extract"),
-      Effect.catchAll(() => Effect.succeed(null))
+      Effect.catch(() => Effect.succeed(null))
     ),
 };

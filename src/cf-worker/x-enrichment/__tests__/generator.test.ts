@@ -1,4 +1,4 @@
-import { Effect, Either, Layer } from "effect";
+import { Effect, Layer, Result } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import { XTweetId, XUsername } from "../../db/branded";
@@ -201,7 +201,7 @@ describe("EnrichmentGenerator", () => {
     mockGenerateObject.mockRejectedValueOnce(underlying);
 
     const result = await Effect.runPromise(
-      Effect.either(
+      Effect.result(
         EnrichmentGenerator.pipe(
           Effect.flatMap((g) => g.generate(params)),
           Effect.provide(generatorLayer)
@@ -209,12 +209,12 @@ describe("EnrichmentGenerator", () => {
       )
     );
 
-    expect(Either.isLeft(result)).toBe(true);
-    if (Either.isLeft(result)) {
-      expect(result.left._tag).toBe("EnrichmentGenerateError");
-      expect(result.left.model).toBe(ENRICHMENT_MODEL);
-      expect(result.left.promptChars).toBeGreaterThan(0);
-      expect(result.left.cause).toBe(underlying);
+    expect(Result.isFailure(result)).toBe(true);
+    if (Result.isFailure(result)) {
+      expect(result.failure._tag).toBe("EnrichmentGenerateError");
+      expect(result.failure.model).toBe(ENRICHMENT_MODEL);
+      expect(result.failure.promptChars).toBeGreaterThan(0);
+      expect(result.failure.cause).toBe(underlying);
     }
   });
 });

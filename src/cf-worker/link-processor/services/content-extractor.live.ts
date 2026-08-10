@@ -29,16 +29,16 @@ export const ContentExtractorLive = Layer.succeed(ContentExtractor, {
       Effect.timeout("15 seconds"),
       Effect.retry({
         schedule: Schedule.exponential("300 millis").pipe(
-          Schedule.compose(Schedule.recurs(2))
+          Schedule.upTo({ times: 2 })
         ),
         while: (error) =>
           Match.value(error).pipe(
-            Match.tag("TimeoutException", () => true),
+            Match.tag("TimeoutError", () => true),
             Match.tag("ContentExtractionError", (e) => e.reason === "unknown"),
             Match.exhaustive
           ),
       }),
-      Effect.catchAll((error) =>
+      Effect.catch((error) =>
         Effect.logWarning("Content extraction failed").pipe(
           Effect.annotateLogs({
             ...safeErrorInfo(error),

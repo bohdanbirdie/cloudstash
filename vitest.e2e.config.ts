@@ -6,7 +6,10 @@ import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
 import viteTsConfigPaths from "vite-tsconfig-paths";
 import { defineConfig } from "vitest/config";
 
-import { livestoreLocalResolve } from "./tools/livestore-local.ts";
+import {
+  livestoreBuildDefine,
+  livestoreLocalResolve,
+} from "./tools/livestore-local.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const livestoreLocal = livestoreLocalResolve();
@@ -49,6 +52,7 @@ export default defineConfig({
     }),
     viteTsConfigPaths({ projects: ["./tsconfig.json"] }),
   ],
+  define: livestoreBuildDefine(),
   resolve: {
     dedupe: livestoreLocal.dedupe,
     alias: [

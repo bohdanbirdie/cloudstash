@@ -27,8 +27,9 @@ import {
   Config,
   Console,
   Effect,
-  Either,
+  Result,
   Exit,
+  Queue,
   Ref,
   Stream,
 } from "effect";
@@ -84,12 +85,12 @@ const write = (s: string): Effect.Effect<void> =>
   });
 
 const tallyStatuses = (
-  results: ReadonlyArray<Either.Either<IngestOk, IngestError>>
+  results: ReadonlyArray<Result.Result<IngestOk, IngestError>>
 ): string => {
   const counts = new Map<number, number>();
   for (const r of results) {
-    if (Either.isLeft(r)) {
-      counts.set(r.left.status, (counts.get(r.left.status) ?? 0) + 1);
+    if (Result.isFailure(r)) {
+      counts.set(r.failure.status, (counts.get(r.failure.status) ?? 0) + 1);
     }
   }
   if (counts.size === 0) return "";
@@ -148,10 +149,10 @@ const program = Effect.gen(function* () {
       const failTally = tallyStatuses(results);
       if (failTally) {
         yield* Console.log(`  POST failures: ${failTally}`);
-        const sample = results.find(Either.isLeft);
+        const sample = results.find(Result.isFailure);
         if (sample) {
           yield* Console.log(
-            `  e.g. ${sample.left.status}: ${sample.left.body.slice(0, 120)}`
+            `  e.g. ${sample.failure.status}: ${sample.failure.body.slice(0, 120)}`
           );
         }
       }
@@ -210,14 +211,16 @@ const interactive = (
     // null = menu mode; string = digits typed so far for a custom N.
     const collecting = yield* Ref.make<string | null>(null);
 
-    const keypresses = Stream.asyncPush<string>(
-      (emit) =>
+    const keypresses = Stream.callback<string>(
+      (queue) =>
         Effect.acquireRelease(
           Effect.sync(() => {
             stdin.setRawMode(true);
             stdin.resume();
             stdin.setEncoding("utf8");
-            const onData = (k: string): void => emit.single(k);
+            const onData = (k: string): void => {
+              Queue.offerUnsafe(queue, k);
+            };
             stdin.on("data", onData);
             return onData;
           }),
@@ -272,7 +275,7 @@ const interactive = (
 
 void Effect.runPromiseExit(
   Effect.scoped(program).pipe(
-    Effect.tapDefect((cause) => Console.error(Cause.pretty(cause)))
+    Effect.tapDefect((defect) => Console.error(Cause.pretty(Cause.die(defect))))
   )
 ).then((exit) => {
   if (Exit.isFailure(exit)) process.exitCode = 1;

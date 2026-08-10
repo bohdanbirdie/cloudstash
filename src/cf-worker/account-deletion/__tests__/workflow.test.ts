@@ -1,5 +1,5 @@
 import { it } from "@effect/vitest";
-import { Effect, Either, Layer } from "effect";
+import { Effect, Layer, Result } from "effect";
 import { describe, expect, vi } from "vitest";
 
 import { OrgId, UserId } from "../../db/branded";
@@ -178,12 +178,12 @@ describe("runAccountDeletion (failure path)", () => {
           stubDbLayer(dbRec),
           step
         ),
-        Effect.either,
+        Effect.result,
         Effect.tap((result) =>
           Effect.sync(() => {
-            expect(Either.isLeft(result)).toBe(true);
-            if (Either.isLeft(result)) {
-              const error = result.left;
+            expect(Result.isFailure(result)).toBe(true);
+            if (Result.isFailure(result)) {
+              const error = result.failure;
               expect(error._tag).toBe("WorkflowOrchestrationError");
               expect(error.step).toBe("wipe-sync-backend");
               expect(String(error.cause)).toContain(
@@ -215,15 +215,20 @@ describe("runAccountDeletion (failure path)", () => {
           stubDbLayer(dbRec),
           step
         ),
-        Effect.either,
+        Effect.result,
         Effect.tap((result) =>
           Effect.sync(() => {
-            expect(Either.isLeft(result)).toBe(true);
-            if (Either.isLeft(result)) {
-              const error = result.left;
+            expect(Result.isFailure(result)).toBe(true);
+            if (Result.isFailure(result)) {
+              const error = result.failure;
               expect(error._tag).toBe("WorkflowOrchestrationError");
               expect(error.step).toBe("wipe-chat-agent");
-              expect(String(error.cause)).toContain("purgeChatAgent boom");
+              expect(error.cause).toBeInstanceOf(DeletionRuntimeError);
+              if (error.cause instanceof DeletionRuntimeError) {
+                expect(String(error.cause.cause)).toContain(
+                  "purgeChatAgent boom"
+                );
+              }
             }
             expect(calls.map((c) => c.name)).toEqual([
               "mark-link-processor-deleting",
@@ -250,15 +255,20 @@ describe("runAccountDeletion (failure path)", () => {
           stubDbLayer(dbRec),
           step
         ),
-        Effect.either,
+        Effect.result,
         Effect.tap((result) =>
           Effect.sync(() => {
-            expect(Either.isLeft(result)).toBe(true);
-            if (Either.isLeft(result)) {
-              const error = result.left;
+            expect(Result.isFailure(result)).toBe(true);
+            if (Result.isFailure(result)) {
+              const error = result.failure;
               expect(error._tag).toBe("WorkflowOrchestrationError");
               expect(error.step).toBe("purge-x-bookmark-sync");
-              expect(String(error.cause)).toContain("purgeXBookmarkSync boom");
+              expect(error.cause).toBeInstanceOf(DeletionRuntimeError);
+              if (error.cause instanceof DeletionRuntimeError) {
+                expect(String(error.cause.cause)).toContain(
+                  "purgeXBookmarkSync boom"
+                );
+              }
             }
             expect(calls.map((c) => c.name)).toEqual([
               "mark-link-processor-deleting",

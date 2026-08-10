@@ -1,16 +1,14 @@
 import { Schema } from "effect";
 
-export const WeeklyDigestFailureReason = Schema.Literal(
+export const WeeklyDigestFailureReason = Schema.Literals([
   "generator",
   "link-source",
   "event-sink",
-  "defect"
-);
-export type WeeklyDigestFailureReason = Schema.Schema.Type<
-  typeof WeeklyDigestFailureReason
->;
+  "defect",
+]);
+export type WeeklyDigestFailureReason = typeof WeeklyDigestFailureReason.Type;
 
-export const WeeklyDigestRpcResult = Schema.Union(
+export const WeeklyDigestRpcResult = Schema.Union([
   Schema.Struct({
     linkCount: Schema.Number,
     period: Schema.String,
@@ -27,8 +25,6 @@ export const WeeklyDigestRpcResult = Schema.Union(
   }),
   Schema.Struct({
     status: Schema.Literal("dropped-deletion"),
-  })
-);
-export type WeeklyDigestRpcResult = Schema.Schema.Type<
-  typeof WeeklyDigestRpcResult
->;
+  }),
+]);
+export type WeeklyDigestRpcResult = typeof WeeklyDigestRpcResult.Type;

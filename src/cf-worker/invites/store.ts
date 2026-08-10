@@ -12,7 +12,7 @@ type InviteWithRelations = InviteRow & {
   usedBy: { email: string; id: string; name: string } | null;
 };
 
-export class InviteStore extends Context.Tag("@cloudstash/InviteStore")<
+export class InviteStore extends Context.Service<
   InviteStore,
   {
     readonly create: (params: {
@@ -36,7 +36,7 @@ export class InviteStore extends Context.Tag("@cloudstash/InviteStore")<
       userId: UserId
     ) => Effect.Effect<boolean, DbError>;
   }
->() {}
+>()("@cloudstash/InviteStore") {}
 
 export const InviteStoreLive = Layer.effect(
   InviteStore,

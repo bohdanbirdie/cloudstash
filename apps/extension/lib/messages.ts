@@ -28,14 +28,14 @@ const OpenConnectMsg = Schema.Struct({
   type: Schema.Literal("cs:open-connect"),
 });
 
-export const ExtMessage = Schema.Union(
+export const ExtMessage = Schema.Union([
   GetCredsMsg,
   CredsChangedMsg,
-  OpenConnectMsg
-);
+  OpenConnectMsg,
+]);
 export type ExtMessage = typeof ExtMessage.Type;
 
-export const decodeExtMessage = Schema.decodeUnknownEither(ExtMessage);
+export const decodeExtMessage = Schema.decodeUnknownResult(ExtMessage);
 
 const PingExtMsg = Schema.Struct({
   type: Schema.Literal("cs:ping"),
@@ -48,7 +48,7 @@ const ConnectExtMsg = Schema.Struct({
 });
 export type ConnectExtMsg = typeof ConnectExtMsg.Type;
 
-const ExternalMessage = Schema.Union(PingExtMsg, ConnectExtMsg);
+const ExternalMessage = Schema.Union([PingExtMsg, ConnectExtMsg]);
 
 export const decodeExternalMessage =
-  Schema.decodeUnknownEither(ExternalMessage);
+  Schema.decodeUnknownResult(ExternalMessage);

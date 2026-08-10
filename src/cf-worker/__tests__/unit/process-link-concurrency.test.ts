@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { it, describe, expect, beforeEach, afterEach } from "@effect/vitest";
-import { Deferred, Effect, Fiber, Layer, Option, Ref } from "effect";
+import { Deferred, Effect, Fiber, Layer, Option, Ref, Semaphore } from "effect";
 
 import {
   makeTestStore,
@@ -35,7 +35,7 @@ const enrichmentStubs = Layer.mergeAll(
   ),
   Layer.succeed(
     EnrichmentGenerator,
-    new EnrichmentGenerator({
+    EnrichmentGenerator.of({
       generate: () =>
         Effect.die(new Error("unexpected EnrichmentGenerator call in test")),
     })
@@ -119,8 +119,8 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
     "a stalled AI summary does not block metadata fetching for another link",
     () =>
       Effect.gen(function* () {
-        const metadataSem = yield* Effect.makeSemaphore(8);
-        const aiSem = yield* Effect.makeSemaphore(1);
+        const metadataSem = yield* Semaphore.make(8);
+        const aiSem = yield* Semaphore.make(1);
 
         const release = yield* Deferred.make<void>();
         const aiStarted = yield* Deferred.make<void>();
@@ -153,10 +153,16 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
             aiSemaphore: aiSem,
           }).pipe(Effect.provide(layers));
 
-        const fiberA = yield* Effect.fork(run(linkA));
+        const fiberA = yield* Effect.forkChild(run(linkA), {
+          startImmediately: true,
+          uninterruptible: "inherit",
+        });
         yield* Deferred.await(aiStarted);
 
-        const fiberB = yield* Effect.fork(run(linkB));
+        const fiberB = yield* Effect.forkChild(run(linkB), {
+          startImmediately: true,
+          uninterruptible: "inherit",
+        });
         yield* Deferred.await(metaB);
 
         expect(
@@ -193,8 +199,8 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
     "metadata permit is released before the AI lane runs (single link)",
     () =>
       Effect.gen(function* () {
-        const metadataSem = yield* Effect.makeSemaphore(1);
-        const aiSem = yield* Effect.makeSemaphore(1);
+        const metadataSem = yield* Semaphore.make(1);
+        const aiSem = yield* Semaphore.make(1);
         const release = yield* Deferred.make<void>();
         const aiStarted = yield* Deferred.make<void>();
 
@@ -217,13 +223,14 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
           enrichmentStubs
         );
 
-        const fiber = yield* Effect.fork(
+        const fiber = yield* Effect.forkChild(
           processLink({
             link: linkA,
             aiSummaryEnabled: true,
             metadataSemaphore: metadataSem,
             aiSemaphore: aiSem,
-          }).pipe(Effect.provide(layers))
+          }).pipe(Effect.provide(layers)),
+          { startImmediately: true, uninterruptible: "inherit" }
         );
 
         yield* Deferred.await(aiStarted);
@@ -241,10 +248,8 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
     "the AI lane never exceeds MAX_CONCURRENT_AI concurrent summaries",
     () =>
       Effect.gen(function* () {
-        const metadataSem = yield* Effect.makeSemaphore(
-          MAX_CONCURRENT_METADATA
-        );
-        const aiSem = yield* Effect.makeSemaphore(MAX_CONCURRENT_AI);
+        const metadataSem = yield* Semaphore.make(MAX_CONCURRENT_METADATA);
+        const aiSem = yield* Semaphore.make(MAX_CONCURRENT_AI);
 
         const release = yield* Deferred.make<void>();
         const capReached = yield* Deferred.make<void>();
@@ -274,13 +279,14 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
 
         const links = seedLinks("ai-cap", MAX_CONCURRENT_AI + 2);
         const fibers = yield* Effect.forEach(links, (link) =>
-          Effect.fork(
+          Effect.forkChild(
             processLink({
               link,
               aiSummaryEnabled: true,
               metadataSemaphore: metadataSem,
               aiSemaphore: aiSem,
-            }).pipe(Effect.provide(layers))
+            }).pipe(Effect.provide(layers)),
+            { startImmediately: true, uninterruptible: "inherit" }
           )
         );
 
@@ -307,10 +313,8 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
     "the metadata lane never exceeds MAX_CONCURRENT_METADATA concurrent fetches",
     () =>
       Effect.gen(function* () {
-        const metadataSem = yield* Effect.makeSemaphore(
-          MAX_CONCURRENT_METADATA
-        );
-        const aiSem = yield* Effect.makeSemaphore(MAX_CONCURRENT_AI);
+        const metadataSem = yield* Semaphore.make(MAX_CONCURRENT_METADATA);
+        const aiSem = yield* Semaphore.make(MAX_CONCURRENT_AI);
 
         const release = yield* Deferred.make<void>();
         const capReached = yield* Deferred.make<void>();
@@ -340,13 +344,14 @@ describe("processLink concurrency (metadata vs AI lanes)", () => {
 
         const links = seedLinks("meta-cap", MAX_CONCURRENT_METADATA + 2);
         const fibers = yield* Effect.forEach(links, (link) =>
-          Effect.fork(
+          Effect.forkChild(
             processLink({
               link,
               aiSummaryEnabled: true,
               metadataSemaphore: metadataSem,
               aiSemaphore: aiSem,
-            }).pipe(Effect.provide(layers))
+            }).pipe(Effect.provide(layers)),
+            { startImmediately: true, uninterruptible: "inherit" }
           )
         );
 

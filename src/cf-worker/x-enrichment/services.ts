@@ -29,11 +29,11 @@ export interface FetchThreadParams {
   readonly url: string;
 }
 
-export class ThreadProvider extends Context.Tag("@cloudstash/ThreadProvider")<
+export class ThreadProvider extends Context.Service<
   ThreadProvider,
   {
     readonly fetchContext: (
       params: FetchThreadParams
     ) => Effect.Effect<ThreadContext, AnyThreadProviderError>;
   }
->() {}
+>()("@cloudstash/ThreadProvider") {}

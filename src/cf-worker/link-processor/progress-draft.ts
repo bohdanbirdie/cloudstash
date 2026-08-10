@@ -18,7 +18,7 @@ const TelegramMeta = Schema.Struct({
 
 type ParsedMeta = typeof TelegramMeta.Type;
 
-const decodeMeta = Schema.decodeOption(Schema.parseJson(TelegramMeta));
+const decodeMeta = Schema.decodeOption(Schema.fromJsonString(TelegramMeta));
 
 export const parseMeta = (sourceMeta: string | null): ParsedMeta | null => {
   if (!sourceMeta) return null;

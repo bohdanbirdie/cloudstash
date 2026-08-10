@@ -47,6 +47,6 @@ export const youtubeExtractor: Extractor = {
       };
     }).pipe(
       Effect.withSpan("extractor.youtube.extract"),
-      Effect.catchAll(() => Effect.succeed(null))
+      Effect.catch(() => Effect.succeed(null))
     ),
 };

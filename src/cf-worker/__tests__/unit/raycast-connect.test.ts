@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer, LogLevel, Logger } from "effect";
+import { Effect, Layer, References } from "effect";
 
 import type { TierCapabilities } from "@/lib/plan";
 import { capabilitiesFor } from "@/lib/plan";
@@ -24,7 +24,7 @@ function makeSessionLayer(result: SessionData | null) {
   });
 }
 
-function makeApiKeyLayer(overrides: Partial<ApiKeyStore["Type"]> = {}) {
+function makeApiKeyLayer(overrides: Partial<ApiKeyStore["Service"]> = {}) {
   return Layer.succeed(ApiKeyStore, {
     listByUser: () => Effect.succeed([]),
     deleteById: () => Effect.void,
@@ -39,7 +39,7 @@ function makeApiKeyLayer(overrides: Partial<ApiKeyStore["Type"]> = {}) {
 }
 
 function makeVerificationLayer(
-  overrides: Partial<VerificationStore["Type"]> = {}
+  overrides: Partial<VerificationStore["Service"]> = {}
 ) {
   return Layer.succeed(VerificationStore, {
     save: () => Effect.void,
@@ -53,7 +53,7 @@ function makeBillingLayer(caps: TierCapabilities = capabilitiesFor("plus")) {
     Effect.die("Billing stub method not implemented in test");
   return Layer.succeed(
     Billing,
-    new Billing({
+    Billing.of({
       capabilities: () => Effect.succeed(caps),
       tier: notImpl,
       subscription: notImpl,
@@ -69,8 +69,8 @@ function makeBillingLayer(caps: TierCapabilities = capabilitiesFor("plus")) {
 function runConnect(
   options: {
     session?: SessionData | null;
-    apiKeyStore?: Partial<ApiKeyStore["Type"]>;
-    verificationStore?: Partial<VerificationStore["Type"]>;
+    apiKeyStore?: Partial<ApiKeyStore["Service"]>;
+    verificationStore?: Partial<VerificationStore["Service"]>;
     caps?: TierCapabilities;
   } = {}
 ) {
@@ -83,15 +83,15 @@ function runConnect(
 
   return handleConnectRequest(new Headers()).pipe(
     Effect.provide(layer),
-    Logger.withMinimumLogLevel(LogLevel.Error)
+    Effect.provideService(References.MinimumLogLevel, "Error")
   );
 }
 
 function runExchange(
   body: { code?: string; deviceName?: string },
   options: {
-    apiKeyStore?: Partial<ApiKeyStore["Type"]>;
-    verificationStore?: Partial<VerificationStore["Type"]>;
+    apiKeyStore?: Partial<ApiKeyStore["Service"]>;
+    verificationStore?: Partial<VerificationStore["Service"]>;
   } = {}
 ) {
   const layer = Layer.mergeAll(
@@ -103,7 +103,7 @@ function runExchange(
 
   return handleExchangeRequest(body).pipe(
     Effect.provide(layer),
-    Logger.withMinimumLogLevel(LogLevel.Error)
+    Effect.provideService(References.MinimumLogLevel, "Error")
   );
 }
 
@@ -308,7 +308,7 @@ describe("handleExchangeRequest", () => {
         keyId: ApiKeyRowId.make("key-id-1"),
       };
 
-      const verificationStore: Partial<VerificationStore["Type"]> = {
+      const verificationStore: Partial<VerificationStore["Service"]> = {
         consumeByIdentifier: (identifier) => {
           calls += 1;
           if (calls === 1 && identifier === "raycast-connect:valid-code") {

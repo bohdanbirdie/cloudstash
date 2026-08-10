@@ -7,7 +7,7 @@ import { runHandler } from "../runtime";
 import type { Env } from "../shared";
 import { WeeklyDigestRpcResult } from "../weekly-digest/rpc";
 
-class DigestRpcError extends Schema.TaggedError<DigestRpcError>()(
+class DigestRpcError extends Schema.TaggedErrorClass<DigestRpcError>()(
   "DigestRpcError",
   {
     message: Schema.String,
@@ -15,7 +15,7 @@ class DigestRpcError extends Schema.TaggedError<DigestRpcError>()(
   }
 ) {}
 
-class DigestRpcDecodeError extends Schema.TaggedError<DigestRpcDecodeError>()(
+class DigestRpcDecodeError extends Schema.TaggedErrorClass<DigestRpcDecodeError>()(
   "DigestRpcDecodeError",
   {
     message: Schema.String,
@@ -23,17 +23,17 @@ class DigestRpcDecodeError extends Schema.TaggedError<DigestRpcDecodeError>()(
   }
 ) {}
 
-class TriggerDigestUnauthorized extends Schema.TaggedError<TriggerDigestUnauthorized>()(
+class TriggerDigestUnauthorized extends Schema.TaggedErrorClass<TriggerDigestUnauthorized>()(
   "TriggerDigestUnauthorized",
   {}
 ) {}
 
-class TriggerDigestMissingOrg extends Schema.TaggedError<TriggerDigestMissingOrg>()(
+class TriggerDigestMissingOrg extends Schema.TaggedErrorClass<TriggerDigestMissingOrg>()(
   "TriggerDigestMissingOrg",
   {}
 ) {}
 
-const decodeRpcResult = Schema.decodeUnknown(WeeklyDigestRpcResult);
+const decodeRpcResult = Schema.decodeUnknownEffect(WeeklyDigestRpcResult);
 
 export const handleTriggerDigest = (
   request: Request,
@@ -51,7 +51,7 @@ export const handleTriggerDigest = (
         return yield* new TriggerDigestUnauthorized();
       }
 
-      const activeOrgId = yield* Option.fromNullable(
+      const activeOrgId = yield* Option.fromNullishOr(
         session.session?.activeOrganizationId
       ).pipe(
         Option.match({
@@ -75,7 +75,7 @@ export const handleTriggerDigest = (
       });
       const result = yield* decodeRpcResult(raw).pipe(
         Effect.catchTag(
-          "ParseError",
+          "SchemaError",
           (e) =>
             new DigestRpcDecodeError({
               cause: e,

@@ -81,7 +81,7 @@ export const getStripeCustomerId = Effect.fn("Billing.getStripeCustomerId")(
         columns: { stripeCustomerId: true },
       })
     );
-    return Option.fromNullable(org?.stripeCustomerId);
+    return Option.fromNullishOr(org?.stripeCustomerId);
   }
 );
 
@@ -120,7 +120,7 @@ export const syncFromStripe = Effect.fn("Billing.syncFromStripe")(function* (
   const subscriptions = yield* stripe.listSubscriptions(customerId);
   const subscription = selectSubscription(subscriptions);
   const item = subscription.pipe(
-    Option.flatMapNullable((s) => s.items.data[0])
+    Option.flatMapNullishOr((s) => s.items.data[0])
   );
   const keepsTier = subscription.pipe(
     Option.exists((s) => ACTIVE_SUBSCRIPTION_STATUSES.has(s.status))
@@ -130,7 +130,7 @@ export const syncFromStripe = Effect.fn("Billing.syncFromStripe")(function* (
     ? "free"
     : yield* Option.match(
         item.pipe(
-          Option.flatMapNullable((i) =>
+          Option.flatMapNullishOr((i) =>
             stripe.tierForPrice(StripePriceId.make(i.price.id))
           )
         ),

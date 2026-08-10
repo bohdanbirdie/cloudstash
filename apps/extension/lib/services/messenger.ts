@@ -1,22 +1,22 @@
-import { Context, Effect, Either, Layer, Schema, Stream } from "effect";
+import { Context, Effect, Layer, Queue, Result, Schema, Stream } from "effect";
 
 import { MessengerError } from "../errors";
 import { decodeExtMessage } from "../messages";
 import type { ExtMessage } from "../messages";
 
-export class Messenger extends Context.Tag("@ext/Messenger")<
+export class Messenger extends Context.Service<
   Messenger,
   {
     readonly send: (
       message: ExtMessage
     ) => Effect.Effect<unknown, MessengerError>;
-    readonly request: <S extends Schema.Schema.AnyNoContext>(
+    readonly request: <A, I>(
       message: ExtMessage,
-      replySchema: S
-    ) => Effect.Effect<Schema.Schema.Type<S>, MessengerError>;
+      replySchema: Schema.Codec<A, I>
+    ) => Effect.Effect<A, MessengerError>;
     readonly listen: Stream.Stream<ExtMessage, MessengerError>;
   }
->() {
+>()("@ext/Messenger") {
   static readonly layer = Layer.sync(Messenger, () => {
     const send = (message: ExtMessage) =>
       Effect.tryPromise({
@@ -24,29 +24,35 @@ export class Messenger extends Context.Tag("@ext/Messenger")<
         catch: (cause) => new MessengerError({ cause }),
       }).pipe(Effect.withSpan("Messenger.send"));
 
-    const request = <S extends Schema.Schema.AnyNoContext>(
+    const request = <A, I>(
       message: ExtMessage,
-      replySchema: S
+      replySchema: Schema.Codec<A, I>
     ) =>
       send(message).pipe(
         Effect.flatMap((reply) =>
-          Schema.decodeUnknown(replySchema)(reply).pipe(
+          Schema.decodeUnknownEffect(replySchema)(reply).pipe(
             Effect.mapError((cause) => new MessengerError({ cause }))
           )
         ),
         Effect.withSpan("Messenger.request")
       );
 
-    const listen = Stream.async<ExtMessage, MessengerError>((emit) => {
-      const handler = (msg: unknown) => {
-        const decoded = decodeExtMessage(msg);
-        if (Either.isRight(decoded)) void emit.single(decoded.right);
-      };
-      chrome.runtime.onMessage.addListener(handler);
-      return Effect.sync(() =>
-        chrome.runtime.onMessage.removeListener(handler)
-      );
-    });
+    const listen = Stream.callback<ExtMessage, MessengerError>((queue) =>
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          const handler = (msg: unknown) => {
+            const decoded = decodeExtMessage(msg);
+            if (Result.isSuccess(decoded)) {
+              Queue.offerUnsafe(queue, decoded.success);
+            }
+          };
+          chrome.runtime.onMessage.addListener(handler);
+          return handler;
+        }),
+        (handler) =>
+          Effect.sync(() => chrome.runtime.onMessage.removeListener(handler))
+      )
+    );
 
     return Messenger.of({ send, request, listen });
   });

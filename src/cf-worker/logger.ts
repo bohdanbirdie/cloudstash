@@ -1,17 +1,12 @@
-import { Effect, Logger, LogLevel } from "effect";
+import { Effect, Logger, References } from "effect";
 
 export const createLogger = (component: string) =>
-  Logger.make(({ logLevel, message, annotations, date }) => {
-    const level = logLevel._tag;
-
-    const allAnnotations: Record<string, unknown> = {};
-    for (const [key, value] of annotations) {
-      allAnnotations[key] = value;
-    }
+  Logger.make(({ logLevel, message, fiber, date }) => {
+    const annotations = fiber.getRef(References.CurrentLogAnnotations);
 
     const annotationsStr =
-      Object.keys(allAnnotations).length > 0
-        ? ` ${JSON.stringify(allAnnotations)}`
+      Object.keys(annotations).length > 0
+        ? ` ${JSON.stringify(annotations)}`
         : "";
 
     let msg: string;
@@ -25,11 +20,11 @@ export const createLogger = (component: string) =>
       msg = JSON.stringify(message);
     }
 
-    const output = `[${date.toISOString()}] [${component}] [${level}] ${msg}${annotationsStr}`;
+    const output = `[${date.toISOString()}] [${component}] [${logLevel}] ${msg}${annotationsStr}`;
 
-    if (logLevel === LogLevel.Error) {
+    if (logLevel === "Error") {
       console.error(output);
-    } else if (logLevel === LogLevel.Warning) {
+    } else if (logLevel === "Warn") {
       console.warn(output);
     } else {
       console.log(output);
@@ -40,9 +35,7 @@ export const runWithLogger =
   (component: string) =>
   <A, E>(effect: Effect.Effect<A, E>): Promise<A> =>
     effect.pipe(
-      Effect.provide(
-        Logger.replace(Logger.defaultLogger, createLogger(component))
-      ),
+      Effect.provide(Logger.layer([createLogger(component)])),
       Effect.runPromise
     );
 
@@ -50,8 +43,7 @@ export const runWithLogger =
  * Sync logger for non-Effect contexts (callbacks, middlewares)
  */
 export const logSync = (component: string) => {
-  const logger = createLogger(component);
-  const withLogger = Logger.replace(Logger.defaultLogger, logger);
+  const withLogger = Logger.layer([createLogger(component)]);
 
   return {
     debug: (message: string, annotations?: Record<string, unknown>) =>

@@ -41,7 +41,7 @@ export const recordActivity = (
               Effect.annotateLogs(safeErrorInfo(cause))
             )
           ),
-          Effect.catchAll(() => Effect.void)
+          Effect.catch(() => Effect.void)
         ),
       { discard: true }
     ).pipe(Effect.provide(AppLayerLive(env)))

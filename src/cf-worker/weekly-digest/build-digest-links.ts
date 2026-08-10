@@ -1,4 +1,4 @@
-import { Array as A, HashMap, Option, pipe } from "effect";
+import { Array as A, HashMap, Option, Result, pipe } from "effect";
 
 import type { LinkId, TagId } from "../db/branded";
 import type { DigestLinkInput } from "./generator";
@@ -103,7 +103,7 @@ export function buildDigestLinks(
   return A.filterMap(recent, (link) =>
     pipe(
       HashMap.get(latestSnapshot, link.id),
-      Option.flatMap((snap) => Option.fromNullable(snap.title)),
+      Option.flatMap((snap) => Option.fromNullishOr(snap.title)),
       Option.map((title) => ({
         domain: link.domain,
         summary: pipe(
@@ -117,7 +117,8 @@ export function buildDigestLinks(
         ),
         title,
         url: link.url,
-      }))
+      })),
+      Result.fromOption(() => null)
     )
   );
 }

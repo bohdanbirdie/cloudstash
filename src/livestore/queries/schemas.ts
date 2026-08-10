@@ -1,4 +1,5 @@
 import { Schema } from "@livestore/livestore";
+import { SchemaTransformation } from "effect";
 
 export const TagSchema = Schema.Struct({
   id: Schema.String,
@@ -114,11 +115,15 @@ export type SearchResult = typeof SearchResultSchema.Type;
 
 export const searchResultsSchema = Schema.Array(SearchResultSchema);
 
-export const linkByIdSchema = Schema.transform(
-  Schema.Array(LinkWithDetailsSchema),
-  Schema.NullOr(LinkWithDetailsSchema),
-  {
-    decode: (arr) => arr[0] ?? null,
-    encode: (item) => (item ? [item] : []),
-  }
+export const linkByIdSchema = Schema.Array(LinkWithDetailsSchema).pipe(
+  Schema.decodeTo(
+    Schema.NullOr(LinkWithDetailsSchema),
+    SchemaTransformation.transform<
+      LinkWithDetails | null,
+      ReadonlyArray<LinkWithDetails>
+    >({
+      decode: (arr) => arr[0] ?? null,
+      encode: (item) => (item ? [item] : []),
+    })
+  )
 );

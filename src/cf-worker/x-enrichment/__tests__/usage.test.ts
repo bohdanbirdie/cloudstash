@@ -1,4 +1,4 @@
-import { Effect, Either } from "effect";
+import { Effect, Result } from "effect";
 import { describe, expect, it } from "vitest";
 
 import { OrgId } from "../../db/branded";
@@ -49,7 +49,7 @@ const runWithKv = <A, E>(
 const runEitherWithKv = <A, E>(
   kv: FakeKv,
   effect: Effect.Effect<A, E, EnrichmentUsage>
-) => runWithKv(kv, Effect.either(effect));
+) => runWithKv(kv, Effect.result(effect));
 
 describe("EnrichmentUsage", () => {
   const orgId = OrgId.make("org-1");
@@ -147,10 +147,10 @@ describe("EnrichmentUsage", () => {
       kv,
       EnrichmentUsage.pipe(Effect.flatMap((u) => u.current(orgId)))
     );
-    expect(Either.isLeft(result)).toBe(true);
-    if (Either.isLeft(result)) {
-      expect(result.left._tag).toBe("EnrichmentUsageGetError");
-      expect(result.left).toMatchObject({ storeId: orgId });
+    expect(Result.isFailure(result)).toBe(true);
+    if (Result.isFailure(result)) {
+      expect(result.failure._tag).toBe("EnrichmentUsageGetError");
+      expect(result.failure).toMatchObject({ storeId: orgId });
     }
   });
 
@@ -161,10 +161,10 @@ describe("EnrichmentUsage", () => {
       kv,
       EnrichmentUsage.pipe(Effect.flatMap((u) => u.increment(orgId)))
     );
-    expect(Either.isLeft(result)).toBe(true);
-    if (Either.isLeft(result)) {
-      expect(result.left._tag).toBe("EnrichmentUsagePutError");
-      expect(result.left).toMatchObject({ storeId: orgId });
+    expect(Result.isFailure(result)).toBe(true);
+    if (Result.isFailure(result)) {
+      expect(result.failure._tag).toBe("EnrichmentUsagePutError");
+      expect(result.failure).toMatchObject({ storeId: orgId });
     }
   });
 });

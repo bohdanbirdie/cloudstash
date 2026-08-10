@@ -1,10 +1,11 @@
+import { execSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// The vendored livestore fork (committed git submodule) is the source of
+// The vendored upstream livestore (committed git submodule) is the source of
 // livestore code for dev, tests, and production builds — local == prod.
 const PKGS = path.resolve(__dirname, "../vendor/livestore/packages/@livestore");
 
@@ -36,8 +37,28 @@ const PLATFORM_CONDITIONS = new Set([
 type AliasEntry = { find: RegExp; replacement: string };
 
 /**
+ * Build provenance marker (matrix row 10): `vendored@<sha>` when the alias is
+ * active, `"published"` otherwise. Injected as `__LIVESTORE_BUILD__` via Vite
+ * `define` and asserted post-build by scripts/verify-bundle.ts — an alias
+ * regression silently shipping the published snapshot fails the build.
+ */
+export function livestoreBuildValue(): string {
+  if (!LIVESTORE_LOCAL) return "published";
+  const sha = execSync("git rev-parse --short HEAD", {
+    cwd: path.resolve(__dirname, "../vendor/livestore"),
+  })
+    .toString()
+    .trim();
+  return `vendored@${sha}`;
+}
+
+export function livestoreBuildDefine(): Record<string, string> {
+  return { __LIVESTORE_BUILD__: JSON.stringify(livestoreBuildValue()) };
+}
+
+/**
  * Vite resolve config that redirects every @livestore/* entrypoint to the
- * vendored fork source (read from each package's `exports` map) and dedupes
+ * vendored submodule source (read from each package's `exports` map) and dedupes
  * `effect`, `react`, and `react-dom` so Effect layers and the React instance
  * stay identical across the cloudstash/livestore boundary. The submodule pins
  * its own react (devDep) in its pnpm store; without dedupe the vendored
