@@ -24,8 +24,11 @@ clean, test:ext 11/11, build:local green, lockfile evicts the entire
 v3/fork subtree; user granted full-trust autonomy for the extension
 stages, migration-only constraint — zero functionality change) and the
 gates flipped back (E2: 3 CI steps restored, publish-extension guard
-removed). Verify CI GREEN on the E2 push — the FIRST run with the
-extension steps live. **Branch is MERGE-READY once that run is green.**
+removed). CI GREEN on `03f3215` (E2b cooldown-excludes fix — the first
+E2 run failed frozen install, see decision #1's correction): quality +
+test + Workers Builds all pass, with the three extension steps
+(postinstall/compile/test:ext) confirmed EXECUTED on the runners.
+**Branch is MERGE-READY.**
 Remaining: optional pre-G4 hibernation GB-s baseline (user's CF auth) →
 merge PR #82 (no rebase needed — main unmoved at `8e36bf3`; re-check at
 merge) → G4 cutover per the documented expectations (schema-hash warn
@@ -122,8 +125,8 @@ review EXECUTED — Reviewer A (fable, correctness): **MERGE-READY, zero
 unrecorded behavior deltas** (high-risk claims probe-confirmed); Reviewer
 B (opus, completeness): mechanically clean core, findings F1–F11 →
 dispositions in step 11's Executed block; fix batch applied same day and
-committed (`3e45680`), extension addendum E1/E2 followed. Remaining: CI
-green on the E2 push → merge PR #82 = atomic landing.
+committed (`3e45680`), extension addendum E1/E2/E2b followed with CI
+green on `03f3215`. Remaining: merge PR #82 = atomic landing.
 
 **Stage 6 fast-follows (already queued):** Web Store publish of the
 migrated extension (user-triggered, post-merge); `bun update wxt` (dedupes
@@ -145,7 +148,8 @@ explicit user sanction (exactly one granted so far). All commits so far:
 (closes Stage 3/G1) → `e5c099e` Stage-4 battery (closes G2) → `ed89bfd`
 parked decisions → `3e45680` final-review fix batch (closes Stage 5's
 review fixes) → `583ddaf` extension E1 (apps/extension → v4 + upstream
-pins) → extension gates E2 (HEAD).
+pins) → `fea8f75` extension gates E2 → `03f3215` cooldown excludes E2b
+(CI green, extension steps live).
 
 ## Progress at a glance
 
@@ -160,7 +164,7 @@ Cycle per unit: Fable/Opus executor subagent → independent reviewer subagent
 | 3 — Cluster burndown (~8 units)                   | ✅ 8/8 | below                 |
 | 4 — Validation battery                            | ✅     | `e5c099e`             |
 | 5 — Final dual review + rebase + merge            | 🔄     | `3e45680`             |
-| 5b — Extension addendum (E1 migrate + E2 gates)   | ✅     | `583ddaf` + HEAD      |
+| 5b — Extension addendum (E1/E2/E2b, CI green)     | ✅     | `583ddaf`…`03f3215`   |
 | 6 — Fast-follows (#722, publish, fork retirement) | ⬜     |                       |
 
 Stage 3 units: RG-codemod corrections ✅ `bd09696` · C2 foundation ✅
