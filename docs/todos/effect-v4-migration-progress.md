@@ -13,16 +13,16 @@ risk, independently researched, reconciled below).
 ## SESSION HANDOFF (2026-08-10) — resume exactly here
 
 **Working state:** branch `feat/effect-v4-livestore-upstream`, HEAD =
-`c919c1f` (C6). The ENTIRE residual-sweep unit is **UNCOMMITTED** in the
-working tree (~31 files: typecheck stabilization incl. vite 8.0.3→8.0.14 pin
-
-- `src/cloudflare-workers-types-bridge.d.ts` + workers-types override +
-  bun.lock; `__LIVESTORE_BUILD__` marker + `scripts/verify-bundle.ts` wired
-  into build; sanctioned workflow.test assertion fix; fork-integration doc
-  truth-up; post-review fixes to `src/cf-worker/chat-agent/index.ts` +
-  `scripts/check-pricing.ts`; this tracker). Last full battery on this exact
-  tree: `bun run check` green, `bun run typecheck` 0×3, unit **1292/1292**,
-  e2e **52 passed / 3 pre-existing skips**.
+`265fd3e` (the Stage-3-closing residual-sweep commit, parent `c919c1f` —
+Stage 3 + gate G1 CLOSED). Stage 4's locally-automatable battery is
+EXECUTED and receipted (see "Step 10 receipts (2026-08-10)" below), then
+RG-reviewed; uncommitted in the working tree: this tracker + the new
+row-7 probe `src/cf-worker/__tests__/e2e/layer-memoization.test.ts`
+(slimmed to its one genuine detector per RG review) — awaiting user
+review. Last full battery on `265fd3e` + probe: `bun run check` green,
+`bun run typecheck` 0, unit **1292/1292**, e2e **7 files / 53 passed / 3
+pre-existing skips**, upstream hibernation suites **2/2 on node 22**,
+`bun run build` + verify-bundle all 5 asserts green.
 
 **RESOLVED (2026-08-10, post-compact):** the user's "not sure it's clean
 enough" concern about the chat-agent single-flight guard was settled by
@@ -57,26 +57,38 @@ unit 1292/1292, e2e 52/3-skip).
    resurrection race the recovery wiring widened): out of migration scope;
    needs a kanban/deletion-doc entry. Not yet filed anywhere but this doc.
 
-**Stage 4 (next after the residual-sweep commit) — remaining battery:**
+**Stage 4 — local battery DONE 2026-08-10 (all receipts in the _Step 10
+receipts_ section):** full battery green on `265fd3e` (check clean,
+typecheck 0, unit 1292/1292, e2e 52/3-skip → 57/3-skip with the new
+probe); upstream hibernation suites PASSED in the submodule (2/2 — the
+node ≥24 caveat did not bite, no engines gate on the test package); matrix
+row 7's 2-sequential-requests e2e WRITTEN and green (new
+`src/cf-worker/__tests__/e2e/layer-memoization.test.ts`, 5/5 — layer
+identity stable across request windows, services rebuild per provide,
+PUT-visible-to-request-2); `bun run build` verify-bundle all-pass (marker
+`vendored@2e4bcfc68` ×1, `3.21.2` ×0, msgpackr fallback ×3, react
+`[19.2.6]` singleton); extension compat smoke's locally-automatable share
+done (server-surface suites 115/115, response-shape contract match,
+storage-format-6 parity, WS-schema statics between extension pin
+`6e9abadf4` and `2e4bcfc68`).
 ~~`LIVESTORE_PUBLISHED=1` full A/B pass~~ — DROPPED (user decision
 2026-08-10): fork-era rationale is dead (published pins == submodule SHA,
 the published lane never ships, "mine or livestore's?" A/B is meaningless
 on identical code); the marker's bidirectional self-validation was already
 receipted in step 9 and the `bun run build` marker assert covers silent
-alias regression on every build. Upstream hibernation suites inside the
-submodule (`tests/sync-provider/src/do-hibernation.test.ts` +
-`do-rpc-hibernation.test.ts`; caveat: upstream wants node ≥24, local is
-v22.23.1); Layer-memoization request-count probe (matrix row 7 — C2 probes
-covered the unit-level claim, the 2-sequential-requests e2e is unwritten);
-matrix row 2's reverse direction on REAL rows is DONE by construction (C3
-goldens + reviewer's v3 byte-round-trip) but re-check the row-2 fixture
-test wish-list; extension compat smoke (matrix row 8, G3); THEN pushing the
-branch (Workers Builds preview) — **outward-facing, user's call**; G3
-preview smoke MUST include chat-agent live-pull (zero test coverage — the
-`syncUpdateRpc` path is verified by review only). Pre-G4: capture the
-hibernation GB-s baseline (GraphQL duration method from the 2026-06-11
-incident doc; `scripts/do-metrics.sh` can NOT produce it). Post-G4: remove
-the `liveLongTimers` probe, re-verify GB-s vs baseline.
+alias regression on every build.
+**Stage 4 remaining (outward-facing / user's call):** matrix row 2's
+reverse direction on REAL rows is DONE by construction (C3 goldens +
+reviewer's v3 byte-round-trip) but re-check the row-2 fixture test
+wish-list; `bun run clean:local-state` + dev-server restart (user-side);
+THEN pushing the branch (Workers Builds preview); G3 preview smoke MUST
+include chat-agent live-pull (zero test coverage — the `syncUpdateRpc`
+path is verified by review only), the published v3 extension against the
+preview (WS envelope + graceful OPFS queuing — not provable locally), and
+the preview ingest smoke (matrix row 5). Pre-G4: capture the hibernation
+GB-s baseline (GraphQL duration method from the 2026-06-11 incident doc;
+`scripts/do-metrics.sh` can NOT produce it). Post-G4: remove the
+`liveLongTimers` probe, re-verify GB-s vs baseline.
 
 **Stage 5:** rebase on main (check if main moved; regenerate the codemod
 commit via the recorded invocation if it conflicts), final DUAL full-diff
@@ -184,10 +196,11 @@ cliffs removed — see the 2026-08-10 Decisions + Found issues).
       playbook commits skimmed (2026-08-09)
 - [x] **G1 — flip branch red→green (2026-08-10):** world flip landed, codemod run, all
       clusters migrated, `bun run check` + `bun run typecheck` green
-- [ ] **G2 — tests green:** `test:unit` + `test:e2e` (incl. eviction e2e +
-      new wire-format tests), upstream hibernation suites in the submodule
-      (`LIVESTORE_PUBLISHED=1` A/B pass dropped — user decision 2026-08-10,
-      see Stage 4 note in the handoff section)
+- [x] **G2 — tests green (2026-08-10):** `test:unit` 1292/1292 + `test:e2e`
+      7 files / 53 passed / 3 pre-existing skips (incl. eviction e2e +
+      wire-format tests + row-7 probe), upstream hibernation suites in the
+      submodule 2/2 on node 22 (`LIVESTORE_PUBLISHED=1` A/B pass dropped —
+      user decision 2026-08-10, see Stage 4 note in the handoff section)
 - [ ] **G3 — build + preview validated:** local `bun run build` + bundle
       asserts, preview deploy smoke (DO sync + browser store + extension compat)
 - [ ] **G4 — prod cutover:** deploy, hibernation GB-s re-verified vs baseline,
@@ -959,6 +972,10 @@ build` also works with the env since every chained script inherits it)
         ONLY via pushing the branch (Workers Builds `versions upload`) — never
         local remote wrangler.
         **Done-when:** every line has a recorded receipt (command + result) below.
+        **Executed (2026-08-10): DONE — all receipts recorded in the
+        _Step 10 receipts (2026-08-10)_ section right below this list**
+        (kept out of this list item: the markdown formatter cannot
+        round-trip nested bullets under a two-digit ordered item).
 
 11. [ ] **Final gate — full-diff review, rebase, merge.**
         Rebase on main (regenerate commit 2 via the recorded codemod invocation if
@@ -970,6 +987,95 @@ build` also works with the env since every chained script inherits it)
         `mapChunks`, `FiberRef`, `Effect.either(`; no codemod TODOs; docs updated;
         every step-10 receipt exists). Both clean (or accepted-with-rationale) →
         merge. Post-merge: G4/G5 prod items per the strategy doc.
+
+### Step 10 receipts (2026-08-10)
+
+Stage-4 battery on HEAD `265fd3e`; the only tree changes are the new row-7
+probe file and this tracker.
+
+- `bun run clean:local-state` + dev-server restart: left to the user
+  (agent-forbidden); everything below ran without it.
+- `bun run check`: PASS — format 1148 files, lint 0 errors / 0 warnings in
+  622 files, check:effect 0/0/0 in 574 files.
+- `bun run typecheck`: PASS — exit 0, zero errors; re-run after adding the
+  row-7 probe file: still zero.
+- `bun run test:unit`: PASS — 93 files, **1292/1292**.
+- `bun run test:e2e`: PASS — 6/6 files, **52 passed / 3 skipped**
+  (pre-existing describe.skip durability suites; known miniflare workflows
+  stderr noise unchanged, all assertions green). With the new row-7 file
+  (post-RG slim): **7/7 files, 53 passed / 3 skipped**.
+- **Upstream hibernation suites (matrix row 4): PASS.** In
+  `vendor/livestore/tests/sync-provider`:
+  `pnpm exec vitest run src/do-hibernation.test.ts src/do-rpc-hibernation.test.ts`
+  → 2 files / 2 tests passed (~46s test time). The node ≥24 caveat did NOT
+  bite: `@local/tests-sync-provider` has no `engines` gate and vitest 4.1.9
+  runs fine on local node v22.23.1 (the install-time warnings were
+  example-package-only). Submodule tree verified clean after the run.
+- **Matrix row 7 e2e (layer memoization): DONE (partial — scoped
+  honestly per RG review).** New
+  `src/cf-worker/__tests__/e2e/layer-memoization.test.ts`, slimmed after
+  the RG pass to its ONE genuine detector: a `runHandler` probe capturing
+  the `Billing` service instance on two sequential runs asserts two
+  DISTINCT instances — `runHandler` provides the SAME memoized
+  `getAppLayer(env)` object both times, so distinct services prove v4
+  still rebuilds services per top-level provide (fresh MemoMap), pinning
+  row 7's silent-failure mode: frozen per-isolate singletons would
+  compare identical. What is NOT asserted, and why: layer-OBJECT reuse
+  across requests holds by construction (the `runtime.ts:16` WeakMap —
+  the RG review showed identity assertions through a test-supplied `env`
+  are tautologies, so the executor's original 4 such tests were dropped);
+  prod per-request `env` identity in workerd is not established by any
+  local test (benign failure direction: extra rebuilds, never stale
+  singletons); `getBillingLayer`
+  (`billing/routes/runtime.ts:19`, row 7's second WeakMap) is not
+  exported and stays review-verified; ~20 call sites invoke
+  `AppLayerLive(env)` directly bypassing `getAppLayer` (queue-handler,
+  ingest, sync, connect/\*, x-sync, account-deletion workflow, auth) —
+  row 7's "audit module-scope layers closing over env" leg is
+  review-only, source-audited during C2, not probed.
+- `bun run build` (matrix rows 5, 6, 10): PASS — verify-bundle output
+  verbatim:
+  `ok  livestore build marker (quoted "vendored@2e4bcfc68" x1, expected x1)`,
+  `ok  no effect v3 in worker bundle ("3.21.2" x0, expected x0)`,
+  `ok  msgpackr CF-Workers fallback present ("inlineObjectReadThreshold" x3, expected >=1)`,
+  `ok  no msgpackr-extract native binding ("msgpackr-extract" x0, expected x0)`,
+  `ok  react singleton in client bundle (react-major version strings: [19.2.6], expected exactly [19.2.6])`,
+  `verify-bundle: all assertions passed`; prerender completed (/, /privacy,
+  /terms, /contact + SPA shell).
+- **Extension compat smoke (matrix row 8) — locally automatable share
+  DONE:** ① server-side suites covering the published extension's exact
+  HTTP surface — `connect/__tests__/extension.test.ts` (connect + account +
+  disconnect handlers), `sync/__tests__/validate-payload.test.ts` (the WS
+  `syncPayload {apiKey}` lane), `auth-payload.test.ts`,
+  `event-wire-format.test.ts` (the v3-encoded goldens generated with the
+  extension's own effect 3.21.2) → 4 files / **115 tests green**; ②
+  response-shape contract re-read on both sides —
+  `{ user: { name, image } }` plus 401 semantics match the extension's
+  `AccountBody` decoder and logout-on-401; ③
+  `liveStoreStorageFormatVersion = 6` at BOTH the extension's pinned
+  snapshot `6e9abadf4` (dist) and vendor `2e4bcfc68` (src); ④ static
+  WS-protocol diff (submodule
+  `git diff 6e9abadf4 2e4bcfc68 -- packages/@livestore/sync-cf/src/common/`),
+  full enumeration per RG re-read: `.annotations()` → `.annotate()`,
+  `Schema.Union(…)` → `Union([…])`, `Schema.JsonValue` → `Schema.Json`
+  (×6, every rpc `payload` field), `Schema.Literal('http','ws')` →
+  `Schema.Literals([…])`, export rename `splitChunkBySize` →
+  `splitArrayBySize`, and ONE structural loosening:
+  `SearchParamsSchema.payload` went `UndefinedOr` (required but
+  undefinable) → `Schema.optional` — that field is the connect-URL query
+  string the v3 extension encodes, the decode pipeline is equivalent
+  (uri-component → JSON) and optionality only loosens the server side, so
+  compat holds. Every wire tag string, field name, and union membership
+  is otherwise identical.
+  NOT provable locally (G3 preview smoke): the effect-rpc WS envelope
+  between the published v3 client and the v4 server at runtime, graceful
+  local-OPFS queuing on mismatch, v4-extension OPFS drain, chat-agent
+  live-pull.
+- `LIVESTORE_PUBLISHED=1` A/B pass: DROPPED (user decision 2026-08-10,
+  recorded above) — not run, per that decision.
+- G2's constituents (unit, e2e incl. the eviction probe + wire-format
+  tests, upstream hibernation suites) are now all receipted — the gate
+  flip is left to the user/orchestrator.
 
 ## Cluster checklist
 
@@ -1042,20 +1148,20 @@ Inventory taken 2026-08-09 against working tree (`main`, 8e36bf3). **Effect surf
 
 ## Verification matrix
 
-| #   | Risk                                                                          | Silent-failure mode                                                                                                                                                               | Concrete check                                                                                                                                                                                                                                                                                                                                                                                                                  | Gate    |
-| --- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- |
-| 1   | v4 changed `Schema.Date` wire encoding (vendor `ddd1aa16c`)                   | v4 store fails to decode existing eventlog `args` (materializer ParseError), or writes an encoding v3 can't read after rollback; server stores `args` opaquely so no server error | Sweep wire `Schema.Date` → `Schema.DateFromString.check(Schema.isDateValid())`; audit the 12 `Schema.DateFromNumber` columns stay epoch-number. New `src/livestore/__tests__/event-wire-format.test.ts`: encode every event against **golden JSON captured on `main` (v3) first**; flip branch must pass identical goldens                                                                                                      | G2      |
-| 2   | Eventlog replay of real rows (both directions)                                | Goldens can miss fields; only real rows prove it                                                                                                                                  | New pool-workers e2e `eventlog-format-compat.test.ts`: seed SyncBackendDO storage with fixture rows exported from `.wrangler/state/v3/do/cloudstash-SyncBackendDO/*.sqlite` (fork-written `eventlog_7_*` + `context_7` incl. `backendId`), boot LP client, assert materialized links + no `BackendIdMismatchError`. Reverse: flip-branch-written rows replayed on `main` **before** cutover                                     | G2      |
-| 3   | DO persistence format drift                                                   | A version bump (7→8) on a later pinned SHA silently orphans prod `eventlog_7_*` — v4 serves an empty log, clients fork                                                            | Verified at `2e4bcfc68`: version 7 both sides; upstream deleted `rpc_subscription_7` (clean orphan) → KV keys `rpc-sub:*`. **Hard checklist item keyed to the FINAL SHA:** `git -C vendor/livestore diff 36dd15dac <finalSHA> -- packages/@livestore/sync-cf/src/cf-worker/do/sqlite.ts packages/@livestore/sync-cf/src/cf-worker/shared.ts` — version still 7, table names unchanged                                           | G2      |
-| 4   | Hibernation regression from the fiber-runtime rewrite                         | Idle SyncBackendDO bills full residency again (~1,300×); nothing functional breaks                                                                                                | v4 `Effect.never` verified timer-less (`callback(constVoid)`); upstream parks on `Layer.launch`/`Stream.never`. Run upstream's `tests/sync-provider/src/do-hibernation.test.ts` + `do-rpc-hibernation.test.ts` in the submodule at the pinned SHA. Keep + **extend the `liveLongTimers` probe to wrap `setTimeout`**. Post-cutover: `type:hibernation` GB-s vs the day-before baseline                                          | G2 + G4 |
-| 5   | msgpackr eval under Workers CSP after dropping the `@effect/rpc` patch        | First record-struct decode on the LP↔SB DO-RPC path throws "Code generation from strings disallowed" in prod only                                                                 | Verified: effect v4 statically imports `msgpackr@2.0.4` (no `index-no-eval`), do-rpc still uses `RpcSerialization.msgPack`, BUT msgpackr 2.0.4 has a CF-Workers fallback (`inlineObjectReadThreshold = Infinity`). Checks: e2e do-rpc pass in workerd (codegen forbidden like prod); post-build `grep -c "inlineObjectReadThreshold" dist/cloudstash/index.js` ≥ 1 and `grep -c "msgpackr-extract" …` = 0; preview ingest smoke | G2 + G3 |
-| 6   | Dual effect (or react) copies in the prod bundle                              | Broken `Context`/`Layer` identity at runtime only; typecheck green (PR #80 class)                                                                                                 | Post-build assert **inside `bun run build`**: exactly one `moduleVersion = "` hit, zero `3.21.2` hits, react singleton grep                                                                                                                                                                                                                                                                                                     | G2      |
-| 7   | v4 global Layer memoization changes instantiation counts                      | Module-scope layers (`Billing.Default`, `AppSettings.Default`, `OtelTracingLive`) become per-isolate singletons; a service capturing request-1 context serves request-2           | Unit test: `Layer.effect` build-counter provided via two separate `Effect.runPromise(Effect.provide(…))` calls; assert + document the v4 count. E2e: two sequential authed requests in one isolate through billing/settings. Audit module-scope layers closing over `env`                                                                                                                                                       | G2      |
-| 8   | Deployed v3 clients vs v4 server (published Chrome extension + open SPA tabs) | Extension/tabs silently stop syncing after cutover; saves queue local-only in OPFS                                                                                                | G3: run the current published extension against the preview backend — confirm clean local queuing; confirm the v4 extension build reads v3-written OPFS (`liveStoreStorageFormatVersion = 6` both refs — verified) and drains the queue. Submit the v4 extension to the Web Store **before** prod cutover. G4: watch push deliveries + extension errors through the window                                                      | G3 + G4 |
-| 9   | Test harness self-destruction (`@effect/vitest` 0.29 → beta.99)               | Tests pass vacuously or the pool won't boot                                                                                                                                       | Peers verified compatible (`vitest ^3                                                                                                                                                                                                                                                                                                                                                                                           |         | ^4`; ours 4.1.7; pool-workers peer `^4.1.0`). After the bump: temporarily flip one assertion per suite family to confirm failures still fail; full unit + e2e | G2  |
-| 10  | From-source build marker died with the fork                                   | Alias regression silently ships the published snapshot                                                                                                                            | Vite define when alias active: `__LIVESTORE_BUILD__ = "vendored@<sha>"`; post-build grep = 1, and = 0 under `LIVESTORE_PUBLISHED=1` (validates the marker itself)                                                                                                                                                                                                                                                               | G2      |
-| 11  | OTel layer compile break (`@effect/opentelemetry` 0.63 → beta)                | None at runtime — `OtelTracingLive` is currently a no-op (exporter disabled)                                                                                                      | Typecheck against the beta subpaths or migrate to `effect/unstable/observability` (vendor re-exports `Otlp`). "Validate traces on preview" is vacuous until the exporter is re-enabled — separate post-swap item                                                                                                                                                                                                                | G2      |
-| 12  | Un-revertable side effects riding the flip PR                                 | Rollback restores code but the deploy command's `d1 migrations apply --remote` already mutated D1                                                                                 | **The flip PR must contain zero D1 migrations** (migrations-dir diff empty); anything needing D1 lands in a separate earlier PR                                                                                                                                                                                                                                                                                                 | G2      |
+| #   | Risk                                                                          | Silent-failure mode                                                                                                                                                               | Concrete check                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Gate    |
+| --- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- |
+| 1   | v4 changed `Schema.Date` wire encoding (vendor `ddd1aa16c`)                   | v4 store fails to decode existing eventlog `args` (materializer ParseError), or writes an encoding v3 can't read after rollback; server stores `args` opaquely so no server error | Sweep wire `Schema.Date` → `Schema.DateFromString.check(Schema.isDateValid())`; audit the 12 `Schema.DateFromNumber` columns stay epoch-number. New `src/livestore/__tests__/event-wire-format.test.ts`: encode every event against **golden JSON captured on `main` (v3) first**; flip branch must pass identical goldens                                                                                                                                                                                                                                                  | G2      |
+| 2   | Eventlog replay of real rows (both directions)                                | Goldens can miss fields; only real rows prove it                                                                                                                                  | New pool-workers e2e `eventlog-format-compat.test.ts`: seed SyncBackendDO storage with fixture rows exported from `.wrangler/state/v3/do/cloudstash-SyncBackendDO/*.sqlite` (fork-written `eventlog_7_*` + `context_7` incl. `backendId`), boot LP client, assert materialized links + no `BackendIdMismatchError`. Reverse: flip-branch-written rows replayed on `main` **before** cutover                                                                                                                                                                                 | G2      |
+| 3   | DO persistence format drift                                                   | A version bump (7→8) on a later pinned SHA silently orphans prod `eventlog_7_*` — v4 serves an empty log, clients fork                                                            | Verified at `2e4bcfc68`: version 7 both sides; upstream deleted `rpc_subscription_7` (clean orphan) → KV keys `rpc-sub:*`. **Hard checklist item keyed to the FINAL SHA:** `git -C vendor/livestore diff 36dd15dac <finalSHA> -- packages/@livestore/sync-cf/src/cf-worker/do/sqlite.ts packages/@livestore/sync-cf/src/cf-worker/shared.ts` — version still 7, table names unchanged                                                                                                                                                                                       | G2      |
+| 4   | Hibernation regression from the fiber-runtime rewrite                         | Idle SyncBackendDO bills full residency again (~1,300×); nothing functional breaks                                                                                                | v4 `Effect.never` verified timer-less (`callback(constVoid)`); upstream parks on `Layer.launch`/`Stream.never`. Run upstream's `tests/sync-provider/src/do-hibernation.test.ts` + `do-rpc-hibernation.test.ts` in the submodule at the pinned SHA. Keep + **extend the `liveLongTimers` probe to wrap `setTimeout`**. Post-cutover: `type:hibernation` GB-s vs the day-before baseline                                                                                                                                                                                      | G2 + G4 |
+| 5   | msgpackr eval under Workers CSP after dropping the `@effect/rpc` patch        | First record-struct decode on the LP↔SB DO-RPC path throws "Code generation from strings disallowed" in prod only                                                                 | Verified: effect v4 statically imports `msgpackr@2.0.4` (no `index-no-eval`), do-rpc still uses `RpcSerialization.msgPack`, BUT msgpackr 2.0.4 has a CF-Workers fallback (`inlineObjectReadThreshold = Infinity`). Checks: e2e do-rpc pass in workerd (codegen forbidden like prod); post-build `grep -c "inlineObjectReadThreshold" dist/cloudstash/index.js` ≥ 1 and `grep -c "msgpackr-extract" …` = 0; preview ingest smoke. **G2 share DONE 2026-08-10 (step 10 receipts): e2e green in workerd, build asserts ×3/×0; preview ingest smoke remains (G3)**              | G2 + G3 |
+| 6   | Dual effect (or react) copies in the prod bundle                              | Broken `Context`/`Layer` identity at runtime only; typecheck green (PR #80 class)                                                                                                 | Post-build assert **inside `bun run build`**: exactly one `moduleVersion = "` hit, zero `3.21.2` hits, react singleton grep. **DONE 2026-08-10 (step 10 receipts): verify-bundle all-pass — marker ×1, `3.21.2` ×0, react `[19.2.6]` exactly**                                                                                                                                                                                                                                                                                                                              | G2      |
+| 7   | v4 global Layer memoization changes instantiation counts                      | Module-scope layers (`Billing.Default`, `AppSettings.Default`, `OtelTracingLive`) become per-isolate singletons; a service capturing request-1 context serves request-2           | Unit test: `Layer.effect` build-counter provided via two separate `Effect.runPromise(Effect.provide(…))` calls; assert + document the v4 count. E2e: two sequential authed requests in one isolate through billing/settings. Audit module-scope layers closing over `env`. **DONE 2026-08-10 (partial): C2 probes (unit claim) + `layer-memoization.test.ts` services-rebuild-per-provide detector; layer-object reuse is by construction (WeakMap), `getBillingLayer` + direct-`AppLayerLive` sites review-only — see step 10 receipts**                                   | G2      |
+| 8   | Deployed v3 clients vs v4 server (published Chrome extension + open SPA tabs) | Extension/tabs silently stop syncing after cutover; saves queue local-only in OPFS                                                                                                | G3: run the current published extension against the preview backend — confirm clean local queuing; confirm the v4 extension build reads v3-written OPFS (`liveStoreStorageFormatVersion = 6` both refs — verified) and drains the queue. Submit the v4 extension to the Web Store **before** prod cutover. G4: watch push deliveries + extension errors through the window. **Local share DONE 2026-08-10 (step 10 receipts): HTTP contract + wire goldens + storage-format-6 parity + WS-schema statics; live preview smoke, OPFS drain, Web Store submit remain (G3/G4)** | G3 + G4 |
+| 9   | Test harness self-destruction (`@effect/vitest` 0.29 → beta.99)               | Tests pass vacuously or the pool won't boot                                                                                                                                       | Peers verified compatible (`vitest ^3                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |         | ^4`; ours 4.1.7; pool-workers peer `^4.1.0`). After the bump: temporarily flip one assertion per suite family to confirm failures still fail; full unit + e2e | G2  |
+| 10  | From-source build marker died with the fork                                   | Alias regression silently ships the published snapshot                                                                                                                            | Vite define when alias active: `__LIVESTORE_BUILD__ = "vendored@<sha>"`; post-build grep = 1, and = 0 under `LIVESTORE_PUBLISHED=1` (validates the marker itself)                                                                                                                                                                                                                                                                                                                                                                                                           | G2      |
+| 11  | OTel layer compile break (`@effect/opentelemetry` 0.63 → beta)                | None at runtime — `OtelTracingLive` is currently a no-op (exporter disabled)                                                                                                      | Typecheck against the beta subpaths or migrate to `effect/unstable/observability` (vendor re-exports `Otlp`). "Validate traces on preview" is vacuous until the exporter is re-enabled — separate post-swap item                                                                                                                                                                                                                                                                                                                                                            | G2      |
+| 12  | Un-revertable side effects riding the flip PR                                 | Rollback restores code but the deploy command's `d1 migrations apply --remote` already mutated D1                                                                                 | **The flip PR must contain zero D1 migrations** (migrations-dir diff empty); anything needing D1 lands in a separate earlier PR                                                                                                                                                                                                                                                                                                                                                                                                                                             | G2      |
 
 ### Rollback plan
 
@@ -1689,3 +1795,17 @@ tracer)` + `layerWithoutOtelTracer`) is the v4-native seam.
   redundant nested `wxt/vite@8.0.3` subtree (extension workspace only, bun
   conservatism; `bun update wxt` in the fast-follow dedupes it). vite 8.0.14
   published 2026-05-21 — well outside the cooldown window.
+- 2026-08-10 (step 10, row-7 probe) — **pool-workers `vi.mock` scope is
+  direct-imports-only:** a module mock intercepts ONLY when the test file
+  itself imports the mocked module (string and typed `import()`-form
+  registration behave the same); modules reached TRANSITIVELY (probed: via
+  `../../runtime` one hop up, via the worker entry, static or dynamic) and
+  the SELF-dispatched worker graph never see the mock — the factory is
+  simply never invoked, no error. A worker-internal `AppLayerLive`
+  build-counter spy is therefore impossible without an app-code hook. The
+  shipped row-7 e2e observes the claim mock-free instead: direct
+  entry-`fetch` calls put test + handlers in one module registry with one
+  shared `env` reference, so `getAppLayer(env)` referential identity spans
+  the request window, and a `runHandler` probe captures per-provide service
+  instances. If an exact build count is ever needed: export a counter (or
+  the WeakMap) from `runtime.ts` — the smallest possible hook.
