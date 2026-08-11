@@ -56,7 +56,7 @@ kanban-plugin: board
 - [ ] [[todos/mobile-view-review|Mobile view review + fixes]]
 - [x] [[architecture/livestore-do-rpc-stream-stall|Livestore DO-RPC stream stall — root cause, fix, postmortem]]
 - [ ] [[todos/mobile-settings-polish|Mobile settings polish — delete flow, Connections overhaul, tab look]]
-- [ ] AI summary should not block the metadata fetching
+- [x] AI summary should not block the metadata fetching — obsolete (verified 2026-08-11): the pipeline commits `linkMetadataFetched` right after the fetch and before the AI block (`process-link.ts`), so metadata reaches the UI independent of AI timing.
 - [ ] [[todos/telegram-login-link|Simplify Telegram bot auth with login link]]
 - [x] Landing page — TanStack Start SSR landing on `/` with hero/pitch/integrations/benefits/pricing/FAQ/closer/footer; SEO hardening (canonical, OG, JSON-LD SoftwareApplication + FAQPage, sitemap.xml, robots.txt, noindex on /login)
 - [x] User settings modal (UI) — wired the disabled "Settings" item in the account menu, surfaces full name + email, plan placeholder, danger-zone Delete account with type-DELETE confirmation. Backend deletion split out as its own task (see Account deletion above).
@@ -65,7 +65,7 @@ kanban-plugin: board
 - [ ] Improve UX of tags strip, maybe add counters and exclude tags that are unused on the specific page
 - [ ] Let LLM suggest more tags from existing ones. Respect domains for tags as a fallback
 - [ ] Legal pages — followups before launch. Privacy + ToS content shipped on `redesign`. Remaining: Termly cross-check, decide Meta Pixel fate (geo-gate / banner / remove), arbitration vs litigation decision (lawyer call), DMCA agent registration, Stripe checkout consent.
-- [ ] [[todos/links-list-performance|Fix links list rendering performance at 150+ links]]
+- [x] [[todos/links-list-performance|Fix links list rendering performance at 150+ links]] — resolved in the keyboard-nav perf session (per-row memo, list-level query Maps, deferred detail pane, TagStrip/Masthead subscription isolation). Virtualization stays in reserve with its trigger (p95 list > 500 or prod trace flags `LinkList`) recorded in the doc.
 - [ ] [[todos/publish-raycast-extension|Publish Raycast extension to Store]]
 - [ ] [[todos/further-list-mount-perf|Further list-mount perf improvements]]
 - [ ] Reduce monospace font usage — JetBrains Mono is currently `--font-sans` for the entire app. Pair a refined sans for body/UI and reserve mono for tokens that earn it (counts, tags, timestamps, dock input).
