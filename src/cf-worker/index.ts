@@ -59,7 +59,7 @@ import { logSync } from "./logger";
 import { metadataRequestToResponse } from "./metadata/service";
 import { requirePermission } from "./middleware/authorize";
 import { handleGetMe, handleGetOrg } from "./org";
-import { handleQueueBatch } from "./queue-handler";
+import { handleDlqBatch, handleQueueBatch } from "./queue-handler";
 import { runHandler } from "./runtime";
 import type { Env, HonoVariables } from "./shared";
 import { SyncBackend, handleSyncRequest, runSyncAuth } from "./sync";
@@ -361,7 +361,9 @@ export const queue = (
 ): Promise<void> =>
   Match.value(batch.queue).pipe(
     Match.when("cloudstash-link-queue", () => handleQueueBatch(batch, env)),
-    Match.orElse(() => Promise.resolve())
+    Match.when("cloudstash-link-dlq", () => handleDlqBatch(batch, env)),
+    // Returning without retrying would implicitly ack (drop) an unmatched queue's batch.
+    Match.orElse(() => Promise.resolve(batch.retryAll()))
   );
 
 export default { fetch, queue };
