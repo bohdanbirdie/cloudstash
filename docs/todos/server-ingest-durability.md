@@ -1,8 +1,37 @@
 # Server-side ingest durability — links lost when the DO backend is disabled
 
-**Status:** Research (future work — data preservation). Do not fix yet.
+**Status:** Fix implemented 2026-08-12 on `feat/ingest-dlq-drain` (queue-only). Pending review, deploy, and the DLQ retention bump below.
 
 Related: [[architecture/sync-backend-do-hibernation-billing]] (the DO-duration cap that triggered the outage), [[todos/admin-server-ahead-alert]] (existing alerting hook we can reuse).
+
+## Implemented fix (2026-08-12, branch `feat/ingest-dlq-drain`)
+
+Queue-only tiered retry — Option A extended with backoff. Option B (D1
+`pending_ingests` ledger) rejected: no new storage, the queue stays the system
+of record. The false-success ack (G4) is accepted product behavior by decision:
+enqueue = saved; the rest is the system's durability job.
+
+- Main queue: `max_retries: 5` + per-message exponential backoff 30s→480s
+  (~16 min span) — absorbs blips; anything longer falls through to the DLQ.
+- New `cloudstash-link-dlq` consumer: re-drives through the same
+  `processMessage` path — hourly for the first 24 attempts, then every 4h,
+  `max_retries: 100` (~14-day span). Exhaustion = poison, intentionally dropped.
+- Error-level `"Dead-letter queue re-drive"` log per DLQ message is the alert
+  tripwire (hook for [[todos/admin-server-ahead-alert]]).
+- `queue()` dispatcher fallback changed to `retryAll()` — a successful return
+  implicitly acks, so an unmatched queue would silently destroy messages.
+- Replay idempotency: existing URL dedupe in `ingestLink` (`do-programs.ts`).
+
+Gap status: G1 closed (backoff spans outages), G2 closed (DLQ drained),
+G3 closed (tripwire log; Telegram alert remains its own todo), G4 accepted
+(product decision, not a bug), G5 deferred with Option B.
+
+**Remaining (human, remote — after deploy):** the retry schedule assumes 14-day
+retention on the DLQ; the default is 4 days:
+
+```bash
+wrangler queues update cloudstash-link-dlq --message-retention-period-secs 1209600
+```
 
 ## Incident (2026-06-11)
 

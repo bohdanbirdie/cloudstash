@@ -4,7 +4,10 @@ import { describe, expect, vi } from "vitest";
 
 import { OrgId } from "../../db/branded";
 import type { LinkQueueMessage } from "../../link-processor/types";
-import { handleQueueBatchEffect } from "../../queue-handler";
+import {
+  handleDlqBatchEffect,
+  handleQueueBatchEffect,
+} from "../../queue-handler";
 import type { LinkProcessorBinding } from "../../queue-handler";
 
 function createMessage(
@@ -58,6 +61,18 @@ const runBatch = (
     binding
   );
 
+const runDlqBatch = (
+  messages: ReturnType<typeof createMessage>[],
+  binding: LinkProcessorBinding
+) =>
+  handleDlqBatchEffect(
+    {
+      messages,
+      queue: "cloudstash-link-dlq",
+    } as unknown as MessageBatch<LinkQueueMessage>,
+    binding
+  );
+
 describe("handleQueueBatchEffect", () => {
   it.effect("acks message on successful ingest", () => {
     const msg = createMessage(testMessage);
@@ -99,6 +114,25 @@ describe("handleQueueBatchEffect", () => {
         Effect.sync(() => {
           expect(msg.retry).toHaveBeenCalledOnce();
           expect(msg.ack).not.toHaveBeenCalled();
+        })
+      )
+    );
+  });
+
+  it.effect("retries with exponential backoff delay", () => {
+    const first = createMessage(testMessage, { attempts: 1 });
+    const third = createMessage(testMessage, { attempts: 3 });
+    const atCap = createMessage(testMessage, { attempts: 5 });
+    const beyondCap = createMessage(testMessage, { attempts: 6 });
+    const { binding } = makeProcessor(new Error("DO unavailable"));
+
+    return runBatch([first, third, atCap, beyondCap], binding).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(first.retry).toHaveBeenCalledWith({ delaySeconds: 30 });
+          expect(third.retry).toHaveBeenCalledWith({ delaySeconds: 120 });
+          expect(atCap.retry).toHaveBeenCalledWith({ delaySeconds: 480 });
+          expect(beyondCap.retry).toHaveBeenCalledWith({ delaySeconds: 480 });
         })
       )
     );
@@ -161,6 +195,57 @@ describe("handleQueueBatchEffect", () => {
         Effect.sync(() => {
           expect(msg1.ack).toHaveBeenCalledOnce();
           expect(msg2.retry).toHaveBeenCalledOnce();
+        })
+      )
+    );
+  });
+});
+
+describe("handleDlqBatchEffect", () => {
+  it.effect("acks message on successful re-drive", () => {
+    const msg = createMessage(testMessage);
+    const { binding } = makeProcessor();
+
+    return runDlqBatch([msg], binding).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(msg.ack).toHaveBeenCalledOnce();
+          expect(msg.retry).not.toHaveBeenCalled();
+        })
+      )
+    );
+  });
+
+  it.effect("retries hourly through attempt 24, then every 4h", () => {
+    const midDay = createMessage(testMessage, { attempts: 5 });
+    const lastHourly = createMessage(testMessage, { attempts: 24 });
+    const firstSlow = createMessage(testMessage, { attempts: 25 });
+    const later = createMessage(testMessage, { attempts: 30 });
+    const { binding } = makeProcessor(new Error("DO unavailable"));
+
+    return runDlqBatch([midDay, lastHourly, firstSlow, later], binding).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(midDay.retry).toHaveBeenCalledWith({ delaySeconds: 3600 });
+          expect(lastHourly.retry).toHaveBeenCalledWith({ delaySeconds: 3600 });
+          expect(firstSlow.retry).toHaveBeenCalledWith({ delaySeconds: 14400 });
+          expect(later.retry).toHaveBeenCalledWith({ delaySeconds: 14400 });
+          expect(midDay.ack).not.toHaveBeenCalled();
+        })
+      )
+    );
+  });
+
+  it.effect("acks malformed body instead of throwing", () => {
+    const msg = createMessage(null as unknown as LinkQueueMessage);
+    const { binding, ingestAndProcess } = makeProcessor();
+
+    return runDlqBatch([msg], binding).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(msg.ack).toHaveBeenCalledOnce();
+          expect(msg.retry).not.toHaveBeenCalled();
+          expect(ingestAndProcess).not.toHaveBeenCalled();
         })
       )
     );
