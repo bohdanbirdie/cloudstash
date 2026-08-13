@@ -1,6 +1,6 @@
 # Server ingest stranded on a cold LinkProcessorDO — link doesn't sync until the next push
 
-**Status:** Diagnosed from prod logs 2026-06-25 (incident 2026-06-24 ~22:19–22:22 UTC). Root cause confirmed. A fix was drafted + e2e-validated on branch `fix/cold-do-stranding-leader-durability`, then **REVERTED and DEFERRED (2026-08-08)**: a major livestore version bump is imminent (breaking changes + many bug fixes) and may obviate this, so the app-core fix and the fork's `whenLeaderSynced` method were backed out rather than carried across the bump. **Kept as artifacts:** this post-mortem + the e2e reproduction (durability assertions `describe.skip`ped; the eviction-lever test still runs). See **Suggested fix (drafted & deferred)** and **Revisit after the livestore bump** below.
+**Status:** Fixed and e2e-validated 2026-08-12 after the LiveStore v4/upstream bump confirmed the push-side strand still reproduced. The fix is an app-scoped, event-driven two-stage durability barrier: wait for the session queue to hand off, then wait for the leader queue to drain to SyncBackend. `ingestAndProcess` awaits the barrier before returning, and subscription processing is held with `ctx.waitUntil` through its final durability barrier. All four regression cases are enabled and green.
 
 A link sent through a **server-side ingest channel** (Telegram / Raycast / public `POST /api/ingest`) can be committed to the LinkProcessorDO's **local** store but **never pushed to the SyncBackendDO eventlog**, so it is invisible everywhere (UI, refresh, even a fresh client) until the **next** ingest re-boots the DO and flushes the backlog. The account is healthy the whole time — this is a **delay/stranding** bug, not the account-wide-disabled **loss** bug in [[server-ingest-durability]].
 
@@ -56,42 +56,43 @@ Likely **exacerbated, not caused**, by the hibernation work. The fire-and-forget
 
 Earlier in the same session (21:03:18, 21:04:14) the DO logged `[LinkProcessorDO] [Error] storeId mismatch in fetch {storeId:"AJNipm2I…", expected:""}` — a `triggerLinkProcessor` fetch (`durable-object.ts:564`) arrived **before** the cold DO had persisted its `storeId` (`expected:""`), so it 400'd. Same cold-start fragility, different entry point; the trigger races store creation. Returns a 400, dropping that wake. Worth hardening alongside the main fix (persist `storeId` / tolerate the race rather than 400).
 
-## Suggested fix (drafted & deferred)
+## Implemented fix
 
-> **Deferred 2026-08-08 — NOT in the tree.** This fix was implemented and e2e-validated, then reverted pending the livestore bump. Everything below is the _proposed_ approach, preserved for when we revisit — the app-core changes (`durable-object.ts`), the fork's `whenLeaderSynced` method, and its type augmentation have all been backed out.
+> Implemented 2026-08-12 after the upgraded LiveStore remained TDD-red. The barrier is contained in `src/livestore/when-leader-synced.ts` so the application has one explicit dependency on LiveStore's internal leader state until public commit receipts land.
 
 Not a livestore _bug_: `store.commit()` guarantees only a _local_ write; the push to the SyncBackendDO runs in a background fiber that never runs before the request-scoped DO host is evicted. #1338 exacerbates it (DOs idle/hibernate harder) but didn't cause it — the fire-and-forget push predates it. Only the host can hold the isolate alive past the method return, and auto-blocking _every_ commit would re-introduce the exact DO residency #1338 removed — so the fix is scoped to the **server-ingest path only** (the browser/app commit path is untouched). **No** client timer-park, **no** reverse-RPC rewrite (those wedged the browser before).
 
-**1. Durability barrier in the fork** — `Store.whenLeaderSynced({ timeoutMs })` (`vendor/livestore/.../store/store.ts`). Resolves once a just-committed event is durable on the backend; resolves `false` on timeout. It is **two-phase**, and that is the crux:
+**1. App-scoped durability barrier** — `whenLeaderSynced(store, { timeoutMs })` (`src/livestore/when-leader-synced.ts`). Resolves once just-committed events are durable on the backend; resolves `false` on timeout. It is **two-phase**, and that is the crux:
 
 - `commit()` only **synchronously** populates the **session** pending queue (it runs via `Runtime.runSync`). The session→leader hand-off is an **async batched fiber** (`ClientSessionSyncProcessor`'s `leaderPushQueue`). So checking the **leader** alone races: `leader.pending === 0` is true both _before_ the event has propagated to the leader **and** _after_ the backend confirms it — indistinguishable, and the early read reintroduces the exact strand.
 - Therefore: **(a)** wait for `session.pending === 0` (the event has reached the leader — can't false-positive, since `commit` already put it in the session queue before returning), **then (b)** wait for `leader.pending === 0` (the leader has pushed it to the SyncBackend and been acked).
 - Signal is `pending.length === 0`, **not** a head compare. `commit()` returns `void` (no seqNum handle) and a `localHead` snapshot is **not rebase-safe**: livePull + rebase move `localHead`/`upstreamHead` independently, so `upstreamHead >= snapshot` can be satisfied by _other_ clients' events while ours is still pending. `pending === 0` is unambiguous. (⚠️ `store.syncStatus()` is the wrong signal — it's session↔leader, reports `isSynced` while the event is still stranded before the backend.)
 - Event-driven (subscribes to the `syncState.changes` streams; no polling — a pending timer is what disqualifies a DO from hibernation).
+- Barriers are serialized per Store instance because the session change stream is queue-backed; concurrent consumers would divide state updates and could miss one another's final drain signal. Different stores still proceed independently.
 
-**2. Await it in `ingestAndProcess`** — when `result.status === "ingested"`, `await store.whenLeaderSynced(...)` before returning (`durable-object.ts`). The queue handler awaits the RPC, so it doesn't `ack()` until the event is on the backend → the link appears immediately and survives eviction. **This is what makes the e2e test green.** On timeout it logs and returns anyway — identical to the pre-fix self-heal-on-next-ingest, so the rare tail is no worse than before.
+**2. Await it in `ingestAndProcess`** — when `result.status === "ingested"`, await `whenLeaderSynced(...)` before returning (`durable-object.ts`). The queue handler awaits the RPC, so it doesn't `ack()` until the event is on the backend → the link appears immediately and survives eviction. **This is what makes the e2e test green.** On timeout it logs and returns anyway — identical to the pre-fix self-heal-on-next-ingest, so the rare tail is no worse than before.
 
-**3. `ctx.waitUntil` the processing pipeline** — the subscription's `runEffect(...)` (the AI pipeline, `durable-object.ts`) is wrapped in `this.ctx.waitUntil(processing.then(() => store.whenLeaderSynced(...)))`, so processing **and its pushes** complete before eviction (the summary lands without a second ingest). Falls back to fire-and-forget when there's no active request context to extend (e.g. livePull-triggered). This is the **"Hazard C"** hardening (see [[../architecture/sync-backend-do-hibernation-billing]] §TEMPORARY).
+**3. `ctx.waitUntil` the processing pipeline** — the subscription's `runEffect(...)` is wrapped in `this.ctx.waitUntil(processing.then(() => whenLeaderSynced(...)))`, so processing **and its pushes** complete before eviction (the terminal status and summary, when enabled, land without a second ingest). This is the **"Hazard C"** hardening (see [[../architecture/sync-backend-do-hibernation-billing]] §TEMPORARY).
 
-**Fork note (corrects an earlier draft):** this **does** touch the fork — the leader-reactive stream is not on the public Store surface, so a pure app-side, timer-free barrier wasn't possible. `whenLeaderSynced` is additive and upstreamable (the ergonomic `whenSynced()` barrier the livestore team mentioned). Because `tsgo` resolves `@livestore/livestore` from the **published** types, a one-interface module augmentation in `src/ambient.d.ts` declares the method for typecheck (local == prod).
+**LiveStore boundary note:** the leader-reactive stream is not on the public Store surface, so the adapter uses `StoreInternalsSymbol`. That coupling is isolated to one small module and can be deleted when LiveStore's public commit-receipt awaitables land (livestorejs#722). No vendored submodule patch or type augmentation is required.
 
 **Not done (follow-up):** the secondary `storeId:""` 400 race (see below) — left out to keep this change precise.
 
 **Validate on-device (pending):** cold Telegram ingest after >2 min idle → link appears in the UI **without** a second ingest, and its summary completes.
 
-## Revisit after the livestore bump
+## LiveStore bump result
 
-The plan is to bump the vendored livestore to the latest upstream and re-check whether this strand still reproduces **before** re-doing any fix.
+The vendored LiveStore was bumped to upstream v4 in PR #82. The first durability test was unskipped before applying this fix and failed: `ingestAndProcess` returned `status:"ingested"` while the SyncBackend eventlog was still empty; the backend push appeared immediately after the failed assertion.
 
-**Do NOT assume the bump fixes it.** The DO-hibernation PRs that landed upstream ([#1541](https://github.com/livestorejs/livestore/pull/1541) / [#1542](https://github.com/livestorejs/livestore/pull/1542) / [#1545](https://github.com/livestorejs/livestore/pull/1545)) harden the **pull** direction — live updates _backend → client_ surviving DO reconstruction. This strand is the **push** direction — an outbound send _client → backend_ orphaned on eviction. None of the merged work touches that path, so the bug may well persist.
+This confirms the DO-hibernation PRs ([#1541](https://github.com/livestorejs/livestore/pull/1541) / [#1542](https://github.com/livestorejs/livestore/pull/1542) / [#1545](https://github.com/livestorejs/livestore/pull/1545)) hardened the **pull** direction — live updates _backend → client_ surviving DO reconstruction — but did not close this outbound **push** gap.
 
-**How to re-check:** un-skip the `describe.skip`ped cases in the e2e test, re-add a hermetic AI stub (so the pipeline case runs offline/fast), and run the suite against the bumped livestore. If the durability assertions pass **without** re-applying `whenLeaderSynced`, the bump fixed it → close this. If they fail, re-apply the suggested fix above (or its `waitUntil` / commit-receipt successor). Upstream's own intended shape is **commit-receipt awaitables** — issue [#722](https://github.com/livestorejs/livestore/issues/722) (supersedes #285), unstarted as of this writing.
+Upstream's intended long-term replacement remains **commit-receipt awaitables** — issue [#722](https://github.com/livestorejs/livestore/issues/722) (supersedes #285). When that lands, replace the internal-state adapter while preserving the same application-level durability tests.
 
 ## Reproduction & tests
 
 **`src/cf-worker/__tests__/e2e/server-ingest-stranding.test.ts`** — e2e cases against the real LinkProcessorDO (`@cloudflare/vitest-pool-workers`), no mocks.
 
-> **Current state (fix deferred):** the eviction-lever test **runs and passes**; the three durability groups are **`describe.skip`ped**. The durability check evolved from the `leader.upstreamHead` probe described below to reading the **SyncBackend's own `getEventlogMax()` from a fresh stub** (source-of-truth, independent of the client DO's lifecycle), and now covers three cases: durability-on-return, full-pipeline (with a forced-eviction survival check), and two-ingest sequential.
+> **Current state:** all four tests run and pass. The durability checks read the **SyncBackend's own `getEventlogMax()` from a fresh stub** (source-of-truth, independent of the client DO's lifecycle): eviction lever, durability-on-return, full processing pipeline with forced-eviction survival, and two-ingest sequential durability.
 
 Historically (with the fix applied) **both original cases passed** (was `1 passed | 1 failed` — TDD-red — before the barrier landed).
 

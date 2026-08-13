@@ -17,12 +17,9 @@ import type { UserInfo } from "./helpers";
  * that is killed when the request-scoped DO host is evicted — so the link never
  * reaches the server until the next ingest re-boots the DO and drains the backlog.
  *
- * STATUS: the fix (a `whenLeaderSynced` durability barrier) is NOT in the tree —
- * it was deferred pending a livestore version bump that may obviate it (see the
- * doc). So the three durability assertions below are `describe.skip`ped to keep
- * the suite green; only the eviction-lever test (test 1) runs. To re-check after
- * the bump: un-skip them, re-apply the fix (or confirm the new livestore fixes
- * it) and re-add a hermetic AI stub so the pipeline test stays offline/fast.
+ * STATUS: fixed with a two-stage session-to-leader-to-backend durability
+ * barrier. All four regression cases run against the real Durable Objects and
+ * the SyncBackend's persisted eventlog.
  */
 
 const ingestMessage = (storeId: string, url: string): LinkQueueMessage =>
@@ -101,8 +98,7 @@ describe("server-ingest cold-DO stranding", () => {
     expect(after).not.toBe(before);
   });
 
-  // SKIPPED: asserts the (deferred) fix. Un-skip to re-verify after the livestore bump.
-  describe.skip("ingestAndProcess durability-on-return", () => {
+  describe("ingestAndProcess durability-on-return", () => {
     let user: UserInfo;
 
     beforeAll(async () => {
@@ -118,9 +114,9 @@ describe("server-ingest cold-DO stranding", () => {
     //
     // Pre-fix this was TDD-red: the push was fire-and-forget, so at return the
     // SyncBackend eventlog was empty (`getEventlogMax()` → null → 0). It passes
-    // now that `ingestAndProcess` awaits `store.whenLeaderSynced(...)` before
-    // returning. `> 0` (rather than an exact head) tolerates the AI pipeline's
-    // follow-on events.
+    // now that `ingestAndProcess` awaits `whenLeaderSynced(...)` before
+    // returning. `> 0` (rather than an exact head) tolerates the processing
+    // pipeline's follow-on events.
     it(
       "ingestAndProcess resolves only after the committed event is durable on the SyncBackend",
       { timeout: 30000 },
@@ -144,27 +140,23 @@ describe("server-ingest cold-DO stranding", () => {
           env.SYNC_BACKEND_DO.idFromName(storeId)
         ).getEventlogMax();
         expect(sbMax ?? 0).toBeGreaterThan(0);
-
-        // Quiesce the client store's background fibers so their fire-and-forget
-        // logs don't race the pool teardown (surfaces as a spurious error).
-        await quiesce(lp);
       }
     );
   });
 
   // The RPC barrier (Test above) only guarantees `linkCreatedV2` is durable at
-  // return. The AI follow-on events (summary, tags, completed, notified) are
+  // return. The processing follow-on events (metadata or failure, terminal
+  // status, notification) are
   // committed by the SUBSCRIPTION handler AFTER `ingestAndProcess` returns, and
-  // their durability rests on the second barrier — `heldUntilDurable` +
+  // their durability rests on the second `whenLeaderSynced` barrier held by
   // `ctx.waitUntil` (durable-object.ts). That path had zero coverage.
-  // (Needs a hermetic AI stub so the pipeline is fast/deterministic offline —
-  // that stub was reverted with the fix; re-add it when un-skipping.) Polls the
-  // SyncBackend's own eventlog to watch the follow-on events land, then aborts to
-  // confirm they survive eviction.
-  // SKIPPED: asserts the (deferred) fix. Un-skip to re-verify after the livestore bump.
-  describe.skip("subscription-path full-pipeline durability", () => {
+  // The example.com URL deterministically exercises the metadata-failure path,
+  // keeping the test offline/fast while still producing follow-on commits.
+  // Polls the SyncBackend's own eventlog to watch those events land, then aborts
+  // to confirm they survive eviction.
+  describe("subscription-path full-pipeline durability", () => {
     it(
-      "the AI follow-on pipeline reaches the SyncBackend and survives eviction",
+      "the processing follow-on pipeline reaches the SyncBackend and survives eviction",
       { timeout: 30000 },
       async () => {
         const user = await signupUser(
@@ -183,7 +175,7 @@ describe("server-ingest cold-DO stranding", () => {
         const headAtReturn = (await backendMax(storeId)) ?? 0;
         expect(headAtReturn).toBeGreaterThan(0);
 
-        // The subscription barrier must drive the follow-on AI events durable.
+        // The subscription barrier must drive the follow-on events durable.
         // Settling above `headAtReturn` proves they reached the backend, not just
         // the creation event — the previously-uncovered second barrier.
         const settled = await settledBackendMax(storeId, headAtReturn);
@@ -204,8 +196,7 @@ describe("server-ingest cold-DO stranding", () => {
   // only link #2's cold-boot reboot drains both. This asserts each ingest is
   // independently durable at its OWN return — #2's event is on the backend
   // without waiting for a hypothetical #3. No eviction needed.
-  // SKIPPED: asserts the (deferred) fix. Un-skip to re-verify after the livestore bump.
-  describe.skip("sequential ingests are independently durable", () => {
+  describe("sequential ingests are independently durable", () => {
     it(
       "two back-to-back ingests each land on the SyncBackend at return",
       { timeout: 30000 },
@@ -227,8 +218,6 @@ describe("server-ingest cold-DO stranding", () => {
         );
         const afterSecond = (await backendMax(storeId)) ?? 0;
         expect(afterSecond).toBeGreaterThan(afterFirst);
-
-        await quiesce(lp);
       }
     );
   });

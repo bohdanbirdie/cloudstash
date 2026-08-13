@@ -11,6 +11,7 @@ import { capabilitiesFor } from "@/lib/plan";
 import type { TierCapabilities } from "@/lib/plan";
 
 import { events, schema, tables } from "../../livestore/schema";
+import { whenLeaderSynced } from "../../livestore/when-leader-synced";
 import { Billing } from "../billing/service";
 import { LinkId, OrgId } from "../db/branded";
 import { DbClientLive } from "../db/service";
@@ -44,6 +45,7 @@ import type { LinkQueueMessage } from "./types";
 const logger = logSync("LinkProcessorDO");
 
 const MAX_NOTIFIED_LINK_IDS = 500;
+const LEADER_SYNC_TIMEOUT_MS = 10_000;
 
 import type { WeeklyDigestRpcResult } from "../weekly-digest/rpc";
 import { runDigestGeneration } from "../weekly-digest/run-digest";
@@ -253,7 +255,7 @@ export class LinkProcessorDO
       );
       const statusMap = new Map(statuses.map((s) => [s.linkId, s]));
 
-      void runEffect(
+      const processing = runEffect(
         Effect.forEach(
           newLinks,
           (link) => {
@@ -267,7 +269,18 @@ export class LinkProcessorDO
           },
           { concurrency: MAX_CONCURRENT_METADATA, discard: true }
         )
-      );
+      ).then(async () => {
+        const synced = await whenLeaderSynced(store, {
+          timeoutMs: LEADER_SYNC_TIMEOUT_MS,
+        });
+        if (!synced) {
+          logger.warn("Processing durability barrier timed out", {
+            storeId: maskId(this.storeId ?? ""),
+          });
+        }
+      });
+
+      this.ctx.waitUntil(processing);
     });
 
     const summaries$ = queryDb(tables.linkSummaries.where({}));
@@ -650,6 +663,18 @@ export class LinkProcessorDO
         sourceMeta: msg.sourceMeta,
       }).pipe(Effect.provide(doLayer))
     );
+
+    if (result.status === "ingested") {
+      const synced = await whenLeaderSynced(store, {
+        timeoutMs: LEADER_SYNC_TIMEOUT_MS,
+      });
+      if (!synced) {
+        logger.warn("Ingest durability barrier timed out", {
+          linkId: result.linkId,
+          storeId: maskId(msg.storeId),
+        });
+      }
+    }
 
     if (
       result.status === "ingested" &&
