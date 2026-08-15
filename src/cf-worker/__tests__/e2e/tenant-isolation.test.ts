@@ -129,7 +129,16 @@ describe("tenant isolation", () => {
         }
       );
       expect(response.status).toBe(200);
-      return (await response.json()).key;
+      const body: unknown = await response.json();
+      if (
+        typeof body !== "object" ||
+        body === null ||
+        !("key" in body) ||
+        typeof body.key !== "string"
+      ) {
+        throw new Error("API key creation response is missing key");
+      }
+      return body.key;
     };
     const revokedKey = await createKey(revoked.cookie);
     const unapprovedKey = await createKey(unapproved.cookie);
