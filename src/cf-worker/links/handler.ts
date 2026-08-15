@@ -1,6 +1,7 @@
-import { Effect, Option } from "effect";
+import { Effect, Match } from "effect";
 
-import { AuthClient } from "../auth/service";
+import { WorkspaceAccess } from "../auth/workspace-access";
+import type { WorkspaceAccessError } from "../auth/workspace-access";
 import { capabilityDeniedResponse } from "../billing/errors";
 import { requireCapability } from "../billing/service";
 import type { Billing } from "../billing/service";
@@ -8,7 +9,6 @@ import { ApiKey } from "../db/branded";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { runHandler } from "../runtime";
 import type { Env } from "../shared";
-import { decodeApiKeyMetadata } from "../sync/auth-payload";
 import { parseListParams } from "./api";
 import type { ParsedListParams } from "./api";
 
@@ -26,40 +26,42 @@ const bearerToken = (headers: Headers): ApiKey | null => {
 const unauthorized = (): Response =>
   Response.json({ error: "Unauthorized" }, { status: 401 });
 
+const workspaceAccessResponse = (error: WorkspaceAccessError): Response =>
+  Match.value(error).pipe(
+    Match.tagsExhaustive({
+      WorkspaceCredentialInvalidError: unauthorized,
+      WorkspaceScopeMissingError: unauthorized,
+      WorkspaceApiKeyReferenceMissingError: unauthorized,
+      WorkspaceScopeMismatchError: () =>
+        Response.json({ error: "Forbidden" }, { status: 403 }),
+      WorkspaceUserUnapprovedError: () =>
+        Response.json({ error: "Forbidden" }, { status: 403 }),
+      WorkspaceMembershipRevokedError: () =>
+        Response.json({ error: "Forbidden" }, { status: 403 }),
+      WorkspaceAccessBackendError: () =>
+        Response.json({ error: "Auth backend unavailable" }, { status: 503 }),
+    })
+  );
+
 export const listLinksEffect = (
   apiKey: ApiKey,
   params: ListParams,
   env: Env
-): Effect.Effect<Response, never, AuthClient | Billing> =>
+): Effect.Effect<Response, never, WorkspaceAccess | Billing> =>
   Effect.gen(function* () {
-    const auth = yield* AuthClient;
-
-    const verify = yield* Effect.tryPromise(() =>
-      auth.api.verifyApiKey({ body: { key: apiKey } })
-    ).pipe(
-      Effect.catch((cause) =>
-        Effect.logError("Links API: verifyApiKey failed").pipe(
-          Effect.annotateLogs(safeErrorInfo(cause)),
-          Effect.as(null)
-        )
-      )
-    );
-    if (!verify) {
-      return Response.json(
-        { error: "Auth backend unavailable" },
-        { status: 503 }
+    const workspaceAccess = yield* WorkspaceAccess;
+    const authorization = yield* workspaceAccess
+      .authorize({ _tag: "ApiKey", apiKey })
+      .pipe(
+        Effect.match({
+          onFailure: workspaceAccessResponse,
+          onSuccess: (access) => access,
+        })
       );
+    if (authorization instanceof Response) {
+      return authorization;
     }
-    if (!verify.valid || !verify.key) {
-      return unauthorized();
-    }
-
-    const metadataOpt = decodeApiKeyMetadata(verify.key.metadata);
-    if (Option.isNone(metadataOpt)) {
-      yield* Effect.logWarning("Links API: API key metadata missing orgId");
-      return unauthorized();
-    }
-    const { orgId } = metadataOpt.value;
+    const { orgId } = authorization;
     yield* Effect.annotateCurrentSpan("orgId", maskId(orgId));
 
     const denied = yield* requireCapability(orgId, "publicApi").pipe(

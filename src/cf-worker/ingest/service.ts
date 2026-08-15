@@ -1,15 +1,18 @@
 import { Effect } from "effect";
 
 import { trackEvent } from "../analytics";
-import { AppLayerLive, AuthClient } from "../auth/service";
+import { AppLayerLive } from "../auth/service";
+import { WorkspaceAccess } from "../auth/workspace-access";
 import { capabilityDeniedResponse } from "../billing/errors";
 import { requireCapability } from "../billing/service";
-import { OrgId } from "../db/branded";
+import { ApiKey } from "../db/branded";
 import type { LinkQueueMessage } from "../link-processor/types";
 import { maskId, safeErrorInfo } from "../log-utils";
 import type { Env } from "../shared";
 import {
   IngestInvalidApiKeyError,
+  IngestAccessDeniedError,
+  IngestAuthBackendError,
   IngestInvalidUrlError,
   IngestMissingApiKeyError,
   IngestMissingOrgIdError,
@@ -24,26 +27,28 @@ export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
       yield* Effect.logWarning("Missing API key");
       return yield* IngestMissingApiKeyError.make({});
     }
-    const apiKey = authHeader.slice(7);
-
-    const auth = yield* AuthClient;
-
-    const verifyResult = yield* Effect.tryPromise({
-      catch: () => IngestInvalidApiKeyError.make({}),
-      try: () => auth.api.verifyApiKey({ body: { key: apiKey } }),
-    });
-
-    if (!verifyResult.valid || !verifyResult.key) {
-      yield* Effect.logWarning("Invalid API key");
-      return yield* IngestInvalidApiKeyError.make({});
-    }
-
-    const rawOrgId = verifyResult.key.metadata?.orgId as string | undefined;
-    if (!rawOrgId) {
-      yield* Effect.logWarning("API key missing orgId");
-      return yield* IngestMissingOrgIdError.make({});
-    }
-    const orgId = OrgId.make(rawOrgId);
+    const apiKey = ApiKey.make(authHeader.slice(7));
+    const workspaceAccess = yield* WorkspaceAccess;
+    const { orgId, userId } = yield* workspaceAccess
+      .authorize({ _tag: "ApiKey", apiKey })
+      .pipe(
+        Effect.catchTags({
+          WorkspaceCredentialInvalidError: () =>
+            Effect.fail(IngestInvalidApiKeyError.make({})),
+          WorkspaceScopeMissingError: () =>
+            Effect.fail(IngestMissingOrgIdError.make({})),
+          WorkspaceApiKeyReferenceMissingError: () =>
+            Effect.fail(IngestInvalidApiKeyError.make({})),
+          WorkspaceScopeMismatchError: () =>
+            Effect.fail(IngestAccessDeniedError.make({})),
+          WorkspaceUserUnapprovedError: () =>
+            Effect.fail(IngestAccessDeniedError.make({})),
+          WorkspaceMembershipRevokedError: () =>
+            Effect.fail(IngestAccessDeniedError.make({})),
+          WorkspaceAccessBackendError: (error) =>
+            Effect.fail(IngestAuthBackendError.make({ cause: error.cause })),
+        })
+      );
 
     yield* Effect.logDebug("API key verified").pipe(
       Effect.annotateLogs({ orgId: maskId(orgId) })
@@ -52,7 +57,7 @@ export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
     yield* requireCapability(orgId, "publicApi");
 
     trackEvent(env.USAGE_ANALYTICS, {
-      userId: verifyResult.key.referenceId ?? "api",
+      userId,
       event: "ingest",
       orgId,
     });
@@ -113,6 +118,18 @@ export const ingestResponse = (
       IngestInvalidApiKeyError: () =>
         Effect.succeed(
           Response.json({ error: "Invalid API key" }, { status: 401 })
+        ),
+      IngestAccessDeniedError: () =>
+        Effect.succeed(Response.json({ error: "Forbidden" }, { status: 403 })),
+      IngestAuthBackendError: (error) =>
+        Effect.logError("Ingest: auth backend unavailable").pipe(
+          Effect.annotateLogs(safeErrorInfo(error.cause)),
+          Effect.as(
+            Response.json(
+              { error: "Auth backend unavailable" },
+              { status: 503 }
+            )
+          )
         ),
       IngestInvalidUrlError: () =>
         Effect.succeed(

@@ -11,6 +11,7 @@ import { DbClient, DbClientLive, DbError, query } from "../db/service";
 import { AppSettings } from "../settings/service";
 import type { Env } from "../shared";
 import { OtelTracingLive } from "../tracing";
+import { WorkspaceAccess, makeWorkspaceAccess } from "./workspace-access";
 
 type UserRow = typeof schema.user.$inferSelect;
 
@@ -59,8 +60,21 @@ export const AuthClientLive = (env: Env) =>
     })
   );
 
+const WorkspaceAccessLive = Layer.effect(
+  WorkspaceAccess,
+  Effect.gen(function* () {
+    const auth = yield* AuthClient;
+    const db = yield* DbClient;
+    return makeWorkspaceAccess(auth, db);
+  })
+);
+
 export const AppLayerLive = (env: Env) =>
-  Layer.mergeAll(Billing.Default, AppSettings.Default).pipe(
+  Layer.mergeAll(
+    Billing.Default,
+    AppSettings.Default,
+    WorkspaceAccessLive
+  ).pipe(
     Layer.provideMerge(AuthClientLive(env)),
     Layer.provideMerge(DeletionRuntimeLive(env)),
     Layer.provideMerge(DbClientLive(env.DB)),

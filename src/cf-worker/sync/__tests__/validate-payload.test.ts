@@ -2,6 +2,10 @@ import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer, Result } from "effect";
 
 import { AuthClient } from "../../auth/service";
+import {
+  WorkspaceAccess,
+  makeWorkspaceAccess,
+} from "../../auth/workspace-access";
 import { OrgId } from "../../db/branded";
 import { parseExtensionAllowlist, validatePayload } from "../validate-payload";
 
@@ -30,7 +34,7 @@ function makeAuthLayer(stub: {
     | (() => Promise<VerifyApiKeyResult>);
   getSession?: () => Promise<SessionResult> | (() => Promise<SessionResult>);
 }) {
-  return Layer.succeed(AuthClient, {
+  const authLayer = Layer.succeed(AuthClient, {
     api: {
       verifyApiKey:
         stub.verifyApiKey ??
@@ -39,6 +43,18 @@ function makeAuthLayer(stub: {
       getSession: stub.getSession ?? (() => Promise.resolve(null)),
     },
   } as unknown as AuthClient["Service"]);
+  const accessLayer = Layer.effect(
+    WorkspaceAccess,
+    Effect.map(AuthClient, (auth) =>
+      makeWorkspaceAccess(auth, {
+        query: {
+          user: { findFirst: () => Promise.resolve({ approved: true }) },
+          member: { findFirst: () => Promise.resolve({ id: "member-1" }) },
+        },
+      } as never)
+    )
+  ).pipe(Layer.provide(authLayer));
+  return Layer.merge(authLayer, accessLayer);
 }
 
 const NO_ALLOWLIST = new Set<string>();

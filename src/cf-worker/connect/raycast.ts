@@ -1,10 +1,11 @@
 import { and, eq, gt } from "drizzle-orm";
-import { Effect, Layer, Schema } from "effect";
+import { Effect, Layer, Match, Schema } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
+import { WorkspaceAccess } from "../auth/workspace-access";
 import { capabilityDeniedResponse } from "../billing/errors";
 import { requireCapability } from "../billing/service";
-import { ApiKey, ApiKeyRowId, OrgId, UserId } from "../db/branded";
+import { ApiKey, ApiKeyRowId } from "../db/branded";
 import * as schema from "../db/schema";
 import { DbClient, query } from "../db/service";
 import { maskId, safeErrorInfo } from "../log-utils";
@@ -23,6 +24,7 @@ import {
   SessionProvider,
   VerificationData,
   VerificationStore,
+  getAuthorizedSession,
 } from "./services";
 
 const decodeVerificationData = Schema.decodeUnknownEffect(VerificationData);
@@ -75,6 +77,7 @@ export const handleExchangeRequest = Effect.fn(
 )(function* (body: { code?: string; deviceName?: string }) {
   const apiKeyStore = yield* ApiKeyStore;
   const verificationStore = yield* VerificationStore;
+  const workspaceAccess = yield* WorkspaceAccess;
 
   if (!body.code) {
     return yield* new MissingCodeError();
@@ -90,6 +93,25 @@ export const handleExchangeRequest = Effect.fn(
 
   const { key, keyId } = record.data;
 
+  yield* workspaceAccess.authorize({ _tag: "ApiKey", apiKey: key }).pipe(
+    Effect.catchTags({
+      WorkspaceCredentialInvalidError: () =>
+        Effect.fail(new ConnectUnauthorizedError()),
+      WorkspaceScopeMissingError: () =>
+        Effect.fail(new ConnectUnauthorizedError()),
+      WorkspaceApiKeyReferenceMissingError: () =>
+        Effect.fail(new ConnectUnauthorizedError()),
+      WorkspaceScopeMismatchError: () =>
+        Effect.fail(new ConnectUnauthorizedError()),
+      WorkspaceUserUnapprovedError: () =>
+        Effect.fail(new ConnectUnauthorizedError()),
+      WorkspaceMembershipRevokedError: () =>
+        Effect.fail(new ConnectUnauthorizedError()),
+      WorkspaceAccessBackendError: (error) =>
+        Effect.fail(new SessionLookupError({ cause: error.cause })),
+    })
+  );
+
   if (body.deviceName) {
     yield* apiKeyStore.updateName(keyId, `Raycast — ${body.deviceName}`);
   }
@@ -104,24 +126,10 @@ const makeLiveLayer = (env: Env) =>
     Layer.effect(
       SessionProvider,
       Effect.gen(function* () {
-        const auth = yield* AuthClient;
+        const workspaceAccess = yield* WorkspaceAccess;
         return SessionProvider.of({
           getSession: (headers) =>
-            Effect.tryPromise({
-              catch: (cause) => new SessionLookupError({ cause }),
-              try: () => auth.api.getSession({ headers }),
-            }).pipe(
-              Effect.map((session) =>
-                session?.session
-                  ? {
-                      userId: UserId.make(session.user.id),
-                      orgId: session.session.activeOrganizationId
-                        ? OrgId.make(session.session.activeOrganizationId)
-                        : null,
-                    }
-                  : null
-              )
-            ),
+            getAuthorizedSession(workspaceAccess, headers),
         });
       })
     ),
@@ -245,6 +253,18 @@ const unexpected500 = (cause: unknown): Effect.Effect<Response> =>
     Effect.as(Response.json({ error: "Internal error" }, { status: 500 }))
   );
 
+export const raycastExchangeAccessErrorResponse = (
+  error: ConnectUnauthorizedError | SessionLookupError
+): Response =>
+  Match.value(error).pipe(
+    Match.tagsExhaustive({
+      ConnectUnauthorizedError: () =>
+        Response.json({ error: "Unauthorized" }, { status: 401 }),
+      SessionLookupError: () =>
+        Response.json({ error: "Auth backend unavailable" }, { status: 503 }),
+    })
+  );
+
 export const handleRaycastConnect = (
   request: Request,
   env: Env
@@ -301,6 +321,8 @@ export const handleRaycastExchange = (
     ),
     Effect.map((data) => Response.json(data)),
     Effect.catchTags({
+      ConnectUnauthorizedError: (error) =>
+        Effect.succeed(raycastExchangeAccessErrorResponse(error)),
       InvalidCodeError: () =>
         Effect.succeed(
           Response.json({ error: "Invalid or expired code" }, { status: 400 })
@@ -313,6 +335,8 @@ export const handleRaycastExchange = (
         Effect.succeed(
           Response.json({ error: "Missing code" }, { status: 400 })
         ),
+      SessionLookupError: (error) =>
+        Effect.succeed(raycastExchangeAccessErrorResponse(error)),
       DbError: (e) => unexpected500(e.cause),
     }),
     Effect.catchCause((cause) => unexpected500(cause)),

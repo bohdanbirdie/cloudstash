@@ -1,10 +1,11 @@
 import { Effect } from "effect";
 
-import { AppLayerLive, AuthClient } from "../auth/service";
-import { OrgId, UserId } from "../db/branded";
+import { AppLayerLive } from "../auth/service";
+import { WorkspaceAccess } from "../auth/workspace-access";
+import { ApiKey, OrgId, UserId } from "../db/branded";
 import { maskId, safeErrorInfo } from "../log-utils";
 import type { Env } from "../shared";
-import { decodeApiKeyMetadata, decodeExtensionPayload } from "./auth-payload";
+import { decodeExtensionPayload } from "./auth-payload";
 import {
   AuthBackendError,
   ForbiddenExtensionOriginError,
@@ -36,6 +37,49 @@ const deny = (reason: string, error: SyncAuthError) =>
     return yield* error;
   });
 
+const authorizeSyncCredential = Effect.fnUntraced(
+  function* (
+    credential:
+      | { readonly _tag: "Session"; readonly headers: Headers }
+      | { readonly _tag: "ApiKey"; readonly apiKey: ApiKey },
+    storeId: OrgId
+  ) {
+    const access = yield* WorkspaceAccess;
+    return yield* access.authorize(credential, storeId);
+  },
+  (effect, _credential, storeId) =>
+    effect.pipe(
+      Effect.catchTags({
+        WorkspaceCredentialInvalidError: () =>
+          Effect.fail(new InvalidSessionError()),
+        WorkspaceScopeMissingError: () =>
+          Effect.fail(new InvalidSessionError()),
+        WorkspaceApiKeyReferenceMissingError: () =>
+          Effect.fail(new MissingApiKeyReferenceError()),
+        WorkspaceScopeMismatchError: (error) =>
+          Effect.fail(
+            new OrgAccessDeniedError({
+              sessionOrgId: error.authorizedOrgId,
+              storeId,
+            })
+          ),
+        WorkspaceUserUnapprovedError: () =>
+          Effect.fail(
+            new OrgAccessDeniedError({ sessionOrgId: null, storeId })
+          ),
+        WorkspaceMembershipRevokedError: (error) =>
+          Effect.fail(
+            new OrgAccessDeniedError({
+              sessionOrgId: error.orgId,
+              storeId,
+            })
+          ),
+        WorkspaceAccessBackendError: (error) =>
+          Effect.fail(new AuthBackendError({ cause: error.cause })),
+      })
+    )
+);
+
 export const validatePayload = Effect.fn("Sync.validatePayload")(
   function* (
     payload: unknown,
@@ -45,7 +89,6 @@ export const validatePayload = Effect.fn("Sync.validatePayload")(
       allowedExtensionIds: ReadonlySet<string>;
     }
   ) {
-    const auth = yield* AuthClient;
     const { storeId, headers, allowedExtensionIds } = context;
     const cookie = headers.get("cookie");
     const origin = headers.get("origin");
@@ -66,58 +109,20 @@ export const validatePayload = Effect.fn("Sync.validatePayload")(
         return yield* deny("missing apiKey", new InvalidSessionError());
       }
 
-      const verify = yield* Effect.tryPromise({
-        catch: (cause) => new AuthBackendError({ cause }),
-        try: () =>
-          auth.api.verifyApiKey({ body: { key: decoded.value.apiKey } }),
-      });
-      if (!verify.valid || !verify.key) {
-        return yield* deny("invalid apiKey", new InvalidSessionError());
-      }
-
-      const metadata = decodeApiKeyMetadata(verify.key.metadata);
-      if (metadata._tag === "None") {
-        return yield* deny("invalid key metadata", new InvalidSessionError());
-      }
-      if (metadata.value.orgId !== storeId) {
-        return yield* new OrgAccessDeniedError({
-          sessionOrgId: metadata.value.orgId,
-          storeId,
-        });
-      }
-
-      const referenceId = verify.key.referenceId;
-      if (!referenceId) {
-        yield* Effect.logError("API key missing referenceId");
-        return yield* new MissingApiKeyReferenceError();
-      }
-      return { userId: UserId.make(referenceId) };
+      return yield* authorizeSyncCredential(
+        { _tag: "ApiKey", apiKey: decoded.value.apiKey },
+        storeId
+      );
     }
 
     if (!cookie) {
       return yield* deny("missing cookie", new MissingSessionCookieError());
     }
 
-    const session = yield* Effect.tryPromise({
-      catch: (cause) => new AuthBackendError({ cause }),
-      try: () => auth.api.getSession({ headers: new Headers({ cookie }) }),
-    });
-    if (!session?.session) {
-      return yield* deny("invalid session", new InvalidSessionError());
-    }
-
-    const sessionOrgId = session.session.activeOrganizationId;
-    if (sessionOrgId !== storeId) {
-      return yield* deny(
-        `org mismatch (session ${maskId(sessionOrgId ?? "none")})`,
-        new OrgAccessDeniedError({
-          sessionOrgId: sessionOrgId ? OrgId.make(sessionOrgId) : null,
-          storeId,
-        })
-      );
-    }
-
-    return { userId: UserId.make(session.user.id) };
+    return yield* authorizeSyncCredential(
+      { _tag: "Session", headers: new Headers({ cookie }) },
+      storeId
+    );
   },
   (effect, _payload, context) =>
     Effect.annotateLogs(effect, { storeId: maskId(context.storeId) })

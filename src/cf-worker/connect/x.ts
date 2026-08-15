@@ -1,9 +1,10 @@
 import { Effect, Layer } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
+import { WorkspaceAccess } from "../auth/workspace-access";
 import { capabilityDeniedResponse } from "../billing/errors";
 import { requireCapability } from "../billing/service";
-import { OrgId, UserId } from "../db/branded";
+import { UserId } from "../db/branded";
 import { maskId, safeErrorInfo } from "../log-utils";
 import type { Env } from "../shared";
 import type {
@@ -11,12 +12,8 @@ import type {
   XStatusResponse,
 } from "../x-sync/durable-object";
 import { sideEffectError } from "../x-sync/effects-helpers";
-import {
-  ConnectUnauthorizedError,
-  NoActiveOrgError,
-  SessionLookupError,
-} from "./errors";
-import { SessionProvider } from "./services";
+import { ConnectUnauthorizedError, NoActiveOrgError } from "./errors";
+import { SessionProvider, getAuthorizedSession } from "./services";
 
 type ActionResult = { ok: true } | { kind: "not_connected" };
 
@@ -195,24 +192,9 @@ export const xResumeRequest = Effect.fn("XConnect.resume")(function* (
 const SessionProviderLive = Layer.effect(
   SessionProvider,
   Effect.gen(function* () {
-    const auth = yield* AuthClient;
+    const workspaceAccess = yield* WorkspaceAccess;
     return SessionProvider.of({
-      getSession: (headers) =>
-        Effect.tryPromise({
-          catch: (cause) => new SessionLookupError({ cause }),
-          try: () => auth.api.getSession({ headers }),
-        }).pipe(
-          Effect.map((session) =>
-            session?.session
-              ? {
-                  userId: UserId.make(session.user.id),
-                  orgId: session.session.activeOrganizationId
-                    ? OrgId.make(session.session.activeOrganizationId)
-                    : null,
-                }
-              : null
-          )
-        ),
+      getSession: (headers) => getAuthorizedSession(workspaceAccess, headers),
     });
   })
 );

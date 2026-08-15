@@ -5,6 +5,10 @@ import { expect, vi } from "vitest";
 import type { TierCapabilities } from "@/lib/plan";
 
 import { AuthClient } from "../../auth/service";
+import {
+  WorkspaceAccess,
+  makeWorkspaceAccess,
+} from "../../auth/workspace-access";
 import { Billing } from "../../billing/service";
 import { ApiKey } from "../../db/branded";
 import { DbError } from "../../db/service";
@@ -27,10 +31,22 @@ function createEnv(overrides: { listLinks?: ReturnType<typeof vi.fn> } = {}) {
 
 function makeAuthLayer(
   verifyApiKey: (opts: { body: { key: string } }) => Promise<unknown>
-): Layer.Layer<AuthClient> {
-  return Layer.succeed(AuthClient, {
+): Layer.Layer<AuthClient | WorkspaceAccess> {
+  const authLayer = Layer.succeed(AuthClient, {
     api: { verifyApiKey },
   } as unknown as AuthClient["Service"]);
+  const accessLayer = Layer.effect(
+    WorkspaceAccess,
+    Effect.map(AuthClient, (auth) =>
+      makeWorkspaceAccess(auth, {
+        query: {
+          user: { findFirst: () => Promise.resolve({ approved: true }) },
+          member: { findFirst: () => Promise.resolve({ id: "member-1" }) },
+        },
+      } as never)
+    )
+  ).pipe(Layer.provide(authLayer));
+  return Layer.merge(authLayer, accessLayer);
 }
 
 function makeBillingLayer(
@@ -52,7 +68,7 @@ function okParams() {
 
 function run(
   env: ReturnType<typeof createEnv>,
-  authLayer: Layer.Layer<AuthClient>,
+  authLayer: Layer.Layer<AuthClient | WorkspaceAccess>,
   billingLayer: Layer.Layer<Billing> = capsLayer(true)
 ) {
   return listLinksEffect(
@@ -67,7 +83,7 @@ function run(
 
 const validKeyResponse = {
   valid: true,
-  key: { metadata: { orgId: "org-1" } },
+  key: { metadata: { orgId: "org-1" }, referenceId: "user-1" },
 };
 
 const validAuthLayer = makeAuthLayer(() => Promise.resolve(validKeyResponse));

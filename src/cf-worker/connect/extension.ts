@@ -1,20 +1,44 @@
 import { eq } from "drizzle-orm";
-import { Effect, Layer, Option } from "effect";
+import { Effect, Layer } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
-import { ApiKey, ApiKeyRowId, OrgId, UserId } from "../db/branded";
+import { WorkspaceAccess } from "../auth/workspace-access";
+import { ApiKey, ApiKeyRowId } from "../db/branded";
 import * as schema from "../db/schema";
 import { DbClient, query } from "../db/service";
 import { maskId, safeErrorInfo } from "../log-utils";
 import type { Env } from "../shared";
-import { decodeApiKeyMetadata } from "../sync/auth-payload";
 import {
   ConnectUnauthorizedError,
   KeyCreationError,
   NoActiveOrgError,
   SessionLookupError,
 } from "./errors";
-import { ApiKeyStore, SessionProvider } from "./services";
+import { ApiKeyStore, SessionProvider, getAuthorizedSession } from "./services";
+
+const authorizeExtensionKey = Effect.fn("ExtensionConnect.authorizeKey")(
+  function* (apiKey: ApiKey) {
+    const workspaceAccess = yield* WorkspaceAccess;
+    return yield* workspaceAccess.authorize({ _tag: "ApiKey", apiKey }).pipe(
+      Effect.catchTags({
+        WorkspaceCredentialInvalidError: () =>
+          Effect.fail(new ConnectUnauthorizedError()),
+        WorkspaceScopeMissingError: () =>
+          Effect.fail(new ConnectUnauthorizedError()),
+        WorkspaceApiKeyReferenceMissingError: () =>
+          Effect.fail(new ConnectUnauthorizedError()),
+        WorkspaceScopeMismatchError: () =>
+          Effect.fail(new ConnectUnauthorizedError()),
+        WorkspaceUserUnapprovedError: () =>
+          Effect.fail(new ConnectUnauthorizedError()),
+        WorkspaceMembershipRevokedError: () =>
+          Effect.fail(new ConnectUnauthorizedError()),
+        WorkspaceAccessBackendError: (error) =>
+          Effect.fail(new SessionLookupError({ cause: error.cause })),
+      })
+    );
+  }
+);
 
 // Cookie-authed mint: the web app calls this, gets the API key directly, and
 // hands it to the extension over externally_connectable (no pairing code).
@@ -56,41 +80,15 @@ export const handleAccountRequest = Effect.fn(
   if (!apiKey) {
     return yield* new ConnectUnauthorizedError();
   }
-  const auth = yield* AuthClient;
   const db = yield* DbClient;
-
-  const verify = yield* Effect.tryPromise({
-    catch: (cause) => new SessionLookupError({ cause }),
-    try: () => auth.api.verifyApiKey({ body: { key: apiKey } }),
-  });
-  if (!verify.valid || !verify.key) {
-    yield* Effect.logWarning("Account check rejected: invalid API key");
-    return yield* new ConnectUnauthorizedError();
-  }
-  const metadataOpt = decodeApiKeyMetadata(verify.key.metadata);
-  if (Option.isNone(metadataOpt)) {
-    yield* Effect.logWarning(
-      "Account check rejected: API key metadata missing orgId"
-    );
-    return yield* new ConnectUnauthorizedError();
-  }
-  const { orgId } = metadataOpt.value;
+  const { orgId, userId } = yield* authorizeExtensionKey(apiKey);
   yield* Effect.annotateCurrentSpan("orgId", maskId(orgId));
-
-  const referenceId = verify.key.referenceId;
-  if (!referenceId) {
-    yield* Effect.logWarning("Account: API key missing referenceId").pipe(
-      Effect.annotateLogs({ orgId: maskId(orgId) })
-    );
-  }
-  const row = referenceId
-    ? yield* query(
-        db
-          .select({ name: schema.user.name, image: schema.user.image })
-          .from(schema.user)
-          .where(eq(schema.user.id, UserId.make(referenceId)))
-      ).pipe(Effect.map((rows) => rows[0] ?? null))
-    : null;
+  const row = yield* query(
+    db
+      .select({ name: schema.user.name, image: schema.user.image })
+      .from(schema.user)
+      .where(eq(schema.user.id, userId))
+  ).pipe(Effect.map((rows) => rows[0] ?? null));
 
   return {
     user: { name: row?.name ?? null, image: row?.image ?? null },
@@ -105,6 +103,8 @@ export const handleDisconnectRequest = Effect.fn(
   }
   const auth = yield* AuthClient;
   const apiKeyStore = yield* ApiKeyStore;
+
+  yield* authorizeExtensionKey(apiKey);
 
   const verify = yield* Effect.tryPromise({
     catch: (cause) => new SessionLookupError({ cause }),
@@ -153,24 +153,10 @@ const makeLiveLayer = (env: Env) =>
     Layer.effect(
       SessionProvider,
       Effect.gen(function* () {
-        const auth = yield* AuthClient;
+        const workspaceAccess = yield* WorkspaceAccess;
         return SessionProvider.of({
           getSession: (headers) =>
-            Effect.tryPromise({
-              catch: (cause) => new SessionLookupError({ cause }),
-              try: () => auth.api.getSession({ headers }),
-            }).pipe(
-              Effect.map((session) =>
-                session?.session
-                  ? {
-                      userId: UserId.make(session.user.id),
-                      orgId: session.session.activeOrganizationId
-                        ? OrgId.make(session.session.activeOrganizationId)
-                        : null,
-                    }
-                  : null
-              )
-            ),
+            getAuthorizedSession(workspaceAccess, headers),
         });
       })
     ),

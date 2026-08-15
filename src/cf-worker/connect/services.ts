@@ -1,10 +1,11 @@
-import { Context, Schema } from "effect";
-import type { Effect } from "effect";
+import { Context, Effect, Schema } from "effect";
 
+import type { WorkspaceAccess } from "../auth/workspace-access";
 import { ApiKey, ApiKeyRowId, OrgId } from "../db/branded";
 import type { UserId } from "../db/branded";
 import type { DbError } from "../db/service";
-import type { KeyCreationError, SessionLookupError } from "./errors";
+import { SessionLookupError } from "./errors";
+import type { KeyCreationError } from "./errors";
 
 export class InvalidVerificationPayloadError extends Schema.TaggedErrorClass<InvalidVerificationPayloadError>()(
   "InvalidVerificationPayloadError",
@@ -34,6 +35,25 @@ export interface SessionData {
   readonly userId: UserId;
   readonly orgId: OrgId | null;
 }
+
+export const getAuthorizedSession = Effect.fnUntraced(function* (
+  workspaceAccess: WorkspaceAccess["Service"],
+  headers: Headers
+) {
+  return yield* workspaceAccess.authorize({ _tag: "Session", headers }).pipe(
+    Effect.map(({ orgId, userId }) => ({ orgId, userId })),
+    Effect.catchTags({
+      WorkspaceCredentialInvalidError: () => Effect.succeed(null),
+      WorkspaceScopeMissingError: () => Effect.succeed(null),
+      WorkspaceScopeMismatchError: () => Effect.succeed(null),
+      WorkspaceUserUnapprovedError: () => Effect.succeed(null),
+      WorkspaceMembershipRevokedError: () => Effect.succeed(null),
+      WorkspaceApiKeyReferenceMissingError: () => Effect.succeed(null),
+      WorkspaceAccessBackendError: (error) =>
+        Effect.fail(new SessionLookupError({ cause: error.cause })),
+    })
+  );
+});
 
 export class SessionProvider extends Context.Service<
   SessionProvider,

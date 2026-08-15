@@ -4,11 +4,21 @@ import { Effect, Layer, References } from "effect";
 import type { TierCapabilities } from "@/lib/plan";
 import { capabilitiesFor } from "@/lib/plan";
 
+import {
+  WorkspaceAccess,
+  WorkspaceAccessBackendError,
+  WorkspaceMembershipRevokedError,
+} from "../../auth/workspace-access";
 import { Billing } from "../../billing/service";
-import { KeyCreationError } from "../../connect/errors";
+import {
+  ConnectUnauthorizedError,
+  KeyCreationError,
+  SessionLookupError,
+} from "../../connect/errors";
 import {
   handleConnectRequest,
   handleExchangeRequest,
+  raycastExchangeAccessErrorResponse,
 } from "../../connect/raycast";
 import {
   ApiKeyStore,
@@ -66,6 +76,14 @@ function makeBillingLayer(caps: TierCapabilities = capabilitiesFor("plus")) {
   );
 }
 
+const workspaceAccessSuccess: WorkspaceAccess["Service"] = {
+  authorize: () =>
+    Effect.succeed({
+      orgId: OrgId.make("org-1"),
+      userId: UserId.make("user-1"),
+    }),
+};
+
 function runConnect(
   options: {
     session?: SessionData | null;
@@ -92,13 +110,18 @@ function runExchange(
   options: {
     apiKeyStore?: Partial<ApiKeyStore["Service"]>;
     verificationStore?: Partial<VerificationStore["Service"]>;
+    workspaceAccess?: WorkspaceAccess["Service"];
   } = {}
 ) {
   const layer = Layer.mergeAll(
     makeSessionLayer(null),
     makeApiKeyLayer(options.apiKeyStore),
     makeVerificationLayer(options.verificationStore),
-    makeBillingLayer()
+    makeBillingLayer(),
+    Layer.succeed(
+      WorkspaceAccess,
+      options.workspaceAccess ?? workspaceAccessSuccess
+    )
   );
 
   return handleExchangeRequest(body).pipe(
@@ -297,6 +320,77 @@ describe("handleExchangeRequest", () => {
     );
   });
 
+  it.effect("rejects exchange when key membership was revoked", () => {
+    let updateCalled = false;
+    const storedData = {
+      key: ApiKey.make("lb_test_key_123"),
+      keyId: ApiKeyRowId.make("key-id-1"),
+    };
+    return runExchange(
+      { code: "valid-code", deviceName: "Device" },
+      {
+        apiKeyStore: {
+          updateName: () => {
+            updateCalled = true;
+            return Effect.void;
+          },
+        },
+        verificationStore: {
+          consumeByIdentifier: () =>
+            Effect.succeed({ id: "ver-1", data: storedData }),
+        },
+        workspaceAccess: {
+          authorize: () =>
+            Effect.fail(
+              new WorkspaceMembershipRevokedError({
+                orgId: OrgId.make("org-1"),
+                userId: UserId.make("user-1"),
+              })
+            ),
+        },
+      }
+    ).pipe(
+      Effect.flip,
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("ConnectUnauthorizedError");
+          expect(updateCalled).toBe(false);
+        })
+      )
+    );
+  });
+
+  it.effect("surfaces workspace backend failure during exchange", () => {
+    const cause = new Error("D1 unavailable");
+    const storedData = {
+      key: ApiKey.make("lb_test_key_123"),
+      keyId: ApiKeyRowId.make("key-id-1"),
+    };
+    return runExchange(
+      { code: "valid-code" },
+      {
+        verificationStore: {
+          consumeByIdentifier: () =>
+            Effect.succeed({ id: "ver-1", data: storedData }),
+        },
+        workspaceAccess: {
+          authorize: () =>
+            Effect.fail(
+              new WorkspaceAccessBackendError({
+                cause,
+                operation: "lookupMembership",
+              })
+            ),
+        },
+      }
+    ).pipe(
+      Effect.flip,
+      Effect.tap((error) =>
+        Effect.sync(() => expect(error._tag).toBe("SessionLookupError"))
+      )
+    );
+  });
+
   it.effect(
     "second concurrent exchange of the same code yields InvalidCodeError",
     () => {
@@ -399,5 +493,21 @@ describe("handleExchangeRequest", () => {
         })
       )
     );
+  });
+});
+
+describe("Raycast exchange HTTP access errors", () => {
+  it("maps authorization denial to 401", () => {
+    const response = raycastExchangeAccessErrorResponse(
+      new ConnectUnauthorizedError()
+    );
+    expect(response.status).toBe(401);
+  });
+
+  it("maps auth backend failure to 503", () => {
+    const response = raycastExchangeAccessErrorResponse(
+      new SessionLookupError({ cause: new Error("D1 unavailable") })
+    );
+    expect(response.status).toBe(503);
   });
 });

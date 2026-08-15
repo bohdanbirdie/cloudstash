@@ -16,13 +16,11 @@ repairs an owner membership when the personal organization exists without one,
 or creates `<name>'s Workspace` with stable user-derived slug. The organization
 ID becomes `activeOrganizationId`.
 
-The app/preflight path keeps unapproved users on the pending flow. The primary
-`/sync` validator currently checks only session and active-workspace equality,
-not approval or a current membership row; this authorization divergence is
-tracked by
-[DELTA-011](../../.delta/DELTA-011-primary-sync-authorization-is-weaker-than-preflight.md).
-Admin member management can approve users; viewer
-permissions cannot mutate membership.
+The app path keeps unapproved users on the pending flow. Sync preflight and the
+authoritative `/sync` validator share the same authorization decision: both
+require the session's active workspace, current approval, current membership,
+and equality with the requested workspace. Admin member management can approve
+users; viewer permissions cannot mutate membership.
 
 ## Logout and Local State
 

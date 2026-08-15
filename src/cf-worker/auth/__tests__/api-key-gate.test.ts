@@ -11,6 +11,7 @@ import { DbError } from "../../db/service";
 import { OrgNotFoundError } from "../../org/errors";
 import { gateUserApiKeyCreate } from "../api-key-gate";
 import { AuthClient } from "../service";
+import { WorkspaceAccess, makeWorkspaceAccess } from "../workspace-access";
 
 type GetSessionResult = {
   user?: { id: string };
@@ -19,13 +20,44 @@ type GetSessionResult = {
 
 const authStub = (impl: {
   getSession?: (headers: Headers) => Promise<GetSessionResult>;
-}) =>
-  Layer.succeed(AuthClient, {
+  handler?: (request: Request) => Promise<Response>;
+  approved?: boolean;
+  member?: boolean;
+  membershipError?: unknown;
+}) => {
+  const authLayer = Layer.succeed(AuthClient, {
     api: {
       getSession:
         impl.getSession ?? (() => Promise.resolve<GetSessionResult>(null)),
     },
+    handler:
+      impl.handler ??
+      (async (request: Request) =>
+        Response.json({ body: await request.json() })),
   } as unknown as AuthClient["Service"]);
+  const accessLayer = Layer.effect(
+    WorkspaceAccess,
+    Effect.map(AuthClient, (auth) =>
+      makeWorkspaceAccess(auth, {
+        query: {
+          user: {
+            findFirst: () =>
+              Promise.resolve({ approved: impl.approved ?? true }),
+          },
+          member: {
+            findFirst: () =>
+              impl.membershipError
+                ? Promise.reject(impl.membershipError)
+                : Promise.resolve(
+                    impl.member === false ? undefined : { id: "member-1" }
+                  ),
+          },
+        },
+      } as never)
+    )
+  ).pipe(Layer.provide(authLayer));
+  return Layer.merge(authLayer, accessLayer);
+};
 
 const billingStub = (
   caps: TierCapabilities,
@@ -52,14 +84,18 @@ const billingStub = (
   );
 };
 
-const POST = (path: string) =>
-  new Request(`http://worker${path}`, { method: "POST" });
+const POST = (path: string, body: unknown = { name: "test" }) =>
+  new Request(`http://worker${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
 
 const GET = (path: string) => new Request(`http://worker${path}`);
 
 const provide = (
   effect: ReturnType<typeof gateUserApiKeyCreate>,
-  layer: Layer.Layer<AuthClient | Billing>
+  layer: Layer.Layer<AuthClient | Billing | WorkspaceAccess>
 ) =>
   effect.pipe(
     Effect.provide(layer),
@@ -83,7 +119,12 @@ describe("gateUserApiKeyCreate", () => {
 
   it.effect("returns 401 when session is null", () =>
     provide(
-      gateUserApiKeyCreate(POST("/api/auth/api-key/create")),
+      gateUserApiKeyCreate(
+        POST("/api/auth/api-key/create", {
+          name: "test",
+          metadata: { orgId: "attacker-selected-org" },
+        })
+      ),
       Layer.mergeAll(
         authStub({ getSession: () => Promise.resolve(null) }),
         billingStub(capabilitiesFor("free"))
@@ -102,9 +143,47 @@ describe("gateUserApiKeyCreate", () => {
     )
   );
 
+  it.effect("rejects generic API key metadata updates", () =>
+    provide(
+      gateUserApiKeyCreate(
+        POST("/api/auth/api-key/update", {
+          keyId: "key-1",
+          metadata: { orgId: "other-org" },
+        })
+      ),
+      Layer.mergeAll(authStub({}), billingStub(capabilitiesFor("plus")))
+    ).pipe(
+      Effect.tap((res) =>
+        Effect.promise(async () => {
+          expect(res?.status).toBe(400);
+          expect(await res!.json()).toEqual({
+            error: "API key workspace scope is immutable",
+          });
+        })
+      )
+    )
+  );
+
+  it.effect("allows API key updates that do not touch metadata", () =>
+    provide(
+      gateUserApiKeyCreate(
+        POST("/api/auth/api-key/update", {
+          keyId: "key-1",
+          name: "Renamed key",
+        })
+      ),
+      Layer.mergeAll(authStub({}), billingStub(capabilitiesFor("plus")))
+    ).pipe(Effect.tap((res) => Effect.sync(() => expect(res).toBeNull())))
+  );
+
   it.effect("returns 400 when session has no active organization", () =>
     provide(
-      gateUserApiKeyCreate(POST("/api/auth/api-key/create")),
+      gateUserApiKeyCreate(
+        POST("/api/auth/api-key/create", {
+          name: "test",
+          metadata: { orgId: "attacker-selected-org" },
+        })
+      ),
       Layer.mergeAll(
         authStub({
           getSession: () =>
@@ -125,6 +204,100 @@ describe("gateUserApiKeyCreate", () => {
           expect(body.error).toBe("No active organization");
         })
       )
+    )
+  );
+
+  it.effect("returns 403 when account approval was withdrawn", () =>
+    provide(
+      gateUserApiKeyCreate(POST("/api/auth/api-key/create")),
+      Layer.mergeAll(
+        authStub({
+          approved: false,
+          getSession: () =>
+            Promise.resolve({
+              user: { id: "user-1" },
+              session: { activeOrganizationId: "org-1" },
+            }),
+        }),
+        billingStub(capabilitiesFor("plus"))
+      )
+    ).pipe(
+      Effect.tap((res) => Effect.sync(() => expect(res?.status).toBe(403)))
+    )
+  );
+
+  it.effect("returns 403 when workspace membership was revoked", () =>
+    provide(
+      gateUserApiKeyCreate(POST("/api/auth/api-key/create")),
+      Layer.mergeAll(
+        authStub({
+          member: false,
+          getSession: () =>
+            Promise.resolve({
+              user: { id: "user-1" },
+              session: { activeOrganizationId: "org-1" },
+            }),
+        }),
+        billingStub(capabilitiesFor("plus"))
+      )
+    ).pipe(
+      Effect.tap((res) => Effect.sync(() => expect(res?.status).toBe(403)))
+    )
+  );
+
+  it.effect("returns 503 when membership lookup fails", () =>
+    provide(
+      gateUserApiKeyCreate(POST("/api/auth/api-key/create")),
+      Layer.mergeAll(
+        authStub({
+          membershipError: new Error("D1 unavailable"),
+          getSession: () =>
+            Promise.resolve({
+              user: { id: "user-1" },
+              session: { activeOrganizationId: "org-1" },
+            }),
+        }),
+        billingStub(capabilitiesFor("plus"))
+      )
+    ).pipe(
+      Effect.tap((res) => Effect.sync(() => expect(res?.status).toBe(503)))
+    )
+  );
+
+  it.effect("returns 400 for a non-object create body", () =>
+    provide(
+      gateUserApiKeyCreate(POST("/api/auth/api-key/create", [])),
+      Layer.mergeAll(
+        authStub({
+          getSession: () =>
+            Promise.resolve({
+              user: { id: "user-1" },
+              session: { activeOrganizationId: "org-1" },
+            }),
+        }),
+        billingStub(capabilitiesFor("plus"))
+      )
+    ).pipe(
+      Effect.tap((res) => Effect.sync(() => expect(res?.status).toBe(400)))
+    )
+  );
+
+  it.effect("returns 503 when Better Auth key creation fails", () =>
+    provide(
+      gateUserApiKeyCreate(POST("/api/auth/api-key/create")),
+      Layer.mergeAll(
+        authStub({
+          handler: () => Promise.reject(new Error("Better Auth unavailable")),
+          getSession: () =>
+            Promise.resolve({
+              user: { id: "user-1" },
+              session: { activeOrganizationId: "org-1" },
+            }),
+        }),
+        billingStub(capabilitiesFor("plus"))
+      )
+    ).pipe(
+      Effect.tap((res) => Effect.sync(() => expect(res?.status).toBe(503)))
     )
   );
 
@@ -162,9 +335,14 @@ describe("gateUserApiKeyCreate", () => {
       )
   );
 
-  it.effect("returns null when publicApi is allowed (plus tier)", () =>
+  it.effect("server-stamps workspace metadata when publicApi is allowed", () =>
     provide(
-      gateUserApiKeyCreate(POST("/api/auth/api-key/create")),
+      gateUserApiKeyCreate(
+        POST("/api/auth/api-key/create", {
+          name: "test",
+          metadata: { orgId: "attacker-selected-org" },
+        })
+      ),
       Layer.mergeAll(
         authStub({
           getSession: () =>
@@ -175,7 +353,18 @@ describe("gateUserApiKeyCreate", () => {
         }),
         billingStub(capabilitiesFor("plus"))
       )
-    ).pipe(Effect.tap((res) => Effect.sync(() => expect(res).toBeNull())))
+    ).pipe(
+      Effect.tap((res) =>
+        Effect.promise(async () => {
+          expect(res?.status).toBe(200);
+          const response = (await res!.json()) as { body: unknown };
+          expect(response.body).toEqual({
+            name: "test",
+            metadata: { orgId: "org-1", source: "api" },
+          });
+        })
+      )
+    )
   );
 
   it.effect("returns 404 when org row is missing", () =>
@@ -229,24 +418,22 @@ describe("gateUserApiKeyCreate", () => {
       )
   );
 
-  it.effect(
-    "returns 503 when the auth backend rejects (SessionLookupError)",
-    () =>
-      provide(
-        gateUserApiKeyCreate(POST("/api/auth/api-key/create")),
-        Layer.mergeAll(
-          authStub({
-            getSession: () => Promise.reject(new Error("auth backend down")),
-          }),
-          billingStub(capabilitiesFor("pro"))
-        )
-      ).pipe(
-        Effect.tap((res) =>
-          Effect.sync(() => {
-            expect(res?.status).toBe(503);
-          })
-        )
+  it.effect("returns 503 when session lookup rejects", () =>
+    provide(
+      gateUserApiKeyCreate(POST("/api/auth/api-key/create")),
+      Layer.mergeAll(
+        authStub({
+          getSession: () => Promise.reject(new Error("auth backend down")),
+        }),
+        billingStub(capabilitiesFor("pro"))
       )
+    ).pipe(
+      Effect.tap((res) =>
+        Effect.sync(() => {
+          expect(res?.status).toBe(503);
+        })
+      )
+    )
   );
 
   it.effect(
@@ -297,8 +484,7 @@ describe("gateUserApiKeyCreate", () => {
       ).pipe(
         Effect.tap((res) =>
           Effect.sync(() => {
-            // plus allows publicApi → gate passes
-            expect(res).toBeNull();
+            expect(res?.status).toBe(200);
           })
         )
       );
@@ -320,7 +506,7 @@ describe("gateUserApiKeyCreate", () => {
       ).pipe(
         Effect.tap((res) =>
           Effect.sync(() => {
-            expect(res?.status).toBe(400);
+            expect(res?.status).toBe(401);
           })
         )
       )

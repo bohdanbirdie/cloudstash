@@ -5,6 +5,10 @@ import { expect, vi } from "vitest";
 import type { TierCapabilities } from "@/lib/plan";
 
 import { AuthClient } from "../../auth/service";
+import {
+  WorkspaceAccess,
+  makeWorkspaceAccess,
+} from "../../auth/workspace-access";
 import { Billing } from "../../billing/service";
 import { DbError } from "../../db/service";
 import { handleIngestRequest, ingestResponse } from "../../ingest/service";
@@ -46,9 +50,21 @@ function makeAuthLayer(
     body: { key: string };
   }) => Promise<{ valid: boolean; key: unknown }>
 ) {
-  return Layer.succeed(AuthClient, {
+  const authLayer = Layer.succeed(AuthClient, {
     api: { verifyApiKey },
   } as unknown as AuthClient["Service"]);
+  const accessLayer = Layer.effect(
+    WorkspaceAccess,
+    Effect.map(AuthClient, (auth) =>
+      makeWorkspaceAccess(auth, {
+        query: {
+          user: { findFirst: () => Promise.resolve({ approved: true }) },
+          member: { findFirst: () => Promise.resolve({ id: "member-1" }) },
+        },
+      } as never)
+    )
+  ).pipe(Layer.provide(authLayer));
+  return Layer.merge(authLayer, accessLayer);
 }
 
 function makeBillingLayer(
@@ -67,7 +83,7 @@ const plusBillingLayer = capsLayer(true);
 function run(
   request: Request,
   env: ReturnType<typeof createEnv>,
-  authLayer: Layer.Layer<AuthClient>,
+  authLayer: Layer.Layer<AuthClient | WorkspaceAccess>,
   billingLayer: Layer.Layer<Billing> = plusBillingLayer
 ) {
   return ingestResponse(
@@ -137,7 +153,7 @@ describe("ingestRequestToResponse", () => {
     );
   });
 
-  it.effect("returns 401 when verifyApiKey throws an error", () => {
+  it.effect("returns 503 when verifyApiKey throws an error", () => {
     const authLayer = makeAuthLayer(() =>
       Promise.reject(new Error("Invalid API key."))
     );
@@ -151,8 +167,10 @@ describe("ingestRequestToResponse", () => {
     return run(request, env, authLayer).pipe(
       Effect.tap((response) =>
         Effect.promise(async () => {
-          expect(response.status).toBe(401);
-          expect(await response.json()).toEqual({ error: "Invalid API key" });
+          expect(response.status).toBe(503);
+          expect(await response.json()).toEqual({
+            error: "Auth backend unavailable",
+          });
         })
       )
     );
