@@ -51,10 +51,28 @@ bun run deploy             # FORBIDDEN
 
 Livestore source is the committed `vendor/livestore` submodule (not a `local/` clone) — see [Livestore Source (vendored upstream)](#livestore-source-vendored-upstream) below.
 
+## Intent Layer (`context/`)
+
+`context/` is the only always-current durable source for Cloudstash's product
+and system intent. Start with `context/intuition.md`; `context/spec.md` defines
+the tree, artifact ownership, ID scheme, precedence, and lifecycle.
+
+- A behavior or contract change updates its owning Intent node in the same PR.
+- Consequential accepted choices belong in `.decisions/`; confirmed drift in
+  `.delta/`; unresolved design uncertainty in `open-questions.md`; non-binding
+  future direction in `roadmap.md`.
+- Plans, implementation status, and task checklists stay in `docs/kanban.md` and
+  `docs/todos/`.
+- `vision.md` and `requirements.md` are protected. Confirm with the maintainer
+  before changing goals, constraints, tradeoffs, or guarantees.
+- Run `bun run check:intent` after editing the corpus.
+- `vendor/livestore/context/` is upstream LiveStore's own Intent tree and is
+  outside the Cloudstash corpus.
+
 ## Documentation
 
-- `docs/architecture/` — System architecture (auth, worker resilience, link processor).
-- `docs/features/` — Feature docs and specs. Check before implementing changes.
+- `docs/architecture/` — Derived system explanations (auth, worker resilience, link processor); they must not contradict the owning `context/` node.
+- `docs/features/` — Derived feature explanations. Check for implementation history, then verify durable claims against the owning `context/` node.
 - `docs/diagrams/` — Excalidraw diagrams (`.excalidraw` files). Viewable in the Obsidian Excalidraw plugin or at excalidraw.com. Agents can create/edit these files directly as JSON.
 - `docs/kanban.md` — Task board (Obsidian kanban-plugin). Add tasks here as `- [ ] Title` under `## Todo` / `## In Progress` / `## Done`. Link to a `docs/todos/<slug>.md` doc when a task needs more than a one-liner.
 - `docs/` is an Obsidian vault. Use `[[path/filename]]` wiki links for cross-references between docs (no `.md` extension). **Do not use `[[path|alias]]` syntax inside markdown tables** — the `|` conflicts with the table column separator.

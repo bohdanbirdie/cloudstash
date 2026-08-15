@@ -181,6 +181,10 @@ Architecture diagrams are in `docs/diagrams/` as `.excalidraw` files. Open them 
 
 ## Architecture
 
+The durable product and system contract lives in [`context/`](context/). Start
+with [`context/intuition.md`](context/intuition.md); architecture and feature
+docs under `docs/` are explanatory or historical views of that contract.
+
 ```
 src/
   cf-worker/           # Cloudflare Worker backend

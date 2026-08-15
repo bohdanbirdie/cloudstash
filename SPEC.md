@@ -1,4 +1,11 @@
-# cloudstash.dev - Project Specification
+# cloudstash.dev - Legacy Project Specification
+
+> **Legacy snapshot:** This document preserves early product and architecture
+> context and may describe replaced or planned behavior. The always-current
+> durable contract lives in [`context/`](context/); start with
+> [`context/intuition.md`](context/intuition.md). Executable schemas, tests, and
+> configuration remain authoritative for runtime truth as defined by
+> [`context/spec.md`](context/spec.md#authority-and-precedence).
 
 ## Overview
 
