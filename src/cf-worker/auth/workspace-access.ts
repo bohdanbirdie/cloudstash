@@ -103,6 +103,9 @@ export const makeWorkspaceAccess = (
   db: Database
 ): WorkspaceAccess["Service"] =>
   WorkspaceAccess.of({
+    // Deliberately untraced: this hot per-request validator enriches the
+    // existing boundary span without emitting a failed child span for normal
+    // 401/403 authorization denials.
     authorize: Effect.fnUntraced(function* (credential, requestedOrgId) {
       const resolved = yield* Effect.gen(function* () {
         if (credential._tag === "Session") {
@@ -167,7 +170,10 @@ export const makeWorkspaceAccess = (
         userId: maskId(resolved.userId),
       });
 
-      if (requestedOrgId && requestedOrgId !== resolved.orgId) {
+      if (
+        requestedOrgId !== undefined &&
+        (requestedOrgId.length === 0 || requestedOrgId !== resolved.orgId)
+      ) {
         return yield* new WorkspaceScopeMismatchError({
           authorizedOrgId: resolved.orgId,
           requestedOrgId,

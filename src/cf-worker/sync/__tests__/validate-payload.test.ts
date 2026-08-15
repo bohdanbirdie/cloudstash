@@ -75,6 +75,36 @@ const CTX_NO_AUTH = {
 };
 
 describe("validatePayload — extension API key path", () => {
+  it.effect("rejects an empty requested storeId", () =>
+    validatePayload(
+      { apiKey: "lb_k" },
+      {
+        storeId: OrgId.make(""),
+        headers: CTX_EXT.headers,
+        allowedExtensionIds: NO_ALLOWLIST,
+      }
+    ).pipe(
+      Effect.result,
+      Effect.provide(
+        makeAuthLayer({
+          verifyApiKey: () =>
+            Promise.resolve({
+              valid: true,
+              key: { referenceId: "user-1", metadata: { orgId: "" } },
+            }),
+        })
+      ),
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure._tag).toBe("OrgAccessDeniedError");
+          }
+        })
+      )
+    )
+  );
+
   it.effect("InvalidSessionError when payload missing apiKey", () =>
     validatePayload({}, CTX_EXT).pipe(
       Effect.result,
@@ -314,6 +344,33 @@ describe("parseExtensionAllowlist", () => {
 });
 
 describe("validatePayload — cookie path", () => {
+  it.effect("rejects an empty requested storeId", () =>
+    validatePayload(undefined, {
+      storeId: OrgId.make(""),
+      headers: CTX_COOKIE.headers,
+      allowedExtensionIds: NO_ALLOWLIST,
+    }).pipe(
+      Effect.result,
+      Effect.provide(
+        makeAuthLayer({
+          getSession: () =>
+            Promise.resolve({
+              user: { id: "user-1" },
+              session: { activeOrganizationId: "" },
+            }),
+        })
+      ),
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure._tag).toBe("OrgAccessDeniedError");
+          }
+        })
+      )
+    )
+  );
+
   it.effect(
     "MissingSessionCookieError when no cookie and no extension origin",
     () =>

@@ -31,11 +31,13 @@ export const parseExtensionAllowlist = (
       .filter((entry) => entry.length > 0)
   );
 
-const deny = (reason: string, error: SyncAuthError) =>
-  Effect.gen(function* () {
-    yield* Effect.logWarning(`Sync auth failed: ${reason}`);
-    return yield* error;
-  });
+const deny = Effect.fnUntraced(function* (
+  reason: string,
+  error: SyncAuthError
+) {
+  yield* Effect.logWarning(`Sync auth failed: ${reason}`);
+  return yield* error;
+});
 
 const authorizeSyncCredential = Effect.fnUntraced(
   function* (
@@ -92,6 +94,13 @@ export const validatePayload = Effect.fn("Sync.validatePayload")(
     const { storeId, headers, allowedExtensionIds } = context;
     const cookie = headers.get("cookie");
     const origin = headers.get("origin");
+
+    if (storeId.length === 0) {
+      return yield* deny(
+        "empty storeId",
+        new OrgAccessDeniedError({ sessionOrgId: null, storeId })
+      );
+    }
 
     if (!cookie && origin?.startsWith(EXTENSION_ORIGIN_PREFIX)) {
       if (

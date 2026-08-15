@@ -40,7 +40,10 @@ payload validator use the shared decision. Chat authorization and session-based
 integration minting use the same decision, so a revoked member or newly
 unapproved user cannot enter those boundaries even while a cached session cookie
 still proves identity. The signed cookie cache retains its five-minute identity
-tradeoff; approval and membership are read authoritatively on each boundary.
+tradeoff; approval and membership are read authoritatively when each boundary is
+entered. An already-established sync WebSocket does not yet reauthorize or
+terminate when approval or membership changes; see
+[DELTA-011](../../.delta/DELTA-011-established-sync-connections-do-not-reauthorize.md).
 
 Chrome extension clients authenticate with a paired Better Auth API key and an
 allowed `chrome-extension://` origin. The shared payload validator resolves the

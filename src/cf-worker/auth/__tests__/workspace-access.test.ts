@@ -140,6 +140,19 @@ describe("WorkspaceAccess", () => {
       )
   );
 
+  it.effect("rejects an explicitly requested empty workspace", () =>
+    makeAccess()
+      .authorize({ _tag: "Session", headers: new Headers() }, OrgId.make(""))
+      .pipe(
+        Effect.flip,
+        Effect.tap((error) =>
+          Effect.sync(() =>
+            expect(error._tag).toBe("WorkspaceScopeMismatchError")
+          )
+        )
+      )
+  );
+
   it.effect("rejects an API key without a user reference", () =>
     makeAccess({ keyReferenceId: null })
       .authorize({ _tag: "ApiKey", apiKey: ApiKey.make("key-1") })

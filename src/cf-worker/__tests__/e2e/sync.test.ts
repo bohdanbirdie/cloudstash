@@ -121,6 +121,15 @@ describe("sync Connection Auth E2E", () => {
   });
 
   describe("org access control", () => {
+    it("rejects an empty storeId", async () => {
+      const res = await SELF.fetch(buildSyncUrl(""), {
+        headers: { Cookie: userA.cookie },
+      });
+
+      expect(res.status).toBe(403);
+      expect(await res.text()).toContain("ACCESS_DENIED");
+    });
+
     it("rejects when storeId does not match session orgId", async () => {
       // User A tries to sync with User B's org
       const res = await SELF.fetch(buildSyncUrl(userB.orgId), {

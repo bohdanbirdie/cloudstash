@@ -48,6 +48,22 @@ describe("tenant isolation", () => {
     expect(created.id).toBeTruthy();
     expect(created.key).toBeTruthy();
 
+    const emptyStoreParams = new URLSearchParams({
+      storeId: "",
+      transport: "ws",
+      payload: JSON.stringify({ apiKey: created.key }),
+    });
+    const emptyStore = await SELF.fetch(
+      `http://worker/sync?${emptyStoreParams}`,
+      {
+        headers: {
+          Origin: "chrome-extension://bdommhffamndfanbpnikgmpjncpcobia",
+        },
+      }
+    );
+    expect(emptyStore.status).toBe(403);
+    expect(await emptyStore.text()).toContain("ACCESS_DENIED");
+
     const stored = await env.DB.prepare(
       "SELECT metadata, reference_id AS referenceId FROM apikey WHERE id = ?"
     )
