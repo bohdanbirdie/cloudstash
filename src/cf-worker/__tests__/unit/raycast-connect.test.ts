@@ -77,7 +77,8 @@ function makeBillingLayer(caps: TierCapabilities = capabilitiesFor("plus")) {
 }
 
 const workspaceAccessSuccess: WorkspaceAccess["Service"] = {
-  authorize: () =>
+  authorizeSession: () => Effect.die("Session authorization not used"),
+  authorizeApiKey: () =>
     Effect.succeed({
       orgId: OrgId.make("org-1"),
       userId: UserId.make("user-1"),
@@ -340,7 +341,8 @@ describe("handleExchangeRequest", () => {
             Effect.succeed({ id: "ver-1", data: storedData }),
         },
         workspaceAccess: {
-          authorize: () =>
+          authorizeSession: () => Effect.die("Session authorization not used"),
+          authorizeApiKey: () =>
             Effect.fail(
               new WorkspaceMembershipRevokedError({
                 orgId: OrgId.make("org-1"),
@@ -374,7 +376,8 @@ describe("handleExchangeRequest", () => {
             Effect.succeed({ id: "ver-1", data: storedData }),
         },
         workspaceAccess: {
-          authorize: () =>
+          authorizeSession: () => Effect.die("Session authorization not used"),
+          authorizeApiKey: () =>
             Effect.fail(
               new WorkspaceAccessBackendError({
                 cause,

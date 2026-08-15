@@ -1,7 +1,11 @@
 import { env, SELF } from "cloudflare:test";
+import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
 
 import { signupUser } from "./helpers";
+
+const CreatedApiKey = Schema.Struct({ id: Schema.String, key: Schema.String });
+const decodeCreatedApiKey = Schema.decodeUnknownSync(CreatedApiKey);
 
 const jsonHeaders = (cookie: string) => ({
   "Content-Type": "application/json",
@@ -44,7 +48,7 @@ describe("tenant isolation", () => {
       }),
     });
     await expectApiKeyCreated(create);
-    const created = (await create.json()) as { id: string; key: string };
+    const created = decodeCreatedApiKey(await create.json());
     expect(created.id).toBeTruthy();
     expect(created.key).toBeTruthy();
 
@@ -152,16 +156,7 @@ describe("tenant isolation", () => {
         }
       );
       await expectApiKeyCreated(response);
-      const body: unknown = await response.json();
-      if (
-        typeof body !== "object" ||
-        body === null ||
-        !("key" in body) ||
-        typeof body.key !== "string"
-      ) {
-        throw new Error("API key creation response is missing key");
-      }
-      return body.key;
+      return decodeCreatedApiKey(await response.json()).key;
     };
     const revokedKey = await createKey(revoked.cookie);
     const unapprovedKey = await createKey(unapproved.cookie);

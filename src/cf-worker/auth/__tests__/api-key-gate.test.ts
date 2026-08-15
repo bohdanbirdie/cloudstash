@@ -492,7 +492,7 @@ describe("gateUserApiKeyCreate", () => {
   );
 
   it.effect(
-    "session promise resolution shape: object without session field treated as logged out",
+    "returns 503 when Better Auth returns a malformed non-null session result",
     () =>
       provide(
         gateUserApiKeyCreate(POST("/api/auth/api-key/create")),
@@ -505,8 +505,11 @@ describe("gateUserApiKeyCreate", () => {
         )
       ).pipe(
         Effect.tap((res) =>
-          Effect.sync(() => {
-            expect(res?.status).toBe(401);
+          Effect.promise(async () => {
+            expect(res?.status).toBe(503);
+            expect(await res?.json()).toEqual({
+              error: "Auth backend unavailable",
+            });
           })
         )
       )

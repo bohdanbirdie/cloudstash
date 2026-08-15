@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { Context, Effect, Option, Schema } from "effect";
+import { Context, Effect, Match, Option, Schema } from "effect";
 
 import type { Auth } from ".";
 import type { Database } from "../db";
@@ -73,24 +73,62 @@ export type WorkspaceAccessError =
   | WorkspaceMembershipRevokedError
   | WorkspaceAccessBackendError;
 
-export type WorkspaceCredential =
-  | { readonly _tag: "Session"; readonly headers: Headers }
-  | { readonly _tag: "ApiKey"; readonly apiKey: ApiKey };
+export const WorkspaceAuthorization = Schema.Struct({
+  orgId: OrgId,
+  userId: UserId,
+});
+export type WorkspaceAuthorization = typeof WorkspaceAuthorization.Type;
 
-export interface WorkspaceAuthorization {
-  readonly orgId: OrgId;
-  readonly userId: UserId;
-}
+const SessionResult = Schema.Struct({
+  session: Schema.Struct({
+    activeOrganizationId: Schema.optional(Schema.NullOr(Schema.String)),
+  }),
+  user: Schema.Struct({ id: Schema.String }),
+});
+const VerifyApiKeyResult = Schema.Union([
+  Schema.Struct({
+    valid: Schema.Literal(false),
+    key: Schema.optional(Schema.Unknown),
+  }),
+  Schema.Struct({
+    valid: Schema.Literal(true),
+    key: Schema.Struct({
+      metadata: Schema.Unknown,
+      referenceId: Schema.optional(Schema.NullOr(Schema.String)),
+    }),
+  }),
+]);
 
-export class WorkspaceAccess extends Context.Service<
-  WorkspaceAccess,
-  {
-    readonly authorize: (
-      credential: WorkspaceCredential,
-      requestedOrgId?: OrgId
-    ) => Effect.Effect<WorkspaceAuthorization, WorkspaceAccessError>;
+const decodeSessionResult = Schema.decodeUnknownEffect(SessionResult);
+const decodeVerifyApiKeyResult = Schema.decodeUnknownEffect(VerifyApiKeyResult);
+
+type WorkspaceAccessForbiddenError =
+  | WorkspaceScopeMismatchError
+  | WorkspaceUserUnapprovedError
+  | WorkspaceMembershipRevokedError;
+
+type WorkspaceAccessUnauthorizedError =
+  | WorkspaceCredentialInvalidError
+  | WorkspaceApiKeyReferenceMissingError;
+
+export const matchWorkspaceAccessError = <Result>(
+  error: WorkspaceAccessError,
+  handlers: {
+    readonly unauthorized: (error: WorkspaceAccessUnauthorizedError) => Result;
+    readonly missingScope: () => Result;
+    readonly forbidden: (error: WorkspaceAccessForbiddenError) => Result;
+    readonly backend: (error: WorkspaceAccessBackendError) => Result;
   }
->()("@cloudstash/WorkspaceAccess") {}
+): Result =>
+  Match.typeTags<WorkspaceAccessError, Result>()({
+    WorkspaceCredentialInvalidError: handlers.unauthorized,
+    WorkspaceApiKeyReferenceMissingError: handlers.unauthorized,
+    WorkspaceScopeMissingError: handlers.missingScope,
+    WorkspaceScopeMismatchError: handlers.forbidden,
+    WorkspaceUserUnapprovedError: handlers.forbidden,
+    WorkspaceMembershipRevokedError: handlers.forbidden,
+    WorkspaceAccessBackendError: handlers.backend,
+  })(error);
 
 const remapDbError = (operation: "lookupUser" | "lookupMembership") =>
   Effect.mapError(
@@ -98,116 +136,148 @@ const remapDbError = (operation: "lookupUser" | "lookupMembership") =>
       new WorkspaceAccessBackendError({ operation, cause: error.cause })
   );
 
-export const makeWorkspaceAccess = (
+const resolveSession = Effect.fnUntraced(function* (
   auth: Auth,
-  db: Database
-): WorkspaceAccess["Service"] =>
-  WorkspaceAccess.of({
-    // Deliberately untraced: this hot per-request validator enriches the
-    // existing boundary span without emitting a failed child span for normal
-    // 401/403 authorization denials.
-    authorize: Effect.fnUntraced(function* (credential, requestedOrgId) {
-      const resolved = yield* Effect.gen(function* () {
-        if (credential._tag === "Session") {
-          const session = yield* Effect.tryPromise({
-            try: () => auth.api.getSession({ headers: credential.headers }),
-            catch: (cause) =>
-              new WorkspaceAccessBackendError({
-                operation: "getSession",
-                cause,
-              }),
-          });
-          if (!session?.session) {
-            return yield* new WorkspaceCredentialInvalidError({
-              credential: "session",
-            });
-          }
-          const rawOrgId = session.session.activeOrganizationId;
-          if (!rawOrgId) {
-            return yield* new WorkspaceScopeMissingError({
-              credential: "session",
-            });
-          }
-          return {
-            orgId: OrgId.make(rawOrgId),
-            userId: UserId.make(session.user.id),
-          };
-        }
-
-        const verify = yield* Effect.tryPromise({
-          try: () =>
-            auth.api.verifyApiKey({ body: { key: credential.apiKey } }),
-          catch: (cause) =>
-            new WorkspaceAccessBackendError({
-              operation: "verifyApiKey",
-              cause,
-            }),
-        });
-        if (!verify.valid || !verify.key) {
-          return yield* new WorkspaceCredentialInvalidError({
-            credential: "apiKey",
-          });
-        }
-
-        const metadata = decodeApiKeyMetadata(verify.key.metadata);
-        if (Option.isNone(metadata)) {
-          return yield* new WorkspaceScopeMissingError({
-            credential: "apiKey",
-          });
-        }
-        const referenceId = verify.key.referenceId;
-        if (!referenceId) {
-          return yield* new WorkspaceApiKeyReferenceMissingError();
-        }
-        return {
-          orgId: metadata.value.orgId,
-          userId: UserId.make(referenceId),
-        };
-      });
-
-      yield* Effect.annotateCurrentSpan({
-        orgId: maskId(resolved.orgId),
-        userId: maskId(resolved.userId),
-      });
-
-      if (
-        requestedOrgId !== undefined &&
-        (requestedOrgId.length === 0 || requestedOrgId !== resolved.orgId)
-      ) {
-        return yield* new WorkspaceScopeMismatchError({
-          authorizedOrgId: resolved.orgId,
-          requestedOrgId,
-        });
-      }
-
-      const user = yield* query(
-        db.query.user.findFirst({
-          columns: { approved: true },
-          where: eq(dbSchema.user.id, resolved.userId),
-        })
-      ).pipe(remapDbError("lookupUser"));
-      if (user?.approved !== true) {
-        return yield* new WorkspaceUserUnapprovedError({
-          userId: resolved.userId,
-        });
-      }
-
-      const membership = yield* query(
-        db.query.member.findFirst({
-          columns: { id: true },
-          where: and(
-            eq(dbSchema.member.userId, resolved.userId),
-            eq(dbSchema.member.organizationId, resolved.orgId)
-          ),
-        })
-      ).pipe(remapDbError("lookupMembership"));
-      if (!membership) {
-        return yield* new WorkspaceMembershipRevokedError({
-          orgId: resolved.orgId,
-          userId: resolved.userId,
-        });
-      }
-
-      return resolved;
-    }),
+  headers: Headers
+) {
+  const result = yield* Effect.tryPromise({
+    try: () => auth.api.getSession({ headers }),
+    catch: (cause) =>
+      new WorkspaceAccessBackendError({ operation: "getSession", cause }),
   });
+  const present = yield* Effect.fromOption(
+    Option.fromNullishOr(result),
+    () => new WorkspaceCredentialInvalidError({ credential: "session" })
+  );
+  const session = yield* decodeSessionResult(present).pipe(
+    Effect.mapError(
+      (cause) =>
+        new WorkspaceAccessBackendError({ operation: "getSession", cause })
+    )
+  );
+  const orgId = yield* Effect.fromOption(
+    Option.fromNullishOr(session.session.activeOrganizationId).pipe(
+      Option.filter((id) => id.length > 0),
+      Option.map((id) => OrgId.make(id))
+    ),
+    () => new WorkspaceScopeMissingError({ credential: "session" })
+  );
+  return { orgId, userId: UserId.make(session.user.id) };
+});
+
+const resolveApiKey = Effect.fnUntraced(function* (auth: Auth, apiKey: ApiKey) {
+  const result = yield* Effect.tryPromise({
+    try: () => auth.api.verifyApiKey({ body: { key: apiKey } }),
+    catch: (cause) =>
+      new WorkspaceAccessBackendError({ operation: "verifyApiKey", cause }),
+  });
+  const verification = yield* decodeVerifyApiKeyResult(result).pipe(
+    Effect.mapError(
+      (cause) =>
+        new WorkspaceAccessBackendError({ operation: "verifyApiKey", cause })
+    )
+  );
+  const verifiedKey = yield* Match.value(verification).pipe(
+    Match.when({ valid: false }, () =>
+      Effect.fail(new WorkspaceCredentialInvalidError({ credential: "apiKey" }))
+    ),
+    Match.when({ valid: true }, ({ key }) => Effect.succeed(key)),
+    Match.exhaustive
+  );
+  const metadata = yield* Effect.fromOption(
+    decodeApiKeyMetadata(verifiedKey.metadata),
+    () => new WorkspaceScopeMissingError({ credential: "apiKey" })
+  );
+  const userId = yield* Effect.fromOption(
+    Option.fromNullishOr(verifiedKey.referenceId).pipe(
+      Option.filter((id) => id.length > 0),
+      Option.map((id) => UserId.make(id))
+    ),
+    () => new WorkspaceApiKeyReferenceMissingError()
+  );
+  return { orgId: metadata.orgId, userId };
+});
+
+const make = (auth: Auth, db: Database) => {
+  const authorizeResolved = Effect.fnUntraced(function* (
+    resolved: WorkspaceAuthorization,
+    requestedOrgId?: OrgId
+  ) {
+    yield* Effect.annotateCurrentSpan({
+      orgId: maskId(resolved.orgId),
+      userId: maskId(resolved.userId),
+    });
+
+    if (
+      requestedOrgId !== undefined &&
+      (requestedOrgId.length === 0 || requestedOrgId !== resolved.orgId)
+    ) {
+      return yield* new WorkspaceScopeMismatchError({
+        authorizedOrgId: resolved.orgId,
+        requestedOrgId,
+      });
+    }
+
+    const user = yield* query(
+      db.query.user.findFirst({
+        columns: { approved: true },
+        where: eq(dbSchema.user.id, resolved.userId),
+      })
+    ).pipe(remapDbError("lookupUser"));
+    yield* Effect.fromOption(
+      Option.fromNullishOr(user).pipe(
+        Option.filter(({ approved }) => approved === true)
+      ),
+      () => new WorkspaceUserUnapprovedError({ userId: resolved.userId })
+    );
+
+    const membership = yield* query(
+      db.query.member.findFirst({
+        columns: { id: true },
+        where: and(
+          eq(dbSchema.member.userId, resolved.userId),
+          eq(dbSchema.member.organizationId, resolved.orgId)
+        ),
+      })
+    ).pipe(remapDbError("lookupMembership"));
+    yield* Effect.fromOption(
+      Option.fromNullishOr(membership),
+      () => new WorkspaceMembershipRevokedError(resolved)
+    );
+
+    return resolved;
+  });
+
+  return {
+    // Deliberately untraced: these hot per-request validators enrich the
+    // existing boundary span without emitting failed child spans for normal
+    // authorization denials.
+    authorizeSession: Effect.fnUntraced(function* (
+      headers: Headers,
+      requestedOrgId?: OrgId
+    ) {
+      return yield* authorizeResolved(
+        yield* resolveSession(auth, headers),
+        requestedOrgId
+      );
+    }),
+    authorizeApiKey: Effect.fnUntraced(function* (
+      apiKey: ApiKey,
+      requestedOrgId?: OrgId
+    ) {
+      return yield* authorizeResolved(
+        yield* resolveApiKey(auth, apiKey),
+        requestedOrgId
+      );
+    }),
+  };
+};
+
+export type WorkspaceAccessService = ReturnType<typeof make>;
+
+export class WorkspaceAccess extends Context.Service<
+  WorkspaceAccess,
+  WorkspaceAccessService
+>()("@cloudstash/WorkspaceAccess") {}
+
+export const makeWorkspaceAccess = make;

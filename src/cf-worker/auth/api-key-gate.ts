@@ -1,4 +1,4 @@
-import { Effect, Option } from "effect";
+import { Effect, Option, Schema } from "effect";
 
 import { capabilityDeniedResponse } from "../billing/errors";
 import { requireCapability } from "../billing/service";
@@ -6,6 +6,18 @@ import { SessionLookupError } from "../connect/errors";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { AuthClient } from "./service";
 import { WorkspaceAccess } from "./workspace-access";
+import { workspaceAccessHttpResponse } from "./workspace-access-http";
+
+const ApiKeyMutationRoute = Schema.Literals([
+  "/api/auth/api-key/create",
+  "/api/auth/api-key/update",
+]);
+const ApiKeyMutationBody = Schema.Record(Schema.String, Schema.Unknown);
+const MetadataMutation = Schema.Struct({ metadata: Schema.Unknown });
+
+const decodeRoute = Schema.decodeUnknownOption(ApiKeyMutationRoute);
+const decodeBody = Schema.decodeUnknownEffect(ApiKeyMutationBody);
+const containsMetadata = Schema.is(MetadataMutation);
 
 /**
  * Owns browser API-key create scope and blocks browser metadata updates.
@@ -17,35 +29,40 @@ import { WorkspaceAccess } from "./workspace-access";
 export const gateUserApiKeyCreate = Effect.fn("Auth.gateUserApiKeyCreate")(
   function* (request: Request) {
     if (request.method !== "POST") return null;
-    const { pathname } = new URL(request.url);
-    const isCreate = pathname === "/api/auth/api-key/create";
-    const isUpdate = pathname === "/api/auth/api-key/update";
-    if (!isCreate && !isUpdate) return null;
+    const route = decodeRoute(new URL(request.url).pathname);
+    if (Option.isNone(route)) return null;
 
     const bodyOption = yield* Effect.tryPromise(() =>
       request.clone().json<unknown>()
-    ).pipe(Effect.option);
+    ).pipe(Effect.flatMap(decodeBody), Effect.option);
 
-    if (isUpdate) {
-      if (
-        Option.isSome(bodyOption) &&
-        typeof bodyOption.value === "object" &&
-        bodyOption.value !== null &&
-        Object.hasOwn(bodyOption.value, "metadata")
-      ) {
-        return Response.json(
-          { error: "API key workspace scope is immutable" },
-          { status: 400 }
-        );
-      }
-      return null;
+    if (route.value === "/api/auth/api-key/update") {
+      return Option.isSome(bodyOption) && containsMetadata(bodyOption.value)
+        ? Response.json(
+            { error: "API key workspace scope is immutable" },
+            { status: 400 }
+          )
+        : null;
     }
 
     const workspaceAccess = yield* WorkspaceAccess;
-    const { orgId } = yield* workspaceAccess.authorize({
-      _tag: "Session",
-      headers: request.headers,
-    });
+    const authorization = yield* workspaceAccess
+      .authorizeSession(request.headers)
+      .pipe(
+        Effect.matchEffect({
+          onFailure: (error) =>
+            workspaceAccessHttpResponse(error, {
+              missingScope: () =>
+                Response.json(
+                  { error: "No active organization" },
+                  { status: 400 }
+                ),
+            }),
+          onSuccess: Effect.succeed,
+        })
+      );
+    if (authorization instanceof Response) return authorization;
+    const { orgId } = authorization;
 
     const denied = yield* requireCapability(orgId, "publicApi").pipe(
       Effect.as<Response | null>(null),
@@ -70,12 +87,7 @@ export const gateUserApiKeyCreate = Effect.fn("Auth.gateUserApiKeyCreate")(
     );
     if (denied) return denied;
 
-    if (
-      Option.isNone(bodyOption) ||
-      typeof bodyOption.value !== "object" ||
-      bodyOption.value === null ||
-      Array.isArray(bodyOption.value)
-    ) {
+    if (Option.isNone(bodyOption)) {
       return Response.json({ error: "Invalid request body" }, { status: 400 });
     }
 
@@ -98,46 +110,6 @@ export const gateUserApiKeyCreate = Effect.fn("Auth.gateUserApiKeyCreate")(
   (effect) =>
     effect.pipe(
       Effect.catchTags({
-        WorkspaceCredentialInvalidError: () =>
-          Effect.succeed(
-            Response.json({ error: "Unauthorized" }, { status: 401 })
-          ),
-        WorkspaceScopeMissingError: () =>
-          Effect.succeed(
-            Response.json({ error: "No active organization" }, { status: 400 })
-          ),
-        WorkspaceScopeMismatchError: () =>
-          Effect.succeed(
-            Response.json({ error: "Access denied" }, { status: 403 })
-          ),
-        WorkspaceUserUnapprovedError: () =>
-          Effect.succeed(
-            Response.json(
-              { error: "Account pending approval" },
-              { status: 403 }
-            )
-          ),
-        WorkspaceMembershipRevokedError: () =>
-          Effect.succeed(
-            Response.json({ error: "Access denied" }, { status: 403 })
-          ),
-        WorkspaceApiKeyReferenceMissingError: () =>
-          Effect.succeed(
-            Response.json({ error: "Unauthorized" }, { status: 401 })
-          ),
-        WorkspaceAccessBackendError: (e) =>
-          Effect.logError("Auth API key workspace lookup failed").pipe(
-            Effect.annotateLogs({
-              operation: e.operation,
-              ...safeErrorInfo(e.cause),
-            }),
-            Effect.as<Response | null>(
-              Response.json(
-                { error: "Auth backend unavailable" },
-                { status: 503 }
-              )
-            )
-          ),
         SessionLookupError: (e) =>
           Effect.logError("Auth API key mutation failed").pipe(
             Effect.annotateLogs(safeErrorInfo(e.cause)),

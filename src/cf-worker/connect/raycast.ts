@@ -24,10 +24,17 @@ import {
   SessionProvider,
   VerificationData,
   VerificationStore,
+  connectWorkspaceAccessError,
   getAuthorizedSession,
 } from "./services";
 
 const decodeVerificationData = Schema.decodeUnknownEffect(VerificationData);
+const RaycastExchangeBody = Schema.Struct({
+  code: Schema.optional(Schema.String),
+  deviceName: Schema.optional(Schema.String),
+});
+const decodeRaycastExchangeBody =
+  Schema.decodeUnknownEffect(RaycastExchangeBody);
 
 export const handleConnectRequest = Effect.fn(
   "RaycastConnect.handleConnectRequest"
@@ -74,7 +81,7 @@ export const handleConnectRequest = Effect.fn(
 
 export const handleExchangeRequest = Effect.fn(
   "RaycastConnect.handleExchangeRequest"
-)(function* (body: { code?: string; deviceName?: string }) {
+)(function* (body: typeof RaycastExchangeBody.Type) {
   const apiKeyStore = yield* ApiKeyStore;
   const verificationStore = yield* VerificationStore;
   const workspaceAccess = yield* WorkspaceAccess;
@@ -93,24 +100,9 @@ export const handleExchangeRequest = Effect.fn(
 
   const { key, keyId } = record.data;
 
-  yield* workspaceAccess.authorize({ _tag: "ApiKey", apiKey: key }).pipe(
-    Effect.catchTags({
-      WorkspaceCredentialInvalidError: () =>
-        Effect.fail(new ConnectUnauthorizedError()),
-      WorkspaceScopeMissingError: () =>
-        Effect.fail(new ConnectUnauthorizedError()),
-      WorkspaceApiKeyReferenceMissingError: () =>
-        Effect.fail(new ConnectUnauthorizedError()),
-      WorkspaceScopeMismatchError: () =>
-        Effect.fail(new ConnectUnauthorizedError()),
-      WorkspaceUserUnapprovedError: () =>
-        Effect.fail(new ConnectUnauthorizedError()),
-      WorkspaceMembershipRevokedError: () =>
-        Effect.fail(new ConnectUnauthorizedError()),
-      WorkspaceAccessBackendError: (error) =>
-        Effect.fail(new SessionLookupError({ cause: error.cause })),
-    })
-  );
+  yield* workspaceAccess
+    .authorizeApiKey(key)
+    .pipe(Effect.mapError(connectWorkspaceAccessError));
 
   if (body.deviceName) {
     yield* apiKeyStore.updateName(keyId, `Raycast — ${body.deviceName}`);
@@ -313,9 +305,11 @@ export const handleRaycastExchange = (
   env: Env
 ): Promise<Response> =>
   Effect.tryPromise({
-    catch: (): { code?: string } => ({}),
-    try: (): Promise<{ code?: string; deviceName?: string }> => request.json(),
+    catch: () => ({}),
+    try: () => request.json<unknown>(),
   }).pipe(
+    Effect.flatMap(decodeRaycastExchangeBody),
+    Effect.catch(() => Effect.succeed({})),
     Effect.flatMap((body) =>
       handleExchangeRequest(body).pipe(Effect.provide(makeLiveLayer(env)))
     ),

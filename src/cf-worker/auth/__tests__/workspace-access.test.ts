@@ -9,6 +9,7 @@ interface AccessState {
   readonly approved?: boolean;
   readonly member?: boolean;
   readonly sessionOrgId?: string | null;
+  readonly sessionOrgIdOmitted?: boolean;
   readonly sessionUserId?: string;
   readonly sessionValid?: boolean;
   readonly keyOrgId?: string | null;
@@ -18,6 +19,8 @@ interface AccessState {
   readonly verifyApiKeyError?: unknown;
   readonly lookupUserError?: unknown;
   readonly lookupMembershipError?: unknown;
+  readonly sessionResult?: unknown;
+  readonly verifyApiKeyResult?: unknown;
 }
 
 const makeAccess = (state: AccessState = {}) =>
@@ -27,38 +30,44 @@ const makeAccess = (state: AccessState = {}) =>
         getSession: () =>
           state.getSessionError
             ? Promise.reject(state.getSessionError)
-            : Promise.resolve(
-                state.sessionValid === false
-                  ? null
-                  : {
-                      session: {
-                        activeOrganizationId:
-                          state.sessionOrgId === undefined
-                            ? "org-1"
-                            : state.sessionOrgId,
-                      },
-                      user: { id: state.sessionUserId ?? "user-1" },
-                    }
-              ),
+            : state.sessionResult !== undefined
+              ? Promise.resolve(state.sessionResult)
+              : Promise.resolve(
+                  state.sessionValid === false
+                    ? null
+                    : {
+                        session: state.sessionOrgIdOmitted
+                          ? {}
+                          : {
+                              activeOrganizationId:
+                                state.sessionOrgId === undefined
+                                  ? "org-1"
+                                  : state.sessionOrgId,
+                            },
+                        user: { id: state.sessionUserId ?? "user-1" },
+                      }
+                ),
         verifyApiKey: () =>
           state.verifyApiKeyError
             ? Promise.reject(state.verifyApiKeyError)
-            : Promise.resolve({
-                valid: state.keyValid ?? true,
-                key:
-                  state.keyValid === false
-                    ? null
-                    : {
-                        metadata:
-                          state.keyOrgId === null
-                            ? null
-                            : { orgId: state.keyOrgId ?? "org-1" },
-                        referenceId:
-                          state.keyReferenceId === undefined
-                            ? "user-1"
-                            : state.keyReferenceId,
-                      },
-              }),
+            : state.verifyApiKeyResult !== undefined
+              ? Promise.resolve(state.verifyApiKeyResult)
+              : Promise.resolve({
+                  valid: state.keyValid ?? true,
+                  key:
+                    state.keyValid === false
+                      ? null
+                      : {
+                          metadata:
+                            state.keyOrgId === null
+                              ? null
+                              : { orgId: state.keyOrgId ?? "org-1" },
+                          referenceId:
+                            state.keyReferenceId === undefined
+                              ? "user-1"
+                              : state.keyReferenceId,
+                        },
+                }),
       },
     } as unknown as Auth,
     {
@@ -88,48 +97,35 @@ const makeAccess = (state: AccessState = {}) =>
 describe("WorkspaceAccess", () => {
   it.effect("authorizes an approved session with current membership", () => {
     const access = makeAccess();
-    return access
-      .authorize(
-        { _tag: "Session", headers: new Headers() },
-        OrgId.make("org-1")
-      )
-      .pipe(
-        Effect.tap((authorization) =>
-          Effect.sync(() =>
-            expect(authorization).toEqual({
-              orgId: "org-1",
-              userId: "user-1",
-            })
-          )
+    return access.authorizeSession(new Headers(), OrgId.make("org-1")).pipe(
+      Effect.tap((authorization) =>
+        Effect.sync(() =>
+          expect(authorization).toEqual({
+            orgId: "org-1",
+            userId: "user-1",
+          })
         )
-      );
+      )
+    );
   });
 
   it.effect("authorizes an API key from its server-stamped scope", () => {
     const access = makeAccess();
-    return access
-      .authorize({
-        _tag: "ApiKey",
-        apiKey: ApiKey.make("key-1"),
-      })
-      .pipe(
-        Effect.tap((authorization) =>
-          Effect.sync(() =>
-            expect(authorization).toEqual({
-              orgId: "org-1",
-              userId: "user-1",
-            })
-          )
+    return access.authorizeApiKey(ApiKey.make("key-1")).pipe(
+      Effect.tap((authorization) =>
+        Effect.sync(() =>
+          expect(authorization).toEqual({
+            orgId: "org-1",
+            userId: "user-1",
+          })
         )
-      );
+      )
+    );
   });
 
   it.effect("rejects a requested workspace outside credential scope", () =>
     makeAccess()
-      .authorize(
-        { _tag: "ApiKey", apiKey: ApiKey.make("key-1") },
-        OrgId.make("org-2")
-      )
+      .authorizeApiKey(ApiKey.make("key-1"), OrgId.make("org-2"))
       .pipe(
         Effect.flip,
         Effect.tap((error) =>
@@ -142,7 +138,7 @@ describe("WorkspaceAccess", () => {
 
   it.effect("rejects an explicitly requested empty workspace", () =>
     makeAccess()
-      .authorize({ _tag: "Session", headers: new Headers() }, OrgId.make(""))
+      .authorizeSession(new Headers(), OrgId.make(""))
       .pipe(
         Effect.flip,
         Effect.tap((error) =>
@@ -155,7 +151,7 @@ describe("WorkspaceAccess", () => {
 
   it.effect("rejects an API key without a user reference", () =>
     makeAccess({ keyReferenceId: null })
-      .authorize({ _tag: "ApiKey", apiKey: ApiKey.make("key-1") })
+      .authorizeApiKey(ApiKey.make("key-1"))
       .pipe(
         Effect.flip,
         Effect.tap((error) =>
@@ -170,40 +166,39 @@ describe("WorkspaceAccess", () => {
     Effect.forEach(
       [
         {
-          access: makeAccess({ sessionValid: false }),
-          credential: {
-            _tag: "Session" as const,
-            headers: new Headers(),
-          },
+          authorize: () =>
+            makeAccess({ sessionValid: false }).authorizeSession(new Headers()),
           expectedTag: "WorkspaceCredentialInvalidError",
         },
         {
-          access: makeAccess({ sessionOrgId: null }),
-          credential: {
-            _tag: "Session" as const,
-            headers: new Headers(),
-          },
+          authorize: () =>
+            makeAccess({ sessionOrgId: null }).authorizeSession(new Headers()),
           expectedTag: "WorkspaceScopeMissingError",
         },
         {
-          access: makeAccess({ keyValid: false }),
-          credential: {
-            _tag: "ApiKey" as const,
-            apiKey: ApiKey.make("key-1"),
-          },
+          authorize: () =>
+            makeAccess({ sessionOrgIdOmitted: true }).authorizeSession(
+              new Headers()
+            ),
+          expectedTag: "WorkspaceScopeMissingError",
+        },
+        {
+          authorize: () =>
+            makeAccess({ keyValid: false }).authorizeApiKey(
+              ApiKey.make("key-1")
+            ),
           expectedTag: "WorkspaceCredentialInvalidError",
         },
         {
-          access: makeAccess({ keyOrgId: null }),
-          credential: {
-            _tag: "ApiKey" as const,
-            apiKey: ApiKey.make("key-1"),
-          },
+          authorize: () =>
+            makeAccess({ keyOrgId: null }).authorizeApiKey(
+              ApiKey.make("key-1")
+            ),
           expectedTag: "WorkspaceScopeMissingError",
         },
       ],
-      ({ access, credential, expectedTag }) =>
-        access.authorize(credential).pipe(
+      ({ authorize, expectedTag }) =>
+        authorize().pipe(
           Effect.flip,
           Effect.tap((error) =>
             Effect.sync(() => expect(error._tag).toBe(expectedTag))
@@ -217,42 +212,50 @@ describe("WorkspaceAccess", () => {
     Effect.forEach(
       [
         {
-          access: makeAccess({ getSessionError: new Error("auth down") }),
-          credential: {
-            _tag: "Session" as const,
-            headers: new Headers(),
-          },
+          authorize: () =>
+            makeAccess({
+              getSessionError: new Error("auth down"),
+            }).authorizeSession(new Headers()),
           operation: "getSession",
         },
         {
-          access: makeAccess({ verifyApiKeyError: new Error("auth down") }),
-          credential: {
-            _tag: "ApiKey" as const,
-            apiKey: ApiKey.make("key-1"),
-          },
+          authorize: () =>
+            makeAccess({
+              verifyApiKeyError: new Error("auth down"),
+            }).authorizeApiKey(ApiKey.make("key-1")),
           operation: "verifyApiKey",
         },
         {
-          access: makeAccess({ lookupUserError: new Error("D1 down") }),
-          credential: {
-            _tag: "Session" as const,
-            headers: new Headers(),
-          },
+          authorize: () =>
+            makeAccess({
+              sessionResult: { session: {}, user: {} },
+            }).authorizeSession(new Headers()),
+          operation: "getSession",
+        },
+        {
+          authorize: () =>
+            makeAccess({
+              verifyApiKeyResult: { valid: true, key: {} },
+            }).authorizeApiKey(ApiKey.make("key-1")),
+          operation: "verifyApiKey",
+        },
+        {
+          authorize: () =>
+            makeAccess({
+              lookupUserError: new Error("D1 down"),
+            }).authorizeSession(new Headers()),
           operation: "lookupUser",
         },
         {
-          access: makeAccess({
-            lookupMembershipError: new Error("D1 down"),
-          }),
-          credential: {
-            _tag: "ApiKey" as const,
-            apiKey: ApiKey.make("key-1"),
-          },
+          authorize: () =>
+            makeAccess({
+              lookupMembershipError: new Error("D1 down"),
+            }).authorizeApiKey(ApiKey.make("key-1")),
           operation: "lookupMembership",
         },
       ] as const,
-      ({ access, credential, operation }) =>
-        access.authorize(credential).pipe(
+      ({ authorize, operation }) =>
+        authorize().pipe(
           Effect.flip,
           Effect.tap((error) =>
             Effect.sync(() => {
@@ -269,7 +272,7 @@ describe("WorkspaceAccess", () => {
 
   it.effect("rejects a user whose approval was withdrawn", () =>
     makeAccess({ approved: false })
-      .authorize({ _tag: "Session", headers: new Headers() })
+      .authorizeSession(new Headers())
       .pipe(
         Effect.flip,
         Effect.tap((error) =>
@@ -282,7 +285,7 @@ describe("WorkspaceAccess", () => {
 
   it.effect("rejects a user whose membership was revoked", () =>
     makeAccess({ member: false })
-      .authorize({ _tag: "ApiKey", apiKey: ApiKey.make("key-1") })
+      .authorizeApiKey(ApiKey.make("key-1"))
       .pipe(
         Effect.flip,
         Effect.tap((error) =>

@@ -3,7 +3,6 @@ import { Effect } from "effect";
 
 import {
   WorkspaceAccessBackendError,
-  WorkspaceApiKeyReferenceMissingError,
   WorkspaceCredentialInvalidError,
   WorkspaceMembershipRevokedError,
   WorkspaceScopeMismatchError,
@@ -18,8 +17,11 @@ const ORG_ID = OrgId.make("org-1");
 const USER_ID = UserId.make("user-1");
 
 const accessReturning = (
-  effect: ReturnType<WorkspaceAccess["Service"]["authorize"]>
-): WorkspaceAccess["Service"] => ({ authorize: () => effect });
+  effect: ReturnType<WorkspaceAccess["Service"]["authorizeSession"]>
+): WorkspaceAccess["Service"] => ({
+  authorizeSession: () => effect,
+  authorizeApiKey: () => Effect.die("API-key authorization not used"),
+});
 
 describe("getAuthorizedSession", () => {
   it.effect("returns the currently authorized user and workspace", () =>
@@ -49,7 +51,6 @@ describe("getAuthorizedSession", () => {
           orgId: ORG_ID,
           userId: USER_ID,
         }),
-        new WorkspaceApiKeyReferenceMissingError(),
       ],
       (error) =>
         getAuthorizedSession(

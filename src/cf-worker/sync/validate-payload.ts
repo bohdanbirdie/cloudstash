@@ -1,8 +1,11 @@
-import { Effect } from "effect";
+import { Effect, Match, Option, Schema } from "effect";
 
 import { AppLayerLive } from "../auth/service";
-import { WorkspaceAccess } from "../auth/workspace-access";
-import { ApiKey, OrgId, UserId } from "../db/branded";
+import {
+  WorkspaceAccess,
+  matchWorkspaceAccessError,
+} from "../auth/workspace-access";
+import { OrgId, UserId } from "../db/branded";
 import { maskId, safeErrorInfo } from "../log-utils";
 import type { Env } from "../shared";
 import { decodeExtensionPayload } from "./auth-payload";
@@ -17,6 +20,7 @@ import {
 import type { SyncAuthError } from "./errors";
 
 const EXTENSION_ORIGIN_PREFIX = "chrome-extension://";
+const RequestedStoreId = OrgId.check(Schema.isMinLength(1));
 
 const extensionId = (value: string): string =>
   value.replace(EXTENSION_ORIGIN_PREFIX, "").replace(/\/+$/, "");
@@ -39,48 +43,33 @@ const deny = Effect.fnUntraced(function* (
   return yield* error;
 });
 
-const authorizeSyncCredential = Effect.fnUntraced(
-  function* (
-    credential:
-      | { readonly _tag: "Session"; readonly headers: Headers }
-      | { readonly _tag: "ApiKey"; readonly apiKey: ApiKey },
-    storeId: OrgId
-  ) {
-    const access = yield* WorkspaceAccess;
-    return yield* access.authorize(credential, storeId);
-  },
-  (effect, _credential, storeId) =>
-    effect.pipe(
-      Effect.catchTags({
-        WorkspaceCredentialInvalidError: () =>
-          Effect.fail(new InvalidSessionError()),
-        WorkspaceScopeMissingError: () =>
-          Effect.fail(new InvalidSessionError()),
-        WorkspaceApiKeyReferenceMissingError: () =>
-          Effect.fail(new MissingApiKeyReferenceError()),
-        WorkspaceScopeMismatchError: (error) =>
-          Effect.fail(
-            new OrgAccessDeniedError({
-              sessionOrgId: error.authorizedOrgId,
-              storeId,
-            })
-          ),
-        WorkspaceUserUnapprovedError: () =>
-          Effect.fail(
-            new OrgAccessDeniedError({ sessionOrgId: null, storeId })
-          ),
-        WorkspaceMembershipRevokedError: (error) =>
-          Effect.fail(
-            new OrgAccessDeniedError({
-              sessionOrgId: error.orgId,
-              storeId,
-            })
-          ),
-        WorkspaceAccessBackendError: (error) =>
-          Effect.fail(new AuthBackendError({ cause: error.cause })),
-      })
-    )
-);
+const translateWorkspaceAccess = (
+  error: Parameters<typeof matchWorkspaceAccessError>[0],
+  storeId: OrgId
+): SyncAuthError =>
+  matchWorkspaceAccessError<SyncAuthError>(error, {
+    unauthorized: (unauthorized) =>
+      Match.value(unauthorized).pipe(
+        Match.tag(
+          "WorkspaceApiKeyReferenceMissingError",
+          () => new MissingApiKeyReferenceError()
+        ),
+        Match.orElse(() => new InvalidSessionError())
+      ),
+    missingScope: () => new InvalidSessionError(),
+    forbidden: (forbidden) => {
+      const sessionOrgId = Match.value(forbidden).pipe(
+        Match.tag(
+          "WorkspaceScopeMismatchError",
+          ({ authorizedOrgId }) => authorizedOrgId
+        ),
+        Match.tag("WorkspaceMembershipRevokedError", ({ orgId }) => orgId),
+        Match.orElse(() => null)
+      );
+      return new OrgAccessDeniedError({ sessionOrgId, storeId });
+    },
+    backend: ({ cause }) => new AuthBackendError({ cause }),
+  });
 
 export const validatePayload = Effect.fn("Sync.validatePayload")(
   function* (
@@ -95,7 +84,7 @@ export const validatePayload = Effect.fn("Sync.validatePayload")(
     const cookie = headers.get("cookie");
     const origin = headers.get("origin");
 
-    if (storeId.length === 0) {
+    if (Option.isNone(Schema.decodeUnknownOption(RequestedStoreId)(storeId))) {
       return yield* deny(
         "empty storeId",
         new OrgAccessDeniedError({ sessionOrgId: null, storeId })
@@ -113,25 +102,30 @@ export const validatePayload = Effect.fn("Sync.validatePayload")(
         );
       }
 
-      const decoded = decodeExtensionPayload(payload);
-      if (decoded._tag === "None") {
-        return yield* deny("missing apiKey", new InvalidSessionError());
-      }
-
-      return yield* authorizeSyncCredential(
-        { _tag: "ApiKey", apiKey: decoded.value.apiKey },
-        storeId
-      );
+      const access = yield* WorkspaceAccess;
+      return yield* Option.match(decodeExtensionPayload(payload), {
+        onNone: () => deny("missing apiKey", new InvalidSessionError()),
+        onSome: ({ apiKey }) =>
+          access
+            .authorizeApiKey(apiKey, storeId)
+            .pipe(
+              Effect.mapError((error) =>
+                translateWorkspaceAccess(error, storeId)
+              )
+            ),
+      });
     }
 
     if (!cookie) {
       return yield* deny("missing cookie", new MissingSessionCookieError());
     }
 
-    return yield* authorizeSyncCredential(
-      { _tag: "Session", headers: new Headers({ cookie }) },
-      storeId
-    );
+    const access = yield* WorkspaceAccess;
+    return yield* access
+      .authorizeSession(new Headers({ cookie }), storeId)
+      .pipe(
+        Effect.mapError((error) => translateWorkspaceAccess(error, storeId))
+      );
   },
   (effect, _payload, context) =>
     Effect.annotateLogs(effect, { storeId: maskId(context.storeId) })

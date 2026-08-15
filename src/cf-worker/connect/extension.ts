@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Option } from "effect";
 
+import { bearerApiKey } from "../auth/bearer-api-key";
 import { AppLayerLive, AuthClient } from "../auth/service";
 import { WorkspaceAccess } from "../auth/workspace-access";
 import { ApiKey, ApiKeyRowId } from "../db/branded";
@@ -14,29 +15,19 @@ import {
   NoActiveOrgError,
   SessionLookupError,
 } from "./errors";
-import { ApiKeyStore, SessionProvider, getAuthorizedSession } from "./services";
+import {
+  ApiKeyStore,
+  SessionProvider,
+  connectWorkspaceAccessError,
+  getAuthorizedSession,
+} from "./services";
 
 const authorizeExtensionKey = Effect.fn("ExtensionConnect.authorizeKey")(
   function* (apiKey: ApiKey) {
     const workspaceAccess = yield* WorkspaceAccess;
-    return yield* workspaceAccess.authorize({ _tag: "ApiKey", apiKey }).pipe(
-      Effect.catchTags({
-        WorkspaceCredentialInvalidError: () =>
-          Effect.fail(new ConnectUnauthorizedError()),
-        WorkspaceScopeMissingError: () =>
-          Effect.fail(new ConnectUnauthorizedError()),
-        WorkspaceApiKeyReferenceMissingError: () =>
-          Effect.fail(new ConnectUnauthorizedError()),
-        WorkspaceScopeMismatchError: () =>
-          Effect.fail(new ConnectUnauthorizedError()),
-        WorkspaceUserUnapprovedError: () =>
-          Effect.fail(new ConnectUnauthorizedError()),
-        WorkspaceMembershipRevokedError: () =>
-          Effect.fail(new ConnectUnauthorizedError()),
-        WorkspaceAccessBackendError: (error) =>
-          Effect.fail(new SessionLookupError({ cause: error.cause })),
-      })
-    );
+    return yield* workspaceAccess
+      .authorizeApiKey(apiKey)
+      .pipe(Effect.mapError(connectWorkspaceAccessError));
   }
 );
 
@@ -138,15 +129,6 @@ export const handleDisconnectRequest = Effect.fn(
   );
   return { ok: true };
 });
-
-const bearerToken = (headers: Headers): ApiKey | null => {
-  const authz = headers.get("authorization");
-  if (!authz) return null;
-  const [scheme, token] = authz.split(" ");
-  return scheme?.toLowerCase() === "bearer" && token
-    ? ApiKey.make(token)
-    : null;
-};
 
 const makeLiveLayer = (env: Env) =>
   Layer.mergeAll(
@@ -274,7 +256,9 @@ export const handleExtensionDisconnect = (
   env: Env
 ): Promise<Response> =>
   Effect.runPromise(
-    handleDisconnectRequest(bearerToken(request.headers)).pipe(
+    handleDisconnectRequest(
+      Option.getOrNull(bearerApiKey(request.headers))
+    ).pipe(
       Effect.provide(makeLiveLayer(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
@@ -300,7 +284,7 @@ export const handleExtensionAccount = (
   env: Env
 ): Promise<Response> =>
   Effect.runPromise(
-    handleAccountRequest(bearerToken(request.headers)).pipe(
+    handleAccountRequest(Option.getOrNull(bearerApiKey(request.headers))).pipe(
       Effect.provide(makeLiveLayer(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({

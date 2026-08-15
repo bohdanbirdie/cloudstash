@@ -1,11 +1,12 @@
-import { Effect, Match } from "effect";
+import { Effect, Option } from "effect";
 
+import { bearerApiKey } from "../auth/bearer-api-key";
 import { WorkspaceAccess } from "../auth/workspace-access";
-import type { WorkspaceAccessError } from "../auth/workspace-access";
+import { workspaceAccessHttpResponse } from "../auth/workspace-access-http";
 import { capabilityDeniedResponse } from "../billing/errors";
 import { requireCapability } from "../billing/service";
 import type { Billing } from "../billing/service";
-import { ApiKey } from "../db/branded";
+import type { ApiKey } from "../db/branded";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { runHandler } from "../runtime";
 import type { Env } from "../shared";
@@ -14,34 +15,8 @@ import type { ParsedListParams } from "./api";
 
 type ListParams = Extract<ParsedListParams, { ok: true }>;
 
-const bearerToken = (headers: Headers): ApiKey | null => {
-  const authz = headers.get("authorization");
-  if (!authz) return null;
-  const [scheme, token] = authz.split(" ");
-  return scheme?.toLowerCase() === "bearer" && token
-    ? ApiKey.make(token)
-    : null;
-};
-
 const unauthorized = (): Response =>
   Response.json({ error: "Unauthorized" }, { status: 401 });
-
-const workspaceAccessResponse = (error: WorkspaceAccessError): Response =>
-  Match.value(error).pipe(
-    Match.tagsExhaustive({
-      WorkspaceCredentialInvalidError: unauthorized,
-      WorkspaceScopeMissingError: unauthorized,
-      WorkspaceApiKeyReferenceMissingError: unauthorized,
-      WorkspaceScopeMismatchError: () =>
-        Response.json({ error: "Forbidden" }, { status: 403 }),
-      WorkspaceUserUnapprovedError: () =>
-        Response.json({ error: "Forbidden" }, { status: 403 }),
-      WorkspaceMembershipRevokedError: () =>
-        Response.json({ error: "Forbidden" }, { status: 403 }),
-      WorkspaceAccessBackendError: () =>
-        Response.json({ error: "Auth backend unavailable" }, { status: 503 }),
-    })
-  );
 
 export const listLinksEffect = (
   apiKey: ApiKey,
@@ -50,14 +25,12 @@ export const listLinksEffect = (
 ): Effect.Effect<Response, never, WorkspaceAccess | Billing> =>
   Effect.gen(function* () {
     const workspaceAccess = yield* WorkspaceAccess;
-    const authorization = yield* workspaceAccess
-      .authorize({ _tag: "ApiKey", apiKey })
-      .pipe(
-        Effect.match({
-          onFailure: workspaceAccessResponse,
-          onSuccess: (access) => access,
-        })
-      );
+    const authorization = yield* workspaceAccess.authorizeApiKey(apiKey).pipe(
+      Effect.matchEffect({
+        onFailure: workspaceAccessHttpResponse,
+        onSuccess: Effect.succeed,
+      })
+    );
     if (authorization instanceof Response) {
       return authorization;
     }
@@ -121,8 +94,8 @@ export const handleListLinks = (
   request: Request,
   env: Env
 ): Promise<Response> => {
-  const apiKey = bearerToken(request.headers);
-  if (!apiKey) return Promise.resolve(unauthorized());
+  const apiKey = bearerApiKey(request.headers);
+  if (Option.isNone(apiKey)) return Promise.resolve(unauthorized());
 
   const params = parseListParams(new URL(request.url));
   if (!params.ok) {
@@ -131,5 +104,5 @@ export const handleListLinks = (
     );
   }
 
-  return runHandler(env, listLinksEffect(apiKey, params, env));
+  return runHandler(env, listLinksEffect(apiKey.value, params, env));
 };
