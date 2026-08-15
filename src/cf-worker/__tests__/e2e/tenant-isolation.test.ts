@@ -6,7 +6,22 @@ import { signupUser } from "./helpers";
 const jsonHeaders = (cookie: string) => ({
   "Content-Type": "application/json",
   Cookie: cookie,
+  Origin: "http://localhost",
 });
+
+const grantPublicApi = async (...orgIds: string[]): Promise<void> => {
+  const placeholders = orgIds.map(() => "?").join(", ");
+  await env.DB.prepare(
+    `UPDATE organization SET feature_overrides = ? WHERE id IN (${placeholders})`
+  )
+    .bind(JSON.stringify({ publicApi: true }), ...orgIds)
+    .run();
+};
+
+const expectApiKeyCreated = async (response: Response): Promise<void> => {
+  const responseBody = await response.clone().text();
+  expect(response.status, responseBody).toBe(200);
+};
 
 describe("tenant isolation", () => {
   it("server-stamps immutable key scope and denies cross-workspace use", async () => {
@@ -18,11 +33,7 @@ describe("tenant isolation", () => {
       "tenant-key-victim@test.com",
       "Tenant Key Victim"
     );
-    await env.DB.prepare(
-      "UPDATE organization SET tier = 'plus' WHERE id IN (?, ?)"
-    )
-      .bind(owner.orgId, victim.orgId)
-      .run();
+    await grantPublicApi(owner.orgId, victim.orgId);
 
     const create = await SELF.fetch("http://worker/api/auth/api-key/create", {
       method: "POST",
@@ -32,7 +43,7 @@ describe("tenant isolation", () => {
         metadata: { orgId: victim.orgId, source: "client" },
       }),
     });
-    expect(create.status).toBe(200);
+    await expectApiKeyCreated(create);
     const created = (await create.json()) as { id: string; key: string };
     expect(created.id).toBeTruthy();
     expect(created.key).toBeTruthy();
@@ -113,11 +124,7 @@ describe("tenant isolation", () => {
       "tenant-unapproved-key@test.com",
       "Tenant Unapproved Key"
     );
-    await env.DB.prepare(
-      "UPDATE organization SET tier = 'plus' WHERE id IN (?, ?)"
-    )
-      .bind(revoked.orgId, unapproved.orgId)
-      .run();
+    await grantPublicApi(revoked.orgId, unapproved.orgId);
 
     const createKey = async (cookie: string): Promise<string> => {
       const response = await SELF.fetch(
@@ -128,7 +135,7 @@ describe("tenant isolation", () => {
           body: JSON.stringify({ name: "Current-access key" }),
         }
       );
-      expect(response.status).toBe(200);
+      await expectApiKeyCreated(response);
       const body: unknown = await response.json();
       if (
         typeof body !== "object" ||
