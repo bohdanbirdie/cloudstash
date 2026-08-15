@@ -3,14 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "*.md"
   pull_request:
     branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "*.md"
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -82,8 +76,10 @@ jobs:
 
       # Extension app (apps/extension) — own tsconfig + bun:test runner.
       # wxt prepare generates .wxt/ types that apps/extension/tsconfig extends.
-      - run: bun --cwd apps/extension run postinstall
+      - run: bun run --cwd apps/extension postinstall
 
-      - run: bun --cwd apps/extension run compile
+      - run: bun run --cwd apps/extension compile
 
       - run: bun run test:ext
+
+      - run: bun run build
