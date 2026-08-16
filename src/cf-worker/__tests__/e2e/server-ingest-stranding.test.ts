@@ -35,11 +35,11 @@ const backendMax = (storeId: string): Promise<number | null> =>
     env.SYNC_BACKEND_DO.idFromName(storeId)
   ).getEventlogMax();
 
-// Poll the backend head until it settles (unchanged across a few reads) above
-// `floor`, or the cap elapses. Returns the last head observed.
+// Poll the backend head until it settles (unchanged across a few reads) at or
+// above `minimum`, or the cap elapses. Returns the last head observed.
 const settledBackendMax = async (
   storeId: string,
-  floor: number
+  minimum: number
 ): Promise<number> => {
   let prev = -1;
   let stable = 0;
@@ -48,7 +48,7 @@ const settledBackendMax = async (
     head = (await backendMax(storeId)) ?? 0;
     if (head === prev) {
       stable++;
-      if (stable >= 3 && head > floor) break;
+      if (stable >= 3 && head >= minimum) break;
     } else {
       stable = 0;
     }
@@ -167,19 +167,18 @@ describe("server-ingest cold-DO stranding", () => {
         const lp = env.LINK_PROCESSOR_DO.get(
           env.LINK_PROCESSOR_DO.idFromName(storeId)
         );
+        const headBefore = (await backendMax(storeId)) ?? 0;
 
         await lp.ingestAndProcess(
           ingestMessage(storeId, "https://example.com/cloudstash-pipeline")
         );
-        // Head at RPC return ≈ `linkCreatedV2` only (the RPC barrier's guarantee).
-        const headAtReturn = (await backendMax(storeId)) ?? 0;
-        expect(headAtReturn).toBeGreaterThan(0);
+        const minimumPipelineHead = headBefore + 4;
 
-        // The subscription barrier must drive the follow-on events durable.
-        // Settling above `headAtReturn` proves they reached the backend, not just
-        // the creation event — the previously-uncovered second barrier.
-        const settled = await settledBackendMax(storeId, headAtReturn);
-        expect(settled).toBeGreaterThan(headAtReturn);
+        // The subscription barrier must drive link creation, processing start,
+        // processing failure, and source notification durable. The pipeline may
+        // finish before the RPC returns, so measure from the pre-ingest head.
+        const settled = await settledBackendMax(storeId, minimumPipelineHead);
+        expect(settled).toBeGreaterThanOrEqual(minimumPipelineHead);
 
         // Now evict and re-read from a FRESH stub: the drained pipeline must
         // remain on the SyncBackend's persisted eventlog. Quiesce first so the

@@ -75,10 +75,12 @@ replay idempotent. A genuinely new external save uses `v2.LinkCreated`; old
 ## Durability Boundary
 
 A server-side `store.commit()` is only a local client commit. After a new link is
-created, `whenLeaderSynced` waits for both session and leader push queues to
-drain, serialized per store so concurrent waiters do not split updates. The wait
-is capped at ten seconds. Success means the client's admitted events reached the
-leader queue; timeout logs a structured warning and currently returns the ingest
+created, the processor captures that commit's session sequence target.
+`whenLeaderSynced` waits for the session to hand off that target, captures the
+leader's resulting local target, and then waits for the leader's upstream head
+to confirm that target in the SyncBackendDO eventlog. Barriers are serialized
+per store so concurrent waiters do not split updates. The wait is capped at ten
+seconds. Timeout logs a structured warning and currently returns the ingest
 result rather than throwing.
 
 The reactive processing promise is passed to `ctx.waitUntil`; when processing
