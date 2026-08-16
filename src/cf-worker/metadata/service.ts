@@ -273,6 +273,11 @@ export const metadataErrorToResponse = Effect.fnUntraced(function* (
 
 const isMetadataError = Schema.is(MetadataError);
 
+const preventMetadataResponseCaching = (response: Response): Response => {
+  response.headers.set("Cache-Control", "private, no-store");
+  return response;
+};
+
 export const metadataRequestToResponse = (
   request: Request,
   rateLimiter: RateLimit,
@@ -300,5 +305,6 @@ export const metadataRequestToResponse = (
     Effect.withSpan("API.metadataPreview"),
     Effect.catchTag("MetadataServerResponseError", ({ response }) =>
       Effect.succeed(response)
-    )
+    ),
+    Effect.map(preventMetadataResponseCaching)
   );

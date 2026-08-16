@@ -82,6 +82,6 @@ describe("metadata preview boundary", () => {
       headers: { Cookie: approved.cookie },
     });
     expect(response.status).toBe(400);
-    expect(response.headers.get("Cache-Control")).not.toContain("public");
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
   });
 });

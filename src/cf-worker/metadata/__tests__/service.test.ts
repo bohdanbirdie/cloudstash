@@ -35,6 +35,9 @@ const accessLayer = (
     })
   );
 
+const expectPrivateNoStore = (response: Response) =>
+  expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+
 const makeRateLimiter = (result: unknown = true) => {
   const limit = vi.fn((_options: { key: string }) =>
     result instanceof Error
@@ -148,6 +151,7 @@ describe("metadataRequestToResponse", () => {
         });
 
         expect(response.status).toBe(status);
+        expectPrivateNoStore(response);
         expect(limiter.limit).not.toHaveBeenCalled();
         expect(fetcher).not.toHaveBeenCalled();
       })
@@ -167,6 +171,7 @@ describe("metadataRequestToResponse", () => {
         fetcher: fetcher as unknown as typeof fetch,
       });
       expect(response.status).toBe(400);
+      expectPrivateNoStore(response);
       expect(fetcher).not.toHaveBeenCalled();
     })
   );
@@ -239,7 +244,7 @@ describe("metadataRequestToResponse", () => {
     Effect.gen(function* () {
       const response = yield* run(request());
       expect(response.status).toBe(200);
-      expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+      expectPrivateNoStore(response);
       expect(yield* Effect.promise(() => response.json())).toMatchObject({
         image: "https://img.example/video.jpg",
         title: "Bounded preview",
