@@ -1,37 +1,28 @@
-# Usage Limits
+# Usage limits
 
-Token-based usage limits per workspace to control costs. Resets monthly.
+Cloudstash uses workspace-period budgets for cost-bearing AI operations. These
+budgets do not limit how many links a workspace may save.
 
-## How it works
+## Current implementation
 
-1. Tokens are tracked in the `ChatAgentDO` using KV storage (`usage:YYYY-MM` key)
-2. Before each LLM call, usage is checked against the workspace's budget
-3. If over limit, a friendly message is returned instead of calling the LLM
-4. Usage resets automatically on the 1st of each month (new key = zero usage)
+- Pro chat uses the configured monthly budget from `monthlyChatBudgetUsd` in
+  `src/lib/plan.ts`. `ChatAgentDO` atomically reserves estimated tokens in its
+  monthly `usage:<period>` record before calling the provider, then reconciles
+  actual prompt/completion usage. Budget lookup failure denies provider work.
+- Eligible X content enrichment has a separate monthly workspace cap. Move its
+  accounting to atomic reservation; see DELTA-024.
+- Free currently has `aiSummary: false`. A bounded monthly Free allowance is
+  planned but not implemented; see [[../todos/free-ai-summary-allowance]].
+- There is no saved-link count cap for Free or paid workspaces.
 
-## Budget
+## Product behavior
 
-Default: **$0.50/month** (~675K tokens for Gemini 2.5 Flash)
+Budget exhaustion must preserve the accepted/saved link and avoid presenting a
+provider or accounting failure as data loss. Each owning feature defines its
+calm allowance-exhausted state and upgrade path.
 
-Configurable per workspace via `OrgFeatures.monthlyTokenBudget` in the admin UI.
+## Authority
 
-### Budget-to-token conversion
-
-Uses a blended rate based on typical 4:1 input:output ratio:
-
-```
-blendedRate = (4 * inputPer1M + outputPer1M) / 5
-tokenLimit = budget / blendedRate * 1_000_000
-```
-
-If the model changes, only the pricing map needs updating — dollar budgets stay meaningful.
-
-## UI
-
-- Progress bar in chat header shows usage percentage
-- Turns red at 90%+ usage
-- Updates in real-time via WebSocket state sync
-
-## Testing
-
-Unit tests in `src/cf-worker/__tests__/unit/usage.test.ts` cover `budgetToTokenLimit()` math.
+Executable defaults live in `src/lib/plan.ts`; workspace overrides are merged by
+`Billing.capabilities`. This document is explanatory and must not be used as an
+authorization source.

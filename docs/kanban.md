@@ -2,23 +2,30 @@
 kanban-plugin: board
 ---
 
+## Near-term Technical Outcomes
+
+- [ ] [[todos/metadata-endpoint-hardening|Align metadata preview with the authenticated bounded-fetch contract]]
+- [ ] [[todos/raycast-capability-source-cleanup|Align Raycast source and entitlement semantics]] — publication is complete; preserve first-party attribution and use one operation-time contract.
+- [ ] [[todos/customer-facing-copy-accuracy|Align customer-facing copy with shipped behavior]] — reconcile product, repository, SEO, integration, Terms, and policy surfaces with executable capabilities and current availability.
+- [ ] [[todos/canonical-url-identity|Canonical URL identity across every capture path]] — prevent new duplicates first; historical reconciliation remains a separate decision.
+- [ ] Complete deletion data lifecycle and minimize telemetry — [[todos/account-deletion|reliable account deletion]] plus [[todos/telemetry-minimization|purpose-bound collection]].
+- [ ] [[todos/paid-capability-enforcement|Enforce paid capabilities and budgets at operation time]] — current access/capability at authoritative operations, atomic cost controls, and safe long-lived-session revocation.
+- [ ] [[todos/admin-purchase-attribution|Extend admin purchase attribution]] — bounded aggregate funnel evidence in the existing dashboard.
+- [ ] [[todos/free-ai-summary-allowance|Plan a bounded Free AI-summary allowance]] — saved-link count remains unlimited; exhaustion preserves the link.
+- [ ] [[todos/initial-sync-blocking|Research large-Vault bootstrap]] — benchmark WebSocket vs supported HTTP replay, BootStatus/timeout UX, and upstream snapshot-at-head feasibility.
+- [ ] [[todos/automatic-summary-recovery|Recover failed summaries automatically]] — bounded primary, fallback, limited automatic retry, then a calm terminal state.
+- [ ] [[todos/develop-mcp-server|Ship stateless remote MCP for Pro]] — authenticated search/list/read only; align availability and policy copy with shipped behavior.
+
 ## Todo
 
 - [ ] [[todos/ws-close-scope-teardown-exception|SyncBackendDO webSocketClose throws on abnormal close (1006) — upstream teardown fix]] — 2 new `scriptThrewException` on the v4-cutover day (2026-08-10), zero in the prior week; benign (1ms, socket already dead, reconnect fine) but skips `serverCtxMap` cleanup and pollutes the error signal; small upstream PR candidate (make `Scope.close` teardown non-throwing in common-cf `ws-rpc-server.ts:217`).
 - [ ] [[todos/simplify-link-processor-wake|Simplify LinkProcessorDO wake path — retire the manual onPush trigger]] — redundant for warm/cold re-wake since upstream #1541–#1545 (KV-persisted `rpc-sub:` registry + store-less `syncUpdateRpc` recovery); still needed as first-subscribe bootstrap + cutover registry backfill. Pick up after the migration soaks in prod.
-- [ ] Verify the production Queue recovery envelope (human-controlled) — PRs #84/#85 merged the retry/DLQ and persistence code, but CS-DQ5 / DELTA-008 remain open until the maintainer records the production plan and both queue retention settings, then either proves/configures a 14-day Paid envelope or aligns the schedule and claims with Free's 24-hour limit. Follow the remote command and recovery drill in [[todos/server-ingest-durability]].
-- [ ] Set up a staging environment on Cloudflare (future) — a separate deployed env for hibernation billing, Queue retention, and deployed cross-DO timing that local evidence cannot establish. Local DO eviction itself is already deterministic with `abortAllDurableObjects()`. Decide: `env.staging` vs a separate Worker, data isolation and seed/auth strategy, and a maintainer-controlled CI/deploy path compatible with the no-remote-agent rule.
-- [ ] [[todos/admin-server-ahead-alert|Admin alert for stuck LinkProcessorDO sync (Telegram via Tail Worker)]]
 - [ ] Remove the temp `liveLongTimers` probe (`src/cf-worker/sync/index.ts:23`) once prod `type:hibernation` GB-s are re-confirmed after the v4-cutover deploy — last remainder of [[architecture/sync-backend-do-hibernation-billing]]. LinkProcessorDO client-side hibernation stays deferred (needs a clean-store re-test, not a new patch).
 - [ ] [[todos/livestore-testing-ui|Livestore UI feature tests (RTL)]]
 - [ ] [[todos/progress-tracker-sqlite-review|Review stateful SQLite ProgressTracker]]
 - [ ] [[todos/managed-effect-runtime-do|Explore ManagedRuntime for LinkProcessorDO]]
 - [ ] Develop CLI for ingestion and management
-- [ ] Review and consolidate rate limiting / usage limits
-- [ ] [[todos/develop-mcp-server|Develop MCP server (pro-only capability)]]
-- [ ] iOS Shortcut as injection source
 - [ ] Use Cloudflare Email instead of Resend
-- [ ] AI summary 30s timeout when the primary model hangs on certain content — repro: paste `https://typeonce.dev` (failed twice, 2026-06-15, identical 1712-char content → `AiCallError / TimeoutException 30s`). The hard `Effect.timeout("30 seconds")` wraps the _whole_ generate (`src/cf-worker/link-processor/services/ai-summary-generator.live.ts:19`), so a **hanging** primary (gemini via OpenRouter) consumes the entire budget and the Workers-AI fallback never runs. Note: **fail-fast** primaries DO fall back fine (observed `AI_NoObjectGeneratedError` → llama success), so the gap is specifically a hang, not an error. Fix: per-attempt timeout on the primary so a hang still leaves budget for the fallback; verify against the typeonce.dev example. General case worth checking — likely affects other slow/large pages.
 - [ ] Replace OpenRouter with Cloudflare AI Gateway
 - [ ] [[todos/agent-context-chips-entry-points|Agent context chips + entry points]]
 - [ ] Shrink Worker output further — current upload is 2421 KiB gzipped (deploy 2026-05-13), only 633 KiB headroom under the 3 MiB free-tier cap. Two levers worth evaluating before the budget gets tight again: (a) split into separate Workers (web/assets vs. API/DOs) joined by a service binding, so each subsystem gets its own 3 MiB; (b) trim heavy chunks in place — defuddle/linkedom/htmlparser2 (HTML readability in LinkProcessorDO), @ai-sdk/react + livestore client on the authed entry, Effect tracer surface. Decide which lever first based on what's growing.
@@ -33,8 +40,6 @@ kanban-plugin: board
 - [ ] AI summary loading messages like in agents, eg swap phrases
 - [ ] Improve UX of tags strip, maybe add counters and exclude tags that are unused on the specific page
 - [ ] Let LLM suggest more tags from existing ones. Respect domains for tags as a fallback
-- [ ] Legal pages — followups before launch: Termly cross-check, Meta Pixel decision, arbitration vs litigation, DMCA agent registration, and Stripe checkout consent.
-- [ ] [[todos/publish-raycast-extension|Publish Raycast extension to Store]]
 - [ ] [[todos/further-list-mount-perf|Further list-mount perf improvements]]
 - [ ] Reduce monospace font usage — pair a refined sans for body/UI and reserve mono for tokens that earn it.
 - [ ] Connections modal revamp — simplify per-user Telegram, Raycast, and API-key management and clarify its relationship to Settings.
@@ -43,19 +48,28 @@ kanban-plugin: board
 - [ ] Make link list items more vertically compact and keep processing, idle, and failed states distinct.
 - [ ] Pop-animate genuinely new synced/locally-added links without animating filter or category changes.
 - [ ] Restore contextual hotkey-tip overlays while modifier keys are held.
+- [ ] [[todos/chat-approval-needsapproval|Migrate chat approval to server-side needsApproval (drop deprecated toolsRequiringConfirmation)]]
+- [ ] ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
+- [ ] Decouple tag search from id format — filter on normalized tag names and reserve `sanitizeTagName` for new-tag ID derivation.
+- [ ] [[todos/link-notes|Notes on links (user-authored, agent-aware)]]
 
 ## In Progress
 
-- [ ] [[todos/chat-approval-needsapproval|Migrate chat approval to server-side needsApproval (drop deprecated toolsRequiringConfirmation)]]
-- [ ] ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
-- [ ] Decouple tag search from id format — `TagCombobox` filters tags via `tag.id.includes(sanitizeTagName(input))`, which only works because ids are slug-of-name. If id format ever changes (UUIDs, prefixes), search silently breaks. Switch to `tag.name.toLowerCase().includes(input.toLowerCase().trim())` and reserve `sanitizeTagName` for `deriveNewTag`. Verify behavior for names containing dashes.
-- [ ] [[todos/consolidated-paywall|Consolidated paywall / upgrade system (app-wide)]] — **UX design locked 2026-06-09** (marketer brief + competitor isolated-modal). One trigger, many doors: `openPaywall()` → **dedicated isolated modal** (Dialog desktop / `vaul` sheet mobile), state in a Zustand store, **not** a route — a one-shot `?upgrade[=tier]` link trigger opens it then strips the param. Yearly pre-selected + struck price + Best-value/Most-popular tags + BIG buttons. Modal = acquisition; Settings → Plan keeps management; shared `PlanCards` core; repoint `UpgradeCta`/promos. Landing "Start Pro" → `/login` (`callbackURL:"/inbox?upgrade=pro"`) → modal pre-highlighted. $50/$120 are already-discounted Stripe prices (no coupon lever). Billing/Stripe plumbing untouched. Still-open: modal scope, sidebar-per-tier, card layout, soft-gate threshold, instrumentation. See doc.
-- [ ] [[todos/link-notes|Notes on links (user-authored, agent-aware)]]
-- [ ] [[todos/initial-sync-blocking|Make sync blocking]] — with 1400 links the sync happens post-render and causes confusion and delays. Root-caused 2026-06-24 (fresh-client full-eventlog replay; lever = `livestore.worker.ts` `initialSyncOptions` timeout). See doc.
-- [ ] [[todos/account-deletion|Account deletion hardening]] — the workflow exists, but it is not contract-complete: prevent client rehydration with an external intake fence and source-first purge ordering (DELTA-003), purge retained activity data (DELTA-013), cover every storage/provider surface and propagate target failures (DELTA-019), and fail loud on inconsistent tenancy before identity removal (DELTA-035).
+No agent-owned work is actively in progress. Start from Near-term Technical
+Outcomes or Todo.
+
+## Human Operations
+
+- [ ] [[todos/human-launch-operations|Verify production Queue retention and recovery]] — durability code is merged; record plan/retention evidence and run the recovery drill.
+- [ ] [[todos/human-launch-operations|Reconcile Stripe and Portal behavior]] — maintainer credentials and production payment authority required.
+- [ ] [[todos/human-launch-operations|Obtain legal sign-off]] — deletion retention, telemetry/privacy, tracking opt-outs, billing consent, and remaining launch clauses.
+- [ ] [[todos/human-launch-operations|Choose certified release evidence or staging]] — select the human-controlled path for behavior local tests cannot prove.
+- [ ] [[todos/human-launch-operations|Choose alert destination and owner]] — then wire [[todos/admin-server-ahead-alert|the stuck-sync alert]] and other tripwires.
 
 ## Done
 
+- [x] [[todos/consolidated-paywall|Consolidated paywall / upgrade acquisition]] — shipped; Settings remains plan management, and residual attribution is tracked separately.
+- [x] [[todos/publish-raycast-extension|Publish Raycast extension to Store]] — published through Raycast extensions PR #26889; server source/capability cleanup is tracked separately.
 - [x] [[todos/effect-v4-livestore-upstream-migration|Effect v4 migration + LiveStore upstream swap]] — merged in PR #82 (`963373b`) on Effect `4.0.0-beta.99`; concrete post-cutover followups remain separate Todo cards.
 - [x] [[todos/server-ingest-durability|Server-side ingest durability code]] — PR #84 merged main-queue backoff, the DLQ re-drive consumer, tripwire logging, and safe dispatcher fallback; PR #85 added the LiveStore persistence barrier. Production retention/recovery-envelope verification remains a human-controlled Todo.
 - [x] [[todos/chrome-extension|Chrome extension (Livestore-as-client)]] — shipped and published live on the Chrome Web Store; no repository-controlled publishing work remains.
@@ -84,7 +98,7 @@ kanban-plugin: board
 - [x] ActivityGrid render-cost cut — memoize cell/month/day element arrays so the ~400 React.createElement calls don't fire on unrelated commits (≈25× drop in self-time per render)
 - [x] Reprocess button is admin-only now (no longer surfaced to users without AI summary enabled)
 - [x] Free-text dock search now matches tag names — added `EXISTS` against `link_tags`/`tags` to each word condition + a score band (80, between title and domain). No `#tag` syntax needed; abstract tags (`to-read`, `wip`) become findable.
-- [x] Failed-summary state — accepted current behavior; no dedicated retry affordance needed
+- [x] Failed-summary UI — prior dedicated retry affordance was removed; the new bounded automatic recovery/terminal-state outcome is tracked separately.
 - [x] Scope `j`/`k` link navigation hotkeys away from inputs — hotkey handler now checks active element before treating `j`/`k` as link nav
 - [x] [[todos/done/redesign-phase-3b-multi-select|Redesign phase 3b — multi-select]]
 - [x] [[todos/done/held-key-nav-perf|Held-key keyboard nav perf]]
