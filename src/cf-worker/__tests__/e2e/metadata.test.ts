@@ -45,7 +45,7 @@ describe("metadata preview boundary", () => {
       .bind(unapproved.userId)
       .run();
     await env.DB.prepare(
-      "DELETE FROM member WHERE userId = ? AND organizationId = ?"
+      "DELETE FROM member WHERE user_id = ? AND organization_id = ?"
     )
       .bind(revoked.userId, revoked.orgId)
       .run();
