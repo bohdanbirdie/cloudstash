@@ -1,11 +1,11 @@
-# Publish Raycast extension to Store
+# Raycast Store publication
 
-Extension at [bohdanbirdie/cloudstash-raycast](https://github.com/bohdanbirdie/cloudstash-raycast). Draft PR: https://github.com/raycast/extensions/pull/26656
+**Status:** done.
 
-## Before marking PR ready
+Cloudstash is published in the Raycast Store under
+`raycast/extensions/extensions/cloudstash`. The extension landed through
+Raycast extensions PR #26889 (`83bc7bbd`, 2026-04-17); the earlier draft PR
+#26656 is closed and is not the publication record.
 
-- [ ] Test full connect flow on deployed environment
-- [ ] Take 3+ screenshots at 2000x1250, place in `metadata/`
-- [ ] Add PR description and screencast/screenshots
-- [ ] Re-run `npm run publish` to update draft PR
-- [ ] Enable Raycast tab in integrations modal (`integrations-modal.tsx`)
+Remaining server semantics are tracked separately in
+[[raycast-capability-source-cleanup]]. Publication is not a launch blocker.

@@ -1,10 +1,16 @@
 # Server-side ingest durability — links lost when the DO backend is disabled
 
-**Status:** Fix implemented 2026-08-12 on `feat/ingest-dlq-drain` (queue-only). Pending review, deploy, and the DLQ retention bump below.
+**Status:** code merged through PRs #84 and #85. Main-queue retry/DLQ re-drive
+and the LiveStore persistence barrier are implemented. Only the human-controlled
+production retention/recovery-envelope verification below remains.
+
+The incident/root-cause sections below preserve the pre-fix behavior for
+historical evidence; statements about missing consumers or earlier retry counts
+are not descriptions of current main.
 
 Related: [[architecture/sync-backend-do-hibernation-billing]] (the DO-duration cap that triggered the outage), [[todos/admin-server-ahead-alert]] (existing alerting hook we can reuse).
 
-## Implemented fix (2026-08-12, branch `feat/ingest-dlq-drain`)
+## Implemented fix (merged 2026-08-12)
 
 Queue-only tiered retry — Option A extended with backoff. Option B (D1
 `pending_ingests` ledger) rejected: no new storage, the queue stays the system
