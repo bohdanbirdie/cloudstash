@@ -64,7 +64,6 @@ import { runHandler } from "./runtime";
 import type { Env, HonoVariables } from "./shared";
 import { SyncBackend, handleSyncRequest, runSyncAuth } from "./sync";
 import { handleTelegramWebhook } from "./telegram";
-import { OtelTracingLive } from "./tracing";
 
 export { SyncBackendDO } from "./sync";
 export { LinkProcessorDO } from "./link-processor";
@@ -185,8 +184,13 @@ app.delete("/api/invites/:id", (c) =>
 app.post("/api/invites/redeem", (c) => handleRedeemInvite(c.req.raw, c.env));
 
 app.get("/api/metadata", (c) =>
-  Effect.runPromise(
-    metadataRequestToResponse(c.req.raw).pipe(Effect.provide(OtelTracingLive))
+  runHandler(
+    c.env,
+    metadataRequestToResponse(
+      c.req.raw,
+      c.env.METADATA_RATE_LIMITER,
+      new URL(c.env.BETTER_AUTH_URL).hostname
+    )
   )
 );
 

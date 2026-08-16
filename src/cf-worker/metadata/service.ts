@@ -1,143 +1,304 @@
 /// <reference types="@cloudflare/workers-types" />
-import { Effect } from "effect";
+import { Data, Effect, Match, Schema } from "effect";
 
+import { WorkspaceAccess } from "../auth/workspace-access";
+import { workspaceAccessHttpResponse } from "../auth/workspace-access-http";
+import { safeErrorInfo } from "../log-utils";
+import {
+  BoundedFetchFailure,
+  fetchBoundedText,
+  HttpTargetUrl,
+} from "../net/bounded-fetch";
 import {
   MetadataFetchError,
-  MetadataParseError,
+  MetadataInvalidTargetError,
   MetadataMissingUrlError,
+  MetadataParseError,
+  MetadataRateLimitBackendError,
+  MetadataRateLimitedError,
+  MetadataError,
 } from "./errors";
 import { tryExtract } from "./extractors";
 import { MetadataParser } from "./parser";
 import { OgMetadata } from "./schema";
 
-export const fetchOgMetadata = Effect.fn("MetadataService.fetchOgMetadata")(
-  function* (targetUrl: string) {
-    const parsedUrl = URL.parse(targetUrl);
+const FETCH_HEADERS = {
+  Accept: "text/html",
+  "User-Agent": "Mozilla/5.0 (compatible; CloudstashBot/1.0)",
+};
+
+export const PREVIEW_FETCH_POLICY = {
+  maxBytes: 2_000_000,
+  maxRedirects: 5,
+  timeoutMs: 8_000,
+} as const;
+
+export const PROCESSING_FETCH_POLICY = {
+  maxBytes: 5_000_000,
+  maxRedirects: 5,
+  timeoutMs: 9_000,
+} as const;
+
+const RATE_LIMIT_RETRY_SECONDS = 60;
+const RateLimitOutcome = Schema.Struct({ success: Schema.Boolean });
+const decodeOgMetadata = Schema.decodeUnknownEffect(OgMetadata);
+
+class MetadataServerResponseError extends Data.TaggedError(
+  "MetadataServerResponseError"
+)<{ readonly response: Response }> {}
+
+const toMetadataFetchError = (cause: unknown) =>
+  cause instanceof BoundedFetchFailure
+    ? new MetadataFetchError({
+        errorType:
+          cause.cause === undefined
+            ? undefined
+            : safeErrorInfo(cause.cause).errorType,
+        reason: cause.reason,
+        statusCode: cause.statusCode,
+      })
+    : new MetadataFetchError({
+        errorType: safeErrorInfo(cause).errorType,
+        reason: "unknown",
+      });
+
+export const fetchOgMetadata = Effect.fnUntraced(function* (
+  target: unknown,
+  options: {
+    readonly fetcher?: typeof fetch;
+    readonly ownHostname?: string;
+    readonly policy?: {
+      readonly maxBytes: number;
+      readonly maxRedirects: number;
+      readonly timeoutMs: number;
+    };
+  } = {}
+) {
+  const policy = options.policy ?? PROCESSING_FETCH_POLICY;
+  const fetcher = options.fetcher ?? fetch;
+  const targetSchema = HttpTargetUrl(options.ownHostname);
+  const targetUrl = yield* Schema.decodeUnknownEffect(targetSchema)(
+    target
+  ).pipe(Effect.mapError(() => new MetadataInvalidTargetError()));
+  const signal = AbortSignal.timeout(policy.timeoutMs);
+
+  const extracted = yield* tryExtract(targetUrl, {
+    fetcher,
+    maxBytes: policy.maxBytes,
+    maxRedirects: policy.maxRedirects,
+    signal,
+    targetSchema,
+  });
+
+  if (extracted) {
     yield* Effect.annotateCurrentSpan({
-      hostname: parsedUrl?.hostname ?? "",
-      url: targetUrl,
+      extractor: extracted.extractor,
+      extractorAuthoritative: extracted.authoritative,
     });
-
-    const extracted = parsedUrl ? yield* tryExtract(parsedUrl) : null;
-
-    if (extracted) {
-      yield* Effect.annotateCurrentSpan({
+    yield* Effect.logInfo("Per-host extractor matched").pipe(
+      Effect.annotateLogs({
+        authoritative: extracted.authoritative,
         extractor: extracted.extractor,
-        extractorAuthoritative: extracted.authoritative,
-      });
-      yield* Effect.logInfo("Per-host extractor matched").pipe(
-        Effect.annotateLogs({
-          authoritative: extracted.authoritative,
-          extractor: extracted.extractor,
-          hostname: parsedUrl?.hostname,
-        })
+      })
+    );
+    if (extracted.authoritative) {
+      return yield* decodeOgMetadata(extracted.result).pipe(
+        Effect.mapError(
+          (cause) =>
+            new MetadataParseError({
+              errorType: safeErrorInfo(cause).errorType,
+            })
+        )
       );
-      if (extracted.authoritative) {
-        return OgMetadata.make(extracted.result);
-      }
     }
+  }
 
-    const response = yield* Effect.tryPromise({
-      catch: (cause) => MetadataParseError.make({ cause, url: targetUrl }),
-      try: () =>
-        fetch(targetUrl, {
-          headers: {
-            Accept: "text/html",
-            "User-Agent": "Mozilla/5.0 (compatible; CloudstashBot/1.0)",
-          },
-        }),
-    });
-
-    if (!response.ok) {
-      yield* Effect.annotateCurrentSpan({ statusCode: response.status });
-      return yield* MetadataFetchError.make({
-        statusCode: response.status,
+  const page = yield* Effect.tryPromise({
+    catch: toMetadataFetchError,
+    try: () =>
+      fetchBoundedText({
+        acceptedContentTypes: ["text/html", "application/xhtml+xml"],
+        fetcher,
+        headers: FETCH_HEADERS,
+        maxBytes: policy.maxBytes,
+        maxRedirects: policy.maxRedirects,
+        signal,
+        targetSchema,
         url: targetUrl,
-      });
-    }
+      }),
+  });
 
-    const parser = new MetadataParser(targetUrl);
+  const parser = new MetadataParser(page.finalUrl.href);
+  yield* Effect.tryPromise({
+    catch: (cause) =>
+      new MetadataParseError({ errorType: safeErrorInfo(cause).errorType }),
+    try: () =>
+      new HTMLRewriter()
+        .on("title", parser)
+        .on("meta", parser)
+        .on("link", parser)
+        .on("script", parser)
+        .transform(
+          new Response(page.body, {
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          })
+        )
+        .text(),
+  });
 
-    yield* Effect.tryPromise({
-      catch: (cause) => MetadataParseError.make({ cause, url: targetUrl }),
-      try: () =>
-        new HTMLRewriter()
-          .on("title", parser)
-          .on("meta", parser)
-          .on("link", parser)
-          .on("script", parser)
-          .transform(response)
-          .text(),
-    });
+  const result = parser.getResult();
+  const ext = extracted?.result;
+  return yield* decodeOgMetadata({
+    description: ext?.description ?? result.description,
+    favicon:
+      ext?.favicon ??
+      result.favicon ??
+      URL.parse("/favicon.ico", page.finalUrl)?.href,
+    image: ext?.image ?? result.image,
+    title: ext?.title ?? result.title,
+  }).pipe(
+    Effect.mapError(
+      (cause) =>
+        new MetadataParseError({
+          errorType: safeErrorInfo(cause).errorType,
+        })
+    )
+  );
+});
 
-    const result = parser.getResult();
+const handleMetadataRequest = Effect.fnUntraced(function* (
+  request: Request,
+  rateLimiter: RateLimit,
+  applicationHostname: string,
+  fetcher: typeof fetch = fetch
+) {
+  const workspaceAccess = yield* WorkspaceAccess;
+  const authorization = yield* workspaceAccess.authorizeSession(
+    request.headers
+  );
 
-    const ext = extracted?.result;
-    return OgMetadata.make({
-      description: ext?.description ?? result.description,
-      favicon:
-        ext?.favicon ??
-        result.favicon ??
-        URL.parse("/favicon.ico", targetUrl)?.href ??
-        "/favicon.ico",
-      image: ext?.image ?? result.image,
-      title: ext?.title ?? result.title,
+  const rateLimitResult = yield* Effect.tryPromise({
+    try: () => rateLimiter.limit({ key: authorization.userId }),
+    catch: (cause) => new MetadataRateLimitBackendError({ cause }),
+  });
+  const rateLimit = yield* Schema.decodeUnknownEffect(RateLimitOutcome)(
+    rateLimitResult
+  ).pipe(
+    Effect.mapError((cause) => new MetadataRateLimitBackendError({ cause }))
+  );
+  if (!rateLimit.success) {
+    return yield* new MetadataRateLimitedError({
+      retryAfterSeconds: RATE_LIMIT_RETRY_SECONDS,
     });
   }
-);
 
-const handleMetadataRequest = Effect.fn(
-  "MetadataService.handleMetadataRequest"
-)(function* (request: Request) {
-  yield* Effect.logInfo("Metadata request received");
-  const url = new URL(request.url);
-  const targetUrl = url.searchParams.get("url");
+  const requestUrl = new URL(request.url);
+  const target = requestUrl.searchParams.get("url");
+  if (target === null) return yield* new MetadataMissingUrlError();
 
-  if (!targetUrl) {
-    yield* Effect.logWarning("Missing URL parameter");
-    return yield* MetadataMissingUrlError.make({});
-  }
-
-  yield* Effect.annotateCurrentSpan({ url: targetUrl });
-
-  const metadata = yield* fetchOgMetadata(targetUrl);
-  yield* Effect.logInfo("Metadata fetched").pipe(
+  const metadata = yield* fetchOgMetadata(target, {
+    fetcher,
+    ownHostname: applicationHostname,
+    policy: PREVIEW_FETCH_POLICY,
+  });
+  yield* Effect.logInfo("Metadata preview fetched").pipe(
     Effect.annotateLogs({
-      hasDescription: !!metadata.description,
-      hasImage: !!metadata.image,
-      hasTitle: !!metadata.title,
-      hostname: URL.parse(targetUrl)?.hostname,
+      hasDescription: metadata.description !== undefined,
+      hasImage: metadata.image !== undefined,
+      hasTitle: metadata.title !== undefined,
     })
   );
   return metadata;
 });
 
+export const metadataErrorToResponse = Effect.fnUntraced(function* (
+  error: MetadataError
+) {
+  return yield* Match.typeTags<MetadataError, Effect.Effect<Response>>()({
+    MetadataFetchError: (failure) =>
+      Effect.logWarning("Metadata preview fetch failed").pipe(
+        Effect.annotateLogs({
+          reason: failure.reason,
+          statusCode: failure.statusCode,
+          errorType: failure.errorType,
+        }),
+        Effect.as(
+          Response.json(
+            { error: "Metadata preview unavailable" },
+            { status: failure.reason === "timeout" ? 504 : 502 }
+          )
+        )
+      ),
+    MetadataInvalidTargetError: () =>
+      Effect.succeed(
+        Response.json({ error: "Invalid metadata target" }, { status: 400 })
+      ),
+    MetadataMissingUrlError: ({ message }) =>
+      Effect.succeed(Response.json({ error: message }, { status: 400 })),
+    MetadataParseError: ({ errorType }) =>
+      Effect.logWarning("Metadata preview parse failed").pipe(
+        Effect.annotateLogs({ errorType }),
+        Effect.as(
+          Response.json(
+            { error: "Metadata preview unavailable" },
+            { status: 502 }
+          )
+        )
+      ),
+    MetadataRateLimitBackendError: ({ cause }) =>
+      Effect.logError("Metadata preview rate limiter unavailable").pipe(
+        Effect.annotateLogs(safeErrorInfo(cause)),
+        Effect.as(
+          Response.json(
+            { error: "Metadata preview unavailable" },
+            { status: 503 }
+          )
+        )
+      ),
+    MetadataRateLimitedError: ({ retryAfterSeconds }) =>
+      Effect.succeed(
+        Response.json(
+          {
+            error: "Metadata preview temporarily limited",
+            retryAfterSeconds,
+          },
+          {
+            headers: { "Retry-After": String(retryAfterSeconds) },
+            status: 429,
+          }
+        )
+      ),
+  })(error);
+});
+
+const isMetadataError = Schema.is(MetadataError);
+
 export const metadataRequestToResponse = (
-  request: Request
-): Effect.Effect<Response> =>
-  handleMetadataRequest(request).pipe(
+  request: Request,
+  rateLimiter: RateLimit,
+  applicationHostname: string,
+  fetcher: typeof fetch = fetch
+) =>
+  handleMetadataRequest(
+    request,
+    rateLimiter,
+    applicationHostname,
+    fetcher
+  ).pipe(
     Effect.map((metadata) =>
       Response.json(metadata, {
-        headers: { "Cache-Control": "public, max-age=86400" },
+        headers: { "Cache-Control": "private, no-store" },
       })
     ),
-    Effect.catchTags({
-      MetadataFetchError: (e) =>
-        Effect.logInfo("Metadata fetch failed").pipe(
-          Effect.annotateLogs({ statusCode: e.statusCode, url: e.url }),
-          Effect.as(
-            Response.json(
-              { error: e.message, statusCode: e.statusCode },
-              { status: 502 }
-            )
-          )
-        ),
-      MetadataMissingUrlError: (e) =>
-        Effect.succeed(Response.json({ error: e.message }, { status: 400 })),
-      MetadataParseError: (e) =>
-        Effect.logWarning("Metadata parse failed").pipe(
-          Effect.annotateLogs({ cause: String(e.cause), url: e.url }),
-          Effect.as(Response.json({ error: e.message }, { status: 500 }))
-        ),
-    })
+    Effect.catchIf(isMetadataError, metadataErrorToResponse),
+    Effect.catch(workspaceAccessHttpResponse),
+    Effect.flatMap((response) =>
+      response.status >= 500
+        ? Effect.fail(new MetadataServerResponseError({ response }))
+        : Effect.succeed(response)
+    ),
+    Effect.withSpan("API.metadataPreview"),
+    Effect.catchTag("MetadataServerResponseError", ({ response }) =>
+      Effect.succeed(response)
+    )
   );

@@ -1,12 +1,15 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
+import { fetchBoundedText } from "../../net/bounded-fetch";
+import { defaultExtractorContext } from "./types";
 import type { Extractor } from "./types";
 
-interface OEmbedResponse {
-  title?: string;
-  author_name?: string;
-  thumbnail_url?: string;
-}
+const OEmbedResponse = Schema.Struct({
+  title: Schema.optional(Schema.String),
+  author_name: Schema.optional(Schema.String),
+  thumbnail_url: Schema.optional(Schema.String),
+});
+const decodeOEmbedResponse = Schema.decodeUnknownEffect(OEmbedResponse);
 
 function isLikelyVideoUrl(url: URL): boolean {
   if (url.hostname === "youtu.be") return true;
@@ -21,7 +24,7 @@ function isLikelyVideoUrl(url: URL): boolean {
 export const youtubeExtractor: Extractor = {
   name: "youtube",
   authoritative: true,
-  extract: (url: URL) =>
+  extract: (url: URL, context = defaultExtractorContext()) =>
     Effect.gen(function* () {
       if (!isLikelyVideoUrl(url)) return null;
 
@@ -30,13 +33,20 @@ export const youtubeExtractor: Extractor = {
       oembedUrl.searchParams.set("format", "json");
 
       const response = yield* Effect.tryPromise(() =>
-        fetch(oembedUrl, { headers: { Accept: "application/json" } })
+        fetchBoundedText({
+          acceptedContentTypes: ["application/json"],
+          fetcher: context.fetcher,
+          headers: { Accept: "application/json" },
+          maxBytes: context.maxBytes,
+          maxRedirects: context.maxRedirects,
+          signal: context.signal,
+          targetSchema: context.targetSchema,
+          url: oembedUrl,
+        })
       );
-      if (!response.ok) return null;
-
-      const data = (yield* Effect.tryPromise(() =>
-        response.json()
-      )) as OEmbedResponse;
+      const data = yield* Effect.try(() => JSON.parse(response.body)).pipe(
+        Effect.flatMap(decodeOEmbedResponse)
+      );
       if (!data.title) return null;
 
       return {

@@ -486,15 +486,17 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
 
 **For subsequent links while DO is alive:** Events arrive via `syncUpdateRpc` RPC callback (no fetch needed), subscription fires, processing continues.
 
-### Metadata API (optional direct fetch)
+### Metadata preview helper
 
-For immediate preview in the Add Link dialog, a direct API is also available:
+The authenticated app uses an internal helper for immediate preview in the Add
+Link dialog:
 
 `GET /api/metadata?url=<encoded-url>`
 
 - Returns: `{ title, description, image, favicon }`
-- Uses HTMLRewriter (native to Workers, no dependencies)
-- Optional - background processing will also fetch this
+- Requires the normal active-workspace session boundary
+- Uses bounded HTTP(S) fetching and HTMLRewriter
+- Is optional and non-authoritative; background processing also fetches metadata
 
 ## LiveStore Events
 
@@ -524,7 +526,7 @@ All events are synced across devices via Cloudflare Durable Objects.
 ### Phase 1: Basic Link Management
 
 1. Add link with URL paste
-2. Immediate metadata preview via `/api/metadata`
+2. Optional authenticated metadata preview via `/api/metadata`
 3. On save: commit `LinkCreated` + `LinkMetadataFetched` (first snapshot)
 4. List view with previews
 5. Mark as complete/unread toggle

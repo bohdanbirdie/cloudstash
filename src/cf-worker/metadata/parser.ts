@@ -18,7 +18,7 @@ export class MetadataParser implements HTMLRewriterElementContentHandlers {
   image: string | undefined;
   favicon: string | undefined;
 
-  private resolveUrl: (url: string) => string;
+  private resolveUrl: (url: string) => string | undefined;
   private titleText = "";
   private inTitle = false;
 
@@ -30,7 +30,8 @@ export class MetadataParser implements HTMLRewriterElementContentHandlers {
 
   constructor(baseUrl: string) {
     const urlSchema = ResolvedUrl(baseUrl);
-    this.resolveUrl = (url: string) => Schema.decodeUnknownSync(urlSchema)(url);
+    this.resolveUrl = (url: string) =>
+      Schema.decodeUnknownOption(urlSchema)(url).pipe(Option.getOrUndefined);
   }
 
   getResult(): MetadataResult {

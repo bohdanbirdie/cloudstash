@@ -301,8 +301,8 @@ describe("processLink", () => {
         Effect.provide(
           buildTestLayers({
             metadataError: new MetadataFetchError({
+              reason: "upstream-http-error",
               statusCode: 404,
-              url: testLink.url,
             }),
           })
         ),
@@ -328,8 +328,7 @@ describe("processLink", () => {
       Effect.provide(
         buildTestLayers({
           metadataError: new MetadataParseError({
-            cause: new Error("malformed html"),
-            url: testLink.url,
+            errorType: "Error",
           }),
         })
       ),

@@ -20,7 +20,6 @@ export const enrichSummary = Effect.fn("X.enrichSummary")(function* (
   const { storeId, url, existingTags } = params;
   yield* Effect.annotateCurrentSpan({
     storeId: maskId(storeId),
-    url,
     existingTagCount: existingTags.length,
   });
 

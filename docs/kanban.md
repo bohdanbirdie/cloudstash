@@ -4,7 +4,6 @@ kanban-plugin: board
 
 ## Near-term Technical Outcomes
 
-- [ ] [[todos/metadata-endpoint-hardening|Align metadata preview with the authenticated bounded-fetch contract]]
 - [ ] [[todos/raycast-capability-source-cleanup|Align Raycast source and entitlement semantics]] — publication is complete; preserve first-party attribution and use one operation-time contract.
 - [ ] [[todos/customer-facing-copy-accuracy|Align customer-facing copy with shipped behavior]] — reconcile product, repository, SEO, integration, Terms, and policy surfaces with executable capabilities and current availability.
 - [ ] [[todos/canonical-url-identity|Canonical URL identity across every capture path]] — prevent new duplicates first; historical reconciliation remains a separate decision.
@@ -68,6 +67,7 @@ Outcomes or Todo.
 
 ## Done
 
+- [x] [[todos/metadata-endpoint-hardening|Align metadata preview with the authenticated bounded-fetch contract]] — the internal preview now requires current workspace/session authorization, uses dedicated per-user abuse protection and bounded fetches, returns non-cacheable responses, and leaves LinkProcessor authoritative.
 - [x] [[todos/consolidated-paywall|Consolidated paywall / upgrade acquisition]] — shipped; Settings remains plan management, and residual attribution is tracked separately.
 - [x] [[todos/publish-raycast-extension|Publish Raycast extension to Store]] — published through Raycast extensions PR #26889; server source/capability cleanup is tracked separately.
 - [x] [[todos/effect-v4-livestore-upstream-migration|Effect v4 migration + LiveStore upstream swap]] — merged in PR #82 (`963373b`) on Effect `4.0.0-beta.99`; concrete post-cutover followups remain separate Todo cards.

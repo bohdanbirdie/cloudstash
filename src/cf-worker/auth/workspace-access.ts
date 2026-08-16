@@ -64,14 +64,16 @@ export class WorkspaceAccessBackendError extends Schema.TaggedErrorClass<Workspa
   }
 ) {}
 
-export type WorkspaceAccessError =
-  | WorkspaceCredentialInvalidError
-  | WorkspaceScopeMissingError
-  | WorkspaceApiKeyReferenceMissingError
-  | WorkspaceScopeMismatchError
-  | WorkspaceUserUnapprovedError
-  | WorkspaceMembershipRevokedError
-  | WorkspaceAccessBackendError;
+export const WorkspaceAccessError = Schema.Union([
+  WorkspaceCredentialInvalidError,
+  WorkspaceScopeMissingError,
+  WorkspaceApiKeyReferenceMissingError,
+  WorkspaceScopeMismatchError,
+  WorkspaceUserUnapprovedError,
+  WorkspaceMembershipRevokedError,
+  WorkspaceAccessBackendError,
+]);
+export type WorkspaceAccessError = typeof WorkspaceAccessError.Type;
 
 export const WorkspaceAuthorization = Schema.Struct({
   orgId: OrgId,

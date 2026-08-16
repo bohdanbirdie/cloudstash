@@ -455,9 +455,10 @@ export class LinkProcessorDO
         })
       );
 
+      const applicationHostname = new URL(this.env.BETTER_AUTH_URL).hostname;
       const liveLayer = Layer.mergeAll(
-        MetadataFetcherLive,
-        ContentExtractorLive,
+        MetadataFetcherLive(applicationHostname),
+        ContentExtractorLive(applicationHostname),
         AiSummaryGeneratorLive,
         LinkEventStoreLive(store),
         ThreadProviderNoopLive,

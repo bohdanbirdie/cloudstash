@@ -33,8 +33,22 @@ eviction, persisted events/materialized statuses rebuild pending work.
 
 Metadata extraction tries registered host-specific extractors, then fetches HTML
 with `CloudstashBot`, parses JSON-LD/OpenGraph/Twitter/title/link elements, and
-merges the best fields. The separate `/api/metadata` endpoint caches successful
-responses for one day and is not the authoritative processing path.
+merges the best fields. The separate `/api/metadata` preview helper is an
+internal, non-authoritative path. It requires the normal approved-session and
+current-workspace decision before outbound work, applies dedicated per-user
+abuse protection, and returns non-cacheable responses. Its failure remains
+silent in the add-link flow because `LinkProcessorDO` performs authoritative
+enrichment independently.
+
+Metadata preview and processing share the bounded fetch implementation. Targets
+and every redirect must remain HTTP(S); credentials, raw address literals,
+obvious internal names, and the application host are rejected. Redirect count,
+elapsed time, accepted content type, and bytes consumed are bounded before HTML
+parsing. Provider-specific extractor requests use the same deadline and body
+bounds, and parsed image/favicon values must resolve to HTTP(S). The runtime has
+no independent pre-fetch DNS resolution step, so authentication, per-location
+rate protection, and fetch bounds remain part of the defense for accepted host
+names; the rate protection is not a global usage-accounting cap.
 
 Readable content extraction:
 
