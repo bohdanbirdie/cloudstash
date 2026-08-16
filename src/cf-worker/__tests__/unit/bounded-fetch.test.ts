@@ -48,6 +48,7 @@ describe("HttpTargetUrl", () => {
     "http://169.254.169.254/",
     "http://localhost/",
     "http://localhost./",
+    "http://worker/private",
     "http://service.internal/",
     "http://service.internal./",
   ])("rejects hostile target %s", async (target) => {

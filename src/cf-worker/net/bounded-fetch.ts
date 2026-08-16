@@ -47,7 +47,7 @@ const PublicHostnameUrl = UrlWithoutCredentials.check(
     const isIpLiteral =
       hostname.startsWith("[") || /^(?:\d{1,3}\.){3}\d{1,3}$/.test(hostname);
     const isInternalName =
-      hostname === "localhost" ||
+      !hostname.includes(".") ||
       hostname.endsWith(".localhost") ||
       hostname.endsWith(".local") ||
       hostname.endsWith(".internal") ||
