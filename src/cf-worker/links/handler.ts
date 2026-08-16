@@ -1,27 +1,19 @@
 import { Effect, Option } from "effect";
 
-import { AuthClient } from "../auth/service";
+import { bearerApiKey } from "../auth/bearer-api-key";
+import { WorkspaceAccess } from "../auth/workspace-access";
+import { workspaceAccessHttpResponse } from "../auth/workspace-access-http";
 import { capabilityDeniedResponse } from "../billing/errors";
 import { requireCapability } from "../billing/service";
 import type { Billing } from "../billing/service";
-import { ApiKey } from "../db/branded";
+import type { ApiKey } from "../db/branded";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { runHandler } from "../runtime";
 import type { Env } from "../shared";
-import { decodeApiKeyMetadata } from "../sync/auth-payload";
 import { parseListParams } from "./api";
 import type { ParsedListParams } from "./api";
 
 type ListParams = Extract<ParsedListParams, { ok: true }>;
-
-const bearerToken = (headers: Headers): ApiKey | null => {
-  const authz = headers.get("authorization");
-  if (!authz) return null;
-  const [scheme, token] = authz.split(" ");
-  return scheme?.toLowerCase() === "bearer" && token
-    ? ApiKey.make(token)
-    : null;
-};
 
 const unauthorized = (): Response =>
   Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -30,36 +22,19 @@ export const listLinksEffect = (
   apiKey: ApiKey,
   params: ListParams,
   env: Env
-): Effect.Effect<Response, never, AuthClient | Billing> =>
+): Effect.Effect<Response, never, WorkspaceAccess | Billing> =>
   Effect.gen(function* () {
-    const auth = yield* AuthClient;
-
-    const verify = yield* Effect.tryPromise(() =>
-      auth.api.verifyApiKey({ body: { key: apiKey } })
-    ).pipe(
-      Effect.catch((cause) =>
-        Effect.logError("Links API: verifyApiKey failed").pipe(
-          Effect.annotateLogs(safeErrorInfo(cause)),
-          Effect.as(null)
-        )
-      )
+    const workspaceAccess = yield* WorkspaceAccess;
+    const authorization = yield* workspaceAccess.authorizeApiKey(apiKey).pipe(
+      Effect.matchEffect({
+        onFailure: workspaceAccessHttpResponse,
+        onSuccess: Effect.succeed,
+      })
     );
-    if (!verify) {
-      return Response.json(
-        { error: "Auth backend unavailable" },
-        { status: 503 }
-      );
+    if (authorization instanceof Response) {
+      return authorization;
     }
-    if (!verify.valid || !verify.key) {
-      return unauthorized();
-    }
-
-    const metadataOpt = decodeApiKeyMetadata(verify.key.metadata);
-    if (Option.isNone(metadataOpt)) {
-      yield* Effect.logWarning("Links API: API key metadata missing orgId");
-      return unauthorized();
-    }
-    const { orgId } = metadataOpt.value;
+    const { orgId } = authorization;
     yield* Effect.annotateCurrentSpan("orgId", maskId(orgId));
 
     const denied = yield* requireCapability(orgId, "publicApi").pipe(
@@ -119,8 +94,8 @@ export const handleListLinks = (
   request: Request,
   env: Env
 ): Promise<Response> => {
-  const apiKey = bearerToken(request.headers);
-  if (!apiKey) return Promise.resolve(unauthorized());
+  const apiKey = bearerApiKey(request.headers);
+  if (Option.isNone(apiKey)) return Promise.resolve(unauthorized());
 
   const params = parseListParams(new URL(request.url));
   if (!params.ok) {
@@ -129,5 +104,5 @@ export const handleListLinks = (
     );
   }
 
-  return runHandler(env, listLinksEffect(apiKey, params, env));
+  return runHandler(env, listLinksEffect(apiKey.value, params, env));
 };

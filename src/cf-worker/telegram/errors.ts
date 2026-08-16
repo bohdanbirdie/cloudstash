@@ -49,6 +49,19 @@ export class RateLimitError extends Schema.TaggedErrorClass<RateLimitError>()(
   }
 ) {}
 
+export class TelegramAuthUnavailableError extends Schema.TaggedErrorClass<TelegramAuthUnavailableError>()(
+  "TelegramAuthUnavailableError",
+  {
+    cause: Schema.Defect(),
+    operation: Schema.Literals([
+      "getSession",
+      "verifyApiKey",
+      "lookupUser",
+      "lookupMembership",
+    ]),
+  }
+) {}
+
 export class TelegramQueueSendError extends Schema.TaggedErrorClass<TelegramQueueSendError>()(
   "TelegramQueueSendError",
   {
@@ -62,4 +75,5 @@ export type TelegramError =
   | TelegramMissingOrgIdError
   | NotConnectedError
   | RateLimitError
+  | TelegramAuthUnavailableError
   | TelegramQueueSendError;

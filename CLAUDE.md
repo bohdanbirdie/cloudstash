@@ -133,4 +133,20 @@ Topics: quick-start, project-setup, tsconfig, basics, services-and-layers, data-
 
 Never guess at Effect patterns - check the guide first.
 
+### Authorization and boundary design
+
+- Decode route paths, headers, request bodies, and other external values with
+  Effect Schema instead of handwritten `typeof` or property-presence guards.
+- Infer domain types from schemas and service implementations. Reserve explicit
+  interfaces for genuine external ports and contracts.
+- Keep authorization services flat: separate credential resolution from the
+  shared current-access check, and use `Option`, `Match`, and early failures to
+  express branching.
+- Use Effect error combinators or exhaustive `Match` functions instead of
+  inspecting `_tag` fields manually.
+- Translate authorization errors to HTTP or protocol responses in a shared,
+  intentional boundary layer rather than repeating tag matrices in consumers.
+- Decode route variants directly instead of maintaining parallel boolean flags
+  for route dispatch.
+
 <!-- effect-solutions:end -->

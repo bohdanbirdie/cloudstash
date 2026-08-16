@@ -3,12 +3,18 @@ import type { Layer } from "effect";
 
 import type { AuthClient } from "./auth/service";
 import { AppLayerLive } from "./auth/service";
+import type { WorkspaceAccess } from "./auth/workspace-access";
 import type { Billing } from "./billing/service";
 import type { DbClient } from "./db/service";
 import type { AppSettings } from "./settings/service";
 import type { Env } from "./shared";
 
-export type AppCtx = Billing | AppSettings | AuthClient | DbClient;
+export type AppCtx =
+  | Billing
+  | AppSettings
+  | AuthClient
+  | DbClient
+  | WorkspaceAccess;
 
 // One layer object per isolate: services still rebuild per request (each
 // top-level Effect.provide creates a fresh MemoMap, v3 and v4 alike), but a

@@ -5,6 +5,7 @@ import { expect } from "vitest";
 import { OrgId, UserId } from "../../db/branded";
 import {
   TelegramInvalidApiKeyError,
+  TelegramAuthUnavailableError,
   TelegramMissingOrgIdError,
   NotConnectedError,
   TelegramQueueSendError,
@@ -43,6 +44,7 @@ function createTestSourceAuth(
     | { orgId: typeof OrgId.Type; userId: typeof UserId.Type }
     | "not-connected"
     | "invalid-key"
+    | "auth-unavailable"
     | "rate-limit"
     | "missing-org-id"
 ) {
@@ -52,6 +54,13 @@ function createTestSourceAuth(
         return Effect.fail(new NotConnectedError({}));
       if (result === "invalid-key")
         return Effect.fail(new TelegramInvalidApiKeyError({}));
+      if (result === "auth-unavailable")
+        return Effect.fail(
+          new TelegramAuthUnavailableError({
+            cause: new Error("D1 unavailable"),
+            operation: "lookupMembership",
+          })
+        );
       if (result === "rate-limit") return Effect.fail(new RateLimitError({}));
       if (result === "missing-org-id")
         return Effect.fail(new TelegramMissingOrgIdError({}));
@@ -60,6 +69,13 @@ function createTestSourceAuth(
     verify: (_apiKey) => {
       if (result === "invalid-key")
         return Effect.fail(new TelegramInvalidApiKeyError({}));
+      if (result === "auth-unavailable")
+        return Effect.fail(
+          new TelegramAuthUnavailableError({
+            cause: new Error("D1 unavailable"),
+            operation: "lookupMembership",
+          })
+        );
       if (result === "rate-limit") return Effect.fail(new RateLimitError({}));
       if (result === "missing-org-id")
         return Effect.fail(new TelegramMissingOrgIdError({}));
@@ -253,6 +269,30 @@ describe("handleLinks", () => {
     );
   });
 
+  it.effect("replies with a temporary error when auth is unavailable", () => {
+    const messenger = createTestMessenger();
+    const queue = createTestQueue();
+    const layer = Layer.mergeAll(
+      messenger.layer,
+      createTestSourceAuth("auth-unavailable"),
+      queue.layer
+    );
+
+    return handleLinks(["https://example.com"]).pipe(
+      Effect.provide(layer),
+      Effect.provideService(References.MinimumLogLevel, "None"),
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(messenger.drafts).toEqual([]);
+          expect(messenger.replies).toEqual([
+            "Authentication is temporarily unavailable. Please try again later.",
+          ]);
+          expect(queue.enqueued).toEqual([]);
+        })
+      )
+    );
+  });
+
   it.effect("enqueues multiple urls", () => {
     const messenger = createTestMessenger();
     const queue = createTestQueue();
@@ -345,6 +385,29 @@ describe("handleConnect", () => {
         Effect.sync(() => {
           expect(keyStore.stored.size).toBe(0);
           expect(messenger.replies).toEqual(["Invalid or expired API key."]);
+        })
+      )
+    );
+  });
+
+  it.effect("replies with a temporary error when auth is unavailable", () => {
+    const messenger = createTestMessenger();
+    const keyStore = createTestKeyStore();
+    const layer = Layer.mergeAll(
+      messenger.layer,
+      createTestSourceAuth("auth-unavailable"),
+      keyStore.layer
+    );
+
+    return handleConnect(123, "key").pipe(
+      Effect.provide(layer),
+      Effect.provideService(References.MinimumLogLevel, "None"),
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(keyStore.stored.size).toBe(0);
+          expect(messenger.replies).toEqual([
+            "Authentication is temporarily unavailable. Please try again later.",
+          ]);
         })
       )
     );

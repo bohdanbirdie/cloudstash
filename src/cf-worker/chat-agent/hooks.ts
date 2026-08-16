@@ -1,7 +1,6 @@
 import { Effect, Match } from "effect";
 
 import { trackEvent } from "../analytics";
-import { AuthClient } from "../auth/service";
 import { checkSyncAuth } from "../auth/sync-auth";
 import type { SyncAuthError } from "../auth/sync-auth";
 import { OrgId } from "../db/branded";
@@ -41,10 +40,9 @@ const checkChatAgentAccess = (
       return yield* new UnknownAgentPartyError({ party: lobby.party });
     }
 
-    const auth = yield* AuthClient;
     const cookie = request.headers.get("cookie");
 
-    const { userId } = yield* checkSyncAuth(cookie, workspaceId, auth);
+    const { userId } = yield* checkSyncAuth(cookie, workspaceId);
     trackEvent(env.USAGE_ANALYTICS, {
       userId,
       event: "chat",

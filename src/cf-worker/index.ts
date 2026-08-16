@@ -248,18 +248,14 @@ app.get("/api/sync/auth", async (c) => {
   const storeId = OrgId.make(rawStoreId);
   const cookie = c.req.header("cookie") ?? null;
 
-  const result = await Effect.gen(function* () {
-    const auth = yield* AuthClient;
-    return yield* checkSyncAuth(cookie, storeId, auth).pipe(
-      Effect.match({
-        onFailure: (error) => error,
-        onSuccess: (authData) => ({
-          ok: true as const,
-          userId: authData.userId,
-        }),
-      })
-    );
-  }).pipe(
+  const result = await checkSyncAuth(cookie, storeId).pipe(
+    Effect.match({
+      onFailure: (error) => error,
+      onSuccess: (authData) => ({
+        ok: true as const,
+        userId: authData.userId,
+      }),
+    }),
     Effect.withSpan("API.syncAuth"),
     Effect.provide(AppLayerLive(c.env)),
     Effect.runPromise
@@ -275,7 +271,7 @@ app.get("/api/sync/auth", async (c) => {
     return c.json({ ok: result.ok });
   }
   logger.info("Sync auth failed", { code: result.code, status: result.status });
-  return c.json(result, result.status as 401 | 403);
+  return c.json(result, result.status as 401 | 403 | 503);
 });
 
 const handleSync = async (

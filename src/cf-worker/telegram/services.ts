@@ -4,6 +4,7 @@ import type { Effect } from "effect";
 import type { OrgId, UserId } from "../db/branded";
 import type {
   TelegramInvalidApiKeyError,
+  TelegramAuthUnavailableError,
   TelegramMissingOrgIdError,
   NotConnectedError,
   TelegramQueueSendError,
@@ -33,6 +34,7 @@ export class SourceAuth extends Context.Service<
       { orgId: OrgId; userId: UserId },
       | NotConnectedError
       | TelegramInvalidApiKeyError
+      | TelegramAuthUnavailableError
       | RateLimitError
       | TelegramMissingOrgIdError
     >;
@@ -40,7 +42,10 @@ export class SourceAuth extends Context.Service<
       apiKey: string
     ) => Effect.Effect<
       { orgId: OrgId; userId: UserId },
-      TelegramInvalidApiKeyError | RateLimitError | TelegramMissingOrgIdError
+      | TelegramInvalidApiKeyError
+      | TelegramAuthUnavailableError
+      | RateLimitError
+      | TelegramMissingOrgIdError
     >;
   }
 >()("SourceAuth") {}

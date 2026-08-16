@@ -1,4 +1,4 @@
-import { SELF } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
 import { describe, it, expect, beforeAll } from "vitest";
 
 /**
@@ -72,10 +72,20 @@ const buildSyncUrl = (storeId: string) => {
 describe("sync Connection Auth E2E", () => {
   let userA: UserInfo;
   let userB: UserInfo;
+  let revokedUser: UserInfo;
+  let unapprovedUser: UserInfo;
 
   beforeAll(async () => {
     userA = await signupUser("sync-user-a@test.com", "Sync User A");
     userB = await signupUser("sync-user-b@test.com", "Sync User B");
+    revokedUser = await signupUser(
+      "sync-revoked@test.com",
+      "Sync Revoked User"
+    );
+    unapprovedUser = await signupUser(
+      "sync-unapproved@test.com",
+      "Sync Unapproved User"
+    );
   });
 
   describe("missing session cookie", () => {
@@ -111,6 +121,15 @@ describe("sync Connection Auth E2E", () => {
   });
 
   describe("org access control", () => {
+    it("rejects an empty storeId", async () => {
+      const res = await SELF.fetch(buildSyncUrl(""), {
+        headers: { Cookie: userA.cookie },
+      });
+
+      expect(res.status).toBe(403);
+      expect(await res.text()).toContain("ACCESS_DENIED");
+    });
+
     it("rejects when storeId does not match session orgId", async () => {
       // User A tries to sync with User B's org
       const res = await SELF.fetch(buildSyncUrl(userB.orgId), {
@@ -167,6 +186,49 @@ describe("sync Connection Auth E2E", () => {
       expect(res.status).toBe(403);
       const text = await res.text();
       expect(text).toContain("ACCESS_DENIED");
+    });
+  });
+
+  describe("current authorization state", () => {
+    it("rejects revoked membership at preflight and authoritative sync", async () => {
+      await env.DB.prepare(
+        "DELETE FROM member WHERE user_id = ? AND organization_id = ?"
+      )
+        .bind(revokedUser.userId, revokedUser.orgId)
+        .run();
+
+      const preflight = await SELF.fetch(
+        `http://worker/api/sync/auth?storeId=${revokedUser.orgId}`,
+        { headers: { Cookie: revokedUser.cookie } }
+      );
+      expect(preflight.status).toBe(403);
+      expect(await preflight.text()).toContain("ACCESS_DENIED");
+
+      const authoritative = await SELF.fetch(buildSyncUrl(revokedUser.orgId), {
+        headers: { Cookie: revokedUser.cookie },
+      });
+      expect(authoritative.status).toBe(403);
+      expect(await authoritative.text()).toContain("ACCESS_DENIED");
+    });
+
+    it("rejects withdrawn approval at preflight and authoritative sync", async () => {
+      await env.DB.prepare("UPDATE user SET approved = 0 WHERE id = ?")
+        .bind(unapprovedUser.userId)
+        .run();
+
+      const preflight = await SELF.fetch(
+        `http://worker/api/sync/auth?storeId=${unapprovedUser.orgId}`,
+        { headers: { Cookie: unapprovedUser.cookie } }
+      );
+      expect(preflight.status).toBe(403);
+      expect(await preflight.text()).toContain("UNAPPROVED");
+
+      const authoritative = await SELF.fetch(
+        buildSyncUrl(unapprovedUser.orgId),
+        { headers: { Cookie: unapprovedUser.cookie } }
+      );
+      expect(authoritative.status).toBe(403);
+      expect(await authoritative.text()).toContain("ACCESS_DENIED");
     });
   });
 });

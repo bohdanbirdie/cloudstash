@@ -2,6 +2,10 @@ import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer, References } from "effect";
 
 import { AuthClient } from "../../auth/service";
+import {
+  WorkspaceAccess,
+  makeWorkspaceAccess,
+} from "../../auth/workspace-access";
 import { ApiKey, ApiKeyRowId, OrgId, UserId } from "../../db/branded";
 import { DbClient, DbError } from "../../db/service";
 import { KeyCreationError } from "../errors";
@@ -50,12 +54,24 @@ function makeDbStub(name: string | null, image: string | null = null) {
 }
 
 function makeAuthClientLayer(verifyApiKey: () => Promise<VerifyResult>) {
-  return Layer.succeed(AuthClient, {
+  const authLayer = Layer.succeed(AuthClient, {
     api: {
       verifyApiKey,
       getSession: () => Promise.resolve(null),
     },
   } as unknown as AuthClient["Service"]);
+  const accessLayer = Layer.effect(
+    WorkspaceAccess,
+    Effect.map(AuthClient, (auth) =>
+      makeWorkspaceAccess(auth, {
+        query: {
+          user: { findFirst: () => Promise.resolve({ approved: true }) },
+          member: { findFirst: () => Promise.resolve({ id: "member-1" }) },
+        },
+      } as never)
+    )
+  ).pipe(Layer.provide(authLayer));
+  return Layer.merge(authLayer, accessLayer);
 }
 
 function runAccount(

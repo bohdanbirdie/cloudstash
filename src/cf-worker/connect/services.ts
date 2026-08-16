@@ -1,10 +1,11 @@
-import { Context, Schema } from "effect";
-import type { Effect } from "effect";
+import { Context, Effect, Option, Schema } from "effect";
 
-import { ApiKey, ApiKeyRowId, OrgId } from "../db/branded";
-import type { UserId } from "../db/branded";
+import { matchWorkspaceAccessError } from "../auth/workspace-access";
+import type { WorkspaceAccess } from "../auth/workspace-access";
+import { ApiKey, ApiKeyRowId, OrgId, UserId } from "../db/branded";
 import type { DbError } from "../db/service";
-import type { KeyCreationError, SessionLookupError } from "./errors";
+import { ConnectUnauthorizedError, SessionLookupError } from "./errors";
+import type { KeyCreationError } from "./errors";
 
 export class InvalidVerificationPayloadError extends Schema.TaggedErrorClass<InvalidVerificationPayloadError>()(
   "InvalidVerificationPayloadError",
@@ -13,10 +14,11 @@ export class InvalidVerificationPayloadError extends Schema.TaggedErrorClass<Inv
   }
 ) {}
 
-export interface ApiKeyInfo {
-  readonly id: ApiKeyRowId;
-  readonly metadata: string | null;
-}
+export const ApiKeyInfo = Schema.Struct({
+  id: ApiKeyRowId,
+  metadata: Schema.NullOr(Schema.String),
+});
+export type ApiKeyInfo = typeof ApiKeyInfo.Type;
 
 export const VerificationData = Schema.Struct({
   key: ApiKey,
@@ -25,15 +27,54 @@ export const VerificationData = Schema.Struct({
 });
 export type VerificationData = typeof VerificationData.Type;
 
-export interface VerificationRecord {
-  readonly id: string;
-  readonly data: VerificationData;
-}
+export const VerificationRecord = Schema.Struct({
+  id: Schema.String,
+  data: VerificationData,
+});
+export type VerificationRecord = typeof VerificationRecord.Type;
 
-export interface SessionData {
-  readonly userId: UserId;
-  readonly orgId: OrgId | null;
-}
+export const SessionData = Schema.Struct({
+  userId: UserId,
+  orgId: Schema.NullOr(OrgId),
+});
+export type SessionData = typeof SessionData.Type;
+
+export const connectWorkspaceAccessError = (
+  error: Parameters<typeof matchWorkspaceAccessError>[0]
+): ConnectUnauthorizedError | SessionLookupError =>
+  matchWorkspaceAccessError<ConnectUnauthorizedError | SessionLookupError>(
+    error,
+    {
+      unauthorized: () => new ConnectUnauthorizedError(),
+      missingScope: () => new ConnectUnauthorizedError(),
+      forbidden: () => new ConnectUnauthorizedError(),
+      backend: ({ cause }) => new SessionLookupError({ cause }),
+    }
+  );
+
+export const getAuthorizedSession = Effect.fnUntraced(function* (
+  workspaceAccess: WorkspaceAccess["Service"],
+  headers: Headers
+) {
+  return yield* workspaceAccess.authorizeSession(headers).pipe(
+    Effect.map(({ orgId, userId }) => ({ orgId, userId })),
+    Effect.catch((error) =>
+      Option.match(
+        matchWorkspaceAccessError<Option.Option<SessionLookupError>>(error, {
+          unauthorized: () => Option.none(),
+          missingScope: () => Option.none(),
+          forbidden: () => Option.none(),
+          backend: ({ cause }) =>
+            Option.some(new SessionLookupError({ cause })),
+        }),
+        {
+          onNone: () => Effect.succeed(null),
+          onSome: Effect.fail,
+        }
+      )
+    )
+  );
+});
 
 export class SessionProvider extends Context.Service<
   SessionProvider,
@@ -83,10 +124,11 @@ export class VerificationStore extends Context.Service<
   }
 >()("VerificationStore") {}
 
-export interface TelegramConnectCode {
-  readonly recordId: string;
-  readonly chatId: number;
-}
+export const TelegramConnectCode = Schema.Struct({
+  recordId: Schema.String,
+  chatId: Schema.Number,
+});
+export type TelegramConnectCode = typeof TelegramConnectCode.Type;
 
 export class TelegramConnectStore extends Context.Service<
   TelegramConnectStore,

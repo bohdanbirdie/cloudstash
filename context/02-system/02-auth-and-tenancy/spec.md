@@ -26,25 +26,40 @@ and distinguishes expired, denied, unapproved, and unknown failures.
 
 ## Workspace Authorization
 
+Cloudstash uses one authoritative workspace-access decision at content and
+credential-minting boundaries. For a browser session it resolves the signed-in
+user and active workspace; for an API key it resolves the server-stamped
+workspace and referenced user. In both cases it then verifies current account
+approval, current workspace membership, and any workspace requested by the
+operation. Missing identity, scope, key reference, approval, or membership fails
+closed.
+
 Browser LiveStore connections send a payload containing `storeId` and the
-same-origin cookie. The preflight endpoint validates session approval and active
-workspace, but the authoritative `/sync` payload validator currently checks only
-session existence and active-workspace equality; neither path performs a fresh
-membership lookup; see
-[DELTA-011](../../.delta/DELTA-011-primary-sync-authorization-is-weaker-than-preflight.md).
+same-origin cookie. Both `/api/sync/auth` preflight and the authoritative `/sync`
+payload validator use the shared decision. Chat authorization and session-based
+integration minting use the same decision, so a revoked member or newly
+unapproved user cannot enter those boundaries even while a cached session cookie
+still proves identity. The signed cookie cache retains its five-minute identity
+tradeoff; approval and membership are read authoritatively when each boundary is
+entered. An already-established sync WebSocket does not yet reauthorize or
+terminate when approval or membership changes; see
+[DELTA-011](../../.delta/DELTA-011-established-sync-connections-do-not-reauthorize.md).
 
 Chrome extension clients authenticate with a paired Better Auth API key and an
 allowed `chrome-extension://` origin. The shared payload validator resolves the
-key's workspace metadata and fails closed for missing reference, invalid key, or
+key's server-stamped workspace and referenced user, checks their current access,
+and fails closed for missing reference, invalid key, revoked access, or
 disallowed extension ID.
 
 Public API, Telegram, and Raycast credentials are Better Auth API keys carrying
-workspace metadata. The generic Better Auth create/update routes currently allow
-client-provided metadata, while public reads/ingest trust its `orgId` without a
-fresh owner-membership check; see
-[DELTA-010](../../.delta/DELTA-010-api-key-metadata-can-cross-workspace-boundaries.md). Better Auth's per-key request rate limit is disabled because
-sync reconnects are network-driven; a Cloudflare per-IP rate limiter protects
-selected auth/sync paths.
+server-selected workspace metadata. Browser key creation overwrites client
+metadata with the caller's authorized active workspace, and generic key updates
+cannot mutate metadata. Public reads, ingest, extension sync/account/disconnect,
+Raycast exchange, and Telegram source authentication verify the key reference
+and its current approval and membership before use. Better Auth's live key
+verification preserves next-request/reconnect revocation. Its per-key request
+rate limit is disabled because sync reconnects are network-driven; a Cloudflare
+per-IP rate limiter protects selected auth/sync paths.
 
 ## Roles and Permissions
 
@@ -63,12 +78,17 @@ operations only to `admin`, not `viewer`.
 ## Pairing Flows
 
 - **Raycast:** a signed-in browser creates a short-lived verification value;
-  the separate extension exchanges it for a device-labelled API key.
+  the separate extension exchanges it for a device-labelled API key. Session
+  mint and key exchange both revalidate current workspace access.
 - **Chrome:** an externally-connectable handoff route mints a paired key and
-  sends it to the installed extension; the key is stored locally and can be
+  sends it to the installed extension; minting requires current workspace
+  access, and the locally stored key is revalidated when used and can be
   remotely revoked.
 - **Telegram:** a connection code associates chat identity with a user/workspace
-  API key stored through KV mappings.
+  API key stored through KV mappings. Stored and newly supplied keys use the
+  shared workspace decision.
 - **X:** an authenticated account-linking OAuth flow stores encrypted provider
   tokens; X does not expose email, so the linked synthetic identity is allowed
-  only from an already-authenticated session.
+  only from an already-authenticated session. X uses provider tokens rather than
+  workspace-scoped Better Auth API-key metadata; its status and control routes
+  still revalidate the browser session's current workspace access.

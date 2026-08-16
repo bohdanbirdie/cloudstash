@@ -69,6 +69,19 @@ export const handleLinks = (urls: string[]) =>
             )
           )
         ),
+      TelegramAuthUnavailableError: (error) =>
+        Effect.logError("Telegram authentication unavailable").pipe(
+          Effect.annotateLogs(safeErrorInfo(error.cause)),
+          Effect.flatMap(() =>
+            Messenger.pipe(
+              Effect.flatMap((m) =>
+                m.reply(
+                  "Authentication is temporarily unavailable. Please try again later."
+                )
+              )
+            )
+          )
+        ),
     })
   );
 
@@ -105,6 +118,19 @@ export const handleConnect = (chatId: number, apiKeyText: string | undefined) =>
         Messenger.pipe(
           Effect.flatMap((m) =>
             m.reply("Too many requests. Please try again later.")
+          )
+        ),
+      TelegramAuthUnavailableError: (error) =>
+        Effect.logError("Telegram authentication unavailable").pipe(
+          Effect.annotateLogs(safeErrorInfo(error.cause)),
+          Effect.flatMap(() =>
+            Messenger.pipe(
+              Effect.flatMap((m) =>
+                m.reply(
+                  "Authentication is temporarily unavailable. Please try again later."
+                )
+              )
+            )
           )
         ),
     })

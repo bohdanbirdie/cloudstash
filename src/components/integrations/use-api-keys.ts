@@ -45,9 +45,6 @@ export function useApiKeys(enabled = true) {
       setMutationError(null);
       try {
         const result = await authClient.apiKey.create({
-          metadata: {
-            orgId: auth.orgId,
-          },
           name: name || "API Key",
         });
         if (result.error) {

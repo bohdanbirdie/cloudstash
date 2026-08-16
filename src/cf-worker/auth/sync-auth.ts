@@ -1,12 +1,13 @@
-import { Effect, Schema } from "effect";
+import { Effect, Match, Schema } from "effect";
 
-import type { OrgId } from "../db/branded";
-import type { Auth } from "./index";
+import { OrgId } from "../db/branded";
+import { WorkspaceAccess, matchWorkspaceAccessError } from "./workspace-access";
 
 export type SyncAuthErrorCode =
   | "SESSION_EXPIRED"
   | "ACCESS_DENIED"
-  | "UNAPPROVED";
+  | "UNAPPROVED"
+  | "UNKNOWN";
 
 export class SyncAuthError extends Schema.TaggedErrorClass<SyncAuthError>()(
   "SyncAuthError",
@@ -17,6 +18,37 @@ export class SyncAuthError extends Schema.TaggedErrorClass<SyncAuthError>()(
   }
 ) {}
 
+const syncAuthError = (
+  code: SyncAuthErrorCode,
+  message: string,
+  status: number
+) => new SyncAuthError({ code, message, status });
+
+const translateWorkspaceAccess = (
+  error: Parameters<typeof matchWorkspaceAccessError>[0]
+) =>
+  matchWorkspaceAccessError<SyncAuthError>(error, {
+    unauthorized: () =>
+      syncAuthError("SESSION_EXPIRED", "Session expired or invalid", 401),
+    missingScope: () =>
+      syncAuthError("ACCESS_DENIED", "No active workspace", 403),
+    forbidden: (forbidden) =>
+      Match.value(forbidden).pipe(
+        Match.tag("WorkspaceUserUnapprovedError", () =>
+          syncAuthError("UNAPPROVED", "Account pending approval", 403)
+        ),
+        Match.orElse(() =>
+          syncAuthError(
+            "ACCESS_DENIED",
+            "You do not have access to this workspace",
+            403
+          )
+        )
+      ),
+    backend: () =>
+      syncAuthError("UNKNOWN", "Authentication backend unavailable", 503),
+  });
+
 /**
  * Pre-flight auth check for sync connections.
  * Currently assumes storeId === activeOrganizationId.
@@ -24,8 +56,7 @@ export class SyncAuthError extends Schema.TaggedErrorClass<SyncAuthError>()(
  */
 export const checkSyncAuth = Effect.fn("Auth.checkSyncAuth")(function* (
   cookie: string | null,
-  storeId: OrgId,
-  auth: Auth
+  storeId: OrgId
 ) {
   if (!cookie) {
     return yield* new SyncAuthError({
@@ -35,39 +66,8 @@ export const checkSyncAuth = Effect.fn("Auth.checkSyncAuth")(function* (
     });
   }
 
-  const session = yield* Effect.tryPromise({
-    catch: () =>
-      new SyncAuthError({
-        code: "SESSION_EXPIRED",
-        message: "Failed to validate session",
-        status: 401,
-      }),
-    try: () => auth.api.getSession({ headers: new Headers({ cookie }) }),
-  });
-
-  if (!session?.session) {
-    return yield* new SyncAuthError({
-      code: "SESSION_EXPIRED",
-      message: "Session expired or invalid",
-      status: 401,
-    });
-  }
-
-  if (!session.user.approved) {
-    return yield* new SyncAuthError({
-      code: "UNAPPROVED",
-      message: "Account pending approval",
-      status: 403,
-    });
-  }
-
-  if (session.session.activeOrganizationId !== storeId) {
-    return yield* new SyncAuthError({
-      code: "ACCESS_DENIED",
-      message: "You do not have access to this workspace",
-      status: 403,
-    });
-  }
-
-  return { userId: session.user.id };
+  const access = yield* WorkspaceAccess;
+  return yield* access
+    .authorizeSession(new Headers({ cookie }), OrgId.make(storeId))
+    .pipe(Effect.mapError(translateWorkspaceAccess));
 });

@@ -2,6 +2,10 @@ import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer, Result } from "effect";
 
 import { AuthClient } from "../../auth/service";
+import {
+  WorkspaceAccess,
+  makeWorkspaceAccess,
+} from "../../auth/workspace-access";
 import { OrgId } from "../../db/branded";
 import { parseExtensionAllowlist, validatePayload } from "../validate-payload";
 
@@ -30,7 +34,7 @@ function makeAuthLayer(stub: {
     | (() => Promise<VerifyApiKeyResult>);
   getSession?: () => Promise<SessionResult> | (() => Promise<SessionResult>);
 }) {
-  return Layer.succeed(AuthClient, {
+  const authLayer = Layer.succeed(AuthClient, {
     api: {
       verifyApiKey:
         stub.verifyApiKey ??
@@ -39,6 +43,18 @@ function makeAuthLayer(stub: {
       getSession: stub.getSession ?? (() => Promise.resolve(null)),
     },
   } as unknown as AuthClient["Service"]);
+  const accessLayer = Layer.effect(
+    WorkspaceAccess,
+    Effect.map(AuthClient, (auth) =>
+      makeWorkspaceAccess(auth, {
+        query: {
+          user: { findFirst: () => Promise.resolve({ approved: true }) },
+          member: { findFirst: () => Promise.resolve({ id: "member-1" }) },
+        },
+      } as never)
+    )
+  ).pipe(Layer.provide(authLayer));
+  return Layer.merge(authLayer, accessLayer);
 }
 
 const NO_ALLOWLIST = new Set<string>();
@@ -59,6 +75,36 @@ const CTX_NO_AUTH = {
 };
 
 describe("validatePayload — extension API key path", () => {
+  it.effect("rejects an empty requested storeId", () =>
+    validatePayload(
+      { apiKey: "lb_k" },
+      {
+        storeId: OrgId.make(""),
+        headers: CTX_EXT.headers,
+        allowedExtensionIds: NO_ALLOWLIST,
+      }
+    ).pipe(
+      Effect.result,
+      Effect.provide(
+        makeAuthLayer({
+          verifyApiKey: () =>
+            Promise.resolve({
+              valid: true,
+              key: { referenceId: "user-1", metadata: { orgId: "" } },
+            }),
+        })
+      ),
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure._tag).toBe("OrgAccessDeniedError");
+          }
+        })
+      )
+    )
+  );
+
   it.effect("InvalidSessionError when payload missing apiKey", () =>
     validatePayload({}, CTX_EXT).pipe(
       Effect.result,
@@ -298,6 +344,33 @@ describe("parseExtensionAllowlist", () => {
 });
 
 describe("validatePayload — cookie path", () => {
+  it.effect("rejects an empty requested storeId", () =>
+    validatePayload(undefined, {
+      storeId: OrgId.make(""),
+      headers: CTX_COOKIE.headers,
+      allowedExtensionIds: NO_ALLOWLIST,
+    }).pipe(
+      Effect.result,
+      Effect.provide(
+        makeAuthLayer({
+          getSession: () =>
+            Promise.resolve({
+              user: { id: "user-1" },
+              session: { activeOrganizationId: "" },
+            }),
+        })
+      ),
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure._tag).toBe("OrgAccessDeniedError");
+          }
+        })
+      )
+    )
+  );
+
   it.effect(
     "MissingSessionCookieError when no cookie and no extension origin",
     () =>

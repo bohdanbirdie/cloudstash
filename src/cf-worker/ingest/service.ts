@@ -1,15 +1,21 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import { trackEvent } from "../analytics";
-import { AppLayerLive, AuthClient } from "../auth/service";
+import { bearerApiKey } from "../auth/bearer-api-key";
+import { AppLayerLive } from "../auth/service";
+import {
+  WorkspaceAccess,
+  matchWorkspaceAccessError,
+} from "../auth/workspace-access";
 import { capabilityDeniedResponse } from "../billing/errors";
 import { requireCapability } from "../billing/service";
-import { OrgId } from "../db/branded";
 import type { LinkQueueMessage } from "../link-processor/types";
 import { maskId, safeErrorInfo } from "../log-utils";
 import type { Env } from "../shared";
 import {
   IngestInvalidApiKeyError,
+  IngestAccessDeniedError,
+  IngestAuthBackendError,
   IngestInvalidUrlError,
   IngestMissingApiKeyError,
   IngestMissingOrgIdError,
@@ -17,33 +23,38 @@ import {
   IngestQueueSendError,
 } from "./errors";
 
+const IngestBody = Schema.Struct({ url: Schema.String });
+const decodeIngestBody = Schema.decodeUnknownEffect(IngestBody);
+const decodeUrl = Schema.decodeUnknownEffect(Schema.URLFromString);
+
+const translateWorkspaceAccess = (
+  error: Parameters<typeof matchWorkspaceAccessError>[0]
+):
+  | IngestInvalidApiKeyError
+  | IngestMissingOrgIdError
+  | IngestAccessDeniedError
+  | IngestAuthBackendError =>
+  matchWorkspaceAccessError<
+    | IngestInvalidApiKeyError
+    | IngestMissingOrgIdError
+    | IngestAccessDeniedError
+    | IngestAuthBackendError
+  >(error, {
+    unauthorized: () => IngestInvalidApiKeyError.make({}),
+    missingScope: () => IngestMissingOrgIdError.make({}),
+    forbidden: () => IngestAccessDeniedError.make({}),
+    backend: ({ cause }) => IngestAuthBackendError.make({ cause }),
+  });
+
 export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
   function* (request: Request, env: Env) {
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      yield* Effect.logWarning("Missing API key");
-      return yield* IngestMissingApiKeyError.make({});
-    }
-    const apiKey = authHeader.slice(7);
-
-    const auth = yield* AuthClient;
-
-    const verifyResult = yield* Effect.tryPromise({
-      catch: () => IngestInvalidApiKeyError.make({}),
-      try: () => auth.api.verifyApiKey({ body: { key: apiKey } }),
-    });
-
-    if (!verifyResult.valid || !verifyResult.key) {
-      yield* Effect.logWarning("Invalid API key");
-      return yield* IngestInvalidApiKeyError.make({});
-    }
-
-    const rawOrgId = verifyResult.key.metadata?.orgId as string | undefined;
-    if (!rawOrgId) {
-      yield* Effect.logWarning("API key missing orgId");
-      return yield* IngestMissingOrgIdError.make({});
-    }
-    const orgId = OrgId.make(rawOrgId);
+    const apiKey = yield* Effect.fromOption(bearerApiKey(request.headers), () =>
+      IngestMissingApiKeyError.make({})
+    );
+    const workspaceAccess = yield* WorkspaceAccess;
+    const { orgId, userId } = yield* workspaceAccess
+      .authorizeApiKey(apiKey)
+      .pipe(Effect.mapError(translateWorkspaceAccess));
 
     yield* Effect.logDebug("API key verified").pipe(
       Effect.annotateLogs({ orgId: maskId(orgId) })
@@ -52,24 +63,18 @@ export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
     yield* requireCapability(orgId, "publicApi");
 
     trackEvent(env.USAGE_ANALYTICS, {
-      userId: verifyResult.key.referenceId ?? "api",
+      userId,
       event: "ingest",
       orgId,
     });
 
-    const body = yield* Effect.tryPromise({
-      catch: () => IngestMissingUrlError.make({}),
-      try: (): Promise<{ url?: string }> => request.json(),
-    });
-
-    if (!body.url) {
-      yield* Effect.logWarning("Missing URL in request body");
-      return yield* IngestMissingUrlError.make({});
-    }
-
-    const url = body.url;
-
-    yield* Effect.try(() => new URL(url)).pipe(
+    const { url } = yield* Effect.tryPromise(() =>
+      request.json<unknown>()
+    ).pipe(
+      Effect.flatMap(decodeIngestBody),
+      Effect.mapError(() => IngestMissingUrlError.make({}))
+    );
+    yield* decodeUrl(url).pipe(
       Effect.mapError(() => new IngestInvalidUrlError({ url }))
     );
 
@@ -113,6 +118,18 @@ export const ingestResponse = (
       IngestInvalidApiKeyError: () =>
         Effect.succeed(
           Response.json({ error: "Invalid API key" }, { status: 401 })
+        ),
+      IngestAccessDeniedError: () =>
+        Effect.succeed(Response.json({ error: "Forbidden" }, { status: 403 })),
+      IngestAuthBackendError: (error) =>
+        Effect.logError("Ingest: auth backend unavailable").pipe(
+          Effect.annotateLogs(safeErrorInfo(error.cause)),
+          Effect.as(
+            Response.json(
+              { error: "Auth backend unavailable" },
+              { status: 503 }
+            )
+          )
         ),
       IngestInvalidUrlError: () =>
         Effect.succeed(

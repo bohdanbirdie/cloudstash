@@ -15,6 +15,18 @@ export class IngestMissingOrgIdError extends Schema.TaggedErrorClass<IngestMissi
   {}
 ) {}
 
+export class IngestAccessDeniedError extends Schema.TaggedErrorClass<IngestAccessDeniedError>()(
+  "IngestAccessDeniedError",
+  {}
+) {}
+
+export class IngestAuthBackendError extends Schema.TaggedErrorClass<IngestAuthBackendError>()(
+  "IngestAuthBackendError",
+  {
+    cause: Schema.Defect(),
+  }
+) {}
+
 export class IngestMissingUrlError extends Schema.TaggedErrorClass<IngestMissingUrlError>()(
   "IngestMissingUrlError",
   {}
@@ -38,6 +50,8 @@ export type IngestError =
   | IngestMissingApiKeyError
   | IngestInvalidApiKeyError
   | IngestMissingOrgIdError
+  | IngestAccessDeniedError
+  | IngestAuthBackendError
   | IngestMissingUrlError
   | IngestInvalidUrlError
   | IngestQueueSendError;

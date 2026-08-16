@@ -2,9 +2,10 @@ import { and, eq, gt, like } from "drizzle-orm";
 import { Array as Arr, Effect, Layer, Option, Result, Schema } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
+import { WorkspaceAccess } from "../auth/workspace-access";
 import { capabilityDeniedResponse } from "../billing/errors";
 import { requireCapability } from "../billing/service";
-import { ApiKey, ApiKeyRowId, OrgId, UserId } from "../db/branded";
+import { ApiKey, ApiKeyRowId } from "../db/branded";
 import * as schema from "../db/schema";
 import { DbClient, query } from "../db/service";
 import { maskId, safeErrorInfo } from "../log-utils";
@@ -18,10 +19,10 @@ import {
   KeyCreationError,
   MissingCodeError,
   NoActiveOrgError,
-  SessionLookupError,
 } from "./errors";
 import {
   ApiKeyStore,
+  getAuthorizedSession,
   InvalidVerificationPayloadError,
   SessionProvider,
   TelegramConnectStore,
@@ -344,24 +345,9 @@ const TelegramConnectStoreLive = Layer.effect(
 const SessionProviderLive = Layer.effect(
   SessionProvider,
   Effect.gen(function* () {
-    const auth = yield* AuthClient;
+    const workspaceAccess = yield* WorkspaceAccess;
     return SessionProvider.of({
-      getSession: (headers) =>
-        Effect.tryPromise({
-          catch: (cause) => new SessionLookupError({ cause }),
-          try: () => auth.api.getSession({ headers }),
-        }).pipe(
-          Effect.map((session) =>
-            session?.session
-              ? {
-                  userId: UserId.make(session.user.id),
-                  orgId: session.session.activeOrganizationId
-                    ? OrgId.make(session.session.activeOrganizationId)
-                    : null,
-                }
-              : null
-          )
-        ),
+      getSession: (headers) => getAuthorizedSession(workspaceAccess, headers),
     });
   })
 );
