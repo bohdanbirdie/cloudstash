@@ -44,7 +44,10 @@ newer events, it rejects the stale parent, live pull supplies the missing prefix
 LiveStore rolls/rebases pending events, and push resumes. Therefore
 `ServerAheadError` is expected convergence flow. Materialization errors,
 non-contiguous persisted history, silent dead push fibers, or failure to advance
-backend history are defects.
+backend history are defects. A confirmed stale multi-tab browser runtime can
+currently leave locally committed events in OPFS without advancing backend
+history or presenting an actionable sync error; see
+[DELTA-041](../../.delta/DELTA-041-stale-browser-leader-can-strand-local-events.md).
 
 ## Hibernation
 
