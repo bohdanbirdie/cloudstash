@@ -86,11 +86,14 @@ export const makeAuthLayer = (accessToken: string | null = "tok-1") =>
     },
   } as never);
 
-// DbClient is consumed only via `query(db.query.member.findFirst(...))` in
-// getOrgIdEffect. A duck-typed stub is enough.
+// DbClient is consumed via account and member `findFirst` queries in the
+// access-token and org lookup effects. A duck-typed stub is enough.
 export const makeDbLayer = (orgId: string | null = ORG_ID) =>
   Layer.succeed(DbClient, {
     query: {
+      account: {
+        findFirst: async () => ({ id: "x-account-row-1" }),
+      },
       member: {
         findFirst: async () =>
           orgId === null ? undefined : { organizationId: orgId },

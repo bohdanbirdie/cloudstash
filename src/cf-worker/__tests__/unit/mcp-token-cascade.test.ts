@@ -12,8 +12,8 @@ const migration = readFileSync(
 
 describe("MCP token account-deletion cascade", () => {
   it("deletes linked OAuth tokens without a foreign-key ordering failure", async () => {
-    const bunSqliteModule = "bun:sqlite";
-    const { Database } = await import(bunSqliteModule);
+    const betterSqlite3Module = "better-sqlite3";
+    const { default: Database } = await import(betterSqlite3Module);
     const db = new Database(":memory:");
     try {
       db.exec("PRAGMA foreign_keys = ON");
@@ -32,26 +32,26 @@ describe("MCP token account-deletion cascade", () => {
       `);
       db.exec(migration);
 
-      db.query("INSERT INTO user (id) VALUES (?)").run("user-1");
-      db.query("INSERT INTO session (id, user_id) VALUES (?, ?)").run(
+      db.prepare("INSERT INTO user (id) VALUES (?)").run("user-1");
+      db.prepare("INSERT INTO session (id, user_id) VALUES (?, ?)").run(
         "session-1",
         "user-1"
       );
-      db.query(
+      db.prepare(
         `INSERT INTO oauth_client
           (id, client_id, user_id, redirect_uris)
          VALUES (?, ?, ?, ?)`
       ).run("client-row-1", "client-1", "user-1", "[]");
-      db.query(
+      db.prepare(
         `INSERT INTO oauth_resource (id, identifier, name)
          VALUES (?, ?, ?)`
       ).run("resource-row-1", "https://cloudstash.test/mcp", "Cloudstash");
-      db.query(
+      db.prepare(
         `INSERT INTO oauth_client_resource
           (id, client_id, resource_id)
          VALUES (?, ?, ?)`
       ).run("link-1", "client-1", "https://cloudstash.test/mcp");
-      db.query(
+      db.prepare(
         `INSERT INTO oauth_refresh_token
           (id, token, client_id, session_id, user_id, expires_at, created_at, scopes)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
@@ -65,7 +65,7 @@ describe("MCP token account-deletion cascade", () => {
         1,
         '["links:read"]'
       );
-      db.query(
+      db.prepare(
         `INSERT INTO oauth_access_token
           (id, token, client_id, session_id, user_id, refresh_id, expires_at, created_at, scopes)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -80,14 +80,14 @@ describe("MCP token account-deletion cascade", () => {
         1,
         '["links:read"]'
       );
-      db.query(
+      db.prepare(
         `INSERT INTO oauth_consent
           (id, client_id, user_id, scopes, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?)`
       ).run("consent-1", "client-1", "user-1", '["links:read"]', 1, 1);
 
       const deleteUser = db.transaction(() =>
-        db.query("DELETE FROM user WHERE id = ?").run("user-1")
+        db.prepare("DELETE FROM user WHERE id = ?").run("user-1")
       );
       expect(deleteUser).not.toThrow();
 
@@ -99,7 +99,7 @@ describe("MCP token account-deletion cascade", () => {
         "oauth_client",
       ]) {
         const row = db
-          .query(`SELECT count(*) AS count FROM ${table}`)
+          .prepare(`SELECT count(*) AS count FROM ${table}`)
           .get() as { count: number };
         expect(row.count, table).toBe(0);
       }
