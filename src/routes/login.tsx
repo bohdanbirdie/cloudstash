@@ -96,8 +96,8 @@ function LoginForm({ className, ...props }: React.ComponentProps<"div">) {
               <Button
                 className="w-full"
                 onClick={() =>
-                  authClient.signIn.oauth2({
-                    providerId: "google",
+                  authClient.signIn.social({
+                    provider: "google",
                     callbackURL,
                   })
                 }

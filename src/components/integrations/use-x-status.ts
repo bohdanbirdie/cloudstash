@@ -67,8 +67,8 @@ export function useXStatus() {
     setMutatingAction("connect");
     connectStartedAt.current = Date.now();
     try {
-      await authClient.oauth2.link({
-        providerId: "x",
+      await authClient.linkSocial({
+        provider: "x",
         callbackURL: window.location.pathname,
       });
       // On success the browser navigates away. mutatingAction stays set
