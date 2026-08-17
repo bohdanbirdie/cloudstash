@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Effect } from "effect";
 
 import { AuthClient } from "../auth/service";
@@ -31,9 +31,34 @@ export type PollOutcome =
 export const getAccessTokenEffect = Effect.fn("XBookmarkSyncDO.getAccessToken")(
   function* (userId: UserId) {
     yield* Effect.annotateCurrentSpan("userId", maskId(userId));
+    const db = yield* DbClient;
+    const xAccount = yield* query(
+      db.query.account.findFirst({
+        columns: { id: true },
+        where: and(
+          eq(schema.account.userId, userId),
+          eq(schema.account.providerId, "x")
+        ),
+      })
+    ).pipe(
+      Effect.catchTag("DbError", (error) =>
+        Effect.logWarning("getAccessToken account lookup failed").pipe(
+          Effect.annotateLogs({
+            userId: maskId(userId),
+            cause: String(error.cause),
+          }),
+          Effect.as(null)
+        )
+      )
+    );
+    if (!xAccount) return null;
+
     const auth = yield* AuthClient;
     const result = yield* Effect.tryPromise({
-      try: () => auth.api.getAccessToken({ body: { providerId: "x", userId } }),
+      try: () =>
+        auth.api.getAccessToken({
+          body: { accountId: xAccount.id, userId },
+        }),
       catch: sideEffectError("auth.getAccessToken"),
     }).pipe(
       Effect.catchTag("XSyncSideEffectError", (e) =>

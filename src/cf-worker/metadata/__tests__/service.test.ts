@@ -30,6 +30,7 @@ const accessLayer = (
     WorkspaceAccess,
     WorkspaceAccess.of({
       authorizeApiKey: () => Effect.die("not used"),
+      authorizeIdentity: () => Effect.die("Identity authorization not used"),
       authorizeSession: () =>
         result instanceof Error ? Effect.fail(result) : Effect.succeed(result),
     })

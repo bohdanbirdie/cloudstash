@@ -1,15 +1,16 @@
 import { it } from "@effect/vitest";
 import { Effect, Layer } from "effect";
-import { describe, expect } from "vitest";
+import { describe, expect, vi } from "vitest";
 
 import type { TierCapabilities } from "@/lib/plan";
 import { capabilitiesFor } from "@/lib/plan";
 
+import { AuthClient } from "../../auth/service";
 import { Billing } from "../../billing/service";
 import { OrgId, UserId } from "../../db/branded";
 import type { Env } from "../../shared";
 import { SessionProvider } from "../services";
-import { xResumeRequest } from "../x";
+import { xDisconnectRequest, xResumeRequest } from "../x";
 
 const USER = UserId.make("user-1");
 const ORG = OrgId.make("org-1");
@@ -57,6 +58,10 @@ const xDoStubEnv = (status: { connected: boolean }, calls: string[]): Env => {
       calls.push("resume");
       return Promise.resolve(undefined);
     },
+    disconnect: () => {
+      calls.push("disconnect");
+      return Promise.resolve(undefined);
+    },
   };
   return {
     X_BOOKMARK_SYNC_DO: {
@@ -68,6 +73,14 @@ const xDoStubEnv = (status: { connected: boolean }, calls: string[]): Env => {
 
 const newRequest = () =>
   new Request("http://worker/api/connect/x/resume", { method: "POST" });
+
+const authLayer = (api: {
+  listUserAccounts: ReturnType<typeof vi.fn>;
+  unlinkAccount: ReturnType<typeof vi.fn>;
+}) =>
+  Layer.succeed(AuthClient, {
+    api,
+  } as unknown as AuthClient["Service"]);
 
 describe("xResumeRequest gate", () => {
   it.effect(
@@ -179,4 +192,77 @@ describe("xResumeRequest gate", () => {
       )
     )
   );
+});
+
+describe("xDisconnectRequest", () => {
+  it.effect("unlinks the local Better Auth row for the X account", () => {
+    const calls: string[] = [];
+    const env = xDoStubEnv({ connected: true }, calls);
+    const listUserAccounts = vi.fn(() =>
+      Promise.resolve([
+        {
+          accountId: "external-google-subject",
+          id: "local-google-row",
+          providerId: "google",
+        },
+        {
+          accountId: "external-x-subject",
+          id: "local-x-row",
+          providerId: "x",
+        },
+      ])
+    );
+    const unlinkAccount = vi.fn(() => Promise.resolve({ status: true }));
+
+    return xDisconnectRequest(newRequest(), env).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          sessionStub(),
+          authLayer({ listUserAccounts, unlinkAccount })
+        )
+      ),
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(result).toEqual({ ok: true });
+          expect(calls).toEqual(["disconnect"]);
+          expect(unlinkAccount).toHaveBeenCalledWith(
+            expect.objectContaining({
+              body: { accountId: "local-x-row" },
+            })
+          );
+        })
+      )
+    );
+  });
+
+  it.effect("treats a missing X account as already unlinked", () => {
+    const calls: string[] = [];
+    const env = xDoStubEnv({ connected: true }, calls);
+    const listUserAccounts = vi.fn(() =>
+      Promise.resolve([
+        {
+          accountId: "external-google-subject",
+          id: "local-google-row",
+          providerId: "google",
+        },
+      ])
+    );
+    const unlinkAccount = vi.fn(() => Promise.resolve({ status: true }));
+
+    return xDisconnectRequest(newRequest(), env).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          sessionStub(),
+          authLayer({ listUserAccounts, unlinkAccount })
+        )
+      ),
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(result).toEqual({ ok: true });
+          expect(calls).toEqual(["disconnect"]);
+          expect(unlinkAccount).not.toHaveBeenCalled();
+        })
+      )
+    );
+  });
 });

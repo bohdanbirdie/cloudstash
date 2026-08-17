@@ -65,9 +65,10 @@ export const authorizeMcpClaims = Effect.fnUntraced(function* (
     clientId: raw.client_id,
     expiresAt: raw.exp,
     orgId: OrgId.make(raw[MCP_WORKSPACE_CLAIM]),
-    scopes: Array.isArray(raw.scope)
-      ? [...raw.scope]
-      : raw.scope.split(" ").filter(Boolean),
+    scopes:
+      typeof raw.scope === "string"
+        ? raw.scope.split(" ").filter(Boolean)
+        : [...raw.scope],
     userId: UserId.make(raw.sub),
   };
 

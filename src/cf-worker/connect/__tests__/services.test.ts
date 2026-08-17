@@ -19,6 +19,7 @@ const USER_ID = UserId.make("user-1");
 const accessReturning = (
   effect: ReturnType<WorkspaceAccess["Service"]["authorizeSession"]>
 ): WorkspaceAccess["Service"] => ({
+  authorizeIdentity: () => Effect.die("Identity authorization not used"),
   authorizeSession: () => effect,
   authorizeApiKey: () => Effect.die("API-key authorization not used"),
 });

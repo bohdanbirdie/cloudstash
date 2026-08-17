@@ -98,11 +98,17 @@ export const xDisconnectRequest = Effect.fn("XConnect.disconnect")(function* (
 
   // Better Auth unlink — tolerate "already unlinked" cases.
   yield* Effect.tryPromise({
-    try: () =>
-      auth.api.unlinkAccount({
-        body: { providerId: "x" },
+    try: async () => {
+      const accounts = await auth.api.listUserAccounts({
         headers: request.headers,
-      }),
+      });
+      const xAccount = accounts.find((account) => account.providerId === "x");
+      if (!xAccount) return;
+      await auth.api.unlinkAccount({
+        body: { accountId: xAccount.id },
+        headers: request.headers,
+      });
+    },
     catch: sideEffectError("auth.unlinkAccount"),
   }).pipe(
     Effect.catchTag("XSyncSideEffectError", (e) =>
