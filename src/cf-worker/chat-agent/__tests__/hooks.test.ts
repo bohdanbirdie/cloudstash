@@ -10,7 +10,11 @@ describe("agentHooks (unknown party fail-closed)", () => {
   const stubEnv = {
     BETTER_AUTH_URL: "http://localhost",
     BETTER_AUTH_SECRET: "test-secret-for-tests-only-32-chars-long",
-    DB: {} as never,
+    DB: {
+      prepare: () => {
+        throw new Error("no such table: oauth_resource");
+      },
+    } as never,
   } as unknown as Env;
   const request = new Request("https://example.com/agents/whatever");
 
