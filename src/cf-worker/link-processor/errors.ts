@@ -23,6 +23,8 @@ export const ContentExtractionReason = Schema.Literals([
   "scheme-rejected",
   "too-many-redirects",
   "body-too-large",
+  "content-type-rejected",
+  "timeout",
   "upstream-http-error",
   "unknown",
 ]);

@@ -119,9 +119,7 @@ export const processLink = ({
         })
       );
     } else {
-      yield* Effect.logWarning("Metadata fetched but empty").pipe(
-        Effect.annotateLogs({ url: link.url })
-      );
+      yield* Effect.logWarning("Metadata fetched but empty");
     }
 
     if (aiSummaryEnabled) {
@@ -183,35 +181,28 @@ export const processLink = ({
                   }),
                   Effect.andThen(summarizeBasic)
                 ),
-              ThreadProviderInvalidUrlError: (e) =>
-                fallbackToBasic("Enrichment provider: invalid url", {
-                  providerUrl: e.url,
-                }),
+              ThreadProviderInvalidUrlError: () =>
+                fallbackToBasic("Enrichment provider: invalid url", {}),
               ThreadProviderTransportError: (e) =>
                 fallbackToBasic("Enrichment provider: transport", {
-                  providerUrl: e.url,
                   ...safeErrorInfo(e.cause),
                 }),
               ThreadProviderHttpError: (e) =>
                 fallbackToBasic("Enrichment provider: http", {
-                  providerUrl: e.url,
                   providerStatus: e.status,
                   tweetId: e.tweetId ?? null,
                 }),
               ThreadProviderResponseError: (e) =>
                 fallbackToBasic("Enrichment provider: bad response", {
-                  providerUrl: e.url,
                   tweetId: e.tweetId ?? null,
                   ...safeErrorInfo(e.cause),
                 }),
               ThreadProviderEmptyError: (e) =>
                 fallbackToBasic("Enrichment provider: empty tweet text", {
-                  providerUrl: e.url,
                   tweetId: e.tweetId,
                 }),
               ThreadProviderTimeoutError: (e) =>
                 fallbackToBasic("Enrichment provider: timeout", {
-                  providerUrl: e.url,
                   tweetId: e.tweetId ?? null,
                 }),
               EnrichmentGenerateError: (e) =>
@@ -325,15 +316,23 @@ export const processLink = ({
           errorTag: "AiCallError",
           logLevel: "error",
           logMessage: "Link processing failed",
-          annotations: { url: error.url, ...safeErrorInfo(error.cause) },
+          annotations: safeErrorInfo(error.cause),
         }),
       MetadataFetchError: (error) =>
         recordFailure({
-          error: `fetch:${error.statusCode}`,
+          error:
+            error.reason === "timeout"
+              ? "fetch:timeout"
+              : error.statusCode === undefined
+                ? "fetch:unreadable"
+                : `fetch:${error.statusCode}`,
           errorTag: "MetadataFetchError",
           logLevel: "warning",
           logMessage: "Link processing failed: metadata fetch",
-          annotations: { statusCode: error.statusCode, url: error.url },
+          annotations: {
+            reason: error.reason,
+            statusCode: error.statusCode,
+          },
         }),
       MetadataParseError: (error) =>
         recordFailure({
@@ -341,7 +340,7 @@ export const processLink = ({
           errorTag: "MetadataParseError",
           logLevel: "warning",
           logMessage: "Link processing failed: metadata parse",
-          annotations: { cause: String(error.cause), url: error.url },
+          annotations: { errorType: error.errorType },
         }),
       TimeoutError: () =>
         recordFailure({
@@ -349,7 +348,7 @@ export const processLink = ({
           errorTag: "TimeoutError",
           logLevel: "warning",
           logMessage: "Link processing failed: timeout",
-          annotations: { url: link.url },
+          annotations: {},
         }),
     }),
     Effect.catchDefect((defect) =>

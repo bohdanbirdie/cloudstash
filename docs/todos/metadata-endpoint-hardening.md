@@ -1,5 +1,11 @@
 # Align metadata preview with the authenticated bounded-fetch contract
 
+## Status
+
+Implemented. The internal preview now uses the shared workspace/session
+decision, dedicated per-user abuse protection, non-cacheable responses, and the
+same bounded-fetch primitive as processing. LinkProcessor remains authoritative.
+
 ## Problem and outcome
 
 The metadata preview helper does not yet meet Cloudstash's authenticated,
@@ -10,7 +16,7 @@ network limits with the processing path without degrading ordinary preview UX.
 
 - Require the normal authenticated workspace/session boundary before fetch or
   cache access.
-- Apply generous, UX-safe per-user/workspace rate protection with structured
+- Apply generous, UX-safe per-user rate protection with structured
   retry guidance; avoid reconnect/self-amplifying limits.
 - Accept only HTTP(S), validate every redirect hop, and bound redirects, time,
   response bytes, content type, and cache behavior.
@@ -29,17 +35,18 @@ network limits with the processing path without degrading ordinary preview UX.
   cases fail before unbounded outbound work.
 - Normal authenticated preview bursts succeed within a documented envelope and
   rate-limit responses include a calm retry path.
-- Success caching remains bounded and cannot bypass authentication or target
-  validation.
+- Responses cannot be reused from cache to bypass a later authentication or
+  target-validation decision.
 - Logs/spans contain safe error context but no raw target URL.
 - Unit and Worker tests close DELTA-026's resolution signal.
 
 ## Dependencies and risks
 
-Reuse the shared metadata/content fetch safety primitives where their contracts
-fit. Browser UI request credentials and cache-key tenancy must be verified.
+The browser's same-origin request supplies the existing session. The endpoint
+does not introduce a cache key or a second public contract.
 
 ## Size and uncertainty
 
-Medium. Fetch bounding is known; choosing a generous production limit without
-traffic evidence is the main uncertainty.
+Delivered as Medium. The platform limiter is intentionally abuse protection,
+not global usage accounting; its operational envelope can be tuned from traffic
+evidence without changing the product contract.

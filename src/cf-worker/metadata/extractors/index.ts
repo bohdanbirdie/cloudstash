@@ -2,7 +2,7 @@ import { Effect } from "effect";
 
 import { githubExtractor } from "./github";
 import { twitterExtractor } from "./twitter";
-import type { Extractor, ExtractorMatch } from "./types";
+import type { Extractor, ExtractorContext, ExtractorMatch } from "./types";
 import { youtubeExtractor } from "./youtube";
 
 const EXTRACTORS: Record<string, Extractor> = {
@@ -19,12 +19,13 @@ export function findExtractor(url: URL): Extractor | null {
 }
 
 export const tryExtract = Effect.fn("metadata.tryExtract")(function* (
-  url: URL
+  url: URL,
+  context: ExtractorContext
 ) {
   const extractor = findExtractor(url);
   if (!extractor) return null;
   yield* Effect.annotateCurrentSpan({ extractor: extractor.name });
-  const result = yield* extractor.extract(url).pipe(
+  const result = yield* extractor.extract(url, context).pipe(
     Effect.tapCause((cause) =>
       Effect.logWarning("Extractor defect").pipe(
         Effect.annotateLogs({

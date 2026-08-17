@@ -1,24 +1,20 @@
 import { Effect, Schema } from "effect";
 
+import { BoundedFetchReason } from "../net/bounded-fetch";
+
 export class MetadataFetchError extends Schema.TaggedErrorClass<MetadataFetchError>()(
   "MetadataFetchError",
   {
-    message: Schema.String.pipe(
-      Schema.withConstructorDefault(Effect.succeed("Metadata fetch failed"))
-    ),
-    statusCode: Schema.Number,
-    url: Schema.String,
+    errorType: Schema.optional(Schema.String),
+    reason: BoundedFetchReason,
+    statusCode: Schema.optional(Schema.Number),
   }
 ) {}
 
 export class MetadataParseError extends Schema.TaggedErrorClass<MetadataParseError>()(
   "MetadataParseError",
   {
-    cause: Schema.Defect(),
-    message: Schema.String.pipe(
-      Schema.withConstructorDefault(Effect.succeed("Metadata parse failed"))
-    ),
-    url: Schema.String,
+    errorType: Schema.String,
   }
 ) {}
 
@@ -31,7 +27,31 @@ export class MetadataMissingUrlError extends Schema.TaggedErrorClass<MetadataMis
   }
 ) {}
 
-export type MetadataError =
-  | MetadataFetchError
-  | MetadataParseError
-  | MetadataMissingUrlError;
+export class MetadataInvalidTargetError extends Schema.TaggedErrorClass<MetadataInvalidTargetError>()(
+  "MetadataInvalidTargetError",
+  {}
+) {}
+
+export class MetadataRateLimitedError extends Schema.TaggedErrorClass<MetadataRateLimitedError>()(
+  "MetadataRateLimitedError",
+  {
+    retryAfterSeconds: Schema.Number,
+  }
+) {}
+
+export class MetadataRateLimitBackendError extends Schema.TaggedErrorClass<MetadataRateLimitBackendError>()(
+  "MetadataRateLimitBackendError",
+  {
+    cause: Schema.Defect(),
+  }
+) {}
+
+export const MetadataError = Schema.Union([
+  MetadataFetchError,
+  MetadataParseError,
+  MetadataMissingUrlError,
+  MetadataInvalidTargetError,
+  MetadataRateLimitedError,
+  MetadataRateLimitBackendError,
+]);
+export type MetadataError = typeof MetadataError.Type;

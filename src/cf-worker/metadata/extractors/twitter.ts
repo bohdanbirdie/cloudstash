@@ -1,31 +1,43 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
+import { fetchBoundedText } from "../../net/bounded-fetch";
 import { MetadataParser } from "../parser";
-import type { Extractor } from "./types";
+import { defaultExtractorContext } from "./types";
+import type { Extractor, ExtractorContext } from "./types";
 
-interface TweetEntity {
-  url: string;
-  expanded_url: string;
-}
-
-interface TweetMediaDetail {
-  media_url_https?: string;
-}
-
-interface TweetBase {
-  text?: string;
-  display_text_range?: [number, number];
-  user?: { name?: string; screen_name?: string };
-  entities?: {
-    urls?: TweetEntity[];
-    media?: TweetEntity[];
-  };
-  mediaDetails?: TweetMediaDetail[];
-}
-
-interface TweetResponse extends TweetBase {
-  quoted_tweet?: TweetBase;
-}
+const TweetEntity = Schema.Struct({
+  url: Schema.String,
+  expanded_url: Schema.String,
+});
+const TweetMediaDetail = Schema.Struct({
+  media_url_https: Schema.optional(Schema.String),
+});
+const TweetBase = Schema.Struct({
+  text: Schema.optional(Schema.String),
+  display_text_range: Schema.optional(
+    Schema.Tuple([Schema.Number, Schema.Number])
+  ),
+  user: Schema.optional(
+    Schema.Struct({
+      name: Schema.optional(Schema.String),
+      screen_name: Schema.optional(Schema.String),
+    })
+  ),
+  entities: Schema.optional(
+    Schema.Struct({
+      urls: Schema.optional(Schema.Array(TweetEntity)),
+      media: Schema.optional(Schema.Array(TweetEntity)),
+    })
+  ),
+  mediaDetails: Schema.optional(Schema.Array(TweetMediaDetail)),
+});
+const TweetResponse = Schema.Struct({
+  ...TweetBase.fields,
+  quoted_tweet: Schema.optional(TweetBase),
+});
+type TweetBase = typeof TweetBase.Type;
+type TweetResponse = typeof TweetResponse.Type;
+const decodeTweetResponse = Schema.decodeUnknownEffect(TweetResponse);
 
 function tweetIdFromUrl(url: URL): string | null {
   const match = url.pathname.match(/\/status\/(\d+)/);
@@ -97,25 +109,38 @@ const TWITTER_HOSTS = new Set([
   "pic.twitter.com",
 ]);
 
-const fetchOgImage = (target: string) =>
+const fetchOgImage = (target: string, context: ExtractorContext) =>
   Effect.gen(function* () {
+    const targetUrl = yield* Schema.decodeUnknownEffect(context.targetSchema)(
+      target
+    );
     const response = yield* Effect.tryPromise(() =>
-      fetch(target, {
+      fetchBoundedText({
+        acceptedContentTypes: ["text/html", "application/xhtml+xml"],
+        fetcher: context.fetcher,
         headers: {
           Accept: "text/html",
           "User-Agent":
             "Mozilla/5.0 (compatible; CloudstashBot/1.0; +https://cloudstash.app)",
         },
+        maxBytes: context.maxBytes,
+        maxRedirects: context.maxRedirects,
+        signal: context.signal,
+        targetSchema: context.targetSchema,
+        url: targetUrl,
       })
     );
-    if (!response.ok) return null;
-    const parser = new MetadataParser(target);
+    const parser = new MetadataParser(response.finalUrl.href);
     yield* Effect.tryPromise(() =>
       new HTMLRewriter()
         .on("meta", parser)
         .on("link", parser)
         .on("script", parser)
-        .transform(response)
+        .transform(
+          new Response(response.body, {
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          })
+        )
         .text()
     );
     return parser.getResult().image ?? null;
@@ -158,7 +183,7 @@ export const pickImage = (
 export const twitterExtractor: Extractor = {
   name: "twitter",
   authoritative: true,
-  extract: (url: URL) =>
+  extract: (url: URL, context = defaultExtractorContext()) =>
     Effect.gen(function* () {
       const id = tweetIdFromUrl(url);
       if (!id) return null;
@@ -168,7 +193,9 @@ export const twitterExtractor: Extractor = {
       apiUrl.searchParams.set("token", syndicationToken(id));
 
       const response = yield* Effect.tryPromise(() =>
-        fetch(apiUrl, {
+        fetchBoundedText({
+          acceptedContentTypes: ["application/json"],
+          fetcher: context.fetcher,
           headers: {
             Accept: "application/json",
             "Accept-Language": "en-US,en;q=0.9",
@@ -176,19 +203,24 @@ export const twitterExtractor: Extractor = {
             "User-Agent":
               "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
           },
+          maxBytes: context.maxBytes,
+          maxRedirects: context.maxRedirects,
+          signal: context.signal,
+          targetSchema: context.targetSchema,
+          url: apiUrl,
         })
       );
-      if (!response.ok) return null;
-
-      const data = yield* Effect.tryPromise(() =>
-        response.json<TweetResponse>()
+      const data = yield* Effect.try(() => JSON.parse(response.body)).pipe(
+        Effect.flatMap(decodeTweetResponse)
       );
 
       const fullText = expandText(data);
       if (!fullText) return null;
 
       const author = data.user?.name ?? data.user?.screen_name;
-      const image = yield* pickImage(data, url, fetchOgImage);
+      const image = yield* pickImage(data, url, (target) =>
+        fetchOgImage(target, context)
+      );
 
       const quotedText = data.quoted_tweet
         ? expandText(data.quoted_tweet)

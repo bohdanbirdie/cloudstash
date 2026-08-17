@@ -11,7 +11,10 @@ import { capabilitiesFor } from "@/lib/plan";
 import type { TierCapabilities } from "@/lib/plan";
 
 import { events, schema, tables } from "../../livestore/schema";
-import { whenLeaderSynced } from "../../livestore/when-leader-synced";
+import {
+  captureSyncTarget,
+  whenLeaderSynced,
+} from "../../livestore/when-leader-synced";
 import { Billing } from "../billing/service";
 import { LinkId, OrgId } from "../db/branded";
 import { DbClientLive } from "../db/service";
@@ -270,7 +273,9 @@ export class LinkProcessorDO
           { concurrency: MAX_CONCURRENT_METADATA, discard: true }
         )
       ).then(async () => {
+        const target = captureSyncTarget(store);
         const synced = await whenLeaderSynced(store, {
+          target,
           timeoutMs: LEADER_SYNC_TIMEOUT_MS,
         });
         if (!synced) {
@@ -455,9 +460,10 @@ export class LinkProcessorDO
         })
       );
 
+      const applicationHostname = new URL(this.env.BETTER_AUTH_URL).hostname;
       const liveLayer = Layer.mergeAll(
-        MetadataFetcherLive,
-        ContentExtractorLive,
+        MetadataFetcherLive(applicationHostname),
+        ContentExtractorLive(applicationHostname),
         AiSummaryGeneratorLive,
         LinkEventStoreLive(store),
         ThreadProviderNoopLive,
@@ -665,7 +671,9 @@ export class LinkProcessorDO
     );
 
     if (result.status === "ingested") {
+      const target = captureSyncTarget(store);
       const synced = await whenLeaderSynced(store, {
+        target,
         timeoutMs: LEADER_SYNC_TIMEOUT_MS,
       });
       if (!synced) {

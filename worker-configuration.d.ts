@@ -12,6 +12,7 @@ declare namespace Cloudflare {
 		USAGE_ANALYTICS: AnalyticsEngineDataset;
 		LINK_QUEUE: Queue;
 		SYNC_RATE_LIMITER: RateLimit;
+		METADATA_RATE_LIMITER: RateLimit;
 		AI: Ai;
 		ASSETS: Fetcher;
 		GOOGLE_CLIENT_ID: string;

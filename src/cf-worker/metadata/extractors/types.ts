@@ -1,5 +1,7 @@
 import type { Effect } from "effect";
 
+import { HttpTargetUrl } from "../../net/bounded-fetch";
+
 export interface ExtractedMetadata {
   title?: string;
   description?: string;
@@ -15,8 +17,27 @@ export interface Extractor {
    * didn't provide (extractor wins on any field it populated).
    */
   authoritative: boolean;
-  extract: (url: URL) => Effect.Effect<ExtractedMetadata | null>;
+  extract: (
+    url: URL,
+    context?: ExtractorContext
+  ) => Effect.Effect<ExtractedMetadata | null>;
 }
+
+export interface ExtractorContext {
+  readonly fetcher: typeof fetch;
+  readonly maxBytes: number;
+  readonly maxRedirects: number;
+  readonly signal: AbortSignal;
+  readonly targetSchema: ReturnType<typeof HttpTargetUrl>;
+}
+
+export const defaultExtractorContext = (): ExtractorContext => ({
+  fetcher: fetch,
+  maxBytes: 5_000_000,
+  maxRedirects: 5,
+  signal: AbortSignal.timeout(9_000),
+  targetSchema: HttpTargetUrl(),
+});
 
 export interface ExtractorMatch {
   extractor: string;
