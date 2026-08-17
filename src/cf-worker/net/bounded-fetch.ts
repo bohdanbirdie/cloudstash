@@ -126,7 +126,7 @@ const fetchOnce = async (
   }
 ) => {
   try {
-    return await options.fetcher(url, {
+    return await options.fetcher.call(globalThis, url, {
       headers: options.headers,
       redirect: "manual",
       signal: options.signal,
