@@ -308,4 +308,19 @@ describe("fetchBoundedText", () => {
       body: "<title>x</title>",
     });
   });
+
+  it("preserves the global receiver required by the Workers fetch function", async () => {
+    const fetcher: Fetcher = function (this: unknown) {
+      if (this !== globalThis) {
+        throw new TypeError(
+          "Illegal invocation: function called with incorrect this reference"
+        );
+      }
+      return Promise.resolve(htmlResponse("<title>x</title>"));
+    };
+
+    await expect(run("https://example.com", fetcher)).resolves.toMatchObject({
+      body: "<title>x</title>",
+    });
+  });
 });
