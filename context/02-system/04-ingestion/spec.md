@@ -15,7 +15,7 @@ web app / Chrome extension
   → SyncBackendDO onPush
   → LinkProcessorDO wake
 
-Telegram / Raycast / POST /api/ingest / X bookmark poll
+Telegram / Raycast / POST /api/ingest / MCP save_link / X bookmark poll
   → cloudstash-link-queue
   → queue consumer
   → LinkProcessorDO.ingestAndProcess
@@ -32,6 +32,9 @@ before producing the same `LinkQueueMessage` shape. Raycast uses its paired API
 key flow, but shared ingest currently records it as `api` and additionally
 requires `publicApi`; see
 [DELTA-036](../../.delta/DELTA-036-raycast-capture-loses-source-and-couples-capabilities.md).
+MCP `save_link` reaches the same validated Queue-send service after OAuth
+resource, current workspace-access, `mcpServer`, and `links:write` checks, and
+records source `mcp`.
 
 ## Queue Contract
 

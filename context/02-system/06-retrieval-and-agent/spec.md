@@ -43,6 +43,21 @@ opaque base64url. Responses include latest summary, metadata, processing status,
 and merged explicit/pending tag names. The API reads through
 `ChatAgentDO.listLinks`, which hosts a server-side workspace store.
 
+## Remote MCP
+
+`POST /mcp` is a stateless remote MCP endpoint. Its v1 surface contains exactly
+`search_links` and `save_link`; it does not expose chat-agent mutation tools,
+list/get/archive tools, resources, prompts, or server-side conversation state.
+`search_links` requires a trimmed query of at most 200 characters and reuses the
+existing `searchLinks$` ranking through a narrow read-only `ChatAgentDO` RPC. It
+returns at most the top 20 matches, with no cursor or total. Results are ordered
+by relevance score; ordering among equal scores is not a stable contract.
+
+The endpoint serves the MCP 2026 per-request protocol and the 2025 stateless
+compatibility flow from a fresh server instance per HTTP exchange. OAuth is
+resource-bound and reauthorized at each request; `search_links` requires
+`links:read` and `save_link` requires `links:write`.
+
 ## Chat Agent
 
 One `ChatAgentDO` currently exists per workspace and extends Cloudflare

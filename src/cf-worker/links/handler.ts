@@ -1,4 +1,4 @@
-import { Effect, Option } from "effect";
+import { Effect, Option, Schema } from "effect";
 
 import { bearerApiKey } from "../auth/bearer-api-key";
 import { WorkspaceAccess } from "../auth/workspace-access";
@@ -6,7 +6,7 @@ import { workspaceAccessHttpResponse } from "../auth/workspace-access-http";
 import { capabilityDeniedResponse } from "../billing/errors";
 import { requireCapability } from "../billing/service";
 import type { Billing } from "../billing/service";
-import type { ApiKey } from "../db/branded";
+import type { ApiKey, OrgId } from "../db/branded";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { runHandler } from "../runtime";
 import type { Env } from "../shared";
@@ -15,8 +15,39 @@ import type { ParsedListParams } from "./api";
 
 type ListParams = Extract<ParsedListParams, { ok: true }>;
 
+export class LinksReadError extends Schema.TaggedErrorClass<LinksReadError>()(
+  "LinksReadError",
+  { cause: Schema.Defect() }
+) {}
+
 const unauthorized = (): Response =>
   Response.json({ error: "Unauthorized" }, { status: 401 });
+
+export const fetchLinksPage = Effect.fn("Links.fetchPage")(function* (
+  orgId: OrgId,
+  params: ListParams,
+  env: Env
+) {
+  return yield* Effect.tryPromise({
+    try: () =>
+      env.Chat.get(env.Chat.idFromName(orgId)).listLinks({
+        state: params.state,
+        limit: params.limit,
+        cursor: params.cursor,
+      }),
+    catch: (cause) => new LinksReadError({ cause }),
+  });
+});
+
+export const searchWorkspaceLinks = Effect.fn("Links.searchWorkspace")(
+  function* (orgId: OrgId, query: string, env: Env) {
+    return yield* Effect.tryPromise({
+      try: () =>
+        env.Chat.get(env.Chat.idFromName(orgId)).searchLinks({ query }),
+      catch: (cause) => new LinksReadError({ cause }),
+    });
+  }
+);
 
 export const listLinksEffect = (
   apiKey: ApiKey,
@@ -66,18 +97,12 @@ export const listLinksEffect = (
     );
     if (denied) return denied;
 
-    const page = yield* Effect.tryPromise(() =>
-      env.Chat.get(env.Chat.idFromName(orgId)).listLinks({
-        state: params.state,
-        limit: params.limit,
-        cursor: params.cursor,
-      })
-    ).pipe(
-      Effect.catch((cause) =>
+    const page = yield* fetchLinksPage(orgId, params, env).pipe(
+      Effect.catch((error) =>
         Effect.logError("Links API: listLinks RPC failed").pipe(
           Effect.annotateLogs({
             orgId: maskId(orgId),
-            ...safeErrorInfo(cause),
+            ...safeErrorInfo(error.cause),
           }),
           Effect.as(null)
         )

@@ -4,23 +4,23 @@ Status: open
 
 ## Divergence
 
-The landing integrations grid and Pro plan present an MCP server as available,
-but no MCP server, route, binding, or tool implementation exists.
+The landing integrations grid and Pro plan present an MCP server as available.
+An implementation and additive migration exist in the active change, but
+bounded verification, Worker E2E, and real-client interoperability have not yet
+provided release evidence, so the advertised capability is not shipped truth.
 
 ## Intent
 
 [CS.PROD-R10](../01-product/requirements.md) requires availability claims to
-match deployed capability, and [roadmap.md](../roadmap.md) keeps MCP as future
-direction until implemented.
+match deployed capability.
 
 ## Implementation
 
-- [`integrations-tiles.tsx`](../../src/components/landing/integrations-tiles.tsx)
-  renders an “MCP server” tile without a maturity qualifier.
 - [`plan.ts`](../../src/lib/plan.ts) lists MCP in Pro marketing features and sets
   `mcpServer: true`.
-- [The implementation plan](../../docs/todos/develop-mcp-server.md) is still a
-  todo and the Worker exports no MCP route.
+- The active implementation introduces Better Auth OAuth/DCR and a stateless
+  `/mcp` route with scoped search/save tools, but verification and CI evidence
+  remain pending.
 
 ## Direction
 
@@ -28,7 +28,7 @@ update implementation
 
 ## Resolution Signal
 
-Delete this delta when all deployed product, SEO, plan, paywall, and settings
-surfaces remove or clearly mark MCP unavailable. A future implementation remains
-independent roadmap work and may reintroduce the claim only after end-to-end
-verification.
+Delete this delta only after the exact dependency family, additive D1 migration,
+OAuth discovery/consent/token flow, both MCP protocol eras, scoped tools, current
+workspace/entitlement denial, and a real MCP client connection pass in CI and
+the release is deployed.

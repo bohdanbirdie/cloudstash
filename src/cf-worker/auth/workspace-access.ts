@@ -272,6 +272,12 @@ const make = (auth: Auth, db: Database) => {
         requestedOrgId
       );
     }),
+    authorizeIdentity: Effect.fnUntraced(function* (
+      resolved: WorkspaceAuthorization,
+      requestedOrgId?: OrgId
+    ) {
+      return yield* authorizeResolved(resolved, requestedOrgId);
+    }),
   };
 };
 

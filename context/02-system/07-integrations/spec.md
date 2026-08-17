@@ -15,7 +15,28 @@ Active.
 | Raycast          | browser verification exchange → device-labelled API key | public ingest Queue                                      | key revoke; separate npm/Raycast repo               |
 | Telegram         | webhook secret + chat mapping to workspace key          | Queue                                                    | connect/check/confirm/status/disconnect; KV mapping |
 | Public API       | Bearer API key                                          | `POST` Queue; `GET` ChatAgentDO read client              | request-time capability and key checks              |
+| MCP clients      | Better Auth OAuth 2.1 + PKCE/DCR; workspace consent     | stateless HTTP; `search_links` read + `save_link` Queue  | consent/client/token revoke; five-minute JWT expiry |
 | X bookmarks      | linked encrypted OAuth account                          | per-user alarm poll → Queue                              | pause/resume/disconnect                             |
+
+## MCP Clients
+
+MCP clients discover Cloudstash through root well-known OAuth metadata and
+register through RFC 7591 dynamic client registration. Registration remains
+unauthenticated for compatibility with deployed desktop and agent clients and
+is covered across isolates by Cloudflare's 30-per-minute auth-path limit.
+Better Auth's configured five-per-minute in-memory endpoint limiter is active
+in production only as a supplemental single-isolate throttle. Registration
+persists client, resource-link, token, consent, and assertion rows in D1.
+Operations must monitor
+growth of those OAuth tables and investigate sustained client-registration
+growth rather than silently removing compatibility.
+
+The Worker uses a stateless handler and preserves both MCP 2026 per-request
+envelopes and the 2025 stateless transport. It does not enable Client ID Metadata
+Documents: the available CIMD transport fetches attacker-selected URLs, and no
+Cloudflare-safe DNS pinning, special-use address rejection, redirect rejection,
+and bounded response transport has been adopted. No application-owned metadata
+fetch is substituted until that network boundary is solved.
 
 ## Chrome Extension
 

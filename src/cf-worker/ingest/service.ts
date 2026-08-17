@@ -9,6 +9,7 @@ import {
 } from "../auth/workspace-access";
 import { capabilityDeniedResponse } from "../billing/errors";
 import { requireCapability } from "../billing/service";
+import type { OrgId, UserId } from "../db/branded";
 import type { LinkQueueMessage } from "../link-processor/types";
 import { maskId, safeErrorInfo } from "../log-utils";
 import type { Env } from "../shared";
@@ -26,6 +27,44 @@ import {
 const IngestBody = Schema.Struct({ url: Schema.String });
 const decodeIngestBody = Schema.decodeUnknownEffect(IngestBody);
 const decodeUrl = Schema.decodeUnknownEffect(Schema.URLFromString);
+
+export const enqueueLink = Effect.fn("Ingest.enqueueLink")(function* (
+  authorization: { readonly orgId: OrgId; readonly userId: UserId },
+  url: string,
+  source: string,
+  env: Env,
+  options: { readonly trackUsage?: boolean } = {}
+) {
+  yield* decodeUrl(url).pipe(
+    Effect.mapError(() => new IngestInvalidUrlError({ url }))
+  );
+
+  if (options.trackUsage !== false) {
+    trackEvent(env.USAGE_ANALYTICS, {
+      userId: authorization.userId,
+      event: "ingest",
+      orgId: authorization.orgId,
+    });
+  }
+
+  yield* Effect.tryPromise({
+    catch: (cause) => new IngestQueueSendError({ cause }),
+    try: () =>
+      env.LINK_QUEUE.send({
+        source,
+        sourceMeta: null,
+        storeId: authorization.orgId,
+        url,
+      } satisfies LinkQueueMessage),
+  });
+
+  yield* Effect.logInfo("Ingest queued").pipe(
+    Effect.annotateLogs({
+      orgId: maskId(authorization.orgId),
+      source,
+    })
+  );
+});
 
 const translateWorkspaceAccess = (
   error: Parameters<typeof matchWorkspaceAccessError>[0]
@@ -62,6 +101,8 @@ export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
 
     yield* requireCapability(orgId, "publicApi");
 
+    // Preserve the public API's established attempt-level analytics timing,
+    // including malformed request bodies and invalid URLs.
     trackEvent(env.USAGE_ANALYTICS, {
       userId,
       event: "ingest",
@@ -74,24 +115,9 @@ export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
       Effect.flatMap(decodeIngestBody),
       Effect.mapError(() => IngestMissingUrlError.make({}))
     );
-    yield* decodeUrl(url).pipe(
-      Effect.mapError(() => new IngestInvalidUrlError({ url }))
-    );
-
-    yield* Effect.tryPromise({
-      catch: (cause) => new IngestQueueSendError({ cause }),
-      try: () =>
-        env.LINK_QUEUE.send({
-          source: "api",
-          sourceMeta: null,
-          storeId: orgId,
-          url,
-        } satisfies LinkQueueMessage),
+    yield* enqueueLink({ orgId, userId }, url, "api", env, {
+      trackUsage: false,
     });
-
-    yield* Effect.logInfo("Ingest queued").pipe(
-      Effect.annotateLogs({ url, orgId: maskId(orgId) })
-    );
 
     return { ok: true, result: { status: "queued" } };
   }

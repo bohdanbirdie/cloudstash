@@ -20,6 +20,7 @@ import { handleTriggerDigest } from "./admin/trigger-digest";
 import { handleGetUsage } from "./admin/usage";
 import { trackEvent } from "./analytics";
 import { gateUserApiKeyCreate } from "./auth/api-key-gate";
+import { handleOAuthMetadataRequest } from "./auth/oauth-metadata";
 import { AppLayerLive, AuthClient } from "./auth/service";
 import { checkSyncAuth } from "./auth/sync-auth";
 import { handleBillingCheckout } from "./billing/routes/checkout";
@@ -56,10 +57,12 @@ import {
 import type { LinkQueueMessage } from "./link-processor/types";
 import { handleListLinks } from "./links/handler";
 import { logSync } from "./logger";
+import { handleMcpRequest } from "./mcp/server";
 import { metadataRequestToResponse } from "./metadata/service";
 import { requirePermission } from "./middleware/authorize";
 import { handleGetMe, handleGetOrg } from "./org";
 import { handleDlqBatch, handleQueueBatch } from "./queue-handler";
+import { routeAgentBeforeMcp } from "./request-routing";
 import { runHandler } from "./runtime";
 import type { Env, HonoVariables } from "./shared";
 import { SyncBackend, handleSyncRequest, runSyncAuth } from "./sync";
@@ -76,6 +79,7 @@ const logger = logSync("API");
 logger.debug("livestore build", { build: __LIVESTORE_BUILD__ });
 
 const RATE_LIMITED_PREFIXES = [
+  "/mcp",
   "/sync",
   "/api/sync/",
   "/api/auth/",
@@ -111,6 +115,24 @@ const checkRateLimit = async (
 const app = new Hono<{ Bindings: Env; Variables: HonoVariables }>();
 
 app.get("/api/auth/me", (c) => handleGetMe(c.req.raw, c.env));
+
+app.on(["GET", "HEAD", "OPTIONS"], "/.well-known/*", (c) => {
+  if (c.req.method === "OPTIONS")
+    return handleOAuthMetadataRequest(c.req.raw, c.env, () =>
+      Promise.reject(new Error("OPTIONS must not call Better Auth"))
+    );
+  return runHandler(
+    c.env,
+    Effect.gen(function* () {
+      const auth = yield* AuthClient;
+      return yield* Effect.promise(() =>
+        handleOAuthMetadataRequest(c.req.raw, c.env, (request) =>
+          auth.handler(request)
+        )
+      );
+    }).pipe(Effect.withSpan("API.authMetadataHandler"))
+  );
+});
 
 app.get("/api/org/:id", (c) =>
   handleGetOrg(c.req.raw, OrgId.make(c.req.param("id")), c.env)
@@ -329,18 +351,19 @@ export const fetch = async (
 
   const url = new URL(request.url);
 
-  // Handle agent WebSocket connections (/agents/:agent/:name)
-  const agentResponse = await routeAgentRequest(
+  // ChatAgent routing remains authoritative for /agents before MCP dispatch.
+  const agentOrMcpResponse = await routeAgentBeforeMcp(
     request as unknown as Request,
-    env,
-    {
-      onBeforeConnect: (req, lobby) =>
-        agentHooks.onBeforeConnect(req, lobby, env),
-      onBeforeRequest: (req, lobby) =>
-        agentHooks.onBeforeRequest(req, lobby, env),
-    }
+    () =>
+      routeAgentRequest(request as unknown as Request, env, {
+        onBeforeConnect: (req, lobby) =>
+          agentHooks.onBeforeConnect(req, lobby, env),
+        onBeforeRequest: (req, lobby) =>
+          agentHooks.onBeforeRequest(req, lobby, env),
+      }),
+    () => handleMcpRequest(request as unknown as Request, env)
   );
-  if (agentResponse) return agentResponse;
+  if (agentOrMcpResponse) return agentOrMcpResponse;
 
   if (url.pathname === "/sync") {
     return handleSync(request, env, ctx);

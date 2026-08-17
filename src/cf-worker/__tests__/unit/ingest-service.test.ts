@@ -10,8 +10,13 @@ import {
   makeWorkspaceAccess,
 } from "../../auth/workspace-access";
 import { Billing } from "../../billing/service";
+import { OrgId, UserId } from "../../db/branded";
 import { DbError } from "../../db/service";
-import { handleIngestRequest, ingestResponse } from "../../ingest/service";
+import {
+  enqueueLink,
+  handleIngestRequest,
+  ingestResponse,
+} from "../../ingest/service";
 import { OrgNotFoundError } from "../../org/errors";
 
 function createRequest(
@@ -99,6 +104,31 @@ const validKeyResponse = {
 };
 
 const validAuthLayer = makeAuthLayer(() => Promise.resolve(validKeyResponse));
+
+describe("enqueueLink", () => {
+  it.effect("queues an MCP save_link with its workspace and source", () => {
+    const env = createEnv();
+
+    return enqueueLink(
+      { orgId: OrgId.make("org-1"), userId: UserId.make("user-1") },
+      "https://example.com",
+      "mcp",
+      env as never
+    ).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(env._queueSend).toHaveBeenCalledWith({
+            source: "mcp",
+            sourceMeta: null,
+            storeId: "org-1",
+            url: "https://example.com",
+          });
+          expect(env.USAGE_ANALYTICS.writeDataPoint).toHaveBeenCalledOnce();
+        })
+      )
+    );
+  });
+});
 
 describe("ingestRequestToResponse", () => {
   it.effect("returns 401 when Authorization header is missing", () => {

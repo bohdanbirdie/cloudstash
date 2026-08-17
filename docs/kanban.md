@@ -13,7 +13,6 @@ kanban-plugin: board
 - [ ] [[todos/free-ai-summary-allowance|Plan a bounded Free AI-summary allowance]] — saved-link count remains unlimited; exhaustion preserves the link.
 - [ ] [[todos/initial-sync-blocking|Research large-Vault bootstrap]] — benchmark WebSocket vs supported HTTP replay, BootStatus/timeout UX, and upstream snapshot-at-head feasibility.
 - [ ] [[todos/automatic-summary-recovery|Recover failed summaries automatically]] — bounded primary, fallback, limited automatic retry, then a calm terminal state.
-- [ ] [[todos/develop-mcp-server|Ship stateless remote MCP for Pro]] — authenticated search/list/read only; align availability and policy copy with shipped behavior.
 
 ## Todo
 
@@ -54,8 +53,7 @@ kanban-plugin: board
 
 ## In Progress
 
-No agent-owned work is actively in progress. Start from Near-term Technical
-Outcomes or Todo.
+- [ ] [[todos/develop-mcp-server|Ship stateless remote MCP for Pro]] — Better Auth OAuth/DCR, workspace-bound five-minute JWTs, and scoped search/save tools; implementation is awaiting bounded verification and CI E2E.
 
 ## Human Operations
 

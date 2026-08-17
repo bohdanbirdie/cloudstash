@@ -1,8 +1,10 @@
 import { apiKey } from "@better-auth/api-key";
+import { mcp } from "@better-auth/mcp";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { admin, organization } from "better-auth/plugins";
+import { admin, jwt, organization } from "better-auth/plugins";
 import { genericOAuth } from "better-auth/plugins/generic-oauth";
+import { APIError } from "better-call";
 import { Cause, Effect, Schema } from "effect";
 
 import { ac, roles } from "@/lib/permissions";
@@ -13,6 +15,7 @@ import { UserId } from "../db/branded";
 import * as schema from "../db/schema";
 import { maskId } from "../log-utils";
 import { logSync } from "../logger";
+import { MCP_SCOPES, MCP_WORKSPACE_CLAIM, mcpResource } from "../mcp/config";
 import { getAppLayer } from "../runtime";
 import type { Env } from "../shared";
 import {
@@ -188,6 +191,44 @@ export const createAuth = (env: Env, db: Database) => {
     emailAndPassword:
       env.ENABLE_TEST_AUTH === "true" ? { enabled: true } : undefined,
     plugins: [
+      jwt(),
+      mcp({
+        accessTokenExpiresIn: 5 * 60,
+        allowDynamicClientRegistration: true,
+        allowUnauthenticatedClientRegistration: true,
+        clientRegistrationRequirePKCE: true,
+        consentPage: "/oauth-consent",
+        customAccessTokenClaims: ({ referenceId }) =>
+          referenceId ? { [MCP_WORKSPACE_CLAIM]: referenceId } : {},
+        grantTypes: ["authorization_code", "refresh_token"],
+        loginPage: "/login",
+        postLogin: {
+          page: "/oauth-consent",
+          shouldRedirect: () => false,
+          consentReferenceId: ({ session, scopes }) => {
+            const hasWorkspaceScope = scopes.some((scope) =>
+              scope.startsWith("links:")
+            );
+            if (!hasWorkspaceScope) return undefined;
+            const activeOrganizationId = session.activeOrganizationId as
+              | string
+              | undefined;
+            if (!activeOrganizationId) {
+              throw new APIError("BAD_REQUEST", {
+                error: "set_organization",
+                error_description:
+                  "An active workspace is required for Cloudstash link scopes",
+              });
+            }
+            return activeOrganizationId;
+          },
+        },
+        rateLimit: {
+          register: { max: 5, window: 60 },
+        },
+        resource: mcpResource(env),
+        scopes: [...MCP_SCOPES],
+      }),
       organization({
         allowUserToCreateOrganization: true,
         creatorRole: "owner",

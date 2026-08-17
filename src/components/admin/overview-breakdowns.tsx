@@ -3,6 +3,7 @@ import type { ActivityStats } from "./use-activity-stats";
 
 const SOURCE_LABELS: Record<string, string> = {
   app: "Web app",
+  mcp: "MCP",
   raycast: "Raycast",
   telegram: "Telegram",
   chrome: "Chrome extension",

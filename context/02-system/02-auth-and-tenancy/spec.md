@@ -15,9 +15,10 @@ Google OAuth → Better Auth user → approval → personal organization/workspa
 ```
 
 Better Auth persists users, OAuth accounts, sessions, organizations, members,
-and API keys in D1. On session creation, the hook resolves an existing active
-organization or creates a personal organization and sets it on the session.
-Unapproved users stop before mounting the LiveStore application.
+API keys, OAuth provider clients/tokens/consents/resources, and signing keys in
+D1. On session creation, the hook resolves an existing active organization or
+creates a personal organization and sets it on the session. Unapproved users
+stop before mounting the LiveStore application.
 
 Production sessions last fourteen days and update after seven days. A signed
 cookie cache has a five-minute TTL. Visibility/focus refresh checks the session;
@@ -60,6 +61,25 @@ and its current approval and membership before use. Better Auth's live key
 verification preserves next-request/reconnect revocation. Its per-key request
 rate limit is disabled because sync reconnects are network-driven; a Cloudflare
 per-IP rate limiter protects selected auth/sync paths.
+
+Remote MCP clients use Cloudstash's Better Auth OAuth 2.1 provider. The provider
+publishes authorization-server and protected-resource discovery, accepts
+unauthenticated dynamic client registration, and uses authorization-code PKCE
+plus refresh tokens. Registration is covered by the shared Cloudflare auth-path
+limit (30 requests per minute per IP). Better Auth's configured five-per-minute
+in-memory endpoint limiter is active in production as a supplemental
+single-isolate throttle; it is not the cross-isolate abuse boundary. Consent
+binds `links:read` and/or `links:write` to the browser session's active
+workspace. Access tokens are signed JWTs with the client, scopes, resource, user,
+and workspace claim and expire after five minutes.
+
+Every MCP request verifies JWT signature, issuer, audience, and expiry, then
+rechecks current user approval, workspace membership, requested workspace, and
+the workspace's `mcpServer` capability. Tool calls additionally require their
+operation scope. Revoking a consent/client/refresh token prevents future token
+issuance, but an already issued JWT has no online deny-list lookup; its maximum
+credential-revocation window is therefore five minutes. Membership, approval,
+and entitlement changes still take effect on the next request.
 
 ## Roles and Permissions
 
