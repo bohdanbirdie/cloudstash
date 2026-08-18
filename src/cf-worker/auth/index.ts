@@ -35,8 +35,21 @@ const DEFAULT_GOOGLE_BASE_URL = "https://accounts.google.com";
 // and the browser must hit the app via `127.0.0.1` so the session cookie
 // is set on the same origin the X callback lands on. See .dev.vars.example.
 
-function oauthProvidersPlugin(env: Env) {
+export function oauthProvidersPlugin(
+  env: Pick<
+    Env,
+    "GOOGLE_BASE_URL" | "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET"
+  > &
+    Partial<Pick<Env, "X_CLIENT_ID" | "X_CLIENT_SECRET">>
+) {
   const googleBaseUrl = env.GOOGLE_BASE_URL ?? DEFAULT_GOOGLE_BASE_URL;
+  const xCredentials =
+    env.X_CLIENT_ID && env.X_CLIENT_SECRET
+      ? {
+          clientId: env.X_CLIENT_ID,
+          clientSecret: env.X_CLIENT_SECRET,
+        }
+      : undefined;
 
   return genericOAuth({
     config: [
@@ -49,49 +62,57 @@ function oauthProvidersPlugin(env: Env) {
         pkce: true,
         overrideUserInfo: true,
       },
-      {
-        providerId: "x",
-        authorizationUrl: "https://twitter.com/i/oauth2/authorize",
-        tokenUrl: "https://api.twitter.com/2/oauth2/token",
-        clientId: env.X_CLIENT_ID,
-        clientSecret: env.X_CLIENT_SECRET,
-        scopes: ["bookmark.read", "tweet.read", "users.read", "offline.access"],
-        pkce: true,
-        // X requires HTTP Basic Auth for confidential clients on its
-        // token + refresh endpoints; body-based credentials get 401'd.
-        authentication: "basic",
-        getUserInfo: async (tokens) => {
-          const resp = await fetch(
-            "https://api.twitter.com/2/users/me?user.fields=username,name,profile_image_url",
+      ...(xCredentials
+        ? [
             {
-              headers: { Authorization: `Bearer ${tokens.accessToken}` },
-            }
-          );
-          if (!resp.ok) {
-            throw new Error(`X getUserInfo failed: ${resp.status}`);
-          }
-          const data = (await resp.json()) as {
-            data: {
-              id: string;
-              username: string;
-              name: string;
-              profile_image_url?: string;
-            };
-          };
-          return {
-            id: data.data.id,
-            name: data.data.name,
-            // X doesn't expose email by default; synthetic placeholder so
-            // Better Auth's User shape is satisfied. The linking flow does
-            // not overwrite the primary user's email.
-            email: `${data.data.username}@x.local`,
-            emailVerified: false,
-            image: data.data.profile_image_url,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          };
-        },
-      },
+              providerId: "x" as const,
+              authorizationUrl: "https://twitter.com/i/oauth2/authorize",
+              tokenUrl: "https://api.twitter.com/2/oauth2/token",
+              ...xCredentials,
+              scopes: [
+                "bookmark.read",
+                "tweet.read",
+                "users.read",
+                "offline.access",
+              ],
+              pkce: true,
+              // X requires HTTP Basic Auth for confidential clients on its
+              // token + refresh endpoints; body-based credentials get 401'd.
+              authentication: "basic" as const,
+              getUserInfo: async (tokens) => {
+                const resp = await fetch(
+                  "https://api.twitter.com/2/users/me?user.fields=username,name,profile_image_url",
+                  {
+                    headers: { Authorization: `Bearer ${tokens.accessToken}` },
+                  }
+                );
+                if (!resp.ok) {
+                  throw new Error(`X getUserInfo failed: ${resp.status}`);
+                }
+                const data = (await resp.json()) as {
+                  data: {
+                    id: string;
+                    username: string;
+                    name: string;
+                    profile_image_url?: string;
+                  };
+                };
+                return {
+                  id: data.data.id,
+                  name: data.data.name,
+                  // X doesn't expose email by default; synthetic placeholder so
+                  // Better Auth's User shape is satisfied. The linking flow does
+                  // not overwrite the primary user's email.
+                  email: `${data.data.username}@x.local`,
+                  emailVerified: false,
+                  image: data.data.profile_image_url,
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                };
+              },
+            },
+          ]
+        : []),
     ],
   });
 }

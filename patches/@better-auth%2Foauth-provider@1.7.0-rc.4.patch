@@ -1,0 +1,30 @@
+diff --git a/dist/register-BotzQoS8.mjs b/dist/register-BotzQoS8.mjs
+index 7b650bccda938b8c8a4cf7214f60250a109f9144..14bd1c92428b122fe07e53eba0b1df705ae829c7 100644
+--- a/dist/register-BotzQoS8.mjs
++++ b/dist/register-BotzQoS8.mjs
+@@ -588,11 +588,23 @@ async function seedResources(ctx, opts) {
+ 					data: buildSeedRow(input, now)
+ 				});
+ 			} catch (err) {
+-				const message = err instanceof Error ? err.message : String(err);
+-				if (/unique|duplicate|UNIQUE/i.test(message)) {
++				let current = err;
++				const seen = /* @__PURE__ */ new Set();
++				let duplicate = false;
++				while (current != null && !seen.has(current)) {
++					seen.add(current);
++					const currentMessage = current instanceof Error ? current.message : String(current);
++					if (/unique|duplicate|UNIQUE/i.test(currentMessage)) {
++						duplicate = true;
++						break;
++					}
++					current = typeof current === "object" && "cause" in current ? current.cause : void 0;
++				}
++				if (duplicate) {
+ 					logger.debug(`oauth-provider: resource ${input.identifier} already inserted by a concurrent process — skipping.`);
+ 					continue;
+ 				}
++				const message = err instanceof Error ? err.message : String(err);
+ 				if (MISSING_TABLE_PATTERN.test(message)) {
+ 					logger.debug("oauth-provider: oauthResource table not yet created; deferring resource seed to first access.");
+ 					return;

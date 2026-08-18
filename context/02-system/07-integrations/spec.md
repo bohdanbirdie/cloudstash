@@ -71,6 +71,10 @@ never rolls back the save. A reverse user→chat index supports account deletion
 
 ## X Bookmark Sync
 
+The X OAuth provider is available only when both `X_CLIENT_ID` and
+`X_CLIENT_SECRET` are non-empty. Missing or partial X configuration omits that
+provider without disabling Google, session, or MCP authentication.
+
 One `XBookmarkSyncDO` per user owns provider identity, status, watermark, retry
 state, and a 30-second alarm. On first connect it probes one newest bookmark and
 pins the watermark without import. Later polls probe for change, page at 50

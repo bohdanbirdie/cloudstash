@@ -109,6 +109,9 @@ operations only to `admin`, not `viewer`.
   shared workspace decision.
 - **X:** an authenticated account-linking OAuth flow stores encrypted provider
   tokens; X does not expose email, so the linked synthetic identity is allowed
-  only from an already-authenticated session. X uses provider tokens rather than
-  workspace-scoped Better Auth API-key metadata; its status and control routes
-  still revalidate the browser session's current workspace access.
+  only from an already-authenticated session. The X provider is registered only
+  when both `X_CLIENT_ID` and `X_CLIENT_SECRET` are non-empty; absent or partial
+  configuration leaves X unavailable without preventing global auth
+  initialization. X uses provider tokens rather than workspace-scoped Better
+  Auth API-key metadata; its status and control routes still revalidate the
+  browser session's current workspace access.

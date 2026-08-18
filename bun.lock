@@ -173,6 +173,9 @@
     "msgpackr-extract",
     "workerd",
   ],
+  "patchedDependencies": {
+    "@better-auth/oauth-provider@1.7.0-rc.4": "patches/@better-auth%2Foauth-provider@1.7.0-rc.4.patch",
+  },
   "overrides": {
     "@cloudflare/workers-types": "4.20260531.1",
     "@xmldom/xmldom": "0.8.13",

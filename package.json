@@ -205,6 +205,9 @@
       }
     }
   },
+  "patchedDependencies": {
+    "@better-auth/oauth-provider@1.7.0-rc.4": "patches/@better-auth%2Foauth-provider@1.7.0-rc.4.patch"
+  },
   "trustedDependencies": [
     "better-sqlite3",
     "esbuild",
