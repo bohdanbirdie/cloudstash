@@ -22,6 +22,15 @@ namespace. On session creation, the hook resolves an existing active
 organization or creates a personal organization and sets it on the session.
 Unapproved users stop before mounting the LiveStore application.
 
+The OAuth provider tables persist authorization-server state such as registered
+clients, consent, and tokens; they are separate from the per-request stateless
+MCP transport. The account issuer column is also separate: it is an
+application-wide Better Auth identity requirement. The legacy account migration
+maps only the configured credential, Google, and X issuer namespaces. It checks
+for other historical providers and duplicate resulting identities before table
+replacement, and aborts without changing legacy account data when either is
+present.
+
 Production sessions last fourteen days and update after seven days. A signed
 cookie cache has a five-minute TTL. Visibility/focus refresh checks the session;
 sync disconnect handling probes `/api/sync/auth`, shuts down a rejected store,
@@ -72,16 +81,44 @@ limit (30 requests per minute per IP). Better Auth's configured five-per-minute
 in-memory endpoint limiter is active in production as a supplemental
 single-isolate throttle; it is not the cross-isolate abuse boundary. Consent
 binds `links:read` and/or `links:write` to the browser session's active
-workspace. Access tokens are signed JWTs with the client, scopes, resource, user,
-and workspace claim and expire after five minutes.
+workspace. Whenever Better Auth redirects an auth flow to the consent screen,
+including after a login callback creates a session, the Worker binds that exact
+signed `oauth_query` and the then-active workspace in one MAC-authenticated,
+ten-minute, HttpOnly consent cookie. An
+accepted consent submission must present the matching signed query while the
+same workspace remains active; otherwise the Worker clears the cookie and
+rejects before Better Auth creates consent or an authorization code. The cookie
+is also cleared after a completed consent submission. Access tokens are signed
+JWTs with the client, scopes, resource, user, and workspace claim and expire
+after five minutes.
 
-Every MCP request verifies JWT signature, issuer, audience, and expiry, then
-rechecks current user approval, workspace membership, requested workspace, and
-the workspace's `mcpServer` capability. Tool calls additionally require their
-operation scope. Revoking a consent/client/refresh token prevents future token
-issuance, but an already issued JWT has no online deny-list lookup; its maximum
-credential-revocation window is therefore five minutes. Membership, approval,
-and entitlement changes still take effect on the next request.
+This MCP-only DCR surface defaults an omitted OAuth `application_type` to
+`native` for legacy MCP JAM compatibility. An explicit client type is preserved,
+and Better Auth still rejects redirects that violate that type, including web
+loopback redirects and native non-loopback HTTP redirects. This is a temporary
+compatibility deviation from OIDC's omitted-value default of `web`, not a general
+authorization-server default.
+
+Google sign-in uses fixed authorization, token, UserInfo, account-issuer, and
+account-subject configuration instead of fetching OIDC discovery while each
+Better Auth context initializes. `GOOGLE_BASE_URL` selects the corresponding
+fixed emulator endpoints for local development. Unrelated Cloudstash requests
+therefore do not depend on a live Google discovery request.
+
+Every MCP request loads Better Auth's current public signing keys through the
+in-process auth API and uses Better Auth core verification to check JWT
+signature, issuer, MCP audience, and expiry without an outbound HTTP request to
+the Worker's own JWKS route. Bearer and DPoP presentation use the same core DPoP
+binding rules, with proof replay reservations stored through Better Auth's
+shared database adapter. The Worker then rechecks current user approval,
+workspace membership, requested workspace, and the workspace's `mcpServer`
+capability. Tool calls additionally require their operation scope. Deleting a
+stored consent forces a future authorization to ask again, but Better Auth does
+not couple that deletion to existing refresh or access tokens. Revoking a
+client or refresh token prevents future token issuance. An already issued JWT
+has no online deny-list lookup, so its maximum credential-revocation window is
+five minutes. Membership, approval, and entitlement changes still take effect
+on the next request.
 
 ## Roles and Permissions
 

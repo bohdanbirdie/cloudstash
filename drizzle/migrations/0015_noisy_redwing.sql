@@ -1,4 +1,19 @@
-PRAGMA foreign_keys=OFF;--> statement-breakpoint
+CREATE TABLE `__account_issuer_provider_guard` (
+	`issue` text NOT NULL CONSTRAINT `account_issuer_provider_preflight` CHECK (`issue` = 'ready')
+);
+--> statement-breakpoint
+INSERT INTO `__account_issuer_provider_guard` (`issue`) SELECT 'unsupported provider: ' || `provider_id` FROM `account` WHERE `provider_id` NOT IN ('credential', 'google', 'x') LIMIT 1;--> statement-breakpoint
+DROP TABLE `__account_issuer_provider_guard`;--> statement-breakpoint
+CREATE TABLE `__account_issuer_collision_guard` (
+	`issue` text NOT NULL CONSTRAINT `account_issuer_collision_preflight` CHECK (`issue` = 'ready')
+);
+--> statement-breakpoint
+INSERT INTO `__account_issuer_collision_guard` (`issue`) SELECT 'duplicate account identity' FROM `account` GROUP BY CASE
+	WHEN `provider_id` = 'credential' THEN 'local:credential'
+	WHEN `provider_id` = 'google' THEN 'https://accounts.google.com'
+	WHEN `provider_id` = 'x' THEN 'local:oauth:x'
+END, `account_id` HAVING COUNT(*) > 1 LIMIT 1;--> statement-breakpoint
+DROP TABLE `__account_issuer_collision_guard`;--> statement-breakpoint
 CREATE TABLE `__new_account` (
 	`access_token` text,
 	`access_token_expires_at` integer,
@@ -22,9 +37,7 @@ INSERT INTO `__new_account`("access_token", "access_token_expires_at", "account_
 	WHEN "provider_id" = 'credential' THEN 'local:credential'
 	WHEN "provider_id" = 'google' THEN 'https://accounts.google.com'
 	WHEN "provider_id" = 'x' THEN 'local:oauth:x'
-	ELSE NULL
 END, "password", "provider_id", "refresh_token", "refresh_token_expires_at", "scope", "updated_at", "user_id" FROM `account`;--> statement-breakpoint
 DROP TABLE `account`;--> statement-breakpoint
 ALTER TABLE `__new_account` RENAME TO `account`;--> statement-breakpoint
-PRAGMA foreign_keys=ON;--> statement-breakpoint
 CREATE INDEX `account_userId_idx` ON `account` (`user_id`);

@@ -132,9 +132,9 @@
     "zustand": "5.0.14"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.36.3",
-    "@cloudflare/vitest-pool-workers": "0.16.10",
-    "@cloudflare/workers-types": "4.20260531.1",
+    "@cloudflare/vite-plugin": "1.51.2",
+    "@cloudflare/vitest-pool-workers": "0.21.0",
+    "@cloudflare/workers-types": "5.20260811.1",
     "@effect/language-service": "0.87.2",
     "@effect/vitest": "4.0.0-beta.99",
     "@livestore/devtools-vite": "0.0.0-snapshot-2e4bcfc68f7ddad5696022a10d515a011f5f785a",
@@ -168,10 +168,10 @@
     "vite-tsconfig-paths": "6.1.1",
     "vitest": "4.1.7",
     "web-vitals": "5.3.0",
-    "wrangler": "4.95.0"
+    "wrangler": "4.120.1"
   },
   "overrides": {
-    "@cloudflare/workers-types": "4.20260531.1",
+    "@cloudflare/workers-types": "5.20260811.1",
     "@xmldom/xmldom": "0.8.13",
     "hono": "4.12.21",
     "kysely": "0.28.17"
@@ -206,8 +206,7 @@
     }
   },
   "patchedDependencies": {
-    "@better-auth/oauth-provider@1.7.0-rc.4": "patches/@better-auth%2Foauth-provider@1.7.0-rc.4.patch",
-    "agents@0.20.1": "patches/agents@0.20.1.patch"
+    "@better-auth/oauth-provider@1.7.0-rc.4": "patches/@better-auth%2Foauth-provider@1.7.0-rc.4.patch"
   },
   "trustedDependencies": [
     "better-sqlite3",

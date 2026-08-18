@@ -38,7 +38,9 @@ into a rejected auth initialization.
 
 Do not cache or serialize auth construction in application memory. Keep the D1
 unique constraint as the cross-isolate arbiter and patch the provider's resource
-seed duplicate catch to follow wrapped `cause` links. Suppress only an error
-whose cause chain contains the provider's existing unique-or-duplicate marker;
-rethrow every unrelated error. The package patch is version-specific and must
-be revalidated when the OAuth provider dependency changes.
+seed duplicate catch to follow wrapped `cause` links. The added nested matcher
+accepts only D1's exact `oauth_resource.identifier` unique-constraint message;
+it does not apply the provider's broad outer-error duplicate matcher to nested
+causes. Rethrow every unrelated nested error. The package patch is
+version-specific and must be revalidated when the OAuth provider dependency
+changes.

@@ -20,6 +20,10 @@ import { handleTriggerDigest } from "./admin/trigger-digest";
 import { handleGetUsage } from "./admin/usage";
 import { trackEvent } from "./analytics";
 import { gateUserApiKeyCreate } from "./auth/api-key-gate";
+import {
+  bindConsentWorkspace,
+  validateConsentWorkspaceBinding,
+} from "./auth/oauth-consent-binding";
 import { handleOAuthMetadataRequest } from "./auth/oauth-metadata";
 import { AppLayerLive, AuthClient } from "./auth/service";
 import { checkSyncAuth } from "./auth/sync-auth";
@@ -193,7 +197,14 @@ app.on(["GET", "POST"], "/api/auth/*", (c) =>
       const denied = yield* gateUserApiKeyCreate(c.req.raw);
       if (denied) return denied;
       const auth = yield* AuthClient;
-      return yield* Effect.promise(() => auth.handler(c.req.raw));
+      const invalidConsent = yield* Effect.promise(() =>
+        validateConsentWorkspaceBinding(c.req.raw, auth, c.env)
+      );
+      if (invalidConsent) return invalidConsent;
+      const response = yield* Effect.promise(() => auth.handler(c.req.raw));
+      return yield* Effect.promise(() =>
+        bindConsentWorkspace(response, c.req.raw, auth, c.env)
+      );
     }).pipe(Effect.withSpan("API.authHandler"))
   )
 );

@@ -28,7 +28,10 @@ import { AppLayerLive } from "./service";
 
 const logger = logSync("Auth");
 
-const DEFAULT_GOOGLE_BASE_URL = "https://accounts.google.com";
+const GOOGLE_ACCOUNT_ISSUER = "https://accounts.google.com";
+const DEFAULT_GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const DEFAULT_GOOGLE_USER_INFO_URL =
+  "https://openidconnect.googleapis.com/v1/userinfo";
 
 // Note: X (Twitter) rejects `localhost` for callback URIs and requires the
 // loopback IP literal `127.0.0.1` (RFC 8252). For local dev this means
@@ -43,7 +46,11 @@ export function oauthProvidersPlugin(
   > &
     Partial<Pick<Env, "X_CLIENT_ID" | "X_CLIENT_SECRET">>
 ) {
-  const googleBaseUrl = env.GOOGLE_BASE_URL ?? DEFAULT_GOOGLE_BASE_URL;
+  const googleBaseUrl = (env.GOOGLE_BASE_URL ?? GOOGLE_ACCOUNT_ISSUER).replace(
+    /\/+$/,
+    ""
+  );
+  const usesGoogleEmulator = env.GOOGLE_BASE_URL !== undefined;
   const xCredentials =
     env.X_CLIENT_ID && env.X_CLIENT_SECRET
       ? {
@@ -56,7 +63,26 @@ export function oauthProvidersPlugin(
     config: [
       {
         providerId: "google",
-        discoveryUrl: `${googleBaseUrl}/.well-known/openid-configuration`,
+        accountIssuer: usesGoogleEmulator
+          ? googleBaseUrl
+          : GOOGLE_ACCOUNT_ISSUER,
+        accountSubject: ({ profile }) => {
+          if (
+            (typeof profile.sub !== "string" &&
+              typeof profile.sub !== "number") ||
+            String(profile.sub).length === 0
+          ) {
+            throw new Error("Google user info is missing a stable subject");
+          }
+          return profile.sub;
+        },
+        authorizationUrl: `${googleBaseUrl}/o/oauth2/v2/auth`,
+        tokenUrl: usesGoogleEmulator
+          ? `${googleBaseUrl}/oauth2/token`
+          : DEFAULT_GOOGLE_TOKEN_URL,
+        userInfoUrl: usesGoogleEmulator
+          ? `${googleBaseUrl}/oauth2/v2/userinfo`
+          : DEFAULT_GOOGLE_USER_INFO_URL,
         clientId: env.GOOGLE_CLIENT_ID,
         clientSecret: env.GOOGLE_CLIENT_SECRET,
         scopes: ["openid", "email", "profile"],
@@ -218,6 +244,11 @@ export const createAuth = (env: Env, db: Database) => {
         accessTokenExpiresIn: 5 * 60,
         allowDynamicClientRegistration: true,
         allowUnauthenticatedClientRegistration: true,
+        // MCP JAM omits OIDC's optional application_type even though it uses
+        // an installed-app loopback callback. This MCP-only endpoint therefore
+        // defaults omitted values to native; explicit values still win and all
+        // redirect URIs still pass Better Auth's strict type-specific checks.
+        clientRegistrationDefaultApplicationType: "native",
         clientRegistrationRequirePKCE: true,
         consentPage: "/oauth-consent",
         customAccessTokenClaims: ({ referenceId }) =>
@@ -249,6 +280,10 @@ export const createAuth = (env: Env, db: Database) => {
           register: { max: 5, window: 60 },
         },
         resource: mcpResource(env),
+        // Better Auth cannot verify application routing and warns whenever the
+        // authorization-server issuer contains a path. Cloudstash serves and
+        // boundary-tests the required path-scoped RFC 8414 metadata route.
+        silenceWarnings: { oauthAuthServerConfig: true },
         scopes: [...MCP_SCOPES],
       }),
       organization({

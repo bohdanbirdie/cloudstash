@@ -1,4 +1,3 @@
-import { requireMcpAuth } from "@better-auth/mcp";
 import type { AuthInfo } from "@modelcontextprotocol/server";
 import { McpServer } from "@modelcontextprotocol/server";
 import { createMcpHandler } from "agents/mcp/server";
@@ -19,6 +18,10 @@ import { safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import { getAppLayer } from "../runtime";
 import type { Env } from "../shared";
+import {
+  localMcpAccessTokenVerifier,
+  mcpAuthorizationChallenge,
+} from "./access-token";
 import { authorizeMcpClaims } from "./auth";
 import type { McpAuthorization } from "./auth";
 import { MCP_READ_SCOPE, MCP_WRITE_SCOPE, mcpResource } from "./config";
@@ -233,15 +236,23 @@ export const handleMcpRequest = async (
   try {
     const auth = createAuth(env, createDb(env.DB));
     const { baseURL: issuer } = await auth.$context;
-    const response = await requireMcpAuth(
-      auth,
-      (verifiedRequest, claims) =>
-        handleVerifiedRequest(verifiedRequest, claims, env, issuer),
-      {
-        challengeScopes: [MCP_READ_SCOPE, MCP_WRITE_SCOPE],
-        resource: mcpResource(env),
-      }
-    )(request);
+    const resource = mcpResource(env);
+    let claims: JWTPayload;
+    try {
+      claims = await localMcpAccessTokenVerifier(auth, request, {
+        audience: resource,
+        issuer,
+        jwksCacheKey: env.DB,
+      });
+    } catch (cause) {
+      const challenge = mcpAuthorizationChallenge(cause, resource, [
+        MCP_READ_SCOPE,
+        MCP_WRITE_SCOPE,
+      ]);
+      if (challenge) return withMcpCors(challenge, env);
+      throw cause;
+    }
+    const response = await handleVerifiedRequest(request, claims, env, issuer);
     return withMcpCors(response, env);
   } catch (cause) {
     return withMcpCors(authorizationFailure(cause), env);

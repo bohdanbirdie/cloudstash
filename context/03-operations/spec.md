@@ -24,7 +24,10 @@ Active.
 Built-in Cloudflare logs and invocation traces are enabled with full head
 sampling in current configuration. `AppLayerLive` installs application services
 and structured logging, but the global Effect tracer is currently a no-op; named
-Effect spans are not exported through a configured OTLP backend.
+Effect spans are not exported through a configured OTLP backend. Agents SDK
+custom spans use the Worker's native manual-lifetime tracing API; the pinned
+Cloudflare runtime and Worker E2E must expose that API rather than masking its
+absence with a dependency patch.
 
 ## Resilience Layers
 

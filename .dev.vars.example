@@ -1,18 +1,15 @@
 # Google OAuth (required)
 # Create at https://console.cloud.google.com/apis/credentials
-# Add redirect URI: http://localhost:3000/api/auth/callback/google
+# Add redirect URI: http://127.0.0.1:3000/api/auth/oauth2/callback/google
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 
 # Better Auth (required)
 # Generate secret: openssl rand -hex 32
-# NOTE: if you plan to use the X (Twitter) integration in dev, set this to
-# `http://127.0.0.1:3000` (X rejects `localhost` for OAuth callbacks). You'll
-# then need to access the app at http://127.0.0.1:3000 in your browser, and
-# add http://127.0.0.1:3000/api/auth/oauth2/callback/google to your Google
-# OAuth app's authorized redirect URIs.
+# Use the same origin in BETTER_AUTH_URL, the browser, and local OAuth/MCP
+# clients. The loopback IP literal also works with X, which rejects localhost.
 BETTER_AUTH_SECRET=
-BETTER_AUTH_URL=http://localhost:3000
+BETTER_AUTH_URL=http://127.0.0.1:3000
 
 # Email sender (required for approval emails)
 # Get Resend key at https://resend.com

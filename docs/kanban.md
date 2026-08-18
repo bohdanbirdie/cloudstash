@@ -53,7 +53,7 @@ kanban-plugin: board
 
 ## In Progress
 
-- [ ] [[todos/develop-mcp-server|Ship stateless remote MCP for Pro]] — Better Auth OAuth/DCR, workspace-bound five-minute JWTs, and scoped search/save tools; implementation is awaiting bounded verification and CI E2E.
+- [ ] [[todos/develop-mcp-server|Ship stateless remote MCP for Pro]] — code and automated release gates are green; remaining human gates are a named MCP JAM round trip on one canonical local origin and the read-only production account-migration preflight/dry run.
 
 ## Human Operations
 

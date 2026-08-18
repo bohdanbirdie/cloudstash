@@ -46,8 +46,14 @@ export default defineConfig({
           TEST_MIGRATIONS: JSON.stringify(migrations),
         },
         ratelimits: {
-          METADATA_RATE_LIMITER: { simple: { limit: 10000, period: 60 } },
-          SYNC_RATE_LIMITER: { simple: { limit: 10000, period: 60 } },
+          METADATA_RATE_LIMITER: {
+            namespace_id: "1002",
+            simple: { limit: 10000, period: 60 },
+          },
+          SYNC_RATE_LIMITER: {
+            namespace_id: "1001",
+            simple: { limit: 10000, period: 60 },
+          },
         },
       },
     }),

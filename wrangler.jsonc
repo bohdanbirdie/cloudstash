@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "cloudstash",
   "main": "./src/cf-worker/index.ts",
-  "compatibility_date": "2026-04-14",
+  "compatibility_date": "2026-08-11",
   "compatibility_flags": ["nodejs_compat"],
 
   // SPA + API model: Cloudflare's edge serves the static build (HTML, JS,
