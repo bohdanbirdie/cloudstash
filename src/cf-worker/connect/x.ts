@@ -66,7 +66,7 @@ const safeStatus = (env: Env, userId: UserId) =>
     )
   );
 
-export const xStatusRequest = Effect.fn("XConnect.status")(function* (
+export const xStatusRequest = Effect.fnUntraced(function* (
   headers: Headers,
   env: Env
 ) {
@@ -74,7 +74,7 @@ export const xStatusRequest = Effect.fn("XConnect.status")(function* (
   return yield* safeStatus(env, userId);
 });
 
-export const xDisconnectRequest = Effect.fn("XConnect.disconnect")(function* (
+export const xDisconnectRequest = Effect.fnUntraced(function* (
   request: Request,
   env: Env
 ) {
@@ -128,7 +128,7 @@ export const xDisconnectRequest = Effect.fn("XConnect.disconnect")(function* (
   return { ok: true } satisfies ActionResult;
 });
 
-export const xPauseRequest = Effect.fn("XConnect.pause")(function* (
+export const xPauseRequest = Effect.fnUntraced(function* (
   request: Request,
   env: Env
 ) {
@@ -154,7 +154,7 @@ export const xPauseRequest = Effect.fn("XConnect.pause")(function* (
   return { ok: true } satisfies ActionResult;
 });
 
-export const xResumeRequest = Effect.fn("XConnect.resume")(function* (
+export const xResumeRequest = Effect.fnUntraced(function* (
   request: Request,
   env: Env
 ) {
@@ -234,7 +234,8 @@ export const handleXStatus = (request: Request, env: Env): Promise<Response> =>
       Effect.provide(makeLiveLayer(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags(commonErrorTags),
-      Effect.catchCause((cause) => unexpected500(cause))
+      Effect.catchCause((cause) => unexpected500(cause)),
+      Effect.withSpan("XConnect.status")
     )
   );
 
@@ -247,7 +248,8 @@ export const handleXDisconnect = (
       Effect.provide(makeLiveLayer(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags(commonErrorTags),
-      Effect.catchCause((cause) => unexpected500(cause))
+      Effect.catchCause((cause) => unexpected500(cause)),
+      Effect.withSpan("XConnect.disconnect")
     )
   );
 
@@ -257,7 +259,8 @@ export const handleXPause = (request: Request, env: Env): Promise<Response> =>
       Effect.provide(makeLiveLayer(env)),
       Effect.map(mapActionResult),
       Effect.catchTags(commonErrorTags),
-      Effect.catchCause((cause) => unexpected500(cause))
+      Effect.catchCause((cause) => unexpected500(cause)),
+      Effect.withSpan("XConnect.pause")
     )
   );
 
@@ -280,6 +283,7 @@ export const handleXResume = (request: Request, env: Env): Promise<Response> =>
           ),
         DbError: (cause) => unexpected500(cause),
       }),
-      Effect.catchCause((cause) => unexpected500(cause))
+      Effect.catchCause((cause) => unexpected500(cause)),
+      Effect.withSpan("XConnect.resume")
     )
   );

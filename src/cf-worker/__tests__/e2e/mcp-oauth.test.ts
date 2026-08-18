@@ -10,6 +10,13 @@ const MCP_RESOURCE = `${AUTH_ORIGIN}/mcp`;
 const REDIRECT_URI = "http://127.0.0.1:6274/oauth/callback";
 const SCOPES = "openid offline_access links:read links:write";
 const SAVED_LINK_URL = "https://example.com/from-mcp";
+const WORKSPACE_A_URL = "https://example.com/workspace-proof-a";
+const WORKSPACE_B_URL = "https://example.com/workspace-proof-b";
+const EXPECTED_OUTBOUND_URLS = new Set([
+  SAVED_LINK_URL,
+  WORKSPACE_A_URL,
+  WORKSPACE_B_URL,
+]);
 const WORKSPACE_CLAIM = "https://cloudstash.dev/claims/workspace-id";
 
 type RegisteredClient = {
@@ -90,7 +97,10 @@ const registerClient = async (
     method: "POST",
   });
 
-const registerMcpJamClient = async (): Promise<RegisteredClient> => {
+// MCP JAM's 2026-07-28 flow explicitly sends application_type=native.
+// Keep this wire shape exact; older clients that omitted the field are tested
+// separately and intentionally follow OAuth's web-client default.
+const registerCurrentMcpJamClient = async (): Promise<RegisteredClient> => {
   const response = await registerClient();
 
   expect(response.status, `DCR failed: ${await response.clone().text()}`).toBe(
@@ -286,28 +296,24 @@ describe("MCP OAuth Worker flow", () => {
   let user: UserInfo;
   let client: RegisteredClient;
   let tokens: TokenSet;
-  let refreshedTokens: TokenSet;
   let restoreFetch: (() => void) | undefined;
+  const observedOutboundUrls: string[] = [];
 
   beforeAll(async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockImplementation(async (input, init) => {
         const request = new Request(input, init);
-        if (request.url === SAVED_LINK_URL) {
+        observedOutboundUrls.push(request.url);
+        if (EXPECTED_OUTBOUND_URLS.has(request.url)) {
           return new Response(
-            "<!doctype html><title>MCP test link</title><p>Saved from MCP.</p>",
+            `<!doctype html><title>${new URL(request.url).pathname.slice(1)}</title><p>Saved from MCP.</p>`,
             { headers: { "Content-Type": "text/html" } }
           );
         }
         throw new Error(`Unexpected outbound request: ${request.url}`);
       });
     restoreFetch = () => {
-      const outboundUrls = fetchSpy.mock.calls.map(
-        ([input, init]) => new Request(input, init).url
-      );
-      expect(outboundUrls.length).toBeGreaterThan(0);
-      expect(new Set(outboundUrls)).toEqual(new Set([SAVED_LINK_URL]));
       fetchSpy.mockRestore();
     };
 
@@ -315,7 +321,7 @@ describe("MCP OAuth Worker flow", () => {
     await env.DB.prepare("UPDATE organization SET tier = 'pro' WHERE id = ?")
       .bind(user.orgId)
       .run();
-    client = await registerMcpJamClient();
+    client = await registerCurrentMcpJamClient();
     tokens = await authorizeClient(user, client);
   });
 
@@ -344,7 +350,7 @@ describe("MCP OAuth Worker flow", () => {
     });
   });
 
-  it("registers an MCP JAM-shaped public client and issues workspace tokens", () => {
+  it("registers the MCP JAM 2026-07-28 public client and issues workspace tokens", () => {
     expect(client.application_type).toBe("native");
     expect(client.client_id).toBeTruthy();
     expect(client.token_endpoint_auth_method).toBe("none");
@@ -380,7 +386,7 @@ describe("MCP OAuth Worker flow", () => {
     });
   });
 
-  it("uses the standard web default when application_type is omitted", async () => {
+  it("rejects the legacy MCP JAM loopback shape that omitted application_type", async () => {
     const loopback = await registerClient({ application_type: undefined });
     expect(loopback.status).toBe(400);
     expect(await loopback.json()).toMatchObject({
@@ -400,7 +406,7 @@ describe("MCP OAuth Worker flow", () => {
   it("binds consent when logged-out authorization resumes in the sign-in response", async () => {
     const email = "mcp-post-login@test.com";
     await signupUser(email, "MCP Post Login User");
-    const isolatedClient = await registerMcpJamClient();
+    const isolatedClient = await registerCurrentMcpJamClient();
     const verifier =
       "mcp-jam-post-login-verifier-abcdefghijklmnopqrstuvwxyz-0123456789";
     const authorizeUrl = new URL("/api/auth/oauth2/authorize", AUTH_ORIGIN);
@@ -479,7 +485,7 @@ describe("MCP OAuth Worker flow", () => {
       "mcp-consent-switch@test.com",
       "MCP Consent Switch User"
     );
-    const isolatedClient = await registerMcpJamClient();
+    const isolatedClient = await registerCurrentMcpJamClient();
     const prompt = await beginAuthorization(isolatedUser, isolatedClient);
     const authorizationCodesBefore = await env.DB.prepare(
       `SELECT COUNT(*) AS count FROM verification
@@ -608,6 +614,11 @@ describe("MCP OAuth Worker flow", () => {
     expect(JSON.parse(saved.body.result?.content[0]?.text ?? "null")).toEqual({
       status: "queued",
     });
+    await vi.waitFor(
+      () => expect(observedOutboundUrls).toContain(SAVED_LINK_URL),
+      { timeout: 5_000 }
+    );
+    expect(new Set(observedOutboundUrls)).toEqual(new Set([SAVED_LINK_URL]));
   });
 
   it("lists tools through the MCP 2026 per-request stateless transport", async () => {
@@ -622,6 +633,101 @@ describe("MCP OAuth Worker flow", () => {
       resultType: "complete",
       tools: [{ name: "search_links" }, { name: "save_link" }],
     });
+  });
+
+  it("keeps search and save pinned to the consented workspace after an active-workspace switch", async () => {
+    const isolatedUser = await signupUser(
+      "mcp-workspace-routing@test.com",
+      "MCP Workspace Routing User"
+    );
+    await env.DB.prepare("UPDATE organization SET tier = 'pro' WHERE id = ?")
+      .bind(isolatedUser.orgId)
+      .run();
+    const otherOrgId = crypto.randomUUID();
+    await env.DB.prepare(
+      "INSERT INTO organization (id, name, slug, tier) VALUES (?, ?, ?, 'pro')"
+    )
+      .bind(otherOrgId, "Other MCP Workspace", `other-mcp-${otherOrgId}`)
+      .run();
+    await env.DB.prepare(
+      "INSERT INTO member (id, organization_id, user_id, role) VALUES (?, ?, ?, 'owner')"
+    )
+      .bind(crypto.randomUUID(), otherOrgId, isolatedUser.userId)
+      .run();
+
+    const isolatedClient = await registerCurrentMcpJamClient();
+    const isolatedTokens = await authorizeClient(isolatedUser, isolatedClient);
+    const switched = await SELF.fetch(
+      "http://worker/api/auth/organization/set-active",
+      {
+        body: JSON.stringify({ organizationId: otherOrgId }),
+        headers: {
+          Cookie: cookiePair(isolatedUser.cookie),
+          "Content-Type": "application/json",
+          Origin: AUTH_ORIGIN,
+        },
+        method: "POST",
+      }
+    );
+    expect(switched.status, await switched.clone().text()).toBe(200);
+
+    const saved = await callMcp<unknown>(
+      isolatedTokens.access_token,
+      30,
+      "tools/call",
+      { arguments: { url: WORKSPACE_A_URL }, name: "save_link" }
+    );
+    expect(saved.response.status).toBe(200);
+    await env.LINK_QUEUE.send({
+      source: "test",
+      sourceMeta: null,
+      storeId: otherOrgId,
+      url: WORKSPACE_B_URL,
+    });
+
+    const linksFor = (orgId: string) =>
+      env.Chat.get(env.Chat.idFromName(orgId)).listLinks({
+        cursor: null,
+        limit: 20,
+        state: "all",
+      });
+    await vi.waitFor(
+      async () => {
+        const [workspaceA, workspaceB] = await Promise.all([
+          linksFor(isolatedUser.orgId),
+          linksFor(otherOrgId),
+        ]);
+        expect(workspaceA.links.map(({ url }) => url)).toContain(
+          WORKSPACE_A_URL
+        );
+        expect(workspaceA.links.map(({ url }) => url)).not.toContain(
+          WORKSPACE_B_URL
+        );
+        expect(workspaceB.links.map(({ url }) => url)).toContain(
+          WORKSPACE_B_URL
+        );
+        expect(workspaceB.links.map(({ url }) => url)).not.toContain(
+          WORKSPACE_A_URL
+        );
+      },
+      { interval: 100, timeout: 10_000 }
+    );
+
+    const searched = await callMcp<{ content: { text: string }[] }>(
+      isolatedTokens.access_token,
+      31,
+      "tools/call",
+      {
+        arguments: { query: "workspace-proof" },
+        name: "search_links",
+      }
+    );
+    expect(searched.response.status).toBe(200);
+    const results = JSON.parse(
+      searched.body.result?.content[0]?.text ?? "[]"
+    ) as { url: string }[];
+    expect(results.map(({ url }) => url)).toContain(WORKSPACE_A_URL);
+    expect(results.map(({ url }) => url)).not.toContain(WORKSPACE_B_URL);
   });
 
   it("keeps refresh tokens bound to the consented workspace after a session workspace switch", async () => {
@@ -669,7 +775,7 @@ describe("MCP OAuth Worker flow", () => {
       refreshed.status,
       `Refresh failed: ${await refreshed.clone().text()}`
     ).toBe(200);
-    refreshedTokens = await refreshed.json<TokenSet>();
+    const refreshedTokens = await refreshed.json<TokenSet>();
     expect(refreshedTokens.scope.split(" ")).toEqual(
       expect.arrayContaining(SCOPES.split(" "))
     );
@@ -748,11 +854,23 @@ describe("MCP OAuth Worker flow", () => {
   });
 
   it("rejects refresh after the client revokes its refresh token", async () => {
-    expect(refreshedTokens.refresh_token).toBeTruthy();
+    const revocationUser = await signupUser(
+      "mcp-revocation@test.com",
+      "MCP Revocation User"
+    );
+    await env.DB.prepare("UPDATE organization SET tier = 'pro' WHERE id = ?")
+      .bind(revocationUser.orgId)
+      .run();
+    const revocationClient = await registerCurrentMcpJamClient();
+    const refreshableTokens = await authorizeClient(
+      revocationUser,
+      revocationClient
+    );
+    expect(refreshableTokens.refresh_token).toBeTruthy();
     const revoked = await SELF.fetch("http://worker/api/auth/oauth2/revoke", {
       body: new URLSearchParams({
-        client_id: client.client_id,
-        token: refreshedTokens.refresh_token!,
+        client_id: revocationClient.client_id,
+        token: refreshableTokens.refresh_token!,
         token_type_hint: "refresh_token",
       }),
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -760,7 +878,10 @@ describe("MCP OAuth Worker flow", () => {
     });
     expect(revoked.status, await revoked.clone().text()).toBe(200);
 
-    const refresh = await refreshClient(client, refreshedTokens.refresh_token!);
+    const refresh = await refreshClient(
+      revocationClient,
+      refreshableTokens.refresh_token!
+    );
     expect(refresh.status).toBe(400);
     expect(await refresh.json()).toMatchObject({ error: "invalid_grant" });
   });

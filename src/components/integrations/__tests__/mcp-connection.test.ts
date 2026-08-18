@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   MCP_CONNECTION_GUIDANCE,
   MCP_LOCAL_ORIGIN_GUIDANCE,
+  mcpAvailabilityState,
   mcpEndpoint,
   mcpEndpointForOrigin,
 } from "../mcp-connection";
@@ -18,11 +19,46 @@ describe("MCP connection guidance", () => {
     expect(mcpEndpoint()).toBe("https://cloudstash.app/mcp");
   });
 
+  it("does not turn a capability loading failure into an upgrade prompt", () => {
+    expect(
+      mcpAvailabilityState({
+        allowed: false,
+        alreadyPro: false,
+        failed: true,
+        loading: false,
+      })
+    ).toBe("unavailable");
+    expect(
+      mcpAvailabilityState({
+        allowed: false,
+        alreadyPro: false,
+        failed: false,
+        loading: false,
+      })
+    ).toBe("upgrade");
+    expect(
+      mcpAvailabilityState({
+        allowed: true,
+        alreadyPro: false,
+        failed: false,
+        loading: false,
+      })
+    ).toBe("available");
+    expect(
+      mcpAvailabilityState({
+        allowed: false,
+        alreadyPro: true,
+        failed: false,
+        loading: false,
+      })
+    ).toBe("disabled");
+  });
+
   it("documents the interoperable OAuth setup in one place", () => {
     expect(MCP_CONNECTION_GUIDANCE).toEqual({
       authentication: "OAuth",
       path: "/mcp",
-      protocol: "Latest (2026-07-28)",
+      protocol: "2026-07-28 (recommended); 2025-11-25 fallback",
       registration: "Dynamic Client Registration (DCR)",
       scopeOverride: "openid offline_access links:read links:write",
       transport: "HTTP",

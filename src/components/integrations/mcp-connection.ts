@@ -3,7 +3,7 @@ import { API_FALLBACK_ORIGIN } from "./api-spec";
 export const MCP_CONNECTION_GUIDANCE = {
   authentication: "OAuth",
   path: "/mcp",
-  protocol: "Latest (2026-07-28)",
+  protocol: "2026-07-28 (recommended); 2025-11-25 fallback",
   registration: "Dynamic Client Registration (DCR)",
   scopeOverride: "openid offline_access links:read links:write",
   transport: "HTTP",
@@ -11,6 +11,25 @@ export const MCP_CONNECTION_GUIDANCE = {
 
 export const MCP_LOCAL_ORIGIN_GUIDANCE =
   "For local use, open Cloudstash and configure BETTER_AUTH_URL with this same origin.";
+
+export type McpAvailabilityState =
+  | "loading"
+  | "unavailable"
+  | "disabled"
+  | "upgrade"
+  | "available";
+
+export const mcpAvailabilityState = (input: {
+  readonly allowed: boolean;
+  readonly alreadyPro: boolean;
+  readonly failed: boolean;
+  readonly loading: boolean;
+}): McpAvailabilityState => {
+  if (input.loading) return "loading";
+  if (input.failed) return "unavailable";
+  if (!input.allowed && input.alreadyPro) return "disabled";
+  return input.allowed ? "available" : "upgrade";
+};
 
 export const mcpEndpointForOrigin = (origin: string): string =>
   new URL(MCP_CONNECTION_GUIDANCE.path, origin).toString();

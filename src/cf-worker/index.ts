@@ -21,6 +21,10 @@ import { handleGetUsage } from "./admin/usage";
 import { trackEvent } from "./analytics";
 import { gateUserApiKeyCreate } from "./auth/api-key-gate";
 import {
+  monitorOAuthClientGrowth,
+  validateOAuthClientRegistrationRequest,
+} from "./auth/oauth-client-registration";
+import {
   bindConsentWorkspace,
   validateConsentWorkspaceBinding,
 } from "./auth/oauth-consent-binding";
@@ -194,17 +198,22 @@ app.on(["GET", "POST"], "/api/auth/*", (c) =>
   runHandler(
     c.env,
     Effect.gen(function* () {
+      const invalidRegistration = yield* validateOAuthClientRegistrationRequest(
+        c.req.raw
+      );
+      if (invalidRegistration) return invalidRegistration;
       const denied = yield* gateUserApiKeyCreate(c.req.raw);
       if (denied) return denied;
       const auth = yield* AuthClient;
-      const invalidConsent = yield* Effect.promise(() =>
-        validateConsentWorkspaceBinding(c.req.raw, auth, c.env)
+      const invalidConsent = yield* validateConsentWorkspaceBinding(
+        c.req.raw,
+        auth,
+        c.env
       );
       if (invalidConsent) return invalidConsent;
       const response = yield* Effect.promise(() => auth.handler(c.req.raw));
-      return yield* Effect.promise(() =>
-        bindConsentWorkspace(response, c.req.raw, auth, c.env)
-      );
+      yield* monitorOAuthClientGrowth(c.req.raw, response);
+      return yield* bindConsentWorkspace(response, c.req.raw, auth, c.env);
     }).pipe(Effect.withSpan("API.authHandler"))
   )
 );

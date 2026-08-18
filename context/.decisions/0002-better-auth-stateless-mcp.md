@@ -46,7 +46,8 @@ exists.
 ## Consequences
 
 - DCR creates durable untrusted rows; cross-isolate rate limiting and table
-  growth monitoring are required.
+  growth monitoring are required. Registration payloads are bounded, and the
+  self-reported client identity and callback target remain visible at consent.
 - Existing JWTs cannot be revoked online, so credential revocation is bounded
   by the five-minute TTL; authorization changes still apply next request.
 - The dependency's separate account-issuer migration requires an empty

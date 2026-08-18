@@ -373,6 +373,16 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
               Effect.tap(() => Effect.annotateCurrentSpan("outcome", "error")),
               Effect.as({ kind: "error" as const })
             ),
+          XSyncSideEffectError: (e) =>
+            Effect.logError("alarm: access-token backend error").pipe(
+              Effect.annotateLogs({
+                userId,
+                op: e.op,
+                cause: String(e.cause),
+              }),
+              Effect.tap(() => Effect.annotateCurrentSpan("outcome", "error")),
+              Effect.as({ kind: "error" as const })
+            ),
           XApiError: (e) =>
             Effect.logError("alarm: X API error").pipe(
               Effect.annotateLogs({

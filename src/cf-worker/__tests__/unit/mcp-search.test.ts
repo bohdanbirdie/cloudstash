@@ -1,5 +1,6 @@
+import { describe, it } from "@effect/vitest";
 import { Effect } from "effect";
-import { describe, expect, it, vi } from "vitest";
+import { expect, vi } from "vitest";
 
 import type { SearchResult } from "../../../livestore/queries/schemas";
 import { OrgId, UserId } from "../../db/branded";
@@ -9,6 +10,7 @@ import type { McpAuthorization } from "../../mcp/auth";
 import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from "../../mcp/config";
 import {
   authorizeToolScope,
+  McpSaveInput,
   McpSearchInput,
   runMcpToolHandler,
   toMcpSearchResults,
@@ -63,6 +65,19 @@ describe("MCP link search", () => {
     });
   });
 
+  it("accepts only HTTP(S) save targets", () => {
+    expect(McpSaveInput.safeParse({ url: "https://example.com" }).success).toBe(
+      true
+    );
+    for (const url of [
+      "file:///tmp/link",
+      "javascript:alert(1)",
+      "ftp://example.com",
+    ]) {
+      expect(McpSaveInput.safeParse({ url }).success).toBe(false);
+    }
+  });
+
   it("fails the search tool closed without links:read", () => {
     expect(authorizeToolScope(null, "search_links")).toMatchObject({
       ok: false,
@@ -76,33 +91,36 @@ describe("MCP link search", () => {
     ).toMatchObject({ ok: true });
   });
 
-  it("calls the workspace DO through the narrow read-only RPC", async () => {
+  it.effect("calls the workspace DO through the narrow read-only RPC", () => {
     const searchLinks = vi.fn(async () => [searchResult(1)]);
     const idFromName = vi.fn(() => ({ toString: () => "do-id" }));
     const env = envWithSearch(searchLinks, idFromName);
 
-    const results = await Effect.runPromise(
-      searchWorkspaceLinks(OrgId.make("org-1"), "needle", env)
+    return searchWorkspaceLinks(OrgId.make("org-1"), "needle", env).pipe(
+      Effect.tap((results) =>
+        Effect.sync(() => {
+          expect(results).toEqual([searchResult(1)]);
+          expect(idFromName).toHaveBeenCalledWith("org-1");
+          expect(searchLinks).toHaveBeenCalledWith({ query: "needle" });
+        })
+      )
     );
-
-    expect(results).toEqual([searchResult(1)]);
-    expect(idFromName).toHaveBeenCalledWith("org-1");
-    expect(searchLinks).toHaveBeenCalledWith({ query: "needle" });
   });
 
-  it("maps a DO search failure to LinksReadError", async () => {
+  it.effect("maps a DO search failure to LinksReadError", () => {
     const cause = new Error("DO unavailable");
     const env = envWithSearch(() => Promise.reject(cause));
 
-    const failure = await Effect.runPromise(
-      searchWorkspaceLinks(OrgId.make("org-1"), "needle", env).pipe(
-        Effect.as(null),
-        Effect.catch((error) => Effect.succeed(error))
+    return searchWorkspaceLinks(OrgId.make("org-1"), "needle", env).pipe(
+      Effect.as(null),
+      Effect.catch((error) => Effect.succeed(error)),
+      Effect.tap((failure) =>
+        Effect.sync(() => {
+          expect(failure).toBeInstanceOf(LinksReadError);
+          expect(failure).toMatchObject({ cause });
+        })
       )
     );
-
-    expect(failure).toBeInstanceOf(LinksReadError);
-    expect(failure).toMatchObject({ cause });
   });
 
   it("returns at most 20 results with the bounded MCP shape", () => {

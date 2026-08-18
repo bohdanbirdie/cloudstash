@@ -1,4 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
+import { Effect } from "effect";
 import { LinkIcon, Loader2Icon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -12,7 +13,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { authClient, loadAuth } from "@/lib/auth";
-import { loadConsentWorkspace } from "@/lib/oauth-consent";
+import {
+  consentRedirectTarget,
+  loadConsentWorkspace,
+} from "@/lib/oauth-consent";
 
 const ALLOWED_SCOPES = new Set([
   "openid",
@@ -24,9 +28,9 @@ const ALLOWED_SCOPES = new Set([
 const scopeDescription = (scope: string): string => {
   switch (scope) {
     case "links:read":
-      return "View links saved in your active workspace";
+      return "View links saved in the workspace shown below";
     case "links:write":
-      return "Save new links to your active workspace";
+      return "Save new links to the workspace shown below";
     case "openid":
       return "Confirm your Cloudstash account identity";
     case "offline_access":
@@ -49,6 +53,7 @@ function OAuthConsentPage() {
   const workspace = Route.useLoaderData();
   const search = useMemo(() => new URLSearchParams(window.location.search), []);
   const clientId = search.get("client_id") ?? "";
+  const redirectTarget = consentRedirectTarget(search);
   const requestedScopes = useMemo(
     () => [...new Set((search.get("scope") ?? "").split(" ").filter(Boolean))],
     [search]
@@ -79,18 +84,24 @@ function OAuthConsentPage() {
       return;
     }
 
-    void authClient.oauth2
-      .publicClient({ query: { client_id: clientId } })
-      .then(({ data, error: clientError }) => {
-        if (!active) return;
-        if (clientError || !data) {
-          setError("Cloudstash could not verify this OAuth client.");
-          setStatus("error");
-          return;
-        }
-        setClientName(data.client_name ?? "An MCP client");
-        setStatus("ready");
-      });
+    const loadClient = Effect.tryPromise(() =>
+      authClient.oauth2.publicClient({ query: { client_id: clientId } })
+    ).pipe(
+      Effect.match({
+        onFailure: () => null,
+        onSuccess: (result) => result,
+      })
+    );
+    void Effect.runPromise(loadClient).then((result) => {
+      if (!active) return;
+      if (!result || result.error || !result.data) {
+        setError("Cloudstash could not verify this OAuth client.");
+        setStatus("error");
+        return;
+      }
+      setClientName(result.data.client_name ?? "An MCP client");
+      setStatus("ready");
+    });
 
     return () => {
       active = false;
@@ -100,17 +111,26 @@ function OAuthConsentPage() {
   const submitConsent = async (accept: boolean) => {
     setStatus("submitting");
     setError(null);
-    const { data, error: consentError } = await authClient.oauth2.consent({
-      accept,
-      scope: requestedScopes.join(" "),
-    });
+    const result = await Effect.runPromise(
+      Effect.tryPromise(() =>
+        authClient.oauth2.consent({
+          accept,
+          scope: requestedScopes.join(" "),
+        })
+      ).pipe(
+        Effect.match({
+          onFailure: () => null,
+          onSuccess: (value) => value,
+        })
+      )
+    );
 
-    if (consentError || !data?.url) {
+    if (!result || result.error || !result.data?.url) {
       setError("Cloudstash could not complete this authorization request.");
       setStatus("ready");
       return;
     }
-    window.location.assign(data.url);
+    window.location.assign(result.data.url);
   };
 
   return (
@@ -124,7 +144,7 @@ function OAuthConsentPage() {
           <CardDescription>
             {clientName ?? "An MCP client"} wants to{" "}
             {requestsWorkspaceAccess
-              ? "access links in your active workspace"
+              ? "access links in the workspace shown below"
               : "confirm your Cloudstash identity"}
             .
           </CardDescription>
@@ -159,6 +179,26 @@ function OAuthConsentPage() {
               >
                 {workspace.workspace.name}
               </span>
+            </div>
+          ) : null}
+
+          {status === "ready" || status === "submitting" ? (
+            <div className="border-border bg-muted/50 mt-3 rounded-md border p-3 text-xs leading-relaxed">
+              <p className="font-medium">Unverified client identity</p>
+              <p className="text-muted-foreground mt-1">
+                The client name is self-reported. Only continue if you expected
+                this request
+                {redirectTarget ? (
+                  <>
+                    {" "}
+                    and trust callbacks to{" "}
+                    <code className="break-all text-foreground">
+                      {redirectTarget}
+                    </code>
+                  </>
+                ) : null}
+                .
+              </p>
             </div>
           ) : null}
 

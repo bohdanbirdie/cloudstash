@@ -1,4 +1,5 @@
 import { makeSignature } from "better-auth/crypto";
+import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import type { Auth } from "..";
@@ -49,7 +50,7 @@ const signedOAuthQuery = async (
 };
 
 const authWithActiveWorkspace = (
-  organizationId: string,
+  organizationId: string | null,
   inspectHeaders?: (headers: Headers) => void
 ) =>
   ({
@@ -82,14 +83,16 @@ const bindWorkspace = async (
   if (options.requestCookie) {
     requestHeaders.set("Cookie", options.requestCookie);
   }
-  const response = await bindConsentWorkspace(
-    new Response(null, { headers, status: 302 }),
-    new Request(
-      `https://cloudstash.test${options.requestPath ?? "/api/auth/oauth2/authorize"}`,
-      { headers: requestHeaders }
-    ),
-    authWithActiveWorkspace(organizationId, options.inspectHeaders),
-    env
+  const response = await Effect.runPromise(
+    bindConsentWorkspace(
+      new Response(null, { headers, status: 302 }),
+      new Request(
+        `https://cloudstash.test${options.requestPath ?? "/api/auth/oauth2/authorize"}`,
+        { headers: requestHeaders }
+      ),
+      authWithActiveWorkspace(organizationId, options.inspectHeaders),
+      env
+    )
   );
   const binding = response.headers
     .getSetCookie()
@@ -141,28 +144,30 @@ describe("OAuth consent workspace binding", () => {
 
   it("binds a JSON OAuth resume without consuming its response body", async () => {
     const query = await signedOAuthQuery();
-    const response = await bindConsentWorkspace(
-      Response.json(
-        {
-          redirect: true,
-          url: `https://cloudstash.test/oauth-consent?${query}`,
-        },
-        {
-          headers: {
-            "Set-Cookie":
-              "better-auth.session_token=signin-session; Path=/; HttpOnly; Secure",
+    const response = await Effect.runPromise(
+      bindConsentWorkspace(
+        Response.json(
+          {
+            redirect: true,
+            url: `https://cloudstash.test/oauth-consent?${query}`,
           },
-        }
-      ),
-      new Request("https://cloudstash.test/api/auth/sign-in/email", {
-        method: "POST",
-      }),
-      authWithActiveWorkspace("workspace-a", (headers) => {
-        expect(headers.get("cookie")).toContain(
-          "better-auth.session_token=signin-session"
-        );
-      }),
-      env
+          {
+            headers: {
+              "Set-Cookie":
+                "better-auth.session_token=signin-session; Path=/; HttpOnly; Secure",
+            },
+          }
+        ),
+        new Request("https://cloudstash.test/api/auth/sign-in/email", {
+          method: "POST",
+        }),
+        authWithActiveWorkspace("workspace-a", (headers) => {
+          expect(headers.get("cookie")).toContain(
+            "better-auth.session_token=signin-session"
+          );
+        }),
+        env
+      )
     );
 
     expect(response.headers.getSetCookie()).toEqual(
@@ -181,20 +186,24 @@ describe("OAuth consent workspace binding", () => {
     const { cookie, query } = await bindWorkspace();
 
     await expect(
-      validateConsentWorkspaceBinding(
-        consentRequest(cookie, query),
-        authWithActiveWorkspace("workspace-a"),
-        env
+      Effect.runPromise(
+        validateConsentWorkspaceBinding(
+          consentRequest(cookie, query),
+          authWithActiveWorkspace("workspace-a"),
+          env
+        )
       )
     ).resolves.toBeNull();
   });
 
   it("rejects when another tab changes the active workspace", async () => {
     const { cookie, query } = await bindWorkspace("workspace-a");
-    const response = await validateConsentWorkspaceBinding(
-      consentRequest(cookie, query),
-      authWithActiveWorkspace("workspace-b"),
-      env
+    const response = await Effect.runPromise(
+      validateConsentWorkspaceBinding(
+        consentRequest(cookie, query),
+        authWithActiveWorkspace("workspace-b"),
+        env
+      )
     );
 
     expect(response?.status).toBe(400);
@@ -208,10 +217,72 @@ describe("OAuth consent workspace binding", () => {
   it("rejects a valid but different signed authorization query", async () => {
     const { cookie } = await bindWorkspace();
     const otherQuery = await signedOAuthQuery({ state: "other" });
-    const response = await validateConsentWorkspaceBinding(
-      consentRequest(cookie, otherQuery),
-      authWithActiveWorkspace("workspace-a"),
-      env
+    const response = await Effect.runPromise(
+      validateConsentWorkspaceBinding(
+        consentRequest(cookie, otherQuery),
+        authWithActiveWorkspace("workspace-a"),
+        env
+      )
+    );
+
+    expect(response?.status).toBe(400);
+  });
+
+  it("rejects a missing binding cookie", async () => {
+    const query = await signedOAuthQuery();
+    const response = await Effect.runPromise(
+      validateConsentWorkspaceBinding(
+        consentRequest("", query),
+        authWithActiveWorkspace("workspace-a"),
+        env
+      )
+    );
+
+    expect(response?.status).toBe(400);
+    expect(response?.headers.get("Set-Cookie")).toContain("Max-Age=0");
+  });
+
+  it("rejects a tampered binding cookie", async () => {
+    const { cookie, query } = await bindWorkspace();
+    const response = await Effect.runPromise(
+      validateConsentWorkspaceBinding(
+        consentRequest(`${cookie.slice(0, -1)}x`, query),
+        authWithActiveWorkspace("workspace-a"),
+        env
+      )
+    );
+
+    expect(response?.status).toBe(400);
+  });
+
+  it("rejects an expired binding cookie", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-08-18T12:00:00Z"));
+      const { cookie, query } = await bindWorkspace();
+      vi.advanceTimersByTime(11 * 60 * 1000);
+
+      const response = await Effect.runPromise(
+        validateConsentWorkspaceBinding(
+          consentRequest(cookie, query),
+          authWithActiveWorkspace("workspace-a"),
+          env
+        )
+      );
+      expect(response?.status).toBe(400);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rejects a binding when the session has no active workspace", async () => {
+    const { cookie, query } = await bindWorkspace();
+    const response = await Effect.runPromise(
+      validateConsentWorkspaceBinding(
+        consentRequest(cookie, query),
+        authWithActiveWorkspace(null),
+        env
+      )
     );
 
     expect(response?.status).toBe(400);
@@ -227,11 +298,13 @@ describe("OAuth consent workspace binding", () => {
 
   it("clears the bounded binding cookie after consent is submitted", async () => {
     const { cookie, query } = await bindWorkspace();
-    const response = await bindConsentWorkspace(
-      Response.json({ url: "http://127.0.0.1/callback" }),
-      consentRequest(cookie, query),
-      authWithActiveWorkspace("workspace-a"),
-      env
+    const response = await Effect.runPromise(
+      bindConsentWorkspace(
+        Response.json({ url: "http://127.0.0.1/callback" }),
+        consentRequest(cookie, query),
+        authWithActiveWorkspace("workspace-a"),
+        env
+      )
     );
 
     expect(response.headers.get("Set-Cookie")).toContain(
@@ -240,11 +313,13 @@ describe("OAuth consent workspace binding", () => {
   });
 
   it("does not issue a binding for a non-consent response", async () => {
-    const response = await bindConsentWorkspace(
-      Response.json({ ok: true }),
-      new Request("https://cloudstash.test/api/auth/oauth2/authorize"),
-      authWithActiveWorkspace("workspace-a"),
-      env
+    const response = await Effect.runPromise(
+      bindConsentWorkspace(
+        Response.json({ ok: true }),
+        new Request("https://cloudstash.test/api/auth/oauth2/authorize"),
+        authWithActiveWorkspace("workspace-a"),
+        env
+      )
     );
 
     expect(response.headers.has("Set-Cookie")).toBe(false);

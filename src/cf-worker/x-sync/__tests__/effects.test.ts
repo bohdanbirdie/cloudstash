@@ -63,27 +63,42 @@ describe("getAccessTokenEffect", () => {
     }
   );
 
-  it.effect(
-    "preserves warning-and-null behavior for account lookup failure",
-    () => {
-      const findFirst = vi.fn(() =>
-        Promise.reject(new Error("D1 unavailable"))
-      );
-      const getAccessToken = vi.fn(() =>
-        Promise.resolve({ accessToken: "unexpected" })
-      );
+  it.effect("propagates account lookup failure so the caller can retry", () => {
+    const findFirst = vi.fn(() => Promise.reject(new Error("D1 unavailable")));
+    const getAccessToken = vi.fn(() =>
+      Promise.resolve({ accessToken: "unexpected" })
+    );
 
-      return getAccessTokenEffect(USER_ID).pipe(
-        Effect.provide(
-          Layer.mergeAll(dbLayer(findFirst), authLayer(getAccessToken))
-        ),
-        Effect.tap((token) =>
-          Effect.sync(() => {
-            expect(token).toBeNull();
-            expect(getAccessToken).not.toHaveBeenCalled();
-          })
-        )
-      );
-    }
-  );
+    return getAccessTokenEffect(USER_ID).pipe(
+      Effect.provide(
+        Layer.mergeAll(dbLayer(findFirst), authLayer(getAccessToken))
+      ),
+      Effect.flip,
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("DbError");
+          expect(getAccessToken).not.toHaveBeenCalled();
+        })
+      )
+    );
+  });
+
+  it.effect("propagates Better Auth failure so the caller can retry", () => {
+    const findFirst = vi.fn(() => Promise.resolve({ id: "local-x-row" }));
+    const getAccessToken = vi.fn(() =>
+      Promise.reject(new Error("Better Auth unavailable"))
+    );
+
+    return getAccessTokenEffect(USER_ID).pipe(
+      Effect.provide(
+        Layer.mergeAll(dbLayer(findFirst), authLayer(getAccessToken))
+      ),
+      Effect.flip,
+      Effect.tap((error) =>
+        Effect.sync(() => {
+          expect(error._tag).toBe("XSyncSideEffectError");
+        })
+      )
+    );
+  });
 });

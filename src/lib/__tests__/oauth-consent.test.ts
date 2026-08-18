@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { loadConsentWorkspace } from "../oauth-consent";
+import { consentRedirectTarget, loadConsentWorkspace } from "../oauth-consent";
 
 describe("OAuth consent workspace loader", () => {
   it("uses only the server-selected active workspace in a multi-workspace context", async () => {
@@ -47,5 +47,41 @@ describe("OAuth consent workspace loader", () => {
     await expect(loadConsentWorkspace(fetcher)).resolves.toMatchObject({
       ok: false,
     });
+  });
+
+  it("turns network and JSON failures into a recoverable loader error", async () => {
+    await expect(
+      loadConsentWorkspace(vi.fn(() => Promise.reject(new Error("offline"))))
+    ).resolves.toMatchObject({ ok: false });
+    await expect(
+      loadConsentWorkspace(
+        vi.fn(async () => Response.json("not workspace data", { status: 200 }))
+      )
+    ).resolves.toMatchObject({ ok: false });
+  });
+});
+
+describe("OAuth consent redirect display", () => {
+  it("shows the callback host from the signed request", () => {
+    expect(
+      consentRedirectTarget(
+        new URLSearchParams({
+          redirect_uri: "http://127.0.0.1:6274/oauth/callback",
+        })
+      )
+    ).toBe("127.0.0.1:6274");
+  });
+
+  it("shows a custom callback scheme and rejects malformed URLs", () => {
+    expect(
+      consentRedirectTarget(
+        new URLSearchParams({ redirect_uri: "mcpjam://oauth/callback" })
+      )
+    ).toBe("mcpjam://oauth");
+    expect(
+      consentRedirectTarget(
+        new URLSearchParams({ redirect_uri: "not a redirect" })
+      )
+    ).toBeNull();
   });
 });

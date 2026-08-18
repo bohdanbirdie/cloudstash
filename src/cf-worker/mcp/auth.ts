@@ -21,13 +21,14 @@ const McpAccessTokenClaims = Schema.Struct({
 
 const decodeClaims = Schema.decodeUnknownEffect(McpAccessTokenClaims);
 
-export interface McpAuthorization {
-  readonly clientId: string;
-  readonly expiresAt?: number;
-  readonly orgId: OrgId;
-  readonly scopes: readonly string[];
-  readonly userId: UserId;
-}
+export const McpAuthorization = Schema.Struct({
+  clientId: Schema.String,
+  expiresAt: Schema.optional(Schema.Number),
+  orgId: OrgId,
+  scopes: Schema.Array(Schema.String),
+  userId: UserId,
+});
+export type McpAuthorization = typeof McpAuthorization.Type;
 
 const unauthorized = (): Response =>
   Response.json({ error: "Invalid access token claims" }, { status: 401 });

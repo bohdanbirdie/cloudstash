@@ -5,7 +5,6 @@ import { WorkspaceAccess } from "../auth/workspace-access";
 import { workspaceAccessHttpResponse } from "../auth/workspace-access-http";
 import { capabilityDeniedResponse } from "../billing/errors";
 import { requireCapability } from "../billing/service";
-import type { Billing } from "../billing/service";
 import type { ApiKey, OrgId } from "../db/branded";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { runHandler } from "../runtime";
@@ -41,79 +40,76 @@ export const fetchLinksPage = Effect.fn("Links.fetchPage")(function* (
 
 export const searchWorkspaceLinks = Effect.fn("Links.searchWorkspace")(
   function* (orgId: OrgId, query: string, env: Env) {
-    return yield* Effect.tryPromise({
+    yield* Effect.annotateCurrentSpan("orgId", maskId(orgId));
+    const results = yield* Effect.tryPromise({
       try: () =>
         env.Chat.get(env.Chat.idFromName(orgId)).searchLinks({ query }),
       catch: (cause) => new LinksReadError({ cause }),
     });
+    yield* Effect.annotateCurrentSpan("resultCount", results.length);
+    return results;
   }
 );
 
-export const listLinksEffect = (
+export const listLinksEffect = Effect.fn("LinksApi.listLinks")(function* (
   apiKey: ApiKey,
   params: ListParams,
   env: Env
-): Effect.Effect<Response, never, WorkspaceAccess | Billing> =>
-  Effect.gen(function* () {
-    const workspaceAccess = yield* WorkspaceAccess;
-    const authorization = yield* workspaceAccess.authorizeApiKey(apiKey).pipe(
-      Effect.matchEffect({
-        onFailure: workspaceAccessHttpResponse,
-        onSuccess: Effect.succeed,
-      })
-    );
-    if (authorization instanceof Response) {
-      return authorization;
-    }
-    const { orgId } = authorization;
-    yield* Effect.annotateCurrentSpan("orgId", maskId(orgId));
+) {
+  const workspaceAccess = yield* WorkspaceAccess;
+  const authorization = yield* workspaceAccess.authorizeApiKey(apiKey).pipe(
+    Effect.matchEffect({
+      onFailure: workspaceAccessHttpResponse,
+      onSuccess: Effect.succeed,
+    })
+  );
+  if (authorization instanceof Response) {
+    return authorization;
+  }
+  const { orgId } = authorization;
+  yield* Effect.annotateCurrentSpan("orgId", maskId(orgId));
 
-    const denied = yield* requireCapability(orgId, "publicApi").pipe(
-      Effect.as<Response | null>(null),
-      Effect.catchTags({
-        CapabilityDisabledError: (e) =>
-          Effect.succeed(capabilityDeniedResponse(e)),
-        OrgNotFoundError: () =>
-          Effect.logWarning("Links API: org not found").pipe(
-            Effect.annotateLogs({ orgId: maskId(orgId) }),
-            Effect.as(
-              Response.json(
-                { error: "Organization not found" },
-                { status: 404 }
-              )
-            )
-          ),
-        DbError: (cause) =>
-          Effect.logError("Links API: capability check failed").pipe(
-            Effect.annotateLogs({
-              orgId: maskId(orgId),
-              ...safeErrorInfo(cause),
-            }),
-            Effect.as(
-              Response.json({ error: "Internal error" }, { status: 500 })
-            )
-          ),
-      })
-    );
-    if (denied) return denied;
-
-    const page = yield* fetchLinksPage(orgId, params, env).pipe(
-      Effect.catch((error) =>
-        Effect.logError("Links API: listLinks RPC failed").pipe(
+  const denied = yield* requireCapability(orgId, "publicApi").pipe(
+    Effect.as<Response | null>(null),
+    Effect.catchTags({
+      CapabilityDisabledError: (e) =>
+        Effect.succeed(capabilityDeniedResponse(e)),
+      OrgNotFoundError: () =>
+        Effect.logWarning("Links API: org not found").pipe(
+          Effect.annotateLogs({ orgId: maskId(orgId) }),
+          Effect.as(
+            Response.json({ error: "Organization not found" }, { status: 404 })
+          )
+        ),
+      DbError: (cause) =>
+        Effect.logError("Links API: capability check failed").pipe(
           Effect.annotateLogs({
             orgId: maskId(orgId),
-            ...safeErrorInfo(error.cause),
+            ...safeErrorInfo(cause),
           }),
-          Effect.as(null)
-        )
-      )
-    );
-    if (!page) {
-      return Response.json({ error: "Internal error" }, { status: 500 });
-    }
+          Effect.as(Response.json({ error: "Internal error" }, { status: 500 }))
+        ),
+    })
+  );
+  if (denied) return denied;
 
-    return Response.json(page);
-  }).pipe(Effect.withSpan("LinksApi.listLinks"));
+  const page = yield* fetchLinksPage(orgId, params, env).pipe(
+    Effect.catch((error) =>
+      Effect.logError("Links API: listLinks RPC failed").pipe(
+        Effect.annotateLogs({
+          orgId: maskId(orgId),
+          ...safeErrorInfo(error.cause),
+        }),
+        Effect.as(null)
+      )
+    )
+  );
+  if (!page) {
+    return Response.json({ error: "Internal error" }, { status: 500 });
+  }
+
+  return Response.json(page);
+});
 
 export const handleListLinks = (
   request: Request,

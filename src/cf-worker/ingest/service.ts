@@ -1,5 +1,7 @@
 import { Effect, Schema } from "effect";
 
+import { HttpUrlFromString } from "@/lib/http-url";
+
 import { trackEvent } from "../analytics";
 import { bearerApiKey } from "../auth/bearer-api-key";
 import { AppLayerLive } from "../auth/service";
@@ -26,7 +28,7 @@ import {
 
 const IngestBody = Schema.Struct({ url: Schema.String });
 const decodeIngestBody = Schema.decodeUnknownEffect(IngestBody);
-const decodeUrl = Schema.decodeUnknownEffect(Schema.URLFromString);
+const decodeUrl = Schema.decodeUnknownEffect(HttpUrlFromString);
 
 export const enqueueLink = Effect.fn("Ingest.enqueueLink")(function* (
   authorization: { readonly orgId: OrgId; readonly userId: UserId },
@@ -38,6 +40,8 @@ export const enqueueLink = Effect.fn("Ingest.enqueueLink")(function* (
   yield* decodeUrl(url).pipe(
     Effect.mapError(() => new IngestInvalidUrlError({ url }))
   );
+  yield* Effect.annotateCurrentSpan("orgId", maskId(authorization.orgId));
+  yield* Effect.annotateCurrentSpan("source", source);
 
   if (options.trackUsage !== false) {
     trackEvent(env.USAGE_ANALYTICS, {
@@ -85,43 +89,42 @@ const translateWorkspaceAccess = (
     backend: ({ cause }) => IngestAuthBackendError.make({ cause }),
   });
 
-export const handleIngestRequest = Effect.fn("Ingest.handleIngestRequest")(
-  function* (request: Request, env: Env) {
-    const apiKey = yield* Effect.fromOption(bearerApiKey(request.headers), () =>
-      IngestMissingApiKeyError.make({})
-    );
-    const workspaceAccess = yield* WorkspaceAccess;
-    const { orgId, userId } = yield* workspaceAccess
-      .authorizeApiKey(apiKey)
-      .pipe(Effect.mapError(translateWorkspaceAccess));
+export const handleIngestRequest = Effect.fnUntraced(function* (
+  request: Request,
+  env: Env
+) {
+  const apiKey = yield* Effect.fromOption(bearerApiKey(request.headers), () =>
+    IngestMissingApiKeyError.make({})
+  );
+  const workspaceAccess = yield* WorkspaceAccess;
+  const { orgId, userId } = yield* workspaceAccess
+    .authorizeApiKey(apiKey)
+    .pipe(Effect.mapError(translateWorkspaceAccess));
 
-    yield* Effect.logDebug("API key verified").pipe(
-      Effect.annotateLogs({ orgId: maskId(orgId) })
-    );
+  yield* Effect.logDebug("API key verified").pipe(
+    Effect.annotateLogs({ orgId: maskId(orgId) })
+  );
 
-    yield* requireCapability(orgId, "publicApi");
+  yield* requireCapability(orgId, "publicApi");
 
-    // Preserve the public API's established attempt-level analytics timing,
-    // including malformed request bodies and invalid URLs.
-    trackEvent(env.USAGE_ANALYTICS, {
-      userId,
-      event: "ingest",
-      orgId,
-    });
+  // Preserve the public API's established attempt-level analytics timing,
+  // including malformed request bodies and invalid URLs.
+  trackEvent(env.USAGE_ANALYTICS, {
+    userId,
+    event: "ingest",
+    orgId,
+  });
 
-    const { url } = yield* Effect.tryPromise(() =>
-      request.json<unknown>()
-    ).pipe(
-      Effect.flatMap(decodeIngestBody),
-      Effect.mapError(() => IngestMissingUrlError.make({}))
-    );
-    yield* enqueueLink({ orgId, userId }, url, "api", env, {
-      trackUsage: false,
-    });
+  const { url } = yield* Effect.tryPromise(() => request.json<unknown>()).pipe(
+    Effect.flatMap(decodeIngestBody),
+    Effect.mapError(() => IngestMissingUrlError.make({}))
+  );
+  yield* enqueueLink({ orgId, userId }, url, "api", env, {
+    trackUsage: false,
+  });
 
-    return { ok: true, result: { status: "queued" } };
-  }
-);
+  return { ok: true, result: { status: "queued" } };
+});
 
 export const ingestResponse = (
   effect: Effect.Effect<
@@ -200,4 +203,4 @@ export const ingestRequestToResponse = (
 ): Effect.Effect<Response> =>
   ingestResponse(
     handleIngestRequest(request, env).pipe(Effect.provide(AppLayerLive(env)))
-  );
+  ).pipe(Effect.withSpan("Ingest.handleIngestRequest"));

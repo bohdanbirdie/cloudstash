@@ -1,7 +1,7 @@
 import type { AuthInfo } from "@modelcontextprotocol/server";
 import { McpServer } from "@modelcontextprotocol/server";
 import { createMcpHandler } from "agents/mcp/server";
-import { Effect } from "effect";
+import { Cause, Effect } from "effect";
 import type { JWTPayload } from "jose";
 import * as z from "zod/v4";
 
@@ -14,10 +14,11 @@ import {
   MAX_LINK_SEARCH_QUERY_CHARS,
   MAX_LINK_SEARCH_RESULTS,
 } from "../links/search-contract";
-import { safeErrorInfo } from "../log-utils";
+import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import { getAppLayer } from "../runtime";
 import type { Env } from "../shared";
+import { OtelTracingLive } from "../tracing";
 import {
   localMcpAccessTokenVerifier,
   mcpAuthorizationChallenge,
@@ -69,6 +70,7 @@ export const authorizeToolScope = (
 export const McpSearchInput = z.object({
   query: z.string().trim().min(1).max(MAX_LINK_SEARCH_QUERY_CHARS),
 });
+export const McpSaveInput = z.object({ url: z.httpUrl() });
 
 export const toMcpSearchResults = (results: readonly SearchResult[]) =>
   results.slice(0, MAX_LINK_SEARCH_RESULTS).map((result) => ({
@@ -95,7 +97,7 @@ const makeServer = (
     {
       title: "Search Cloudstash links",
       description:
-        "Return up to 20 relevance-ranked links from the active Cloudstash workspace.",
+        "Return up to 20 relevance-ranked links from the Cloudstash workspace approved during connection.",
       inputSchema: McpSearchInput,
       annotations: { readOnlyHint: true },
     },
@@ -111,12 +113,14 @@ const makeServer = (
             Effect.map((results) => textResult(toMcpSearchResults(results))),
             Effect.catchCause((cause) =>
               Effect.logError("MCP search_links failed").pipe(
-                Effect.annotateLogs(safeErrorInfo(cause)),
+                Effect.annotateLogs(safeErrorInfo(Cause.squash(cause))),
                 Effect.as(toolError("Cloudstash could not search links"))
               )
             ),
-            Effect.withSpan("MCP.searchLinks"),
-            Effect.provide(getAppLayer(env)),
+            Effect.withSpan("MCP.searchLinks", {
+              attributes: { orgId: maskId(scope.authorization.orgId) },
+            }),
+            Effect.provide(OtelTracingLive),
             Effect.runPromise
           )
       );
@@ -127,8 +131,9 @@ const makeServer = (
     "save_link",
     {
       title: "Save a Cloudstash link",
-      description: "Save a URL to the active Cloudstash workspace.",
-      inputSchema: z.object({ url: z.url() }),
+      description:
+        "Save a URL to the Cloudstash workspace approved during connection.",
+      inputSchema: McpSaveInput,
       annotations: { idempotentHint: false, readOnlyHint: false },
     },
     async ({ url }) => {
@@ -142,12 +147,14 @@ const makeServer = (
             Effect.as(textResult({ status: "queued" })),
             Effect.catchCause((cause) =>
               Effect.logError("MCP save_link failed").pipe(
-                Effect.annotateLogs(safeErrorInfo(cause)),
+                Effect.annotateLogs(safeErrorInfo(Cause.squash(cause))),
                 Effect.as(toolError("Cloudstash could not save this link"))
               )
             ),
-            Effect.withSpan("MCP.saveLink"),
-            Effect.provide(getAppLayer(env)),
+            Effect.withSpan("MCP.saveLink", {
+              attributes: { orgId: maskId(scope.authorization.orgId) },
+            }),
+            Effect.provide(OtelTracingLive),
             Effect.runPromise
           )
       );
@@ -186,33 +193,43 @@ const authorizationFailure = (cause: unknown): Response => {
   );
 };
 
-const handleVerifiedRequest = async (
+const handleVerifiedRequestEffect = Effect.fn("MCP.handleVerifiedRequest")(
+  function* (request: Request, claims: JWTPayload, env: Env, issuer: string) {
+    const resource = mcpResource(env);
+    const authorization = yield* authorizeMcpClaims(claims, {
+      issuer,
+      resource,
+    });
+    if (authorization instanceof Response) return authorization;
+
+    yield* Effect.annotateCurrentSpan("orgId", maskId(authorization.orgId));
+    yield* Effect.annotateCurrentSpan(
+      "clientId",
+      maskId(authorization.clientId)
+    );
+
+    const scopes = yield* requiredScopesForRequest(request);
+    if (scopes instanceof Response) return scopes;
+    const granted = new Set(authorization.scopes);
+    const missing = scopes.filter((scope) => !granted.has(scope));
+    if (missing.length > 0) return insufficientScopeResponse(missing, env);
+
+    const authInfo = toAuthInfo(request, authorization, env);
+    const handler = makeMcpHandler(env, authorization);
+    return yield* Effect.promise(() => handler.fetch(request, { authInfo }));
+  }
+);
+
+const handleVerifiedRequest = (
   request: Request,
   claims: JWTPayload,
   env: Env,
   issuer: string
-): Promise<Response> => {
-  const resource = mcpResource(env);
-  const authorization = await authorizeMcpClaims(claims, {
-    issuer,
-    resource,
-  }).pipe(
-    Effect.catchCause((cause) => Effect.succeed(authorizationFailure(cause))),
+): Promise<Response> =>
+  handleVerifiedRequestEffect(request, claims, env, issuer).pipe(
     Effect.provide(getAppLayer(env)),
     Effect.runPromise
   );
-  if (authorization instanceof Response) return authorization;
-
-  const scopes = await requiredScopesForRequest(request);
-  if (scopes instanceof Response) return scopes;
-  const granted = new Set(authorization.scopes);
-  const missing = scopes.filter((scope) => !granted.has(scope));
-  if (missing.length > 0) return insufficientScopeResponse(missing, env);
-
-  const authInfo = toAuthInfo(request, authorization, env);
-  const handler = makeMcpHandler(env, authorization);
-  return handler.fetch(request, { authInfo });
-};
 
 const makeMcpHandler = (env: Env, authorization: McpAuthorization | null) => {
   const origin = new URL(env.BETTER_AUTH_URL);

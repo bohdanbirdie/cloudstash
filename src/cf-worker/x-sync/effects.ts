@@ -40,16 +40,6 @@ export const getAccessTokenEffect = Effect.fn("XBookmarkSyncDO.getAccessToken")(
           eq(schema.account.providerId, "x")
         ),
       })
-    ).pipe(
-      Effect.catchTag("DbError", (error) =>
-        Effect.logWarning("getAccessToken account lookup failed").pipe(
-          Effect.annotateLogs({
-            userId: maskId(userId),
-            cause: String(error.cause),
-          }),
-          Effect.as(null)
-        )
-      )
     );
     if (!xAccount) return null;
 
@@ -60,18 +50,7 @@ export const getAccessTokenEffect = Effect.fn("XBookmarkSyncDO.getAccessToken")(
           body: { accountId: xAccount.id, userId },
         }),
       catch: sideEffectError("auth.getAccessToken"),
-    }).pipe(
-      Effect.catchTag("XSyncSideEffectError", (e) =>
-        Effect.logWarning("getAccessToken failed").pipe(
-          Effect.annotateLogs({
-            userId: maskId(userId),
-            op: e.op,
-            cause: String(e.cause),
-          }),
-          Effect.as(null)
-        )
-      )
-    );
+    });
     return result?.accessToken ?? null;
   }
 );

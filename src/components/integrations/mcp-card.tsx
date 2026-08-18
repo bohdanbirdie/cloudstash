@@ -15,14 +15,21 @@ import { useOrgFeatures } from "@/hooks/use-org-features";
 import {
   MCP_CONNECTION_GUIDANCE,
   MCP_LOCAL_ORIGIN_GUIDANCE,
+  mcpAvailabilityState,
   mcpEndpoint,
 } from "./mcp-connection";
 import { UpgradeCta } from "./upgrade-cta";
 
 export function McpCard() {
-  const { capabilities, isLoading } = useOrgFeatures();
+  const { capabilities, error, isFallback, isLoading, tier } = useOrgFeatures();
   const { copied, copy } = useCopyToClipboard();
   const endpoint = mcpEndpoint();
+  const availability = mcpAvailabilityState({
+    allowed: capabilities.mcpServer,
+    alreadyPro: tier === "pro",
+    failed: Boolean(error) || isFallback,
+    loading: isLoading,
+  });
 
   return (
     <Card>
@@ -32,19 +39,28 @@ export function McpCard() {
           MCP
         </CardTitle>
         <CardDescription>
-          Let compatible AI clients search and save links in your active
-          workspace.
+          Let compatible AI clients search and save links in the workspace you
+          approve during connection.
         </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {isLoading ? (
+        {availability === "loading" ? (
           <>
             <Skeleton className="h-4 w-3/4" />
             <Skeleton className="h-9 w-full" />
             <Skeleton className="h-4 w-1/2" />
           </>
-        ) : !capabilities.mcpServer ? (
+        ) : availability === "unavailable" ? (
+          <p className="text-muted-foreground" role="status">
+            MCP availability could not be loaded. Try refreshing this page.
+          </p>
+        ) : availability === "disabled" ? (
+          <p className="text-muted-foreground" role="status">
+            MCP is disabled for this workspace. Contact a workspace
+            administrator.
+          </p>
+        ) : availability === "upgrade" ? (
           <UpgradeCta tier="pro" />
         ) : (
           <>

@@ -1,5 +1,6 @@
 import { applySetCookies } from "better-auth/cookies";
 import { constantTimeEqual, makeSignature } from "better-auth/crypto";
+import { Effect, Option, Schema } from "effect";
 
 import type { Auth } from ".";
 import type { Env } from "../shared";
@@ -9,11 +10,26 @@ const CONSENT_BINDING_LIFETIME_SECONDS = 10 * 60;
 const CONSENT_PATH = "/oauth-consent";
 const CONSENT_ENDPOINT_PATH = "/api/auth/oauth2/consent";
 
-type ConsentBinding = {
-  readonly expiresAt: number;
-  readonly organizationId: string;
-  readonly queryHash: string;
-};
+const ConsentBinding = Schema.Struct({
+  expiresAt: Schema.Int,
+  organizationId: Schema.NonEmptyString,
+  queryHash: Schema.NonEmptyString,
+});
+type ConsentBinding = Schema.Schema.Type<typeof ConsentBinding>;
+
+const OAuthRedirectResponse = Schema.Struct({
+  redirect: Schema.Literal(true),
+  url: Schema.NonEmptyString,
+});
+
+const ConsentSubmission = Schema.Struct({
+  accept: Schema.Boolean,
+  oauth_query: Schema.optional(Schema.String),
+});
+
+const decodeConsentBinding = Schema.decodeUnknownOption(ConsentBinding);
+const decodeOAuthRedirect = Schema.decodeUnknownOption(OAuthRedirectResponse);
+const decodeConsentSubmission = Schema.decodeUnknownOption(ConsentSubmission);
 
 const encodeBase64Url = (bytes: Uint8Array): string => {
   let value = "";
@@ -27,38 +43,29 @@ const encodeBase64Url = (bytes: Uint8Array): string => {
 const encodePayload = (payload: ConsentBinding): string =>
   encodeBase64Url(new TextEncoder().encode(JSON.stringify(payload)));
 
-const decodePayload = (value: string): ConsentBinding | null => {
-  try {
-    const base64 = value.replaceAll("-", "+").replaceAll("_", "/");
-    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
-    const decoded = Uint8Array.from(atob(padded), (character) =>
-      character.charCodeAt(0)
-    );
-    const parsed: unknown = JSON.parse(new TextDecoder().decode(decoded));
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      !("expiresAt" in parsed) ||
-      !("organizationId" in parsed) ||
-      !("queryHash" in parsed) ||
-      typeof parsed.expiresAt !== "number" ||
-      typeof parsed.organizationId !== "string" ||
-      typeof parsed.queryHash !== "string"
-    ) {
-      return null;
-    }
-    return parsed as ConsentBinding;
-  } catch {
-    return null;
-  }
-};
+const decodePayload = Effect.fnUntraced(function* (value: string) {
+  const parsed = yield* Effect.try({
+    try: () => {
+      const base64 = value.replaceAll("-", "+").replaceAll("_", "/");
+      const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+      const decoded = Uint8Array.from(atob(padded), (character) =>
+        character.charCodeAt(0)
+      );
+      return JSON.parse(new TextDecoder().decode(decoded)) as unknown;
+    },
+    catch: () => undefined,
+  }).pipe(Effect.option);
+  return Option.isNone(parsed)
+    ? Option.none<ConsentBinding>()
+    : decodeConsentBinding(parsed.value);
+});
 
-const queryHash = async (query: string): Promise<string> =>
-  encodeBase64Url(
-    new Uint8Array(
-      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(query))
-    )
+const queryHash = Effect.fnUntraced(function* (query: string) {
+  const digest = yield* Effect.promise(() =>
+    crypto.subtle.digest("SHA-256", new TextEncoder().encode(query))
   );
+  return encodeBase64Url(new Uint8Array(digest));
+});
 
 const canonicalizeOAuthQuery = (params: URLSearchParams): string => {
   const canonical = new URLSearchParams();
@@ -78,10 +85,10 @@ const canonicalizeOAuthQuery = (params: URLSearchParams): string => {
   return canonical.toString();
 };
 
-const signedOAuthQuery = async (
+const signedOAuthQuery = Effect.fnUntraced(function* (
   search: string,
   secret: string
-): Promise<string | null> => {
+) {
   const params = new URLSearchParams(search);
   const signatures = params.getAll("sig");
   if (signatures.length !== 1 || !signatures[0]) return null;
@@ -104,58 +111,55 @@ const signedOAuthQuery = async (
   ) {
     return null;
   }
-  const expected = await makeSignature(canonicalizeOAuthQuery(signed), secret);
+  const expected = yield* Effect.promise(() =>
+    makeSignature(canonicalizeOAuthQuery(signed), secret)
+  );
   if (!constantTimeEqual(signature, expected)) return null;
   signed.append("sig", signature);
   return signed.toString();
-};
+});
 
-const redirectUrlFromResponse = async (
+const redirectUrlFromResponse = Effect.fnUntraced(function* (
   response: Response
-): Promise<string | null> => {
+) {
   const location = response.headers.get("location");
   if (location) return location;
   if (!response.headers.get("content-type")?.includes("application/json")) {
     return null;
   }
 
-  const body: unknown = await response
-    .clone()
-    .json()
-    .catch(() => null);
-  if (
-    typeof body !== "object" ||
-    body === null ||
-    !("redirect" in body) ||
-    body.redirect !== true ||
-    !("url" in body) ||
-    typeof body.url !== "string"
-  ) {
-    return null;
-  }
-  return body.url;
-};
+  const body = yield* Effect.tryPromise({
+    try: () => response.clone().json<unknown>(),
+    catch: () => undefined,
+  }).pipe(Effect.option);
+  if (Option.isNone(body)) return null;
+  const redirect = decodeOAuthRedirect(body.value);
+  return Option.isSome(redirect) ? redirect.value.url : null;
+});
 
-const consentQueryFromResponse = async (
+const consentQueryFromResponse = Effect.fnUntraced(function* (
   response: Response,
   baseURL: string,
   secret: string
-): Promise<string | null> => {
-  const redirectUrl = await redirectUrlFromResponse(response);
+) {
+  const redirectUrl = yield* redirectUrlFromResponse(response);
   if (!redirectUrl) return null;
-  try {
-    const url = new URL(redirectUrl, baseURL);
-    if (
-      url.origin !== new URL(baseURL).origin ||
-      url.pathname !== CONSENT_PATH
-    ) {
-      return null;
-    }
-    return signedOAuthQuery(url.search, secret);
-  } catch {
+  const urls = yield* Effect.try({
+    try: () => ({
+      base: new URL(baseURL),
+      redirect: new URL(redirectUrl, baseURL),
+    }),
+    catch: () => undefined,
+  }).pipe(Effect.option);
+  if (Option.isNone(urls)) return null;
+  if (
+    urls.value.redirect.origin !== urls.value.base.origin ||
+    urls.value.redirect.pathname !== CONSENT_PATH
+  ) {
     return null;
   }
-};
+  return yield* signedOAuthQuery(urls.value.redirect.search, secret);
+});
 
 const sessionHeaders = (request: Request, response: Response): Headers => {
   const headers = new Headers(request.headers);
@@ -168,13 +172,14 @@ const sessionHeaders = (request: Request, response: Response): Headers => {
   return headers;
 };
 
-const cookieValue = async (
+const cookieValue = Effect.fnUntraced(function* (
   payload: ConsentBinding,
   secret: string
-): Promise<string> => {
+) {
   const encoded = encodePayload(payload);
-  return `${encoded}.${await makeSignature(encoded, secret)}`;
-};
+  const signature = yield* Effect.promise(() => makeSignature(encoded, secret));
+  return `${encoded}.${signature}`;
+});
 
 const cookieAttributes = (baseURL: string): string =>
   [
@@ -194,35 +199,70 @@ const parseCookies = (header: string | null): Map<string, string> => {
   return cookies;
 };
 
-const readBinding = async (
+const readBinding = Effect.fnUntraced(function* (
   request: Request,
   secret: string
-): Promise<ConsentBinding | null> => {
+) {
   const value = parseCookies(request.headers.get("cookie")).get(
     CONSENT_BINDING_COOKIE
   );
-  if (!value) return null;
+  if (!value) return Option.none<ConsentBinding>();
   const separator = value.lastIndexOf(".");
-  if (separator <= 0) return null;
+  if (separator <= 0) return Option.none<ConsentBinding>();
   const encoded = value.slice(0, separator);
   const suppliedSignature = value.slice(separator + 1);
-  const expectedSignature = await makeSignature(encoded, secret);
-  if (!constantTimeEqual(suppliedSignature, expectedSignature)) return null;
-  return decodePayload(encoded);
-};
+  const expectedSignature = yield* Effect.promise(() =>
+    makeSignature(encoded, secret)
+  );
+  if (!constantTimeEqual(suppliedSignature, expectedSignature)) {
+    return Option.none<ConsentBinding>();
+  }
+  return yield* decodePayload(encoded);
+});
 
-export const bindConsentWorkspace = async (
-  response: Response,
-  request: Request,
-  auth: Auth,
-  env: Pick<Env, "BETTER_AUTH_SECRET" | "BETTER_AUTH_URL">
-): Promise<Response> => {
-  const requestPath = new URL(request.url).pathname;
-  if (request.method === "POST" && requestPath === CONSENT_ENDPOINT_PATH) {
+export const bindConsentWorkspace = Effect.fn("OAuth.bindConsentWorkspace")(
+  function* (
+    response: Response,
+    request: Request,
+    auth: Auth,
+    env: Pick<Env, "BETTER_AUTH_SECRET" | "BETTER_AUTH_URL">
+  ) {
+    const requestPath = new URL(request.url).pathname;
+    if (request.method === "POST" && requestPath === CONSENT_ENDPOINT_PATH) {
+      const headers = new Headers(response.headers);
+      headers.append(
+        "Set-Cookie",
+        `${CONSENT_BINDING_COOKIE}=; Max-Age=0; ${cookieAttributes(env.BETTER_AUTH_URL)}`
+      );
+      return new Response(response.body, {
+        headers,
+        status: response.status,
+        statusText: response.statusText,
+      });
+    }
+    const oauthQuery = yield* consentQueryFromResponse(
+      response,
+      env.BETTER_AUTH_URL,
+      env.BETTER_AUTH_SECRET
+    );
+    if (!oauthQuery) return response;
+    const session = yield* Effect.promise(() =>
+      auth.api.getSession({ headers: sessionHeaders(request, response) })
+    );
+    const organizationId = session?.session.activeOrganizationId;
+    if (!organizationId) return response;
+
+    const hash = yield* queryHash(oauthQuery);
+    const expiresAt =
+      Math.floor(Date.now() / 1000) + CONSENT_BINDING_LIFETIME_SECONDS;
+    const value = yield* cookieValue(
+      { expiresAt, organizationId, queryHash: hash },
+      env.BETTER_AUTH_SECRET
+    );
     const headers = new Headers(response.headers);
     headers.append(
       "Set-Cookie",
-      `${CONSENT_BINDING_COOKIE}=; Max-Age=0; ${cookieAttributes(env.BETTER_AUTH_URL)}`
+      `${CONSENT_BINDING_COOKIE}=${value}; Max-Age=${CONSENT_BINDING_LIFETIME_SECONDS}; ${cookieAttributes(env.BETTER_AUTH_URL)}`
     );
     return new Response(response.body, {
       headers,
@@ -230,36 +270,7 @@ export const bindConsentWorkspace = async (
       statusText: response.statusText,
     });
   }
-  const oauthQuery = await consentQueryFromResponse(
-    response,
-    env.BETTER_AUTH_URL,
-    env.BETTER_AUTH_SECRET
-  );
-  if (!oauthQuery) return response;
-  const session = await auth.api.getSession({
-    headers: sessionHeaders(request, response),
-  });
-  const organizationId = session?.session.activeOrganizationId;
-  if (!organizationId) return response;
-
-  const hash = await queryHash(oauthQuery);
-  const expiresAt =
-    Math.floor(Date.now() / 1000) + CONSENT_BINDING_LIFETIME_SECONDS;
-  const value = await cookieValue(
-    { expiresAt, organizationId, queryHash: hash },
-    env.BETTER_AUTH_SECRET
-  );
-  const headers = new Headers(response.headers);
-  headers.append(
-    "Set-Cookie",
-    `${CONSENT_BINDING_COOKIE}=${value}; Max-Age=${CONSENT_BINDING_LIFETIME_SECONDS}; ${cookieAttributes(env.BETTER_AUTH_URL)}`
-  );
-  return new Response(response.body, {
-    headers,
-    status: response.status,
-    statusText: response.statusText,
-  });
-};
+);
 
 const rejection = (env: Pick<Env, "BETTER_AUTH_URL">): Response =>
   Response.json(
@@ -276,11 +287,13 @@ const rejection = (env: Pick<Env, "BETTER_AUTH_URL">): Response =>
     }
   );
 
-export const validateConsentWorkspaceBinding = async (
+export const validateConsentWorkspaceBinding = Effect.fn(
+  "OAuth.validateConsentWorkspaceBinding"
+)(function* (
   request: Request,
   auth: Auth,
   env: Pick<Env, "BETTER_AUTH_SECRET" | "BETTER_AUTH_URL">
-): Promise<Response | null> => {
+) {
   if (
     request.method !== "POST" ||
     new URL(request.url).pathname !== CONSENT_ENDPOINT_PATH
@@ -288,36 +301,33 @@ export const validateConsentWorkspaceBinding = async (
     return null;
   }
 
-  const body: unknown = await request
-    .clone()
-    .json()
-    .catch(() => null);
-  if (
-    typeof body !== "object" ||
-    body === null ||
-    !("accept" in body) ||
-    body.accept !== true
-  ) {
+  const rawBody = yield* Effect.tryPromise({
+    try: () => request.clone().json<unknown>(),
+    catch: () => undefined,
+  }).pipe(Effect.option);
+  if (Option.isNone(rawBody)) return null;
+  const submission = decodeConsentSubmission(rawBody.value);
+  if (Option.isNone(submission) || !submission.value.accept) {
     return null;
   }
-  if (!("oauth_query" in body) || typeof body.oauth_query !== "string") {
+  if (submission.value.oauth_query === undefined) {
     return rejection(env);
   }
 
-  const hash = await queryHash(body.oauth_query);
-  const [binding, session] = await Promise.all([
+  const hash = yield* queryHash(submission.value.oauth_query);
+  const [binding, session] = yield* Effect.all([
     readBinding(request, env.BETTER_AUTH_SECRET),
-    auth.api.getSession({ headers: request.headers }),
+    Effect.promise(() => auth.api.getSession({ headers: request.headers })),
   ]);
   if (
-    !binding ||
-    binding.expiresAt < Math.floor(Date.now() / 1000) ||
+    Option.isNone(binding) ||
+    binding.value.expiresAt < Math.floor(Date.now() / 1000) ||
     !session?.session.activeOrganizationId ||
-    binding.organizationId !== session.session.activeOrganizationId ||
-    binding.queryHash !== hash
+    binding.value.organizationId !== session.session.activeOrganizationId ||
+    binding.value.queryHash !== hash
   ) {
     return rejection(env);
   }
 
   return null;
-};
+});
