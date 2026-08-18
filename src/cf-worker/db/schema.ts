@@ -112,6 +112,7 @@ export const account = sqliteTable(
       .notNull(),
     id: text("id").primaryKey(),
     idToken: text("id_token"),
+    issuer: text("issuer").notNull(),
     password: text("password"),
     providerId: text("provider_id").notNull(),
     refreshToken: text("refresh_token"),
@@ -126,7 +127,13 @@ export const account = sqliteTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
   },
-  (table) => [index("account_userId_idx").on(table.userId)]
+  (table) => [
+    index("account_userId_idx").on(table.userId),
+    uniqueIndex("account_issuer_account_id_idx").on(
+      table.issuer,
+      table.accountId
+    ),
+  ]
 );
 
 export const member = sqliteTable(

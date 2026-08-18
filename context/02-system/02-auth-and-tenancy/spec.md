@@ -16,9 +16,11 @@ Google OAuth → Better Auth user → approval → personal organization/workspa
 
 Better Auth persists users, OAuth accounts, sessions, organizations, members,
 API keys, OAuth provider clients/tokens/consents/resources, and signing keys in
-D1. On session creation, the hook resolves an existing active organization or
-creates a personal organization and sets it on the session. Unapproved users
-stop before mounting the LiveStore application.
+D1. Account identity is keyed by issuer plus account ID, using a discovered
+OIDC issuer or Better Auth's synthetic `local:` / `local:oauth:` issuer
+namespace. On session creation, the hook resolves an existing active
+organization or creates a personal organization and sets it on the session.
+Unapproved users stop before mounting the LiveStore application.
 
 Production sessions last fourteen days and update after seven days. A signed
 cookie cache has a five-minute TTL. Visibility/focus refresh checks the session;
