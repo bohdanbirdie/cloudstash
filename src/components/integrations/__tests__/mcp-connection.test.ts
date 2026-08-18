@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   MCP_CONNECTION_GUIDANCE,
   MCP_LOCAL_ORIGIN_GUIDANCE,
+  MCP_SETUP_STEPS,
   mcpAvailabilityState,
   mcpEndpoint,
   mcpEndpointForOrigin,
@@ -60,9 +61,15 @@ describe("MCP connection guidance", () => {
       path: "/mcp",
       protocol: "2026-07-28 (recommended); 2025-11-25 fallback",
       registration: "Dynamic Client Registration (DCR)",
-      scopeOverride: "openid offline_access links:read links:write",
-      transport: "HTTP",
+      scopeOverride: "Leave blank — scopes are requested automatically",
+      scopes: "links:read links:write",
+      transport: "Streamable HTTP",
     });
+    expect(MCP_SETUP_STEPS.map((step) => step.title)).toEqual([
+      "Add the server.",
+      "Choose OAuth.",
+      "Approve the workspace.",
+    ]);
     expect(MCP_LOCAL_ORIGIN_GUIDANCE).toContain("same origin");
   });
 });
