@@ -66,11 +66,10 @@ capability values. Current bundles are:
 - **Free:** saving core, Chrome capture, tags, archiving, search, sync, export.
 - **Plus:** Free plus AI summaries, Telegram and Raycast integrations, weekly
   digest, and public API.
-- **Pro:** Plus plus X bookmark sync/enrichment and chat agent.
+- **Pro:** Plus plus X bookmark sync/enrichment, chat agent, and MCP.
 
-Plan copy currently overstates iOS, MCP, summary coverage/model size, export,
-and weekly-digest semantics. See
-[DELTA-002](../.delta/DELTA-002-landing-advertises-unshipped-mcp.md),
+Plan copy currently overstates iOS, summary coverage/model size, export, and
+weekly-digest semantics. See
 [DELTA-005](../.delta/DELTA-005-export-claim-exceeds-current-export.md),
 [DELTA-006](../.delta/DELTA-006-summary-length-copy-disagrees-with-output.md),
 [DELTA-007](../.delta/DELTA-007-ios-integration-is-advertised-only.md), and

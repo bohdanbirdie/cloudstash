@@ -45,18 +45,11 @@ and merged explicit/pending tag names. The API reads through
 
 ## Remote MCP
 
-`POST /mcp` is a stateless remote MCP endpoint. Its v1 surface contains exactly
-`search_links` and `save_link`; it does not expose chat-agent mutation tools,
-list/get/archive tools, resources, prompts, or server-side conversation state.
-`search_links` requires a trimmed query of at most 200 characters and reuses the
-existing `searchLinks$` ranking through a narrow read-only `ChatAgentDO` RPC. It
-returns at most the top 20 matches, with no cursor or total. Results are ordered
-by relevance score; ordering among equal scores is not a stable contract.
-
-The endpoint serves the MCP 2026 per-request protocol and the 2025 stateless
-compatibility flow from a fresh server instance per HTTP exchange. OAuth is
-resource-bound and reauthorized at each request; `search_links` requires
-`links:read` and `save_link` requires `links:write`.
+`POST /mcp` is stateless and exposes only `search_links` and `save_link`.
+Search reuses `searchLinks$` through a read-only `ChatAgentDO` RPC and returns up
+to 20 relevance-ranked matches; save uses the intake Queue. Fresh server
+instances serve MCP 2026 and the 2025 compatibility path. Each tool requires its
+matching `links:read` or `links:write` scope.
 
 ## Chat Agent
 

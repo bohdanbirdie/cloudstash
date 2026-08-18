@@ -14,22 +14,14 @@ Google OAuth → Better Auth user → approval → personal organization/workspa
              → session cookie with activeOrganizationId
 ```
 
-Better Auth persists users, OAuth accounts, sessions, organizations, members,
-API keys, OAuth provider clients/tokens/consents/resources, and signing keys in
-D1. Account identity is keyed by issuer plus account ID, using a discovered
-OIDC issuer or Better Auth's synthetic `local:` / `local:oauth:` issuer
-namespace. On session creation, the hook resolves an existing active
+Better Auth persists identity, sessions, API keys, OAuth provider state, and
+signing keys in D1. Accounts are keyed by issuer plus account ID. On session
+creation, the hook resolves an existing active
 organization or creates a personal organization and sets it on the session.
 Unapproved users stop before mounting the LiveStore application.
 
-The OAuth provider tables persist authorization-server state such as registered
-clients, consent, and tokens; they are separate from the per-request stateless
-MCP transport. The account issuer column is also separate: it is an
-application-wide Better Auth identity requirement. The legacy account migration
-maps only the configured credential, Google, and X issuer namespaces. It checks
-for other historical providers and duplicate resulting identities before table
-replacement, and aborts without changing legacy account data when either is
-present.
+The guarded legacy-account migration aborts before replacement on unknown
+providers or identity collisions.
 
 Production sessions last fourteen days and update after seven days. A signed
 cookie cache has a five-minute TTL. Visibility/focus refresh checks the session;
@@ -73,52 +65,19 @@ verification preserves next-request/reconnect revocation. Its per-key request
 rate limit is disabled because sync reconnects are network-driven; a Cloudflare
 per-IP rate limiter protects selected auth/sync paths.
 
-Remote MCP clients use Cloudstash's Better Auth OAuth 2.1 provider. The provider
-publishes authorization-server and protected-resource discovery, accepts
-unauthenticated dynamic client registration, and uses authorization-code PKCE
-plus refresh tokens. Registration is covered by the shared Cloudflare auth-path
-limit (30 requests per minute per IP). Better Auth's configured five-per-minute
-in-memory endpoint limiter is active in production as a supplemental
-single-isolate throttle; it is not the cross-isolate abuse boundary. Consent
-binds `links:read` and/or `links:write` to the browser session's active
-workspace. Whenever Better Auth redirects an auth flow to the consent screen,
-including after a login callback creates a session, the Worker binds that exact
-signed `oauth_query` and the then-active workspace in one MAC-authenticated,
-ten-minute, HttpOnly consent cookie. An
-accepted consent submission must present the matching signed query while the
-same workspace remains active; otherwise the Worker clears the cookie and
-rejects before Better Auth creates consent or an authorization code. The cookie
-is also cleared after a completed consent submission. Access tokens are signed
-JWTs with the client, scopes, resource, user, and workspace claim and expire
-after five minutes.
+Remote MCP uses Better Auth discovery, DCR, authorization-code PKCE, and refresh
+tokens. DCR is cross-isolate rate limited; its legacy surface defaults omitted
+`application_type` to `native` while preserving explicit redirect rules.
+Consent is bound to the signed OAuth query and active workspace across
+redirects. Five-minute resource JWTs carry client, scope, user, and workspace.
 
-This MCP-only DCR surface defaults an omitted OAuth `application_type` to
-`native` for legacy MCP JAM compatibility. An explicit client type is preserved,
-and Better Auth still rejects redirects that violate that type, including web
-loopback redirects and native non-loopback HTTP redirects. This is a temporary
-compatibility deviation from OIDC's omitted-value default of `web`, not a general
-authorization-server default.
+Each request verifies JWT/DPoP locally, then rechecks approval, membership,
+workspace, entitlement, and tool scope. Consent deletion forces re-consent;
+client or refresh-token revocation blocks future issuance. Existing JWTs remain
+valid until expiry, while authorization changes apply on the next request.
 
-Google sign-in uses fixed authorization, token, UserInfo, account-issuer, and
-account-subject configuration instead of fetching OIDC discovery while each
-Better Auth context initializes. `GOOGLE_BASE_URL` selects the corresponding
-fixed emulator endpoints for local development. Unrelated Cloudstash requests
-therefore do not depend on a live Google discovery request.
-
-Every MCP request loads Better Auth's current public signing keys through the
-in-process auth API and uses Better Auth core verification to check JWT
-signature, issuer, MCP audience, and expiry without an outbound HTTP request to
-the Worker's own JWKS route. Bearer and DPoP presentation use the same core DPoP
-binding rules, with proof replay reservations stored through Better Auth's
-shared database adapter. The Worker then rechecks current user approval,
-workspace membership, requested workspace, and the workspace's `mcpServer`
-capability. Tool calls additionally require their operation scope. Deleting a
-stored consent forces a future authorization to ask again, but Better Auth does
-not couple that deletion to existing refresh or access tokens. Revoking a
-client or refresh token prevents future token issuance. An already issued JWT
-has no online deny-list lookup, so its maximum credential-revocation window is
-five minutes. Membership, approval, and entitlement changes still take effect
-on the next request.
+Google uses fixed provider endpoints, including emulator-derived endpoints, so
+auth initialization performs no discovery request.
 
 ## Roles and Permissions
 
@@ -148,9 +107,6 @@ operations only to `admin`, not `viewer`.
   shared workspace decision.
 - **X:** an authenticated account-linking OAuth flow stores encrypted provider
   tokens; X does not expose email, so the linked synthetic identity is allowed
-  only from an already-authenticated session. The X provider is registered only
-  when both `X_CLIENT_ID` and `X_CLIENT_SECRET` are non-empty; absent or partial
-  configuration leaves X unavailable without preventing global auth
-  initialization. X uses provider tokens rather than workspace-scoped Better
-  Auth API-key metadata; its status and control routes still revalidate the
-  browser session's current workspace access.
+  only from an already-authenticated session. X uses provider tokens rather than
+  workspace-scoped Better Auth API-key metadata; its status and control routes
+  still revalidate the browser session's current workspace access.

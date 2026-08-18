@@ -9,47 +9,29 @@ Active.
 
 ## Realizations
 
-| Integration      | Auth/connection                                         | Transport into Vault                                     | Lifecycle                                                                        |
-| ---------------- | ------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Chrome extension | web-minted paired API key + extension-origin allowlist  | direct LiveStore WebSocket client; local browser adapter | key revoke/disconnect; extension Web Store release                               |
-| Raycast          | browser verification exchange → device-labelled API key | public ingest Queue                                      | key revoke; separate npm/Raycast repo                                            |
-| Telegram         | webhook secret + chat mapping to workspace key          | Queue                                                    | connect/check/confirm/status/disconnect; KV mapping                              |
-| Public API       | Bearer API key                                          | `POST` Queue; `GET` ChatAgentDO read client              | request-time capability and key checks                                           |
-| MCP clients      | Better Auth OAuth 2.1 + PKCE/DCR; workspace consent     | stateless HTTP; `search_links` read + `save_link` Queue  | consent deletion/re-consent; client/refresh-token revoke; five-minute JWT expiry |
-| X bookmarks      | linked encrypted OAuth account                          | per-user alarm poll → Queue                              | pause/resume/disconnect                                                          |
+| Integration      | Auth/connection                                         | Transport into Vault                                     | Lifecycle                                           |
+| ---------------- | ------------------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------- |
+| Chrome extension | web-minted paired API key + extension-origin allowlist  | direct LiveStore WebSocket client; local browser adapter | key revoke/disconnect; extension Web Store release  |
+| Raycast          | browser verification exchange → device-labelled API key | public ingest Queue                                      | key revoke; separate npm/Raycast repo               |
+| Telegram         | webhook secret + chat mapping to workspace key          | Queue                                                    | connect/check/confirm/status/disconnect; KV mapping |
+| Public API       | Bearer API key                                          | `POST` Queue; `GET` ChatAgentDO read client              | request-time capability and key checks              |
+| MCP clients      | OAuth 2.1 + PKCE/DCR; workspace consent                 | stateless HTTP; search + queued save                     | re-consent/revoke; five-minute JWT                  |
+| X bookmarks      | linked encrypted OAuth account                          | per-user alarm poll → Queue                              | pause/resume/disconnect                             |
 
 ## MCP Clients
 
-MCP clients discover Cloudstash through root protected-resource metadata and
-path-scoped authorization-server metadata, then register through RFC 7591
-dynamic client registration. Registration remains unauthenticated for
-compatibility with deployed desktop and agent clients and is covered across
-isolates by Cloudflare's 30-per-minute auth-path limit.
-Better Auth's configured five-per-minute in-memory endpoint limiter is active
-in production only as a supplemental single-isolate throttle. Registration
-persists client, resource-link, token, consent, and assertion rows in D1.
-Operations must monitor
-growth of those OAuth tables and investigate sustained client-registration
-growth rather than silently removing compatibility.
+Clients discover protected-resource and path-scoped authorization-server
+metadata, then use unauthenticated, cross-isolate-rate-limited DCR. Its durable
+OAuth rows are monitored for abnormal growth.
 
-The authenticated Integrations panel publishes the current origin's `/mcp`
-endpoint and identifies the client settings as HTTP, OAuth, dynamic client
-registration, the latest protocol `2026-07-28`, and an explicit scope override.
-Clients that have not adopted MCP 2026 may use the `2025-11-25` stateless
-compatibility path. The published MCP JAM setup requests
-`openid offline_access links:read links:write`: Better Auth issues a refresh
-token only when `offline_access` is requested, while protected-resource
-metadata correctly advertises only the two resource scopes. Local use requires
-the browser, MCP resource URL, and `BETTER_AUTH_URL` to share one origin. The
-card remains visible on lower tiers as a Pro upgrade path; runtime access still
-depends on the request-time `mcpServer` capability check.
+The Integrations panel publishes the current origin's `/mcp` URL and client
+settings, including refresh-token scopes and legacy protocol fallback. Local
+browser, resource, and auth URLs must share an origin. The card is visible as a
+Pro upgrade path; runtime entitlement remains authoritative.
 
-The Worker uses a stateless handler and preserves both MCP 2026 per-request
-envelopes and the 2025 stateless transport. It does not enable Client ID Metadata
-Documents: the available CIMD transport fetches attacker-selected URLs, and no
-Cloudflare-safe DNS pinning, special-use address rejection, redirect rejection,
-and bounded response transport has been adopted. No application-owned metadata
-fetch is substituted until that network boundary is solved.
+The Worker supports MCP 2026 and the 2025 stateless compatibility path. CIMD is
+disabled until its client-controlled fetch has an application-owned SSRF-safe
+transport.
 
 ## Chrome Extension
 

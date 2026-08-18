@@ -9,34 +9,27 @@ Active.
 
 ## Cloudflare Resources
 
-| Resource         | Binding/name                                                         | Operational purpose                                                |
-| ---------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Worker + Assets  | `cloudstash`, `ASSETS`                                               | SPA/public assets, API, MCP, sync/agent routing, queue consumption |
-| Workers AI       | `AI`                                                                 | Basic summary structured output                                    |
-| Durable Objects  | `SYNC_BACKEND_DO`, `LINK_PROCESSOR_DO`, `Chat`, `X_BOOKMARK_SYNC_DO` | workspace sync/processing/chat and user X polling                  |
-| Workflow         | `ACCOUNT_DELETION`                                                   | durable multi-store deletion                                       |
-| D1               | `DB`                                                                 | control plane and aggregate activity                               |
-| KV               | `TELEGRAM_KV`, `ENRICHMENT_USAGE`                                    | integration mapping/deletion index and enrichment usage            |
-| Queue            | `LINK_QUEUE` plus `cloudstash-link-dlq`                              | external intake and long recovery                                  |
-| Rate limiter     | `SYNC_RATE_LIMITER`                                                  | auth, MCP, sync, and invite abuse protection                       |
-| Analytics Engine | `USAGE_ANALYTICS`                                                    | low-overhead usage events                                          |
+| Resource         | Binding/name                                                         | Operational purpose                                           |
+| ---------------- | -------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Worker + Assets  | `cloudstash`, `ASSETS`                                               | SPA/public assets, API, sync/agent routing, queue consumption |
+| Workers AI       | `AI`                                                                 | Basic summary structured output                               |
+| Durable Objects  | `SYNC_BACKEND_DO`, `LINK_PROCESSOR_DO`, `Chat`, `X_BOOKMARK_SYNC_DO` | workspace sync/processing/chat and user X polling             |
+| Workflow         | `ACCOUNT_DELETION`                                                   | durable multi-store deletion                                  |
+| D1               | `DB`                                                                 | control plane and aggregate activity                          |
+| KV               | `TELEGRAM_KV`, `ENRICHMENT_USAGE`                                    | integration mapping/deletion index and enrichment usage       |
+| Queue            | `LINK_QUEUE` plus `cloudstash-link-dlq`                              | external intake and long recovery                             |
+| Rate limiter     | `SYNC_RATE_LIMITER`                                                  | selected auth/MCP/sync/invite abuse protection                |
+| Analytics Engine | `USAGE_ANALYTICS`                                                    | low-overhead usage events                                     |
 
 Built-in Cloudflare logs and invocation traces are enabled with full head
 sampling in current configuration. `AppLayerLive` installs application services
 and structured logging, but the global Effect tracer is currently a no-op; named
-Effect spans are not exported through a configured OTLP backend. Agents SDK
-custom spans use the Worker's native manual-lifetime tracing API; the pinned
-Cloudflare runtime and Worker E2E must expose that API rather than masking its
-absence with a dependency patch.
+Effect spans are not exported through a configured OTLP backend.
 
 ## Resilience Layers
 
 - Better Auth's signed five-minute cookie cache lowers D1/CPU load on session
   validation.
-- Better Auth MCP access tokens expire after five minutes. Consent/client/token
-  revocation has no online JWT deny-list, so an already issued token remains
-  cryptographically valid for at most that window; current approval, membership,
-  and `mcpServer` entitlement are still read on every request.
 - Per-IP rate limiting covers selected paths; Better Auth per-key limiting is
   disabled because extension reconnect churn previously created a permanent
   denial/retry storm.
@@ -60,16 +53,6 @@ and D1 activity stores link IDs/domain metadata that survive deletion
 The SyncBackendDO logs event names/batch size, live long-timer count, and large
 processor-parent gaps. DLQ re-drive logs at error level. These are current
 tripwires; alert delivery remains roadmap work rather than a spec claim.
-
-OAuth dynamic registration is intentionally open for MCP client compatibility.
-The Cloudflare limiter covers `/api/auth/*` at 30 requests per minute per IP;
-Better Auth additionally applies a configured five-per-minute in-memory
-registration limit in production as a supplemental single-isolate throttle,
-not as the cross-isolate abuse boundary. The same Cloudflare limiter covers
-`/mcp`. D1 OAuth client,
-resource-link, consent, token, and client-assertion row counts are an operational
-growth signal; sustained registration growth requires investigation and cleanup
-policy work before storage pressure becomes an incident.
 
 ## Capacity and Change Safety
 
