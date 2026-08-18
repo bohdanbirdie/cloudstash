@@ -96,3 +96,25 @@ export const consentRedirectTarget = (
   }
   return `${decoded.value.protocol}//${decoded.value.host}`;
 };
+
+export const consentPermissionDescriptions = (
+  scopes: readonly string[]
+): readonly string[] => {
+  const requested = new Set(scopes);
+  const descriptions: string[] = [];
+  const canRead = requested.has("links:read");
+  const canWrite = requested.has("links:write");
+
+  if (canRead && canWrite) descriptions.push("View and save links");
+  else if (canRead) descriptions.push("View saved links");
+  else if (canWrite) descriptions.push("Save new links");
+  else if (requested.has("openid")) {
+    descriptions.push("Confirm your Cloudstash account");
+  }
+
+  if (requested.has("offline_access")) {
+    descriptions.push("Stay connected until you disconnect");
+  }
+
+  return descriptions;
+};

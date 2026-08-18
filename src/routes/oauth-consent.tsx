@@ -1,8 +1,9 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Effect } from "effect";
-import { LinkIcon, Loader2Icon } from "lucide-react";
+import { Loader2Icon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { CloudstashLogo } from "@/components/cloudstash-logo";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/card";
 import { authClient, loadAuth } from "@/lib/auth";
 import {
+  consentPermissionDescriptions,
   consentRedirectTarget,
   loadConsentWorkspace,
 } from "@/lib/oauth-consent";
@@ -24,21 +26,6 @@ const ALLOWED_SCOPES = new Set([
   "links:read",
   "links:write",
 ]);
-
-const scopeDescription = (scope: string): string => {
-  switch (scope) {
-    case "links:read":
-      return "View links saved in the workspace shown below";
-    case "links:write":
-      return "Save new links to the workspace shown below";
-    case "openid":
-      return "Confirm your Cloudstash account identity";
-    case "offline_access":
-      return "Let this client refresh access until its token is revoked";
-    default:
-      return scope;
-  }
-};
 
 export const Route = createFileRoute("/oauth-consent")({
   beforeLoad: async () => {
@@ -58,8 +45,9 @@ function OAuthConsentPage() {
     () => [...new Set((search.get("scope") ?? "").split(" ").filter(Boolean))],
     [search]
   );
-  const requestsWorkspaceAccess = requestedScopes.some((scope) =>
-    scope.startsWith("links:")
+  const permissions = useMemo(
+    () => consentPermissionDescriptions(requestedScopes),
+    [requestedScopes]
   );
   const [clientName, setClientName] = useState<string | null>(null);
   const [status, setStatus] = useState<
@@ -136,83 +124,75 @@ function OAuthConsentPage() {
   return (
     <main className="bg-background flex min-h-svh items-center justify-center p-6">
       <Card className="w-full max-w-md">
-        <CardHeader className="items-center text-center">
-          <div className="bg-muted mb-2 flex size-12 items-center justify-center rounded-full">
-            <LinkIcon className="size-6" strokeWidth={1.5} />
+        <CardHeader>
+          <div className="flex flex-col items-center gap-2 text-center">
+            <CloudstashLogo className="size-12" variant="branded" />
+            <CardTitle className="text-base">Connect to Cloudstash</CardTitle>
+            <CardDescription>
+              {clientName ?? "An MCP client"} wants to connect to{" "}
+              {workspace.ok ? workspace.workspace.name : "your workspace"}.
+            </CardDescription>
           </div>
-          <CardTitle className="text-base">Connect to Cloudstash</CardTitle>
-          <CardDescription>
-            {clientName ?? "An MCP client"} wants to{" "}
-            {requestsWorkspaceAccess
-              ? "access links in the workspace shown below"
-              : "confirm your Cloudstash identity"}
-            .
-          </CardDescription>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="space-y-4">
           {status === "loading" ? (
-            <div className="text-muted-foreground flex items-center justify-center gap-2 py-4">
-              <Loader2Icon className="size-4 animate-spin" />
+            <div
+              className="text-muted-foreground flex items-center justify-center gap-2 py-4"
+              role="status"
+            >
+              <Loader2Icon
+                aria-hidden
+                className="size-4 animate-spin motion-reduce:animate-none"
+              />
               Verifying client…
             </div>
-          ) : requestedScopes.length > 0 ? (
-            <ul className="bg-muted/50 space-y-2 rounded-md p-3">
-              {requestedScopes.map((scope) => (
-                <li className="flex items-start gap-2" key={scope}>
-                  <span
-                    aria-hidden="true"
-                    className="bg-primary mt-1.5 size-1.5 shrink-0 rounded-full"
-                  />
-                  <span>{scopeDescription(scope)}</span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-
-          {workspace.ok ? (
-            <div className="border-border mt-3 flex items-center justify-between gap-3 border-t pt-3 text-sm">
-              <span className="text-muted-foreground">Workspace</span>
-              <span
-                className="truncate font-medium"
-                title={workspace.workspace.name}
-              >
-                {workspace.workspace.name}
-              </span>
+          ) : permissions.length > 0 ? (
+            <div className="space-y-2">
+              <p className="font-medium">
+                {clientName ?? "This client"} will be able to
+              </p>
+              <ul className="space-y-2">
+                {permissions.map((permission) => (
+                  <li className="flex items-start gap-2" key={permission}>
+                    <span
+                      aria-hidden="true"
+                      className="bg-primary mt-1.5 size-1.5 shrink-0 rounded-full"
+                    />
+                    <span>{permission}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           ) : null}
 
           {status === "ready" || status === "submitting" ? (
-            <div className="border-border bg-muted/50 mt-3 rounded-md border p-3 text-xs leading-relaxed">
-              <p className="font-medium">Unverified client identity</p>
+            <div className="border-border bg-muted/40 rounded-md border p-3 text-xs leading-relaxed">
+              <p className="font-medium">Unverified client</p>
               <p className="text-muted-foreground mt-1">
-                The client name is self-reported. Only continue if you expected
-                this request
+                Continue only if you started this request.
                 {redirectTarget ? (
                   <>
                     {" "}
-                    and trust callbacks to{" "}
+                    It returns to{" "}
                     <code className="break-all text-foreground">
                       {redirectTarget}
                     </code>
+                    .
                   </>
                 ) : null}
-                .
               </p>
             </div>
           ) : null}
 
           {status !== "loading" && !error ? (
-            <p className="text-muted-foreground mt-3 text-xs leading-relaxed">
-              To disconnect later, use your MCP client&apos;s revoke or
-              disconnect control. A previously issued access token can remain
-              valid for up to five minutes; workspace access and plan
-              eligibility are checked on every request.
+            <p className="text-muted-foreground text-xs">
+              Disconnect later from {clientName ?? "your MCP client"}.
             </p>
           ) : null}
 
           {error ? (
-            <p className="text-destructive mt-3 text-center" role="alert">
+            <p className="text-destructive text-center" role="alert">
               {error}
             </p>
           ) : null}
@@ -224,7 +204,7 @@ function OAuthConsentPage() {
             onClick={() => void submitConsent(false)}
             variant="outline"
           >
-            Deny
+            Cancel
           </Button>
           <Button
             disabled={status !== "ready"}
@@ -232,11 +212,14 @@ function OAuthConsentPage() {
           >
             {status === "submitting" ? (
               <>
-                <Loader2Icon className="animate-spin" />
+                <Loader2Icon
+                  aria-hidden
+                  className="animate-spin motion-reduce:animate-none"
+                />
                 Connecting…
               </>
             ) : (
-              "Allow"
+              "Connect"
             )}
           </Button>
         </CardFooter>

@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { consentRedirectTarget, loadConsentWorkspace } from "../oauth-consent";
+import {
+  consentPermissionDescriptions,
+  consentRedirectTarget,
+  loadConsentWorkspace,
+} from "../oauth-consent";
 
 describe("OAuth consent workspace loader", () => {
   it("uses only the server-selected active workspace in a multi-workspace context", async () => {
@@ -83,5 +87,27 @@ describe("OAuth consent redirect display", () => {
         new URLSearchParams({ redirect_uri: "not a redirect" })
       )
     ).toBeNull();
+  });
+});
+
+describe("OAuth consent permission copy", () => {
+  it("combines MCP scopes into concise, plain-language permissions", () => {
+    expect(
+      consentPermissionDescriptions([
+        "openid",
+        "offline_access",
+        "links:read",
+        "links:write",
+      ])
+    ).toEqual(["View and save links", "Stay connected until you disconnect"]);
+  });
+
+  it("keeps narrower grants accurate", () => {
+    expect(consentPermissionDescriptions(["links:read"])).toEqual([
+      "View saved links",
+    ]);
+    expect(consentPermissionDescriptions(["openid"])).toEqual([
+      "Confirm your Cloudstash account",
+    ]);
   });
 });
