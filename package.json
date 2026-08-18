@@ -206,7 +206,8 @@
     }
   },
   "patchedDependencies": {
-    "@better-auth/oauth-provider@1.7.0-rc.4": "patches/@better-auth%2Foauth-provider@1.7.0-rc.4.patch"
+    "@better-auth/oauth-provider@1.7.0-rc.4": "patches/@better-auth%2Foauth-provider@1.7.0-rc.4.patch",
+    "agents@0.20.1": "patches/agents@0.20.1.patch"
   },
   "trustedDependencies": [
     "better-sqlite3",
