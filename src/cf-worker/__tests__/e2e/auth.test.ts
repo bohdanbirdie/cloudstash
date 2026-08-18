@@ -43,6 +43,18 @@ describe("organization Auth E2E", () => {
     });
   });
 
+  describe("account identity", () => {
+    it("persists a non-empty issuer for signup-created accounts", async () => {
+      const account = await env.DB.prepare(
+        "SELECT issuer FROM account WHERE user_id = ?"
+      )
+        .bind(userA.userId)
+        .first<{ issuer: string | null }>();
+
+      expect(account).toEqual({ issuer: expect.stringMatching(/\S/) });
+    });
+  });
+
   describe("/api/org/:id", () => {
     it("returns 401 for unauthenticated request", async () => {
       const res = await SELF.fetch(`http://worker/api/org/${userA.orgId}`);
