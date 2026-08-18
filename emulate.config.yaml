@@ -18,4 +18,4 @@ google:
       client_secret: GOCSPX-cloudstash-dev-secret
       name: Cloudstash Dev
       redirect_uris:
-        - http://localhost:3000/api/auth/oauth2/callback/google
+        - http://127.0.0.1:3000/api/auth/callback/google

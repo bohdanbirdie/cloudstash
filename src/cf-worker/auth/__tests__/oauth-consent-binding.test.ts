@@ -123,7 +123,7 @@ describe("OAuth consent workspace binding", () => {
 
   it("binds a social callback using its newly created response session", async () => {
     const { cookie, response } = await bindWorkspace("workspace-a", {
-      requestPath: "/api/auth/oauth2/callback/google",
+      requestPath: "/api/auth/callback/google",
       responseCookie:
         "better-auth.session_token=callback-session; Path=/; HttpOnly; Secure",
       inspectHeaders: (headers) => {

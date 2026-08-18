@@ -1,6 +1,6 @@
 # Google OAuth (required)
 # Create at https://console.cloud.google.com/apis/credentials
-# Add redirect URI: http://127.0.0.1:3000/api/auth/oauth2/callback/google
+# Add redirect URI: http://127.0.0.1:3000/api/auth/callback/google
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 
@@ -19,7 +19,7 @@ EMAIL_FROM=YourApp <noreply@yourdomain.com>
 # --- Optional (see README for details) ---
 # X (Twitter) OAuth — for bookmark sync integration
 # Create app at https://developer.x.com (Confidential client, Read permission).
-# Callback URI to register: http://127.0.0.1:3000/api/auth/oauth2/callback/x
+# Callback URI to register: http://127.0.0.1:3000/api/auth/callback/x
 # Requires BETTER_AUTH_URL=http://127.0.0.1:3000 (see note above) and you must
 # access the app via http://127.0.0.1:3000 in your browser for the session
 # cookie to flow through the X OAuth callback.

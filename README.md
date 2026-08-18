@@ -95,8 +95,8 @@ After this, the admin can approve other users through the UI.
 4. Click **Create Credentials > OAuth client ID**
 5. Select **Web application**
 6. Add authorized redirect URIs:
-   - Local: `http://127.0.0.1:3000/api/auth/oauth2/callback/google`
-   - Production: `https://your-worker.workers.dev/api/auth/oauth2/callback/google`
+   - Local: `http://127.0.0.1:3000/api/auth/callback/google`
+   - Production: `https://your-worker.workers.dev/api/auth/callback/google`
 
 ## Local Auth with Emulator (Optional)
 
