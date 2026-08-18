@@ -3,6 +3,7 @@ import { mcp } from "@better-auth/mcp";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, jwt, organization } from "better-auth/plugins";
+import type { GenericOAuthConfig } from "better-auth/plugins/generic-oauth";
 import { genericOAuth } from "better-auth/plugins/generic-oauth";
 import { APIError } from "better-call";
 import { Cause, Effect, Schema } from "effect";
@@ -110,7 +111,7 @@ export function oauthProvidersPlugin(
                   updatedAt: new Date(),
                 };
               },
-            },
+            } satisfies GenericOAuthConfig<"x">,
           ]
         : []),
     ],
