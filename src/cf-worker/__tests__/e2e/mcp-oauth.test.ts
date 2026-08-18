@@ -78,6 +78,7 @@ const registerClient = async (
   SELF.fetch("http://worker/api/auth/oauth2/register", {
     body: JSON.stringify({
       client_name: "MCP JAM",
+      application_type: "native",
       grant_types: ["authorization_code", "refresh_token"],
       redirect_uris: [REDIRECT_URI],
       resources: [MCP_RESOURCE],
@@ -379,8 +380,15 @@ describe("MCP OAuth Worker flow", () => {
     });
   });
 
-  it("still rejects non-loopback HTTP when application_type is omitted", async () => {
+  it("uses the standard web default when application_type is omitted", async () => {
+    const loopback = await registerClient({ application_type: undefined });
+    expect(loopback.status).toBe(400);
+    expect(await loopback.json()).toMatchObject({
+      error: "invalid_redirect_uri",
+    });
+
     const response = await registerClient({
+      application_type: undefined,
       redirect_uris: ["http://192.0.2.1/oauth/callback"],
     });
     expect(response.status).toBe(400);

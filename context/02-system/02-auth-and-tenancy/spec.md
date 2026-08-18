@@ -66,10 +66,10 @@ rate limit is disabled because sync reconnects are network-driven; a Cloudflare
 per-IP rate limiter protects selected auth/sync paths.
 
 Remote MCP uses Better Auth discovery, DCR, authorization-code PKCE, and refresh
-tokens. DCR is cross-isolate rate limited; its legacy surface defaults omitted
-`application_type` to `native` while preserving explicit redirect rules.
-Consent is bound to the signed OAuth query and active workspace across
-redirects. Five-minute resource JWTs carry client, scope, user, and workspace.
+tokens. DCR is cross-isolate rate limited and preserves standard client metadata
+defaults and redirect rules. Consent is bound to the signed OAuth query and
+active workspace across redirects. Five-minute resource JWTs carry client,
+scope, user, and workspace.
 
 Each request verifies JWT/DPoP locally, then rechecks approval, membership,
 workspace, entitlement, and tool scope. Consent deletion forces re-consent;

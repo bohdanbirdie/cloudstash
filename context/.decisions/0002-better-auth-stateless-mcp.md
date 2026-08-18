@@ -51,5 +51,5 @@ exists.
   by the five-minute TTL; authorization changes still apply next request.
 - The dependency's separate account-issuer migration requires an empty
   production preflight before deployment.
-- Legacy protocol and native-DCR compatibility are temporary and must be
-  removed when client adoption permits.
+- Legacy transport compatibility is temporary and must be removed when client
+  adoption permits.

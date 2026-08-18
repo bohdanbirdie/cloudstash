@@ -2,7 +2,21 @@
 minimumReleaseAge = 604800
 # @livestore snapshot pins are first-party (same SHA as the vendor/livestore
 # submodule) and always freshly published — the age gate can never pass them.
+# Better Auth 1.7.0 is an explicitly reviewed, aligned stable-family upgrade;
+# its packages were published together on 2026-08-18.
 minimumReleaseAgeExcludes = [
+  "better-auth",
+  "better-call",
+  "@better-auth/api-key",
+  "@better-auth/core",
+  "@better-auth/drizzle-adapter",
+  "@better-auth/kysely-adapter",
+  "@better-auth/mcp",
+  "@better-auth/memory-adapter",
+  "@better-auth/mongo-adapter",
+  "@better-auth/oauth-provider",
+  "@better-auth/prisma-adapter",
+  "@better-auth/telemetry",
   "@livestore/adapter-cloudflare",
   "@livestore/adapter-web",
   "@livestore/devtools-vite",

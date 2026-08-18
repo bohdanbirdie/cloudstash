@@ -65,12 +65,10 @@ clients search and save links in one authorized workspace.
 - [x] Remove Google discovery from unrelated request initialization. Prove that
       Cloudstash APIs and MCP authentication still initialize when Google discovery
       is unavailable.
-- [x] Reassess whether the application-wide Better Auth release-candidate upgrade
-      is necessary for this feature. If retained, document the reason, pinned package
-      family, known risks, and exit path from the RC.
-- [x] Replace or narrow the OAuth resource-seeding patch so it ignores only the
-      expected `oauth_resource.identifier` race and rethrows unrelated database
-      uniqueness failures. Test the nested D1 error shape by executing the code.
+- [x] Upgrade the aligned Better Auth family to stable 1.7.0 and remove the
+      release-candidate dependency pins.
+- [x] Remove the OAuth provider patch. Make the application-owned resource seed
+      atomic at the D1 adapter boundary and prove concurrent initialization.
 - [x] Resolve the Agents SDK/Workers tracing mismatch through compatible versions
       or a supported adapter. Replace the source-text assertion with a runtime test.
 - [x] Do not merge the uncommitted loopback/DCR experiment as the fix; implement
@@ -119,8 +117,7 @@ clients search and save links in one authorized workspace.
 
 ### 6. Merge gates
 
-- [x] Remove unexplained dependency patches; for every retained patch, keep a
-      behavioral regression test and an upstream/removal plan.
+- [x] Ship without Better Auth dependency patches.
 - [x] Run `bun run check`, `bun run test:unit`, `bun run test:e2e`, and
       `bun run build` on the final branch.
 - [x] Run `bun run check:intent` after reconciling the decision and current Intent

@@ -1,7 +1,6 @@
 import { apiKey } from "@better-auth/api-key";
 import { mcp } from "@better-auth/mcp";
 import { betterAuth } from "better-auth";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, jwt, organization } from "better-auth/plugins";
 import type { GenericOAuthConfig } from "better-auth/plugins/generic-oauth";
 import { genericOAuth } from "better-auth/plugins/generic-oauth";
@@ -13,12 +12,12 @@ import { ac, roles } from "@/lib/permissions";
 import { prepareDeletion } from "../account-deletion/prepare";
 import type { Database } from "../db";
 import { UserId } from "../db/branded";
-import * as schema from "../db/schema";
 import { maskId } from "../log-utils";
 import { logSync } from "../logger";
 import { MCP_SCOPES, MCP_WORKSPACE_CLAIM, mcpResource } from "../mcp/config";
 import { getAppLayer } from "../runtime";
 import type { Env } from "../shared";
+import { cloudstashAuthAdapter } from "./database-adapter";
 import {
   autoApproveUser,
   resolveActiveOrg,
@@ -145,6 +144,7 @@ export function oauthProvidersPlugin(
 }
 
 export const createAuth = (env: Env, db: Database) => {
+  const resource = mcpResource(env);
   const auth = betterAuth({
     account: {
       encryptOAuthTokens: true,
@@ -163,10 +163,7 @@ export const createAuth = (env: Env, db: Database) => {
       },
     },
     baseURL: env.BETTER_AUTH_URL,
-    database: drizzleAdapter(db, {
-      provider: "sqlite",
-      schema,
-    }),
+    database: cloudstashAuthAdapter(db, resource),
     databaseHooks: {
       user: {
         create: {
@@ -244,11 +241,6 @@ export const createAuth = (env: Env, db: Database) => {
         accessTokenExpiresIn: 5 * 60,
         allowDynamicClientRegistration: true,
         allowUnauthenticatedClientRegistration: true,
-        // MCP JAM omits OIDC's optional application_type even though it uses
-        // an installed-app loopback callback. This MCP-only endpoint therefore
-        // defaults omitted values to native; explicit values still win and all
-        // redirect URIs still pass Better Auth's strict type-specific checks.
-        clientRegistrationDefaultApplicationType: "native",
         clientRegistrationRequirePKCE: true,
         consentPage: "/oauth-consent",
         customAccessTokenClaims: ({ referenceId }) =>
@@ -279,11 +271,7 @@ export const createAuth = (env: Env, db: Database) => {
         rateLimit: {
           register: { max: 5, window: 60 },
         },
-        resource: mcpResource(env),
-        // Better Auth cannot verify application routing and warns whenever the
-        // authorization-server issuer contains a path. Cloudstash serves and
-        // boundary-tests the required path-scoped RFC 8414 metadata route.
-        silenceWarnings: { oauthAuthServerConfig: true },
+        resource,
         scopes: [...MCP_SCOPES],
       }),
       organization({
