@@ -403,6 +403,31 @@ describe("MCP OAuth Worker flow", () => {
     });
   });
 
+  it("rejects oversized DCR and MCP bodies at the HTTP boundary", async () => {
+    const registration = await SELF.fetch(
+      "http://worker/api/auth/oauth2/register",
+      {
+        body: JSON.stringify({ client_name: "x".repeat(64 * 1024) }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }
+    );
+    expect(registration.status).toBe(413);
+    expect(await registration.json()).toMatchObject({
+      error: "invalid_client_metadata",
+    });
+
+    const mcp = await SELF.fetch(MCP_RESOURCE, {
+      body: "x".repeat(1024 * 1024 + 1),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
+    expect(mcp.status).toBe(413);
+    expect(await mcp.json()).toMatchObject({
+      error: { message: "MCP request body too large" },
+    });
+  });
+
   it("binds consent when logged-out authorization resumes in the sign-in response", async () => {
     const email = "mcp-post-login@test.com";
     await signupUser(email, "MCP Post Login User");
@@ -563,6 +588,7 @@ describe("MCP OAuth Worker flow", () => {
   });
 
   it("initializes, lists tools, and calls both tools through /mcp", async () => {
+    const outboundStart = observedOutboundUrls.length;
     const initialize = await callMcp<{ serverInfo: { name: string } }>(
       tokens.access_token,
       1,
@@ -615,10 +641,15 @@ describe("MCP OAuth Worker flow", () => {
       status: "queued",
     });
     await vi.waitFor(
-      () => expect(observedOutboundUrls).toContain(SAVED_LINK_URL),
+      () =>
+        expect(observedOutboundUrls.slice(outboundStart)).toContain(
+          SAVED_LINK_URL
+        ),
       { timeout: 5_000 }
     );
-    expect(new Set(observedOutboundUrls)).toEqual(new Set([SAVED_LINK_URL]));
+    expect(new Set(observedOutboundUrls.slice(outboundStart))).toEqual(
+      new Set([SAVED_LINK_URL])
+    );
   });
 
   it("lists tools through the MCP 2026 per-request stateless transport", async () => {
@@ -907,13 +938,23 @@ describe("MCP OAuth Worker flow", () => {
   });
 
   it("rejects an issued token after workspace membership is revoked", async () => {
+    const revokedUser = await signupUser(
+      "mcp-membership-revoked@test.com",
+      "MCP Membership Revoked User"
+    );
+    await env.DB.prepare("UPDATE organization SET tier = 'pro' WHERE id = ?")
+      .bind(revokedUser.orgId)
+      .run();
+    const revokedClient = await registerCurrentMcpJamClient();
+    const revokedTokens = await authorizeClient(revokedUser, revokedClient);
+
     await env.DB.prepare(
       "DELETE FROM member WHERE user_id = ? AND organization_id = ?"
     )
-      .bind(user.userId, user.orgId)
+      .bind(revokedUser.userId, revokedUser.orgId)
       .run();
     const denied = await callMcp<unknown>(
-      tokens.access_token,
+      revokedTokens.access_token,
       10,
       "tools/list"
     );

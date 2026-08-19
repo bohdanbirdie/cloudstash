@@ -7,7 +7,8 @@ import {
   verifyJwsAccessToken,
 } from "better-auth/oauth2";
 import { APIError } from "better-call";
-import type { JSONWebKeySet, JWTPayload } from "jose";
+import { Data, Effect } from "effect";
+import type { JSONWebKeySet } from "jose";
 import { errors as joseErrors } from "jose";
 
 import type { Auth } from "../auth";
@@ -17,6 +18,14 @@ const JOSE_INFRASTRUCTURE_ERROR_CODES = new Set([
   joseErrors.JWKSInvalid.code,
   joseErrors.JWKSMultipleMatchingKeys.code,
 ]);
+
+export class McpAccessTokenRejected extends Data.TaggedError(
+  "McpAccessTokenRejected"
+)<{ readonly cause: unknown }> {}
+
+export class McpAccessTokenBackendError extends Data.TaggedError(
+  "McpAccessTokenBackendError"
+)<{ readonly cause: unknown }> {}
 
 const unauthorized = (
   message: string,
@@ -29,83 +38,83 @@ const unauthorized = (
       : undefined),
   });
 
-const verifySignature = async (
-  token: string,
-  options: {
-    readonly audience: string;
-    readonly issuer: string;
-    readonly jwks: () => Promise<JSONWebKeySet>;
-    readonly jwksCacheKey?: object;
+const rejected = (cause: unknown) => new McpAccessTokenRejected({ cause });
+const unavailable = (cause: unknown) =>
+  new McpAccessTokenBackendError({ cause });
+
+const signatureError = (cause: unknown) => {
+  if (cause instanceof joseErrors.JWTExpired) {
+    return rejected(unauthorized("token expired"));
   }
-): Promise<JWTPayload> => {
-  try {
-    return await verifyJwsAccessToken(token, {
-      jwksFetch: options.jwks,
-      jwksCacheKey: options.jwksCacheKey,
-      verifyOptions: {
-        audience: options.audience,
-        issuer: options.issuer,
-      },
-    });
-  } catch (cause) {
-    if (cause instanceof joseErrors.JWTExpired) {
-      throw unauthorized("token expired");
-    }
-    if (cause instanceof joseErrors.JOSEError) {
-      if (JOSE_INFRASTRUCTURE_ERROR_CODES.has(cause.code)) throw cause;
-      throw unauthorized("invalid access token");
-    }
-    if (cause instanceof TypeError) {
-      throw unauthorized("invalid access token");
-    }
-    throw cause;
+  if (cause instanceof joseErrors.JOSEError) {
+    return JOSE_INFRASTRUCTURE_ERROR_CODES.has(cause.code)
+      ? unavailable(cause)
+      : rejected(unauthorized("invalid access token"));
   }
+  return cause instanceof TypeError
+    ? rejected(unauthorized("invalid access token"))
+    : unavailable(cause);
 };
 
-export const verifyMcpAccessToken = async (
+export interface McpAccessTokenOptions {
+  readonly audience: string;
+  readonly issuer: string;
+  readonly jwks: () => Promise<JSONWebKeySet>;
+  readonly jwksCacheKey?: object;
+  readonly replayStore: ReturnType<typeof createDpopReplayStore>;
+}
+
+export const verifyMcpAccessToken = Effect.fnUntraced(function* (
   request: Request,
-  options: {
-    readonly audience: string;
-    readonly issuer: string;
-    readonly jwks: () => Promise<JSONWebKeySet>;
-    readonly jwksCacheKey?: object;
-    readonly replayStore: ReturnType<typeof createDpopReplayStore>;
-  }
-): Promise<JWTPayload> => {
+  options: McpAccessTokenOptions
+) {
   const authorization = parseAccessTokenAuthorization(
     request.headers.get("authorization")
   );
   if (!authorization?.token) {
-    throw unauthorized("missing authorization header");
+    return yield* rejected(unauthorized("missing authorization header"));
   }
   if (authorization.scheme === "Unknown") {
-    throw unauthorized("authorization scheme must be Bearer or DPoP", {
-      error: "invalid_token",
-    });
+    return yield* rejected(
+      unauthorized("authorization scheme must be Bearer or DPoP", {
+        error: "invalid_token",
+      })
+    );
   }
 
-  const payload = await verifySignature(authorization.token, options);
+  const payload = yield* Effect.tryPromise({
+    try: () =>
+      verifyJwsAccessToken(authorization.token, {
+        jwksFetch: options.jwks,
+        jwksCacheKey: options.jwksCacheKey,
+        verifyOptions: {
+          audience: options.audience,
+          issuer: options.issuer,
+        },
+      }),
+    catch: signatureError,
+  });
 
-  try {
-    await enforceDpopBinding({
-      authorization,
-      method: request.method,
-      payload,
-      proofJwt: request.headers.get("dpop"),
-      replayStore: options.replayStore,
-      url: request.url,
-    });
-  } catch (cause) {
-    if (isDpopBindingError(cause)) {
-      throw unauthorized(cause.message, { error: cause.code });
-    }
-    throw cause;
-  }
+  yield* Effect.tryPromise({
+    try: () =>
+      enforceDpopBinding({
+        authorization,
+        method: request.method,
+        payload,
+        proofJwt: request.headers.get("dpop"),
+        replayStore: options.replayStore,
+        url: request.url,
+      }),
+    catch: (cause) =>
+      isDpopBindingError(cause)
+        ? rejected(unauthorized(cause.message, { error: cause.code }))
+        : unavailable(cause),
+  });
 
   return payload;
-};
+});
 
-export const localMcpAccessTokenVerifier = async (
+export const verifyLocalMcpAccessToken = Effect.fnUntraced(function* (
   auth: Auth,
   request: Request,
   options: {
@@ -113,33 +122,35 @@ export const localMcpAccessTokenVerifier = async (
     readonly issuer: string;
     readonly jwksCacheKey?: object;
   }
-): Promise<JWTPayload> => {
-  const { internalAdapter } = await auth.$context;
-  return verifyMcpAccessToken(request, {
+) {
+  const { internalAdapter } = yield* Effect.tryPromise({
+    try: () => auth.$context,
+    catch: unavailable,
+  });
+  return yield* verifyMcpAccessToken(request, {
     ...options,
     jwks: () => auth.api.getJwks(),
     replayStore: createDpopReplayStore(internalAdapter),
   });
-};
+});
 
 export const mcpAuthorizationChallenge = (
-  cause: unknown,
+  error: McpAccessTokenRejected,
   resource: string,
   challengeScopes: readonly string[]
-): Response | undefined => {
-  const challenge = createResourceServerChallenge(cause, resource, {
+): Response => {
+  const challenge = createResourceServerChallenge(error.cause, resource, {
     challengeScopes,
   });
-  if (!challenge) return undefined;
+  if (!challenge) {
+    return Response.json({ error: "Invalid access token" }, { status: 401 });
+  }
 
   const headers = new Headers(challenge.headers);
   headers.set("Content-Type", "application/json");
   return new Response(
     JSON.stringify({
-      error: {
-        code: -32e3,
-        message: challenge.message,
-      },
+      error: { code: -32e3, message: challenge.message },
       id: null,
       jsonrpc: "2.0",
     }),

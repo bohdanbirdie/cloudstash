@@ -1,5 +1,5 @@
 import { describe, it } from "@effect/vitest";
-import { Effect } from "effect";
+import { Effect, Option, Schema } from "effect";
 import { expect, vi } from "vitest";
 
 import type { SearchResult } from "../../../livestore/queries/schemas";
@@ -14,7 +14,7 @@ import {
   McpSearchInput,
   runMcpToolHandler,
   toMcpSearchResults,
-} from "../../mcp/server";
+} from "../../mcp/tools";
 import type { Env } from "../../shared";
 
 const authorization = (scopes: readonly string[]): McpAuthorization => ({
@@ -52,29 +52,48 @@ const envWithSearch = (
   }) as unknown as Env;
 
 describe("MCP link search", () => {
+  it("advertises bounded query and URL input schemas", () => {
+    const searchSchema = McpSearchInput["~standard"].jsonSchema.input({
+      target: "draft-2020-12",
+    });
+    const saveSchema = McpSaveInput["~standard"].jsonSchema.input({
+      target: "draft-2020-12",
+    });
+
+    expect(searchSchema).toMatchObject({
+      properties: {
+        query: {
+          allOf: [{ minLength: 1 }, { maxLength: 200 }],
+          type: "string",
+        },
+      },
+    });
+    expect(saveSchema).toMatchObject({
+      properties: { url: { format: "uri", type: "string" } },
+    });
+  });
+
   it("requires a trimmed query no longer than 200 characters", () => {
+    const decode = Schema.decodeUnknownOption(McpSearchInput);
     expect(normalizeLinkSearchQuery("   ")).toBeNull();
     expect(normalizeLinkSearchQuery("x".repeat(201))).toBeNull();
     expect(normalizeLinkSearchQuery("  needle  ")).toBe("needle");
-    expect(McpSearchInput.safeParse({ query: "   " }).success).toBe(false);
-    expect(McpSearchInput.safeParse({ query: "x".repeat(201) }).success).toBe(
-      false
-    );
-    expect(McpSearchInput.parse({ query: "  needle  " })).toEqual({
+    expect(Option.isNone(decode({ query: "   " }))).toBe(true);
+    expect(Option.isNone(decode({ query: "x".repeat(201) }))).toBe(true);
+    expect(Option.getOrThrow(decode({ query: "  needle  " }))).toEqual({
       query: "needle",
     });
   });
 
   it("accepts only HTTP(S) save targets", () => {
-    expect(McpSaveInput.safeParse({ url: "https://example.com" }).success).toBe(
-      true
-    );
+    const decode = Schema.decodeUnknownOption(McpSaveInput);
+    expect(Option.isSome(decode({ url: "https://example.com" }))).toBe(true);
     for (const url of [
       "file:///tmp/link",
       "javascript:alert(1)",
       "ftp://example.com",
     ]) {
-      expect(McpSaveInput.safeParse({ url }).success).toBe(false);
+      expect(Option.isNone(decode({ url }))).toBe(true);
     }
   });
 
@@ -113,7 +132,7 @@ describe("MCP link search", () => {
 
     return searchWorkspaceLinks(OrgId.make("org-1"), "needle", env).pipe(
       Effect.as(null),
-      Effect.catch((error) => Effect.succeed(error)),
+      Effect.catchTag("LinksReadError", (error) => Effect.succeed(error)),
       Effect.tap((failure) =>
         Effect.sync(() => {
           expect(failure).toBeInstanceOf(LinksReadError);
@@ -146,21 +165,21 @@ describe("MCP link search", () => {
     expect(results[19]).toMatchObject({ id: "link-19", score: 81 });
   });
 
-  it("maps defects outside Effect.runPromise to an MCP tool error", async () => {
-    const synchronous = await runMcpToolHandler(
-      "MCP search_links",
-      "Search unavailable",
-      () => {
-        throw new Error("layer construction failed");
-      }
-    );
-    const asynchronous = await runMcpToolHandler(
-      "MCP save_link",
-      "Save unavailable",
-      () => Promise.reject(new Error("runPromise rejected"))
-    );
+  it.effect("maps tool defects to MCP errors", () =>
+    Effect.gen(function* () {
+      const synchronous = yield* runMcpToolHandler(
+        "MCP search_links",
+        "Search unavailable",
+        Effect.die(new Error("layer construction failed"))
+      );
+      const asynchronous = yield* runMcpToolHandler(
+        "MCP save_link",
+        "Save unavailable",
+        Effect.fail(new LinksReadError({ cause: new Error("save failed") }))
+      );
 
-    expect(synchronous).toMatchObject({ isError: true });
-    expect(asynchronous).toMatchObject({ isError: true });
-  });
+      expect(synchronous).toMatchObject({ isError: true });
+      expect(asynchronous).toMatchObject({ isError: true });
+    })
+  );
 });

@@ -1,34 +1,39 @@
+import { describe, expect, it } from "@effect/vitest";
 import { env } from "cloudflare:test";
 import { Effect } from "effect";
-import { describe, expect, it } from "vitest";
 
-import { createAuth } from "../../auth";
+import { ensureMcpResource } from "../../auth/mcp-resource";
 import { Billing } from "../../billing/service";
 import { createDb } from "../../db";
 import { runHandler } from "../../runtime";
 
 describe("layer memoization (verification-matrix row 7)", () => {
-  it("constructs auth concurrently against shared D1 without duplicating the MCP resource", async () => {
-    const db = createDb(env.DB);
+  it.live("seeds the MCP resource concurrently without duplicates", () =>
+    Effect.gen(function* () {
+      const db = createDb(env.DB);
+      const before = yield* Effect.promise(() =>
+        env.DB.prepare("SELECT COUNT(*) AS count FROM oauth_resource").first<{
+          count: number;
+        }>()
+      );
+      expect(before?.count).toBe(0);
 
-    const before = await env.DB.prepare(
-      "SELECT COUNT(*) AS count FROM oauth_resource"
-    ).first<{ count: number }>();
+      yield* Effect.forEach(
+        Array.from({ length: 4 }),
+        () => ensureMcpResource(db, env.DB, "http://localhost/mcp"),
+        { concurrency: "unbounded" }
+      );
 
-    expect(before?.count).toBe(0);
-
-    await expect(
-      Promise.all(Array.from({ length: 4 }, () => createAuth(env, db).$context))
-    ).resolves.toHaveLength(4);
-
-    const seeded = await env.DB.prepare(
-      "SELECT COUNT(*) AS count FROM oauth_resource WHERE identifier = ?"
-    )
-      .bind("http://localhost/mcp")
-      .first<{ count: number }>();
-
-    expect(seeded?.count).toBe(1);
-  });
+      const seeded = yield* Effect.promise(() =>
+        env.DB.prepare(
+          "SELECT COUNT(*) AS count FROM oauth_resource WHERE identifier = ?"
+        )
+          .bind("http://localhost/mcp")
+          .first<{ count: number }>()
+      );
+      expect(seeded?.count).toBe(1);
+    })
+  );
 
   it("rebuilds services on every top-level provide of the memoized layer, never freezing per-isolate singletons", async () => {
     const captured: Array<unknown> = [];

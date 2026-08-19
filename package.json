@@ -156,7 +156,6 @@
     "@typescript/native-preview": "7.0.0-dev.20260527.2",
     "@vitejs/plugin-react": "6.0.2",
     "@vitest/coverage-v8": "4.1.7",
-    "better-sqlite3": "12.10.0",
     "drizzle-kit": "0.31.10",
     "fast-check": "3.23.2",
     "jsdom": "29.1.1",
@@ -206,7 +205,6 @@
     }
   },
   "trustedDependencies": [
-    "better-sqlite3",
     "esbuild",
     "workerd",
     "sharp",

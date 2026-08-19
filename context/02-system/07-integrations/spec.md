@@ -20,24 +20,12 @@ Active.
 
 ## MCP Clients
 
-Clients discover protected-resource and path-scoped authorization-server
-metadata, then use unauthenticated, cross-isolate-rate-limited DCR. Its durable
-OAuth rows are monitored after registration, with a warning at 10,000 clients;
-registration bodies and standard metadata fields are bounded.
-
-The Integrations panel leads with the current origin's `/mcp` URL, OAuth setup,
-and workspace approval; protocol, automatic scopes, and legacy fallback remain
-available as advanced details. Local browser, resource, and auth URLs must share
-an origin. The card is visible as a Pro upgrade path; loading failures are not
-presented as plan denial, and runtime entitlement remains authoritative.
-
-Consent identifies dynamically registered clients as unverified, shows their
-callback target, and pins tools to the displayed workspace even if the active
-browser workspace later changes.
-
-The Worker supports MCP 2026 and the 2025 stateless compatibility path. CIMD is
-disabled until its client-controlled fetch has an application-owned SSRF-safe
-transport.
+Clients use protected-resource discovery and bounded, rate-limited DCR. Consent
+marks dynamic clients unverified, shows the callback target, and pins access to
+the displayed workspace. The Pro-gated card shows the current origin's `/mcp`
+URL, OAuth setup, scopes, and protocol compatibility; runtime entitlement stays
+authoritative. The Worker supports MCP 2026 and the 2025 stateless fallback.
+CIMD remains disabled until its untrusted fetch is SSRF-safe.
 
 ## Chrome Extension
 

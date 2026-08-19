@@ -1,4 +1,4 @@
-import { Effect, Option, Schema } from "effect";
+import { Data, Effect, Option, Schema } from "effect";
 import type { JWTPayload } from "jose";
 
 import { WorkspaceAccess } from "../auth/workspace-access";
@@ -6,7 +6,7 @@ import { workspaceAccessHttpResponse } from "../auth/workspace-access-http";
 import { capabilityDeniedResponse } from "../billing/errors";
 import { requireCapability } from "../billing/service";
 import { OrgId, UserId } from "../db/branded";
-import { maskId, safeErrorInfo } from "../log-utils";
+import { maskId } from "../log-utils";
 import { MCP_WORKSPACE_CLAIM } from "./config";
 
 const McpAccessTokenClaims = Schema.Struct({
@@ -29,6 +29,10 @@ export const McpAuthorization = Schema.Struct({
   userId: UserId,
 });
 export type McpAuthorization = typeof McpAuthorization.Type;
+
+export class McpAuthorizationBackendError extends Data.TaggedError(
+  "McpAuthorizationBackendError"
+)<{ readonly cause: unknown }> {}
 
 const unauthorized = (): Response =>
   Response.json({ error: "Invalid access token claims" }, { status: 401 });
@@ -78,7 +82,10 @@ export const authorizeMcpClaims = Effect.fnUntraced(function* (
     .authorizeIdentity(authorization)
     .pipe(
       Effect.matchEffect({
-        onFailure: workspaceAccessHttpResponse,
+        onFailure: (error) =>
+          error._tag === "WorkspaceAccessBackendError"
+            ? new McpAuthorizationBackendError({ cause: error.cause })
+            : workspaceAccessHttpResponse(error),
         onSuccess: Effect.succeed,
       })
     );
@@ -97,19 +104,7 @@ export const authorizeMcpClaims = Effect.fnUntraced(function* (
           Effect.annotateLogs({ orgId: maskId(authorization.orgId) }),
           Effect.as(Response.json({ error: "Forbidden" }, { status: 403 }))
         ),
-      DbError: (error) =>
-        Effect.logError("MCP authorization: capability check failed").pipe(
-          Effect.annotateLogs({
-            orgId: maskId(authorization.orgId),
-            ...safeErrorInfo(error),
-          }),
-          Effect.as(
-            Response.json(
-              { error: "Authorization backend unavailable" },
-              { status: 503 }
-            )
-          )
-        ),
+      DbError: (error) => new McpAuthorizationBackendError({ cause: error }),
     })
   );
 

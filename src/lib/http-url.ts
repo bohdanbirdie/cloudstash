@@ -1,11 +1,14 @@
 import { Option, Schema } from "effect";
 
-export const HttpUrlFromString = Schema.URLFromString.check(
-  Schema.makeFilter(
-    (url) =>
-      url.protocol === "http:" ||
-      url.protocol === "https:" ||
-      "Expected an HTTP(S) URL"
+export const HttpUrlFromString = Schema.URLFromString.pipe(
+  Schema.annotateEncoded({ format: "uri" }),
+  Schema.check(
+    Schema.makeFilter(
+      (url) =>
+        url.protocol === "http:" ||
+        url.protocol === "https:" ||
+        "Expected an HTTP(S) URL"
+    )
   )
 );
 

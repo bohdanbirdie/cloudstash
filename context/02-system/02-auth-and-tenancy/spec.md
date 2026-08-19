@@ -20,8 +20,8 @@ creation, the hook resolves an existing active
 organization or creates a personal organization and sets it on the session.
 Unapproved users stop before mounting the LiveStore application.
 
-The guarded legacy-account migration aborts before replacement on unknown
-providers or identity collisions.
+The Better Auth 1.7 migration maps configured legacy providers to issuers;
+database constraints roll back unknown or colliding identities.
 
 Production sessions last fourteen days and update after seven days. A signed
 cookie cache has a five-minute TTL. Visibility/focus refresh checks the session;
@@ -65,19 +65,12 @@ verification preserves next-request/reconnect revocation. Its per-key request
 rate limit is disabled because sync reconnects are network-driven; a Cloudflare
 per-IP rate limiter protects selected auth/sync paths.
 
-Remote MCP uses Better Auth discovery, DCR, authorization-code PKCE, and refresh
-tokens. DCR is cross-isolate rate limited and preserves standard client metadata
-defaults and redirect rules. Consent is bound to the signed OAuth query and
-active workspace across redirects. Five-minute resource JWTs carry client,
-scope, user, and workspace.
-
-Each request verifies JWT/DPoP locally, then rechecks approval, membership,
-workspace, entitlement, and tool scope. Consent deletion forces re-consent;
-client or refresh-token revocation blocks future issuance. Existing JWTs remain
-valid until expiry, while authorization changes apply on the next request.
-
-Google uses fixed provider endpoints, including emulator-derived endpoints, so
-auth initialization performs no discovery request.
+Remote MCP uses Better Auth discovery, DCR, PKCE, refresh tokens, and
+five-minute workspace/resource JWTs. Consent remains bound to its signed query
+and workspace across redirects. Each request verifies JWT/DPoP locally and
+rechecks access, entitlement, and scope; existing JWTs expire within five
+minutes. Google uses fixed endpoints, so auth initialization needs no discovery
+request.
 
 ## Roles and Permissions
 

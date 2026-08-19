@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect";
+import { Cause, Effect, Schema } from "effect";
 
 import { HttpUrlFromString } from "@/lib/http-url";
 
@@ -15,6 +15,7 @@ import type { OrgId, UserId } from "../db/branded";
 import type { LinkQueueMessage } from "../link-processor/types";
 import { maskId, safeErrorInfo } from "../log-utils";
 import type { Env } from "../shared";
+import { OtelTracingLive } from "../tracing";
 import {
   IngestInvalidApiKeyError,
   IngestAccessDeniedError,
@@ -126,12 +127,13 @@ export const handleIngestRequest = Effect.fnUntraced(function* (
   return { ok: true, result: { status: "queued" } };
 });
 
-export const ingestResponse = (
+export const ingestResponse = <Requirements>(
   effect: Effect.Effect<
     Effect.Success<ReturnType<typeof handleIngestRequest>>,
-    Effect.Error<ReturnType<typeof handleIngestRequest>>
+    Effect.Error<ReturnType<typeof handleIngestRequest>>,
+    Requirements
   >
-): Effect.Effect<Response> =>
+): Effect.Effect<Response, never, Requirements> =>
   effect.pipe(
     Effect.map(({ result, ok }) =>
       Response.json(result, { status: ok ? 200 : 400 })
@@ -201,6 +203,14 @@ export const ingestRequestToResponse = (
   request: Request,
   env: Env
 ): Effect.Effect<Response> =>
-  ingestResponse(
-    handleIngestRequest(request, env).pipe(Effect.provide(AppLayerLive(env)))
-  ).pipe(Effect.withSpan("Ingest.handleIngestRequest"));
+  ingestResponse(handleIngestRequest(request, env)).pipe(
+    Effect.withSpan("Ingest.handleIngestRequest"),
+    Effect.provide(AppLayerLive(env)),
+    Effect.catchCause((cause) =>
+      Effect.logError("Ingest handler crashed").pipe(
+        Effect.annotateLogs(safeErrorInfo(Cause.squash(cause))),
+        Effect.as(Response.json({ error: "Internal error" }, { status: 500 })),
+        Effect.provide(OtelTracingLive)
+      )
+    )
+  );

@@ -1,19 +1,6 @@
-CREATE TABLE `__account_issuer_provider_guard` (
-	`issue` text NOT NULL CONSTRAINT `account_issuer_provider_preflight` CHECK (`issue` = 'ready')
-);
---> statement-breakpoint
-INSERT INTO `__account_issuer_provider_guard` (`issue`) SELECT 'unsupported provider: ' || `provider_id` FROM `account` WHERE `provider_id` NOT IN ('credential', 'google', 'x') LIMIT 1;--> statement-breakpoint
-DROP TABLE `__account_issuer_provider_guard`;--> statement-breakpoint
-CREATE TABLE `__account_issuer_collision_guard` (
-	`issue` text NOT NULL CONSTRAINT `account_issuer_collision_preflight` CHECK (`issue` = 'ready')
-);
---> statement-breakpoint
-INSERT INTO `__account_issuer_collision_guard` (`issue`) SELECT 'duplicate account identity' FROM `account` GROUP BY CASE
-	WHEN `provider_id` = 'credential' THEN 'local:credential'
-	WHEN `provider_id` = 'google' THEN 'https://accounts.google.com'
-	WHEN `provider_id` = 'x' THEN 'local:oauth:x'
-END, `account_id` HAVING COUNT(*) > 1 LIMIT 1;--> statement-breakpoint
-DROP TABLE `__account_issuer_collision_guard`;--> statement-breakpoint
+-- Better Auth 1.7 keys accounts by issuer + account ID. Existing configured
+-- providers are mapped below; NOT NULL and UNIQUE constraints abort and roll
+-- back the migration if production contains an unknown or colliding identity.
 CREATE TABLE `__new_account` (
 	`access_token` text,
 	`access_token_expires_at` integer,

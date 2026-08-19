@@ -1,4 +1,4 @@
-import { Effect, Option, Schema } from "effect";
+import { Data, Effect, Option } from "effect";
 
 import { bearerApiKey } from "../auth/bearer-api-key";
 import { WorkspaceAccess } from "../auth/workspace-access";
@@ -14,10 +14,9 @@ import type { ParsedListParams } from "./api";
 
 type ListParams = Extract<ParsedListParams, { ok: true }>;
 
-export class LinksReadError extends Schema.TaggedErrorClass<LinksReadError>()(
-  "LinksReadError",
-  { cause: Schema.Defect() }
-) {}
+export class LinksReadError extends Data.TaggedError("LinksReadError")<{
+  readonly cause: unknown;
+}> {}
 
 const unauthorized = (): Response =>
   Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -94,7 +93,7 @@ export const listLinksEffect = Effect.fn("LinksApi.listLinks")(function* (
   if (denied) return denied;
 
   const page = yield* fetchLinksPage(orgId, params, env).pipe(
-    Effect.catch((error) =>
+    Effect.catchTag("LinksReadError", (error) =>
       Effect.logError("Links API: listLinks RPC failed").pipe(
         Effect.annotateLogs({
           orgId: maskId(orgId),

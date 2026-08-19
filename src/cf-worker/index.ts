@@ -4,6 +4,7 @@ import type { CfTypes } from "@livestore/sync-cf/cf-worker";
 import { routeAgentRequest } from "agents";
 import { Effect, Match } from "effect";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 
 import { PERMISSIONS } from "@/lib/permissions";
 
@@ -19,16 +20,20 @@ import { handleGetSignupGate, handleSetSignupGate } from "./admin/signup-gate";
 import { handleTriggerDigest } from "./admin/trigger-digest";
 import { handleGetUsage } from "./admin/usage";
 import { trackEvent } from "./analytics";
-import { gateUserApiKeyCreate } from "./auth/api-key-gate";
+import { handleAuthRequest } from "./auth/handler";
 import {
-  monitorOAuthClientGrowth,
-  validateOAuthClientRegistrationRequest,
+  initializeMcpOAuthResource,
+  mcpResourceUnavailable,
+} from "./auth/mcp-resource";
+import {
+  MAX_REGISTRATION_BODY_BYTES,
+  invalidOAuthClientRegistration,
 } from "./auth/oauth-client-registration";
 import {
-  bindConsentWorkspace,
-  validateConsentWorkspaceBinding,
-} from "./auth/oauth-consent-binding";
-import { handleOAuthMetadataRequest } from "./auth/oauth-metadata";
+  handleOAuthMetadataRequest,
+  oauthMetadataPreflight,
+  withOAuthMetadataCors,
+} from "./auth/oauth-metadata";
 import { AppLayerLive, AuthClient } from "./auth/service";
 import { checkSyncAuth } from "./auth/sync-auth";
 import { handleBillingCheckout } from "./billing/routes/checkout";
@@ -65,12 +70,15 @@ import {
 import type { LinkQueueMessage } from "./link-processor/types";
 import { handleListLinks } from "./links/handler";
 import { logSync } from "./logger";
+import {
+  MAX_MCP_BODY_BYTES,
+  mcpBodyTooLargeResponse,
+} from "./mcp/request-scope";
 import { handleMcpRequest } from "./mcp/server";
 import { metadataRequestToResponse } from "./metadata/service";
 import { requirePermission } from "./middleware/authorize";
 import { handleGetMe, handleGetOrg } from "./org";
 import { handleDlqBatch, handleQueueBatch } from "./queue-handler";
-import { routeAgentBeforeMcp } from "./request-routing";
 import { runHandler } from "./runtime";
 import type { Env, HonoVariables } from "./shared";
 import { SyncBackend, handleSyncRequest, runSyncAuth } from "./sync";
@@ -122,23 +130,42 @@ const checkRateLimit = async (
 
 const app = new Hono<{ Bindings: Env; Variables: HonoVariables }>();
 
+app.use(
+  "/api/auth/oauth2/register",
+  bodyLimit({
+    maxSize: MAX_REGISTRATION_BODY_BYTES,
+    onError: () => invalidOAuthClientRegistration(413),
+  })
+);
+app.use(
+  "/mcp",
+  bodyLimit({
+    maxSize: MAX_MCP_BODY_BYTES,
+    onError: mcpBodyTooLargeResponse,
+  })
+);
+app.all("/mcp", (c) => handleMcpRequest(c.req.raw, c.env));
+
 app.get("/api/auth/me", (c) => handleGetMe(c.req.raw, c.env));
 
 app.on(["GET", "HEAD", "OPTIONS"], "/.well-known/*", (c) => {
-  if (c.req.method === "OPTIONS")
-    return handleOAuthMetadataRequest(c.req.raw, c.env, () =>
-      Promise.reject(new Error("OPTIONS must not call Better Auth"))
-    );
+  if (c.req.method === "OPTIONS") return oauthMetadataPreflight(c.env);
   return runHandler(
     c.env,
     Effect.gen(function* () {
+      yield* initializeMcpOAuthResource(c.env);
       const auth = yield* AuthClient;
-      return yield* Effect.promise(() =>
-        handleOAuthMetadataRequest(c.req.raw, c.env, (request) =>
-          auth.handler(request)
-        )
+      return yield* handleOAuthMetadataRequest(c.req.raw, c.env, (request) =>
+        auth.handler(request)
       );
-    }).pipe(Effect.withSpan("API.authMetadataHandler"))
+    }).pipe(
+      Effect.withSpan("API.authMetadataHandler"),
+      Effect.catchTag("DbError", (error) =>
+        mcpResourceUnavailable(error.cause).pipe(
+          Effect.map((response) => withOAuthMetadataCors(response, c.env))
+        )
+      )
+    )
   );
 });
 
@@ -197,24 +224,10 @@ app.post(
 app.on(["GET", "POST"], "/api/auth/*", (c) =>
   runHandler(
     c.env,
-    Effect.gen(function* () {
-      const invalidRegistration = yield* validateOAuthClientRegistrationRequest(
-        c.req.raw
-      );
-      if (invalidRegistration) return invalidRegistration;
-      const denied = yield* gateUserApiKeyCreate(c.req.raw);
-      if (denied) return denied;
-      const auth = yield* AuthClient;
-      const invalidConsent = yield* validateConsentWorkspaceBinding(
-        c.req.raw,
-        auth,
-        c.env
-      );
-      if (invalidConsent) return invalidConsent;
-      const response = yield* Effect.promise(() => auth.handler(c.req.raw));
-      yield* monitorOAuthClientGrowth(c.req.raw, response);
-      return yield* bindConsentWorkspace(response, c.req.raw, auth, c.env);
-    }).pipe(Effect.withSpan("API.authHandler"))
+    handleAuthRequest(c.req.raw, c.env).pipe(
+      Effect.withSpan("API.authHandler"),
+      Effect.catchTag("DbError", (error) => mcpResourceUnavailable(error.cause))
+    )
   )
 );
 
@@ -371,19 +384,17 @@ export const fetch = async (
 
   const url = new URL(request.url);
 
-  // ChatAgent routing remains authoritative for /agents before MCP dispatch.
-  const agentOrMcpResponse = await routeAgentBeforeMcp(
+  const agentResponse = await routeAgentRequest(
     request as unknown as Request,
-    () =>
-      routeAgentRequest(request as unknown as Request, env, {
-        onBeforeConnect: (req, lobby) =>
-          agentHooks.onBeforeConnect(req, lobby, env),
-        onBeforeRequest: (req, lobby) =>
-          agentHooks.onBeforeRequest(req, lobby, env),
-      }),
-    () => handleMcpRequest(request as unknown as Request, env)
+    env,
+    {
+      onBeforeConnect: (req, lobby) =>
+        agentHooks.onBeforeConnect(req, lobby, env),
+      onBeforeRequest: (req, lobby) =>
+        agentHooks.onBeforeRequest(req, lobby, env),
+    }
   );
-  if (agentOrMcpResponse) return agentOrMcpResponse;
+  if (agentResponse) return agentResponse;
 
   if (url.pathname === "/sync") {
     return handleSync(request, env, ctx);

@@ -8,6 +8,7 @@ import type { Billing } from "./billing/service";
 import type { DbClient } from "./db/service";
 import type { AppSettings } from "./settings/service";
 import type { Env } from "./shared";
+import { OtelTracingLive } from "./tracing";
 
 export type AppCtx =
   | Billing
@@ -47,5 +48,8 @@ export const runHandler = (
   effect.pipe(
     Effect.catchDefect(onDefect),
     Effect.provide(getAppLayer(env)),
+    Effect.catchDefect((defect) =>
+      onDefect(defect).pipe(Effect.provide(OtelTracingLive))
+    ),
     Effect.runPromise
   );

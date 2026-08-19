@@ -1,9 +1,8 @@
 import { Effect, Option, Schema } from "effect";
 
-import { readRequestBody } from "../http/request-body";
 import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from "./config";
 
-const MAX_MCP_BODY_BYTES = 1024 * 1024;
+export const MAX_MCP_BODY_BYTES = 1024 * 1024;
 
 const McpMessage = Schema.Struct({
   method: Schema.optional(Schema.String),
@@ -32,26 +31,32 @@ export const scopeForMcpTool = (name: unknown): string | null => {
   return Option.isSome(decoded) ? MCP_TOOL_SCOPES[decoded.value] : null;
 };
 
-const bodyErrorResponse = (status: 400 | 403 | 413, error: string): Response =>
+const bodyErrorResponse = (status: 400 | 403, error: string): Response =>
   Response.json({ error }, { status });
+
+export const mcpBodyTooLargeResponse = (): Response =>
+  Response.json(
+    {
+      error: { code: -32e3, message: "MCP request body too large" },
+      id: null,
+      jsonrpc: "2.0",
+    },
+    { status: 413 }
+  );
 
 export const requiredScopesForRequest = Effect.fn(
   "MCP.requiredScopesForRequest"
 )(function* (request: Request) {
   if (request.method !== "POST") return [];
 
-  const body = yield* readRequestBody(request, MAX_MCP_BODY_BYTES).pipe(
-    Effect.match({
-      onFailure: (error) =>
-        error._tag === "RequestBodyTooLargeError"
-          ? bodyErrorResponse(413, "MCP request body too large")
-          : bodyErrorResponse(400, "Invalid MCP request body"),
-      onSuccess: (value) => value,
-    })
+  const body = yield* Effect.tryPromise(() => request.clone().text()).pipe(
+    Effect.option
   );
-  if (body instanceof Response) return body;
+  if (Option.isNone(body)) {
+    return bodyErrorResponse(400, "Invalid MCP request body");
+  }
 
-  const decoded = decodeMessages(body);
+  const decoded = decodeMessages(body.value);
   if (Option.isNone(decoded)) {
     return bodyErrorResponse(400, "Invalid MCP request body");
   }

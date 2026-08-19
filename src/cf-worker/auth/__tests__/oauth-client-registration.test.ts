@@ -32,23 +32,6 @@ describe("OAuth dynamic client registration boundary", () => {
     )
   );
 
-  it.effect("rejects a declared body larger than 64 KiB", () => {
-    const request = registrationRequest(
-      { client_name: "small" },
-      { "Content-Length": String(64 * 1024 + 1) }
-    );
-    return validateOAuthClientRegistrationRequest(request).pipe(
-      Effect.tap((response) =>
-        Effect.promise(async () => {
-          expect(response?.status).toBe(413);
-          expect(await response?.json()).toMatchObject({
-            error: "invalid_client_metadata",
-          });
-        })
-      )
-    );
-  });
-
   it.effect("rejects oversized strings and arrays", () =>
     Effect.gen(function* () {
       const longName = yield* validateOAuthClientRegistrationRequest(

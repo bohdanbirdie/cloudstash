@@ -32,9 +32,8 @@ before producing the same `LinkQueueMessage` shape. Raycast uses its paired API
 key flow, but shared ingest currently records it as `api` and additionally
 requires `publicApi`; see
 [DELTA-036](../../.delta/DELTA-036-raycast-capture-loses-source-and-couples-capabilities.md).
-MCP `save_link` reaches the same validated Queue-send service after OAuth
-resource, current workspace-access, `mcpServer`, and `links:write` checks, and
-records source `mcp`.
+MCP `save_link` uses the same Queue-send service after workspace, entitlement,
+and `links:write` checks, recording source `mcp`.
 
 ## Queue Contract
 

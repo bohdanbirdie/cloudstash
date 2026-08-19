@@ -9,48 +9,34 @@ workspace authorization, and supports both current and deployed legacy clients.
 
 ## Evidence and Argument
 
-- Better Auth supplies PKCE, DCR, consent, resource-bound JWTs, and refresh
-  tokens in the existing identity system.
-- OAuth clients, consent, and tokens are durable authorization state; they do
-  not make the MCP request transport sessionful.
-- Current approval, membership, and entitlement checks can be reused on every
-  exchange without server-side MCP sessions.
-- The Agents SDK supports fresh-server, per-request handling for MCP 2026 and
-  the 2025 stateless compatibility path.
-- Consent must remain bound to the displayed workspace across redirects, and
-  local token verification avoids a fragile Worker self-fetch to JWKS.
-- CIMD requires fetching a client-controlled URL without Cloudstash's required
-  SSRF controls.
+- Better Auth already supplies the OAuth flow and durable authorization state.
+- A fresh Agents SDK server can handle each exchange while existing access and
+  entitlement checks keep workspace authorization current.
+- Consent must stay bound to its displayed workspace. Local JWT verification
+  avoids Worker self-fetch; CIMD is deferred because it requires an untrusted
+  fetch.
 
 ## Options
 
-| Option                             | Tradeoff                                              |
-| ---------------------------------- | ----------------------------------------------------- |
-| Better Auth OAuth with DCR         | Fits current auth and clients; persists untrusted DCR |
-| A separate authorization server    | More control; duplicates identity and consent         |
-| Strict MCP 2026 with CIMD identity | No DCR; excludes clients and adds an unsafe fetch     |
+| Option                        | Tradeoff                                      |
+| ----------------------------- | --------------------------------------------- |
+| Better Auth OAuth with DCR    | Reuses current auth; persists untrusted DCR   |
+| Separate authorization server | More control; duplicates identity and consent |
+| MCP 2026 with CIMD only       | Excludes clients and adds an untrusted fetch  |
 
 ## Decision
 
-Use Better Auth as the MCP authorization server. Accept rate-limited DCR, bind
-consent and five-minute JWTs to a workspace and resource, and recheck approval,
-membership, entitlement, and tool scope on every request. Expose only
-`search_links` (`links:read`) and `save_link` (`links:write`).
-
-Serve MCP 2026 and the 2025 stateless compatibility path from a fresh server per
-exchange. Bind the signed OAuth query and workspace in a short-lived HttpOnly
-cookie. Verify JWT and DPoP locally with Better Auth keys and shared replay
-storage. Do not enable CIMD until an application-owned SSRF-safe transport
-exists.
+Use Better Auth OAuth with rate-limited DCR. Bind consent and five-minute JWTs
+to one workspace/resource; recheck access, entitlement, and tool scope on every
+request. A fresh server per exchange exposes `search_links` and `save_link` for
+MCP 2026 and the 2025 stateless compatibility path. Verify JWT/DPoP locally. Do
+not enable CIMD without an SSRF-safe transport.
 
 ## Consequences
 
-- DCR creates durable untrusted rows; cross-isolate rate limiting and table
-  growth monitoring are required. Registration payloads are bounded, and the
-  self-reported client identity and callback target remain visible at consent.
+- DCR persists untrusted clients; registration is bounded and consent exposes
+  the unverified name and callback target.
 - Existing JWTs cannot be revoked online, so credential revocation is bounded
   by the five-minute TTL; authorization changes still apply next request.
-- The dependency's separate account-issuer migration requires an empty
-  production preflight before deployment.
 - Legacy transport compatibility is temporary and must be removed when client
   adoption permits.

@@ -27,6 +27,15 @@ export const withMcpCors = (response: Response, env: Env): Response => {
   });
 };
 
+export const authorizationBackendUnavailableResponse = (env: Env): Response =>
+  withMcpCors(
+    Response.json(
+      { error: "Authorization backend unavailable" },
+      { status: 503 }
+    ),
+    env
+  );
+
 export const insufficientScopeResponse = (
   requiredScopes: readonly string[],
   env: Env

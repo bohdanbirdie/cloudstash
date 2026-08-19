@@ -1,6 +1,11 @@
+import { Effect } from "effect";
+
 import type { Env } from "../shared";
 
-const withMetadataCors = (response: Response, env: Env): Response => {
+export const withOAuthMetadataCors = (
+  response: Response,
+  env: Env
+): Response => {
   const headers = new Headers(response.headers);
   headers.set("Access-Control-Allow-Headers", "Accept, Content-Type");
   headers.set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
@@ -16,16 +21,21 @@ const withMetadataCors = (response: Response, env: Env): Response => {
   });
 };
 
-export const handleOAuthMetadataRequest = async (
-  request: Request,
-  env: Env,
-  authHandler: (request: Request) => Promise<Response>
-): Promise<Response> => {
-  if (request.method === "OPTIONS") {
-    return withMetadataCors(new Response(null, { status: 204 }), env);
-  }
+export const oauthMetadataPreflight = (env: Env): Response =>
+  withOAuthMetadataCors(new Response(null, { status: 204 }), env);
 
-  // Better Auth's OAuth/MCP onRequest hooks inspect these absolute root paths
-  // before its /api/auth router basePath is applied. Preserve the URL verbatim.
-  return withMetadataCors(await authHandler(request), env);
-};
+export const handleOAuthMetadataRequest = Effect.fn("Auth.oauthMetadata")(
+  function* (
+    request: Request,
+    env: Env,
+    authHandler: (request: Request) => Promise<Response>
+  ) {
+    if (request.method === "OPTIONS") {
+      return oauthMetadataPreflight(env);
+    }
+
+    // Better Auth inspects the absolute well-known path before its base path.
+    const response = yield* Effect.promise(() => authHandler(request));
+    return withOAuthMetadataCors(response, env);
+  }
+);

@@ -7,6 +7,7 @@ import { requireCapability } from "../billing/service";
 import { UserId } from "../db/branded";
 import { maskId, safeErrorInfo } from "../log-utils";
 import type { Env } from "../shared";
+import { OtelTracingLive } from "../tracing";
 import type {
   XBookmarkSyncDO,
   XStatusResponse,
@@ -97,23 +98,33 @@ export const xDisconnectRequest = Effect.fnUntraced(function* (
   );
 
   // Better Auth unlink — tolerate "already unlinked" cases.
-  yield* Effect.tryPromise({
-    try: async () => {
-      const accounts = await auth.api.listUserAccounts({
-        headers: request.headers,
+  yield* Effect.gen(function* () {
+    const accounts = yield* Effect.tryPromise({
+      try: () =>
+        auth.api.listUserAccounts({
+          headers: request.headers,
+        }),
+      catch: sideEffectError("auth.listUserAccounts"),
+    });
+    const xAccount = accounts.find((account) => account.providerId === "x");
+    if (xAccount) {
+      yield* Effect.tryPromise({
+        try: () =>
+          auth.api.unlinkAccount({
+            body: { accountId: xAccount.id },
+            headers: request.headers,
+          }),
+        catch: sideEffectError("auth.unlinkAccount"),
       });
-      const xAccount = accounts.find((account) => account.providerId === "x");
-      if (!xAccount) return;
-      await auth.api.unlinkAccount({
-        body: { accountId: xAccount.id },
-        headers: request.headers,
-      });
-    },
-    catch: sideEffectError("auth.unlinkAccount"),
+    }
   }).pipe(
-    Effect.catchTag("XSyncSideEffectError", (e) =>
-      Effect.logWarning("X disconnect: unlinkAccount failed").pipe(
-        Effect.annotateLogs({ userId: maskId(userId), cause: String(e.cause) })
+    Effect.catchTag("XSyncSideEffectError", (error) =>
+      Effect.logWarning("X disconnect: unlink failed").pipe(
+        Effect.annotateLogs({
+          userId: maskId(userId),
+          operation: error.op,
+          cause: String(error.cause),
+        })
       )
     ),
     Effect.withSpan("XConnect.unlinkAccount", {
@@ -214,6 +225,9 @@ const unexpected500 = (cause: unknown): Effect.Effect<Response> =>
     Effect.as(Response.json({ error: "Internal error" }, { status: 500 }))
   );
 
+const layerFailure500 = (cause: unknown) =>
+  unexpected500(cause).pipe(Effect.provide(OtelTracingLive));
+
 const mapActionResult = (data: ActionResult): Response =>
   "ok" in data
     ? Response.json(data)
@@ -231,11 +245,12 @@ const commonErrorTags = {
 export const handleXStatus = (request: Request, env: Env): Promise<Response> =>
   Effect.runPromise(
     xStatusRequest(request.headers, env).pipe(
-      Effect.provide(makeLiveLayer(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags(commonErrorTags),
       Effect.catchCause((cause) => unexpected500(cause)),
-      Effect.withSpan("XConnect.status")
+      Effect.withSpan("XConnect.status"),
+      Effect.provide(makeLiveLayer(env)),
+      Effect.catchCause(layerFailure500)
     )
   );
 
@@ -245,29 +260,30 @@ export const handleXDisconnect = (
 ): Promise<Response> =>
   Effect.runPromise(
     xDisconnectRequest(request, env).pipe(
-      Effect.provide(makeLiveLayer(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags(commonErrorTags),
       Effect.catchCause((cause) => unexpected500(cause)),
-      Effect.withSpan("XConnect.disconnect")
+      Effect.withSpan("XConnect.disconnect"),
+      Effect.provide(makeLiveLayer(env)),
+      Effect.catchCause(layerFailure500)
     )
   );
 
 export const handleXPause = (request: Request, env: Env): Promise<Response> =>
   Effect.runPromise(
     xPauseRequest(request, env).pipe(
-      Effect.provide(makeLiveLayer(env)),
       Effect.map(mapActionResult),
       Effect.catchTags(commonErrorTags),
       Effect.catchCause((cause) => unexpected500(cause)),
-      Effect.withSpan("XConnect.pause")
+      Effect.withSpan("XConnect.pause"),
+      Effect.provide(makeLiveLayer(env)),
+      Effect.catchCause(layerFailure500)
     )
   );
 
 export const handleXResume = (request: Request, env: Env): Promise<Response> =>
   Effect.runPromise(
     xResumeRequest(request, env).pipe(
-      Effect.provide(makeLiveLayer(env)),
       Effect.map(mapActionResult),
       Effect.catchTags({
         ...commonErrorTags,
@@ -284,6 +300,8 @@ export const handleXResume = (request: Request, env: Env): Promise<Response> =>
         DbError: (cause) => unexpected500(cause),
       }),
       Effect.catchCause((cause) => unexpected500(cause)),
-      Effect.withSpan("XConnect.resume")
+      Effect.withSpan("XConnect.resume"),
+      Effect.provide(makeLiveLayer(env)),
+      Effect.catchCause(layerFailure500)
     )
   );

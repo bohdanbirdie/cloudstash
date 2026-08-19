@@ -1,13 +1,7 @@
-import { count } from "drizzle-orm";
 import { Effect, Option, Schema } from "effect";
 
-import * as schema from "../db/schema";
-import { DbClient, query } from "../db/service";
-import { readRequestBody } from "../http/request-body";
-
 const REGISTER_PATH = "/api/auth/oauth2/register";
-const MAX_REGISTRATION_BODY_BYTES = 64 * 1024;
-const DCR_GROWTH_WARNING_COUNT = 10_000;
+export const MAX_REGISTRATION_BODY_BYTES = 64 * 1024;
 
 const shortString = Schema.String.check(Schema.isMaxLength(512));
 const uriString = Schema.String.check(Schema.isMaxLength(2048));
@@ -43,7 +37,7 @@ const decodeRegistration = Schema.decodeUnknownOption(
   Schema.fromJsonString(OAuthClientRegistration)
 );
 
-const invalidRegistration = (status = 400): Response =>
+export const invalidOAuthClientRegistration = (status = 400): Response =>
   Response.json(
     {
       error: "invalid_client_metadata",
@@ -63,44 +57,12 @@ export const validateOAuthClientRegistrationRequest = Effect.fn(
 )(function* (request: Request) {
   if (!isRegistrationRequest(request)) return null;
 
-  const body = yield* readRequestBody(
-    request,
-    MAX_REGISTRATION_BODY_BYTES
-  ).pipe(
-    Effect.match({
-      onFailure: (error) =>
-        error._tag === "RequestBodyTooLargeError"
-          ? invalidRegistration(413)
-          : invalidRegistration(),
-      onSuccess: (value) => value,
-    })
+  const body = yield* Effect.tryPromise(() => request.clone().text()).pipe(
+    Effect.option
   );
-  if (body instanceof Response) return body;
+  if (Option.isNone(body)) return invalidOAuthClientRegistration();
 
-  return Option.isSome(decodeRegistration(body)) ? null : invalidRegistration();
+  return Option.isSome(decodeRegistration(body.value))
+    ? null
+    : invalidOAuthClientRegistration();
 });
-
-export const monitorOAuthClientGrowth = Effect.fn("OAuth.monitorClientGrowth")(
-  function* (request: Request, response: Response) {
-    if (!isRegistrationRequest(request) || response.status !== 201) return;
-
-    const db = yield* DbClient;
-    const [row] = yield* query(
-      db.select({ count: count() }).from(schema.oauthClient)
-    ).pipe(
-      Effect.catchTag("DbError", (error) =>
-        Effect.logError("OAuth DCR growth check failed").pipe(
-          Effect.annotateLogs({ errorType: error._tag }),
-          Effect.as([])
-        )
-      )
-    );
-    if (!row) return;
-
-    const log =
-      row.count >= DCR_GROWTH_WARNING_COUNT
-        ? Effect.logWarning("OAuth DCR client table growth threshold reached")
-        : Effect.logInfo("OAuth DCR client registered");
-    yield* log.pipe(Effect.annotateLogs({ oauthClientCount: row.count }));
-  }
-);
