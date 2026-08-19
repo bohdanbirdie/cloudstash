@@ -1,3 +1,5 @@
+import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from "@/lib/mcp";
+
 import { API_FALLBACK_ORIGIN } from "./api-spec";
 
 export const MCP_CONNECTION_GUIDANCE = {
@@ -6,7 +8,7 @@ export const MCP_CONNECTION_GUIDANCE = {
   protocol: "2026-07-28 (recommended); 2025-11-25 fallback",
   registration: "Dynamic Client Registration (DCR)",
   scopeOverride: "Leave blank — scopes are requested automatically",
-  scopes: "links:read links:write",
+  scopes: `${MCP_READ_SCOPE} ${MCP_WRITE_SCOPE}`,
   transport: "Streamable HTTP",
 } as const;
 

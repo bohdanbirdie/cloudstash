@@ -241,24 +241,25 @@ export class Billing extends Context.Service<
  * `capability` enabled at its current tier (after overrides). Use at the top
  * of any handler that should be paywalled.
  */
-export const requireCapability = Effect.fn("Billing.requireCapability")(
-  function* (orgId: OrgId, capability: BooleanCapability) {
-    const billing = yield* Billing;
-    const caps = yield* billing.capabilities(orgId);
-    yield* Effect.annotateCurrentSpan({
-      orgId: maskId(orgId),
+export const requireCapability = Effect.fnUntraced(function* (
+  orgId: OrgId,
+  capability: BooleanCapability
+) {
+  const billing = yield* Billing;
+  const caps = yield* billing.capabilities(orgId);
+  yield* Effect.annotateCurrentSpan({
+    orgId: maskId(orgId),
+    capability,
+    allowed: caps[capability],
+  });
+  if (!caps[capability]) {
+    yield* Effect.logInfo("Billing.requireCapability denied").pipe(
+      Effect.annotateLogs({ orgId: maskId(orgId), capability })
+    );
+    return yield* CapabilityDisabledError.for(
+      orgId,
       capability,
-      allowed: caps[capability],
-    });
-    if (!caps[capability]) {
-      yield* Effect.logInfo("Billing.requireCapability denied").pipe(
-        Effect.annotateLogs({ orgId: maskId(orgId), capability })
-      );
-      return yield* CapabilityDisabledError.for(
-        orgId,
-        capability,
-        requiredTierForBooleanCap(capability)
-      );
-    }
+      requiredTierForBooleanCap(capability)
+    );
   }
-);
+});

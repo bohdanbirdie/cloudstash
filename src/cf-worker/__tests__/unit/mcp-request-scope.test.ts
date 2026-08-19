@@ -3,7 +3,10 @@ import { Effect } from "effect";
 import { expect } from "vitest";
 
 import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from "../../mcp/config";
-import { requiredScopesForRequest } from "../../mcp/request-scope";
+import {
+  McpRequestRejected,
+  requiredScopesForRequest,
+} from "../../mcp/request-scope";
 
 const post = (body: unknown, headers?: HeadersInit): Request =>
   new Request("https://cloudstash.test/mcp", {
@@ -57,33 +60,35 @@ describe("MCP request scope resolution", () => {
       expect(protocolScopes).toEqual([]);
       const unknown = yield* requiredScopesForRequest(
         post({ method: "tools/call", params: { name: "unknown" } })
-      );
-      expect(unknown).toBeInstanceOf(Response);
-      expect((unknown as Response).status).toBe(403);
+      ).pipe(Effect.flip);
+      expect(unknown).toMatchObject({
+        _tag: "McpRequestRejected",
+        status: 403,
+      });
     })
   );
 
   it.effect("fails closed for malformed JSON and unmapped tool calls", () =>
     Effect.gen(function* () {
-      const malformed = yield* requiredScopesForRequest(post("{"));
-      expect(malformed).toBeInstanceOf(Response);
-      expect((malformed as Response).status).toBe(400);
+      const malformed = yield* requiredScopesForRequest(post("{")).pipe(
+        Effect.flip
+      );
+      expect(malformed).toBeInstanceOf(McpRequestRejected);
 
       const unmapped = yield* requiredScopesForRequest(
         post({ method: "tools/call", params: {} })
-      );
-      expect(unmapped).toBeInstanceOf(Response);
-      expect((unmapped as Response).status).toBe(400);
+      ).pipe(Effect.flip);
+      expect(unmapped).toBeInstanceOf(McpRequestRejected);
 
-      const malformedMessage = yield* requiredScopesForRequest(post([null]));
-      expect(malformedMessage).toBeInstanceOf(Response);
-      expect((malformedMessage as Response).status).toBe(400);
+      const malformedMessage = yield* requiredScopesForRequest(
+        post([null])
+      ).pipe(Effect.flip);
+      expect(malformedMessage).toBeInstanceOf(McpRequestRejected);
 
       const malformedMethod = yield* requiredScopesForRequest(
         post({ method: 42 })
-      );
-      expect(malformedMethod).toBeInstanceOf(Response);
-      expect((malformedMethod as Response).status).toBe(400);
+      ).pipe(Effect.flip);
+      expect(malformedMethod).toBeInstanceOf(McpRequestRejected);
     })
   );
 });

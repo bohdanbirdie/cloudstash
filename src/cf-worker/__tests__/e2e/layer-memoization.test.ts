@@ -2,9 +2,10 @@ import { describe, expect, it } from "@effect/vitest";
 import { env } from "cloudflare:test";
 import { Effect } from "effect";
 
-import { ensureMcpResource } from "../../auth/mcp-resource";
+import { initializeMcpOAuthResource } from "../../auth/mcp-resource";
 import { Billing } from "../../billing/service";
 import { createDb } from "../../db";
+import { DbClient } from "../../db/service";
 import { runHandler } from "../../runtime";
 
 describe("layer memoization (verification-matrix row 7)", () => {
@@ -20,7 +21,10 @@ describe("layer memoization (verification-matrix row 7)", () => {
 
       yield* Effect.forEach(
         Array.from({ length: 4 }),
-        () => ensureMcpResource(db, env.DB, "http://localhost/mcp"),
+        () =>
+          initializeMcpOAuthResource(env).pipe(
+            Effect.provideService(DbClient, db)
+          ),
         { concurrency: "unbounded" }
       );
 

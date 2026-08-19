@@ -2,18 +2,14 @@ import { Data, Effect, Option, Schema } from "effect";
 import type { JWTPayload } from "jose";
 
 import { WorkspaceAccess } from "../auth/workspace-access";
-import { workspaceAccessHttpResponse } from "../auth/workspace-access-http";
-import { capabilityDeniedResponse } from "../billing/errors";
+import type { WorkspaceAccessDeniedError } from "../auth/workspace-access";
 import { requireCapability } from "../billing/service";
 import { OrgId, UserId } from "../db/branded";
-import { maskId } from "../log-utils";
 import { MCP_WORKSPACE_CLAIM } from "./config";
 
 const McpAccessTokenClaims = Schema.Struct({
   sub: Schema.String,
-  aud: Schema.Union([Schema.String, Schema.Array(Schema.String)]),
   client_id: Schema.String,
-  iss: Schema.String,
   scope: Schema.Union([Schema.String, Schema.Array(Schema.String)]),
   exp: Schema.optional(Schema.Number),
   [MCP_WORKSPACE_CLAIM]: Schema.String,
@@ -34,36 +30,27 @@ export class McpAuthorizationBackendError extends Data.TaggedError(
   "McpAuthorizationBackendError"
 )<{ readonly cause: unknown }> {}
 
-const unauthorized = (): Response =>
-  Response.json({ error: "Invalid access token claims" }, { status: 401 });
+export class McpInvalidClaimsError extends Data.TaggedError(
+  "McpInvalidClaimsError"
+)<{}> {}
 
-export const tokenTargetsMcp = (
-  claims: {
-    readonly aud: string | readonly string[];
-    readonly iss: string;
-  },
-  expected: { readonly issuer: string; readonly resource: string }
-): boolean =>
-  claims.iss === expected.issuer &&
-  (Array.isArray(claims.aud)
-    ? claims.aud.includes(expected.resource)
-    : claims.aud === expected.resource);
+export class McpWorkspaceAccessDenied extends Data.TaggedError(
+  "McpWorkspaceAccessDenied"
+)<{ readonly cause: WorkspaceAccessDeniedError }> {}
 
 export const authorizeMcpClaims = Effect.fnUntraced(function* (
-  claims: JWTPayload,
-  expected: { readonly issuer: string; readonly resource: string }
+  claims: JWTPayload
 ) {
   const decoded = yield* decodeClaims(claims).pipe(Effect.option);
-  if (Option.isNone(decoded)) return unauthorized();
+  if (Option.isNone(decoded)) return yield* new McpInvalidClaimsError();
 
   const raw = decoded.value;
   if (
     raw.sub.length === 0 ||
     raw.client_id.length === 0 ||
-    raw[MCP_WORKSPACE_CLAIM].length === 0 ||
-    !tokenTargetsMcp(raw, expected)
+    raw[MCP_WORKSPACE_CLAIM].length === 0
   ) {
-    return unauthorized();
+    return yield* new McpInvalidClaimsError();
   }
 
   const authorization: McpAuthorization = {
@@ -78,35 +65,17 @@ export const authorizeMcpClaims = Effect.fnUntraced(function* (
   };
 
   const workspaceAccess = yield* WorkspaceAccess;
-  const currentAccess = yield* workspaceAccess
+  yield* workspaceAccess
     .authorizeIdentity(authorization)
     .pipe(
-      Effect.matchEffect({
-        onFailure: (error) =>
-          error._tag === "WorkspaceAccessBackendError"
-            ? new McpAuthorizationBackendError({ cause: error.cause })
-            : workspaceAccessHttpResponse(error),
-        onSuccess: Effect.succeed,
-      })
+      Effect.mapError((error) =>
+        error._tag === "WorkspaceAccessBackendError"
+          ? new McpAuthorizationBackendError({ cause: error.cause })
+          : new McpWorkspaceAccessDenied({ cause: error })
+      )
     );
-  if (currentAccess instanceof Response) return currentAccess;
 
-  const denied = yield* requireCapability(
-    authorization.orgId,
-    "mcpServer"
-  ).pipe(
-    Effect.as<Response | null>(null),
-    Effect.catchTags({
-      CapabilityDisabledError: (error) =>
-        Effect.succeed(capabilityDeniedResponse(error)),
-      OrgNotFoundError: () =>
-        Effect.logWarning("MCP authorization: organization not found").pipe(
-          Effect.annotateLogs({ orgId: maskId(authorization.orgId) }),
-          Effect.as(Response.json({ error: "Forbidden" }, { status: 403 }))
-        ),
-      DbError: (error) => new McpAuthorizationBackendError({ cause: error }),
-    })
-  );
+  yield* requireCapability(authorization.orgId, "mcpServer");
 
-  return denied ?? authorization;
+  return authorization;
 });

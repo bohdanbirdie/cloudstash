@@ -1,10 +1,5 @@
 import { parseCookies } from "better-auth/cookies";
-import {
-  constantTimeEqual,
-  makeSignature,
-  symmetricDecrypt,
-  symmetricEncrypt,
-} from "better-auth/crypto";
+import { symmetricDecrypt, symmetricEncrypt } from "better-auth/crypto";
 import { Clock, Effect, Option, Schema } from "effect";
 
 export const CONSENT_BINDING_COOKIE = "cloudstash_mcp_consent";
@@ -22,44 +17,6 @@ type ConsentBinding = typeof ConsentBinding.Type;
 
 const ConsentBindingJson = Schema.fromJsonString(ConsentBinding);
 const decodeBinding = Schema.decodeUnknownEffect(ConsentBindingJson);
-
-export const canonicalizeOAuthQuery = (params: URLSearchParams): string => {
-  const canonical = new URLSearchParams();
-  for (const [key, value] of [...params.entries()].toSorted(
-    ([keyA, valueA], [keyB, valueB]) => {
-      if (keyA < keyB) return -1;
-      if (keyA > keyB) return 1;
-      if (valueA < valueB) return -1;
-      if (valueA > valueB) return 1;
-      return 0;
-    }
-  )) {
-    canonical.append(key, value);
-  }
-  return canonical.toString();
-};
-
-export const verifySignedOAuthQuery = Effect.fn("OAuth.verifySignedQuery")(
-  function* (search: string, secret: string) {
-    const params = new URLSearchParams(search);
-    const signatures = params.getAll("sig");
-    const signature = signatures[0];
-    const expiresAt = Number(params.get("exp"));
-    params.delete("sig");
-    if (signatures.length !== 1 || !signature || !Number.isFinite(expiresAt)) {
-      return Option.none<string>();
-    }
-
-    const now = yield* Clock.currentTimeMillis;
-    if (expiresAt * 1_000 < now) return Option.none<string>();
-    const expected = yield* Effect.promise(() =>
-      makeSignature(canonicalizeOAuthQuery(params), secret)
-    );
-    return constantTimeEqual(signature, expected)
-      ? Option.some(new URLSearchParams(search).toString())
-      : Option.none<string>();
-  }
-);
 
 const hashQuery = Effect.fn("OAuth.hashConsentQuery")(function* (
   query: string

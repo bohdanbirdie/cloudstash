@@ -1,6 +1,7 @@
 import { env, SELF } from "cloudflare:test";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { fetch as workerFetch } from "../../index";
 import { signupUser } from "./helpers";
 import type { UserInfo } from "./helpers";
 
@@ -111,7 +112,8 @@ const registerCurrentMcpJamClient = async (): Promise<RegisteredClient> => {
 
 const beginAuthorization = async (
   user: UserInfo,
-  client: RegisteredClient
+  client: RegisteredClient,
+  scopes = SCOPES
 ): Promise<AuthorizationPrompt> => {
   const verifier =
     "mcp-jam-test-verifier-abcdefghijklmnopqrstuvwxyz-0123456789";
@@ -124,7 +126,7 @@ const beginAuthorization = async (
     redirect_uri: REDIRECT_URI,
     resource: MCP_RESOURCE,
     response_type: "code",
-    scope: SCOPES,
+    scope: scopes,
     state: "mcp-jam-state",
   }).toString();
 
@@ -148,18 +150,20 @@ const beginAuthorization = async (
 
 const authorizeClient = async (
   user: UserInfo,
-  client: RegisteredClient
+  client: RegisteredClient,
+  scopes = SCOPES
 ): Promise<TokenSet> => {
   const { consentCookie, consentUrl, verifier } = await beginAuthorization(
     user,
-    client
+    client,
+    scopes
   );
 
   const consent = await SELF.fetch("http://worker/api/auth/oauth2/consent", {
     body: JSON.stringify({
       accept: true,
       oauth_query: consentUrl.searchParams.toString(),
-      scope: SCOPES,
+      scope: scopes,
     }),
     headers: {
       Cookie: consentCookie,
@@ -350,6 +354,48 @@ describe("MCP OAuth Worker flow", () => {
     });
   });
 
+  it("advertises OAuth from the initial unauthenticated MCP request", async () => {
+    const response = await SELF.fetch(MCP_RESOURCE, {
+      body: JSON.stringify({ id: 1, jsonrpc: "2.0", method: "tools/list" }),
+      headers: {
+        Accept: "application/json, text/event-stream",
+        "Content-Type": "application/json",
+        Host: new URL(MCP_RESOURCE).host,
+        Origin: AUTH_ORIGIN,
+      },
+      method: "POST",
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe(
+      AUTH_ORIGIN
+    );
+    expect(response.headers.get("WWW-Authenticate")).toContain(
+      `resource_metadata="${AUTH_ORIGIN}/.well-known/oauth-protected-resource/mcp"`
+    );
+  });
+
+  it("serves the MCP CORS preflight", async () => {
+    const response = await SELF.fetch(MCP_RESOURCE, {
+      headers: {
+        "Access-Control-Request-Headers":
+          "authorization, content-type, mcp-protocol-version",
+        "Access-Control-Request-Method": "POST",
+        Host: new URL(MCP_RESOURCE).host,
+        Origin: AUTH_ORIGIN,
+      },
+      method: "OPTIONS",
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe(
+      AUTH_ORIGIN
+    );
+    expect(response.headers.get("Access-Control-Allow-Methods")).toContain(
+      "POST"
+    );
+  });
+
   it("registers the MCP JAM 2026-07-28 public client and issues workspace tokens", () => {
     expect(client.application_type).toBe("native");
     expect(client.client_id).toBeTruthy();
@@ -423,9 +469,29 @@ describe("MCP OAuth Worker flow", () => {
       method: "POST",
     });
     expect(mcp.status).toBe(413);
+    expect(mcp.headers.get("Access-Control-Allow-Origin")).toBe(AUTH_ORIGIN);
     expect(await mcp.json()).toMatchObject({
       error: { message: "MCP request body too large" },
     });
+  });
+
+  it("adds MCP CORS headers to rate-limit responses", async () => {
+    const response = await workerFetch(
+      new Request(MCP_RESOURCE, {
+        headers: { "cf-connecting-ip": "192.0.2.10" },
+        method: "POST",
+      }) as never,
+      {
+        ...env,
+        SYNC_RATE_LIMITER: { limit: async () => ({ success: false }) },
+      } as never,
+      {} as never
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe(
+      AUTH_ORIGIN
+    );
   });
 
   it("binds consent when logged-out authorization resumes in the sign-in response", async () => {
@@ -664,6 +730,37 @@ describe("MCP OAuth Worker flow", () => {
       resultType: "complete",
       tools: [{ name: "search_links" }, { name: "save_link" }],
     });
+  });
+
+  it("rejects a write tool when the token has only the read scope", async () => {
+    const readOnlyUser = await signupUser(
+      "mcp-read-only@test.com",
+      "MCP Read Only User"
+    );
+    await env.DB.prepare("UPDATE organization SET tier = 'pro' WHERE id = ?")
+      .bind(readOnlyUser.orgId)
+      .run();
+    const readOnlyClient = await registerCurrentMcpJamClient();
+    const readOnlyTokens = await authorizeClient(
+      readOnlyUser,
+      readOnlyClient,
+      "openid offline_access links:read"
+    );
+
+    const denied = await callMcp<unknown>(
+      readOnlyTokens.access_token,
+      20,
+      "tools/call",
+      { arguments: { url: SAVED_LINK_URL }, name: "save_link" }
+    );
+
+    expect(denied.response.status).toBe(403);
+    expect(denied.response.headers.get("WWW-Authenticate")).toContain(
+      'error="insufficient_scope"'
+    );
+    expect(denied.response.headers.get("WWW-Authenticate")).toContain(
+      'scope="links:write"'
+    );
   });
 
   it("keeps search and save pinned to the consented workspace after an active-workspace switch", async () => {

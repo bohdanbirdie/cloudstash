@@ -1,6 +1,7 @@
 import { queryDb, Schema } from "@livestore/livestore";
 import { SchemaTransformation } from "effect";
 
+import { MAX_LINK_SEARCH_RESULTS } from "../../lib/link-search";
 import { tables } from "../schema";
 import type { LinkStatus } from "./filtered-links";
 import {
@@ -429,7 +430,7 @@ export const searchLinks$ = (query: string) => {
         WHERE l.deletedAt IS NULL
           AND ${wordConditions}
         ORDER BY score DESC
-        LIMIT 20
+        LIMIT ${MAX_LINK_SEARCH_RESULTS}
       `,
       schema: searchResultsSchema,
     },

@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Cause, Effect } from "effect";
 import type { Layer } from "effect";
 
 import type { AuthClient } from "./auth/service";
@@ -39,17 +39,26 @@ const onDefect = (defect: unknown) =>
     )
   );
 
+export const provideResponse = <Requirements>(
+  effect: Effect.Effect<Response, never, Requirements>,
+  layer: Layer.Layer<Requirements>,
+  onFailure: (cause: unknown) => Effect.Effect<Response>
+): Effect.Effect<Response> =>
+  effect.pipe(
+    Effect.provide(layer),
+    Effect.catchCause((cause) =>
+      onFailure(Cause.squash(cause)).pipe(Effect.provide(OtelTracingLive))
+    )
+  );
+
 // Runs a Hono request handler: provides the shared app layer and turns any
 // unhandled defect into a 500. The effect must have exhausted its error channel.
 export const runHandler = (
   env: Env,
   effect: Effect.Effect<Response, never, AppCtx>
 ): Promise<Response> =>
-  effect.pipe(
-    Effect.catchDefect(onDefect),
-    Effect.provide(getAppLayer(env)),
-    Effect.catchDefect((defect) =>
-      onDefect(defect).pipe(Effect.provide(OtelTracingLive))
-    ),
-    Effect.runPromise
-  );
+  provideResponse(
+    effect.pipe(Effect.catchDefect(onDefect)),
+    getAppLayer(env),
+    onDefect
+  ).pipe(Effect.runPromise);

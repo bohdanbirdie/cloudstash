@@ -2,12 +2,12 @@ import { and, eq } from "drizzle-orm";
 import { Effect } from "effect";
 
 import { AuthClient } from "../auth/service";
-import { OrgId, UserId } from "../db/branded";
+import { OrgId, UserId, XUserId, XUsername } from "../db/branded";
 import * as schema from "../db/schema";
 import { DbClient, query } from "../db/service";
 import { maskId } from "../log-utils";
 import { sideEffectError } from "./effects-helpers";
-import { NoAccessTokenError } from "./errors";
+import { NoAccessTokenError, XSyncSideEffectError } from "./errors";
 import type { XBookmarkTweet } from "./services";
 import { XApiClient } from "./services";
 import { LinkQueueClient } from "./services/link-queue-client";
@@ -129,7 +129,7 @@ const enqueueBookmarksEffect = Effect.fn("XBookmarkSyncDO.enqueueBookmarks")(
  */
 export const initializeWatermarkEffect = Effect.fn(
   "XBookmarkSyncDO.initializeWatermark"
-)(function* (userId: UserId) {
+)(function* (userId: UserId, accessToken: string) {
   yield* Effect.annotateCurrentSpan("userId", maskId(userId));
   const store = yield* XSyncStateStore;
   const state = yield* store.get().pipe(
@@ -145,9 +145,6 @@ export const initializeWatermarkEffect = Effect.fn(
     )
   );
   if (!state) return;
-
-  const accessToken = yield* getAccessTokenEffect(userId);
-  if (!accessToken) return;
 
   const api = yield* XApiClient;
 
@@ -230,6 +227,65 @@ export const initializeWatermarkEffect = Effect.fn(
           ),
       })
     );
+});
+
+const initializeSyncEffect = Effect.fn("XBookmarkSyncDO.initialize")(function* (
+  userId: UserId
+) {
+  yield* Effect.annotateCurrentSpan("userId", userId);
+  const store = yield* XSyncStateStore;
+
+  const existing = yield* store.get();
+
+  const accessToken = yield* getAccessTokenEffect(userId);
+  if (!accessToken) {
+    yield* Effect.logWarning("start: no access token, halting").pipe(
+      Effect.annotateLogs({ userId })
+    );
+    return false;
+  }
+
+  const api = yield* XApiClient;
+  const me = yield* api.getMe(accessToken).pipe(
+    Effect.catchTag("XUnauthorizedError", (error) =>
+      store.setStatus("needs_reconnect").pipe(
+        Effect.catchTag("XSyncStorageError", () => Effect.void),
+        Effect.tap(() =>
+          Effect.logWarning("start: getMe 401, needs reconnect").pipe(
+            Effect.annotateLogs({ userId, endpoint: error.endpoint })
+          )
+        ),
+        Effect.as(null)
+      )
+    )
+  );
+  if (!me) return false;
+
+  yield* store.setIdentity({
+    xUserId: XUserId.make(me.id),
+    xUsername: XUsername.make(me.username),
+  });
+
+  const isFreshConnect = !existing?.watermarkTweetId;
+  yield* Effect.annotateCurrentSpan("isFreshConnect", isFreshConnect);
+  yield* Effect.logInfo("start").pipe(
+    Effect.annotateLogs({ userId, isFreshConnect })
+  );
+  if (isFreshConnect) {
+    yield* initializeWatermarkEffect(userId, accessToken);
+  }
+  return true;
+});
+
+export const startSyncEffect = Effect.fn("XBookmarkSyncDO.start")(function* (
+  userId: UserId,
+  armAlarm: Effect.Effect<void, XSyncSideEffectError>
+) {
+  const initialized = yield* initializeSyncEffect(userId).pipe(
+    Effect.tapError(() => armAlarm)
+  );
+  if (initialized) yield* armAlarm;
+  return initialized;
 });
 
 export const pollOnceEffect = Effect.fn("XBookmarkSyncDO.pollOnce")(function* (

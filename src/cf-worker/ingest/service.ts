@@ -1,4 +1,4 @@
-import { Cause, Effect, Schema } from "effect";
+import { Effect, Schema } from "effect";
 
 import { HttpUrlFromString } from "@/lib/http-url";
 
@@ -14,8 +14,8 @@ import { requireCapability } from "../billing/service";
 import type { OrgId, UserId } from "../db/branded";
 import type { LinkQueueMessage } from "../link-processor/types";
 import { maskId, safeErrorInfo } from "../log-utils";
+import { provideResponse } from "../runtime";
 import type { Env } from "../shared";
-import { OtelTracingLive } from "../tracing";
 import {
   IngestInvalidApiKeyError,
   IngestAccessDeniedError,
@@ -141,27 +141,12 @@ export const ingestResponse = <Requirements>(
     Effect.catchTags({
       CapabilityDisabledError: (error) =>
         Effect.succeed(capabilityDeniedResponse(error)),
-      DbError: (cause) =>
-        Effect.logError("Ingest: capability check failed").pipe(
-          Effect.annotateLogs(safeErrorInfo(cause)),
-          Effect.as(Response.json({ error: "Internal error" }, { status: 500 }))
-        ),
       IngestInvalidApiKeyError: () =>
         Effect.succeed(
           Response.json({ error: "Invalid API key" }, { status: 401 })
         ),
       IngestAccessDeniedError: () =>
         Effect.succeed(Response.json({ error: "Forbidden" }, { status: 403 })),
-      IngestAuthBackendError: (error) =>
-        Effect.logError("Ingest: auth backend unavailable").pipe(
-          Effect.annotateLogs(safeErrorInfo(error.cause)),
-          Effect.as(
-            Response.json(
-              { error: "Auth backend unavailable" },
-              { status: 503 }
-            )
-          )
-        ),
       IngestInvalidUrlError: () =>
         Effect.succeed(
           Response.json({ error: "Invalid URL" }, { status: 400 })
@@ -189,28 +174,43 @@ export const ingestResponse = <Requirements>(
           )
         ),
     }),
-    Effect.catchTag("IngestQueueSendError", (error) =>
-      Effect.logError("Ingest failed").pipe(
-        Effect.annotateLogs(safeErrorInfo(error)),
-        Effect.as(
-          Response.json({ error: "Queue send failed" }, { status: 500 })
-        )
-      )
-    )
+    Effect.withSpan("Ingest.handleIngestRequest"),
+    Effect.catchTags({
+      DbError: (cause) =>
+        Effect.logError("Ingest: capability check failed").pipe(
+          Effect.annotateLogs(safeErrorInfo(cause)),
+          Effect.as(Response.json({ error: "Internal error" }, { status: 500 }))
+        ),
+      IngestAuthBackendError: (error) =>
+        Effect.logError("Ingest: auth backend unavailable").pipe(
+          Effect.annotateLogs(safeErrorInfo(error.cause)),
+          Effect.as(
+            Response.json(
+              { error: "Auth backend unavailable" },
+              { status: 503 }
+            )
+          )
+        ),
+      IngestQueueSendError: (error) =>
+        Effect.logError("Ingest failed").pipe(
+          Effect.annotateLogs(safeErrorInfo(error)),
+          Effect.as(
+            Response.json({ error: "Queue send failed" }, { status: 500 })
+          )
+        ),
+    })
   );
 
 export const ingestRequestToResponse = (
   request: Request,
   env: Env
 ): Effect.Effect<Response> =>
-  ingestResponse(handleIngestRequest(request, env)).pipe(
-    Effect.withSpan("Ingest.handleIngestRequest"),
-    Effect.provide(AppLayerLive(env)),
-    Effect.catchCause((cause) =>
+  provideResponse(
+    ingestResponse(handleIngestRequest(request, env)),
+    AppLayerLive(env),
+    (cause) =>
       Effect.logError("Ingest handler crashed").pipe(
-        Effect.annotateLogs(safeErrorInfo(Cause.squash(cause))),
-        Effect.as(Response.json({ error: "Internal error" }, { status: 500 })),
-        Effect.provide(OtelTracingLive)
+        Effect.annotateLogs(safeErrorInfo(cause)),
+        Effect.as(Response.json({ error: "Internal error" }, { status: 500 }))
       )
-    )
   );

@@ -1,6 +1,5 @@
 import { describe, it } from "@effect/vitest";
-import { makeSignature } from "better-auth/crypto";
-import { Clock, Effect } from "effect";
+import { Effect } from "effect";
 import { TestClock } from "effect/testing";
 import { expect, vi } from "vitest";
 
@@ -9,30 +8,21 @@ import {
   bindConsentWorkspace,
   validateConsentWorkspaceBinding,
 } from "../oauth-consent-binding";
-import { canonicalizeOAuthQuery } from "../oauth-consent-state";
 
 const env = {
   BETTER_AUTH_SECRET: "test-secret-for-oauth-consent-binding-32-chars",
   BETTER_AUTH_URL: "https://cloudstash.test/api/auth",
 } as const;
 
-const signedOAuthQuery = Effect.fnUntraced(function* (
-  extra: Record<string, string> = {}
-) {
-  const now = yield* Clock.currentTimeMillis;
+const oauthQuery = (extra: Record<string, string> = {}) => {
   const params = new URLSearchParams({
     client_id: "mcp-client",
-    exp: String(Math.floor(now / 1_000) + 600),
+    exp: "4102444800",
+    sig: "provider-signature",
     ...extra,
   });
-  const signedNames = [...new Set([...params.keys(), "ba_param"])].toSorted();
-  for (const name of signedNames) params.append("ba_param", name);
-  const signature = yield* Effect.promise(() =>
-    makeSignature(canonicalizeOAuthQuery(params), env.BETTER_AUTH_SECRET)
-  );
-  params.set("sig", signature);
   return params.toString();
-});
+};
 
 const authWithActiveWorkspace = (
   organizationId: string | null,
@@ -57,7 +47,7 @@ const bindWorkspace = Effect.fnUntraced(function* (
     readonly inspectHeaders?: (headers: Headers) => void;
   } = {}
 ) {
-  const query = options.query ?? (yield* signedOAuthQuery());
+  const query = options.query ?? oauthQuery();
   const headers = new Headers({
     Location: `https://cloudstash.test/oauth-consent?${query}`,
   });
@@ -129,7 +119,7 @@ describe("OAuth consent workspace binding", () => {
 
   it.effect("binds a JSON OAuth resume without consuming its body", () =>
     Effect.gen(function* () {
-      const query = yield* signedOAuthQuery();
+      const query = oauthQuery();
       const response = yield* bindConsentWorkspace(
         Response.json(
           {
@@ -179,44 +169,6 @@ describe("OAuth consent workspace binding", () => {
     })
   );
 
-  it.effect("matches Better Auth's code-unit query ordering", () =>
-    Effect.gen(function* () {
-      const params = new URLSearchParams(
-        "resource=z&Z_ext=1&client_id=mcp-client&resource=A&_ext=2&exp=4102444800" +
-          "&ba_param=resource&ba_param=Z_ext&ba_param=client_id" +
-          "&ba_param=_ext&ba_param=exp&ba_param=ba_param"
-      );
-      const canonical = new URLSearchParams();
-      for (const [key, value] of [
-        ["Z_ext", "1"],
-        ["_ext", "2"],
-        ["ba_param", "Z_ext"],
-        ["ba_param", "_ext"],
-        ["ba_param", "ba_param"],
-        ["ba_param", "client_id"],
-        ["ba_param", "exp"],
-        ["ba_param", "resource"],
-        ["client_id", "mcp-client"],
-        ["exp", "4102444800"],
-        ["resource", "A"],
-        ["resource", "z"],
-      ] as const) {
-        canonical.append(key, value);
-      }
-      params.set(
-        "sig",
-        yield* Effect.promise(() =>
-          makeSignature(canonical.toString(), env.BETTER_AUTH_SECRET)
-        )
-      );
-
-      const { cookie } = yield* bindWorkspace("workspace-a", {
-        query: params.toString(),
-      });
-      expect(cookie).toContain("cloudstash_mcp_consent=");
-    })
-  );
-
   it.effect("rejects when another tab changes the active workspace", () =>
     Effect.gen(function* () {
       const { cookie, query } = yield* bindWorkspace("workspace-a");
@@ -238,7 +190,7 @@ describe("OAuth consent workspace binding", () => {
   it.effect("rejects a different signed authorization query", () =>
     Effect.gen(function* () {
       const { cookie } = yield* bindWorkspace();
-      const otherQuery = yield* signedOAuthQuery({ state: "other" });
+      const otherQuery = oauthQuery({ state: "other" });
       const response = yield* validateConsentWorkspaceBinding(
         consentRequest(cookie, otherQuery),
         authWithActiveWorkspace("workspace-a"),
@@ -250,7 +202,7 @@ describe("OAuth consent workspace binding", () => {
 
   it.effect("rejects a missing binding cookie", () =>
     Effect.gen(function* () {
-      const query = yield* signedOAuthQuery();
+      const query = oauthQuery();
       const response = yield* validateConsentWorkspaceBinding(
         consentRequest("", query),
         authWithActiveWorkspace("workspace-a"),
@@ -298,12 +250,12 @@ describe("OAuth consent workspace binding", () => {
     })
   );
 
-  it.effect("does not bind an unsigned consent Location", () =>
+  it.effect("binds the exact query from a trusted consent redirect", () =>
     Effect.gen(function* () {
       const { cookie } = yield* bindWorkspace("workspace-a", {
         query: "client_id=mcp-client&exp=9999999999&sig=forged",
       });
-      expect(cookie).toBe("");
+      expect(cookie).toContain("cloudstash_mcp_consent=");
     })
   );
 

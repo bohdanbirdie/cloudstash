@@ -74,6 +74,10 @@ export const WorkspaceAccessError = Schema.Union([
   WorkspaceAccessBackendError,
 ]);
 export type WorkspaceAccessError = typeof WorkspaceAccessError.Type;
+export type WorkspaceAccessDeniedError = Exclude<
+  WorkspaceAccessError,
+  WorkspaceAccessBackendError
+>;
 
 export const WorkspaceAuthorization = Schema.Struct({
   orgId: OrgId,

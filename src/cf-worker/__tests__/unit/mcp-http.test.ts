@@ -12,7 +12,10 @@ const env = {
 
 describe("MCP HTTP authorization responses", () => {
   it("keeps backend failures distinct from invalid credentials", async () => {
-    const response = authorizationBackendUnavailableResponse(env);
+    const response = withMcpCors(
+      authorizationBackendUnavailableResponse(),
+      env
+    );
 
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({

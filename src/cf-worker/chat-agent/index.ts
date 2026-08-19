@@ -16,6 +16,7 @@ import {
 import type { LanguageModel } from "ai";
 import { Effect, Match } from "effect";
 
+import { normalizeLinkSearchQuery } from "../../lib/link-search";
 import type { LinkStatus } from "../../livestore/queries/filtered-links";
 import {
   apiLinksCount$,
@@ -29,7 +30,6 @@ import { Billing } from "../billing/service";
 import { OrgId } from "../db/branded";
 import type { ApiLinksPage } from "../links/api";
 import { encodeLinksPage, mergeTagNamesByLink } from "../links/api";
-import { normalizeLinkSearchQuery } from "../links/search-contract";
 import { maskId } from "../log-utils";
 import { getAppLayer } from "../runtime";
 import type { Env } from "../shared";

@@ -3,17 +3,22 @@ import { Effect, Layer } from "effect";
 import { AppLayerLive, AuthClient } from "../auth/service";
 import { WorkspaceAccess } from "../auth/workspace-access";
 import { capabilityDeniedResponse } from "../billing/errors";
-import { requireCapability } from "../billing/service";
+import { Billing, requireCapability } from "../billing/service";
 import { UserId } from "../db/branded";
+import { DbError } from "../db/service";
 import { maskId, safeErrorInfo } from "../log-utils";
+import { provideResponse } from "../runtime";
 import type { Env } from "../shared";
-import { OtelTracingLive } from "../tracing";
 import type {
   XBookmarkSyncDO,
   XStatusResponse,
 } from "../x-sync/durable-object";
 import { sideEffectError } from "../x-sync/effects-helpers";
-import { ConnectUnauthorizedError, NoActiveOrgError } from "./errors";
+import {
+  ConnectUnauthorizedError,
+  NoActiveOrgError,
+  SessionLookupError,
+} from "./errors";
 import { SessionProvider, getAuthorizedSession } from "./services";
 
 type ActionResult = { ok: true } | { kind: "not_connected" };
@@ -225,68 +230,90 @@ const unexpected500 = (cause: unknown): Effect.Effect<Response> =>
     Effect.as(Response.json({ error: "Internal error" }, { status: 500 }))
   );
 
-const layerFailure500 = (cause: unknown) =>
-  unexpected500(cause).pipe(Effect.provide(OtelTracingLive));
-
 const mapActionResult = (data: ActionResult): Response =>
   "ok" in data
     ? Response.json(data)
     : Response.json({ error: "Not connected" }, { status: 404 });
 
-const commonErrorTags = {
+const expectedErrorTags = {
   ConnectUnauthorizedError: () =>
     Effect.succeed(Response.json({ error: "Unauthorized" }, { status: 401 })),
-  SessionLookupError: () =>
-    Effect.succeed(
-      Response.json({ error: "Auth backend unavailable" }, { status: 503 })
-    ),
 } as const;
 
-export const handleXStatus = (request: Request, env: Env): Promise<Response> =>
+type XConnectRequirements = SessionProvider | AuthClient | Billing;
+
+const runXHandler = (
+  effect: Effect.Effect<
+    Response,
+    SessionLookupError | DbError,
+    XConnectRequirements
+  >,
+  env: Env,
+  spanName: string
+): Promise<Response> =>
   Effect.runPromise(
+    provideResponse(
+      effect.pipe(
+        Effect.withSpan(spanName),
+        Effect.catchTags({
+          DbError: (error) => unexpected500(error),
+          SessionLookupError: (error) =>
+            Effect.logError("X connect: auth backend unavailable").pipe(
+              Effect.annotateLogs(safeErrorInfo(error)),
+              Effect.as(
+                Response.json(
+                  { error: "Auth backend unavailable" },
+                  { status: 503 }
+                )
+              )
+            ),
+        }),
+        Effect.catchCause((cause) => unexpected500(cause))
+      ),
+      makeLiveLayer(env),
+      unexpected500
+    )
+  );
+
+export const handleXStatus = (request: Request, env: Env): Promise<Response> =>
+  runXHandler(
     xStatusRequest(request.headers, env).pipe(
       Effect.map((data) => Response.json(data)),
-      Effect.catchTags(commonErrorTags),
-      Effect.catchCause((cause) => unexpected500(cause)),
-      Effect.withSpan("XConnect.status"),
-      Effect.provide(makeLiveLayer(env)),
-      Effect.catchCause(layerFailure500)
-    )
+      Effect.catchTags(expectedErrorTags)
+    ),
+    env,
+    "XConnect.status"
   );
 
 export const handleXDisconnect = (
   request: Request,
   env: Env
 ): Promise<Response> =>
-  Effect.runPromise(
+  runXHandler(
     xDisconnectRequest(request, env).pipe(
       Effect.map((data) => Response.json(data)),
-      Effect.catchTags(commonErrorTags),
-      Effect.catchCause((cause) => unexpected500(cause)),
-      Effect.withSpan("XConnect.disconnect"),
-      Effect.provide(makeLiveLayer(env)),
-      Effect.catchCause(layerFailure500)
-    )
+      Effect.catchTags(expectedErrorTags)
+    ),
+    env,
+    "XConnect.disconnect"
   );
 
 export const handleXPause = (request: Request, env: Env): Promise<Response> =>
-  Effect.runPromise(
+  runXHandler(
     xPauseRequest(request, env).pipe(
       Effect.map(mapActionResult),
-      Effect.catchTags(commonErrorTags),
-      Effect.catchCause((cause) => unexpected500(cause)),
-      Effect.withSpan("XConnect.pause"),
-      Effect.provide(makeLiveLayer(env)),
-      Effect.catchCause(layerFailure500)
-    )
+      Effect.catchTags(expectedErrorTags)
+    ),
+    env,
+    "XConnect.pause"
   );
 
 export const handleXResume = (request: Request, env: Env): Promise<Response> =>
-  Effect.runPromise(
+  runXHandler(
     xResumeRequest(request, env).pipe(
       Effect.map(mapActionResult),
       Effect.catchTags({
-        ...commonErrorTags,
+        ...expectedErrorTags,
         CapabilityDisabledError: (e) =>
           Effect.succeed(capabilityDeniedResponse(e)),
         NoActiveOrgError: () =>
@@ -297,11 +324,8 @@ export const handleXResume = (request: Request, env: Env): Promise<Response> =>
           Effect.succeed(
             Response.json({ error: "Organization not found" }, { status: 404 })
           ),
-        DbError: (cause) => unexpected500(cause),
-      }),
-      Effect.catchCause((cause) => unexpected500(cause)),
-      Effect.withSpan("XConnect.resume"),
-      Effect.provide(makeLiveLayer(env)),
-      Effect.catchCause(layerFailure500)
-    )
+      })
+    ),
+    env,
+    "XConnect.resume"
   );

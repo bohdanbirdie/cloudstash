@@ -11,13 +11,10 @@ import type { Env } from "../shared";
 // isolate; the cache avoids turning normal auth construction into a DB write.
 const initializedDatabases = new WeakSet<D1Database>();
 
-export const ensureMcpResource = Effect.fnUntraced(function* (
-  db: Database,
-  d1: D1Database,
-  identifier: string
-) {
-  if (initializedDatabases.has(d1)) return;
+const ensureMcpResource = Effect.fnUntraced(function* (db: Database, env: Env) {
+  if (initializedDatabases.has(env.DB)) return;
   const now = new Date(yield* Clock.currentTimeMillis);
+  const identifier = mcpResource(env);
   yield* query(
     db
       .insert(schema.oauthResource)
@@ -30,18 +27,18 @@ export const ensureMcpResource = Effect.fnUntraced(function* (
       })
       .onConflictDoNothing({ target: schema.oauthResource.identifier })
   );
-  initializedDatabases.add(d1);
+  initializedDatabases.add(env.DB);
 });
 
 export const initializeMcpOAuthResource = Effect.fn(
   "Auth.initializeMcpOAuthResource"
 )(function* (env: Env) {
   const db = yield* DbClient;
-  yield* ensureMcpResource(db, env.DB, mcpResource(env));
+  yield* ensureMcpResource(db, env);
 });
 
-export const mcpResourceUnavailable = (cause: unknown) =>
-  Effect.logError("OAuth resource initialization failed").pipe(
+export const authBackendUnavailable = (cause: unknown) =>
+  Effect.logError("Authentication database unavailable").pipe(
     Effect.annotateLogs(safeErrorInfo(cause)),
     Effect.as(
       Response.json(

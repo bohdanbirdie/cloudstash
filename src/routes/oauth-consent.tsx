@@ -14,23 +14,19 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { authClient, loadAuth } from "@/lib/auth";
+import { MCP_SCOPES } from "@/lib/mcp";
 import {
   consentPermissionDescriptions,
   consentRedirectTarget,
   loadConsentWorkspace,
 } from "@/lib/oauth-consent";
 
-const ALLOWED_SCOPES = new Set([
-  "openid",
-  "offline_access",
-  "links:read",
-  "links:write",
-]);
+const ALLOWED_SCOPES = new Set<string>(MCP_SCOPES);
 
 export const Route = createFileRoute("/oauth-consent")({
   beforeLoad: async () => {
     const auth = await loadAuth();
-    if (!auth?.isAuthenticated) throw redirect({ to: "/login" });
+    if (!auth?.isAuthenticated) throw redirect({ to: "/login", search: true });
   },
   loader: () => loadConsentWorkspace(),
   component: OAuthConsentPage,

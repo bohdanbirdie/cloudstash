@@ -9,12 +9,22 @@ import {
   validateConsentWorkspaceBinding,
 } from "./oauth-consent-binding";
 import { AuthClient } from "./service";
+import { cleanupExpiredVerifications } from "./verification-cleanup";
 
 export const handleAuthRequest = Effect.fn("Auth.handleRequest")(function* (
   request: Request,
   env: Env
 ) {
   yield* initializeMcpOAuthResource(env);
+
+  const url = new URL(request.url);
+  if (
+    request.method === "POST" &&
+    url.pathname === "/api/auth/oauth2/token" &&
+    request.headers.has("dpop")
+  ) {
+    yield* cleanupExpiredVerifications(env.DB);
+  }
 
   const invalidRegistration =
     yield* validateOAuthClientRegistrationRequest(request);

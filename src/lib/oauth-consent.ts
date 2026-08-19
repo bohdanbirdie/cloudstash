@@ -1,5 +1,7 @@
 import { Effect, Option, Schema } from "effect";
 
+import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from "./mcp";
+
 const ConsentWorkspaceResponse = Schema.Struct({
   organization: Schema.optional(
     Schema.NullOr(
@@ -102,8 +104,8 @@ export const consentPermissionDescriptions = (
 ): readonly string[] => {
   const requested = new Set(scopes);
   const descriptions: string[] = [];
-  const canRead = requested.has("links:read");
-  const canWrite = requested.has("links:write");
+  const canRead = requested.has(MCP_READ_SCOPE);
+  const canWrite = requested.has(MCP_WRITE_SCOPE);
 
   if (canRead && canWrite) descriptions.push("View and save links");
   else if (canRead) descriptions.push("View saved links");

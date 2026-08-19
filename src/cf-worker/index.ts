@@ -22,8 +22,8 @@ import { handleGetUsage } from "./admin/usage";
 import { trackEvent } from "./analytics";
 import { handleAuthRequest } from "./auth/handler";
 import {
+  authBackendUnavailable,
   initializeMcpOAuthResource,
-  mcpResourceUnavailable,
 } from "./auth/mcp-resource";
 import {
   MAX_REGISTRATION_BODY_BYTES,
@@ -70,6 +70,7 @@ import {
 import type { LinkQueueMessage } from "./link-processor/types";
 import { handleListLinks } from "./links/handler";
 import { logSync } from "./logger";
+import { withMcpCors } from "./mcp/http";
 import {
   MAX_MCP_BODY_BYTES,
   mcpBodyTooLargeResponse,
@@ -161,7 +162,7 @@ app.on(["GET", "HEAD", "OPTIONS"], "/.well-known/*", (c) => {
     }).pipe(
       Effect.withSpan("API.authMetadataHandler"),
       Effect.catchTag("DbError", (error) =>
-        mcpResourceUnavailable(error.cause).pipe(
+        authBackendUnavailable(error.cause).pipe(
           Effect.map((response) => withOAuthMetadataCors(response, c.env))
         )
       )
@@ -226,7 +227,7 @@ app.on(["GET", "POST"], "/api/auth/*", (c) =>
     c.env,
     handleAuthRequest(c.req.raw, c.env).pipe(
       Effect.withSpan("API.authHandler"),
-      Effect.catchTag("DbError", (error) => mcpResourceUnavailable(error.cause))
+      Effect.catchTag("DbError", (error) => authBackendUnavailable(error.cause))
     )
   )
 );
@@ -374,15 +375,14 @@ const handleSync = async (
   ) as unknown as Response;
 };
 
-export const fetch = async (
+const dispatchRequest = async (
   request: CfTypes.Request,
   env: Env,
-  ctx: CfTypes.ExecutionContext
+  ctx: CfTypes.ExecutionContext,
+  url: URL
 ): Promise<Response> => {
   const rateLimited = await checkRateLimit(request, env);
   if (rateLimited) return rateLimited;
-
-  const url = new URL(request.url);
 
   const agentResponse = await routeAgentRequest(
     request as unknown as Request,
@@ -407,6 +407,16 @@ export const fetch = async (
   }
 
   return app.fetch(request as unknown as Request, env, ctx);
+};
+
+export const fetch = async (
+  request: CfTypes.Request,
+  env: Env,
+  ctx: CfTypes.ExecutionContext
+): Promise<Response> => {
+  const url = new URL(request.url);
+  const response = await dispatchRequest(request, env, ctx, url);
+  return url.pathname === "/mcp" ? withMcpCors(response, env) : response;
 };
 
 export const queue = (

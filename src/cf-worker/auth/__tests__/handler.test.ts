@@ -7,7 +7,7 @@ import { createDb } from "../../db";
 import { DbClient } from "../../db/service";
 import type { Env } from "../../shared";
 import { handleAuthRequest } from "../handler";
-import { mcpResourceUnavailable } from "../mcp-resource";
+import { authBackendUnavailable } from "../mcp-resource";
 import { AuthClient } from "../service";
 import { WorkspaceAccess } from "../workspace-access";
 
@@ -43,7 +43,7 @@ describe("auth request initialization", () => {
         ).pipe(
           Effect.withSpan("API.authHandler"),
           Effect.catchTag("DbError", (error) =>
-            mcpResourceUnavailable(error.cause)
+            authBackendUnavailable(error.cause)
           ),
           Effect.provide(layer),
           Effect.provideService(References.MinimumLogLevel, "Error")

@@ -2,10 +2,10 @@ import { describe, it } from "@effect/vitest";
 import { Effect, Option, Schema } from "effect";
 import { expect, vi } from "vitest";
 
+import { normalizeLinkSearchQuery } from "../../../lib/link-search";
 import type { SearchResult } from "../../../livestore/queries/schemas";
 import { OrgId, UserId } from "../../db/branded";
 import { LinksReadError, searchWorkspaceLinks } from "../../links/handler";
-import { normalizeLinkSearchQuery } from "../../links/search-contract";
 import type { McpAuthorization } from "../../mcp/auth";
 import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from "../../mcp/config";
 import {

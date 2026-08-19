@@ -11,7 +11,6 @@ import {
   consentBindingCookie,
   makeConsentBinding,
   readConsentBinding,
-  verifySignedOAuthQuery,
 } from "./oauth-consent-state";
 
 const OAuthRedirect = Schema.Struct({
@@ -44,8 +43,7 @@ const redirectFrom = Effect.fn("OAuth.readRedirect")(function* (
 
 const consentQueryFrom = Effect.fn("OAuth.readConsentQuery")(function* (
   response: Response,
-  baseURL: string,
-  secret: string
+  baseURL: string
 ) {
   const redirect = yield* redirectFrom(response);
   if (Option.isNone(redirect)) return Option.none<string>();
@@ -61,7 +59,7 @@ const consentQueryFrom = Effect.fn("OAuth.readConsentQuery")(function* (
   ) {
     return Option.none<string>();
   }
-  return yield* verifySignedOAuthQuery(target.value.search, secret);
+  return Option.some(target.value.searchParams.toString());
 });
 
 const sessionHeaders = (request: Request, response: Response): Headers => {
@@ -109,11 +107,7 @@ export const bindConsentWorkspace = Effect.fn("OAuth.bindConsentWorkspace")(
       );
     }
 
-    const query = yield* consentQueryFrom(
-      response,
-      env.BETTER_AUTH_URL,
-      env.BETTER_AUTH_SECRET
-    );
+    const query = yield* consentQueryFrom(response, env.BETTER_AUTH_URL);
     if (Option.isNone(query)) return response;
 
     const session = yield* Effect.promise(() =>

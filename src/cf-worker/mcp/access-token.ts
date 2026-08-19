@@ -1,4 +1,5 @@
 import { createResourceServerChallenge } from "@better-auth/oauth-provider";
+import { APIError } from "better-auth/api";
 import {
   createDpopReplayStore,
   enforceDpopBinding,
@@ -6,7 +7,6 @@ import {
   parseAccessTokenAuthorization,
   verifyJwsAccessToken,
 } from "better-auth/oauth2";
-import { APIError } from "better-call";
 import { Data, Effect } from "effect";
 import type { JSONWebKeySet } from "jose";
 import { errors as joseErrors } from "jose";
@@ -16,7 +16,6 @@ import type { Auth } from "../auth";
 const JOSE_INFRASTRUCTURE_ERROR_CODES = new Set([
   joseErrors.JWKSTimeout.code,
   joseErrors.JWKSInvalid.code,
-  joseErrors.JWKSMultipleMatchingKeys.code,
 ]);
 
 export class McpAccessTokenRejected extends Data.TaggedError(

@@ -5,8 +5,11 @@ import type { JWTPayload } from "jose";
 
 import { initializeMcpOAuthResource } from "../auth/mcp-resource";
 import { AuthClient } from "../auth/service";
+import { cleanupExpiredVerifications } from "../auth/verification-cleanup";
+import { workspaceAccessHttpResponse } from "../auth/workspace-access-http";
+import { capabilityDeniedResponse } from "../billing/errors";
 import { maskId, safeErrorInfo } from "../log-utils";
-import { getAppLayer } from "../runtime";
+import { getAppLayer, provideResponse } from "../runtime";
 import type { Env } from "../shared";
 import { OtelTracingLive } from "../tracing";
 import {
@@ -21,9 +24,11 @@ import {
   authorizationBackendUnavailableResponse,
   insufficientScopeResponse,
   mcpCorsOptions,
-  withMcpCors,
 } from "./http";
-import { requiredScopesForRequest } from "./request-scope";
+import {
+  McpInsufficientScopeError,
+  requiredScopesForRequest,
+} from "./request-scope";
 import { makeMcpServer } from "./tools";
 
 const accessToken = (request: Request): string => {
@@ -47,42 +52,34 @@ const toAuthInfo = (
   },
 });
 
-const authorizationFailure = Effect.fnUntraced(function* (
-  cause: unknown,
-  env: Env
-) {
+const authorizationFailure = Effect.fnUntraced(function* (cause: unknown) {
   yield* Effect.logError("MCP authorization failed").pipe(
     Effect.annotateLogs(safeErrorInfo(cause))
   );
-  return authorizationBackendUnavailableResponse(env);
+  return authorizationBackendUnavailableResponse();
 });
 
-const handleVerifiedRequestEffect = Effect.fn("MCP.handleVerifiedRequest")(
-  function* (request: Request, claims: JWTPayload, env: Env, issuer: string) {
-    const resource = mcpResource(env);
-    const authorization = yield* authorizeMcpClaims(claims, {
-      issuer,
-      resource,
-    });
-    if (authorization instanceof Response) return authorization;
+const handleVerifiedRequestEffect = Effect.fnUntraced(function* (
+  request: Request,
+  claims: JWTPayload,
+  env: Env
+) {
+  const authorization = yield* authorizeMcpClaims(claims);
 
-    yield* Effect.annotateCurrentSpan("orgId", maskId(authorization.orgId));
-    yield* Effect.annotateCurrentSpan(
-      "clientId",
-      maskId(authorization.clientId)
-    );
+  yield* Effect.annotateCurrentSpan("orgId", maskId(authorization.orgId));
+  yield* Effect.annotateCurrentSpan("clientId", maskId(authorization.clientId));
 
-    const scopes = yield* requiredScopesForRequest(request);
-    if (scopes instanceof Response) return scopes;
-    const granted = new Set(authorization.scopes);
-    const missing = scopes.filter((scope) => !granted.has(scope));
-    if (missing.length > 0) return insufficientScopeResponse(missing, env);
-
-    const authInfo = toAuthInfo(request, authorization, env);
-    const handler = makeMcpHandler(env, authorization);
-    return yield* Effect.promise(() => handler.fetch(request, { authInfo }));
+  const scopes = yield* requiredScopesForRequest(request);
+  const granted = new Set(authorization.scopes);
+  const missing = scopes.filter((scope) => !granted.has(scope));
+  if (missing.length > 0) {
+    return yield* new McpInsufficientScopeError({ scopes: missing });
   }
-);
+
+  const authInfo = toAuthInfo(request, authorization, env);
+  const handler = makeMcpHandler(env, authorization);
+  return yield* Effect.promise(() => handler.fetch(request, { authInfo }));
+});
 
 const makeMcpHandler = (env: Env, authorization: McpAuthorization | null) => {
   const origin = new URL(env.BETTER_AUTH_URL);
@@ -100,6 +97,9 @@ const handleMcpRequestEffect = Effect.fnUntraced(function* (
   env: Env
 ) {
   yield* initializeMcpOAuthResource(env);
+  if (request.headers.has("dpop")) {
+    yield* cleanupExpiredVerifications(env.DB);
+  }
 
   const auth = yield* AuthClient;
   const { baseURL: issuer } = yield* Effect.tryPromise({
@@ -112,13 +112,8 @@ const handleMcpRequestEffect = Effect.fnUntraced(function* (
     issuer,
     jwksCacheKey: env.DB,
   });
-  const response = yield* handleVerifiedRequestEffect(
-    request,
-    claims,
-    env,
-    issuer
-  );
-  return withMcpCors(response, env);
+  const response = yield* handleVerifiedRequestEffect(request, claims, env);
+  return response;
 });
 
 export const handleMcpRequest = (
@@ -133,37 +128,50 @@ export const handleMcpRequest = (
     );
   }
 
-  return handleMcpRequestEffect(request, env).pipe(
-    Effect.catchTag("McpAccessTokenRejected", (error) =>
-      Effect.succeed(
-        withMcpCors(
+  return provideResponse(
+    handleMcpRequestEffect(request, env).pipe(
+      Effect.catchTag("McpAccessTokenRejected", (error) =>
+        Effect.succeed(
           mcpAuthorizationChallenge(error, mcpResource(env), [
             MCP_READ_SCOPE,
             MCP_WRITE_SCOPE,
-          ]),
-          env
+          ])
         )
-      )
+      ),
+      Effect.catchTags({
+        CapabilityDisabledError: (error) =>
+          Effect.succeed(capabilityDeniedResponse(error)),
+        McpInsufficientScopeError: (error) =>
+          Effect.succeed(insufficientScopeResponse(error.scopes, env)),
+        McpInvalidClaimsError: () =>
+          Effect.succeed(
+            Response.json(
+              { error: "Invalid access token claims" },
+              { status: 401 }
+            )
+          ),
+        McpRequestRejected: (error) =>
+          Effect.succeed(
+            Response.json({ error: error.message }, { status: error.status })
+          ),
+        McpWorkspaceAccessDenied: (error) =>
+          workspaceAccessHttpResponse(error.cause),
+        OrgNotFoundError: () =>
+          Effect.logWarning("MCP authorization: organization not found").pipe(
+            Effect.as(Response.json({ error: "Forbidden" }, { status: 403 }))
+          ),
+      }),
+      Effect.withSpan("MCP.handleRequest"),
+      Effect.catchTag("McpAccessTokenBackendError", (error) =>
+        authorizationFailure(error.cause)
+      ),
+      Effect.catchTag("McpAuthorizationBackendError", (error) =>
+        authorizationFailure(error.cause)
+      ),
+      Effect.catchTag("DbError", (error) => authorizationFailure(error.cause)),
+      Effect.catchCause((cause) => authorizationFailure(Cause.squash(cause)))
     ),
-    Effect.withSpan("MCP.handleRequest"),
-    Effect.catchTag("McpAccessTokenBackendError", (error) =>
-      authorizationFailure(error.cause, env)
-    ),
-    Effect.catchTag("McpAuthorizationBackendError", (error) =>
-      authorizationFailure(error.cause, env)
-    ),
-    Effect.catchTag("DbError", (error) =>
-      authorizationFailure(error.cause, env)
-    ),
-    Effect.catchCause((cause) =>
-      authorizationFailure(Cause.squash(cause), env)
-    ),
-    Effect.provide(getAppLayer(env)),
-    Effect.catchCause((cause) =>
-      authorizationFailure(Cause.squash(cause), env).pipe(
-        Effect.provide(OtelTracingLive)
-      )
-    ),
-    Effect.runPromise
-  );
+    getAppLayer(env),
+    authorizationFailure
+  ).pipe(Effect.runPromise);
 };

@@ -1,5 +1,5 @@
 import { mcp } from "@better-auth/mcp";
-import { APIError } from "better-call";
+import { APIError } from "better-auth/api";
 
 import { MCP_SCOPES, MCP_WORKSPACE_CLAIM, mcpResource } from "../mcp/config";
 import type { Env } from "../shared";

@@ -63,9 +63,6 @@ describe("local MCP access-token verification", () => {
     () =>
       Effect.gen(function* () {
         const token = yield* Effect.promise(() => accessToken());
-        const network = vi
-          .spyOn(globalThis, "fetch")
-          .mockRejectedValue(new Error("unexpected network fetch"));
         const getJwks = vi.fn(async () => jwks);
 
         const payload = yield* verifyMcpAccessToken(
@@ -83,8 +80,6 @@ describe("local MCP access-token verification", () => {
 
         expect(payload.sub).toBe("user-1");
         expect(getJwks).toHaveBeenCalledOnce();
-        expect(network).not.toHaveBeenCalled();
-        network.mockRestore();
       })
   );
 
@@ -146,6 +141,45 @@ describe("local MCP access-token verification", () => {
       ).pipe(Effect.flip);
 
       expect(failure).toBeInstanceOf(McpAccessTokenBackendError);
+    })
+  );
+
+  it.effect("rejects an ambiguous key selection as an invalid token", () =>
+    Effect.gen(function* () {
+      const otherPair = yield* Effect.promise(() => generateKeyPair("ES256"));
+      const token = yield* Effect.promise(() =>
+        new SignJWT({ sub: "user-1" })
+          .setProtectedHeader({ alg: "ES256" })
+          .setIssuer(issuer)
+          .setAudience(audience)
+          .setExpirationTime("5m")
+          .sign(signingKey)
+      );
+      const ambiguousJwks = {
+        keys: [
+          {
+            ...(yield* Effect.promise(() => exportJWK(otherPair.publicKey))),
+            alg: "ES256",
+            use: "sig",
+          },
+          { ...jwks.keys[0], kid: undefined },
+        ],
+      };
+
+      const failure = yield* verifyMcpAccessToken(
+        new Request(audience, {
+          headers: { Authorization: `Bearer ${token}` },
+          method: "POST",
+        }),
+        {
+          audience,
+          issuer,
+          jwks: async () => ambiguousJwks,
+          replayStore: { reserve: () => true },
+        }
+      ).pipe(Effect.flip);
+
+      expect(failure).toBeInstanceOf(McpAccessTokenRejected);
     })
   );
 

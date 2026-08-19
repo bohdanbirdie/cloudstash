@@ -2,18 +2,18 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { Cause, Effect, Schema } from "effect";
 
 import { HttpUrlFromString } from "../../lib/http-url";
-import type { SearchResult } from "../../livestore/queries/schemas";
-import { enqueueLink } from "../ingest/service";
-import { searchWorkspaceLinks } from "../links/handler";
 import {
   LinkSearchQuery,
   MAX_LINK_SEARCH_RESULTS,
-} from "../links/search-contract";
+} from "../../lib/link-search";
+import { MCP_TOOL_SCOPES } from "../../lib/mcp";
+import type { SearchResult } from "../../livestore/queries/schemas";
+import { enqueueLink } from "../ingest/service";
+import { searchWorkspaceLinks } from "../links/handler";
 import { maskId, safeErrorInfo } from "../log-utils";
 import type { Env } from "../shared";
 import { OtelTracingLive } from "../tracing";
 import type { McpAuthorization } from "./auth";
-import { MCP_TOOL_SCOPES } from "./request-scope";
 
 const textResult = (value: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(value) }],

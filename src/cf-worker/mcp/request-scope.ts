@@ -1,6 +1,6 @@
-import { Effect, Option, Schema } from "effect";
+import { Data, Effect, Option, Schema } from "effect";
 
-import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from "./config";
+import { MCP_TOOL_SCOPES } from "@/lib/mcp";
 
 export const MAX_MCP_BODY_BYTES = 1024 * 1024;
 
@@ -21,18 +21,19 @@ const decodeMessages = Schema.decodeUnknownOption(McpMessagesFromJson);
 const decodeToolCall = Schema.decodeUnknownOption(McpToolCall);
 const decodeToolName = Schema.decodeUnknownOption(McpToolName);
 
-export const MCP_TOOL_SCOPES = {
-  search_links: MCP_READ_SCOPE,
-  save_link: MCP_WRITE_SCOPE,
-} as const;
-
 export const scopeForMcpTool = (name: unknown): string | null => {
   const decoded = decodeToolName(name);
   return Option.isSome(decoded) ? MCP_TOOL_SCOPES[decoded.value] : null;
 };
 
-const bodyErrorResponse = (status: 400 | 403, error: string): Response =>
-  Response.json({ error }, { status });
+export class McpRequestRejected extends Data.TaggedError("McpRequestRejected")<{
+  readonly message: string;
+  readonly status: 400 | 403;
+}> {}
+
+export class McpInsufficientScopeError extends Data.TaggedError(
+  "McpInsufficientScopeError"
+)<{ readonly scopes: readonly string[] }> {}
 
 export const mcpBodyTooLargeResponse = (): Response =>
   Response.json(
@@ -44,21 +45,27 @@ export const mcpBodyTooLargeResponse = (): Response =>
     { status: 413 }
   );
 
-export const requiredScopesForRequest = Effect.fn(
-  "MCP.requiredScopesForRequest"
-)(function* (request: Request) {
+export const requiredScopesForRequest = Effect.fnUntraced(function* (
+  request: Request
+) {
   if (request.method !== "POST") return [];
 
   const body = yield* Effect.tryPromise(() => request.clone().text()).pipe(
     Effect.option
   );
   if (Option.isNone(body)) {
-    return bodyErrorResponse(400, "Invalid MCP request body");
+    return yield* new McpRequestRejected({
+      message: "Invalid MCP request body",
+      status: 400,
+    });
   }
 
   const decoded = decodeMessages(body.value);
   if (Option.isNone(decoded)) {
-    return bodyErrorResponse(400, "Invalid MCP request body");
+    return yield* new McpRequestRejected({
+      message: "Invalid MCP request body",
+      status: 400,
+    });
   }
 
   const messages = Array.isArray(decoded.value)
@@ -71,11 +78,17 @@ export const requiredScopesForRequest = Effect.fn(
     }
     const toolCall = decodeToolCall(message);
     if (Option.isNone(toolCall)) {
-      return bodyErrorResponse(400, "Invalid MCP tool call");
+      return yield* new McpRequestRejected({
+        message: "Invalid MCP tool call",
+        status: 400,
+      });
     }
     const scope = scopeForMcpTool(toolCall.value.params.name);
     if (!scope) {
-      return bodyErrorResponse(403, "MCP tool is not authorized");
+      return yield* new McpRequestRejected({
+        message: "MCP tool is not authorized",
+        status: 403,
+      });
     }
     scopes.add(scope);
   }

@@ -1,13 +1,6 @@
 import type { Env } from "../shared";
 
-export const MCP_READ_SCOPE = "links:read";
-export const MCP_WRITE_SCOPE = "links:write";
-export const MCP_SCOPES = [
-  "openid",
-  "offline_access",
-  MCP_READ_SCOPE,
-  MCP_WRITE_SCOPE,
-] as const;
+export { MCP_READ_SCOPE, MCP_SCOPES, MCP_WRITE_SCOPE } from "@/lib/mcp";
 
 export const MCP_WORKSPACE_CLAIM = "https://cloudstash.dev/claims/workspace-id";
 
