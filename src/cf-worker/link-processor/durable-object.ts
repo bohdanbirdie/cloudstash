@@ -5,8 +5,15 @@ import type { Store, Unsubscribe } from "@livestore/livestore";
 import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
 /// <reference types="@cloudflare/workers-types" />
 import { DurableObject } from "cloudflare:workers";
-import { Effect, Layer, Option, Semaphore } from "effect";
+import { DateTime, Effect, Layer, Option, Semaphore } from "effect";
 
+import type {
+  GetLinkInput,
+  ListLinksInput,
+  SearchLinksInput,
+  UpdateLinkInput,
+  UpdateLinksInput,
+} from "@/lib/links-contract";
 import { capabilitiesFor } from "@/lib/plan";
 import type { TierCapabilities } from "@/lib/plan";
 
@@ -22,6 +29,11 @@ import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
 import { OpenRouterApiKeyLive } from "../weekly-digest/generator";
+import type {
+  SaveLinkRpcInput,
+  WorkspaceLinksRpcResult,
+} from "../workspace-links/rpc";
+import { WorkspaceLinksRpc } from "../workspace-links/rpc";
 import { EnrichmentGenerator } from "../x-enrichment/generator";
 import { ThreadProviderNoopLive } from "../x-enrichment/services/thread-provider-noop.live";
 import { EnrichmentUsageLive } from "../x-enrichment/usage";
@@ -68,6 +80,12 @@ import {
 
 type Link = typeof tables.links.Type;
 
+const workspaceUnavailable = () =>
+  ({
+    ok: false,
+    error: { code: "unavailable", message: "Workspace is being deleted" },
+  }) as const;
+
 export class LinkProcessorDO
   extends DurableObject<Env>
   implements ClientDoWithRpcCallback
@@ -77,13 +95,15 @@ export class LinkProcessorDO
   private storeId: OrgId | undefined;
   private cachedStore: Store<typeof schema> | undefined;
   private storeCreationPromise: Promise<Store<typeof schema>> | undefined;
-  private subscription: Unsubscribe | undefined;
+  private subscriptions = new Set<Unsubscribe>();
+  private storeGeneration = 0;
   private submittedLinks = new Set<string>();
   private metadataSemaphore = Semaphore.makeUnsafe(MAX_CONCURRENT_METADATA);
   private aiSemaphore = Semaphore.makeUnsafe(MAX_CONCURRENT_AI);
   private notifiedLinkIds = new Set<string>();
   private hasRunCleanup = false;
   private totalRowsWritten = 0;
+  private deleting = false;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -102,13 +122,14 @@ export class LinkProcessorDO
    * tombstone check at the top of `ingestAndProcess`.
    */
   async markDeleting(): Promise<void> {
+    this.deleting = true;
+    const store = this.resetStoreHandles();
     await runEffect(
       Effect.gen({ self: this }, function* () {
         yield* Effect.promise(() => setDeletionTombstone(this.ctx.storage));
-        this.subscription?.();
-        this.subscription = undefined;
-        this.cachedStore = undefined;
-        this.storeCreationPromise = undefined;
+        yield* Effect.promise(
+          () => store?.shutdownPromise?.() ?? Promise.resolve()
+        );
         yield* Effect.logInfo("markDeleting: tombstone set").pipe(
           Effect.annotateLogs({ storeId: maskId(this.storeId ?? "") })
         );
@@ -122,13 +143,20 @@ export class LinkProcessorDO
    * shutdown-promise + fiber-tracking workaround lives there too if needed.
    */
   async purgeAll(): Promise<void> {
+    this.deleting = true;
+    const store = this.resetStoreHandles();
     await runEffect(
       Effect.gen({ self: this }, function* () {
-        this.subscription?.();
-        this.subscription = undefined;
-        this.cachedStore = undefined;
-        this.storeCreationPromise = undefined;
-        yield* Effect.promise(() => this.ctx.storage.deleteAll());
+        yield* Effect.promise(
+          () => store?.shutdownPromise?.() ?? Promise.resolve()
+        );
+        yield* Effect.promise(() => {
+          // Consecutive SQLite-backed DO writes without an intervening await
+          // are committed atomically by the storage output gate.
+          const purge = this.ctx.storage.deleteAll();
+          const fence = setDeletionTombstone(this.ctx.storage);
+          return Promise.all([purge, fence]);
+        });
         yield* Effect.logInfo("purgeAll: storage wiped").pipe(
           Effect.annotateLogs({ storeId: maskId(this.storeId ?? "") })
         );
@@ -148,6 +176,7 @@ export class LinkProcessorDO
   }
 
   private async getStore(): Promise<Store<typeof schema>> {
+    if (this.deleting) throw new Error("Workspace is being deleted");
     if (this.cachedStore) {
       return this.cachedStore;
     }
@@ -160,26 +189,35 @@ export class LinkProcessorDO
       throw new Error("storeId not set");
     }
 
-    this.storeCreationPromise = this.createStoreInternal();
+    const generation = this.storeGeneration;
+    const storeId = this.storeId;
+    const creation = this.createStoreInternal(storeId, generation);
+    this.storeCreationPromise = creation;
 
     try {
-      const store = await this.storeCreationPromise;
-      return store;
-    } catch (error) {
-      this.storeCreationPromise = undefined;
-      throw error;
+      return await creation;
+    } finally {
+      if (this.storeCreationPromise === creation) {
+        this.storeCreationPromise = undefined;
+      }
     }
   }
 
-  private async createStoreInternal(): Promise<Store<typeof schema>> {
+  private async createStoreInternal(
+    storeId: OrgId,
+    generation: number
+  ): Promise<Store<typeof schema>> {
     const sessionId = await this.getSessionId();
+    if (!this.canUseStore(generation)) {
+      throw new Error("Workspace is being deleted");
+    }
 
     logger.info("Creating store", {
       sessionId: maskId(sessionId),
-      storeId: maskId(this.storeId!),
+      storeId: maskId(storeId),
     });
 
-    this.cachedStore = await createStoreDoPromise({
+    const store = await createStoreDoPromise({
       clientId: "link-processor-do",
       durableObject: {
         bindingName: "LINK_PROCESSOR_DO",
@@ -189,18 +227,37 @@ export class LinkProcessorDO
       livePull: true,
       schema,
       sessionId,
-      storeId: this.storeId!,
+      storeId,
       syncBackendStub: this.env.SYNC_BACKEND_DO.get(
-        this.env.SYNC_BACKEND_DO.idFromName(this.storeId!)
+        this.env.SYNC_BACKEND_DO.idFromName(storeId)
       ) as never,
     });
 
+    if (!this.canUseStore(generation)) {
+      await store.shutdownPromise?.();
+      throw new Error("Workspace is being deleted");
+    }
+    this.cachedStore = store;
+
     logger.info("Store created successfully", {
-      storeId: maskId(this.storeId!),
+      storeId: maskId(storeId),
     });
 
+    return store;
+  }
+
+  private canUseStore(generation: number): boolean {
+    return !this.deleting && generation === this.storeGeneration;
+  }
+
+  private resetStoreHandles(): Store<typeof schema> | undefined {
+    this.storeGeneration += 1;
+    for (const unsubscribe of this.subscriptions) unsubscribe();
+    this.subscriptions.clear();
+    const store = this.cachedStore;
+    this.cachedStore = undefined;
     this.storeCreationPromise = undefined;
-    return this.cachedStore;
+    return store;
   }
 
   private buildDoLayer(store: Store<typeof schema>) {
@@ -210,12 +267,81 @@ export class LinkProcessorDO
     );
   }
 
+  private async isDeleting(): Promise<boolean> {
+    if (this.deleting) return true;
+    this.deleting ||= await isDeletionTombstoneSet(this.ctx.storage);
+    return this.deleting;
+  }
+
+  private async runWorkspaceLinksRpc<Value, Error>(
+    operation: (
+      store: Store<typeof schema>,
+      canCommit: () => boolean
+    ) => Effect.Effect<WorkspaceLinksRpcResult<Value>, Error>
+  ): Promise<WorkspaceLinksRpcResult<Value>> {
+    if (await this.isDeleting()) return workspaceUnavailable();
+    const generation = this.storeGeneration;
+
+    const storeId = this.ctx.id.name;
+    if (!storeId) throw new Error("LinkProcessorDO requires a named instance");
+    if (this.storeId !== storeId) {
+      this.storeId = OrgId.make(storeId);
+      await this.ctx.storage.put("storeId", storeId);
+    }
+
+    await this.ensureSubscribed();
+    if (!this.canUseStore(generation)) return workspaceUnavailable();
+    const store = await this.getStore();
+    if (!this.canUseStore(generation)) return workspaceUnavailable();
+    return runEffect(operation(store, () => this.canUseStore(generation)));
+  }
+
+  async listLinks(input: ListLinksInput) {
+    return this.runWorkspaceLinksRpc((store, canCommit) =>
+      WorkspaceLinksRpc.list(store, input, canCommit)
+    );
+  }
+
+  async searchLinks(input: SearchLinksInput) {
+    return this.runWorkspaceLinksRpc((store, canCommit) =>
+      WorkspaceLinksRpc.search(store, input, canCommit)
+    );
+  }
+
+  async getLink(input: GetLinkInput) {
+    return this.runWorkspaceLinksRpc((store, canCommit) =>
+      WorkspaceLinksRpc.get(store, input, canCommit)
+    );
+  }
+
+  async saveLink(input: SaveLinkRpcInput) {
+    return this.runWorkspaceLinksRpc((store, canCommit) =>
+      WorkspaceLinksRpc.save(store, input, canCommit)
+    );
+  }
+
+  async updateLink(input: UpdateLinkInput) {
+    return this.runWorkspaceLinksRpc((store, canCommit) =>
+      WorkspaceLinksRpc.update(store, input, canCommit)
+    );
+  }
+
+  async updateLinks(input: UpdateLinksInput) {
+    return this.runWorkspaceLinksRpc((store, canCommit) =>
+      WorkspaceLinksRpc.updateMany(store, input, canCommit)
+    );
+  }
+
   private async ensureSubscribed(): Promise<void> {
-    if (this.subscription) {
+    if (this.subscriptions.size > 0) {
       return;
     }
 
+    const generation = this.storeGeneration;
     const store = await this.getStore();
+    if (!this.canUseStore(generation)) {
+      throw new Error("Workspace is being deleted");
+    }
 
     const links$ = queryDb(tables.links.where({ deletedAt: null }));
     const statuses$ = queryDb(tables.linkProcessingStatus.where({}));
@@ -238,55 +364,60 @@ export class LinkProcessorDO
       { label: "pendingLinks" }
     );
 
-    this.subscription = store.subscribe(pendingLinks$, (pendingLinks) => {
-      const newLinks = pendingLinks.filter(
-        (l) => !this.submittedLinks.has(l.id)
-      );
-      if (newLinks.length === 0) return;
+    const pendingSubscription = store.subscribe(
+      pendingLinks$,
+      (pendingLinks) => {
+        if (!this.canUseStore(generation)) return;
+        const newLinks = pendingLinks.filter(
+          (l) => !this.submittedLinks.has(l.id)
+        );
+        if (newLinks.length === 0) return;
 
-      logger.info("Subscription fired", {
-        newCount: newLinks.length,
-        totalPending: pendingLinks.length,
-      });
-
-      for (const link of newLinks) {
-        this.submittedLinks.add(link.id);
-      }
-
-      const statuses = store.query(
-        queryDb(tables.linkProcessingStatus.where({}))
-      );
-      const statusMap = new Map(statuses.map((s) => [s.linkId, s]));
-
-      const processing = runEffect(
-        Effect.forEach(
-          newLinks,
-          (link) => {
-            const isReprocess =
-              statusMap.get(link.id)?.status === "reprocess-requested";
-            return this.processLinkEffect(store, link, isReprocess).pipe(
-              Effect.ensuring(
-                Effect.sync(() => this.submittedLinks.delete(link.id))
-              )
-            );
-          },
-          { concurrency: MAX_CONCURRENT_METADATA, discard: true }
-        )
-      ).then(async () => {
-        const target = captureSyncTarget(store);
-        const synced = await whenLeaderSynced(store, {
-          target,
-          timeoutMs: LEADER_SYNC_TIMEOUT_MS,
+        logger.info("Subscription fired", {
+          newCount: newLinks.length,
+          totalPending: pendingLinks.length,
         });
-        if (!synced) {
-          logger.warn("Processing durability barrier timed out", {
-            storeId: maskId(this.storeId ?? ""),
-          });
-        }
-      });
 
-      this.ctx.waitUntil(processing);
-    });
+        for (const link of newLinks) {
+          this.submittedLinks.add(link.id);
+        }
+
+        const statuses = store.query(
+          queryDb(tables.linkProcessingStatus.where({}))
+        );
+        const statusMap = new Map(statuses.map((s) => [s.linkId, s]));
+
+        const processing = runEffect(
+          Effect.forEach(
+            newLinks,
+            (link) => {
+              const isReprocess =
+                statusMap.get(link.id)?.status === "reprocess-requested";
+              return this.processLinkEffect(store, link, isReprocess).pipe(
+                Effect.ensuring(
+                  Effect.sync(() => this.submittedLinks.delete(link.id))
+                )
+              );
+            },
+            { concurrency: MAX_CONCURRENT_METADATA, discard: true }
+          )
+        ).then(async () => {
+          const target = captureSyncTarget(store);
+          const synced = await whenLeaderSynced(store, {
+            target,
+            timeoutMs: LEADER_SYNC_TIMEOUT_MS,
+          });
+          if (!synced) {
+            logger.warn("Processing durability barrier timed out", {
+              storeId: maskId(this.storeId ?? ""),
+            });
+          }
+        });
+
+        this.ctx.waitUntil(processing);
+      }
+    );
+    this.subscriptions.add(pendingSubscription);
 
     const summaries$ = queryDb(tables.linkSummaries.where({}));
     const tagSuggestions$ = queryDb(tables.tagSuggestions.where({}));
@@ -330,18 +461,28 @@ export class LinkProcessorDO
       { label: "unnotifiedResults" }
     );
 
-    store.subscribe(unnotifiedResults$, (results) => {
-      if (results.length === 0) return;
-      const newResults = results.filter(
-        (r) => !this.notifiedLinkIds.has(r.linkId)
-      );
-      if (newResults.length === 0) return;
-      for (const r of newResults) {
-        this.notifiedLinkIds.add(r.linkId);
+    const resultSubscription = store.subscribe(
+      unnotifiedResults$,
+      (results) => {
+        if (!this.canUseStore(generation)) return;
+        if (results.length === 0) return;
+        const newResults = results.filter(
+          (r) => !this.notifiedLinkIds.has(r.linkId)
+        );
+        if (newResults.length === 0) return;
+        for (const r of newResults) {
+          this.notifiedLinkIds.add(r.linkId);
+        }
+        evictOldestFromSet(this.notifiedLinkIds, MAX_NOTIFIED_LINK_IDS);
+        this.notifyResults(store, newResults);
       }
-      evictOldestFromSet(this.notifiedLinkIds, MAX_NOTIFIED_LINK_IDS);
-      this.notifyResults(store, newResults);
-    });
+    );
+    this.subscriptions.add(resultSubscription);
+
+    if (!this.canUseStore(generation)) {
+      this.resetStoreHandles();
+      throw new Error("Workspace is being deleted");
+    }
 
     if (!this.hasRunCleanup) {
       this.hasRunCleanup = true;
@@ -367,7 +508,7 @@ export class LinkProcessorDO
                     { source: "telegram", sourceMeta: cl.sourceMeta },
                     "Processing was interrupted. Please resend the link."
                   ),
-                { discard: true }
+                { concurrency: 1, discard: true }
               );
             });
           }),
@@ -419,10 +560,11 @@ export class LinkProcessorDO
         })
       );
 
+      const now = yield* DateTime.nowAsDate;
       store.commit(
         events.linkProcessingStarted({
           linkId: link.id,
-          updatedAt: new Date(),
+          updatedAt: now,
         })
       );
 
@@ -432,26 +574,7 @@ export class LinkProcessorDO
 
       const rowsBefore = this.totalRowsWritten;
 
-      const capabilities = yield* FeatureStore.pipe(
-        Effect.flatMap((fs) => fs.getCapabilities(this.storeId!)),
-        Effect.provide(
-          FeatureStoreLive.pipe(
-            Layer.provide(Billing.Default),
-            Layer.provide(DbClientLive(this.env.DB))
-          )
-        ),
-        Effect.catchDefect((defect) =>
-          Effect.logError(
-            "LinkProcessor: feature-store defect, downgrading capabilities"
-          ).pipe(
-            Effect.annotateLogs({
-              storeId: maskId(this.storeId ?? ""),
-              cause: String(defect),
-            }),
-            Effect.as(capabilitiesFor("free"))
-          )
-        )
-      );
+      const capabilities = yield* this.capabilities();
 
       yield* Effect.logDebug("LinkProcessor capabilities").pipe(
         Effect.annotateLogs({
@@ -507,10 +630,7 @@ export class LinkProcessorDO
           }),
           Effect.tap(() =>
             Effect.sync(() => {
-              this.cachedStore = undefined;
-              this.storeCreationPromise = undefined;
-              this.subscription?.();
-              this.subscription = undefined;
+              this.resetStoreHandles();
             })
           )
         )
@@ -577,6 +697,10 @@ export class LinkProcessorDO
   }
 
   override async fetch(request: Request): Promise<Response> {
+    if (await this.isDeleting()) {
+      return new Response("Workspace is being deleted", { status: 410 });
+    }
+
     const url = new URL(request.url);
     const storeId = url.searchParams.get("storeId");
 
@@ -605,7 +729,7 @@ export class LinkProcessorDO
 
     logger.info("fetch called (triggerLinkProcessor)", {
       hadCachedStore: !!this.cachedStore,
-      hadSubscription: !!this.subscription,
+      hadSubscription: this.subscriptions.size > 0,
       storeId: maskId(storeId),
     });
 
@@ -638,7 +762,7 @@ export class LinkProcessorDO
       return { status: "rejected-storeid-mismatch" };
     }
 
-    if (await isDeletionTombstoneSet(this.ctx.storage)) {
+    if (await this.isDeleting()) {
       logger.info("ingestAndProcess dropped (deletion in progress)", {
         storeId: maskId(msg.storeId),
         url: msg.url,
@@ -651,7 +775,7 @@ export class LinkProcessorDO
       storeId: maskId(msg.storeId),
       url: msg.url,
       hadCachedStore: !!this.cachedStore,
-      hadSubscription: !!this.subscription,
+      hadSubscription: this.subscriptions.size > 0,
     });
 
     this.storeId = msg.storeId;
@@ -727,6 +851,7 @@ export class LinkProcessorDO
   }
 
   async ensureDigestScheduled(): Promise<void> {
+    if (await this.isDeleting()) return;
     await runEffect(
       Effect.gen(function* () {
         const scheduler = yield* DigestScheduler;
@@ -745,8 +870,6 @@ export class LinkProcessorDO
   }
 
   async triggerDigest(storeId: OrgId): Promise<WeeklyDigestRpcResult> {
-    this.storeId = storeId;
-    await this.ensureSubscribed();
     return runEffect(
       Effect.gen(function* () {
         const scheduler = yield* DigestScheduler;
@@ -761,15 +884,24 @@ export class LinkProcessorDO
   ): Promise<void> {
     logger.debug("syncUpdateRpc called", {
       hadCachedStore: !!this.cachedStore,
-      hadSubscription: !!this.subscription,
+      hadSubscription: this.subscriptions.size > 0,
       hadStoreId: !!this.storeId,
     });
+
+    if (await this.isDeleting()) {
+      logger.info("syncUpdateRpc dropped (deletion in progress)", {
+        storeId: maskId(storeId),
+      });
+      return;
+    }
+    const generation = this.storeGeneration;
 
     if (!this.storeId) {
       this.storeId = OrgId.make(storeId);
     }
 
     await this.ensureSubscribed();
+    if (!this.canUseStore(generation)) return;
     await handleSyncUpdateRpc(this.ctx, payload);
   }
 }

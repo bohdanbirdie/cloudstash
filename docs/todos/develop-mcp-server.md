@@ -2,7 +2,8 @@
 
 ## Outcome
 
-Expose `search_links` and `save_link` through stateless HTTP for Pro workspaces.
+Expose parity link operations through stateless HTTP for Pro workspaces:
+list/search/get, save-with-tags, and single/batch state/tag updates.
 Better Auth owns OAuth discovery, DCR, PKCE, consent, refresh tokens, and
 five-minute resource JWTs. Every request rechecks approval, membership,
 workspace access, entitlement, and tool scope.
@@ -23,12 +24,12 @@ workspace access, entitlement, and tool scope.
 ## Before merge
 
 - [ ] Run `0014` and `0015` against a production-shaped database copy.
-- [ ] Repeat the MCP JAM round trip on the final build and invoke both tools.
+- [ ] Repeat the MCP JAM round trip on the final build and invoke read/write tools.
 - [x] Run `bun run check`, `bun run test:unit`, `bun run test:e2e`,
       `bun run build`, and `bun run check:intent`.
 
 ## Non-goals
 
-No conversational state, broad agent, additional tools, CIMD fetch, or
-availability-copy change. Legacy transport support can be removed after client
-adoption permits it.
+No conversational state, CIMD fetch, reprocessing tool, or availability-copy
+change. Legacy transport support can be removed after client adoption permits
+it.

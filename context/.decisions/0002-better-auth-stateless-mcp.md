@@ -28,9 +28,9 @@ workspace authorization, and supports both current and deployed legacy clients.
 
 Use Better Auth OAuth with rate-limited DCR. Bind consent and five-minute JWTs
 to one workspace/resource; recheck access, entitlement, and tool scope on every
-request. A fresh server per exchange exposes `search_links` and `save_link` for
-MCP 2026 and the 2025 stateless compatibility path. Verify JWT/DPoP locally. Do
-not enable CIMD without an SSRF-safe transport.
+request. A fresh server per exchange exposes bounded list, search, get, save,
+and state/tag update tools for MCP 2026 and the 2025 stateless compatibility
+path. Verify JWT/DPoP locally. Do not enable CIMD without an SSRF-safe transport.
 
 ## Consequences
 

@@ -11,14 +11,13 @@ syncing are coordinated background consequences. A user should never have to
 keep the web app open for server-originated work to finish.
 
 ```text
-web / extension                    Telegram / Raycast / API / X
-       │ local commit                         │ queue
-       ▼                                      ▼
-local LiveStore client ───────► SyncBackendDO ◄──── LinkProcessorDO
-       │                              │                    │
-       │ synchronous reads            │ ordered history    │ metadata + AI
-       ▼                              │                    │ events
-React UI ◄────────────────────────────┴────────────────────┘
+web / extension          REST / MCP          Telegram / Raycast / X
+  │ local commit             │ RPC                       │ queue
+  ▼                          └──────────┬────────────────┘
+local LiveStore client ───────► SyncBackendDO ◄──► LinkProcessorDO
+  │ synchronous reads                │              link operations,
+  ▼                                  │              metadata + AI events
+React UI ◄───────────────────────────┘
 ```
 
 Workspace content follows one model: immutable events are synchronized and
@@ -27,9 +26,9 @@ membership, sessions, billing, invites, settings, and aggregate activity—not
 the user's Vault.
 
 A workspace is the alignment boundary. Its organization ID is also its LiveStore
-`storeId` and names the workspace-scoped sync, processing, and chat Durable
-Objects. This makes tenancy, synchronization, billing, and background processing
-speak the same identity.
+`storeId` and names the workspace-scoped sync, processing/link-operation, and
+chat Durable Objects. This makes tenancy, synchronization, billing, and
+background processing speak the same identity.
 
 ## Read the tree
 

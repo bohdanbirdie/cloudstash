@@ -41,7 +41,7 @@ Better Auth beforeDelete
 
 Workflow
   → mark LinkProcessor deleting (marker in the same DO storage)
-  → purge LinkProcessor (also erases the marker)
+  → purge LinkProcessor and retain its deletion marker
   → purge SyncBackend, chat, Telegram, and X state
   → delete organization (FK cascade)
 ```
@@ -58,8 +58,9 @@ attempts, ten-second base exponential backoff, and one-minute timeout. Most
 failures reject the step so Cloudflare Workflows retains error state and retry
 evidence; X disconnect currently swallows alarm/storage deletion failures.
 
-Current explicit purge targets are LinkProcessorDO storage/client state,
-SyncBackendDO eventlog, ChatAgentDO messages/usage/client state, Telegram
+Current explicit purge targets are LinkProcessorDO link-operation/processing
+storage and client state, SyncBackendDO eventlog, ChatAgentDO messages/usage/
+client state, Telegram
 forward/reverse mappings, XBookmarkSyncDO alarm/storage/account link, and the D1
 organization/control rows reached by cascade. There is no Stripe cancellation
 step. D1 activity and generic verification rows have no applicable deletion
@@ -67,12 +68,16 @@ step, and Workflow payload/history retains raw IDs under platform lifecycle.
 Enrichment KV, Analytics Engine, retained Queue/DLQ messages, and browser/
 extension residue also have no complete server-side purge treatment.
 
-The current implementation both purges LinkProcessorDO before SyncBackendDO and
-erases the intake tombstone during `deleteAll()`. A late reverse-RPC delivery or
-retained Queue message can therefore reconstruct content. These races and the
-incomplete storage inventory are tracked by
+`LinkProcessorDO.purgeAll` clears its LiveStore state and rewrites the
+non-personal deletion marker before accepting another request. Link-operation
+RPCs, Queue intake, reverse sync, fetch wake-ups, and digest entry points reject
+the marker after eviction. Canonical REST/MCP link operations also invalidate
+late store creation and recheck their generation at repository commits.
+Pre-existing processing, digest, ingestion, and notification work lacks the same
+commit fence or drain and can still outlive the purge. This residual race and
+the incomplete storage inventory are tracked by
 [DELTA-003](../../.delta/DELTA-003-account-deletion-order-can-rehydrate-client.md)
 and [DELTA-019](../../.delta/DELTA-019-deletion-target-failures-and-surfaces-are-incomplete.md). The target design must
-fence intake outside purged storage, disable authoritative sources before client
-purge, propagate every target failure, and document bounded retention for
-surfaces that cannot be selectively erased.
+invalidate or drain those remaining operations before client purge, propagate
+every target failure, and document bounded retention for surfaces that cannot
+be selectively erased.

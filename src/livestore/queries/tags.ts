@@ -33,6 +33,14 @@ export const allTags$ = queryDb(
   { label: "allTags" }
 );
 
+export const allTagRows$ = queryDb(
+  () => ({
+    query: "SELECT * FROM tags ORDER BY sortOrder ASC",
+    schema: Schema.Array(TagSchema),
+  }),
+  { label: "allTagRows" }
+);
+
 export const tagsForLink$ = (linkId: string) =>
   queryDb(
     {
@@ -61,6 +69,33 @@ export const tagsByLink$ = queryDb(
   }),
   { label: "tagsByLink" }
 );
+
+export const tagsByLinkIds$ = (linkIds: readonly string[]) => {
+  if (linkIds.length === 0) {
+    return queryDb(
+      {
+        query: "SELECT * FROM tags WHERE 0",
+        schema: Schema.Array(TagByLinkRowSchema),
+      },
+      { label: "tagsByLinkIds:empty" }
+    );
+  }
+  const placeholders = linkIds.map(() => "?").join(", ");
+  return queryDb(
+    {
+      bindValues: [...linkIds],
+      query: `
+        SELECT lt.linkId, t.id, t.name, t.sortOrder, t.createdAt, t.deletedAt
+        FROM tags t
+        JOIN link_tags lt ON t.id = lt.tagId
+        WHERE t.deletedAt IS NULL AND lt.linkId IN (${placeholders})
+        ORDER BY lt.linkId ASC, t.sortOrder ASC
+      `,
+      schema: Schema.Array(TagByLinkRowSchema),
+    },
+    { label: `tagsByLinkIds:${linkIds.length}` }
+  );
+};
 
 export const pendingTagsByLink$ = queryDb(
   () => ({
@@ -91,6 +126,50 @@ export const pendingTagsByLink$ = queryDb(
   }),
   { label: "pendingTagsByLink" }
 );
+
+export const pendingTagsByLinkIds$ = (linkIds: readonly string[]) => {
+  if (linkIds.length === 0) {
+    return queryDb(
+      {
+        query: "SELECT * FROM tags WHERE 0",
+        schema: Schema.Array(TagByLinkRowSchema),
+      },
+      { label: "pendingTagsByLinkIds:empty" }
+    );
+  }
+  const placeholders = linkIds.map(() => "?").join(", ");
+  return queryDb(
+    {
+      bindValues: [...linkIds],
+      query: `
+        SELECT
+          ts.linkId,
+          COALESCE(t.id, t_by_name.id, ts.suggestedName) AS id,
+          COALESCE(t.name, t_by_name.name, ts.suggestedName) AS name,
+          COALESCE(t.sortOrder, t_by_name.sortOrder, 0) AS sortOrder,
+          COALESCE(t.createdAt, t_by_name.createdAt, ts.suggestedAt) AS createdAt,
+          NULL AS deletedAt
+        FROM tag_suggestions ts
+        LEFT JOIN tags t ON t.id = ts.tagId AND t.deletedAt IS NULL
+        LEFT JOIN tags t_by_name
+          ON ts.tagId IS NULL
+          AND t_by_name.id = ts.suggestedName
+          AND t_by_name.deletedAt IS NULL
+        WHERE ts.status = 'pending'
+          AND ts.linkId IN (${placeholders})
+          AND (ts.tagId IS NULL OR t.id IS NOT NULL)
+          AND NOT EXISTS (
+            SELECT 1 FROM link_tags lt
+            WHERE lt.linkId = ts.linkId
+              AND lt.tagId = COALESCE(t.id, t_by_name.id, ts.suggestedName)
+          )
+        ORDER BY ts.linkId ASC, ts.suggestedAt ASC
+      `,
+      schema: Schema.Array(TagByLinkRowSchema),
+    },
+    { label: `pendingTagsByLinkIds:${linkIds.length}` }
+  );
+};
 
 export const tagCounts$ = queryDb(
   () => ({

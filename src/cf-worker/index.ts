@@ -68,7 +68,15 @@ import {
   handleRedeemInvite,
 } from "./invites";
 import type { LinkQueueMessage } from "./link-processor/types";
-import { handleListLinks } from "./links/handler";
+import {
+  handleCreateLink,
+  handleGetLink,
+  handleListLinks,
+  handleUpdateLink,
+  handleUpdateLinks,
+  linkMutationBodyTooLargeResponse,
+  MAX_LINK_MUTATION_BODY_BYTES,
+} from "./links/handler";
 import { logSync } from "./logger";
 import { withMcpCors } from "./mcp/http";
 import {
@@ -254,7 +262,29 @@ app.post("/api/ingest", (c) =>
   Effect.runPromise(ingestRequestToResponse(c.req.raw, c.env))
 );
 
+app.use(
+  "/api/links",
+  bodyLimit({
+    maxSize: MAX_LINK_MUTATION_BODY_BYTES,
+    onError: linkMutationBodyTooLargeResponse,
+  })
+);
+app.use(
+  "/api/links/*",
+  bodyLimit({
+    maxSize: MAX_LINK_MUTATION_BODY_BYTES,
+    onError: linkMutationBodyTooLargeResponse,
+  })
+);
 app.get("/api/links", (c) => handleListLinks(c.req.raw, c.env));
+app.get("/api/links/:id", (c) =>
+  handleGetLink(c.req.raw, c.req.param("id"), c.env)
+);
+app.post("/api/links", (c) => handleCreateLink(c.req.raw, c.env));
+app.post("/api/links/batch-update", (c) => handleUpdateLinks(c.req.raw, c.env));
+app.patch("/api/links/:id", (c) =>
+  handleUpdateLink(c.req.raw, c.req.param("id"), c.env)
+);
 
 app.post("/api/connect/raycast", (c) => handleRaycastConnect(c.req.raw, c.env));
 app.post("/api/connect/raycast/exchange", (c) =>

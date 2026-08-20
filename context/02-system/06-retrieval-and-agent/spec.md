@@ -9,9 +9,10 @@ Active.
 
 ## Local Search
 
-`searchLinks$` lowercases and splits the query into words. Each word must match
-one of title, explicit/pending tag, domain, description, latest summary, or URL.
-The score per matched word is:
+`searchLinks$` lowercases and splits the query into terms. A result may match any
+term in its title, explicit/pending tags, domain, description, latest summary,
+or URL. Each matching term adds the field's weight. Server callers may request
+`match=all` when every term must match instead:
 
 | Field         | Weight |
 | ------------- | -----: |
@@ -22,9 +23,10 @@ The score per matched word is:
 | summary       |     20 |
 | URL           |     10 |
 
-Results exclude archived links, order by total score, and cap at 20. Status
-views use dedicated local queries; multi-tag filters compare the count of
-distinct effective matches with the selected tag count.
+Results default to active (non-archived) links, order by total score, and cap at 20. Server callers can also constrain state and saved-date range. Results
+include the complete link record (including image URL) plus score and matched
+fields. Status views use dedicated local queries; multi-tag filters compare the
+count of distinct effective matches with the selected tag count.
 
 ## Export
 
@@ -36,20 +38,33 @@ does not currently export whole-Vault scope or tags; the broader landing claim i
 
 ## Public Links API
 
-`GET /api/links` authenticates a Bearer API key, resolves workspace metadata,
-enforces `publicApi`, and validates `state`, `limit`, and cursor. Pages order by
-`createdAt DESC, id DESC`; the cursor encodes the last `(createdAt, id)` pair as
-opaque base64url. Responses include latest summary, metadata, processing status,
-and merged explicit/pending tag names. The API reads through
-`ChatAgentDO.listLinks`, which hosts a server-side workspace store.
+The links API authenticates a Bearer API key, resolves current workspace access,
+and enforces `publicApi` on every request. `GET /api/links` lists or searches
+with bounded state/date/sort filters; list pages use an opaque `(createdAt, id)`
+cursor. `GET /api/links/:id`, `POST /api/links`, `PATCH /api/links/:id`, and
+`POST /api/links/batch-update` provide get, save-with-tags, and bounded state/tag
+updates. URL/generated metadata and reprocessing are not mutable.
+
+Collection state defaults to `active`, meaning inbox and completed links while
+excluding archived ones. `archive` selects archived links and `any` selects full
+history. The legacy `all` value remains an alias for `active`; it does not mean
+full history.
+
+REST and MCP call the workspace-named `LinkProcessorDO`, reusing its existing
+LiveStore client. It returns complete link records, commits mutations, and waits
+up to five seconds for SyncBackend durability. Tag reads are restricted to
+returned link IDs. Its RPC boundary decodes exact Effect Schemas and exposes
+domain failures as values while storage/sync failures reject.
 
 ## Remote MCP
 
-`POST /mcp` is stateless and exposes only `search_links` and `save_link`.
-Search reuses `searchLinks$` through a read-only `ChatAgentDO` RPC and returns up
-to 20 relevance-ranked matches; save uses the intake Queue. Fresh server
-instances serve MCP 2026 and the 2025 compatibility path. Each tool requires its
-matching `links:read` or `links:write` scope.
+`POST /mcp` remains stateless. Fresh server instances expose `list_links`,
+`search_links`, `get_link`, `save_link`, `update_link`, and `update_links` for
+MCP 2026 and the 2025 compatibility path. The operations and limits match the
+links REST API, including ranked any-term search, optional all-term matching, and
+collection-state semantics. Tool discovery publishes concrete JSON Schema types
+usable by strict clients. No tool accepts reprocessing. Each request and tool
+requires its matching `links:read` or `links:write` scope.
 
 ## Chat Agent
 
@@ -72,3 +87,7 @@ estimated token amount atomically in DO storage, and reconciles actual usage
 after completion. Budget lookup fails closed; provider rate/credit/tool errors
 map to concise user-facing messages. Chat is gated by the `chatAgent`
 capability at connection/request hooks.
+
+This change does not alter `ChatAgentDO` or its tools. The planned multi-chat
+split will remove its LiveStore client and route aligned tools through the
+LinkProcessorDO's link-operation RPCs.

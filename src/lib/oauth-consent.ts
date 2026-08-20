@@ -107,9 +107,9 @@ export const consentPermissionDescriptions = (
   const canRead = requested.has(MCP_READ_SCOPE);
   const canWrite = requested.has(MCP_WRITE_SCOPE);
 
-  if (canRead && canWrite) descriptions.push("View and save links");
-  else if (canRead) descriptions.push("View saved links");
-  else if (canWrite) descriptions.push("Save new links");
+  if (canRead && canWrite) descriptions.push("View and manage links");
+  else if (canRead) descriptions.push("View links");
+  else if (canWrite) descriptions.push("Save and update links");
   else if (requested.has("openid")) {
     descriptions.push("Confirm your Cloudstash account");
   }

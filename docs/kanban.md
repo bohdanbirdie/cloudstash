@@ -27,7 +27,7 @@ kanban-plugin: board
 - [ ] Replace OpenRouter with Cloudflare AI Gateway
 - [ ] [[todos/agent-context-chips-entry-points|Agent context chips + entry points]]
 - [ ] Shrink Worker output further — current upload is 2421 KiB gzipped (deploy 2026-05-13), only 633 KiB headroom under the 3 MiB free-tier cap. Two levers worth evaluating before the budget gets tight again: (a) split into separate Workers (web/assets vs. API/DOs) joined by a service binding, so each subsystem gets its own 3 MiB; (b) trim heavy chunks in place — defuddle/linkedom/htmlparser2 (HTML readability in LinkProcessorDO), @ai-sdk/react + livestore client on the authed entry, Effect tracer surface. Decide which lever first based on what's growing.
-- [ ] [[todos/multi-chat-architecture|Multi-chat architecture (separate DOs + central livestore)]]
+- [ ] [[todos/multi-chat-architecture|Multi-chat architecture + align chat tools with canonical link RPCs]] — keep each conversation DO lightweight and move link tools behind the same workspace RPC capability used by API/MCP.
 - [ ] Extend Pro plan with twitter historical sync of bookmarks
 - [ ] [[todos/weekly-digest-backend|Weekly Digest backend]]
 - [ ] Bug: accepting a suggested tag stutters the app — profile the accept path and decouple or memoize the synchronous tag-strip count/order recompute.
@@ -54,6 +54,7 @@ kanban-plugin: board
 ## In Progress
 
 - [ ] [[todos/develop-mcp-server|Ship stateless remote MCP for Pro]] — remaining human gates are a named MCP JAM round trip and a production-shaped migration dry run.
+- [ ] [[todos/consolidate-link-operations-in-link-processor|Consolidate link operations in LinkProcessorDO]] — remove the duplicate WorkspaceLinksDO/LiveStore replica and route REST + MCP through the existing workspace owner.
 
 ## Human Operations
 
@@ -78,7 +79,7 @@ kanban-plugin: board
 - [x] [[architecture/livestore-do-rpc-stream-stall|Upstream livestore PR — DO-RPC stream-framing fix]] — obsolete: drain-then-decode merged upstream as #1167 (2026-04) and the DO-RPC/ws-rpc layer was reworked wholesale for Effect v4; no repro on upstream `main` after the swap.
 - [x] [[architecture/sync-backend-do-hibernation-billing|DO-hibernation upstreaming + fork retirement]] — upstream `main` carries the full fix chain (#1328 closed, guarded by our test PRs #1427/#1435; DO-RPC recovery via #1541/#1542/#1544/#1545); fork retired via [[todos/effect-v4-livestore-upstream-migration]] (PR #82). `liveLongTimers` probe removal split out as its own Todo.
 - [x] [[todos/livestore-0.4.0-upgrade|Upgrade LiveStore snapshot → v0.4.0 stable]] — obsolete (2026-08-09): superseded by the vendored-fork submodule (PR #79); the published `@livestore/*` pins now only serve types/wasm/the A-B hatch and get bumped as part of [[todos/effect-v4-livestore-upstream-migration]].
-- [x] [[todos/get-links-api|GET links API + in-app API reference]] — `GET /api/links` (cursor-paginated, API-key auth via `ChatAgentDO.listLinks` RPC; tags = accepted + pending suggestions) shipped + gated to Plus+ at request time + verified live. Plus an **API Reference** card in Settings → Integrations (paywalled in UI): documents `GET /api/links` + `POST /api/ingest` with params/response/errors, copyable curl per endpoint, and a **Copy for agents** button that copies a full self-contained markdown spec. Single source of truth in `api-spec.ts` drives both the rendered UI and the agent blob; unit-tested.
+- [x] [[todos/get-links-api|Links API + in-app API reference]] — API-key-authenticated, Plus+ list/search/get/save/update operations share one domain contract with MCP; consolidating their transport onto `LinkProcessorDO` is tracked above. Legacy `/api/ingest` remains queue-backed. The Settings reference and copy-for-agents spec document the same contracts from `api-spec.ts`.
 - [x] Add real Chrome Web Store install link — published listing is now live at `https://chromewebstore.google.com/detail/cloudstash/bdommhffamndfanbpnikgmpjncpcobia`. Promoted `CHROME_WEB_STORE_URL` to `src/lib/extension-connect.ts` (built from `PUBLISHED_EXTENSION_ID` + slug), consumed by `extension-card.tsx` and the `not_installed` state on `/connect/extension`, which now shows a primary "Install from the Chrome Web Store" CTA above the retry button.
 - [x] Env-var cleanup in `src/cf-worker/shared.ts` — `EMAIL_FROM` moved into `wrangler.jsonc` `vars` so `cf-typegen` emits it on `Cloudflare.Env`; `PUBLIC_URL` kept as a custom-`Env` optional (both consumers — Telegram webhook URL and Stripe checkout return URL — have request-origin fallbacks, and the value isn't pinned in prod today). End state: `Env` = `LINK_QUEUE` + 3 optionals (`ENABLE_TEST_AUTH`, `GOOGLE_BASE_URL`, `PUBLIC_URL`).
 - [x] [[todos/x-content-sub-processing|X (twitter) content enrichment — Pro feature]] — Pro-only enriched AI summaries for x.com bookmarks, hard-capped at 100/org/mo, with image fallback so quoting tweets render a card image

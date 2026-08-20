@@ -653,7 +653,7 @@ describe("MCP OAuth Worker flow", () => {
     expect(consentGrant?.count).toBe(0);
   });
 
-  it("initializes, lists tools, and calls both tools through /mcp", async () => {
+  it("initializes, lists tools, and calls link tools through /mcp", async () => {
     const outboundStart = observedOutboundUrls.length;
     const initialize = await callMcp<{ serverInfo: { name: string } }>(
       tokens.access_token,
@@ -671,16 +671,35 @@ describe("MCP OAuth Worker flow", () => {
     ).toBe(200);
     expect(initialize.body.result?.serverInfo.name).toBe("cloudstash");
 
-    const listed = await callMcp<{ tools: { name: string }[] }>(
-      tokens.access_token,
-      2,
-      "tools/list"
-    );
+    const listed = await callMcp<{
+      tools: {
+        inputSchema: {
+          properties?: Record<string, unknown>;
+          type?: string;
+        };
+        name: string;
+      }[];
+    }>(tokens.access_token, 2, "tools/list");
     expect(listed.response.status).toBe(200);
     expect(listed.body.result?.tools.map(({ name }) => name)).toEqual([
+      "list_links",
       "search_links",
+      "get_link",
       "save_link",
+      "update_link",
+      "update_links",
     ]);
+    const tools = listed.body.result?.tools ?? [];
+    for (const tool of tools) {
+      expect(tool.inputSchema.type, tool.name).toBe("object");
+      expect(tool.inputSchema.properties, tool.name).toBeTypeOf("object");
+    }
+    const schemaFor = (name: string) =>
+      JSON.stringify(tools.find((tool) => tool.name === name)?.inputSchema);
+    expect(schemaFor("list_links")).toContain('"type":"integer"');
+    expect(schemaFor("search_links")).toContain('"type":"string"');
+    expect(schemaFor("search_links")).toContain('"match"');
+    expect(schemaFor("save_link")).toContain('"format":"uri"');
 
     const searched = await callMcp<{ content: { text: string }[] }>(
       tokens.access_token,
@@ -703,8 +722,140 @@ describe("MCP OAuth Worker flow", () => {
       }
     );
     expect(saved.response.status).toBe(200);
-    expect(JSON.parse(saved.body.result?.content[0]?.text ?? "null")).toEqual({
-      status: "queued",
+    const savedValue = JSON.parse(
+      saved.body.result?.content[0]?.text ?? "null"
+    ) as { link: { id: string } };
+    expect(savedValue).toMatchObject({
+      created: true,
+      link: { tags: [], url: SAVED_LINK_URL },
+    });
+
+    const updated = await callMcp<{ content: { text: string }[] }>(
+      tokens.access_token,
+      5,
+      "tools/call",
+      {
+        arguments: {
+          id: savedValue.link.id,
+          changes: { tags: { add: ["mcp"] } },
+        },
+        name: "update_link",
+      }
+    );
+    expect(updated.response.status).toBe(200);
+    expect(
+      JSON.parse(updated.body.result?.content[0]?.text ?? "null")
+    ).toMatchObject({ id: savedValue.link.id, tags: ["mcp"] });
+
+    const completed = await callMcp<{ content: { text: string }[] }>(
+      tokens.access_token,
+      6,
+      "tools/call",
+      {
+        arguments: {
+          ids: [savedValue.link.id],
+          changes: { state: "completed" },
+        },
+        name: "update_links",
+      }
+    );
+    expect(completed.response.status).toBe(200);
+    expect(
+      JSON.parse(completed.body.result?.content[0]?.text ?? "null")
+    ).toMatchObject({ updated: 1 });
+
+    const fetched = await callMcp<{ content: { text: string }[] }>(
+      tokens.access_token,
+      7,
+      "tools/call",
+      {
+        arguments: { id: savedValue.link.id },
+        name: "get_link",
+      }
+    );
+    expect(fetched.response.status).toBe(200);
+    expect(
+      JSON.parse(fetched.body.result?.content[0]?.text ?? "null")
+    ).toMatchObject({ id: savedValue.link.id, state: "completed" });
+
+    const completedLinks = await callMcp<{ content: { text: string }[] }>(
+      tokens.access_token,
+      8,
+      "tools/call",
+      {
+        arguments: { limit: 5, state: "completed" },
+        name: "list_links",
+      }
+    );
+    expect(completedLinks.response.status).toBe(200);
+    expect(
+      JSON.parse(completedLinks.body.result?.content[0]?.text ?? "null")
+    ).toMatchObject({ links: [{ id: savedValue.link.id }], total: 1 });
+
+    const archived = await callMcp<{ content: { text: string }[] }>(
+      tokens.access_token,
+      9,
+      "tools/call",
+      {
+        arguments: {
+          id: savedValue.link.id,
+          changes: { state: "archive" },
+        },
+        name: "update_link",
+      }
+    );
+    expect(archived.response.status).toBe(200);
+
+    const anyTerm = await callMcp<{ content: { text: string }[] }>(
+      tokens.access_token,
+      10,
+      "tools/call",
+      {
+        arguments: {
+          query: "mcp definitely-absent",
+          state: "any",
+        },
+        name: "search_links",
+      }
+    );
+    expect(anyTerm.response.status).toBe(200);
+    expect(
+      JSON.parse(anyTerm.body.result?.content[0]?.text ?? "null")
+    ).toMatchObject([{ id: savedValue.link.id, state: "archive" }]);
+
+    const allTerms = await callMcp<{ content: { text: string }[] }>(
+      tokens.access_token,
+      11,
+      "tools/call",
+      {
+        arguments: {
+          match: "all",
+          query: "mcp definitely-absent",
+          state: "any",
+        },
+        name: "search_links",
+      }
+    );
+    expect(allTerms.response.status).toBe(200);
+    expect(
+      JSON.parse(allTerms.body.result?.content[0]?.text ?? "null")
+    ).toEqual([]);
+
+    const fullHistory = await callMcp<{ content: { text: string }[] }>(
+      tokens.access_token,
+      12,
+      "tools/call",
+      {
+        arguments: { limit: 5, state: "any" },
+        name: "list_links",
+      }
+    );
+    expect(fullHistory.response.status).toBe(200);
+    expect(
+      JSON.parse(fullHistory.body.result?.content[0]?.text ?? "null")
+    ).toMatchObject({
+      links: [{ id: savedValue.link.id, state: "archive" }],
+      total: 1,
     });
     await vi.waitFor(
       () =>
@@ -728,7 +879,14 @@ describe("MCP OAuth Worker flow", () => {
     expect(listed.response.headers.get("mcp-session-id")).toBeNull();
     expect(listed.body.result).toMatchObject({
       resultType: "complete",
-      tools: [{ name: "search_links" }, { name: "save_link" }],
+      tools: [
+        { name: "list_links" },
+        { name: "search_links" },
+        { name: "get_link" },
+        { name: "save_link" },
+        { name: "update_link" },
+        { name: "update_links" },
+      ],
     });
   });
 
@@ -813,12 +971,13 @@ describe("MCP OAuth Worker flow", () => {
       url: WORKSPACE_B_URL,
     });
 
-    const linksFor = (orgId: string) =>
-      env.Chat.get(env.Chat.idFromName(orgId)).listLinks({
-        cursor: null,
-        limit: 20,
-        state: "all",
-      });
+    const linksFor = async (orgId: string) => {
+      const result = await env.LINK_PROCESSOR_DO.get(
+        env.LINK_PROCESSOR_DO.idFromName(orgId)
+      ).listLinks({ limit: 20, state: "active" });
+      if (!result.ok) throw new Error(result.error.message);
+      return result.value;
+    };
     await vi.waitFor(
       async () => {
         const [workspaceA, workspaceB] = await Promise.all([

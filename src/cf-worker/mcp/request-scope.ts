@@ -1,6 +1,6 @@
 import { Data, Effect, Option, Schema } from "effect";
 
-import { MCP_TOOL_SCOPES } from "@/lib/mcp";
+import { MCP_TOOL_NAMES, MCP_TOOL_SCOPES } from "@/lib/mcp";
 
 export const MAX_MCP_BODY_BYTES = 1024 * 1024;
 
@@ -15,7 +15,7 @@ const McpToolCall = Schema.Struct({
   method: Schema.Literal("tools/call"),
   params: Schema.Struct({ name: Schema.String }),
 });
-const McpToolName = Schema.Literals(["search_links", "save_link"]);
+const McpToolName = Schema.Literals(MCP_TOOL_NAMES);
 
 const decodeMessages = Schema.decodeUnknownOption(McpMessagesFromJson);
 const decodeToolCall = Schema.decodeUnknownOption(McpToolCall);

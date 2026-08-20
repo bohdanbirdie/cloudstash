@@ -61,8 +61,8 @@ export function McpCard() {
           <h3 id="mcp-card-title">MCP</h3>
         </CardTitle>
         <CardDescription>
-          Let compatible AI clients search and save links in the workspace you
-          approve during connection.
+          Let compatible AI clients find, save, organize, and update links in
+          the workspace you approve during connection.
         </CardDescription>
         {isAvailable && (
           <CardAction>

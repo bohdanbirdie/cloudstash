@@ -17,13 +17,14 @@ export interface ApiError {
 
 export interface ApiEndpoint {
   id: string;
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "PATCH";
   path: string;
   summary: string;
   description: string;
   query?: ApiField[];
   body?: ApiField[];
   responseFields?: ApiField[];
+  paginated?: boolean;
   curl: (origin: string) => string;
   response: string;
   errors: ApiError[];
@@ -38,24 +39,48 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
     path: "/api/links",
     summary: "List saved links",
     description:
-      "Returns saved links newest-first with their AI summary, tags, and processing state. Cursor-paginated.",
+      "Lists saved links with cursor pagination. Add q for relevance-ranked any-term search across titles, tags, domains, descriptions, summaries, and URLs.",
     query: [
       {
-        name: "state",
+        name: "q",
         type: "string",
         description:
-          'One of "inbox", "completed", "all", "archive". Default "all" (inbox + completed; archived excluded).',
+          "Optional full-text search query. Returns up to limit matches.",
+      },
+      {
+        name: "match",
+        type: '"any" | "all"',
+        description:
+          'Search term matching when q is present. Default "any" ranks every link matching at least one term; "all" requires every term.',
+      },
+      {
+        name: "state",
+        type: '"inbox" | "completed" | "active" | "archive" | "any" | "all"',
+        description:
+          'Default "active" includes inbox + completed and excludes archived links. Use "archive" for archived only or "any" for full history. Legacy "all" aliases "active".',
       },
       {
         name: "limit",
         type: "integer",
-        description: "Page size, 1–100. Default 50.",
+        description:
+          "Page size, 1–100 (or 1–20 when q is present). Defaults to 50 for lists and 20 for search.",
+      },
+      {
+        name: "sort",
+        type: '"newest" | "oldest"',
+        description: 'Saved-date order. Default "newest".',
+      },
+      {
+        name: "createdAfter / createdBefore",
+        type: "ISO 8601 string",
+        description:
+          "Optional saved-date range (inclusive start, exclusive end).",
       },
       {
         name: "cursor",
         type: "string",
         description:
-          "Opaque keyset token from a previous response's nextCursor. Omit for the first page.",
+          "Opaque keyset token from a previous list response. Omit for the first page and when q is present.",
       },
     ],
     responseFields: [
@@ -94,7 +119,7 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
       },
       {
         name: "state",
-        type: '"inbox" | "completed"',
+        type: '"inbox" | "completed" | "archive"',
         description: "The user's read state.",
       },
       {
@@ -114,13 +139,19 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
         description: "ISO 8601 timestamp.",
       },
       {
+        name: "deletedAt",
+        type: "string | null",
+        description: "Archive timestamp, or null.",
+      },
+      {
         name: "completedAt",
         type: "string | null",
         description: "ISO 8601 timestamp, or null.",
       },
     ],
+    paginated: true,
     curl: (origin) =>
-      `curl "${origin}/api/links?state=all&limit=50" \\\n  -H "Authorization: Bearer ${KEY_VAR}"`,
+      `curl "${origin}/api/links?state=active&limit=50" \\\n  -H "Authorization: Bearer ${KEY_VAR}"`,
     response: `{
   "links": [
     {
@@ -144,7 +175,7 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
   "nextCursor": "eyJ0IjoxNzE4..."
 }`,
     errors: [
-      { status: 400, when: "Invalid state, limit, or cursor." },
+      { status: 400, when: "Invalid state, match, limit, or cursor." },
       { status: 401, when: "Missing or invalid API key." },
       { status: 402, when: "Plan without Public API (free)." },
       { status: 404, when: "Organization not found." },
@@ -152,12 +183,147 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
     ],
   },
   {
+    id: "create-link",
+    method: "POST",
+    path: "/api/links",
+    summary: "Save a link",
+    description:
+      "Saves an HTTP(S) URL and optionally attaches tags atomically. Existing URLs are returned and receive any new tags.",
+    body: [
+      {
+        name: "url",
+        type: "string",
+        required: true,
+        description: "HTTP(S) URL to save.",
+      },
+      {
+        name: "tags",
+        type: "string[]",
+        description: "Up to 20 tag names.",
+      },
+    ],
+    curl: (origin) =>
+      `curl -X POST "${origin}/api/links" \\\n  -H "Authorization: Bearer ${KEY_VAR}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"url":"https://example.com/post","tags":["reading"]}'`,
+    response: `{
+  "created": true,
+  "link": { "id": "01HXXX...", "url": "https://example.com/post", "tags": ["reading"], "state": "inbox" }
+}`,
+    errors: [
+      { status: 400, when: "Invalid URL, tags, or request fields." },
+      { status: 401, when: "Missing or invalid API key." },
+      { status: 402, when: "Plan without Public API (free)." },
+      { status: 413, when: "Request body exceeds 64 KiB." },
+      { status: 500, when: "Internal error." },
+    ],
+  },
+  {
+    id: "get-link",
+    method: "GET",
+    path: "/api/links/:id",
+    summary: "Get a link",
+    description: "Returns one complete saved-link record by id.",
+    curl: (origin) =>
+      `curl "${origin}/api/links/01HXXX..." \\\n  -H "Authorization: Bearer ${KEY_VAR}"`,
+    response: `{
+  "id": "01HXXX...",
+  "url": "https://example.com/post",
+  "tags": ["reading"],
+  "state": "inbox",
+  "processing": "done"
+}`,
+    errors: [
+      { status: 401, when: "Missing or invalid API key." },
+      { status: 402, when: "Plan without Public API (free)." },
+      { status: 404, when: "Link or organization not found." },
+      { status: 500, when: "Internal error." },
+    ],
+  },
+  {
+    id: "update-link",
+    method: "PATCH",
+    path: "/api/links/:id",
+    summary: "Update a link",
+    description:
+      "Changes inbox/completed/archive state or adds, removes, or replaces tags. URL, generated metadata, and reprocessing are not mutable through the API.",
+    body: [
+      {
+        name: "state",
+        type: '"inbox" | "completed" | "archive"',
+        description: "Optional new state.",
+      },
+      {
+        name: "tags",
+        type: "{ add?: string[]; remove?: string[]; set?: string[] }",
+        description:
+          "Optional tag mutation. set cannot be combined with add/remove.",
+      },
+    ],
+    curl: (origin) =>
+      `curl -X PATCH "${origin}/api/links/01HXXX..." \\\n  -H "Authorization: Bearer ${KEY_VAR}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"state":"completed","tags":{"add":["done"]}}'`,
+    response: `{
+  "id": "01HXXX...",
+  "state": "completed",
+  "tags": ["reading", "done"]
+}`,
+    errors: [
+      { status: 400, when: "Invalid or unsupported change." },
+      { status: 401, when: "Missing or invalid API key." },
+      { status: 402, when: "Plan without Public API (free)." },
+      { status: 404, when: "Link or organization not found." },
+      { status: 413, when: "Request body exceeds 64 KiB." },
+      { status: 500, when: "Internal error." },
+    ],
+  },
+  {
+    id: "update-links",
+    method: "POST",
+    path: "/api/links/batch-update",
+    summary: "Update links in a bounded batch",
+    description:
+      "Updates up to 100 links selected either by ids or by state/saved-date filters. Continue with nextCursor for larger sets.",
+    body: [
+      {
+        name: "ids / where",
+        type: "string[] / filter",
+        required: true,
+        description:
+          "Provide exactly one. where supports state, createdAfter, createdBefore, and cursor.",
+      },
+      {
+        name: "changes",
+        type: "object",
+        required: true,
+        description:
+          "The same state/tag changes accepted by PATCH /api/links/:id.",
+      },
+      {
+        name: "limit",
+        type: "integer",
+        description: "Maximum links to update, 1–100. Default 100.",
+      },
+    ],
+    curl: (origin) =>
+      `curl -X POST "${origin}/api/links/batch-update" \\\n  -H "Authorization: Bearer ${KEY_VAR}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"where":{"createdBefore":"2025-01-01T00:00:00Z"},"changes":{"state":"completed"}}'`,
+    response: `{
+  "updated": 42,
+  "links": [],
+  "nextCursor": null
+}`,
+    errors: [
+      { status: 400, when: "Invalid selector, cursor, limit, or changes." },
+      { status: 401, when: "Missing or invalid API key." },
+      { status: 402, when: "Plan without Public API (free)." },
+      { status: 413, when: "Request body exceeds 64 KiB." },
+      { status: 500, when: "Internal error." },
+    ],
+  },
+  {
     id: "ingest",
     method: "POST",
     path: "/api/ingest",
-    summary: "Save a link",
+    summary: "Queue a link (legacy)",
     description:
-      "Queues a URL to be saved and processed (metadata fetch + AI summary). Returns immediately; processing runs asynchronously.",
+      "Compatibility endpoint that queues a URL without tags. New integrations should use POST /api/links.",
     body: [
       {
         name: "url",
@@ -207,7 +373,11 @@ function endpointSpec(endpoint: ApiEndpoint, origin: string): string {
     parts.push(
       "Link fields:",
       ...endpoint.responseFields.map(responseFieldLine),
-      "",
+      ""
+    );
+  }
+  if (endpoint.paginated) {
+    parts.push(
       "Top-level fields:",
       "- total (integer) — count of the whole filtered set, ignoring the current page.",
       "- nextCursor (string | null) — pass back to fetch the next page; null on the last page.",
@@ -229,7 +399,7 @@ export function buildAgentSpec(origin: string): string {
   return [
     "# Cloudstash API",
     "",
-    "This is the HTTP API specification for Cloudstash — a link-saving app that fetches each saved link's metadata and writes an AI-generated summary. Use it to read a workspace's saved links (with their AI summaries, tags, and processing state) and to save new links programmatically, for building integrations, scripts, or agent tools on top of a Cloudstash library.",
+    "This is the HTTP API specification for Cloudstash. Use it to list, search, save, read, and update a workspace's links. Link reprocessing remains an admin-only action in the Cloudstash app.",
     "",
     `This spec was copied from the in-app API reference (Settings → Developers) at ${origin}. It is self-contained: every endpoint, query parameter, request body, response field, and error code is documented below.`,
     "",

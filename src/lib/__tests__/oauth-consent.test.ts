@@ -99,12 +99,12 @@ describe("OAuth consent permission copy", () => {
         "links:read",
         "links:write",
       ])
-    ).toEqual(["View and save links", "Stay connected until you disconnect"]);
+    ).toEqual(["View and manage links", "Stay connected until you disconnect"]);
   });
 
   it("keeps narrower grants accurate", () => {
     expect(consentPermissionDescriptions(["links:read"])).toEqual([
-      "View saved links",
+      "View links",
     ]);
     expect(consentPermissionDescriptions(["openid"])).toEqual([
       "Confirm your Cloudstash account",

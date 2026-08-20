@@ -27,9 +27,9 @@ agent's retrieval and mutation tools.
 
 - **CS.SYS.RET-T01 LIKE search:** Case-insensitive LIKE and weighted fields are
   accepted instead of FTS5 to avoid a custom SQLite build.
-- **CS.SYS.RET-T02 Shared ChatAgent read client:** The public links API reuses
-  the workspace ChatAgentDO LiveStore replica, coupling API reads to that
-  stateful client but avoiding another replica class.
+- **CS.SYS.RET-T02 Shared LinkProcessor client:** REST and MCP reuse the existing
+  workspace-named LinkProcessorDO LiveStore replica; chat remains separate until
+  its planned multi-conversation migration.
 - **CS.SYS.RET-T03 Approximate chat budget:** Token reservations use estimates
   reconciled after calls; fail-closed budget lookup may temporarily deny chat.
 
@@ -37,17 +37,17 @@ agent's retrieval and mutation tools.
 
 - **CS.SYS.RET-R01 Local retrieval:** Search and filters must execute over local
   workspace state and work offline. `refines: CS.PROD-R06`
-- **CS.SYS.RET-R02 Multi-field AND search:** Every query word must match at
-  least one supported field; ranking must prefer title and effective tags over
-  weaker URL text.
+- **CS.SYS.RET-R02 Ranked multi-field search:** By default, a result may match
+  any query term and accumulates each field's weight; callers may require every
+  term with `match=all`. Title and effective tags must outrank URL text.
 - **CS.SYS.RET-R03 Effective tag filters:** Multi-tag filters require every
   selected effective tag and include valid pending suggestions.
 - **CS.SYS.RET-R04 Export without lock-in:** Without a paid gate, a user must be
   able to export all links in the selected workspace with URL, title,
   description, summary, reading/archival timestamps, and explicit/effective tags
   in a documented portable format. `refines: CS-R08`
-- **CS.SYS.RET-R05 Authorized API reads:** `GET /api/links` requires a valid
-  workspace key and `publicApi` capability and returns only that workspace.
+- **CS.SYS.RET-R05 Authorized API operations:** Link REST operations require a
+  valid workspace key and `publicApi` capability and affect only that workspace.
 - **CS.SYS.RET-R06 Stable pagination:** API listing uses deterministic keyset
   order and an opaque, validated cursor.
 - **CS.SYS.RET-R07 Agent workspace scope:** Chat identity, store, tools, usage,

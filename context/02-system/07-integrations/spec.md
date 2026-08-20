@@ -9,14 +9,14 @@ Active.
 
 ## Realizations
 
-| Integration      | Auth/connection                                         | Transport into Vault                                     | Lifecycle                                           |
-| ---------------- | ------------------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------- |
-| Chrome extension | web-minted paired API key + extension-origin allowlist  | direct LiveStore WebSocket client; local browser adapter | key revoke/disconnect; extension Web Store release  |
-| Raycast          | browser verification exchange → device-labelled API key | public ingest Queue                                      | key revoke; separate npm/Raycast repo               |
-| Telegram         | webhook secret + chat mapping to workspace key          | Queue                                                    | connect/check/confirm/status/disconnect; KV mapping |
-| Public API       | Bearer API key                                          | `POST` Queue; `GET` ChatAgentDO read client              | request-time capability and key checks              |
-| MCP clients      | OAuth 2.1 + PKCE/DCR; workspace consent                 | stateless HTTP; search + queued save                     | re-consent/revoke; five-minute JWT                  |
-| X bookmarks      | linked encrypted OAuth account                          | per-user alarm poll → Queue                              | pause/resume/disconnect                             |
+| Integration      | Auth/connection                                         | Transport into Vault                                                 | Lifecycle                                           |
+| ---------------- | ------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------- |
+| Chrome extension | web-minted paired API key + extension-origin allowlist  | direct LiveStore WebSocket client; local browser adapter             | key revoke/disconnect; extension Web Store release  |
+| Raycast          | browser verification exchange → device-labelled API key | public ingest Queue                                                  | key revoke; separate npm/Raycast repo               |
+| Telegram         | webhook secret + chat mapping to workspace key          | Queue                                                                | connect/check/confirm/status/disconnect; KV mapping |
+| Public API       | Bearer API key                                          | list/search/get/save/update via LinkProcessorDO; legacy ingest Queue | request-time capability and key checks              |
+| MCP clients      | OAuth 2.1 + PKCE/DCR; workspace consent                 | stateless HTTP; matching link operations via LinkProcessorDO         | re-consent/revoke; five-minute JWT                  |
+| X bookmarks      | linked encrypted OAuth account                          | per-user alarm poll → Queue                                          | pause/resume/disconnect                             |
 
 ## MCP Clients
 
@@ -25,7 +25,12 @@ marks dynamic clients unverified, shows the callback target, and pins access to
 the displayed workspace. The Pro-gated card shows the current origin's `/mcp`
 URL, OAuth setup, scopes, and protocol compatibility; runtime entitlement stays
 authoritative. The Worker supports MCP 2026 and the 2025 stateless fallback.
-CIMD remains disabled until its untrusted fetch is SSRF-safe.
+CIMD remains disabled until its untrusted fetch is SSRF-safe. Read tools list,
+search, and get; write tools save and update link state/tags individually or in
+bounded batches. Search defaults to ranked any-term matching and accepts an
+all-term mode. Collection filters use `active`, `archive`, or `any`, with legacy
+`all` retaining its non-archived meaning. Tool discovery exposes concrete JSON
+Schema types. Reprocessing remains unavailable.
 
 ## Chrome Extension
 

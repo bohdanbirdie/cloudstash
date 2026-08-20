@@ -4,13 +4,10 @@ import type { ApiLinkRow } from "@/livestore/queries/schemas";
 import type { TagByLinkRow } from "@/livestore/queries/tags";
 
 import {
-  DEFAULT_LIMIT,
-  MAX_LIMIT,
   decodeCursor,
   encodeCursor,
   encodeLinksPage,
   mergeTagNamesByLink,
-  parseListParams,
 } from "../api";
 
 const row = (over: Partial<ApiLinkRow> = {}): ApiLinkRow => ({
@@ -21,6 +18,7 @@ const row = (over: Partial<ApiLinkRow> = {}): ApiLinkRow => ({
   source: "extension",
   createdAt: 1_700_000_000_000,
   completedAt: null,
+  deletedAt: null,
   title: "Title",
   description: "Desc",
   image: null,
@@ -39,8 +37,6 @@ const tagRow = (over: Partial<TagByLinkRow> = {}): TagByLinkRow => ({
   deletedAt: null,
   ...over,
 });
-
-const url = (qs: string): URL => new URL(`https://x.test/api/links${qs}`);
 
 describe("cursor codec", () => {
   it("round-trips createdAt + id", () => {
@@ -62,54 +58,6 @@ describe("cursor codec", () => {
     expect(decodeCursor(encodeCursor({ createdAt: 1, id: "" }))).toBeNull();
     expect(decodeCursor(btoa(JSON.stringify({ t: "x", id: "a" })))).toBeNull();
     expect(decodeCursor(btoa(JSON.stringify({ id: "a" })))).toBeNull();
-  });
-});
-
-describe("parseListParams", () => {
-  it("defaults to state=all and DEFAULT_LIMIT with no cursor", () => {
-    const p = parseListParams(url(""));
-    expect(p).toEqual({
-      ok: true,
-      state: "all",
-      limit: DEFAULT_LIMIT,
-      cursor: null,
-    });
-  });
-
-  it("accepts every valid state", () => {
-    for (const state of ["inbox", "completed", "all", "archive"] as const) {
-      const p = parseListParams(url(`?state=${state}`));
-      expect(p.ok && p.state).toBe(state);
-    }
-  });
-
-  it("rejects an unknown state", () => {
-    expect(parseListParams(url("?state=bogus"))).toEqual({
-      ok: false,
-      error: "Invalid state",
-    });
-  });
-
-  it("validates limit bounds", () => {
-    expect(parseListParams(url("?limit=10")).ok).toBe(true);
-    expect(parseListParams(url(`?limit=${MAX_LIMIT}`)).ok).toBe(true);
-    expect(parseListParams(url("?limit=0"))).toEqual({
-      ok: false,
-      error: "Invalid limit",
-    });
-    expect(parseListParams(url(`?limit=${MAX_LIMIT + 1}`)).ok).toBe(false);
-    expect(parseListParams(url("?limit=1.5")).ok).toBe(false);
-    expect(parseListParams(url("?limit=abc")).ok).toBe(false);
-  });
-
-  it("decodes a valid cursor and rejects an invalid one", () => {
-    const token = encodeCursor({ createdAt: 42, id: "lnk_x" });
-    const ok = parseListParams(url(`?cursor=${token}`));
-    expect(ok.ok && ok.cursor).toEqual({ createdAt: 42, id: "lnk_x" });
-    expect(parseListParams(url("?cursor=garbage%21"))).toEqual({
-      ok: false,
-      error: "Invalid cursor",
-    });
   });
 });
 
@@ -182,6 +130,7 @@ describe("encodeLinksPage", () => {
       source: "extension",
       createdAt: "2023-11-14T22:13:20.000Z",
       completedAt: "2023-11-14T22:21:40.000Z",
+      deletedAt: null,
     });
     expect(page.total).toBe(1);
     expect(page.nextCursor).toBeNull();

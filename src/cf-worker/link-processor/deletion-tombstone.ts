@@ -4,9 +4,10 @@
  * checked at the top of `ingestAndProcess` so racing queue messages are
  * dropped before they touch the (about-to-be-wiped) Livestore.
  *
- * Persists in DO storage rather than memory so a DO eviction between
- * `markDeleting` and `wipeAll` does not lose the flag. Cleared implicitly by
- * `ctx.storage.deleteAll()` during the wipe step.
+ * Persists in DO storage rather than memory so eviction cannot lose the flag.
+ * The purge path rewrites it after `ctx.storage.deleteAll()` to permanently
+ * fence late queue messages and RPC calls. The live object also keeps a
+ * conservative in-memory fence throughout that wipe.
  */
 export const DELETION_TOMBSTONE_KEY = "__deleting__";
 
