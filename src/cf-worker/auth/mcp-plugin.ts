@@ -4,9 +4,12 @@ import { APIError } from "better-auth/api";
 import { MCP_SCOPES, MCP_WORKSPACE_CLAIM, mcpResource } from "../mcp/config";
 import type { Env } from "../shared";
 
+const MCP_ACCESS_TOKEN_TTL_SECONDS = 5 * 60;
+const MCP_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
+
 export const mcpPlugin = (env: Env) =>
   mcp({
-    accessTokenExpiresIn: 5 * 60,
+    accessTokenExpiresIn: MCP_ACCESS_TOKEN_TTL_SECONDS,
     allowDynamicClientRegistration: true,
     allowUnauthenticatedClientRegistration: true,
     consentPage: "/oauth-consent",
@@ -33,6 +36,7 @@ export const mcpPlugin = (env: Env) =>
       },
     },
     rateLimit: { register: { max: 5, window: 60 } },
+    refreshTokenExpiresIn: MCP_REFRESH_TOKEN_TTL_SECONDS,
     resource: mcpResource(env),
     scopes: [...MCP_SCOPES],
   });

@@ -32,7 +32,10 @@ Consent marks dynamic clients unverified, shows the callback target, and pins
 access to the displayed workspace. The Pro-gated card shows the current
 origin's `/mcp` URL, OAuth setup, scopes, and protocol compatibility; runtime
 entitlement stays authoritative. The Worker supports MCP 2026 and the 2025
-stateless fallback. Its initialize response advertises the Cloudstash display
+stateless fallback. Protected-resource discovery omits the optional scope list
+so clients fall back to the authorization server's complete scope metadata,
+request `offline_access`, and receive a rotating refresh token with a 30-day
+sliding lifetime. Its initialize response advertises the Cloudstash display
 name, website, and same-origin public PNG icons through standard MCP
 implementation metadata; whether they are rendered remains client-controlled.
 CIMD remains disabled until its untrusted fetch is SSRF-safe. Read tools list,

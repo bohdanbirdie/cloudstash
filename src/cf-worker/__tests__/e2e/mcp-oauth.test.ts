@@ -28,6 +28,7 @@ type RegisteredClient = {
 
 type TokenSet = {
   access_token: string;
+  expires_in: number;
   refresh_token?: string;
   scope: string;
   token_type: string;
@@ -352,10 +353,12 @@ describe("MCP OAuth Worker flow", () => {
       "http://worker/.well-known/oauth-protected-resource/mcp"
     );
     expect(resource.status).toBe(200);
-    expect(await resource.json()).toMatchObject({
+    const resourceMetadata = await resource.json<Record<string, unknown>>();
+    expect(resourceMetadata).toMatchObject({
       authorization_servers: [AUTH_ISSUER],
       resource: MCP_RESOURCE,
     });
+    expect(resourceMetadata).not.toHaveProperty("scopes_supported");
 
     const authorization = await SELF.fetch(
       "http://worker/.well-known/oauth-authorization-server/api/auth",
@@ -365,9 +368,12 @@ describe("MCP OAuth Worker flow", () => {
     expect(authorization.headers.get("Access-Control-Allow-Origin")).toBe(
       AUTH_ORIGIN
     );
-    expect(await authorization.json()).toMatchObject({
+    const authorizationMetadata =
+      await authorization.json<Record<string, unknown>>();
+    expect(authorizationMetadata).toMatchObject({
       authorization_endpoint: `${AUTH_ORIGIN}/api/auth/oauth2/authorize`,
       registration_endpoint: `${AUTH_ORIGIN}/api/auth/oauth2/register`,
+      scopes_supported: SCOPES.split(" "),
       token_endpoint: `${AUTH_ORIGIN}/api/auth/oauth2/token`,
     });
 
@@ -388,6 +394,76 @@ describe("MCP OAuth Worker flow", () => {
     );
     expect(preflight.headers.get("Access-Control-Allow-Methods")).toContain(
       "OPTIONS"
+    );
+  });
+
+  it("keeps Executor authorized with a rotating 30-day refresh token", async () => {
+    const resourceResponse = await SELF.fetch(
+      "http://worker/.well-known/oauth-protected-resource/mcp"
+    );
+    const resourceMetadata = await resourceResponse.json<{
+      scopes_supported?: string[];
+    }>();
+    const authorizationResponse = await SELF.fetch(
+      "http://worker/.well-known/oauth-authorization-server/api/auth"
+    );
+    const authorizationMetadata = await authorizationResponse.json<{
+      scopes_supported: string[];
+    }>();
+
+    // Executor currently uses protected-resource scopes when present and only
+    // falls back to authorization-server scopes when they are absent.
+    const executorScopes = (
+      resourceMetadata.scopes_supported ??
+      authorizationMetadata.scopes_supported
+    ).join(" ");
+    expect(executorScopes.split(" ")).toEqual(
+      expect.arrayContaining(SCOPES.split(" "))
+    );
+
+    const registration = await registerClient({
+      application_type: undefined,
+      client_name: "Executor",
+    });
+    expect(
+      registration.status,
+      `DCR failed: ${await registration.clone().text()}`
+    ).toBe(201);
+    const executorClient = await registration.json<RegisteredClient>();
+    expect(executorClient.application_type).toBe("native");
+
+    const executorTokens = await authorizeClient(
+      user,
+      executorClient,
+      executorScopes
+    );
+    expect(executorTokens.expires_in).toBe(5 * 60);
+    expect(executorTokens.refresh_token).toBeTruthy();
+
+    const storedRefreshToken = await env.DB.prepare(
+      `SELECT created_at AS createdAt, expires_at AS expiresAt
+       FROM oauth_refresh_token
+       WHERE client_id = ? AND rotated_at IS NULL
+       ORDER BY created_at DESC
+       LIMIT 1`
+    )
+      .bind(executorClient.client_id)
+      .first<{ createdAt: number; expiresAt: number }>();
+    expect(storedRefreshToken).not.toBeNull();
+    expect(storedRefreshToken!.expiresAt - storedRefreshToken!.createdAt).toBe(
+      30 * 24 * 60 * 60 * 1_000
+    );
+
+    const refresh = await refreshClient(
+      executorClient,
+      executorTokens.refresh_token!
+    );
+    expect(refresh.status, await refresh.clone().text()).toBe(200);
+    const refreshedTokens = await refresh.json<TokenSet>();
+    expect(refreshedTokens.expires_in).toBe(5 * 60);
+    expect(refreshedTokens.refresh_token).toBeTruthy();
+    expect(refreshedTokens.refresh_token).not.toBe(
+      executorTokens.refresh_token
     );
   });
 

@@ -22,7 +22,10 @@ import { handleTriggerDigest } from "./admin/trigger-digest";
 import { handleGetUsage } from "./admin/usage";
 import { trackEvent } from "./analytics";
 import { handleAuthRequest } from "./auth/handler";
-import { authBackendUnavailable } from "./auth/mcp-resource";
+import {
+  authBackendUnavailable,
+  prepareMcpProtectedResourceMetadata,
+} from "./auth/mcp-resource";
 import {
   MAX_REGISTRATION_BODY_BYTES,
   invalidOAuthClientRegistration,
@@ -192,7 +195,10 @@ app.on(["GET", "HEAD"], "/.well-known/*", (c) =>
     c.env,
     Effect.gen(function* () {
       const auth = yield* AuthClient;
-      return yield* Effect.promise(() => auth.handler(c.req.raw));
+      const response = yield* Effect.promise(() => auth.handler(c.req.raw));
+      return yield* Effect.promise(() =>
+        prepareMcpProtectedResourceMetadata(c.req.raw, response, c.env)
+      );
     }).pipe(Effect.withSpan("API.authMetadataHandler")),
     authBackendUnavailable
   )

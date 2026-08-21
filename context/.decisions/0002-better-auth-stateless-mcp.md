@@ -28,7 +28,11 @@ workspace authorization, and supports both current and deployed legacy clients.
 
 Use Better Auth OAuth with rate-limited DCR. Bind consent and five-minute JWTs
 to one workspace/resource; recheck access, entitlement, and tool scope on every
-request. A fresh server per exchange exposes bounded list, search, get, save,
+request. Explicitly expire rotating refresh tokens after 30 days of inactivity.
+Omit the optional protected-resource `scopes_supported` field so clients that
+incorrectly treat it as exhaustive consult authorization-server metadata and
+include `offline_access`; keep that authorization scope out of resource
+metadata. A fresh server per exchange exposes bounded list, search, get, save,
 and state/tag update tools for MCP 2026 and the 2025 stateless compatibility
 path. Preserve Better Auth's validation while inferring a missing native
 application type only for public clients whose redirects are all exact HTTP
@@ -42,5 +46,7 @@ an SSRF-safe transport.
   the unverified name and callback target.
 - Existing JWTs cannot be revoked online, so credential revocation is bounded
   by the five-minute TTL; authorization changes still apply next request.
+- Active clients refresh without user interaction; 30 days without a refresh
+  requires authorization again.
 - Legacy transport compatibility is temporary and must be removed when client
   adoption permits.
