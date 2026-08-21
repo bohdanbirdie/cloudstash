@@ -1,13 +1,14 @@
-import { Effect } from "effect";
+import { Cause, Effect } from "effect";
 import type { Layer } from "effect";
 
 import type { AuthClient } from "./auth/service";
 import { AppLayerLive } from "./auth/service";
 import type { WorkspaceAccess } from "./auth/workspace-access";
 import type { Billing } from "./billing/service";
-import type { DbClient } from "./db/service";
+import type { DbClient, DbError } from "./db/service";
 import type { AppSettings } from "./settings/service";
 import type { Env } from "./shared";
+import { OtelTracingLive } from "./tracing";
 
 export type AppCtx =
   | Billing
@@ -20,7 +21,7 @@ export type AppCtx =
 // top-level Effect.provide creates a fresh MemoMap, v3 and v4 alike), but a
 // stable layer identity is what any future cross-request MemoMap keys on.
 const appLayerCache = new WeakMap<Env, ReturnType<typeof AppLayerLive>>();
-export const getAppLayer = (env: Env): Layer.Layer<AppCtx> => {
+export const getAppLayer = (env: Env): Layer.Layer<AppCtx, DbError> => {
   const cached = appLayerCache.get(env);
   if (cached) return cached;
   const layer = AppLayerLive(env);
@@ -38,14 +39,27 @@ const onDefect = (defect: unknown) =>
     )
   );
 
+export const provideResponse = <Requirements, LayerError>(
+  effect: Effect.Effect<Response, never, Requirements>,
+  layer: Layer.Layer<Requirements, LayerError>,
+  onFailure: (cause: unknown) => Effect.Effect<Response>
+): Effect.Effect<Response> =>
+  effect.pipe(
+    Effect.provide(layer),
+    Effect.catchCause((cause) =>
+      onFailure(Cause.squash(cause)).pipe(Effect.provide(OtelTracingLive))
+    )
+  );
+
 // Runs a Hono request handler: provides the shared app layer and turns any
 // unhandled defect into a 500. The effect must have exhausted its error channel.
 export const runHandler = (
   env: Env,
-  effect: Effect.Effect<Response, never, AppCtx>
+  effect: Effect.Effect<Response, never, AppCtx>,
+  onLayerFailure: (cause: unknown) => Effect.Effect<Response> = onDefect
 ): Promise<Response> =>
-  effect.pipe(
-    Effect.catchDefect(onDefect),
-    Effect.provide(getAppLayer(env)),
-    Effect.runPromise
-  );
+  provideResponse(
+    effect.pipe(Effect.catchDefect(onDefect)),
+    getAppLayer(env),
+    onLayerFailure
+  ).pipe(Effect.runPromise);

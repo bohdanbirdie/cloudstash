@@ -12,7 +12,6 @@ import {
 } from "../../x-sync/errors";
 import {
   baseLayers,
-  makeAuthLayer,
   makeQueueLayer,
   makeSnapshot,
   makeStoreLayer,
@@ -47,7 +46,7 @@ describe("initializeWatermarkEffect", () => {
       ]);
       const queue = makeQueueLayer();
 
-      return initializeWatermarkEffect(USER_ID).pipe(
+      return initializeWatermarkEffect(USER_ID, "access-token").pipe(
         Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
         Effect.tap(() =>
           Effect.sync(() => {
@@ -71,7 +70,7 @@ describe("initializeWatermarkEffect", () => {
     ]);
     const queue = makeQueueLayer();
 
-    return initializeWatermarkEffect(USER_ID).pipe(
+    return initializeWatermarkEffect(USER_ID, "access-token").pipe(
       Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
       Effect.tap(() =>
         Effect.sync(() => {
@@ -88,28 +87,8 @@ describe("initializeWatermarkEffect", () => {
     const x = makeXApiLayer([]);
     const queue = makeQueueLayer();
 
-    return initializeWatermarkEffect(USER_ID).pipe(
+    return initializeWatermarkEffect(USER_ID, "access-token").pipe(
       Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
-      Effect.tap(() =>
-        Effect.sync(() => {
-          expect(x.calls).toEqual([]);
-          expect(store.rec.setWatermarkCalls).toEqual([]);
-        })
-      )
-    );
-  });
-
-  it.effect("no-op when no access token available", () => {
-    const store = makeStoreLayer(makeSnapshot());
-    const x = makeXApiLayer([]);
-    const queue = makeQueueLayer();
-
-    return initializeWatermarkEffect(USER_ID).pipe(
-      Effect.provide(
-        baseLayers(store.layer, x.layer, queue.layer, {
-          auth: makeAuthLayer(null),
-        })
-      ),
       Effect.tap(() =>
         Effect.sync(() => {
           expect(x.calls).toEqual([]);
@@ -129,7 +108,7 @@ describe("initializeWatermarkEffect", () => {
     ]);
     const queue = makeQueueLayer();
 
-    return initializeWatermarkEffect(USER_ID).pipe(
+    return initializeWatermarkEffect(USER_ID, "access-token").pipe(
       Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
       Effect.tap(() =>
         Effect.sync(() => {
@@ -150,7 +129,7 @@ describe("initializeWatermarkEffect", () => {
     ]);
     const queue = makeQueueLayer();
 
-    return initializeWatermarkEffect(USER_ID).pipe(
+    return initializeWatermarkEffect(USER_ID, "access-token").pipe(
       Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
       Effect.tap(() =>
         Effect.sync(() => {
@@ -173,7 +152,7 @@ describe("initializeWatermarkEffect", () => {
     ]);
     const queue = makeQueueLayer();
 
-    return initializeWatermarkEffect(USER_ID).pipe(
+    return initializeWatermarkEffect(USER_ID, "access-token").pipe(
       Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
       Effect.tap(() =>
         Effect.sync(() => {
@@ -197,7 +176,7 @@ describe("initializeWatermarkEffect", () => {
     ]);
     const queue = makeQueueLayer();
 
-    return initializeWatermarkEffect(USER_ID).pipe(
+    return initializeWatermarkEffect(USER_ID, "access-token").pipe(
       Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
       Effect.tap(() =>
         Effect.sync(() => {

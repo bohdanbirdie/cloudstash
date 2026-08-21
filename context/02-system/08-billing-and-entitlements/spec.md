@@ -26,8 +26,7 @@ Stripe owns payment/subscription truth. D1 owns operational entitlement truth.
 
 Current boolean capability fields are AI summaries, chat agent, integrations, X
 bookmark sync, X content enrichment, public API, MCP server, and weekly digest;
-chat also has a monthly USD budget. `mcpServer` exists in the executable matrix
-but has no runtime realization and therefore authorizes no shipped feature. Free, Plus, and Pro defaults are declared in
+chat also has a monthly USD budget. Free, Plus, and Pro defaults are declared in
 [`src/lib/plan.ts`](../../../src/lib/plan.ts). A per-workspace override can force
 an individual value. Capability denial maps to HTTP 402 with capability and
 required tier where an HTTP boundary applies.
@@ -35,6 +34,7 @@ required tier where an HTTP boundary applies.
 Implemented gates include:
 
 - `publicApi` — links read and ingest;
+- `mcpServer` — every authenticated MCP exchange before protocol dispatch;
 - `integrations` — Telegram connection and related pairing surfaces;
 - `xBookmarkSync` — selected connect/resume handlers;
 - `chatAgent` + `monthlyChatBudgetUsd` — agent auth and token reservation;

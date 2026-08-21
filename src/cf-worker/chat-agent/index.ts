@@ -16,8 +16,14 @@ import {
 import type { LanguageModel } from "ai";
 import { Effect, Match } from "effect";
 
+import { normalizeLinkSearchQuery } from "../../lib/link-search";
 import type { LinkStatus } from "../../livestore/queries/filtered-links";
-import { apiLinksCount$, apiLinksPage$ } from "../../livestore/queries/links";
+import {
+  apiLinksCount$,
+  apiLinksPage$,
+  searchLinks$,
+} from "../../livestore/queries/links";
+import type { SearchResult } from "../../livestore/queries/schemas";
 import { pendingTagsByLink$, tagsByLink$ } from "../../livestore/queries/tags";
 import { schema } from "../../livestore/schema";
 import { Billing } from "../billing/service";
@@ -209,6 +215,29 @@ export class ChatAgentDO
             orgId: maskId(this.orgId()),
             state: params.state,
             limit: params.limit,
+          },
+        }),
+        Effect.provide(getAppLayer(this.env))
+      )
+    );
+  }
+
+  // Bounded ranked search over this org's links for read-only external callers.
+  async searchLinks(params: {
+    query: string;
+  }): Promise<readonly SearchResult[]> {
+    const query = normalizeLinkSearchQuery(params.query);
+    if (query === null) return [];
+
+    return Effect.runPromise(
+      Effect.gen({ self: this }, function* () {
+        const store = yield* Effect.promise(() => this.getStore());
+        return store.query(searchLinks$(query));
+      }).pipe(
+        Effect.withSpan("ChatAgentDO.searchLinks", {
+          attributes: {
+            orgId: maskId(this.orgId()),
+            queryLength: query.length,
           },
         }),
         Effect.provide(getAppLayer(this.env))

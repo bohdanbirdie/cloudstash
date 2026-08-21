@@ -1,6 +1,7 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 import { ExtensionCard } from "./extension-card";
+import { McpCard } from "./mcp-card";
 import { RaycastCard } from "./raycast-card";
 import { TelegramCard } from "./telegram-card";
 import { useApiKeys } from "./use-api-keys";
@@ -18,6 +19,8 @@ export function IntegrationsSection() {
       )}
 
       <XCard />
+
+      <McpCard />
 
       <TelegramCard />
 

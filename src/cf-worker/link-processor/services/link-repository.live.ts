@@ -24,5 +24,5 @@ export const LinkRepositoryLive = (store: Store<typeof schema>) =>
         store.query(queryDb(tables.linkProcessingStatus.where({})))
       ),
 
-    commitEvent: (event) => Effect.sync(() => store.commit(event)),
+    commitEvents: (...events) => Effect.sync(() => store.commit(...events)),
   });

@@ -1,14 +1,14 @@
-# DELTA-003: Account deletion can rehydrate purged workspace content
+# DELTA-003: In-flight work can outlive workspace purge
 
 Status: open
 
 ## Divergence
 
-The deletion workflow wipes the LinkProcessorDO before the SyncBackendDO. A
-late reverse-RPC/live-pull delivery from the still-live sync backend can wake and
-reconstruct the client after its storage was purged. The workflow's intake
-marker is stored inside LinkProcessorDO and erased by the same `deleteAll()`, so
-a retained Queue/DLQ message can also recreate state during or after deletion.
+Canonical REST/MCP link operations are generation-fenced through store creation
+and the repository commit boundary. Subscription callbacks are also
+generation-gated and disposed during deletion. Pre-existing ingestion,
+processing, digest, and result-notification work can still capture the store,
+suspend, and resume after account deletion has purged it.
 
 ## Intent
 
@@ -18,12 +18,16 @@ sources/messages from recreating deleted state.
 
 ## Implementation
 
-[`runAccountDeletion`](../../src/cf-worker/account-deletion/workflow.ts) orders
-`wipe-link-processor` before `wipe-sync-backend`.
 [`deletion-tombstone.ts`](../../src/cf-worker/link-processor/deletion-tombstone.ts)
-explicitly says `ctx.storage.deleteAll()` clears the marker, and
-[`purgeAll`](../../src/cf-worker/link-processor/durable-object.ts) performs that
-wipe. Later intake checks only the now-absent marker before booting LiveStore.
+defines the marker retained by
+[`purgeAll`](../../src/cf-worker/link-processor/durable-object.ts). Queue intake,
+link-operation RPCs, fetch wake-ups, digest triggers, and `syncUpdateRpc` check
+the fence at entry. Link-operation RPCs additionally capture `storeGeneration`,
+reject store creation from an invalidated generation, and pass a generation
+check to every repository commit. Subscription callbacks capture the generation
+and are unsubscribed by `markDeleting`. The older processing, digest, ingest,
+and notification effects do not yet share that commit fence or an in-flight
+drain.
 
 ## Direction
 
@@ -31,7 +35,6 @@ update implementation
 
 ## Resolution Signal
 
-Delete this delta when a deletion ledger outside purged client storage fences
-intake for at least the retained-message window, the sync backend is disabled
-before dependent clients are purged, and eviction plus delayed-Queue tests prove
-no workspace content store reappears during or after deletion.
+Delete this delta when mark/purge invalidates or drains the remaining older
+operation paths and race tests prove suspended processing, digest, ingestion,
+and notification work cannot write after the wipe.

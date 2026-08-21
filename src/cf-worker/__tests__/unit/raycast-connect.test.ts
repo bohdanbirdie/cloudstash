@@ -77,6 +77,7 @@ function makeBillingLayer(caps: TierCapabilities = capabilitiesFor("plus")) {
 }
 
 const workspaceAccessSuccess: WorkspaceAccess["Service"] = {
+  authorizeIdentity: () => Effect.die("Identity authorization not used"),
   authorizeSession: () => Effect.die("Session authorization not used"),
   authorizeApiKey: () =>
     Effect.succeed({
@@ -341,6 +342,8 @@ describe("handleExchangeRequest", () => {
             Effect.succeed({ id: "ver-1", data: storedData }),
         },
         workspaceAccess: {
+          authorizeIdentity: () =>
+            Effect.die("Identity authorization not used"),
           authorizeSession: () => Effect.die("Session authorization not used"),
           authorizeApiKey: () =>
             Effect.fail(
@@ -376,6 +379,8 @@ describe("handleExchangeRequest", () => {
             Effect.succeed({ id: "ver-1", data: storedData }),
         },
         workspaceAccess: {
+          authorizeIdentity: () =>
+            Effect.die("Identity authorization not used"),
           authorizeSession: () => Effect.die("Session authorization not used"),
           authorizeApiKey: () =>
             Effect.fail(

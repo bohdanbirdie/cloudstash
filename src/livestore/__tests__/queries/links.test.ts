@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   allLinks$,
   allLinksCount$,
+  anyLinksCount$,
+  apiLinksPage$,
   archiveCount$,
   archiveLinks$,
   completedCount$,
@@ -137,6 +139,14 @@ describe("links queries", () => {
 
       expect(store.query(archiveCount$)).toBe(2);
     });
+
+    it("anyLinksCount$ includes active and archived links", () => {
+      seedLink();
+      const archived = seedLink();
+      deleteLink(archived, new Date("2026-01-03T10:00:00Z"));
+
+      expect(store.query(anyLinksCount$)).toBe(2);
+    });
   });
 
   describe("list queries with snapshot/summary joins", () => {
@@ -215,6 +225,30 @@ describe("links queries", () => {
   });
 
   describe("parameterized queries", () => {
+    it("treats all as active while any includes archived links", () => {
+      const active = seedLink({
+        createdAt: new Date("2026-01-01T10:00:00Z"),
+      });
+      const archived = seedLink({
+        createdAt: new Date("2026-01-02T10:00:00Z"),
+      });
+      deleteLink(archived, new Date("2026-01-03T10:00:00Z"));
+
+      const page = (state: "active" | "all" | "archive" | "any") =>
+        store.query(
+          apiLinksPage$({
+            state,
+            limitPlusOne: 10,
+            cursor: null,
+          })
+        );
+
+      expect(page("active").map((link) => link.id)).toEqual([active]);
+      expect(page("all").map((link) => link.id)).toEqual([active]);
+      expect(page("archive").map((link) => link.id)).toEqual([archived]);
+      expect(page("any").map((link) => link.id)).toEqual([archived, active]);
+    });
+
     it("linkById$ returns one row", () => {
       const id = seedLink();
       addSnapshot(id, new Date("2026-01-02T10:00:00Z"), { title: "hello" });
@@ -287,6 +321,89 @@ describe("links queries", () => {
   });
 
   describe("searchLinks$ weighted scoring", () => {
+    it("matches any word by default and ranks links matching more words first", () => {
+      const both = seedLink();
+      addSnapshot(both, new Date("2026-01-02T10:00:00Z"), {
+        title: "Education course guide",
+      });
+      const one = seedLink();
+      addSnapshot(one, new Date("2026-01-02T10:00:00Z"), {
+        title: "Education journal",
+      });
+      const neither = seedLink();
+      addSnapshot(neither, new Date("2026-01-02T10:00:00Z"), {
+        title: "Gardening notes",
+      });
+
+      const ids = store
+        .query(searchLinks$("education course"))
+        .map((row) => row.id);
+
+      expect(ids).toEqual([both, one]);
+      expect(ids).not.toContain(neither);
+    });
+
+    it("can require all search words", () => {
+      const both = seedLink();
+      addSnapshot(both, new Date("2026-01-02T10:00:00Z"), {
+        title: "Education course guide",
+      });
+      const one = seedLink();
+      addSnapshot(one, new Date("2026-01-02T10:00:00Z"), {
+        title: "Education journal",
+      });
+
+      expect(
+        store
+          .query(searchLinks$("education course", { match: "all" }))
+          .map((row) => row.id)
+      ).toEqual([both]);
+    });
+
+    it("applies state filters to every word in an any-word search", () => {
+      const active = seedLink();
+      addSnapshot(active, new Date("2026-01-02T10:00:00Z"), {
+        title: "Education notes",
+      });
+      const archived = seedLink();
+      addSnapshot(archived, new Date("2026-01-02T10:00:00Z"), {
+        title: "Course notes",
+      });
+      deleteLink(archived, new Date("2026-01-03T10:00:00Z"));
+
+      expect(
+        store
+          .query(searchLinks$("education course", { state: "active" }))
+          .map((row) => row.id)
+      ).toEqual([active]);
+      expect(
+        store
+          .query(searchLinks$("education course", { state: "any" }))
+          .map((row) => row.id)
+      ).toEqual([archived, active]);
+    });
+
+    it.each([
+      ["%", "100% coverage"],
+      ["_", "snake_case"],
+    ])(
+      "treats %s as a literal in a default any-word search",
+      (wildcard, title) => {
+        const matching = seedLink();
+        addSnapshot(matching, new Date("2026-01-02T10:00:00Z"), { title });
+        const unrelated = seedLink();
+        addSnapshot(unrelated, new Date("2026-01-02T10:00:00Z"), {
+          title: "Ordinary notes",
+        });
+
+        expect(
+          store
+            .query(searchLinks$(`${wildcard} definitely-absent`))
+            .map((row) => row.id)
+        ).toEqual([matching]);
+      }
+    );
+
     it("ranks by weight: title > domain > description > summary > url", () => {
       // Each seeded link has a unique field that matches "zebra".
       const titleOnly = seedLink({

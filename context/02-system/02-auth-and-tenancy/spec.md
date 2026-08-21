@@ -14,10 +14,14 @@ Google OAuth → Better Auth user → approval → personal organization/workspa
              → session cookie with activeOrganizationId
 ```
 
-Better Auth persists users, OAuth accounts, sessions, organizations, members,
-and API keys in D1. On session creation, the hook resolves an existing active
+Better Auth persists identity, sessions, API keys, OAuth provider state, and
+signing keys in D1. Accounts are keyed by issuer plus account ID. On session
+creation, the hook resolves an existing active
 organization or creates a personal organization and sets it on the session.
 Unapproved users stop before mounting the LiveStore application.
+
+The Better Auth 1.7 migration maps configured legacy providers to issuers;
+database constraints roll back unknown or colliding identities.
 
 Production sessions last fourteen days and update after seven days. A signed
 cookie cache has a five-minute TTL. Visibility/focus refresh checks the session;
@@ -60,6 +64,13 @@ and its current approval and membership before use. Better Auth's live key
 verification preserves next-request/reconnect revocation. Its per-key request
 rate limit is disabled because sync reconnects are network-driven; a Cloudflare
 per-IP rate limiter protects selected auth/sync paths.
+
+Remote MCP uses Better Auth discovery, DCR, PKCE, refresh tokens, and
+five-minute workspace/resource JWTs. Consent remains bound to its signed query
+and workspace across redirects. Each request verifies JWT/DPoP locally and
+rechecks access, entitlement, and scope; existing JWTs expire within five
+minutes. Google uses fixed endpoints, so auth initialization needs no discovery
+request.
 
 ## Roles and Permissions
 

@@ -1,12 +1,20 @@
-// Rejects non-http(s) schemes; `javascript:`/`data:` would otherwise execute
-// when rendered as `<a href>`.
-export function parseHttpUrl(input: string): URL | null {
-  let url: URL;
-  try {
-    url = new URL(input);
-  } catch {
-    return null;
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-  return url;
-}
+import { Option, Schema } from "effect";
+
+export const HttpUrlFromString = Schema.URLFromString.pipe(
+  Schema.annotateEncoded({ format: "uri" }),
+  Schema.check(
+    Schema.makeFilter(
+      (url) =>
+        url.protocol === "http:" ||
+        url.protocol === "https:" ||
+        "Expected an HTTP(S) URL"
+    )
+  )
+);
+
+const decodeHttpUrl = Schema.decodeUnknownOption(HttpUrlFromString);
+
+export const parseHttpUrl = (input: string): URL | null => {
+  const parsed = decodeHttpUrl(input);
+  return Option.isSome(parsed) ? parsed.value : null;
+};

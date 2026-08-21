@@ -3,7 +3,7 @@ import { DurableObject } from "cloudflare:workers";
 import { Effect, Layer, Logger, Match } from "effect";
 
 import { AppLayerLive, AuthClient } from "../auth/service";
-import { UserId, XUserId, XUsername } from "../db/branded";
+import { UserId, XUsername } from "../db/branded";
 import { DbClient } from "../db/service";
 import { createLogger } from "../logger";
 import type { Env } from "../shared";
@@ -11,9 +11,8 @@ import {
   BACKOFF_BASE_MS,
   BACKOFF_CAP_MS,
   POLL_INTERVAL_MS,
-  getAccessTokenEffect,
-  initializeWatermarkEffect,
   pollOnceEffect,
+  startSyncEffect,
 } from "./effects";
 import type { PollOutcome } from "./effects";
 import { sideEffectError } from "./effects-helpers";
@@ -91,88 +90,16 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
    */
   async start(): Promise<void> {
     const userId = this.userId;
-    await this.runEffect(this.startEffect(userId));
+    await this.runEffect(
+      startSyncEffect(
+        userId,
+        Effect.tryPromise({
+          try: () => this.ctx.storage.setAlarm(Date.now() + POLL_INTERVAL_MS),
+          catch: sideEffectError("storage.setAlarm"),
+        })
+      )
+    );
   }
-
-  private startEffect = Effect.fn("XBookmarkSyncDO.start")((userId: UserId) =>
-    Effect.gen({ self: this }, function* () {
-      yield* Effect.annotateCurrentSpan("userId", userId);
-      const store = yield* XSyncStateStore;
-
-      const existing = yield* store
-        .get()
-        .pipe(
-          Effect.catchTag("XSyncStorageError", (e) =>
-            Effect.logWarning("start: storage get failed").pipe(
-              Effect.annotateLogs({ userId, op: e.op, cause: String(e.cause) }),
-              Effect.as(null)
-            )
-          )
-        );
-
-      const accessToken = yield* getAccessTokenEffect(userId);
-      if (!accessToken) {
-        yield* Effect.logWarning("start: no access token, halting").pipe(
-          Effect.annotateLogs({ userId })
-        );
-        return;
-      }
-
-      const api = yield* XApiClient;
-      const me = yield* api.getMe(accessToken).pipe(
-        Effect.catchTags({
-          XUnauthorizedError: (e) =>
-            store.setStatus("needs_reconnect").pipe(
-              Effect.catchTag("XSyncStorageError", () => Effect.void),
-              Effect.tap(() =>
-                Effect.logWarning("start: getMe 401, needs reconnect").pipe(
-                  Effect.annotateLogs({ userId, endpoint: e.endpoint })
-                )
-              ),
-              Effect.as(null)
-            ),
-          XApiError: (e) =>
-            Effect.logError("start: getMe failed").pipe(
-              Effect.annotateLogs({
-                userId,
-                endpoint: e.endpoint,
-                status: e.status,
-                message: e.message,
-              }),
-              Effect.as(null)
-            ),
-        })
-      );
-      if (!me) return;
-
-      yield* store
-        .setIdentity({
-          xUserId: XUserId.make(me.id),
-          xUsername: XUsername.make(me.username),
-        })
-        .pipe(
-          Effect.catchTag("XSyncStorageError", (e) =>
-            Effect.logError("start: setIdentity failed, halting").pipe(
-              Effect.annotateLogs({ userId, op: e.op, cause: String(e.cause) })
-            )
-          )
-        );
-
-      const isFreshConnect = !existing?.watermarkTweetId;
-      yield* Effect.annotateCurrentSpan("isFreshConnect", isFreshConnect);
-      yield* Effect.logInfo("start").pipe(
-        Effect.annotateLogs({ userId, isFreshConnect })
-      );
-      if (isFreshConnect) {
-        yield* initializeWatermarkEffect(userId);
-      }
-
-      yield* Effect.tryPromise({
-        try: () => this.ctx.storage.setAlarm(Date.now() + POLL_INTERVAL_MS),
-        catch: sideEffectError("storage.setAlarm"),
-      }).pipe(Effect.catchTag("XSyncSideEffectError", () => Effect.void));
-    })
-  );
 
   async pause(): Promise<void> {
     await this.runEffect(this.pauseEffect(this.userId));
@@ -338,10 +265,17 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
           )
         );
       if (!state) {
-        yield* Effect.annotateCurrentSpan("outcome", "halt");
-        yield* Effect.logWarning("alarm: no state, halting").pipe(
-          Effect.annotateLogs({ userId })
+        yield* Effect.logWarning(
+          "alarm: no state, retrying initialization"
+        ).pipe(Effect.annotateLogs({ userId }));
+        yield* startSyncEffect(
+          userId,
+          Effect.tryPromise({
+            try: () => this.ctx.storage.setAlarm(Date.now() + POLL_INTERVAL_MS),
+            catch: sideEffectError("storage.setAlarm"),
+          })
         );
+        yield* Effect.annotateCurrentSpan("outcome", "halt");
         return { kind: "halt" as const };
       }
       if (!state.syncEnabled || state.status !== "active") {
@@ -356,37 +290,54 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
         return { kind: "halt" as const };
       }
 
-      return yield* pollOnceEffect(userId).pipe(
-        Effect.map(
-          (r: PollOutcome) => ({ kind: "result" as const, result: r }) as const
-        ),
-        Effect.catchTags({
-          NoAccessTokenError: () =>
-            Effect.logWarning("alarm: fatal — no access token, halting").pipe(
-              Effect.annotateLogs({ userId }),
-              Effect.tap(() => Effect.annotateCurrentSpan("outcome", "fatal")),
-              Effect.as({ kind: "fatal" as const })
-            ),
-          DbError: (e) =>
-            Effect.logError("alarm: db error").pipe(
-              Effect.annotateLogs({ userId, cause: String(e.cause) }),
-              Effect.tap(() => Effect.annotateCurrentSpan("outcome", "error")),
-              Effect.as({ kind: "error" as const })
-            ),
-          XApiError: (e) =>
-            Effect.logError("alarm: X API error").pipe(
-              Effect.annotateLogs({
-                userId,
-                endpoint: e.endpoint,
-                status: e.status,
-                message: e.message,
-              }),
-              Effect.tap(() => Effect.annotateCurrentSpan("outcome", "error")),
-              Effect.as({ kind: "error" as const })
-            ),
-        })
-      );
+      const result = yield* pollOnceEffect(userId);
+      return { kind: "result" as const, result };
     }).pipe(
+      Effect.catchTags({
+        NoAccessTokenError: () =>
+          Effect.logWarning("alarm: fatal — no access token, halting").pipe(
+            Effect.annotateLogs({ userId }),
+            Effect.tap(() => Effect.annotateCurrentSpan("outcome", "fatal")),
+            Effect.as({ kind: "fatal" as const })
+          ),
+        DbError: (e) =>
+          Effect.logError("alarm: db error").pipe(
+            Effect.annotateLogs({ userId, cause: String(e.cause) }),
+            Effect.tap(() => Effect.annotateCurrentSpan("outcome", "error")),
+            Effect.as({ kind: "error" as const })
+          ),
+        XSyncSideEffectError: (e) =>
+          Effect.logError("alarm: access-token backend error").pipe(
+            Effect.annotateLogs({
+              userId,
+              op: e.op,
+              cause: String(e.cause),
+            }),
+            Effect.tap(() => Effect.annotateCurrentSpan("outcome", "error")),
+            Effect.as({ kind: "error" as const })
+          ),
+        XSyncStorageError: (e) =>
+          Effect.logError("alarm: storage error").pipe(
+            Effect.annotateLogs({
+              userId,
+              op: e.op,
+              cause: String(e.cause),
+            }),
+            Effect.tap(() => Effect.annotateCurrentSpan("outcome", "error")),
+            Effect.as({ kind: "error" as const })
+          ),
+        XApiError: (e) =>
+          Effect.logError("alarm: X API error").pipe(
+            Effect.annotateLogs({
+              userId,
+              endpoint: e.endpoint,
+              status: e.status,
+              message: e.message,
+            }),
+            Effect.tap(() => Effect.annotateCurrentSpan("outcome", "error")),
+            Effect.as({ kind: "error" as const })
+          ),
+      }),
       // Surface the chosen outcome kind on the parent span. Match keeps it
       // exhaustive across the discriminated union (which uses `kind`, not `_tag`).
       Effect.tap((o) =>

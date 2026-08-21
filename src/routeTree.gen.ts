@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as OauthConsentRouteImport } from './routes/oauth-consent'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as AuthedRouteImport } from './routes/_authed'
@@ -39,6 +40,11 @@ const TermsRoute = TermsRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OauthConsentRoute = OauthConsentRouteImport.update({
+  id: '/oauth-consent',
+  path: '/oauth-consent',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -110,6 +116,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/contact': typeof ContactRoute
   '/login': typeof LoginRoute
+  '/oauth-consent': typeof OauthConsentRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/welcome': typeof WelcomeRoute
@@ -127,6 +134,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/contact': typeof ContactRoute
   '/login': typeof LoginRoute
+  '/oauth-consent': typeof OauthConsentRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/welcome': typeof WelcomeRoute
@@ -146,6 +154,7 @@ export interface FileRoutesById {
   '/_authed': typeof AuthedRouteWithChildren
   '/contact': typeof ContactRoute
   '/login': typeof LoginRoute
+  '/oauth-consent': typeof OauthConsentRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/welcome': typeof WelcomeRoute
@@ -165,6 +174,7 @@ export interface FileRouteTypes {
     | '/'
     | '/contact'
     | '/login'
+    | '/oauth-consent'
     | '/privacy'
     | '/terms'
     | '/welcome'
@@ -182,6 +192,7 @@ export interface FileRouteTypes {
     | '/'
     | '/contact'
     | '/login'
+    | '/oauth-consent'
     | '/privacy'
     | '/terms'
     | '/welcome'
@@ -200,6 +211,7 @@ export interface FileRouteTypes {
     | '/_authed'
     | '/contact'
     | '/login'
+    | '/oauth-consent'
     | '/privacy'
     | '/terms'
     | '/welcome'
@@ -219,6 +231,7 @@ export interface RootRouteChildren {
   AuthedRoute: typeof AuthedRouteWithChildren
   ContactRoute: typeof ContactRoute
   LoginRoute: typeof LoginRoute
+  OauthConsentRoute: typeof OauthConsentRoute
   PrivacyRoute: typeof PrivacyRoute
   TermsRoute: typeof TermsRoute
   WelcomeRoute: typeof WelcomeRoute
@@ -248,6 +261,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth-consent': {
+      id: '/oauth-consent'
+      path: '/oauth-consent'
+      fullPath: '/oauth-consent'
+      preLoaderRoute: typeof OauthConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -370,6 +390,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthedRoute: AuthedRouteWithChildren,
   ContactRoute: ContactRoute,
   LoginRoute: LoginRoute,
+  OauthConsentRoute: OauthConsentRoute,
   PrivacyRoute: PrivacyRoute,
   TermsRoute: TermsRoute,
   WelcomeRoute: WelcomeRoute,

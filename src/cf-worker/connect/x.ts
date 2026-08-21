@@ -3,16 +3,22 @@ import { Effect, Layer } from "effect";
 import { AppLayerLive, AuthClient } from "../auth/service";
 import { WorkspaceAccess } from "../auth/workspace-access";
 import { capabilityDeniedResponse } from "../billing/errors";
-import { requireCapability } from "../billing/service";
+import { Billing, requireCapability } from "../billing/service";
 import { UserId } from "../db/branded";
+import { DbError } from "../db/service";
 import { maskId, safeErrorInfo } from "../log-utils";
+import { provideResponse } from "../runtime";
 import type { Env } from "../shared";
 import type {
   XBookmarkSyncDO,
   XStatusResponse,
 } from "../x-sync/durable-object";
 import { sideEffectError } from "../x-sync/effects-helpers";
-import { ConnectUnauthorizedError, NoActiveOrgError } from "./errors";
+import {
+  ConnectUnauthorizedError,
+  NoActiveOrgError,
+  SessionLookupError,
+} from "./errors";
 import { SessionProvider, getAuthorizedSession } from "./services";
 
 type ActionResult = { ok: true } | { kind: "not_connected" };
@@ -66,7 +72,7 @@ const safeStatus = (env: Env, userId: UserId) =>
     )
   );
 
-export const xStatusRequest = Effect.fn("XConnect.status")(function* (
+export const xStatusRequest = Effect.fnUntraced(function* (
   headers: Headers,
   env: Env
 ) {
@@ -74,7 +80,7 @@ export const xStatusRequest = Effect.fn("XConnect.status")(function* (
   return yield* safeStatus(env, userId);
 });
 
-export const xDisconnectRequest = Effect.fn("XConnect.disconnect")(function* (
+export const xDisconnectRequest = Effect.fnUntraced(function* (
   request: Request,
   env: Env
 ) {
@@ -97,17 +103,33 @@ export const xDisconnectRequest = Effect.fn("XConnect.disconnect")(function* (
   );
 
   // Better Auth unlink — tolerate "already unlinked" cases.
-  yield* Effect.tryPromise({
-    try: () =>
-      auth.api.unlinkAccount({
-        body: { providerId: "x" },
-        headers: request.headers,
-      }),
-    catch: sideEffectError("auth.unlinkAccount"),
+  yield* Effect.gen(function* () {
+    const accounts = yield* Effect.tryPromise({
+      try: () =>
+        auth.api.listUserAccounts({
+          headers: request.headers,
+        }),
+      catch: sideEffectError("auth.listUserAccounts"),
+    });
+    const xAccount = accounts.find((account) => account.providerId === "x");
+    if (xAccount) {
+      yield* Effect.tryPromise({
+        try: () =>
+          auth.api.unlinkAccount({
+            body: { accountId: xAccount.id },
+            headers: request.headers,
+          }),
+        catch: sideEffectError("auth.unlinkAccount"),
+      });
+    }
   }).pipe(
-    Effect.catchTag("XSyncSideEffectError", (e) =>
-      Effect.logWarning("X disconnect: unlinkAccount failed").pipe(
-        Effect.annotateLogs({ userId: maskId(userId), cause: String(e.cause) })
+    Effect.catchTag("XSyncSideEffectError", (error) =>
+      Effect.logWarning("X disconnect: unlink failed").pipe(
+        Effect.annotateLogs({
+          userId: maskId(userId),
+          operation: error.op,
+          cause: String(error.cause),
+        })
       )
     ),
     Effect.withSpan("XConnect.unlinkAccount", {
@@ -122,7 +144,7 @@ export const xDisconnectRequest = Effect.fn("XConnect.disconnect")(function* (
   return { ok: true } satisfies ActionResult;
 });
 
-export const xPauseRequest = Effect.fn("XConnect.pause")(function* (
+export const xPauseRequest = Effect.fnUntraced(function* (
   request: Request,
   env: Env
 ) {
@@ -148,7 +170,7 @@ export const xPauseRequest = Effect.fn("XConnect.pause")(function* (
   return { ok: true } satisfies ActionResult;
 });
 
-export const xResumeRequest = Effect.fn("XConnect.resume")(function* (
+export const xResumeRequest = Effect.fnUntraced(function* (
   request: Request,
   env: Env
 ) {
@@ -213,55 +235,85 @@ const mapActionResult = (data: ActionResult): Response =>
     ? Response.json(data)
     : Response.json({ error: "Not connected" }, { status: 404 });
 
-const commonErrorTags = {
+const expectedErrorTags = {
   ConnectUnauthorizedError: () =>
     Effect.succeed(Response.json({ error: "Unauthorized" }, { status: 401 })),
-  SessionLookupError: () =>
-    Effect.succeed(
-      Response.json({ error: "Auth backend unavailable" }, { status: 503 })
-    ),
 } as const;
 
-export const handleXStatus = (request: Request, env: Env): Promise<Response> =>
+type XConnectRequirements = SessionProvider | AuthClient | Billing;
+
+const runXHandler = (
+  effect: Effect.Effect<
+    Response,
+    SessionLookupError | DbError,
+    XConnectRequirements
+  >,
+  env: Env,
+  spanName: string
+): Promise<Response> =>
   Effect.runPromise(
-    xStatusRequest(request.headers, env).pipe(
-      Effect.provide(makeLiveLayer(env)),
-      Effect.map((data) => Response.json(data)),
-      Effect.catchTags(commonErrorTags),
-      Effect.catchCause((cause) => unexpected500(cause))
+    provideResponse(
+      effect.pipe(
+        Effect.withSpan(spanName),
+        Effect.catchTags({
+          DbError: (error) => unexpected500(error),
+          SessionLookupError: (error) =>
+            Effect.logError("X connect: auth backend unavailable").pipe(
+              Effect.annotateLogs(safeErrorInfo(error)),
+              Effect.as(
+                Response.json(
+                  { error: "Auth backend unavailable" },
+                  { status: 503 }
+                )
+              )
+            ),
+        }),
+        Effect.catchCause((cause) => unexpected500(cause))
+      ),
+      makeLiveLayer(env),
+      unexpected500
     )
+  );
+
+export const handleXStatus = (request: Request, env: Env): Promise<Response> =>
+  runXHandler(
+    xStatusRequest(request.headers, env).pipe(
+      Effect.map((data) => Response.json(data)),
+      Effect.catchTags(expectedErrorTags)
+    ),
+    env,
+    "XConnect.status"
   );
 
 export const handleXDisconnect = (
   request: Request,
   env: Env
 ): Promise<Response> =>
-  Effect.runPromise(
+  runXHandler(
     xDisconnectRequest(request, env).pipe(
-      Effect.provide(makeLiveLayer(env)),
       Effect.map((data) => Response.json(data)),
-      Effect.catchTags(commonErrorTags),
-      Effect.catchCause((cause) => unexpected500(cause))
-    )
+      Effect.catchTags(expectedErrorTags)
+    ),
+    env,
+    "XConnect.disconnect"
   );
 
 export const handleXPause = (request: Request, env: Env): Promise<Response> =>
-  Effect.runPromise(
+  runXHandler(
     xPauseRequest(request, env).pipe(
-      Effect.provide(makeLiveLayer(env)),
       Effect.map(mapActionResult),
-      Effect.catchTags(commonErrorTags),
-      Effect.catchCause((cause) => unexpected500(cause))
-    )
+      Effect.catchTags(expectedErrorTags)
+    ),
+    env,
+    "XConnect.pause"
   );
 
 export const handleXResume = (request: Request, env: Env): Promise<Response> =>
-  Effect.runPromise(
+  runXHandler(
     xResumeRequest(request, env).pipe(
-      Effect.provide(makeLiveLayer(env)),
       Effect.map(mapActionResult),
       Effect.catchTags({
-        ...commonErrorTags,
+        ...expectedErrorTags,
         CapabilityDisabledError: (e) =>
           Effect.succeed(capabilityDeniedResponse(e)),
         NoActiveOrgError: () =>
@@ -272,8 +324,8 @@ export const handleXResume = (request: Request, env: Env): Promise<Response> =>
           Effect.succeed(
             Response.json({ error: "Organization not found" }, { status: 404 })
           ),
-        DbError: (cause) => unexpected500(cause),
-      }),
-      Effect.catchCause((cause) => unexpected500(cause))
-    )
+      })
+    ),
+    env,
+    "XConnect.resume"
   );

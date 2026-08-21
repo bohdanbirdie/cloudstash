@@ -29,17 +29,25 @@ type ChatAccessError =
   | UnknownAgentPartyError
   | OrgNotFoundError;
 
+const featureCheckUnavailable = (cause: unknown, orgId: OrgId) =>
+  Effect.logError("Feature check unavailable").pipe(
+    Effect.annotateLogs({ orgId: maskId(orgId), cause: String(cause) }),
+    Effect.flatMap(() =>
+      Effect.fail(new FeatureCheckUnavailableError({ cause, orgId }))
+    )
+  );
+
 const checkChatAgentAccess = (
   request: Request,
   lobby: Lobby,
   env: Env
 ): Effect.Effect<void, ChatAccessError> => {
+  if (!KNOWN_PARTIES.has(lobby.party)) {
+    return Effect.fail(new UnknownAgentPartyError({ party: lobby.party }));
+  }
+
   const workspaceId = OrgId.make(lobby.name);
   return Effect.gen(function* () {
-    if (!KNOWN_PARTIES.has(lobby.party)) {
-      return yield* new UnknownAgentPartyError({ party: lobby.party });
-    }
-
     const cookie = request.headers.get("cookie");
 
     const { userId } = yield* checkSyncAuth(cookie, workspaceId);
@@ -50,24 +58,17 @@ const checkChatAgentAccess = (
     });
     yield* checkChatFeatureEnabled(workspaceId).pipe(
       Effect.catchTag("DbError", (cause) =>
-        Effect.logError("Feature check unavailable").pipe(
-          Effect.annotateLogs({
-            orgId: maskId(workspaceId),
-            cause: String(cause),
-          }),
-          Effect.flatMap(() =>
-            Effect.fail(
-              new FeatureCheckUnavailableError({ cause, orgId: workspaceId })
-            )
-          )
-        )
+        featureCheckUnavailable(cause, workspaceId)
       )
     );
   }).pipe(
     Effect.withSpan("ChatAgent.checkChatAgentAccess", {
       attributes: { orgId: maskId(workspaceId), party: lobby.party },
     }),
-    Effect.provide(getAppLayer(env))
+    Effect.provide(getAppLayer(env)),
+    Effect.catchTag("DbError", (cause) =>
+      featureCheckUnavailable(cause, workspaceId)
+    )
   );
 };
 

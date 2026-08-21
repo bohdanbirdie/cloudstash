@@ -74,6 +74,10 @@ export const WorkspaceAccessError = Schema.Union([
   WorkspaceAccessBackendError,
 ]);
 export type WorkspaceAccessError = typeof WorkspaceAccessError.Type;
+export type WorkspaceAccessDeniedError = Exclude<
+  WorkspaceAccessError,
+  WorkspaceAccessBackendError
+>;
 
 export const WorkspaceAuthorization = Schema.Struct({
   orgId: OrgId,
@@ -271,6 +275,12 @@ const make = (auth: Auth, db: Database) => {
         yield* resolveApiKey(auth, apiKey),
         requestedOrgId
       );
+    }),
+    authorizeIdentity: Effect.fnUntraced(function* (
+      resolved: WorkspaceAuthorization,
+      requestedOrgId?: OrgId
+    ) {
+      return yield* authorizeResolved(resolved, requestedOrgId);
     }),
   };
 };

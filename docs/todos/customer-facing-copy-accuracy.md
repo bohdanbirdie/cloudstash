@@ -33,8 +33,6 @@ availability and policy claims match shipped behavior and executable semantics.
 - DELTA-005, DELTA-006, DELTA-007, DELTA-021, and DELTA-025 each have a named
   remediation owner, affected-surface inventory, and factual copy change that
   resolves or explicitly narrows the remaining divergence.
-- DELTA-002 availability copy is removed or qualified until MCP is released;
-  implementation acceptance remains owned by [[develop-mcp-server]].
 - Plan and landing copy agree with executable tier/capability defaults and
   verified integration availability.
 - README and SEO do not present planned clients or broader product semantics as

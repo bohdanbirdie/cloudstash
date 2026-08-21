@@ -8,6 +8,10 @@ describe("API_ENDPOINTS", () => {
   it("covers the public endpoints", () => {
     expect(API_ENDPOINTS.map((e) => `${e.method} ${e.path}`)).toEqual([
       "GET /api/links",
+      "POST /api/links",
+      "GET /api/links/:id",
+      "PATCH /api/links/:id",
+      "POST /api/links/batch-update",
       "POST /api/ingest",
     ]);
   });
@@ -15,9 +19,28 @@ describe("API_ENDPOINTS", () => {
   it("builds curl with the live origin and a bearer header", () => {
     for (const endpoint of API_ENDPOINTS) {
       const curl = endpoint.curl(ORIGIN);
-      expect(curl).toContain(`${ORIGIN}${endpoint.path}`);
+      expect(curl).toContain(
+        `${ORIGIN}${endpoint.path.replace(":id", "01HXXX...")}`
+      );
       expect(curl).toContain("Authorization: Bearer $CLOUDSTASH_API_KEY");
     }
+  });
+
+  it("documents active versus full-history state and search matching", () => {
+    const list = API_ENDPOINTS.find((endpoint) => endpoint.id === "list-links");
+    expect(list?.curl(ORIGIN)).toContain("state=active");
+    expect(list?.query).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          description: expect.stringContaining("full history"),
+          name: "state",
+        }),
+        expect.objectContaining({
+          description: expect.stringContaining('Default "any"'),
+          name: "match",
+        }),
+      ])
+    );
   });
 });
 
@@ -28,6 +51,7 @@ describe("buildAgentSpec", () => {
     expect(spec).toContain(`Base URL: ${ORIGIN}`);
     expect(spec).toContain("Authorization: Bearer <API_KEY>");
     expect(spec).toContain("available on Plus and Pro");
+    expect(spec).toContain("reprocessing remains an admin-only action");
   });
 
   it("documents every endpoint, its params, and errors", () => {

@@ -1,8 +1,8 @@
 import { apiKeyClient } from "@better-auth/api-key/client";
+import { oauthProviderClient } from "@better-auth/oauth-provider/client";
 import { useRouteContext, useRouter } from "@tanstack/react-router";
 import {
   adminClient,
-  genericOAuthClient,
   inferAdditionalFields,
   organizationClient,
 } from "better-auth/client/plugins";
@@ -19,7 +19,7 @@ export const authClient = createAuthClient({
     organizationClient(),
     apiKeyClient(),
     adminClient({ ac, roles }),
-    genericOAuthClient(),
+    oauthProviderClient(),
   ],
 });
 

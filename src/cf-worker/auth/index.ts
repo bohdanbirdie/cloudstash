@@ -1,8 +1,7 @@
 import { apiKey } from "@better-auth/api-key";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { admin, organization } from "better-auth/plugins";
-import { genericOAuth } from "better-auth/plugins/generic-oauth";
+import { admin, jwt, organization } from "better-auth/plugins";
 import { Cause, Effect, Schema } from "effect";
 
 import { ac, roles } from "@/lib/permissions";
@@ -20,78 +19,17 @@ import {
   resolveActiveOrg,
   startXBookmarkSyncForAccount,
 } from "./hooks";
+import { mcpPlugin } from "./mcp-plugin";
+import { oauthProvidersPlugin } from "./oauth-providers";
 import { AppLayerLive } from "./service";
 
 const logger = logSync("Auth");
-
-const DEFAULT_GOOGLE_BASE_URL = "https://accounts.google.com";
 
 // Note: X (Twitter) rejects `localhost` for callback URIs and requires the
 // loopback IP literal `127.0.0.1` (RFC 8252). For local dev this means
 // BETTER_AUTH_URL must be set to `http://127.0.0.1:3000` (not `localhost`),
 // and the browser must hit the app via `127.0.0.1` so the session cookie
 // is set on the same origin the X callback lands on. See .dev.vars.example.
-
-function oauthProvidersPlugin(env: Env) {
-  const googleBaseUrl = env.GOOGLE_BASE_URL ?? DEFAULT_GOOGLE_BASE_URL;
-
-  return genericOAuth({
-    config: [
-      {
-        providerId: "google",
-        discoveryUrl: `${googleBaseUrl}/.well-known/openid-configuration`,
-        clientId: env.GOOGLE_CLIENT_ID,
-        clientSecret: env.GOOGLE_CLIENT_SECRET,
-        scopes: ["openid", "email", "profile"],
-        pkce: true,
-        overrideUserInfo: true,
-      },
-      {
-        providerId: "x",
-        authorizationUrl: "https://twitter.com/i/oauth2/authorize",
-        tokenUrl: "https://api.twitter.com/2/oauth2/token",
-        clientId: env.X_CLIENT_ID,
-        clientSecret: env.X_CLIENT_SECRET,
-        scopes: ["bookmark.read", "tweet.read", "users.read", "offline.access"],
-        pkce: true,
-        // X requires HTTP Basic Auth for confidential clients on its
-        // token + refresh endpoints; body-based credentials get 401'd.
-        authentication: "basic",
-        getUserInfo: async (tokens) => {
-          const resp = await fetch(
-            "https://api.twitter.com/2/users/me?user.fields=username,name,profile_image_url",
-            {
-              headers: { Authorization: `Bearer ${tokens.accessToken}` },
-            }
-          );
-          if (!resp.ok) {
-            throw new Error(`X getUserInfo failed: ${resp.status}`);
-          }
-          const data = (await resp.json()) as {
-            data: {
-              id: string;
-              username: string;
-              name: string;
-              profile_image_url?: string;
-            };
-          };
-          return {
-            id: data.data.id,
-            name: data.data.name,
-            // X doesn't expose email by default; synthetic placeholder so
-            // Better Auth's User shape is satisfied. The linking flow does
-            // not overwrite the primary user's email.
-            email: `${data.data.username}@x.local`,
-            emailVerified: false,
-            image: data.data.profile_image_url,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          };
-        },
-      },
-    ],
-  });
-}
 
 export const createAuth = (env: Env, db: Database) => {
   const auth = betterAuth({
@@ -112,10 +50,7 @@ export const createAuth = (env: Env, db: Database) => {
       },
     },
     baseURL: env.BETTER_AUTH_URL,
-    database: drizzleAdapter(db, {
-      provider: "sqlite",
-      schema,
-    }),
+    database: drizzleAdapter(db, { provider: "sqlite", schema }),
     databaseHooks: {
       user: {
         create: {
@@ -188,6 +123,8 @@ export const createAuth = (env: Env, db: Database) => {
     emailAndPassword:
       env.ENABLE_TEST_AUTH === "true" ? { enabled: true } : undefined,
     plugins: [
+      jwt(),
+      mcpPlugin(env),
       organization({
         allowUserToCreateOrganization: true,
         creatorRole: "owner",

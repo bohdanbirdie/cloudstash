@@ -4,6 +4,8 @@ import type { CfTypes } from "@livestore/sync-cf/cf-worker";
 import { routeAgentRequest } from "agents";
 import { Effect, Match } from "effect";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
+import { cors } from "hono/cors";
 
 import { PERMISSIONS } from "@/lib/permissions";
 
@@ -19,7 +21,12 @@ import { handleGetSignupGate, handleSetSignupGate } from "./admin/signup-gate";
 import { handleTriggerDigest } from "./admin/trigger-digest";
 import { handleGetUsage } from "./admin/usage";
 import { trackEvent } from "./analytics";
-import { gateUserApiKeyCreate } from "./auth/api-key-gate";
+import { handleAuthRequest } from "./auth/handler";
+import { authBackendUnavailable } from "./auth/mcp-resource";
+import {
+  MAX_REGISTRATION_BODY_BYTES,
+  invalidOAuthClientRegistration,
+} from "./auth/oauth-client-registration";
 import { AppLayerLive, AuthClient } from "./auth/service";
 import { checkSyncAuth } from "./auth/sync-auth";
 import { handleBillingCheckout } from "./billing/routes/checkout";
@@ -54,8 +61,21 @@ import {
   handleRedeemInvite,
 } from "./invites";
 import type { LinkQueueMessage } from "./link-processor/types";
-import { handleListLinks } from "./links/handler";
+import {
+  handleCreateLink,
+  handleGetLink,
+  handleListLinks,
+  handleUpdateLink,
+  handleUpdateLinks,
+  linkMutationBodyTooLargeResponse,
+  MAX_LINK_MUTATION_BODY_BYTES,
+} from "./links/handler";
 import { logSync } from "./logger";
+import {
+  MAX_MCP_BODY_BYTES,
+  mcpBodyTooLargeResponse,
+} from "./mcp/request-scope";
+import { handleMcpRequest } from "./mcp/server";
 import { metadataRequestToResponse } from "./metadata/service";
 import { requirePermission } from "./middleware/authorize";
 import { handleGetMe, handleGetOrg } from "./org";
@@ -85,20 +105,20 @@ const RATE_LIMITED_PREFIXES = [
 const isRateLimited = (pathname: string): boolean =>
   RATE_LIMITED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
 
-const checkRateLimit = async (
-  request: CfTypes.Request,
+const enforceRateLimit = async (
+  request: {
+    readonly headers: { get(name: string): string | null };
+    readonly url: string;
+  },
   env: Env
 ): Promise<Response | null> => {
-  const url = new URL(request.url);
-  if (!isRateLimited(url.pathname)) return null;
-
   if (!env.SYNC_RATE_LIMITER) return null;
 
   const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
   const { success } = await env.SYNC_RATE_LIMITER.limit({ key: ip });
 
   if (!success) {
-    logger.warn("Rate limited", { ip, path: url.pathname });
+    logger.warn("Rate limited", { ip, path: new URL(request.url).pathname });
     return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
       headers: { "Content-Type": "application/json", "Retry-After": "60" },
       status: 429,
@@ -108,9 +128,75 @@ const checkRateLimit = async (
   return null;
 };
 
+const checkRateLimit = (
+  request: CfTypes.Request,
+  env: Env
+): Promise<Response | null> =>
+  isRateLimited(new URL(request.url).pathname)
+    ? enforceRateLimit(request, env)
+    : Promise.resolve(null);
+
 const app = new Hono<{ Bindings: Env; Variables: HonoVariables }>();
 
+app.use(
+  "/api/auth/oauth2/register",
+  bodyLimit({
+    maxSize: MAX_REGISTRATION_BODY_BYTES,
+    onError: () => invalidOAuthClientRegistration(413),
+  })
+);
+app.use("/mcp", async (c, next) =>
+  cors({
+    origin: new URL(c.env.BETTER_AUTH_URL).origin,
+    allowHeaders: [
+      "Content-Type",
+      "Accept",
+      "Authorization",
+      "DPoP",
+      "mcp-session-id",
+      "MCP-Protocol-Version",
+      "Mcp-Method",
+      "Mcp-Name",
+    ],
+    allowMethods: ["POST", "OPTIONS"],
+    exposeHeaders: ["mcp-session-id", "WWW-Authenticate", "DPoP-Nonce"],
+    maxAge: 86_400,
+  })(c, next)
+);
+app.use("/mcp", async (c, next) => {
+  const rateLimited = await enforceRateLimit(c.req.raw, c.env);
+  if (rateLimited) return rateLimited;
+  return next();
+});
+app.use(
+  "/mcp",
+  bodyLimit({
+    maxSize: MAX_MCP_BODY_BYTES,
+    onError: mcpBodyTooLargeResponse,
+  })
+);
+app.all("/mcp", (c) => handleMcpRequest(c.req.raw, c.env));
+
 app.get("/api/auth/me", (c) => handleGetMe(c.req.raw, c.env));
+
+app.use("/.well-known/*", async (c, next) =>
+  cors({
+    origin: new URL(c.env.BETTER_AUTH_URL).origin,
+    allowHeaders: ["Accept", "Content-Type"],
+    allowMethods: ["GET", "HEAD", "OPTIONS"],
+    maxAge: 86_400,
+  })(c, next)
+);
+app.on(["GET", "HEAD"], "/.well-known/*", (c) =>
+  runHandler(
+    c.env,
+    Effect.gen(function* () {
+      const auth = yield* AuthClient;
+      return yield* Effect.promise(() => auth.handler(c.req.raw));
+    }).pipe(Effect.withSpan("API.authMetadataHandler")),
+    authBackendUnavailable
+  )
+);
 
 app.get("/api/org/:id", (c) =>
   handleGetOrg(c.req.raw, OrgId.make(c.req.param("id")), c.env)
@@ -167,12 +253,11 @@ app.post(
 app.on(["GET", "POST"], "/api/auth/*", (c) =>
   runHandler(
     c.env,
-    Effect.gen(function* () {
-      const denied = yield* gateUserApiKeyCreate(c.req.raw);
-      if (denied) return denied;
-      const auth = yield* AuthClient;
-      return yield* Effect.promise(() => auth.handler(c.req.raw));
-    }).pipe(Effect.withSpan("API.authHandler"))
+    handleAuthRequest(c.req.raw, c.env).pipe(
+      Effect.withSpan("API.authHandler"),
+      Effect.catchTag("DbError", (error) => authBackendUnavailable(error.cause))
+    ),
+    authBackendUnavailable
   )
 );
 
@@ -198,7 +283,29 @@ app.post("/api/ingest", (c) =>
   Effect.runPromise(ingestRequestToResponse(c.req.raw, c.env))
 );
 
+app.use(
+  "/api/links",
+  bodyLimit({
+    maxSize: MAX_LINK_MUTATION_BODY_BYTES,
+    onError: linkMutationBodyTooLargeResponse,
+  })
+);
+app.use(
+  "/api/links/*",
+  bodyLimit({
+    maxSize: MAX_LINK_MUTATION_BODY_BYTES,
+    onError: linkMutationBodyTooLargeResponse,
+  })
+);
 app.get("/api/links", (c) => handleListLinks(c.req.raw, c.env));
+app.get("/api/links/:id", (c) =>
+  handleGetLink(c.req.raw, c.req.param("id"), c.env)
+);
+app.post("/api/links", (c) => handleCreateLink(c.req.raw, c.env));
+app.post("/api/links/batch-update", (c) => handleUpdateLinks(c.req.raw, c.env));
+app.patch("/api/links/:id", (c) =>
+  handleUpdateLink(c.req.raw, c.req.param("id"), c.env)
+);
 
 app.post("/api/connect/raycast", (c) => handleRaycastConnect(c.req.raw, c.env));
 app.post("/api/connect/raycast/exchange", (c) =>
@@ -324,12 +431,10 @@ export const fetch = async (
   env: Env,
   ctx: CfTypes.ExecutionContext
 ): Promise<Response> => {
+  const url = new URL(request.url);
   const rateLimited = await checkRateLimit(request, env);
   if (rateLimited) return rateLimited;
 
-  const url = new URL(request.url);
-
-  // Handle agent WebSocket connections (/agents/:agent/:name)
   const agentResponse = await routeAgentRequest(
     request as unknown as Request,
     env,

@@ -1,13 +1,10 @@
-import type { LinkStatus } from "@/livestore/queries/filtered-links";
+import { Option, Schema } from "effect";
+
+import type { LinkMutableState } from "@/lib/links-contract";
 import type { ApiLinkRow } from "@/livestore/queries/schemas";
 import type { TagByLinkRow } from "@/livestore/queries/tags";
 
-export const DEFAULT_LIMIT = 50;
-export const MAX_LIMIT = 100;
-
-const STATES: readonly LinkStatus[] = ["inbox", "completed", "all", "archive"];
-
-export type ApiLinkState = "inbox" | "completed";
+export type ApiLinkState = LinkMutableState;
 export type ApiLinkProcessing =
   | "pending"
   | "processing"
@@ -30,6 +27,7 @@ export interface ApiLink {
   source: string | null;
   createdAt: string;
   completedAt: string | null;
+  deletedAt: string | null;
 }
 
 export interface ApiLinksPage {
@@ -38,75 +36,39 @@ export interface ApiLinksPage {
   nextCursor: string | null;
 }
 
+export interface ApiSearchLink extends ApiLink {
+  score: number;
+  matchedFields: string[];
+}
+
 export interface Cursor {
   createdAt: number;
   id: string;
 }
 
-const toB64Url = (s: string): string =>
-  btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-
-const fromB64Url = (s: string): string =>
-  atob(s.replace(/-/g, "+").replace(/_/g, "/"));
+const CursorToken = Schema.StringFromBase64Url.pipe(
+  Schema.decodeTo(
+    Schema.fromJsonString(
+      Schema.Struct({ t: Schema.Finite, id: Schema.NonEmptyString })
+    )
+  )
+);
+const decodeCursorToken = Schema.decodeUnknownOption(CursorToken);
+const encodeCursorToken = Schema.encodeSync(CursorToken);
 
 export const encodeCursor = (cursor: Cursor): string =>
-  toB64Url(JSON.stringify({ t: cursor.createdAt, id: cursor.id }));
+  encodeCursorToken({ t: cursor.createdAt, id: cursor.id });
 
-export const decodeCursor = (raw: string): Cursor | null => {
-  try {
-    const parsed = JSON.parse(fromB64Url(raw)) as unknown;
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      "t" in parsed &&
-      "id" in parsed &&
-      typeof parsed.t === "number" &&
-      Number.isFinite(parsed.t) &&
-      typeof parsed.id === "string" &&
-      parsed.id.length > 0
-    ) {
-      return { createdAt: parsed.t, id: parsed.id };
-    }
-    return null;
-  } catch {
-    return null;
-  }
+export const decodeCursor = (raw: string): Cursor | null =>
+  Option.match(decodeCursorToken(raw), {
+    onNone: () => null,
+    onSome: ({ t, id }) => ({ createdAt: t, id }),
+  });
+
+const mapState = (status: string, deletedAt: number | null): ApiLinkState => {
+  if (deletedAt !== null) return "archive";
+  return status === "completed" ? "completed" : "inbox";
 };
-
-export type ParsedListParams =
-  | { ok: true; state: LinkStatus; limit: number; cursor: Cursor | null }
-  | { ok: false; error: string };
-
-export const parseListParams = (url: URL): ParsedListParams => {
-  const state = url.searchParams.get("state") ?? "all";
-  if (!STATES.includes(state as LinkStatus)) {
-    return { ok: false, error: "Invalid state" };
-  }
-
-  let limit = DEFAULT_LIMIT;
-  const limitRaw = url.searchParams.get("limit");
-  if (limitRaw !== null) {
-    const n = Number(limitRaw);
-    if (!Number.isInteger(n) || n < 1 || n > MAX_LIMIT) {
-      return { ok: false, error: "Invalid limit" };
-    }
-    limit = n;
-  }
-
-  let cursor: Cursor | null = null;
-  const cursorRaw = url.searchParams.get("cursor");
-  if (cursorRaw !== null) {
-    cursor = decodeCursor(cursorRaw);
-    if (!cursor) {
-      return { ok: false, error: "Invalid cursor" };
-    }
-  }
-
-  return { ok: true, state: state as LinkStatus, limit, cursor };
-};
-
-const mapState = (status: string): ApiLinkState =>
-  status === "completed" ? "completed" : "inbox";
 
 const mapProcessing = (status: string | null): ApiLinkProcessing => {
   switch (status) {
@@ -143,6 +105,27 @@ export const mergeTagNamesByLink = (
   return map;
 };
 
+export const encodeLink = (
+  row: ApiLinkRow,
+  tags: readonly string[]
+): ApiLink => ({
+  id: row.id,
+  url: row.url,
+  title: row.title,
+  description: row.description,
+  summary: row.summary,
+  domain: row.domain,
+  image: row.image,
+  favicon: row.favicon,
+  tags: [...tags],
+  state: mapState(row.status, row.deletedAt),
+  processing: mapProcessing(row.processingStatus),
+  source: row.source,
+  createdAt: new Date(row.createdAt).toISOString(),
+  completedAt: toIso(row.completedAt),
+  deletedAt: toIso(row.deletedAt),
+});
+
 export const encodeLinksPage = (
   rows: readonly ApiLinkRow[],
   tagsByLink: ReadonlyMap<string, string[]>,
@@ -152,23 +135,8 @@ export const encodeLinksPage = (
   const hasMore = rows.length > limit;
   const page = hasMore ? rows.slice(0, limit) : rows;
 
-  const links = page.map(
-    (row): ApiLink => ({
-      id: row.id,
-      url: row.url,
-      title: row.title,
-      description: row.description,
-      summary: row.summary,
-      domain: row.domain,
-      image: row.image,
-      favicon: row.favicon,
-      tags: tagsByLink.get(row.id) ?? [],
-      state: mapState(row.status),
-      processing: mapProcessing(row.processingStatus),
-      source: row.source,
-      createdAt: new Date(row.createdAt).toISOString(),
-      completedAt: toIso(row.completedAt),
-    })
+  const links = page.map((row) =>
+    encodeLink(row, tagsByLink.get(row.id) ?? [])
   );
 
   const last = page[page.length - 1];

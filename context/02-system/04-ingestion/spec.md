@@ -15,6 +15,13 @@ web app / Chrome extension
   → SyncBackendDO onPush
   → LinkProcessorDO wake
 
+POST /api/links / MCP save_link
+  → LinkProcessorDO LiveStore candidate commit
+  → bounded leader-sync barrier + canonical URL-winner resolution
+  → optional tags + processing-ready commit on the winning link
+  → SyncBackendDO onPush
+  → LinkProcessorDO wake
+
 Telegram / Raycast / POST /api/ingest / X bookmark poll
   → cloudstash-link-queue
   → queue consumer
@@ -32,6 +39,16 @@ before producing the same `LinkQueueMessage` shape. Raycast uses its paired API
 key flow, but shared ingest currently records it as `api` and additionally
 requires `publicApi`; see
 [DELTA-036](../../.delta/DELTA-036-raycast-capture-loses-source-and-couples-capabilities.md).
+The primary `POST /api/links` and MCP `save_link` paths call link-operation RPCs
+on the existing LinkProcessorDO without a second server-side LiveStore replica.
+A new save first makes its URL candidate durable, re-resolves the canonical row
+after any concurrent-client rebase, and only then attaches requested tags and
+marks the winning row ready for processing. Losing IDs therefore receive no tag
+or enrichment events. Retrying an interrupted save for the same URL repairs the
+processing-ready marker after the same canonical-winner check. They reuse
+SyncBackend's existing processor wake and fail if save durability is not
+confirmed within five seconds.
+`POST /api/ingest` remains the queue-backed compatibility path.
 
 ## Queue Contract
 
@@ -62,14 +79,19 @@ is fixed at 24 hours. Production plan/retention is not repository-verifiable; se
 
 ## Deduplication and Creation
 
-The processor first checks a deletion tombstone stored inside its own DO storage.
-Because account deletion later erases that storage, the marker is not a durable
-fence for delayed Queue/DLQ messages; see
+The processor first checks a deletion tombstone stored inside its own DO
+storage. Account purge rewrites the marker after clearing LiveStore state, so
+delayed Queue/DLQ messages and external link-operation RPCs cannot recreate
+Vault events. Canonical REST/MCP writes recheck their store generation at the
+repository commit boundary. A queue-ingest or processing operation already in
+flight at deletion time can still retain a stale store handle; see
 [DELTA-003](../../.delta/DELTA-003-account-deletion-order-can-rehydrate-client.md).
-It then boots one
-LiveStore client, ensures the processing subscription, and runs `ingestLink`.
+The processor then boots one LiveStore client, ensures the processing
+subscription, and runs `ingestLink`.
 The link URL unique index and conflict-ignoring `LinkCreated` materializer make
-replay idempotent. A genuinely new external save uses `v2.LinkCreated`; old
+replay idempotent. REST/MCP processing waits for the post-sync canonical URL
+winner; shared tags are created once per batch and attached only to selected
+winning rows. A genuinely new external save uses `v2.LinkCreated`; old
 `v1.LinkCreated` remains replayable.
 
 ## Durability Boundary

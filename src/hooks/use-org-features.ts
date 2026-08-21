@@ -26,16 +26,20 @@ async function fetchMe(): Promise<MeResponse> {
 const FREE_CAPS = capabilitiesFor("free");
 
 export function useOrgFeatures() {
-  const { data, error } = useSWR("/api/auth/me", fetchMe, {
-    dedupingInterval: 30_000,
-    onError: (err: unknown) => {
-      if (err instanceof RateLimitedError) {
-        toast.warning("Too many requests — please wait a moment", {
-          id: "me-rate-limited",
-        });
-      }
-    },
-  });
+  const { data, error, isValidating, mutate } = useSWR(
+    "/api/auth/me",
+    fetchMe,
+    {
+      dedupingInterval: 30_000,
+      onError: (err: unknown) => {
+        if (err instanceof RateLimitedError) {
+          toast.warning("Too many requests — please wait a moment", {
+            id: "me-rate-limited",
+          });
+        }
+      },
+    }
+  );
 
   const capabilities = data?.organization?.capabilities ?? FREE_CAPS;
   const tier = data?.organization?.tier ?? "free";
@@ -55,6 +59,8 @@ export function useOrgFeatures() {
     error: error ?? null,
     isLoading,
     isFallback,
+    isRefreshing: isValidating,
+    retry: mutate,
     isChatEnabled: capabilities.chatAgent,
     isAiSummaryEnabled: capabilities.aiSummary,
     monthlyChatBudgetUsd: capabilities.monthlyChatBudgetUsd,

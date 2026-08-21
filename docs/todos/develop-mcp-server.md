@@ -1,45 +1,35 @@
 # Ship stateless remote MCP for Pro
 
-## Problem and outcome
+## Outcome
 
-MCP is advertised and enabled in the Pro capability matrix, but no server is
-deployed. Ship a small authenticated remote MCP surface that lets Pro clients
-search, list, and read one authorized workspace.
+Expose parity link operations through stateless HTTP for Pro workspaces:
+list/search/get, save-with-tags, and single/batch state/tag updates.
+Better Auth owns OAuth discovery, DCR, PKCE, consent, refresh tokens, and
+five-minute resource JWTs. Every request rechecks approval, membership,
+workspace access, entitlement, and tool scope.
 
-## Agreed scope and non-goals
+## Done
 
-- Stateless HTTP transport on Cloudflare Workers.
-- Authenticate through the existing workspace-access boundary and recheck the
-  `mcpServer` capability on every tool call.
-- Initial tools: `search_links`, `list_links`, and `get_link`, reusing current
-  bounded retrieval/RPC primitives.
-- Add the minimal connection instructions and truthful availability copy.
-- No save/tag/archive tools, conversation state, broad agent, or iOS claim.
+- [x] Support MCP 2026 and the 2025 stateless compatibility path.
+- [x] Upgrade to Better Auth 1.7.0 without dependency patches.
+- [x] Complete MCP JAM DCR, consent, token exchange, and authenticated
+      `tools/list` locally.
+- [x] Add the Pro-gated Integrations card and local connection guidance.
+- [x] Cover discovery, OAuth, workspace isolation, tools, refresh/revocation,
+      membership changes, Free/Plus denial, and Pro success at the Worker
+      boundary.
+- [x] Keep tests hermetic and recheck access on every operation.
+- [x] Bound registration bodies, MCP messages, tool inputs, and result size.
 
-## Agreed constraints
+## Before merge
 
-- Keep the initial Pro surface remote, stateless, and limited to read access.
-- Align availability and policy copy with the behavior verified at release.
+- [ ] Run `0014` and `0015` against a production-shaped database copy.
+- [ ] Repeat the MCP JAM round trip on the final build and invoke read/write tools.
+- [x] Run `bun run check`, `bun run test:unit`, `bun run test:e2e`,
+      `bun run build`, and `bun run check:intent`.
 
-## Acceptance criteria
+## Non-goals
 
-- A real MCP client authenticates and can search, list, and read only its
-  workspace.
-- Invalid/revoked credentials and withdrawn membership fail closed; downgrade
-  or override removal blocks the next operation.
-- Tool limits, result size, cursors, and errors are bounded and documented.
-- Free/Plus denial and Pro success have unit and Worker boundary coverage.
-- Landing, plan, settings, SEO, integration, and policy copy match the shipped
-  scope and do not present unimplemented clients as available.
-
-## Dependencies and risks
-
-Reuse `WorkspaceAccess`, `Billing`, and current link-read RPCs. Confirm chosen
-MCP client authentication interoperability without expanding to OAuth unless
-required. Watch Worker bundle size and isolate the route only if measurements
-justify a separate Worker.
-
-## Size and uncertainty
-
-Medium. Retrieval reuse is known; client auth interoperability and packaging are
-the main uncertainty.
+No conversational state, CIMD fetch, reprocessing tool, or availability-copy
+change. Legacy transport support can be removed after client adoption permits
+it.

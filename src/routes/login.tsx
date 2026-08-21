@@ -43,7 +43,17 @@ async function clearOPFS() {
 export const Route = createFileRoute("/login")({
   beforeLoad: async () => {
     const auth = await loadAuth();
-    if (auth?.isAuthenticated) throw redirect({ to: "/inbox" });
+    const search = new URLSearchParams(window.location.search);
+    // This only decides whether to render the login UI for prompt=login. The
+    // OAuth provider verifies the signed query server-side before it continues
+    // authorization; browser code cannot and does not authenticate `sig`.
+    const isOAuthProviderLogin =
+      search.has("sig") &&
+      search.has("client_id") &&
+      search.has("response_type");
+    if (auth?.isAuthenticated && !isOAuthProviderLogin) {
+      throw redirect({ to: "/inbox" });
+    }
   },
   validateSearch: (
     search: Record<string, unknown>
@@ -86,8 +96,8 @@ function LoginForm({ className, ...props }: React.ComponentProps<"div">) {
               <Button
                 className="w-full"
                 onClick={() =>
-                  authClient.signIn.oauth2({
-                    providerId: "google",
+                  authClient.signIn.social({
+                    provider: "google",
                     callbackURL,
                   })
                 }

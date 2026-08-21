@@ -225,10 +225,36 @@ describe("ingestRequestToResponse", () => {
         Effect.promise(async () => {
           expect(response.status).toBe(400);
           expect(await response.json()).toEqual({ error: "Invalid URL" });
+          expect(env.USAGE_ANALYTICS.writeDataPoint).toHaveBeenCalledOnce();
         })
       )
     );
   });
+
+  for (const url of [
+    "javascript:alert(1)",
+    "file:///etc/passwd",
+    "mailto:hello@example.com",
+    "ftp://example.com/file",
+  ]) {
+    it.effect(`rejects unsupported URL scheme: ${url.split(":", 1)[0]}`, () => {
+      const request = createRequest(
+        { url },
+        { Authorization: "Bearer valid-key" }
+      );
+      const env = createEnv();
+
+      return run(request, env, validAuthLayer).pipe(
+        Effect.tap((response) =>
+          Effect.promise(async () => {
+            expect(response.status).toBe(400);
+            expect(await response.json()).toEqual({ error: "Invalid URL" });
+            expect(env._queueSend).not.toHaveBeenCalled();
+          })
+        )
+      );
+    });
+  }
 
   it.effect("returns 500 when queue send fails", () => {
     const request = createRequest(
@@ -336,6 +362,7 @@ describe("ingestRequestToResponse", () => {
             storeId: "org-1",
             url: "https://example.com",
           });
+          expect(env.USAGE_ANALYTICS.writeDataPoint).toHaveBeenCalledOnce();
         })
       )
     );

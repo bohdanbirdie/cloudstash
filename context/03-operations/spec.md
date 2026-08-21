@@ -9,17 +9,17 @@ Active.
 
 ## Cloudflare Resources
 
-| Resource         | Binding/name                                                         | Operational purpose                                           |
-| ---------------- | -------------------------------------------------------------------- | ------------------------------------------------------------- |
-| Worker + Assets  | `cloudstash`, `ASSETS`                                               | SPA/public assets, API, sync/agent routing, queue consumption |
-| Workers AI       | `AI`                                                                 | Basic summary structured output                               |
-| Durable Objects  | `SYNC_BACKEND_DO`, `LINK_PROCESSOR_DO`, `Chat`, `X_BOOKMARK_SYNC_DO` | workspace sync/processing/chat and user X polling             |
-| Workflow         | `ACCOUNT_DELETION`                                                   | durable multi-store deletion                                  |
-| D1               | `DB`                                                                 | control plane and aggregate activity                          |
-| KV               | `TELEGRAM_KV`, `ENRICHMENT_USAGE`                                    | integration mapping/deletion index and enrichment usage       |
-| Queue            | `LINK_QUEUE` plus `cloudstash-link-dlq`                              | external intake and long recovery                             |
-| Rate limiter     | `SYNC_RATE_LIMITER`                                                  | selected auth/sync/invite abuse protection                    |
-| Analytics Engine | `USAGE_ANALYTICS`                                                    | low-overhead usage events                                     |
+| Resource         | Binding/name                                                         | Operational purpose                                               |
+| ---------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Worker + Assets  | `cloudstash`, `ASSETS`                                               | SPA/public assets, API, sync/agent routing, queue consumption     |
+| Workers AI       | `AI`                                                                 | Basic summary structured output                                   |
+| Durable Objects  | `SYNC_BACKEND_DO`, `LINK_PROCESSOR_DO`, `Chat`, `X_BOOKMARK_SYNC_DO` | workspace sync/link operations/processing/chat and user X polling |
+| Workflow         | `ACCOUNT_DELETION`                                                   | durable multi-store deletion                                      |
+| D1               | `DB`                                                                 | control plane and aggregate activity                              |
+| KV               | `TELEGRAM_KV`, `ENRICHMENT_USAGE`                                    | integration mapping/deletion index and enrichment usage           |
+| Queue            | `LINK_QUEUE` plus `cloudstash-link-dlq`                              | external intake and long recovery                                 |
+| Rate limiter     | `SYNC_RATE_LIMITER`                                                  | selected auth/MCP/sync/invite abuse protection                    |
+| Analytics Engine | `USAGE_ANALYTICS`                                                    | low-overhead usage events                                         |
 
 Built-in Cloudflare logs and invocation traces are enabled with full head
 sampling in current configuration. `AppLayerLive` installs application services

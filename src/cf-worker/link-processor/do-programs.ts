@@ -53,6 +53,7 @@ export const ingestLink = Effect.fn("LinkProcessor.ingestLink")(function* (
   }
 
   const linkId = LinkIdBrand.make(nanoid());
+  const now = new Date();
   yield* Effect.annotateCurrentSpan("linkId", linkId);
   yield* Effect.logInfo("Ingesting link from queue").pipe(
     Effect.annotateLogs({
@@ -62,15 +63,16 @@ export const ingestLink = Effect.fn("LinkProcessor.ingestLink")(function* (
     })
   );
 
-  yield* repo.commitEvent(
+  yield* repo.commitEvents(
     events.linkCreatedV2({
-      createdAt: new Date(),
+      createdAt: now,
       domain,
       id: linkId,
       source: params.source,
       sourceMeta: params.sourceMeta,
       url: params.url,
-    })
+    }),
+    events.linkProcessingStarted({ linkId, updatedAt: now })
   );
 
   return { status: "ingested" as const, linkId };
@@ -108,7 +110,7 @@ export const cancelStaleLinks = Effect.fn("LinkProcessor.cancelStaleLinks")(
     yield* Effect.forEach(
       staleLinks,
       (link) =>
-        repo.commitEvent(
+        repo.commitEvents(
           events.linkProcessingCancelled({
             linkId: link.id,
             updatedAt: new Date(now),
@@ -166,7 +168,7 @@ export const notifyResult = Effect.fn("LinkProcessor.notifyResult")(function* (
     }
   );
 
-  yield* repo.commitEvent(
+  yield* repo.commitEvents(
     events.linkSourceNotified({
       linkId: result.linkId,
       notifiedAt: new Date(),

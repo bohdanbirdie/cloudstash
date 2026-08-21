@@ -134,6 +134,8 @@ export class LinkRepository extends Context.Service<
     readonly findByUrl: (url: string) => Effect.Effect<Link | null>;
     readonly queryActiveLinks: () => Effect.Effect<Link[]>;
     readonly queryStatuses: () => Effect.Effect<Status[]>;
-    readonly commitEvent: (event: StoreEvent) => Effect.Effect<void>;
+    readonly commitEvents: (
+      ...events: readonly StoreEvent[]
+    ) => Effect.Effect<void>;
   }
 >()("LinkRepository") {}
