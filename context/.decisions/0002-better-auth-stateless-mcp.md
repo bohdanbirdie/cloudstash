@@ -30,7 +30,11 @@ Use Better Auth OAuth with rate-limited DCR. Bind consent and five-minute JWTs
 to one workspace/resource; recheck access, entitlement, and tool scope on every
 request. A fresh server per exchange exposes bounded list, search, get, save,
 and state/tag update tools for MCP 2026 and the 2025 stateless compatibility
-path. Verify JWT/DPoP locally. Do not enable CIMD without an SSRF-safe transport.
+path. Preserve Better Auth's validation while inferring a missing native
+application type only for public clients whose redirects are all exact HTTP
+loopbacks; this bounds compatibility with older local clients without admitting
+remote cleartext callbacks. Verify JWT/DPoP locally. Do not enable CIMD without
+an SSRF-safe transport.
 
 ## Consequences
 

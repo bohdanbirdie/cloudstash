@@ -22,12 +22,19 @@ Active.
 
 Clients use protected-resource discovery and bounded, rate-limited public DCR;
 registrations may use only the `none` token authentication method and reject
-confidential-client key/assertion metadata. Expired OAuth verification and
-client-assertion replay records are cleaned on a bounded token-request cadence. Consent
-marks dynamic clients unverified, shows the callback target, and pins access to
-the displayed workspace. The Pro-gated card shows the current origin's `/mcp`
-URL, OAuth setup, scopes, and protocol compatibility; runtime entitlement stays
-authoritative. The Worker supports MCP 2026 and the 2025 stateless fallback.
+confidential-client key/assertion metadata. For legacy local clients that omit
+`application_type`, the registration boundary infers `native` only when every
+redirect uses cleartext HTTP on the exact `localhost`, `127.0.0.1`, or `[::1]`
+loopback host; explicit types, mixed redirect sets, and other hosts remain under
+Better Auth's standard validation. Expired OAuth verification and
+client-assertion replay records are cleaned on a bounded token-request cadence.
+Consent marks dynamic clients unverified, shows the callback target, and pins
+access to the displayed workspace. The Pro-gated card shows the current
+origin's `/mcp` URL, OAuth setup, scopes, and protocol compatibility; runtime
+entitlement stays authoritative. The Worker supports MCP 2026 and the 2025
+stateless fallback. Its initialize response advertises the Cloudstash display
+name, website, and same-origin public PNG icons through standard MCP
+implementation metadata; whether they are rendered remains client-controlled.
 CIMD remains disabled until its untrusted fetch is SSRF-safe. Read tools list,
 search, and get; write tools save and update link state/tags individually or in
 bounded batches, and an explicit ID selector cannot exceed its declared limit.

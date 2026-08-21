@@ -45,7 +45,7 @@ const withMcpClient = async <Value>(
     InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "cloudstash-test", version: "1.0.0" });
   const server = makeMcpServer(
-    options?.env ?? ({} as Env),
+    options?.env ?? ({ BETTER_AUTH_URL: "https://cloudstash.test" } as Env),
     options?.authorization ?? authorization([])
   );
   await server.connect(serverTransport);
@@ -250,6 +250,7 @@ describe("MCP link tools", () => {
   it("forwards a tagless save without materializing tags as undefined", async () => {
     let received: unknown;
     const env = {
+      BETTER_AUTH_URL: "https://cloudstash.test",
       LINK_PROCESSOR_DO: {
         get: () => ({
           saveLink: async (input: unknown) => {

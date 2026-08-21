@@ -184,7 +184,24 @@ export const makeMcpServer = (
   env: Env,
   authorization: McpAuthorization
 ): McpServer => {
-  const server = new McpServer({ name: "cloudstash", version: "1.0.0" });
+  const server = new McpServer({
+    name: "cloudstash",
+    title: "Cloudstash",
+    version: "1.0.0",
+    websiteUrl: new URL(env.BETTER_AUTH_URL).origin,
+    icons: [
+      {
+        src: new URL("/logo192.png", env.BETTER_AUTH_URL).toString(),
+        mimeType: "image/png",
+        sizes: ["192x192"],
+      },
+      {
+        src: new URL("/logo512.png", env.BETTER_AUTH_URL).toString(),
+        mimeType: "image/png",
+        sizes: ["512x512"],
+      },
+    ],
+  });
 
   server.registerTool(
     "list_links",

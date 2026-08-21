@@ -2,7 +2,7 @@ import { Effect } from "effect";
 
 import type { Env } from "../shared";
 import { gateUserApiKeyCreate } from "./api-key-gate";
-import { enforcePublicOAuthClientRegistration } from "./oauth-client-registration";
+import { preparePublicOAuthClientRegistration } from "./oauth-client-registration";
 import {
   bindConsentWorkspace,
   validateConsentWorkspaceBinding,
@@ -19,21 +19,20 @@ export const handleAuthRequest = Effect.fn("Auth.handleRequest")(function* (
     yield* cleanupExpiredOAuthTransientRecords(env.DB);
   }
 
-  const invalidRegistration =
-    yield* enforcePublicOAuthClientRegistration(request);
-  if (invalidRegistration) return invalidRegistration;
+  const preparedRequest = yield* preparePublicOAuthClientRegistration(request);
+  if (preparedRequest instanceof Response) return preparedRequest;
 
-  const denied = yield* gateUserApiKeyCreate(request);
+  const denied = yield* gateUserApiKeyCreate(preparedRequest);
   if (denied) return denied;
 
   const auth = yield* AuthClient;
   const invalidConsent = yield* validateConsentWorkspaceBinding(
-    request,
+    preparedRequest,
     auth,
     env
   );
   if (invalidConsent) return invalidConsent;
 
-  const response = yield* Effect.promise(() => auth.handler(request));
-  return yield* bindConsentWorkspace(response, request, auth, env);
+  const response = yield* Effect.promise(() => auth.handler(preparedRequest));
+  return yield* bindConsentWorkspace(response, preparedRequest, auth, env);
 });

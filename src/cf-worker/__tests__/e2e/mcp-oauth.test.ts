@@ -100,7 +100,7 @@ const registerClient = async (
 
 // MCP JAM's 2026-07-28 flow explicitly sends application_type=native.
 // Keep this wire shape exact; older clients that omitted the field are tested
-// separately and intentionally follow OAuth's web-client default.
+// separately through the bounded exact-loopback compatibility path.
 const registerCurrentMcpJamClient = async (): Promise<RegisteredClient> => {
   const response = await registerClient();
 
@@ -507,21 +507,37 @@ describe("MCP OAuth Worker flow", () => {
     );
   });
 
-  it("rejects the legacy MCP JAM loopback shape that omitted application_type", async () => {
-    const loopback = await registerClient({ application_type: undefined });
-    expect(loopback.status).toBe(400);
-    expect(await loopback.json()).toMatchObject({
-      error: "invalid_redirect_uri",
-    });
-
-    const response = await registerClient({
+  it("infers native for legacy local clients that omit application_type", async () => {
+    const loopback = await registerClient({
       application_type: undefined,
-      redirect_uris: ["http://192.0.2.1/oauth/callback"],
+      client_name: "Executor",
+      redirect_uris: ["http://localhost:4789/api/oauth/callback"],
     });
-    expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({
-      error: "invalid_redirect_uri",
+    expect(loopback.status).toBe(201);
+    expect(await loopback.json<RegisteredClient>()).toMatchObject({
+      application_type: "native",
+      token_endpoint_auth_method: "none",
     });
+  });
+
+  it("does not infer native for non-loopback or ambiguous redirects", async () => {
+    for (const redirect_uris of [
+      ["http://192.0.2.1/oauth/callback"],
+      ["http://localhost.example.com/oauth/callback"],
+      [
+        "http://localhost:4789/api/oauth/callback",
+        "https://client.example/oauth/callback",
+      ],
+    ]) {
+      const response = await registerClient({
+        application_type: undefined,
+        redirect_uris,
+      });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({
+        error: "invalid_redirect_uri",
+      });
+    }
   });
 
   it("rejects oversized DCR and MCP bodies at the HTTP boundary", async () => {
@@ -733,21 +749,43 @@ describe("MCP OAuth Worker flow", () => {
 
   it("initializes, lists tools, and calls link tools through /mcp", async () => {
     const outboundStart = observedOutboundUrls.length;
-    const initialize = await callMcp<{ serverInfo: { name: string } }>(
-      tokens.access_token,
-      1,
-      "initialize",
-      {
-        capabilities: {},
-        clientInfo: { name: "MCP JAM", version: "test" },
-        protocolVersion: "2025-11-25",
-      }
-    );
+    const initialize = await callMcp<{
+      serverInfo: {
+        icons: {
+          mimeType?: string;
+          sizes?: string[];
+          src: string;
+        }[];
+        name: string;
+        title?: string;
+        websiteUrl?: string;
+      };
+    }>(tokens.access_token, 1, "initialize", {
+      capabilities: {},
+      clientInfo: { name: "MCP JAM", version: "test" },
+      protocolVersion: "2025-11-25",
+    });
     expect(
       initialize.response.status,
       `MCP initialize failed: ${JSON.stringify(initialize.body)}`
     ).toBe(200);
-    expect(initialize.body.result?.serverInfo.name).toBe("cloudstash");
+    expect(initialize.body.result?.serverInfo).toMatchObject({
+      icons: [
+        {
+          mimeType: "image/png",
+          sizes: ["192x192"],
+          src: `${AUTH_ORIGIN}/logo192.png`,
+        },
+        {
+          mimeType: "image/png",
+          sizes: ["512x512"],
+          src: `${AUTH_ORIGIN}/logo512.png`,
+        },
+      ],
+      name: "cloudstash",
+      title: "Cloudstash",
+      websiteUrl: AUTH_ORIGIN,
+    });
 
     const listed = await callMcp<{
       tools: {
