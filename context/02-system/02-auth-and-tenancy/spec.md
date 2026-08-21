@@ -66,11 +66,15 @@ rate limit is disabled because sync reconnects are network-driven; a Cloudflare
 per-IP rate limiter protects selected auth/sync paths.
 
 Remote MCP uses Better Auth discovery, DCR, PKCE, refresh tokens, and
-five-minute workspace/resource JWTs. Consent remains bound to its signed query
-and workspace across redirects. Each request verifies JWT/DPoP locally and
-rechecks access, entitlement, and scope; existing JWTs expire within five
-minutes. Google uses fixed endpoints, so auth initialization needs no discovery
-request.
+five-minute workspace/resource JWTs. Rotating refresh tokens have an explicit
+30-day sliding lifetime, so an active client refreshes silently while a client
+idle for 30 days must authenticate again. Protected-resource metadata omits its
+optional scope list so clients that otherwise treat it as exhaustive fall back
+to authorization-server metadata and request `offline_access`; resource scopes
+remain advertised there as well. Consent remains bound to its signed query and
+workspace across redirects. Each request verifies JWT/DPoP locally and rechecks
+access, entitlement, and scope; existing JWTs expire within five minutes.
+Google uses fixed endpoints, so auth initialization needs no discovery request.
 
 ## Roles and Permissions
 
