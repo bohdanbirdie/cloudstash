@@ -39,7 +39,7 @@ export const PLANS: Readonly<Record<PlanTier, PlanInfo>> = {
     tagline: "Every save, summarized by AI.",
     features: [
       "AI summary on every save",
-      "Save from Telegram, Raycast, and iOS",
+      "Save from Telegram and Raycast",
       "Weekly digest of what you read",
       "Public API",
     ],
@@ -54,7 +54,7 @@ export const PLANS: Readonly<Record<PlanTier, PlanInfo>> = {
     features: [
       "X bookmark sync",
       "Chat with your archive",
-      "Larger summary model",
+      "Enriched X summaries",
       "MCP server",
     ],
     inverted: true,

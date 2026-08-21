@@ -7,7 +7,7 @@ import {
   LegalUpdated,
 } from "@/components/landing/legal-shell";
 import { SITE_URL } from "@/components/landing/seo-data";
-import { META_PIXEL_HEAD_SCRIPTS, MetaPixelNoScript } from "@/lib/meta-pixel";
+import { META_PIXEL_HEAD_SCRIPTS } from "@/lib/meta-pixel";
 
 export const Route = createFileRoute("/terms")({
   head: () => ({
@@ -34,7 +34,7 @@ function TermsPage() {
       lead="The agreement between you and Cloudstash when you save links with us."
     >
       <LegalArticle>
-        <LegalUpdated date="May 12, 2026" />
+        <LegalUpdated date="August 21, 2026" />
         <p>
           These terms are an agreement between you and Phantom Edtech LLC about
           your use of Cloudstash. We’ve kept them short. If something here
@@ -157,13 +157,15 @@ function TermsPage() {
         <section id="billing">
           <h2>7. Plans, billing, and refunds</h2>
           <p>
-            Cloudstash has a free plan and paid plans (Plus at $5/month and Pro
-            at $12/month). Current pricing and what’s included is at{" "}
+            Cloudstash has a free plan and paid plans (Plus at $5/month or
+            $50/year, and Pro at $12/month or $120/year). Current pricing and
+            what’s included is at{" "}
             <a href="/#pricing">cloudstash.dev/#pricing</a>.
           </p>
           <p>
-            <strong>Billing.</strong> Paid plans bill monthly in advance through
-            our payment processor, Stripe. Your card details go directly to
+            <strong>Billing.</strong> Paid plans bill monthly or annually in
+            advance through our payment processor, Stripe, according to the
+            interval you choose at checkout. Your card details go directly to
             Stripe and are never stored by Cloudstash. Subscriptions renew
             automatically until you cancel them. You can cancel any time from
             Settings — your plan stays active through the end of the billing
@@ -387,7 +389,6 @@ function TermsPage() {
           <LegalAddress />
         </section>
       </LegalArticle>
-      <MetaPixelNoScript />
     </LegalShell>
   );
 }

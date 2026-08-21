@@ -7,7 +7,7 @@ import {
   LegalUpdated,
 } from "@/components/landing/legal-shell";
 import { SITE_URL } from "@/components/landing/seo-data";
-import { META_PIXEL_HEAD_SCRIPTS, MetaPixelNoScript } from "@/lib/meta-pixel";
+import { META_PIXEL_HEAD_SCRIPTS } from "@/lib/meta-pixel";
 
 export const Route = createFileRoute("/privacy")({
   head: () => ({
@@ -34,7 +34,7 @@ function PrivacyPage() {
       lead="What we collect, what we don't, and how you stay in control of your archive."
     >
       <LegalArticle>
-        <LegalUpdated date="May 29, 2026" />
+        <LegalUpdated date="August 21, 2026" />
         <p>We made this short and tried to write it in English, not lawyer.</p>
 
         <section id="tldr">
@@ -88,8 +88,8 @@ function PrivacyPage() {
           <p>
             <strong>The links you save.</strong> The URL, the page title and
             metadata, any tags you add, the AI-generated summary, and
-            timestamps. If you save through Telegram, Raycast, the iOS Shortcut,
-            the Chrome extension, or X bookmarks, the link arrives the same way.
+            timestamps. If you save through Telegram, Raycast, the Chrome
+            extension, or X bookmarks, the link arrives the same way.
           </p>
           <p>
             <strong>Content fetched from links.</strong> When you save a link,
@@ -112,15 +112,13 @@ function PrivacyPage() {
             short-lived and used for security, abuse prevention, and debugging.
           </p>
           <p>
-            <strong>Analytics scripts.</strong> Every page on cloudstash.dev
-            currently loads two scripts in the browser: Meta Pixel (a Facebook
-            tracking script used to measure ads) and OneDollarStats (a
-            lightweight page-view counter we use to see traffic). Both run on
-            the public pages and inside the signed-in app. They record that a
-            browser visited a page; they don’t see the contents of your archive.
-            We’re working to scope Meta Pixel to the marketing pages only —
-            until then, treat the app as if a third-party page-view counter is
-            watching, because one is.
+            <strong>Analytics scripts.</strong> OneDollarStats, a lightweight
+            page-view counter, runs across cloudstash.dev, including the
+            signed-in app. Meta Pixel, a Facebook tracking script used to
+            measure ads, runs only on the landing, login, contact, Terms, and
+            Privacy pages. They record that a browser visited a page; they don’t
+            see the contents of your archive. A Global Privacy Control signal
+            prevents Meta Pixel from loading.
           </p>
         </section>
 
@@ -248,10 +246,10 @@ function PrivacyPage() {
             </li>
             <li>
               <strong>Meta Platforms, Inc.</strong> — Meta Pixel for ad
-              measurement. It currently fires on every page on cloudstash.dev,
-              including pages inside the signed-in app. It receives the fact
-              that a browser visited a URL on our domain; it does not see your
-              archive contents.
+              measurement on the landing, login, contact, Terms, and Privacy
+              pages. It receives the fact that a browser visited a URL on our
+              domain; it does not see your archive contents. It does not load
+              when your browser sends a Global Privacy Control signal.
             </li>
             <li>
               <strong>OneDollarStats</strong> — a lightweight page-view counter
@@ -311,8 +309,9 @@ function PrivacyPage() {
           <p>
             We use the minimum cookies and local storage needed to keep you
             signed in, remember your preferences, and run features like offline
-            sync. Meta Pixel and OneDollarStats set their own cookies in your
-            browser when they run, on both marketing and in-app pages.
+            sync. OneDollarStats may set its own storage when it runs across the
+            site. Meta Pixel may set its own storage when it runs on the
+            landing, login, contact, Terms, and Privacy pages.
           </p>
           <p>
             We don’t respond to the legacy “Do Not Track” browser signal — no
@@ -320,7 +319,8 @@ function PrivacyPage() {
             controls and Settings → Account → Delete to control your data
             instead. If you’re a California resident, you can also use the
             Global Privacy Control browser signal — we treat it as a valid
-            opt-out request under California law.
+            opt-out request under California law and prevent Meta Pixel from
+            loading.
           </p>
         </section>
 
@@ -418,7 +418,6 @@ function PrivacyPage() {
           <LegalAddress />
         </section>
       </LegalArticle>
-      <MetaPixelNoScript />
     </LegalShell>
   );
 }

@@ -27,8 +27,8 @@ kanban-plugin: board
 - [ ] Develop CLI for ingestion and management
 - [ ] Use Cloudflare Email instead of Resend
 - [ ] Replace OpenRouter with Cloudflare AI Gateway
+- [ ] [[todos/pro-larger-summary-model|Give Pro summaries a larger model]] — choose the quality/cost boundary, fallback behavior, and operation-time entitlement; advertise it only after it ships.
 - [ ] [[todos/agent-context-chips-entry-points|Agent context chips + entry points]]
-- [ ] Shrink Worker output further — current upload is 2421 KiB gzipped (deploy 2026-05-13), only 633 KiB headroom under the 3 MiB free-tier cap. Two levers worth evaluating before the budget gets tight again: (a) split into separate Workers (web/assets vs. API/DOs) joined by a service binding, so each subsystem gets its own 3 MiB; (b) trim heavy chunks in place — defuddle/linkedom/htmlparser2 (HTML readability in LinkProcessorDO), @ai-sdk/react + livestore client on the authed entry, Effect tracer surface. Decide which lever first based on what's growing.
 - [ ] [[todos/multi-chat-architecture|Multi-chat architecture + align chat tools with canonical link RPCs]] — keep each conversation DO lightweight and move link tools behind the same workspace RPC capability used by API/MCP.
 - [ ] Extend Pro plan with twitter historical sync of bookmarks
 - [ ] [[todos/weekly-digest-backend|Weekly Digest backend]]
@@ -65,6 +65,7 @@ kanban-plugin: board
 
 ## Done
 
+- [x] Shrink and budget the Worker upload — PR #94 Oxc-minified the deployable Worker, reducing the Wrangler dry-run upload from 2963 KiB to 1868 KiB gzipped, and added a CI-enforced 2700 KiB pre-limit budget plus a generated-Worker smoke test.
 - [x] [[todos/develop-mcp-server|Ship stateless remote MCP for Pro]] — deployed for Pro with OAuth discovery/consent, stateless link-management tools, API parity, request-time authorization, and successful MCP JAM plus production Codex smoke tests.
 - [x] [[todos/consolidate-link-operations-in-link-processor|Consolidate link operations in LinkProcessorDO]] — REST and MCP now reuse the existing workspace-owned LiveStore replica through typed `LinkProcessorDO` RPCs; the duplicate WorkspaceLinksDO was removed.
 - [x] [[todos/metadata-endpoint-hardening|Align metadata preview with the authenticated bounded-fetch contract]] — the internal preview now requires current workspace/session authorization, uses dedicated per-user abuse protection and bounded fetches, returns non-cacheable responses, and leaves LinkProcessor authoritative.

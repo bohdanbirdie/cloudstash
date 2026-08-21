@@ -30,8 +30,8 @@ privacy copy with actual collection.
 - Admin/product aggregates exclude content and unnecessary per-user history.
 - Tracking route scope and GPC/consent behavior match published copy.
 - Deletion inventory includes retained telemetry with bounded language.
-- DELTA-004, DELTA-013, and DELTA-016 resolution signals are either met or
-  narrowed with explicit remaining evidence.
+- DELTA-013 and DELTA-016 resolution signals are either met or narrowed with
+  explicit remaining evidence.
 
 ## Dependencies and risks
 
@@ -42,3 +42,6 @@ and deletion failures. Final privacy/terms language requires human legal review.
 
 Medium-large. Code removal is tractable; retention and legal wording need owner
 decisions.
+
+Tracking scope and GPC behavior were reconciled on 2026-08-21; this task still
+owns server-side telemetry and retained activity data.

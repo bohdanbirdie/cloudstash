@@ -9,47 +9,31 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WelcomeRouteImport } from './routes/welcome'
-import { Route as TermsRouteImport } from './routes/terms'
-import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as OauthConsentRouteImport } from './routes/oauth-consent'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as ContactRouteImport } from './routes/contact'
-import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ConnectTelegramRouteImport } from './routes/connect/telegram'
-import { Route as ConnectRaycastRouteImport } from './routes/connect/raycast'
-import { Route as ConnectExtensionRouteImport } from './routes/connect/extension'
-import { Route as AuthedInboxRouteImport } from './routes/_authed/inbox'
-import { Route as AuthedCompletedRouteImport } from './routes/_authed/completed'
-import { Route as AuthedBrandRouteImport } from './routes/_authed/brand'
-import { Route as AuthedArchiveRouteImport } from './routes/_authed/archive'
-import { Route as AuthedAllRouteImport } from './routes/_authed/all'
+import { Route as AuthedRouteImport } from './routes/_authed'
+import { Route as ContactRouteImport } from './routes/contact'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as OauthConsentRouteImport } from './routes/oauth-consent'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as AuthedAdminRouteImport } from './routes/_authed/admin'
+import { Route as AuthedAllRouteImport } from './routes/_authed/all'
+import { Route as AuthedArchiveRouteImport } from './routes/_authed/archive'
+import { Route as AuthedBrandRouteImport } from './routes/_authed/brand'
+import { Route as AuthedCompletedRouteImport } from './routes/_authed/completed'
+import { Route as AuthedInboxRouteImport } from './routes/_authed/inbox'
+import { Route as ConnectExtensionRouteImport } from './routes/connect/extension'
+import { Route as ConnectRaycastRouteImport } from './routes/connect/raycast'
+import { Route as ConnectTelegramRouteImport } from './routes/connect/telegram'
 
-const WelcomeRoute = WelcomeRouteImport.update({
-  id: '/welcome',
-  path: '/welcome',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TermsRoute = TermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PrivacyRoute = PrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OauthConsentRoute = OauthConsentRouteImport.update({
-  id: '/oauth-consent',
-  path: '/oauth-consent',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
+const AuthedRoute = AuthedRouteImport.update({
+  id: '/_authed',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContactRoute = ContactRouteImport.update({
@@ -57,48 +41,34 @@ const ContactRoute = ContactRouteImport.update({
   path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthedRoute = AuthedRouteImport.update({
-  id: '/_authed',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const OauthConsentRoute = OauthConsentRouteImport.update({
+  id: '/oauth-consent',
+  path: '/oauth-consent',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ConnectTelegramRoute = ConnectTelegramRouteImport.update({
-  id: '/connect/telegram',
-  path: '/connect/telegram',
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ConnectRaycastRoute = ConnectRaycastRouteImport.update({
-  id: '/connect/raycast',
-  path: '/connect/raycast',
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ConnectExtensionRoute = ConnectExtensionRouteImport.update({
-  id: '/connect/extension',
-  path: '/connect/extension',
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthedInboxRoute = AuthedInboxRouteImport.update({
-  id: '/inbox',
-  path: '/inbox',
-  getParentRoute: () => AuthedRoute,
-} as any)
-const AuthedCompletedRoute = AuthedCompletedRouteImport.update({
-  id: '/completed',
-  path: '/completed',
-  getParentRoute: () => AuthedRoute,
-} as any)
-const AuthedBrandRoute = AuthedBrandRouteImport.update({
-  id: '/brand',
-  path: '/brand',
-  getParentRoute: () => AuthedRoute,
-} as any)
-const AuthedArchiveRoute = AuthedArchiveRouteImport.update({
-  id: '/archive',
-  path: '/archive',
+const AuthedAdminRoute = AuthedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedAllRoute = AuthedAllRouteImport.update({
@@ -106,10 +76,40 @@ const AuthedAllRoute = AuthedAllRouteImport.update({
   path: '/all',
   getParentRoute: () => AuthedRoute,
 } as any)
-const AuthedAdminRoute = AuthedAdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
+const AuthedArchiveRoute = AuthedArchiveRouteImport.update({
+  id: '/archive',
+  path: '/archive',
   getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedBrandRoute = AuthedBrandRouteImport.update({
+  id: '/brand',
+  path: '/brand',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedCompletedRoute = AuthedCompletedRouteImport.update({
+  id: '/completed',
+  path: '/completed',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedInboxRoute = AuthedInboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const ConnectExtensionRoute = ConnectExtensionRouteImport.update({
+  id: '/connect/extension',
+  path: '/connect/extension',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConnectRaycastRoute = ConnectRaycastRouteImport.update({
+  id: '/connect/raycast',
+  path: '/connect/raycast',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConnectTelegramRoute = ConnectTelegramRouteImport.update({
+  id: '/connect/telegram',
+  path: '/connect/telegram',
+  getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -242,39 +242,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/welcome': {
-      id: '/welcome'
-      path: '/welcome'
-      fullPath: '/welcome'
-      preLoaderRoute: typeof WelcomeRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/terms': {
-      id: '/terms'
-      path: '/terms'
-      fullPath: '/terms'
-      preLoaderRoute: typeof TermsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy': {
-      id: '/privacy'
-      path: '/privacy'
-      fullPath: '/privacy'
-      preLoaderRoute: typeof PrivacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/oauth-consent': {
-      id: '/oauth-consent'
-      path: '/oauth-consent'
-      fullPath: '/oauth-consent'
-      preLoaderRoute: typeof OauthConsentRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
+    '/_authed': {
+      id: '/_authed'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contact': {
@@ -284,67 +263,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authed': {
-      id: '/_authed'
-      path: ''
-      fullPath: ''
-      preLoaderRoute: typeof AuthedRouteImport
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/oauth-consent': {
+      id: '/oauth-consent'
+      path: '/oauth-consent'
+      fullPath: '/oauth-consent'
+      preLoaderRoute: typeof OauthConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/connect/telegram': {
-      id: '/connect/telegram'
-      path: '/connect/telegram'
-      fullPath: '/connect/telegram'
-      preLoaderRoute: typeof ConnectTelegramRouteImport
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/connect/raycast': {
-      id: '/connect/raycast'
-      path: '/connect/raycast'
-      fullPath: '/connect/raycast'
-      preLoaderRoute: typeof ConnectRaycastRouteImport
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/connect/extension': {
-      id: '/connect/extension'
-      path: '/connect/extension'
-      fullPath: '/connect/extension'
-      preLoaderRoute: typeof ConnectExtensionRouteImport
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authed/inbox': {
-      id: '/_authed/inbox'
-      path: '/inbox'
-      fullPath: '/inbox'
-      preLoaderRoute: typeof AuthedInboxRouteImport
-      parentRoute: typeof AuthedRoute
-    }
-    '/_authed/completed': {
-      id: '/_authed/completed'
-      path: '/completed'
-      fullPath: '/completed'
-      preLoaderRoute: typeof AuthedCompletedRouteImport
-      parentRoute: typeof AuthedRoute
-    }
-    '/_authed/brand': {
-      id: '/_authed/brand'
-      path: '/brand'
-      fullPath: '/brand'
-      preLoaderRoute: typeof AuthedBrandRouteImport
-      parentRoute: typeof AuthedRoute
-    }
-    '/_authed/archive': {
-      id: '/_authed/archive'
-      path: '/archive'
-      fullPath: '/archive'
-      preLoaderRoute: typeof AuthedArchiveRouteImport
+    '/_authed/admin': {
+      id: '/_authed/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthedAdminRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/all': {
@@ -354,12 +312,54 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedAllRouteImport
       parentRoute: typeof AuthedRoute
     }
-    '/_authed/admin': {
-      id: '/_authed/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AuthedAdminRouteImport
+    '/_authed/archive': {
+      id: '/_authed/archive'
+      path: '/archive'
+      fullPath: '/archive'
+      preLoaderRoute: typeof AuthedArchiveRouteImport
       parentRoute: typeof AuthedRoute
+    }
+    '/_authed/brand': {
+      id: '/_authed/brand'
+      path: '/brand'
+      fullPath: '/brand'
+      preLoaderRoute: typeof AuthedBrandRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/completed': {
+      id: '/_authed/completed'
+      path: '/completed'
+      fullPath: '/completed'
+      preLoaderRoute: typeof AuthedCompletedRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/inbox': {
+      id: '/_authed/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof AuthedInboxRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/connect/extension': {
+      id: '/connect/extension'
+      path: '/connect/extension'
+      fullPath: '/connect/extension'
+      preLoaderRoute: typeof ConnectExtensionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/connect/raycast': {
+      id: '/connect/raycast'
+      path: '/connect/raycast'
+      fullPath: '/connect/raycast'
+      preLoaderRoute: typeof ConnectRaycastRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/connect/telegram': {
+      id: '/connect/telegram'
+      path: '/connect/telegram'
+      fullPath: '/connect/telegram'
+      preLoaderRoute: typeof ConnectTelegramRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -401,12 +401,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

@@ -49,7 +49,7 @@ export function BenefitsGrid() {
       <SmallBenefit
         delay={0.4}
         title="Walk away anytime. Take everything."
-        body="Export the whole archive — links, summaries, tags — in one click. No lock-in."
+        body="Export the whole archive as Markdown or plain links in one click. No lock-in."
         visual={<ArchiveCard />}
         className="lg:col-span-3"
       />
@@ -189,7 +189,7 @@ function SyncRow() {
       <div className="flex w-full items-center gap-2">
         <DeviceChip>macOS</DeviceChip>
         <DotsTrail baseDelay={0.4} />
-        <DeviceChip>iOS</DeviceChip>
+        <DeviceChip>Mobile web</DeviceChip>
         <DotsTrail baseDelay={0.58} />
         <DeviceChip>Web</DeviceChip>
       </div>
@@ -232,7 +232,7 @@ function ArchiveCard() {
     <div className="flex h-10 select-none items-center gap-2 rounded-md border border-border/60 bg-background px-2.5">
       <FileMark />
       <span className="font-mono text-[11.5px] text-foreground">
-        archive.json
+        cloudstash-export.md
       </span>
       <span className="ml-auto font-mono text-[10px] tabular-nums text-muted-foreground">
         1,247 links

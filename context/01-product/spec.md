@@ -68,13 +68,11 @@ capability values. Current bundles are:
   digest, and public API.
 - **Pro:** Plus plus X bookmark sync/enrichment, chat agent, and MCP.
 
-Plan copy currently overstates iOS, summary coverage/model size, export, and
-weekly-digest semantics. See
-[DELTA-005](../.delta/DELTA-005-export-claim-exceeds-current-export.md),
-[DELTA-006](../.delta/DELTA-006-summary-length-copy-disagrees-with-output.md),
-[DELTA-007](../.delta/DELTA-007-ios-integration-is-advertised-only.md), and
-[DELTA-021](../.delta/DELTA-021-product-plan-and-integration-copy-overstates-reality.md).
-Those mismatches are not current product realizations.
+Plan copy still overstates summary coverage; see
+[DELTA-006](../.delta/DELTA-006-summary-length-copy-disagrees-with-output.md).
+“Weekly digest of what you read” is accepted marketing shorthand for a digest
+selected from recently saved links. A generally larger Pro summary model is
+planned work, not a current capability.
 
 Monthly and annual paid intervals are supported. Marketing bullets are not an
 authorization source; the server merges tier defaults with per-workspace
@@ -87,8 +85,11 @@ surfaces. Link content is fetched to derive metadata and summaries; full fetched
 pages are not retained in the workspace model. Basic link summaries use Workers AI. Chat, eligible X enrichment, and weekly
 digest generation use OpenRouter-hosted models. The current privacy policy does
 not disclose all of that behavior. See
-[DELTA-004](../.delta/DELTA-004-privacy-analytics-copy-is-stale.md),
 [DELTA-009](../.delta/DELTA-009-deletion-copy-overstates-immediacy.md),
 [DELTA-013](../.delta/DELTA-013-activity-analytics-retain-content-after-deletion.md),
 [DELTA-014](../.delta/DELTA-014-weekly-digest-uses-undisclosed-ai-processor.md),
 and [DELTA-016](../.delta/DELTA-016-telemetry-emits-raw-content-and-identifiers.md).
+
+OneDollarStats runs across public and authenticated routes. Meta Pixel runs only
+on the landing, login, contact, Terms, and Privacy routes, and its loader exits
+before contacting Meta when the browser exposes Global Privacy Control.

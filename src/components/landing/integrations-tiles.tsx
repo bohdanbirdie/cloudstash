@@ -2,7 +2,6 @@ import { motion } from "motion/react";
 import { Fragment } from "react";
 
 import { CloudstashLogo } from "@/components/cloudstash-logo";
-import { Kbd } from "@/components/ui/kbd";
 import { KeyChord } from "@/components/ui/key-chord";
 
 const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -44,49 +43,33 @@ export function IntegrationsTiles() {
       </IntegrationTile>
       <IntegrationTile
         name="Raycast"
-        caption={
-          <>
-            Save the front tab with{" "}
-            <Kbd>
-              <KeyChord keys={["cmd", "shift", "S"]} />
-            </Kbd>
-            .
-          </>
-        }
+        caption="Paste a URL into Raycast and save it to Cloudstash."
       >
         <RaycastMockup delay={MOCKUP_STAGGER} />
-      </IntegrationTile>
-      <IntegrationTile
-        name="iOS Share Sheet"
-        caption="Share from Safari, Twitter, anything."
-      >
-        <IosMockup delay={2 * MOCKUP_STAGGER} />
       </IntegrationTile>
       <IntegrationTile
         name="X bookmarks"
         caption="Bookmark on X. It lands here, summarized."
       >
-        <XBookmarksMockup delay={3 * MOCKUP_STAGGER} />
+        <XBookmarksMockup delay={2 * MOCKUP_STAGGER} />
+      </IntegrationTile>
+      <IntegrationTile
+        name="AI chat"
+        caption="Ask questions across your archive and act on the answers."
+      >
+        <AiChatMockup delay={3 * MOCKUP_STAGGER} />
       </IntegrationTile>
       <IntegrationTile
         name="Chrome extension"
-        caption={
-          <>
-            Save the active tab in one click —{" "}
-            <Kbd>
-              <KeyChord keys={["alt", "cmd", "S"]} />
-            </Kbd>{" "}
-            from anywhere.
-          </>
-        }
+        caption="Save the current page from the toolbar, or paste any link."
       >
         <ChromeMockup delay={4 * MOCKUP_STAGGER} />
       </IntegrationTile>
       <IntegrationTile
-        name="MCP server"
-        caption="Your AI assistant can search and read your archive."
+        name="Cloudstash in your AI"
+        caption="Use your saved links without leaving your AI assistant."
       >
-        <McpMockup delay={5 * MOCKUP_STAGGER} />
+        <AiConnectorMockup delay={5 * MOCKUP_STAGGER} />
       </IntegrationTile>
     </ul>
   );
@@ -265,58 +248,6 @@ function RaycastMark({ className }: { className?: string }) {
   );
 }
 
-function IosMockup({ delay = 0 }: { delay?: number }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.5, ease: EASE_OUT, delay: delay + 0.3 }}
-      className="mx-auto w-full max-w-[280px] overflow-hidden rounded-t-2xl border border-b-0 border-border/60 bg-background px-4 pb-5 pt-2.5 shadow-[0_-6px_20px_-12px_rgba(0,0,0,0.18)]"
-    >
-      <span className="mx-auto mb-3 block h-1 w-9 rounded-full bg-muted-foreground/30" />
-      <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        Share to
-      </div>
-      <ul className="mt-2.5 flex items-start justify-between gap-2">
-        <IosAppIcon color="#FFCC00" name="Notes" />
-        <IosAppIcon color="#5856D6" name="Mail" />
-        <motion.li
-          initial={{ scale: 0.85, opacity: 0.6 }}
-          whileInView={{ scale: 1, opacity: 1 }}
-          viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.75 }}
-          className="flex w-12 flex-col items-center gap-1.5"
-        >
-          <span className="size-10 overflow-hidden rounded-[22%] [corner-shape:squircle]">
-            <CloudstashLogo
-              className="size-full scale-[1.154]"
-              variant="branded"
-            />
-          </span>
-          <span className="truncate text-[9px] font-medium text-foreground">
-            Cloudstash
-          </span>
-        </motion.li>
-        <IosAppIcon color="#34C759" name="Messages" />
-        <IosAppIcon color="#8E8E93" name="More" />
-      </ul>
-    </motion.div>
-  );
-}
-
-function IosAppIcon({ color, name }: { color: string; name: string }) {
-  return (
-    <li className="flex w-12 flex-col items-center gap-1.5 opacity-45">
-      <span
-        className="size-10 rounded-[22%] [corner-shape:squircle]"
-        style={{ backgroundColor: color }}
-      />
-      <span className="truncate text-[9px] text-muted-foreground">{name}</span>
-    </li>
-  );
-}
-
 function XBookmarksMockup({ delay = 0 }: { delay?: number }) {
   return (
     <motion.div
@@ -485,14 +416,12 @@ function ChromeMockup({ delay = 0 }: { delay?: number }) {
             Cloudstash
           </span>
         </div>
-        <span className="font-mono text-[10px] text-muted-foreground">
-          <KeyChord keys={["alt", "cmd", "S"]} />
+        <span className="grid size-5 place-items-center rounded-full bg-muted text-[9px] font-medium text-muted-foreground">
+          B
         </span>
       </div>
       <div className="px-3.5 py-3">
-        <div className="text-[11.5px] font-medium leading-snug">
-          Save this tab
-        </div>
+        <div className="text-[11.5px] font-medium leading-snug">This page</div>
         <div className="mt-1 truncate text-[10px] text-muted-foreground">
           nytimes.com/style/high-line-dawn
         </div>
@@ -522,65 +451,195 @@ function ChromeMockup({ delay = 0 }: { delay?: number }) {
   );
 }
 
-function McpMockup({ delay = 0 }: { delay?: number }) {
+function AiChatMockup({ delay = 0 }: { delay?: number }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 12, scale: 0.97 }}
       whileInView={{ opacity: 1, y: 0, scale: 1 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.3 }}
-      className="w-full max-w-xs overflow-hidden rounded-md border border-border/80 bg-background shadow-sm"
+      className="w-full max-w-[300px] overflow-hidden rounded-md border border-border/80 bg-background shadow-sm"
     >
-      <div className="flex min-w-0 flex-col gap-2 p-3.5">
+      <div className="flex items-center justify-between border-b border-border/60 bg-muted/20 px-3 py-2">
+        <div className="flex items-center gap-1.5">
+          <ChatBubbleIcon className="size-3 text-primary" />
+          <span className="text-[11px] font-semibold tracking-tight">
+            Assistant
+          </span>
+        </div>
+        <span className="size-1.5 rounded-full bg-emerald-500" />
+      </div>
+
+      <div className="flex min-w-0 flex-col gap-2 px-3 py-2.5">
         <motion.div
           initial={{ opacity: 0, y: 4 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.5 }}
-          className="ml-auto max-w-[82%] rounded-2xl rounded-br-md bg-muted px-3 py-1.5 text-xs leading-snug"
+          transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.55 }}
+          className="ml-auto max-w-[84%] rounded-2xl rounded-br-md bg-primary px-3 py-1.5 text-[11px] leading-snug text-primary-foreground"
         >
-          What did I save about gardens?
+          Find my saved pieces on focus.
         </motion.div>
+
         <motion.div
           initial={{ opacity: 0, y: 4 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-40px" }}
           transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.9 }}
-          className="min-w-0 max-w-[94%] rounded-2xl rounded-bl-md border border-border/60 bg-background px-3 py-2 text-xs leading-snug"
+          className="min-w-0 max-w-[94%] text-[11px] leading-snug"
         >
-          <p className="text-foreground/90">One piece from your archive:</p>
-          <div className="mt-1.5 flex items-start gap-1.5">
+          <p className="text-foreground/90">
+            Three links stand out. Start here:
+          </p>
+          <motion.div
+            initial={{ opacity: 0, x: -4 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.3, ease: EASE_OUT, delay: delay + 1.15 }}
+            className="mt-1.5 flex min-w-0 items-start gap-1.5 rounded-md bg-muted/55 px-2 py-1.5"
+          >
             <span
-              className="mt-0.5 grid size-3 shrink-0 place-items-center rounded-sm font-serif text-[0.5rem] font-bold text-white"
-              style={{ backgroundColor: "#000" }}
+              className="mt-0.5 grid size-3 shrink-0 place-items-center rounded-sm bg-black font-serif text-[0.5rem] font-bold text-white"
               aria-hidden="true"
             >
               T
             </span>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-xs font-medium">
-                A walk through the New York Botanical Garden
-              </div>
-              <div className="text-[0.65rem] text-muted-foreground/70">
-                nytimes.com
+              <div className="truncate font-medium">How to Do Deep Work</div>
+              <div className="truncate text-[0.62rem] text-muted-foreground">
+                nytimes.com · #focus
               </div>
             </div>
-          </div>
+          </motion.div>
         </motion.div>
       </div>
+
       <motion.div
         initial={{ opacity: 0 }}
         whileInView={{ opacity: 1 }}
         viewport={{ once: true, margin: "-40px" }}
-        transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 1.25 }}
-        className="flex items-center gap-1.5 border-t border-border/60 bg-muted/30 px-3.5 py-2 text-[0.65rem] text-muted-foreground"
+        transition={{ duration: 0.3, ease: EASE_OUT, delay: delay + 1.35 }}
+        className="flex items-center gap-2 border-t border-border/60 px-3 py-2"
       >
-        <CloudstashLogo className="size-3 rounded-sm" variant="branded" />
-        <span>
-          via Cloudstash{" "}
-          <span className="font-mono text-foreground/70">MCP</span>
+        <span className="flex-1 text-[10px] text-muted-foreground">
+          Ask about your links…
+        </span>
+        <span className="grid size-5 place-items-center rounded-sm bg-primary text-primary-foreground">
+          <ArrowUpIcon className="size-2.5" />
         </span>
       </motion.div>
+    </motion.div>
+  );
+}
+
+function ChatBubbleIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+    </svg>
+  );
+}
+
+function ArrowUpIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m5 12 7-7 7 7" />
+      <path d="M12 19V5" />
+    </svg>
+  );
+}
+
+function AiConnectorMockup({ delay = 0 }: { delay?: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12, scale: 0.97 }}
+      whileInView={{ opacity: 1, y: 0, scale: 1 }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.3 }}
+      className="w-full max-w-[300px] overflow-hidden rounded-md border border-border/80 bg-background shadow-sm"
+    >
+      <div className="flex items-center justify-between border-b border-border/60 bg-muted/20 px-3 py-2">
+        <span className="text-[10px] font-semibold tracking-tight">
+          Connected apps
+        </span>
+        <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
+          <span className="size-1.5 rounded-full bg-emerald-500" />
+          Active
+        </span>
+      </div>
+
+      <div className="px-3 py-3">
+        <motion.div
+          initial={{ opacity: 0, y: 4 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-40px" }}
+          transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.55 }}
+          className="flex items-center gap-2.5 rounded-md border border-primary/20 bg-primary/[0.04] p-2.5"
+        >
+          <CloudstashLogo
+            className="size-8 shrink-0 rounded-md"
+            variant="branded"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] font-semibold tracking-tight">
+              Cloudstash
+            </div>
+            <div className="text-[9px] text-muted-foreground">
+              Your archive is ready to use
+            </div>
+          </div>
+          <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[8px] font-medium text-emerald-700 dark:text-emerald-400">
+            Connected
+          </span>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 4 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-40px" }}
+          transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.85 }}
+          className="mt-2.5 grid grid-cols-3 gap-1.5"
+        >
+          <span className="rounded-md bg-muted/60 px-1.5 py-1.5 text-center text-[9px] font-medium text-foreground/75">
+            Search
+          </span>
+          <span className="rounded-md bg-muted/60 px-1.5 py-1.5 text-center text-[9px] font-medium text-foreground/75">
+            Save
+          </span>
+          <span className="rounded-md bg-muted/60 px-1.5 py-1.5 text-center text-[9px] font-medium text-foreground/75">
+            Organize
+          </span>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true, margin: "-40px" }}
+          transition={{ duration: 0.3, ease: EASE_OUT, delay: delay + 1.1 }}
+          className="mt-2.5 flex items-center justify-center gap-1.5 text-[9px] text-muted-foreground"
+        >
+          <ChatBubbleIcon className="size-2.5 text-primary" />
+          Available in your AI chats
+        </motion.div>
+      </div>
     </motion.div>
   );
 }

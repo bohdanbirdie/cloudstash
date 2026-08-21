@@ -8,7 +8,6 @@ const SOURCE_LABELS: Record<string, string> = {
   telegram: "Telegram",
   chrome: "Chrome extension",
   "chrome-ext": "Chrome extension",
-  shortcut: "iOS Shortcut",
   unknown: "Unknown",
 };
 

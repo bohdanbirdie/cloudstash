@@ -9,7 +9,7 @@ import { FieldGroup, FieldDescription } from "@/components/ui/field";
 import { authClient, loadAuth } from "@/lib/auth";
 import type { DitherPalette } from "@/lib/brand/dither";
 import { PALETTES, paintDitherWithEffects } from "@/lib/brand/dither";
-import { META_PIXEL_HEAD_SCRIPTS, MetaPixelNoScript } from "@/lib/meta-pixel";
+import { META_PIXEL_HEAD_SCRIPTS } from "@/lib/meta-pixel";
 import { PLANS } from "@/lib/plan";
 import { cn } from "@/lib/utils";
 
@@ -429,7 +429,6 @@ function LoginPage() {
       <div className="w-full max-w-sm md:max-w-3xl">
         <LoginForm />
       </div>
-      <MetaPixelNoScript />
     </div>
   );
 }
