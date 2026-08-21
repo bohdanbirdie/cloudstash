@@ -103,9 +103,9 @@ Remote setup remains maintainer-controlled. From this branch or after merge:
 9. Connect the staging Worker to GitHub and enter the Workers Builds settings
    above.
 10. Open ordinary PRs against `staging`. After merge and deployment, verify
-   login, one browser save and cross-client sync, one Queue ingest, MCP
-   OAuth/tool use, and any changed critical path before merging the production
-   promotion PR.
+    login, one browser save and cross-client sync, one Queue ingest, MCP
+    OAuth/tool use, and any changed critical path before merging the production
+    promotion PR.
 
 Automatic provisioning is intentional for resources supported by Wrangler.
 Queues are created explicitly before the first deploy; generated D1 and KV
