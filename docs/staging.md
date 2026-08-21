@@ -27,15 +27,15 @@ staging` on a Wrangler command.
 
 ## Branch policy
 
-The `staging` branch is a deployment pointer, not an integration branch. Promote
-the exact PR head that needs deployed verification to `staging`. Ordinarily only
-one PR occupies staging at a time. If multiple PRs exist, serialize them or
-deliberately test a combined commit; do not let every non-production branch
-overwrite the same stateful Worker.
+The `staging` branch is Cloudstash's default integration branch. Feature and fix
+PRs target `staging`; merging one updates the shared staging Worker through
+Cloudflare Builds. Multiple PRs may be open, but their changes reach the shared
+environment only after merge, in `staging` history order.
 
-After a PR merges, move `staging` back to the selected `main` commit before the
-next rehearsal. Use `--force-with-lease`, never an unconditional force push,
-when moving this pointer.
+`main` is the production branch. Do not target it directly for ordinary work.
+Changes reach `main` through the rolling `staging` to `main` production
+promotion PR after the current staging revision has completed its intended soak
+and smoke verification.
 
 ## Promotion to production
 
@@ -46,12 +46,18 @@ features operate on versions of one Worker (or, separately, Enterprise Zone
 Version Management); they do not transfer a Worker version and its bindings
 between these two Workers.
 
-Promotion is therefore source-based: verify the selected PR revision on the
-`staging` branch, then merge that reviewed change to `main`. The production
-Worker's existing GitHub integration builds and deploys `main`. This preserves
-environment isolation but is not a byte-for-byte artifact promotion. If exact
-artifact promotion becomes necessary, add an external CI artifact handoff
-rather than weakening the staging boundary.
+Promotion is therefore source-based: merge ordinary PRs into `staging`, verify
+the resulting deployed revision, then merge the rolling `staging` to `main` PR.
+The production Worker's existing GitHub integration builds and deploys `main`.
+This preserves environment isolation but is not a byte-for-byte artifact
+promotion. If exact artifact promotion becomes necessary, add an external CI
+artifact handoff rather than weakening the staging boundary.
+
+The `Open production promotion PR` workflow runs daily at 05:17 UTC and can also
+be dispatched manually. When staging contains unpromoted commits, it creates the
+promotion PR if one is not already open. The existing PR automatically follows
+new staging commits, so every staging update restarts the human soak decision;
+the workflow does not close and recreate it.
 
 ## Cloudflare Builds settings
 
@@ -84,10 +90,19 @@ Remote setup remains maintainer-controlled. From this branch or after merge:
 4. Add the staging-only secrets listed below.
 5. Register the staging callback URL with Google and X OAuth providers and use
    Stripe test-mode webhook/Price configuration.
-6. Create the `staging` Git branch, connect the Worker to GitHub, and enter the
-   Workers Builds settings above.
-7. Promote a PR head, then verify login, one browser save and cross-client sync,
-   one Queue ingest, MCP OAuth/tool use, and any changed critical path.
+6. Create the `staging` Git branch from the current `main`, make it the GitHub
+   repository's default branch, and apply the ordinary required CI checks to
+   PRs targeting it. Keep `main` protected as the production branch.
+7. In GitHub **Settings > Actions > General > Workflow permissions**, enable
+   **Allow GitHub Actions to create and approve pull requests**. The promotion
+   workflow grants its token only `contents: read` and `pull-requests: write`;
+   it creates PRs but never approves them.
+8. Connect the staging Worker to GitHub and enter the Workers Builds settings
+   above.
+9. Open ordinary PRs against `staging`. After merge and deployment, verify
+   login, one browser save and cross-client sync, one Queue ingest, MCP
+   OAuth/tool use, and any changed critical path before merging the production
+   promotion PR.
 
 Automatic provisioning is intentional for resources supported by Wrangler.
 When provisioning happens through Cloudflare Builds, generated resource IDs are

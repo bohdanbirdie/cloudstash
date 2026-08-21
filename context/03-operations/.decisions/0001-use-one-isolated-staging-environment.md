@@ -38,15 +38,16 @@ that implement Durable Objects.
 | Continue bounded production verification                | No extra environment cost, but critical stateful behavior is first exercised against production data and quotas.                          |
 | Use Workers Builds version previews for every PR        | Automatic branch workflow, but no usable preview URL exists for this Durable Object Worker and stateful bindings are not isolated per PR. |
 | Provision a complete temporary environment for every PR | Strong isolation and parallelism, but requires dynamic D1/KV/Queue/Workflow/secrets/OAuth setup and cleanup.                              |
-| Keep one isolated environment selected by `staging`     | Exercises real deployed boundaries with stable credentials and data; concurrent PRs must serialize or deliberately share a rehearsal.     |
+| Keep one isolated integration environment on `staging`  | Exercises real deployed boundaries with stable credentials and data; merged changes share one ordered staging history and soak together.  |
 
 ## Decision
 
 Define `env.staging` in the shared Wrangler configuration and deploy it as the
-separate `cloudstash-staging` Worker from a long-lived `staging` branch. Give it
-independent stateful resources, secrets, provider test configuration, and a
-stable public origin. Promote one chosen PR head at a time; retain ordinary CI
-for every PR and add more staging slots only if concurrent deployed verification
-becomes common. After staging verification, promote the reviewed source change
-by merging it to `main`; exact cross-Worker artifact promotion would require a
-separate CI artifact handoff.
+separate `cloudstash-staging` Worker from the long-lived default integration
+branch, `staging`. Give it independent stateful resources, secrets, provider
+test configuration, and a stable public origin. Ordinary PRs merge into
+`staging`; a rolling `staging` to `main` PR promotes the accumulated source
+changes only after the current staging revision has soaked and been verified.
+Retain ordinary CI on both branches and add more staging slots only if isolated
+parallel verification becomes necessary. Exact cross-Worker artifact promotion
+would require a separate CI artifact handoff.

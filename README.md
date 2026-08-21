@@ -230,7 +230,7 @@ src/
 2. Create a feature branch (`git checkout -b feature/my-feature`)
 3. Make your changes
 4. Run checks: `bun run check && bun run typecheck && bun test`
-5. Submit a pull request
+5. Submit a pull request against the `staging` branch
 
 Uses `bun` (not npm) and `oxlint`/`oxfmt` via Vite+ (not eslint).
 
