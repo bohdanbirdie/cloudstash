@@ -24,9 +24,8 @@ const migrations = journal.entries.map((entry: { tag: string }) => ({
 }));
 
 /**
- * E2E test configuration using Cloudflare Workers Vitest pool.
+ * E2E test configuration using the Cloudflare Vitest plugin.
  * Tests run in an isolated Workers environment with fresh D1 database.
- * Uses real vitest (not vite-plus shim) due to cloudflare pool incompatibility.
  */
 export default defineConfig({
   plugins: [

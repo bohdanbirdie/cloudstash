@@ -19,7 +19,7 @@ These require your hands/account and can't be done from the repo. Do them in ord
 - [ ] **Set category = Productivity → Tools, language = English** (§5).
 - [ ] **Set visibility to _Unlisted_** for the soft launch, then flip to _Public_ after a few days.
 - [ ] **Submit for review.**
-- [ ] **After the first upload, verify the CWS-assigned extension ID matches the pinned `eelfhpgegemfgccaakcmfgldcaojadfj`.** Because we ship a committed manifest `key`, it should stay stable. If it differs, set `WXT_EXTENSION_PUBLIC_KEY` + `VITE_EXTENSION_ID` and the `EXTENSION_ID_ALLOWLIST` worker var to the new ID (else the session handoff + sync allow-list break). See §7 and [[reference_chrome_ext_ws_cookies]].
+- [ ] **Verify the CWS-assigned extension ID is configured everywhere.** Store builds intentionally omit the local manifest `key`, so use the Google-assigned ID for `VITE_EXTENSION_ID`, `CHROME_EXTENSION_ID`, and the `EXTENSION_ID_ALLOWLIST` worker var (else the session handoff + sync allow-list break). See §7 and [[reference_chrome_ext_ws_cookies]].
 
 ## 1. Identity & versioning
 
@@ -106,13 +106,13 @@ Re-run this whole section before each submission (the checks above reflect the 2
 
 ## 7. Extension ID stability
 
-The ID is now **load-bearing**: the web app messages the extension by ID for the session handoff (`externally_connectable`), and the sync gate allow-lists it. So the ID is pinned to a key we control, not left to Chrome.
+The ID is now **load-bearing**: the web app messages the extension by ID for the session handoff (`externally_connectable`), and the sync gate allow-lists it. Local/unpacked builds are pinned to a key we control; Chrome Web Store builds omit that key and use Google's assigned listing ID.
 
 - [x] `wxt.config.ts` sets `key` to a committed public key (private key in `apps/extension/.keys/`, gitignored) **for local/dev builds only** — pinning the unpacked dev ID to **`eelfhpgegemfgccaakcmfgldcaojadfj`**. ⚠️ The CWS **rejects** a `key` field on upload ("key field is not allowed in manifest"), so `key` is omitted from store builds (gated on `IS_LOCAL_BUILD`); the **published** ID is assigned by Google and will differ from the local one.
 - [x] App knows the ID via `src/lib/extension-connect.ts` (`EXTENSION_ID`, `VITE_EXTENSION_ID`-overridable).
 - [x] `externally_connectable.matches` = the app origin(s) — prod `cloudstash.dev`, local `localhost`/`127.0.0.1` (browser-enforced sender gate).
 - [x] Sync gate reads `EXTENSION_ID_ALLOWLIST` via `parseExtensionAllowlist`. Empty = allow any extension origin (dev); non-empty = only those IDs, else `ForbiddenExtensionOriginError` → 403.
-- [ ] **On publish:** if the CWS-assigned ID differs from the pinned one, update `DEV_EXTENSION_KEY`/`EXTENSION_ID` defaults (or set `WXT_EXTENSION_PUBLIC_KEY` + `VITE_EXTENSION_ID`) and the `EXTENSION_ID_ALLOWLIST` worker var. Because we ship `key`, the ID should stay stable — verify after the first upload. Reference: [[reference_chrome_ext_ws_cookies]].
+- [ ] **On publish:** set `VITE_EXTENSION_ID` and `CHROME_EXTENSION_ID` to the CWS-assigned ID and include it in `EXTENSION_ID_ALLOWLIST`. Keep `DEV_EXTENSION_KEY`/`WXT_EXTENSION_PUBLIC_KEY` only for the pinned unpacked-development ID. Reference: [[reference_chrome_ext_ws_cookies]].
 
 ## 8. Functional testing matrix
 
@@ -143,18 +143,20 @@ The ID is now **load-bearing**: the web app messages the extension by ID for the
 
 ## 11. Automated publishing (CI)
 
-A manual-dispatch workflow exists at `.github/workflows/publish-extension.yml` — it bumps nothing, builds + zips, uploads the zip as an artifact, and runs `wxt submit --chrome-zip` to push to the Chrome Web Store (a real submission for review — there is no dry-run toggle). It's dormant until the secrets below are set; run it from the Actions tab. Bump `apps/extension/package.json` in the PR first (the Web Store rejects a duplicate version).
+A manual-dispatch workflow exists at `.github/workflows/publish-extension.yml` — it bumps nothing, builds + zips, uploads the zip as an artifact, and runs `wxt submit --chrome-api-version v2 --chrome-zip` to push to the Chrome Web Store. It's dormant until the secrets below are set; run it from the Actions tab. Bump `apps/extension/package.json` in the PR first (the Web Store rejects a duplicate version). Use `wxt submit --dry-run` locally when validating credentials without uploading.
 
 **One-time setup (≈1 hr, mostly Google Cloud clicking):**
 
-1. Google Cloud project → enable the **Chrome Web Store API**.
-2. Configure the **OAuth consent screen** and **publish it to "In production"**. If left in "Testing", the refresh token expires after **7 days** — this is the trap that silently breaks CI publishing.
-3. Create an OAuth **Desktop** client → run `cd apps/extension && bunx wxt submit init` once to mint a refresh token (writes a local `.env.submit`, gitignored).
+1. Google Cloud project → enable the **Chrome Web Store API v2**.
+2. Create a least-privilege service account following Google's CWS service-account guide and grant it access to the publisher.
+3. Run `cd apps/extension && bunx wxt submit init`, select Chrome API v2, and validate the generated `.env.submit` with `bunx wxt submit --dry-run --chrome-zip <zip>` (`.env.submit` is gitignored).
 4. Add four repo secrets (Settings → Secrets → Actions):
    - `CHROME_EXTENSION_ID` = `bdommhffamndfanbpnikgmpjncpcobia`
-   - `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`, `CHROME_REFRESH_TOKEN`
+   - `CHROME_PUBLISHER_ID`
+   - `CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL`
+   - `CHROME_SERVICE_ACCOUNT_PRIVATE_KEY`
 
-**Caveats:** first publish must be manual (the API only _updates_ an existing listing — done); `submit` only uploads + submits for review, it can't skip Google's queue; the same four secrets/`wxt submit` flags extend to Edge/Firefox when those land.
+**Caveats:** first publish must be manual (done); `submit` uploads and submits for review but cannot skip Google's queue. CWS API v1.1 and its OAuth refresh-token secrets are deprecated and stop working on 2026-10-15. Edge/Firefox use their own store credentials when those targets land.
 
 ## 12. Post-launch
 
@@ -175,13 +177,13 @@ A manual-dispatch workflow exists at `.github/workflows/publish-extension.yml` �
 
 ### Chromium family — works **as-is, ~zero code change**
 
-The existing `chrome-mv3` build loads unmodified in Edge, Brave, Opera, Arc, Vivaldi. They share the offscreen + `externally_connectable` runtime. Because we ship a committed manifest `key`, the extension ID stays `eelfhpgegemfgccaakcmfgldcaojadfj` across all of them, so the session handoff + sync allow-list keep working. `externally_connectable.matches` gates on the **web app origin** (`cloudstash.dev`), not the browser, so nothing there changes. Work = test the golden path (§8 already lists Brave/Edge/Arc/Opera) + ship the same zip to the **Edge Add-ons** store.
+The existing `chrome-mv3` build loads unmodified in Edge, Brave, Opera, Arc, and Vivaldi. They share the offscreen + `externally_connectable` runtime. Unpacked builds use the pinned local ID; each store may assign its own published ID, which must be added to the web handoff and sync allow-list configuration. `externally_connectable.matches` gates on the **web app origin** (`cloudstash.dev`), not the browser. Work = test the golden path (§8 already lists Brave/Edge/Arc/Opera) + ship the same zip to the **Edge Add-ons** store.
 
 ### Firefox — medium effort, two architectural changes
 
 1. **Replace offscreen.** Firefox MV3 background runs as a persistent/event page that can host the Livestore SharedWorker + WS + WASM directly. Need a Firefox host path that runs `LivestoreHost` in the background page instead of an offscreen document (gate on WXT's `import.meta.env.BROWSER`).
 2. **Replace `externally_connectable`.** The web→extension handoff must go through a content script injected on the app origin that bridges `window.postMessage` ↔ `runtime.sendMessage`.
-3. **Namespace swap** `chrome.*` → WXT's unified `browser.*` (webextension-polyfill) — necessary but not sufficient on its own.
+3. **Namespace swap** `chrome.*` → WXT's unified `browser.*` API backed by `@wxt-dev/browser` — necessary but not sufficient on its own. WXT no longer includes `webextension-polyfill` by default.
 
 ### Safari — largest lift, defer
 

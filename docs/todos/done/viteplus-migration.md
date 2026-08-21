@@ -2,8 +2,11 @@
 
 Finished Vite+ migration started in PR #15. Fixed ~133 pre-existing type-aware lint errors (no-unsafe-type-assertion, no-floating-promises, etc.).
 
-Remaining deferred items:
+Follow-up status after the Vite+ 0.2 toolchain upgrade:
 
-- Upgrade to vitest 4 when @cloudflare/vitest-pool-workers supports it
-- Re-enable pre-commit hooks when vite-plus fixes TS config loading in staged context
-- Remove pnpm-lock.yaml gitignore when vite-plus adds bun support
+- [x] Vitest 4 adopted with `@cloudflare/vitest-plugin`.
+- [x] Bun is supported and owns the committed root lockfile; `pnpm-lock.yaml` is
+      no longer ignored globally.
+- [ ] Enable the configured staged checks with `vp hooks enable`. Vite+ now
+      supports staged TypeScript config loading; this is a local repository
+      setup action rather than an upstream blocker.

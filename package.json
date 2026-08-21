@@ -32,6 +32,7 @@
     "test:unit": "vitest run --config vitest.config.ts",
     "test:unit:coverage": "vitest run --config vitest.config.ts --coverage --coverage.reporter=text --coverage.reportOnFailure",
     "test:e2e": "mkdir -p dist && vitest run --config vitest.e2e.config.ts",
+    "test:bundle": "node scripts/smoke-worker-bundle.ts",
     "test:ext": "bun run --cwd apps/extension test",
     "cf-typegen": "wrangler types --no-include-runtime",
     "typecheck": "tsgo --noEmit",

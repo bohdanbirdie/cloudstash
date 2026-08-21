@@ -30,6 +30,14 @@ const livestoreLocalPlugin: Plugin = {
 
 const config: UserConfig = {
   define: livestoreBuildDefine(),
+  environments: {
+    // Cloudflare's Worker environment is server/SSR-like, so Vite leaves it
+    // unminified by default. Keep client defaults independent and explicitly
+    // minify only the deployable Worker to preserve Free-plan upload headroom.
+    cloudstash: {
+      build: { minify: "oxc" },
+    },
+  },
   staged: {
     "*": "vp check --fix",
   },
