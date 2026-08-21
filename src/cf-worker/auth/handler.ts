@@ -3,7 +3,7 @@ import { Effect } from "effect";
 import type { Env } from "../shared";
 import { gateUserApiKeyCreate } from "./api-key-gate";
 import { initializeMcpOAuthResource } from "./mcp-resource";
-import { validateOAuthClientRegistrationRequest } from "./oauth-client-registration";
+import { enforcePublicOAuthClientRegistration } from "./oauth-client-registration";
 import {
   bindConsentWorkspace,
   validateConsentWorkspaceBinding,
@@ -23,7 +23,7 @@ export const handleAuthRequest = Effect.fn("Auth.handleRequest")(function* (
   }
 
   const invalidRegistration =
-    yield* validateOAuthClientRegistrationRequest(request);
+    yield* enforcePublicOAuthClientRegistration(request);
   if (invalidRegistration) return invalidRegistration;
 
   const denied = yield* gateUserApiKeyCreate(request);

@@ -74,7 +74,6 @@ import {
   MAX_LINK_MUTATION_BODY_BYTES,
 } from "./links/handler";
 import { logSync } from "./logger";
-import { withMcpCors } from "./mcp/http";
 import {
   MAX_MCP_BODY_BYTES,
   mcpBodyTooLargeResponse,
@@ -100,7 +99,6 @@ const logger = logSync("API");
 logger.debug("livestore build", { build: __LIVESTORE_BUILD__ });
 
 const RATE_LIMITED_PREFIXES = [
-  "/mcp",
   "/sync",
   "/api/sync/",
   "/api/auth/",
@@ -110,20 +108,20 @@ const RATE_LIMITED_PREFIXES = [
 const isRateLimited = (pathname: string): boolean =>
   RATE_LIMITED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
 
-const checkRateLimit = async (
-  request: CfTypes.Request,
+const enforceRateLimit = async (
+  request: {
+    readonly headers: { get(name: string): string | null };
+    readonly url: string;
+  },
   env: Env
 ): Promise<Response | null> => {
-  const url = new URL(request.url);
-  if (!isRateLimited(url.pathname)) return null;
-
   if (!env.SYNC_RATE_LIMITER) return null;
 
   const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
   const { success } = await env.SYNC_RATE_LIMITER.limit({ key: ip });
 
   if (!success) {
-    logger.warn("Rate limited", { ip, path: url.pathname });
+    logger.warn("Rate limited", { ip, path: new URL(request.url).pathname });
     return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
       headers: { "Content-Type": "application/json", "Retry-After": "60" },
       status: 429,
@@ -132,6 +130,14 @@ const checkRateLimit = async (
 
   return null;
 };
+
+const checkRateLimit = (
+  request: CfTypes.Request,
+  env: Env
+): Promise<Response | null> =>
+  isRateLimited(new URL(request.url).pathname)
+    ? enforceRateLimit(request, env)
+    : Promise.resolve(null);
 
 const app = new Hono<{ Bindings: Env; Variables: HonoVariables }>();
 
@@ -142,6 +148,29 @@ app.use(
     onError: () => invalidOAuthClientRegistration(413),
   })
 );
+app.use("/mcp", async (c, next) =>
+  cors({
+    origin: new URL(c.env.BETTER_AUTH_URL).origin,
+    allowHeaders: [
+      "Content-Type",
+      "Accept",
+      "Authorization",
+      "DPoP",
+      "mcp-session-id",
+      "MCP-Protocol-Version",
+      "Mcp-Method",
+      "Mcp-Name",
+    ],
+    allowMethods: ["POST", "OPTIONS"],
+    exposeHeaders: ["mcp-session-id", "WWW-Authenticate", "DPoP-Nonce"],
+    maxAge: 86_400,
+  })(c, next)
+);
+app.use("/mcp", async (c, next) => {
+  const rateLimited = await enforceRateLimit(c.req.raw, c.env);
+  if (rateLimited) return rateLimited;
+  return next();
+});
 app.use(
   "/mcp",
   bodyLimit({
@@ -442,8 +471,7 @@ export const fetch = async (
   ctx: CfTypes.ExecutionContext
 ): Promise<Response> => {
   const url = new URL(request.url);
-  const response = await dispatchRequest(request, env, ctx, url);
-  return url.pathname === "/mcp" ? withMcpCors(response, env) : response;
+  return dispatchRequest(request, env, ctx, url);
 };
 
 export const queue = (

@@ -424,7 +424,7 @@ describe("MCP OAuth Worker flow", () => {
       method: "OPTIONS",
     });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(204);
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe(
       AUTH_ORIGIN
     );
@@ -540,7 +540,7 @@ describe("MCP OAuth Worker flow", () => {
 
     const mcp = await SELF.fetch(MCP_RESOURCE, {
       body: "x".repeat(1024 * 1024 + 1),
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Origin: AUTH_ORIGIN },
       method: "POST",
     });
     expect(mcp.status).toBe(413);
@@ -553,7 +553,10 @@ describe("MCP OAuth Worker flow", () => {
   it("adds MCP CORS headers to rate-limit responses", async () => {
     const response = await workerFetch(
       new Request(MCP_RESOURCE, {
-        headers: { "cf-connecting-ip": "192.0.2.10" },
+        headers: {
+          "cf-connecting-ip": "192.0.2.10",
+          Origin: AUTH_ORIGIN,
+        },
         method: "POST",
       }) as never,
       {

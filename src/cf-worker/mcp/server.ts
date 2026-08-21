@@ -24,7 +24,6 @@ import { MCP_READ_SCOPE, MCP_WRITE_SCOPE, mcpResource } from "./config";
 import {
   authorizationBackendUnavailableResponse,
   insufficientScopeResponse,
-  mcpCorsOptions,
 } from "./http";
 import {
   McpInsufficientScopeError,
@@ -85,9 +84,7 @@ const handleVerifiedRequestEffect = Effect.fnUntraced(function* (
 const makeMcpHandler = (env: Env, authorization: McpAuthorization | null) => {
   const origin = new URL(env.BETTER_AUTH_URL);
   return createMcpHandler(() => makeMcpServer(env, authorization), {
-    route: "/mcp",
-    legacy: "stateless",
-    corsOptions: mcpCorsOptions(env),
+    corsOptions: false,
     allowedHostnames: [origin.hostname],
     allowedOriginHostnames: [origin.hostname],
   });
