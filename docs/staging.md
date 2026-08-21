@@ -78,36 +78,39 @@ production-shaped artifact before making remote changes.
 
 Remote setup remains maintainer-controlled. From this branch or after merge:
 
-1. Run `bun run build:staging`, then `bunx wrangler deploy --env staging` once.
-   Wrangler automatically provisions and links the staging D1, KV, and Queues;
-   the deploy also creates the environment Worker, Workflow, Durable Object
-   namespaces, and remaining bindings.
-2. Run `bunx wrangler d1 migrations apply DB --remote --env staging`, then
+1. Create the Queue resources that Wrangler requires before its first deploy:
+   `bunx wrangler queues create cloudstash-staging-link-dlq`, then
+   `bunx wrangler queues create cloudstash-staging-link-queue`.
+2. Run `bun run build:staging`, then `bunx wrangler deploy --env staging` once.
+   Wrangler automatically provisions and links the staging D1 and KV
+   namespaces; the deploy also creates the environment Worker, Workflow,
+   Durable Object namespaces, Queue bindings, and remaining bindings.
+3. Run `bunx wrangler d1 migrations apply DB --remote --env staging`, then
    `bunx wrangler deploy --env staging` again so the first public rehearsal sees
    the complete schema.
-3. Confirm the declarative `staging.cloudstash.dev` custom domain was created in
+4. Confirm the declarative `staging.cloudstash.dev` custom domain was created in
    the `cloudstash.dev` zone by the deploy.
-4. Add the staging-only secrets listed below.
-5. Register the staging callback URL with Google and X OAuth providers and use
+5. Add the staging-only secrets listed below.
+6. Register the staging callback URL with Google and X OAuth providers and use
    Stripe test-mode webhook/Price configuration.
-6. Create the `staging` Git branch from the current `main`, make it the GitHub
+7. Create the `staging` Git branch from the current `main`, make it the GitHub
    repository's default branch, and apply the ordinary required CI checks to
    PRs targeting it. Keep `main` protected as the production branch.
-7. In GitHub **Settings > Actions > General > Workflow permissions**, enable
+8. In GitHub **Settings > Actions > General > Workflow permissions**, enable
    **Allow GitHub Actions to create and approve pull requests**. The promotion
    workflow grants its token only `contents: read` and `pull-requests: write`;
    it creates PRs but never approves them.
-8. Connect the staging Worker to GitHub and enter the Workers Builds settings
+9. Connect the staging Worker to GitHub and enter the Workers Builds settings
    above.
-9. Open ordinary PRs against `staging`. After merge and deployment, verify
-   login, one browser save and cross-client sync, one Queue ingest, MCP
-   OAuth/tool use, and any changed critical path before merging the production
-   promotion PR.
+10. Open ordinary PRs against `staging`. After merge and deployment, verify
+    login, one browser save and cross-client sync, one Queue ingest, MCP
+    OAuth/tool use, and any changed critical path before merging the production
+    promotion PR.
 
 Automatic provisioning is intentional for resources supported by Wrangler.
-When provisioning happens through Cloudflare Builds, generated resource IDs are
-visible in the dashboard but are not written back to Git; the Worker retains the
-resource links for later deploys.
+Queues are created explicitly before the first deploy; generated D1 and KV
+resource IDs are visible in the dashboard but are not written back to Git, and
+the Worker retains the resource links for later deploys.
 
 ## Required staging secrets
 
