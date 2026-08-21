@@ -16,8 +16,9 @@ web app / Chrome extension
   → LinkProcessorDO wake
 
 POST /api/links / MCP save_link
-  → LinkProcessorDO LiveStore commit (link + optional tags)
-  → bounded leader-sync barrier
+  → LinkProcessorDO LiveStore candidate commit
+  → bounded leader-sync barrier + canonical URL-winner resolution
+  → optional tags + processing-ready commit on the winning link
   → SyncBackendDO onPush
   → LinkProcessorDO wake
 
@@ -39,11 +40,15 @@ key flow, but shared ingest currently records it as `api` and additionally
 requires `publicApi`; see
 [DELTA-036](../../.delta/DELTA-036-raycast-capture-loses-source-and-couples-capabilities.md).
 The primary `POST /api/links` and MCP `save_link` paths call link-operation RPCs
-on the existing LinkProcessorDO, allowing link creation and tags to be one
-operation without a second server-side LiveStore replica. They reuse
-SyncBackend's existing processor wake and fail if durability is not confirmed
-within five seconds. `POST /api/ingest` remains the queue-backed compatibility
-path.
+on the existing LinkProcessorDO without a second server-side LiveStore replica.
+A new save first makes its URL candidate durable, re-resolves the canonical row
+after any concurrent-client rebase, and only then attaches requested tags and
+marks the winning row ready for processing. Losing IDs therefore receive no tag
+or enrichment events. Retrying an interrupted save for the same URL repairs the
+processing-ready marker after the same canonical-winner check. They reuse
+SyncBackend's existing processor wake and fail if save durability is not
+confirmed within five seconds.
+`POST /api/ingest` remains the queue-backed compatibility path.
 
 ## Queue Contract
 
@@ -84,7 +89,9 @@ flight at deletion time can still retain a stale store handle; see
 The processor then boots one LiveStore client, ensures the processing
 subscription, and runs `ingestLink`.
 The link URL unique index and conflict-ignoring `LinkCreated` materializer make
-replay idempotent. A genuinely new external save uses `v2.LinkCreated`; old
+replay idempotent. REST/MCP processing waits for the post-sync canonical URL
+winner; shared tags are created once per batch and attached only to selected
+winning rows. A genuinely new external save uses `v2.LinkCreated`; old
 `v1.LinkCreated` remains replayable.
 
 ## Durability Boundary

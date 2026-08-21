@@ -1,5 +1,5 @@
 import type { Store } from "@livestore/livestore";
-import { Effect, Layer, Schema } from "effect";
+import { Effect, Schema } from "effect";
 
 import {
   GetLinkInput,
@@ -16,8 +16,8 @@ import type {
   WorkspaceLinkDomainError,
   WorkspaceLinkInfrastructureError,
 } from "./errors";
-import { WorkspaceLinkRepositoryLive } from "./repository";
-import { WorkspaceLinks } from "./service";
+import { makeWorkspaceLinks } from "./service";
+import type { WorkspaceLinks } from "./service";
 
 export type WorkspaceLinksRpcError = {
   readonly code: "invalid_input" | "not_found" | "unavailable";
@@ -92,7 +92,7 @@ const invoke = Effect.fnUntraced(function* <
   contract: S,
   input: unknown,
   operation: (
-    links: typeof WorkspaceLinks.Service,
+    links: WorkspaceLinks,
     value: S["Type"]
   ) => Effect.Effect<
     Value,
@@ -100,17 +100,10 @@ const invoke = Effect.fnUntraced(function* <
   >,
   canCommit: () => boolean
 ) {
+  const links = makeWorkspaceLinks(store, { canCommit });
   return yield* domainOutcome(
     decode(contract, input).pipe(
-      Effect.flatMap((value) =>
-        Effect.flatMap(WorkspaceLinks, (links) => operation(links, value))
-      )
-    )
-  ).pipe(
-    Effect.provide(
-      WorkspaceLinks.layer.pipe(
-        Layer.provide(WorkspaceLinkRepositoryLive(store, undefined, canCommit))
-      )
+      Effect.flatMap((value) => operation(links, value))
     )
   );
 });

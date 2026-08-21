@@ -164,7 +164,15 @@ export const UpdateLinksInput = Schema.Struct({
   where: Schema.optionalKey(LinkBatchFilter),
   changes: LinkChanges,
   limit: Schema.optionalKey(BatchLimit),
-});
+}).check(
+  Schema.makeFilter((input) =>
+    input.ids !== undefined &&
+    input.limit !== undefined &&
+    input.ids.length > input.limit
+      ? "ids cannot contain more entries than limit"
+      : undefined
+  )
+);
 export type UpdateLinksInput = typeof UpdateLinksInput.Type;
 
 export const GetLinkInput = Schema.Struct({

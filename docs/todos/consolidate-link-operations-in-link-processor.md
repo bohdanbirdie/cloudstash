@@ -28,8 +28,7 @@ LinkProcessorDO (one named instance per workspace)
 Link operations remain Effect services:
 
 ```text
-WorkspaceLinks.Default
-└── WorkspaceLinkRepositoryLive(existing cached store)
+makeWorkspaceLinks(existing cached LiveStore)
 ```
 
 The RPC class is transport and ownership only. Authorization and capability
@@ -41,8 +40,8 @@ and mutations remain in the shared Effect service.
 1. Add typed list/search/get/save/update/batch-update RPC methods to
    `LinkProcessorDO`, backed by its existing cached store.
 2. Route REST and MCP through the existing `LINK_PROCESSOR_DO` binding.
-3. Reuse the current `WorkspaceLinks` service and repository layers; do not
-   duplicate queries or mutations in RPC handlers.
+3. Reuse the current `WorkspaceLinks` service with the existing cached store;
+   do not duplicate queries or mutations in RPC handlers.
 4. Make the existing LinkProcessor deletion tombstone and purge path the only
    workspace cleanup lifecycle.
 5. Delete `WorkspaceLinksDO`, its binding, migration, export, tests, and all

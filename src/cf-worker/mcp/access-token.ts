@@ -41,6 +41,9 @@ const rejected = (cause: unknown) => new McpAccessTokenRejected({ cause });
 const unavailable = (cause: unknown) =>
   new McpAccessTokenBackendError({ cause });
 
+export const invalidMcpAccessToken = (message: string) =>
+  rejected(unauthorized(message, { error: "invalid_token" }));
+
 const signatureError = (cause: unknown) => {
   if (cause instanceof joseErrors.JWTExpired) {
     return rejected(unauthorized("token expired"));

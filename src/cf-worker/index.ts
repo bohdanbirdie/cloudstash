@@ -5,6 +5,7 @@ import { routeAgentRequest } from "agents";
 import { Effect, Match } from "effect";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
+import { cors } from "hono/cors";
 
 import { PERMISSIONS } from "@/lib/permissions";
 
@@ -29,11 +30,6 @@ import {
   MAX_REGISTRATION_BODY_BYTES,
   invalidOAuthClientRegistration,
 } from "./auth/oauth-client-registration";
-import {
-  handleOAuthMetadataRequest,
-  oauthMetadataPreflight,
-  withOAuthMetadataCors,
-} from "./auth/oauth-metadata";
 import { AppLayerLive, AuthClient } from "./auth/service";
 import { checkSyncAuth } from "./auth/sync-auth";
 import { handleBillingCheckout } from "./billing/routes/checkout";
@@ -157,26 +153,27 @@ app.all("/mcp", (c) => handleMcpRequest(c.req.raw, c.env));
 
 app.get("/api/auth/me", (c) => handleGetMe(c.req.raw, c.env));
 
-app.on(["GET", "HEAD", "OPTIONS"], "/.well-known/*", (c) => {
-  if (c.req.method === "OPTIONS") return oauthMetadataPreflight(c.env);
-  return runHandler(
+app.use("/.well-known/*", async (c, next) =>
+  cors({
+    origin: new URL(c.env.BETTER_AUTH_URL).origin,
+    allowHeaders: ["Accept", "Content-Type"],
+    allowMethods: ["GET", "HEAD", "OPTIONS"],
+    maxAge: 86_400,
+  })(c, next)
+);
+app.on(["GET", "HEAD"], "/.well-known/*", (c) =>
+  runHandler(
     c.env,
     Effect.gen(function* () {
       yield* initializeMcpOAuthResource(c.env);
       const auth = yield* AuthClient;
-      return yield* handleOAuthMetadataRequest(c.req.raw, c.env, (request) =>
-        auth.handler(request)
-      );
+      return yield* Effect.promise(() => auth.handler(c.req.raw));
     }).pipe(
       Effect.withSpan("API.authMetadataHandler"),
-      Effect.catchTag("DbError", (error) =>
-        authBackendUnavailable(error.cause).pipe(
-          Effect.map((response) => withOAuthMetadataCors(response, c.env))
-        )
-      )
+      Effect.catchTag("DbError", (error) => authBackendUnavailable(error.cause))
     )
-  );
-});
+  )
+);
 
 app.get("/api/org/:id", (c) =>
   handleGetOrg(c.req.raw, OrgId.make(c.req.param("id")), c.env)

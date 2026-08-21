@@ -299,7 +299,8 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
       {
         name: "limit",
         type: "integer",
-        description: "Maximum links to update, 1–100. Default 100.",
+        description:
+          "Maximum links to update, 1–100. Default 100. An explicit ids array cannot be longer than this limit.",
       },
     ],
     curl: (origin) =>

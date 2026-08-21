@@ -8,8 +8,8 @@ import {
   bindConsentWorkspace,
   validateConsentWorkspaceBinding,
 } from "./oauth-consent-binding";
+import { cleanupExpiredOAuthTransientRecords } from "./oauth-transient-cleanup";
 import { AuthClient } from "./service";
-import { cleanupExpiredVerifications } from "./verification-cleanup";
 
 export const handleAuthRequest = Effect.fn("Auth.handleRequest")(function* (
   request: Request,
@@ -18,12 +18,8 @@ export const handleAuthRequest = Effect.fn("Auth.handleRequest")(function* (
   yield* initializeMcpOAuthResource(env);
 
   const url = new URL(request.url);
-  if (
-    request.method === "POST" &&
-    url.pathname === "/api/auth/oauth2/token" &&
-    request.headers.has("dpop")
-  ) {
-    yield* cleanupExpiredVerifications(env.DB);
+  if (request.method === "POST" && url.pathname === "/api/auth/oauth2/token") {
+    yield* cleanupExpiredOAuthTransientRecords(env.DB);
   }
 
   const invalidRegistration =

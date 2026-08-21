@@ -300,6 +300,7 @@ describe("MCP OAuth Worker flow", () => {
   let user: UserInfo;
   let client: RegisteredClient;
   let tokens: TokenSet;
+  let expiredAssertionCountAfterToken = -1;
   let restoreFetch: (() => void) | undefined;
   const observedOutboundUrls: string[] = [];
 
@@ -326,7 +327,20 @@ describe("MCP OAuth Worker flow", () => {
       .bind(user.orgId)
       .run();
     client = await registerCurrentMcpJamClient();
+    await env.DB.prepare(
+      "INSERT INTO oauth_client_assertion (id, expires_at) VALUES (?, ?)"
+    )
+      .bind("expired-before-token", Date.now() - 60_000)
+      .run();
     tokens = await authorizeClient(user, client);
+    expiredAssertionCountAfterToken =
+      (
+        await env.DB.prepare(
+          "SELECT COUNT(*) AS count FROM oauth_client_assertion WHERE id = ?"
+        )
+          .bind("expired-before-token")
+          .first<{ count: number }>()
+      )?.count ?? -1;
   });
 
   afterAll(() => {
@@ -344,14 +358,37 @@ describe("MCP OAuth Worker flow", () => {
     });
 
     const authorization = await SELF.fetch(
-      "http://worker/.well-known/oauth-authorization-server/api/auth"
+      "http://worker/.well-known/oauth-authorization-server/api/auth",
+      { headers: { Origin: AUTH_ORIGIN } }
     );
     expect(authorization.status).toBe(200);
+    expect(authorization.headers.get("Access-Control-Allow-Origin")).toBe(
+      AUTH_ORIGIN
+    );
     expect(await authorization.json()).toMatchObject({
       authorization_endpoint: `${AUTH_ORIGIN}/api/auth/oauth2/authorize`,
       registration_endpoint: `${AUTH_ORIGIN}/api/auth/oauth2/register`,
       token_endpoint: `${AUTH_ORIGIN}/api/auth/oauth2/token`,
     });
+
+    const preflight = await SELF.fetch(
+      "http://worker/.well-known/oauth-authorization-server/api/auth",
+      {
+        headers: {
+          "Access-Control-Request-Headers": "accept, content-type",
+          "Access-Control-Request-Method": "GET",
+          Origin: AUTH_ORIGIN,
+        },
+        method: "OPTIONS",
+      }
+    );
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get("Access-Control-Allow-Origin")).toBe(
+      AUTH_ORIGIN
+    );
+    expect(preflight.headers.get("Access-Control-Allow-Methods")).toContain(
+      "OPTIONS"
+    );
   });
 
   it("advertises OAuth from the initial unauthenticated MCP request", async () => {
@@ -415,6 +452,25 @@ describe("MCP OAuth Worker flow", () => {
     });
   });
 
+  it("cleans expired client assertions on every token flow", () => {
+    expect(expiredAssertionCountAfterToken).toBe(0);
+  });
+
+  it("rejects confidential authentication metadata from public DCR", async () => {
+    for (const overrides of [
+      { token_endpoint_auth_method: undefined },
+      { token_endpoint_auth_method: "private_key_jwt", jwks: { keys: [] } },
+      { token_endpoint_auth_method: "client_secret_basic" },
+      { jwks_uri: "https://client.example/jwks.json" },
+    ]) {
+      const response = await registerClient(overrides);
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({
+        error: "invalid_client_metadata",
+      });
+    }
+  });
+
   it("preserves explicit web clients and applies web redirect rules", async () => {
     const accepted = await registerClient({
       application_type: "web",
@@ -430,6 +486,25 @@ describe("MCP OAuth Worker flow", () => {
     expect(await rejected.json()).toMatchObject({
       error: "invalid_redirect_uri",
     });
+  });
+
+  it("challenges a valid MCP token that lacks workspace claims", async () => {
+    const identityOnlyClient = await registerCurrentMcpJamClient();
+    const identityOnlyTokens = await authorizeClient(
+      user,
+      identityOnlyClient,
+      "openid"
+    );
+    const result = await callMcp(
+      identityOnlyTokens.access_token,
+      97,
+      "tools/list"
+    );
+
+    expect(result.response.status).toBe(401);
+    expect(result.response.headers.get("WWW-Authenticate")).toBe(
+      `Bearer resource_metadata="${AUTH_ORIGIN}/.well-known/oauth-protected-resource/mcp", scope="links:read links:write"`
+    );
   });
 
   it("rejects the legacy MCP JAM loopback shape that omitted application_type", async () => {
@@ -763,6 +838,23 @@ describe("MCP OAuth Worker flow", () => {
     expect(
       JSON.parse(completed.body.result?.content[0]?.text ?? "null")
     ).toMatchObject({ updated: 1 });
+
+    const overLimit = await callMcp<{
+      content: { text: string }[];
+      isError?: boolean;
+    }>(tokens.access_token, 61, "tools/call", {
+      arguments: {
+        ids: [savedValue.link.id, "not-evaluated"],
+        changes: { state: "completed" },
+        limit: 1,
+      },
+      name: "update_links",
+    });
+    expect(overLimit.response.status).toBe(200);
+    expect(overLimit.body.result?.isError).toBe(true);
+    expect(overLimit.body.result?.content[0]?.text).toContain(
+      "ids cannot contain more entries than limit"
+    );
 
     const fetched = await callMcp<{ content: { text: string }[] }>(
       tokens.access_token,

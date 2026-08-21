@@ -354,6 +354,12 @@ export class LinkProcessorDO
 
         return links.filter((link) => {
           const status = statusMap.get(link.id);
+          if (
+            status === undefined &&
+            (link.source === "api" || link.source === "mcp")
+          ) {
+            return false;
+          }
           return (
             !status ||
             status.status === "pending" ||
@@ -391,9 +397,14 @@ export class LinkProcessorDO
           Effect.forEach(
             newLinks,
             (link) => {
-              const isReprocess =
-                statusMap.get(link.id)?.status === "reprocess-requested";
-              return this.processLinkEffect(store, link, isReprocess).pipe(
+              const status = statusMap.get(link.id)?.status;
+              const isReprocess = status === "reprocess-requested";
+              return this.processLinkEffect(
+                store,
+                link,
+                isReprocess,
+                status === "pending"
+              ).pipe(
                 Effect.ensuring(
                   Effect.sync(() => this.submittedLinks.delete(link.id))
                 )
@@ -550,7 +561,8 @@ export class LinkProcessorDO
   private processLinkEffect(
     store: Store<typeof schema>,
     link: Link,
-    isReprocess: boolean
+    isReprocess: boolean,
+    startRecorded: boolean
   ): Effect.Effect<void> {
     return Effect.gen({ self: this }, function* () {
       yield* Effect.logInfo("Processing link").pipe(
@@ -560,13 +572,15 @@ export class LinkProcessorDO
         })
       );
 
-      const now = yield* DateTime.nowAsDate;
-      store.commit(
-        events.linkProcessingStarted({
-          linkId: link.id,
-          updatedAt: now,
-        })
-      );
+      if (!startRecorded) {
+        const now = yield* DateTime.nowAsDate;
+        store.commit(
+          events.linkProcessingStarted({
+            linkId: link.id,
+            updatedAt: now,
+          })
+        );
+      }
 
       if (link.source === "telegram") {
         this.sendProgressDraft(store, link.sourceMeta);

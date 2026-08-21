@@ -146,6 +146,20 @@ describe("Links REST API", () => {
       tags: ["cobalt", "review"],
     });
 
+    const overLimitBatch = await SELF.fetch(
+      "http://worker/api/links/batch-update",
+      {
+        body: JSON.stringify({
+          ids: [created.link.id, second.link.id],
+          changes: { state: "completed" },
+          limit: 1,
+        }),
+        headers: json(apiKey),
+        method: "POST",
+      }
+    );
+    expect(overLimitBatch.status).toBe(400);
+
     const batchResponse = await SELF.fetch(
       "http://worker/api/links/batch-update",
       {

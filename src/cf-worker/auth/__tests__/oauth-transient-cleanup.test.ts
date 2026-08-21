@@ -4,29 +4,32 @@ import { TestClock } from "effect/testing";
 import { expect, vi } from "vitest";
 
 import { DbClient } from "../../db/service";
-import { cleanupExpiredVerifications } from "../verification-cleanup";
+import { cleanupExpiredOAuthTransientRecords } from "../oauth-transient-cleanup";
 
-const cleanupLayer = (where: () => Promise<unknown>) =>
+const cleanupLayer = (remove: () => { where: () => Promise<unknown> }) =>
   Layer.succeed(DbClient, {
-    delete: () => ({ where }),
+    delete: remove,
   } as unknown as DbClient["Service"]);
 
-describe("cleanupExpiredVerifications", () => {
-  it.effect("runs at most once per database during the cleanup window", () => {
+describe("cleanupExpiredOAuthTransientRecords", () => {
+  it.effect("cleans both transient tables at most once per window", () => {
     const database = {} as D1Database;
     const where = vi.fn(() => Promise.resolve());
-    const cleanup = cleanupExpiredVerifications(database).pipe(
-      Effect.provide(cleanupLayer(where))
+    const remove = vi.fn(() => ({ where }));
+    const cleanup = cleanupExpiredOAuthTransientRecords(database).pipe(
+      Effect.provide(cleanupLayer(remove))
     );
 
     return Effect.gen(function* () {
       yield* cleanup;
       yield* cleanup;
-      expect(where).toHaveBeenCalledOnce();
+      expect(remove).toHaveBeenCalledTimes(2);
+      expect(where).toHaveBeenCalledTimes(2);
 
       yield* TestClock.adjust("5 minutes");
       yield* cleanup;
-      expect(where).toHaveBeenCalledTimes(2);
+      expect(remove).toHaveBeenCalledTimes(4);
+      expect(where).toHaveBeenCalledTimes(4);
     });
   });
 
@@ -36,8 +39,9 @@ describe("cleanupExpiredVerifications", () => {
       .fn()
       .mockRejectedValueOnce(new Error("D1 unavailable"))
       .mockResolvedValue(undefined);
-    const cleanup = cleanupExpiredVerifications(retryDatabase).pipe(
-      Effect.provide(cleanupLayer(where))
+    const remove = vi.fn(() => ({ where }));
+    const cleanup = cleanupExpiredOAuthTransientRecords(retryDatabase).pipe(
+      Effect.provide(cleanupLayer(remove))
     );
 
     return Effect.gen(function* () {
@@ -45,7 +49,8 @@ describe("cleanupExpiredVerifications", () => {
       expect(first._tag).toBe("Failure");
 
       yield* cleanup;
-      expect(where).toHaveBeenCalledTimes(2);
+      expect(remove).toHaveBeenCalledTimes(4);
+      expect(where).toHaveBeenCalledTimes(4);
     });
   });
 });

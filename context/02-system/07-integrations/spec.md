@@ -20,14 +20,18 @@ Active.
 
 ## MCP Clients
 
-Clients use protected-resource discovery and bounded, rate-limited DCR. Consent
+Clients use protected-resource discovery and bounded, rate-limited public DCR;
+registrations may use only the `none` token authentication method and reject
+confidential-client key/assertion metadata. Expired OAuth verification and
+client-assertion replay records are cleaned on a bounded token-request cadence. Consent
 marks dynamic clients unverified, shows the callback target, and pins access to
 the displayed workspace. The Pro-gated card shows the current origin's `/mcp`
 URL, OAuth setup, scopes, and protocol compatibility; runtime entitlement stays
 authoritative. The Worker supports MCP 2026 and the 2025 stateless fallback.
 CIMD remains disabled until its untrusted fetch is SSRF-safe. Read tools list,
 search, and get; write tools save and update link state/tags individually or in
-bounded batches. Search defaults to ranked any-term matching and accepts an
+bounded batches, and an explicit ID selector cannot exceed its declared limit.
+Search defaults to ranked any-term matching and accepts an
 all-term mode. Collection filters use `active`, `archive`, or `any`, with legacy
 `all` retaining its non-archived meaning. Tool discovery exposes concrete JSON
 Schema types. Reprocessing remains unavailable.

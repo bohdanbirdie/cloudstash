@@ -1,30 +1,19 @@
-import { Data, Effect, Option, Schema } from "effect";
+import { isSpecType, parseJSONRPCMessage } from "@modelcontextprotocol/server";
+import type { JSONRPCMessage } from "@modelcontextprotocol/server";
+import { Data, Effect, Option } from "effect";
 
 import { MCP_TOOL_NAMES, MCP_TOOL_SCOPES } from "@/lib/mcp";
 
 export const MAX_MCP_BODY_BYTES = 1024 * 1024;
 
-const McpMessage = Schema.Struct({
-  method: Schema.optional(Schema.String),
-  params: Schema.optional(Schema.Unknown),
-});
-const McpMessagesFromJson = Schema.fromJsonString(
-  Schema.Union([McpMessage, Schema.Array(McpMessage)])
-);
-const McpToolCall = Schema.Struct({
-  method: Schema.Literal("tools/call"),
-  params: Schema.Struct({ name: Schema.String }),
-});
-const McpToolName = Schema.Literals(MCP_TOOL_NAMES);
+type McpToolName = (typeof MCP_TOOL_NAMES)[number];
 
-const decodeMessages = Schema.decodeUnknownOption(McpMessagesFromJson);
-const decodeToolCall = Schema.decodeUnknownOption(McpToolCall);
-const decodeToolName = Schema.decodeUnknownOption(McpToolName);
+const isMcpToolName = (name: unknown): name is McpToolName =>
+  typeof name === "string" &&
+  MCP_TOOL_NAMES.some((toolName) => toolName === name);
 
-export const scopeForMcpTool = (name: unknown): string | null => {
-  const decoded = decodeToolName(name);
-  return Option.isSome(decoded) ? MCP_TOOL_SCOPES[decoded.value] : null;
-};
+export const scopeForMcpTool = (name: unknown): string | null =>
+  isMcpToolName(name) ? MCP_TOOL_SCOPES[name] : null;
 
 export class McpRequestRejected extends Data.TaggedError("McpRequestRejected")<{
   readonly message: string;
@@ -45,6 +34,16 @@ export const mcpBodyTooLargeResponse = (): Response =>
     { status: 413 }
   );
 
+const invalidRequest = (message: string) =>
+  new McpRequestRejected({ message, status: 400 });
+
+const parseMessages = (body: string): readonly JSONRPCMessage[] => {
+  const parsed: unknown = JSON.parse(body);
+  const messages = Array.isArray(parsed) ? parsed : [parsed];
+  if (messages.length === 0) throw invalidRequest("Invalid MCP request body");
+  return messages.map(parseJSONRPCMessage);
+};
+
 export const requiredScopesForRequest = Effect.fnUntraced(function* (
   request: Request
 ) {
@@ -60,30 +59,19 @@ export const requiredScopesForRequest = Effect.fnUntraced(function* (
     });
   }
 
-  const decoded = decodeMessages(body.value);
-  if (Option.isNone(decoded)) {
-    return yield* new McpRequestRejected({
-      message: "Invalid MCP request body",
-      status: 400,
-    });
-  }
-
-  const messages = Array.isArray(decoded.value)
-    ? decoded.value
-    : [decoded.value];
+  const messages = yield* Effect.try({
+    try: () => parseMessages(body.value),
+    catch: () => invalidRequest("Invalid MCP request body"),
+  });
   const scopes = new Set<string>();
   for (const message of messages) {
-    if (message.method === undefined || message.method !== "tools/call") {
+    if (!("method" in message) || message.method !== "tools/call") {
       continue;
     }
-    const toolCall = decodeToolCall(message);
-    if (Option.isNone(toolCall)) {
-      return yield* new McpRequestRejected({
-        message: "Invalid MCP tool call",
-        status: 400,
-      });
+    if (!isSpecType.CallToolRequest(message)) {
+      return yield* invalidRequest("Invalid MCP tool call");
     }
-    const scope = scopeForMcpTool(toolCall.value.params.name);
+    const scope = scopeForMcpTool(message.params.name);
     if (!scope) {
       return yield* new McpRequestRejected({
         message: "MCP tool is not authorized",

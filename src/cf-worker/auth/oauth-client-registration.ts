@@ -11,30 +11,27 @@ const shortStringArray = Schema.Array(shortString).check(
 const uriStringArray = Schema.Array(uriString).check(Schema.isMaxLength(20));
 
 const OAuthClientRegistration = Schema.Struct({
-  application_type: Schema.optional(Schema.Literals(["native", "web"])),
-  client_name: Schema.optional(shortString),
-  client_uri: Schema.optional(uriString),
-  contacts: Schema.optional(shortStringArray),
-  grant_types: Schema.optional(shortStringArray),
-  jwks_uri: Schema.optional(uriString),
-  logo_uri: Schema.optional(uriString),
-  policy_uri: Schema.optional(uriString),
-  post_logout_redirect_uris: Schema.optional(uriStringArray),
-  redirect_uris: Schema.optional(uriStringArray),
-  resources: Schema.optional(uriStringArray),
-  response_types: Schema.optional(shortStringArray),
-  scope: Schema.optional(Schema.String.check(Schema.isMaxLength(2048))),
-  software_id: Schema.optional(shortString),
-  software_statement: Schema.optional(
-    Schema.String.check(Schema.isMaxLength(4096))
-  ),
-  software_version: Schema.optional(shortString),
-  token_endpoint_auth_method: Schema.optional(shortString),
-  tos_uri: Schema.optional(uriString),
+  application_type: Schema.optionalKey(Schema.Literals(["native", "web"])),
+  client_name: Schema.optionalKey(shortString),
+  client_uri: Schema.optionalKey(uriString),
+  contacts: Schema.optionalKey(shortStringArray),
+  grant_types: Schema.optionalKey(shortStringArray),
+  logo_uri: Schema.optionalKey(uriString),
+  policy_uri: Schema.optionalKey(uriString),
+  post_logout_redirect_uris: Schema.optionalKey(uriStringArray),
+  redirect_uris: Schema.optionalKey(uriStringArray),
+  resources: Schema.optionalKey(uriStringArray),
+  response_types: Schema.optionalKey(shortStringArray),
+  scope: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(2048))),
+  software_id: Schema.optionalKey(shortString),
+  software_version: Schema.optionalKey(shortString),
+  token_endpoint_auth_method: Schema.Literal("none"),
+  tos_uri: Schema.optionalKey(uriString),
 });
 
 const decodeRegistration = Schema.decodeUnknownOption(
-  Schema.fromJsonString(OAuthClientRegistration)
+  Schema.fromJsonString(OAuthClientRegistration),
+  { onExcessProperty: "error" }
 );
 
 export const invalidOAuthClientRegistration = (status = 400): Response =>

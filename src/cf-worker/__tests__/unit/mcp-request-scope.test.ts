@@ -15,10 +15,17 @@ const post = (body: unknown, headers?: HeadersInit): Request =>
     body: typeof body === "string" ? body : JSON.stringify(body),
   });
 
+const request = (id: number, method: string, params?: unknown) => ({
+  jsonrpc: "2.0",
+  id,
+  method,
+  ...(params === undefined ? {} : { params }),
+});
+
 describe("MCP request scope resolution", () => {
   it.effect("requires links:read for search_links", () =>
     requiredScopesForRequest(
-      post({ method: "tools/call", params: { name: "search_links" } })
+      post(request(1, "tools/call", { name: "search_links" }))
     ).pipe(
       Effect.tap((scopes) =>
         Effect.sync(() => expect(scopes).toEqual([MCP_READ_SCOPE]))
@@ -28,7 +35,7 @@ describe("MCP request scope resolution", () => {
 
   it.effect("requires links:write for save_link", () =>
     requiredScopesForRequest(
-      post({ method: "tools/call", params: { name: "save_link" } })
+      post(request(1, "tools/call", { name: "save_link" }))
     ).pipe(
       Effect.tap((scopes) =>
         Effect.sync(() => expect(scopes).toEqual([MCP_WRITE_SCOPE]))
@@ -39,9 +46,9 @@ describe("MCP request scope resolution", () => {
   it.effect("collects both scopes for a legacy batch", () =>
     requiredScopesForRequest(
       post([
-        { method: "tools/call", params: { name: "save_link" } },
-        { method: "tools/call", params: { name: "search_links" } },
-        { method: "tools/call", params: { name: "save_link" } },
+        request(1, "tools/call", { name: "save_link" }),
+        request(2, "tools/call", { name: "search_links" }),
+        request(3, "tools/call", { name: "save_link" }),
       ])
     ).pipe(
       Effect.tap((scopes) =>
@@ -55,11 +62,11 @@ describe("MCP request scope resolution", () => {
   it.effect("leaves protocol methods unscoped and rejects unknown tools", () =>
     Effect.gen(function* () {
       const protocolScopes = yield* requiredScopesForRequest(
-        post({ method: "initialize", params: { name: "search_links" } })
+        post(request(1, "initialize", { name: "search_links" }))
       );
       expect(protocolScopes).toEqual([]);
       const unknown = yield* requiredScopesForRequest(
-        post({ method: "tools/call", params: { name: "unknown" } })
+        post(request(1, "tools/call", { name: "unknown" }))
       ).pipe(Effect.flip);
       expect(unknown).toMatchObject({
         _tag: "McpRequestRejected",
@@ -75,8 +82,13 @@ describe("MCP request scope resolution", () => {
       );
       expect(malformed).toBeInstanceOf(McpRequestRejected);
 
+      const incompleteEnvelope = yield* requiredScopesForRequest(
+        post({ method: "tools/call", params: { name: "search_links" } })
+      ).pipe(Effect.flip);
+      expect(incompleteEnvelope).toBeInstanceOf(McpRequestRejected);
+
       const unmapped = yield* requiredScopesForRequest(
-        post({ method: "tools/call", params: {} })
+        post(request(1, "tools/call", {}))
       ).pipe(Effect.flip);
       expect(unmapped).toBeInstanceOf(McpRequestRejected);
 
@@ -86,7 +98,7 @@ describe("MCP request scope resolution", () => {
       expect(malformedMessage).toBeInstanceOf(McpRequestRejected);
 
       const malformedMethod = yield* requiredScopesForRequest(
-        post({ method: 42 })
+        post({ jsonrpc: "2.0", id: 1, method: 42 })
       ).pipe(Effect.flip);
       expect(malformedMethod).toBeInstanceOf(McpRequestRejected);
     })

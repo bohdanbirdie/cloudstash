@@ -43,7 +43,8 @@ and enforces `publicApi` on every request. `GET /api/links` lists or searches
 with bounded state/date/sort filters; list pages use an opaque `(createdAt, id)`
 cursor. `GET /api/links/:id`, `POST /api/links`, `PATCH /api/links/:id`, and
 `POST /api/links/batch-update` provide get, save-with-tags, and bounded state/tag
-updates. URL/generated metadata and reprocessing are not mutable.
+updates. Explicit ID selectors cannot contain more entries than the requested
+limit. URL/generated metadata and reprocessing are not mutable.
 
 Collection state defaults to `active`, meaning inbox and completed links while
 excluding archived ones. `archive` selects archived links and `any` selects full

@@ -4,8 +4,8 @@ import { Cause, Effect } from "effect";
 import type { JWTPayload } from "jose";
 
 import { initializeMcpOAuthResource } from "../auth/mcp-resource";
+import { cleanupExpiredOAuthTransientRecords } from "../auth/oauth-transient-cleanup";
 import { AuthClient } from "../auth/service";
-import { cleanupExpiredVerifications } from "../auth/verification-cleanup";
 import { workspaceAccessHttpResponse } from "../auth/workspace-access-http";
 import { capabilityDeniedResponse } from "../billing/errors";
 import { maskId, safeErrorInfo } from "../log-utils";
@@ -13,6 +13,7 @@ import { getAppLayer, provideResponse } from "../runtime";
 import type { Env } from "../shared";
 import { OtelTracingLive } from "../tracing";
 import {
+  invalidMcpAccessToken,
   McpAccessTokenBackendError,
   mcpAuthorizationChallenge,
   verifyLocalMcpAccessToken,
@@ -98,7 +99,7 @@ const handleMcpRequestEffect = Effect.fnUntraced(function* (
 ) {
   yield* initializeMcpOAuthResource(env);
   if (request.headers.has("dpop")) {
-    yield* cleanupExpiredVerifications(env.DB);
+    yield* cleanupExpiredOAuthTransientRecords(env.DB);
   }
 
   const auth = yield* AuthClient;
@@ -145,9 +146,10 @@ export const handleMcpRequest = (
           Effect.succeed(insufficientScopeResponse(error.scopes, env)),
         McpInvalidClaimsError: () =>
           Effect.succeed(
-            Response.json(
-              { error: "Invalid access token claims" },
-              { status: 401 }
+            mcpAuthorizationChallenge(
+              invalidMcpAccessToken("access token is missing required claims"),
+              mcpResource(env),
+              [MCP_READ_SCOPE, MCP_WRITE_SCOPE]
             )
           ),
         McpRequestRejected: (error) =>

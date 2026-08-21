@@ -35,7 +35,10 @@ describe("OAuth dynamic client registration boundary", () => {
   it.effect("rejects oversized strings and arrays", () =>
     Effect.gen(function* () {
       const longName = yield* validateOAuthClientRegistrationRequest(
-        registrationRequest({ client_name: "x".repeat(513) })
+        registrationRequest({
+          client_name: "x".repeat(513),
+          token_endpoint_auth_method: "none",
+        })
       );
       const manyRedirects = yield* validateOAuthClientRegistrationRequest(
         registrationRequest({
@@ -43,11 +46,36 @@ describe("OAuth dynamic client registration boundary", () => {
             { length: 21 },
             (_, index) => `https://client.test/callback/${index}`
           ),
+          token_endpoint_auth_method: "none",
         })
       );
 
       expect(longName?.status).toBe(400);
       expect(manyRedirects?.status).toBe(400);
+    })
+  );
+
+  it.effect("rejects confidential-client and unknown security metadata", () =>
+    Effect.gen(function* () {
+      for (const body of [
+        {},
+        { token_endpoint_auth_method: "private_key_jwt" },
+        { token_endpoint_auth_method: "client_secret_basic" },
+        { jwks: { keys: [] }, token_endpoint_auth_method: "none" },
+        {
+          jwks_uri: "https://client.test/jwks.json",
+          token_endpoint_auth_method: "none",
+        },
+        {
+          software_statement: "self-asserted",
+          token_endpoint_auth_method: "none",
+        },
+      ]) {
+        const response = yield* validateOAuthClientRegistrationRequest(
+          registrationRequest(body)
+        );
+        expect(response?.status).toBe(400);
+      }
     })
   );
 
