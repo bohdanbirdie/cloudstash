@@ -85,7 +85,7 @@ the tree, artifact ownership, ID scheme, precedence, and lifecycle.
 
 ## Testing DO eviction (local — proven)
 
-- **DO eviction IS reproducible locally, deterministically. This has been proven — do not claim otherwise.** `abortAllDurableObjects()` from `cloudflare:test` (the `@cloudflare/vitest-pool-workers` runtime, which runs locally) tears down a DO's in-memory isolate while preserving its persisted SQLite — exactly the production idle-eviction that kills un-awaited background fibers. Proven by the incarnation-probe test in `src/cf-worker/__tests__/e2e/server-ingest-stranding.test.ts`: a random in-memory id stamped via `runInDurableObject` changes across the abort.
+- **DO eviction IS reproducible locally, deterministically. This has been proven — do not claim otherwise.** `abortAllDurableObjects()` from `cloudflare:test` (the `@cloudflare/vitest-plugin` runtime, which runs locally) tears down a DO's in-memory isolate while preserving its persisted SQLite — exactly the production idle-eviction that kills un-awaited background fibers. Proven by the incarnation-probe test in `src/cf-worker/__tests__/e2e/server-ingest-stranding.test.ts`: a random in-memory id stamped via `runInDurableObject` changes across the abort.
 - Use `abortAllDurableObjects()` + `runInDurableObject` to test eviction-sensitive behavior. Acquire a **fresh** stub after the abort — stubs created before it are poisoned. To assert a write survived eviction, read the persisted source of truth from a fresh stub (e.g. `SYNC_BACKEND_DO` → `getEventlogMax()`), not through the evicted client DO.
 
 ## Livestore Source (vendored upstream)

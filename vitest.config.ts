@@ -1,4 +1,3 @@
-import viteTsConfigPaths from "vite-tsconfig-paths";
 import { defineConfig } from "vitest/config";
 
 import {
@@ -11,9 +10,11 @@ import {
  * Fast tests that don't require the Workers runtime.
  */
 export default defineConfig({
-  plugins: [viteTsConfigPaths({ projects: ["./tsconfig.json"] })],
   define: livestoreBuildDefine(),
-  resolve: livestoreLocalResolve(),
+  resolve: {
+    ...livestoreLocalResolve(),
+    tsconfigPaths: true,
+  },
   test: {
     include: [
       "src/cf-worker/**/__tests__/**/*.test.ts",

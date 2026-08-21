@@ -92,11 +92,9 @@ export const queryUsage = Effect.fn("Analytics.queryUsage")(function* (
   });
 
   return {
-    rows: (json.data ?? []).map(
-      (r): UsageRow => ({
-        ...r,
-        count: Number(r.count),
-      })
-    ),
+    rows: (json.data ?? []).map((r): UsageRow => ({
+      ...r,
+      count: Number(r.count),
+    })),
   };
 });

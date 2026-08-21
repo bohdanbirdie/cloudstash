@@ -6,9 +6,9 @@ Status: open
 
 `build:prod` mutates remote D1 before proving the build and `deploy` does not
 build or certify. Depending on ignored local state, Wrangler may deploy stale
-generated output or raw root source. CI now runs the ordinary production build,
-but certification still lacks deployment-plan size and authenticated pricing
-checks.
+generated output or raw root source. CI now builds, checks the declared Worker
+upload budget, and smoke-tests generated output, but authenticated pricing
+checks remain outside the release boundary.
 
 ## Intent
 
@@ -20,8 +20,7 @@ artifact-first certification and CI coverage before remote mutation.
 [`package.json`](../../package.json) defines `build:prod` as remote migration
 before Vite build and `deploy` as remote migration followed by `wrangler deploy`.
 [CI](../../.github/workflows/ci.yml) now runs `bun run build`, but
-[`verify-bundle.ts`](../../scripts/verify-bundle.ts) has no compressed-size/
-deployment-plan assertion and `check:pricing` remains outside CI. Generated
+[`check:pricing`](../../package.json) remains outside CI and release. Generated
 deploy redirects/output are ignored local artifacts.
 
 ## Direction
@@ -31,6 +30,5 @@ update implementation
 ## Resolution Signal
 
 Delete this delta when release creates the exact immutable deploy input before
-any migration, deploy fails closed when it is absent/stale, compressed size is
-checked against a declared production plan, and authenticated pricing is
-reconciled at the appropriate release/config boundary.
+any migration, deploy fails closed when it is absent/stale, and authenticated
+pricing is reconciled at the appropriate release/config boundary.

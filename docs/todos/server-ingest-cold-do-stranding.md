@@ -90,7 +90,7 @@ Upstream's intended long-term replacement remains **commit-receipt awaitables** 
 
 ## Reproduction & tests
 
-**`src/cf-worker/__tests__/e2e/server-ingest-stranding.test.ts`** — e2e cases against the real LinkProcessorDO (`@cloudflare/vitest-pool-workers`), no mocks.
+**`src/cf-worker/__tests__/e2e/server-ingest-stranding.test.ts`** — e2e cases against the real LinkProcessorDO (`@cloudflare/vitest-plugin`), no mocks.
 
 > **Current state:** all four tests run and pass. The durability checks read the **SyncBackend's own `getEventlogMax()` from a fresh stub** (source-of-truth, independent of the client DO's lifecycle): eviction lever, durability-on-return, full processing pipeline with forced-eviction survival, and two-ingest sequential durability.
 

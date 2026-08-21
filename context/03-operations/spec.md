@@ -62,8 +62,12 @@ writes × affected client DOs and account for the account-wide daily write cap.
 The August 2026 Effect v4 cutover exceeded the cap through two full
 rematerializations despite normal per-event VFS behavior.
 
-The build reports bundle size, but no repository assertion currently compares
-compressed size with the deployed plan's limit; see
+The Cloudflare Worker environment is Oxc-minified independently of client
+assets. Build certification runs a Wrangler upload dry-run and rejects a
+compressed Worker larger than 2,700 KiB, leaving safety margin below the
+Workers Free upload boundary. CI also boots the generated Worker locally and
+proves D1 signup plus an authenticated WebSocket handoff to SyncBackendDO.
+Release ordering and pricing reconciliation remain tracked in
 [DELTA-020](../.delta/DELTA-020-release-path-can-deploy-uncertified-artifacts.md).
 Changing DO SQLite schema in vendored LiveStore requires the upstream persistence
 format version to change; local cleanup is not a production migration strategy.

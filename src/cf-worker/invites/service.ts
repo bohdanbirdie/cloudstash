@@ -73,8 +73,8 @@ const handleCreateInviteRequest = Effect.fn(
   const session = yield* getSession(auth, request.headers);
   yield* requireMemberManagement(session);
 
-  const rawBody = yield* Effect.tryPromise(
-    (): Promise<unknown> => request.json()
+  const rawBody = yield* Effect.tryPromise((): Promise<unknown> =>
+    request.json()
   ).pipe(Effect.orElseSucceed(() => ({})));
 
   const decoded = yield* Schema.decodeUnknownEffect(CreateInviteBody)(

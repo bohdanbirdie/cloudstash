@@ -2,8 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
-import viteTsConfigPaths from "vite-tsconfig-paths";
+import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
 import {
@@ -25,9 +24,8 @@ const migrations = journal.entries.map((entry: { tag: string }) => ({
 }));
 
 /**
- * E2E test configuration using Cloudflare Workers Vitest pool.
+ * E2E test configuration using the Cloudflare Vitest plugin.
  * Tests run in an isolated Workers environment with fresh D1 database.
- * Uses real vitest (not vite-plus shim) due to cloudflare pool incompatibility.
  */
 export default defineConfig({
   plugins: [
@@ -57,10 +55,10 @@ export default defineConfig({
         },
       },
     }),
-    viteTsConfigPaths({ projects: ["./tsconfig.json"] }),
   ],
   define: livestoreBuildDefine(),
   resolve: {
+    tsconfigPaths: true,
     dedupe: livestoreLocal.dedupe,
     alias: [
       // Stub mailparser to avoid Workers-incompatible dependencies in tests

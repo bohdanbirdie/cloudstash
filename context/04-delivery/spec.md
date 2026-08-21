@@ -40,12 +40,15 @@ Submodule and snapshot move atomically. The rationale is recorded in
 ## Build
 
 `bun run build` ensures the submodule, runs `vp build`, verifies the bundle, and
-prerenders public pages. Vite fails default builds without vendored source.
+prerenders public pages. The Cloudflare Worker environment is Oxc-minified while
+client build defaults remain independent. Vite fails default builds without vendored source.
 `__LIVESTORE_BUILD__` embeds `vendored@<sha>` or explicit `published` mode.
 Bundle certification checks revision marker count, no known Effect v3 version
-string, CSP-safe msgpack path, no native extraction, and one distinct React
-version string. These are targeted regression indicators, not proof that no
-same-version duplicate runtime or published LiveStore code exists.
+string, the msgpack runtime/no-native-extraction path, one distinct React
+version string, and Wrangler raw/compressed upload budgets. CI boots the
+generated minified Worker for a D1/auth/SyncBackendDO handshake. These are
+targeted regression indicators, not proof that no same-version duplicate
+runtime or published LiveStore code exists.
 
 Cloudflare Assets serves static output with Worker-first exceptions. The Vite
 Cloudflare output writes deploy configuration so Wrangler ships the built bundle
@@ -57,12 +60,12 @@ rather than re-bundling root source against published dependencies.
 required node pairs, structure, links, IDs/refinements, statuses, companion
 record shape, and evidence-link hygiene. Semantic quality remains review work.
 
-The main workflow checks out submodules and uses frozen Bun and pnpm installs.
-Quality runs Vite+/Effect/Intent diagnostics; tests run typecheck, unit, Worker
-E2E, extension prepare/compile/tests, and the production build/certification
-lane. The workflow has no Markdown path ignore, so Intent-only changes trigger
-CI. Pricing reconciliation and deployment-plan bundle-size assertions remain
-outside the CI release evidence; see
+The main workflow checks out submodules and uses frozen Bun and pnpm installs;
+the vendored pnpm content store is cached by its lockfile. Quality,
+unit/typecheck, Worker E2E, and extension/production-build certification run as
+parallel jobs on Node 25. The workflow has no Markdown path ignore, so
+Intent-only changes trigger CI. Pricing reconciliation remains outside the CI
+release evidence; see
 [DELTA-020](../.delta/DELTA-020-release-path-can-deploy-uncertified-artifacts.md).
 
 ## Migrations and Deploy

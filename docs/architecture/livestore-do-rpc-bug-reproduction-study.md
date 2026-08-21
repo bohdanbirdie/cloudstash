@@ -98,7 +98,7 @@ CF DO-RPC splits the byte stream arbitrarily (~4 KB chunks). msgpack frame bound
 
 ## 3. What we tested, in order
 
-### Phase 1 — Synthetic decoder probe (workerd via `@cloudflare/vitest-pool-workers`)
+### Phase 1 — Synthetic decoder probe (workerd via `@cloudflare/vitest-plugin`)
 
 **Goal:** does decode-per-chunk (Bug 2) lose data on truncated frames?
 

@@ -80,7 +80,7 @@ const auth = betterAuth({
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                    Vitest + @cloudflare/vitest-pool-workers             │
+│                    Vitest + @cloudflare/vitest-plugin                   │
 │                                                                         │
 │  Test Setup (beforeAll):                                                │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
@@ -234,7 +234,7 @@ describe("Organization Auth E2E", () => {
 3. [ ] Create `/api/org/:id` endpoint
 4. [ ] Configure vitest with `ENABLE_TEST_AUTH=true`
 5. [ ] Write e2e tests using Effect + SELF
-6. [ ] Run tests with vitest-pool-workers
+6. [ ] Run tests with the Cloudflare Vitest plugin
 
 ### Files to Modify/Create
 
