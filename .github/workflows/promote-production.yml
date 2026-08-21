@@ -1,0 +1,60 @@
+name: Open production promotion PR
+
+on:
+  schedule:
+    # Avoid the top of the hour, when scheduled Actions are most likely delayed.
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: production-promotion
+  cancel-in-progress: false
+
+jobs:
+  open-promotion:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Create the rolling staging-to-main PR when needed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          existing_pr="$(
+            gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --head staging \
+              --state open \
+              --json number \
+              --jq '.[0].number // empty'
+          )"
+
+          if [[ -n "$existing_pr" ]]; then
+            echo "Production promotion PR #${existing_pr} already tracks staging."
+            exit 0
+          fi
+
+          ahead_by="$(
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/compare/main...staging" \
+              --jq '.ahead_by'
+          )"
+
+          if [[ "$ahead_by" -eq 0 ]]; then
+            echo "Staging has no unpromoted commits."
+            exit 0
+          fi
+
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head staging \
+            --title "Promote staging to production" \
+            --body-file .github/production-promotion.md

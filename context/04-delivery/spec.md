@@ -84,8 +84,11 @@ Cloudflare environment and performs normal bundle certification;
 `deploy:staging:artifact` verifies that generated output names the staging
 Worker, origin, D1 database, and Queue before applying staging migrations and
 deploying that artifact. Workers Builds maps the long-lived `staging` branch to
-this named environment after maintainer-controlled remote bootstrap. Production
-release ordering remains open under DELTA-020.
+this named environment after maintainer-controlled remote bootstrap. Ordinary
+PRs integrate into `staging`; daily automation maintains one rolling `staging`
+to `main` promotion PR for a maintainer to merge after the deployed revision has
+soaked and been verified. Production release ordering remains open under
+DELTA-020.
 
 Remote migration/deploy/secret operations are maintainer-controlled. Agent and
 ordinary local commands stop at local migrations, checks, builds, and explicit
