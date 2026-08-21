@@ -35,8 +35,8 @@ export function DisconnectOverlay({
         if (e.key === "Tab") {
           const buttons = dialogRef.current?.querySelectorAll("button");
           if (!buttons || buttons.length === 0) return;
-          const first = buttons[0];
-          const last = buttons[buttons.length - 1];
+          const first = buttons.item(0);
+          const last = buttons.item(buttons.length - 1);
           const active = document.activeElement;
           if (e.shiftKey && active === first) {
             e.preventDefault();

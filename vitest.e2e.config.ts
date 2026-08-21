@@ -2,8 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
-import viteTsConfigPaths from "vite-tsconfig-paths";
+import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
 import {
@@ -57,10 +56,10 @@ export default defineConfig({
         },
       },
     }),
-    viteTsConfigPaths({ projects: ["./tsconfig.json"] }),
   ],
   define: livestoreBuildDefine(),
   resolve: {
+    tsconfigPaths: true,
     dedupe: livestoreLocal.dedupe,
     alias: [
       // Stub mailparser to avoid Workers-incompatible dependencies in tests

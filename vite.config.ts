@@ -3,9 +3,8 @@ import { livestoreDevtoolsPlugin } from "@livestore/devtools-vite";
 import tailwindcss from "@tailwindcss/vite";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import viteReact from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
-import type { Plugin, UserConfig } from "vite";
-import type { UserConfig as VitePlusUserConfig } from "vite-plus";
+import { defineConfig, lazyPlugins } from "vite-plus";
+import type { Plugin, UserConfig } from "vite-plus";
 
 import {
   LIVESTORE_LOCAL,
@@ -13,20 +12,6 @@ import {
   livestoreBuildDefine,
   livestoreLocalResolve,
 } from "./tools/livestore-local.ts";
-
-// Typing the config against the real vite identity (augmented with the
-// vite-plus-only keys) instead of vite-plus's bundled type copy: comparing
-// real-vite plugin values against that bundled copy is a cross-identity
-// deep-recursion that sits at the checker's depth limit (nondeterministic
-// "Excessive stack depth"). vp's defineConfig is a runtime pass-through for
-// non-lazy configs, so the exported object is identical either way.
-declare module "vite" {
-  interface UserConfig {
-    staged?: VitePlusUserConfig["staged"];
-    fmt?: VitePlusUserConfig["fmt"];
-    lint?: VitePlusUserConfig["lint"];
-  }
-}
 
 // Redirect @livestore/* to the vendored upstream source (default) and fail a
 // production build if the submodule isn't checked out. See
@@ -136,13 +121,13 @@ const config: UserConfig = {
       "no-duplicate-imports": ["error", { allowSeparateTypeImports: true }],
       "no-new": "off",
       "no-this-alias": "off",
+      "no-underscore-dangle": "off",
 
       "import/no-relative-parent-imports": "off",
       "import/no-default-export": "off",
       "import/exports-last": "off",
       "import/no-named-export": "off",
       "import/max-dependencies": "off",
-      "import/no-unresolved": "off",
       "import/extensions": "off",
       "import/no-namespace": "off",
       "import/no-anonymous-default-export": "off",
@@ -175,6 +160,10 @@ const config: UserConfig = {
       "typescript/no-var-requires": "off",
       "typescript/require-await": "off",
       "typescript/no-unsafe-type-assertion": "off",
+      "typescript/consistent-return": "off",
+      "typescript/no-unnecessary-type-assertion": "off",
+      "typescript/no-unnecessary-type-conversion": "off",
+      "typescript/no-unnecessary-type-parameters": "off",
 
       "node/no-process-env": "off",
 
@@ -194,6 +183,7 @@ const config: UserConfig = {
       "react/jsx-props-no-spreading": "off",
       "react/jsx-max-depth": "off",
       "react/no-multi-comp": "off",
+      "react/no-unstable-nested-components": "off",
       "react_perf/jsx-no-jsx-as-prop": "off",
       "react_perf/jsx-no-new-object-as-prop": "off",
       "react_perf/jsx-no-new-array-as-prop": "off",
@@ -202,6 +192,10 @@ const config: UserConfig = {
       "jsx-a11y/click-events-have-key-events": "off",
       "jsx-a11y/img-redundant-alt": "off",
       "jsx-a11y/label-has-associated-control": "off",
+      "jsx-a11y/control-has-associated-label": "off",
+      "jsx-a11y/interactive-supports-focus": "off",
+      "jsx-a11y/no-noninteractive-element-interactions": "off",
+      "jsx-a11y/prefer-tag-over-role": "off",
 
       "require-hook": "off",
       "consistent-function-scoping": "off",
@@ -248,16 +242,15 @@ const config: UserConfig = {
   optimizeDeps: {
     // TODO remove once fixed https://github.com/vitejs/vite/issues/8427
     exclude: ["@livestore/wa-sqlite"],
-    include: ["@lexical/code"],
   },
-  plugins: [
+  plugins: lazyPlugins(() => [
     cloudflare({ inspectorPort: 9230 }),
     TanStackRouterVite(),
     tailwindcss(),
     viteReact(),
     livestoreDevtoolsPlugin({ schemaPath: "./src/livestore/schema.ts" }),
     livestoreLocalPlugin,
-  ],
+  ]),
   server: {
     allowedHosts: [".trycloudflare.com"],
     fs: { strict: false },

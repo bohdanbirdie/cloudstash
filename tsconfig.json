@@ -19,7 +19,7 @@
     "jsx": "react-jsx",
     "module": "ESNext",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "types": ["vite/client", "@cloudflare/vitest-pool-workers/types"],
+    "types": ["vite/client", "@cloudflare/vitest-plugin/types"],
 
     /* Bundler mode */
     "moduleResolution": "bundler",
