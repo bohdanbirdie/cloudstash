@@ -6,9 +6,9 @@ export const SOFTWARE_APPLICATION_LD = {
   name: "Cloudstash",
   url: `${SITE_URL}/`,
   applicationCategory: "ProductivityApplication",
-  operatingSystem: "Web, iOS, macOS, Windows, Linux",
+  operatingSystem: "Web",
   description:
-    "Save links from Telegram, Raycast, iOS, Chrome, or the web. Cloudstash writes a short AI summary on every save so you can skim before you read.",
+    "Save links from Telegram, Raycast, Chrome, or the web. Cloudstash writes a short AI summary on every save so you can skim before you read.",
   image: `${SITE_URL}/cloudstash-og.png`,
   offers: [
     {
@@ -24,7 +24,7 @@ export const SOFTWARE_APPLICATION_LD = {
       price: "5",
       priceCurrency: "USD",
       description:
-        "AI summary on every save and integrations with Telegram, Raycast, iOS, and Chrome.",
+        "AI summary on every save and integrations with Telegram, Raycast, and Chrome.",
     },
     {
       "@type": "Offer",
@@ -32,7 +32,7 @@ export const SOFTWARE_APPLICATION_LD = {
       price: "12",
       priceCurrency: "USD",
       description:
-        "X bookmark sync, chat with your archive, larger summary model, and MCP server access.",
+        "X bookmark sync with enriched summaries, chat with your archive, and MCP server access.",
     },
   ],
 };
@@ -67,10 +67,10 @@ export const FAQ_LD = {
     },
     {
       "@type": "Question",
-      name: "How do I install Raycast, Telegram, or iOS?",
+      name: "How do I connect Raycast or Telegram?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Sign in to the web app and open Integrations — each integration has a one-step setup with the link or shortcut you need.",
+        text: "Sign in to the web app and open Integrations — each integration has a guided setup.",
       },
     },
     {
@@ -78,7 +78,7 @@ export const FAQ_LD = {
       name: "Can I export everything?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes — links, summaries, and tags, anytime. There's an Export button right in the app.",
+        text: "Yes — export your whole Vault as Markdown or plain links anytime from the account menu.",
       },
     },
     {

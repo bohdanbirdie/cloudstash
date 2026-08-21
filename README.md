@@ -10,7 +10,6 @@ Save and organize links with AI-powered summaries. Full-stack TypeScript on Clou
 - **Telegram bot** for saving links on the go
 - **Chrome extension** for one-click saving from the browser toolbar
 - **AI chat** for asking questions about your saved links
-- **Multi-workspace** support with invite system
 - **Admin panel** with usage analytics
 
 ## Stack

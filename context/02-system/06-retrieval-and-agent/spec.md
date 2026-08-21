@@ -32,9 +32,10 @@ count of distinct effective matches with the selected tag count.
 
 Current export is client-side and ungated. It can generate newline-separated
 URLs or a Markdown document with title, URL, domain, status, saved/completed
-dates, image, description, and AI summary for the selected/result links. It does
-does not currently export whole-Vault scope or tags; the broader landing claim is tracked in
-[DELTA-005](../../.delta/DELTA-005-export-claim-exceeds-current-export.md).
+dates, image, description, and AI summary. The account-menu export covers the
+current status view: All exports the full active Vault, while Archive exports
+archived links separately. Per-link and multi-select exports use the same two
+formats. Tags are not currently included.
 
 ## Public Links API
 

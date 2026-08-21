@@ -25,7 +25,6 @@ const FOOTER_COLS: readonly {
     links: [
       { label: "Telegram", to: "/", hash: "integrations" },
       { label: "Raycast", to: "/", hash: "integrations" },
-      { label: "iOS Shortcut", to: "/", hash: "integrations" },
       { label: "Chrome extension", to: "/", hash: "integrations" },
       { label: "X bookmarks", to: "/", hash: "integrations" },
     ],

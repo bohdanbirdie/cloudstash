@@ -21,12 +21,12 @@ const FAQ_ITEMS: readonly { q: string; a: string }[] = [
     a: "When you save a link, Cloudstash reads the page and writes a short two-paragraph summary. It’s stored with the link and searchable. If a summary misses the point, you can re-run it.",
   },
   {
-    q: "How do I install Raycast, Telegram, or iOS?",
-    a: "Sign in to the web app and open Integrations — each integration has a one-step setup with the link or shortcut you need.",
+    q: "How do I connect Raycast or Telegram?",
+    a: "Sign in to the web app and open Integrations — each integration has a guided setup.",
   },
   {
     q: "Can I export everything?",
-    a: "Yes — links, summaries, and tags, anytime. There’s an Export button right in the app.",
+    a: "Yes — export your whole Vault as Markdown or plain links anytime from the account menu.",
   },
   {
     q: "How do I delete my account?",

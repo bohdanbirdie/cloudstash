@@ -30,9 +30,9 @@ availability and policy claims match shipped behavior and executable semantics.
 
 ## Acceptance criteria
 
-- DELTA-005, DELTA-006, DELTA-007, DELTA-021, and DELTA-025 each have a named
-  remediation owner, affected-surface inventory, and factual copy change that
-  resolves or explicitly narrows the remaining divergence.
+- DELTA-006 and DELTA-025 each have a named remediation owner,
+  affected-surface inventory, and factual copy change that resolves or
+  explicitly narrows the remaining divergence.
 - Plan and landing copy agree with executable tier/capability defaults and
   verified integration availability.
 - README and SEO do not present planned clients or broader product semantics as
@@ -52,3 +52,15 @@ ship; factual reconciliation must not silently redefine product policy.
 
 Medium. The surface inventory is broad, but changes should remain factual and
 localized; legal approval is external to this task.
+
+## Reconciliation notes
+
+- 2026-08-21: whole-Vault Markdown/plain-link export was confirmed; tag/JSON
+  claims were removed. The unshipped iOS integration was removed from public
+  surfaces. Raycast copy now describes its URL command, the larger Pro summary
+  model moved to its own implementation task, and the unsupported
+  multi-workspace README claim was removed.
+- “Weekly digest of what you read” remains accepted marketing shorthand for a
+  digest selected from recently saved links.
+- Terms now describe both billing intervals; production annual Stripe/Portal
+  verification remains external evidence under DELTA-025.

@@ -16,11 +16,11 @@ import {
   SOFTWARE_APPLICATION_LD,
 } from "@/components/landing/seo-data";
 import { TopBar } from "@/components/landing/top-bar";
-import { META_PIXEL_HEAD_SCRIPTS, MetaPixelNoScript } from "@/lib/meta-pixel";
+import { META_PIXEL_HEAD_SCRIPTS } from "@/lib/meta-pixel";
 
 const TITLE = "Cloudstash — Save links, skim AI summaries";
 const DESCRIPTION =
-  "Save links from Telegram, Raycast, iOS, Chrome, or the web. Cloudstash writes a two-paragraph AI summary so you can skim before you read.";
+  "Save links from Telegram, Raycast, Chrome, or the web. Cloudstash writes a two-paragraph AI summary so you can skim before you read.";
 const OG_DESCRIPTION =
   "Save links from anywhere. Cloudstash writes a short summary on every save so you can skim before you read.";
 
@@ -68,7 +68,6 @@ function LandingPage() {
       </main>
       <Footer />
       <MobileStickyCta />
-      <MetaPixelNoScript />
     </div>
   );
 }
