@@ -139,7 +139,7 @@ const makeStatus = (overrides: Partial<Status> = {}): Status => ({
 });
 
 describe("ingestLink", () => {
-  it.effect("ingests a new URL and commits linkCreatedV2", () => {
+  it.effect("atomically creates a link with pending processing", () => {
     const notifier = createTestNotifier();
     const testLayer = Layer.mergeAll(repoLayer(), notifier.layer);
 
@@ -161,6 +161,11 @@ describe("ingestLink", () => {
           expect(rows).toHaveLength(1);
           expect(rows[0].domain).toBe("example.com");
           expect(rows[0].source).toBe("telegram");
+          const statuses = store.query(
+            tables.linkProcessingStatus.where({ linkId: result.linkId })
+          );
+          expect(statuses).toHaveLength(1);
+          expect(statuses[0].status).toBe("pending");
         })
       )
     );

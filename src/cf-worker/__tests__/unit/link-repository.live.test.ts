@@ -145,23 +145,33 @@ describe("LinkRepositoryLive", () => {
     );
   });
 
-  describe("commitEvent", () => {
-    it.effect("commits an event through to the store", () =>
+  describe("commitEvents", () => {
+    it.effect("commits multiple events through to the store", () =>
       Effect.gen(function* () {
         const repo = yield* LinkRepository;
-        yield* repo.commitEvent(
+        const now = new Date("2026-01-01T00:00:00Z");
+        yield* repo.commitEvents(
           events.linkCreatedV2({
             id: "committed-link",
             url: "https://committed.test/",
             domain: "committed.test",
-            createdAt: new Date("2026-01-01T00:00:00Z"),
+            createdAt: now,
             source: "test",
             sourceMeta: null,
+          }),
+          events.linkProcessingStarted({
+            linkId: "committed-link",
+            updatedAt: now,
           })
         );
         const rows = store.query(tables.links.where({ id: "committed-link" }));
         expect(rows).toHaveLength(1);
         expect(rows[0].url).toBe("https://committed.test/");
+        const statuses = store.query(
+          tables.linkProcessingStatus.where({ linkId: "committed-link" })
+        );
+        expect(statuses).toHaveLength(1);
+        expect(statuses[0].status).toBe("pending");
       }).pipe(Effect.provide(LinkRepositoryLive(store)))
     );
   });
