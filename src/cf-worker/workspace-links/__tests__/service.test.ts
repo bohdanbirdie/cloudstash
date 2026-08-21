@@ -539,32 +539,6 @@ describe("WorkspaceLinks", () => {
     )
   );
 
-  it.effect("rejects explicit IDs that exceed the requested limit", () =>
-    run((links) =>
-      Effect.gen(function* () {
-        seed("first", "2026-01-01T00:00:00Z");
-        seed("second", "2026-02-01T00:00:00Z");
-        const result = yield* Effect.result(
-          links.updateMany({
-            ids: ["first", "second"],
-            changes: { state: "completed" },
-            limit: 1,
-          })
-        );
-
-        expect(result).toMatchObject({
-          _tag: "Failure",
-          failure: {
-            _tag: "WorkspaceLinkInvalidInputError",
-            message: "ids cannot contain more entries than limit",
-          },
-        });
-        expect((yield* links.get("first")).state).toBe("inbox");
-        expect((yield* links.get("second")).state).toBe("inbox");
-      })
-    )
-  );
-
   it.effect(
     "creates a new batch tag once and attaches it to every link",
     () => {

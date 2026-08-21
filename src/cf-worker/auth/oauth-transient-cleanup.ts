@@ -28,7 +28,7 @@ export const cleanupExpiredOAuthTransientRecords = Effect.fnUntraced(function* (
           .where(lt(schema.oauthClientAssertion.expiresAt, new Date(now)))
       ),
     ],
-    { concurrency: 1, discard: true }
+    { discard: true }
   ).pipe(
     Effect.tapError(() =>
       Effect.sync(() => {

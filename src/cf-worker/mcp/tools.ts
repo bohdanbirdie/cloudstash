@@ -47,11 +47,11 @@ export const runMcpToolHandler = <Result, Error, Requirements>(
   );
 
 export const authorizeToolScope = (
-  authorization: McpAuthorization | null,
+  authorization: McpAuthorization,
   tool: keyof typeof MCP_TOOL_SCOPES
 ) => {
   const scope = MCP_TOOL_SCOPES[tool];
-  if (!authorization?.scopes.includes(scope)) {
+  if (!authorization.scopes.includes(scope)) {
     return {
       ok: false as const,
       result: toolError(`Missing required scope: ${scope}`),
@@ -182,7 +182,7 @@ const run = <Value>(
 
 export const makeMcpServer = (
   env: Env,
-  authorization: McpAuthorization | null
+  authorization: McpAuthorization
 ): McpServer => {
   const server = new McpServer({ name: "cloudstash", version: "1.0.0" });
 

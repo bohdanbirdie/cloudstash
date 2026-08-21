@@ -14,12 +14,16 @@ export const isCrossSite = (request: Request): boolean =>
 // One layer object per isolate, like `getAppLayer` — see the note there.
 const billingLayerCache = new WeakMap<
   Env,
-  Layer.Layer<StripeClient | AppCtx>
+  ReturnType<typeof getBillingLayerValue>
 >();
-const getBillingLayer = (env: Env): Layer.Layer<StripeClient | AppCtx> => {
+
+const getBillingLayerValue = (env: Env) =>
+  Layer.mergeAll(StripeClientLive(env), getAppLayer(env));
+
+const getBillingLayer = (env: Env) => {
   const cached = billingLayerCache.get(env);
   if (cached) return cached;
-  const layer = Layer.mergeAll(StripeClientLive(env), getAppLayer(env));
+  const layer = getBillingLayerValue(env);
   billingLayerCache.set(env, layer);
   return layer;
 };

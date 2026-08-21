@@ -27,8 +27,13 @@ describe("MCP request scope resolution", () => {
     requiredScopesForRequest(
       post(request(1, "tools/call", { name: "search_links" }))
     ).pipe(
-      Effect.tap((scopes) =>
-        Effect.sync(() => expect(scopes).toEqual([MCP_READ_SCOPE]))
+      Effect.tap(({ parsedBody, scopes }) =>
+        Effect.sync(() => {
+          expect(scopes).toEqual([MCP_READ_SCOPE]);
+          expect(parsedBody).toEqual(
+            request(1, "tools/call", { name: "search_links" })
+          );
+        })
       )
     )
   );
@@ -37,7 +42,7 @@ describe("MCP request scope resolution", () => {
     requiredScopesForRequest(
       post(request(1, "tools/call", { name: "save_link" }))
     ).pipe(
-      Effect.tap((scopes) =>
+      Effect.tap(({ scopes }) =>
         Effect.sync(() => expect(scopes).toEqual([MCP_WRITE_SCOPE]))
       )
     )
@@ -51,7 +56,7 @@ describe("MCP request scope resolution", () => {
         request(3, "tools/call", { name: "save_link" }),
       ])
     ).pipe(
-      Effect.tap((scopes) =>
+      Effect.tap(({ scopes }) =>
         Effect.sync(() =>
           expect(scopes).toEqual([MCP_WRITE_SCOPE, MCP_READ_SCOPE])
         )
@@ -61,7 +66,7 @@ describe("MCP request scope resolution", () => {
 
   it.effect("leaves protocol methods unscoped and rejects unknown tools", () =>
     Effect.gen(function* () {
-      const protocolScopes = yield* requiredScopesForRequest(
+      const { scopes: protocolScopes } = yield* requiredScopesForRequest(
         post(request(1, "initialize", { name: "search_links" }))
       );
       expect(protocolScopes).toEqual([]);

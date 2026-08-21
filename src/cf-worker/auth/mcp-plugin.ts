@@ -9,7 +9,6 @@ export const mcpPlugin = (env: Env) =>
     accessTokenExpiresIn: 5 * 60,
     allowDynamicClientRegistration: true,
     allowUnauthenticatedClientRegistration: true,
-    clientRegistrationRequirePKCE: true,
     consentPage: "/oauth-consent",
     customAccessTokenClaims: ({ referenceId }) =>
       referenceId ? { [MCP_WORKSPACE_CLAIM]: referenceId } : {},

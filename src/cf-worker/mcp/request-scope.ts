@@ -37,9 +37,8 @@ export const mcpBodyTooLargeResponse = (): Response =>
 const invalidRequest = (message: string) =>
   new McpRequestRejected({ message, status: 400 });
 
-const parseMessages = (body: string): readonly JSONRPCMessage[] => {
-  const parsed: unknown = JSON.parse(body);
-  const messages = Array.isArray(parsed) ? parsed : [parsed];
+const parseMessages = (parsedBody: unknown): readonly JSONRPCMessage[] => {
+  const messages = Array.isArray(parsedBody) ? parsedBody : [parsedBody];
   if (messages.length === 0) throw invalidRequest("Invalid MCP request body");
   return messages.map(parseJSONRPCMessage);
 };
@@ -47,7 +46,9 @@ const parseMessages = (body: string): readonly JSONRPCMessage[] => {
 export const requiredScopesForRequest = Effect.fnUntraced(function* (
   request: Request
 ) {
-  if (request.method !== "POST") return [];
+  if (request.method !== "POST") {
+    return { parsedBody: undefined, scopes: [] };
+  }
 
   const body = yield* Effect.tryPromise(() => request.clone().text()).pipe(
     Effect.option
@@ -59,8 +60,11 @@ export const requiredScopesForRequest = Effect.fnUntraced(function* (
     });
   }
 
-  const messages = yield* Effect.try({
-    try: () => parseMessages(body.value),
+  const { messages, parsedBody } = yield* Effect.try({
+    try: () => {
+      const parsed: unknown = JSON.parse(body.value);
+      return { messages: parseMessages(parsed), parsedBody: parsed };
+    },
     catch: () => invalidRequest("Invalid MCP request body"),
   });
   const scopes = new Set<string>();
@@ -80,5 +84,5 @@ export const requiredScopesForRequest = Effect.fnUntraced(function* (
     }
     scopes.add(scope);
   }
-  return [...scopes];
+  return { parsedBody, scopes: [...scopes] };
 });

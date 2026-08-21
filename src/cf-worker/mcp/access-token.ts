@@ -1,4 +1,3 @@
-import { createResourceServerChallenge } from "@better-auth/oauth-provider";
 import { APIError } from "better-auth/api";
 import {
   createDpopReplayStore,
@@ -12,6 +11,7 @@ import type { JSONWebKeySet } from "jose";
 import { errors as joseErrors } from "jose";
 
 import type { Auth } from "../auth";
+import { mcpResourceChallengeResponse } from "./http";
 
 const JOSE_INFRASTRUCTURE_ERROR_CODES = new Set([
   joseErrors.JWKSTimeout.code,
@@ -140,22 +140,7 @@ export const mcpAuthorizationChallenge = (
   error: McpAccessTokenRejected,
   resource: string,
   challengeScopes: readonly string[]
-): Response => {
-  const challenge = createResourceServerChallenge(error.cause, resource, {
-    challengeScopes,
+): Response =>
+  mcpResourceChallengeResponse(error.cause, resource, challengeScopes, {
+    code: -32e3,
   });
-  if (!challenge) {
-    return Response.json({ error: "Invalid access token" }, { status: 401 });
-  }
-
-  const headers = new Headers(challenge.headers);
-  headers.set("Content-Type", "application/json");
-  return new Response(
-    JSON.stringify({
-      error: { code: -32e3, message: challenge.message },
-      id: null,
-      jsonrpc: "2.0",
-    }),
-    { headers, status: challenge.statusCode }
-  );
-};

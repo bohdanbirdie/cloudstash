@@ -154,11 +154,13 @@ function apiLinkStateFilter(state: LinkCollectionState): string {
   }
 }
 
-const API_LINKS_SELECT = `
-  SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
-         s.title, s.description, s.image, s.favicon,
-         sum.summary,
-         ps.status AS processingStatus
+const LINK_DETAILS_COLUMNS = `
+  l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
+  s.title, s.description, s.image, s.favicon,
+  sum.summary
+`;
+
+const LINK_DETAILS_FROM = `
   FROM links l
   LEFT JOIN link_snapshots s ON s.id = (
     SELECT s2.id FROM link_snapshots s2
@@ -172,6 +174,12 @@ const API_LINKS_SELECT = `
     ORDER BY sum2.summarizedAt DESC
     LIMIT 1
   )
+`;
+
+const API_LINKS_SELECT = `
+  SELECT ${LINK_DETAILS_COLUMNS},
+         ps.status AS processingStatus
+  ${LINK_DETAILS_FROM}
   LEFT JOIN link_processing_status ps ON ps.linkId = l.id
 `;
 
@@ -313,22 +321,8 @@ export const linkById$ = (id: string) =>
     {
       bindValues: [id],
       query: `
-        SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
-               s.title, s.description, s.image, s.favicon,
-               sum.summary
-        FROM links l
-        LEFT JOIN link_snapshots s ON s.id = (
-          SELECT s2.id FROM link_snapshots s2
-          WHERE s2.linkId = l.id
-          ORDER BY s2.fetchedAt DESC
-          LIMIT 1
-        )
-        LEFT JOIN link_summaries sum ON sum.id = (
-          SELECT sum2.id FROM link_summaries sum2
-          WHERE sum2.linkId = l.id
-          ORDER BY sum2.summarizedAt DESC
-          LIMIT 1
-        )
+        SELECT ${LINK_DETAILS_COLUMNS}
+        ${LINK_DETAILS_FROM}
         WHERE l.id = ?
       `,
       schema: linkByIdSchema,
@@ -341,22 +335,8 @@ export const linkByUrl$ = (url: string) =>
     {
       bindValues: [url],
       query: `
-        SELECT l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
-               s.title, s.description, s.image, s.favicon,
-               sum.summary
-        FROM links l
-        LEFT JOIN link_snapshots s ON s.id = (
-          SELECT s2.id FROM link_snapshots s2
-          WHERE s2.linkId = l.id
-          ORDER BY s2.fetchedAt DESC
-          LIMIT 1
-        )
-        LEFT JOIN link_summaries sum ON sum.id = (
-          SELECT sum2.id FROM link_summaries sum2
-          WHERE sum2.linkId = l.id
-          ORDER BY sum2.summarizedAt DESC
-          LIMIT 1
-        )
+        SELECT ${LINK_DETAILS_COLUMNS}
+        ${LINK_DETAILS_FROM}
         WHERE l.url = ?
       `,
       schema: linkByIdSchema,
@@ -494,25 +474,10 @@ export const searchLinks$ = (
     {
       bindValues: [...bindValues, ...filterValues],
       query: `
-        SELECT
-          l.id, l.url, l.domain, l.status, l.source, l.createdAt, l.completedAt, l.deletedAt,
-          s.title, s.description, s.image, s.favicon,
-          sum.summary,
+        SELECT ${LINK_DETAILS_COLUMNS},
           ps.status AS processingStatus,
           (${scoreExpressions}) AS score
-        FROM links l
-        LEFT JOIN link_snapshots s ON s.id = (
-          SELECT s2.id FROM link_snapshots s2
-          WHERE s2.linkId = l.id
-          ORDER BY s2.fetchedAt DESC
-          LIMIT 1
-        )
-        LEFT JOIN link_summaries sum ON sum.id = (
-          SELECT sum2.id FROM link_summaries sum2
-          WHERE sum2.linkId = l.id
-          ORDER BY sum2.summarizedAt DESC
-          LIMIT 1
-        )
+        ${LINK_DETAILS_FROM}
         LEFT JOIN link_processing_status ps ON ps.linkId = l.id
         WHERE ${filters.join(" AND ")}
         ORDER BY score DESC, l.createdAt DESC, l.id DESC

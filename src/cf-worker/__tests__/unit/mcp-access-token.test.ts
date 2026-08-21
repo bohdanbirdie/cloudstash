@@ -120,9 +120,25 @@ describe("local MCP access-token verification", () => {
           expect(challenge.headers.get("WWW-Authenticate")).toContain(
             'resource_metadata="https://cloudstash.test/.well-known/oauth-protected-resource/mcp"'
           );
+          expect(yield* Effect.promise(() => challenge.json())).toMatchObject({
+            error: { code: -32000 },
+            id: null,
+            jsonrpc: "2.0",
+          });
         }
       })
   );
+
+  it("keeps the invalid-token fallback when Better Auth has no challenge", async () => {
+    const response = mcpAuthorizationChallenge(
+      new McpAccessTokenRejected({ cause: new Error("unknown") }),
+      audience,
+      []
+    );
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "Invalid access token" });
+  });
 
   it.effect("classifies JWKS infrastructure failures as backend errors", () =>
     Effect.gen(function* () {

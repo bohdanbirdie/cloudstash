@@ -2,7 +2,6 @@ import { Effect } from "effect";
 
 import type { Env } from "../shared";
 import { gateUserApiKeyCreate } from "./api-key-gate";
-import { initializeMcpOAuthResource } from "./mcp-resource";
 import { enforcePublicOAuthClientRegistration } from "./oauth-client-registration";
 import {
   bindConsentWorkspace,
@@ -15,8 +14,6 @@ export const handleAuthRequest = Effect.fn("Auth.handleRequest")(function* (
   request: Request,
   env: Env
 ) {
-  yield* initializeMcpOAuthResource(env);
-
   const url = new URL(request.url);
   if (request.method === "POST" && url.pathname === "/api/auth/oauth2/token") {
     yield* cleanupExpiredOAuthTransientRecords(env.DB);

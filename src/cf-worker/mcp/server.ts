@@ -3,7 +3,6 @@ import { createMcpHandler } from "agents/mcp/server";
 import { Cause, Effect } from "effect";
 import type { JWTPayload } from "jose";
 
-import { initializeMcpOAuthResource } from "../auth/mcp-resource";
 import { cleanupExpiredOAuthTransientRecords } from "../auth/oauth-transient-cleanup";
 import { AuthClient } from "../auth/service";
 import { workspaceAccessHttpResponse } from "../auth/workspace-access-http";
@@ -11,7 +10,6 @@ import { capabilityDeniedResponse } from "../billing/errors";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { getAppLayer, provideResponse } from "../runtime";
 import type { Env } from "../shared";
-import { OtelTracingLive } from "../tracing";
 import {
   invalidMcpAccessToken,
   McpAccessTokenBackendError,
@@ -69,7 +67,7 @@ const handleVerifiedRequestEffect = Effect.fnUntraced(function* (
   yield* Effect.annotateCurrentSpan("orgId", maskId(authorization.orgId));
   yield* Effect.annotateCurrentSpan("clientId", maskId(authorization.clientId));
 
-  const scopes = yield* requiredScopesForRequest(request);
+  const { parsedBody, scopes } = yield* requiredScopesForRequest(request);
   const granted = new Set(authorization.scopes);
   const missing = scopes.filter((scope) => !granted.has(scope));
   if (missing.length > 0) {
@@ -78,10 +76,12 @@ const handleVerifiedRequestEffect = Effect.fnUntraced(function* (
 
   const authInfo = toAuthInfo(request, authorization, env);
   const handler = makeMcpHandler(env, authorization);
-  return yield* Effect.promise(() => handler.fetch(request, { authInfo }));
+  return yield* Effect.promise(() =>
+    handler.fetch(request, { authInfo, parsedBody })
+  );
 });
 
-const makeMcpHandler = (env: Env, authorization: McpAuthorization | null) => {
+const makeMcpHandler = (env: Env, authorization: McpAuthorization) => {
   const origin = new URL(env.BETTER_AUTH_URL);
   return createMcpHandler(() => makeMcpServer(env, authorization), {
     corsOptions: false,
@@ -94,7 +94,6 @@ const handleMcpRequestEffect = Effect.fnUntraced(function* (
   request: Request,
   env: Env
 ) {
-  yield* initializeMcpOAuthResource(env);
   if (request.headers.has("dpop")) {
     yield* cleanupExpiredOAuthTransientRecords(env.DB);
   }
@@ -117,16 +116,8 @@ const handleMcpRequestEffect = Effect.fnUntraced(function* (
 export const handleMcpRequest = (
   request: Request,
   env: Env
-): Promise<Response> => {
-  if (request.method === "OPTIONS") {
-    return Effect.promise(() => makeMcpHandler(env, null).fetch(request)).pipe(
-      Effect.withSpan("MCP.preflight"),
-      Effect.provide(OtelTracingLive),
-      Effect.runPromise
-    );
-  }
-
-  return provideResponse(
+): Promise<Response> =>
+  provideResponse(
     handleMcpRequestEffect(request, env).pipe(
       Effect.catchTag("McpAccessTokenRejected", (error) =>
         Effect.succeed(
@@ -173,4 +164,3 @@ export const handleMcpRequest = (
     getAppLayer(env),
     authorizationFailure
   ).pipe(Effect.runPromise);
-};

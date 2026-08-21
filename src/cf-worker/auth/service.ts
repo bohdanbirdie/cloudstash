@@ -11,6 +11,7 @@ import { DbClient, DbClientLive, DbError, query } from "../db/service";
 import { AppSettings } from "../settings/service";
 import type { Env } from "../shared";
 import { OtelTracingLive } from "../tracing";
+import { ensureMcpOAuthResource } from "./mcp-resource";
 import { WorkspaceAccess, makeWorkspaceAccess } from "./workspace-access";
 
 type UserRow = typeof schema.user.$inferSelect;
@@ -31,6 +32,7 @@ export const AuthClientLive = (env: Env) =>
     AuthClient,
     Effect.gen(function* () {
       const db = yield* DbClient;
+      yield* ensureMcpOAuthResource(db, env);
       const auth = createAuth(env, db);
 
       return {

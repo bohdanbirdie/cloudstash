@@ -418,10 +418,8 @@ export const makeWorkspaceLinks = (
     const ensured = tagPatch
       ? yield* ensureTags(tagPatch.add, now)
       : { events: [] as StoreEvent[] };
-    const changes = yield* Effect.forEach(
-      links,
-      (link) => updateEvents(link, patch, now, tagPatch),
-      { concurrency: 1 }
+    const changes = yield* Effect.forEach(links, (link) =>
+      updateEvents(link, patch, now, tagPatch)
     ).pipe(Effect.map((groups) => [...ensured.events, ...groups.flat()]));
     yield* commit("updateLinks", changes);
     const updated = yield* query("readUpdatedLinks", () =>
@@ -641,9 +639,6 @@ export const makeWorkspaceLinks = (
       }
       const patch = yield* normalizeChanges(input.changes);
       const limit = input.limit ?? MAX_LINK_BATCH_SIZE;
-      if (input.ids !== undefined && input.ids.length > limit) {
-        return yield* invalid("ids cannot contain more entries than limit");
-      }
       const { createdAfter, createdBefore } = yield* dateRange(
         input.where?.createdAfter,
         input.where?.createdBefore,

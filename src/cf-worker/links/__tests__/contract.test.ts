@@ -71,14 +71,30 @@ describe("shared link contracts", () => {
       })
     ).toBe(false);
     expect(
+      accepts(UpdateLinksInput, {
+        ids: ["link-1", "link-2"],
+        changes: { state: "completed" },
+        limit: 1,
+      })
+    ).toBe(false);
+    expect(
       accepts(UpdateLinkInput, {
         id: "link-1",
         changes: { reprocess: true },
       })
     ).toBe(false);
-    expect(accepts(ListLinksInput, { createdAfter: "2026" })).toBe(false);
+    for (const createdAfter of [
+      "2026",
+      "2026-02-30T00:00:00Z",
+      "2026-13-01T00:00:00Z",
+      "2026-01-01T24:00:01Z",
+      "2026-01-01T00:00:00+24:00",
+      "2026-01-01T00:00:00",
+    ]) {
+      expect(accepts(ListLinksInput, { createdAfter })).toBe(false);
+    }
     expect(
-      accepts(ListLinksInput, { createdAfter: "2026-02-30T00:00:00Z" })
-    ).toBe(false);
+      accepts(ListLinksInput, { createdAfter: "2024-02-29T23:59:59-23:59" })
+    ).toBe(true);
   });
 });

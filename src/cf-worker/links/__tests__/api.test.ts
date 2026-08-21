@@ -55,7 +55,7 @@ describe("cursor codec", () => {
 
   it("rejects malformed tokens", () => {
     expect(decodeCursor("not-base64!!!")).toBeNull();
-    expect(decodeCursor(encodeCursor({ createdAt: 1, id: "" }))).toBeNull();
+    expect(decodeCursor(btoa(JSON.stringify({ t: 1, id: "" })))).toBeNull();
     expect(decodeCursor(btoa(JSON.stringify({ t: "x", id: "a" })))).toBeNull();
     expect(decodeCursor(btoa(JSON.stringify({ id: "a" })))).toBeNull();
   });

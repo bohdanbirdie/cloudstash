@@ -37,7 +37,7 @@ const property = (schema: JsonSchema, name: string): JsonSchema =>
 const withMcpClient = async <Value>(
   use: (client: Client) => Promise<Value>,
   options?: {
-    readonly authorization?: McpAuthorization | null;
+    readonly authorization?: McpAuthorization;
     readonly env?: Env;
   }
 ): Promise<Value> => {
@@ -46,7 +46,7 @@ const withMcpClient = async <Value>(
   const client = new Client({ name: "cloudstash-test", version: "1.0.0" });
   const server = makeMcpServer(
     options?.env ?? ({} as Env),
-    options?.authorization ?? null
+    options?.authorization ?? authorization([])
   );
   await server.connect(serverTransport);
   await client.connect(clientTransport);

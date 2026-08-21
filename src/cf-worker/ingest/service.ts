@@ -11,7 +11,7 @@ import {
 } from "../auth/workspace-access";
 import { capabilityDeniedResponse } from "../billing/errors";
 import { requireCapability } from "../billing/service";
-import type { OrgId, UserId } from "../db/branded";
+import type { OrgId } from "../db/branded";
 import type { LinkQueueMessage } from "../link-processor/types";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { provideResponse } from "../runtime";
@@ -31,42 +31,31 @@ const IngestBody = Schema.Struct({ url: Schema.String });
 const decodeIngestBody = Schema.decodeUnknownEffect(IngestBody);
 const decodeUrl = Schema.decodeUnknownEffect(HttpUrlFromString);
 
-export const enqueueLink = Effect.fn("Ingest.enqueueLink")(function* (
-  authorization: { readonly orgId: OrgId; readonly userId: UserId },
+const enqueueLink = Effect.fn("Ingest.enqueueLink")(function* (
+  orgId: OrgId,
   url: string,
-  source: string,
-  env: Env,
-  options: { readonly trackUsage?: boolean } = {}
+  env: Env
 ) {
   yield* decodeUrl(url).pipe(
     Effect.mapError(() => new IngestInvalidUrlError({ url }))
   );
-  yield* Effect.annotateCurrentSpan("orgId", maskId(authorization.orgId));
-  yield* Effect.annotateCurrentSpan("source", source);
-
-  if (options.trackUsage !== false) {
-    trackEvent(env.USAGE_ANALYTICS, {
-      userId: authorization.userId,
-      event: "ingest",
-      orgId: authorization.orgId,
-    });
-  }
+  yield* Effect.annotateCurrentSpan("orgId", maskId(orgId));
 
   yield* Effect.tryPromise({
     catch: (cause) => new IngestQueueSendError({ cause }),
     try: () =>
       env.LINK_QUEUE.send({
-        source,
+        source: "api",
         sourceMeta: null,
-        storeId: authorization.orgId,
+        storeId: orgId,
         url,
       } satisfies LinkQueueMessage),
   });
 
   yield* Effect.logInfo("Ingest queued").pipe(
     Effect.annotateLogs({
-      orgId: maskId(authorization.orgId),
-      source,
+      orgId: maskId(orgId),
+      source: "api",
     })
   );
 });
@@ -120,9 +109,7 @@ export const handleIngestRequest = Effect.fnUntraced(function* (
     Effect.flatMap(decodeIngestBody),
     Effect.mapError(() => IngestMissingUrlError.make({}))
   );
-  yield* enqueueLink({ orgId, userId }, url, "api", env, {
-    trackUsage: false,
-  });
+  yield* enqueueLink(orgId, url, env);
 
   return { ok: true, result: { status: "queued" } };
 });

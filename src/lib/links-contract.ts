@@ -64,22 +64,11 @@ const ISO_INSTANT =
 export const isoInstantToEpochMillis = (value: string): number | null => {
   const match = ISO_INSTANT.exec(value);
   if (!match) return null;
-  const [, year, month, day, hour, minute, second, zoneHour, zoneMinute] =
-    match;
+  const [, year, month, day] = match;
   const y = Number(year);
   const m = Number(month);
   const d = Number(day);
-  if (
-    m < 1 ||
-    m > 12 ||
-    d < 1 ||
-    d > new Date(Date.UTC(y, m, 0)).getUTCDate() ||
-    Number(hour) > 23 ||
-    Number(minute) > 59 ||
-    Number(second) > 59 ||
-    Number(zoneHour ?? 0) > 23 ||
-    Number(zoneMinute ?? 0) > 59
-  ) {
+  if (d < 1 || d > new Date(Date.UTC(y, m, 0)).getUTCDate()) {
     return null;
   }
   const parsed = Date.parse(value);

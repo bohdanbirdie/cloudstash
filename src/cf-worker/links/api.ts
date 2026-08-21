@@ -1,3 +1,5 @@
+import { Option, Schema } from "effect";
+
 import type { LinkMutableState } from "@/lib/links-contract";
 import type { ApiLinkRow } from "@/livestore/queries/schemas";
 import type { TagByLinkRow } from "@/livestore/queries/tags";
@@ -44,35 +46,24 @@ export interface Cursor {
   id: string;
 }
 
-const toB64Url = (s: string): string =>
-  btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-
-const fromB64Url = (s: string): string =>
-  atob(s.replace(/-/g, "+").replace(/_/g, "/"));
+const CursorToken = Schema.StringFromBase64Url.pipe(
+  Schema.decodeTo(
+    Schema.fromJsonString(
+      Schema.Struct({ t: Schema.Finite, id: Schema.NonEmptyString })
+    )
+  )
+);
+const decodeCursorToken = Schema.decodeUnknownOption(CursorToken);
+const encodeCursorToken = Schema.encodeSync(CursorToken);
 
 export const encodeCursor = (cursor: Cursor): string =>
-  toB64Url(JSON.stringify({ t: cursor.createdAt, id: cursor.id }));
+  encodeCursorToken({ t: cursor.createdAt, id: cursor.id });
 
-export const decodeCursor = (raw: string): Cursor | null => {
-  try {
-    const parsed = JSON.parse(fromB64Url(raw)) as unknown;
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      "t" in parsed &&
-      "id" in parsed &&
-      typeof parsed.t === "number" &&
-      Number.isFinite(parsed.t) &&
-      typeof parsed.id === "string" &&
-      parsed.id.length > 0
-    ) {
-      return { createdAt: parsed.t, id: parsed.id };
-    }
-    return null;
-  } catch {
-    return null;
-  }
-};
+export const decodeCursor = (raw: string): Cursor | null =>
+  Option.match(decodeCursorToken(raw), {
+    onNone: () => null,
+    onSome: ({ t, id }) => ({ createdAt: t, id }),
+  });
 
 const mapState = (status: string, deletedAt: number | null): ApiLinkState => {
   if (deletedAt !== null) return "archive";

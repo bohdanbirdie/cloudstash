@@ -519,7 +519,7 @@ export class LinkProcessorDO
                     { source: "telegram", sourceMeta: cl.sourceMeta },
                     "Processing was interrupted. Please resend the link."
                   ),
-                { concurrency: 1, discard: true }
+                { discard: true }
               );
             });
           }),

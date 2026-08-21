@@ -2,7 +2,7 @@ import { Clock, Effect } from "effect";
 
 import type { Database } from "../db";
 import * as schema from "../db/schema";
-import { DbClient, query } from "../db/service";
+import { query } from "../db/service";
 import { safeErrorInfo } from "../log-utils";
 import { mcpResource } from "../mcp/config";
 import type { Env } from "../shared";
@@ -11,7 +11,10 @@ import type { Env } from "../shared";
 // isolate; the cache avoids turning normal auth construction into a DB write.
 const initializedDatabases = new WeakSet<D1Database>();
 
-const ensureMcpResource = Effect.fnUntraced(function* (db: Database, env: Env) {
+export const ensureMcpOAuthResource = Effect.fnUntraced(function* (
+  db: Database,
+  env: Env
+) {
   if (initializedDatabases.has(env.DB)) return;
   const now = new Date(yield* Clock.currentTimeMillis);
   const identifier = mcpResource(env);
@@ -28,13 +31,6 @@ const ensureMcpResource = Effect.fnUntraced(function* (db: Database, env: Env) {
       .onConflictDoNothing({ target: schema.oauthResource.identifier })
   );
   initializedDatabases.add(env.DB);
-});
-
-export const initializeMcpOAuthResource = Effect.fn(
-  "Auth.initializeMcpOAuthResource"
-)(function* (env: Env) {
-  const db = yield* DbClient;
-  yield* ensureMcpResource(db, env);
 });
 
 export const authBackendUnavailable = (cause: unknown) =>

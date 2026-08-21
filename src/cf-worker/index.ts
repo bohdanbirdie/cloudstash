@@ -22,10 +22,7 @@ import { handleTriggerDigest } from "./admin/trigger-digest";
 import { handleGetUsage } from "./admin/usage";
 import { trackEvent } from "./analytics";
 import { handleAuthRequest } from "./auth/handler";
-import {
-  authBackendUnavailable,
-  initializeMcpOAuthResource,
-} from "./auth/mcp-resource";
+import { authBackendUnavailable } from "./auth/mcp-resource";
 import {
   MAX_REGISTRATION_BODY_BYTES,
   invalidOAuthClientRegistration,
@@ -194,13 +191,10 @@ app.on(["GET", "HEAD"], "/.well-known/*", (c) =>
   runHandler(
     c.env,
     Effect.gen(function* () {
-      yield* initializeMcpOAuthResource(c.env);
       const auth = yield* AuthClient;
       return yield* Effect.promise(() => auth.handler(c.req.raw));
-    }).pipe(
-      Effect.withSpan("API.authMetadataHandler"),
-      Effect.catchTag("DbError", (error) => authBackendUnavailable(error.cause))
-    )
+    }).pipe(Effect.withSpan("API.authMetadataHandler")),
+    authBackendUnavailable
   )
 );
 
@@ -262,7 +256,8 @@ app.on(["GET", "POST"], "/api/auth/*", (c) =>
     handleAuthRequest(c.req.raw, c.env).pipe(
       Effect.withSpan("API.authHandler"),
       Effect.catchTag("DbError", (error) => authBackendUnavailable(error.cause))
-    )
+    ),
+    authBackendUnavailable
   )
 );
 
@@ -431,12 +426,12 @@ const handleSync = async (
   ) as unknown as Response;
 };
 
-const dispatchRequest = async (
+export const fetch = async (
   request: CfTypes.Request,
   env: Env,
-  ctx: CfTypes.ExecutionContext,
-  url: URL
+  ctx: CfTypes.ExecutionContext
 ): Promise<Response> => {
+  const url = new URL(request.url);
   const rateLimited = await checkRateLimit(request, env);
   if (rateLimited) return rateLimited;
 
@@ -463,15 +458,6 @@ const dispatchRequest = async (
   }
 
   return app.fetch(request as unknown as Request, env, ctx);
-};
-
-export const fetch = async (
-  request: CfTypes.Request,
-  env: Env,
-  ctx: CfTypes.ExecutionContext
-): Promise<Response> => {
-  const url = new URL(request.url);
-  return dispatchRequest(request, env, ctx, url);
 };
 
 export const queue = (
