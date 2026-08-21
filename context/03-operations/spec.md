@@ -21,6 +21,14 @@ Active.
 | Rate limiter     | `SYNC_RATE_LIMITER`                                                  | selected auth/MCP/sync/invite abuse protection                    |
 | Analytics Engine | `USAGE_ANALYTICS`                                                    | low-overhead usage events                                         |
 
+The repository also declares an isolated `staging` Wrangler environment. It
+targets the `cloudstash-staging` Worker and repeats all non-inherited bindings
+with staging-only D1, KV, Queue, Workflow, Durable Object, rate-limit, and
+Analytics Engine identities. Provider credentials remain separate deployment
+secrets. Remote provisioning, domain attachment, and GitHub branch connection
+remain externally controlled and are tracked in
+[DELTA-031](../.delta/DELTA-031-staging-and-operational-runbooks-are-not-realized.md).
+
 Built-in Cloudflare logs and invocation traces are enabled with full head
 sampling in current configuration. `AppLayerLive` installs application services
 and structured logging, but the global Effect tracer is currently a no-op; named

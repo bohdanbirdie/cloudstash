@@ -60,7 +60,7 @@ kanban-plugin: board
 - [ ] [[todos/human-launch-operations|Verify production Queue retention and recovery]] — durability code is merged; record plan/retention evidence and run the recovery drill.
 - [ ] [[todos/human-launch-operations|Reconcile Stripe and Portal behavior]] — maintainer credentials and production payment authority required.
 - [ ] [[todos/human-launch-operations|Obtain legal sign-off]] — deletion retention, telemetry/privacy, tracking opt-outs, billing consent, and remaining launch clauses.
-- [ ] [[todos/human-launch-operations|Choose certified release evidence or staging]] — select the human-controlled path for behavior local tests cannot prove.
+- [ ] [[todos/human-launch-operations|Provision and certify staging]] — bootstrap the isolated Worker/resources/Git branch and record the first deployed rehearsal.
 - [ ] [[todos/human-launch-operations|Choose alert destination and owner]] — then wire [[todos/admin-server-ahead-alert|the stuck-sync alert]] and other tripwires.
 
 ## Done

@@ -4,10 +4,12 @@ Status: open
 
 ## Divergence
 
-Operations requires staging or bounded production verification and queryable
-tripwires with recovery direction, but no Wrangler staging environment/script or
-complete saved-query/runbook set exists. README mentions a staging deploy
-command that package scripts do not provide.
+Operations requires a remotely proven staging path and queryable tripwires with
+recovery direction. The repository now defines the isolated environment, branch
+policy, artifact-first scripts, and bootstrap procedure, but the remote Worker,
+resources, secrets, domain, GitHub branch trigger, and smoke evidence remain
+maintainer-controlled and unverified. The saved-query/runbook set is also still
+incomplete.
 
 ## Intent
 
@@ -16,10 +18,13 @@ deployed evidence and owned recovery procedures.
 
 ## Implementation
 
-[`wrangler.jsonc`](../../wrangler.jsonc) defines no staging environment and
-[`package.json`](../../package.json) defines no `deploy:staging` script.
-`scripts/do-metrics.sh` covers only part of the required DLQ, sync, WebSocket,
-quota, and deletion signals and is not a portable fail-closed runbook.
+[`wrangler.jsonc`](../../wrangler.jsonc) defines `env.staging` with isolated
+stateful resources. [`package.json`](../../package.json) provides staging build,
+artifact verification, migration, and deployment commands, and
+[`docs/staging.md`](../../docs/staging.md) owns the maintainer bootstrap and
+branch procedure. `scripts/do-metrics.sh` still covers only part of the required
+DLQ, sync, WebSocket, quota, and deletion signals and is not a portable
+fail-closed runbook.
 
 ## Direction
 
@@ -27,6 +32,7 @@ update implementation
 
 ## Resolution Signal
 
-Delete this delta when each critical change has an implemented staging or
-bounded-production path and every required tripwire has a portable, fail-closed
-query, owner, threshold, and recovery procedure.
+Delete this delta when the staging Worker is remotely provisioned and a recorded
+rehearsal proves the critical browser/sync/Queue/MCP boundaries, and every
+required tripwire has a portable, fail-closed query, owner, threshold, and
+recovery procedure.

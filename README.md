@@ -172,8 +172,12 @@ bun run db:migrate:local # Apply migrations locally
 
 ```bash
 bun run deploy           # Production deploy (migrations + worker)
-bun run deploy:staging   # Staging deploy
+bun run deploy:staging   # Build, certify, migrate, and deploy staging
 ```
+
+Staging is an isolated Cloudflare Worker deployed from the `staging` branch.
+See [`docs/staging.md`](docs/staging.md) for bootstrap and GitHub integration
+settings.
 
 ## Diagrams
 

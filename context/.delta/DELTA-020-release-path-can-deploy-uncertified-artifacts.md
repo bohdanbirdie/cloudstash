@@ -8,7 +8,9 @@ Status: open
 build or certify. Depending on ignored local state, Wrangler may deploy stale
 generated output or raw root source. CI now builds, checks the declared Worker
 upload budget, and smoke-tests generated output, but authenticated pricing
-checks remain outside the release boundary.
+checks remain outside the release boundary. The staging path now builds and
+certifies first and rejects a production-shaped artifact before remote mutation;
+the default production path still has the original ordering gap.
 
 ## Intent
 
@@ -21,7 +23,10 @@ artifact-first certification and CI coverage before remote mutation.
 before Vite build and `deploy` as remote migration followed by `wrangler deploy`.
 [CI](../../.github/workflows/ci.yml) now runs `bun run build`, but
 [`check:pricing`](../../package.json) remains outside CI and release. Generated
-deploy redirects/output are ignored local artifacts.
+deploy redirects/output are ignored local artifacts. The staging scripts and
+[`verify-staging-artifact.ts`](../../scripts/verify-staging-artifact.ts) provide
+the target artifact-first shape without yet changing production release
+authority.
 
 ## Direction
 
