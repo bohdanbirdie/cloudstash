@@ -7,7 +7,7 @@
   ],
   "type": "module",
   "scripts": {
-    "dev": "bunx @kitlangton/motel start && vp dev --port 3000 --host",
+    "dev": "vp dev --port 3000 --host",
     "dev:published": "LIVESTORE_PUBLISHED=1 bun run dev",
     "dev:infra": "bun run --parallel dev:emulate dev:tunnel dev:dashboard dev:raycast",
     "dev:emulate": "bunx emulate start --service google --seed emulate.config.yaml",
