@@ -24,11 +24,13 @@ authority. They are intentionally separate from automated implementation work.
   tracking opt-outs, billing intervals/consent, and remaining launch clauses.
 - Agent work may make factual copy accurate but cannot provide legal approval.
 
-## Certified release or staging choice
+## Provision and certify staging
 
-- Choose the release evidence path for behavior not provable locally: a real
-  isolated staging environment or a bounded maintainer-run production check.
-- Preserve the no-remote-agent rule.
+- Bootstrap the isolated environment described in
+  [`docs/staging.md`](../staging.md), including secrets, provider callbacks,
+  custom domain, `staging` branch, and Cloudflare Builds connection.
+- Run and record the first browser/sync/Queue/MCP rehearsal. Preserve the
+  no-remote-agent rule.
 
 ## Alert destination and owner
 

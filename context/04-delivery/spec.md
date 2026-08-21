@@ -79,6 +79,14 @@ CS.DEL-R13; see
 SQLite classes. A change to existing DO-owned LiveStore persistence requires the
 upstream persistence format/version strategy, not only local state cleanup.
 
+Staging uses the narrower artifact-first path: `build:staging` selects the Vite
+Cloudflare environment and performs normal bundle certification;
+`deploy:staging:artifact` verifies that generated output names the staging
+Worker, origin, D1 database, and Queue before applying staging migrations and
+deploying that artifact. Workers Builds maps the long-lived `staging` branch to
+this named environment after maintainer-controlled remote bootstrap. Production
+release ordering remains open under DELTA-020.
+
 Remote migration/deploy/secret operations are maintainer-controlled. Agent and
 ordinary local commands stop at local migrations, checks, builds, and explicit
 review artifacts unless the maintainer separately authorizes a remote action.
