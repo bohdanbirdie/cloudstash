@@ -55,9 +55,6 @@ kanban-plugin: board
 
 ## In Progress
 
-- [ ] [[todos/develop-mcp-server|Ship stateless remote MCP for Pro]] — remaining human gates are a named MCP JAM round trip and a production-shaped migration dry run.
-- [ ] [[todos/consolidate-link-operations-in-link-processor|Consolidate link operations in LinkProcessorDO]] — remove the duplicate WorkspaceLinksDO/LiveStore replica and route REST + MCP through the existing workspace owner.
-
 ## Human Operations
 
 - [ ] [[todos/human-launch-operations|Verify production Queue retention and recovery]] — durability code is merged; record plan/retention evidence and run the recovery drill.
@@ -68,6 +65,8 @@ kanban-plugin: board
 
 ## Done
 
+- [x] [[todos/develop-mcp-server|Ship stateless remote MCP for Pro]] — deployed for Pro with OAuth discovery/consent, stateless link-management tools, API parity, request-time authorization, and successful MCP JAM plus production Codex smoke tests.
+- [x] [[todos/consolidate-link-operations-in-link-processor|Consolidate link operations in LinkProcessorDO]] — REST and MCP now reuse the existing workspace-owned LiveStore replica through typed `LinkProcessorDO` RPCs; the duplicate WorkspaceLinksDO was removed.
 - [x] [[todos/metadata-endpoint-hardening|Align metadata preview with the authenticated bounded-fetch contract]] — the internal preview now requires current workspace/session authorization, uses dedicated per-user abuse protection and bounded fetches, returns non-cacheable responses, and leaves LinkProcessor authoritative.
 - [x] [[todos/consolidated-paywall|Consolidated paywall / upgrade acquisition]] — shipped; Settings remains plan management, and residual attribution is tracked separately.
 - [x] [[todos/publish-raycast-extension|Publish Raycast extension to Store]] — published through Raycast extensions PR #26889; server source/capability cleanup is tracked separately.

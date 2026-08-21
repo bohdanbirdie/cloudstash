@@ -1,5 +1,7 @@
 # Consolidate link operations in LinkProcessorDO
 
+Status: done and deployed with the stateless MCP release.
+
 ## Decision
 
 `LinkProcessorDO` remains the single Cloudflare-side owner of each workspace's

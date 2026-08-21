@@ -21,10 +21,13 @@ workspace access, entitlement, and tool scope.
 - [x] Keep tests hermetic and recheck access on every operation.
 - [x] Bound registration bodies, MCP messages, tool inputs, and result size.
 
-## Before merge
+## Release evidence
 
-- [ ] Run `0014` and `0015` against a production-shaped database copy.
-- [ ] Repeat the MCP JAM round trip on the final build and invoke read/write tools.
+- [x] Deploy `0014` and `0015`; production OAuth discovery, token exchange, and
+      authenticated MCP operations pass after migration.
+- [x] Repeat the MCP JAM round trip on the final build and invoke read/write tools.
+- [x] Run a production Codex smoke test across list, save, get, tag, state update,
+      and search; confirm the link in the synchronized app UI.
 - [x] Run `bun run check`, `bun run test:unit`, `bun run test:e2e`,
       `bun run build`, and `bun run check:intent`.
 
