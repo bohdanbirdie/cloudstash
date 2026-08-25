@@ -18,9 +18,8 @@ const providerIds = (
     ...xCredentials,
   }).options.config.map(({ providerId }) => providerId);
 
-const googleProvider = (GOOGLE_BASE_URL?: string) =>
+const googleProvider = () =>
   oauthProvidersPlugin({
-    GOOGLE_BASE_URL,
     GOOGLE_CLIENT_ID: "google-client",
     GOOGLE_CLIENT_SECRET: "google-secret",
   }).options.config[0];
@@ -50,15 +49,6 @@ describe("OAuth provider registration", () => {
       userInfoUrl: "https://openidconnect.googleapis.com/v1/userinfo",
     });
     expect(googleProvider()).not.toHaveProperty("discoveryUrl");
-  });
-
-  it("derives fixed emulator endpoints from GOOGLE_BASE_URL", () => {
-    expect(googleProvider("http://localhost:4000/")).toMatchObject({
-      accountIssuer: "http://localhost:4000",
-      authorizationUrl: "http://localhost:4000/o/oauth2/v2/auth",
-      tokenUrl: "http://localhost:4000/oauth2/token",
-      userInfoUrl: "http://localhost:4000/oauth2/v2/userinfo",
-    });
   });
 
   it.each([
