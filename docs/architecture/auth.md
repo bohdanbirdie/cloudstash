@@ -14,13 +14,9 @@ User → Google OAuth → Better Auth → Session Cookie → Approval Check → 
 
 ## Local Development
 
-For local dev without real Google credentials, use `emulate.dev` (OAuth emulator):
-
-```bash
-bun run dev:emulate   # Starts Google OAuth emulator on localhost:4000
-```
-
-Set `GOOGLE_BASE_URL=http://localhost:4000` in `.dev.vars`. See README for full setup.
+Local development uses the same Google OAuth endpoints as deployed environments.
+Register the loopback callback and set local `GOOGLE_CLIENT_ID` and
+`GOOGLE_CLIENT_SECRET` values as described in the README.
 
 ## Session Strategy
 

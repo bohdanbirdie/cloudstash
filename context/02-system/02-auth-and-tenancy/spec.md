@@ -75,6 +75,8 @@ remain advertised there as well. Consent remains bound to its signed query and
 workspace across redirects. Each request verifies JWT/DPoP locally and rechecks
 access, entitlement, and scope; existing JWTs expire within five minutes.
 Google uses fixed endpoints, so auth initialization needs no discovery request.
+Local development uses those same endpoints with a registered loopback callback;
+there is no alternate Google issuer or base-URL override.
 
 ## Roles and Permissions
 

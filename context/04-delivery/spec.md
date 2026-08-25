@@ -22,6 +22,12 @@ own pnpm lock/tooling and is initialized through `scripts/ensure-livestore.sh`.
 The Raycast extension is a separate published repository and shares only HTTP
 contracts.
 
+Local provider configuration is represented by committed 1Password references
+in `.dev.vars.example`. `bun run env:sync` explicitly and atomically materializes
+the ignored `.dev.vars` with mode `0600`; failed resolution preserves the
+previous local file and no plaintext backup is retained. Normal development
+starts do not contact 1Password.
+
 ## LiveStore Source Linking
 
 [`tools/livestore-local.ts`](../../tools/livestore-local.ts) reads each vendored
@@ -63,9 +69,11 @@ record shape, and evidence-link hygiene. Semantic quality remains review work.
 The main workflow checks out submodules and uses frozen Bun and pnpm installs;
 the vendored pnpm content store is cached by its lockfile. Quality,
 unit/typecheck, Worker E2E, and extension/production-build certification run as
-parallel jobs on Node 25. The workflow has no Markdown path ignore, so
-Intent-only changes trigger CI. Pricing reconciliation remains outside the CI
-release evidence; see
+parallel jobs on Node 25. CI runs for pull requests targeting `staging` or
+`main`, and for pushes to `main`. A push to `staging` is certified by the
+rolling promotion PR's synchronization run rather than a duplicate push run.
+The workflow has no Markdown path ignore, so Intent-only changes trigger CI.
+Pricing reconciliation remains outside the CI release evidence; see
 [DELTA-020](../.delta/DELTA-020-release-path-can-deploy-uncertified-artifacts.md).
 
 ## Migrations and Deploy
