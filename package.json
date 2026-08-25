@@ -179,34 +179,6 @@
     "vitest": "4.1.10"
   },
   "packageManager": "bun@1.3.14",
-  "cloudflare": {
-    "bindings": {
-      "GOOGLE_CLIENT_ID": {
-        "description": "Google OAuth Client ID from [Google Cloud Console](https://console.cloud.google.com/apis/credentials)"
-      },
-      "GOOGLE_CLIENT_SECRET": {
-        "description": "Google OAuth Client Secret"
-      },
-      "BETTER_AUTH_SECRET": {
-        "description": "Random string (32+ chars). Generate with: openssl rand -hex 32"
-      },
-      "BETTER_AUTH_URL": {
-        "description": "Public site origin (set as a plain var in wrangler.jsonc, e.g. https://cloudstash.dev). Local dev overrides via .dev.vars."
-      },
-      "RESEND_API_KEY": {
-        "description": "API key from [Resend](https://resend.com) for approval emails"
-      },
-      "EMAIL_FROM": {
-        "description": "Email sender address (e.g. YourApp <noreply@yourdomain.com>)"
-      },
-      "X_CLIENT_ID": {
-        "description": "X (Twitter) OAuth 2.0 Client ID from https://developer.x.com"
-      },
-      "X_CLIENT_SECRET": {
-        "description": "X (Twitter) OAuth 2.0 Client Secret"
-      }
-    }
-  },
   "trustedDependencies": [
     "esbuild",
     "workerd",
