@@ -16,7 +16,7 @@ Active.
 | Telegram         | webhook secret + chat mapping to workspace key          | Queue                                                                | connect/check/confirm/status/disconnect; KV mapping |
 | Public API       | Bearer API key                                          | list/search/get/save/update via LinkProcessorDO; legacy ingest Queue | request-time capability and key checks              |
 | MCP clients      | OAuth 2.1 + PKCE/DCR; workspace consent                 | stateless HTTP; matching link operations via LinkProcessorDO         | re-consent/revoke; five-minute JWT                  |
-| X bookmarks      | linked encrypted OAuth account                          | per-user alarm poll → Queue                                          | pause/resume/disconnect                             |
+| X bookmarks      | linked encrypted OAuth account                          | per-user alarm poll → Queue                                          | reconcile/pause/resume/disconnect                   |
 
 ## MCP Clients
 
@@ -83,21 +83,35 @@ The X OAuth provider is available only when both `X_CLIENT_ID` and
 `X_CLIENT_SECRET` are non-empty. Missing or partial X configuration omits that
 provider without disabling Google, session, or MCP authentication.
 
-One `XBookmarkSyncDO` per user owns provider identity, status, watermark, retry
-state, and a 30-second alarm. On first connect it probes one newest bookmark and
-pins the watermark without import. Later polls probe for change, page at 50
-items until the watermark, enqueue unseen bookmarks oldest-first, then advance
-the watermark. Partial traversal does not advance it, but individual Queue-send
-failures are currently swallowed before advancement; this data-loss path is
-tracked by
-[DELTA-012](../../.delta/DELTA-012-x-watermark-advances-after-enqueue-failure.md).
+One `XBookmarkSyncDO` per user owns a bound workspace, provider identity,
+status, watermark, user pause preference, retry state, and a 30-second alarm.
+Its idempotent reconciliation boundary derives effective activity from the
+linked X account, the bound workspace's current `xBookmarkSync` capability, and
+the independent pause preference. The explicit OAuth return reconciles
+immediately. Stripe/admin entitlement changes enqueue at-least-once X
+reconciliation messages; every alarm
+reconciles before provider I/O; and a daily scan of linked X accounts enqueues
+repair messages for missed delivery. An established workspace binding wins over
+later repair messages for another membership, so one per-user poller cannot be
+rebound nondeterministically. If Billing confirms that the bound workspace no
+longer exists, reconciliation suspends polling, removes the alarm, and releases
+that stale binding so a later explicit signal can bind a valid workspace. Pause
+and resume complete only after the durable preference and alarm transition
+succeeds; transient DO/storage failures remain retryable service failures.
+
+On first entitled connect the DO probes one newest bookmark and pins the
+watermark without import. Later polls probe for change, page at 50 items until
+the watermark, enqueue unseen bookmarks oldest-first, then advance the
+watermark. Partial traversal does not advance it, but individual Queue-send
+failures halt the poll. When an older bookmark was already enqueued before a
+later failure, the DO checkpoints that successful prefix so the next poll
+retries the failed bookmark without duplicating or skipping earlier work.
 401/402 require reconnect; 429 honors provider retry;
 other failures use bounded backoff whose attempt counter currently resets on DO
 wake.
 
 The official API exposes only roughly the 800 most recent bookmarks and no
 bookmark-created timestamp or server-side incremental filter. Full historical
-sync is not a supported contract. The current alarm path does not recheck the
-workspace entitlement after downgrade, contrary to the entitlement requirement;
-this is tracked by
-[DELTA-015](../../.delta/DELTA-015-ongoing-integrations-bypass-entitlement-rechecks.md).
+sync is not a supported contract. The lifecycle choice and deferred
+transactional-outbox threshold are recorded in
+[decision 0001](./.decisions/0001-reconcile-x-sync-from-signals-and-repair.md).

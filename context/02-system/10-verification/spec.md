@@ -37,6 +37,11 @@ stateful bindings. Sync tests read the backend eventlog from fresh stubs. Forced
 idle-eviction tests call `abortAllDurableObjects()` only after quiescing relevant
 live pull, discard pre-abort stubs, and inspect a persisted owner after wake.
 This specifically targets fire-and-forget fibers and store reconstruction.
+X reconciliation tests drive authenticated entitlement changes and scheduled repair
+through the configured local Queue producer and consumer before inspecting the
+real per-user Durable Object's state and alarm. Focused failure-path tests use
+explicit typed dependency implementations and call recorders rather than
+framework-level function, module, or global mocks.
 
 Provider-heavy AI is stubbed where the target contract permits. Timing-dependent
 pipeline settlement without a hermetic stub is not accepted as sync durability
@@ -45,7 +50,7 @@ evidence.
 ## Known Coverage Limits
 
 Current Worker tests prove many direct handler/DO paths but do not yet certify
-all platform behavior implied by their names: Queue tests call the exported
+all platform behavior implied by their names: Link Queue tests call the exported
 batch handler with constructed messages; deletion completion tests do not seed
 and inspect every storage owner; some sync-auth assertions accept any status
 other than one malformed-request code. These limits are tracked in

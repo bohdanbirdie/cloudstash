@@ -9,6 +9,7 @@ kanban-plugin: board
 - [ ] [[todos/canonical-url-identity|Canonical URL identity across every capture path]] — prevent new duplicates first; historical reconciliation remains a separate decision.
 - [ ] Complete deletion data lifecycle and minimize telemetry — [[todos/account-deletion|reliable account deletion]] plus [[todos/telemetry-minimization|purpose-bound collection]].
 - [ ] [[todos/paid-capability-enforcement|Enforce paid capabilities and budgets at operation time]] — current access/capability at authoritative operations, atomic cost controls, and safe long-lived-session revocation.
+- [ ] Bug: Free workspaces can manually generate weekly digests — enforce `weeklyDigest` at operation time and cover Free/paid manual-trigger paths; complete lifecycle scope remains tracked in [DELTA-037](../context/.delta/DELTA-037-weekly-digest-entitlement-lifecycle-is-incomplete.md).
 - [ ] [[todos/admin-purchase-attribution|Extend admin purchase attribution]] — bounded aggregate funnel evidence in the existing dashboard.
 - [ ] [[todos/free-ai-summary-allowance|Plan a bounded Free AI-summary allowance]] — saved-link count remains unlimited; exhaustion preserves the link.
 - [ ] [[todos/initial-sync-blocking|Research large-Vault bootstrap]] — benchmark WebSocket vs supported HTTP replay, BootStatus/timeout UX, and upstream snapshot-at-head feasibility.

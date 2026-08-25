@@ -42,6 +42,7 @@ export const createAuth = (env: Env, db: Database) => {
         // will never match the user's Google email. Linking only runs from an
         // already-authenticated session, so the security risk is minimal.
         allowDifferentEmails: true,
+        trustedProviders: ["x"],
       },
     },
     advanced: {

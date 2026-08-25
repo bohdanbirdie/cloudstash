@@ -1,4 +1,4 @@
-import { Cause, Effect, Schema } from "effect";
+import { Cause, Effect, Option, Schema } from "effect";
 
 import { AppLayerLive } from "./auth/service";
 import { OrgId } from "./db/branded";
@@ -40,6 +40,8 @@ export class QueueProcessError extends Schema.TaggedErrorClass<QueueProcessError
         Effect.succeed("Queue message processing failed")
       )
     ),
+    storeId: OrgId,
+    url: Schema.String,
     cause: Schema.Defect(),
   }
 ) {}
@@ -77,14 +79,18 @@ export interface LinkProcessorBinding {
  * happens — no need for a worker-side gate.
  */
 const processMessage = (
-  msg: Message<LinkQueueMessage>,
+  msg: Message,
   linkProcessor: LinkProcessorBinding,
   retryDelaySeconds: (attempts: number) => number
 ) =>
   Effect.gen(function* () {
     const body = yield* Schema.decodeUnknownEffect(LinkQueueMessageSchema)(
       msg.body
-    ).pipe(Effect.mapError((cause) => new QueueDecodeError({ cause })));
+    ).pipe(
+      Effect.catchTag("SchemaError", (cause) =>
+        Effect.fail(new QueueDecodeError({ cause }))
+      )
+    );
     const { storeId } = body;
     yield* Effect.annotateCurrentSpan({
       storeId,
@@ -95,7 +101,8 @@ const processMessage = (
     const stub = linkProcessor.get(doId);
 
     const result = yield* Effect.tryPromise({
-      catch: (error) => new QueueProcessError({ cause: error }),
+      catch: (cause) =>
+        new QueueProcessError({ cause, storeId: body.storeId, url: body.url }),
       try: () => stub.ingestAndProcess(body),
     });
 
@@ -117,8 +124,8 @@ const processMessage = (
         const delaySeconds = retryDelaySeconds(msg.attempts);
         return Effect.logError("Queue message failed").pipe(
           Effect.annotateLogs({
-            storeId: msg.body.storeId,
-            url: msg.body.url,
+            storeId: error.storeId,
+            url: error.url,
             attempt: msg.attempts,
             retryDelaySeconds: delaySeconds,
             ...safeErrorInfo(error),
@@ -142,7 +149,7 @@ const processMessage = (
   );
 
 export const handleQueueBatchEffect = (
-  batch: MessageBatch<LinkQueueMessage>,
+  batch: MessageBatch,
   linkProcessor: LinkProcessorBinding
 ) =>
   Effect.forEach(
@@ -152,14 +159,16 @@ export const handleQueueBatchEffect = (
   );
 
 export const handleDlqBatchEffect = (
-  batch: MessageBatch<LinkQueueMessage>,
+  batch: MessageBatch,
   linkProcessor: LinkProcessorBinding
 ) =>
   Effect.forEach(
     batch.messages,
     (msg) =>
       Effect.gen(function* () {
-        const body = msg.body as Partial<LinkQueueMessage> | null | undefined;
+        const body = Schema.decodeUnknownOption(LinkQueueMessageSchema)(
+          msg.body
+        ).pipe(Option.getOrUndefined);
         yield* Effect.logError("Dead-letter queue re-drive").pipe(
           Effect.annotateLogs({
             storeId: body?.storeId,
@@ -172,12 +181,8 @@ export const handleDlqBatchEffect = (
     { concurrency: BATCH_CONCURRENCY, discard: true }
   );
 
-/**
- * Production entry point. Provides AppLayerLive (DbClient, AuthClient,
- * DeletionRuntime, OtelTracing); logs structured Cause on unexpected defects.
- */
 export const handleQueueBatch = (
-  batch: MessageBatch<LinkQueueMessage>,
+  batch: MessageBatch,
   env: Env
 ): Promise<void> =>
   Effect.runPromise(
@@ -197,10 +202,7 @@ export const handleQueueBatch = (
     )
   );
 
-export const handleDlqBatch = (
-  batch: MessageBatch<LinkQueueMessage>,
-  env: Env
-): Promise<void> =>
+export const handleDlqBatch = (batch: MessageBatch, env: Env): Promise<void> =>
   Effect.runPromise(
     handleDlqBatchEffect(batch, env.LINK_PROCESSOR_DO).pipe(
       Effect.tapCause((cause) =>

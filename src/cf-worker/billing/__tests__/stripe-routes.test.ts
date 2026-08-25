@@ -1,10 +1,15 @@
-import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer, References } from "effect";
+import { assert, describe, expect, it } from "@effect/vitest";
+import { Effect, Layer, Ref, References } from "effect";
 import type StripeSdk from "stripe";
 
 import { AuthClient } from "../../auth/service";
+import { OrgId, UserId } from "../../db/branded";
 import { DbClient } from "../../db/service";
-import type { Env } from "../../shared";
+import {
+  XReconcileQueue,
+  XReconcileQueueError,
+} from "../../x-sync/reconcile-queue";
+import type { XReconcileMessage } from "../../x-sync/reconcile-queue";
 import { StripeApiError, WebhookVerificationError } from "../errors";
 import { checkoutProgram } from "../routes/checkout";
 import { successProgram } from "../routes/success";
@@ -12,16 +17,35 @@ import { webhookProgram } from "../routes/webhook";
 import { StripeClient } from "../stripe-client";
 import type { StripeClientShape } from "../stripe-client";
 
-const ENV = { PUBLIC_URL: "https://app.test" } as unknown as Env;
+const WELCOME_URL = "https://app.test/welcome";
+const BASE_URL = "https://app.test";
 const ORG_UUID = "11111111-1111-4111-8111-111111111111";
 
 const quiet = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   effect.pipe(Effect.provideService(References.MinimumLogLevel, "None"));
 
+const reconcileQueueLayer = Layer.succeed(
+  XReconcileQueue,
+  XReconcileQueue.of({ send: () => Effect.void })
+);
+
 const run = <R>(
-  program: Effect.Effect<Response, never, R>,
-  layer: Layer.Layer<R>
-) => quiet(program.pipe(Effect.provide(layer)));
+  program: Effect.Effect<Response, never, R | XReconcileQueue>,
+  layer: Layer.Layer<R>,
+  queue: Layer.Layer<XReconcileQueue> = reconcileQueueLayer
+) => quiet(program.pipe(Effect.provide(Layer.mergeAll(layer, queue))));
+
+const recordingQueue = Effect.fnUntraced(function* () {
+  const messages = yield* Ref.make<ReadonlyArray<XReconcileMessage>>([]);
+  const layer = Layer.succeed(
+    XReconcileQueue,
+    XReconcileQueue.of({
+      send: (message) =>
+        Ref.update(messages, (current) => [...current, message]),
+    })
+  );
+  return { layer, messages };
+});
 
 const notImpl = (): Effect.Effect<never> =>
   Effect.die("StripeClient method not stubbed in test");
@@ -57,7 +81,8 @@ const loggedIn: Session = {
 // (by-id for customer, by-customer for sync).
 const orgDb = (
   org: Record<string, unknown> | undefined,
-  updates: Record<string, unknown>[] = []
+  updates: Record<string, unknown>[] = [],
+  linkedUsers: ReadonlyArray<string> = []
 ) =>
   Layer.succeed(DbClient, {
     query: { organization: { findFirst: () => Promise.resolve(org) } },
@@ -67,6 +92,14 @@ const orgDb = (
           updates.push(vals);
           return Promise.resolve(undefined);
         },
+      }),
+    }),
+    selectDistinct: () => ({
+      from: () => ({
+        innerJoin: () => ({
+          where: () =>
+            Promise.resolve(linkedUsers.map((userId) => ({ userId }))),
+        }),
       }),
     }),
   } as never);
@@ -165,9 +198,11 @@ describe("webhookProgram", () => {
     })
   );
 
-  it.effect("syncs and acknowledges an event carrying a customer", () =>
+  it.effect("syncs, enqueues X reconciliation, and acknowledges", () =>
     Effect.gen(function* () {
       const updates: Record<string, unknown>[] = [];
+      const queue = yield* recordingQueue();
+      const userId = UserId.make("x-linked-user");
       const res = yield* run(
         webhookProgram(post({ "stripe-signature": "sig" })),
         Layer.mergeAll(
@@ -175,12 +210,17 @@ describe("webhookProgram", () => {
             constructWebhookEvent: () => Effect.succeed(stripeEvent("cus_1")),
             listSubscriptions: () => Effect.succeed([]),
           }),
-          orgDb({ id: ORG_UUID, tier: "pro", tierSource: "stripe" }, updates)
-        )
+          orgDb({ id: ORG_UUID, tier: "pro", tierSource: "stripe" }, updates, [
+            userId,
+          ])
+        ),
+        queue.layer
       );
       expect(res.status).toBe(200);
-      // No active sub → downgrade applied.
       expect(updates[0]?.tier).toBe("free");
+      assert.deepStrictEqual(yield* Ref.get(queue.messages), [
+        { userId, orgId: OrgId.make(ORG_UUID) },
+      ]);
     })
   );
 
@@ -203,6 +243,45 @@ describe("webhookProgram", () => {
       );
       expect(res.status).toBe(500);
     })
+  );
+
+  it.effect(
+    "returns 500 so Stripe retries when reconciliation cannot enqueue",
+    () =>
+      Effect.gen(function* () {
+        const userId = UserId.make("x-linked-user");
+        const orgId = OrgId.make(ORG_UUID);
+        const failedQueue = Layer.succeed(
+          XReconcileQueue,
+          XReconcileQueue.of({
+            send: (message) =>
+              Effect.fail(
+                new XReconcileQueueError({
+                  message: "queue unavailable",
+                  userId: message.userId,
+                  orgId: message.orgId,
+                  cause: new Error("queue unavailable"),
+                })
+              ),
+          })
+        );
+        const res = yield* run(
+          webhookProgram(post({ "stripe-signature": "sig" })),
+          Layer.mergeAll(
+            stripeStub({
+              constructWebhookEvent: () => Effect.succeed(stripeEvent("cus_1")),
+              listSubscriptions: () => Effect.succeed([]),
+            }),
+            orgDb(
+              { id: orgId, tier: "pro", tierSource: "stripe" },
+              [],
+              [userId]
+            )
+          ),
+          failedQueue
+        );
+        expect(res.status).toBe(500);
+      })
   );
 });
 
@@ -231,7 +310,7 @@ describe("checkoutProgram", () => {
   it.effect("returns 401 when not authenticated", () =>
     Effect.gen(function* () {
       const res = yield* run(
-        checkoutProgram(post("pro"), ENV),
+        checkoutProgram(post("pro"), BASE_URL),
         Layer.mergeAll(stripeStub({}), authStub(null), orgDb(undefined))
       );
       expect(res.status).toBe(401);
@@ -241,7 +320,7 @@ describe("checkoutProgram", () => {
   it.effect("returns 400 when there is no active organization", () =>
     Effect.gen(function* () {
       const res = yield* run(
-        checkoutProgram(post("pro"), ENV),
+        checkoutProgram(post("pro"), BASE_URL),
         Layer.mergeAll(
           stripeStub({}),
           authStub({
@@ -258,7 +337,7 @@ describe("checkoutProgram", () => {
   it.effect("returns 400 for an unknown interval", () =>
     Effect.gen(function* () {
       const res = yield* run(
-        checkoutProgram(postRaw({ tier: "pro", interval: "weekly" }), ENV),
+        checkoutProgram(postRaw({ tier: "pro", interval: "weekly" }), BASE_URL),
         Layer.mergeAll(stripeStub({}), authStub(loggedIn), orgDb(customerOrg))
       );
       expect(res.status).toBe(400);
@@ -270,7 +349,7 @@ describe("checkoutProgram", () => {
       const res = yield* run(
         checkoutProgram(
           postRaw({ tier: "enterprise", interval: "month" }),
-          ENV
+          BASE_URL
         ),
         Layer.mergeAll(stripeStub({}), authStub(loggedIn), orgDb(customerOrg))
       );
@@ -281,7 +360,7 @@ describe("checkoutProgram", () => {
   it.effect("returns 400 when the interval is missing", () =>
     Effect.gen(function* () {
       const res = yield* run(
-        checkoutProgram(postRaw({ tier: "pro" }), ENV),
+        checkoutProgram(postRaw({ tier: "pro" }), BASE_URL),
         Layer.mergeAll(stripeStub({}), authStub(loggedIn), orgDb(customerOrg))
       );
       expect(res.status).toBe(400);
@@ -291,7 +370,7 @@ describe("checkoutProgram", () => {
   it.effect("returns 500 when the tier has no configured price", () =>
     Effect.gen(function* () {
       const res = yield* run(
-        checkoutProgram(post("pro"), ENV),
+        checkoutProgram(post("pro"), BASE_URL),
         Layer.mergeAll(
           stripeStub({ priceForTier: () => null }),
           authStub(loggedIn),
@@ -305,7 +384,7 @@ describe("checkoutProgram", () => {
   it.effect("returns the checkout url on the happy path", () =>
     Effect.gen(function* () {
       const res = yield* run(
-        checkoutProgram(post("pro"), ENV),
+        checkoutProgram(post("pro"), BASE_URL),
         Layer.mergeAll(
           stripeStub({
             priceForTier: () => "price_pro" as never,
@@ -330,7 +409,7 @@ describe("checkoutProgram", () => {
     Effect.gen(function* () {
       let seenInterval: string | undefined;
       const res = yield* run(
-        checkoutProgram(post("pro", "year"), ENV),
+        checkoutProgram(post("pro", "year"), BASE_URL),
         Layer.mergeAll(
           stripeStub({
             priceForTier: (_tier, interval) => {
@@ -361,7 +440,7 @@ describe("successProgram", () => {
     Effect.gen(function* () {
       const updates: Record<string, unknown>[] = [];
       const res = yield* run(
-        successProgram(get(), ENV),
+        successProgram(get(), WELCOME_URL),
         Layer.mergeAll(
           stripeStub({ listSubscriptions: () => Effect.succeed([]) }),
           authStub(loggedIn),
@@ -384,7 +463,7 @@ describe("successProgram", () => {
   it.effect("still redirects when there is no Stripe customer yet", () =>
     Effect.gen(function* () {
       const res = yield* run(
-        successProgram(get(), ENV),
+        successProgram(get(), WELCOME_URL),
         Layer.mergeAll(
           stripeStub({}),
           authStub(loggedIn),
@@ -399,7 +478,7 @@ describe("successProgram", () => {
   it.effect("redirects to /welcome (not JSON) when the session is gone", () =>
     Effect.gen(function* () {
       const res = yield* run(
-        successProgram(get(), ENV),
+        successProgram(get(), WELCOME_URL),
         Layer.mergeAll(stripeStub({}), authStub(null), orgDb(undefined))
       );
       expect(res.status).toBe(302);
@@ -410,7 +489,7 @@ describe("successProgram", () => {
   it.effect("redirects even when the sync fails (webhook backstops)", () =>
     Effect.gen(function* () {
       const res = yield* run(
-        successProgram(get(), ENV),
+        successProgram(get(), WELCOME_URL),
         Layer.mergeAll(
           stripeStub({
             listSubscriptions: () =>

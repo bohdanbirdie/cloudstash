@@ -33,6 +33,13 @@ export default defineConfig({
       remoteBindings: false,
       wrangler: { configPath: "./wrangler.jsonc" },
       miniflare: {
+        queueConsumers: {
+          "cloudstash-x-reconcile": {
+            maxBatchSize: 10,
+            maxBatchTimeout: 0.05,
+            maxRetries: 5,
+          },
+        },
         bindings: {
           BETTER_AUTH_SECRET: "test-secret-for-jwt-signing-32chars",
           BETTER_AUTH_URL: "http://localhost",

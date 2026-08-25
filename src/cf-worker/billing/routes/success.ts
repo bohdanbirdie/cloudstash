@@ -10,7 +10,7 @@ import { appBaseUrl, requireOrg } from "./shared";
 
 const successRequest = Effect.fn("Billing.success")(function* (
   request: Request,
-  env: Env
+  welcomeUrl: string
 ) {
   const { orgId } = yield* requireOrg(request.headers);
   yield* Effect.annotateCurrentSpan({ orgId: maskId(orgId) });
@@ -31,16 +31,16 @@ const successRequest = Effect.fn("Billing.success")(function* (
       ),
   });
 
-  return Response.redirect(`${appBaseUrl(request, env)}/welcome`, 302);
+  return Response.redirect(welcomeUrl, 302);
 });
 
-export const successProgram = (request: Request, env: Env) =>
-  successRequest(request, env).pipe(
+export const successProgram = (request: Request, welcomeUrl: string) =>
+  successRequest(request, welcomeUrl).pipe(
     // Browser-only endpoint (Checkout + Portal redirects): land on a page, never JSON.
     Effect.catch((error) =>
       Effect.logWarning("Billing.success failed; redirecting to /welcome").pipe(
         Effect.annotateLogs(safeErrorInfo(error)),
-        Effect.as(Response.redirect(`${appBaseUrl(request, env)}/welcome`, 302))
+        Effect.as(Response.redirect(welcomeUrl, 302))
       )
     )
   );
@@ -48,4 +48,7 @@ export const successProgram = (request: Request, env: Env) =>
 export const handleStripeSuccess = (
   request: Request,
   env: Env
-): Promise<Response> => runBilling(successProgram(request, env), env);
+): Promise<Response> => {
+  const welcomeUrl = `${appBaseUrl(request, env)}/welcome`;
+  return runBilling(successProgram(request, welcomeUrl), env);
+};

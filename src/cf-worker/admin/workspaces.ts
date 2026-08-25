@@ -7,6 +7,8 @@ import type { OrgId } from "../db/branded";
 import { maskId } from "../log-utils";
 import { runHandler } from "../runtime";
 import type { Env } from "../shared";
+import { XReconcileQueue } from "../x-sync/reconcile-queue";
+import { enqueueOrgXReconcile } from "../x-sync/reconcile-triggers";
 
 class InvalidBodyError extends Schema.TaggedErrorClass<InvalidBodyError>()(
   "InvalidBodyError",
@@ -130,6 +132,7 @@ export const handleSetTier = (
       const body = yield* decodeBody(request, SetTierBody);
       const billing = yield* Billing;
       yield* billing.setTier(orgId, body.tier);
+      yield* enqueueOrgXReconcile(orgId);
       yield* Effect.annotateCurrentSpan({
         orgId: maskId(orgId),
         tier: body.tier,
@@ -139,6 +142,7 @@ export const handleSetTier = (
       );
       return Response.json({ success: true, tier: body.tier });
     }).pipe(
+      Effect.provide(XReconcileQueue.layer(env.X_RECONCILE_QUEUE)),
       Effect.withSpan("Admin.handleSetTier"),
       Effect.catchTags({
         InvalidBodyError: () => Effect.succeed(badBody()),
@@ -148,6 +152,7 @@ export const handleSetTier = (
             Effect.as(internalError())
           ),
         OrgNotFoundError: () => Effect.succeed(notFound()),
+        XReconcileQueueError: () => Effect.succeed(internalError()),
       })
     )
   );
@@ -163,6 +168,9 @@ export const handleSetOverride = (
       const body = yield* decodeBody(request, SetOverrideBody);
       const billing = yield* Billing;
       yield* billing.setOverride(orgId, body.key, body.value);
+      if (body.key === "xBookmarkSync") {
+        yield* enqueueOrgXReconcile(orgId);
+      }
       yield* Effect.annotateCurrentSpan({
         orgId: maskId(orgId),
         key: body.key,
@@ -177,6 +185,7 @@ export const handleSetOverride = (
       );
       return Response.json({ success: true });
     }).pipe(
+      Effect.provide(XReconcileQueue.layer(env.X_RECONCILE_QUEUE)),
       Effect.withSpan("Admin.handleSetOverride"),
       Effect.catchTags({
         InvalidBodyError: () => Effect.succeed(badBody()),
@@ -186,6 +195,7 @@ export const handleSetOverride = (
             Effect.as(internalError())
           ),
         OrgNotFoundError: () => Effect.succeed(notFound()),
+        XReconcileQueueError: () => Effect.succeed(internalError()),
       })
     )
   );
