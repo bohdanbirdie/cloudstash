@@ -22,6 +22,12 @@ own pnpm lock/tooling and is initialized through `scripts/ensure-livestore.sh`.
 The Raycast extension is a separate published repository and shares only HTTP
 contracts.
 
+Local provider configuration is represented by committed 1Password references
+in `.dev.vars.example`. `bun run env:sync` explicitly and atomically materializes
+the ignored `.dev.vars` with mode `0600`; failed resolution preserves the
+previous local file and no plaintext backup is retained. Normal development
+starts do not contact 1Password.
+
 ## LiveStore Source Linking
 
 [`tools/livestore-local.ts`](../../tools/livestore-local.ts) reads each vendored

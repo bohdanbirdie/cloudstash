@@ -79,39 +79,29 @@ export const getXUserInfo = Effect.fn("Auth.getXUserInfo")(function* (
 });
 
 const googleConfig = (
-  env: Pick<
-    Env,
-    "GOOGLE_BASE_URL" | "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET"
-  >
-): GenericOAuthConfig<"google"> => {
-  const baseUrl = (env.GOOGLE_BASE_URL ?? GOOGLE_ISSUER).replace(/\/+$/, "");
-  const emulated = env.GOOGLE_BASE_URL !== undefined;
-
-  return {
-    providerId: "google",
-    accountIssuer: emulated ? baseUrl : GOOGLE_ISSUER,
-    accountSubject: ({ profile }) => {
-      const subject = profile.sub;
-      if (
-        (typeof subject !== "string" && typeof subject !== "number") ||
-        String(subject).length === 0
-      ) {
-        throw new Error("Google user info is missing a stable subject");
-      }
-      return subject;
-    },
-    authorizationUrl: `${baseUrl}/o/oauth2/v2/auth`,
-    tokenUrl: emulated ? `${baseUrl}/oauth2/token` : GOOGLE_TOKEN_URL,
-    userInfoUrl: emulated
-      ? `${baseUrl}/oauth2/v2/userinfo`
-      : GOOGLE_USER_INFO_URL,
-    clientId: env.GOOGLE_CLIENT_ID,
-    clientSecret: env.GOOGLE_CLIENT_SECRET,
-    scopes: ["openid", "email", "profile"],
-    pkce: true,
-    overrideUserInfo: true,
-  };
-};
+  env: Pick<Env, "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET">
+): GenericOAuthConfig<"google"> => ({
+  providerId: "google",
+  accountIssuer: GOOGLE_ISSUER,
+  accountSubject: ({ profile }) => {
+    const subject = profile.sub;
+    if (
+      (typeof subject !== "string" && typeof subject !== "number") ||
+      String(subject).length === 0
+    ) {
+      throw new Error("Google user info is missing a stable subject");
+    }
+    return subject;
+  },
+  authorizationUrl: `${GOOGLE_ISSUER}/o/oauth2/v2/auth`,
+  tokenUrl: GOOGLE_TOKEN_URL,
+  userInfoUrl: GOOGLE_USER_INFO_URL,
+  clientId: env.GOOGLE_CLIENT_ID,
+  clientSecret: env.GOOGLE_CLIENT_SECRET,
+  scopes: ["openid", "email", "profile"],
+  pkce: true,
+  overrideUserInfo: true,
+});
 
 const xConfig = (
   env: Partial<Pick<Env, "X_CLIENT_ID" | "X_CLIENT_SECRET">>
@@ -137,10 +127,7 @@ const xConfig = (
 };
 
 export const oauthProvidersPlugin = (
-  env: Pick<
-    Env,
-    "GOOGLE_BASE_URL" | "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET"
-  > &
+  env: Pick<Env, "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET"> &
     Partial<Pick<Env, "X_CLIENT_ID" | "X_CLIENT_SECRET">>
 ) => {
   const x = xConfig(env);

@@ -28,9 +28,8 @@ Save and organize links with AI-powered summaries. Full-stack TypeScript on Clou
 # Install dependencies
 bun install
 
-# Set up environment
-cp .dev.vars.example .dev.vars
-# Edit .dev.vars with your values (see Configuration below)
+# Refresh the ignored .dev.vars from 1Password
+bun run env:sync
 
 # Run database migrations
 bun run db:migrate:local
@@ -55,18 +54,20 @@ and local OAuth/MCP clients on that same origin.
 
 ### Optional
 
-| Variable                  | Description                                                                                       |
-| ------------------------- | ------------------------------------------------------------------------------------------------- |
-| `GOOGLE_BASE_URL`         | Google OAuth base URL (default: `https://accounts.google.com`). Set to emulator URL for local dev |
-| `OPENROUTER_API_KEY`      | [OpenRouter](https://openrouter.ai/keys) API key for AI chat and summaries                        |
-| `RESEND_API_KEY`          | [Resend](https://resend.com) API key for email notifications                                      |
-| `EMAIL_FROM`              | Custom sender address (default: `CloudStash <noreply@cloudstash.dev>`)                            |
-| `TELEGRAM_BOT_TOKEN`      | Telegram bot token from [@BotFather](https://t.me/BotFather)                                      |
-| `TELEGRAM_WEBHOOK_SECRET` | Random string for Telegram webhook validation                                                     |
-| `CF_ACCOUNT_ID`           | Cloudflare account ID (for observability scripts)                                                 |
-| `CF_ANALYTICS_TOKEN`      | Cloudflare analytics token (for DO metrics)                                                       |
+| Variable                  | Description                                                                |
+| ------------------------- | -------------------------------------------------------------------------- |
+| `OPENROUTER_API_KEY`      | [OpenRouter](https://openrouter.ai/keys) API key for AI chat and summaries |
+| `RESEND_API_KEY`          | [Resend](https://resend.com) API key for email notifications               |
+| `EMAIL_FROM`              | Custom sender address (default: `CloudStash <noreply@cloudstash.dev>`)     |
+| `TELEGRAM_BOT_TOKEN`      | Telegram bot token from [@BotFather](https://t.me/BotFather)               |
+| `TELEGRAM_WEBHOOK_SECRET` | Random string for Telegram webhook validation                              |
+| `CF_ACCOUNT_ID`           | Cloudflare account ID (for observability scripts)                          |
+| `CF_ANALYTICS_TOKEN`      | Cloudflare analytics token (for DO metrics)                                |
 
-**Local:** Set in `.dev.vars` (copy from `.dev.vars.example`).
+**Local:** Store values in the `Cloudstash` 1Password vault. References live in
+`.dev.vars.example`; run `bun run env:sync` on demand after changing a value to
+atomically refresh the ignored, mode-`0600` `.dev.vars` file. Normal dev starts
+use the last synced file and do not contact 1Password.
 **Production:** Set via `bunx wrangler secret put VARIABLE_NAME`.
 
 ## First Admin Setup
@@ -96,26 +97,6 @@ After this, the admin can approve other users through the UI.
 6. Add authorized redirect URIs:
    - Local: `http://127.0.0.1:3000/api/auth/callback/google`
    - Production: `https://your-worker.workers.dev/api/auth/callback/google`
-
-## Local Auth with Emulator (Optional)
-
-For local development without real Google credentials, use [emulate.dev](https://emulate.dev/) to run a local Google OAuth emulator:
-
-```bash
-# Terminal 1: Start the Google OAuth emulator
-bun run dev:emulate
-
-# Terminal 2: Start the dev server
-bun dev
-```
-
-Set `GOOGLE_BASE_URL=http://localhost:4000` in `.dev.vars` to point auth at the emulator. Remove it to use real Google OAuth.
-
-After signing in as `admin@cloudstash.test`, promote to admin:
-
-```bash
-bun run dev:make-admin
-```
 
 ## Telegram Bot Setup (Optional)
 
