@@ -1,16 +1,10 @@
+import { Schema } from "effect";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import useSWR from "swr";
 
 import { authClient } from "@/lib/auth";
-
-interface XStatus {
-  connected: boolean;
-  xUsername?: string;
-  status?: "active" | "needs_reconnect" | "paused" | "disconnected";
-  syncEnabled?: boolean;
-  lastSyncedAt?: number | null;
-}
+import { XStatusResponse } from "@/lib/x-sync-status";
 
 type MutatingAction = "connect" | "pause" | "resume" | "disconnect" | null;
 
@@ -22,12 +16,12 @@ type MutatingAction = "connect" | "pause" | "resume" | "disconnect" | null;
 // hang silently.
 const CONNECT_LOCK_TIMEOUT_MS = 60_000;
 
-async function fetchXStatus(): Promise<XStatus> {
+async function fetchXStatus(): Promise<typeof XStatusResponse.Type> {
   const response = await fetch("/api/connect/x/status");
   if (!response.ok) {
     throw new Error("Failed to load X status");
   }
-  return response.json();
+  return Schema.decodeUnknownPromise(XStatusResponse)(await response.json());
 }
 
 export function useXStatus() {
@@ -67,9 +61,13 @@ export function useXStatus() {
     setMutatingAction("connect");
     connectStartedAt.current = Date.now();
     try {
+      const returnTo = `${window.location.pathname}${window.location.search}`;
+      const callbackURL = `/api/connect/x/complete?returnTo=${encodeURIComponent(
+        returnTo
+      )}`;
       await authClient.linkSocial({
         provider: "x",
-        callbackURL: window.location.pathname,
+        callbackURL,
       });
       // On success the browser navigates away. mutatingAction stays set
       // during the in-flight nav; the visibilitychange/timeout fallback

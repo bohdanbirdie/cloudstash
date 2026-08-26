@@ -36,15 +36,15 @@ Implemented gates include:
 - `publicApi` — links read and ingest;
 - `mcpServer` — every authenticated MCP exchange before protocol dispatch;
 - `integrations` — Telegram connection and related pairing surfaces;
-- `xBookmarkSync` — selected connect/resume handlers;
+- `xBookmarkSync` — OAuth completion, resume, X reconciliation, and
+  alarm-time checks;
 - `chatAgent` + `monthlyChatBudgetUsd` — agent auth and token reservation;
 - `aiSummary`/`xContentEnrichment` — LinkProcessorDO;
 - `weeklyDigest` — alarm scheduling/execution; manual trigger and tier-transition
   lifecycle remain incomplete.
 
-The matrix is not yet enforced at every ongoing stateful boundary: Telegram use,
-X direct OAuth/alarm polling, and some downgrade paths can continue without a
-fresh capability check; see
+The matrix is not yet enforced at every ongoing stateful boundary: Telegram use
+can continue without a fresh capability check; see
 [DELTA-015](../../.delta/DELTA-015-ongoing-integrations-bypass-entitlement-rechecks.md)
 and [DELTA-037](../../.delta/DELTA-037-weekly-digest-entitlement-lifecycle-is-incomplete.md).
 

@@ -22,7 +22,7 @@ interface DevelopersCardProps {
   isLoading: boolean;
   isGenerating: boolean;
   onGenerateKey: (name: string) => Promise<string | null>;
-  onRevokeKey: (keyId: string) => void;
+  onRevokeKey: (keyId: string) => Promise<boolean>;
 }
 
 export function DevelopersCard({

@@ -17,7 +17,7 @@ feedback/provenance.
 
 ## Implementation
 
-[`x-sync/effects.ts`](../../src/cf-worker/x-sync/effects.ts) places `text`,
+[`x-sync/poll.ts`](../../src/cf-worker/x-sync/poll.ts) places `text`,
 `authorId`, `createdAt`, and tweet ID into Queue `sourceMeta`; ingestion commits
 that string in `v2.LinkCreated` and materializes it on the link row.
 

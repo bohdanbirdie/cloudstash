@@ -90,7 +90,7 @@ upstream persistence format/version strategy, not only local state cleanup.
 Staging uses the narrower artifact-first path: `build:staging` selects the Vite
 Cloudflare environment and performs normal bundle certification;
 `deploy:staging:artifact` verifies that generated output names the staging
-Worker, origin, D1 database, and Queue before applying staging migrations and
+Worker, origin, D1 database, and Queues before applying staging migrations and
 deploying that artifact. Workers Builds maps the long-lived `staging` branch to
 this named environment after maintainer-controlled remote bootstrap. Ordinary
 PRs integrate into `staging`; daily automation maintains one rolling `staging`

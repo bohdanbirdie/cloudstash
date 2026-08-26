@@ -1,19 +1,18 @@
 import { describe, it } from "@effect/vitest";
-import { Effect, Result } from "effect";
+import { Effect, Result, Schema } from "effect";
 import { expect } from "vitest";
 
-import { UserId, XTweetId } from "../../db/branded";
-import { pollOnceEffect } from "../../x-sync/effects";
+import { UserId, XTweetId, XUserId } from "../../db/branded";
 import {
-  NoAccessTokenError,
   XApiError,
   XPaymentRequiredError,
   XRateLimitedError,
   XUnauthorizedError,
 } from "../../x-sync/errors";
+import { pollReconciledEffect } from "../../x-sync/poll";
+import { XSyncStateStore } from "../../x-sync/services/x-sync-state-store";
 import {
   baseLayers,
-  makeAuthLayer,
   makeQueueLayer,
   makeSnapshot,
   makeStoreLayer,
@@ -28,8 +27,23 @@ const tweet = (id: string) => ({
   text: id,
   author_id: X_USER,
 });
+const QueueSourceMeta = Schema.Struct({
+  tweetId: XTweetId,
+  authorId: XUserId,
+  text: Schema.String,
+  createdAt: Schema.optionalKey(Schema.String),
+});
 
-describe("pollOnceEffect", () => {
+const poll = Effect.fnUntraced(function* () {
+  const store = yield* XSyncStateStore;
+  const state = yield* store.read();
+  if (!state || !state.xUserId) {
+    return yield* Effect.die("test poll requires connected state");
+  }
+  return yield* pollReconciledEffect(USER_ID, ORG_ID, state, "access-token");
+});
+
+describe("pollReconciledEffect", () => {
   it.effect("returns newCount:0 when probe newestId === watermark", () => {
     const store = makeStoreLayer(
       makeSnapshot({ watermarkTweetId: XTweetId.make("t1") })
@@ -42,7 +56,7 @@ describe("pollOnceEffect", () => {
     ]);
     const queue = makeQueueLayer();
 
-    return pollOnceEffect(USER_ID).pipe(
+    return poll().pipe(
       Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
       Effect.tap((outcome) =>
         Effect.sync(() => {
@@ -61,35 +75,6 @@ describe("pollOnceEffect", () => {
   });
 
   it.effect(
-    "watermark idempotence with nextToken: returns ok WITHOUT walking pages when probe matches",
-    () => {
-      // Guards the early-return shortcut on `newestId === watermarkTweetId`
-      // — even if `nextToken` is set, we must NOT walk pagination.
-      const store = makeStoreLayer(
-        makeSnapshot({ watermarkTweetId: XTweetId.make("t1") })
-      );
-      const x = makeXApiLayer([
-        {
-          kind: "ok",
-          page: { data: [tweet("t1")], nextToken: "page2" },
-        },
-      ]);
-      const queue = makeQueueLayer();
-
-      return pollOnceEffect(USER_ID).pipe(
-        Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
-        Effect.tap(() =>
-          Effect.sync(() => {
-            expect(x.calls).toHaveLength(1);
-            expect(queue.calls).toEqual([]);
-            expect(store.rec.setWatermarkCalls).toEqual([]);
-          })
-        )
-      );
-    }
-  );
-
-  it.effect(
     "first-poll guard: pins watermark without enqueuing when watermark is null (regression for the cost-flood bug)",
     () => {
       const store = makeStoreLayer(makeSnapshot({ watermarkTweetId: null }));
@@ -101,7 +86,7 @@ describe("pollOnceEffect", () => {
       ]);
       const queue = makeQueueLayer();
 
-      return pollOnceEffect(USER_ID).pipe(
+      return poll().pipe(
         Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
         Effect.tap((outcome) =>
           Effect.sync(() => {
@@ -123,9 +108,7 @@ describe("pollOnceEffect", () => {
         makeSnapshot({ watermarkTweetId: XTweetId.make("t1") })
       );
       const x = makeXApiLayer([
-        // Probe (maxResults:1)
         { kind: "ok", page: { data: [tweet("t5")], nextToken: "page2" } },
-        // Walk page (maxResults:50 — research-driven cap)
         {
           kind: "ok",
           page: {
@@ -136,7 +119,7 @@ describe("pollOnceEffect", () => {
       ]);
       const queue = makeQueueLayer();
 
-      return pollOnceEffect(USER_ID).pipe(
+      return poll().pipe(
         Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
         Effect.tap((outcome) =>
           Effect.sync(() => {
@@ -147,11 +130,13 @@ describe("pollOnceEffect", () => {
               "https://x.com/i/status/t4",
               "https://x.com/i/status/t5",
             ]);
-            // Queue payload shape: every message carries storeId, source, sourceMeta
             for (const q of queue.calls) {
               expect(q.storeId).toBe(ORG_ID);
               expect(q.source).toBe("x_bookmark");
-              const meta = JSON.parse(q.sourceMeta) as Record<string, unknown>;
+              if (!q.sourceMeta) throw new Error("sourceMeta is required");
+              const meta = Schema.decodeUnknownSync(QueueSourceMeta)(
+                JSON.parse(q.sourceMeta)
+              );
               expect(meta).toHaveProperty("tweetId");
               expect(meta).toHaveProperty("authorId");
               expect(meta).toHaveProperty("text");
@@ -162,6 +147,58 @@ describe("pollOnceEffect", () => {
             expect(x.calls[1]?.paginationToken).toBe("page2");
           })
         )
+      );
+    }
+  );
+
+  it.effect(
+    "checkpoints successful sends and retries the failed bookmark without duplicates",
+    () => {
+      const store = makeStoreLayer(
+        makeSnapshot({ watermarkTweetId: XTweetId.make("t1") })
+      );
+      const x = makeXApiLayer([
+        { kind: "ok", page: { data: [tweet("t3")], nextToken: "page2" } },
+        {
+          kind: "ok",
+          page: {
+            data: [tweet("t2"), tweet("t1")],
+            nextToken: undefined,
+          },
+        },
+        { kind: "ok", page: { data: [tweet("t3")], nextToken: "retry" } },
+        {
+          kind: "ok",
+          page: { data: [tweet("t2")], nextToken: undefined },
+        },
+      ]);
+      const queue = makeQueueLayer({ failAtCalls: new Set([1]) });
+
+      const program = Effect.gen(function* () {
+        const error = yield* Effect.flip(poll());
+
+        expect(error._tag).toBe("XSyncSideEffectError");
+        expect(queue.calls.map((call) => call.url)).toEqual([
+          "https://x.com/i/status/t2",
+          "https://x.com/i/status/t3",
+        ]);
+        expect(store.rec.setWatermarkCalls).toEqual([XTweetId.make("t2")]);
+
+        const retried = yield* poll();
+        expect(retried).toMatchObject({ kind: "ok", newCount: 1 });
+        expect(queue.calls.map((call) => call.url)).toEqual([
+          "https://x.com/i/status/t2",
+          "https://x.com/i/status/t3",
+          "https://x.com/i/status/t3",
+        ]);
+        expect(store.rec.setWatermarkCalls).toEqual([
+          XTweetId.make("t2"),
+          XTweetId.make("t3"),
+        ]);
+      });
+
+      return program.pipe(
+        Effect.provide(baseLayers(store.layer, x.layer, queue.layer))
       );
     }
   );
@@ -185,13 +222,13 @@ describe("pollOnceEffect", () => {
           kind: "ok",
           page: {
             data: [tweet("t5"), tweet("t4"), tweet("t3"), tweet("t2")],
-            nextToken: undefined,
+            nextToken: "unused-after-watermark",
           },
         },
       ]);
       const queue = makeQueueLayer();
 
-      return pollOnceEffect(USER_ID).pipe(
+      return poll().pipe(
         Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
         Effect.tap((outcome) =>
           Effect.sync(() => {
@@ -227,79 +264,16 @@ describe("pollOnceEffect", () => {
       ]);
       const queue = makeQueueLayer();
 
-      return pollOnceEffect(USER_ID).pipe(
+      return poll().pipe(
         Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
         Effect.tap((outcome) =>
           Effect.sync(() => {
-            expect(outcome).toMatchObject({ kind: "ok", newCount: 0 });
-            // Critical: pagination was truncated before we found the
-            // watermark, so we MUST defer — neither enqueue nor advance.
+            expect(outcome).toEqual({
+              kind: "rate_limited",
+              retryAfterMs: 60_000,
+            });
             expect(queue.calls).toEqual([]);
             expect(store.rec.setWatermarkCalls).toEqual([]);
-          })
-        )
-      );
-    }
-  );
-
-  it.effect(
-    "in-walk error after finding watermark (which can't really happen) is safe — but guarded anyway",
-    () => {
-      // Edge case: probe + walk-page-1 cover everything back to the watermark
-      // in one go; no second walk page is even attempted.
-      const store = makeStoreLayer(
-        makeSnapshot({ watermarkTweetId: XTweetId.make("t1") })
-      );
-      const x = makeXApiLayer([
-        { kind: "ok", page: { data: [tweet("t3")], nextToken: "p2" } },
-        {
-          kind: "ok",
-          page: {
-            data: [tweet("t2"), tweet("t1")],
-            nextToken: "p3", // there *would* be more, but watermark is found
-          },
-        },
-      ]);
-      const queue = makeQueueLayer();
-
-      return pollOnceEffect(USER_ID).pipe(
-        Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
-        Effect.tap((outcome) =>
-          Effect.sync(() => {
-            expect(outcome).toMatchObject({ kind: "ok", newCount: 2 });
-            expect(queue.calls.map((q) => q.url)).toEqual([
-              "https://x.com/i/status/t2",
-              "https://x.com/i/status/t3",
-            ]);
-            expect(x.calls).toHaveLength(2); // stops after watermark in page
-          })
-        )
-      );
-    }
-  );
-
-  it.effect(
-    "no orgId for user: skips enqueue but still advances watermark",
-    () => {
-      const store = makeStoreLayer(
-        makeSnapshot({ watermarkTweetId: XTweetId.make("t1") })
-      );
-      const x = makeXApiLayer([
-        { kind: "ok", page: { data: [tweet("t2")], nextToken: undefined } },
-      ]);
-      const queue = makeQueueLayer();
-
-      return pollOnceEffect(USER_ID).pipe(
-        Effect.provide(
-          baseLayers(store.layer, x.layer, queue.layer, { orgId: null })
-        ),
-        Effect.tap((outcome) =>
-          Effect.sync(() => {
-            expect(outcome).toMatchObject({ kind: "ok", newCount: 1 });
-            // No org → enqueue is a no-op (logged)
-            expect(queue.calls).toEqual([]);
-            // …but the watermark still advances so next poll doesn't re-fetch
-            expect(store.rec.setWatermarkCalls).toEqual([XTweetId.make("t2")]);
           })
         )
       );
@@ -321,7 +295,7 @@ describe("pollOnceEffect", () => {
     ]);
     const queue = makeQueueLayer();
 
-    return pollOnceEffect(USER_ID).pipe(
+    return poll().pipe(
       Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
       Effect.tap((outcome) =>
         Effect.sync(() => {
@@ -348,7 +322,7 @@ describe("pollOnceEffect", () => {
     ]);
     const queue = makeQueueLayer();
 
-    return pollOnceEffect(USER_ID).pipe(
+    return poll().pipe(
       Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
       Effect.tap((outcome) =>
         Effect.sync(() => {
@@ -373,7 +347,7 @@ describe("pollOnceEffect", () => {
       ]);
       const queue = makeQueueLayer();
 
-      return pollOnceEffect(USER_ID).pipe(
+      return poll().pipe(
         Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
         Effect.tap((outcome) =>
           Effect.sync(() => {
@@ -392,7 +366,7 @@ describe("pollOnceEffect", () => {
     ]);
     const queue = makeQueueLayer();
 
-    return pollOnceEffect(USER_ID).pipe(
+    return poll().pipe(
       Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
       Effect.tap((outcome) =>
         Effect.sync(() => {
@@ -403,57 +377,7 @@ describe("pollOnceEffect", () => {
     );
   });
 
-  it.effect("not_initialized when store is empty", () => {
-    const store = makeStoreLayer(null);
-    const x = makeXApiLayer([]);
-    const queue = makeQueueLayer();
-
-    return pollOnceEffect(USER_ID).pipe(
-      Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
-      Effect.tap((outcome) =>
-        Effect.sync(() => {
-          expect(outcome).toEqual({ kind: "not_initialized" });
-          expect(x.calls).toEqual([]);
-        })
-      )
-    );
-  });
-
-  it.effect(
-    "no access token: fails with NoAccessTokenError + marks status",
-    () => {
-      const store = makeStoreLayer(makeSnapshot());
-      const x = makeXApiLayer([]);
-      const queue = makeQueueLayer();
-
-      return pollOnceEffect(USER_ID).pipe(
-        Effect.provide(
-          baseLayers(store.layer, x.layer, queue.layer, {
-            auth: makeAuthLayer(null),
-          })
-        ),
-        Effect.result,
-        Effect.tap((result) =>
-          Effect.sync(() => {
-            expect(Result.isFailure(result)).toBe(true);
-            if (Result.isFailure(result)) {
-              expect(result.failure).toBeInstanceOf(NoAccessTokenError);
-              expect(result.failure._tag).toBe("NoAccessTokenError");
-              // userId context preserved on the tagged error
-              expect((result.failure as NoAccessTokenError).userId).toBe(
-                USER_ID
-              );
-            }
-            expect(store.rec.setStatusCalls).toEqual(["needs_reconnect"]);
-          })
-        )
-      );
-    }
-  );
-
   it.effect("XApiError on probe propagates (DO handles backoff)", () => {
-    // The DO's alarmEffect catches XApiError; pollOnceEffect itself should
-    // surface it as the typed failure so the caller decides the policy.
     const store = makeStoreLayer(makeSnapshot({ watermarkTweetId: null }));
     const x = makeXApiLayer([
       {
@@ -467,7 +391,7 @@ describe("pollOnceEffect", () => {
     ]);
     const queue = makeQueueLayer();
 
-    return pollOnceEffect(USER_ID).pipe(
+    return poll().pipe(
       Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
       Effect.result,
       Effect.tap((result) =>
@@ -475,7 +399,10 @@ describe("pollOnceEffect", () => {
           expect(Result.isFailure(result)).toBe(true);
           if (Result.isFailure(result)) {
             expect(result.failure).toBeInstanceOf(XApiError);
-            expect((result.failure as XApiError).status).toBe(503);
+            if (!(result.failure instanceof XApiError)) {
+              throw new Error("expected XApiError");
+            }
+            expect(result.failure.status).toBe(503);
           }
           expect(store.rec.setWatermarkCalls).toEqual([]);
         })

@@ -9,6 +9,7 @@ kanban-plugin: board
 - [ ] [[todos/canonical-url-identity|Canonical URL identity across every capture path]] — prevent new duplicates first; historical reconciliation remains a separate decision.
 - [ ] Complete deletion data lifecycle and minimize telemetry — [[todos/account-deletion|reliable account deletion]] plus [[todos/telemetry-minimization|purpose-bound collection]].
 - [ ] [[todos/paid-capability-enforcement|Enforce paid capabilities and budgets at operation time]] — current access/capability at authoritative operations, atomic cost controls, and safe long-lived-session revocation.
+- [ ] Bug: Free workspaces can manually generate weekly digests — enforce `weeklyDigest` at operation time and cover Free/paid manual-trigger paths; complete lifecycle scope remains tracked in [DELTA-037](../context/.delta/DELTA-037-weekly-digest-entitlement-lifecycle-is-incomplete.md).
 - [ ] [[todos/admin-purchase-attribution|Extend admin purchase attribution]] — bounded aggregate funnel evidence in the existing dashboard.
 - [ ] [[todos/free-ai-summary-allowance|Plan a bounded Free AI-summary allowance]] — saved-link count remains unlimited; exhaustion preserves the link.
 - [ ] [[todos/initial-sync-blocking|Research large-Vault bootstrap]] — benchmark WebSocket vs supported HTTP replay, BootStatus/timeout UX, and upstream snapshot-at-head feasibility.
@@ -22,6 +23,7 @@ kanban-plugin: board
 - [ ] [[todos/simplify-link-processor-wake|Simplify LinkProcessorDO wake path — retire the manual onPush trigger]] — redundant for warm/cold re-wake since upstream #1541–#1545 (KV-persisted `rpc-sub:` registry + store-less `syncUpdateRpc` recovery); still needed as first-subscribe bootstrap + cutover registry backfill. Pick up after the migration soaks in prod.
 - [ ] Remove the temp `liveLongTimers` probe (`src/cf-worker/sync/index.ts:23`) once prod `type:hibernation` GB-s are re-confirmed after the v4-cutover deploy — last remainder of [[architecture/sync-backend-do-hibernation-billing]]. LinkProcessorDO client-side hibernation stays deferred (needs a clean-store re-test, not a new patch).
 - [ ] [[todos/livestore-testing-ui|Livestore UI feature tests (RTL)]]
+- [ ] Revamp component interaction tests around `@testing-library/user-event` — add it as a direct dev dependency, replace the nine localized `fireEvent.click` calls, and preserve realistic focus, pointer, keyboard, and disabled-control behavior.
 - [ ] [[todos/progress-tracker-sqlite-review|Review stateful SQLite ProgressTracker]]
 - [ ] [[todos/managed-effect-runtime-do|Explore ManagedRuntime for LinkProcessorDO]]
 - [ ] Develop CLI for ingestion and management

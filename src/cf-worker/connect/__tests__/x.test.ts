@@ -1,21 +1,21 @@
-import { it } from "@effect/vitest";
-import { Effect, Layer } from "effect";
-import { describe, expect, vi } from "vitest";
+import { assert, it } from "@effect/vitest";
+import { Effect, Layer, Ref } from "effect";
+import { describe } from "vitest";
 
 import type { TierCapabilities } from "@/lib/plan";
 import { capabilitiesFor } from "@/lib/plan";
 
-import { AuthClient } from "../../auth/service";
 import { Billing } from "../../billing/service";
 import { OrgId, UserId } from "../../db/branded";
-import type { Env } from "../../shared";
+import { XSyncSideEffectError } from "../../x-sync/errors";
+import { XSyncControl } from "../../x-sync/services/x-sync-control";
 import { SessionProvider } from "../services";
-import { xDisconnectRequest, xResumeRequest } from "../x";
+import { xCompleteRequest, xPauseRequest, xResumeRequest } from "../x";
 
 const USER = UserId.make("user-1");
 const ORG = OrgId.make("org-1");
 
-const sessionStub = (
+const sessionLayer = (
   session: { userId: UserId; orgId: OrgId | null } | null = {
     userId: USER,
     orgId: ORG,
@@ -25,244 +25,187 @@ const sessionStub = (
     getSession: () => Effect.succeed(session),
   });
 
-const billingStub = (caps: TierCapabilities) => {
-  const notImpl = <A>(): Effect.Effect<A> =>
-    Effect.die("Billing stub method not implemented in test");
+const billingLayer = (capabilities: TierCapabilities) => {
+  const notUsed = <A>(): Effect.Effect<A> =>
+    Effect.die("Unexpected Billing call");
   return Layer.succeed(
     Billing,
     Billing.of({
-      capabilities: () => Effect.succeed(caps),
-      tier: notImpl,
-      subscription: notImpl,
-      getOverrides: notImpl,
-      setTier: notImpl,
-      setOverride: notImpl,
-      exists: notImpl,
-      listWithOwners: notImpl,
+      capabilities: () => Effect.succeed(capabilities),
+      tier: notUsed,
+      subscription: notUsed,
+      getOverrides: notUsed,
+      setTier: notUsed,
+      setOverride: notUsed,
+      exists: notUsed,
+      listWithOwners: notUsed,
     })
   );
 };
 
-// For gate-denial tests where the DO call never fires the env never gets
-// touched, so an empty object cast is safe. The pro-allowed tests use the
-// `xDoStubEnv` factory below which builds a minimal stub.
-const denialEnv = {} as Env;
-
-const xDoStubEnv = (status: { connected: boolean }, calls: string[]): Env => {
-  const stub = {
-    status: () => {
-      calls.push("status");
-      return Promise.resolve(status);
-    },
-    resume: () => {
-      calls.push("resume");
-      return Promise.resolve(undefined);
-    },
-    disconnect: () => {
-      calls.push("disconnect");
-      return Promise.resolve(undefined);
-    },
-  };
-  return {
-    X_BOOKMARK_SYNC_DO: {
-      idFromName: () => "do-id",
-      get: () => stub,
-    },
-  } as unknown as Env;
+const controlLayer = (overrides: Partial<XSyncControl["Service"]> = {}) => {
+  const notUsed = <A>(): Effect.Effect<A> =>
+    Effect.die("Unexpected XSyncControl call");
+  return Layer.succeed(
+    XSyncControl,
+    XSyncControl.of({
+      disconnect: notUsed,
+      pause: notUsed,
+      reconcile: notUsed,
+      resume: notUsed,
+      status: notUsed,
+      ...overrides,
+    })
+  );
 };
 
-const newRequest = () =>
-  new Request("http://worker/api/connect/x/resume", { method: "POST" });
+const request = (path = "/api/connect/x/resume") =>
+  new Request(`http://worker${path}`, { method: "POST" });
 
-const authLayer = (api: {
-  listUserAccounts: ReturnType<typeof vi.fn>;
-  unlinkAccount: ReturnType<typeof vi.fn>;
-}) =>
-  Layer.succeed(AuthClient, {
-    api,
-  } as unknown as AuthClient["Service"]);
-
-describe("xResumeRequest gate", () => {
-  it.effect(
-    "free tier → fails CapabilityDisabledError with requiredTier 'pro'",
-    () =>
-      xResumeRequest(newRequest(), denialEnv).pipe(
-        Effect.provide(
-          Layer.mergeAll(sessionStub(), billingStub(capabilitiesFor("free")))
-        ),
-        Effect.flip,
-        Effect.tap((error) =>
-          Effect.sync(() => {
-            expect(error._tag).toBe("CapabilityDisabledError");
-            if (error._tag === "CapabilityDisabledError") {
-              expect(error.capability).toBe("xBookmarkSync");
-              expect(error.requiredTier).toBe("pro");
-            }
-          })
-        )
-      )
-  );
-
-  it.effect(
-    "plus tier → fails CapabilityDisabledError (xBookmarkSync is pro-only)",
-    () =>
-      xResumeRequest(newRequest(), denialEnv).pipe(
-        Effect.provide(
-          Layer.mergeAll(sessionStub(), billingStub(capabilitiesFor("plus")))
-        ),
-        Effect.flip,
-        Effect.tap((error) =>
-          Effect.sync(() => {
-            expect(error._tag).toBe("CapabilityDisabledError");
-            if (error._tag === "CapabilityDisabledError") {
-              expect(error.capability).toBe("xBookmarkSync");
-              expect(error.requiredTier).toBe("pro");
-            }
-          })
-        )
-      )
-  );
-
-  it.effect(
-    "pro tier with status.connected=true → resumes successfully",
-    () => {
-      const calls: string[] = [];
-      const env = xDoStubEnv({ connected: true }, calls);
-      return xResumeRequest(newRequest(), env).pipe(
-        Effect.provide(
-          Layer.mergeAll(sessionStub(), billingStub(capabilitiesFor("pro")))
-        ),
-        Effect.tap((result) =>
-          Effect.sync(() => {
-            expect(result).toEqual({ ok: true });
-            // Status check then resume — gate passed through to the DO calls.
-            expect(calls).toEqual(["status", "resume"]);
-          })
-        )
-      );
-    }
-  );
-
-  it.effect(
-    "pro tier with status.connected=false → returns not_connected without resuming",
-    () => {
-      const calls: string[] = [];
-      const env = xDoStubEnv({ connected: false }, calls);
-      return xResumeRequest(newRequest(), env).pipe(
-        Effect.provide(
-          Layer.mergeAll(sessionStub(), billingStub(capabilitiesFor("pro")))
-        ),
-        Effect.tap((result) =>
-          Effect.sync(() => {
-            expect(result).toEqual({ kind: "not_connected" });
-            expect(calls).toEqual(["status"]);
-          })
-        )
-      );
-    }
-  );
-
-  it.effect("no active org → fails NoActiveOrgError", () =>
-    xResumeRequest(newRequest(), denialEnv).pipe(
+describe("xResumeRequest", () => {
+  it.effect("rejects a plan without X bookmark sync", () =>
+    xResumeRequest(request()).pipe(
       Effect.provide(
         Layer.mergeAll(
-          sessionStub({ userId: USER, orgId: null }),
-          billingStub(capabilitiesFor("pro"))
+          sessionLayer(),
+          billingLayer(capabilitiesFor("free")),
+          controlLayer()
         )
       ),
       Effect.flip,
       Effect.tap((error) =>
         Effect.sync(() => {
-          expect(error._tag).toBe("NoActiveOrgError");
+          assert.strictEqual(error._tag, "CapabilityDisabledError");
+          if (error._tag !== "CapabilityDisabledError") return;
+          assert.strictEqual(error.capability, "xBookmarkSync");
+          assert.strictEqual(error.requiredTier, "pro");
         })
       )
     )
   );
 
-  it.effect("no session → fails ConnectUnauthorizedError", () =>
-    xResumeRequest(newRequest(), denialEnv).pipe(
+  it.effect("resumes an entitled connected account", () =>
+    Effect.gen(function* () {
+      const resumed = yield* Ref.make(false);
+      const result = yield* xResumeRequest(request()).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            sessionLayer(),
+            billingLayer(capabilitiesFor("pro")),
+            controlLayer({
+              status: () => Effect.succeed({ connected: true }),
+              resume: () => Ref.set(resumed, true),
+            })
+          )
+        )
+      );
+
+      assert.deepStrictEqual(result, { ok: true });
+      assert.isTrue(yield* Ref.get(resumed));
+    })
+  );
+
+  it.effect("does not resume an account without durable state", () =>
+    xResumeRequest(request()).pipe(
       Effect.provide(
-        Layer.mergeAll(sessionStub(null), billingStub(capabilitiesFor("pro")))
+        Layer.mergeAll(
+          sessionLayer(),
+          billingLayer(capabilitiesFor("pro")),
+          controlLayer({
+            status: () => Effect.succeed({ connected: false }),
+          })
+        )
       ),
-      Effect.flip,
-      Effect.tap((error) =>
-        Effect.sync(() => {
-          expect(error._tag).toBe("ConnectUnauthorizedError");
-        })
+      Effect.tap((result) =>
+        Effect.sync(() =>
+          assert.deepStrictEqual(result, { kind: "not_connected" })
+        )
       )
     )
   );
 });
 
-describe("xDisconnectRequest", () => {
-  it.effect("unlinks the local Better Auth row for the X account", () => {
-    const calls: string[] = [];
-    const env = xDoStubEnv({ connected: true }, calls);
-    const listUserAccounts = vi.fn(() =>
-      Promise.resolve([
-        {
-          accountId: "external-google-subject",
-          id: "local-google-row",
-          providerId: "google",
-        },
-        {
-          accountId: "external-x-subject",
-          id: "local-x-row",
-          providerId: "x",
-        },
-      ])
-    );
-    const unlinkAccount = vi.fn(() => Promise.resolve({ status: true }));
-
-    return xDisconnectRequest(newRequest(), env).pipe(
-      Effect.provide(
-        Layer.mergeAll(
-          sessionStub(),
-          authLayer({ listUserAccounts, unlinkAccount })
-        )
-      ),
-      Effect.tap((result) =>
-        Effect.sync(() => {
-          expect(result).toEqual({ ok: true });
-          expect(calls).toEqual(["disconnect"]);
-          expect(unlinkAccount).toHaveBeenCalledWith(
-            expect.objectContaining({
-              body: { accountId: "local-x-row" },
+describe("X control failures", () => {
+  it.effect(
+    "keeps a status failure typed instead of reporting disconnected",
+    () =>
+      xPauseRequest(request("/api/connect/x/pause")).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            sessionLayer(),
+            controlLayer({
+              status: () =>
+                Effect.fail(
+                  new XSyncSideEffectError({
+                    op: "DO.status",
+                    cause: "unavailable",
+                  })
+                ),
             })
-          );
-        })
+          )
+        ),
+        Effect.flip,
+        Effect.tap((error) =>
+          Effect.sync(() =>
+            assert.strictEqual(error._tag, "XSyncSideEffectError")
+          )
+        )
       )
-    );
-  });
+  );
+});
 
-  it.effect("treats a missing X account as already unlinked", () => {
-    const calls: string[] = [];
-    const env = xDoStubEnv({ connected: true }, calls);
-    const listUserAccounts = vi.fn(() =>
-      Promise.resolve([
-        {
-          accountId: "external-google-subject",
-          id: "local-google-row",
-          providerId: "google",
-        },
-      ])
-    );
-    const unlinkAccount = vi.fn(() => Promise.resolve({ status: true }));
+describe("xCompleteRequest", () => {
+  it.effect("reconciles once and redirects with transient UI state", () =>
+    Effect.gen(function* () {
+      const reconciliations = yield* Ref.make(0);
+      const response = yield* xCompleteRequest(
+        request(
+          "/api/connect/x/complete?returnTo=%2Fsettings%3Ftab%3Dintegration"
+        )
+      ).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            sessionLayer(),
+            controlLayer({
+              reconcile: () =>
+                Ref.update(reconciliations, (count) => count + 1).pipe(
+                  Effect.as({ kind: "active", organizationId: ORG })
+                ),
+            })
+          )
+        )
+      );
 
-    return xDisconnectRequest(newRequest(), env).pipe(
+      assert.strictEqual(response.status, 303);
+      assert.strictEqual(
+        response.headers.get("location"),
+        "http://worker/settings?tab=integration&integrationResult=x-connected"
+      );
+      assert.strictEqual(yield* Ref.get(reconciliations), 1);
+    })
+  );
+
+  it.effect("rejects an external return target", () =>
+    xCompleteRequest(
+      request("/api/connect/x/complete?returnTo=https%3A%2F%2Fevil.example%2F")
+    ).pipe(
       Effect.provide(
         Layer.mergeAll(
-          sessionStub(),
-          authLayer({ listUserAccounts, unlinkAccount })
+          sessionLayer(),
+          controlLayer({
+            reconcile: () =>
+              Effect.succeed({ kind: "active", organizationId: ORG }),
+          })
         )
       ),
-      Effect.tap((result) =>
-        Effect.sync(() => {
-          expect(result).toEqual({ ok: true });
-          expect(calls).toEqual(["disconnect"]);
-          expect(unlinkAccount).not.toHaveBeenCalled();
-        })
+      Effect.tap((response) =>
+        Effect.sync(() =>
+          assert.strictEqual(
+            response.headers.get("location"),
+            "http://worker/?integrationResult=x-connected"
+          )
+        )
       )
-    );
-  });
+    )
+  );
 });

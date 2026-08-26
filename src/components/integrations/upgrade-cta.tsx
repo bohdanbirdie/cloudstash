@@ -6,22 +6,28 @@ import { PLANS } from "@/lib/plan";
 import { usePaywall } from "@/stores/paywall-store";
 
 interface UpgradeCtaProps {
+  compact?: boolean;
   tier: PlanTier;
 }
 
-export function UpgradeCta({ tier }: UpgradeCtaProps) {
+export function UpgradeCta({ compact = false, tier }: UpgradeCtaProps) {
   const openPaywall = usePaywall((s) => s.openPaywall);
   const tierName = PLANS[tier].name;
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <Button onClick={() => openPaywall({ highlightTier: tier })}>
+      <Button
+        onClick={() => openPaywall({ highlightTier: tier })}
+        size={compact ? "sm" : "default"}
+      >
         Upgrade to {tierName}
         <ArrowRightIcon aria-hidden />
       </Button>
-      <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-        <LockIcon className="size-3" aria-hidden />
-        Available on {tierName}
-      </span>
+      {!compact && (
+        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+          <LockIcon className="size-3" aria-hidden />
+          Available on {tierName}
+        </span>
+      )}
     </div>
   );
 }

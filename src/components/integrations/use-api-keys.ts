@@ -71,19 +71,21 @@ export function useApiKeys(enabled = true) {
   );
 
   const revokeKey = useCallback(
-    async (keyId: string) => {
+    async (keyId: string): Promise<boolean> => {
       setMutationError(null);
       try {
         const result = await authClient.apiKey.delete({ keyId });
         if (result.error) {
           setMutationError(result.error.message || "Failed to revoke API key");
-          return;
+          return false;
         }
         await mutate();
+        return true;
       } catch (err) {
         setMutationError(
           err instanceof Error ? err.message : "Failed to revoke API key"
         );
+        return false;
       }
     },
     [mutate]
