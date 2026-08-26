@@ -18,7 +18,7 @@ import { appBaseUrl, CheckoutBody, decodeBody, requireOrg } from "./shared";
 
 const checkoutRequest = Effect.fn("Billing.checkout")(function* (
   request: Request,
-  env: Env
+  baseUrl: string
 ) {
   const { orgId } = yield* requireOrg(request.headers);
   const body = yield* decodeBody(request, CheckoutBody);
@@ -40,15 +40,14 @@ const checkoutRequest = Effect.fn("Billing.checkout")(function* (
   }
 
   const customerId = yield* getOrCreateStripeCustomer(orgId);
-  const base = appBaseUrl(request, env);
   const idempotencyKey = yield* Effect.sync(() => crypto.randomUUID());
 
   const session = yield* stripe
     .createCheckoutSession({
       customerId,
       priceId,
-      successUrl: `${base}/api/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancelUrl: `${base}/inbox?upgrade=1`,
+      successUrl: `${baseUrl}/api/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${baseUrl}/inbox?upgrade=1`,
       idempotencyKey,
     })
     .pipe(
@@ -66,8 +65,8 @@ const checkoutRequest = Effect.fn("Billing.checkout")(function* (
   return Response.json({ url: session.url });
 });
 
-export const checkoutProgram = (request: Request, env: Env) =>
-  checkoutRequest(request, env).pipe(
+export const checkoutProgram = (request: Request, baseUrl: string) =>
+  checkoutRequest(request, baseUrl).pipe(
     Effect.catchTags({
       ...sessionErrorTags,
       InvalidBodyError: invalidBodyResponse,
@@ -82,5 +81,5 @@ export const handleBillingCheckout = (
   env: Env
 ): Promise<Response> => {
   if (isCrossSite(request)) return Promise.resolve(forbidden());
-  return runBilling(checkoutProgram(request, env), env);
+  return runBilling(checkoutProgram(request, appBaseUrl(request, env)), env);
 };

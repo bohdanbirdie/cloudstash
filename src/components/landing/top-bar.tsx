@@ -90,6 +90,7 @@ export function TopBar() {
             ))}
           </span>
           <Button
+            nativeButton={false}
             render={<Link to="/login" />}
             variant="ghost"
             size="sm"
@@ -103,6 +104,7 @@ export function TopBar() {
             Sign in
           </Button>
           <Button
+            nativeButton={false}
             render={<Link to="/login" />}
             size="sm"
             className="bg-foreground text-background hover:bg-foreground/85"

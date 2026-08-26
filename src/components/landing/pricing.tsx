@@ -238,6 +238,7 @@ function PricingTile({
       </div>
 
       <Button
+        nativeButton={false}
         render={<Link to="/login" search={{ upgrade: cta.upgrade }} />}
         size="lg"
         variant={plan.id === "free" ? "outline" : "default"}

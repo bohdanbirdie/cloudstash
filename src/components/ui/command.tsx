@@ -1,5 +1,7 @@
+"use client";
+
 import { Command as CommandPrimitive } from "cmdk";
-import { SearchIcon } from "lucide-react";
+import { SearchIcon, CheckIcon } from "lucide-react";
 import * as React from "react";
 
 import {
@@ -144,6 +146,7 @@ function CommandSeparator({
 
 function CommandItem({
   className,
+  children,
   ...props
 }: React.ComponentProps<typeof CommandPrimitive.Item>) {
   return (
@@ -154,7 +157,10 @@ function CommandItem({
         className
       )}
       {...props}
-    />
+    >
+      {children}
+      <CheckIcon className="ml-auto opacity-0 group-has-data-[slot=command-shortcut]/command-item:hidden group-data-[checked=true]/command-item:opacity-100" />
+    </CommandPrimitive.Item>
   );
 }
 

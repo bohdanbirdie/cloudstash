@@ -4,10 +4,10 @@ import { toast } from "sonner";
 
 import type { DigestTriggerOutcome } from "@/components/admin/use-weekly-digest-trigger";
 import { useWeeklyDigestTrigger } from "@/components/admin/use-weekly-digest-trigger";
+import { ResponsiveDialogContent } from "@/components/responsive-dialog-content";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
-  DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -130,10 +130,7 @@ const HistoryDialog = ({ history }: HistoryDialogProps) => {
         <span>{label}</span>
         <ArrowUpRightIcon aria-hidden="true" className="size-3" />
       </DialogTrigger>
-      <DialogContent
-        fullScreenOnMobile
-        className="flex h-[80vh] flex-col gap-0 p-0 sm:max-w-md max-sm:h-full"
-      >
+      <ResponsiveDialogContent className="flex h-[80vh] flex-col gap-0 p-0 sm:max-w-md max-sm:h-full">
         <DialogHeader className="shrink-0 px-4 pt-4 pb-2">
           <DialogTitle className="text-sm font-semibold text-foreground">
             Earlier digests
@@ -146,7 +143,7 @@ const HistoryDialog = ({ history }: HistoryDialogProps) => {
             ))}
           </div>
         </ScrollArea>
-      </DialogContent>
+      </ResponsiveDialogContent>
     </Dialog>
   );
 };

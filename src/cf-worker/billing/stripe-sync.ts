@@ -4,6 +4,7 @@ import { Effect, Option } from "effect";
 import type { BillingInterval, PlanTier } from "@/lib/plan";
 
 import {
+  OrgId as OrgIdBrand,
   StripeCustomerId,
   StripePriceId,
   StripeSubscriptionId,
@@ -102,7 +103,7 @@ export const syncFromStripe = Effect.fn("Billing.syncFromStripe")(function* (
     yield* Effect.logWarning("syncFromStripe: no org for customer").pipe(
       Effect.annotateLogs({ customerId: maskId(customerId) })
     );
-    return;
+    return null;
   }
 
   yield* Effect.annotateCurrentSpan({
@@ -114,7 +115,7 @@ export const syncFromStripe = Effect.fn("Billing.syncFromStripe")(function* (
     yield* Effect.logInfo("syncFromStripe: preserving admin grant").pipe(
       Effect.annotateLogs({ orgId: maskId(org.id) })
     );
-    return;
+    return null;
   }
 
   const subscriptions = yield* stripe.listSubscriptions(customerId);
@@ -210,4 +211,5 @@ export const syncFromStripe = Effect.fn("Billing.syncFromStripe")(function* (
       billingInterval: billingInterval ?? "none",
     })
   );
+  return OrgIdBrand.make(org.id);
 });

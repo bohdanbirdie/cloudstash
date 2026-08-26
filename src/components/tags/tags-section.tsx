@@ -21,35 +21,11 @@ import { useAppStore } from "@/livestore/store";
 export function TagsSection() {
   const store = useAppStore();
   const allTagsWithCounts = store.useQuery(allTagsWithCounts$);
-  const [inputValue, setInputValue] = useState("");
 
-  const searchQuery = useMemo(() => sanitizeTagName(inputValue), [inputValue]);
-
-  const filteredTags = useMemo((): readonly TagWithCount[] => {
-    if (!searchQuery) return allTagsWithCounts;
-    return allTagsWithCounts.filter((tag: TagWithCount) =>
-      tag.id.includes(searchQuery)
-    );
-  }, [allTagsWithCounts, searchQuery]);
-
-  const existingTagIds = useMemo(
-    () => new Set(allTagsWithCounts.map((t: TagWithCount) => t.id)),
-    [allTagsWithCounts]
-  );
-
-  const newTag = useMemo(
-    () => deriveNewTag(inputValue, existingTagIds),
-    [inputValue, existingTagIds]
-  );
-
-  const canCreateTag = newTag !== null;
-
-  const handleCreateTag = () => {
-    if (!newTag) return;
-
+  const handleCreateTag = (newTag: { id: string; name: string }) => {
     const maxSortOrder = Math.max(
       0,
-      ...allTagsWithCounts.map((t: TagWithCount) => t.sortOrder)
+      ...allTagsWithCounts.map((tag: TagWithCount) => tag.sortOrder)
     );
 
     store.commit(
@@ -62,7 +38,6 @@ export function TagsSection() {
     );
 
     track("tag_created");
-    setInputValue("");
   };
 
   const handleDeleteTag = (tagId: string) => {
@@ -86,6 +61,56 @@ export function TagsSection() {
       })
     );
     track("tag_renamed");
+  };
+
+  return (
+    <TagsSectionView
+      tags={allTagsWithCounts}
+      onCreateTag={handleCreateTag}
+      onDeleteTag={handleDeleteTag}
+      onRenameTag={handleRenameTag}
+    />
+  );
+}
+
+interface TagsSectionViewProps {
+  tags: readonly TagWithCount[];
+  onCreateTag: (tag: { id: string; name: string }) => void;
+  onDeleteTag: (tagId: string) => void;
+  onRenameTag: (tagId: string, name: string) => void;
+}
+
+export function TagsSectionView({
+  tags,
+  onCreateTag,
+  onDeleteTag,
+  onRenameTag,
+}: TagsSectionViewProps) {
+  const [inputValue, setInputValue] = useState("");
+
+  const searchQuery = useMemo(() => sanitizeTagName(inputValue), [inputValue]);
+
+  const filteredTags = useMemo((): readonly TagWithCount[] => {
+    if (!searchQuery) return tags;
+    return tags.filter((tag: TagWithCount) => tag.id.includes(searchQuery));
+  }, [searchQuery, tags]);
+
+  const existingTagIds = useMemo(
+    () => new Set(tags.map((tag: TagWithCount) => tag.id)),
+    [tags]
+  );
+
+  const newTag = useMemo(
+    () => deriveNewTag(inputValue, existingTagIds),
+    [inputValue, existingTagIds]
+  );
+
+  const canCreateTag = newTag !== null;
+
+  const handleCreateTag = () => {
+    if (!newTag) return;
+    onCreateTag(newTag);
+    setInputValue("");
   };
 
   return (
@@ -128,7 +153,7 @@ export function TagsSection() {
         )}
 
         <ScrollArea className="min-h-0 flex-1">
-          {allTagsWithCounts.length === 0 ? (
+          {tags.length === 0 ? (
             <p className="text-muted-foreground py-8 text-center text-xs">
               No tags yet
             </p>
@@ -141,7 +166,7 @@ export function TagsSection() {
               )}
               <div className="flex flex-col gap-1">
                 <AnimatePresence initial={false}>
-                  {allTagsWithCounts.map((tag: TagWithCount) => {
+                  {tags.map((tag: TagWithCount) => {
                     const matches =
                       !searchQuery || tag.id.includes(searchQuery);
                     return (
@@ -164,10 +189,8 @@ export function TagsSection() {
                         <TagRow
                           tag={tag}
                           count={tag.count}
-                          onRename={(newName) =>
-                            handleRenameTag(tag.id, newName)
-                          }
-                          onDelete={() => handleDeleteTag(tag.id)}
+                          onRename={(newName) => onRenameTag(tag.id, newName)}
+                          onDelete={() => onDeleteTag(tag.id)}
                         />
                       </motion.div>
                     );

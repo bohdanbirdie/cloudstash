@@ -1,35 +1,17 @@
-import { ExternalLinkIcon, SendIcon } from "lucide-react";
-import { useState } from "react";
+import { ExternalLinkIcon } from "lucide-react";
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useOrgFeatures } from "@/hooks/use-org-features";
 
+import { DisconnectButton, IntegrationItem } from "./integration-card";
+import { TelegramLogo } from "./integration-icons";
 import { UpgradeCta } from "./upgrade-cta";
 import { useTelegramStatus } from "./use-telegram-status";
 
 export function TelegramCard() {
   const status = useTelegramStatus();
   const { capabilities } = useOrgFeatures();
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const requiresUpgrade = !status.isConnected && !capabilities.integrations;
 
   const botHandle = status.botUsername ? `@${status.botUsername}` : "the bot";
@@ -37,115 +19,68 @@ export function TelegramCard() {
     ? `https://t.me/${status.botUsername}`
     : null;
 
-  const handleDisconnect = async () => {
-    const ok = await status.disconnect();
-    if (ok) setConfirmOpen(false);
-  };
+  const description = (() => {
+    if (status.isLoading) {
+      return <Skeleton className="h-3 w-44 motion-reduce:animate-none" />;
+    }
+    if (status.isConnected) {
+      return `Send links to ${botHandle}`;
+    }
+    return "Save links from Telegram";
+  })();
+
+  const actions = (() => {
+    if (status.isLoading) {
+      return <Skeleton className="h-6 w-20 motion-reduce:animate-none" />;
+    }
+    if (status.isConnected) {
+      return (
+        <DisconnectButton
+          disabled={status.isDisconnecting}
+          integration="Telegram"
+          isPending={status.isDisconnecting}
+          onClick={() => void status.disconnect()}
+        />
+      );
+    }
+    if (requiresUpgrade) return <UpgradeCta compact tier="plus" />;
+    if (!botUrl) return <Button disabled>Open bot</Button>;
+    return (
+      <Button
+        aria-label="Open Telegram bot"
+        nativeButton={false}
+        size="sm"
+        render={
+          <a href={botUrl} target="_blank" rel="noopener noreferrer">
+            Open bot
+            <ExternalLinkIcon />
+          </a>
+        }
+      />
+    );
+  })();
+
+  const controlState = (() => {
+    if (status.isLoading) return "loading";
+    if (status.isConnected) return "connected";
+    if (requiresUpgrade) return "upgrade";
+    return "disconnected";
+  })();
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <SendIcon className="size-3.5" />
-          Telegram
-        </CardTitle>
-        <CardDescription>
-          Save links by sending them to a Telegram bot.
-        </CardDescription>
-        {status.isConnected && (
-          <CardAction>
-            <Badge variant="outline">
-              Connected · {status.count} {status.count === 1 ? "chat" : "chats"}
-            </Badge>
-          </CardAction>
-        )}
-      </CardHeader>
-
-      <CardContent className="space-y-3">
-        {status.isConnected ? (
-          <>
-            <p className="text-muted-foreground">
-              Send any link to{" "}
-              {botUrl ? (
-                <a
-                  href={botUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  {botHandle}
-                </a>
-              ) : (
-                botHandle
-              )}{" "}
-              to save it.
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setConfirmOpen(true)}
-            >
-              {status.count > 1
-                ? `Disconnect all ${status.count} chats`
-                : "Disconnect"}
-            </Button>
-          </>
-        ) : requiresUpgrade ? (
-          <>
-            <p className="text-muted-foreground">
-              Forward links straight from chat — they land in your vault in
-              seconds.
-            </p>
-            <UpgradeCta tier="plus" />
-          </>
-        ) : (
-          <>
-            <p className="text-muted-foreground">
-              Open {botHandle} — it will guide you through linking in a couple
-              of taps.
-            </p>
-            {botUrl ? (
-              <Button
-                render={
-                  <a href={botUrl} target="_blank" rel="noopener noreferrer">
-                    Open {botHandle}
-                    <ExternalLinkIcon />
-                  </a>
-                }
-              />
-            ) : (
-              <Button disabled>Open the bot</Button>
-            )}
-          </>
-        )}
-      </CardContent>
-
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Disconnect Telegram?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This unlinks all chats from your account and revokes any keys
-              created by the Telegram flow. You can reconnect anytime by
-              messaging the bot again.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={status.isDisconnecting}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault();
-                void handleDisconnect();
-              }}
-              disabled={status.isDisconnecting}
-            >
-              {status.isDisconnecting ? "Disconnecting…" : "Disconnect"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </Card>
+    <IntegrationItem
+      control={actions}
+      controlKey={controlState}
+      description={description}
+      icon={<TelegramLogo />}
+      iconClassName="bg-[#26A5E4]/10 text-[#229ED9]"
+      title="Telegram"
+    >
+      {status.error && (
+        <p className="mt-2 pl-10 text-destructive" role="alert">
+          {status.error}
+        </p>
+      )}
+    </IntegrationItem>
   );
 }

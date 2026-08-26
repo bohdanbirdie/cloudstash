@@ -30,9 +30,12 @@ export function SharedTooltipProvider({
         <TooltipPrimitive.Root handle={handle}>
           {({ payload }) => (
             <TooltipContent
-              hideArrow={hideArrow}
-              className={cn("data-[instant]:animate-none", contentClassName)}
-              positionerClassName={positionerClassName}
+              className={cn(
+                "data-[instant]:animate-none",
+                positionerClassName,
+                hideArrow && "[&>div]:hidden",
+                contentClassName
+              )}
             >
               {payload}
             </TooltipContent>

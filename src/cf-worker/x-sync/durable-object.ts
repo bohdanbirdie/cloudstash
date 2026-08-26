@@ -1,43 +1,52 @@
 /// <reference types="@cloudflare/workers-types" />
 import { DurableObject } from "cloudflare:workers";
-import { Effect, Layer, Logger, Match } from "effect";
+import { Clock, Effect, Layer, Logger, ManagedRuntime, Option } from "effect";
 
-import { AppLayerLive, AuthClient } from "../auth/service";
-import { UserId, XUsername } from "../db/branded";
-import { DbClient } from "../db/service";
+import type { XStatusResponse } from "../../lib/x-sync-status";
+import { AuthClientLive } from "../auth/service";
+import { Billing } from "../billing/service";
+import { OrgId, UserId } from "../db/branded";
+import { DbClientLive } from "../db/service";
+import { maskId } from "../log-utils";
 import { createLogger } from "../logger";
 import type { Env } from "../shared";
+import { OtelTracingLive } from "../tracing";
+import { XSyncAccountRepository } from "./account";
+import { BACKOFF_BASE_MS, BACKOFF_CAP_MS, pollReconciledEffect } from "./poll";
+import type { PollOutcome } from "./poll";
 import {
-  BACKOFF_BASE_MS,
-  BACKOFF_CAP_MS,
-  POLL_INTERVAL_MS,
-  pollOnceEffect,
-  startSyncEffect,
-} from "./effects";
-import type { PollOutcome } from "./effects";
-import { sideEffectError } from "./effects-helpers";
+  reconcileBeforePollEffect,
+  reconcileSyncEffect,
+  resumeSyncEffect,
+} from "./reconcile";
 import { XApiClient } from "./services";
 import { LinkQueueClient } from "./services/link-queue-client";
 import { LinkQueueClientLive } from "./services/link-queue-client.live";
 import { XApiClientLive } from "./services/x-api-client.live";
-import type { Status } from "./services/x-sync-state-store";
+import { XSyncAlarm } from "./services/x-sync-alarm";
 import { XSyncStateStore } from "./services/x-sync-state-store";
 import { XSyncStateStoreLive } from "./services/x-sync-state-store.live";
 
 const XSyncLogger = createLogger("XBookmarkSyncDO");
 
-export interface XStatusResponse {
-  connected: boolean;
-  xUsername?: XUsername;
-  status?: Status;
-  syncEnabled?: boolean;
-  lastSyncedAt?: number | null;
-}
+export type { XStatusResponse } from "../../lib/x-sync-status";
 
-const isAlarmTerminal = (o: {
-  kind: "halt" | "fatal" | "error" | "result";
-  result?: PollOutcome;
-}): o is { kind: "halt" | "fatal" } => o.kind === "halt" || o.kind === "fatal";
+const optionalOrgId = (value: string | undefined): OrgId | undefined => {
+  if (!value) return undefined;
+  return OrgId.make(value);
+};
+
+type AlarmOutcome =
+  | { readonly kind: "halt" }
+  | { readonly kind: "error" }
+  | PollOutcome;
+
+const pollDelay = (
+  result: Extract<PollOutcome, { kind: "ok" | "rate_limited" }>
+): number => {
+  if (result.kind === "rate_limited") return result.retryAfterMs;
+  return result.rescheduleInMs;
+};
 
 export class XBookmarkSyncDO extends DurableObject<Env> {
   private retryAttempt = 0;
@@ -46,9 +55,6 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
   // to null on cold start. UI displays "—" briefly until the next alarm fires
   // (≤30s). Persisting this on every poll would burn DO write budget.
   private lastSyncedAt: number | null = null;
-
-  // Overridable seam for tests; defaults to the real X API client.
-  protected xApiLayer: Layer.Layer<XApiClient> = XApiClientLive;
 
   private get userId(): UserId {
     const name = this.ctx.id.name;
@@ -61,255 +67,196 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
   }
 
   private get baseLayer() {
+    const accountLayer = XSyncAccountRepository.layer.pipe(
+      Layer.provideMerge(Billing.Default),
+      Layer.provideMerge(AuthClientLive(this.env)),
+      Layer.provideMerge(DbClientLive(this.env.DB))
+    );
+
     return Layer.mergeAll(
-      this.xApiLayer,
+      XApiClientLive,
+      accountLayer,
       XSyncStateStoreLive(this.ctx.storage),
+      XSyncAlarm.layer(this.ctx.storage),
       LinkQueueClientLive(this.env.LINK_QUEUE)
     ).pipe(
-      Layer.provideMerge(AppLayerLive(this.env)),
+      Layer.provideMerge(OtelTracingLive),
       Layer.provideMerge(Logger.layer([XSyncLogger]))
     );
   }
+
+  private readonly runtime = ManagedRuntime.make(this.baseLayer);
 
   private runEffect<A, E>(
     effect: Effect.Effect<
       A,
       E,
-      XApiClient | XSyncStateStore | LinkQueueClient | AuthClient | DbClient
+      | XApiClient
+      | XSyncStateStore
+      | LinkQueueClient
+      | XSyncAlarm
+      | XSyncAccountRepository
     >
   ): Promise<A> {
-    return effect.pipe(Effect.provide(this.baseLayer), Effect.runPromise);
+    return this.runtime.runPromise(effect);
   }
 
-  /**
-   * Called from the connect callback after the X account is linked.
-   * Fetches the X user identity, pins the watermark to the current head
-   * (so existing bookmarks are NOT imported — cost safety), and arms the
-   * alarm. Idempotent: re-running on an already-connected DO refreshes
-   * identity but preserves the existing watermark.
-   */
   async start(): Promise<void> {
+    await this.reconcile();
+  }
+
+  async reconcile(orgId?: string): Promise<void> {
     const userId = this.userId;
-    await this.runEffect(
-      startSyncEffect(
-        userId,
-        Effect.tryPromise({
-          try: () => this.ctx.storage.setAlarm(Date.now() + POLL_INTERVAL_MS),
-          catch: sideEffectError("storage.setAlarm"),
-        })
-      )
-    );
+    return this.runEffect(reconcileSyncEffect(userId, optionalOrgId(orgId)));
   }
 
   async pause(): Promise<void> {
     await this.runEffect(this.pauseEffect(this.userId));
   }
 
-  private pauseEffect = Effect.fn("XBookmarkSyncDO.pause")((userId: UserId) =>
-    Effect.gen({ self: this }, function* () {
-      yield* Effect.annotateCurrentSpan("userId", userId);
-      yield* Effect.logInfo("pause").pipe(Effect.annotateLogs({ userId }));
+  private pauseEffect = Effect.fn("XBookmarkSyncDO.pause")(
+    { self: this },
+    function* (this: XBookmarkSyncDO, userId: UserId) {
+      yield* Effect.annotateCurrentSpan("userId", maskId(userId));
+      yield* Effect.logInfo("pause").pipe(
+        Effect.annotateLogs({ userId: maskId(userId) })
+      );
       const store = yield* XSyncStateStore;
-      yield* store
-        .setSyncEnabled(false)
-        .pipe(Effect.catchTag("XSyncStorageError", () => Effect.void));
-      yield* Effect.tryPromise({
-        try: () => this.ctx.storage.deleteAlarm(),
-        catch: sideEffectError("storage.deleteAlarm"),
-      }).pipe(Effect.catchTag("XSyncSideEffectError", () => Effect.void));
-    })
+      const alarm = yield* XSyncAlarm;
+      yield* store.setSyncEnabled(false);
+      yield* store.setStatus("paused");
+      yield* alarm.cancel();
+    }
   );
 
-  async resume(): Promise<void> {
+  async resume(orgId?: string): Promise<void> {
     this.retryAttempt = 0;
-    await this.runEffect(this.resumeEffect(this.userId));
+    await this.runEffect(resumeSyncEffect(this.userId, optionalOrgId(orgId)));
   }
-
-  private resumeEffect = Effect.fn("XBookmarkSyncDO.resume")((userId: UserId) =>
-    Effect.gen({ self: this }, function* () {
-      yield* Effect.annotateCurrentSpan("userId", userId);
-      yield* Effect.logInfo("resume").pipe(Effect.annotateLogs({ userId }));
-      const store = yield* XSyncStateStore;
-      yield* store
-        .setSyncEnabled(true)
-        .pipe(Effect.catchTag("XSyncStorageError", () => Effect.void));
-      yield* store
-        .setStatus("active")
-        .pipe(Effect.catchTag("XSyncStorageError", () => Effect.void));
-      yield* Effect.tryPromise({
-        try: () => this.ctx.storage.setAlarm(Date.now() + POLL_INTERVAL_MS),
-        catch: sideEffectError("storage.setAlarm"),
-      }).pipe(Effect.catchTag("XSyncSideEffectError", () => Effect.void));
-    })
-  );
 
   async disconnect(): Promise<void> {
     this.lastSyncedAt = null;
     await this.runEffect(this.disconnectEffect(this.ctx.id.name ?? "unknown"));
   }
 
-  private disconnectEffect = Effect.fn("XBookmarkSyncDO.disconnect")(
-    (userId: string) =>
-      Effect.gen({ self: this }, function* () {
-        yield* Effect.annotateCurrentSpan("userId", userId);
-        yield* Effect.logInfo("disconnect").pipe(
-          Effect.annotateLogs({ userId })
-        );
-        yield* Effect.tryPromise({
-          try: () => this.ctx.storage.deleteAlarm(),
-          catch: sideEffectError("storage.deleteAlarm"),
-        }).pipe(Effect.catchTag("XSyncSideEffectError", () => Effect.void));
-        yield* Effect.tryPromise({
-          try: () => this.ctx.storage.deleteAll(),
-          catch: sideEffectError("storage.deleteAll"),
-        }).pipe(Effect.catchTag("XSyncSideEffectError", () => Effect.void));
-      })
-  );
+  private disconnectEffect = Effect.fn("XBookmarkSyncDO.disconnect")(function* (
+    userId: string
+  ) {
+    yield* Effect.annotateCurrentSpan("userId", maskId(userId));
+    yield* Effect.logInfo("disconnect").pipe(
+      Effect.annotateLogs({ userId: maskId(userId) })
+    );
+    const alarm = yield* XSyncAlarm;
+    const store = yield* XSyncStateStore;
+    yield* alarm.cancel();
+    yield* store.clear();
+  });
 
   async status(): Promise<XStatusResponse> {
     return this.runEffect(this.statusEffect(this.userId));
   }
 
-  private statusEffect = Effect.fn("XBookmarkSyncDO.status")((userId: UserId) =>
-    Effect.gen({ self: this }, function* () {
-      yield* Effect.annotateCurrentSpan("userId", userId);
+  private statusEffect = Effect.fn("XBookmarkSyncDO.status")(
+    { self: this },
+    function* (this: XBookmarkSyncDO, userId: UserId) {
+      yield* Effect.annotateCurrentSpan("userId", maskId(userId));
       const store = yield* XSyncStateStore;
-      const state = yield* store
-        .get()
-        .pipe(
-          Effect.catchTag("XSyncStorageError", (e) =>
-            Effect.logWarning("status: storage get failed").pipe(
-              Effect.annotateLogs({ userId, op: e.op, cause: String(e.cause) }),
-              Effect.as(null)
-            )
-          )
-        );
+      const state = yield* store.read();
       if (!state) return { connected: false } satisfies XStatusResponse;
       return {
         connected: true,
-        xUsername: state.xUsername,
+        xUsername: state.xUsername ?? undefined,
         status: state.status,
         syncEnabled: state.syncEnabled,
         lastSyncedAt: this.lastSyncedAt,
       } satisfies XStatusResponse;
-    })
+    }
   );
 
   override async alarm(): Promise<void> {
-    const userId = this.userId;
+    await this.runEffect(this.alarmEffect(this.userId));
+  }
 
-    const outcome = await this.runEffect(this.alarmEffect(userId));
+  private pollAlarmEffect = Effect.fn("XBookmarkSyncDO.pollAlarm")(function* (
+    userId: UserId
+  ) {
+    yield* Effect.annotateCurrentSpan("userId", maskId(userId));
 
-    if (isAlarmTerminal(outcome)) {
-      return;
+    const reconciled = yield* reconcileBeforePollEffect(userId);
+    if (Option.isNone(reconciled)) {
+      yield* Effect.annotateCurrentSpan("outcome", "halt");
+      yield* Effect.logInfo("alarm: reconciliation halted polling").pipe(
+        Effect.annotateLogs({ userId: maskId(userId) })
+      );
+      return { kind: "halt" as const };
     }
 
-    if (outcome.kind === "error") {
-      this.retryAttempt += 1;
-      const delay = Math.min(
-        BACKOFF_BASE_MS * 2 ** (this.retryAttempt - 1),
-        BACKOFF_CAP_MS
-      );
-      await this.runEffect(
-        Effect.logWarning("alarm: backing off").pipe(
+    const ready = reconciled.value;
+    return yield* pollReconciledEffect(
+      userId,
+      ready.organizationId,
+      ready.state,
+      ready.accessToken
+    );
+  });
+
+  private resolveAlarmEffect = Effect.fn("XBookmarkSyncDO.resolveAlarm")(
+    { self: this },
+    function* (this: XBookmarkSyncDO, userId: UserId, outcome: AlarmOutcome) {
+      if (outcome.kind === "halt") return;
+
+      if (outcome.kind === "error") {
+        this.retryAttempt += 1;
+        const delay = Math.min(
+          BACKOFF_BASE_MS * 2 ** (this.retryAttempt - 1),
+          BACKOFF_CAP_MS
+        );
+        yield* Effect.logWarning("alarm: backing off").pipe(
           Effect.annotateLogs({
-            userId,
+            userId: maskId(userId),
             retryAttempt: this.retryAttempt,
             delayMs: delay,
           })
-        )
-      );
-      await this.ctx.storage.setAlarm(Date.now() + delay);
-      return;
-    }
+        );
+        const alarm = yield* XSyncAlarm;
+        return yield* alarm.scheduleAfter(delay);
+      }
 
-    const { result } = outcome;
-    if (
-      result.kind === "needs_reconnect" ||
-      result.kind === "not_initialized"
-    ) {
-      return;
-    }
-    this.retryAttempt = 0;
-    this.lastSyncedAt = Date.now();
-    const rescheduleMs =
-      result.kind === "rate_limited"
-        ? result.retryAfterMs
-        : result.rescheduleInMs;
-    await this.runEffect(
-      Effect.logInfo("alarm: rescheduled").pipe(
+      if (outcome.kind === "needs_reconnect") {
+        return;
+      }
+
+      this.retryAttempt = 0;
+      const alarm = yield* XSyncAlarm;
+      this.lastSyncedAt = yield* Clock.currentTimeMillis;
+      const rescheduleMs = pollDelay(outcome);
+      yield* Effect.logDebug("alarm: rescheduled").pipe(
         Effect.annotateLogs({
-          userId,
-          outcome: result.kind,
+          userId: maskId(userId),
+          outcome: outcome.kind,
           rescheduleMs,
         })
-      )
-    );
-    await this.ctx.storage.setAlarm(Date.now() + rescheduleMs);
-  }
+      );
+      return yield* alarm.scheduleAfter(rescheduleMs);
+    }
+  );
 
-  private alarmEffect = Effect.fn("XBookmarkSyncDO.alarm")((userId: UserId) =>
-    Effect.gen({ self: this }, function* () {
-      yield* Effect.annotateCurrentSpan("userId", userId);
-      yield* Effect.annotateCurrentSpan("retryAttempt", this.retryAttempt);
-
-      const store = yield* XSyncStateStore;
-      const state = yield* store
-        .get()
-        .pipe(
-          Effect.catchTag("XSyncStorageError", (e) =>
-            Effect.logWarning("alarm: storage get failed").pipe(
-              Effect.annotateLogs({ userId, op: e.op, cause: String(e.cause) }),
-              Effect.as(null)
-            )
-          )
-        );
-      if (!state) {
-        yield* Effect.logWarning(
-          "alarm: no state, retrying initialization"
-        ).pipe(Effect.annotateLogs({ userId }));
-        yield* startSyncEffect(
-          userId,
-          Effect.tryPromise({
-            try: () => this.ctx.storage.setAlarm(Date.now() + POLL_INTERVAL_MS),
-            catch: sideEffectError("storage.setAlarm"),
-          })
-        );
-        yield* Effect.annotateCurrentSpan("outcome", "halt");
-        return { kind: "halt" as const };
-      }
-      if (!state.syncEnabled || state.status !== "active") {
-        yield* Effect.annotateCurrentSpan("outcome", "halt");
-        yield* Effect.logInfo("alarm: sync disabled/inactive, halting").pipe(
-          Effect.annotateLogs({
-            userId,
-            status: state.status,
-            syncEnabled: state.syncEnabled,
-          })
-        );
-        return { kind: "halt" as const };
-      }
-
-      const result = yield* pollOnceEffect(userId);
-      return { kind: "result" as const, result };
-    }).pipe(
+  private alarmEffect(userId: UserId) {
+    return this.pollAlarmEffect(userId).pipe(
       Effect.catchTags({
-        NoAccessTokenError: () =>
-          Effect.logWarning("alarm: fatal — no access token, halting").pipe(
-            Effect.annotateLogs({ userId }),
-            Effect.tap(() => Effect.annotateCurrentSpan("outcome", "fatal")),
-            Effect.as({ kind: "fatal" as const })
-          ),
         DbError: (e) =>
           Effect.logError("alarm: db error").pipe(
-            Effect.annotateLogs({ userId, cause: String(e.cause) }),
+            Effect.annotateLogs({
+              userId: maskId(userId),
+              cause: String(e.cause),
+            }),
             Effect.tap(() => Effect.annotateCurrentSpan("outcome", "error")),
             Effect.as({ kind: "error" as const })
           ),
         XSyncSideEffectError: (e) =>
-          Effect.logError("alarm: access-token backend error").pipe(
+          Effect.logError("alarm: side effect failed").pipe(
             Effect.annotateLogs({
-              userId,
+              userId: maskId(userId),
               op: e.op,
               cause: String(e.cause),
             }),
@@ -319,7 +266,7 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
         XSyncStorageError: (e) =>
           Effect.logError("alarm: storage error").pipe(
             Effect.annotateLogs({
-              userId,
+              userId: maskId(userId),
               op: e.op,
               cause: String(e.cause),
             }),
@@ -329,7 +276,7 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
         XApiError: (e) =>
           Effect.logError("alarm: X API error").pipe(
             Effect.annotateLogs({
-              userId,
+              userId: maskId(userId),
               endpoint: e.endpoint,
               status: e.status,
               message: e.message,
@@ -338,22 +285,13 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
             Effect.as({ kind: "error" as const })
           ),
       }),
-      // Surface the chosen outcome kind on the parent span. Match keeps it
-      // exhaustive across the discriminated union (which uses `kind`, not `_tag`).
-      Effect.tap((o) =>
-        Effect.annotateCurrentSpan(
-          "alarmOutcomeKind",
-          Match.value(o).pipe(
-            Match.discriminators("kind")({
-              halt: () => "halt",
-              fatal: () => "fatal",
-              error: () => "error",
-              result: (r) => `result:${r.result.kind}`,
-            }),
-            Match.exhaustive
-          )
-        )
-      )
-    )
-  );
+      Effect.tap((outcome) =>
+        Effect.annotateCurrentSpan("alarmOutcomeKind", outcome.kind)
+      ),
+      Effect.flatMap((outcome) => this.resolveAlarmEffect(userId, outcome)),
+      Effect.withSpan("XBookmarkSyncDO.alarm", {
+        attributes: { retryAttempt: this.retryAttempt },
+      })
+    );
+  }
 }

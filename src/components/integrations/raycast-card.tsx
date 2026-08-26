@@ -1,21 +1,16 @@
-import { ChevronDownIcon, CommandIcon, ExternalLinkIcon } from "lucide-react";
+import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useOrgFeatures } from "@/hooks/use-org-features";
 
+import { IntegrationItem } from "./integration-card";
+import { RaycastLogo } from "./integration-icons";
 import { KeyList } from "./key-list";
 import { UpgradeCta } from "./upgrade-cta";
 import type { ApiKey } from "./use-api-keys";
@@ -25,7 +20,7 @@ const RAYCAST_STORE_URL = "https://www.raycast.com/birdie/cloudstash";
 interface RaycastCardProps {
   keys: ApiKey[];
   isLoading: boolean;
-  onRevokeKey: (keyId: string) => void;
+  onRevokeKey: (keyId: string) => Promise<boolean>;
 }
 
 export function RaycastCard({
@@ -35,75 +30,69 @@ export function RaycastCard({
 }: RaycastCardProps) {
   const { capabilities } = useOrgFeatures();
   const raycastKeys = keys.filter(
-    (k) => k.name === "Raycast Extension" || k.name?.startsWith("Raycast — ")
+    (key) =>
+      key.name === "Raycast Extension" || key.name?.startsWith("Raycast — ")
   );
   const isConnected = raycastKeys.length > 0;
   const requiresUpgrade = !isConnected && !capabilities.integrations;
+  const description = (() => {
+    if (isLoading) {
+      return <Skeleton className="h-3 w-44 motion-reduce:animate-none" />;
+    }
+    if (!isConnected) return "Save links with a keyboard shortcut";
+    const noun = raycastKeys.length === 1 ? "device" : "devices";
+    return `${raycastKeys.length} connected ${noun}`;
+  })();
+
+  const control = (() => {
+    if (isLoading) {
+      return <Skeleton className="h-6 w-20 motion-reduce:animate-none" />;
+    }
+    if (isConnected) {
+      return (
+        <CollapsibleTrigger className="group/disclosure inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30">
+          Manage
+          <ChevronDownIcon
+            aria-hidden
+            className="size-3 transition-transform group-data-[panel-open]/disclosure:rotate-180 motion-reduce:transition-none"
+          />
+        </CollapsibleTrigger>
+      );
+    }
+    if (requiresUpgrade) return <UpgradeCta compact tier="plus" />;
+    return (
+      <Button
+        nativeButton={false}
+        size="sm"
+        render={
+          <a href={RAYCAST_STORE_URL} target="_blank" rel="noopener noreferrer">
+            Install
+            <ExternalLinkIcon />
+          </a>
+        }
+      />
+    );
+  })();
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <CommandIcon className="size-3.5" />
-          Raycast
-        </CardTitle>
-        <CardDescription>
-          Save links with a keyboard shortcut from anywhere on your Mac.
-        </CardDescription>
+    <Collapsible key={isConnected ? "connected" : "disconnected"}>
+      <IntegrationItem
+        control={control}
+        description={description}
+        icon={<RaycastLogo />}
+        iconClassName="bg-[#FF6363]/10 text-[#FF6363]"
+        title="Raycast"
+      >
         {isConnected && (
-          <CardAction>
-            <Badge variant="outline">
-              Connected · {raycastKeys.length}{" "}
-              {raycastKeys.length === 1 ? "device" : "devices"}
-            </Badge>
-          </CardAction>
+          <CollapsibleContent className="mt-3 pl-10">
+            <KeyList
+              keys={raycastKeys}
+              isLoading={false}
+              onRevoke={onRevokeKey}
+            />
+          </CollapsibleContent>
         )}
-      </CardHeader>
-
-      <CardContent className="space-y-3">
-        {isConnected ? (
-          <Collapsible>
-            <CollapsibleTrigger className="group/disclosure flex w-full items-center justify-between rounded-md py-1 text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30">
-              <span>Manage devices</span>
-              <ChevronDownIcon className="size-3.5 transition-transform group-data-[panel-open]/disclosure:rotate-180" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-2">
-              <KeyList
-                keys={raycastKeys}
-                isLoading={isLoading}
-                onRevoke={onRevokeKey}
-              />
-              <p className="mt-2 text-muted-foreground">
-                Revoking a key disconnects that device. Reconnect by running any
-                Cloudstash command in Raycast.
-              </p>
-            </CollapsibleContent>
-          </Collapsible>
-        ) : requiresUpgrade ? (
-          <div className="space-y-3">
-            <p className="text-muted-foreground">
-              Save with a keyboard shortcut from anywhere on your Mac.
-            </p>
-            <UpgradeCta tier="plus" />
-          </div>
-        ) : (
-          <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-            <li>Install Cloudstash from the Raycast Store</li>
-            <li>Run any Cloudstash command in Raycast</li>
-            <li>Sign in when prompted — that&apos;s it!</li>
-          </ol>
-        )}
-
-        <a
-          href={RAYCAST_STORE_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
-        >
-          View in Raycast Store
-          <ExternalLinkIcon className="size-3" aria-hidden />
-        </a>
-      </CardContent>
-    </Card>
+      </IntegrationItem>
+    </Collapsible>
   );
 }

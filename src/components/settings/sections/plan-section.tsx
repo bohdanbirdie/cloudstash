@@ -49,16 +49,10 @@ function changeNote(action: TileAction): string | null {
 export function PlanSection() {
   const { tier, cancelAtPeriodEnd, currentPeriodEnd, billingInterval } =
     useOrgFeatures();
-  const currentPlan = PLANS[tier];
-  const renewalDate = formatRenewalDate(currentPeriodEnd);
-  const isCanceling = cancelAtPeriodEnd && tier !== "free";
-
   const [selectedInterval, setSelectedInterval] =
     useState<BillingInterval>("year");
   const activeInterval: BillingInterval =
     tier === "free" ? selectedInterval : (billingInterval ?? "month");
-  const currentDisplay = planPriceDisplay(currentPlan, activeInterval);
-
   const [pending, setPending] = useState<PlanTier | null>(null);
 
   const handleChange = (target: PlanTier) => {
@@ -71,6 +65,48 @@ export function PlanSection() {
       });
     });
   };
+
+  return (
+    <PlanSectionView
+      billingInterval={billingInterval}
+      cancelAtPeriodEnd={cancelAtPeriodEnd}
+      currentPeriodEnd={currentPeriodEnd}
+      onChange={handleChange}
+      onSelectedIntervalChange={setSelectedInterval}
+      pending={pending}
+      selectedInterval={selectedInterval}
+      tier={tier}
+    />
+  );
+}
+
+export interface PlanSectionViewProps {
+  billingInterval: BillingInterval | null;
+  cancelAtPeriodEnd: boolean;
+  currentPeriodEnd: string | null;
+  onChange: (target: PlanTier) => void;
+  onSelectedIntervalChange: (interval: BillingInterval) => void;
+  pending: PlanTier | null;
+  selectedInterval: BillingInterval;
+  tier: PlanTier;
+}
+
+export function PlanSectionView({
+  billingInterval,
+  cancelAtPeriodEnd,
+  currentPeriodEnd,
+  onChange,
+  onSelectedIntervalChange,
+  pending,
+  selectedInterval,
+  tier,
+}: PlanSectionViewProps) {
+  const currentPlan = PLANS[tier];
+  const renewalDate = formatRenewalDate(currentPeriodEnd);
+  const isCanceling = cancelAtPeriodEnd && tier !== "free";
+  const activeInterval: BillingInterval =
+    tier === "free" ? selectedInterval : (billingInterval ?? "month");
+  const currentDisplay = planPriceDisplay(currentPlan, activeInterval);
 
   return (
     <div className="flex flex-col gap-6">
@@ -102,7 +138,7 @@ export function PlanSection() {
               type="button"
               variant="link"
               size="sm"
-              onClick={() => handleChange("free")}
+              onClick={() => onChange("free")}
               disabled={pending !== null && pending !== "free"}
               aria-busy={pending === "free"}
               className="h-auto min-h-8 gap-1.5 p-0 text-sm font-normal text-muted-foreground hover:text-foreground"
@@ -133,7 +169,7 @@ export function PlanSection() {
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => handleChange(tier)}
+            onClick={() => onChange(tier)}
             disabled={pending !== null && pending !== tier}
             aria-busy={pending === tier}
           >
@@ -149,7 +185,7 @@ export function PlanSection() {
         {tier === "free" && (
           <IntervalToggle
             value={selectedInterval}
-            onChange={setSelectedInterval}
+            onChange={onSelectedIntervalChange}
           />
         )}
 
@@ -158,7 +194,7 @@ export function PlanSection() {
           action={tileAction("pro", tier)}
           interval={activeInterval}
           pending={pending}
-          onChange={handleChange}
+          onChange={onChange}
         />
 
         <Divider label={dividerLabelFor(tier)} />
@@ -168,7 +204,7 @@ export function PlanSection() {
           action={tileAction("plus", tier)}
           interval={activeInterval}
           pending={pending}
-          onChange={handleChange}
+          onChange={onChange}
         />
       </div>
     </div>

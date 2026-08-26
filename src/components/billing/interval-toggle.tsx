@@ -19,11 +19,13 @@ export function IntervalToggle({
 
   return (
     <div className={cn("inline-flex", className)}>
-      <ToggleGroup<BillingInterval>
+      <ToggleGroup
         value={[value]}
         onValueChange={(values) => {
           const next = values[0];
-          if (next && next !== value) onChange(next);
+          if ((next === "month" || next === "year") && next !== value) {
+            onChange(next);
+          }
         }}
         aria-label="Billing interval"
       >

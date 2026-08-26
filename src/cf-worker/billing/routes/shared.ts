@@ -38,9 +38,13 @@ export const decodeBody = <A, I>(
     )
   );
 
-export const appBaseUrl = (request: Request, env: Env): string => {
+export const appBaseUrl = (
+  request: Request,
+  env: Pick<Env, "PUBLIC_URL">
+): string => {
   const fromEnv = env.PUBLIC_URL?.trim().replace(/\/+$/, "");
-  return fromEnv && fromEnv.length > 0 ? fromEnv : new URL(request.url).origin;
+  if (fromEnv) return fromEnv;
+  return new URL(request.url).origin;
 };
 
 export const requireOrg = Effect.fn("Billing.requireOrg")(function* (

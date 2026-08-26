@@ -33,11 +33,20 @@ export default defineConfig({
       remoteBindings: false,
       wrangler: { configPath: "./wrangler.jsonc" },
       miniflare: {
+        queueConsumers: {
+          "cloudstash-x-reconcile": {
+            maxBatchSize: 10,
+            maxBatchTimeout: 0.05,
+            maxRetries: 5,
+          },
+        },
         bindings: {
           BETTER_AUTH_SECRET: "test-secret-for-jwt-signing-32chars",
           BETTER_AUTH_URL: "http://localhost",
           GOOGLE_CLIENT_ID: "test-google-client-id",
           GOOGLE_CLIENT_SECRET: "test-google-client-secret",
+          X_CLIENT_ID: "test-x-client-id",
+          X_CLIENT_SECRET: "test-x-client-secret",
           ENABLE_TEST_AUTH: "true",
           RESEND_API_KEY: "re_test_dummy",
           EMAIL_FROM: "test@example.com",

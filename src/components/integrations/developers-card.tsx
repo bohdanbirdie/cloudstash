@@ -10,7 +10,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { useOrgFeatures } from "@/hooks/use-org-features";
 
 import { KeyCreatedBanner } from "./key-created-banner";
 import { KeyList } from "./key-list";
@@ -21,21 +20,22 @@ interface DevelopersCardProps {
   keys: ApiKey[];
   isLoading: boolean;
   isGenerating: boolean;
+  publicApiAvailable: boolean;
   onGenerateKey: (name: string) => Promise<string | null>;
-  onRevokeKey: (keyId: string) => void;
+  onRevokeKey: (keyId: string) => Promise<boolean>;
 }
 
 export function DevelopersCard({
   keys,
   isLoading,
   isGenerating,
+  publicApiAvailable,
   onGenerateKey,
   onRevokeKey,
 }: DevelopersCardProps) {
-  const { capabilities } = useOrgFeatures();
   const [keyName, setKeyName] = useState("");
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
-  const requiresUpgrade = !capabilities.publicApi;
+  const requiresUpgrade = !publicApiAvailable;
 
   // Hide first-party integration keys from this list — they're managed
   // by their own integration cards above.
