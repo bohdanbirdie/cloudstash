@@ -15,16 +15,43 @@ export function AccountSection() {
   const auth = useAuth();
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  const initial = getInitial(auth.name, auth.email);
+  return (
+    <>
+      <AccountSectionView
+        email={auth.email}
+        image={auth.image}
+        name={auth.name}
+        onDeleteAccount={() => setDeleteOpen(true)}
+      />
+
+      <DeleteAccountDialog open={deleteOpen} onOpenChange={setDeleteOpen} />
+    </>
+  );
+}
+
+interface AccountSectionViewProps {
+  email: string | null;
+  image: string | null;
+  name: string | null;
+  onDeleteAccount: () => void;
+}
+
+export function AccountSectionView({
+  email,
+  image,
+  name,
+  onDeleteAccount,
+}: AccountSectionViewProps) {
+  const initial = getInitial(name, email);
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center gap-3">
         <Avatar size="lg">
-          {auth.image && (
+          {image && (
             <AvatarImage
-              src={auth.image}
-              alt={auth.name ?? ""}
+              src={image}
+              alt={name ?? ""}
               referrerPolicy="no-referrer"
             />
           )}
@@ -32,10 +59,10 @@ export function AccountSection() {
         </Avatar>
         <div className="flex min-w-0 flex-col gap-0.5">
           <div className="truncate text-sm font-semibold text-foreground">
-            {auth.name ?? "—"}
+            {name ?? "—"}
           </div>
           <div className="truncate text-xs text-muted-foreground">
-            {auth.email ?? "—"}
+            {email ?? "—"}
           </div>
         </div>
       </div>
@@ -49,13 +76,11 @@ export function AccountSection() {
         <Button
           variant="destructive"
           className="self-start"
-          onClick={() => setDeleteOpen(true)}
+          onClick={onDeleteAccount}
         >
           Delete account
         </Button>
       </section>
-
-      <DeleteAccountDialog open={deleteOpen} onOpenChange={setDeleteOpen} />
     </div>
   );
 }

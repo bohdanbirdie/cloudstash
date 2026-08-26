@@ -5,7 +5,9 @@ import {
   TagIcon,
   UserIcon,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 
 import { IntegrationsSection } from "@/components/integrations/integrations-section";
 import { ResponsiveDialogContent } from "@/components/responsive-dialog-content";
@@ -24,27 +26,48 @@ export type SettingsSection =
   | "developers"
   | "tags";
 
-interface SectionDef {
+export interface SettingsDialogSurfaceSection {
   id: SettingsSection;
   label: string;
-  Icon: typeof UserIcon;
+  Icon: LucideIcon;
+  content: ReactNode;
 }
 
-const SECTIONS: readonly SectionDef[] = [
-  { id: "account", label: "Account", Icon: UserIcon },
-  { id: "plan", label: "Plan", Icon: CreditCardIcon },
-  { id: "integrations", label: "Integrations", Icon: BlocksIcon },
-  { id: "developers", label: "Developers", Icon: Code2Icon },
-  { id: "tags", label: "Tags", Icon: TagIcon },
+const SECTIONS: readonly SettingsDialogSurfaceSection[] = [
+  {
+    id: "account",
+    label: "Account",
+    Icon: UserIcon,
+    content: <AccountSection />,
+  },
+  {
+    id: "plan",
+    label: "Plan",
+    Icon: CreditCardIcon,
+    content: <PlanSection />,
+  },
+  {
+    id: "integrations",
+    label: "Integrations",
+    Icon: BlocksIcon,
+    content: <IntegrationsSection />,
+  },
+  {
+    id: "developers",
+    label: "Developers",
+    Icon: Code2Icon,
+    content: <DevelopersSection />,
+  },
+  { id: "tags", label: "Tags", Icon: TagIcon, content: <TagsSection /> },
 ];
 
-const SECTION_RENDERERS: Record<SettingsSection, () => React.ReactNode> = {
-  account: () => <AccountSection />,
-  plan: () => <PlanSection />,
-  integrations: () => <IntegrationsSection />,
-  developers: () => <DevelopersSection />,
-  tags: () => <TagsSection />,
-};
+export interface SettingsDialogSurfaceProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  activeSection: SettingsSection;
+  onActiveSectionChange: (section: SettingsSection) => void;
+  sections: readonly SettingsDialogSurfaceSection[];
+}
 
 export function SettingsDialog() {
   const open = useSettingsDialog((s) => s.open);
@@ -52,9 +75,6 @@ export function SettingsDialog() {
   const setOpen = useSettingsDialog((s) => s.setOpen);
 
   const [active, setActive] = useState<SettingsSection>(section);
-  const [visited, setVisited] = useState<ReadonlySet<SettingsSection>>(
-    () => new Set([section])
-  );
 
   // Sync local active state when the store directs us to a section (e.g. a
   // paywall promo deep-links to "plan" while the dialog is already open).
@@ -62,29 +82,50 @@ export function SettingsDialog() {
     if (open) setActive(section);
   }, [open, section]);
 
+  return (
+    <SettingsDialogSurface
+      open={open}
+      onOpenChange={setOpen}
+      activeSection={active}
+      onActiveSectionChange={setActive}
+      sections={SECTIONS}
+    />
+  );
+}
+
+export function SettingsDialogSurface({
+  open,
+  onOpenChange,
+  activeSection,
+  onActiveSectionChange,
+  sections,
+}: SettingsDialogSurfaceProps) {
+  const [visited, setVisited] = useState<ReadonlySet<SettingsSection>>(
+    () => new Set([activeSection])
+  );
+
   // Reset visited tracking when the dialog closes so we don't keep stale
   // sections mounted across separate opens.
   useEffect(() => {
     if (!open) setVisited(new Set());
   }, [open]);
 
-  const visible = SECTIONS;
-  const effective: SettingsSection = visible.some((s) => s.id === active)
-    ? active
-    : "account";
+  const effective = sections.some((item) => item.id === activeSection)
+    ? activeSection
+    : sections[0]?.id;
 
   // Track every visited section so it stays mounted (hidden) on rail nav —
   // preserves things like the freshly-generated API key in Integrations and
   // the Tags search input.
   useEffect(() => {
-    if (!open) return;
+    if (!open || !effective) return;
     setVisited((prev) =>
       prev.has(effective) ? prev : new Set([...prev, effective])
     );
   }, [open, effective]);
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent className="sm:max-w-3xl sm:h-[min(620px,85vh)] gap-0 overflow-hidden p-0">
         <DialogHeader className="sr-only">
           <DialogTitle>Settings</DialogTitle>
@@ -101,13 +142,13 @@ export function SettingsDialog() {
             aria-label="Settings sections"
             className="flex shrink-0 gap-0.5 border-border/60 bg-muted/30 max-lg:flex-row max-lg:overflow-x-auto max-lg:border-b max-lg:p-2 lg:w-44 lg:flex-col lg:border-r lg:p-3"
           >
-            {visible.map(({ id, label, Icon }) => {
+            {sections.map(({ id, label, Icon }) => {
               const isActive = id === effective;
               return (
                 <button
                   key={id}
                   type="button"
-                  onClick={() => setActive(id)}
+                  onClick={() => onActiveSectionChange(id)}
                   aria-current={isActive ? "page" : undefined}
                   aria-label={label}
                   className={cn(
@@ -138,7 +179,7 @@ export function SettingsDialog() {
           </nav>
 
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {visible.map(({ id }) => {
+            {sections.map(({ id, content }) => {
               if (!visited.has(id)) return null;
               const isActive = id === effective;
               return (
@@ -148,7 +189,7 @@ export function SettingsDialog() {
                   hidden={!isActive}
                   className="min-h-0 flex-1 overflow-y-auto px-5 py-5 lg:px-8 lg:py-7"
                 >
-                  {SECTION_RENDERERS[id]()}
+                  {content}
                 </div>
               );
             })}
