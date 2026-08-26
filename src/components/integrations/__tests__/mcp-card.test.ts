@@ -49,27 +49,32 @@ describe("McpCard", () => {
 
   afterEach(cleanup);
 
-  it("leads with client-specific setup and progressively discloses protocol details", () => {
+  it("offers an agent installer and the raw MCP server URL", () => {
     render(createElement(McpCard));
 
     expect(screen.getByRole("heading", { level: 3, name: "MCP" })).toBeTruthy();
     expect(screen.queryByText("Available")).toBeNull();
-    expect(screen.getByRole("tab", { name: "Claude Code" })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "Codex" })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "OpenCode" })).toBeTruthy();
-
-    const copyButton = screen.getByRole("button", { name: "Copy setup" });
-    fireEvent.click(copyButton);
-    expect(copyState.copy).toHaveBeenCalledWith(
-      "claude mcp add --transport http --scope user cloudstash https://cloudstash.test/mcp"
-    );
+    expect(screen.queryByRole("tab")).toBeNull();
+    expect(screen.getByText("Connect in your agent")).toBeTruthy();
+    expect(screen.getByText("MCP server URL")).toBeTruthy();
+    expect(
+      screen.getByRole("textbox", { name: "MCP server URL value" })
+    ).toBeTruthy();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Advanced connection details" })
+      screen.getByRole("button", { name: "Copy Connect in your agent" })
     );
-    expect(screen.getByText("https://cloudstash.test/mcp")).toBeTruthy();
-    expect(screen.getByText("Dynamic Client Registration (DCR)")).toBeTruthy();
-    expect(screen.getByText("links:read links:write")).toBeTruthy();
+    expect(copyState.copy).toHaveBeenNthCalledWith(
+      1,
+      "npx add-mcp https://cloudstash.test/mcp --name cloudstash --global"
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Copy MCP server URL" })
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Connection details" })
+    ).toBeNull();
   });
 
   it("offers an inline retry when capability loading fails", () => {
@@ -88,12 +93,12 @@ describe("McpCard", () => {
     copyState.copyFailed = true;
 
     render(createElement(McpCard));
-    fireEvent.click(screen.getByRole("button", { name: "Copy setup" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Copy Connect in your agent" })
+    );
 
     expect(
-      screen.getByText(
-        "Copy failed. Select the setup text and copy it manually."
-      )
-    ).toBeTruthy();
+      screen.getAllByText("Copy failed. Select and copy manually.")
+    ).toHaveLength(2);
   });
 });

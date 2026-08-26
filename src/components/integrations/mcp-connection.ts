@@ -1,41 +1,9 @@
-import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from "@/lib/mcp";
-
 import { API_FALLBACK_ORIGIN } from "./api-spec";
 
-export const MCP_CONNECTION_GUIDANCE = {
-  authentication: "OAuth",
-  path: "/mcp",
-  protocol: "2026-07-28 (recommended); 2025-11-25 fallback",
-  registration: "Dynamic Client Registration (DCR)",
-  scopeOverride: "Leave blank — scopes are requested automatically",
-  scopes: `${MCP_READ_SCOPE} ${MCP_WRITE_SCOPE}`,
-  transport: "Streamable HTTP",
-} as const;
+const MCP_PATH = "/mcp";
 
-export const MCP_LOCAL_ORIGIN_GUIDANCE =
-  "For local use, open Cloudstash and configure BETTER_AUTH_URL with this same origin.";
-
-export const mcpClientSetups = (endpoint: string) =>
-  [
-    {
-      id: "claude",
-      instruction: "Run once, then approve the workspace in your browser.",
-      label: "Claude Code",
-      value: `claude mcp add --transport http --scope user cloudstash ${endpoint}`,
-    },
-    {
-      id: "codex",
-      instruction: "Run once. Codex opens OAuth when it first connects.",
-      label: "Codex",
-      value: `codex mcp add cloudstash --url ${endpoint}`,
-    },
-    {
-      id: "opencode",
-      instruction: "Run once, then approve access in your browser.",
-      label: "OpenCode",
-      value: `opencode mcp add cloudstash --url ${endpoint} && opencode mcp auth cloudstash`,
-    },
-  ] as const;
+export const mcpCodingAgentSetup = (endpoint: string): string =>
+  `npx add-mcp ${endpoint} --name cloudstash --global`;
 
 export type McpAvailabilityState =
   | "loading"
@@ -57,7 +25,7 @@ export const mcpAvailabilityState = (input: {
 };
 
 export const mcpEndpointForOrigin = (origin: string): string =>
-  new URL(MCP_CONNECTION_GUIDANCE.path, origin).toString();
+  new URL(MCP_PATH, origin).toString();
 
 export const mcpEndpoint = (): string =>
   mcpEndpointForOrigin(

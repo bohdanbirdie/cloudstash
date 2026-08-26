@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  MCP_CONNECTION_GUIDANCE,
-  MCP_LOCAL_ORIGIN_GUIDANCE,
   mcpAvailabilityState,
-  mcpClientSetups,
+  mcpCodingAgentSetup,
   mcpEndpoint,
   mcpEndpointForOrigin,
 } from "../mcp-connection";
@@ -55,31 +53,9 @@ describe("MCP connection guidance", () => {
     ).toBe("disabled");
   });
 
-  it("documents the interoperable OAuth setup in one place", () => {
-    expect(MCP_CONNECTION_GUIDANCE).toEqual({
-      authentication: "OAuth",
-      path: "/mcp",
-      protocol: "2026-07-28 (recommended); 2025-11-25 fallback",
-      registration: "Dynamic Client Registration (DCR)",
-      scopeOverride: "Leave blank — scopes are requested automatically",
-      scopes: "links:read links:write",
-      transport: "Streamable HTTP",
-    });
-    const setups = mcpClientSetups("https://cloudstash.dev/mcp");
-    expect(setups.map((setup) => setup.label)).toEqual([
-      "Claude Code",
-      "Codex",
-      "OpenCode",
-    ]);
-    expect(setups[0]?.value).toBe(
-      "claude mcp add --transport http --scope user cloudstash https://cloudstash.dev/mcp"
+  it("builds a portable agent setup command", () => {
+    expect(mcpCodingAgentSetup("https://cloudstash.dev/mcp")).toBe(
+      "npx add-mcp https://cloudstash.dev/mcp --name cloudstash --global"
     );
-    expect(setups[1]?.value).toBe(
-      "codex mcp add cloudstash --url https://cloudstash.dev/mcp"
-    );
-    expect(setups[2]?.value).toBe(
-      "opencode mcp add cloudstash --url https://cloudstash.dev/mcp && opencode mcp auth cloudstash"
-    );
-    expect(MCP_LOCAL_ORIGIN_GUIDANCE).toContain("same origin");
   });
 });

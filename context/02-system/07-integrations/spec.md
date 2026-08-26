@@ -19,7 +19,7 @@ Active.
 | X bookmarks      | linked encrypted OAuth account                          | per-user alarm poll → Queue                                          | reconcile/pause/resume/disconnect                   |
 
 Settings presents the end-user connections in capture-first order:
-Telegram, X bookmarks, MCP clients, Chrome, then Raycast. A single divided
+Telegram, X bookmarks, MCP, Chrome, then Raycast. A single divided
 settings surface gives each integration a compact single-line row with its mark,
 name, minimal state-specific description, and a clear right-aligned control.
 Descriptions truncate rather than wrap. Disconnected integrations expose their
@@ -30,8 +30,8 @@ between connected and disconnected actions without changing row height. Visible
 action labels rely on their row context while accessible names include the
 integration. Row text shares one typographic baseline inside a bullet-separated
 text group centered against the integration mark, while the right-side control
-remains vertically centered in the row. MCP keeps its client setup tabs beneath
-the compact row; device details for Chrome and Raycast expand only when
+remains vertically centered in the row. MCP setup stays beneath the compact row;
+device details for Chrome and Raycast expand only when
 requested. Device-key revocation uses a targeted inline confirmation, prevents
 repeat submission while pending, and remains confirmable when revocation fails.
 
@@ -46,11 +46,10 @@ loopback host; explicit types, mixed redirect sets, and other hosts remain under
 Better Auth's standard validation. Expired OAuth verification and
 client-assertion replay records are cleaned on a bounded token-request cadence.
 Consent marks dynamic clients unverified, shows the callback target, and pins
-access to the displayed workspace. The Pro-gated card offers copy-ready CLI
-setup for Claude Code, Codex, and OpenCode in client-labelled tabs. The current
-origin's `/mcp` URL, OAuth details, scopes, and protocol
-compatibility remain available behind an advanced disclosure; runtime
-entitlement stays authoritative. The Worker supports MCP 2026 and the 2025
+access to the displayed workspace. The Pro-gated MCP card offers one copy-ready
+`add-mcp` command for locally installed coding agents and the current origin's
+raw `/mcp` URL for manual client configuration; runtime entitlement stays
+authoritative. The Worker supports MCP 2026 and the 2025
 stateless fallback. Protected-resource discovery omits the optional scope list
 so clients fall back to the authorization server's complete scope metadata,
 request `offline_access`, and receive a rotating refresh token with a 30-day
