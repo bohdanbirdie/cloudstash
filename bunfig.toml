@@ -2,9 +2,14 @@
 minimumReleaseAge = 604800
 # @livestore snapshot pins are first-party (same SHA as the vendor/livestore
 # submodule) and always freshly published — the age gate can never pass them.
-# The shadcn CLI and its icon library are exact-pinned and deliberately kept
+# The shadcn and Storybook toolchains are exact-pinned and deliberately kept
 # current, so intentional upgrades can precede the general package age gate.
 minimumReleaseAgeExcludes = [
+  "@storybook/builder-vite",
+  "@storybook/csf-plugin",
+  "@storybook/react",
+  "@storybook/react-dom-shim",
+  "@storybook/react-vite",
   "@livestore/adapter-cloudflare",
   "@livestore/adapter-web",
   "@livestore/devtools-vite",
@@ -15,4 +20,5 @@ minimumReleaseAgeExcludes = [
   "@livestore/wa-sqlite",
   "lucide-react",
   "shadcn",
+  "storybook",
 ]
