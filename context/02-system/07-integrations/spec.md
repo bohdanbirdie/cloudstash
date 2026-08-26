@@ -18,6 +18,23 @@ Active.
 | MCP clients      | OAuth 2.1 + PKCE/DCR; workspace consent                 | stateless HTTP; matching link operations via LinkProcessorDO         | re-consent/revoke; five-minute JWT                  |
 | X bookmarks      | linked encrypted OAuth account                          | per-user alarm poll → Queue                                          | reconcile/pause/resume/disconnect                   |
 
+Settings presents the end-user connections in capture-first order:
+Telegram, X bookmarks, MCP clients, Chrome, then Raycast. A single divided
+settings surface gives each integration a compact single-line row with its mark,
+name, minimal state-specific description, and a clear right-aligned control.
+Descriptions truncate rather than wrap. Disconnected integrations expose their
+connect action; connected integrations expose disconnect directly without a
+separate status label. Low-impact integration disconnects execute directly;
+their right-aligned control uses a restrained, right-anchored Motion transition
+between connected and disconnected actions without changing row height. Visible
+action labels rely on their row context while accessible names include the
+integration. Row text shares one typographic baseline inside a bullet-separated
+text group centered against the integration mark, while the right-side control
+remains vertically centered in the row. MCP keeps its client setup tabs beneath
+the compact row; device details for Chrome and Raycast expand only when
+requested. Device-key revocation uses a targeted inline confirmation, prevents
+repeat submission while pending, and remains confirmable when revocation fails.
+
 ## MCP Clients
 
 Clients use protected-resource discovery and bounded, rate-limited public DCR;
@@ -29,8 +46,10 @@ loopback host; explicit types, mixed redirect sets, and other hosts remain under
 Better Auth's standard validation. Expired OAuth verification and
 client-assertion replay records are cleaned on a bounded token-request cadence.
 Consent marks dynamic clients unverified, shows the callback target, and pins
-access to the displayed workspace. The Pro-gated card shows the current
-origin's `/mcp` URL, OAuth setup, scopes, and protocol compatibility; runtime
+access to the displayed workspace. The Pro-gated card offers copy-ready CLI
+setup for Claude Code, Codex, and OpenCode in client-labelled tabs. The current
+origin's `/mcp` URL, OAuth details, scopes, and protocol
+compatibility remain available behind an advanced disclosure; runtime
 entitlement stays authoritative. The Worker supports MCP 2026 and the 2025
 stateless fallback. Protected-resource discovery omits the optional scope list
 so clients fall back to the authorization server's complete scope metadata,
@@ -98,6 +117,8 @@ longer exists, reconciliation suspends polling, removes the alarm, and releases
 that stale binding so a later explicit signal can bind a valid workspace. Pause
 and resume complete only after the durable preference and alarm transition
 succeeds; transient DO/storage failures remain retryable service failures.
+The user-facing Settings row can resume an already-paused connection or
+disconnect it; pausing remains an internal administration operation.
 
 On first entitled connect the DO probes one newest bookmark and pins the
 watermark without import. Later polls probe for change, page at 50 items until

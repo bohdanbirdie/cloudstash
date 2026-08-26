@@ -49,25 +49,25 @@ describe("McpCard", () => {
 
   afterEach(cleanup);
 
-  it("leads with the connection flow and progressively discloses protocol details", () => {
+  it("leads with client-specific setup and progressively discloses protocol details", () => {
     render(createElement(McpCard));
 
     expect(screen.getByRole("heading", { level: 3, name: "MCP" })).toBeTruthy();
-    expect(screen.getByText("Ready to connect")).toBeTruthy();
-    expect(screen.getByText("Connect in three steps")).toBeTruthy();
-    expect(screen.getByText("Choose OAuth.")).toBeTruthy();
-    expect(screen.getByRole("textbox", { name: "Server URL" })).toHaveProperty(
-      "value",
-      "https://cloudstash.test/mcp"
-    );
+    expect(screen.queryByText("Available")).toBeNull();
+    expect(screen.getByRole("tab", { name: "Claude Code" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Codex" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "OpenCode" })).toBeTruthy();
 
-    const copyButton = screen.getByRole("button", { name: "Copy URL" });
+    const copyButton = screen.getByRole("button", { name: "Copy setup" });
     fireEvent.click(copyButton);
-    expect(copyState.copy).toHaveBeenCalledWith("https://cloudstash.test/mcp");
+    expect(copyState.copy).toHaveBeenCalledWith(
+      "claude mcp add --transport http --scope user cloudstash https://cloudstash.test/mcp"
+    );
 
     fireEvent.click(
       screen.getByRole("button", { name: "Advanced connection details" })
     );
+    expect(screen.getByText("https://cloudstash.test/mcp")).toBeTruthy();
     expect(screen.getByText("Dynamic Client Registration (DCR)")).toBeTruthy();
     expect(screen.getByText("links:read links:write")).toBeTruthy();
   });
@@ -88,10 +88,11 @@ describe("McpCard", () => {
     copyState.copyFailed = true;
 
     render(createElement(McpCard));
+    fireEvent.click(screen.getByRole("button", { name: "Copy setup" }));
 
     expect(
       screen.getByText(
-        "Couldn’t copy automatically. Select the URL and copy it manually."
+        "Copy failed. Select the setup text and copy it manually."
       )
     ).toBeTruthy();
   });

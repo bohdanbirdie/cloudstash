@@ -12,23 +12,30 @@ export const MCP_CONNECTION_GUIDANCE = {
   transport: "Streamable HTTP",
 } as const;
 
-export const MCP_SETUP_STEPS = [
-  {
-    title: "Add the server.",
-    description: "Choose HTTP and paste the URL above.",
-  },
-  {
-    title: "Choose OAuth.",
-    description: "Leave the scope override empty; registration is automatic.",
-  },
-  {
-    title: "Approve the workspace.",
-    description: "Sign in to Cloudstash and review the access request.",
-  },
-] as const;
-
 export const MCP_LOCAL_ORIGIN_GUIDANCE =
   "For local use, open Cloudstash and configure BETTER_AUTH_URL with this same origin.";
+
+export const mcpClientSetups = (endpoint: string) =>
+  [
+    {
+      id: "claude",
+      instruction: "Run once, then approve the workspace in your browser.",
+      label: "Claude Code",
+      value: `claude mcp add --transport http --scope user cloudstash ${endpoint}`,
+    },
+    {
+      id: "codex",
+      instruction: "Run once. Codex opens OAuth when it first connects.",
+      label: "Codex",
+      value: `codex mcp add cloudstash --url ${endpoint}`,
+    },
+    {
+      id: "opencode",
+      instruction: "Run once, then approve access in your browser.",
+      label: "OpenCode",
+      value: `opencode mcp add cloudstash --url ${endpoint} && opencode mcp auth cloudstash`,
+    },
+  ] as const;
 
 export type McpAvailabilityState =
   | "loading"

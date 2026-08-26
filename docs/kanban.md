@@ -23,6 +23,7 @@ kanban-plugin: board
 - [ ] [[todos/simplify-link-processor-wake|Simplify LinkProcessorDO wake path — retire the manual onPush trigger]] — redundant for warm/cold re-wake since upstream #1541–#1545 (KV-persisted `rpc-sub:` registry + store-less `syncUpdateRpc` recovery); still needed as first-subscribe bootstrap + cutover registry backfill. Pick up after the migration soaks in prod.
 - [ ] Remove the temp `liveLongTimers` probe (`src/cf-worker/sync/index.ts:23`) once prod `type:hibernation` GB-s are re-confirmed after the v4-cutover deploy — last remainder of [[architecture/sync-backend-do-hibernation-billing]]. LinkProcessorDO client-side hibernation stays deferred (needs a clean-store re-test, not a new patch).
 - [ ] [[todos/livestore-testing-ui|Livestore UI feature tests (RTL)]]
+- [ ] Revamp component interaction tests around `@testing-library/user-event` — add it as a direct dev dependency, replace the nine localized `fireEvent.click` calls, and preserve realistic focus, pointer, keyboard, and disabled-control behavior.
 - [ ] [[todos/progress-tracker-sqlite-review|Review stateful SQLite ProgressTracker]]
 - [ ] [[todos/managed-effect-runtime-do|Explore ManagedRuntime for LinkProcessorDO]]
 - [ ] Develop CLI for ingestion and management

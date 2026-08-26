@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   MCP_CONNECTION_GUIDANCE,
   MCP_LOCAL_ORIGIN_GUIDANCE,
-  MCP_SETUP_STEPS,
   mcpAvailabilityState,
+  mcpClientSetups,
   mcpEndpoint,
   mcpEndpointForOrigin,
 } from "../mcp-connection";
@@ -65,11 +65,21 @@ describe("MCP connection guidance", () => {
       scopes: "links:read links:write",
       transport: "Streamable HTTP",
     });
-    expect(MCP_SETUP_STEPS.map((step) => step.title)).toEqual([
-      "Add the server.",
-      "Choose OAuth.",
-      "Approve the workspace.",
+    const setups = mcpClientSetups("https://cloudstash.dev/mcp");
+    expect(setups.map((setup) => setup.label)).toEqual([
+      "Claude Code",
+      "Codex",
+      "OpenCode",
     ]);
+    expect(setups[0]?.value).toBe(
+      "claude mcp add --transport http --scope user cloudstash https://cloudstash.dev/mcp"
+    );
+    expect(setups[1]?.value).toBe(
+      "codex mcp add cloudstash --url https://cloudstash.dev/mcp"
+    );
+    expect(setups[2]?.value).toBe(
+      "opencode mcp add cloudstash --url https://cloudstash.dev/mcp && opencode mcp auth cloudstash"
+    );
     expect(MCP_LOCAL_ORIGIN_GUIDANCE).toContain("same origin");
   });
 });

@@ -1,14 +1,14 @@
-import { Trash2Icon, KeyIcon } from "lucide-react";
+import { KeyIcon } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
+import { RevokeKeyControl } from "./revoke-key-control";
 import type { ApiKey } from "./use-api-keys";
 
 interface KeyListProps {
   keys: ApiKey[];
   isLoading: boolean;
-  onRevoke: (keyId: string) => void;
+  onRevoke: (keyId: string) => Promise<boolean>;
 }
 
 export function KeyList({ keys, isLoading, onRevoke }: KeyListProps) {
@@ -35,7 +35,7 @@ export function KeyList({ keys, isLoading, onRevoke }: KeyListProps) {
       {keys.map((key) => (
         <div
           key={key.id}
-          className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+          className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/50 p-3"
         >
           <div className="min-w-0 flex-1">
             <p className="font-medium text-sm truncate">
@@ -51,15 +51,10 @@ export function KeyList({ keys, isLoading, onRevoke }: KeyListProps) {
               )}
             </p>
           </div>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onRevoke(key.id)}
-            aria-label={`Revoke ${key.name || "API key"}`}
-            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:ring-destructive/30"
-          >
-            <Trash2Icon />
-          </Button>
+          <RevokeKeyControl
+            keyName={key.name || "unnamed API key"}
+            onRevoke={() => onRevoke(key.id)}
+          />
         </div>
       ))}
     </div>
