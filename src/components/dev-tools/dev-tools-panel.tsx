@@ -100,6 +100,7 @@ function DevToolsLink({
 }) {
   return (
     <Button
+      nativeButton={false}
       variant="ghost"
       size="sm"
       render={

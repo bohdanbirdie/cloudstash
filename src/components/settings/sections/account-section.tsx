@@ -21,7 +21,13 @@ export function AccountSection() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center gap-3">
         <Avatar size="lg">
-          {auth.image && <AvatarImage src={auth.image} alt={auth.name ?? ""} />}
+          {auth.image && (
+            <AvatarImage
+              src={auth.image}
+              alt={auth.name ?? ""}
+              referrerPolicy="no-referrer"
+            />
+          )}
           <AvatarFallback>{initial}</AvatarFallback>
         </Avatar>
         <div className="flex min-w-0 flex-col gap-0.5">

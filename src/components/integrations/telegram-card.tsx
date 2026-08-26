@@ -48,6 +48,7 @@ export function TelegramCard() {
     return (
       <Button
         aria-label="Open Telegram bot"
+        nativeButton={false}
         size="sm"
         render={
           <a href={botUrl} target="_blank" rel="noopener noreferrer">

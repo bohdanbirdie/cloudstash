@@ -173,7 +173,7 @@ export function TopBar() {
             <form onSubmit={handleSubmit} noValidate>
               <div className="px-3 pt-3 pb-2.5">
                 <Input
-                  variant="bare"
+                  className="rounded-none border-0 bg-transparent p-0 focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
                   type="url"
                   placeholder="URL"
                   value={value}

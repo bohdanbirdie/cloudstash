@@ -62,6 +62,7 @@ export function RaycastCard({
     if (requiresUpgrade) return <UpgradeCta compact tier="plus" />;
     return (
       <Button
+        nativeButton={false}
         size="sm"
         render={
           <a href={RAYCAST_STORE_URL} target="_blank" rel="noopener noreferrer">

@@ -44,6 +44,7 @@ export function SectionCta({
   return (
     <div className="mt-16 flex justify-center sm:mt-20 lg:mt-24">
       <Button
+        nativeButton={false}
         render={<Link to="/login" />}
         size="lg"
         className="h-11 px-6 text-sm"

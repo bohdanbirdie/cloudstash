@@ -77,7 +77,11 @@ function UnconfirmedNotice() {
           updates in your library shortly.
         </p>
       </div>
-      <Button render={<Link to="/inbox" />} className="w-full">
+      <Button
+        nativeButton={false}
+        render={<Link to="/inbox" />}
+        className="w-full"
+      >
         Go to your library
       </Button>
     </div>
@@ -113,7 +117,11 @@ function Confirmation({ tier }: { tier: PlanTier }) {
         <PlanFeatureList features={unlockedFeatures(tier)} />
       </div>
 
-      <Button render={<Link to="/inbox" />} className="w-full">
+      <Button
+        nativeButton={false}
+        render={<Link to="/inbox" />}
+        className="w-full"
+      >
         Go to your library
       </Button>
 
@@ -169,7 +177,11 @@ function CanceledNotice({
       </header>
 
       <div className="flex flex-col gap-2.5">
-        <Button render={<Link to="/inbox" />} className="w-full">
+        <Button
+          nativeButton={false}
+          render={<Link to="/inbox" />}
+          className="w-full"
+        >
           Go to your library
         </Button>
         <Button

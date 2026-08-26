@@ -8,16 +8,12 @@ import {
 import { useEffect, useState } from "react";
 
 import { IntegrationsSection } from "@/components/integrations/integrations-section";
+import { ResponsiveDialogContent } from "@/components/responsive-dialog-content";
 import { AccountSection } from "@/components/settings/sections/account-section";
 import { DevelopersSection } from "@/components/settings/sections/developers-section";
 import { PlanSection } from "@/components/settings/sections/plan-section";
 import { TagsSection } from "@/components/tags/tags-section";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useSettingsDialog } from "@/stores/settings-dialog-store";
 
@@ -89,10 +85,7 @@ export function SettingsDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent
-        fullScreenOnMobile
-        className="sm:max-w-3xl sm:h-[min(620px,85vh)] gap-0 overflow-hidden p-0"
-      >
+      <ResponsiveDialogContent className="sm:max-w-3xl sm:h-[min(620px,85vh)] gap-0 overflow-hidden p-0">
         <DialogHeader className="sr-only">
           <DialogTitle>Settings</DialogTitle>
         </DialogHeader>
@@ -161,7 +154,7 @@ export function SettingsDialog() {
             })}
           </div>
         </div>
-      </DialogContent>
+      </ResponsiveDialogContent>
     </Dialog>
   );
 }

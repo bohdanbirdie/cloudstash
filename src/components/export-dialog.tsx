@@ -1,10 +1,10 @@
 import { CopyIcon, DownloadIcon, CheckIcon } from "lucide-react";
 import { useState, useMemo } from "react";
 
+import { ResponsiveDialogContent } from "@/components/responsive-dialog-content";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
-  DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -86,10 +86,7 @@ export function ExportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        fullScreenOnMobile
-        className="sm:max-w-4xl sm:h-[70vh] flex flex-col"
-      >
+      <ResponsiveDialogContent className="sm:max-w-4xl sm:h-[70vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Export Links</DialogTitle>
         </DialogHeader>
@@ -154,7 +151,7 @@ export function ExportDialog({
             Download
           </Button>
         </DialogFooter>
-      </DialogContent>
+      </ResponsiveDialogContent>
     </Dialog>
   );
 }

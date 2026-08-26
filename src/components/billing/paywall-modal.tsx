@@ -4,10 +4,10 @@ import { useState } from "react";
 import { IntervalToggle } from "@/components/billing/interval-toggle";
 import { PLAN_ICON } from "@/components/billing/plan-icon";
 import { PlanPrice } from "@/components/billing/plan-price";
+import { ResponsiveDialogContent } from "@/components/responsive-dialog-content";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
@@ -52,7 +52,7 @@ export function PaywallModal() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent fullScreenOnMobile className="gap-0 p-0 sm:max-w-3xl">
+      <ResponsiveDialogContent className="gap-0 p-0 sm:max-w-3xl">
         <div className="flex max-h-[92svh] min-h-0 flex-col overflow-y-auto px-6 py-7 sm:px-8">
           <DialogHeader className="gap-2">
             <DialogTitle className="text-2xl font-bold tracking-tight text-balance text-foreground">
@@ -98,7 +98,7 @@ export function PaywallModal() {
             Cancel anytime — you keep your features until the end of the period.
           </p>
         </div>
-      </DialogContent>
+      </ResponsiveDialogContent>
     </Dialog>
   );
 }

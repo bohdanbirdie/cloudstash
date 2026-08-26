@@ -36,11 +36,10 @@ function CopyField({ label, value }: { label: string; value: string }) {
       <div className="flex items-center gap-1 rounded-md bg-muted/60 p-1 ring-1 ring-foreground/5">
         <Input
           aria-label={`${label} value`}
-          className="h-6 min-w-0 flex-1 rounded-sm px-1.5 py-0 font-mono text-base/6 text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 md:text-xs/6"
+          className="h-6 min-w-0 flex-1 rounded-sm border-0 bg-transparent px-1.5 py-0 font-mono text-base/6 text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 md:text-xs/6 dark:bg-transparent"
           readOnly
           spellCheck={false}
           value={value}
-          variant="bare"
         />
         <Button
           aria-label={`Copy ${label}`}
