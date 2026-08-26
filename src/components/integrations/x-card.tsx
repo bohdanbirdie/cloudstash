@@ -10,14 +10,24 @@ import { useXStatus } from "./use-x-status";
 
 function connectionMessage({
   needsReconnect,
+  requiresUpgrade,
+  suspended,
   syncEnabled,
   xUsername,
 }: {
   needsReconnect: boolean;
+  requiresUpgrade: boolean;
+  suspended: boolean;
   syncEnabled: boolean;
   xUsername: string | null;
 }) {
   const account = xUsername ? `@${xUsername} · ` : "";
+  if (requiresUpgrade) {
+    return `${account}Upgrade to Pro to resume bookmark sync`;
+  }
+  if (suspended) {
+    return `${account}Bookmark sync is unavailable`;
+  }
   if (needsReconnect) return `${account}Reconnect to resume bookmark sync`;
   if (!syncEnabled) return `${account}New bookmark sync is paused`;
   return `${account}New bookmarks sync automatically`;
@@ -28,9 +38,10 @@ export function XCard() {
   const { capabilities, isLoading: capsLoading } = useOrgFeatures();
 
   const needsReconnect = status.status === "needs_reconnect";
+  const suspended = status.status === "suspended";
   const isLoadingInitial =
     (status.isLoading && status.status === null) || capsLoading;
-  const requiresUpgrade = !status.isConnected && !capabilities.xBookmarkSync;
+  const requiresUpgrade = !capabilities.xBookmarkSync;
 
   const description = (() => {
     if (isLoadingInitial) {
@@ -41,6 +52,8 @@ export function XCard() {
     }
     return connectionMessage({
       needsReconnect,
+      requiresUpgrade,
+      suspended,
       syncEnabled: status.syncEnabled,
       xUsername: status.xUsername,
     });
@@ -50,8 +63,22 @@ export function XCard() {
     if (isLoadingInitial) {
       return <Skeleton className="h-6 w-20 motion-reduce:animate-none" />;
     }
+    if (requiresUpgrade) {
+      return (
+        <>
+          <UpgradeCta compact tier="pro" />
+          {status.isConnected && (
+            <DisconnectButton
+              disabled={status.isMutating}
+              integration="X"
+              isPending={status.mutatingAction === "disconnect"}
+              onClick={() => void status.disconnect()}
+            />
+          )}
+        </>
+      );
+    }
     if (!status.isConnected) {
-      if (requiresUpgrade) return <UpgradeCta compact tier="pro" />;
       return (
         <Button
           aria-label="Connect X"
@@ -102,8 +129,10 @@ export function XCard() {
 
   const controlState = (() => {
     if (isLoadingInitial) return "loading";
+    if (requiresUpgrade) {
+      return status.isConnected ? "suspended-upgrade" : "upgrade";
+    }
     if (!status.isConnected) {
-      if (requiresUpgrade) return "upgrade";
       return "disconnected";
     }
     if (needsReconnect) return "reconnect";
