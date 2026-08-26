@@ -155,7 +155,7 @@ describe("X control failures", () => {
 });
 
 describe("xCompleteRequest", () => {
-  it.effect("reconciles once and redirects without adding UI state", () =>
+  it.effect("reconciles once and redirects with transient UI state", () =>
     Effect.gen(function* () {
       const reconciliations = yield* Ref.make(0);
       const response = yield* xCompleteRequest(
@@ -179,7 +179,7 @@ describe("xCompleteRequest", () => {
       assert.strictEqual(response.status, 303);
       assert.strictEqual(
         response.headers.get("location"),
-        "http://worker/settings?tab=integration"
+        "http://worker/settings?tab=integration&integrationResult=x-connected"
       );
       assert.strictEqual(yield* Ref.get(reconciliations), 1);
     })
@@ -200,7 +200,10 @@ describe("xCompleteRequest", () => {
       ),
       Effect.tap((response) =>
         Effect.sync(() =>
-          assert.strictEqual(response.headers.get("location"), "http://worker/")
+          assert.strictEqual(
+            response.headers.get("location"),
+            "http://worker/?integrationResult=x-connected"
+          )
         )
       )
     )

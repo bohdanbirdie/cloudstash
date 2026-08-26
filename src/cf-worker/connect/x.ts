@@ -29,6 +29,12 @@ const returnTarget = (request: Request): URL => {
   return new URL(candidate, requestUrl.origin);
 };
 
+const connectedReturnTarget = (request: Request): URL => {
+  const target = returnTarget(request);
+  target.searchParams.set("integrationResult", "x-connected");
+  return target;
+};
+
 const requireAuthorizedSession = Effect.fn("XConnect.requireSession")(
   function* (headers: Headers) {
     const sessionProvider = yield* SessionProvider;
@@ -120,7 +126,7 @@ export const xCompleteRequest = Effect.fnUntraced(function* (request: Request) {
       orgId: maskId(orgId),
     })
   );
-  return Response.redirect(returnTarget(request), 303);
+  return Response.redirect(connectedReturnTarget(request), 303);
 });
 
 const SessionProviderLive = Layer.effect(

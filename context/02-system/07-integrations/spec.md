@@ -34,6 +34,11 @@ remains vertically centered in the row. MCP setup stays beneath the compact row;
 device details for Chrome and Raycast expand only when
 requested. Device-key revocation uses a targeted inline confirmation, prevents
 repeat submission while pending, and remains confirmable when revocation fails.
+After X authorization completes, its callback returns to the initiating route
+with a scoped transient result parameter. The authenticated route opens Settings
+at Integrations, announces the successful connection, and immediately removes
+only that result parameter with replace navigation so unrelated search state is
+preserved.
 
 ## MCP Clients
 
