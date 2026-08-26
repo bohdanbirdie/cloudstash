@@ -45,6 +45,8 @@ export default defineConfig({
           BETTER_AUTH_URL: "http://localhost",
           GOOGLE_CLIENT_ID: "test-google-client-id",
           GOOGLE_CLIENT_SECRET: "test-google-client-secret",
+          X_CLIENT_ID: "test-x-client-id",
+          X_CLIENT_SECRET: "test-x-client-secret",
           ENABLE_TEST_AUTH: "true",
           RESEND_API_KEY: "re_test_dummy",
           EMAIL_FROM: "test@example.com",
