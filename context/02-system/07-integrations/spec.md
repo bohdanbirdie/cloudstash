@@ -116,13 +116,18 @@ reconciliation messages; every alarm
 reconciles before provider I/O; and a daily scan of linked X accounts enqueues
 repair messages for missed delivery. An established workspace binding wins over
 later repair messages for another membership, so one per-user poller cannot be
-rebound nondeterministically. If Billing confirms that the bound workspace no
-longer exists, reconciliation suspends polling, removes the alarm, and releases
-that stale binding so a later explicit signal can bind a valid workspace. Pause
-and resume complete only after the durable preference and alarm transition
-succeeds; transient DO/storage failures remain retryable service failures.
-The user-facing Settings row can resume an already-paused connection or
-disconnect it; pausing remains an internal administration operation.
+rebound nondeterministically. When the bound workspace loses the
+`xBookmarkSync` capability, reconciliation suspends polling and removes the
+alarm while retaining the linked account, binding, pause preference, identity,
+and watermark. Restoring the capability re-arms polling from that watermark;
+the Settings row communicates the suspension and offers both upgrade and
+disconnect actions. If Billing confirms that the bound workspace no longer
+exists, reconciliation also releases that stale binding so a later explicit
+signal can bind a valid workspace. Pause and resume complete only after the
+durable preference and alarm transition succeeds; transient DO/storage failures
+remain retryable service failures. The user-facing Settings row can resume an
+already-paused connection or disconnect it; pausing remains an internal
+administration operation.
 
 On first entitled connect the DO probes one newest bookmark and pins the
 watermark without import. Later polls probe for change, page at 50 items until

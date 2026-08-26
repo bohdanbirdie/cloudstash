@@ -145,32 +145,43 @@ There is also a **second safety net** in `pollOnceEffect`: if the watermark is n
 
 ## Plan gating (Pro-only)
 
-X bookmark sync is gated to the **Pro tier**. Free and Plus users see an "Upgrade to Pro" CTA in the integrations panel instead of the connect button.
+X bookmark sync is gated to the **Pro tier**. Free and Plus users without a
+connection see an "Upgrade to Pro" CTA instead of Connect. A retained connection
+that becomes suspended shows Upgrade alongside Disconnect.
 
 ### Entitlement signal
 
-Gating uses the existing per-feature pattern: an optional flag on the `organization.features` JSON column. **No DB migration required** — adding a key to an optional JSON shape is a TypeScript-only change. Behaves identically to the other per-feature flags already on that column.
-
-All entitlement checks go through a single `requireXSyncFeature` function so the gating implementation can evolve without touching call sites.
+Gating uses the shared billing capability projection: the tier default can be
+overridden per workspace, and each lifecycle boundary reads the effective
+`xBookmarkSync` capability rather than duplicating tier checks.
 
 ### Defense in depth
 
-| Layer               | Behavior                                                                                 |
-| ------------------- | ---------------------------------------------------------------------------------------- |
-| OAuth post-callback | If the feature is off → unlink the account immediately and skip starting the DO.         |
-| HTTP handlers       | First check after session auth. Returns `XSyncFeatureDisabledError` (HTTP 403).          |
-| DO alarm self-heal  | Re-reads org features once per alarm. If revoked → purge DO storage, unlink, kill alarm. |
-| UI                  | Card renders an upgrade CTA instead of Connect when the feature is off.                  |
+| Layer               | Behavior                                                                        |
+| ------------------- | ------------------------------------------------------------------------------- |
+| OAuth completion    | Requires `xBookmarkSync` before activating the connection.                      |
+| Entitlement signals | Stripe and admin changes enqueue idempotent per-user reconciliation.            |
+| DO alarm self-heal  | Reconciles before provider I/O and removes its alarm when capability is absent. |
+| Periodic repair     | A daily scan reconciles linked accounts after missed signal delivery.           |
+| UI                  | Suspended connections offer Upgrade to Pro and Disconnect.                      |
 
 ### Downgrade behavior
 
 If a Pro user with X connected downgrades:
 
-- The next alarm tick detects `xSyncEnabled === false`
-- DO calls the same purge path the explicit `disconnect()` handler uses: `deleteAlarm` + `ctx.storage.deleteAll` + Better Auth `unlinkAccount`
-- Re-upgrading to Pro requires a fresh OAuth round-trip
+- A scheduled cancellation retains Pro access and bookmark sync through the
+  paid period.
+- Once Stripe projects the workspace to Free, reconciliation marks the poller
+  `suspended` and removes its alarm before any further X request.
+- The linked account, workspace binding, user pause preference, X identity, and
+  watermark remain intact; explicit Disconnect still purges them.
+- Re-upgrading restores the alarm without another OAuth round-trip. The next
+  polls continue from the retained watermark, so accessible bookmarks created
+  during suspension can be imported.
 
-No webhook needed — the lazy alarm check is self-healing. A future Stripe webhook can short-circuit by calling `stub.disconnect()` directly; nothing else changes.
+Stripe/admin signals make the transition prompt, every alarm rechecks the
+capability before provider I/O, and the daily repair scan closes missed-delivery
+gaps.
 
 ## Deferred / future work
 
