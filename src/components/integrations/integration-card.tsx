@@ -138,7 +138,7 @@ export function IntegrationItem({
           {icon}
         </span>
 
-        <div className="col-start-2 flex min-w-0 items-baseline gap-x-1.5">
+        <div className="col-start-2 flex min-w-0 items-center gap-x-1.5">
           <h3
             id={titleId}
             className="shrink-0 whitespace-nowrap text-sm/none font-medium"
@@ -153,7 +153,7 @@ export function IntegrationItem({
             •
           </span>
 
-          <div className="min-w-0 truncate whitespace-nowrap text-xs/4 text-muted-foreground">
+          <div className="translate-y-px min-w-0 truncate whitespace-nowrap text-xs/4 text-muted-foreground">
             {description}
           </div>
         </div>
@@ -161,7 +161,7 @@ export function IntegrationItem({
         {control && (
           <div
             ref={controlRootRef}
-            className="col-start-3 flex shrink-0 flex-nowrap items-center justify-end whitespace-nowrap pl-2"
+            className="col-start-3 flex shrink-0 flex-nowrap items-center justify-end whitespace-nowrap pl-2 [&_[data-slot=button]]:leading-none"
           >
             <motion.div
               className="relative flex h-6 items-center justify-end"

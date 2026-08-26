@@ -254,7 +254,13 @@ function DesktopMenu({
                   size="sm"
                   className="cursor-pointer outline-none after:transition-colors hover:after:border-foreground/30 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background data-popup-open:after:border-foreground/30"
                 >
-                  {image && <AvatarImage src={image} alt={name} />}
+                  {image && (
+                    <AvatarImage
+                      src={image}
+                      alt={name}
+                      referrerPolicy="no-referrer"
+                    />
+                  )}
                   <AvatarFallback>{initial}</AvatarFallback>
                 </Avatar>
               }
@@ -270,7 +276,13 @@ function DesktopMenu({
           <>
             <div className="flex items-center gap-2 px-2 py-1.5">
               <Avatar size="sm">
-                {image && <AvatarImage src={image} alt={firstName} />}
+                {image && (
+                  <AvatarImage
+                    src={image}
+                    alt={firstName}
+                    referrerPolicy="no-referrer"
+                  />
+                )}
                 <AvatarFallback>{initial}</AvatarFallback>
               </Avatar>
               <span className="truncate text-xs font-medium text-foreground">
@@ -325,7 +337,9 @@ function MobileSheet({
         className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         <Avatar size="sm">
-          {image && <AvatarImage src={image} alt={name} />}
+          {image && (
+            <AvatarImage src={image} alt={name} referrerPolicy="no-referrer" />
+          )}
           <AvatarFallback>{initial}</AvatarFallback>
         </Avatar>
       </Drawer.Trigger>
@@ -337,7 +351,13 @@ function MobileSheet({
           {firstName && (
             <div className="flex items-center gap-3 border-b border-border/60 px-5 pt-2 pb-4">
               <Avatar size="lg">
-                {image && <AvatarImage src={image} alt={firstName} />}
+                {image && (
+                  <AvatarImage
+                    src={image}
+                    alt={firstName}
+                    referrerPolicy="no-referrer"
+                  />
+                )}
                 <AvatarFallback>{initial}</AvatarFallback>
               </Avatar>
               <div className="flex min-w-0 flex-col">

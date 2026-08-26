@@ -2,6 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { ChevronDownIcon, SparklesIcon } from "lucide-react";
 import { useRef, useState } from "react";
 
+import { AnchoredPopoverContent } from "@/components/anchored-popover-content";
 import {
   Command,
   CommandGroup,
@@ -10,11 +11,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverTrigger } from "@/components/ui/popover";
 import { usePopoverBoundary } from "@/components/ui/popover-boundary";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import { cn } from "@/lib/utils";
@@ -97,7 +94,7 @@ export function TagFilterMenu({
         <ChevronDownIcon aria-hidden className="size-3 shrink-0 opacity-50" />
       </PopoverTrigger>
 
-      <PopoverContent
+      <AnchoredPopoverContent
         anchor={anchorRef}
         collisionBoundary={boundary ?? "clipping-ancestors"}
         collisionPadding={24}
@@ -182,7 +179,7 @@ export function TagFilterMenu({
             )}
           </CommandList>
         </Command>
-      </PopoverContent>
+      </AnchoredPopoverContent>
     </Popover>
   );
 }

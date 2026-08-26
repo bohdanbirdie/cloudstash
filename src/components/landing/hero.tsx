@@ -58,6 +58,7 @@ export function Hero() {
             </p>
             <div className="flex flex-wrap items-center gap-5">
               <Button
+                nativeButton={false}
                 render={<Link to="/login" />}
                 size="lg"
                 className="h-12 bg-foreground px-7 text-base text-background hover:bg-foreground/85 focus-visible:ring-2 focus-visible:ring-primary-foreground/50 focus-visible:ring-offset-2 focus-visible:ring-offset-primary"

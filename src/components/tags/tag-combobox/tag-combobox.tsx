@@ -2,6 +2,7 @@ import { PlusIcon, SparklesIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
+import { AnchoredPopoverContent } from "@/components/anchored-popover-content";
 import { ItemRow } from "@/components/tags/tag-combobox/item-row";
 import type { SnapshotEntry } from "@/components/tags/tag-combobox/suggestion-row";
 import { SuggestionRow } from "@/components/tags/tag-combobox/suggestion-row";
@@ -15,11 +16,7 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { Kbd } from "@/components/ui/kbd";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverTrigger } from "@/components/ui/popover";
 import { usePopoverBoundary } from "@/components/ui/popover-boundary";
 import {
   Tooltip,
@@ -311,7 +308,7 @@ export function TagCombobox({
         </Tooltip>
       </div>
 
-      <PopoverContent
+      <AnchoredPopoverContent
         ref={popupRef}
         anchor={anchorRef}
         collisionBoundary={boundary ?? "clipping-ancestors"}
@@ -406,7 +403,7 @@ export function TagCombobox({
             )}
           </CommandList>
         </Command>
-      </PopoverContent>
+      </AnchoredPopoverContent>
     </Popover>
   );
 }

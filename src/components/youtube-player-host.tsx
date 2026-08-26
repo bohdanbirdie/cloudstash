@@ -207,10 +207,17 @@ export function YouTubePlayerHost() {
   if (startSeconds) params.set("start", String(startSeconds));
   const src = `https://www.youtube-nocookie.com/embed/${videoId}?${params.toString()}`;
 
-  const handleSizeChange = (values: FloatingSize[]) => {
+  const handleSizeChange = (values: string[]) => {
     const next = values[0];
-    if (!next || next === floatingSize) return;
-    setFloatingSize(next);
+    if (
+      !next ||
+      !SIZE_ORDER.includes(next as FloatingSize) ||
+      next === floatingSize
+    ) {
+      return;
+    }
+    const nextSize = next as FloatingSize;
+    setFloatingSize(nextSize);
 
     if (viewport.w === 0) return;
     const currentPx =
@@ -223,11 +230,11 @@ export function YouTubePlayerHost() {
     const anchored = resizeTowardClosestCorner(
       currentPx,
       floatingSize,
-      next,
+      nextSize,
       viewport.w,
       viewport.h
     );
-    const clamped = clampPos(anchored, next, viewport.w, viewport.h);
+    const clamped = clampPos(anchored, nextSize, viewport.w, viewport.h);
     setFloatingPosFraction({
       fx: clamped.x / viewport.w,
       fy: clamped.y / viewport.h,
@@ -299,7 +306,7 @@ export function YouTubePlayerHost() {
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            <ToggleGroup<FloatingSize>
+            <ToggleGroup
               value={[floatingSize]}
               onValueChange={handleSizeChange}
               aria-label="Player size"

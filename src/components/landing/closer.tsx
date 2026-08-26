@@ -17,6 +17,7 @@ export function Closer() {
         </p>
         <div className="mt-7 flex flex-col items-center gap-3">
           <Button
+            nativeButton={false}
             render={<Link to="/login" />}
             size="lg"
             className="h-12 px-7 text-base"

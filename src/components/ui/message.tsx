@@ -34,7 +34,7 @@ const MessageAvatar = ({
   className,
 }: MessageAvatarProps) => (
   <Avatar className={cn("h-8 w-8 shrink-0", className)}>
-    {src && <AvatarImage src={src} alt={alt} />}
+    {src && <AvatarImage src={src} alt={alt} referrerPolicy="no-referrer" />}
     {fallback && <AvatarFallback>{fallback}</AvatarFallback>}
   </Avatar>
 );

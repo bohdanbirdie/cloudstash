@@ -52,6 +52,7 @@ export function ExtensionCard({
     }
     return (
       <Button
+        nativeButton={false}
         size="sm"
         render={
           <a
