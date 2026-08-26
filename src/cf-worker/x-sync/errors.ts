@@ -36,19 +36,6 @@ export class XApiError extends Schema.TaggedErrorClass<XApiError>()(
   }
 ) {}
 
-// Fired when Better Auth has no usable access token for the linked X account.
-// Either the user has disconnected on X's side or the refresh token is gone;
-// either way the DO should stop alarming and surface "needs reconnect" in UI.
-export class NoAccessTokenError extends Schema.TaggedErrorClass<NoAccessTokenError>()(
-  "NoAccessTokenError",
-  {
-    userId: Schema.String,
-  }
-) {}
-
-// DO storage failure (transient CF Storage error). Always log-and-handle at
-// the call site; failure semantics are intentionally simple — we don't want
-// a single storage hiccup to crash the alarm loop.
 export class XSyncStorageError extends Schema.TaggedErrorClass<XSyncStorageError>()(
   "XSyncStorageError",
   {
@@ -57,9 +44,6 @@ export class XSyncStorageError extends Schema.TaggedErrorClass<XSyncStorageError
   }
 ) {}
 
-// Catch-all for transient infrastructure failures (Cloudflare RPC, queue.send,
-// storage.setAlarm). These are always log-and-swallow at the call site — no
-// downstream branching depends on the variant — so one tagged error suffices.
 export class XSyncSideEffectError extends Schema.TaggedErrorClass<XSyncSideEffectError>()(
   "XSyncSideEffectError",
   {

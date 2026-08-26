@@ -5,8 +5,7 @@ Status: open
 ## Divergence
 
 Telegram connection is capability-gated, but later bot captures only verify the
-retained API key. X direct account linking and alarm polling do not consistently
-check `xBookmarkSync`, so existing polling/capture can continue after downgrade.
+retained API key. Existing bot capture can therefore continue after downgrade.
 
 ## Intent
 
@@ -17,10 +16,9 @@ require authoritative operation-time checks and downgrade self-healing.
 ## Implementation
 
 [`telegram/services/source-auth.live.ts`](../../src/cf-worker/telegram/services/source-auth.live.ts)
-verifies key metadata without a capability lookup. X account hooks start the DO,
-and [`x-sync/durable-object.ts`](../../src/cf-worker/x-sync/durable-object.ts)
-polls from alarms without resolving current billing capability; only selected
-resume/connect handlers gate it.
+verifies key metadata without a capability lookup. X reconciliation now checks
+the bound workspace capability after OAuth completion, after lifecycle signals,
+and before alarm provider work.
 
 ## Direction
 
@@ -28,6 +26,6 @@ update implementation
 
 ## Resolution Signal
 
-Delete this delta when every Telegram capture and X link/poll operation checks
-the current workspace capability, downgrade revokes or purges durable integration
-state, and tests cover tier and override transitions while already connected.
+Delete this delta when every Telegram capture checks the current workspace
+capability, downgrade revokes or suspends retained integration state, and tests
+cover tier and override transitions while already connected.

@@ -5,8 +5,10 @@ import {
   redirect,
   useMatchRoute,
 } from "@tanstack/react-router";
+import { Option, Schema } from "effect";
 import { lazy, Suspense } from "react";
 import { HotkeysProvider } from "react-hotkeys-hook";
+import { toast } from "sonner";
 
 import { AddLinkProvider } from "@/components/add-link";
 import { PaywallModal } from "@/components/billing/paywall-modal";
@@ -28,12 +30,22 @@ import { useInputMode } from "@/lib/input-mode";
 import { openPaywallForIntent, parseUpgradeParam } from "@/lib/upgrade-intent";
 import type { UpgradeParam } from "@/lib/upgrade-intent";
 import { ConnectionMonitor } from "@/livestore/store";
+import { useSettingsDialog } from "@/stores/settings-dialog-store";
 
 const DevToolsPanel = lazy(() =>
   import("@/components/dev-tools/dev-tools-panel").then((m) => ({
     default: m.DevToolsPanel,
   }))
 );
+
+const IntegrationResult = Schema.Literal("x-connected");
+type IntegrationResult = typeof IntegrationResult.Type;
+const decodeIntegrationResult = Schema.decodeUnknownOption(IntegrationResult);
+
+const parseIntegrationResult = (
+  value: unknown
+): IntegrationResult | undefined =>
+  Option.getOrUndefined(decodeIntegrationResult(value));
 
 export const Route = createFileRoute("/_authed")({
   beforeLoad: async () => {
@@ -43,13 +55,33 @@ export const Route = createFileRoute("/_authed")({
   },
   validateSearch: (
     search: Record<string, unknown>
-  ): { tag?: string; upgrade?: UpgradeParam } => ({
+  ): {
+    integrationResult?: IntegrationResult;
+    tag?: string;
+    upgrade?: UpgradeParam;
+  } => ({
+    integrationResult: parseIntegrationResult(search.integrationResult),
     tag: typeof search.tag === "string" ? search.tag : undefined,
     upgrade: parseUpgradeParam(search.upgrade),
   }),
-  loaderDeps: ({ search }) => ({ upgrade: search.upgrade }),
+  loaderDeps: ({ search }) => ({
+    integrationResult: search.integrationResult,
+    upgrade: search.upgrade,
+  }),
   loader: ({ context, deps, location }) => {
-    if (!deps.upgrade || !context.auth.isAuthenticated) return;
+    if (!context.auth.isAuthenticated) return;
+    if (deps.integrationResult === "x-connected") {
+      useSettingsDialog.getState().openAt("integrations");
+      toast.success("X connected", {
+        description: "New bookmarks will sync automatically.",
+      });
+      throw redirect({
+        to: location.pathname,
+        search: (prev) => ({ ...prev, integrationResult: undefined }),
+        replace: true,
+      });
+    }
+    if (!deps.upgrade) return;
     openPaywallForIntent(deps.upgrade);
     throw redirect({
       to: location.pathname,

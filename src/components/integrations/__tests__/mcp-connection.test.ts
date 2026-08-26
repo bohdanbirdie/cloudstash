@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  MCP_CONNECTION_GUIDANCE,
-  MCP_LOCAL_ORIGIN_GUIDANCE,
-  MCP_SETUP_STEPS,
   mcpAvailabilityState,
+  mcpCodingAgentSetup,
   mcpEndpoint,
   mcpEndpointForOrigin,
 } from "../mcp-connection";
@@ -55,21 +53,9 @@ describe("MCP connection guidance", () => {
     ).toBe("disabled");
   });
 
-  it("documents the interoperable OAuth setup in one place", () => {
-    expect(MCP_CONNECTION_GUIDANCE).toEqual({
-      authentication: "OAuth",
-      path: "/mcp",
-      protocol: "2026-07-28 (recommended); 2025-11-25 fallback",
-      registration: "Dynamic Client Registration (DCR)",
-      scopeOverride: "Leave blank — scopes are requested automatically",
-      scopes: "links:read links:write",
-      transport: "Streamable HTTP",
-    });
-    expect(MCP_SETUP_STEPS.map((step) => step.title)).toEqual([
-      "Add the server.",
-      "Choose OAuth.",
-      "Approve the workspace.",
-    ]);
-    expect(MCP_LOCAL_ORIGIN_GUIDANCE).toContain("same origin");
+  it("builds a portable agent setup command", () => {
+    expect(mcpCodingAgentSetup("https://cloudstash.dev/mcp")).toBe(
+      "npx add-mcp https://cloudstash.dev/mcp --name cloudstash --global"
+    );
   });
 });

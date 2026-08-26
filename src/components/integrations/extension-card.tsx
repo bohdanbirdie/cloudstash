@@ -1,28 +1,23 @@
-import { ChevronDownIcon, ExternalLinkIcon, PuzzleIcon } from "lucide-react";
+import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Skeleton } from "@/components/ui/skeleton";
 import { CHROME_WEB_STORE_URL } from "@/lib/extension-connect";
 
+import { IntegrationItem } from "./integration-card";
+import { ChromeLogo } from "./integration-icons";
 import { KeyList } from "./key-list";
 import type { ApiKey } from "./use-api-keys";
 
 interface ExtensionCardProps {
   keys: ApiKey[];
   isLoading: boolean;
-  onRevokeKey: (keyId: string) => void;
+  onRevokeKey: (keyId: string) => Promise<boolean>;
 }
 
 export function ExtensionCard({
@@ -30,66 +25,67 @@ export function ExtensionCard({
   isLoading,
   onRevokeKey,
 }: ExtensionCardProps) {
-  const extensionKeys = keys.filter((k) => k.name === "Chrome Extension");
+  const extensionKeys = keys.filter((key) => key.name === "Chrome Extension");
   const isConnected = extensionKeys.length > 0;
+  const description = (() => {
+    if (isLoading) {
+      return <Skeleton className="h-3 w-40 motion-reduce:animate-none" />;
+    }
+    if (!isConnected) return "Save pages from the Chrome toolbar";
+    const noun = extensionKeys.length === 1 ? "browser" : "browsers";
+    return `${extensionKeys.length} connected ${noun}`;
+  })();
+  const control = (() => {
+    if (isLoading) {
+      return <Skeleton className="h-6 w-20 motion-reduce:animate-none" />;
+    }
+    if (isConnected) {
+      return (
+        <CollapsibleTrigger className="group/disclosure inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30">
+          Manage
+          <ChevronDownIcon
+            aria-hidden
+            className="size-3 transition-transform group-data-[panel-open]/disclosure:rotate-180 motion-reduce:transition-none"
+          />
+        </CollapsibleTrigger>
+      );
+    }
+    return (
+      <Button
+        size="sm"
+        render={
+          <a
+            href={CHROME_WEB_STORE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Install
+            <ExternalLinkIcon />
+          </a>
+        }
+      />
+    );
+  })();
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <PuzzleIcon className="size-3.5" />
-          Chrome extension
-        </CardTitle>
-        <CardDescription>
-          Save the page you’re on in one click, straight from the toolbar.
-        </CardDescription>
+    <Collapsible key={isConnected ? "connected" : "disconnected"}>
+      <IntegrationItem
+        control={control}
+        description={description}
+        icon={<ChromeLogo />}
+        iconClassName="bg-[#4285F4]/10 text-[#4285F4]"
+        title="Chrome"
+      >
         {isConnected && (
-          <CardAction>
-            <Badge variant="outline">
-              Connected · {extensionKeys.length}{" "}
-              {extensionKeys.length === 1 ? "browser" : "browsers"}
-            </Badge>
-          </CardAction>
+          <CollapsibleContent className="mt-3 pl-10">
+            <KeyList
+              keys={extensionKeys}
+              isLoading={false}
+              onRevoke={onRevokeKey}
+            />
+          </CollapsibleContent>
         )}
-      </CardHeader>
-
-      <CardContent className="space-y-3">
-        {isConnected ? (
-          <Collapsible>
-            <CollapsibleTrigger className="group/disclosure flex w-full items-center justify-between rounded-md py-1 text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30">
-              <span>Manage browsers</span>
-              <ChevronDownIcon className="size-3.5 transition-transform group-data-[panel-open]/disclosure:rotate-180" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-2">
-              <KeyList
-                keys={extensionKeys}
-                isLoading={isLoading}
-                onRevoke={onRevokeKey}
-              />
-              <p className="mt-2 text-muted-foreground">
-                Revoking a key signs that browser out. Reconnect from the
-                extension popup.
-              </p>
-            </CollapsibleContent>
-          </Collapsible>
-        ) : (
-          <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-            <li>Install Cloudstash from the Chrome Web Store</li>
-            <li>Pin it to your toolbar</li>
-            <li>Open the popup and connect — that’s it!</li>
-          </ol>
-        )}
-
-        <a
-          href={CHROME_WEB_STORE_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
-        >
-          View in Chrome Web Store
-          <ExternalLinkIcon className="size-3" aria-hidden />
-        </a>
-      </CardContent>
-    </Card>
+      </IntegrationItem>
+    </Collapsible>
   );
 }

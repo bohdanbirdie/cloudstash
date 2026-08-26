@@ -2,8 +2,9 @@ import { Effect, Option, Schema } from "effect";
 import type StripeSdk from "stripe";
 
 import { StripeCustomerId } from "../../db/branded";
-import { maskId } from "../../log-utils";
+import { maskId, safeErrorInfo } from "../../log-utils";
 import type { Env } from "../../shared";
+import { enqueueOrgXReconcile } from "../../x-sync/reconcile-triggers";
 import { WebhookVerificationError } from "../errors";
 import { StripeClient } from "../stripe-client";
 import { syncFromStripe } from "../stripe-sync";
@@ -26,18 +27,23 @@ const CustomerRef = Schema.Union([
   Schema.String,
   Schema.Struct({ id: Schema.String }),
 ]);
+const CustomerObject = Schema.Struct({
+  customer: Schema.optionalKey(CustomerRef),
+});
+
+const customerIdFromRef = (ref: typeof CustomerRef.Type): StripeCustomerId => {
+  if (typeof ref === "string") return StripeCustomerId.make(ref);
+  return StripeCustomerId.make(ref.id);
+};
 
 export const extractCustomerId = (
   event: StripeSdk.Event
-): StripeCustomerId | null => {
-  const customer = (event.data.object as { customer?: unknown }).customer;
-  return Schema.decodeUnknownOption(CustomerRef)(customer).pipe(
-    Option.map((ref) =>
-      StripeCustomerId.make(typeof ref === "string" ? ref : ref.id)
-    ),
+): StripeCustomerId | null =>
+  Schema.decodeUnknownOption(CustomerObject)(event.data.object).pipe(
+    Option.flatMap(({ customer }) => Option.fromNullishOr(customer)),
+    Option.map(customerIdFromRef),
     Option.getOrNull
   );
-};
 
 const webhookRequest = Effect.fn("Billing.webhook")(function* (
   request: Request
@@ -69,7 +75,10 @@ const webhookRequest = Effect.fn("Billing.webhook")(function* (
   yield* Effect.annotateCurrentSpan({ customerId: maskId(customerId) });
 
   // Not caught: a sync failure surfaces as 5xx so Stripe retries delivery.
-  yield* syncFromStripe(customerId);
+  const orgId = yield* syncFromStripe(customerId);
+  if (orgId) {
+    yield* enqueueOrgXReconcile(orgId);
+  }
   return Response.json({ received: true });
 });
 
@@ -85,6 +94,13 @@ export const webhookProgram = (request: Request) =>
         ),
       StripeApiError: stripeErrorResponse,
       DbError: dbErrorResponse,
+      XReconcileQueueError: (error) =>
+        Effect.logError(
+          "Billing.webhook: X reconciliation enqueue failed"
+        ).pipe(
+          Effect.annotateLogs(safeErrorInfo(error)),
+          Effect.as(json(500, "Internal server error"))
+        ),
     })
   );
 

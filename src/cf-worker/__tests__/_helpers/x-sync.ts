@@ -1,25 +1,33 @@
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Option } from "effect";
 
-import { AuthClient } from "../../auth/service";
-import { XTweetId, XUserId, XUsername } from "../../db/branded";
-import { DbClient } from "../../db/service";
+import { TIER_CAPABILITIES } from "@/lib/plan";
+
+import { OrgId, UserId, XTweetId, XUserId, XUsername } from "../../db/branded";
+import type { LinkQueueMessage } from "../../link-processor/types";
 import { OtelTracingLive } from "../../tracing";
+import { XSyncAccountRepository } from "../../x-sync/account";
+import type { XApiFailure } from "../../x-sync/errors";
+import { XSyncSideEffectError } from "../../x-sync/errors";
 import type { BookmarksPage } from "../../x-sync/services";
 import { XApiClient } from "../../x-sync/services";
 import { LinkQueueClient } from "../../x-sync/services/link-queue-client";
+import { XSyncAlarm } from "../../x-sync/services/x-sync-alarm";
 import type {
   Status,
+  XSyncConnectedState,
+  XSyncControlState,
   XSyncStateSnapshot,
 } from "../../x-sync/services/x-sync-state-store";
 import { XSyncStateStore } from "../../x-sync/services/x-sync-state-store";
 
 export const X_USER = XUserId.make("xuser-1");
 export const X_NAME = XUsername.make("alice");
-export const ORG_ID = "org-1";
+export const ORG_ID = OrgId.make("org-1");
 
 export const makeSnapshot = (
-  overrides: Partial<XSyncStateSnapshot> = {}
-): XSyncStateSnapshot => ({
+  overrides: Partial<XSyncConnectedState> = {}
+): XSyncConnectedState => ({
+  organizationId: null,
   xUserId: X_USER,
   xUsername: X_NAME,
   watermarkTweetId: null,
@@ -35,7 +43,39 @@ export interface StoreRec {
   setSyncEnabledCalls: boolean[];
   setIdentityCalls: number;
   clearCalls: number;
+  organizationId: OrgId | null;
+  setControlCalls: XSyncControlState[];
+  controlStatus: Status | null;
+  controlSyncEnabled: boolean | null;
 }
+
+const pendingSnapshot = (rec: StoreRec): XSyncStateSnapshot | null => {
+  if (
+    !rec.organizationId &&
+    rec.controlStatus === null &&
+    rec.controlSyncEnabled === null
+  ) {
+    return null;
+  }
+  return {
+    organizationId: rec.organizationId,
+    xUserId: null,
+    xUsername: null,
+    watermarkTweetId: null,
+    status: rec.controlStatus ?? "active",
+    syncEnabled: rec.controlSyncEnabled ?? true,
+  };
+};
+
+const currentSnapshot = (rec: StoreRec): XSyncStateSnapshot | null => {
+  if (!rec.snapshot) return pendingSnapshot(rec);
+  return {
+    ...rec.snapshot,
+    organizationId: rec.organizationId ?? rec.snapshot.organizationId,
+    status: rec.controlStatus ?? rec.snapshot.status,
+    syncEnabled: rec.controlSyncEnabled ?? rec.snapshot.syncEnabled,
+  };
+};
 
 export const makeStoreLayer = (initial: XSyncStateSnapshot | null) => {
   const rec: StoreRec = {
@@ -45,69 +85,167 @@ export const makeStoreLayer = (initial: XSyncStateSnapshot | null) => {
     setSyncEnabledCalls: [],
     setIdentityCalls: 0,
     clearCalls: 0,
+    organizationId: initial?.organizationId ?? null,
+    setControlCalls: [],
+    controlStatus: initial?.status ?? null,
+    controlSyncEnabled: initial?.syncEnabled ?? null,
   };
   const layer = Layer.succeed(XSyncStateStore, {
-    get: () => Effect.succeed(rec.snapshot),
-    setIdentity: () =>
+    read: () => Effect.sync(() => currentSnapshot(rec)),
+    setIdentity: (identity) =>
       Effect.sync(() => {
         rec.setIdentityCalls += 1;
+        rec.snapshot = {
+          ...identity,
+          organizationId: rec.organizationId,
+          watermarkTweetId: rec.snapshot?.watermarkTweetId ?? null,
+          status: rec.controlStatus ?? rec.snapshot?.status ?? "active",
+          syncEnabled:
+            rec.controlSyncEnabled ?? rec.snapshot?.syncEnabled ?? true,
+        };
       }),
-    setWatermark: (tweetId: XTweetId) =>
+    setWatermark: (tweetId) =>
       Effect.sync(() => {
         rec.setWatermarkCalls.push(tweetId);
-        if (rec.snapshot)
+        if (rec.snapshot) {
           rec.snapshot = { ...rec.snapshot, watermarkTweetId: tweetId };
+        }
       }),
-    setStatus: (status: Status) =>
+    setStatus: (status) =>
       Effect.sync(() => {
         rec.setStatusCalls.push(status);
+        rec.controlStatus = status;
         if (rec.snapshot) rec.snapshot = { ...rec.snapshot, status };
       }),
-    setSyncEnabled: (enabled: boolean) =>
+    setSyncEnabled: (enabled) =>
       Effect.sync(() => {
         rec.setSyncEnabledCalls.push(enabled);
-        if (rec.snapshot)
+        rec.controlSyncEnabled = enabled;
+        if (rec.snapshot) {
           rec.snapshot = { ...rec.snapshot, syncEnabled: enabled };
+        }
+      }),
+    setControl: (control) =>
+      Effect.sync(() => {
+        rec.setControlCalls.push(control);
+        rec.organizationId = control.organizationId;
+        rec.controlStatus = control.status;
+        if (rec.snapshot) {
+          rec.snapshot = {
+            ...rec.snapshot,
+            organizationId: control.organizationId,
+            status: control.status,
+          };
+        }
       }),
     clear: () =>
       Effect.sync(() => {
         rec.clearCalls += 1;
         rec.snapshot = null;
+        rec.organizationId = null;
+        rec.controlStatus = null;
+        rec.controlSyncEnabled = null;
       }),
   });
   return { layer, rec };
 };
 
-export const makeAuthLayer = (accessToken: string | null = "tok-1") =>
-  Layer.succeed(AuthClient, {
-    api: {
-      getAccessToken: async () =>
-        accessToken === null ? null : { accessToken },
-    },
-  } as never);
+export interface AccountRec {
+  findAccountCalls: UserId[];
+  getAccessTokenCalls: Array<{ userId: UserId; accountId: string }>;
+  getOrganizationIdCalls: UserId[];
+  capabilitiesCalls: OrgId[];
+}
 
-// DbClient is consumed via account and member `findFirst` queries in the
-// access-token and org lookup effects. A duck-typed stub is enough.
-export const makeDbLayer = (orgId: string | null = ORG_ID) =>
-  Layer.succeed(DbClient, {
-    query: {
-      account: {
-        findFirst: async () => ({ id: "x-account-row-1" }),
-      },
-      member: {
-        findFirst: async () =>
-          orgId === null ? undefined : { organizationId: orgId },
-      },
-    },
-  } as never);
+export const makeAccountLayer = (
+  options: {
+    linked?: boolean;
+    accessToken?: string;
+    organizationId?: OrgId | null;
+    entitled?: boolean;
+    missingOrgIds?: ReadonlySet<string>;
+  } = {}
+) => {
+  const rec: AccountRec = {
+    findAccountCalls: [],
+    getAccessTokenCalls: [],
+    getOrganizationIdCalls: [],
+    capabilitiesCalls: [],
+  };
+  const layer = Layer.succeed(XSyncAccountRepository, {
+    findAccount: (userId) =>
+      Effect.sync(() => {
+        rec.findAccountCalls.push(userId);
+        if (options.linked === false) return null;
+        return { id: "x-account-row-1" };
+      }),
+    getAccessToken: (userId, accountId) =>
+      Effect.sync(() => {
+        rec.getAccessTokenCalls.push({ userId, accountId });
+        return options.accessToken ?? "tok-1";
+      }),
+    getOrganizationId: (userId) =>
+      Effect.sync(() => {
+        rec.getOrganizationIdCalls.push(userId);
+        if (options.organizationId === undefined) return ORG_ID;
+        return options.organizationId;
+      }),
+    capabilities: (organizationId) =>
+      Effect.sync(() => {
+        rec.capabilitiesCalls.push(organizationId);
+        if (options.missingOrgIds?.has(organizationId)) return Option.none();
+        return Option.some({
+          ...TIER_CAPABILITIES.pro,
+          xBookmarkSync: options.entitled ?? true,
+        });
+      }),
+  });
+  return { layer, rec };
+};
+
+export interface AlarmRec {
+  alarmScheduled: boolean;
+  ensureWrites: number;
+  cancelWrites: number;
+  scheduleWrites: number;
+}
+
+export const makeAlarmLayer = (initiallyScheduled = false) => {
+  const rec: AlarmRec = {
+    alarmScheduled: initiallyScheduled,
+    ensureWrites: 0,
+    cancelWrites: 0,
+    scheduleWrites: 0,
+  };
+  const layer = Layer.succeed(XSyncAlarm, {
+    cancel: () =>
+      Effect.sync(() => {
+        if (!rec.alarmScheduled) return;
+        rec.alarmScheduled = false;
+        rec.cancelWrites += 1;
+      }),
+    ensureAfter: () =>
+      Effect.sync(() => {
+        if (rec.alarmScheduled) return;
+        rec.alarmScheduled = true;
+        rec.ensureWrites += 1;
+      }),
+    scheduleAfter: () =>
+      Effect.sync(() => {
+        rec.alarmScheduled = true;
+        rec.scheduleWrites += 1;
+      }),
+  });
+  return { layer, rec };
+};
 
 export type ScriptedBookmarksResponse =
   | { kind: "ok"; page: BookmarksPage }
-  | { kind: "fail"; error: unknown };
+  | { kind: "fail"; error: XApiFailure };
 
 export const makeXApiLayer = (responses: ScriptedBookmarksResponse[]) => {
   const calls: Array<{ maxResults: number; paginationToken?: string }> = [];
-  let cursor = 0;
+  const remaining = [...responses];
   const layer = Layer.succeed(XApiClient, {
     getMe: () =>
       Effect.succeed({
@@ -120,32 +258,32 @@ export const makeXApiLayer = (responses: ScriptedBookmarksResponse[]) => {
         maxResults: params.maxResults,
         paginationToken: params.paginationToken,
       });
-      const r = responses[cursor++];
-      if (!r) {
-        return Effect.die(`no scripted response for call ${cursor}`);
+      const response = remaining.shift();
+      if (!response) {
+        return Effect.die(`no scripted response for call ${calls.length}`);
       }
-      if (r.kind === "fail") {
-        return Effect.fail(r.error as never);
-      }
-      return Effect.succeed(r.page);
+      if (response.kind === "fail") return Effect.fail(response.error);
+      return Effect.succeed(response.page);
     },
   });
   return { layer, calls };
 };
 
-export interface QueueCall {
-  url: string;
-  storeId: string;
-  source: string;
-  sourceMeta: string;
-}
-
-export const makeQueueLayer = () => {
-  const calls: QueueCall[] = [];
+export const makeQueueLayer = (
+  options: { readonly failAtCalls?: ReadonlySet<number> } = {}
+) => {
+  const calls: LinkQueueMessage[] = [];
   const layer = Layer.succeed(LinkQueueClient, {
-    send: (msg) =>
-      Effect.sync(() => {
-        calls.push(msg as QueueCall);
+    send: (message) =>
+      Effect.gen(function* () {
+        const callIndex = calls.length;
+        calls.push(message);
+        if (options.failAtCalls?.has(callIndex)) {
+          return yield* new XSyncSideEffectError({
+            op: "LINK_QUEUE.send",
+            cause: new Error(`scripted queue failure at call ${callIndex}`),
+          });
+        }
       }),
   });
   return { layer, calls };
@@ -154,14 +292,5 @@ export const makeQueueLayer = () => {
 export const baseLayers = (
   store: Layer.Layer<XSyncStateStore>,
   x: Layer.Layer<XApiClient>,
-  queue: Layer.Layer<LinkQueueClient>,
-  options: { auth?: Layer.Layer<AuthClient>; orgId?: string | null } = {}
-) =>
-  Layer.mergeAll(
-    store,
-    makeDbLayer(options.orgId === undefined ? ORG_ID : options.orgId),
-    options.auth ?? makeAuthLayer(),
-    x,
-    queue,
-    OtelTracingLive
-  );
+  queue: Layer.Layer<LinkQueueClient>
+) => Layer.mergeAll(store, x, queue, OtelTracingLive);

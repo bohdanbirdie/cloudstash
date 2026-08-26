@@ -2,7 +2,7 @@
 import "@livestore/adapter-cloudflare/polyfill";
 import type { CfTypes } from "@livestore/sync-cf/cf-worker";
 import { routeAgentRequest } from "agents";
-import { Effect, Match } from "effect";
+import { Effect } from "effect";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
@@ -50,6 +50,7 @@ import {
   handleTelegramStatus,
 } from "./connect/telegram";
 import {
+  handleXComplete,
   handleXDisconnect,
   handleXPause,
   handleXResume,
@@ -63,7 +64,6 @@ import {
   handleListInvites,
   handleRedeemInvite,
 } from "./invites";
-import type { LinkQueueMessage } from "./link-processor/types";
 import {
   handleCreateLink,
   handleGetLink,
@@ -87,6 +87,10 @@ import { runHandler } from "./runtime";
 import type { Env, HonoVariables } from "./shared";
 import { SyncBackend, handleSyncRequest, runSyncAuth } from "./sync";
 import { handleTelegramWebhook } from "./telegram";
+import {
+  handleXReconcileBatch,
+  runXReconcileRepair,
+} from "./x-sync/reconcile-runtime";
 
 export { SyncBackendDO } from "./sync";
 export { LinkProcessorDO } from "./link-processor";
@@ -342,6 +346,7 @@ app.delete("/api/connect/telegram", (c) =>
 );
 
 app.get("/api/connect/x/status", (c) => handleXStatus(c.req.raw, c.env));
+app.get("/api/connect/x/complete", (c) => handleXComplete(c.req.raw, c.env));
 app.delete("/api/connect/x", (c) => handleXDisconnect(c.req.raw, c.env));
 app.post("/api/connect/x/pause", (c) => handleXPause(c.req.raw, c.env));
 app.post("/api/connect/x/resume", (c) => handleXResume(c.req.raw, c.env));
@@ -466,15 +471,38 @@ export const fetch = async (
   return app.fetch(request as unknown as Request, env, ctx);
 };
 
-export const queue = (
-  batch: MessageBatch<LinkQueueMessage>,
-  env: Env
-): Promise<void> =>
-  Match.value(batch.queue).pipe(
-    Match.when("cloudstash-link-queue", () => handleQueueBatch(batch, env)),
-    Match.when("cloudstash-link-dlq", () => handleDlqBatch(batch, env)),
-    // Returning without retrying would implicitly ack (drop) an unmatched queue's batch.
-    Match.orElse(() => Promise.resolve(batch.retryAll()))
-  );
+export const queue = (batch: MessageBatch, env: Env): Promise<void> => {
+  if (
+    batch.queue === "cloudstash-x-reconcile" ||
+    batch.queue === "cloudstash-staging-x-reconcile"
+  ) {
+    return handleXReconcileBatch(batch, env);
+  }
 
-export default { fetch, queue };
+  if (
+    batch.queue === "cloudstash-link-queue" ||
+    batch.queue === "cloudstash-staging-link-queue"
+  ) {
+    return handleQueueBatch(batch, env);
+  }
+
+  if (
+    batch.queue === "cloudstash-link-dlq" ||
+    batch.queue === "cloudstash-staging-link-dlq"
+  ) {
+    return handleDlqBatch(batch, env);
+  }
+
+  batch.retryAll();
+  return Promise.resolve();
+};
+
+export const scheduled = (
+  _controller: ScheduledController,
+  env: Env,
+  ctx: CfTypes.ExecutionContext
+): void => {
+  ctx.waitUntil(runXReconcileRepair(env));
+};
+
+export default { fetch, queue, scheduled };

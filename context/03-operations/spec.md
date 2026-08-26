@@ -17,7 +17,8 @@ Active.
 | Workflow         | `ACCOUNT_DELETION`                                                   | durable multi-store deletion                                      |
 | D1               | `DB`                                                                 | control plane and aggregate activity                              |
 | KV               | `TELEGRAM_KV`, `ENRICHMENT_USAGE`                                    | integration mapping/deletion index and enrichment usage           |
-| Queue            | `LINK_QUEUE` plus `cloudstash-link-dlq`                              | external intake and long recovery                                 |
+| Queues           | `LINK_QUEUE`/DLQ, `X_RECONCILE_QUEUE`                                | external intake/recovery and X reconciliation                     |
+| Cron trigger     | `17 4 * * *`                                                         | daily linked-X-account reconciliation repair                      |
 | Rate limiter     | `SYNC_RATE_LIMITER`                                                  | selected auth/MCP/sync/invite abuse protection                    |
 | Analytics Engine | `USAGE_ANALYTICS`                                                    | low-overhead usage events                                         |
 
@@ -42,7 +43,8 @@ Effect spans are not exported through a configured OTLP backend.
   disabled because extension reconnect churn previously created a permanent
   denial/retry storm.
 - LiveStore retries use jittered exponential backoff and WebSocket hibernation.
-- Queue main/DLQ retry handles transient processor outages.
+- Queue main/DLQ retry handles transient processor outages; the X reconciliation
+  Queue retries DO reconciliation and a daily scan repairs missed messages.
 - Link processing bounds fetch/AI concurrency and I/O duration.
 - Durable Workflows retry named deletion steps.
 - Materializers and ingestion are idempotent under rebase/retry.

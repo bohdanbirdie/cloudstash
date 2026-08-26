@@ -3,13 +3,8 @@ import { Effect } from "effect";
 import { expect } from "vitest";
 
 import { UserId, XTweetId } from "../../db/branded";
-import { initializeWatermarkEffect } from "../../x-sync/effects";
-import {
-  XApiError,
-  XPaymentRequiredError,
-  XRateLimitedError,
-  XUnauthorizedError,
-} from "../../x-sync/errors";
+import { XUnauthorizedError } from "../../x-sync/errors";
+import { initializeWatermarkEffect } from "../../x-sync/reconcile";
 import {
   baseLayers,
   makeQueueLayer,
@@ -114,73 +109,6 @@ describe("initializeWatermarkEffect", () => {
         Effect.sync(() => {
           expect(store.rec.setWatermarkCalls).toEqual([]);
           expect(store.rec.setStatusCalls).toEqual([]);
-        })
-      )
-    );
-  });
-
-  it.effect("silently swallows 402", () => {
-    const store = makeStoreLayer(makeSnapshot({ watermarkTweetId: null }));
-    const x = makeXApiLayer([
-      {
-        kind: "fail",
-        error: new XPaymentRequiredError({ endpoint: "bookmarks" }),
-      },
-    ]);
-    const queue = makeQueueLayer();
-
-    return initializeWatermarkEffect(USER_ID, "access-token").pipe(
-      Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
-      Effect.tap(() =>
-        Effect.sync(() => {
-          expect(store.rec.setWatermarkCalls).toEqual([]);
-        })
-      )
-    );
-  });
-
-  it.effect("silently swallows 429", () => {
-    const store = makeStoreLayer(makeSnapshot({ watermarkTweetId: null }));
-    const x = makeXApiLayer([
-      {
-        kind: "fail",
-        error: new XRateLimitedError({
-          endpoint: "bookmarks",
-          retryAfterMs: 60_000,
-        }),
-      },
-    ]);
-    const queue = makeQueueLayer();
-
-    return initializeWatermarkEffect(USER_ID, "access-token").pipe(
-      Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
-      Effect.tap(() =>
-        Effect.sync(() => {
-          expect(store.rec.setWatermarkCalls).toEqual([]);
-        })
-      )
-    );
-  });
-
-  it.effect("silently swallows generic XApiError", () => {
-    const store = makeStoreLayer(makeSnapshot({ watermarkTweetId: null }));
-    const x = makeXApiLayer([
-      {
-        kind: "fail",
-        error: new XApiError({
-          endpoint: "bookmarks",
-          status: 503,
-          message: "service unavailable",
-        }),
-      },
-    ]);
-    const queue = makeQueueLayer();
-
-    return initializeWatermarkEffect(USER_ID, "access-token").pipe(
-      Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
-      Effect.tap(() =>
-        Effect.sync(() => {
-          expect(store.rec.setWatermarkCalls).toEqual([]);
         })
       )
     );

@@ -16,7 +16,29 @@ Active.
 | Telegram         | webhook secret + chat mapping to workspace key          | Queue                                                                | connect/check/confirm/status/disconnect; KV mapping |
 | Public API       | Bearer API key                                          | list/search/get/save/update via LinkProcessorDO; legacy ingest Queue | request-time capability and key checks              |
 | MCP clients      | OAuth 2.1 + PKCE/DCR; workspace consent                 | stateless HTTP; matching link operations via LinkProcessorDO         | re-consent/revoke; five-minute JWT                  |
-| X bookmarks      | linked encrypted OAuth account                          | per-user alarm poll → Queue                                          | pause/resume/disconnect                             |
+| X bookmarks      | linked encrypted OAuth account                          | per-user alarm poll → Queue                                          | reconcile/pause/resume/disconnect                   |
+
+Settings presents the end-user connections in capture-first order:
+Telegram, X bookmarks, MCP, Chrome, then Raycast. A single divided
+settings surface gives each integration a compact single-line row with its mark,
+name, minimal state-specific description, and a clear right-aligned control.
+Descriptions truncate rather than wrap. Disconnected integrations expose their
+connect action; connected integrations expose disconnect directly without a
+separate status label. Low-impact integration disconnects execute directly;
+their right-aligned control uses a restrained, right-anchored Motion transition
+between connected and disconnected actions without changing row height. Visible
+action labels rely on their row context while accessible names include the
+integration. Row text shares one typographic baseline inside a bullet-separated
+text group centered against the integration mark, while the right-side control
+remains vertically centered in the row. MCP setup stays beneath the compact row;
+device details for Chrome and Raycast expand only when
+requested. Device-key revocation uses a targeted inline confirmation, prevents
+repeat submission while pending, and remains confirmable when revocation fails.
+After X authorization completes, its callback returns to the initiating route
+with a scoped transient result parameter. The authenticated route opens Settings
+at Integrations, announces the successful connection, and immediately removes
+only that result parameter with replace navigation so unrelated search state is
+preserved.
 
 ## MCP Clients
 
@@ -29,9 +51,10 @@ loopback host; explicit types, mixed redirect sets, and other hosts remain under
 Better Auth's standard validation. Expired OAuth verification and
 client-assertion replay records are cleaned on a bounded token-request cadence.
 Consent marks dynamic clients unverified, shows the callback target, and pins
-access to the displayed workspace. The Pro-gated card shows the current
-origin's `/mcp` URL, OAuth setup, scopes, and protocol compatibility; runtime
-entitlement stays authoritative. The Worker supports MCP 2026 and the 2025
+access to the displayed workspace. The Pro-gated MCP card offers one copy-ready
+`add-mcp` command for locally installed coding agents and the current origin's
+raw `/mcp` URL for manual client configuration; runtime entitlement stays
+authoritative. The Worker supports MCP 2026 and the 2025
 stateless fallback. Protected-resource discovery omits the optional scope list
 so clients fall back to the authorization server's complete scope metadata,
 request `offline_access`, and receive a rotating refresh token with a 30-day
@@ -83,21 +106,37 @@ The X OAuth provider is available only when both `X_CLIENT_ID` and
 `X_CLIENT_SECRET` are non-empty. Missing or partial X configuration omits that
 provider without disabling Google, session, or MCP authentication.
 
-One `XBookmarkSyncDO` per user owns provider identity, status, watermark, retry
-state, and a 30-second alarm. On first connect it probes one newest bookmark and
-pins the watermark without import. Later polls probe for change, page at 50
-items until the watermark, enqueue unseen bookmarks oldest-first, then advance
-the watermark. Partial traversal does not advance it, but individual Queue-send
-failures are currently swallowed before advancement; this data-loss path is
-tracked by
-[DELTA-012](../../.delta/DELTA-012-x-watermark-advances-after-enqueue-failure.md).
+One `XBookmarkSyncDO` per user owns a bound workspace, provider identity,
+status, watermark, user pause preference, retry state, and a 30-second alarm.
+Its idempotent reconciliation boundary derives effective activity from the
+linked X account, the bound workspace's current `xBookmarkSync` capability, and
+the independent pause preference. The explicit OAuth return reconciles
+immediately. Stripe/admin entitlement changes enqueue at-least-once X
+reconciliation messages; every alarm
+reconciles before provider I/O; and a daily scan of linked X accounts enqueues
+repair messages for missed delivery. An established workspace binding wins over
+later repair messages for another membership, so one per-user poller cannot be
+rebound nondeterministically. If Billing confirms that the bound workspace no
+longer exists, reconciliation suspends polling, removes the alarm, and releases
+that stale binding so a later explicit signal can bind a valid workspace. Pause
+and resume complete only after the durable preference and alarm transition
+succeeds; transient DO/storage failures remain retryable service failures.
+The user-facing Settings row can resume an already-paused connection or
+disconnect it; pausing remains an internal administration operation.
+
+On first entitled connect the DO probes one newest bookmark and pins the
+watermark without import. Later polls probe for change, page at 50 items until
+the watermark, enqueue unseen bookmarks oldest-first, then advance the
+watermark. Partial traversal does not advance it, but individual Queue-send
+failures halt the poll. When an older bookmark was already enqueued before a
+later failure, the DO checkpoints that successful prefix so the next poll
+retries the failed bookmark without duplicating or skipping earlier work.
 401/402 require reconnect; 429 honors provider retry;
 other failures use bounded backoff whose attempt counter currently resets on DO
 wake.
 
 The official API exposes only roughly the 800 most recent bookmarks and no
 bookmark-created timestamp or server-side incremental filter. Full historical
-sync is not a supported contract. The current alarm path does not recheck the
-workspace entitlement after downgrade, contrary to the entitlement requirement;
-this is tracked by
-[DELTA-015](../../.delta/DELTA-015-ongoing-integrations-bypass-entitlement-rechecks.md).
+sync is not a supported contract. The lifecycle choice and deferred
+transactional-outbox threshold are recorded in
+[decision 0001](./.decisions/0001-reconcile-x-sync-from-signals-and-repair.md).
