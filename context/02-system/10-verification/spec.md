@@ -35,6 +35,18 @@ budget may ratchet downward when the covered lint corpus supports the lower
 limit. The baseline choice is recorded in
 [decision 0001](./.decisions/0001-enforce-classic-complexity-budget.md).
 
+## Effect Anti-Pattern Baseline
+
+The Effect language service runs in strict mode in the quality lane. In addition
+to its default correctness diagnostics, the project promotes four clean-baseline
+diagnostics to warnings, which strict mode treats as failures: reusable
+Effect-returning functions must use `Effect.fn` or `Effect.fnUntraced`, Effect
+generators must not use JavaScript `try/catch`, nested bare `Effect.gen` blocks
+must become meaningful operations, and Effect code must use Effect scheduling
+instead of global timers. The initial selection deliberately excludes rules
+that misclassify Worker entry points or framework adapters and is recorded in
+[decision 0002](./.decisions/0002-enforce-zero-baseline-effect-diagnostics.md).
+
 ## Data-Layer Tests
 
 `src/livestore/__tests__` uses LiveStore's in-memory web adapter with unique

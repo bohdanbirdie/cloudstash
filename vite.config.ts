@@ -107,6 +107,7 @@ const config: UserConfig = {
     ignorePatterns: [
       "readonly-llm-lookup",
       "vendor",
+      "**/*.gen.ts",
       "apps/**/.wxt/**",
       "apps/**/.output/**",
       "tools/oxlint-rules/__tests__/fixtures/**",
