@@ -4,12 +4,9 @@ kanban-plugin: board
 
 ## Near-term Technical Outcomes
 
-- [ ] [[todos/raycast-capability-source-cleanup|Align Raycast source and entitlement semantics]] — publication is complete; preserve first-party attribution and use one operation-time contract.
 - [ ] [[todos/customer-facing-copy-accuracy|Align customer-facing copy with shipped behavior]] — reconcile product, repository, SEO, integration, Terms, and policy surfaces with executable capabilities and current availability.
 - [ ] [[todos/canonical-url-identity|Canonical URL identity across every capture path]] — prevent new duplicates first; historical reconciliation remains a separate decision.
 - [ ] [[todos/telemetry-minimization|Minimize telemetry and document retained provider data]] — keep collection purpose-bound and deletion/retention claims accurate.
-- [ ] [[todos/paid-capability-enforcement|Enforce paid capabilities and budgets at operation time]] — current access/capability at authoritative operations, atomic cost controls, and safe long-lived-session revocation.
-- [ ] Bug: Free workspaces can manually generate weekly digests — enforce `weeklyDigest` at operation time and cover Free/paid manual-trigger paths; complete lifecycle scope remains tracked in [DELTA-037](../context/.delta/DELTA-037-weekly-digest-entitlement-lifecycle-is-incomplete.md).
 - [ ] [[todos/admin-purchase-attribution|Extend admin purchase attribution]] — bounded aggregate funnel evidence in the existing dashboard.
 - [ ] [[todos/free-ai-summary-allowance|Plan a bounded Free AI-summary allowance]] — saved-link count remains unlimited; exhaustion preserves the link.
 - [ ] [[todos/initial-sync-blocking|Research large-Vault bootstrap]] — benchmark WebSocket vs supported HTTP replay, BootStatus/timeout UX, and upstream snapshot-at-head feasibility.
@@ -57,6 +54,8 @@ kanban-plugin: board
 
 ## In Progress
 
+- [ ] [[todos/paid-capability-enforcement|Enforce paid capabilities and budgets at operation time]] — direct operation gates and atomic budgets are implemented; established chat identity reauthorization remains tracked in DELTA-042 without coupling to Agents SDK internals.
+
 ## Human Operations
 
 - [ ] [[todos/human-launch-operations|Verify production Queue retention and recovery]] — durability code is merged; record plan/retention evidence and run the recovery drill.
@@ -66,6 +65,9 @@ kanban-plugin: board
 - [ ] [[todos/human-launch-operations|Choose alert destination and owner]] — then wire [[todos/admin-server-ahead-alert|the stuck-sync alert]] and other tripwires.
 
 ## Done
+
+- [x] [[todos/raycast-capability-source-cleanup|Align Raycast source and entitlement semantics]] — trusted key metadata now preserves `source: raycast`, pairing and each capture use `integrations`, and direct API keys remain `publicApi`-gated.
+- [x] Free workspaces cannot manually generate weekly digests — manual generation, alarm execution, and entitlement-change scheduling now enforce `weeklyDigest` and remove stale alarms.
 
 - [x] Adopt an enforced cyclomatic-complexity budget with Oxc [`eslint/complexity`](https://oxc.rs/docs/guide/usage/linter/rules/eslint/complexity) — the Vite+ quality lane now enforces Oxc's default classic maximum of 20 across shipped and build code while excluding test scenarios; five existing hotspots were split only at concrete responsibility boundaries, with no intended behavior changes or local suppressions.
 - [x] Repair the new-signup approval gate — the admin switch controls signup approval, app entry bypasses stale Better Auth approval cookies, approved users are not trapped, and pending users retain tested sign-out and account-deletion escape routes.

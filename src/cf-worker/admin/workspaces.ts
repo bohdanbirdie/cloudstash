@@ -1,12 +1,16 @@
-import { Effect, Schema } from "effect";
+import { Effect, Layer, Schema } from "effect";
 
 import { PLAN_ORDER } from "@/lib/plan";
 
 import { Billing } from "../billing/service";
 import type { OrgId } from "../db/branded";
-import { maskId } from "../log-utils";
+import { maskId, safeErrorInfo } from "../log-utils";
 import { runHandler } from "../runtime";
 import type { Env } from "../shared";
+import {
+  DigestScheduleReconcilerLive,
+  reconcileDigestSchedule,
+} from "../weekly-digest/reconcile";
 import { XReconcileQueue } from "../x-sync/reconcile-queue";
 import { enqueueOrgXReconcile } from "../x-sync/reconcile-triggers";
 
@@ -29,6 +33,7 @@ const BOOLEAN_CAPABILITY_KEYS = [
   "xContentEnrichment",
   "publicApi",
   "mcpServer",
+  "weeklyDigest",
 ] as const;
 
 const NUMBER_CAPABILITY_KEYS = ["monthlyChatBudgetUsd"] as const;
@@ -133,6 +138,7 @@ export const handleSetTier = (
       const billing = yield* Billing;
       yield* billing.setTier(orgId, body.tier);
       yield* enqueueOrgXReconcile(orgId);
+      yield* reconcileDigestSchedule(orgId);
       yield* Effect.annotateCurrentSpan({
         orgId: maskId(orgId),
         tier: body.tier,
@@ -142,7 +148,12 @@ export const handleSetTier = (
       );
       return Response.json({ success: true, tier: body.tier });
     }).pipe(
-      Effect.provide(XReconcileQueue.layer(env.X_RECONCILE_QUEUE)),
+      Effect.provide(
+        Layer.mergeAll(
+          DigestScheduleReconcilerLive(env),
+          XReconcileQueue.layer(env.X_RECONCILE_QUEUE)
+        )
+      ),
       Effect.withSpan("Admin.handleSetTier"),
       Effect.catchTags({
         InvalidBodyError: () => Effect.succeed(badBody()),
@@ -152,6 +163,11 @@ export const handleSetTier = (
             Effect.as(internalError())
           ),
         OrgNotFoundError: () => Effect.succeed(notFound()),
+        DigestScheduleReconcileError: (error) =>
+          Effect.logError("setTier digest reconciliation failed").pipe(
+            Effect.annotateLogs(safeErrorInfo(error.cause)),
+            Effect.as(internalError())
+          ),
         XReconcileQueueError: () => Effect.succeed(internalError()),
       })
     )
@@ -171,6 +187,9 @@ export const handleSetOverride = (
       if (body.key === "xBookmarkSync") {
         yield* enqueueOrgXReconcile(orgId);
       }
+      if (body.key === "weeklyDigest") {
+        yield* reconcileDigestSchedule(orgId);
+      }
       yield* Effect.annotateCurrentSpan({
         orgId: maskId(orgId),
         key: body.key,
@@ -185,7 +204,12 @@ export const handleSetOverride = (
       );
       return Response.json({ success: true });
     }).pipe(
-      Effect.provide(XReconcileQueue.layer(env.X_RECONCILE_QUEUE)),
+      Effect.provide(
+        Layer.mergeAll(
+          DigestScheduleReconcilerLive(env),
+          XReconcileQueue.layer(env.X_RECONCILE_QUEUE)
+        )
+      ),
       Effect.withSpan("Admin.handleSetOverride"),
       Effect.catchTags({
         InvalidBodyError: () => Effect.succeed(badBody()),
@@ -195,6 +219,11 @@ export const handleSetOverride = (
             Effect.as(internalError())
           ),
         OrgNotFoundError: () => Effect.succeed(notFound()),
+        DigestScheduleReconcileError: (error) =>
+          Effect.logError("setOverride digest reconciliation failed").pipe(
+            Effect.annotateLogs(safeErrorInfo(error.cause)),
+            Effect.as(internalError())
+          ),
         XReconcileQueueError: () => Effect.succeed(internalError()),
       })
     )

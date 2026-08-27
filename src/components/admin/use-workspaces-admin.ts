@@ -3,6 +3,7 @@ import useSWRMutation from "swr/mutation";
 
 import type { WorkspaceWithOwner } from "@/cf-worker/admin/workspaces";
 import type {
+  BooleanCapability,
   CapabilityOverrides,
   PlanTier,
   TierCapabilities,
@@ -99,16 +100,7 @@ export function useWorkspacesAdmin(enabled = true) {
   function cycleBooleanOverride(
     orgId: string,
     overrides: CapabilityOverrides,
-    key: Extract<
-      keyof TierCapabilities,
-      | "aiSummary"
-      | "chatAgent"
-      | "integrations"
-      | "xBookmarkSync"
-      | "xContentEnrichment"
-      | "publicApi"
-      | "mcpServer"
-    >
+    key: BooleanCapability
   ): void {
     const current = overrides[key];
     const next = current === undefined ? true : current ? false : null;

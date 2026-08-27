@@ -3,6 +3,10 @@ import { Effect, Layer } from "effect";
 import type { AppCtx } from "../../runtime";
 import { getAppLayer } from "../../runtime";
 import type { Env } from "../../shared";
+import {
+  DigestScheduleReconciler,
+  DigestScheduleReconcilerLive,
+} from "../../weekly-digest/reconcile";
 import { XReconcileQueue } from "../../x-sync/reconcile-queue";
 import { StripeClient, StripeClientLive } from "../stripe-client";
 import { unexpected500 } from "./responses";
@@ -21,6 +25,7 @@ const billingLayerCache = new WeakMap<
 const getBillingLayerValue = (env: Env) =>
   Layer.mergeAll(
     StripeClientLive(env),
+    DigestScheduleReconcilerLive(env),
     XReconcileQueue.layer(env.X_RECONCILE_QUEUE)
   ).pipe(Layer.provideMerge(getAppLayer(env)));
 
@@ -36,7 +41,7 @@ export const runBilling = (
   effect: Effect.Effect<
     Response,
     never,
-    StripeClient | XReconcileQueue | AppCtx
+    StripeClient | DigestScheduleReconciler | XReconcileQueue | AppCtx
   >,
   env: Env
 ): Promise<Response> =>

@@ -1,6 +1,7 @@
 import { Effect, Layer } from "effect";
 import { Bot, webhookCallback } from "grammy";
 
+import { AppLayerLive } from "../auth/service";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
 import { sendConnectPrompt } from "./connect-prompt";
@@ -53,7 +54,7 @@ export function createBot(env: Env, publicUrl: string): Bot {
       TelegramMessengerLive(ctx),
       TelegramSourceAuthLive(env, chatId),
       TelegramKeyStoreLive(env)
-    );
+    ).pipe(Layer.provideMerge(AppLayerLive(env)));
 
     return Effect.runPromise(
       handleConnect(chatId, apiKeyText).pipe(
@@ -73,7 +74,7 @@ export function createBot(env: Env, publicUrl: string): Bot {
       TelegramMessengerLive(ctx),
       TelegramSourceAuthLive(env, chatId),
       TelegramKeyStoreLive(env)
-    );
+    ).pipe(Layer.provideMerge(AppLayerLive(env)));
 
     return Effect.runPromise(
       handleDisconnect(chatId).pipe(Effect.provide(layer), Effect.asVoid)
@@ -102,7 +103,7 @@ export function createBot(env: Env, publicUrl: string): Bot {
       TelegramMessengerLive(ctx),
       TelegramSourceAuthLive(env, chatId),
       LinkQueueLive(env, chatId, ctx.message.message_id)
-    );
+    ).pipe(Layer.provideMerge(AppLayerLive(env)));
 
     return Effect.runPromise(
       handleLinks(urls).pipe(Effect.provide(layer), Effect.asVoid)

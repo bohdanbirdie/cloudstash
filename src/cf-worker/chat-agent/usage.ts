@@ -57,6 +57,9 @@ export const LIMIT_REACHED_MESSAGE =
 export const BUDGET_UNAVAILABLE_MESSAGE =
   "Chat is temporarily unavailable while we verify your workspace's plan. Please try again in a moment.";
 
+export const CHAT_DISABLED_MESSAGE =
+  "Chat is no longer available on this workspace's current plan.";
+
 /** State broadcast from ChatAgentDO to connected clients */
 export type ChatAgentState = {
   usage?: {

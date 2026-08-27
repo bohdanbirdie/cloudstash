@@ -30,15 +30,14 @@ Telegram / Raycast / POST /api/ingest / X bookmark poll
   → bounded leader-sync barrier
 ```
 
-The public API authenticates a Bearer key, resolves its server-stamped `orgId`
-and referenced user, verifies current approval and membership, enforces that
-workspace's `publicApi`, validates the URL shape, and returns `queued` after
-`LINK_QUEUE.send` succeeds. Telegram key authentication uses the same current
-workspace-access decision, while X uses source-specific provider authentication
-before producing the same `LinkQueueMessage` shape. Raycast uses its paired API
-key flow, but shared ingest currently records it as `api` and additionally
-requires `publicApi`; see
-[DELTA-036](../../.delta/DELTA-036-raycast-capture-loses-source-and-couples-capabilities.md).
+The public intake authenticates a Bearer key, resolves its server-stamped
+`orgId`, source, and referenced user, and verifies current approval and
+membership. Ordinary API keys require `publicApi` and emit `source: api`;
+Raycast-paired keys require `integrations` and emit `source: raycast`. Both
+validate the URL shape and return `queued` only after `LINK_QUEUE.send`
+succeeds. Telegram key authentication uses the same current workspace-access
+decision plus a fresh `integrations` check, while X uses source-specific
+provider authentication before producing the same `LinkQueueMessage` shape.
 The primary `POST /api/links` and MCP `save_link` paths call link-operation RPCs
 on the existing LinkProcessorDO without a second server-side LiveStore replica.
 A new save first makes its URL candidate durable, re-resolves the canonical row

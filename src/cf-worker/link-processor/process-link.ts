@@ -211,13 +211,8 @@ export const processLink = ({
                   promptChars: e.promptChars ?? null,
                   ...safeErrorInfo(e.cause),
                 }),
-              EnrichmentUsageGetError: (e) =>
-                fallbackToBasic("Enrichment usage KV read failed", {
-                  period: e.period,
-                  ...safeErrorInfo(e.cause),
-                }),
-              EnrichmentUsagePutError: (e) =>
-                fallbackToBasic("Enrichment usage KV write failed", {
+              EnrichmentUsageTransactionError: (e) =>
+                fallbackToBasic("Enrichment usage reservation failed", {
                   period: e.period,
                   ...safeErrorInfo(e.cause),
                 }),

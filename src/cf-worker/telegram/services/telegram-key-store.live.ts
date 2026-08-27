@@ -2,13 +2,14 @@ import { Effect, Layer } from "effect";
 
 import type { UserId } from "../../db/branded";
 import type { Env } from "../../shared";
+import { telegramKvOrDie } from "../kv";
 import { TelegramKeyStore } from "../services";
 
 const forwardKey = (chatId: number) => `telegram:${chatId}`;
 const reverseKey = (userId: UserId) => `telegram-user:${userId}`;
 
 const readReverse = (env: Env, userId: UserId) =>
-  Effect.promise(() => env.TELEGRAM_KV.get(reverseKey(userId))).pipe(
+  telegramKvOrDie(() => env.TELEGRAM_KV.get(reverseKey(userId))).pipe(
     Effect.map((raw) => {
       if (!raw) return [] as readonly number[];
       try {
@@ -24,15 +25,15 @@ const readReverse = (env: Env, userId: UserId) =>
 export const TelegramKeyStoreLive = (env: Env) =>
   Layer.succeed(TelegramKeyStore, {
     put: (chatId, apiKey) =>
-      Effect.promise(() => env.TELEGRAM_KV.put(forwardKey(chatId), apiKey)),
+      telegramKvOrDie(() => env.TELEGRAM_KV.put(forwardKey(chatId), apiKey)),
     remove: (chatId) =>
-      Effect.promise(() => env.TELEGRAM_KV.delete(forwardKey(chatId))),
+      telegramKvOrDie(() => env.TELEGRAM_KV.delete(forwardKey(chatId))),
     linkUser: (userId, chatId) =>
       readReverse(env, userId).pipe(
         Effect.flatMap((existing) =>
           existing.includes(chatId)
             ? Effect.void
-            : Effect.promise(() =>
+            : telegramKvOrDie(() =>
                 env.TELEGRAM_KV.put(
                   reverseKey(userId),
                   JSON.stringify([...existing, chatId])
@@ -46,11 +47,11 @@ export const TelegramKeyStoreLive = (env: Env) =>
           const next = existing.filter((id) => id !== chatId);
           if (next.length === existing.length) return Effect.void;
           if (next.length === 0) {
-            return Effect.promise(() =>
+            return telegramKvOrDie(() =>
               env.TELEGRAM_KV.delete(reverseKey(userId))
             );
           }
-          return Effect.promise(() =>
+          return telegramKvOrDie(() =>
             env.TELEGRAM_KV.put(reverseKey(userId), JSON.stringify(next))
           );
         })
@@ -62,11 +63,11 @@ export const TelegramKeyStoreLive = (env: Env) =>
           Effect.forEach(
             chatIds,
             (chatId) =>
-              Effect.promise(() => env.TELEGRAM_KV.delete(forwardKey(chatId))),
+              telegramKvOrDie(() => env.TELEGRAM_KV.delete(forwardKey(chatId))),
             { discard: true }
           ).pipe(
             Effect.andThen(
-              Effect.promise(() => env.TELEGRAM_KV.delete(reverseKey(userId)))
+              telegramKvOrDie(() => env.TELEGRAM_KV.delete(reverseKey(userId)))
             ),
             Effect.as({ deletedCount: chatIds.length })
           )

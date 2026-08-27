@@ -36,7 +36,10 @@ import {
   ENRICHMENT_MODEL,
   MONTHLY_ENRICHMENT_CAP,
 } from "../../x-enrichment/types";
-import { EnrichmentUsage } from "../../x-enrichment/usage";
+import {
+  EnrichmentUsage,
+  EnrichmentUsageTransactionError,
+} from "../../x-enrichment/usage";
 
 const enrichmentStubs = Layer.mergeAll(
   Layer.succeed(
@@ -54,12 +57,8 @@ const enrichmentStubs = Layer.mergeAll(
     })
   ),
   Layer.succeed(EnrichmentUsage, {
-    current: () =>
-      Effect.die(new Error("unexpected EnrichmentUsage.current call in test")),
-    increment: () =>
-      Effect.die(
-        new Error("unexpected EnrichmentUsage.increment call in test")
-      ),
+    reserve: () =>
+      Effect.die(new Error("unexpected EnrichmentUsage.reserve call in test")),
   })
 );
 
@@ -709,6 +708,7 @@ interface EnrichmentLayerOpts {
   generatorResult?:
     | EnrichmentOutput
     | Effect.Effect<never, EnrichmentGenerateError>;
+  usageError?: EnrichmentUsageTransactionError;
 }
 
 const enrichmentLayer = (opts: EnrichmentLayerOpts = {}) => {
@@ -740,10 +740,21 @@ const enrichmentLayer = (opts: EnrichmentLayerOpts = {}) => {
       })
     ),
     Layer.succeed(EnrichmentUsage, {
-      current: () => Effect.succeed({ used: usedRef.value, period: "2026-05" }),
-      increment: () => {
+      reserve: (_storeId, cap) => {
+        if (opts.usageError) return Effect.fail(opts.usageError);
+        if (usedRef.value >= cap) {
+          return Effect.succeed({
+            reserved: false,
+            used: usedRef.value,
+            period: "2026-05",
+          });
+        }
         usedRef.value += 1;
-        return Effect.succeed({ used: usedRef.value, period: "2026-05" });
+        return Effect.succeed({
+          reserved: true,
+          used: usedRef.value,
+          period: "2026-05",
+        });
       },
     })
   );
@@ -846,13 +857,12 @@ describe("processLink enrichment router", () => {
               })
             ),
             Layer.succeed(EnrichmentUsage, {
-              current: () =>
+              reserve: () =>
                 Effect.succeed({
+                  reserved: false,
                   used: MONTHLY_ENRICHMENT_CAP,
                   period: "2026-05",
                 }),
-              increment: () =>
-                Effect.die(new Error("increment should not be called")),
             })
           )
         ),
@@ -912,6 +922,63 @@ describe("processLink enrichment router", () => {
                   tweetId: XTweetId.make(X_TWEET_ID),
                 })
               ),
+            })
+          )
+        ),
+        silentLogger,
+        Effect.tap(() =>
+          Effect.sync(() => {
+            const summaries = store.query(
+              tables.linkSummaries.where({ linkId: xLink.id })
+            );
+            expect(summaries).toHaveLength(1);
+            expect(summaries[0].model).toBe(AI_MODEL);
+            expect(summaries[0].summary).toBe("basic summary");
+          })
+        )
+      );
+    }
+  );
+
+  it.effect(
+    "usage reservation failure: falls back to basic, commits with AI_MODEL",
+    () => {
+      seedXLink();
+      return processLink({
+        link: xLink,
+        aiSummaryEnabled: true,
+        xContentEnrichmentEnabled: true,
+        storeId: STORE_ID,
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Layer.succeed(MetadataFetcher, {
+              fetch: () => Effect.succeed(OgMetadata.make({ title: "T" })),
+            }),
+            Layer.succeed(ContentExtractor, {
+              extract: () =>
+                Effect.succeed({
+                  title: "T",
+                  content: "C",
+                  author: null,
+                  published: null,
+                  wordCount: 1,
+                }),
+            }),
+            Layer.succeed(AiSummaryGenerator, {
+              generate: () =>
+                Effect.succeed({
+                  summary: "basic summary",
+                  suggestedTags: [],
+                }),
+            }),
+            LinkEventStoreLive(store),
+            enrichmentLayer({
+              usageError: new EnrichmentUsageTransactionError({
+                cause: new Error("storage unavailable"),
+                period: "2026-05",
+                storeId: STORE_ID,
+              }),
             })
           )
         ),

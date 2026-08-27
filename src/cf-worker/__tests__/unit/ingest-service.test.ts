@@ -75,8 +75,13 @@ function makeBillingLayer(
   } as unknown as Billing["Service"]);
 }
 
-const capsLayer = (publicApi: boolean): Layer.Layer<Billing> =>
-  makeBillingLayer(() => Effect.succeed({ publicApi } as TierCapabilities));
+const capsLayer = (
+  publicApi: boolean,
+  integrations = publicApi
+): Layer.Layer<Billing> =>
+  makeBillingLayer(() =>
+    Effect.succeed({ integrations, publicApi } as TierCapabilities)
+  );
 
 const plusBillingLayer = capsLayer(true);
 
@@ -99,6 +104,16 @@ const validKeyResponse = {
 };
 
 const validAuthLayer = makeAuthLayer(() => Promise.resolve(validKeyResponse));
+
+const validRaycastAuthLayer = makeAuthLayer(() =>
+  Promise.resolve({
+    valid: true,
+    key: {
+      metadata: { orgId: "org-1", source: "raycast" },
+      referenceId: "user-1",
+    },
+  })
+);
 
 describe("ingestRequestToResponse", () => {
   it.effect("returns 401 when Authorization header is missing", () => {
@@ -298,6 +313,66 @@ describe("ingestRequestToResponse", () => {
       )
     );
   });
+
+  it.effect(
+    "uses the Raycast capability and preserves source attribution",
+    () => {
+      const request = createRequest(
+        { url: "https://example.com" },
+        { Authorization: "Bearer raycast-key" }
+      );
+      const env = createEnv();
+
+      return run(
+        request,
+        env,
+        validRaycastAuthLayer,
+        capsLayer(false, true)
+      ).pipe(
+        Effect.tap((response) =>
+          Effect.promise(async () => {
+            expect(response.status).toBe(200);
+            expect(env._queueSend).toHaveBeenCalledWith({
+              source: "raycast",
+              sourceMeta: null,
+              storeId: "org-1",
+              url: "https://example.com",
+            });
+          })
+        )
+      );
+    }
+  );
+
+  it.effect(
+    "rejects a Raycast key when integrations are disabled even if public API is enabled",
+    () => {
+      const request = createRequest(
+        { url: "https://example.com" },
+        { Authorization: "Bearer raycast-key" }
+      );
+      const env = createEnv();
+
+      return run(
+        request,
+        env,
+        validRaycastAuthLayer,
+        capsLayer(true, false)
+      ).pipe(
+        Effect.tap((response) =>
+          Effect.promise(async () => {
+            expect(response.status).toBe(402);
+            expect(await response.json()).toEqual({
+              error: "Upgrade required",
+              capability: "integrations",
+              requiredTier: "plus",
+            });
+            expect(env._queueSend).not.toHaveBeenCalled();
+          })
+        )
+      );
+    }
+  );
 
   it.effect("returns 500 and does not queue when the org lookup errors", () => {
     const request = createRequest(

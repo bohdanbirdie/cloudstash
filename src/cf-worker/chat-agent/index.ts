@@ -52,6 +52,7 @@ import { writeTextMessage } from "./stream-helpers";
 import { createTools, createToolExecutors } from "./tools";
 import {
   BUDGET_UNAVAILABLE_MESSAGE,
+  CHAT_DISABLED_MESSAGE,
   ESTIMATED_TOKENS_PER_CALL,
   LIMIT_REACHED_MESSAGE,
   budgetToTokenLimit,
@@ -64,11 +65,51 @@ import type { UsageStorage } from "./usage-core";
 import { hasToolConfirmation, processToolCalls } from "./utils";
 
 const RESERVE_OUTCOME = {
+  Disabled: "disabled",
   Reserved: "reserved",
   LimitReached: "limit_reached",
   Unavailable: "unavailable",
 } as const;
 type ReserveOutcome = (typeof RESERVE_OUTCOME)[keyof typeof RESERVE_OUTCOME];
+
+interface ResolvedChatBudget {
+  readonly budget: number;
+  readonly enabled: boolean;
+  readonly limit: number;
+  readonly unavailable: boolean;
+}
+
+const resolveChatBudget = Effect.fnUntraced(function* (orgId: OrgId) {
+  const billing = yield* Billing;
+  const resolved = yield* billing.capabilities(orgId).pipe(
+    Effect.map((caps) => ({
+      budget: caps.monthlyChatBudgetUsd,
+      enabled: caps.chatAgent,
+      unavailable: false,
+    })),
+    Effect.catchTags({
+      DbError: (cause) =>
+        Effect.logWarning("Falling back to default budget").pipe(
+          Effect.annotateLogs({
+            cause: String(cause),
+            orgId: maskId(orgId),
+          }),
+          Effect.as({ budget: 0, enabled: false, unavailable: true })
+        ),
+      OrgNotFoundError: () =>
+        Effect.logWarning("Org missing — using default budget").pipe(
+          Effect.annotateLogs({ orgId: maskId(orgId) }),
+          Effect.as({ budget: 0, enabled: false, unavailable: true })
+        ),
+    })
+  );
+  return {
+    budget: resolved.budget,
+    enabled: resolved.enabled,
+    limit: budgetToTokenLimit(resolved.budget),
+    unavailable: resolved.unavailable,
+  } satisfies ResolvedChatBudget;
+});
 
 type ChatErrorKind = "rate_limit" | "credit_limit" | "tool_failure" | "other";
 
@@ -336,12 +377,18 @@ export class ChatAgentDO
   ): Promise<ReserveOutcome> {
     return Effect.runPromise(
       Effect.gen({ self: this }, function* () {
-        const { limit, unavailable } = yield* this.resolveBudget();
+        const { enabled, limit, unavailable } = yield* this.resolveBudget();
         if (unavailable) {
           yield* Effect.annotateCurrentSpan({
             outcome: RESERVE_OUTCOME.Unavailable,
           });
           return RESERVE_OUTCOME.Unavailable;
+        }
+        if (!enabled) {
+          yield* Effect.annotateCurrentSpan({
+            outcome: RESERVE_OUTCOME.Disabled,
+          });
+          return RESERVE_OUTCOME.Disabled;
         }
         const reserved = yield* Effect.promise(() =>
           this.ctx.storage.transaction((transaction) =>
@@ -406,41 +453,9 @@ export class ChatAgentDO
     );
   }
 
-  private resolveBudget(): Effect.Effect<
-    { budget: number; limit: number; unavailable: boolean },
-    never,
-    Billing
-  > {
+  private resolveBudget(): Effect.Effect<ResolvedChatBudget, never, Billing> {
     const orgId = this.orgId();
-    return Effect.gen(function* () {
-      const billing = yield* Billing;
-      const resolved = yield* billing.capabilities(orgId).pipe(
-        Effect.map((caps) => ({
-          budget: caps.monthlyChatBudgetUsd,
-          unavailable: false,
-        })),
-        Effect.catchTags({
-          DbError: (cause) =>
-            Effect.logWarning("Falling back to default budget").pipe(
-              Effect.annotateLogs({
-                cause: String(cause),
-                orgId: maskId(orgId),
-              }),
-              Effect.as({ budget: 0, unavailable: true })
-            ),
-          OrgNotFoundError: () =>
-            Effect.logWarning("Org missing — using default budget").pipe(
-              Effect.annotateLogs({ orgId: maskId(orgId) }),
-              Effect.as({ budget: 0, unavailable: true })
-            ),
-        })
-      );
-      return {
-        budget: resolved.budget,
-        limit: budgetToTokenLimit(resolved.budget),
-        unavailable: resolved.unavailable,
-      };
-    }).pipe(
+    return resolveChatBudget(orgId).pipe(
       Effect.withSpan("ChatAgentDO.resolveBudget", {
         attributes: { orgId: maskId(orgId) },
       })
@@ -503,9 +518,11 @@ export class ChatAgentDO
     );
     if (reserveOutcome !== RESERVE_OUTCOME.Reserved) {
       const message =
-        reserveOutcome === RESERVE_OUTCOME.Unavailable
-          ? BUDGET_UNAVAILABLE_MESSAGE
-          : LIMIT_REACHED_MESSAGE;
+        reserveOutcome === RESERVE_OUTCOME.Disabled
+          ? CHAT_DISABLED_MESSAGE
+          : reserveOutcome === RESERVE_OUTCOME.Unavailable
+            ? BUDGET_UNAVAILABLE_MESSAGE
+            : LIMIT_REACHED_MESSAGE;
       const blockedStream = createUIMessageStream({
         execute: ({ writer }) => {
           writeTextMessage(writer, message, reserveOutcome);

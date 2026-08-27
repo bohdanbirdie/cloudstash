@@ -136,6 +136,22 @@ describe("DigestScheduler.ensureScheduled", () => {
     })
   );
 
+  it.effect("removes an existing alarm when capability is turned off", () =>
+    Effect.gen(function* () {
+      const storeIdRef = yield* Ref.make<Option.Option<OrgId>>(
+        Option.some(ORG_A)
+      );
+      const storage = makeFakeStorage({ alarm: Date.now() + 60_000 });
+      const { deps } = makeDeps({
+        capabilities: capabilitiesFor("free"),
+        storage,
+        storeIdRef,
+      });
+      yield* withScheduler(deps, (s) => s.ensureScheduled);
+      expect(storageState(storage).alarm).toBeNull();
+    })
+  );
+
   it.effect("does not overwrite an existing alarm", () =>
     Effect.gen(function* () {
       const storeIdRef = yield* Ref.make<Option.Option<OrgId>>(
@@ -235,6 +251,17 @@ describe("DigestScheduler.handleAlarm", () => {
 });
 
 describe("DigestScheduler.triggerDigest", () => {
+  it.effect("does not manually generate when capability is off", () =>
+    Effect.gen(function* () {
+      const { deps, runDigestCalls } = makeDeps({
+        capabilities: capabilitiesFor("free"),
+      });
+      const result = yield* withScheduler(deps, (s) => s.triggerDigest(ORG_A));
+      expect(result).toEqual({ status: "unavailable" });
+      expect(yield* Ref.get(runDigestCalls)).toHaveLength(0);
+    })
+  );
+
   it.effect("persists storeId before running", () =>
     Effect.gen(function* () {
       const { deps, runDigestCalls, storage, storeIdRef } = makeDeps();
