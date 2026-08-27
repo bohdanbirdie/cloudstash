@@ -4,6 +4,7 @@ kanban-plugin: board
 
 ## Near-term Technical Outcomes
 
+- [ ] Bug: repair the new-signup approval gate — the admin switch must control the server policy and invite-form guard; gate-off signups enter the app, gate-on signups alone wait for approval, existing approved users are never trapped, and pending users retain working sign-out and account-deletion escape routes. Cover gate on/off, existing sessions, and both escape routes with E2E tests.
 - [ ] [[todos/raycast-capability-source-cleanup|Align Raycast source and entitlement semantics]] — publication is complete; preserve first-party attribution and use one operation-time contract.
 - [ ] [[todos/customer-facing-copy-accuracy|Align customer-facing copy with shipped behavior]] — reconcile product, repository, SEO, integration, Terms, and policy surfaces with executable capabilities and current availability.
 - [ ] [[todos/canonical-url-identity|Canonical URL identity across every capture path]] — prevent new duplicates first; historical reconciliation remains a separate decision.
@@ -17,6 +18,7 @@ kanban-plugin: board
 
 ## Todo
 
+- [ ] Adopt an enforced cyclomatic-complexity budget with Oxc [`eslint/complexity`](https://oxc.rs/docs/guide/usage/linter/rules/eslint/complexity) — inventory current hotspots, choose and document the `max` and `variant`, refactor violations instead of blanket-suppressing them, enable the rule in the Vite+ lint configuration, and ratchet the CI limit downward where practical.
 - [ ] Retire the local Better Auth MCP JWKS verifier after [#10856](https://github.com/better-auth/better-auth/issues/10856) / [#10888](https://github.com/better-auth/better-auth/issues/10888) and [#10893](https://github.com/better-auth/better-auth/pull/10893) ship in a stable release — installed types must accept an in-process JWKS source plus cache key, and the same-Worker E2E must pass with zero outbound JWKS requests.
 - [ ] Retest Better Auth OAuth resource seeding on future stable upgrades — the Drizzle-wrapped UNIQUE race is independently reproduced on 1.7.0 and still present upstream; keep the app-wide atomic initializer in `AuthClientLive` until concurrent fresh auth contexts pass without it. No upstream issue is being filed.
 - [ ] [[todos/ws-close-scope-teardown-exception|SyncBackendDO webSocketClose throws on abnormal close (1006) — upstream teardown fix]] — 2 new `scriptThrewException` on the v4-cutover day (2026-08-10), zero in the prior week; benign (1ms, socket already dead, reconnect fine) but skips `serverCtxMap` cleanup and pollutes the error signal; small upstream PR candidate (make `Scope.close` teardown non-throwing in common-cf `ws-rpc-server.ts:217`).
