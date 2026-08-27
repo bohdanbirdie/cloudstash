@@ -62,6 +62,11 @@ dev:published`) forces the published snapshot (A/B "is the bug mine or
 - **Setup:** `bun run livestore:install` (also run by `bun run sync`, and by
   `bun run build` / `build:prod`) runs `scripts/ensure-livestore.sh` — inits the
   submodule and installs its deps. See _Building & deploying on Cloudflare_.
+- **Deploy builds install less:** `build:prod` and `build:staging` set
+  `LIVESTORE_VENDOR_MINIMAL=1`, so the submodule checkout is shallow and the
+  install covers only the workspace packages the app imports plus their deps
+  (3.3G → 1.2G, no playwright or docs toolchain). Local dev and the CI test jobs
+  keep the full install — tests need the other packages.
 - **Wiring:** `tools/livestore-local.ts` (alias generator) consumed by
   `vite.config.ts`, `vitest.config.ts`, `vitest.e2e.config.ts`.
 
@@ -186,7 +191,9 @@ Don't undo them:
    tolerated it). The store is load-bearing — node_modules hardlinks to it, so
    don't just delete it. Fix: install with `--store-dir` pointing **outside** the
    repo (pnpm's normal global-store mode); node_modules still links to it but Vite
-   never sees it.
+   never sees it. The path is `~/.pnpm-store` on purpose — that is the directory
+   Cloudflare's Workers Builds cache preserves between builds, so a custom name
+   there costs a ~3G re-download every deploy. `PNPM_STORE_DIR` overrides it.
 
 ## Validation checklist (run before trusting prod / on every submodule bump)
 

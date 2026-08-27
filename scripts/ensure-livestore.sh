@@ -7,11 +7,39 @@
 # Idempotent and non-destructive: it skips both steps when already present, so it
 # never clobbers a local vendor/livestore you're actively hacking on. To force a
 # reinstall after bumping the pinned SHA, run pnpm install inside vendor/livestore.
+#
+# LIVESTORE_VENDOR_MINIMAL=1 trims both steps to what a *deploy* build needs:
+# shallow submodule history, and only the workspace packages the app imports plus
+# their deps (3.3G -> 1.2G, no playwright or docs toolchain). The deploy scripts
+# set it. Local dev and CI test jobs deliberately keep the full install, because
+# tests and `pnpm --filter` runs inside vendor/livestore need the other packages.
 set -euo pipefail
+
+minimal="${LIVESTORE_VENDOR_MINIMAL:-0}"
 
 if [ ! -e vendor/livestore/package.json ]; then
   echo "[livestore] checking out vendor/livestore submodule..."
-  git submodule update --init vendor/livestore
+  if [ "$minimal" = "1" ]; then
+    git submodule update --init --depth 1 vendor/livestore
+  else
+    git submodule update --init vendor/livestore
+  fi
+fi
+
+# Derive the deploy filter from real imports so a new @livestore/* dependency
+# cannot silently drop out of the minimal install. `...` includes each package's
+# own dependencies.
+filters=()
+if [ "$minimal" = "1" ]; then
+  while read -r pkg; do
+    [ -d "vendor/livestore/packages/@livestore/$pkg" ] || continue
+    filters+=(--filter "@livestore/$pkg...")
+  done < <(grep -rhoE '@livestore/[a-z0-9-]+' src tools | sed 's|@livestore/||' | sort -u)
+  if [ ${#filters[@]} -eq 0 ]; then
+    echo "[livestore] found no @livestore imports — refusing a minimal install" >&2
+    exit 1
+  fi
+  echo "[livestore] minimal install: ${#filters[@]} workspace package(s)"
 fi
 
 if [ ! -d vendor/livestore/node_modules ]; then
@@ -37,9 +65,14 @@ if [ ! -d vendor/livestore/node_modules ]; then
     # recurses into it and crashes on Linux (EINVAL on the store's files). Override
     # to a store outside the repo (pnpm's normal global-store mode) — node_modules
     # still hardlinks to it, but Vite never sees it.
-    store="${HOME:-/tmp}/.pnpm-store-cloudstash-vendor"
+    #
+    # The path is `.pnpm-store` on purpose: that is the directory Cloudflare's
+    # Workers Builds cache preserves between builds. A custom name here means the
+    # ~3G store is re-downloaded on every deploy. Override with PNPM_STORE_DIR.
+    store="${PNPM_STORE_DIR:-${HOME:-/tmp}/.pnpm-store}"
     echo "[livestore] installing with: $pm (store: $store)"
-    $pm install --frozen-lockfile --store-dir "$store"
+    $pm install --frozen-lockfile --store-dir "$store" \
+      ${filters[@]+"${filters[@]}"}
   )
 fi
 
