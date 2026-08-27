@@ -62,6 +62,23 @@ semantics. This avoids mocks that can pass while real SQL/materialization fails.
 Wire-format tests retain prior-runtime golden eventlog rows so the Effect v4 and
 LiveStore source change cannot silently alter deployed history serialization.
 
+## Test Seams and Type Evidence
+
+Worker tests must not replace imported modules through Vitest or Jest module
+mocking. External behavior is substituted through an existing service/layer
+boundary or a narrow dependency accepted by the production constructor. Where
+the test targets an installed library's pure contract, fixtures use that
+library's real public types and runtime helpers. UI tests are not yet part of
+this enforcement boundary.
+
+Production code must not force values through chained TypeScript assertions
+such as `value as unknown as Target`. Callers preserve a precise source type,
+validate data at the boundary, or use an assignable public interface. Tests may
+still construct partial platform fixtures with chained assertions because
+implementing full Cloudflare runtime objects is outside those unit tests' scope.
+The enforcement boundary and initial migrations are recorded in [decision
+0005](./.decisions/0005-enforce-worker-test-seams-and-production-type-evidence.md).
+
 ## Worker E2E
 
 The Cloudflare pool applies test migrations and runs real Worker entry points and

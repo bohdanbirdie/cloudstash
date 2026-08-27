@@ -65,6 +65,14 @@ export interface DotAnimationState {
   style?: CSSProperties;
 }
 
+interface DotMatrixStyle extends CSSProperties {
+  readonly "--dmx-speed": number;
+  readonly "--dmx-dot-size": string;
+  readonly "--dmx-opacity-base"?: number;
+  readonly "--dmx-opacity-mid"?: number;
+  readonly "--dmx-opacity-peak"?: number;
+}
+
 export type DotAnimationResolver = (
   ctx: DotAnimationContext
 ) => DotAnimationState;
@@ -697,23 +705,23 @@ function getDmxVarStyle({
   scale: number;
   speedScale: number;
   useWrapper: boolean;
-}): CSSProperties {
+}): DotMatrixStyle {
   return {
     width: matrixSpan,
     height: matrixSpan,
     "--dmx-speed": speedScale,
-    ["--dmx-dot-size" as const]: `${dotSize}px`,
+    "--dmx-dot-size": `${dotSize}px`,
     color,
-    ...(ob !== undefined && { ["--dmx-opacity-base" as const]: ob }),
-    ...(om !== undefined && { ["--dmx-opacity-mid" as const]: om }),
-    ...(op !== undefined && { ["--dmx-opacity-peak" as const]: op }),
+    ...(ob !== undefined && { "--dmx-opacity-base": ob }),
+    ...(om !== undefined && { "--dmx-opacity-mid": om }),
+    ...(op !== undefined && { "--dmx-opacity-peak": op }),
     ...(useWrapper
       ? {
           transform: `scale(${scale})`,
           transformOrigin: "center center" as const,
         }
       : { minWidth: minSize, minHeight: minSize }),
-  } as unknown as CSSProperties;
+  };
 }
 
 interface DotMatrixBaseProps extends DotMatrixCommonProps {
