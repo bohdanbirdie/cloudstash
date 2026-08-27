@@ -7,7 +7,7 @@
   ],
   "type": "module",
   "scripts": {
-    "build-storybook": "storybook build",
+    "build-storybook": "CLOUDSTASH_STORYBOOK=1 storybook build",
     "env:sync": "bash scripts/sync-dev-vars.sh",
     "dev": "vp dev --port 3000 --host",
     "dev:published": "LIVESTORE_PUBLISHED=1 bun run dev",
@@ -18,7 +18,7 @@
     "dev:tunnel": "bun scripts/telegram-tunnel.ts",
     "dev:raycast": "test -d local/raycast-extension || exit 0; npm --prefix local/raycast-extension run dev",
     "sync": "bash scripts/sync-repos.sh",
-    "storybook": "storybook dev -p 6006",
+    "storybook": "CLOUDSTASH_STORYBOOK=1 storybook dev -p 6006",
     "livestore:install": "bash scripts/ensure-livestore.sh",
     "dev:dashboard": "localflare attach --no-open",
     "build": "bash scripts/ensure-livestore.sh && vp build && bun scripts/verify-bundle.ts && bun scripts/prerender.tsx",

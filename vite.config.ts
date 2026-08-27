@@ -28,6 +28,11 @@ const livestoreLocalPlugin: Plugin = {
   },
 };
 
+// Storybook shares this config for browser components, but it does not serve
+// the Worker. Starting that runtime here would contend with the app's fixed
+// inspector port and connect remote bindings unnecessarily.
+const isStorybook = process.env.CLOUDSTASH_STORYBOOK === "1";
+
 const config: UserConfig = {
   define: livestoreBuildDefine(),
   environments: {
@@ -252,7 +257,7 @@ const config: UserConfig = {
     exclude: ["@livestore/wa-sqlite"],
   },
   plugins: lazyPlugins(() => [
-    cloudflare({ inspectorPort: 9230 }),
+    ...(isStorybook ? [] : cloudflare({ inspectorPort: 9230 })),
     TanStackRouterVite(),
     tailwindcss(),
     viteReact(),
