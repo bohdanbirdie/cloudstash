@@ -44,8 +44,8 @@ and mutations remain in the shared Effect service.
 2. Route REST and MCP through the existing `LINK_PROCESSOR_DO` binding.
 3. Reuse the current `WorkspaceLinks` service with the existing cached store;
    do not duplicate queries or mutations in RPC handlers.
-4. Make the existing LinkProcessor deletion tombstone and purge path the only
-   workspace cleanup lifecycle.
+4. Make LinkProcessor's generic terminal retirement the only workspace cleanup
+   lifecycle.
 5. Delete `WorkspaceLinksDO`, its binding, migration, export, tests, and all
    documentation claims that it exists.
 6. Update focused unit, RPC, REST, MCP, deletion, and real-DO tests.
@@ -63,6 +63,6 @@ LiveStore client; chat tools call the workspace DO's canonical link RPCs.
 - exactly one Cloudflare-side LiveStore client per workspace
 - REST and MCP parity tests pass, including pagination and batch mutation
 - no API/MCP reprocessing surface exists
-- deletion tombstone and purge tests pass through `LinkProcessorDO`
+- terminal retirement tests pass through `LinkProcessorDO`
 - `bun run check`, focused E2E, `bun run check:intent`, and `git diff --check`
   pass

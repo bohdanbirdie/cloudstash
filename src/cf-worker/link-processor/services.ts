@@ -4,8 +4,9 @@ import type { ZodType } from "zod";
 
 import type { TierCapabilities } from "@/lib/plan";
 
-import type { events, tables } from "../../livestore/schema";
+import type { StoreEvent, tables } from "../../livestore/schema";
 import type { LinkId, OrgId, TagId } from "../db/branded";
+import type { DurableObjectRetiredError } from "../durable-object-retirement";
 import type {
   MetadataFetchError,
   MetadataParseError,
@@ -18,11 +19,6 @@ export type MetadataFetchFailure =
   | MetadataFetchError
   | MetadataParseError
   | Cause.TimeoutError;
-
-type EventCreators = typeof events;
-export type StoreEvent = {
-  [K in keyof EventCreators]: ReturnType<EventCreators[K]>;
-}[keyof EventCreators];
 
 export type Link = typeof tables.links.Type;
 export type Status = typeof tables.linkProcessingStatus.Type;
@@ -83,7 +79,9 @@ export class LinkProcessorAi extends Context.Service<
 export class LinkEventStore extends Context.Service<
   LinkEventStore,
   {
-    readonly commit: (event: StoreEvent) => Effect.Effect<void>;
+    readonly commit: (
+      event: StoreEvent
+    ) => Effect.Effect<void, DurableObjectRetiredError>;
     readonly queryTags: () => Effect.Effect<
       readonly { readonly id: TagId; readonly name: string }[]
     >;
@@ -136,6 +134,6 @@ export class LinkRepository extends Context.Service<
     readonly queryStatuses: () => Effect.Effect<Status[]>;
     readonly commitEvents: (
       ...events: readonly StoreEvent[]
-    ) => Effect.Effect<void>;
+    ) => Effect.Effect<void, DurableObjectRetiredError>;
   }
 >()("LinkRepository") {}

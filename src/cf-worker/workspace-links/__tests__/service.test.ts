@@ -8,6 +8,7 @@ import { makeTestStore } from "@/livestore/__tests__/test-helpers";
 import type { TestStore } from "@/livestore/__tests__/test-helpers";
 import { events } from "@/livestore/schema";
 
+import { WorkspaceLinkUnavailableError } from "../errors";
 import { makeWorkspaceLinks } from "../service";
 import type { WorkspaceLinks } from "../service";
 
@@ -229,7 +230,9 @@ describe("WorkspaceLinks", () => {
   );
 
   it.effect("does not commit after the workspace lifecycle is fenced", () => {
-    const links = makeWorkspaceLinks(store, { canCommit: () => false });
+    const links = makeWorkspaceLinks(store, {
+      commit: () => Effect.fail(new WorkspaceLinkUnavailableError()),
+    });
     return Effect.gen(function* () {
       const result = yield* Effect.result(
         links.save({

@@ -538,3 +538,8 @@ const materializers = State.SQLite.materializers(events, {
 const state = State.SQLite.makeState({ materializers, tables });
 
 export const schema = makeSchema({ events, state });
+
+type EventCreators = typeof events;
+export type StoreEvent = {
+  [Name in keyof EventCreators]: ReturnType<EventCreators[Name]>;
+}[keyof EventCreators];

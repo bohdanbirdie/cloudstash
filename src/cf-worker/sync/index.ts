@@ -7,6 +7,7 @@ import { OrgId } from "../db/branded";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
+import { OtelTracingLive } from "../tracing";
 import type { PushEvent } from "./activity";
 import { recordActivity } from "./record-activity";
 
@@ -176,11 +177,11 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
     }
   }
 
-  /**
-   * Wipes all DO storage (including Livestore eventlog). Called by
-   * AccountDeletionWorkflow during account deletion.
-   */
+  /** Closes active clients and wipes the canonical eventlog. */
   async purgeAll(): Promise<void> {
+    for (const socket of this._ctx.getWebSockets()) {
+      socket.close(1001, "Eventlog purged");
+    }
     await Effect.runPromise(
       Effect.gen({ self: this }, function* () {
         yield* Effect.promise(() => this._ctx.storage.deleteAll());
@@ -189,7 +190,7 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
         );
       }).pipe(
         Effect.withSpan("SyncBackendDO.purgeAll"),
-        Effect.provide(AppLayerLive(this._env))
+        Effect.provide(OtelTracingLive)
       )
     );
   }

@@ -10,7 +10,7 @@ import {
 import type { GetBookmarksParams } from "../services";
 import { XApiClient } from "../services";
 
-const X_API_BASE = "https://api.twitter.com/2";
+const X_API_BASE = "https://api.x.com/2";
 
 const MeResponse = Schema.Struct({
   data: Schema.Struct({

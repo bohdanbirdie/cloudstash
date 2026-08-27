@@ -15,6 +15,7 @@ import {
   searchLinks$,
 } from "../../livestore/queries/links";
 import { events, schema } from "../../livestore/schema";
+import type { StoreEvent } from "../../livestore/schema";
 import { LinkId } from "../db/branded";
 
 const listRecentLinksSchema = z.object({
@@ -44,7 +45,11 @@ const getInboxSchema = z.object({
   limit: z.number().optional().describe("Max links to return (default 10)"),
 });
 
-export function createTools(store: Store<typeof schema>) {
+export function createTools(
+  store: Store<typeof schema>,
+  commit: (...storeEvents: StoreEvent[]) => void = (...storeEvents) =>
+    store.commit(...storeEvents)
+) {
   return {
     listRecentLinks: tool({
       description:
@@ -85,7 +90,7 @@ export function createTools(store: Store<typeof schema>) {
         }
 
         const linkId = nanoid();
-        store.commit(
+        commit(
           events.linkCreatedV2({
             id: linkId,
             url,
@@ -162,9 +167,7 @@ export function createTools(store: Store<typeof schema>) {
         if (link.status === "completed")
           return { error: "Link already completed" };
 
-        store.commit(
-          events.linkCompleted({ id: linkId, completedAt: new Date() })
-        );
+        commit(events.linkCompleted({ id: linkId, completedAt: new Date() }));
         return {
           success: true,
           message: `Marked "${link.title || link.url}" as done`,
@@ -182,7 +185,7 @@ export function createTools(store: Store<typeof schema>) {
         if (link.status === "unread")
           return { error: "Link is already unread" };
 
-        store.commit(events.linkUncompleted({ id: linkId }));
+        commit(events.linkUncompleted({ id: linkId }));
         return {
           success: true,
           message: `Marked "${link.title || link.url}" as unread`,
@@ -205,7 +208,7 @@ export function createTools(store: Store<typeof schema>) {
         if (!link) return { error: "Link not found" };
         if (!link.deletedAt) return { error: "Link is not in archive" };
 
-        store.commit(events.linkRestored({ id: linkId }));
+        commit(events.linkRestored({ id: linkId }));
         return {
           success: true,
           message: `Restored "${link.title || link.url}"`,
@@ -226,9 +229,7 @@ export function createTools(store: Store<typeof schema>) {
             continue;
           }
           if (link.deletedAt || link.status === "completed") continue;
-          store.commit(
-            events.linkCompleted({ id: linkId, completedAt: new Date() })
-          );
+          commit(events.linkCompleted({ id: linkId, completedAt: new Date() }));
           results.completed++;
         }
         return { success: true, ...results };
@@ -274,7 +275,11 @@ export function createTools(store: Store<typeof schema>) {
 }
 
 // Executors for tools that require confirmation (no execute function)
-export function createToolExecutors(store: Store<typeof schema>) {
+export function createToolExecutors(
+  store: Store<typeof schema>,
+  commit: (...storeEvents: StoreEvent[]) => void = (...storeEvents) =>
+    store.commit(...storeEvents)
+) {
   return {
     deleteLink: async ({ id }: { id: string }): Promise<string> => {
       const linkId = LinkId.make(id);
@@ -283,7 +288,7 @@ export function createToolExecutors(store: Store<typeof schema>) {
       if (link.deletedAt)
         return JSON.stringify({ error: "Link already in archive" });
 
-      store.commit(events.linkDeleted({ id: linkId, deletedAt: new Date() }));
+      commit(events.linkDeleted({ id: linkId, deletedAt: new Date() }));
       return JSON.stringify({
         success: true,
         message: `Moved "${link.title || link.url}" to archive`,
@@ -300,7 +305,7 @@ export function createToolExecutors(store: Store<typeof schema>) {
           continue;
         }
         if (link.deletedAt) continue;
-        store.commit(events.linkDeleted({ id: linkId, deletedAt: new Date() }));
+        commit(events.linkDeleted({ id: linkId, deletedAt: new Date() }));
         results.deleted++;
       }
       return JSON.stringify({ success: true, ...results });

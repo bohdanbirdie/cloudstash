@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { it, describe, expect, beforeEach, afterEach } from "@effect/vitest";
-import { Effect } from "effect";
+import { Effect, Result } from "effect";
 
 import { makeTestStore } from "../../../livestore/__tests__/test-helpers";
 import type { TestStore } from "../../../livestore/__tests__/test-helpers";
 import { events, tables } from "../../../livestore/schema";
+import { DurableObjectRetiredError } from "../../durable-object-retirement";
 import { LinkRepository } from "../../link-processor/services";
 import { LinkRepositoryLive } from "../../link-processor/services/link-repository.live";
 
@@ -173,6 +174,37 @@ describe("LinkRepositoryLive", () => {
         expect(statuses).toHaveLength(1);
         expect(statuses[0].status).toBe("pending");
       }).pipe(Effect.provide(LinkRepositoryLive(store)))
+    );
+
+    it.effect("fails a late batch with the typed deletion fence", () =>
+      Effect.gen(function* () {
+        const repo = yield* LinkRepository;
+        const result = yield* Effect.result(
+          repo.commitEvents(
+            events.linkCreatedV2({
+              id: "late-link",
+              url: "https://late.test/",
+              domain: "late.test",
+              createdAt: new Date("2026-01-01T00:00:00Z"),
+              source: "test",
+              sourceMeta: null,
+            })
+          )
+        );
+        expect(Result.isFailure(result)).toBe(true);
+        if (Result.isFailure(result)) {
+          expect(result.failure._tag).toBe("DurableObjectRetiredError");
+        }
+        expect(store.query(tables.links.where({ id: "late-link" }))).toEqual(
+          []
+        );
+      }).pipe(
+        Effect.provide(
+          LinkRepositoryLive(store, () =>
+            Effect.fail(new DurableObjectRetiredError())
+          )
+        )
+      )
     );
   });
 });

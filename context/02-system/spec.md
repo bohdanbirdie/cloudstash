@@ -46,7 +46,7 @@ Stateful classes:
 | `LinkProcessorDO`         | workspace ID | Server-side LiveStore replica, processing subscriptions, digest alarm |
 | `ChatAgentDO`             | workspace ID | Chat messages, token usage, server-side LiveStore replica             |
 | `XBookmarkSyncDO`         | user ID      | X watermark/status and polling alarm                                  |
-| `AccountDeletionWorkflow` | workspace ID | Retried multi-store deletion orchestration                            |
+| `AccountDeletionWorkflow` | workspace ID | Durable deletion job with independently retried multi-store steps     |
 
 ## Subsystem Composition
 
@@ -71,7 +71,7 @@ Stateful classes:
 
 Worker domain operations use Effect for dependency injection, typed failures,
 structured logs, and tracing. `AppLayerLive` composes D1, Better Auth, billing,
-settings, deletion runtime, and Cloudflare tracing. Hono/Queue/DO/Workflow
-entry points bridge Promise-based platform APIs into one top-level Effect and
-map expected failures to protocol responses; unexpected defects fail closed and
-are logged.
+settings, deletion runtime, and Cloudflare tracing. Hono/Queue/DO entry points
+bridge Promise-based platform APIs into one top-level Effect. The deletion
+Workflow keeps native `step.do` sequencing and runs each activity through one
+invocation-scoped Effect runtime; unexpected defects fail closed and are logged.

@@ -74,9 +74,9 @@ export interface LinkProcessorBinding {
 }
 
 /**
- * Pure Effect queue handler. Messages dispatch to LinkProcessorDO; if that org
- * is being deleted, the in-DO tombstone catches the message before any work
- * happens — no need for a worker-side gate.
+ * Pure Effect queue handler. Delayed messages always reach the deterministic
+ * owner DO; a retired processor returns a successful no-op that is
+ * acknowledged here.
  */
 const processMessage = (
   msg: Message,

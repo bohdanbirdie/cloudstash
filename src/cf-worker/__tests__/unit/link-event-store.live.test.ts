@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { it, describe, expect, beforeEach, afterEach } from "@effect/vitest";
-import { Effect } from "effect";
+import { Effect, Result } from "effect";
 
 import {
   makeTestStore,
@@ -9,6 +9,7 @@ import {
 import type { TestStore } from "../../../livestore/__tests__/test-helpers";
 import { events, tables } from "../../../livestore/schema";
 import { LinkId, TagId } from "../../db/branded";
+import { DurableObjectRetiredError } from "../../durable-object-retirement";
 import { LinkEventStore } from "../../link-processor/services";
 import { LinkEventStoreLive } from "../../link-processor/services/link-event-store.live";
 
@@ -65,6 +66,37 @@ describe("LinkEventStoreLive", () => {
         expect(rows).toHaveLength(1);
         expect(rows[0].url).toBe("https://commit.test/");
       }).pipe(Effect.provide(LinkEventStoreLive(store)))
+    );
+
+    it.effect("fails a late commit after actor retirement", () =>
+      Effect.gen(function* () {
+        const svc = yield* LinkEventStore;
+        const result = yield* Effect.result(
+          svc.commit(
+            events.linkCreatedV2({
+              id: "late-link",
+              url: "https://late.test/",
+              domain: "late.test",
+              createdAt: new Date("2026-01-01T00:00:00Z"),
+              source: "test",
+              sourceMeta: null,
+            })
+          )
+        );
+        expect(Result.isFailure(result)).toBe(true);
+        if (Result.isFailure(result)) {
+          expect(result.failure._tag).toBe("DurableObjectRetiredError");
+        }
+        expect(store.query(tables.links.where({ id: "late-link" }))).toEqual(
+          []
+        );
+      }).pipe(
+        Effect.provide(
+          LinkEventStoreLive(store, () =>
+            Effect.fail(new DurableObjectRetiredError())
+          )
+        )
+      )
     );
   });
 

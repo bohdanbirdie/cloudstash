@@ -1,4 +1,3 @@
-import type { Store } from "@livestore/livestore";
 import { Effect, Schema } from "effect";
 
 import {
@@ -9,14 +8,12 @@ import {
   UpdateLinkInput,
   UpdateLinksInput,
 } from "@/lib/links-contract";
-import type { schema } from "@/livestore/schema";
 
 import { WorkspaceLinkInvalidInputError } from "./errors";
 import type {
   WorkspaceLinkDomainError,
   WorkspaceLinkInfrastructureError,
 } from "./errors";
-import { makeWorkspaceLinks } from "./service";
 import type { WorkspaceLinks } from "./service";
 
 export type WorkspaceLinksRpcError = {
@@ -88,7 +85,7 @@ const invoke = Effect.fnUntraced(function* <
   S extends Schema.Top & { readonly DecodingServices: never },
   Value,
 >(
-  store: Store<typeof schema>,
+  links: WorkspaceLinks,
   contract: S,
   input: unknown,
   operation: (
@@ -97,10 +94,8 @@ const invoke = Effect.fnUntraced(function* <
   ) => Effect.Effect<
     Value,
     WorkspaceLinkDomainError | WorkspaceLinkInfrastructureError
-  >,
-  canCommit: () => boolean
+  >
 ) {
-  const links = makeWorkspaceLinks(store, { canCommit });
   return yield* domainOutcome(
     decode(contract, input).pipe(
       Effect.flatMap((value) => operation(links, value))
@@ -113,81 +108,33 @@ const invoke = Effect.fnUntraced(function* <
  * existing materialized store and remains responsible for lifecycle checks.
  */
 export const WorkspaceLinksRpc = {
-  list: (
-    store: Store<typeof schema>,
-    input: ListLinksInput,
-    canCommit: () => boolean
-  ) =>
-    invoke(
-      store,
-      ListLinksInput,
-      input,
-      (links, value) => links.list(value),
-      canCommit
+  list: (links: WorkspaceLinks, input: ListLinksInput) =>
+    invoke(links, ListLinksInput, input, (service, value) =>
+      service.list(value)
     ),
 
-  search: (
-    store: Store<typeof schema>,
-    input: SearchLinksInput,
-    canCommit: () => boolean
-  ) =>
-    invoke(
-      store,
-      SearchLinksInput,
-      input,
-      (links, value) => links.search(value),
-      canCommit
+  search: (links: WorkspaceLinks, input: SearchLinksInput) =>
+    invoke(links, SearchLinksInput, input, (service, value) =>
+      service.search(value)
     ),
 
-  get: (
-    store: Store<typeof schema>,
-    input: GetLinkInput,
-    canCommit: () => boolean
-  ) =>
-    invoke(
-      store,
-      GetLinkInput,
-      input,
-      (links, value) => links.get(value.id),
-      canCommit
+  get: (links: WorkspaceLinks, input: GetLinkInput) =>
+    invoke(links, GetLinkInput, input, (service, value) =>
+      service.get(value.id)
     ),
 
-  save: (
-    store: Store<typeof schema>,
-    input: SaveLinkRpcInput,
-    canCommit: () => boolean
-  ) =>
-    invoke(
-      store,
-      SaveLinkRpcInputSchema,
-      input,
-      (links, value) => links.save(value),
-      canCommit
+  save: (links: WorkspaceLinks, input: SaveLinkRpcInput) =>
+    invoke(links, SaveLinkRpcInputSchema, input, (service, value) =>
+      service.save(value)
     ),
 
-  update: (
-    store: Store<typeof schema>,
-    input: UpdateLinkInput,
-    canCommit: () => boolean
-  ) =>
-    invoke(
-      store,
-      UpdateLinkInput,
-      input,
-      (links, value) => links.update(value),
-      canCommit
+  update: (links: WorkspaceLinks, input: UpdateLinkInput) =>
+    invoke(links, UpdateLinkInput, input, (service, value) =>
+      service.update(value)
     ),
 
-  updateMany: (
-    store: Store<typeof schema>,
-    input: UpdateLinksInput,
-    canCommit: () => boolean
-  ) =>
-    invoke(
-      store,
-      UpdateLinksInput,
-      input,
-      (links, value) => links.updateMany(value),
-      canCommit
+  updateMany: (links: WorkspaceLinks, input: UpdateLinksInput) =>
+    invoke(links, UpdateLinksInput, input, (service, value) =>
+      service.updateMany(value)
     ),
 };

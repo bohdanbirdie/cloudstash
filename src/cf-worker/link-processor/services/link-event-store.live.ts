@@ -2,13 +2,21 @@ import type { Store } from "@livestore/livestore";
 import { Effect, Layer } from "effect";
 
 import { tables } from "../../../livestore/schema";
-import type { schema } from "../../../livestore/schema";
+import type { schema, StoreEvent } from "../../../livestore/schema";
 import { TagId } from "../../db/branded";
+import type { DurableObjectRetiredError } from "../../durable-object-retirement";
 import { LinkEventStore } from "../services";
 
-export const LinkEventStoreLive = (store: Store<typeof schema>) =>
+type Commit = (
+  event: StoreEvent
+) => Effect.Effect<void, DurableObjectRetiredError>;
+
+export const LinkEventStoreLive = (
+  store: Store<typeof schema>,
+  commit: Commit = (event) => Effect.sync(() => store.commit(event))
+) =>
   Layer.succeed(LinkEventStore, {
-    commit: (event) => Effect.sync(() => store.commit(event)),
+    commit,
     queryTags: () =>
       Effect.sync(() =>
         store

@@ -167,7 +167,7 @@ export const invitation = sqliteTable(
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
     id: text("id").primaryKey(),
     inviterId: text("inviter_id").references(() => user.id, {
-      onDelete: "cascade",
+      onDelete: "set null",
     }),
     organizationId: text("organization_id")
       .notNull()
@@ -477,9 +477,9 @@ export const invite = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
       .notNull(),
-    createdByUserId: text("created_by_user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+    createdByUserId: text("created_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
     id: text("id").primaryKey(),
     usedAt: integer("used_at", { mode: "timestamp_ms" }),
@@ -526,7 +526,9 @@ export const activityEvents = sqliteTable(
   "activity_events",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
     userId: text("user_id"),
     type: text("type").$type<ActivityType>().notNull(),
     source: text("source").$type<ActivitySource>(),

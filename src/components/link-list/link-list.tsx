@@ -5,7 +5,9 @@ import { isInActivityGrid } from "@/components/activity-grid/owns-arrows";
 import { isInDock } from "@/components/bottom-dock/owns-arrows";
 import { useListData } from "@/components/list-data-context";
 import { isInTagStrip } from "@/components/tag-strip/owns-arrows";
+import { Kbd } from "@/components/ui/kbd";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
+import { isMac } from "@/lib/hotkey-label";
 import { isKeyboardMode } from "@/lib/input-mode";
 import { useCommand, useGlobalNavigation } from "@/lib/keyboard";
 import {
@@ -28,6 +30,7 @@ const EMPTY_PREVIEW: ReadonlySet<string> = new Set();
 interface LinkListProps {
   links: readonly LinkListItemData[];
   emptyMessage?: string;
+  showPasteHint?: boolean;
   listKey?: string;
 }
 
@@ -44,6 +47,7 @@ function modifierFromEvent(e: {
 export function LinkList({
   links,
   emptyMessage = "No links yet",
+  showPasteHint = false,
   listKey,
 }: LinkListProps) {
   const activeLinkId = useRightPaneStore((s) => s.activeLinkId);
@@ -210,9 +214,40 @@ export function LinkList({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.18, ease: "easeOut" }}
-          className="text-muted-foreground text-center py-12"
+          className="flex min-h-64 flex-col items-center justify-center px-4 py-16 text-center"
         >
-          {emptyMessage}
+          <div className="flex max-w-sm flex-col items-center gap-5">
+            <div className="flex flex-col gap-2">
+              <p className="text-lg font-semibold tracking-tight">
+                {emptyMessage}
+              </p>
+              {showPasteHint && (
+                <p className="text-pretty text-sm/6 text-muted-foreground">
+                  Copy a link, then paste it anywhere in Cloudstash to save it.
+                </p>
+              )}
+            </div>
+
+            {showPasteHint && (
+              <>
+                <div
+                  className="hidden items-center gap-2 sm:flex"
+                  aria-hidden="true"
+                >
+                  <Kbd className="h-10 min-w-10 rounded-md px-3 text-sm shadow-sm">
+                    {isMac ? "⌘" : "Ctrl"}
+                  </Kbd>
+                  <span className="text-sm text-muted-foreground">+</span>
+                  <Kbd className="h-10 min-w-10 rounded-md px-3 text-sm shadow-sm">
+                    V
+                  </Kbd>
+                </div>
+                <p className="text-xs text-muted-foreground sm:hidden">
+                  Use Add link above to paste from your clipboard.
+                </p>
+              </>
+            )}
+          </div>
         </motion.div>
       );
     }
@@ -234,6 +269,7 @@ export function LinkList({
   }, [
     links,
     emptyMessage,
+    showPasteHint,
     tagsByLink,
     activeLinkId,
     ids,

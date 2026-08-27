@@ -32,8 +32,8 @@ const announceOutcome = (outcome: DigestTriggerOutcome): void => {
     case "failed":
       toast.error(`Digest failed (${outcome.reason}): ${outcome.message}`);
       return;
-    case "dropped-deletion":
-      toast.warning("Digest skipped: deletion in progress");
+    case "unavailable":
+      toast.warning("Digest skipped: workspace unavailable");
       return;
     default: {
       const _exhaustive: never = outcome;
