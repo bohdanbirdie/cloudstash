@@ -73,9 +73,10 @@ const meta = {
     layout: "fullscreen",
   },
   args: {
-    emptyMessage: "No links yet",
+    emptyMessage: "No links saved yet",
     links: [],
     listKey: "storybook",
+    showPasteHint: true,
   },
 } satisfies Meta<typeof LinkList>;
 
