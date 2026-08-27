@@ -1,4 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
+import { assertInstanceOf } from "@effect/vitest/utils";
 import { Effect, Layer, References } from "effect";
 
 import {
@@ -162,8 +163,8 @@ describe("checkChatFeatureEnabled (Billing-backed)", () => {
         Effect.provideService(References.MinimumLogLevel, "Error"),
         Effect.tap((error) =>
           Effect.sync(() => {
-            expect(error._tag).toBe("ChatFeatureDisabledError");
-            expect((error as ChatFeatureDisabledError).orgId).toBe("org-1");
+            assertInstanceOf(error, ChatFeatureDisabledError);
+            expect(error.orgId).toBe("org-1");
           })
         )
       )

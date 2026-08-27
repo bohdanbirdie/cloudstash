@@ -1,3 +1,4 @@
+import { assertInstanceOf } from "@effect/vitest/utils";
 import { APIError } from "better-auth/api";
 import { describe, expect, it } from "vitest";
 
@@ -15,9 +16,9 @@ describe("classifyFullOrgError", () => {
       message: "User is not a member of the organization",
     });
     const result = classifyFullOrgError(error, orgId, userId);
-    expect(result._tag).toBe("AccessDeniedError");
-    expect((result as AccessDeniedError).orgId).toBe(orgId);
-    expect((result as AccessDeniedError).userId).toBe(userId);
+    assertInstanceOf(result, AccessDeniedError);
+    expect(result.orgId).toBe(orgId);
+    expect(result.userId).toBe(userId);
   });
 
   it("maps Better Auth's 400 'organization not found' to OrgNotFoundError", () => {
@@ -40,8 +41,8 @@ describe("classifyFullOrgError", () => {
   it("maps an unexpected APIError status to OrgUpstreamError (not 404)", () => {
     const error = new APIError("UNAUTHORIZED", { code: "WHATEVER" });
     const result = classifyFullOrgError(error, orgId, userId);
-    expect(result._tag).toBe("OrgUpstreamError");
-    expect((result as OrgUpstreamError).cause).toBe(error);
+    assertInstanceOf(result, OrgUpstreamError);
+    expect(result.cause).toBe(error);
   });
 
   it("maps an APIError with no resolvable statusCode to OrgUpstreamError", () => {
@@ -54,9 +55,9 @@ describe("classifyFullOrgError", () => {
   it("maps a generic (non-API) error to OrgUpstreamError, preserving the cause", () => {
     const error = new Error("network down");
     const result = classifyFullOrgError(error, orgId, userId);
-    expect(result._tag).toBe("OrgUpstreamError");
-    expect((result as OrgUpstreamError).orgId).toBe(orgId);
-    expect((result as OrgUpstreamError).cause).toBe(error);
+    assertInstanceOf(result, OrgUpstreamError);
+    expect(result.orgId).toBe(orgId);
+    expect(result.cause).toBe(error);
   });
 
   it.each([null, undefined, 42, "boom", {}])(

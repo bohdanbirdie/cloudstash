@@ -3,10 +3,10 @@ import { Data, Effect } from "effect";
 
 import type { UserId } from "../db/branded";
 import * as schema from "../db/schema";
-import { DbClient, query } from "../db/service";
+import { DbClient, DbError, query } from "../db/service";
 import { SharedPersonalOrgError } from "./prepare";
 import type { AccountDeletionParams } from "./runtime";
-import { DeletionRuntime } from "./runtime";
+import { DeletionRuntime, DeletionRuntimeError } from "./runtime";
 
 export const STEP_RETRY = {
   retries: { limit: 5, delay: "10 seconds", backoff: "exponential" },
@@ -132,12 +132,22 @@ export const deleteOrgData = Effect.fn("AccountDeletion.deleteOrgData")(
   }
 );
 
+type AccountDeletionStepError =
+  | DbError
+  | DeletionRuntimeError
+  | IdentityDeletionPendingError
+  | SharedPersonalOrgError;
+
 interface AccountDeletionStepDefinition {
   readonly name: string;
   readonly config: typeof IDENTITY_RETRY | typeof STEP_RETRY;
   readonly activity: (
     payload: AccountDeletionParams
-  ) => Effect.Effect<void, unknown, DbClient | DeletionRuntime>;
+  ) => Effect.Effect<
+    void,
+    AccountDeletionStepError,
+    DbClient | DeletionRuntime
+  >;
 }
 
 // This is the production orchestration contract. Keeping it as data makes the

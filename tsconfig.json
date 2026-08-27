@@ -39,10 +39,12 @@
       {
         "name": "@effect/language-service",
         "diagnosticSeverity": {
+          "anyUnknownInErrorContext": "warning",
           "effectFnOpportunity": "warning",
           "globalTimersInEffect": "warning",
           "nestedEffectGenYield": "warning",
-          "tryCatchInEffectGen": "warning"
+          "tryCatchInEffectGen": "warning",
+          "unsafeEffectTypeAssertion": "warning"
         }
       }
     ],
