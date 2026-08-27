@@ -131,9 +131,11 @@ describe("queryUsage", () => {
       dataset: "my_dataset",
     });
 
-    const body = new TextDecoder().decode(
-      fetchMock.mock.calls[0][1].body as Uint8Array
-    );
+    const requestBody = fetchMock.mock.calls.at(0)?.[1]?.body;
+    if (!(requestBody instanceof Uint8Array)) {
+      throw new TypeError("Expected an encoded analytics request body");
+    }
+    const body = new TextDecoder().decode(requestBody);
     expect(body).toContain("FROM my_dataset");
     expect(body).toContain("INTERVAL '30' DAY");
   });
