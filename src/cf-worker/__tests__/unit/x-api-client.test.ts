@@ -1,6 +1,7 @@
 import { describe, it } from "@effect/vitest";
 import { assertInstanceOf } from "@effect/vitest/utils";
 import { Effect, Result } from "effect";
+import { FetchHttpClient } from "effect/unstable/http";
 import { expect } from "vitest";
 
 import { XUserId } from "../../db/branded";
@@ -35,45 +36,33 @@ const urlOf = (input: RequestInfo | URL): string => {
   return input.url;
 };
 
-/**
- * Per-test fetch stub via Effect.acquireRelease — replaces globalThis.fetch
- * for the lifetime of the Effect Scope and always restores it. This avoids
- * the parallel-unsafe beforeEach/afterEach pattern.
- */
-const withFetchStub = (plan: FetchPlan, captured?: CapturedRequest[]) =>
-  Effect.acquireRelease(
-    Effect.sync(() => {
-      const original = globalThis.fetch;
-      globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-        captured?.push({ url: urlOf(input), init });
-        if (plan.kind === "reject") return Promise.reject(plan.cause);
-        return Promise.resolve(
-          new Response(JSON.stringify(plan.body), {
-            status: plan.status,
-            headers: {
-              "content-type": "application/json",
-              ...plan.headers,
-            },
-          })
-        );
-      }) as typeof fetch;
-      return original;
-    }),
-    (original) =>
-      Effect.sync(() => {
-        globalThis.fetch = original;
+const fetchFor =
+  (plan: FetchPlan, captured: CapturedRequest[]): typeof globalThis.fetch =>
+  (input: RequestInfo | URL, init?: RequestInit) => {
+    captured.push({ url: urlOf(input), init });
+    if (plan.kind === "reject") return Promise.reject(plan.cause);
+    return Promise.resolve(
+      new Response(JSON.stringify(plan.body), {
+        status: plan.status,
+        headers: {
+          "content-type": "application/json",
+          ...plan.headers,
+        },
       })
-  );
+    );
+  };
 
 const runWithFetch = <A, E>(
   plan: FetchPlan,
   body: (captured: CapturedRequest[]) => Effect.Effect<A, E, XApiClient>
 ) =>
-  Effect.gen(function* () {
+  Effect.suspend(() => {
     const captured: CapturedRequest[] = [];
-    yield* withFetchStub(plan, captured);
-    return yield* body(captured);
-  }).pipe(Effect.scoped, Effect.provide(XApiClientLive));
+    return body(captured).pipe(
+      Effect.provide(XApiClientLive),
+      Effect.provideService(FetchHttpClient.Fetch, fetchFor(plan, captured))
+    );
+  });
 
 describe("XApiClient (Live) — getMe", () => {
   it.effect("returns parsed user info on 200 with profile_image_url", () =>

@@ -1,7 +1,27 @@
 import { Effect } from "effect";
+import { FetchHttpClient } from "effect/unstable/http";
 import { describe, it, expect, vi } from "vitest";
 
 import { trackEvent, queryUsage } from "../../analytics";
+
+const runQueryUsage = (
+  fetch: typeof globalThis.fetch,
+  accountId: string,
+  apiToken: string,
+  opts: { period: "24h" | "7d" | "30d"; dataset: string }
+) =>
+  Effect.runPromise(
+    queryUsage(accountId, apiToken, opts).pipe(
+      Effect.provide(FetchHttpClient.layer),
+      Effect.provideService(FetchHttpClient.Fetch, fetch)
+    )
+  );
+
+const fetchReturning = (response: Response) =>
+  vi.fn<typeof globalThis.fetch>(() => Promise.resolve(response));
+
+const jsonResponse = (body: unknown, status = 200) =>
+  Response.json(body, { status });
 
 describe("trackEvent", () => {
   it("calls writeDataPoint with correct schema", () => {
@@ -61,20 +81,12 @@ describe("queryUsage", () => {
       ],
     };
 
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve(mockResponse),
-      })
-    );
+    const fetch = fetchReturning(jsonResponse(mockResponse));
 
-    const result = await Effect.runPromise(
-      queryUsage("acct_id", "token", {
-        period: "24h",
-        dataset: "test_dataset",
-      })
-    );
+    const result = await runQueryUsage(fetch, "acct_id", "token", {
+      period: "24h",
+      dataset: "test_dataset",
+    });
 
     expect(result.rows).toEqual([
       { userId: "usr_1", event: "sync", count: 42 },
@@ -85,31 +97,22 @@ describe("queryUsage", () => {
     for (const row of result.rows) {
       expect(typeof row.count).toBe("number");
     }
-
-    vi.unstubAllGlobals();
   });
 
   it("prevents string concatenation bug in downstream reduce", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            data: [
-              { userId: "u1", event: "sync", count: "9" },
-              { userId: "u1", event: "auth", count: "5" },
-            ],
-          }),
+    const fetch = fetchReturning(
+      jsonResponse({
+        data: [
+          { userId: "u1", event: "sync", count: "9" },
+          { userId: "u1", event: "auth", count: "5" },
+        ],
       })
     );
 
-    const result = await Effect.runPromise(
-      queryUsage("acct_id", "token", {
-        period: "7d",
-        dataset: "ds",
-      })
-    );
+    const result = await runQueryUsage(fetch, "acct_id", "token", {
+      period: "7d",
+      dataset: "ds",
+    });
 
     // Without Number() conversion: 0 + "9" + "5" = "095" (string concatenation)
     // With Number() conversion: 0 + 9 + 5 = 14
@@ -118,67 +121,41 @@ describe("queryUsage", () => {
       0
     );
     expect(total).toBe(14);
-
-    vi.unstubAllGlobals();
   });
 
   it("sends correct SQL query for each period", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ data: [] }),
+    const fetchMock = fetchReturning(jsonResponse({ data: [] }));
+
+    await runQueryUsage(fetchMock, "acct_id", "token", {
+      period: "30d",
+      dataset: "my_dataset",
     });
-    vi.stubGlobal("fetch", fetchMock);
 
-    await Effect.runPromise(
-      queryUsage("acct_id", "token", {
-        period: "30d",
-        dataset: "my_dataset",
-      })
+    const body = new TextDecoder().decode(
+      fetchMock.mock.calls[0][1].body as Uint8Array
     );
-
-    const body = fetchMock.mock.calls[0][1].body as string;
     expect(body).toContain("FROM my_dataset");
     expect(body).toContain("INTERVAL '30' DAY");
-
-    vi.unstubAllGlobals();
   });
 
   it("rejects with AnalyticsQueryError on non-ok response", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: false,
-        status: 403,
-        text: () => Promise.resolve("Forbidden"),
-      })
-    );
+    const fetch = fetchReturning(new Response("Forbidden", { status: 403 }));
 
     await expect(
-      Effect.runPromise(
-        queryUsage("acct_id", "token", { period: "24h", dataset: "test" })
-      )
-    ).rejects.toThrow();
-
-    vi.unstubAllGlobals();
-  });
-
-  it("handles null data from API", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ data: null }),
-      })
-    );
-
-    const result = await Effect.runPromise(
-      queryUsage("acct_id", "token", {
+      runQueryUsage(fetch, "acct_id", "token", {
         period: "24h",
         dataset: "test",
       })
-    );
-    expect(result.rows).toEqual([]);
+    ).rejects.toThrow();
+  });
 
-    vi.unstubAllGlobals();
+  it("handles null data from API", async () => {
+    const fetch = fetchReturning(jsonResponse({ data: null }));
+
+    const result = await runQueryUsage(fetch, "acct_id", "token", {
+      period: "24h",
+      dataset: "test",
+    });
+    expect(result.rows).toEqual([]);
   });
 });

@@ -43,12 +43,14 @@ diagnostics to warnings, which strict mode treats as failures: reusable
 Effect-returning functions must use `Effect.fn` or `Effect.fnUntraced`, Effect
 generators must not use JavaScript `try/catch`, nested bare `Effect.gen` blocks
 must become meaningful operations, and Effect code must use Effect scheduling
-instead of global timers. Effect error channels must not contain `unknown`, and
-type assertions must not unsafely narrow Effect error or requirement channels.
-The selection deliberately excludes rules that misclassify Worker entry points
-or framework adapters and is recorded in [decision
-0002](./.decisions/0002-enforce-zero-baseline-effect-diagnostics.md) and
-[decision 0003](./.decisions/0003-enforce-typed-effect-error-channels.md).
+instead of global timers. HTTP requests inside Effect use Effect's HTTP client
+instead of global `fetch`. Effect error channels must not contain `unknown`,
+and type assertions must not unsafely narrow Effect error or requirement
+channels. The selection deliberately excludes rules that misclassify Worker
+entry points or framework adapters and is recorded in [decision
+0002](./.decisions/0002-enforce-zero-baseline-effect-diagnostics.md), [decision
+0003](./.decisions/0003-enforce-typed-effect-error-channels.md), and [decision
+0004](./.decisions/0004-use-effect-http-client.md).
 
 ## Data-Layer Tests
 

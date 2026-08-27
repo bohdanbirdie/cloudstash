@@ -41,6 +41,7 @@
         "diagnosticSeverity": {
           "anyUnknownInErrorContext": "warning",
           "effectFnOpportunity": "warning",
+          "globalFetchInEffect": "warning",
           "globalTimersInEffect": "warning",
           "nestedEffectGenYield": "warning",
           "tryCatchInEffectGen": "warning",

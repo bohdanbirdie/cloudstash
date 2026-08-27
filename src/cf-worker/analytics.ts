@@ -1,4 +1,5 @@
 import { Effect, Schema } from "effect";
+import { HttpBody, HttpClient, HttpClientRequest } from "effect/unstable/http";
 
 export class AnalyticsQueryError extends Schema.TaggedErrorClass<AnalyticsQueryError>()(
   "AnalyticsQueryError",
@@ -26,6 +27,20 @@ interface UsageRow {
   count: number;
 }
 
+const UsageResponse = Schema.Struct({
+  data: Schema.optional(
+    Schema.NullOr(
+      Schema.Array(
+        Schema.Struct({
+          userId: Schema.String,
+          event: Schema.String,
+          count: Schema.String,
+        })
+      )
+    )
+  ),
+});
+
 export const queryUsage = Effect.fn("Analytics.queryUsage")(function* (
   accountId: string,
   apiToken: string,
@@ -33,6 +48,7 @@ export const queryUsage = Effect.fn("Analytics.queryUsage")(function* (
 ) {
   const intervalMap = { "24h": 1, "7d": 7, "30d": 30 } as const;
   const days = intervalMap[opts.period];
+  const client = yield* HttpClient.HttpClient;
 
   const query = `
     SELECT
@@ -45,54 +61,54 @@ export const queryUsage = Effect.fn("Analytics.queryUsage")(function* (
     ORDER BY count DESC
   `;
 
-  const resp = yield* Effect.tryPromise({
-    catch: (cause) =>
-      new AnalyticsQueryError({
-        message: cause instanceof Error ? cause.message : String(cause),
-        statusCode: 0,
-      }),
-    try: () =>
-      fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${accountId}/analytics_engine/sql`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiToken}`,
-            "Content-Type": "text/plain",
-          },
-          body: query,
-        }
-      ),
-  });
-
-  if (!resp.ok) {
-    const text = yield* Effect.tryPromise({
-      catch: () =>
+  const request = HttpClientRequest.post(
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/analytics_engine/sql`,
+    {
+      headers: { Authorization: `Bearer ${apiToken}` },
+      body: HttpBody.text(query, "text/plain"),
+    }
+  );
+  const resp = yield* client.execute(request).pipe(
+    Effect.mapError(
+      (cause) =>
         new AnalyticsQueryError({
-          message: `Analytics query failed: ${resp.status}`,
-          statusCode: resp.status,
-        }),
-      try: () => resp.text(),
-    });
+          message: cause.message,
+          statusCode: 0,
+        })
+    )
+  );
+
+  if (resp.status < 200 || resp.status >= 300) {
+    const text = yield* resp.text.pipe(
+      Effect.mapError(
+        () =>
+          new AnalyticsQueryError({
+            message: `Analytics query failed: ${resp.status}`,
+            statusCode: resp.status,
+          })
+      )
+    );
     return yield* new AnalyticsQueryError({
       message: `Analytics query failed: ${resp.status} ${text}`,
       statusCode: resp.status,
     });
   }
 
-  const json = yield* Effect.tryPromise({
-    catch: (cause) =>
-      new AnalyticsQueryError({
-        message: cause instanceof Error ? cause.message : String(cause),
-        statusCode: 0,
-      }),
-    try: (): Promise<{
-      data: { userId: string; event: string; count: string }[];
-    }> => resp.json(),
-  });
+  const json = yield* resp.json.pipe(
+    Effect.mapError(
+      (cause) =>
+        new AnalyticsQueryError({ message: cause.message, statusCode: 0 })
+    )
+  );
+  const body = yield* Schema.decodeUnknownEffect(UsageResponse)(json).pipe(
+    Effect.mapError(
+      (cause) =>
+        new AnalyticsQueryError({ message: cause.message, statusCode: 0 })
+    )
+  );
 
   return {
-    rows: (json.data ?? []).map((r): UsageRow => ({
+    rows: (body.data ?? []).map((r): UsageRow => ({
       ...r,
       count: Number(r.count),
     })),
