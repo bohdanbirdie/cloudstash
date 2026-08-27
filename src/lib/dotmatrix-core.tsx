@@ -675,6 +675,47 @@ function clamp01Dmx(n: number | undefined) {
   return Math.min(1, Math.max(0, n));
 }
 
+function getDmxVarStyle({
+  color,
+  dotSize,
+  matrixSpan,
+  minSize,
+  ob,
+  om,
+  op,
+  scale,
+  speedScale,
+  useWrapper,
+}: {
+  color: string;
+  dotSize: number;
+  matrixSpan: number;
+  minSize: number | undefined;
+  ob: number | undefined;
+  om: number | undefined;
+  op: number | undefined;
+  scale: number;
+  speedScale: number;
+  useWrapper: boolean;
+}): CSSProperties {
+  return {
+    width: matrixSpan,
+    height: matrixSpan,
+    "--dmx-speed": speedScale,
+    ["--dmx-dot-size" as const]: `${dotSize}px`,
+    color,
+    ...(ob !== undefined && { ["--dmx-opacity-base" as const]: ob }),
+    ...(om !== undefined && { ["--dmx-opacity-mid" as const]: om }),
+    ...(op !== undefined && { ["--dmx-opacity-peak" as const]: op }),
+    ...(useWrapper
+      ? {
+          transform: `scale(${scale})`,
+          transformOrigin: "center center" as const,
+        }
+      : { minWidth: minSize, minHeight: minSize }),
+  } as unknown as CSSProperties;
+}
+
 interface DotMatrixBaseProps extends DotMatrixCommonProps {
   phase: DotMatrixPhase;
   reducedMotion?: boolean;
@@ -719,22 +760,18 @@ export function DotMatrixBase({
   const op = clamp01Dmx(opacityPeak);
   const unit = dotSize + gap;
 
-  const dmxVarStyle = {
-    width: matrixSpan,
-    height: matrixSpan,
-    "--dmx-speed": speedScale,
-    ["--dmx-dot-size" as const]: `${dotSize}px`,
+  const dmxVarStyle = getDmxVarStyle({
     color,
-    ...(ob !== undefined && { ["--dmx-opacity-base" as const]: ob }),
-    ...(om !== undefined && { ["--dmx-opacity-mid" as const]: om }),
-    ...(op !== undefined && { ["--dmx-opacity-peak" as const]: op }),
-    ...(useWrapper
-      ? {
-          transform: `scale(${scale})`,
-          transformOrigin: "center center" as const,
-        }
-      : { minWidth: minSize, minHeight: minSize }),
-  } as unknown as CSSProperties;
+    dotSize,
+    matrixSpan,
+    minSize,
+    ob,
+    om,
+    op,
+    scale,
+    speedScale,
+    useWrapper,
+  });
 
   const dots = Array.from({ length: MATRIX_SIZE * MATRIX_SIZE }).map(
     (_, index) => {

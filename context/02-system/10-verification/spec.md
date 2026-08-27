@@ -20,6 +20,21 @@ Intent enforcement, production build certification, CI composition, and
 external release/config checks are delivery concerns documented in
 [`04-delivery`](../../04-delivery/).
 
+## Complexity Budget
+
+The Vite+ lint configuration enforces Oxc `eslint/complexity` with a maximum of
+20 using the `classic` variant across application, Worker, and script code that
+participates in the normal lint lane. Test files are excluded because scenario
+orchestration and assertion branches do not represent shipped implementation
+complexity. The quality lane fails when a covered function exceeds the budget.
+New per-file or inline exceptions are not the default remedy. A split must
+follow an existing responsibility boundary rather than merely moving branches
+to satisfy the metric. Reusable Effect operations use `Effect.fn` or
+`Effect.fnUntraced` according to whether the boundary merits its own trace. The
+budget may ratchet downward when the covered lint corpus supports the lower
+limit. The baseline choice is recorded in
+[decision 0001](./.decisions/0001-enforce-classic-complexity-budget.md).
+
 ## Data-Layer Tests
 
 `src/livestore/__tests__` uses LiveStore's in-memory web adapter with unique

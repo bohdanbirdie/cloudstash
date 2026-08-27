@@ -112,6 +112,7 @@ const config: UserConfig = {
       "tools/oxlint-rules/__tests__/fixtures/**",
     ],
     rules: {
+      complexity: ["error", { max: 20, variant: "classic" }],
       "no-await-in-loop": "off",
       "max-lines-per-function": "off",
       "no-implicit-coercion": "off",
@@ -226,6 +227,7 @@ const config: UserConfig = {
           "**/__tests__/**/*.{ts,tsx,js,jsx}",
         ],
         rules: {
+          complexity: "off",
           "no-empty-function": "off",
           "promise/prefer-await-to-then": "off",
           "typescript/no-unsafe-type-assertion": "off",
