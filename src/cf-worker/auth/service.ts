@@ -3,7 +3,6 @@ import { Context, Effect, Layer } from "effect";
 
 import type { Auth } from ".";
 import { createAuth } from ".";
-import { DeletionRuntimeLive } from "../account-deletion/runtime";
 import { Billing } from "../billing/service";
 import type { UserId } from "../db/branded";
 import * as schema from "../db/schema";
@@ -78,7 +77,6 @@ export const AppLayerLive = (env: Env) =>
     WorkspaceAccessLive
   ).pipe(
     Layer.provideMerge(AuthClientLive(env)),
-    Layer.provideMerge(DeletionRuntimeLive(env)),
     Layer.provideMerge(DbClientLive(env.DB)),
     Layer.provideMerge(OtelTracingLive)
   );

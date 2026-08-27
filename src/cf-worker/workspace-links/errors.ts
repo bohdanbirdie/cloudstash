@@ -24,7 +24,7 @@ export class WorkspaceLinkUnavailableError extends Data.TaggedError(
   "WorkspaceLinkUnavailableError"
 )<{ readonly message: string }> {
   constructor({
-    message = "Workspace is being deleted",
+    message = "Workspace is unavailable",
   }: { readonly message?: string } = {}) {
     super({ message });
   }

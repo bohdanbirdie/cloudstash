@@ -44,22 +44,27 @@ transitions, and irreversible account/workspace deletion.
   removes the user; missing/inconsistent ownership must stop deletion or enter a
   separately durable recovery path. `refines: CS-R08`
 - **CS.SYS.LIFE-R05 Idempotent workflow:** Deletion uses workspace identity as
-  its workflow key; active runs are reused and terminal retained runs restart.
+  its workflow key; active and complete retained runs are reused, errored or
+  terminated retained runs restart, and unknown state fails closed.
 - **CS.SYS.LIFE-R06 Complete storage inventory:** Deletion semantics must name
   every content/control/telemetry/local surface and, for each, specify immediate
   purge, access revocation, bounded TTL/provider retention, or technical
   non-deletability. `refines: CS.SYS-R11`
-- **CS.SYS.LIFE-R07 Intake fence:** A persistent deletion marker outside storage
-  being purged must reject queue intake from deletion start through the maximum
-  retained-message window.
+- **CS.SYS.LIFE-R07 Terminal owners:** A purged deterministic owner Durable
+  Object must remain terminal without domain callers maintaining deletion
+  gates. Delayed Queue/DLQ deliveries must resolve as successful no-ops, while
+  source-backed actors must reconcile missing authority into empty local state.
 - **CS.SYS.LIFE-R08 Source-first purge ordering:** A surviving authoritative
   source must not be able to rehydrate a client store after that client is
-  purged.
+  purged; retire the canonical eventlog before downstream replicas.
 - **CS.SYS.LIFE-R09 Step retry evidence:** Each purge step must be independently
   named, bounded, idempotent, and fail when its target operation fails so the
   Workflow retains attempt and retry evidence.
-- **CS.SYS.LIFE-R10 Final control-plane cleanup:** Organization deletion and FK
-  cascades remove remaining membership, session/key/invite, and billing rows
+- **CS.SYS.LIFE-R10 Final control-plane cleanup:** Deletion fails closed for a
+  personal organization with another member. Better Auth removes user-owned
+  identity rows while preserving invitations and invite codes through nullable
+  creator references; the later organization delete may cascade only its
+  members, invitations, and activity rows and may null active-session references
   after external/content stores are fenced and purged.
 - **CS.SYS.LIFE-R11 Telemetry cleanup:** D1 activity/verification rows and known
   workspace-keyed usage counters must be explicitly removed; non-selectively

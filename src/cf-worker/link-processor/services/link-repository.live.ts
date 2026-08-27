@@ -3,10 +3,18 @@ import type { Store } from "@livestore/livestore";
 import { Effect, Layer } from "effect";
 
 import { tables } from "../../../livestore/schema";
-import type { schema } from "../../../livestore/schema";
+import type { schema, StoreEvent } from "../../../livestore/schema";
+import type { DurableObjectRetiredError } from "../../durable-object-retirement";
 import { LinkRepository } from "../services";
 
-export const LinkRepositoryLive = (store: Store<typeof schema>) =>
+type Commit = (
+  ...events: StoreEvent[]
+) => Effect.Effect<void, DurableObjectRetiredError>;
+
+export const LinkRepositoryLive = (
+  store: Store<typeof schema>,
+  commit: Commit = (...events) => Effect.sync(() => store.commit(...events))
+) =>
   Layer.succeed(LinkRepository, {
     findByUrl: (url) =>
       Effect.sync(() => {
@@ -24,5 +32,5 @@ export const LinkRepositoryLive = (store: Store<typeof schema>) =>
         store.query(queryDb(tables.linkProcessingStatus.where({})))
       ),
 
-    commitEvents: (...events) => Effect.sync(() => store.commit(...events)),
+    commitEvents: commit,
   });

@@ -6,7 +6,10 @@ import { Cause, Effect, Schema } from "effect";
 
 import { ac, roles } from "@/lib/permissions";
 
-import { prepareDeletion } from "../account-deletion/prepare";
+import {
+  DeletionPreparationLive,
+  prepareDeletion,
+} from "../account-deletion/prepare";
 import type { Database } from "../db";
 import { UserId } from "../db/branded";
 import * as schema from "../db/schema";
@@ -21,7 +24,6 @@ import {
 } from "./hooks";
 import { mcpPlugin } from "./mcp-plugin";
 import { oauthProvidersPlugin } from "./oauth-providers";
-import { AppLayerLive } from "./service";
 
 const logger = logSync("Auth");
 
@@ -195,7 +197,7 @@ export const createAuth = (env: Env, db: Database) => {
               Effect.withSpan("Auth.beforeDelete", {
                 attributes: { userId: maskId(user.id) },
               }),
-              Effect.provide(AppLayerLive(env))
+              Effect.provide(DeletionPreparationLive(env))
             )
           );
         },

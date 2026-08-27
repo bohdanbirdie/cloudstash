@@ -8,6 +8,7 @@ import {
 } from "../../../livestore/__tests__/test-helpers";
 import type { TestStore } from "../../../livestore/__tests__/test-helpers";
 import { events, tables } from "../../../livestore/schema";
+import type { StoreEvent } from "../../../livestore/schema";
 import { LinkId } from "../../db/branded";
 import { processLink } from "../../link-processor/process-link";
 import {
@@ -16,7 +17,6 @@ import {
   LinkEventStore,
   MetadataFetcher,
 } from "../../link-processor/services";
-import type { StoreEvent } from "../../link-processor/services";
 import {
   MAX_CONCURRENT_AI,
   MAX_CONCURRENT_METADATA,

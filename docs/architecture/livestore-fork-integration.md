@@ -4,13 +4,16 @@ Canonical entry point for "cloudstash vendors livestore source." A fresh agent
 should be able to read this top-to-bottom and carry the work forward without
 prior context. Deep mechanism detail lives in
 [[architecture/livestore-local-source-linking]]; this doc is the strategy, the
-achieved state, and how to operate it. **Status: the submodule vendors
-UPSTREAM — `livestorejs/livestore` `main` @ a pinned SHA (`2e4bcfc68` as of the
-effect-v4 flip, 2026-08-09). No fork branch, no carried patches** — the fork-era
-hibernation work merged upstream, so vendoring is now purely the local==prod
-source-linking mechanism plus the freedom to pin ahead of npm snapshots. Local
-builds, tests, and production all consume the vendored source via one Vite
-alias (validated on Cloudflare Workers Builds since 2026-06-24).
+achieved state, and how to operate it. **Status: the submodule is pinned locally
+to `bohdanbirdie/livestore` branch
+`bohdan/account-deletion-retirement-fence` @ `640b7e650`; that commit still must
+be published before this Cloudstash change can be pushed or built in CI.** It
+carries one 16-line `sync-cf` callback at the serialized pre-append boundary so
+Cloudstash can reject pushes to a terminal SyncBackend. The patch should return
+upstream; until then, builds, tests, and production must consume the pinned fork
+source through the existing Vite alias. The published snapshot remains the
+previous upstream SHA and is only an explicit A/B fallback, not a safe deletion
+build.
 
 ## Goal (historical — the fork era)
 
@@ -31,23 +34,21 @@ That work merged upstream; since the effect-v4 flip the submodule pins
 local == prod: one Vite alias points dev, tests, and the production build at the
 vendored fork source. No more "dev uses the clone, prod ships the snapshot" gap.
 
-- **Vendored upstream:** `vendor/livestore` is a **committed git submodule**
-  pinned to `livestorejs/livestore` `main` @ `2e4bcfc68` (the `.gitmodules` URL
-  points at upstream since the effect-v4 flip; the fork-era
-  `bohdanbirdie/livestore` branch is retired). It is the single source of
-  livestore truth.
+- **Vendored fork:** `vendor/livestore` is a **committed git submodule** pinned
+  locally to `bohdanbirdie/livestore` @ `640b7e650`. Publish that commit before
+  pushing this repository; once published, it is the production source of
+  LiveStore truth while the pre-append lifecycle hook is upstreamed.
 - **On by default.** `tools/livestore-local.ts` aliases every `@livestore/*`
   import to the submodule source for `vp dev`, `vp build`, `test:unit`, and
   `test:e2e` — **no env var**. Off-switch: `LIVESTORE_PUBLISHED=1` (or `bun run
 dev:published`) forces the published snapshot (A/B "is the bug mine or
   livestore's?"). Scratch experiments: `git checkout` a branch inside
   `vendor/livestore` — the alias reads that working tree.
-- **Published pin retained:** every `@livestore/*` in `package.json` stays at
-  the snapshot matching the submodule SHA
-  (`0.0.0-snapshot-2e4bcfc68f7ddad5696022a10d515a011f5f785a`). Those still
-  provide types for `tsgo` typecheck, the wasm packages, and the
-  `LIVESTORE_PUBLISHED=1` path — **keep them**, and re-pin them to the new SHA
-  on every submodule bump.
+- **Published pin retained:** every `@livestore/*` in `package.json` remains at
+  upstream snapshot `2e4bcfc68`. It provides types, wasm packages, and the
+  `LIVESTORE_PUBLISHED=1` A/B path. That fallback intentionally lacks the
+  terminal pre-append hook and must not be deployed until an upstream snapshot
+  contains it.
 - **Patches:** `patchedDependencies` is empty — the surgical `@livestore/*`
   patches died with fork vendoring, and the last remaining bun patch
   (`@effect/rpc@0.75.1`) was deleted in the effect-v4 flip (v4 has no
@@ -217,15 +218,17 @@ Don't undo them:
 - On each submodule bump: `pnpm install` the new SHA, re-verify `effect` version
   parity, and re-run the validation suite.
 
-## To bump the vendored upstream (steady-state workflow)
+## To bump the vendored source (steady-state workflow)
 
-1. Land changes upstream (`livestorejs/livestore` `main`) — or check out a
-   scratch branch inside `vendor/livestore` for local experiments.
+1. Land changes upstream (`livestorejs/livestore` `main`) or on a fetchable
+   branch of `bohdanbirdie/livestore`; scratch-only submodule commits are not
+   reproducible.
 2. Point the submodule at the new upstream SHA and `git add vendor/livestore`
    in cloudstash to record it → that commit is what builds and deploys. Re-pin
-   the published `@livestore/*` snapshot in `package.json` to the SAME SHA,
-   then re-run `bun run livestore:install` (or `pnpm install` inside
-   `vendor/livestore`).
+   the published `@livestore/*` snapshot in `package.json` to the same SHA when
+   one exists, then re-run `bun run livestore:install` (or `pnpm install`
+   inside `vendor/livestore`). If the fork is intentionally ahead, document
+   that `LIVESTORE_PUBLISHED=1` is not production-safe.
 3. Run the validation checklist above before deploy.
 
 ## Open items (before/around the prod cutover)

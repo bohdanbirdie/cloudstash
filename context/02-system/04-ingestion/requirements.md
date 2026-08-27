@@ -58,5 +58,5 @@ deduplication, and the boundary between accepted intake and synchronized save.
   with the Durable Object execution context.
 - **CS.SYS.ING-R11 Bounded leader barrier:** Newly created server-side events
   must attempt a session-to-leader durability barrier before processor success.
-- **CS.SYS.ING-R12 Deletion tombstone:** Intake to a workspace being deleted
-  must be dropped before creating or booting content state.
+- **CS.SYS.ING-R12 Terminal owner:** Intake to a retired workspace processor
+  must be acknowledged without creating or booting content state.

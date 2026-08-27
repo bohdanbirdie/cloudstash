@@ -24,7 +24,7 @@ export const WeeklyDigestRpcResult = Schema.Union([
     status: Schema.Literal("failed"),
   }),
   Schema.Struct({
-    status: Schema.Literal("dropped-deletion"),
+    status: Schema.Literal("unavailable"),
   }),
 ]);
 export type WeeklyDigestRpcResult = typeof WeeklyDigestRpcResult.Type;

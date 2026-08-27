@@ -2,10 +2,11 @@
 
 - **CS-DQ1 Shared-workspace product semantics.** The implementation supports
   organizations, membership, and invitations, but the product is positioned as
-  a personal Vault and account deletion assumes a solo organization. Should
-  multi-member workspaces be a supported product contract or only an internal
-  tenancy capability? Blocked on a product decision and deletion/ownership
-  review.
+  a personal Vault. Account deletion now fails closed when the personal
+  organization has another member, so unresolved collaboration semantics cannot
+  delete another user's membership or shared content. Should multi-member
+  workspaces be a supported product contract or only an internal tenancy
+  capability? Blocked on a product decision and deletion/ownership review.
 - **CS-DQ2 Durability-timeout semantics.** The server-side processing durability
   barrier waits up to ten seconds and then preserves availability by returning
   after a warning. Should timeout instead reject so the Queue retries and a

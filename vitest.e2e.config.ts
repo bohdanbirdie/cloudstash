@@ -50,6 +50,11 @@ export default defineConfig({
           ENABLE_TEST_AUTH: "true",
           RESEND_API_KEY: "re_test_dummy",
           EMAIL_FROM: "test@example.com",
+          STRIPE_API_KEY: "sk_test_delete",
+          STRIPE_PRICE_PLUS: "price_plus",
+          STRIPE_PRICE_PLUS_YEARLY: "price_plus_yearly",
+          STRIPE_PRICE_PRO: "price_pro",
+          STRIPE_PRICE_PRO_YEARLY: "price_pro_yearly",
           TEST_MIGRATIONS: JSON.stringify(migrations),
         },
         ratelimits: {

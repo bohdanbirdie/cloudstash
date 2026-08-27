@@ -74,6 +74,22 @@ const runDlqBatch = (
   );
 
 describe("handleQueueBatchEffect", () => {
+  it.effect("acks a deletion no-op returned by the owner DO", () => {
+    const msg = createMessage(testMessage);
+    const { binding, ingestAndProcess } = makeProcessor({
+      status: "dropped-retired",
+    });
+    return runBatch([msg], binding).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(msg.ack).toHaveBeenCalledOnce();
+          expect(msg.retry).not.toHaveBeenCalled();
+          expect(ingestAndProcess).toHaveBeenCalledOnce();
+        })
+      )
+    );
+  });
+
   it.effect("acks message on successful ingest", () => {
     const msg = createMessage(testMessage);
     const { binding } = makeProcessor();

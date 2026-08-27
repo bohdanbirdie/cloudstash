@@ -197,6 +197,21 @@ describe("createTools", () => {
       expect(rows[0].domain).toBe("example.com");
     });
 
+    it("rejects a commit after the actor retires", async () => {
+      const fencedTools = createTools(store, () => {
+        throw new Error("Durable Object is retired");
+      });
+      await expect(
+        fencedTools.saveLink.execute!(
+          { url: "https://late.example.com" },
+          stubCtx
+        )
+      ).rejects.toThrow("Durable Object is retired");
+      expect(
+        store.query(tables.links.where({ url: "https://late.example.com" }))
+      ).toEqual([]);
+    });
+
     it("extracts domain without www prefix", async () => {
       await tools.saveLink.execute!(
         { url: "https://www.example.com/page" },

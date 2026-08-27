@@ -1,218 +1,185 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer, Result } from "effect";
 
-import { UserId, WorkflowInstanceId } from "../../db/branded";
+import {
+  StripeSubscriptionId,
+  UserId,
+  WorkflowInstanceId,
+} from "../../db/branded";
 import { DbClient, DbError } from "../../db/service";
-import { prepareDeletion } from "../prepare";
+import {
+  MissingActiveOrgError,
+  prepareDeletion,
+  SharedPersonalOrgError,
+} from "../prepare";
 import { DeletionRuntime, DeletionRuntimeError } from "../runtime";
 import type { AccountDeletionParams } from "../runtime";
 
 const USER_ID = UserId.make("user-1");
 const ORG_ID = "org-1";
 
-interface DbStubOptions {
-  org?: { id: string } | undefined;
-  membership?: { role: string } | undefined;
-  orgLookupError?: unknown;
-  memberLookupError?: unknown;
-}
-
-const makeDbStub = (opts: DbStubOptions = {}) => {
-  // Use `in` to distinguish "explicitly undefined" (caller wants the absence
-  // case) from "not provided" (use the happy-path default).
-  const orgRow = "org" in opts ? opts.org : { id: ORG_ID };
-  const memberRow = "membership" in opts ? opts.membership : { role: "owner" };
+const makeDbStub = (
+  options: {
+    org?: { id: unknown; stripeSubscriptionId: unknown } | undefined;
+    memberships?: readonly { role: string; userId: string }[];
+    orgLookupError?: unknown;
+  } = {}
+) => {
+  const org =
+    "org" in options
+      ? options.org
+      : { id: ORG_ID, stripeSubscriptionId: "sub-1" };
+  const memberships =
+    "memberships" in options
+      ? options.memberships
+      : [{ role: "owner", userId: USER_ID }];
   return Layer.succeed(DbClient, {
     query: {
       organization: {
         findFirst: async () => {
-          if (opts.orgLookupError) throw opts.orgLookupError;
-          return orgRow;
+          if (options.orgLookupError) throw options.orgLookupError;
+          return org;
         },
       },
-      member: {
-        findFirst: async () => {
-          if (opts.memberLookupError) throw opts.memberLookupError;
-          return memberRow;
-        },
-      },
+      member: { findMany: async () => memberships },
     },
   } as never);
 };
 
-interface RuntimeRec {
-  ensures: AccountDeletionParams[];
-}
-
-const stubRuntime = (
-  rec: RuntimeRec,
-  result: { id: WorkflowInstanceId } | DeletionRuntimeError = {
-    id: WorkflowInstanceId.make("wf-fresh"),
-  }
+const runtimeLayer = (
+  seen: AccountDeletionParams[],
+  failure?: DeletionRuntimeError
 ) =>
   Layer.succeed(
     DeletionRuntime,
     DeletionRuntime.of({
-      markLinkProcessorDeleting: () => Effect.void,
-      purgeLinkProcessor: () => Effect.void,
-      purgeSyncBackend: () => Effect.void,
-      purgeChatAgent: () => Effect.void,
+      retireLinkProcessor: () => Effect.void,
+      retireSyncBackend: () => Effect.void,
+      retireChatAgent: () => Effect.void,
       purgeTelegram: () => Effect.void,
       purgeXBookmarkSync: () => Effect.void,
+      purgeEnrichmentUsage: () => Effect.void,
+      cancelStripeSubscription: () => Effect.void,
       ensureWorkflow: (params) => {
-        rec.ensures.push(params);
-        return result instanceof DeletionRuntimeError
-          ? Effect.fail(result)
-          : Effect.succeed(result);
+        seen.push(params);
+        return failure
+          ? Effect.fail(failure)
+          : Effect.succeed({ id: WorkflowInstanceId.make(params.orgId) });
       },
     })
   );
 
-const provideTestLayers = (
-  runtime: Layer.Layer<DeletionRuntime>,
-  db: Layer.Layer<DbClient>
-) => Effect.provide(Layer.mergeAll(runtime, db));
+const provide = (
+  seen: AccountDeletionParams[],
+  db: Layer.Layer<DbClient>,
+  failure?: DeletionRuntimeError
+) => Effect.provide(Layer.mergeAll(db, runtimeLayer(seen, failure)));
 
-describe("prepareDeletion (happy path)", () => {
-  it.effect("resolves orgId and returns the workflow handle", () => {
-    const rec: RuntimeRec = { ensures: [] };
-
+describe("prepareDeletion", () => {
+  it.effect("passes the validated serializable target to the Workflow", () => {
+    const seen: AccountDeletionParams[] = [];
     return prepareDeletion({ userId: USER_ID }).pipe(
-      provideTestLayers(stubRuntime(rec), makeDbStub()),
+      provide(seen, makeDbStub()),
       Effect.tap((result) =>
         Effect.sync(() => {
-          expect(rec.ensures).toHaveLength(1);
-          expect(rec.ensures[0]).toMatchObject({
-            userId: "user-1",
+          expect(result).toEqual({
             orgId: ORG_ID,
+            workflowInstanceId: ORG_ID,
           });
-          expect(result).toMatchObject({
-            orgId: ORG_ID,
-            workflowInstanceId: "wf-fresh",
-          });
-        })
-      )
-    );
-  });
-});
-
-describe("prepareDeletion (idempotency)", () => {
-  it.effect(
-    "delegates to runtime.ensureWorkflow — no D1 lookup, no insert",
-    () => {
-      // Idempotency lives entirely inside `ensureWorkflow` (orgId IS the workflow
-      // id, so retries pick up the existing instance via CF's `get(orgId)`).
-      // From `prepareDeletion`'s perspective, every call is identical: resolve
-      // org, ensure workflow.
-      const rec: RuntimeRec = { ensures: [] };
-
-      return prepareDeletion({ userId: USER_ID }).pipe(
-        provideTestLayers(
-          stubRuntime(rec, { id: WorkflowInstanceId.make("wf-existing") }),
-          makeDbStub()
-        ),
-        Effect.tap((result) =>
-          Effect.sync(() => {
-            expect(rec.ensures).toHaveLength(1);
-            expect(result?.workflowInstanceId).toBe("wf-existing");
-          })
-        )
-      );
-    }
-  );
-});
-
-describe("prepareDeletion (no purge needed)", () => {
-  // These users have nothing tenant-scoped to purge (e.g. their bootstrap
-  // createOrganization swallowed an error). Better Auth still removes the
-  // user row — we just skip the workflow.
-  it.effect("returns null when the personal org doesn't exist", () => {
-    const rec: RuntimeRec = { ensures: [] };
-
-    return prepareDeletion({ userId: UserId.make("user-no-org") }).pipe(
-      provideTestLayers(stubRuntime(rec), makeDbStub({ org: undefined })),
-      Effect.tap((result) =>
-        Effect.sync(() => {
-          expect(result).toBeNull();
-          expect(rec.ensures).toEqual([]);
+          expect(seen).toEqual([
+            {
+              userId: USER_ID,
+              orgId: ORG_ID,
+              stripeSubscriptionId: StripeSubscriptionId.make("sub-1"),
+            },
+          ]);
         })
       )
     );
   });
 
-  it.effect(
-    "returns null when the user is not a member of the personal org",
-    () => {
-      const rec: RuntimeRec = { ensures: [] };
-
+  for (const [name, db] of [
+    ["missing personal workspace", makeDbStub({ org: undefined })],
+    ["missing owner membership", makeDbStub({ memberships: [] })],
+    [
+      "non-owner membership",
+      makeDbStub({ memberships: [{ role: "member", userId: USER_ID }] }),
+    ],
+  ] as const) {
+    it.effect(`fails loudly for ${name}`, () => {
+      const seen: AccountDeletionParams[] = [];
       return prepareDeletion({ userId: USER_ID }).pipe(
-        provideTestLayers(
-          stubRuntime(rec),
-          makeDbStub({ membership: undefined })
-        ),
+        provide(seen, db),
+        Effect.result,
         Effect.tap((result) =>
           Effect.sync(() => {
-            expect(result).toBeNull();
-            expect(rec.ensures).toEqual([]);
+            expect(Result.isFailure(result)).toBe(true);
+            if (Result.isFailure(result)) {
+              expect(result.failure).toBeInstanceOf(MissingActiveOrgError);
+            }
+            expect(seen).toEqual([]);
           })
         )
       );
-    }
-  );
-
-  it.effect(
-    "returns null when the user is a non-owner member of the personal org",
-    () => {
-      // Defense in depth: refuses to purge if the bootstrap ownership
-      // invariant doesn't hold for the personal-slug org (it should, but
-      // we won't act on a row that doesn't match).
-      const rec: RuntimeRec = { ensures: [] };
-
-      return prepareDeletion({ userId: USER_ID }).pipe(
-        provideTestLayers(
-          stubRuntime(rec),
-          makeDbStub({ membership: { role: "member" } })
-        ),
-        Effect.tap((result) =>
-          Effect.sync(() => {
-            expect(result).toBeNull();
-            expect(rec.ensures).toEqual([]);
-          })
-        )
-      );
-    }
-  );
-});
-
-describe("prepareDeletion (error paths)", () => {
-  it.effect("propagates DeletionRuntimeError from ensureWorkflow", () => {
-    const rec: RuntimeRec = { ensures: [] };
-    const failure = new DeletionRuntimeError({
-      op: "ensureWorkflow",
-      cause: new Error("CF Workflows down"),
     });
+  }
 
+  it.effect(
+    "refuses to delete a personal workspace shared with another user",
+    () => {
+      const seen: AccountDeletionParams[] = [];
+      return prepareDeletion({ userId: USER_ID }).pipe(
+        provide(
+          seen,
+          makeDbStub({
+            memberships: [
+              { role: "owner", userId: USER_ID },
+              { role: "member", userId: "user-2" },
+            ],
+          })
+        ),
+        Effect.result,
+        Effect.tap((result) =>
+          Effect.sync(() => {
+            expect(Result.isFailure(result)).toBe(true);
+            if (Result.isFailure(result)) {
+              expect(result.failure).toBeInstanceOf(SharedPersonalOrgError);
+            }
+            expect(seen).toEqual([]);
+          })
+        )
+      );
+    }
+  );
+
+  it.effect(
+    "propagates Workflow startup failure before identity deletion",
+    () => {
+      const seen: AccountDeletionParams[] = [];
+      const failure = new DeletionRuntimeError({
+        op: "ensureWorkflow",
+        cause: new Error("Workflows unavailable"),
+      });
+      return prepareDeletion({ userId: USER_ID }).pipe(
+        provide(seen, makeDbStub(), failure),
+        Effect.result,
+        Effect.tap((result) =>
+          Effect.sync(() => {
+            expect(Result.isFailure(result)).toBe(true);
+            if (Result.isFailure(result)) expect(result.failure).toBe(failure);
+            expect(seen).toHaveLength(1);
+          })
+        )
+      );
+    }
+  );
+
+  it.effect("propagates D1 lookup failures", () => {
+    const seen: AccountDeletionParams[] = [];
     return prepareDeletion({ userId: USER_ID }).pipe(
-      provideTestLayers(stubRuntime(rec, failure), makeDbStub()),
-      Effect.result,
-      Effect.tap((result) =>
-        Effect.sync(() => {
-          expect(Result.isFailure(result)).toBe(true);
-          if (Result.isFailure(result)) {
-            expect(result.failure).toBeInstanceOf(DeletionRuntimeError);
-          }
-        })
-      )
-    );
-  });
-
-  it.effect("propagates DbError from organization lookup", () => {
-    const rec: RuntimeRec = { ensures: [] };
-
-    return prepareDeletion({ userId: USER_ID }).pipe(
-      provideTestLayers(
-        stubRuntime(rec),
-        makeDbStub({ orgLookupError: new Error("connection lost") })
+      provide(
+        seen,
+        makeDbStub({ orgLookupError: new Error("D1 unavailable") })
       ),
       Effect.result,
       Effect.tap((result) =>
@@ -221,33 +188,34 @@ describe("prepareDeletion (error paths)", () => {
           if (Result.isFailure(result)) {
             expect(result.failure).toBeInstanceOf(DbError);
           }
-          expect(rec.ensures).toEqual([]);
+          expect(seen).toEqual([]);
         })
       )
     );
   });
 
-  it.effect("rejects (as DbError) when org.id fails OrgId decode", () => {
-    // Defensive: a corrupted organization row with a non-string id would
-    // otherwise silently propagate a fake brand. The Schema decode in
-    // prepare.ts catches it before the workflow is spawned.
-    const rec: RuntimeRec = { ensures: [] };
-
-    return prepareDeletion({ userId: USER_ID }).pipe(
-      provideTestLayers(
-        stubRuntime(rec),
-        makeDbStub({ org: { id: 42 as unknown as string } })
-      ),
-      Effect.result,
-      Effect.tap((result) =>
-        Effect.sync(() => {
-          expect(Result.isFailure(result)).toBe(true);
-          if (Result.isFailure(result)) {
-            expect(result.failure).toBeInstanceOf(DbError);
-          }
-          expect(rec.ensures).toEqual([]);
-        })
-      )
-    );
-  });
+  for (const [name, org] of [
+    ["malformed organization id", { id: null, stripeSubscriptionId: null }],
+    [
+      "malformed Stripe subscription id",
+      { id: ORG_ID, stripeSubscriptionId: 42 },
+    ],
+  ] as const) {
+    it.effect(`rejects ${name} before starting the Workflow`, () => {
+      const seen: AccountDeletionParams[] = [];
+      return prepareDeletion({ userId: USER_ID }).pipe(
+        provide(seen, makeDbStub({ org })),
+        Effect.result,
+        Effect.tap((result) =>
+          Effect.sync(() => {
+            expect(Result.isFailure(result)).toBe(true);
+            if (Result.isFailure(result)) {
+              expect(result.failure).toBeInstanceOf(DbError);
+            }
+            expect(seen).toEqual([]);
+          })
+        )
+      );
+    });
+  }
 });

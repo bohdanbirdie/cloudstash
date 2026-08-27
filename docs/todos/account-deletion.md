@@ -1,48 +1,79 @@
 # Complete reliable account deletion
 
-## Problem and outcome
+## Current state
 
-The deletion Workflow exists, but current evidence does not support describing
-it as contract-complete or as removing every byte. Close the documented
-ordering, intake-fencing, target-inventory, and retention gaps.
+The central deletion path is implemented. A Cloudflare Workflow instance is
+the deletion job; there is no parallel D1 job or intake-fence table. The
+personal workspace ID is its deterministic instance ID, and the instance is
+retained for one day after success or three days after error.
 
-## Agreed scope and non-goals
+Before Better Auth removes identity, preparation now:
 
-- Reject inconsistent owner/workspace state before Better Auth removes identity.
-- Fence external intake outside storage that the purge itself deletes; disable
-  authoritative sources before wiping LiveStore clients/backends.
-- Reconcile the owned storage/provider inventory in account-lifecycle Intent,
-  explicitly classifying selectively purgeable and retained surfaces.
-- Propagate target failures and retain durable retry/triage evidence.
-- No promise of “every byte” or immediate erasure where platform retention is
-  bounded but not selectively controllable.
+- validates the user, personal workspace, and sole-owner membership invariant;
+- snapshots branded user, workspace, and optional Stripe subscription IDs;
+- creates or rejoins the deterministic Workflow instance;
+- blocks identity deletion for inconsistent tenancy, Workflow API failure, or
+  an unknown instance status.
 
-## Agreed constraints
+The Workflow waits for the user row to disappear, cancels Stripe, retires the
+canonical SyncBackend before its LinkProcessor and Chat replicas, then removes
+X, Telegram, enrichment KV, and organization data. Each
+named Cloudflare step runs one Effect activity and rejects on failure so
+Cloudflare owns durable retries and timeout handling.
 
-- Product/legal copy must distinguish access revocation, active purge, and
-  bounded provider/platform retention.
-- Exact retention wording remains a legal/maintainer decision; do not invent it.
+SyncBackend, LinkProcessor, and Chat keep opaque terminal actor markers; they do
+not know why they were retired. Retirement persists the marker before graceful
+cleanup and finally wipes all other storage. LinkProcessor and Chat inject
+revision-guarded commit capabilities at their normal write boundaries rather
+than threading deletion predicates through business code; Chat also cancels
+native queued/active turns. X carries no marker and reconciles its missing
+Better Auth account into empty state. Queue/DLQ messages route to the
+deterministic LinkProcessor and acknowledge a retired no-op. D1 activity rows
+use the organization foreign key with `ON DELETE CASCADE`, so late orphan writes
+are rejected.
 
-## Acceptance criteria
+Deletion fails closed when the personal workspace has another member. The D1
+organization cascade is intentionally limited to that workspace's memberships,
+invitations, and activity rows; active-session references become null rather
+than deleting those sessions. The no-other-member condition is part of the
+organization `DELETE`, so a concurrent join cannot be caught by the cascade.
+User deletion nulls creator references on organization invitations and global
+invite codes instead of deleting access another person may still need.
 
-- Inconsistent tenancy blocks identity deletion and surfaces an actionable error.
-- Late or replayed intake cannot reconstruct purged Vault state.
-- Every owned target either proves successful purge or leaves an errored,
-  retryable Workflow step; no target failure is swallowed.
-- A maintained inventory names non-selectively erasable surfaces and their
-  approved retention wording.
-- Adversarial E2E covers mid-workflow failure, retry, late intake, and final
-  inability to authenticate/read the workspace.
-- Privacy, settings, and deletion UI avoid unsupported complete-removal or
-  every-byte claims.
+The accepted rationale and current contract live in
+[`decision 0001`](../../context/02-system/09-account-lifecycle/.decisions/0001-use-workflow-instance-as-deletion-job.md)
+and the
+[`account-lifecycle spec`](../../context/02-system/09-account-lifecycle/spec.md).
+
+## Remaining release work
+
+- Define and implement digest/provider-notification cancellation so an
+  already-started side effect cannot notify after deletion.
+- Inventory generic verification rows and decide which are attributable and
+  selectively purgeable.
+- Document Analytics Engine, logs/traces, Stripe records, and other
+  non-selectively erasable provider retention with reviewed product/legal copy.
+- Define browser and extension residue semantics, including offline devices
+  that cannot be remotely erased.
+- Add broader seeded failure-injection E2E for active sockets, delayed
+  Queue/DLQ delivery, suspended external calls, and every owned store/provider.
+- Reconcile production Queue retention with the delayed-message threat model
+  tracked in DELTA-008.
+
+## Acceptance evidence still required
+
+- Mid-workflow target failures retry and resume without skipping a target.
+- Late or replayed intake cannot reconstruct a purged workspace.
+- Active sync/chat work cannot commit after the deletion fence is installed.
+- Authentication, API keys, sync, MCP, REST, and integrations remain denied
+  after identity deletion.
+- Product and privacy copy distinguish immediate access revocation, active
+  purge, and bounded provider/platform retention without promising removal of
+  every byte.
 
 ## Dependencies and risks
 
-Tracks DELTA-003, DELTA-009, DELTA-013, DELTA-019, and DELTA-035. Legal sign-off
-on retention language is a separate human action. Cloudflare Workflow/Queue and
-analytics retention may constrain the strongest possible claim.
-
-## Size and uncertainty
-
-Large. Core orchestration exists; deletion ordering, intake fencing, and
-non-selective provider retention are high-risk.
+Tracks DELTA-003, DELTA-008, DELTA-009, DELTA-013, and DELTA-019. Legal sign-off
+on provider-retention language remains a human action. Cloudflare Queue and
+Analytics Engine retention may constrain the strongest supportable deletion
+claim.

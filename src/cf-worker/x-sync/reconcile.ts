@@ -299,6 +299,14 @@ export const resumeSyncEffect = Effect.fn("XBookmarkSyncDO.resume")(function* (
 ) {
   yield* Effect.annotateCurrentSpan("userId", maskId(userId));
   const store = yield* XSyncStateStore;
+  const alarm = yield* XSyncAlarm;
+  const repository = yield* XSyncAccountRepository;
+  const account = yield* repository.findAccount(userId);
+  if (!account) {
+    yield* alarm.cancel();
+    yield* store.clear();
+    return;
+  }
   yield* store.setSyncEnabled(true);
   return yield* reconcileSyncEffect(userId, requestedOrgId);
 });

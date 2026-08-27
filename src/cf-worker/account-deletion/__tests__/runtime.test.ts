@@ -1,12 +1,16 @@
 import { it } from "@effect/vitest";
-import { Effect, Result } from "effect";
+import { Effect, Layer, Result } from "effect";
 import { describe, expect, vi } from "vitest";
 
-import { OrgId, UserId } from "../../db/branded";
+import { StripeClientLive } from "../../billing/stripe-client";
+import { OrgId, StripeSubscriptionId, UserId } from "../../db/branded";
 import type { Env } from "../../shared";
+import { TelegramKeyStoreLive } from "../../telegram/services/telegram-key-store.live";
 import {
+  ACCOUNT_DELETION_RETENTION,
   DeletionRuntime,
   DeletionRuntimeError,
+  DeletionRuntimeLayer,
   DeletionRuntimeLive,
 } from "../runtime";
 import type { AccountDeletionParams } from "../runtime";
@@ -17,6 +21,7 @@ const USER_ID = UserId.make("user-1");
 const baseParams: AccountDeletionParams = {
   userId: USER_ID,
   orgId: ORG_ID,
+  stripeSubscriptionId: StripeSubscriptionId.make("sub_1"),
 };
 
 interface InstanceCalls {
@@ -41,7 +46,7 @@ const makeInstance = (
 
 interface FakeWorkflow {
   get: ReturnType<typeof vi.fn>;
-  create: ReturnType<typeof vi.fn>;
+  createBatch: ReturnType<typeof vi.fn>;
   createIds: string[];
 }
 
@@ -55,17 +60,13 @@ const fakeWorkflowBinding = (opts: {
       if (!opts.existing) throw new Error(`no instance with id ${id}`);
       return opts.existing;
     }),
-    create: vi.fn(
-      async ({
-        id,
-        params: _params,
-      }: {
-        id?: string;
-        params: AccountDeletionParams;
-      }) => {
+    createBatch: vi.fn(
+      async (batch: WorkflowInstanceCreateOptions<AccountDeletionParams>[]) => {
+        if (opts.existing) return [];
+        const { id } = batch[0]!;
         const newId = opts.createId?.(id ?? "") ?? id ?? "wf-fresh";
         createIds.push(newId);
-        return makeInstance(newId, "queued");
+        return [makeInstance(newId, "queued")];
       }
     ),
     createIds,
@@ -76,24 +77,26 @@ const makeEnv = (
   overrides: Partial<{
     workflow: FakeWorkflow;
     linkProcessorPurge: ReturnType<typeof vi.fn>;
-    linkProcessorMarkDeleting: ReturnType<typeof vi.fn>;
     syncBackendPurge: ReturnType<typeof vi.fn>;
     chatPurge: ReturnType<typeof vi.fn>;
+    xPurge: ReturnType<typeof vi.fn>;
     telegramKv: Map<string, string>;
+    enrichmentKv: Map<string, string>;
+    enrichmentList: ReturnType<typeof vi.fn>;
   }> = {}
 ) => {
   const workflow = overrides.workflow ?? fakeWorkflowBinding({});
   const linkProcessorPurge =
     overrides.linkProcessorPurge ?? vi.fn().mockResolvedValue(undefined);
-  const linkProcessorMarkDeleting =
-    overrides.linkProcessorMarkDeleting ?? vi.fn().mockResolvedValue(undefined);
   const syncBackendPurge =
     overrides.syncBackendPurge ?? vi.fn().mockResolvedValue(undefined);
   const chatPurge = overrides.chatPurge ?? vi.fn().mockResolvedValue(undefined);
+  const xPurge = overrides.xPurge ?? vi.fn().mockResolvedValue(undefined);
 
   const linkProcessorIdFromName = vi.fn().mockReturnValue("lp-id");
   const syncBackendIdFromName = vi.fn().mockReturnValue("sb-id");
   const chatIdFromName = vi.fn().mockReturnValue("chat-id");
+  const xIdFromName = vi.fn().mockReturnValue("x-id");
 
   const telegramKv = overrides.telegramKv ?? new Map<string, string>();
   const TELEGRAM_KV = {
@@ -105,6 +108,21 @@ const makeEnv = (
       telegramKv.delete(key);
     }),
   };
+  const enrichmentKv = overrides.enrichmentKv ?? new Map<string, string>();
+  const enrichmentList =
+    overrides.enrichmentList ??
+    vi.fn(async ({ prefix }: { prefix?: string }) => ({
+      keys: [...enrichmentKv.keys()]
+        .filter((key) => !prefix || key.startsWith(prefix))
+        .map((name) => ({ name })),
+      list_complete: true,
+    }));
+  const ENRICHMENT_USAGE = {
+    list: enrichmentList,
+    delete: vi.fn(async (key: string) => {
+      enrichmentKv.delete(key);
+    }),
+  };
 
   return {
     env: {
@@ -112,59 +130,127 @@ const makeEnv = (
       LINK_PROCESSOR_DO: {
         idFromName: linkProcessorIdFromName,
         get: vi.fn().mockReturnValue({
-          purgeAll: linkProcessorPurge,
-          markDeleting: linkProcessorMarkDeleting,
+          retire: linkProcessorPurge,
         }),
       },
       SYNC_BACKEND_DO: {
         idFromName: syncBackendIdFromName,
-        get: vi.fn().mockReturnValue({ purgeAll: syncBackendPurge }),
+        get: vi.fn().mockReturnValue({
+          retire: syncBackendPurge,
+        }),
       },
       Chat: {
         idFromName: chatIdFromName,
-        get: vi.fn().mockReturnValue({ purgeAll: chatPurge }),
+        get: vi.fn().mockReturnValue({
+          retire: chatPurge,
+        }),
+      },
+      X_BOOKMARK_SYNC_DO: {
+        idFromName: xIdFromName,
+        get: vi.fn().mockReturnValue({
+          disconnect: xPurge,
+        }),
       },
       TELEGRAM_KV,
+      ENRICHMENT_USAGE,
+      STRIPE_API_KEY: "sk_test_delete",
+      STRIPE_PRICE_PLUS: "price_plus",
+      STRIPE_PRICE_PLUS_YEARLY: "price_plus_year",
+      STRIPE_PRICE_PRO: "price_pro",
+      STRIPE_PRICE_PRO_YEARLY: "price_pro_year",
     } as unknown as Env,
     workflow,
     linkProcessorIdFromName,
     syncBackendIdFromName,
     chatIdFromName,
+    xIdFromName,
     linkProcessorPurge,
-    linkProcessorMarkDeleting,
     syncBackendPurge,
     chatPurge,
+    xPurge,
     telegramKv,
     TELEGRAM_KV,
+    enrichmentKv,
+    ENRICHMENT_USAGE,
   };
 };
 
+const deletionRuntimeLayer = (env: Env, fetchFn: typeof fetch) =>
+  DeletionRuntimeLayer(env).pipe(
+    Layer.provide(
+      Layer.mergeAll(StripeClientLive(env, fetchFn), TelegramKeyStoreLive(env))
+    )
+  );
+
 describe("DeletionRuntimeLive — DO RPC dispatch", () => {
-  it.effect("markLinkProcessorDeleting fetches the right DO id", () => {
+  it.effect("dispatches every actor retirement", () => {
     const fixture = makeEnv();
     return Effect.gen(function* () {
       const runtime = yield* DeletionRuntime;
-      yield* runtime.markLinkProcessorDeleting(ORG_ID);
-      expect(fixture.linkProcessorIdFromName).toHaveBeenCalledWith("org-1");
-      expect(fixture.linkProcessorMarkDeleting).toHaveBeenCalledOnce();
+      yield* runtime.retireLinkProcessor(ORG_ID);
+      yield* runtime.retireSyncBackend(ORG_ID);
+      yield* runtime.retireChatAgent(ORG_ID);
+      yield* runtime.purgeXBookmarkSync(USER_ID);
+      expect(fixture.linkProcessorPurge).toHaveBeenCalledOnce();
+      expect(fixture.syncBackendPurge).toHaveBeenCalledOnce();
+      expect(fixture.chatPurge).toHaveBeenCalledOnce();
+      expect(fixture.xPurge).toHaveBeenCalledOnce();
     }).pipe(Effect.provide(DeletionRuntimeLive(fixture.env)));
   });
 
-  it.effect(
-    "purgeLinkProcessor / purgeSyncBackend / purgeChatAgent dispatch",
-    () => {
-      const fixture = makeEnv();
-      return Effect.gen(function* () {
-        const runtime = yield* DeletionRuntime;
-        yield* runtime.purgeLinkProcessor(ORG_ID);
-        yield* runtime.purgeSyncBackend(ORG_ID);
-        yield* runtime.purgeChatAgent(ORG_ID);
-        expect(fixture.linkProcessorPurge).toHaveBeenCalledOnce();
-        expect(fixture.syncBackendPurge).toHaveBeenCalledOnce();
-        expect(fixture.chatPurge).toHaveBeenCalledOnce();
-      }).pipe(Effect.provide(DeletionRuntimeLive(fixture.env)));
-    }
-  );
+  it.effect("purges only workspace-keyed enrichment usage", () => {
+    const fixture = makeEnv({
+      enrichmentKv: new Map([
+        ["enrichment:org-1:2026-08", "1"],
+        ["enrichment:org-1:2026-07", "2"],
+        ["enrichment:other:2026-08", "3"],
+      ]),
+    });
+    return Effect.gen(function* () {
+      const runtime = yield* DeletionRuntime;
+      yield* runtime.purgeEnrichmentUsage(ORG_ID);
+      expect(fixture.enrichmentKv.has("enrichment:org-1:2026-08")).toBe(false);
+      expect(fixture.enrichmentKv.has("enrichment:org-1:2026-07")).toBe(false);
+      expect(fixture.enrichmentKv.get("enrichment:other:2026-08")).toBe("3");
+    }).pipe(Effect.provide(DeletionRuntimeLive(fixture.env)));
+  });
+
+  it.effect("follows enrichment KV cursors until every page is purged", () => {
+    const enrichmentKv = new Map([
+      ["enrichment:org-1:2026-08", "1"],
+      ["enrichment:org-1:2026-07", "2"],
+      ["enrichment:other:2026-08", "3"],
+    ]);
+    const enrichmentList = vi
+      .fn()
+      .mockResolvedValueOnce({
+        keys: [{ name: "enrichment:org-1:2026-08" }],
+        list_complete: false,
+        cursor: "next-page",
+      })
+      .mockResolvedValueOnce({
+        keys: [{ name: "enrichment:org-1:2026-07" }],
+        list_complete: true,
+      });
+    const fixture = makeEnv({ enrichmentKv, enrichmentList });
+
+    return Effect.gen(function* () {
+      const runtime = yield* DeletionRuntime;
+      yield* runtime.purgeEnrichmentUsage(ORG_ID);
+
+      expect(enrichmentList).toHaveBeenNthCalledWith(1, {
+        prefix: "enrichment:org-1:",
+        cursor: undefined,
+      });
+      expect(enrichmentList).toHaveBeenNthCalledWith(2, {
+        prefix: "enrichment:org-1:",
+        cursor: "next-page",
+      });
+      expect(enrichmentKv.has("enrichment:org-1:2026-08")).toBe(false);
+      expect(enrichmentKv.has("enrichment:org-1:2026-07")).toBe(false);
+      expect(enrichmentKv.get("enrichment:other:2026-08")).toBe("3");
+    }).pipe(Effect.provide(DeletionRuntimeLive(fixture.env)));
+  });
 
   it.effect(
     "purgeTelegram wipes every telegram:${chatId} entry from the reverse index",
@@ -209,27 +295,28 @@ describe("DeletionRuntimeLive — DO RPC dispatch", () => {
 describe("DeletionRuntimeLive — DO RPC failure paths", () => {
   const failureCases = [
     {
-      op: "markLinkProcessorDeleting" as const,
+      op: "retireLinkProcessor" as const,
       method: (rt: typeof DeletionRuntime.Service) =>
-        rt.markLinkProcessorDeleting(ORG_ID),
-      override: "linkProcessorMarkDeleting" as const,
-    },
-    {
-      op: "purgeLinkProcessor" as const,
-      method: (rt: typeof DeletionRuntime.Service) =>
-        rt.purgeLinkProcessor(ORG_ID),
+        rt.retireLinkProcessor(ORG_ID),
       override: "linkProcessorPurge" as const,
     },
     {
-      op: "purgeSyncBackend" as const,
+      op: "retireSyncBackend" as const,
       method: (rt: typeof DeletionRuntime.Service) =>
-        rt.purgeSyncBackend(ORG_ID),
+        rt.retireSyncBackend(ORG_ID),
       override: "syncBackendPurge" as const,
     },
     {
-      op: "purgeChatAgent" as const,
-      method: (rt: typeof DeletionRuntime.Service) => rt.purgeChatAgent(ORG_ID),
+      op: "retireChatAgent" as const,
+      method: (rt: typeof DeletionRuntime.Service) =>
+        rt.retireChatAgent(ORG_ID),
       override: "chatPurge" as const,
+    },
+    {
+      op: "purgeXBookmarkSync" as const,
+      method: (rt: typeof DeletionRuntime.Service) =>
+        rt.purgeXBookmarkSync(USER_ID),
+      override: "xPurge" as const,
     },
   ];
 
@@ -258,16 +345,132 @@ describe("DeletionRuntimeLive — DO RPC failure paths", () => {
       }
     );
   }
+
+  it.effect("maps enrichment KV failures to purgeEnrichmentUsage", () => {
+    const fixture = makeEnv();
+    fixture.ENRICHMENT_USAGE.list.mockRejectedValueOnce(
+      new Error("KV unavailable")
+    );
+    return Effect.gen(function* () {
+      const runtime = yield* DeletionRuntime;
+      const result = yield* Effect.result(runtime.purgeEnrichmentUsage(ORG_ID));
+      expect(Result.isFailure(result)).toBe(true);
+      if (Result.isFailure(result)) {
+        expect(result.failure.op).toBe("purgeEnrichmentUsage");
+      }
+    }).pipe(Effect.provide(DeletionRuntimeLive(fixture.env)));
+  });
+});
+
+describe("DeletionRuntimeLive — Stripe cancellation", () => {
+  it.effect(
+    "dispatches DELETE with the deletion-scoped idempotency key",
+    () => {
+      const fetchMock = vi.fn(async () =>
+        Response.json({
+          id: "sub_1",
+          object: "subscription",
+          status: "canceled",
+        })
+      );
+      const fixture = makeEnv();
+
+      return Effect.gen(function* () {
+        const runtime = yield* DeletionRuntime;
+        yield* runtime.cancelStripeSubscription(
+          StripeSubscriptionId.make("sub_1"),
+          ORG_ID
+        );
+
+        expect(fetchMock).toHaveBeenCalledOnce();
+        const [input, init] = fetchMock.mock.calls[0] as unknown as [
+          RequestInfo | URL,
+          RequestInit | undefined,
+        ];
+        const request =
+          input instanceof Request ? input : new Request(String(input), init);
+        expect(request.method).toBe("DELETE");
+        expect(request.url).toContain("/v1/subscriptions/sub_1");
+        expect(request.headers.get("idempotency-key")).toBe(
+          "account-deletion:org-1"
+        );
+      }).pipe(Effect.provide(deletionRuntimeLayer(fixture.env, fetchMock)));
+    }
+  );
+
+  it.effect("maps Stripe rejection to cancelStripeSubscription", () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json(
+        { error: { type: "api_error", message: "Stripe unavailable" } },
+        { status: 500 }
+      )
+    );
+    const fixture = makeEnv();
+
+    return Effect.gen(function* () {
+      const runtime = yield* DeletionRuntime;
+      const result = yield* Effect.result(
+        runtime.cancelStripeSubscription(
+          StripeSubscriptionId.make("sub_1"),
+          ORG_ID
+        )
+      );
+      expect(Result.isFailure(result)).toBe(true);
+      if (Result.isFailure(result)) {
+        expect(result.failure.op).toBe("cancelStripeSubscription");
+      }
+    }).pipe(Effect.provide(deletionRuntimeLayer(fixture.env, fetchMock)));
+  });
+
+  it.effect("treats an already-missing Stripe subscription as canceled", () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json(
+        {
+          error: {
+            type: "invalid_request_error",
+            code: "resource_missing",
+            message: "No such subscription: 'sub_1'",
+            param: "id",
+          },
+        },
+        { status: 404 }
+      )
+    );
+    const fixture = makeEnv();
+
+    return Effect.gen(function* () {
+      const runtime = yield* DeletionRuntime;
+      yield* runtime.cancelStripeSubscription(
+        StripeSubscriptionId.make("sub_1"),
+        ORG_ID
+      );
+      expect(fetchMock).toHaveBeenCalledOnce();
+    }).pipe(Effect.provide(deletionRuntimeLayer(fixture.env, fetchMock)));
+  });
 });
 
 describe("DeletionRuntimeLive.ensureWorkflow", () => {
-  it.effect("creates a new instance when none exists, keyed on orgId", () => {
+  it.effect("creates a new instance keyed on organization identity", () => {
     const fixture = makeEnv();
     return Effect.gen(function* () {
       const runtime = yield* DeletionRuntime;
       const result = yield* runtime.ensureWorkflow(baseParams);
       expect(result.id).toBe("org-1");
-      expect(fixture.workflow.create).toHaveBeenCalledOnce();
+      expect(fixture.workflow.createBatch).toHaveBeenCalledOnce();
+      expect(ACCOUNT_DELETION_RETENTION).toEqual({
+        successRetention: "1 day",
+        errorRetention: "3 days",
+      });
+      expect(fixture.workflow.createBatch).toHaveBeenCalledWith([
+        {
+          id: "org-1",
+          params: baseParams,
+          retention: {
+            successRetention: "1 day",
+            errorRetention: "3 days",
+          },
+        },
+      ]);
       expect(fixture.workflow.createIds).toEqual(["org-1"]);
     }).pipe(Effect.provide(DeletionRuntimeLive(fixture.env)));
   });
@@ -283,30 +486,30 @@ describe("DeletionRuntimeLive.ensureWorkflow", () => {
       const runtime = yield* DeletionRuntime;
       const result = yield* runtime.ensureWorkflow(baseParams);
       expect(result.id).toBe("org-1");
-      expect(fixture.workflow.create).not.toHaveBeenCalled();
       expect(calls.status).toBe(1);
       expect(calls.restart).toBe(0);
     }).pipe(Effect.provide(DeletionRuntimeLive(fixture.env)));
   });
 
-  it.effect("restarts when status is terminal (errored)", () => {
-    const calls: InstanceCalls = { status: 0, restart: 0 };
-    const fixture = makeEnv({
-      workflow: fakeWorkflowBinding({
-        existing: makeInstance("org-1", "errored", calls),
-      }),
+  for (const status of ["errored", "terminated"] as const) {
+    it.effect(`restarts a ${status} instance`, () => {
+      const calls: InstanceCalls = { status: 0, restart: 0 };
+      const fixture = makeEnv({
+        workflow: fakeWorkflowBinding({
+          existing: makeInstance("org-1", status, calls),
+        }),
+      });
+      return Effect.gen(function* () {
+        const runtime = yield* DeletionRuntime;
+        const result = yield* runtime.ensureWorkflow(baseParams);
+        expect(result.id).toBe("org-1");
+        expect(calls.status).toBe(1);
+        expect(calls.restart).toBe(1);
+      }).pipe(Effect.provide(DeletionRuntimeLive(fixture.env)));
     });
-    return Effect.gen(function* () {
-      const runtime = yield* DeletionRuntime;
-      const result = yield* runtime.ensureWorkflow(baseParams);
-      expect(result.id).toBe("org-1");
-      expect(calls.status).toBe(1);
-      expect(calls.restart).toBe(1);
-      expect(fixture.workflow.create).not.toHaveBeenCalled();
-    }).pipe(Effect.provide(DeletionRuntimeLive(fixture.env)));
-  });
+  }
 
-  it.effect("restarts when status is 'complete' (within retention)", () => {
+  it.effect("rejoins complete without repeating destructive work", () => {
     const calls: InstanceCalls = { status: 0, restart: 0 };
     const fixture = makeEnv({
       workflow: fakeWorkflowBinding({
@@ -316,7 +519,7 @@ describe("DeletionRuntimeLive.ensureWorkflow", () => {
     return Effect.gen(function* () {
       const runtime = yield* DeletionRuntime;
       yield* runtime.ensureWorkflow(baseParams);
-      expect(calls.restart).toBe(1);
+      expect(calls.restart).toBe(0);
     }).pipe(Effect.provide(DeletionRuntimeLive(fixture.env)));
   });
 
@@ -343,9 +546,28 @@ describe("DeletionRuntimeLive.ensureWorkflow", () => {
     }
   );
 
-  it.effect("wraps create() failures as DeletionRuntimeError", () => {
+  it.effect("fails closed for an unknown instance status", () => {
+    const calls: InstanceCalls = { status: 0, restart: 0 };
+    const fixture = makeEnv({
+      workflow: fakeWorkflowBinding({
+        existing: makeInstance("org-1", "unknown", calls),
+      }),
+    });
+    return Effect.gen(function* () {
+      const runtime = yield* DeletionRuntime;
+      const result = yield* Effect.result(runtime.ensureWorkflow(baseParams));
+      expect(Result.isFailure(result)).toBe(true);
+      if (Result.isFailure(result)) {
+        expect(result.failure.op).toBe("ensureWorkflow");
+        expect(result.failure.step).toBe("status");
+      }
+      expect(calls.restart).toBe(0);
+    }).pipe(Effect.provide(DeletionRuntimeLive(fixture.env)));
+  });
+
+  it.effect("wraps createBatch() failures as DeletionRuntimeError", () => {
     const fixture = makeEnv();
-    fixture.workflow.create.mockRejectedValueOnce(
+    fixture.workflow.createBatch.mockRejectedValueOnce(
       new Error("CF Workflows API down")
     );
     return Effect.gen(function* () {
@@ -364,22 +586,6 @@ describe("DeletionRuntimeLive.ensureWorkflow", () => {
       }
     }).pipe(Effect.provide(DeletionRuntimeLive(fixture.env)));
   });
-
-  it.effect(
-    "any get() failure falls through to create() (no string-sniff)",
-    () => {
-      const fixture = makeEnv();
-      fixture.workflow.get.mockRejectedValueOnce(
-        new Error("instance.not_found")
-      );
-      return Effect.gen(function* () {
-        const runtime = yield* DeletionRuntime;
-        const result = yield* runtime.ensureWorkflow(baseParams);
-        expect(result.id).toBe("org-1");
-        expect(fixture.workflow.create).toHaveBeenCalledOnce();
-      }).pipe(Effect.provide(DeletionRuntimeLive(fixture.env)));
-    }
-  );
 
   it.effect(
     "wraps status() failures as DeletionRuntimeError(step=status)",

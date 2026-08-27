@@ -4,9 +4,14 @@ import { Effect } from "effect";
 
 import { AppLayerLive } from "../auth/service";
 import { OrgId } from "../db/branded";
+import {
+  isDurableObjectRetired,
+  retireDurableObjectStorage,
+} from "../durable-object-retirement";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
+import { OtelTracingLive } from "../tracing";
 import type { PushEvent } from "./activity";
 import { recordActivity } from "./record-activity";
 
@@ -104,7 +109,24 @@ let currentSyncBackend: {
 // Heal/alert wiring is the follow-up in docs/todos/admin-server-ahead-alert.md.
 const STUCK_GAP_THRESHOLD = 100;
 
-export class SyncBackendDO extends SyncBackend.makeDurableObject({
+// The local vendored source has a pre-commit callback that the published
+// snapshot's declarations do not expose yet. Keeping the extension on the
+// options object avoids widening the ordinary onPush callback context.
+type SyncBackendOptions = NonNullable<
+  Parameters<typeof SyncBackend.makeDurableObject>[0]
+> & {
+  onPushCommit: (
+    message: unknown,
+    context: { storage: CfTypes.DurableObjectStorage }
+  ) => Promise<void>;
+};
+
+const syncBackendOptions: SyncBackendOptions = {
+  onPushCommit: async (_message, { storage }) => {
+    if (await isDurableObjectRetired(storage)) {
+      throw new Error("Durable Object is retired");
+    }
+  },
   onPush: async (message, context) => {
     const storeId = OrgId.make(context.storeId);
     logger.info("Push received", {
@@ -141,7 +163,11 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
       }
     }
   },
-}) {
+};
+
+export class SyncBackendDO extends SyncBackend.makeDurableObject(
+  syncBackendOptions
+) {
   private _env: Env;
   private _ctx: CfTypes.DurableObjectState;
   // Cached once the eventlog table is created (livestore creates it on first
@@ -176,20 +202,22 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
     }
   }
 
-  /**
-   * Wipes all DO storage (including Livestore eventlog). Called by
-   * AccountDeletionWorkflow during account deletion.
-   */
-  async purgeAll(): Promise<void> {
+  /** Permanently closes this eventlog and wipes its storage. */
+  async retire(): Promise<void> {
+    for (const socket of this._ctx.getWebSockets()) {
+      socket.close(1001, "Eventlog retired");
+    }
     await Effect.runPromise(
       Effect.gen({ self: this }, function* () {
-        yield* Effect.promise(() => this._ctx.storage.deleteAll());
-        yield* Effect.logInfo("purgeAll: storage wiped").pipe(
+        yield* Effect.promise(() =>
+          retireDurableObjectStorage(this._ctx.storage)
+        );
+        yield* Effect.logInfo("retire: storage wiped").pipe(
           Effect.annotateLogs({ doId: this._ctx.id.toString() })
         );
       }).pipe(
-        Effect.withSpan("SyncBackendDO.purgeAll"),
-        Effect.provide(AppLayerLive(this._env))
+        Effect.withSpan("SyncBackendDO.retire"),
+        Effect.provide(OtelTracingLive)
       )
     );
   }

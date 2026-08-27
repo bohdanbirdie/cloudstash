@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 
 import type { OrgId, UserId } from "../db/branded";
+import { maskId } from "../log-utils";
 import { TelegramKeyStore } from "../telegram/services";
 
 /**
@@ -11,15 +12,15 @@ import { TelegramKeyStore } from "../telegram/services";
 export const purgeTelegramForUser = Effect.fn("AccountDeletion.purgeTelegram")(
   function* (input: { userId: UserId; orgId: OrgId }) {
     yield* Effect.annotateCurrentSpan({
-      userId: input.userId,
-      orgId: input.orgId,
+      userId: maskId(input.userId),
+      orgId: maskId(input.orgId),
     });
     const keyStore = yield* TelegramKeyStore;
     const result = yield* keyStore.purgeForUser(input.userId);
     yield* Effect.logInfo("Telegram purge done").pipe(
       Effect.annotateLogs({
-        userId: input.userId,
-        orgId: input.orgId,
+        userId: maskId(input.userId),
+        orgId: maskId(input.orgId),
         deletedCount: result.deletedCount,
       })
     );

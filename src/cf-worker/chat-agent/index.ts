@@ -1,4 +1,5 @@
 import { AIChatAgent } from "@cloudflare/ai-chat";
+import type { OnChatMessageOptions } from "@cloudflare/ai-chat";
 import { createStoreDoPromise } from "@livestore/adapter-cloudflare";
 import type { ClientDoWithRpcCallback } from "@livestore/adapter-cloudflare";
 import { nanoid } from "@livestore/livestore";
@@ -26,13 +27,20 @@ import {
 import type { SearchResult } from "../../livestore/queries/schemas";
 import { pendingTagsByLink$, tagsByLink$ } from "../../livestore/queries/tags";
 import { schema } from "../../livestore/schema";
+import type { StoreEvent } from "../../livestore/schema";
 import { Billing } from "../billing/service";
 import { OrgId } from "../db/branded";
+import {
+  DurableObjectRetiredError,
+  isDurableObjectRetired,
+  retireDurableObjectStorage,
+} from "../durable-object-retirement";
 import type { ApiLinksPage } from "../links/api";
 import { encodeLinksPage, mergeTagNamesByLink } from "../links/api";
 import { maskId } from "../log-utils";
 import { getAppLayer } from "../runtime";
 import type { Env } from "../shared";
+import { OtelTracingLive } from "../tracing";
 import { CONTEXT_WINDOW_SIZE, SYSTEM_PROMPT } from "./config";
 import {
   extractRetryTime,
@@ -106,53 +114,89 @@ export class ChatAgentDO
   override __DURABLE_OBJECT_BRAND = "chat-agent-do" as never;
   private storePromise: Promise<Store<typeof schema>> | null = null;
   private cachedOrgId: OrgId | undefined;
+  private retired = false;
+  private storeRevision = 0;
 
   private orgId(): OrgId {
     if (!this.cachedOrgId) this.cachedOrgId = OrgId.make(this.name);
     return this.cachedOrgId;
   }
 
-  override async onConnect(connection: Connection, ctx: ConnectionContext) {
-    await super.onConnect(connection, ctx);
-    void this.broadcastUsage();
+  override async fetch(request: Request): Promise<Response> {
+    return this.ctx.blockConcurrencyWhile(async () => {
+      if (await this.isRetired()) {
+        return new Response("Chat retired", { status: 410 });
+      }
+      return super.fetch(request);
+    });
   }
 
-  /**
-   * Wipes all DO storage (chat session id, message history, token usage).
-   * Called by AccountDeletionWorkflow during account deletion.
-   */
-  async purgeAll(): Promise<void> {
+  override async onConnect(connection: Connection, ctx: ConnectionContext) {
+    if (await this.isRetired()) {
+      connection.close(1001, "Chat retired");
+      return;
+    }
+    await super.onConnect(connection, ctx);
+    void this.broadcastUsage(this.storeRevision);
+  }
+
+  /** Permanently closes this chat actor and wipes its storage. */
+  async retire(): Promise<void> {
+    this.retired = true;
+    this.storeRevision += 1;
+    this.resetTurnState();
+    for (const connection of this.getConnections()) {
+      connection.close(1001, "Chat retired");
+    }
+    const storePromise = this.storePromise?.catch(() => null);
+    this.storePromise = null;
     await Effect.runPromise(
       Effect.gen({ self: this }, function* () {
-        this.storePromise = null;
-        yield* Effect.promise(() => this.ctx.storage.deleteAll());
-        yield* Effect.logInfo("purgeAll: storage wiped").pipe(
+        yield* Effect.promise(() =>
+          retireDurableObjectStorage(this.ctx.storage, async () => {
+            const store = await storePromise;
+            await store?.shutdownPromise?.();
+          })
+        );
+        yield* Effect.logInfo("retire: storage wiped").pipe(
           Effect.annotateLogs({ doId: this.ctx.id.toString() })
         );
       }).pipe(
-        Effect.withSpan("ChatAgentDO.purgeAll"),
-        Effect.provide(getAppLayer(this.env))
+        Effect.withSpan("ChatAgentDO.retire"),
+        Effect.provide(OtelTracingLive)
       )
     );
   }
 
-  private async getSessionId(storeId: string): Promise<string> {
+  private async getSessionId(
+    storeId: string,
+    generation: number
+  ): Promise<string> {
+    if (!this.isCurrent(generation)) {
+      throw new DurableObjectRetiredError();
+    }
     const key = "chat-session-id";
     const stored = await this.ctx.storage.get<string>(key);
     if (stored) return stored;
 
     const newSessionId = `chat-${storeId}-${nanoid()}`;
+    if (!this.isCurrent(generation)) {
+      throw new DurableObjectRetiredError();
+    }
     await this.ctx.storage.put(key, newSessionId);
     return newSessionId;
   }
 
   private getStore(storeId?: string): Promise<Store<typeof schema>> {
-    if (this.storePromise) return this.storePromise;
+    const generation = this.storeRevision;
+    const existing = this.storePromise;
+    if (existing) return existing;
 
     const id = storeId ?? this.name;
     const promise = (async () => {
-      const sessionId = await this.getSessionId(id);
-      return createStoreDoPromise({
+      if (await this.isRetired()) throw new DurableObjectRetiredError();
+      const sessionId = await this.getSessionId(id, generation);
+      const store = await createStoreDoPromise({
         clientId: "chat-agent-do",
         durableObject: {
           bindingName: "Chat",
@@ -167,6 +211,11 @@ export class ChatAgentDO
           this.env.SYNC_BACKEND_DO.idFromName(id)
         ) as never,
       });
+      if (!this.isCurrent(generation)) {
+        await store.shutdownPromise?.();
+        throw new DurableObjectRetiredError();
+      }
+      return store;
     })();
     promise.catch(() => {
       if (this.storePromise === promise) this.storePromise = null;
@@ -175,12 +224,38 @@ export class ChatAgentDO
     return promise;
   }
 
+  private async isRetired(): Promise<boolean> {
+    if (this.retired) return true;
+    const durable = await isDurableObjectRetired(this.ctx.storage);
+    this.retired ||= durable;
+    return this.retired;
+  }
+
+  private isCurrent(revision: number): boolean {
+    return !this.retired && revision === this.storeRevision;
+  }
+
+  private commitFor(
+    store: Store<typeof schema>,
+    revision: number
+  ): (...storeEvents: StoreEvent[]) => void {
+    return (...storeEvents) => {
+      if (!this.isCurrent(revision)) throw new DurableObjectRetiredError();
+      return store.commit(...storeEvents);
+    };
+  }
+
   async syncUpdateRpc(
     payload: Uint8Array<ArrayBuffer>,
     storeId: string
   ): Promise<void> {
+    if (await this.isRetired()) return;
+    const generation = this.storeRevision;
     await this.getStore(storeId);
-    await handleSyncUpdateRpc(this.ctx, payload);
+    await this.ctx.blockConcurrencyWhile(async () => {
+      if (!this.isCurrent(generation)) return;
+      await handleSyncUpdateRpc(this.ctx, payload);
+    });
   }
 
   // Read-only keyset page over this org's links, exposed to the public links
@@ -253,7 +328,10 @@ export class ChatAgentDO
     };
   }
 
-  private async reserveTokens(estimate: number): Promise<ReserveOutcome> {
+  private async reserveTokens(
+    estimate: number,
+    generation: number
+  ): Promise<ReserveOutcome> {
     return Effect.runPromise(
       Effect.gen({ self: this }, function* () {
         const { limit, unavailable } = yield* this.resolveBudget();
@@ -265,10 +343,16 @@ export class ChatAgentDO
         }
         const storage = this.usageStorage();
         const reserved = yield* Effect.promise(() =>
-          this.ctx.blockConcurrencyWhile(() =>
-            reserveTokensIn(storage, estimate, limit)
-          )
+          this.isCurrent(generation)
+            ? reserveTokensIn(storage, estimate, limit)
+            : Promise.resolve(null)
         );
+        if (reserved === null) {
+          yield* Effect.logInfo(
+            "Token reservation skipped because the actor retired"
+          );
+          return RESERVE_OUTCOME.Unavailable;
+        }
         const outcome = reserved
           ? RESERVE_OUTCOME.Reserved
           : RESERVE_OUTCOME.LimitReached;
@@ -286,19 +370,27 @@ export class ChatAgentDO
   private recordTokenUsage(
     promptTokens: number,
     completionTokens: number,
-    releaseReservation: number
+    releaseReservation: number,
+    generation: number
   ): Effect.Effect<void> {
     const storage = this.usageStorage();
-    return Effect.promise(() =>
-      this.ctx.blockConcurrencyWhile(() =>
-        reconcileTokenUsageIn(
+    return Effect.gen({ self: this }, function* () {
+      const committed = yield* Effect.promise(async () => {
+        if (!this.isCurrent(generation)) return false;
+        await reconcileTokenUsageIn(
           storage,
           promptTokens,
           completionTokens,
           releaseReservation
-        )
-      )
-    ).pipe(
+        );
+        return true;
+      });
+      if (!committed) {
+        yield* Effect.logInfo(
+          "Token usage write skipped because the actor retired"
+        );
+      }
+    }).pipe(
       Effect.withSpan("ChatAgentDO.recordTokenUsage", {
         attributes: {
           completionTokens,
@@ -375,9 +467,13 @@ export class ChatAgentDO
     );
   }
 
-  private broadcastUsage(): Promise<void> {
+  private broadcastUsage(generation: number): Promise<void> {
     return this.getUsage().pipe(
-      Effect.tap((usage) => Effect.sync(() => this.setState({ usage }))),
+      Effect.tap((usage) =>
+        Effect.sync(() => {
+          if (this.isCurrent(generation)) this.setState({ usage });
+        })
+      ),
       Effect.tapCause((cause) =>
         Effect.logError("broadcastUsage failed").pipe(
           Effect.annotateLogs({ cause: String(cause) })
@@ -389,10 +485,18 @@ export class ChatAgentDO
     );
   }
 
-  override async onChatMessage() {
-    await this.broadcastUsage();
+  override async onChatMessage(
+    _onFinish: Parameters<AIChatAgent<Env>["onChatMessage"]>[0],
+    options?: OnChatMessageOptions
+  ) {
+    if (await this.isRetired()) throw new DurableObjectRetiredError();
+    const generation = this.storeRevision;
+    await this.broadcastUsage(generation);
 
-    const reserveOutcome = await this.reserveTokens(ESTIMATED_TOKENS_PER_CALL);
+    const reserveOutcome = await this.reserveTokens(
+      ESTIMATED_TOKENS_PER_CALL,
+      generation
+    );
     if (reserveOutcome !== RESERVE_OUTCOME.Reserved) {
       const message =
         reserveOutcome === RESERVE_OUTCOME.Unavailable
@@ -412,12 +516,19 @@ export class ChatAgentDO
     const model = openrouter("google/gemini-2.5-flash");
 
     const store = await this.getStore();
-    const tools = createTools(store);
-    const toolExecutors = createToolExecutors(store);
+    const commit = this.commitFor(store, generation);
+    const tools = createTools(store, commit);
+    const toolExecutors = createToolExecutors(store, commit);
 
     const lastMessage = this.messages[this.messages.length - 1];
     if (hasToolConfirmation(lastMessage)) {
-      return this.handleToolConfirmation(model, tools, toolExecutors);
+      return this.handleToolConfirmation(
+        model,
+        tools,
+        toolExecutors,
+        generation,
+        options?.abortSignal
+      );
     }
 
     const userText = getLastUserMessageText(this.messages);
@@ -437,13 +548,20 @@ export class ChatAgentDO
       }
     }
 
-    return this.handleNormalChat(model, tools);
+    return this.handleNormalChat(
+      model,
+      tools,
+      generation,
+      options?.abortSignal
+    );
   }
 
   private handleToolConfirmation(
     model: LanguageModel,
     tools: ReturnType<typeof createTools>,
-    toolExecutors: ReturnType<typeof createToolExecutors>
+    toolExecutors: ReturnType<typeof createToolExecutors>,
+    generation: number,
+    abortSignal?: AbortSignal
   ) {
     const stream = createUIMessageStream({
       onError: formatError,
@@ -452,6 +570,8 @@ export class ChatAgentDO
           { messages: this.messages, tools },
           toolExecutors
         );
+
+        if (!this.isCurrent(generation)) return;
 
         this.messages = updatedMessages;
         await this.persistMessages(this.messages);
@@ -464,17 +584,22 @@ export class ChatAgentDO
           system: SYSTEM_PROMPT,
           messages,
           tools,
+          abortSignal,
           stopWhen: stepCountIs(5),
           experimental_telemetry: { isEnabled: true },
           onFinish: ({ usage }) => {
+            if (!this.isCurrent(generation)) return;
             // ctx.waitUntil so DO eviction can't drop the usage write.
             this.ctx.waitUntil(
               this.recordTokenUsage(
                 usage.inputTokens ?? 0,
                 usage.outputTokens ?? 0,
-                ESTIMATED_TOKENS_PER_CALL
+                ESTIMATED_TOKENS_PER_CALL,
+                generation
               ).pipe(
-                Effect.tap(() => Effect.promise(() => this.broadcastUsage())),
+                Effect.tap(() =>
+                  Effect.promise(() => this.broadcastUsage(generation))
+                ),
                 Effect.tapCause((cause) =>
                   Effect.logError("recordTokenUsage failed").pipe(
                     Effect.annotateLogs({ cause: String(cause) })
@@ -496,7 +621,9 @@ export class ChatAgentDO
 
   private handleNormalChat(
     model: LanguageModel,
-    tools: ReturnType<typeof createTools>
+    tools: ReturnType<typeof createTools>,
+    generation: number,
+    abortSignal?: AbortSignal
   ) {
     const stream = createUIMessageStream({
       onError: formatError,
@@ -509,17 +636,22 @@ export class ChatAgentDO
           system: SYSTEM_PROMPT,
           messages,
           tools,
+          abortSignal,
           stopWhen: stepCountIs(5),
           experimental_telemetry: { isEnabled: true },
           onFinish: ({ usage }) => {
+            if (!this.isCurrent(generation)) return;
             // ctx.waitUntil so DO eviction can't drop the usage write.
             this.ctx.waitUntil(
               this.recordTokenUsage(
                 usage.inputTokens ?? 0,
                 usage.outputTokens ?? 0,
-                ESTIMATED_TOKENS_PER_CALL
+                ESTIMATED_TOKENS_PER_CALL,
+                generation
               ).pipe(
-                Effect.tap(() => Effect.promise(() => this.broadcastUsage())),
+                Effect.tap(() =>
+                  Effect.promise(() => this.broadcastUsage(generation))
+                ),
                 Effect.tapCause((cause) =>
                   Effect.logError("recordTokenUsage failed").pipe(
                     Effect.annotateLogs({ cause: String(cause) })
