@@ -10,7 +10,7 @@ const GOOGLE_ISSUER = "https://accounts.google.com";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USER_INFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 const X_USER_INFO_URL =
-  "https://api.twitter.com/2/users/me?user.fields=username,name,profile_image_url";
+  "https://api.x.com/2/users/me?user.fields=username,name,profile_image_url";
 
 const XUserInfo = Schema.Struct({
   data: Schema.Struct({
@@ -110,8 +110,8 @@ const xConfig = (
 
   return {
     providerId: "x",
-    authorizationUrl: "https://twitter.com/i/oauth2/authorize",
-    tokenUrl: "https://api.twitter.com/2/oauth2/token",
+    authorizationUrl: "https://x.com/i/oauth2/authorize",
+    tokenUrl: "https://api.x.com/2/oauth2/token",
     clientId: env.X_CLIENT_ID,
     clientSecret: env.X_CLIENT_SECRET,
     scopes: ["bookmark.read", "tweet.read", "users.read", "offline.access"],
