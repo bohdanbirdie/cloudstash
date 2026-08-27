@@ -4,7 +4,6 @@ kanban-plugin: board
 
 ## Near-term Technical Outcomes
 
-- [ ] [[todos/customer-facing-copy-accuracy|Align customer-facing copy with shipped behavior]] — reconcile product, repository, SEO, integration, Terms, and policy surfaces with executable capabilities and current availability.
 - [ ] [[todos/canonical-url-identity|Canonical URL identity across every capture path]] — prevent new duplicates first; historical reconciliation remains a separate decision.
 - [ ] [[todos/telemetry-minimization|Minimize telemetry and document retained provider data]] — keep collection purpose-bound and deletion/retention claims accurate.
 - [ ] [[todos/admin-purchase-attribution|Extend admin purchase attribution]] — bounded aggregate funnel evidence in the existing dashboard.
@@ -54,17 +53,19 @@ kanban-plugin: board
 
 ## In Progress
 
-- [ ] [[todos/paid-capability-enforcement|Enforce paid capabilities and budgets at operation time]] — direct operation gates and atomic budgets are implemented; established chat identity reauthorization remains tracked in DELTA-042 without coupling to Agents SDK internals.
-
 ## Human Operations
 
 - [ ] [[todos/human-launch-operations|Verify production Queue retention and recovery]] — durability code is merged; record plan/retention evidence and run the recovery drill.
 - [ ] [[todos/human-launch-operations|Reconcile Stripe and Portal behavior]] — maintainer credentials and production payment authority required.
 - [ ] [[todos/human-launch-operations|Obtain legal sign-off]] — deletion retention, telemetry/privacy, tracking opt-outs, billing consent, and remaining launch clauses.
+- [ ] Verify or update the published Chrome Web Store listing — describe opening the popup and choosing Save without claiming an unavailable global shortcut or automatic toolbar capture; closes DELTA-017.
 - [ ] [[todos/human-launch-operations|Provision and certify staging]] — bootstrap the isolated Worker/resources/Git branch and record the first deployed rehearsal.
 - [ ] [[todos/human-launch-operations|Choose alert destination and owner]] — then wire [[todos/admin-server-ahead-alert|the stuck-sync alert]] and other tripwires.
 
 ## Done
+
+- [x] [[todos/customer-facing-copy-accuracy|Align customer-facing copy with shipped behavior]] — repository-controlled plan, landing, README, SEO, integration, Terms, and privacy copy now matches shipped behavior in plain language; external legal, Stripe, and Chrome Web Store verification remain explicit human operations.
+- [x] [[todos/paid-capability-enforcement|Enforce paid capabilities and budgets at operation time]] — authoritative operation gates and atomic budgets now cover paid features; the separate Agents SDK connection-identity limitation remains tracked in DELTA-042.
 
 - [x] [[todos/raycast-capability-source-cleanup|Align Raycast source and entitlement semantics]] — trusted key metadata now preserves `source: raycast`, pairing and each capture use `integrations`, and direct API keys remain `publicApi`-gated.
 - [x] Free workspaces cannot manually generate weekly digests — manual generation, alarm execution, and entitlement-change scheduling now enforce `weeklyDigest` and remove stale alarms.

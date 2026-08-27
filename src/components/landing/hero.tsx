@@ -53,8 +53,9 @@ export function Hero() {
             <p className="mb-8 max-w-[52ch] text-pretty text-base font-normal leading-relaxed text-primary-foreground sm:text-lg lg:text-xl">
               Send links from Telegram, Raycast, your phone, or anywhere on the
               web — Cloudstash <span className="font-italic-accent">skims</span>{" "}
-              each article and writes a summary, so you can decide what's worth
-              a <span className="font-italic-accent">read</span>.
+              pages it can read into clear previews and summaries, so you can
+              decide what’s worth a{" "}
+              <span className="font-italic-accent">read</span>.
             </p>
             <div className="flex flex-wrap items-center gap-5">
               <Button

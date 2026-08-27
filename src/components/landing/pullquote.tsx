@@ -27,8 +27,8 @@ export function PullQuote() {
               opening one.
             </h2>
             <p className="mt-6 max-w-[44ch] text-pretty text-[15px] leading-relaxed text-primary-foreground/85">
-              A two-paragraph TL;DR on every save. Your inbox reads like a
-              contents page — you only open what earns it.
+              Clear summaries turn your Vault into a contents page — you only
+              open what earns it.
             </p>
           </motion.div>
 

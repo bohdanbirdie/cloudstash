@@ -74,7 +74,7 @@ and the
 
 ## Dependencies and risks
 
-Tracks DELTA-003, DELTA-008, DELTA-009, DELTA-013, and DELTA-019. Legal sign-off
+Tracks DELTA-003, DELTA-008, DELTA-013, and DELTA-019. Legal sign-off
 on provider-retention language remains a human action. Cloudflare Queue and
 Analytics Engine retention may constrain the strongest supportable deletion
 claim.

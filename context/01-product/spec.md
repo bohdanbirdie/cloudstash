@@ -68,8 +68,6 @@ capability values. Current bundles are:
   digest, and public API.
 - **Pro:** Plus plus X bookmark sync/enrichment, chat agent, and MCP.
 
-Plan copy still overstates summary coverage; see
-[DELTA-006](../.delta/DELTA-006-summary-length-copy-disagrees-with-output.md).
 “Weekly digest of what you read” is accepted marketing shorthand for a digest
 selected from recently saved links. A generally larger Pro summary model is
 planned work, not a current capability.
@@ -82,12 +80,12 @@ overrides at request/operation time.
 
 The product publishes privacy, terms, contact, export, and account-deletion
 surfaces. Link content is fetched to derive metadata and summaries; full fetched
-pages are not retained in the workspace model. Basic link summaries use Workers AI. Chat, eligible X enrichment, and weekly
-digest generation use OpenRouter-hosted models. The current privacy policy does
-not disclose all of that behavior. See
-[DELTA-009](../.delta/DELTA-009-deletion-copy-overstates-immediacy.md),
-[DELTA-013](../.delta/DELTA-013-activity-analytics-retain-content-after-deletion.md),
-[DELTA-014](../.delta/DELTA-014-weekly-digest-uses-undisclosed-ai-processor.md),
+pages are not retained in the workspace model. Basic link summaries use Workers
+AI. Chat, eligible X enrichment, and weekly digest generation use
+OpenRouter-hosted models. Public copy describes these providers and the
+asynchronous deletion lifecycle without exposing internal model or workflow
+details. Remaining retention and telemetry gaps are tracked in
+[DELTA-013](../.delta/DELTA-013-activity-analytics-retain-content-after-deletion.md)
 and [DELTA-016](../.delta/DELTA-016-telemetry-emits-raw-content-and-identifiers.md).
 
 OneDollarStats runs across public and authenticated routes. Meta Pixel runs only

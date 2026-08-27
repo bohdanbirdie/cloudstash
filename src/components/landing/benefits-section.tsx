@@ -22,7 +22,7 @@ export function Benefits() {
               doing.
             </>
           }
-          lead="A summary on every save. An archive you can actually search. The end of “I read that somewhere.”"
+          lead="Clear summaries. A Vault you can actually search. The end of “I read that somewhere.”"
         />
         <BenefitsGrid />
         <SectionCta />

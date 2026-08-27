@@ -11,7 +11,7 @@ export function BenefitsGrid() {
       <FeatureBenefit
         delay={0}
         title="Find anything in two keystrokes."
-        body="Title, domain, summary, tag — instantly. Your archive is a keystroke away, even offline."
+        body="Search by title, domain, summary, or tag. Your Vault is a keystroke away, even offline."
         className="sm:col-span-2 lg:col-span-6"
       >
         <SearchMockup />
@@ -19,7 +19,7 @@ export function BenefitsGrid() {
       <SmallBenefit
         delay={0.08}
         title="A summary, ready to skim."
-        body="Two paragraphs on every save. Decide what's worth opening, in seconds."
+        body="Clear summaries help you decide what’s worth opening, in seconds."
         visual={<TldrCard />}
         className="lg:col-span-3"
       />
@@ -49,7 +49,7 @@ export function BenefitsGrid() {
       <SmallBenefit
         delay={0.4}
         title="Walk away anytime. Take everything."
-        body="Export the whole archive as Markdown or plain links in one click. No lock-in."
+        body="Export your whole Vault as Markdown or plain links in one click. No lock-in."
         visual={<ArchiveCard />}
         className="lg:col-span-3"
       />

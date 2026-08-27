@@ -35,7 +35,7 @@ const PITCH_STEPS: readonly {
         TL;DR
       </span>
     ),
-    body: "A two-paragraph TL;DR is written before you’ve switched tabs.",
+    body: "A clear TL;DR makes the link useful before you return to it.",
   },
   {
     n: "03",
@@ -59,8 +59,8 @@ export function Pitch() {
               Paste a URL. <span className="text-primary">Done.</span>
             </h2>
             <p className="mt-4 max-w-[60ch] text-pretty text-sm leading-relaxed text-muted-foreground">
-              Saved to a private archive, with a clean preview and a searchable
-              summary — before you’ve switched apps.
+              Saved to your private Vault, with a clean preview and searchable
+              summary when available.
             </p>
             <PitchSteps />
           </div>

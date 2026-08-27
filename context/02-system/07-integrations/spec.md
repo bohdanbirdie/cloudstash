@@ -76,9 +76,10 @@ hosting the LiveStore client, and popup. The authenticated web route mints and
 hands off a paired key via `externally_connectable`. Sync payload validation
 checks key workspace metadata and `EXTENSION_ID_ALLOWLIST`. Popup disconnect
 best-effort revokes the server key and always clears local credentials; a 401 on
-later account check is also a logout signal. The popup currently queries URL,
-title, and favicon when opened rather than when Save is clicked; this privacy/
-least-privilege mismatch is tracked by
+later account check is also a logout signal. When opened, the popup queries the
+active tab URL, title, and favicon so it can present the pending save. It does
+not read page content. Repository privacy and product copy describe this
+behavior; the published Web Store listing remains tracked by
 [DELTA-017](../../.delta/DELTA-017-extension-read-and-advertised-capture-mismatch.md).
 
 ## Raycast
