@@ -52,10 +52,10 @@ export const cancelStripeSubscription = Effect.fn(
   );
 });
 
-export const wipeSyncBackend = Effect.fn("AccountDeletion.wipeSyncBackend")(
+export const purgeSyncBackend = Effect.fn("AccountDeletion.purgeSyncBackend")(
   function* (payload: AccountDeletionParams) {
     const runtime = yield* DeletionRuntime;
-    yield* runtime.retireSyncBackend(payload.orgId);
+    yield* runtime.purgeSyncBackend(payload.orgId);
   }
 );
 
@@ -154,13 +154,8 @@ export const ACCOUNT_DELETION_STEPS: readonly AccountDeletionStepDefinition[] =
       config: STEP_RETRY,
       activity: cancelStripeSubscription,
     },
-    // Retire the canonical eventlog first. Downstream actors may finish work
-    // already in flight, but can no longer recreate canonical state.
-    {
-      name: "wipe-sync-backend",
-      config: STEP_RETRY,
-      activity: wipeSyncBackend,
-    },
+    // Stop the server-side LiveStore clients before deleting their source so
+    // neither can reconnect and recreate the canonical eventlog after purge.
     {
       name: "wipe-link-processor",
       config: STEP_RETRY,
@@ -170,6 +165,11 @@ export const ACCOUNT_DELETION_STEPS: readonly AccountDeletionStepDefinition[] =
       name: "wipe-chat-agent",
       config: STEP_RETRY,
       activity: wipeChatAgent,
+    },
+    {
+      name: "purge-sync-backend",
+      config: STEP_RETRY,
+      activity: purgeSyncBackend,
     },
     {
       name: "purge-x-bookmark-sync",

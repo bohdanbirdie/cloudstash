@@ -241,7 +241,8 @@ describe("Account deletion (end-to-end)", () => {
           )
         ),
       ]);
-      for (const state of [syncState, linkState, chatState]) {
+      expect(syncState).toEqual({ probe: undefined, retired: undefined });
+      for (const state of [linkState, chatState]) {
         expect(state).toEqual({ probe: undefined, retired: true });
       }
       const lateChatResponse = await chatAgent.fetch(

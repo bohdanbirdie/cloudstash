@@ -4,7 +4,6 @@ import { Effect } from "effect";
 
 import { AppLayerLive } from "../auth/service";
 import { OrgId } from "../db/branded";
-import { retireDurableObjectStorage } from "../durable-object-retirement";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
@@ -178,21 +177,19 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
     }
   }
 
-  /** Permanently closes this eventlog and wipes its storage. */
-  async retire(): Promise<void> {
+  /** Closes active clients and wipes the canonical eventlog. */
+  async purgeAll(): Promise<void> {
     for (const socket of this._ctx.getWebSockets()) {
-      socket.close(1001, "Eventlog retired");
+      socket.close(1001, "Eventlog purged");
     }
     await Effect.runPromise(
       Effect.gen({ self: this }, function* () {
-        yield* Effect.promise(() =>
-          retireDurableObjectStorage(this._ctx.storage)
-        );
-        yield* Effect.logInfo("retire: storage wiped").pipe(
+        yield* Effect.promise(() => this._ctx.storage.deleteAll());
+        yield* Effect.logInfo("purgeAll: storage wiped").pipe(
           Effect.annotateLogs({ doId: this._ctx.id.toString() })
         );
       }).pipe(
-        Effect.withSpan("SyncBackendDO.retire"),
+        Effect.withSpan("SyncBackendDO.purgeAll"),
         Effect.provide(OtelTracingLive)
       )
     );

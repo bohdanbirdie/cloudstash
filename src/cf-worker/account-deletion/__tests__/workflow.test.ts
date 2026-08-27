@@ -12,7 +12,7 @@ import {
   IDENTITY_RETRY,
   STEP_RETRY,
   waitForIdentityDeletion,
-  wipeSyncBackend,
+  purgeSyncBackend,
 } from "../workflow";
 
 const payload: AccountDeletionParams = {
@@ -34,7 +34,7 @@ const dbLayer = (identityExists = false) =>
 type RuntimeMethod =
   | "cancelStripeSubscription"
   | "retireLinkProcessor"
-  | "retireSyncBackend"
+  | "purgeSyncBackend"
   | "retireChatAgent"
   | "purgeTelegram"
   | "purgeXBookmarkSync"
@@ -57,7 +57,7 @@ const runtimeLayer = (calls: RuntimeMethod[], failOn?: RuntimeMethod) => {
     DeletionRuntime,
     DeletionRuntime.of({
       retireLinkProcessor: () => call("retireLinkProcessor"),
-      retireSyncBackend: () => call("retireSyncBackend"),
+      purgeSyncBackend: () => call("purgeSyncBackend"),
       retireChatAgent: () => call("retireChatAgent"),
       purgeTelegram: () => call("purgeTelegram"),
       purgeXBookmarkSync: () => call("purgeXBookmarkSync"),
@@ -84,13 +84,13 @@ describe("account deletion activities", () => {
     )
   );
 
-  it("uses the source-first production step order and retry policies", () => {
+  it("stops sync clients before purging their canonical source", () => {
     expect(ACCOUNT_DELETION_STEPS.map(({ name }) => name)).toEqual([
       "wait-for-identity-deletion",
       "cancel-stripe-subscription",
-      "wipe-sync-backend",
       "wipe-link-processor",
       "wipe-chat-agent",
+      "purge-sync-backend",
       "purge-x-bookmark-sync",
       "purge-telegram",
       "purge-enrichment-usage",
@@ -108,12 +108,12 @@ describe("account deletion activities", () => {
     const calls: RuntimeMethod[] = [];
     const callback = () =>
       Effect.runPromise(
-        wipeSyncBackend(payload).pipe(
-          Effect.provide(runtimeLayer(calls, "retireSyncBackend"))
+        purgeSyncBackend(payload).pipe(
+          Effect.provide(runtimeLayer(calls, "purgeSyncBackend"))
         )
       );
 
     await expect(callback()).rejects.toBeInstanceOf(DeletionRuntimeError);
-    expect(calls).toEqual(["retireSyncBackend"]);
+    expect(calls).toEqual(["purgeSyncBackend"]);
   });
 });

@@ -38,7 +38,7 @@ export interface WorkflowInstanceHandle {
 
 export type DeletionRuntimeOp =
   | "retireLinkProcessor"
-  | "retireSyncBackend"
+  | "purgeSyncBackend"
   | "retireChatAgent"
   | "purgeTelegram"
   | "purgeXBookmarkSync"
@@ -70,7 +70,7 @@ export interface DeletionRuntimeShape {
   readonly retireLinkProcessor: (
     orgId: OrgId
   ) => Effect.Effect<void, DeletionRuntimeError>;
-  readonly retireSyncBackend: (
+  readonly purgeSyncBackend: (
     orgId: OrgId
   ) => Effect.Effect<void, DeletionRuntimeError>;
   readonly retireChatAgent: (
@@ -135,13 +135,13 @@ export const DeletionRuntimeLayer = (env: Env) =>
               attributes: { orgId: maskId(orgId) },
             })
           ),
-        retireSyncBackend: (orgId) =>
-          tryDO("retireSyncBackend", () =>
+        purgeSyncBackend: (orgId) =>
+          tryDO("purgeSyncBackend", () =>
             env.SYNC_BACKEND_DO.get(
               env.SYNC_BACKEND_DO.idFromName(orgId)
-            ).retire()
+            ).purgeAll()
           ).pipe(
-            Effect.withSpan("DeletionRuntime.retireSyncBackend", {
+            Effect.withSpan("DeletionRuntime.purgeSyncBackend", {
               attributes: { orgId: maskId(orgId) },
             })
           ),

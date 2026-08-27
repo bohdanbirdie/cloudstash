@@ -50,13 +50,13 @@ transitions, and irreversible account/workspace deletion.
   every content/control/telemetry/local surface and, for each, specify immediate
   purge, access revocation, bounded TTL/provider retention, or technical
   non-deletability. `refines: CS.SYS-R11`
-- **CS.SYS.LIFE-R07 Terminal owners:** A purged deterministic owner Durable
+- **CS.SYS.LIFE-R07 Terminal owners:** A retired deterministic worker Durable
   Object must remain terminal without domain callers maintaining deletion
   gates. Delayed Queue/DLQ deliveries must resolve as successful no-ops, while
   source-backed actors must reconcile missing authority into empty local state.
-- **CS.SYS.LIFE-R08 Source-first purge ordering:** A surviving authoritative
-  source must not be able to rehydrate a client store after that client is
-  purged; retire the canonical eventlog before downstream replicas.
+- **CS.SYS.LIFE-R08 Writer-first purge ordering:** Retire server-side clients
+  that can write or reconnect before purging their canonical eventlog. New
+  external sync clients must already be denied by identity revocation.
 - **CS.SYS.LIFE-R09 Step retry evidence:** Each purge step must be independently
   named, bounded, idempotent, and fail when its target operation fails so the
   Workflow retains attempt and retry evidence.

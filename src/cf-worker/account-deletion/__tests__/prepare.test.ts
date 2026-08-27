@@ -54,7 +54,7 @@ const runtimeLayer = (
     DeletionRuntime,
     DeletionRuntime.of({
       retireLinkProcessor: () => Effect.void,
-      retireSyncBackend: () => Effect.void,
+      purgeSyncBackend: () => Effect.void,
       retireChatAgent: () => Effect.void,
       purgeTelegram: () => Effect.void,
       purgeXBookmarkSync: () => Effect.void,

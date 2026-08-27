@@ -43,7 +43,7 @@ Better Auth beforeDelete
 Workflow
   → prove Better Auth's identity-row deletion committed
   → cancel Stripe subscription
-  → retire canonical SyncBackend, then LinkProcessor and Chat replicas
+  → retire LinkProcessor and Chat writers, then purge canonical SyncBackend
   → purge X, Telegram, and enrichment KV
   → conditionally delete unshared organization (D1 activity FK cascade)
   → complete as the durable deletion job
@@ -92,14 +92,14 @@ in use by other people, so their creator references use `ON DELETE SET NULL`
 instead of deleting those rows.
 
 The Workflow does not install a separate deletion state in the Worker or its
-actors. `SyncBackendDO`, `LinkProcessorDO`, and `ChatAgentDO` expose the generic
-terminal operation `retire`: close active connections/store handles, atomically
-persist an opaque actor-retired marker before graceful cleanup, then coalesce a
-full storage wipe with restoring that marker. SyncBackend retirement closes its
-active WebSockets and wipes storage through public Durable Object APIs. The
+actors. `LinkProcessorDO` and `ChatAgentDO` expose the generic terminal
+operation `retire`: close active connections/store handles, atomically persist
+an opaque actor-retired marker before graceful cleanup, then coalesce a full
+storage wipe with restoring that marker. The Workflow retires those server-side
+LiveStore clients before `SyncBackendDO.purgeAll` closes remaining WebSockets
+and wipes the canonical eventlog through public Durable Object APIs. The
 identity row is already gone, so normal sync authorization rejects new browser
-or extension connections; the Workflow then retires the server-side
-LinkProcessor and Chat clients. Cloudstash does not patch or inspect LiveStore
+or extension connections. Cloudstash does not patch or inspect LiveStore
 internals for deletion. LinkProcessor and Chat capture an internal store
 revision around external I/O and expose guarded commit capabilities to
 repositories, tools, digest persistence, and workspace operations; those
@@ -113,8 +113,9 @@ X is source-backed and has no retirement marker. `start`, `resume`, alarms, and
 delayed reconciliation re-read the Better Auth X account from D1; a missing
 account cancels the alarm and clears local state. `pause` is a no-op without an
 existing local state, and every alarm reconciles again after external I/O so it
-cannot leave rehydrated state after unlink/deletion. The Workflow closes and
-wipes the canonical SyncBackend first, then shuts down its downstream clients.
+cannot leave rehydrated state after unlink/deletion. The Workflow shuts down
+server-side LiveStore clients before wiping the canonical SyncBackend, so no
+surviving client can reconnect and rehydrate the eventlog between purge steps.
 Link Queue/DLQ deliveries to a retired processor are
 acknowledged as successful no-ops. D1 activity rows reference the organization
 with `ON DELETE CASCADE`, removing existing rows and rejecting late orphan

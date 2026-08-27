@@ -136,7 +136,7 @@ const makeEnv = (
       SYNC_BACKEND_DO: {
         idFromName: syncBackendIdFromName,
         get: vi.fn().mockReturnValue({
-          retire: syncBackendPurge,
+          purgeAll: syncBackendPurge,
         }),
       },
       Chat: {
@@ -188,7 +188,7 @@ describe("DeletionRuntimeLive — DO RPC dispatch", () => {
     return Effect.gen(function* () {
       const runtime = yield* DeletionRuntime;
       yield* runtime.retireLinkProcessor(ORG_ID);
-      yield* runtime.retireSyncBackend(ORG_ID);
+      yield* runtime.purgeSyncBackend(ORG_ID);
       yield* runtime.retireChatAgent(ORG_ID);
       yield* runtime.purgeXBookmarkSync(USER_ID);
       expect(fixture.linkProcessorPurge).toHaveBeenCalledOnce();
@@ -301,9 +301,9 @@ describe("DeletionRuntimeLive — DO RPC failure paths", () => {
       override: "linkProcessorPurge" as const,
     },
     {
-      op: "retireSyncBackend" as const,
+      op: "purgeSyncBackend" as const,
       method: (rt: typeof DeletionRuntime.Service) =>
-        rt.retireSyncBackend(ORG_ID),
+        rt.purgeSyncBackend(ORG_ID),
       override: "syncBackendPurge" as const,
     },
     {

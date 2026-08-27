@@ -56,7 +56,7 @@ If we ever need it sooner: add the `@livestore/*` packages to `minimumReleaseAge
 
 These v0.4.0 capabilities already ship in our snapshot, so they can be adopted today regardless of the version bump. Tracked here for convenience:
 
-- **`onBackendIdMismatch`** (backend reset detection) — not currently set. Relevant to `SyncBackendDO.retire()` and any DO state reset: lets clients with stale OPFS state recover (`'reset'`/`'shutdown'`/`'ignore'`).
+- **`onBackendIdMismatch`** (backend reset detection) — not currently set. Relevant to `SyncBackendDO.purgeAll()` and any DO state reset: lets clients with stale OPFS state recover (`'reset'`/`'shutdown'`/`'ignore'`).
 - **`unknownEventHandling`** on the schema — not currently set. Forward-compat for our many clients (web, Chrome ext, Raycast, Telegram, link-processor) on different update cadences when new event types ship.
 - **Event `deprecated` markers** — mark `v1.LinkCreated` (superseded by `v2.LinkCreated`) deprecated to catch any client still emitting the old shape.
 - **`Store.Tag(schema, storeId)`** Effect API — could clean up manual store threading in the DOs (`cachedStore`/`storeCreationPromise`), but our exclusive-single-instance access requirement may not map cleanly onto `Store.Tag.layer()`'s scoped lifecycle. Spike before adopting.

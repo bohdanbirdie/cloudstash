@@ -320,11 +320,13 @@ export class ChatAgentDO
     );
   }
 
-  private usageStorage(): UsageStorage {
+  private usageStorage(
+    storage: Pick<DurableObjectStorage, "get" | "put"> = this.ctx.storage
+  ): UsageStorage {
     const key = getUsageKey(getCurrentPeriod());
     return {
-      get: () => this.ctx.storage.get<UsageData>(key),
-      put: (data) => this.ctx.storage.put(key, data),
+      get: () => storage.get<UsageData>(key),
+      put: (data) => storage.put(key, data),
     };
   }
 
@@ -341,11 +343,12 @@ export class ChatAgentDO
           });
           return RESERVE_OUTCOME.Unavailable;
         }
-        const storage = this.usageStorage();
         const reserved = yield* Effect.promise(() =>
-          this.isCurrent(generation)
-            ? reserveTokensIn(storage, estimate, limit)
-            : Promise.resolve(null)
+          this.ctx.storage.transaction((transaction) =>
+            this.isCurrent(generation)
+              ? reserveTokensIn(this.usageStorage(transaction), estimate, limit)
+              : Promise.resolve(null)
+          )
         );
         if (reserved === null) {
           yield* Effect.logInfo(
@@ -373,18 +376,19 @@ export class ChatAgentDO
     releaseReservation: number,
     generation: number
   ): Effect.Effect<void> {
-    const storage = this.usageStorage();
     return Effect.gen({ self: this }, function* () {
-      const committed = yield* Effect.promise(async () => {
-        if (!this.isCurrent(generation)) return false;
-        await reconcileTokenUsageIn(
-          storage,
-          promptTokens,
-          completionTokens,
-          releaseReservation
-        );
-        return true;
-      });
+      const committed = yield* Effect.promise(() =>
+        this.ctx.storage.transaction(async (transaction) => {
+          if (!this.isCurrent(generation)) return false;
+          await reconcileTokenUsageIn(
+            this.usageStorage(transaction),
+            promptTokens,
+            completionTokens,
+            releaseReservation
+          );
+          return true;
+        })
+      );
       if (!committed) {
         yield* Effect.logInfo(
           "Token usage write skipped because the actor retired"
