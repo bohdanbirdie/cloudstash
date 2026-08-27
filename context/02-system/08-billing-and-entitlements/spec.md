@@ -63,6 +63,20 @@ to tier/interval, and updates D1. Writes persist subscription ID/status, period
 end, cancellation state, and interval. Stripe sync returns without changing
 manual `tierSource: admin` grants.
 
+## Billing Return Experience
+
+The authenticated `/welcome` return surface reads the workspace's operational
+billing state after checkout or portal changes. It shows an indeterminate state
+while that state loads, then presents the confirmed tier and its benefits. Paid
+tiers include the next renewal date when one is known.
+
+If the billing state cannot be loaded, the surface keeps access to the library
+available and offers an in-place retry. A rejected retry remains on that
+recoverable state, is handled without an unhandled browser rejection, and can be
+attempted again. A paid tier scheduled for cancellation remains presented as
+active through its known period end and offers both library access and a path to
+resume the subscription.
+
 ## Plans and Price Drift
 
 Paid tiers support monthly and annual prices. `check:pricing` compares local

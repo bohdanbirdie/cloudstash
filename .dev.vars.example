@@ -37,13 +37,13 @@ TELEGRAM_WEBHOOK_SECRET={{ op://Cloudstash/secrets/local/TELEGRAM_WEBHOOK_SECRET
 
 # Stripe billing (optional; use test-mode resources only)
 # Keep the API key, webhook secret, and all price IDs in the same test account.
-STRIPE_API_KEY={{ op://Cloudstash/secrets/nonproduction/STRIPE_API_KEY }}
+STRIPE_API_KEY={{ op://Cloudstash/secrets/local/STRIPE_API_KEY }}
 # Endpoint-specific; populate after adding a dedicated local webhook secret.
 STRIPE_WEBHOOK_SECRET=
-STRIPE_PRICE_PLUS={{ op://Cloudstash/secrets/nonproduction/STRIPE_PRICE_PLUS }}
-STRIPE_PRICE_PLUS_YEARLY={{ op://Cloudstash/secrets/nonproduction/STRIPE_PRICE_PLUS_YEARLY }}
-STRIPE_PRICE_PRO={{ op://Cloudstash/secrets/nonproduction/STRIPE_PRICE_PRO }}
-STRIPE_PRICE_PRO_YEARLY={{ op://Cloudstash/secrets/nonproduction/STRIPE_PRICE_PRO_YEARLY }}
+STRIPE_PRICE_PLUS={{ op://Cloudstash/secrets/local/STRIPE_PRICE_PLUS }}
+STRIPE_PRICE_PLUS_YEARLY={{ op://Cloudstash/secrets/local/STRIPE_PRICE_PLUS_YEARLY }}
+STRIPE_PRICE_PRO={{ op://Cloudstash/secrets/local/STRIPE_PRICE_PRO }}
+STRIPE_PRICE_PRO_YEARLY={{ op://Cloudstash/secrets/local/STRIPE_PRICE_PRO_YEARLY }}
 
 # Admin usage analytics (optional)
 CF_ACCOUNT_ID={{ op://Cloudstash/secrets/shared/CF_ACCOUNT_ID }}

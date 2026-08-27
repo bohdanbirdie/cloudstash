@@ -9,11 +9,14 @@ export function LinksPageLayout() {
   const { tag } = useTagFilter();
   const links = useFilteredLinks(staticData.status);
   const listKey = `${staticData.status ?? "all"}:${tag ?? ""}`;
+  const showPasteHint =
+    staticData.status === "all" || staticData.status === "inbox";
   return (
     <div className="pt-3">
       <LinkList
         links={links}
         emptyMessage={staticData.emptyMessage ?? ""}
+        showPasteHint={showPasteHint}
         listKey={listKey}
       />
     </div>
