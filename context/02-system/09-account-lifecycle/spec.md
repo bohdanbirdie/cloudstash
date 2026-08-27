@@ -16,11 +16,15 @@ repairs an owner membership when the personal organization exists without one,
 or creates `<name>'s Workspace` with stable user-derived slug. The organization
 ID becomes `activeOrganizationId`.
 
-The app path keeps unapproved users on the pending flow. Sync preflight and the
-authoritative `/sync` validator share the same authorization decision: both
-require the session's active workspace, current approval, current membership,
-and equality with the requested workspace. Admin member management can approve
-users; viewer permissions cannot mutate membership.
+The app path reads approval from D1 instead of Better Auth's cookie cache before
+deciding whether to mount the workspace or show the pending flow. This prevents
+a stale or pre-approval session cookie from trapping an approved user. The
+pending flow retains explicit sign-out and type-to-confirm account-deletion
+escape routes. Sync preflight and the authoritative `/sync` validator share the
+same authorization decision: both require the session's active workspace,
+current approval, current membership, and equality with the requested
+workspace. Admin member management can approve users; viewer permissions cannot
+mutate membership.
 
 ## Logout and Local State
 

@@ -59,7 +59,9 @@ let authCache: { value: AuthState | null; expiresAt: number } | null = null;
 let inflight: Promise<AuthState | null> | null = null;
 
 const fetchAuth = async (): Promise<AuthState | null> => {
-  const { data } = await authClient.getSession();
+  const { data } = await authClient.getSession({
+    fetchOptions: { query: { disableCookieCache: "true" } },
+  });
   const value = deriveAuthState(data);
   authCache = { expiresAt: Date.now() + AUTH_TTL_MS, value };
   return value;
