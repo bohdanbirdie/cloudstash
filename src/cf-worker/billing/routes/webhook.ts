@@ -4,6 +4,7 @@ import type StripeSdk from "stripe";
 import { StripeCustomerId } from "../../db/branded";
 import { maskId, safeErrorInfo } from "../../log-utils";
 import type { Env } from "../../shared";
+import { reconcileDigestSchedule } from "../../weekly-digest/reconcile";
 import { enqueueOrgXReconcile } from "../../x-sync/reconcile-triggers";
 import { WebhookVerificationError } from "../errors";
 import { StripeClient } from "../stripe-client";
@@ -78,6 +79,7 @@ const webhookRequest = Effect.fn("Billing.webhook")(function* (
   const orgId = yield* syncFromStripe(customerId);
   if (orgId) {
     yield* enqueueOrgXReconcile(orgId);
+    yield* reconcileDigestSchedule(orgId);
   }
   return Response.json({ received: true });
 });
@@ -99,6 +101,13 @@ export const webhookProgram = (request: Request) =>
           "Billing.webhook: X reconciliation enqueue failed"
         ).pipe(
           Effect.annotateLogs(safeErrorInfo(error)),
+          Effect.as(json(500, "Internal server error"))
+        ),
+      DigestScheduleReconcileError: (error) =>
+        Effect.logError(
+          "Billing.webhook: digest schedule reconciliation failed"
+        ).pipe(
+          Effect.annotateLogs(safeErrorInfo(error.cause)),
           Effect.as(json(500, "Internal server error"))
         ),
     })

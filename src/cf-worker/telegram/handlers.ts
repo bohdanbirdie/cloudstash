@@ -5,8 +5,8 @@ import type { UserId } from "../db/branded";
 import { safeErrorInfo } from "../log-utils";
 import { LinkQueue, Messenger, SourceAuth, TelegramKeyStore } from "./services";
 
-export const handleLinks = (urls: string[]) =>
-  Effect.gen(function* () {
+export const handleLinks = Effect.fn("Telegram.handleLinks")(
+  function* (urls: string[]) {
     const messenger = yield* Messenger;
     const auth = yield* SourceAuth;
     const queue = yield* LinkQueue;
@@ -38,55 +38,62 @@ export const handleLinks = (urls: string[]) =>
         Effect.annotateLogs({ count: urls.length })
       );
     }
-  }).pipe(
-    Effect.withSpan("Telegram.handleLinks"),
-    Effect.catchTags({
-      NotConnectedError: () =>
-        Messenger.pipe(
-          Effect.flatMap((m) =>
-            m.reply("Please connect first: /connect <api-key>")
+  },
+  Effect.catchTags({
+    NotConnectedError: () =>
+      Messenger.pipe(
+        Effect.flatMap((m) =>
+          m.reply("Please connect first: /connect <api-key>")
+        )
+      ),
+    TelegramInvalidApiKeyError: () =>
+      Messenger.pipe(
+        Effect.flatMap((m) =>
+          m.reply(
+            "Your API key is no longer valid. Please reconnect: /connect <new-api-key>"
           )
-        ),
-      TelegramInvalidApiKeyError: () =>
-        Messenger.pipe(
-          Effect.flatMap((m) =>
-            m.reply(
-              "Your API key is no longer valid. Please reconnect: /connect <new-api-key>"
-            )
+        )
+      ),
+    CapabilityDisabledError: () =>
+      Messenger.pipe(
+        Effect.flatMap((m) =>
+          m.reply(
+            "Telegram saving is available on Plus and Pro. Upgrade your plan to keep using it."
           )
-        ),
-      RateLimitError: () =>
-        Messenger.pipe(
-          Effect.flatMap((m) =>
-            m.reply("Too many links today. Please try again tomorrow.")
+        )
+      ),
+    RateLimitError: () =>
+      Messenger.pipe(
+        Effect.flatMap((m) =>
+          m.reply("Too many links today. Please try again tomorrow.")
+        )
+      ),
+    TelegramMissingOrgIdError: () =>
+      Messenger.pipe(
+        Effect.flatMap((m) =>
+          m.reply(
+            "API key missing orgId. Please generate a new key from the web app."
           )
-        ),
-      TelegramMissingOrgIdError: () =>
-        Messenger.pipe(
-          Effect.flatMap((m) =>
-            m.reply(
-              "API key missing orgId. Please generate a new key from the web app."
-            )
-          )
-        ),
-      TelegramAuthUnavailableError: (error) =>
-        Effect.logError("Telegram authentication unavailable").pipe(
-          Effect.annotateLogs(safeErrorInfo(error.cause)),
-          Effect.flatMap(() =>
-            Messenger.pipe(
-              Effect.flatMap((m) =>
-                m.reply(
-                  "Authentication is temporarily unavailable. Please try again later."
-                )
+        )
+      ),
+    TelegramAuthUnavailableError: (error) =>
+      Effect.logError("Telegram authentication unavailable").pipe(
+        Effect.annotateLogs(safeErrorInfo(error.cause)),
+        Effect.flatMap(() =>
+          Messenger.pipe(
+            Effect.flatMap((m) =>
+              m.reply(
+                "Authentication is temporarily unavailable. Please try again later."
               )
             )
           )
-        ),
-    })
-  );
+        )
+      ),
+  })
+);
 
-export const handleConnect = (chatId: number, apiKeyText: string | undefined) =>
-  Effect.gen(function* () {
+export const handleConnect = Effect.fn("Telegram.handleConnect")(
+  function* (chatId: number, apiKeyText: string | undefined) {
     const messenger = yield* Messenger;
     const auth = yield* SourceAuth;
     const keyStore = yield* TelegramKeyStore;
@@ -99,42 +106,45 @@ export const handleConnect = (chatId: number, apiKeyText: string | undefined) =>
     yield* keyStore.put(chatId, apiKeyText);
     yield* keyStore.linkUser(userId, chatId);
     yield* messenger.reply("Connected! Send me any link to save it.");
-  }).pipe(
-    Effect.withSpan("Telegram.handleConnect"),
-    Effect.catchTags({
-      TelegramInvalidApiKeyError: () =>
-        Messenger.pipe(
-          Effect.flatMap((m) => m.reply("Invalid or expired API key."))
-        ),
-      TelegramMissingOrgIdError: () =>
-        Messenger.pipe(
-          Effect.flatMap((m) =>
-            m.reply(
-              "API key missing orgId. Please generate a new key from the web app."
-            )
+  },
+  Effect.catchTags({
+    TelegramInvalidApiKeyError: () =>
+      Messenger.pipe(
+        Effect.flatMap((m) => m.reply("Invalid or expired API key."))
+      ),
+    CapabilityDisabledError: () =>
+      Messenger.pipe(
+        Effect.flatMap((m) => m.reply("Telegram is available on Plus and Pro."))
+      ),
+    TelegramMissingOrgIdError: () =>
+      Messenger.pipe(
+        Effect.flatMap((m) =>
+          m.reply(
+            "API key missing orgId. Please generate a new key from the web app."
           )
-        ),
-      RateLimitError: () =>
-        Messenger.pipe(
-          Effect.flatMap((m) =>
-            m.reply("Too many requests. Please try again later.")
-          )
-        ),
-      TelegramAuthUnavailableError: (error) =>
-        Effect.logError("Telegram authentication unavailable").pipe(
-          Effect.annotateLogs(safeErrorInfo(error.cause)),
-          Effect.flatMap(() =>
-            Messenger.pipe(
-              Effect.flatMap((m) =>
-                m.reply(
-                  "Authentication is temporarily unavailable. Please try again later."
-                )
+        )
+      ),
+    RateLimitError: () =>
+      Messenger.pipe(
+        Effect.flatMap((m) =>
+          m.reply("Too many requests. Please try again later.")
+        )
+      ),
+    TelegramAuthUnavailableError: (error) =>
+      Effect.logError("Telegram authentication unavailable").pipe(
+        Effect.annotateLogs(safeErrorInfo(error.cause)),
+        Effect.flatMap(() =>
+          Messenger.pipe(
+            Effect.flatMap((m) =>
+              m.reply(
+                "Authentication is temporarily unavailable. Please try again later."
               )
             )
           )
-        ),
-    })
-  );
+        )
+      ),
+  })
+);
 
 export const handleDisconnect = Effect.fn("Telegram.handleDisconnect")(
   function* (chatId: number) {

@@ -46,6 +46,7 @@ export const DigestSchedulerLive = (
 
     const caps = yield* deps.getCapabilities;
     if (!caps.weeklyDigest) {
+      yield* Effect.promise(() => deps.storage.deleteAlarm());
       yield* Effect.logInfo("ensureScheduled: skip (capability off)").pipe(
         Effect.annotateLogs({ storeId: maskId(storeId) })
       );
@@ -97,7 +98,12 @@ export const DigestSchedulerLive = (
     yield* Effect.annotateCurrentSpan("storeId", maskId(storeId));
 
     const caps = yield* deps.getCapabilities;
-    if (!caps.weeklyDigest) return;
+    if (!caps.weeklyDigest) {
+      yield* Effect.logInfo("Digest alarm: skip (capability off)").pipe(
+        Effect.annotateLogs({ storeId: maskId(storeId) })
+      );
+      return;
+    }
 
     yield* deps
       .runDigest(storeId, "alarm")
@@ -117,6 +123,14 @@ export const DigestSchedulerLive = (
 
     yield* deps.setStoreId(storeId);
     yield* Effect.promise(() => deps.storage.put("storeId", storeId));
+
+    const caps = yield* deps.getCapabilities;
+    if (!caps.weeklyDigest) {
+      yield* Effect.logInfo("Weekly digest manual trigger denied").pipe(
+        Effect.annotateLogs({ storeId: maskId(storeId) })
+      );
+      return { status: "unavailable" } as const;
+    }
 
     return yield* deps.runDigest(storeId, "manual");
   });

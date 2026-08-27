@@ -9,6 +9,7 @@ export type BooleanCapKey = Extract<
   | "xContentEnrichment"
   | "publicApi"
   | "mcpServer"
+  | "weeklyDigest"
 >;
 
 export const BOOLEAN_CAPS: ReadonlyArray<{
@@ -23,6 +24,7 @@ export const BOOLEAN_CAPS: ReadonlyArray<{
   { key: "xContentEnrichment", short: "X+", label: "X content enrichment" },
   { key: "publicApi", short: "API", label: "Public API" },
   { key: "mcpServer", short: "MCP", label: "MCP server" },
+  { key: "weeklyDigest", short: "Digest", label: "Weekly digest" },
 ];
 
 export const IS_DEV = import.meta.env.DEV;

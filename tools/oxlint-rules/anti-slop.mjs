@@ -78,6 +78,152 @@ const importedName = (node) => {
     : node.imported.value;
 };
 
+const isImportedIdentifier = (
+  sourceCode,
+  expression,
+  expectedName,
+  sourceMatches
+) => {
+  if (expression.type !== "Identifier") return false;
+
+  const variable = resolveVariable(sourceCode, expression);
+  if (variable === null) return false;
+
+  return variable.defs.some((definition) => {
+    if (
+      definition.type !== "ImportBinding" ||
+      definition.parent?.type !== "ImportDeclaration"
+    ) {
+      return false;
+    }
+
+    return (
+      importedName(definition.node) === expectedName &&
+      sourceMatches(definition.parent.source.value)
+    );
+  });
+};
+
+const memberName = (member) => {
+  if (member.type !== "MemberExpression") return null;
+  if (member.computed) {
+    return member.property.type === "Literal" ? member.property.value : null;
+  }
+  return member.property.type === "Identifier" ? member.property.name : null;
+};
+
+const isEffectMemberCall = (sourceCode, expression, method) =>
+  expression.type === "CallExpression" &&
+  expression.callee.type === "MemberExpression" &&
+  memberName(expression.callee) === method &&
+  isImportedIdentifier(
+    sourceCode,
+    expression.callee.object,
+    "Effect",
+    (source) => source === "effect"
+  );
+
+const isAppLayerLiveCall = (sourceCode, expression) =>
+  expression?.type === "CallExpression" &&
+  isImportedIdentifier(
+    sourceCode,
+    expression.callee,
+    "AppLayerLive",
+    (source) =>
+      source === "@/cf-worker/auth/service" ||
+      (source.startsWith(".") && /(?:^|\/)auth\/service$/.test(source))
+  );
+
+const noHiddenAppLayerOutputs = {
+  meta: {
+    type: "problem",
+    messages: {
+      hidden:
+        "Layer.provide hides AppLayerLive outputs, including tracing. Use Layer.provideMerge, or provide AppLayerLive at the Effect runtime boundary.",
+    },
+  },
+  create(context) {
+    const sourceCode = context.sourceCode ?? context.getSourceCode();
+    return {
+      CallExpression(node) {
+        if (
+          node.callee.type !== "MemberExpression" ||
+          memberName(node.callee) !== "provide" ||
+          !isImportedIdentifier(
+            sourceCode,
+            node.callee.object,
+            "Layer",
+            (source) => source === "effect"
+          ) ||
+          !isAppLayerLiveCall(sourceCode, node.arguments[0])
+        ) {
+          return;
+        }
+
+        context.report({ node, messageId: "hidden" });
+      },
+    };
+  },
+};
+
+const propertyName = (property) => {
+  if (property.type !== "Property" || property.computed) return null;
+  if (property.key.type === "Identifier") return property.key.name;
+  return property.key.type === "Literal" ? property.key.value : null;
+};
+
+const isCapabilityDisabledRecovery = (sourceCode, expression) => {
+  if (isEffectMemberCall(sourceCode, expression, "catchTag")) {
+    return (
+      expression.arguments[0]?.type === "Literal" &&
+      expression.arguments[0].value === "CapabilityDisabledError"
+    );
+  }
+
+  if (!isEffectMemberCall(sourceCode, expression, "catchTags")) return false;
+  const handlers = expression.arguments[0];
+  return (
+    handlers?.type === "ObjectExpression" &&
+    handlers.properties.some(
+      (property) => propertyName(property) === "CapabilityDisabledError"
+    )
+  );
+};
+
+const noCapabilityRecoveryAfterSpan = {
+  meta: {
+    type: "problem",
+    messages: {
+      recoveryAfterSpan:
+        "Recover CapabilityDisabledError before creating the operation span, or pass the recovery as an Effect.fn transformation, so an expected plan denial does not finalize the span as an error.",
+    },
+  },
+  create(context) {
+    const sourceCode = context.sourceCode ?? context.getSourceCode();
+    return {
+      CallExpression(node) {
+        if (
+          node.callee.type !== "MemberExpression" ||
+          memberName(node.callee) !== "pipe"
+        ) {
+          return;
+        }
+
+        const spanIndex = node.arguments.findIndex((argument) =>
+          isEffectMemberCall(sourceCode, argument, "withSpan")
+        );
+        if (spanIndex === -1) return;
+
+        for (const argument of node.arguments.slice(spanIndex + 1)) {
+          if (isCapabilityDisabledRecovery(sourceCode, argument)) {
+            context.report({ node: argument, messageId: "recoveryAfterSpan" });
+          }
+        }
+      },
+    };
+  },
+};
+
 const isTestFrameworkObject = (sourceCode, expression) => {
   if (expression.type !== "Identifier") return false;
   if (
@@ -147,6 +293,8 @@ export default {
   meta: { name: "anti-slop" },
   rules: {
     "no-chained-type-assertions": noChainedTypeAssertions,
+    "no-hidden-app-layer-outputs": noHiddenAppLayerOutputs,
+    "no-capability-recovery-after-span": noCapabilityRecoveryAfterSpan,
     "no-module-mocking": noModuleMocking,
   },
 };

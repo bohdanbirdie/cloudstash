@@ -86,11 +86,15 @@ stateful bindings. Sync tests read the backend eventlog from fresh stubs. Forced
 idle-eviction tests call `abortAllDurableObjects()` only after quiescing relevant
 live pull, discard pre-abort stubs, and inspect a persisted owner after wake.
 This specifically targets fire-and-forget fibers and store reconstruction.
-X reconciliation tests drive authenticated entitlement changes and scheduled repair
-through the configured local Queue producer and consumer before inspecting the
-real per-user Durable Object's state and alarm. Focused failure-path tests use
-explicit typed dependency implementations and call recorders rather than
-framework-level function, module, or global mocks.
+X reconciliation tests drive authenticated entitlement changes and scheduled
+repair through the configured local Queue producer and consumer before
+inspecting the real per-user Durable Object's state and alarm. Capability
+regressions verify Raycast source-specific intake, Telegram downgrade checks,
+X alarm suspension after capability revocation, digest alarm reconciliation,
+manual digest denial, and concurrent enrichment reservation at the configured
+cap. Focused failure-path tests use explicit
+typed dependency implementations and call recorders rather than framework-level
+function, module, or global mocks.
 
 Provider-heavy AI is stubbed where the target contract permits. Timing-dependent
 pipeline settlement without a hermetic stub is not accepted as sync durability

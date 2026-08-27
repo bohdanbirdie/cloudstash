@@ -6,6 +6,10 @@ import { AuthClient } from "../../auth/service";
 import { OrgId, UserId } from "../../db/branded";
 import { DbClient } from "../../db/service";
 import {
+  DigestScheduleReconcileError,
+  DigestScheduleReconciler,
+} from "../../weekly-digest/reconcile";
+import {
   XReconcileQueue,
   XReconcileQueueError,
 } from "../../x-sync/reconcile-queue";
@@ -29,11 +33,20 @@ const reconcileQueueLayer = Layer.succeed(
   XReconcileQueue.of({ send: () => Effect.void })
 );
 
+const digestScheduleLayer = Layer.succeed(DigestScheduleReconciler, {
+  reconcile: () => Effect.void,
+});
+
 const run = <R>(
-  program: Effect.Effect<Response, never, R | XReconcileQueue>,
+  program: Effect.Effect<
+    Response,
+    never,
+    DigestScheduleReconciler | R | XReconcileQueue
+  >,
   layer: Layer.Layer<R>,
-  queue: Layer.Layer<XReconcileQueue> = reconcileQueueLayer
-) => quiet(program.pipe(Effect.provide(Layer.mergeAll(layer, queue))));
+  queue: Layer.Layer<XReconcileQueue> = reconcileQueueLayer,
+  digest: Layer.Layer<DigestScheduleReconciler> = digestScheduleLayer
+) => quiet(program.pipe(Effect.provide(Layer.mergeAll(digest, layer, queue))));
 
 const recordingQueue = Effect.fnUntraced(function* () {
   const messages = yield* Ref.make<ReadonlyArray<XReconcileMessage>>([]);
@@ -46,6 +59,25 @@ const recordingQueue = Effect.fnUntraced(function* () {
   );
   return { layer, messages };
 });
+
+const recordingDigestSchedule = Effect.fnUntraced(function* () {
+  const orgIds = yield* Ref.make<ReadonlyArray<OrgId>>([]);
+  const layer = Layer.succeed(DigestScheduleReconciler, {
+    reconcile: (orgId) => Ref.update(orgIds, (current) => [...current, orgId]),
+  });
+  return { layer, orgIds };
+});
+
+const failingDigestSchedule = (orgId: OrgId) =>
+  Layer.succeed(DigestScheduleReconciler, {
+    reconcile: () =>
+      Effect.fail(
+        new DigestScheduleReconcileError({
+          cause: new Error("digest owner unavailable"),
+          orgId,
+        })
+      ),
+  });
 
 const notImpl = (): Effect.Effect<never> =>
   Effect.die("StripeClient method not stubbed in test");
@@ -202,6 +234,7 @@ describe("webhookProgram", () => {
     Effect.gen(function* () {
       const updates: Record<string, unknown>[] = [];
       const queue = yield* recordingQueue();
+      const digest = yield* recordingDigestSchedule();
       const userId = UserId.make("x-linked-user");
       const res = yield* run(
         webhookProgram(post({ "stripe-signature": "sig" })),
@@ -214,12 +247,16 @@ describe("webhookProgram", () => {
             userId,
           ])
         ),
-        queue.layer
+        queue.layer,
+        digest.layer
       );
       expect(res.status).toBe(200);
       expect(updates[0]?.tier).toBe("free");
       assert.deepStrictEqual(yield* Ref.get(queue.messages), [
         { userId, orgId: OrgId.make(ORG_UUID) },
+      ]);
+      assert.deepStrictEqual(yield* Ref.get(digest.orgIds), [
+        OrgId.make(ORG_UUID),
       ]);
     })
   );
@@ -282,6 +319,25 @@ describe("webhookProgram", () => {
         );
         expect(res.status).toBe(500);
       })
+  );
+
+  it.effect("returns 500 so Stripe retries when digest wake fails", () =>
+    Effect.gen(function* () {
+      const orgId = OrgId.make(ORG_UUID);
+      const res = yield* run(
+        webhookProgram(post({ "stripe-signature": "sig" })),
+        Layer.mergeAll(
+          stripeStub({
+            constructWebhookEvent: () => Effect.succeed(stripeEvent("cus_1")),
+            listSubscriptions: () => Effect.succeed([]),
+          }),
+          orgDb({ id: orgId, tier: "pro", tierSource: "stripe" })
+        ),
+        reconcileQueueLayer,
+        failingDigestSchedule(orgId)
+      );
+      expect(res.status).toBe(500);
+    })
   );
 });
 
@@ -439,6 +495,7 @@ describe("successProgram", () => {
   it.effect("redirects to /welcome after syncing", () =>
     Effect.gen(function* () {
       const updates: Record<string, unknown>[] = [];
+      const digest = yield* recordingDigestSchedule();
       const res = yield* run(
         successProgram(get(), WELCOME_URL),
         Layer.mergeAll(
@@ -453,10 +510,15 @@ describe("successProgram", () => {
             },
             updates
           )
-        )
+        ),
+        reconcileQueueLayer,
+        digest.layer
       );
       expect(res.status).toBe(302);
       expect(res.headers.get("location")).toBe("https://app.test/welcome");
+      assert.deepStrictEqual(yield* Ref.get(digest.orgIds), [
+        OrgId.make(ORG_UUID),
+      ]);
     })
   );
 
@@ -505,6 +567,29 @@ describe("successProgram", () => {
         )
       );
       expect(res.status).toBe(302);
+    })
+  );
+
+  it.effect("still redirects when digest wake fails (webhook backstops)", () =>
+    Effect.gen(function* () {
+      const orgId = OrgId.make(ORG_UUID);
+      const res = yield* run(
+        successProgram(get(), WELCOME_URL),
+        Layer.mergeAll(
+          stripeStub({ listSubscriptions: () => Effect.succeed([]) }),
+          authStub(loggedIn),
+          orgDb({
+            id: orgId,
+            tier: "pro",
+            tierSource: "stripe",
+            stripeCustomerId: "cus_1",
+          })
+        ),
+        reconcileQueueLayer,
+        failingDigestSchedule(orgId)
+      );
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toBe("https://app.test/welcome");
     })
   );
 });

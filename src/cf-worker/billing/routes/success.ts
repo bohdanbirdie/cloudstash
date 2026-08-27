@@ -1,9 +1,8 @@
 import { Effect, Option } from "effect";
 
-import { DbError } from "../../db/service";
 import { maskId, safeErrorInfo } from "../../log-utils";
 import type { Env } from "../../shared";
-import { StripeApiError } from "../errors";
+import { reconcileDigestSchedule } from "../../weekly-digest/reconcile";
 import { getStripeCustomerId, syncFromStripe } from "../stripe-sync";
 import { runBilling } from "./runtime";
 import { appBaseUrl, requireOrg } from "./shared";
@@ -16,7 +15,7 @@ const successRequest = Effect.fn("Billing.success")(function* (
   yield* Effect.annotateCurrentSpan({ orgId: maskId(orgId) });
   const customerId = yield* getStripeCustomerId(orgId);
 
-  const backstop = (error: DbError | StripeApiError) =>
+  const backstop = (error: unknown) =>
     Effect.logWarning(
       "Billing.success sync failed; webhook will backstop"
     ).pipe(
@@ -27,7 +26,14 @@ const successRequest = Effect.fn("Billing.success")(function* (
     onNone: () => Effect.void,
     onSome: (id) =>
       syncFromStripe(id).pipe(
-        Effect.catchTags({ DbError: backstop, StripeApiError: backstop })
+        Effect.flatMap((syncedOrgId) =>
+          syncedOrgId ? reconcileDigestSchedule(syncedOrgId) : Effect.void
+        ),
+        Effect.catchTags({
+          DbError: backstop,
+          DigestScheduleReconcileError: (error) => backstop(error.cause),
+          StripeApiError: backstop,
+        })
       ),
   });
 

@@ -1,20 +1,20 @@
 # Align Raycast source and entitlement semantics
 
-## Problem and outcome
+## Outcome
 
-Raycast Store publication and ordinary paid use work, but pairing and save paths
-do not yet share one source/entitlement contract. Preserve Raycast attribution
-and make override behavior consistent at pair and operation time.
+Completed on `fix/paid-operation-enforcement`: pairing and every save share the
+`integrations` contract, trusted key metadata preserves Raycast attribution, and
+direct API keys continue to use `publicApi`.
 
 ## Agreed scope and non-goals
 
-- Read trusted connection metadata at ingest and emit `raycast` for Raycast
-  captures.
-- Choose and enforce one entitlement contract consistently at connection
-  and every save, including overrides/downgrades.
-- Keep current workspace access checks and stable client-facing denials.
-- Update analytics/API responses and tests that depend on source.
-- No Store publication work or broad Raycast client redesign.
+- [x] Read trusted connection metadata at ingest and emit `raycast` for Raycast
+      captures.
+- [x] Choose and enforce one entitlement contract consistently at connection
+      and every save, including overrides/downgrades.
+- [x] Keep current workspace access checks and stable client-facing denials.
+- [x] Update queued source contracts and tests that depend on source.
+- [x] Avoid Store publication work or broad Raycast client redesign.
 
 ## Agreed constraints
 
@@ -37,7 +37,5 @@ Coordinate with [[paid-capability-enforcement]]. Changing which capability owns
 Raycast can affect existing overrides and requires a migration/communication
 decision if such overrides exist.
 
-## Size and uncertainty
-
-Small-medium. Source preservation is direct; override compatibility is the main
-uncertainty.
+DELTA-036 is resolved. The direct API and Raycast regression matrix locks the
+capability split and trusted source behavior.

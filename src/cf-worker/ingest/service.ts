@@ -31,8 +31,11 @@ const IngestBody = Schema.Struct({ url: Schema.String });
 const decodeIngestBody = Schema.decodeUnknownEffect(IngestBody);
 const decodeUrl = Schema.decodeUnknownEffect(HttpUrlFromString);
 
+type IngestSource = "api" | "raycast";
+
 const enqueueLink = Effect.fn("Ingest.enqueueLink")(function* (
   orgId: OrgId,
+  source: IngestSource,
   url: string,
   env: Env
 ) {
@@ -45,7 +48,7 @@ const enqueueLink = Effect.fn("Ingest.enqueueLink")(function* (
     catch: (cause) => new IngestQueueSendError({ cause }),
     try: () =>
       env.LINK_QUEUE.send({
-        source: "api",
+        source,
         sourceMeta: null,
         storeId: orgId,
         url,
@@ -55,7 +58,7 @@ const enqueueLink = Effect.fn("Ingest.enqueueLink")(function* (
   yield* Effect.logInfo("Ingest queued").pipe(
     Effect.annotateLogs({
       orgId: maskId(orgId),
-      source: "api",
+      source,
     })
   );
 });
@@ -87,15 +90,22 @@ export const handleIngestRequest = Effect.fnUntraced(function* (
     IngestMissingApiKeyError.make({})
   );
   const workspaceAccess = yield* WorkspaceAccess;
-  const { orgId, userId } = yield* workspaceAccess
+  const {
+    orgId,
+    source: keySource,
+    userId,
+  } = yield* workspaceAccess
     .authorizeApiKey(apiKey)
     .pipe(Effect.mapError(translateWorkspaceAccess));
+
+  const source: IngestSource = keySource === "raycast" ? "raycast" : "api";
+  const capability = source === "raycast" ? "integrations" : "publicApi";
 
   yield* Effect.logDebug("API key verified").pipe(
     Effect.annotateLogs({ orgId: maskId(orgId) })
   );
 
-  yield* requireCapability(orgId, "publicApi");
+  yield* requireCapability(orgId, capability);
 
   // Preserve the public API's established attempt-level analytics timing,
   // including malformed request bodies and invalid URLs.
@@ -109,7 +119,7 @@ export const handleIngestRequest = Effect.fnUntraced(function* (
     Effect.flatMap(decodeIngestBody),
     Effect.mapError(() => IngestMissingUrlError.make({}))
   );
-  yield* enqueueLink(orgId, url, env);
+  yield* enqueueLink(orgId, source, url, env);
 
   return { ok: true, result: { status: "queued" } };
 });
