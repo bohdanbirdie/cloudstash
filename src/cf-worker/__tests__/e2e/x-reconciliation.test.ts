@@ -2,6 +2,7 @@ import { describe, expect, it } from "@effect/vitest";
 import {
   createExecutionContext,
   createScheduledController,
+  abortAllDurableObjects,
   env,
   runInDurableObject,
   runDurableObjectAlarm,
@@ -113,6 +114,32 @@ const setTier = async (
 };
 
 describe("X reconciliation E2E", () => {
+  it("cleans itself up when delayed reconciliation finds no X account", async () => {
+    const { stub, user } = await createLinkedPoller({
+      alarm: true,
+      label: "deleted",
+    });
+    await env.DB.prepare("DELETE FROM account WHERE user_id = ?")
+      .bind(user.userId)
+      .run();
+    await stub.disconnect();
+    await abortAllDurableObjects();
+
+    const fresh = env.X_BOOKMARK_SYNC_DO.get(
+      env.X_BOOKMARK_SYNC_DO.idFromName(user.userId)
+    );
+    await expect(fresh.pause()).resolves.toBeUndefined();
+    await expect(fresh.resume(user.orgId)).resolves.toBeUndefined();
+    await expect(fresh.start()).resolves.toBeUndefined();
+    await expect(fresh.reconcile(user.orgId)).resolves.toBeUndefined();
+    expect(await observe(fresh)).toEqual({
+      alarm: null,
+      status: undefined,
+      syncEnabled: undefined,
+      watermark: undefined,
+    });
+  });
+
   it("carries an admin plan change through Queue to the poller", async () => {
     const { stub, user } = await createLinkedPoller({
       alarm: true,

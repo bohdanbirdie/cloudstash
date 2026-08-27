@@ -79,12 +79,14 @@ is fixed at 24 hours. Production plan/retention is not repository-verifiable; se
 
 ## Deduplication and Creation
 
-The processor first checks a deletion tombstone stored inside its own DO
-storage. Account purge rewrites the marker after clearing LiveStore state, so
-delayed Queue/DLQ messages and external link-operation RPCs cannot recreate
-Vault events. Canonical REST/MCP writes recheck their store generation at the
-repository commit boundary. A queue-ingest or processing operation already in
-flight at deletion time can still retain a stale store handle; see
+The processor first checks its generic terminal actor marker. Retirement
+persists that marker before graceful LiveStore shutdown, then clears storage
+while retaining the marker, so a failed shutdown, delayed Queue/DLQ message, or
+external link-operation RPC cannot recreate Vault events.
+Canonical REST/MCP writes receive the same revision-guarded commit capability
+as ingestion, processing, and digest persistence; business services do not
+receive lifecycle predicates. A provider notification already in flight at
+retirement can still complete; see
 [DELTA-003](../../.delta/DELTA-003-account-deletion-order-can-rehydrate-client.md).
 The processor then boots one LiveStore client, ensures the processing
 subscription, and runs `ingestLink`.

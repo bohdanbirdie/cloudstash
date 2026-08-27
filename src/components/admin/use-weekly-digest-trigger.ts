@@ -6,7 +6,7 @@ export type DigestTriggerOutcome =
   | { status: "generated"; period: string; linkCount: number }
   | { status: "skipped-empty"; period: string }
   | { status: "failed"; reason: string; message: string }
-  | { status: "dropped-deletion" };
+  | { status: "unavailable" };
 
 const parseJsonOrNull = async (
   res: Response

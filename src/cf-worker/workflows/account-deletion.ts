@@ -1,26 +1,28 @@
 /// <reference types="@cloudflare/workers-types" />
 import { WorkflowEntrypoint } from "cloudflare:workers";
 import type { WorkflowEvent, WorkflowStep } from "cloudflare:workers";
-import { Cause, Effect, Layer, Schema } from "effect";
+import { Effect, Layer, ManagedRuntime, Schema } from "effect";
 
+import {
+  AccountDeletionPayload,
+  DeletionRuntimeLive,
+} from "../account-deletion/runtime";
 import type { AccountDeletionParams } from "../account-deletion/runtime";
-import type { CfWorkflowStep } from "../account-deletion/workflow";
-import { CfStep, runAccountDeletion } from "../account-deletion/workflow";
-import { AppLayerLive } from "../auth/service";
-import { OrgId, UserId } from "../db/branded";
+import { ACCOUNT_DELETION_STEPS } from "../account-deletion/workflow";
+import { DbClientLive } from "../db/service";
+import { maskId, safeErrorInfo } from "../log-utils";
 import type { Env } from "../shared";
+import { OtelTracingLive } from "../tracing";
 
 export type { AccountDeletionParams };
+export { ACCOUNT_DELETION_STEPS } from "../account-deletion/workflow";
 
-/**
- * Cloudflare serializes `params` as JSON between create() and run() — brands
- * are erased at the wire boundary. Decode (not just .make) so a malformed
- * payload fails loudly here instead of silently propagating fake brands.
- */
-const PayloadSchema = Schema.Struct({
-  userId: UserId,
-  orgId: OrgId,
-});
+const DeletionWorkflowLive = (env: Env) =>
+  Layer.mergeAll(
+    DbClientLive(env.DB),
+    DeletionRuntimeLive(env),
+    OtelTracingLive
+  );
 
 export class AccountDeletionWorkflow extends WorkflowEntrypoint<
   Env,
@@ -30,22 +32,41 @@ export class AccountDeletionWorkflow extends WorkflowEntrypoint<
     event: WorkflowEvent<AccountDeletionParams>,
     step: WorkflowStep
   ): Promise<void> {
-    // Single structural cast — CF's `WorkflowStep` uses `Serializable<T>` /
-    // `WorkflowSleepDuration` template-literal types that don't widen to our
-    // looser `CfWorkflowStep` interface. Runtime values are identical.
-    const cfStep = step as unknown as CfWorkflowStep;
-    await Effect.runPromise(
-      Schema.decodeUnknownEffect(PayloadSchema)(event.payload).pipe(
-        Effect.flatMap(runAccountDeletion),
-        Effect.tapCause((cause) =>
-          Effect.logError("AccountDeletionWorkflow failed").pipe(
-            Effect.annotateLogs({ cause: Cause.pretty(cause) })
+    const runtime = ManagedRuntime.make(DeletionWorkflowLive(this.env));
+
+    try {
+      const payload = await runtime.runPromise(
+        Schema.decodeUnknownEffect(AccountDeletionPayload)(event.payload)
+      );
+      // Keep orchestration native: Cloudflare persists each step and owns its
+      // retries/timeouts; each callback is one Effect activity whose failure
+      // rejects the Promise and therefore remains retryable.
+      const traceAttributes = {
+        workflowInstanceId: maskId(event.instanceId),
+        orgId: maskId(payload.orgId),
+        userId: maskId(payload.userId),
+      };
+      for (const definition of ACCOUNT_DELETION_STEPS) {
+        await step.do(definition.name, definition.config, () =>
+          runtime.runPromise(
+            definition
+              .activity(payload)
+              .pipe(Effect.annotateSpans(traceAttributes))
           )
-        ),
-        Effect.provide(
-          Layer.mergeAll(Layer.succeed(CfStep, cfStep), AppLayerLive(this.env))
+        );
+      }
+    } catch (error) {
+      await runtime.runPromise(
+        Effect.logError("AccountDeletionWorkflow failed").pipe(
+          Effect.annotateLogs({
+            instanceId: maskId(event.instanceId),
+            ...safeErrorInfo(error),
+          })
         )
-      )
-    );
+      );
+      throw error;
+    } finally {
+      await runtime.dispose();
+    }
   }
 }

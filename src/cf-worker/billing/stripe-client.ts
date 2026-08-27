@@ -65,6 +65,11 @@ export interface CreatePortalParams {
   readonly flow?: PortalFlow;
 }
 
+export interface CancelSubscriptionParams {
+  readonly subscriptionId: StripeSubscriptionId;
+  readonly idempotencyKey: string;
+}
+
 type PortalFlowData = NonNullable<
   StripeSdk.BillingPortal.SessionCreateParams["flow_data"]
 >;
@@ -114,6 +119,9 @@ export interface StripeClientShape {
   readonly listSubscriptions: (
     customerId: StripeCustomerId
   ) => Effect.Effect<readonly StripeSdk.Subscription[], StripeApiError>;
+  readonly cancelSubscription: (
+    params: CancelSubscriptionParams
+  ) => Effect.Effect<StripeSdk.Subscription, StripeApiError>;
   readonly constructWebhookEvent: (
     payload: string,
     signature: string
@@ -178,14 +186,29 @@ const toStripeApiError = (cause: unknown): StripeApiError =>
         cause,
       });
 
-export const StripeClientLive = (env: Env): Layer.Layer<StripeClient> =>
+export const isStripeResourceMissing = (error: StripeApiError): boolean =>
+  error.code === "resource_missing" ||
+  (error.cause instanceof StripeSdk.errors.StripeInvalidRequestError &&
+    error.cause.statusCode === 404);
+
+export const StripeClientLive = (
+  env: Env,
+  fetchFn: typeof fetch = globalThis.fetch
+): Layer.Layer<StripeClient> =>
   Layer.sync(StripeClient, () => {
-    // The default Node HTTP client fails on Workers even with nodejs_compat;
-    // the fetch client is required.
-    const stripe = new StripeSdk(env.STRIPE_API_KEY, {
-      apiVersion: API_VERSION,
-      httpClient: StripeSdk.createFetchHttpClient(),
-    });
+    let sdk: StripeSdk | undefined;
+    const stripe = (): StripeSdk => {
+      if (sdk) return sdk;
+      // Construct only when an API operation is requested. Price mapping and
+      // free-account workflows must not require Stripe credentials.
+      // The default Node HTTP client fails on Workers even with nodejs_compat;
+      // the fetch client is required.
+      sdk = new StripeSdk(env.STRIPE_API_KEY, {
+        apiVersion: API_VERSION,
+        httpClient: StripeSdk.createFetchHttpClient(fetchFn),
+      });
+      return sdk;
+    };
 
     const plusMonthly = StripePriceId.make(env.STRIPE_PRICE_PLUS);
     const plusYearly = StripePriceId.make(env.STRIPE_PRICE_PLUS_YEARLY);
@@ -213,7 +236,7 @@ export const StripeClientLive = (env: Env): Layer.Layer<StripeClient> =>
       ) {
         return yield* Effect.tryPromise({
           try: () =>
-            stripe.customers.create(
+            stripe().customers.create(
               {
                 email: params.email,
                 name: params.name,
@@ -229,7 +252,7 @@ export const StripeClientLive = (env: Env): Layer.Layer<StripeClient> =>
         function* (params: CreateCheckoutParams) {
           return yield* Effect.tryPromise({
             try: () =>
-              stripe.checkout.sessions.create(
+              stripe().checkout.sessions.create(
                 {
                   mode: "subscription",
                   customer: params.customerId,
@@ -249,7 +272,7 @@ export const StripeClientLive = (env: Env): Layer.Layer<StripeClient> =>
           const flowData = portalFlowData(params.flow, params.returnUrl);
           return yield* Effect.tryPromise({
             try: () =>
-              stripe.billingPortal.sessions.create({
+              stripe().billingPortal.sessions.create({
                 customer: params.customerId,
                 return_url: params.returnUrl,
                 ...(flowData ? { flow_data: flowData } : {}),
@@ -264,7 +287,7 @@ export const StripeClientLive = (env: Env): Layer.Layer<StripeClient> =>
       ) {
         const page = yield* Effect.tryPromise({
           try: () =>
-            stripe.subscriptions.list({
+            stripe().subscriptions.list({
               customer: customerId,
               status: "all",
               limit: 10,
@@ -274,12 +297,26 @@ export const StripeClientLive = (env: Env): Layer.Layer<StripeClient> =>
         return page.data;
       }),
 
+      cancelSubscription: Effect.fn("StripeClient.cancelSubscription")(
+        function* (params: CancelSubscriptionParams) {
+          return yield* Effect.tryPromise({
+            try: () =>
+              stripe().subscriptions.cancel(
+                params.subscriptionId,
+                {},
+                { idempotencyKey: params.idempotencyKey }
+              ),
+            catch: toStripeApiError,
+          });
+        }
+      ),
+
       constructWebhookEvent: Effect.fn("StripeClient.constructWebhookEvent")(
         function* (payload: string, signature: string) {
           // constructEventAsync uses Web Crypto; the sync variant needs Node crypto.
           return yield* Effect.tryPromise({
             try: () =>
-              stripe.webhooks.constructEventAsync(
+              stripe().webhooks.constructEventAsync(
                 payload,
                 signature,
                 env.STRIPE_WEBHOOK_SECRET

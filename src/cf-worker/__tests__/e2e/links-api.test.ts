@@ -220,12 +220,11 @@ describe("Links REST API", () => {
     expect(tooLarge.status).toBe(413);
   });
 
-  it("permanently fences workspace operations after deletion", async () => {
+  it("permanently fences workspace operations after retirement", async () => {
     const workspace = env.LINK_PROCESSOR_DO.get(
       env.LINK_PROCESSOR_DO.idFromName(orgId)
     );
-    await workspace.markDeleting();
-    await workspace.purgeAll();
+    await workspace.retire();
     await abortAllDurableObjects();
 
     const freshWorkspace = env.LINK_PROCESSOR_DO.get(
@@ -233,7 +232,7 @@ describe("Links REST API", () => {
     );
     await freshWorkspace.syncUpdateRpc(new Uint8Array(), orgId);
     expect(await freshWorkspace.triggerDigest(OrgId.make(orgId))).toEqual({
-      status: "dropped-deletion",
+      status: "unavailable",
     });
 
     const response = await SELF.fetch("http://worker/api/links", {
@@ -241,7 +240,7 @@ describe("Links REST API", () => {
     });
     expect(response.status).toBe(410);
     expect(await response.json()).toEqual({
-      error: "Workspace is being deleted",
+      error: "Workspace is unavailable",
     });
   });
 });

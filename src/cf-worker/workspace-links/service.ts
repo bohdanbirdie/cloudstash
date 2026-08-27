@@ -39,14 +39,13 @@ import {
   tagsForLink$,
 } from "@/livestore/queries/tags";
 import { events } from "@/livestore/schema";
-import type { schema } from "@/livestore/schema";
+import type { schema, StoreEvent } from "@/livestore/schema";
 import {
   captureSyncTarget,
   whenLeaderSynced,
 } from "@/livestore/when-leader-synced";
 
 import { LinkId } from "../db/branded";
-import type { StoreEvent } from "../link-processor/services";
 import {
   decodeCursor,
   encodeLink,
@@ -223,11 +222,17 @@ type SyncChanges = (
   target: ReturnType<typeof captureSyncTarget>
 ) => Promise<boolean>;
 
-type CanCommit = () => boolean;
+export type CommitWorkspaceLinks = (
+  operation: string,
+  changes: readonly StoreEvent[]
+) => Effect.Effect<
+  void,
+  WorkspaceLinkStoreError | WorkspaceLinkUnavailableError
+>;
 
 interface WorkspaceLinksOptions {
   readonly sync?: SyncChanges;
-  readonly canCommit?: CanCommit;
+  readonly commit?: CommitWorkspaceLinks;
 }
 
 const syncChanges: SyncChanges = (store, target) =>
@@ -235,8 +240,9 @@ const syncChanges: SyncChanges = (store, target) =>
 
 export const makeWorkspaceLinks = (
   store: Store<typeof schema>,
-  { sync = syncChanges, canCommit = () => true }: WorkspaceLinksOptions = {}
+  options: WorkspaceLinksOptions = {}
 ) => {
+  const sync = options.sync ?? syncChanges;
   const query = Effect.fnUntraced(function* <Value>(
     operation: string,
     run: () => Value
@@ -260,8 +266,11 @@ export const makeWorkspaceLinks = (
     changes: readonly StoreEvent[]
   ) {
     if (changes.length === 0) return;
-    if (!canCommit()) return yield* new WorkspaceLinkUnavailableError();
-    yield* query(operation, () => store.commit(...changes));
+    const persist =
+      options.commit ??
+      ((name: string, eventsToCommit: readonly StoreEvent[]) =>
+        query(name, () => store.commit(...eventsToCommit)));
+    yield* persist(operation, changes);
     yield* awaitSync(operation);
   });
 

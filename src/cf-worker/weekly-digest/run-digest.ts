@@ -26,8 +26,8 @@ const failed = (
   status: "failed",
 });
 
-export const droppedDeletion = (): WeeklyDigestRpcResult => ({
-  status: "dropped-deletion",
+export const digestUnavailable = (): WeeklyDigestRpcResult => ({
+  status: "unavailable",
 });
 
 export interface DigestFailureContext {
@@ -103,18 +103,19 @@ export interface RunDigestGenerationParams {
   readonly env: Env;
   readonly storeId: OrgId;
   readonly trigger: WeeklyDigestTrigger;
+  readonly commit?: Parameters<typeof DigestEventSinkLive>[1];
 }
 
 export const runDigestGeneration = Effect.fn(
   "WeeklyDigest.runDigestGeneration"
 )(function* (params: RunDigestGenerationParams) {
-  const { env, store, storeId, trigger } = params;
+  const { commit, env, store, storeId, trigger } = params;
   yield* Effect.annotateCurrentSpan("storeId", maskId(storeId));
   yield* Effect.annotateCurrentSpan("trigger", trigger);
 
   const layer = Layer.mergeAll(
     DigestLinkSourceLive(store),
-    DigestEventSinkLive(store),
+    DigestEventSinkLive(store, commit),
     WeeklyDigestGenerator.Default.pipe(
       Layer.provide(OpenRouterApiKeyLive(env.OPENROUTER_API_KEY))
     )

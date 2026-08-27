@@ -4,10 +4,12 @@ Status: open
 
 ## Divergence
 
-The Workflow can report successful X purge after alarm/storage deletion fails,
-and its target list omits Stripe subscription cancellation, D1 activity and
-verification rows, enrichment KV, Analytics Engine retention, Queue/DLQ residue,
-Workflow payload/history retention, and local browser/extension semantics.
+The Workflow now propagates X purge failures and covers Stripe subscription
+cancellation, D1 activity, enrichment KV, and owner-local Queue/DLQ fencing.
+Its target
+classification still omits attributable generic
+verification rows, Analytics Engine retention, and local browser/extension
+semantics.
 
 ## Intent
 
@@ -16,13 +18,16 @@ require a complete per-surface treatment and failure propagation.
 
 ## Implementation
 
-[`x-sync/durable-object.ts`](../../src/cf-worker/x-sync/durable-object.ts) catches
-`deleteAlarm` and `deleteAll` failures as success. The [workflow](../../src/cf-worker/account-deletion/workflow.ts) has no steps
-for the other listed stores or Stripe. [`db/schema.ts`](../../src/cf-worker/db/schema.ts)
-defines non-cascading activity/verification rows, while
-[`workflows/account-deletion.ts`](../../src/cf-worker/workflows/account-deletion.ts)
-serializes IDs into retained Workflow state. Current deletion E2E primarily
-asserts Workflow/D1 completion rather than seeded multi-owner purge.
+[`x-sync/durable-object.ts`](../../src/cf-worker/x-sync/durable-object.ts)
+reconciles missing D1 authority into cancelled alarms and empty local state;
+disconnect failures propagate. The [workflow](../../src/cf-worker/account-deletion/workflow.ts)
+implements the listed selective targets except generic verification. The
+Workflow payload snapshots raw target IDs; Cloudflare retains that operational
+history for its bounded instance-retention window. Generic terminal actor state
+makes delayed Link/DLQ intake a no-op; X reconciliation derives the same outcome
+from its missing Better Auth account.
+Deletion E2E seeds every owned Durable Object/KV target and D1 activity. It does
+not yet inject provider failures or suspend work across a retirement boundary.
 
 ## Direction
 

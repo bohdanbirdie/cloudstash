@@ -6,7 +6,6 @@ import type { TierCapabilities } from "@/lib/plan";
 import { OrgId } from "../db/branded";
 import { maskId } from "../log-utils";
 import type { WeeklyDigestRpcResult } from "./rpc";
-import { droppedDeletion } from "./run-digest";
 import type { WeeklyDigestTrigger } from "./runner";
 
 const DIGEST_INTERVAL_MS = Duration.toMillis("7 days");
@@ -16,7 +15,6 @@ export interface DigestSchedulerDeps {
   readonly getStoreId: Effect.Effect<Option.Option<OrgId>>;
   readonly setStoreId: (id: OrgId) => Effect.Effect<void>;
   readonly getCapabilities: Effect.Effect<TierCapabilities>;
-  readonly isDeletionTombstoned: Effect.Effect<boolean>;
   readonly runDigest: (
     storeId: OrgId,
     trigger: WeeklyDigestTrigger
@@ -98,8 +96,6 @@ export const DigestSchedulerLive = (
     const storeId = resolved.value;
     yield* Effect.annotateCurrentSpan("storeId", maskId(storeId));
 
-    if (yield* deps.isDeletionTombstoned) return;
-
     const caps = yield* deps.getCapabilities;
     if (!caps.weeklyDigest) return;
 
@@ -118,8 +114,6 @@ export const DigestSchedulerLive = (
     storeId: OrgId
   ) {
     yield* Effect.annotateCurrentSpan("storeId", maskId(storeId));
-
-    if (yield* deps.isDeletionTombstoned) return droppedDeletion();
 
     yield* deps.setStoreId(storeId);
     yield* Effect.promise(() => deps.storage.put("storeId", storeId));

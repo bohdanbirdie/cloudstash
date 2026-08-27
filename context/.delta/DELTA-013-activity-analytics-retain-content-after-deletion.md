@@ -4,9 +4,9 @@ Status: open
 
 ## Divergence
 
-D1 activity rows store workspace IDs, link IDs, source, and domain metadata. The
-table has no organization foreign key and account deletion does not remove its
-rows. Analytics Engine also receives stable user/workspace indexes without a
+D1 activity rows store workspace IDs, link IDs, source, and domain metadata.
+Account deletion removes its rows and the table now has an organization FK;
+Analytics Engine still receives stable user/workspace indexes without a
 documented selective-deletion or retention contract.
 
 ## Intent
@@ -19,11 +19,12 @@ content-bearing aggregate telemetry and require explicit cleanup/retention.
 ## Implementation
 
 [`sync/activity.ts`](../../src/cf-worker/sync/activity.ts) copies link IDs and
-domains. [`db/schema.ts`](../../src/cf-worker/db/schema.ts) defines
-`activity_events` without FKs. The
-[deletion workflow](../../src/cf-worker/account-deletion/workflow.ts) deletes no
-activity rows, while [`analytics.ts`](../../src/cf-worker/analytics.ts) writes
-stable indexes to Analytics Engine.
+domains. [`db/schema.ts`](../../src/cf-worker/db/schema.ts) defines an
+organization FK with `ON DELETE CASCADE`. The
+[deletion workflow](../../src/cf-worker/account-deletion/workflow.ts) explicitly
+deletes workspace activity rows, and migration 0016 rejects late orphan
+inserts after organization deletion. [`analytics.ts`](../../src/cf-worker/analytics.ts)
+still writes stable indexes to Analytics Engine.
 
 ## Direction
 

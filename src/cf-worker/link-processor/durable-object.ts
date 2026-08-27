@@ -18,6 +18,7 @@ import { capabilitiesFor } from "@/lib/plan";
 import type { TierCapabilities } from "@/lib/plan";
 
 import { events, schema, tables } from "../../livestore/schema";
+import type { StoreEvent } from "../../livestore/schema";
 import {
   captureSyncTarget,
   whenLeaderSynced,
@@ -25,22 +26,26 @@ import {
 import { Billing } from "../billing/service";
 import { LinkId, OrgId } from "../db/branded";
 import { DbClientLive } from "../db/service";
+import {
+  DurableObjectRetiredError,
+  isDurableObjectRetired,
+  retireDurableObjectStorage,
+} from "../durable-object-retirement";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
 import { OpenRouterApiKeyLive } from "../weekly-digest/generator";
+import { WorkspaceLinkUnavailableError } from "../workspace-links/errors";
 import type {
   SaveLinkRpcInput,
   WorkspaceLinksRpcResult,
 } from "../workspace-links/rpc";
 import { WorkspaceLinksRpc } from "../workspace-links/rpc";
+import { makeWorkspaceLinks } from "../workspace-links/service";
+import type { WorkspaceLinks } from "../workspace-links/service";
 import { EnrichmentGenerator } from "../x-enrichment/generator";
 import { ThreadProviderNoopLive } from "../x-enrichment/services/thread-provider-noop.live";
 import { EnrichmentUsageLive } from "../x-enrichment/usage";
-import {
-  isDeletionTombstoneSet,
-  setDeletionTombstone,
-} from "./deletion-tombstone";
 import { cancelStaleLinks, ingestLink, notifyResult } from "./do-programs";
 import type { NotifyResultParams } from "./do-programs";
 import { runEffect } from "./logger";
@@ -63,7 +68,10 @@ const MAX_NOTIFIED_LINK_IDS = 500;
 const LEADER_SYNC_TIMEOUT_MS = 10_000;
 
 import type { WeeklyDigestRpcResult } from "../weekly-digest/rpc";
-import { runDigestGeneration } from "../weekly-digest/run-digest";
+import {
+  digestUnavailable,
+  runDigestGeneration,
+} from "../weekly-digest/run-digest";
 import {
   DigestScheduler,
   DigestSchedulerLive,
@@ -83,7 +91,7 @@ type Link = typeof tables.links.Type;
 const workspaceUnavailable = () =>
   ({
     ok: false,
-    error: { code: "unavailable", message: "Workspace is being deleted" },
+    error: { code: "unavailable", message: "Workspace is unavailable" },
   }) as const;
 
 export class LinkProcessorDO
@@ -103,7 +111,7 @@ export class LinkProcessorDO
   private notifiedLinkIds = new Set<string>();
   private hasRunCleanup = false;
   private totalRowsWritten = 0;
-  private deleting = false;
+  private retired = false;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -115,68 +123,41 @@ export class LinkProcessorDO
     }) as typeof origExec;
   }
 
-  /**
-   * Persistent tombstone + tear-down of in-memory store handles. Called by
-   * `AccountDeletionWorkflow` *before* `purgeAll`, so any concurrent queue
-   * message that arrives between this call and the wipe drops on the
-   * tombstone check at the top of `ingestAndProcess`.
-   */
-  async markDeleting(): Promise<void> {
-    this.deleting = true;
+  /** Permanently closes this processor and wipes its storage. */
+  async retire(): Promise<void> {
+    this.retired = true;
     const store = this.resetStoreHandles();
     await runEffect(
       Effect.gen({ self: this }, function* () {
-        yield* Effect.promise(() => setDeletionTombstone(this.ctx.storage));
-        yield* Effect.promise(
-          () => store?.shutdownPromise?.() ?? Promise.resolve()
+        yield* Effect.promise(() =>
+          retireDurableObjectStorage(
+            this.ctx.storage,
+            () => store?.shutdownPromise?.() ?? Promise.resolve()
+          )
         );
-        yield* Effect.logInfo("markDeleting: tombstone set").pipe(
+        yield* Effect.logInfo("retire: storage wiped").pipe(
           Effect.annotateLogs({ storeId: maskId(this.storeId ?? "") })
         );
-      }).pipe(Effect.withSpan("LinkProcessorDO.markDeleting"))
+      }).pipe(Effect.withSpan("LinkProcessorDO.retire"))
     );
   }
 
-  /**
-   * In-flight Livestore writes can race `deleteAll()` — mitigated by the
-   * tombstone + DO eviction (see account-deletion.md, B1 deferred). The
-   * shutdown-promise + fiber-tracking workaround lives there too if needed.
-   */
-  async purgeAll(): Promise<void> {
-    this.deleting = true;
-    const store = this.resetStoreHandles();
-    await runEffect(
-      Effect.gen({ self: this }, function* () {
-        yield* Effect.promise(
-          () => store?.shutdownPromise?.() ?? Promise.resolve()
-        );
-        yield* Effect.promise(() => {
-          // Consecutive SQLite-backed DO writes without an intervening await
-          // are committed atomically by the storage output gate.
-          const purge = this.ctx.storage.deleteAll();
-          const fence = setDeletionTombstone(this.ctx.storage);
-          return Promise.all([purge, fence]);
-        });
-        yield* Effect.logInfo("purgeAll: storage wiped").pipe(
-          Effect.annotateLogs({ storeId: maskId(this.storeId ?? "") })
-        );
-      }).pipe(Effect.withSpan("LinkProcessorDO.purgeAll"))
-    );
-  }
-
-  private async getSessionId(): Promise<string> {
-    const stored = await this.ctx.storage.get<string>("sessionId");
-    if (stored) {
-      return stored;
+  private async getSessionId(generation: number): Promise<string> {
+    if (!this.canUseStore(generation)) {
+      throw new DurableObjectRetiredError();
     }
-
+    const stored = await this.ctx.storage.get<string>("sessionId");
+    if (stored) return stored;
     const newSessionId = nanoid();
+    if (!this.canUseStore(generation)) {
+      throw new DurableObjectRetiredError();
+    }
     await this.ctx.storage.put("sessionId", newSessionId);
     return newSessionId;
   }
 
   private async getStore(): Promise<Store<typeof schema>> {
-    if (this.deleting) throw new Error("Workspace is being deleted");
+    if (this.retired) throw new DurableObjectRetiredError();
     if (this.cachedStore) {
       return this.cachedStore;
     }
@@ -207,9 +188,9 @@ export class LinkProcessorDO
     storeId: OrgId,
     generation: number
   ): Promise<Store<typeof schema>> {
-    const sessionId = await this.getSessionId();
+    const sessionId = await this.getSessionId(generation);
     if (!this.canUseStore(generation)) {
-      throw new Error("Workspace is being deleted");
+      throw new DurableObjectRetiredError();
     }
 
     logger.info("Creating store", {
@@ -235,7 +216,7 @@ export class LinkProcessorDO
 
     if (!this.canUseStore(generation)) {
       await store.shutdownPromise?.();
-      throw new Error("Workspace is being deleted");
+      throw new DurableObjectRetiredError();
     }
     this.cachedStore = store;
 
@@ -247,7 +228,7 @@ export class LinkProcessorDO
   }
 
   private canUseStore(generation: number): boolean {
-    return !this.deleting && generation === this.storeGeneration;
+    return !this.retired && generation === this.storeGeneration;
   }
 
   private resetStoreHandles(): Store<typeof schema> | undefined {
@@ -260,26 +241,44 @@ export class LinkProcessorDO
     return store;
   }
 
-  private buildDoLayer(store: Store<typeof schema>) {
+  private buildDoLayer(
+    store: Store<typeof schema>,
+    generation = this.storeGeneration
+  ) {
+    const commit = this.commitFor(store, generation);
     return Layer.mergeAll(
-      LinkRepositoryLive(store),
+      LinkRepositoryLive(store, commit),
       SourceNotifierLive(this.env.TELEGRAM_BOT_TOKEN)
     );
   }
 
-  private async isDeleting(): Promise<boolean> {
-    if (this.deleting) return true;
-    this.deleting ||= await isDeletionTombstoneSet(this.ctx.storage);
-    return this.deleting;
+  private commitFor(
+    store: Store<typeof schema>,
+    generation: number
+  ): (
+    ...storeEvents: StoreEvent[]
+  ) => Effect.Effect<void, DurableObjectRetiredError> {
+    return (...storeEvents: StoreEvent[]) => {
+      if (!this.canUseStore(generation)) {
+        return Effect.fail(new DurableObjectRetiredError());
+      }
+      return Effect.sync(() => store.commit(...storeEvents));
+    };
+  }
+
+  private async isRetired(): Promise<boolean> {
+    if (this.retired) return true;
+    const durable = await isDurableObjectRetired(this.ctx.storage);
+    this.retired ||= durable;
+    return this.retired;
   }
 
   private async runWorkspaceLinksRpc<Value, Error>(
     operation: (
-      store: Store<typeof schema>,
-      canCommit: () => boolean
+      links: WorkspaceLinks
     ) => Effect.Effect<WorkspaceLinksRpcResult<Value>, Error>
   ): Promise<WorkspaceLinksRpcResult<Value>> {
-    if (await this.isDeleting()) return workspaceUnavailable();
+    if (await this.isRetired()) return workspaceUnavailable();
     const generation = this.storeGeneration;
 
     const storeId = this.ctx.id.name;
@@ -293,42 +292,51 @@ export class LinkProcessorDO
     if (!this.canUseStore(generation)) return workspaceUnavailable();
     const store = await this.getStore();
     if (!this.canUseStore(generation)) return workspaceUnavailable();
-    return runEffect(operation(store, () => this.canUseStore(generation)));
+    const links = makeWorkspaceLinks(store, {
+      commit: (_operation, storeEvents) =>
+        this.commitFor(
+          store,
+          generation
+        )(...storeEvents).pipe(
+          Effect.mapError(() => new WorkspaceLinkUnavailableError())
+        ),
+    });
+    return runEffect(operation(links));
   }
 
   async listLinks(input: ListLinksInput) {
-    return this.runWorkspaceLinksRpc((store, canCommit) =>
-      WorkspaceLinksRpc.list(store, input, canCommit)
+    return this.runWorkspaceLinksRpc((links) =>
+      WorkspaceLinksRpc.list(links, input)
     );
   }
 
   async searchLinks(input: SearchLinksInput) {
-    return this.runWorkspaceLinksRpc((store, canCommit) =>
-      WorkspaceLinksRpc.search(store, input, canCommit)
+    return this.runWorkspaceLinksRpc((links) =>
+      WorkspaceLinksRpc.search(links, input)
     );
   }
 
   async getLink(input: GetLinkInput) {
-    return this.runWorkspaceLinksRpc((store, canCommit) =>
-      WorkspaceLinksRpc.get(store, input, canCommit)
+    return this.runWorkspaceLinksRpc((links) =>
+      WorkspaceLinksRpc.get(links, input)
     );
   }
 
   async saveLink(input: SaveLinkRpcInput) {
-    return this.runWorkspaceLinksRpc((store, canCommit) =>
-      WorkspaceLinksRpc.save(store, input, canCommit)
+    return this.runWorkspaceLinksRpc((links) =>
+      WorkspaceLinksRpc.save(links, input)
     );
   }
 
   async updateLink(input: UpdateLinkInput) {
-    return this.runWorkspaceLinksRpc((store, canCommit) =>
-      WorkspaceLinksRpc.update(store, input, canCommit)
+    return this.runWorkspaceLinksRpc((links) =>
+      WorkspaceLinksRpc.update(links, input)
     );
   }
 
   async updateLinks(input: UpdateLinksInput) {
-    return this.runWorkspaceLinksRpc((store, canCommit) =>
-      WorkspaceLinksRpc.updateMany(store, input, canCommit)
+    return this.runWorkspaceLinksRpc((links) =>
+      WorkspaceLinksRpc.updateMany(links, input)
     );
   }
 
@@ -340,7 +348,7 @@ export class LinkProcessorDO
     const generation = this.storeGeneration;
     const store = await this.getStore();
     if (!this.canUseStore(generation)) {
-      throw new Error("Workspace is being deleted");
+      throw new DurableObjectRetiredError();
     }
 
     const links$ = queryDb(tables.links.where({ deletedAt: null }));
@@ -403,7 +411,8 @@ export class LinkProcessorDO
                 store,
                 link,
                 isReprocess,
-                status === "pending"
+                status === "pending",
+                generation
               ).pipe(
                 Effect.ensuring(
                   Effect.sync(() => this.submittedLinks.delete(link.id))
@@ -485,14 +494,14 @@ export class LinkProcessorDO
           this.notifiedLinkIds.add(r.linkId);
         }
         evictOldestFromSet(this.notifiedLinkIds, MAX_NOTIFIED_LINK_IDS);
-        this.notifyResults(store, newResults);
+        this.notifyResults(store, newResults, generation);
       }
     );
     this.subscriptions.add(resultSubscription);
 
     if (!this.canUseStore(generation)) {
       this.resetStoreHandles();
-      throw new Error("Workspace is being deleted");
+      throw new DurableObjectRetiredError();
     }
 
     if (!this.hasRunCleanup) {
@@ -523,7 +532,8 @@ export class LinkProcessorDO
               );
             });
           }),
-          Effect.provide(this.buildDoLayer(store))
+          Effect.provide(this.buildDoLayer(store)),
+          Effect.catchTag("DurableObjectRetiredError", () => Effect.void)
         )
       ).catch((error) => {
         logger.error("cancelStaleLinks failed", safeErrorInfo(error));
@@ -562,7 +572,8 @@ export class LinkProcessorDO
     store: Store<typeof schema>,
     link: Link,
     isReprocess: boolean,
-    startRecorded: boolean
+    startRecorded: boolean,
+    generation: number
   ): Effect.Effect<void> {
     return Effect.gen({ self: this }, function* () {
       yield* Effect.logInfo("Processing link").pipe(
@@ -573,6 +584,7 @@ export class LinkProcessorDO
       );
 
       if (!startRecorded) {
+        if (!this.canUseStore(generation)) return;
         const now = yield* DateTime.nowAsDate;
         store.commit(
           events.linkProcessingStarted({
@@ -582,7 +594,7 @@ export class LinkProcessorDO
         );
       }
 
-      if (link.source === "telegram") {
+      if (link.source === "telegram" && this.canUseStore(generation)) {
         this.sendProgressDraft(store, link.sourceMeta);
       }
 
@@ -602,7 +614,7 @@ export class LinkProcessorDO
         MetadataFetcherLive(applicationHostname),
         ContentExtractorLive(applicationHostname),
         AiSummaryGeneratorLive,
-        LinkEventStoreLive(store),
+        LinkEventStoreLive(store, this.commitFor(store, generation)),
         ThreadProviderNoopLive,
         EnrichmentGenerator.Default,
         EnrichmentUsageLive({ kv: this.env.ENRICHMENT_USAGE })
@@ -631,10 +643,13 @@ export class LinkProcessorDO
     }).pipe(
       Effect.ensuring(
         Effect.sync(() => {
-          if (link.source === "telegram") {
+          if (link.source === "telegram" && this.canUseStore(generation)) {
             this.sendProgressDraft(store, link.sourceMeta);
           }
         })
+      ),
+      Effect.catchTag("DurableObjectRetiredError", () =>
+        Effect.logInfo("Link processing stopped because the actor retired")
       ),
       Effect.catchDefect((defect) =>
         Effect.logError("processLinkEffect failed (store likely dead)").pipe(
@@ -686,10 +701,12 @@ export class LinkProcessorDO
 
   private notifyResults(
     store: Store<typeof schema>,
-    results: ReadonlyArray<NotifyResultParams>
+    results: ReadonlyArray<NotifyResultParams>,
+    generation: number
   ): void {
-    const doLayer = this.buildDoLayer(store);
+    const doLayer = this.buildDoLayer(store, generation);
     for (const result of results) {
+      if (!this.canUseStore(generation)) return;
       runEffect(
         notifyResult(result).pipe(
           Effect.tap(() =>
@@ -699,7 +716,8 @@ export class LinkProcessorDO
               }
             })
           ),
-          Effect.provide(doLayer)
+          Effect.provide(doLayer),
+          Effect.catchTag("DurableObjectRetiredError", () => Effect.void)
         )
       ).catch((error) => {
         logger.error("notifyResult effect failed", {
@@ -711,8 +729,8 @@ export class LinkProcessorDO
   }
 
   override async fetch(request: Request): Promise<Response> {
-    if (await this.isDeleting()) {
-      return new Response("Workspace is being deleted", { status: 410 });
+    if (await this.isRetired()) {
+      return new Response("Processor retired", { status: 410 });
     }
 
     const url = new URL(request.url);
@@ -776,13 +794,15 @@ export class LinkProcessorDO
       return { status: "rejected-storeid-mismatch" };
     }
 
-    if (await this.isDeleting()) {
-      logger.info("ingestAndProcess dropped (deletion in progress)", {
+    if (await this.isRetired()) {
+      logger.info("ingestAndProcess dropped (processor retired)", {
         storeId: maskId(msg.storeId),
         url: msg.url,
       });
-      return { status: "dropped-deletion" };
+      return { status: "dropped-retired" };
     }
+
+    const generation = this.storeGeneration;
 
     logger.info("ingestAndProcess called", {
       source: msg.source,
@@ -798,14 +818,22 @@ export class LinkProcessorDO
     const store = await this.getStore();
     await this.ensureSubscribed();
 
-    const doLayer = this.buildDoLayer(store);
+    if (!this.canUseStore(generation)) {
+      return { status: "dropped-retired" };
+    }
+    const doLayer = this.buildDoLayer(store, generation);
     const result = await runEffect(
       ingestLink({
         url: msg.url,
         storeId: msg.storeId,
         source: msg.source,
         sourceMeta: msg.sourceMeta,
-      }).pipe(Effect.provide(doLayer))
+      }).pipe(
+        Effect.provide(doLayer),
+        Effect.catchTag("DurableObjectRetiredError", () =>
+          Effect.succeed({ status: "dropped-retired" as const })
+        )
+      )
     );
 
     if (result.status === "ingested") {
@@ -827,12 +855,14 @@ export class LinkProcessorDO
       result.linkId &&
       msg.source === "telegram"
     ) {
-      this.sendProgressDraft(store, msg.sourceMeta);
+      if (this.canUseStore(generation)) {
+        this.sendProgressDraft(store, msg.sourceMeta);
+      }
     }
 
     logger.info("ingestAndProcess completed", {
       status: result.status,
-      linkId: result.linkId,
+      linkId: "linkId" in result ? result.linkId : undefined,
       totalRowsWritten: this.totalRowsWritten,
     });
 
@@ -848,42 +878,58 @@ export class LinkProcessorDO
           this.storeId = id;
         }),
       getCapabilities: this.capabilities(),
-      isDeletionTombstoned: Effect.promise(() =>
-        isDeletionTombstoneSet(this.ctx.storage)
-      ),
       runDigest: (storeId, trigger) =>
         Effect.gen({ self: this }, function* () {
+          const generation = this.storeGeneration;
           const store = yield* Effect.promise(() => this.getStore());
           return yield* runDigestGeneration({
             env: this.env,
             store,
             storeId,
             trigger,
+            commit: (...storeEvents: StoreEvent[]) => {
+              if (!this.canUseStore(generation)) {
+                throw new DurableObjectRetiredError();
+              }
+              return store.commit(...storeEvents);
+            },
           });
         }),
     };
   }
 
   async ensureDigestScheduled(): Promise<void> {
-    if (await this.isDeleting()) return;
-    await runEffect(
-      Effect.gen(function* () {
-        const scheduler = yield* DigestScheduler;
-        yield* scheduler.ensureScheduled;
-      }).pipe(Effect.provide(DigestSchedulerLive(this.digestSchedulerDeps())))
-    );
+    if (await this.isRetired()) return;
+    const generation = this.storeGeneration;
+    try {
+      await runEffect(
+        Effect.gen(function* () {
+          const scheduler = yield* DigestScheduler;
+          yield* scheduler.ensureScheduled;
+        }).pipe(Effect.provide(DigestSchedulerLive(this.digestSchedulerDeps())))
+      );
+    } finally {
+      if (!this.canUseStore(generation)) await this.ctx.storage.deleteAlarm();
+    }
   }
 
   override async alarm(): Promise<void> {
-    await runEffect(
-      Effect.gen(function* () {
-        const scheduler = yield* DigestScheduler;
-        yield* scheduler.handleAlarm;
-      }).pipe(Effect.provide(DigestSchedulerLive(this.digestSchedulerDeps())))
-    );
+    if (await this.isRetired()) return;
+    const generation = this.storeGeneration;
+    try {
+      await runEffect(
+        Effect.gen(function* () {
+          const scheduler = yield* DigestScheduler;
+          yield* scheduler.handleAlarm;
+        }).pipe(Effect.provide(DigestSchedulerLive(this.digestSchedulerDeps())))
+      );
+    } finally {
+      if (!this.canUseStore(generation)) await this.ctx.storage.deleteAlarm();
+    }
   }
 
   async triggerDigest(storeId: OrgId): Promise<WeeklyDigestRpcResult> {
+    if (await this.isRetired()) return digestUnavailable();
     return runEffect(
       Effect.gen(function* () {
         const scheduler = yield* DigestScheduler;
@@ -902,8 +948,8 @@ export class LinkProcessorDO
       hadStoreId: !!this.storeId,
     });
 
-    if (await this.isDeleting()) {
-      logger.info("syncUpdateRpc dropped (deletion in progress)", {
+    if (await this.isRetired()) {
+      logger.info("syncUpdateRpc dropped (processor retired)", {
         storeId: maskId(storeId),
       });
       return;
@@ -915,7 +961,9 @@ export class LinkProcessorDO
     }
 
     await this.ensureSubscribed();
-    if (!this.canUseStore(generation)) return;
-    await handleSyncUpdateRpc(this.ctx, payload);
+    await this.ctx.blockConcurrencyWhile(async () => {
+      if (!this.canUseStore(generation)) return;
+      await handleSyncUpdateRpc(this.ctx, payload);
+    });
   }
 }

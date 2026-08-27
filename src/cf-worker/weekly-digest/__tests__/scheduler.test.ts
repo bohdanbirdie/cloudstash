@@ -48,7 +48,6 @@ interface DepsOverrides {
   readonly storage?: DurableObjectStorage;
   readonly storeIdRef?: Ref.Ref<Option.Option<OrgId>>;
   readonly capabilities?: TierCapabilities;
-  readonly tombstoned?: boolean;
   readonly runDigestResult?: WeeklyDigestRpcResult;
   readonly runDigestFail?: boolean;
   readonly runDigestCalls?: Ref.Ref<
@@ -82,7 +81,6 @@ const makeDeps = (
     getCapabilities: Effect.succeed(
       overrides.capabilities ?? capabilitiesFor("plus")
     ),
-    isDeletionTombstoned: Effect.succeed(overrides.tombstoned ?? false),
     runDigest: (storeId, trigger) =>
       Effect.gen(function* () {
         yield* Ref.update(runDigestCalls, (xs) => [
@@ -187,21 +185,6 @@ describe("DigestScheduler.handleAlarm", () => {
     })
   );
 
-  it.effect("skips run when tombstoned, no alarm re-armed", () =>
-    Effect.gen(function* () {
-      const storeIdRef = yield* Ref.make<Option.Option<OrgId>>(
-        Option.some(ORG_A)
-      );
-      const { deps, runDigestCalls, storage } = makeDeps({
-        storeIdRef,
-        tombstoned: true,
-      });
-      yield* withScheduler(deps, (s) => s.handleAlarm);
-      expect(yield* Ref.get(runDigestCalls)).toHaveLength(0);
-      expect(storageState(storage).alarm).toBeNull();
-    })
-  );
-
   it.effect("skips run when capability is off", () =>
     Effect.gen(function* () {
       const storeIdRef = yield* Ref.make<Option.Option<OrgId>>(
@@ -252,19 +235,6 @@ describe("DigestScheduler.handleAlarm", () => {
 });
 
 describe("DigestScheduler.triggerDigest", () => {
-  it.effect(
-    "returns dropped-deletion when tombstoned, runDigest never called",
-    () =>
-      Effect.gen(function* () {
-        const { deps, runDigestCalls } = makeDeps({ tombstoned: true });
-        const result = yield* withScheduler(deps, (s) =>
-          s.triggerDigest(ORG_A)
-        );
-        expect(result.status).toBe("dropped-deletion");
-        expect(yield* Ref.get(runDigestCalls)).toHaveLength(0);
-      })
-  );
-
   it.effect("persists storeId before running", () =>
     Effect.gen(function* () {
       const { deps, runDigestCalls, storage, storeIdRef } = makeDeps();

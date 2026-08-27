@@ -1,10 +1,10 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Option } from "effect";
+import { Effect, Option, Result } from "effect";
 import type StripeSdk from "stripe";
 
 import type { BillingInterval, PlanTier } from "@/lib/plan";
 
-import { StripePriceId } from "../../db/branded";
+import { StripePriceId, StripeSubscriptionId } from "../../db/branded";
 import type { Env } from "../../shared";
 import {
   decidePortalFlow,
@@ -295,4 +295,30 @@ describe("StripeClientLive price maps", () => {
         ).toBeNull();
       }).pipe(Effect.provide(StripeClientLive(env)))
   );
+
+  it.effect("does not require an API key until an API operation runs", () => {
+    const envWithoutKey = {
+      ...env,
+      STRIPE_API_KEY: undefined,
+    } as unknown as Env;
+
+    return Effect.gen(function* () {
+      const stripe = yield* StripeClient;
+      expect(stripe.priceForTier("plus", "month")).toBe("price_plus");
+
+      const result = yield* Effect.result(
+        stripe.cancelSubscription({
+          subscriptionId: StripeSubscriptionId.make("sub_1"),
+          idempotencyKey: "test",
+        })
+      );
+      expect(Result.isFailure(result)).toBe(true);
+      if (Result.isFailure(result)) {
+        expect(result.failure._tag).toBe("StripeApiError");
+        expect(result.failure.message).toContain(
+          "Neither apiKey nor config.authenticator provided"
+        );
+      }
+    }).pipe(Effect.provide(StripeClientLive(envWithoutKey)));
+  });
 });

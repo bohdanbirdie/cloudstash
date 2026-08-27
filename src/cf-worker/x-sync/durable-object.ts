@@ -123,6 +123,8 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
       );
       const store = yield* XSyncStateStore;
       const alarm = yield* XSyncAlarm;
+      const state = yield* store.read();
+      if (!state) return;
       yield* store.setSyncEnabled(false);
       yield* store.setStatus("paused");
       yield* alarm.cancel();
@@ -174,7 +176,14 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
   );
 
   override async alarm(): Promise<void> {
-    await this.runEffect(this.alarmEffect(this.userId));
+    try {
+      await this.runEffect(this.alarmEffect(this.userId));
+    } finally {
+      // Re-read D1 after external X/queue I/O. If the account was unlinked
+      // while the alarm was running, normal reconciliation removes any local
+      // state or alarm that the in-flight poll recreated.
+      await this.reconcile();
+    }
   }
 
   private pollAlarmEffect = Effect.fn("XBookmarkSyncDO.pollAlarm")(function* (

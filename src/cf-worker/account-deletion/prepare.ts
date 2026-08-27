@@ -1,17 +1,29 @@
-import { and, eq } from "drizzle-orm";
-import { Effect, Schema } from "effect";
+import { eq } from "drizzle-orm";
+import { Data, Effect, Layer, Schema } from "effect";
 
-import { OrgId, UserId } from "../db/branded";
+import { OrgId, StripeSubscriptionId, UserId } from "../db/branded";
 import type { WorkflowInstanceId } from "../db/branded";
 import * as schema from "../db/schema";
-import { DbClient, DbError, query } from "../db/service";
+import { DbClient, DbClientLive, DbError, query } from "../db/service";
 import { maskId } from "../log-utils";
-import { DeletionRuntime } from "./runtime";
+import type { Env } from "../shared";
+import { OtelTracingLive } from "../tracing";
+import { DeletionRuntime, DeletionRuntimeLive } from "./runtime";
 
-export class MissingActiveOrgError extends Schema.TaggedErrorClass<MissingActiveOrgError>()(
-  "MissingActiveOrgError",
-  { userId: UserId }
-) {}
+export const DeletionPreparationLive = (env: Env) =>
+  Layer.mergeAll(
+    DbClientLive(env.DB),
+    DeletionRuntimeLive(env),
+    OtelTracingLive
+  );
+
+export class MissingActiveOrgError extends Data.TaggedError(
+  "MissingActiveOrgError"
+)<{ readonly userId: UserId }> {}
+
+export class SharedPersonalOrgError extends Data.TaggedError(
+  "SharedPersonalOrgError"
+)<{ readonly userId: UserId }> {}
 
 // Slug also produced by the bootstrap hook in `auth/index.ts` — share it
 // to keep creation and lookup in sync.
@@ -31,21 +43,31 @@ const findPersonalOrgIdForUser = Effect.fn(
   );
   if (!org) return yield* new MissingActiveOrgError({ userId });
 
-  const membership = yield* query(
-    db.query.member.findFirst({
-      where: and(
-        eq(schema.member.organizationId, org.id),
-        eq(schema.member.userId, userId)
-      ),
+  const memberships = yield* query(
+    db.query.member.findMany({
+      columns: { role: true, userId: true },
+      where: eq(schema.member.organizationId, org.id),
     })
+  );
+  const membership = memberships.find(
+    (candidate) => candidate.userId === userId
   );
   if (!membership || membership.role !== "owner") {
     return yield* new MissingActiveOrgError({ userId });
   }
+  if (memberships.some((candidate) => candidate.userId !== userId)) {
+    return yield* new SharedPersonalOrgError({ userId });
+  }
 
-  return yield* Schema.decodeUnknownEffect(OrgId)(org.id).pipe(
+  const orgId = yield* Schema.decodeUnknownEffect(OrgId)(org.id).pipe(
     Effect.mapError((cause) => new DbError({ cause }))
   );
+  const stripeSubscriptionId = org.stripeSubscriptionId
+    ? yield* Schema.decodeUnknownEffect(StripeSubscriptionId)(
+        org.stripeSubscriptionId
+      ).pipe(Effect.mapError((cause) => new DbError({ cause })))
+    : null;
+  return { orgId, stripeSubscriptionId };
 });
 
 export interface PrepareDeletionInput {
@@ -58,22 +80,16 @@ export interface PrepareDeletionOutput {
 }
 
 // Resolves the deleter's personal org and starts (or rejoins) the
-// AccountDeletionWorkflow for it. Returns null when there's no personal org
-// to purge so Better Auth's `beforeDelete` still allows the user row to be
-// removed. Idempotency lives in `runtime.ensureWorkflow`.
+// AccountDeletionWorkflow for it. Missing, shared, or inconsistent tenancy
+// fails loudly, preventing Better Auth from removing the identity or deleting
+// another user's workspace membership while collaboration remains undefined.
+// The deterministic Workflow instance is the durable idempotency record.
 export const prepareDeletion = Effect.fn("AccountDeletion.prepare")(function* (
   input: PrepareDeletionInput
 ) {
-  const orgId = yield* findPersonalOrgIdForUser(input.userId).pipe(
-    Effect.catchTag("MissingActiveOrgError", () => Effect.succeed(null))
+  const { orgId, stripeSubscriptionId } = yield* findPersonalOrgIdForUser(
+    input.userId
   );
-  if (orgId === null) {
-    yield* Effect.logWarning(
-      "No personal org for user — skipping purge workflow"
-    ).pipe(Effect.annotateLogs({ userId: maskId(input.userId) }));
-    return null;
-  }
-
   const runtime = yield* DeletionRuntime;
 
   yield* Effect.annotateCurrentSpan({
@@ -84,6 +100,7 @@ export const prepareDeletion = Effect.fn("AccountDeletion.prepare")(function* (
   const handle = yield* runtime.ensureWorkflow({
     userId: input.userId,
     orgId,
+    stripeSubscriptionId,
   });
 
   return {
