@@ -81,6 +81,7 @@ const config: UserConfig = {
     jsPlugins: [
       "./tools/oxlint-rules/tailwind-cn.mjs",
       "./tools/oxlint-rules/motion.mjs",
+      "./tools/oxlint-rules/anti-slop.mjs",
     ],
     plugins: [
       "eslint",
@@ -107,11 +108,13 @@ const config: UserConfig = {
     ignorePatterns: [
       "readonly-llm-lookup",
       "vendor",
+      "**/*.gen.ts",
       "apps/**/.wxt/**",
       "apps/**/.output/**",
       "tools/oxlint-rules/__tests__/fixtures/**",
     ],
     rules: {
+      complexity: ["error", { max: 20, variant: "classic" }],
       "no-await-in-loop": "off",
       "max-lines-per-function": "off",
       "no-implicit-coercion": "off",
@@ -215,6 +218,8 @@ const config: UserConfig = {
 
       "tailwind-cn/no-cn-ternary": "error",
       "motion/no-use-reduced-motion": "error",
+      "anti-slop/no-chained-type-assertions": "error",
+      "anti-slop/no-module-mocking": "off",
     },
     options: {
       typeAware: true,
@@ -226,9 +231,20 @@ const config: UserConfig = {
           "**/__tests__/**/*.{ts,tsx,js,jsx}",
         ],
         rules: {
+          complexity: "off",
           "no-empty-function": "off",
           "promise/prefer-await-to-then": "off",
           "typescript/no-unsafe-type-assertion": "off",
+          "anti-slop/no-chained-type-assertions": "off",
+        },
+      },
+      {
+        files: [
+          "src/cf-worker/**/*.{test,spec}.{ts,tsx,js,jsx}",
+          "src/cf-worker/**/__tests__/**/*.{ts,tsx,js,jsx}",
+        ],
+        rules: {
+          "anti-slop/no-module-mocking": "error",
         },
       },
       {

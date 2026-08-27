@@ -1,4 +1,5 @@
 import { Effect, Layer, Schema } from "effect";
+import { FetchHttpClient, HttpClient } from "effect/unstable/http";
 
 import { XTweetId, XUserId, XUsername } from "../../db/branded";
 import {
@@ -46,151 +47,177 @@ const parseRetryAfterMs = (header: string | null): number => {
   return seconds * 1000;
 };
 
-const getMeImpl = Effect.fn("XApiClient.getMe")(function* (
-  accessToken: string
-) {
-  const endpoint = "users/me";
-  yield* Effect.annotateCurrentSpan("endpoint", endpoint);
+const makeGetMe = (client: HttpClient.HttpClient) =>
+  Effect.fn("XApiClient.getMe")(function* (accessToken: string) {
+    const endpoint = "users/me";
+    yield* Effect.annotateCurrentSpan("endpoint", endpoint);
 
-  const resp = yield* Effect.tryPromise({
-    try: () =>
-      fetch(
+    const resp = yield* client
+      .get(
         `${X_API_BASE}/users/me?user.fields=username,name,profile_image_url`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
-      ),
-    catch: (cause) =>
-      new XApiError({ endpoint, status: 0, message: "fetch failed", cause }),
-  });
+      )
+      .pipe(
+        Effect.mapError(
+          (cause) =>
+            new XApiError({
+              endpoint,
+              status: 0,
+              message: "fetch failed",
+              cause,
+            })
+        )
+      );
 
-  yield* Effect.annotateCurrentSpan("status", resp.status);
+    yield* Effect.annotateCurrentSpan("status", resp.status);
 
-  if (resp.status === 401) {
-    return yield* new XUnauthorizedError({ endpoint });
-  }
-  if (!resp.ok) {
-    return yield* new XApiError({
-      endpoint,
-      status: resp.status,
-      message: resp.statusText,
-    });
-  }
-
-  const json = yield* Effect.tryPromise({
-    try: () => resp.json(),
-    catch: (cause) =>
-      new XApiError({
+    if (resp.status === 401) {
+      return yield* new XUnauthorizedError({ endpoint });
+    }
+    if (resp.status < 200 || resp.status >= 300) {
+      return yield* new XApiError({
         endpoint,
         status: resp.status,
-        message: "parse failed",
-        cause,
-      }),
-  });
-
-  const body = yield* Schema.decodeUnknownEffect(MeResponse)(json).pipe(
-    Effect.mapError(
-      (cause) =>
-        new XApiError({
-          endpoint,
-          status: resp.status,
-          message: "schema mismatch",
-          cause,
-        })
-    )
-  );
-
-  yield* Effect.annotateCurrentSpan("xUserId", body.data.id);
-  yield* Effect.annotateCurrentSpan("xUsername", body.data.username);
-
-  return {
-    id: body.data.id,
-    username: body.data.username,
-    name: body.data.name,
-    profileImageUrl: body.data.profile_image_url,
-  };
-});
-
-const getBookmarksImpl = Effect.fn("XApiClient.getBookmarks")(function* (
-  params: GetBookmarksParams
-) {
-  const endpoint = "bookmarks";
-  yield* Effect.annotateCurrentSpan("endpoint", endpoint);
-  yield* Effect.annotateCurrentSpan("xUserId", params.xUserId);
-  yield* Effect.annotateCurrentSpan("maxResults", params.maxResults);
-  yield* Effect.annotateCurrentSpan(
-    "hasPaginationToken",
-    !!params.paginationToken
-  );
-
-  const resp = yield* Effect.tryPromise({
-    try: () => {
-      const url = new URL(`${X_API_BASE}/users/${params.xUserId}/bookmarks`);
-      url.searchParams.set("max_results", String(params.maxResults));
-      url.searchParams.set("tweet.fields", "author_id,created_at,text");
-      if (params.paginationToken) {
-        url.searchParams.set("pagination_token", params.paginationToken);
-      }
-      return fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${params.accessToken}` },
+        message: `HTTP ${resp.status}`,
       });
-    },
-    catch: (cause) =>
-      new XApiError({ endpoint, status: 0, message: "fetch failed", cause }),
+    }
+
+    const json = yield* resp.json.pipe(
+      Effect.mapError(
+        (cause) =>
+          new XApiError({
+            endpoint,
+            status: resp.status,
+            message: "parse failed",
+            cause,
+          })
+      )
+    );
+
+    const body = yield* Schema.decodeUnknownEffect(MeResponse)(json).pipe(
+      Effect.mapError(
+        (cause) =>
+          new XApiError({
+            endpoint,
+            status: resp.status,
+            message: "schema mismatch",
+            cause,
+          })
+      )
+    );
+
+    yield* Effect.annotateCurrentSpan("xUserId", body.data.id);
+    yield* Effect.annotateCurrentSpan("xUsername", body.data.username);
+
+    return {
+      id: body.data.id,
+      username: body.data.username,
+      name: body.data.name,
+      profileImageUrl: body.data.profile_image_url,
+    };
   });
 
-  yield* Effect.annotateCurrentSpan("status", resp.status);
+const makeGetBookmarks = (client: HttpClient.HttpClient) =>
+  Effect.fn("XApiClient.getBookmarks")(function* (params: GetBookmarksParams) {
+    const endpoint = "bookmarks";
+    yield* Effect.annotateCurrentSpan("endpoint", endpoint);
+    yield* Effect.annotateCurrentSpan("xUserId", params.xUserId);
+    yield* Effect.annotateCurrentSpan("maxResults", params.maxResults);
+    yield* Effect.annotateCurrentSpan(
+      "hasPaginationToken",
+      !!params.paginationToken
+    );
 
-  if (resp.status === 401) {
-    return yield* new XUnauthorizedError({ endpoint });
-  }
-  if (resp.status === 402) {
-    return yield* new XPaymentRequiredError({ endpoint });
-  }
-  if (resp.status === 429) {
-    const retryAfterMs = parseRetryAfterMs(resp.headers.get("retry-after"));
-    yield* Effect.annotateCurrentSpan("retryAfterMs", retryAfterMs);
-    return yield* new XRateLimitedError({ endpoint, retryAfterMs });
-  }
-  if (!resp.ok) {
-    return yield* new XApiError({
-      endpoint,
-      status: resp.status,
-      message: resp.statusText,
-    });
-  }
+    const url = new URL(`${X_API_BASE}/users/${params.xUserId}/bookmarks`);
+    url.searchParams.set("max_results", String(params.maxResults));
+    url.searchParams.set("tweet.fields", "author_id,created_at,text");
+    if (params.paginationToken) {
+      url.searchParams.set("pagination_token", params.paginationToken);
+    }
+    const resp = yield* client
+      .get(url, {
+        headers: { Authorization: `Bearer ${params.accessToken}` },
+      })
+      .pipe(
+        Effect.mapError(
+          (cause) =>
+            new XApiError({
+              endpoint,
+              status: 0,
+              message: "fetch failed",
+              cause,
+            })
+        )
+      );
 
-  const json = yield* Effect.tryPromise({
-    try: () => resp.json(),
-    catch: (cause) =>
-      new XApiError({
+    yield* Effect.annotateCurrentSpan("status", resp.status);
+
+    if (resp.status === 401) {
+      return yield* new XUnauthorizedError({ endpoint });
+    }
+    if (resp.status === 402) {
+      return yield* new XPaymentRequiredError({ endpoint });
+    }
+    if (resp.status === 429) {
+      const retryAfterMs = parseRetryAfterMs(
+        resp.headers["retry-after"] ?? null
+      );
+      yield* Effect.annotateCurrentSpan("retryAfterMs", retryAfterMs);
+      return yield* new XRateLimitedError({ endpoint, retryAfterMs });
+    }
+    if (resp.status < 200 || resp.status >= 300) {
+      return yield* new XApiError({
         endpoint,
         status: resp.status,
-        message: "parse failed",
-        cause,
-      }),
+        message: `HTTP ${resp.status}`,
+      });
+    }
+
+    const json = yield* resp.json.pipe(
+      Effect.mapError(
+        (cause) =>
+          new XApiError({
+            endpoint,
+            status: resp.status,
+            message: "parse failed",
+            cause,
+          })
+      )
+    );
+
+    const body = yield* Schema.decodeUnknownEffect(BookmarksResponse)(
+      json
+    ).pipe(
+      Effect.mapError(
+        (cause) =>
+          new XApiError({
+            endpoint,
+            status: resp.status,
+            message: "schema mismatch",
+            cause,
+          })
+      )
+    );
+
+    const data = body.data ?? [];
+    yield* Effect.annotateCurrentSpan("resultCount", data.length);
+
+    return {
+      data,
+      nextToken: body.meta?.next_token,
+    };
   });
 
-  const body = yield* Schema.decodeUnknownEffect(BookmarksResponse)(json).pipe(
-    Effect.mapError(
-      (cause) =>
-        new XApiError({
-          endpoint,
-          status: resp.status,
-          message: "schema mismatch",
-          cause,
-        })
-    )
-  );
+const XApiClientLayer = Layer.effect(
+  XApiClient,
+  Effect.map(HttpClient.HttpClient, (client) =>
+    XApiClient.of({
+      getMe: makeGetMe(client),
+      getBookmarks: makeGetBookmarks(client),
+    })
+  )
+);
 
-  const data = body.data ?? [];
-  yield* Effect.annotateCurrentSpan("resultCount", data.length);
-
-  return {
-    data,
-    nextToken: body.meta?.next_token,
-  };
-});
-
-export const XApiClientLive = Layer.succeed(XApiClient, {
-  getMe: getMeImpl,
-  getBookmarks: getBookmarksImpl,
-});
+export const XApiClientLive = XApiClientLayer.pipe(
+  Layer.provide(FetchHttpClient.layer)
+);

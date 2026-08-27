@@ -48,6 +48,19 @@ interface TagComboboxProps {
   onDismissSuggestion?: (suggestion: TagSuggestion) => void;
 }
 
+function getTriggerCopy(suggestionCount: number, selectedCount: number) {
+  if (suggestionCount > 0) {
+    return {
+      ariaLabel: `Edit tags (${suggestionCount} suggested)`,
+      tooltip: `${suggestionCount} tag suggestion${suggestionCount === 1 ? "" : "s"}`,
+    };
+  }
+  if (selectedCount > 0) {
+    return { ariaLabel: "Edit tags", tooltip: "Edit tags" };
+  }
+  return { ariaLabel: "Add tags", tooltip: "Add tags" };
+}
+
 export function TagCombobox({
   selectedTagIds,
   onChange,
@@ -101,6 +114,10 @@ export function TagCombobox({
   const selectedTags = allTags.filter((t) => selectedSet.has(t.id));
   const pendingSuggestions = suggestions ?? [];
   const hasSuggestions = pendingSuggestions.length > 0;
+  const triggerCopy = getTriggerCopy(
+    pendingSuggestions.length,
+    selectedTags.length
+  );
   const allTagsById = new Map(allTags.map((t) => [t.id, t]));
   const visibleSuggestionChips = pendingSuggestions
     .filter((s) => !s.tagId || !selectedSet.has(s.tagId))
@@ -277,13 +294,7 @@ export function TagCombobox({
                     type="button"
                     size="icon-xs"
                     variant="outline"
-                    aria-label={
-                      hasSuggestions
-                        ? `Edit tags (${pendingSuggestions.length} suggested)`
-                        : selectedTags.length > 0
-                          ? "Edit tags"
-                          : "Add tags"
-                    }
+                    aria-label={triggerCopy.ariaLabel}
                     className="relative"
                   />
                 }
@@ -298,13 +309,7 @@ export function TagCombobox({
               </PopoverTrigger>
             }
           />
-          <TooltipContent>
-            {hasSuggestions
-              ? `${pendingSuggestions.length} tag suggestion${pendingSuggestions.length === 1 ? "" : "s"}`
-              : selectedTags.length > 0
-                ? "Edit tags"
-                : "Add tags"}
-          </TooltipContent>
+          <TooltipContent>{triggerCopy.tooltip}</TooltipContent>
         </Tooltip>
       </div>
 

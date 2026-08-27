@@ -1,4 +1,5 @@
-import { Effect } from "effect";
+import { Effect, Layer } from "effect";
+import { FetchHttpClient } from "effect/unstable/http";
 
 import { queryUsage } from "../analytics";
 import { logSync } from "../logger";
@@ -58,7 +59,7 @@ export async function handleGetUsage(
         Response.json({ error: "Failed to query usage data" }, { status: 500 })
       );
     }),
-    Effect.provide(OtelTracingLive),
+    Effect.provide(Layer.merge(FetchHttpClient.layer, OtelTracingLive)),
     Effect.runPromise
   );
 }

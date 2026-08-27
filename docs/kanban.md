@@ -17,7 +17,6 @@ kanban-plugin: board
 
 ## Todo
 
-- [ ] Adopt an enforced cyclomatic-complexity budget with Oxc [`eslint/complexity`](https://oxc.rs/docs/guide/usage/linter/rules/eslint/complexity) — inventory current hotspots, choose and document the `max` and `variant`, refactor violations instead of blanket-suppressing them, enable the rule in the Vite+ lint configuration, and ratchet the CI limit downward where practical.
 - [ ] Retire the local Better Auth MCP JWKS verifier after [#10856](https://github.com/better-auth/better-auth/issues/10856) / [#10888](https://github.com/better-auth/better-auth/issues/10888) and [#10893](https://github.com/better-auth/better-auth/pull/10893) ship in a stable release — installed types must accept an in-process JWKS source plus cache key, and the same-Worker E2E must pass with zero outbound JWKS requests.
 - [ ] Retest Better Auth OAuth resource seeding on future stable upgrades — the Drizzle-wrapped UNIQUE race is independently reproduced on 1.7.0 and still present upstream; keep the app-wide atomic initializer in `AuthClientLive` until concurrent fresh auth contexts pass without it. No upstream issue is being filed.
 - [ ] [[todos/ws-close-scope-teardown-exception|SyncBackendDO webSocketClose throws on abnormal close (1006) — upstream teardown fix]] — 2 new `scriptThrewException` on the v4-cutover day (2026-08-10), zero in the prior week; benign (1ms, socket already dead, reconnect fine) but skips `serverCtxMap` cleanup and pollutes the error signal; small upstream PR candidate (make `Scope.close` teardown non-throwing in common-cf `ws-rpc-server.ts:217`).
@@ -68,6 +67,7 @@ kanban-plugin: board
 
 ## Done
 
+- [x] Adopt an enforced cyclomatic-complexity budget with Oxc [`eslint/complexity`](https://oxc.rs/docs/guide/usage/linter/rules/eslint/complexity) — the Vite+ quality lane now enforces Oxc's default classic maximum of 20 across shipped and build code while excluding test scenarios; five existing hotspots were split only at concrete responsibility boundaries, with no intended behavior changes or local suppressions.
 - [x] Repair the new-signup approval gate — the admin switch controls signup approval, app entry bypasses stale Better Auth approval cookies, approved users are not trapped, and pending users retain tested sign-out and account-deletion escape routes.
 - [x] [[todos/done/account-deletion|Reliable account deletion workflow]] — deletion now runs as a durable Cloudflare Workflow with Effect activities, bounded D1 cascades, Stripe cancellation, Durable Object shutdown, integration cleanup, and retry/resume coverage.
 - [x] Shrink and budget the Worker upload — PR #94 Oxc-minified the deployable Worker, reducing the Wrangler dry-run upload from 2963 KiB to 1868 KiB gzipped, and added a CI-enforced 2700 KiB pre-limit budget plus a generated-Worker smoke test.

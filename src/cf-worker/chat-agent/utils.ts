@@ -1,6 +1,6 @@
 import type { UIMessage } from "@ai-sdk/react";
 import { getToolName, isToolUIPart } from "ai";
-import type { ToolSet } from "ai";
+import type { DynamicToolUIPart, ToolSet, ToolUIPart } from "ai";
 import { Effect, Array as A, Option } from "effect";
 
 import { requiresConfirmation } from "@/shared/tool-config";
@@ -12,36 +12,35 @@ export const APPROVAL = {
   YES: "Yes, confirmed.",
 } as const;
 
-type ToolPartWithOutput = {
-  toolCallId: string;
-  toolName?: string;
-  output: string;
-  input?: Record<string, unknown>;
+type MessagePart = UIMessage["parts"][number];
+type ToolPart = ToolUIPart | DynamicToolUIPart;
+type ApprovalOutput = (typeof APPROVAL)[keyof typeof APPROVAL];
+type ApprovalToolPart = ToolPart & {
+  readonly state: "output-available";
+  readonly output: ApprovalOutput;
 };
 
-const isApprovalOutput = (part: unknown): part is ToolPartWithOutput =>
-  isToolUIPart(part as never) &&
-  "output" in (part as Record<string, unknown>) &&
-  ((part as ToolPartWithOutput).output === APPROVAL.YES ||
-    (part as ToolPartWithOutput).output === APPROVAL.NO);
+const isApprovalOutput = (part: MessagePart): part is ApprovalToolPart =>
+  isToolUIPart(part) &&
+  part.state === "output-available" &&
+  (part.output === APPROVAL.YES || part.output === APPROVAL.NO);
 
-export const hasToolConfirmation = (message: UIMessage): boolean =>
+export const hasToolConfirmation = (message: UIMessage | undefined): boolean =>
   message?.parts?.some(
-    (part) =>
-      isApprovalOutput(part) && requiresConfirmation(getToolName(part as never))
+    (part) => isApprovalOutput(part) && requiresConfirmation(getToolName(part))
   ) ?? false;
 
 type ToolExecutors = Record<string, (args: any) => Promise<string>>;
 
-const processToolPart = <T>(
-  part: T,
+const processToolPart = (
+  part: MessagePart,
   executors: ToolExecutors
-): Effect.Effect<T> => {
+): Effect.Effect<MessagePart> => {
   if (!isApprovalOutput(part)) {
     return Effect.succeed(part);
   }
 
-  const toolName = getToolName(part as never);
+  const toolName = getToolName(part);
   const executor = executors[toolName];
 
   if (!executor) {
@@ -60,14 +59,14 @@ const processToolPart = <T>(
         ),
         Effect.catch(() => Effect.succeed("Error: Tool execution failed"))
       );
-      return { ...part, output: result } as T;
+      return { ...part, output: result };
     }
 
     if (part.output === APPROVAL.NO) {
       return {
         ...part,
         output: "Error: User denied access to tool execution",
-      } as T;
+      };
     }
 
     return part;
@@ -93,7 +92,7 @@ export const processToolCalls = <Tools extends ToolSet>(
     return [
       ...messages.slice(0, -1),
       { ...msg, parts: processedParts.filter(Boolean) },
-    ] as UIMessage[];
+    ];
   }).pipe(
     Effect.withSpan("ChatAgent.processToolCalls"),
     Effect.provide(OtelTracingLive),

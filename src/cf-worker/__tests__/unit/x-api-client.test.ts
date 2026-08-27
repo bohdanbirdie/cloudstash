@@ -1,5 +1,7 @@
 import { describe, it } from "@effect/vitest";
+import { assertInstanceOf } from "@effect/vitest/utils";
 import { Effect, Result } from "effect";
+import { FetchHttpClient } from "effect/unstable/http";
 import { expect } from "vitest";
 
 import { XUserId } from "../../db/branded";
@@ -34,45 +36,33 @@ const urlOf = (input: RequestInfo | URL): string => {
   return input.url;
 };
 
-/**
- * Per-test fetch stub via Effect.acquireRelease — replaces globalThis.fetch
- * for the lifetime of the Effect Scope and always restores it. This avoids
- * the parallel-unsafe beforeEach/afterEach pattern.
- */
-const withFetchStub = (plan: FetchPlan, captured?: CapturedRequest[]) =>
-  Effect.acquireRelease(
-    Effect.sync(() => {
-      const original = globalThis.fetch;
-      globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-        captured?.push({ url: urlOf(input), init });
-        if (plan.kind === "reject") return Promise.reject(plan.cause);
-        return Promise.resolve(
-          new Response(JSON.stringify(plan.body), {
-            status: plan.status,
-            headers: {
-              "content-type": "application/json",
-              ...plan.headers,
-            },
-          })
-        );
-      }) as typeof fetch;
-      return original;
-    }),
-    (original) =>
-      Effect.sync(() => {
-        globalThis.fetch = original;
+const fetchFor =
+  (plan: FetchPlan, captured: CapturedRequest[]): typeof globalThis.fetch =>
+  (input: RequestInfo | URL, init?: RequestInit) => {
+    captured.push({ url: urlOf(input), init });
+    if (plan.kind === "reject") return Promise.reject(plan.cause);
+    return Promise.resolve(
+      new Response(JSON.stringify(plan.body), {
+        status: plan.status,
+        headers: {
+          "content-type": "application/json",
+          ...plan.headers,
+        },
       })
-  );
+    );
+  };
 
 const runWithFetch = <A, E>(
   plan: FetchPlan,
   body: (captured: CapturedRequest[]) => Effect.Effect<A, E, XApiClient>
 ) =>
-  Effect.gen(function* () {
+  Effect.suspend(() => {
     const captured: CapturedRequest[] = [];
-    yield* withFetchStub(plan, captured);
-    return yield* body(captured);
-  }).pipe(Effect.scoped, Effect.provide(XApiClientLive));
+    return body(captured).pipe(
+      Effect.provide(XApiClientLive),
+      Effect.provideService(FetchHttpClient.Fetch, fetchFor(plan, captured))
+    );
+  });
 
 describe("XApiClient (Live) — getMe", () => {
   it.effect("returns parsed user info on 200 with profile_image_url", () =>
@@ -138,10 +128,8 @@ describe("XApiClient (Live) — getMe", () => {
           Effect.sync(() => {
             expect(Result.isFailure(r)).toBe(true);
             if (Result.isFailure(r)) {
-              expect(r.failure).toBeInstanceOf(XUnauthorizedError);
-              expect((r.failure as XUnauthorizedError).endpoint).toBe(
-                "users/me"
-              );
+              assertInstanceOf(r.failure, XUnauthorizedError);
+              expect(r.failure.endpoint).toBe("users/me");
             }
           })
         )
@@ -158,8 +146,8 @@ describe("XApiClient (Live) — getMe", () => {
             if (Result.isFailure(r)) {
               // Pins the deliberate asymmetry: only the bookmarks endpoint
               // distinguishes 402; /users/me falls through to XApiError.
-              expect(r.failure).toBeInstanceOf(XApiError);
-              expect((r.failure as XApiError).status).toBe(402);
+              assertInstanceOf(r.failure, XApiError);
+              expect(r.failure.status).toBe(402);
             }
           })
         )
@@ -176,8 +164,8 @@ describe("XApiClient (Live) — getMe", () => {
           Effect.tap((r) =>
             Effect.sync(() => {
               if (Result.isFailure(r)) {
-                expect(r.failure).toBeInstanceOf(XApiError);
-                expect((r.failure as XApiError).status).toBe(429);
+                assertInstanceOf(r.failure, XApiError);
+                expect(r.failure.status).toBe(429);
               }
             })
           )
@@ -192,9 +180,9 @@ describe("XApiClient (Live) — getMe", () => {
         Effect.tap((r) =>
           Effect.sync(() => {
             if (Result.isFailure(r)) {
-              expect(r.failure).toBeInstanceOf(XApiError);
-              expect((r.failure as XApiError).status).toBe(500);
-              expect((r.failure as XApiError).endpoint).toBe("users/me");
+              assertInstanceOf(r.failure, XApiError);
+              expect(r.failure.status).toBe(500);
+              expect(r.failure.endpoint).toBe("users/me");
             }
           })
         )
@@ -209,8 +197,8 @@ describe("XApiClient (Live) — getMe", () => {
         Effect.tap((r) =>
           Effect.sync(() => {
             if (Result.isFailure(r)) {
-              expect(r.failure).toBeInstanceOf(XApiError);
-              expect((r.failure as XApiError).status).toBe(0);
+              assertInstanceOf(r.failure, XApiError);
+              expect(r.failure.status).toBe(0);
             }
           })
         )
@@ -229,10 +217,8 @@ describe("XApiClient (Live) — getMe", () => {
             Effect.tap((r) =>
               Effect.sync(() => {
                 if (Result.isFailure(r)) {
-                  expect(r.failure).toBeInstanceOf(XApiError);
-                  expect((r.failure as XApiError).message).toBe(
-                    "schema mismatch"
-                  );
+                  assertInstanceOf(r.failure, XApiError);
+                  expect(r.failure.message).toBe("schema mismatch");
                 }
               })
             )
@@ -341,10 +327,8 @@ describe("XApiClient (Live) — getBookmarks", () => {
         Effect.tap((r) =>
           Effect.sync(() => {
             if (Result.isFailure(r)) {
-              expect(r.failure).toBeInstanceOf(XUnauthorizedError);
-              expect((r.failure as XUnauthorizedError).endpoint).toBe(
-                "bookmarks"
-              );
+              assertInstanceOf(r.failure, XUnauthorizedError);
+              expect(r.failure.endpoint).toBe("bookmarks");
             }
           })
         )
@@ -388,10 +372,8 @@ describe("XApiClient (Live) — getBookmarks", () => {
           Effect.tap((r) =>
             Effect.sync(() => {
               if (Result.isFailure(r)) {
-                expect(r.failure).toBeInstanceOf(XRateLimitedError);
-                expect((r.failure as XRateLimitedError).retryAfterMs).toBe(
-                  90_000
-                );
+                assertInstanceOf(r.failure, XRateLimitedError);
+                expect(r.failure.retryAfterMs).toBe(90_000);
               }
             })
           )
@@ -412,10 +394,8 @@ describe("XApiClient (Live) — getBookmarks", () => {
         Effect.tap((r) =>
           Effect.sync(() => {
             if (Result.isFailure(r)) {
-              expect(r.failure).toBeInstanceOf(XRateLimitedError);
-              expect((r.failure as XRateLimitedError).retryAfterMs).toBe(
-                60_000
-              );
+              assertInstanceOf(r.failure, XRateLimitedError);
+              expect(r.failure.retryAfterMs).toBe(60_000);
             }
           })
         )
@@ -443,9 +423,8 @@ describe("XApiClient (Live) — getBookmarks", () => {
           Effect.tap((r) =>
             Effect.sync(() => {
               if (Result.isFailure(r)) {
-                expect((r.failure as XRateLimitedError).retryAfterMs).toBe(
-                  60_000
-                );
+                assertInstanceOf(r.failure, XRateLimitedError);
+                expect(r.failure.retryAfterMs).toBe(60_000);
               }
             })
           )
@@ -466,9 +445,9 @@ describe("XApiClient (Live) — getBookmarks", () => {
         Effect.tap((r) =>
           Effect.sync(() => {
             if (Result.isFailure(r)) {
-              expect(r.failure).toBeInstanceOf(XApiError);
-              expect((r.failure as XApiError).status).toBe(503);
-              expect((r.failure as XApiError).endpoint).toBe("bookmarks");
+              assertInstanceOf(r.failure, XApiError);
+              expect(r.failure.status).toBe(503);
+              expect(r.failure.endpoint).toBe("bookmarks");
             }
           })
         )
@@ -489,8 +468,8 @@ describe("XApiClient (Live) — getBookmarks", () => {
         Effect.tap((r) =>
           Effect.sync(() => {
             if (Result.isFailure(r)) {
-              expect(r.failure).toBeInstanceOf(XApiError);
-              expect((r.failure as XApiError).message).toBe("schema mismatch");
+              assertInstanceOf(r.failure, XApiError);
+              expect(r.failure.message).toBe("schema mismatch");
             }
           })
         )
