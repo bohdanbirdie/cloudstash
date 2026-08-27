@@ -1,4 +1,4 @@
-import { Effect, Layer, Schema } from "effect";
+import { Effect, Layer, Result, Schema } from "effect";
 
 import { PLAN_ORDER } from "@/lib/plan";
 
@@ -72,6 +72,31 @@ const notFound = () =>
 const badBody = () =>
   Response.json({ error: "Invalid request body" }, { status: 400 });
 
+export const reconcileTierDependents = Effect.fn(
+  "Admin.reconcileTierDependents"
+)(function* (orgId: OrgId) {
+  const results = yield* Effect.all(
+    {
+      digest: reconcileDigestSchedule(orgId),
+      x: enqueueOrgXReconcile(orgId),
+    },
+    { concurrency: "unbounded", mode: "result" }
+  );
+
+  if (Result.isFailure(results.x)) {
+    yield* Effect.logError("setTier X reconciliation failed").pipe(
+      Effect.annotateLogs(safeErrorInfo(results.x.failure))
+    );
+  }
+  if (Result.isFailure(results.digest)) {
+    yield* Effect.logError("setTier digest reconciliation failed").pipe(
+      Effect.annotateLogs(safeErrorInfo(results.digest.failure.cause))
+    );
+  }
+
+  return Result.isFailure(results.x) || Result.isFailure(results.digest);
+});
+
 export const handleListWorkspaces = (
   _request: Request,
   env: Env
@@ -137,8 +162,7 @@ export const handleSetTier = (
       const body = yield* decodeBody(request, SetTierBody);
       const billing = yield* Billing;
       yield* billing.setTier(orgId, body.tier);
-      yield* enqueueOrgXReconcile(orgId);
-      yield* reconcileDigestSchedule(orgId);
+      const reconciliationFailed = yield* reconcileTierDependents(orgId);
       yield* Effect.annotateCurrentSpan({
         orgId: maskId(orgId),
         tier: body.tier,
@@ -146,6 +170,7 @@ export const handleSetTier = (
       yield* Effect.logInfo("Set tier").pipe(
         Effect.annotateLogs({ orgId: maskId(orgId), tier: body.tier })
       );
+      if (reconciliationFailed) return internalError();
       return Response.json({ success: true, tier: body.tier });
     }).pipe(
       Effect.provide(
@@ -163,12 +188,6 @@ export const handleSetTier = (
             Effect.as(internalError())
           ),
         OrgNotFoundError: () => Effect.succeed(notFound()),
-        DigestScheduleReconcileError: (error) =>
-          Effect.logError("setTier digest reconciliation failed").pipe(
-            Effect.annotateLogs(safeErrorInfo(error.cause)),
-            Effect.as(internalError())
-          ),
-        XReconcileQueueError: () => Effect.succeed(internalError()),
       })
     )
   );
