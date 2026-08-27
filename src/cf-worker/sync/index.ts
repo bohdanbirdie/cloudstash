@@ -4,10 +4,7 @@ import { Effect } from "effect";
 
 import { AppLayerLive } from "../auth/service";
 import { OrgId } from "../db/branded";
-import {
-  isDurableObjectRetired,
-  retireDurableObjectStorage,
-} from "../durable-object-retirement";
+import { retireDurableObjectStorage } from "../durable-object-retirement";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
@@ -109,24 +106,7 @@ let currentSyncBackend: {
 // Heal/alert wiring is the follow-up in docs/todos/admin-server-ahead-alert.md.
 const STUCK_GAP_THRESHOLD = 100;
 
-// The local vendored source has a pre-commit callback that the published
-// snapshot's declarations do not expose yet. Keeping the extension on the
-// options object avoids widening the ordinary onPush callback context.
-type SyncBackendOptions = NonNullable<
-  Parameters<typeof SyncBackend.makeDurableObject>[0]
-> & {
-  onPushCommit: (
-    message: unknown,
-    context: { storage: CfTypes.DurableObjectStorage }
-  ) => Promise<void>;
-};
-
-const syncBackendOptions: SyncBackendOptions = {
-  onPushCommit: async (_message, { storage }) => {
-    if (await isDurableObjectRetired(storage)) {
-      throw new Error("Durable Object is retired");
-    }
-  },
+export class SyncBackendDO extends SyncBackend.makeDurableObject({
   onPush: async (message, context) => {
     const storeId = OrgId.make(context.storeId);
     logger.info("Push received", {
@@ -163,11 +143,7 @@ const syncBackendOptions: SyncBackendOptions = {
       }
     }
   },
-};
-
-export class SyncBackendDO extends SyncBackend.makeDurableObject(
-  syncBackendOptions
-) {
+}) {
   private _env: Env;
   private _ctx: CfTypes.DurableObjectState;
   // Cached once the eventlog table is created (livestore creates it on first

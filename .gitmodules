@@ -1,4 +1,4 @@
 [submodule "vendor/livestore"]
 	path = vendor/livestore
-	url = https://github.com/bohdanbirdie/livestore.git
-	branch = bohdan/account-deletion-retirement-fence
+	url = https://github.com/livestorejs/livestore.git
+	branch = main

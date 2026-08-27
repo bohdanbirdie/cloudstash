@@ -21,13 +21,14 @@ X, Telegram, enrichment KV, and organization data. Each
 named Cloudflare step runs one Effect activity and rejects on failure so
 Cloudflare owns durable retries and timeout handling.
 
-SyncBackend, LinkProcessor, and Chat keep opaque terminal actor markers; they do
-not know why they were retired. Retirement persists the marker before graceful
-cleanup and finally wipes all other storage. LinkProcessor and Chat inject
-revision-guarded commit capabilities at their normal write boundaries rather
-than threading deletion predicates through business code; Chat also cancels
-native queued/active turns. X carries no marker and reconciles its missing
-Better Auth account into empty state. Queue/DLQ messages route to the
+SyncBackend closes its active sockets and wipes storage without depending on
+LiveStore internals. LinkProcessor and Chat keep opaque terminal actor markers;
+they do not know why they were retired. Retirement persists the marker before
+graceful cleanup and finally wipes all other storage. LinkProcessor and Chat
+inject revision-guarded commit capabilities at their normal write boundaries
+rather than threading deletion predicates through business code; Chat also
+cancels native queued/active turns. X carries no marker and reconciles its
+missing Better Auth account into empty state. Queue/DLQ messages route to the
 deterministic LinkProcessor and acknowledge a retired no-op. D1 activity rows
 use the organization foreign key with `ON DELETE CASCADE`, so late orphan writes
 are rejected.
@@ -64,7 +65,7 @@ and the
 
 - Mid-workflow target failures retry and resume without skipping a target.
 - Late or replayed intake cannot reconstruct a purged workspace.
-- Active sync/chat work cannot commit after the deletion fence is installed.
+- Active sync clients are disconnected and server-side clients are retired.
 - Authentication, API keys, sync, MCP, REST, and integrations remain denied
   after identity deletion.
 - Product and privacy copy distinguish immediate access revocation, active

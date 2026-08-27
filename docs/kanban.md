@@ -67,7 +67,7 @@ kanban-plugin: board
 
 ## Done
 
-- [x] [[todos/done/account-deletion|Reliable account deletion workflow]] — deletion now runs as a durable Cloudflare Workflow with Effect activities, bounded D1 cascades, Stripe cancellation, terminal Durable Object retirement, integration cleanup, retry/resume coverage, and late-write protection.
+- [x] [[todos/done/account-deletion|Reliable account deletion workflow]] — deletion now runs as a durable Cloudflare Workflow with Effect activities, bounded D1 cascades, Stripe cancellation, Durable Object shutdown, integration cleanup, and retry/resume coverage.
 - [x] Shrink and budget the Worker upload — PR #94 Oxc-minified the deployable Worker, reducing the Wrangler dry-run upload from 2963 KiB to 1868 KiB gzipped, and added a CI-enforced 2700 KiB pre-limit budget plus a generated-Worker smoke test.
 - [x] [[todos/develop-mcp-server|Ship stateless remote MCP for Pro]] — deployed for Pro with OAuth discovery/consent, stateless link-management tools, API parity, request-time authorization, and successful MCP JAM plus production Codex smoke tests.
 - [x] [[todos/consolidate-link-operations-in-link-processor|Consolidate link operations in LinkProcessorDO]] — REST and MCP now reuse the existing workspace-owned LiveStore replica through typed `LinkProcessorDO` RPCs; the duplicate WorkspaceLinksDO was removed.

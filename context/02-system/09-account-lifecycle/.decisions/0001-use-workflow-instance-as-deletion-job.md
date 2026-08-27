@@ -60,10 +60,13 @@ organization foreign key to cascade D1 activity rows and reject late orphan
 activity writes.
 
 Terminal retirement writes its opaque marker before attempting graceful
-cleanup, then wipes storage while restoring only that marker. SyncBackend's
-marker check belongs in LiveStore's serialized pre-append section; no Worker
-gate can close the race once a push is already in flight. Chat uses its native
-turn cancellation and request abort signal in addition to the durable marker.
+cleanup, then wipes storage while restoring only that marker. SyncBackend closes
+active WebSockets and wipes its storage through public Durable Object APIs.
+Better Auth identity removal already makes normal sync authorization deny new
+browser and extension connections, and the Workflow then retires the
+server-side LinkProcessor and Chat clients. Cloudstash does not patch or inspect
+LiveStore internals to coordinate deletion. Chat uses its native turn
+cancellation and request abort signal in addition to the durable marker.
 Cloudflare `ctx.abort()` and Agent `destroy()` do not replace this protocol:
 the former makes the retirement RPC fail uncatchably, while the latter removes
 the marker and permits a later same-name actor to start empty. Retirement state

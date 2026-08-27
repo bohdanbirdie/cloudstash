@@ -95,24 +95,27 @@ The Workflow does not install a separate deletion state in the Worker or its
 actors. `SyncBackendDO`, `LinkProcessorDO`, and `ChatAgentDO` expose the generic
 terminal operation `retire`: close active connections/store handles, atomically
 persist an opaque actor-retired marker before graceful cleanup, then coalesce a
-full storage wipe with restoring that marker. A failed or interrupted shutdown
-therefore cannot reopen intake. SyncBackend checks that core lifecycle state
-immediately before append through the vendored LiveStore callback. LinkProcessor
-and Chat capture an internal store revision around external I/O and expose
-guarded commit capabilities to repositories, tools, digest persistence, and
-workspace operations; those business services do not receive lifecycle
-predicates or deletion state. Chat additionally cancels its native queued and
-active turns, passes the Agent request abort signal into model streaming, and
-serializes new HTTP/WebSocket intake against retirement at the Agent fetch
-boundary. In-memory retirement is monotonic across awaited storage reads.
+full storage wipe with restoring that marker. SyncBackend retirement closes its
+active WebSockets and wipes storage through public Durable Object APIs. The
+identity row is already gone, so normal sync authorization rejects new browser
+or extension connections; the Workflow then retires the server-side
+LinkProcessor and Chat clients. Cloudstash does not patch or inspect LiveStore
+internals for deletion. LinkProcessor and Chat capture an internal store
+revision around external I/O and expose guarded commit capabilities to
+repositories, tools, digest persistence, and workspace operations; those
+business services do not receive lifecycle predicates or deletion state. Chat
+additionally cancels its native queued and active turns, passes the Agent
+request abort signal into model streaming, and serializes new HTTP/WebSocket
+intake against retirement at the Agent fetch boundary. In-memory retirement is
+monotonic across awaited storage reads.
 
 X is source-backed and has no retirement marker. `start`, `resume`, alarms, and
 delayed reconciliation re-read the Better Auth X account from D1; a missing
 account cancels the alarm and clears local state. `pause` is a no-op without an
 existing local state, and every alarm reconciles again after external I/O so it
-cannot leave rehydrated state after unlink/deletion. The Workflow retires the
-canonical SyncBackend first, so any downstream work already in flight cannot
-recreate canonical content. Link Queue/DLQ deliveries to a retired processor are
+cannot leave rehydrated state after unlink/deletion. The Workflow closes and
+wipes the canonical SyncBackend first, then shuts down its downstream clients.
+Link Queue/DLQ deliveries to a retired processor are
 acknowledged as successful no-ops. D1 activity rows reference the organization
 with `ON DELETE CASCADE`, removing existing rows and rejecting late orphan
 inserts after the organization is gone. A digest invocation that resumes after
