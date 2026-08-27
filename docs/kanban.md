@@ -4,7 +4,6 @@ kanban-plugin: board
 
 ## Near-term Technical Outcomes
 
-- [ ] Bug: repair the new-signup approval gate — the admin switch must control the server policy and invite-form guard; gate-off signups enter the app, gate-on signups alone wait for approval, existing approved users are never trapped, and pending users retain working sign-out and account-deletion escape routes. Cover gate on/off, existing sessions, and both escape routes with E2E tests.
 - [ ] [[todos/raycast-capability-source-cleanup|Align Raycast source and entitlement semantics]] — publication is complete; preserve first-party attribution and use one operation-time contract.
 - [ ] [[todos/customer-facing-copy-accuracy|Align customer-facing copy with shipped behavior]] — reconcile product, repository, SEO, integration, Terms, and policy surfaces with executable capabilities and current availability.
 - [ ] [[todos/canonical-url-identity|Canonical URL identity across every capture path]] — prevent new duplicates first; historical reconciliation remains a separate decision.
@@ -69,6 +68,7 @@ kanban-plugin: board
 
 ## Done
 
+- [x] Repair the new-signup approval gate — the admin switch controls signup approval, app entry bypasses stale Better Auth approval cookies, approved users are not trapped, and pending users retain tested sign-out and account-deletion escape routes.
 - [x] [[todos/done/account-deletion|Reliable account deletion workflow]] — deletion now runs as a durable Cloudflare Workflow with Effect activities, bounded D1 cascades, Stripe cancellation, Durable Object shutdown, integration cleanup, and retry/resume coverage.
 - [x] Shrink and budget the Worker upload — PR #94 Oxc-minified the deployable Worker, reducing the Wrangler dry-run upload from 2963 KiB to 1868 KiB gzipped, and added a CI-enforced 2700 KiB pre-limit budget plus a generated-Worker smoke test.
 - [x] [[todos/develop-mcp-server|Ship stateless remote MCP for Pro]] — deployed for Pro with OAuth discovery/consent, stateless link-management tools, API parity, request-time authorization, and successful MCP JAM plus production Codex smoke tests.

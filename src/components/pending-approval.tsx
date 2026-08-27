@@ -1,6 +1,7 @@
 import { REGEXP_ONLY_DIGITS_AND_CHARS } from "input-otp";
 import { useState } from "react";
 
+import { DeleteAccountDialog } from "@/components/settings/delete-account-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -26,6 +27,7 @@ const HALF = INVITE_CODE_LENGTH / 2;
 export function PendingApproval() {
   const { redeem, isRedeeming, error, clearError } = useRedeemInvite();
   const [code, setCode] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const handleChange = (next: string) => {
     if (error) clearError();
@@ -106,20 +108,26 @@ export function PendingApproval() {
             </FieldGroup>
           </CardContent>
         </Card>
-        <FieldDescription className="px-6 text-center">
-          Wrong account?{" "}
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              handleSignOut();
-            }}
-          >
-            Use a different account
-          </a>
-          .
-        </FieldDescription>
+        <div className="flex flex-col items-center gap-1">
+          <FieldDescription>Wrong account?</FieldDescription>
+          <div className="flex items-center gap-1">
+            <Button variant="link" onClick={handleSignOut}>
+              Use a different account
+            </Button>
+            <span aria-hidden className="text-muted-foreground">
+              ·
+            </span>
+            <Button
+              variant="link"
+              className="text-destructive"
+              onClick={() => setDeleteOpen(true)}
+            >
+              Delete account
+            </Button>
+          </div>
+        </div>
       </div>
+      <DeleteAccountDialog open={deleteOpen} onOpenChange={setDeleteOpen} />
     </div>
   );
 }

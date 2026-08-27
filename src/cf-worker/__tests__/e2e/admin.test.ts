@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "@effect/vitest";
-import { env, SELF } from "cloudflare:test";
+import { env, introspectWorkflowInstance, SELF } from "cloudflare:test";
 
 import { signupUser, makeAdmin } from "./helpers";
 import type { UserInfo } from "./helpers";
@@ -525,6 +525,156 @@ describe("admin Endpoints E2E", () => {
       };
       expect(data.success).toBe(true);
       expect(data.alreadyApproved).toBe(true);
+    });
+  });
+
+  describe("signup approval gate", () => {
+    const setSignupGate = async (enabled: boolean): Promise<void> => {
+      const response = await SELF.fetch("http://worker/api/admin/signup-gate", {
+        method: "PUT",
+        headers: {
+          Cookie: adminUser.cookie,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ enabled }),
+      });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ enabled });
+    };
+
+    it("returns an approved cached session when the admin opens signups", async () => {
+      await setSignupGate(false);
+
+      const user = await signupUser(freshEmail("open-signup"), "Open Signup");
+
+      const stored = await env.DB.prepare(
+        "SELECT approved FROM user WHERE id = ?"
+      )
+        .bind(user.userId)
+        .first<{ approved: number }>();
+      expect(stored?.approved).toBe(1);
+
+      const sessionRes = await SELF.fetch(
+        "http://worker/api/auth/get-session",
+        { headers: { Cookie: user.cookie } }
+      );
+      expect(sessionRes.status).toBe(200);
+
+      const session = (await sessionRes.json()) as {
+        user: { approved: boolean };
+      };
+      expect(session.user.approved).toBe(true);
+    });
+
+    it("keeps a new user pending when the admin requires approval", async () => {
+      await setSignupGate(true);
+      try {
+        const user = await signupUser(
+          freshEmail("closed-signup"),
+          "Closed Signup"
+        );
+        const stored = await env.DB.prepare(
+          "SELECT approved FROM user WHERE id = ?"
+        )
+          .bind(user.userId)
+          .first<{ approved: number }>();
+        expect(stored?.approved).toBe(0);
+
+        const sessionRes = await SELF.fetch(
+          "http://worker/api/auth/get-session?disableCookieCache=true",
+          { headers: { Cookie: user.cookie } }
+        );
+        const session = (await sessionRes.json()) as {
+          user: { approved: boolean };
+        };
+        expect(session.user.approved).toBe(false);
+      } finally {
+        await setSignupGate(false);
+      }
+    });
+
+    it("does not trap an existing approved session when approval is required", async () => {
+      await setSignupGate(false);
+      const user = await signupUser(
+        freshEmail("existing-approved"),
+        "Existing Approved"
+      );
+
+      await setSignupGate(true);
+      try {
+        const sessionRes = await SELF.fetch(
+          "http://worker/api/auth/get-session?disableCookieCache=true",
+          { headers: { Cookie: user.cookie } }
+        );
+        const session = (await sessionRes.json()) as {
+          user: { approved: boolean };
+        };
+        expect(session.user.approved).toBe(true);
+      } finally {
+        await setSignupGate(false);
+      }
+    });
+
+    it("lets a pending user sign out", async () => {
+      await setSignupGate(true);
+      try {
+        const user = await signupUser(
+          freshEmail("pending-signout"),
+          "Pending Signout"
+        );
+        const signOutRes = await SELF.fetch("http://worker/api/auth/sign-out", {
+          method: "POST",
+          headers: {
+            Cookie: user.cookie,
+            Origin: "http://localhost",
+          },
+        });
+        expect(signOutRes.status).toBe(200);
+
+        const sessionRes = await SELF.fetch(
+          "http://worker/api/auth/get-session?disableCookieCache=true",
+          { headers: { Cookie: user.cookie } }
+        );
+        expect(await sessionRes.json()).toBeNull();
+      } finally {
+        await setSignupGate(false);
+      }
+    });
+
+    it("lets a pending user delete their account", async () => {
+      await setSignupGate(true);
+      try {
+        const user = await signupUser(
+          freshEmail("pending-delete"),
+          "Pending Delete"
+        );
+        const deleteRes = await SELF.fetch(
+          "http://worker/api/auth/delete-user",
+          {
+            method: "POST",
+            headers: {
+              Cookie: user.cookie,
+              "Content-Type": "application/json",
+              Origin: "http://localhost",
+            },
+            body: JSON.stringify({ callbackURL: "/" }),
+          }
+        );
+        expect(deleteRes.status).toBe(200);
+
+        await using instance = await introspectWorkflowInstance(
+          env.ACCOUNT_DELETION,
+          user.orgId
+        );
+        await instance.waitForStatus("complete");
+
+        const deleted = await env.DB.prepare("SELECT id FROM user WHERE id = ?")
+          .bind(user.userId)
+          .first();
+        expect(deleted).toBeNull();
+      } finally {
+        await setSignupGate(false);
+      }
     });
   });
 });
