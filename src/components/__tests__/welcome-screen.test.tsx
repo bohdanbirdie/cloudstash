@@ -58,6 +58,20 @@ describe("WelcomeScreen", () => {
     ).toBeTruthy();
   });
 
+  it("allows another retry after refreshing the plan fails", async () => {
+    const onRetry = vi.fn().mockRejectedValue(new Error("Refresh failed"));
+    renderWelcome({ isFallback: true, onRetry });
+    const retryButton = screen.getByRole("button", { name: "Try again" });
+
+    fireEvent.click(retryButton);
+
+    await waitFor(() =>
+      expect((retryButton as HTMLButtonElement).disabled).toBe(false)
+    );
+    fireEvent.click(retryButton);
+    await waitFor(() => expect(onRetry).toHaveBeenCalledTimes(2));
+  });
+
   it("describes scheduled cancellation without implying access ended", () => {
     renderWelcome({
       cancelAtPeriodEnd: true,

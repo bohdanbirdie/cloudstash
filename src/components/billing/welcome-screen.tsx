@@ -127,6 +127,7 @@ function UnconfirmedNotice({
     setRetrying(true);
     void Promise.resolve()
       .then(onRetry)
+      .catch(() => undefined)
       .finally(() => setRetrying(false));
   };
 
