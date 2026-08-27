@@ -219,6 +219,8 @@ const config: UserConfig = {
       "tailwind-cn/no-cn-ternary": "error",
       "motion/no-use-reduced-motion": "error",
       "anti-slop/no-chained-type-assertions": "error",
+      "anti-slop/no-hidden-app-layer-outputs": "error",
+      "anti-slop/no-capability-recovery-after-span": "error",
       "anti-slop/no-module-mocking": "off",
     },
     options: {
