@@ -42,8 +42,26 @@ if [ "$minimal" = "1" ]; then
   echo "[livestore] minimal install: ${#filters[@]} workspace package(s)"
 fi
 
-if [ ! -d vendor/livestore/node_modules ]; then
-  echo "[livestore] installing vendor/livestore deps..."
+# Record which mode produced the current node_modules. A minimal install must not
+# satisfy a later full request — the packages it omits are exactly the ones local
+# LiveStore tests need — so full mode reinstalls over it. A full install satisfies
+# both. Installs predating this marker were full, so a missing marker means full.
+mode_file=vendor/livestore/node_modules/.cloudstash-install-mode
+want="full"
+[ "$minimal" = "1" ] && want="minimal"
+
+have=""
+if [ -d vendor/livestore/node_modules ]; then
+  have="full"
+  [ -f "$mode_file" ] && have="$(cat "$mode_file")"
+fi
+
+if [ -z "$have" ] || { [ "$want" = "full" ] && [ "$have" = "minimal" ]; }; then
+  if [ "$have" = "minimal" ]; then
+    echo "[livestore] upgrading minimal install to full..."
+  else
+    echo "[livestore] installing vendor/livestore deps..."
+  fi
   (
     cd vendor/livestore
     # Pick a usable pnpm (vendor is a pnpm workspace; cloudstash's root uses bun).
@@ -74,6 +92,7 @@ if [ ! -d vendor/livestore/node_modules ]; then
     $pm install --frozen-lockfile --store-dir "$store" \
       ${filters[@]+"${filters[@]}"}
   )
+  printf '%s\n' "$want" > "$mode_file"
 fi
 
 echo "[livestore] vendor/livestore ready"
