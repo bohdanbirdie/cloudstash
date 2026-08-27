@@ -7,7 +7,7 @@ kanban-plugin: board
 - [ ] [[todos/raycast-capability-source-cleanup|Align Raycast source and entitlement semantics]] — publication is complete; preserve first-party attribution and use one operation-time contract.
 - [ ] [[todos/customer-facing-copy-accuracy|Align customer-facing copy with shipped behavior]] — reconcile product, repository, SEO, integration, Terms, and policy surfaces with executable capabilities and current availability.
 - [ ] [[todos/canonical-url-identity|Canonical URL identity across every capture path]] — prevent new duplicates first; historical reconciliation remains a separate decision.
-- [ ] Complete deletion data lifecycle and minimize telemetry — [[todos/account-deletion|reliable account deletion]] plus [[todos/telemetry-minimization|purpose-bound collection]].
+- [ ] [[todos/telemetry-minimization|Minimize telemetry and document retained provider data]] — keep collection purpose-bound and deletion/retention claims accurate.
 - [ ] [[todos/paid-capability-enforcement|Enforce paid capabilities and budgets at operation time]] — current access/capability at authoritative operations, atomic cost controls, and safe long-lived-session revocation.
 - [ ] Bug: Free workspaces can manually generate weekly digests — enforce `weeklyDigest` at operation time and cover Free/paid manual-trigger paths; complete lifecycle scope remains tracked in [DELTA-037](../context/.delta/DELTA-037-weekly-digest-entitlement-lifecycle-is-incomplete.md).
 - [ ] [[todos/admin-purchase-attribution|Extend admin purchase attribution]] — bounded aggregate funnel evidence in the existing dashboard.
@@ -67,6 +67,7 @@ kanban-plugin: board
 
 ## Done
 
+- [x] [[todos/done/account-deletion|Reliable account deletion workflow]] — deletion now runs as a durable Cloudflare Workflow with Effect activities, bounded D1 cascades, Stripe cancellation, terminal Durable Object retirement, integration cleanup, retry/resume coverage, and late-write protection.
 - [x] Shrink and budget the Worker upload — PR #94 Oxc-minified the deployable Worker, reducing the Wrangler dry-run upload from 2963 KiB to 1868 KiB gzipped, and added a CI-enforced 2700 KiB pre-limit budget plus a generated-Worker smoke test.
 - [x] [[todos/develop-mcp-server|Ship stateless remote MCP for Pro]] — deployed for Pro with OAuth discovery/consent, stateless link-management tools, API parity, request-time authorization, and successful MCP JAM plus production Codex smoke tests.
 - [x] [[todos/consolidate-link-operations-in-link-processor|Consolidate link operations in LinkProcessorDO]] — REST and MCP now reuse the existing workspace-owned LiveStore replica through typed `LinkProcessorDO` RPCs; the duplicate WorkspaceLinksDO was removed.

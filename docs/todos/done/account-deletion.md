@@ -1,4 +1,4 @@
-# Complete reliable account deletion
+# Reliable account deletion workflow
 
 ## Current state
 
@@ -41,11 +41,11 @@ User deletion nulls creator references on organization invitations and global
 invite codes instead of deleting access another person may still need.
 
 The accepted rationale and current contract live in
-[`decision 0001`](../../context/02-system/09-account-lifecycle/.decisions/0001-use-workflow-instance-as-deletion-job.md)
+[`decision 0001`](../../../context/02-system/09-account-lifecycle/.decisions/0001-use-workflow-instance-as-deletion-job.md)
 and the
-[`account-lifecycle spec`](../../context/02-system/09-account-lifecycle/spec.md).
+[`account-lifecycle spec`](../../../context/02-system/09-account-lifecycle/spec.md).
 
-## Remaining release work
+## Follow-up work outside this completed workflow
 
 - Define and implement digest/provider-notification cancellation so an
   already-started side effect cannot notify after deletion.
@@ -60,7 +60,7 @@ and the
 - Reconcile production Queue retention with the delayed-message threat model
   tracked in DELTA-008.
 
-## Acceptance evidence still required
+## Ongoing production evidence
 
 - Mid-workflow target failures retry and resume without skipping a target.
 - Late or replayed intake cannot reconstruct a purged workspace.
