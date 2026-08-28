@@ -30,6 +30,12 @@ secrets. Remote provisioning, domain attachment, and GitHub branch connection
 remain externally controlled and are tracked in
 [DELTA-031](../.delta/DELTA-031-staging-and-operational-runbooks-are-not-realized.md).
 
+`LIBRARY_DO` and the legacy `LINK_PROCESSOR_DO` binding address the same
+`LibraryDO` namespace. The latter is intentionally retained because LiveStore
+persists its exact name in SyncBackendDO reverse-RPC subscriptions; it does not
+represent a second processor or a second materialized library. See
+[decision 0002](../02-system/03-sync/.decisions/0002-retain-livestore-binding-identity.md).
+
 Built-in Cloudflare logs and invocation traces are enabled with full head
 sampling in current configuration. `AppLayerLive` installs application services
 and structured logging, but the global Effect tracer is currently a no-op; named

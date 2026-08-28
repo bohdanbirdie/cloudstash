@@ -67,6 +67,14 @@ memo so a later call may retry. Creating concurrent stores over the same DO
 SQLite is forbidden; [PR #30](https://github.com/bohdanbirdie/cloudstash/pull/30)
 records the corruption this caused.
 
+LibraryDO's application-facing binding is `LIBRARY_DO`, but its LiveStore
+adapter identity remains `LINK_PROCESSOR_DO`. SyncBackendDO persists that exact
+binding name in reverse-RPC subscriber records, so the Wrangler compatibility
+alias and adapter `bindingName` are stable protocol identifiers rather than
+unfinished source naming. Both bindings resolve the same renamed `LibraryDO`
+namespace; see
+[decision 0002](./.decisions/0002-retain-livestore-binding-identity.md).
+
 ## Verification
 
 The sync-arrival Worker E2E suite reads `getEventlogMax()` from fresh backend
