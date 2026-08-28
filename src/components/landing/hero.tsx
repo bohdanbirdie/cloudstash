@@ -2,11 +2,12 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 
 import {
+  ChromeLogo,
+  RaycastLogo,
   TelegramLogo,
   XLogo,
 } from "@/components/integrations/integration-icons";
 import { Button } from "@/components/ui/button";
-import { TextLoop } from "@/components/ui/text-loop";
 import { PALETTES, paintDitherToContext } from "@/lib/brand/dither";
 
 import { HeroInbox } from "./hero-inbox";
@@ -14,8 +15,6 @@ import { SHELL } from "./shared";
 
 const SUNSET = PALETTES.find((p) => p.name === "Sunset")!;
 const DITHER_CELL = 3;
-
-const HERO_TAGLINES = ["Save anywhere.", "Search anything.", "Forget nothing."];
 
 export function Hero() {
   return (
@@ -28,46 +27,15 @@ export function Hero() {
         <div className="grid gap-12 lg:grid-cols-[6fr_5fr] lg:items-center lg:gap-16">
           <div>
             <div className="mb-5 text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-primary-foreground/75">
-              for the links you'll actually open
+              a private inbox for saved links
             </div>
             <h1 className="mb-6 text-5xl font-bold leading-[1.04] tracking-[-0.02em]">
-              <span className="block">An inbox for everything you save.</span>
-              <span className="mt-2 inline-grid">
-                {HERO_TAGLINES.map((phrase) => (
-                  <span
-                    key={`sizer-${phrase}`}
-                    aria-hidden="true"
-                    className="invisible col-start-1 row-start-1 whitespace-nowrap"
-                  >
-                    {phrase}
-                  </span>
-                ))}
-                <span className="col-start-1 row-start-1">
-                  <TextLoop
-                    interval={2.8}
-                    transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                  >
-                    {HERO_TAGLINES.map((phrase) => (
-                      <span key={phrase}>{phrase}</span>
-                    ))}
-                  </TextLoop>
-                </span>
-              </span>
+              <span className="block">Save the link.</span>
+              <span className="mt-2 block">Keep the context.</span>
             </h1>
             <p className="mb-8 max-w-[52ch] text-pretty text-base font-normal leading-relaxed text-primary-foreground sm:text-lg lg:text-xl">
-              Save{" "}
-              <span className="whitespace-nowrap">
-                <XLogo className="mr-[0.24em] inline size-[0.78em] align-[0.04em] text-black" />
-                <span className="sr-only">X </span>
-                bookmarks
-              </span>
-              ,{" "}
-              <span className="whitespace-nowrap">
-                <TelegramLogo className="mr-[0.24em] inline size-[0.78em] align-[0.04em] text-[#229ED9]" />
-                Telegram links
-              </span>
-              , and pages from across the web. Cloudstash adds clear previews
-              and summaries, so what matters stays easy to find.
+              Cloudstash keeps saved links in one searchable inbox, with clear
+              previews and concise summaries.
             </p>
             <div className="flex flex-wrap items-center gap-5">
               <Button
@@ -94,6 +62,29 @@ export function Hero() {
             <p className="mt-6 text-sm italic text-primary-foreground/65">
               Free to try — no credit card.
             </p>
+            <div className="mt-7 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-primary-foreground/65">
+              <span className="text-[0.625rem] font-semibold uppercase tracking-[0.12em]">
+                Save from
+              </span>
+              <ul className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <li className="inline-flex items-center gap-1.5">
+                  <XLogo className="size-3.5" />
+                  X bookmarks
+                </li>
+                <li className="inline-flex items-center gap-1.5">
+                  <TelegramLogo className="size-3.5" />
+                  Telegram
+                </li>
+                <li className="inline-flex items-center gap-1.5">
+                  <ChromeLogo className="size-3.5" />
+                  Chrome
+                </li>
+                <li className="inline-flex items-center gap-1.5">
+                  <RaycastLogo className="size-3.5" />
+                  Raycast
+                </li>
+              </ul>
+            </div>
           </div>
 
           <div className="relative rounded-md text-foreground shadow-[0_28px_70px_-32px_oklch(0.22_0.08_35_/_0.55),0_2px_10px_-4px_oklch(0.18_0.06_30_/_0.35)]">
