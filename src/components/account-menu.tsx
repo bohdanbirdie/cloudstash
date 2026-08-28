@@ -4,7 +4,6 @@ import {
   Code2Icon,
   DownloadIcon,
   LogOutIcon,
-  PaletteIcon,
   SettingsIcon,
   ShieldIcon,
   TagIcon,
@@ -78,7 +77,6 @@ export function AccountMenu() {
   const [exportOpen, setExportOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  const isAdmin = auth.role === "admin";
   const canViewAdmin = hasPermission(auth.role, PERMISSIONS.viewDashboard);
   const initial = getInitial(auth.name, auth.email);
   const firstName = getFirstName(auth.name);
@@ -141,16 +139,6 @@ export function AccountMenu() {
           onSelect: () => navigate({ to: "/admin" }),
         },
       });
-      if (isAdmin) {
-        r.push({
-          kind: "item",
-          item: {
-            icon: PaletteIcon,
-            label: "Brand",
-            onSelect: () => navigate({ to: "/brand" }),
-          },
-        });
-      }
     }
     r.push({ kind: "separator" });
     r.push({
@@ -175,7 +163,7 @@ export function AccountMenu() {
     }
 
     return r;
-  }, [pageStatus, pageTitle, canViewAdmin, isAdmin, navigate, tier]);
+  }, [pageStatus, pageTitle, canViewAdmin, navigate, tier]);
 
   return (
     <>
