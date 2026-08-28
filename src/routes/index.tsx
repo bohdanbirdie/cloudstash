@@ -8,7 +8,6 @@ import { Hero } from "@/components/landing/hero";
 import { Integrations } from "@/components/landing/integrations";
 import { MobileStickyCta } from "@/components/landing/mobile-sticky-cta";
 import { Pricing } from "@/components/landing/pricing";
-import { PullQuote } from "@/components/landing/pullquote";
 import {
   FAQ_LD,
   SITE_URL,
@@ -58,7 +57,6 @@ function LandingPage() {
       <main className="pb-20 sm:pb-0">
         <Hero />
         <Integrations />
-        <PullQuote />
         <Benefits />
         <Pricing />
         <Faq />

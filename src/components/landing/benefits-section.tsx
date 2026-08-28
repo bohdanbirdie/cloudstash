@@ -7,22 +7,11 @@ export function Benefits() {
       <div className={SHELL}>
         <SectionHeader
           eyebrow="What changes"
-          title={
-            <>
-              The things you{" "}
-              <span
-                className="font-italic-accent text-primary"
-                style={{ fontSize: "1.17em" }}
-              >
-                stop
-              </span>{" "}
-              doing.
-            </>
-          }
-          lead="Clear summaries. A library you can actually search. The end of “I read that somewhere.”"
+          title="Your saved links stay useful."
+          lead="Find what you need, understand it quickly, and use it without reopening every page."
         />
         <BenefitsGrid />
-        <SectionCta />
+        <SectionCta lead="Start a library you’ll actually use." />
       </div>
     </section>
   );

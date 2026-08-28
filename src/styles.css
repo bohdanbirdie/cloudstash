@@ -206,10 +206,30 @@
   transform: translateX(0);
 }
 
+.landing-search-cursor {
+  opacity: 1;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .landing-source-traveler-mask {
     animation: landing-source-traveler
       var(--landing-source-travel-duration, 5.5s) infinite;
+  }
+
+  .landing-search-cursor {
+    animation: landing-search-cursor 1s steps(1, end) infinite;
+  }
+}
+
+@keyframes landing-search-cursor {
+  0%,
+  45% {
+    opacity: 1;
+  }
+
+  46%,
+  100% {
+    opacity: 0;
   }
 }
 
