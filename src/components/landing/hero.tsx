@@ -1,6 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 
+import {
+  TelegramLogo,
+  XLogo,
+} from "@/components/integrations/integration-icons";
 import { Button } from "@/components/ui/button";
 import { TextLoop } from "@/components/ui/text-loop";
 import { PALETTES, paintDitherToContext } from "@/lib/brand/dither";
@@ -51,11 +55,18 @@ export function Hero() {
               </span>
             </h1>
             <p className="mb-8 max-w-[52ch] text-pretty text-base font-normal leading-relaxed text-primary-foreground sm:text-lg lg:text-xl">
-              Send links from Telegram, Raycast, your phone, or anywhere on the
-              web — Cloudstash <span className="font-italic-accent">skims</span>{" "}
-              pages it can read into clear previews and summaries, so you can
-              decide what’s worth a{" "}
-              <span className="font-italic-accent">read</span>.
+              Save your{" "}
+              <span className="inline-flex items-center gap-[0.3em] whitespace-nowrap font-medium">
+                <XLogo className="size-[0.85em] shrink-0" />X bookmarks
+              </span>
+              , forward links from{" "}
+              <span className="inline-flex items-center gap-[0.3em] whitespace-nowrap font-medium">
+                <TelegramLogo className="size-[0.85em] shrink-0" />
+                Telegram
+              </span>
+              , or save from anywhere on the web. Cloudstash{" "}
+              <span className="font-italic-accent">skims</span> readable pages
+              into clear previews and summaries.
             </p>
             <div className="flex flex-wrap items-center gap-5">
               <Button
