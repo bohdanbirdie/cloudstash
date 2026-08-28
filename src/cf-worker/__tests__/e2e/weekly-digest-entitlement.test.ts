@@ -24,7 +24,9 @@ describe("Weekly digest entitlement reconciliation", () => {
     );
     expect(response.status).toBe(200);
 
-    const owner = env.LIBRARY_DO.get(env.LIBRARY_DO.idFromName(user.orgId));
+    const owner = env.LINK_PROCESSOR_DO.get(
+      env.LINK_PROCESSOR_DO.idFromName(user.orgId)
+    );
     const state = await runInDurableObject(owner, async (_instance, ctx) => ({
       alarm: await ctx.storage.getAlarm(),
       storeId: await ctx.storage.get<string>("storeId"),

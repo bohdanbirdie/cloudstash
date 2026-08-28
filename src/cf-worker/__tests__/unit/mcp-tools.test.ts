@@ -251,7 +251,7 @@ describe("MCP link tools", () => {
     let received: unknown;
     const env = {
       BETTER_AUTH_URL: "https://cloudstash.test",
-      LIBRARY_DO: {
+      LINK_PROCESSOR_DO: {
         get: () => ({
           saveLink: async (input: unknown) => {
             received = input;

@@ -1,4 +1,4 @@
-# Remove the chat LiveStore replica and route tools through LibraryDO
+# Remove the chat LiveStore replica and route tools through LinkProcessorDO
 
 - Code: `AI-03`
 - Priority: high
@@ -7,10 +7,9 @@
 ## Goal
 
 Keep the current one-chat-per-library experience, but stop `ChatAgentDO` from
-materializing a second copy of the same LiveStore state. Rename
-`LinkProcessorDO` to `LibraryDO` and make it the only Cloudflare-side owner of
-the materialized library used by ingestion, processing, REST, MCP, digest, and
-chat tools.
+materializing a second copy of the same LiveStore state. Reuse
+`LinkProcessorDO` as the only Cloudflare-side owner of the materialized library
+used by ingestion, processing, REST, MCP, digest, and chat tools.
 
 This task does not add multiple chats, a chat registry, or a new storage plane.
 That work is split into `AI-09`.
@@ -46,7 +45,7 @@ browser ────────────────────────
 ingestion / REST / MCP / digest / chat tools
                          │
                          ▼
-LibraryDO (one named instance per library/org)
+LinkProcessorDO (one named instance per library/org)
   only Cloudflare-side LiveStore client
   canonical library queries and mutations
   processing, notifications, and digest scheduling
@@ -55,11 +54,11 @@ ChatAgentDO (one named instance per library for now)
   Agents SDK message history and model execution
   monthly chat usage reservation
   no LiveStore client, queries, events, or sync callback
-  thin Effect-backed calls to LibraryDO RPCs
+  thin Effect-backed calls to LinkProcessorDO RPCs
 ```
 
 The chat actor derives the library ID from its existing DO name. It obtains
-`env.LIBRARY_DO.getByName(libraryId)` and never receives direct storage or
+`env.LINK_PROCESSOR_DO.getByName(libraryId)` and never receives direct storage or
 database access.
 
 ## Tool alignment
@@ -67,7 +66,7 @@ database access.
 Do not copy library logic into chat. Translate the existing AI tool inputs into
 the canonical RPC contract:
 
-| Chat behavior                         | LibraryDO operation                                      |
+| Chat behavior                         | LinkProcessorDO operation                                |
 | ------------------------------------- | -------------------------------------------------------- |
 | recent links / inbox                  | bounded `listLinks`                                      |
 | search                                | `searchLinks`                                            |
@@ -85,81 +84,6 @@ rejections and canonical domain failures must not collapse into untyped throws.
 Mutating tool calls inherit the canonical RPC durability barrier. This may add
 up to the existing five-second sync timeout in a degraded case, but avoids
 reporting a mutation that only exists in an evictable client replica.
-
-## Safe Durable Object rename
-
-Use `LibraryDO` / `LIBRARY_DO` for the class and ordinary application calls.
-Append the legacy
-`renamed_classes: [{ from: "LinkProcessorDO", to: "LibraryDO" }]` migration in
-production and staging so Cloudflare moves the existing namespace rather than
-provisioning another one. One final build per environment is sufficient;
-staging remains the safety check before promoting the same source to production.
-
-Keep `LINK_PROCESSOR_DO` as a second Wrangler binding to `LibraryDO` and as the
-LiveStore adapter's `bindingName`. LiveStore persists that exact identity in
-SyncBackendDO reverse-RPC subscriber records. Removing it already stranded
-post-deploy processing on staging, and LiveStore provides no supported migration
-for rewriting those records. The compatibility binding does not create another
-namespace. Both hard-commented references are intentional protocol surface, not
-unfinished cleanup.
-
-Never declare `LibraryDO` in `new_sqlite_classes`; that would provision an empty
-namespace instead of moving the existing one. Preserve `idFromName(orgId)`,
-stored keys, the LiveStore session ID, and its existing client identity during
-the rename. Cosmetic storage/protocol renames are separate work.
-
-Cloudflare class rename migrations move the existing namespace and stored data
-to the new class. The project stays on its supported legacy migration history
-during this operation rather than combining the rename with a one-way move to
-declarative `exports`.
-
-### Local rename drill
-
-Wrangler 4.125.0 / Miniflare does not reproduce Cloudflare's namespace rename
-for persisted local DO data. An isolated copy of the largest local replica was
-started with the v5 rename and the real `LibraryDO` implementation:
-
-- the old database remained under `cloudstash-LinkProcessorDO` with 11,004
-  client events and its original persisted session ID;
-- Miniflare created a separate `cloudstash-LibraryDO` database with a new
-  session ID;
-- waking `LibraryDO` returned the existing library from SyncBackend, but the
-  new local replica began replaying from zero (1,007 of 11,004 events had been
-  pulled when the probe was stopped).
-
-This is a local-simulator fidelity gap, not the documented production rename
-behavior. It proves that existing local `.wrangler/state` will rematerialize
-after the class rename; it cannot certify the production namespace move.
-Production/staging safety therefore rests on the Cloudflare migration plus a
-staging pre/post check of a named object's stored data and session ID. The drill
-used only a copied state directory and did not modify the working local state.
-
-### Staging certification
-
-The currently deployed alias build can record a pre-migration baseline without
-reading LiveStore's private schema. On the first store boot for a known staging
-library, record:
-
-- a cryptographic fingerprint of the app-owned persisted LiveStore session ID;
-- a cryptographic fingerprint of the Cloudflare Durable Object ID;
-- `reusedSession: true`;
-- Cloudflare's generic `ctx.storage.sql.databaseSize` before boot; and
-- the number of SQL rows written while the store boots.
-
-After the final build applies the class migration and restores the compatibility
-binding, wake the same named library and compare the same two structured log
-entries. The rename is accepted only when both the Durable Object ID and
-persisted session fingerprints match, `reusedSession` remains true, the pre-boot
-database size remains in the established range, and boot writes remain at the
-normal warm-restart baseline. A changed object or session fingerprint, a
-near-empty pre-boot database, or replay-sized boot writes means the object was
-recreated or rematerialized and blocks the production rename.
-
-Use Workers Logs for the retained record or `wrangler tail --env staging` while
-performing the drill. Repeat the same baseline/migration comparison in
-production with a known library. These diagnostics use only Cloudflare storage
-metadata and Cloudstash-owned keys; they do not depend on LiveStore table names
-or other private internals.
 
 ## Removing the old live-pull subscription
 
@@ -192,38 +116,32 @@ New chat actors never register a LiveStore subscription.
 
 ## Implementation slices
 
-1. Rename `LinkProcessorDO` to `LibraryDO` through the namespace-preserving
-   migration, retaining LiveStore's legacy compatibility binding, then update
-   account deletion, queues, sync wakeups, digest, API/MCP, tests, logs, and
-   Intent terminology.
-2. Add focused parity tests around a fake typed LibraryDO client for every chat
+1. Add focused parity tests around a fake typed LinkProcessorDO client for every chat
    tool, including confirmations, domain failures, and RPC rejection.
-3. Extend the canonical service/RPC only for the missing `chat` save source and
+2. Extend the canonical service/RPC only for the missing `chat` save source and
    a bounded stats read.
-4. Replace store-backed chat tools with the Effect-backed LibraryDO client.
-5. Remove `createStoreDoPromise`, LiveStore query/event imports, cached Store,
+3. Replace store-backed chat tools with the Effect-backed LinkProcessorDO client.
+4. Remove `createStoreDoPromise`, LiveStore query/event imports, cached Store,
    session creation, commit helpers, and normal sync handling from chat.
-6. Land the supported upstream unsubscription path and transition existing
+5. Land the supported upstream unsubscription path and transition existing
    subscribers without app-owned access to LiveStore internals.
-7. Add a lint boundary for `src/cf-worker/chat-agent/**` forbidding imports from
+6. Add a lint boundary for `src/cf-worker/chat-agent/**` forbidding imports from
    `@livestore/*` and `src/livestore/**` so the replica cannot creep back in.
 
 ## Verification
 
 - Chat behavior remains one conversation per library with existing message
   history and usage accounting intact.
-- All current chat tools have parity through `LibraryDO`; archival confirmation
+- All current chat tools have parity through `LinkProcessorDO`; archival confirmation
   and citations still work.
 - `ChatAgentDO` does not construct, query, commit, synchronize, or import
   LiveStore.
 - A chat opened against a large existing library produces no Chat DO
   materialization writes.
-- A library push after migration does not boot a chat LiveStore client and its
+- A library push after the transition does not boot a chat LiveStore client and its
   legacy callback subscription is removed idempotently.
-- Existing `LibraryDO` SQLite data, named IDs, processing, API/MCP, digest, and
-  account-deletion tests survive the class rename.
-- A staging rename drill records the same pre/post named DO data before the
-  production migration.
+- Existing `LinkProcessorDO` processing, API/MCP, digest, and account-deletion
+  behavior remains intact.
 - `vp check`, focused Worker tests, real-DO E2E, `bun run check:intent`, Worker
   build/upload verification, and `git diff --check` pass.
 

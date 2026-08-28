@@ -15,7 +15,7 @@ describe("reconcileDigestSchedule", () => {
       const idFromName = vi.fn((name: string) => `id:${name}`);
       const get = vi.fn(() => ({ ensureDigestScheduled }));
       const env = {
-        LIBRARY_DO: { get, idFromName },
+        LINK_PROCESSOR_DO: { get, idFromName },
       };
 
       yield* reconcileDigestSchedule(OrgId.make("org-1")).pipe(
@@ -32,7 +32,7 @@ describe("reconcileDigestSchedule", () => {
     Effect.gen(function* () {
       const rpcError = new Error("owner unavailable");
       const env = {
-        LIBRARY_DO: {
+        LINK_PROCESSOR_DO: {
           idFromName: (name: string) => `id:${name}`,
           get: () => ({
             ensureDigestScheduled: () => Promise.reject(rpcError),

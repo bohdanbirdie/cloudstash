@@ -40,7 +40,7 @@ Implemented gates include:
   alarm-time checks;
 - `chatAgent` + `monthlyChatBudgetUsd` — initial agent auth plus a capability
   recheck and atomic token reservation before every model/tool continuation;
-- `aiSummary`/`xContentEnrichment` — LibraryDO;
+- `aiSummary`/`xContentEnrichment` — LinkProcessorDO;
 - `weeklyDigest` — manual generation and alarm scheduling/execution; Stripe,
   admin-tier, and override changes immediately reconcile the workspace alarm.
 
@@ -96,7 +96,7 @@ price and feature copy.
 Chat reserves estimated tokens in workspace ChatAgentDO storage by monthly
 period, checks the USD-derived token limit atomically, then reconciles provider
 usage. X enrichment reserves one attempt atomically in the workspace's
-LibraryDO storage before any provider work. Provider and generator
+LinkProcessorDO storage before any provider work. Provider and generator
 failures remain charged because the external attempt has started. Storage
 failure skips enrichment and falls back to the ordinary summary path. These
 counters are cost controls, not subscription truth. The workspace-owner choice

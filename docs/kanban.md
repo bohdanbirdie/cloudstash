@@ -8,7 +8,7 @@ kanban-plugin: board
 - [ ] `REL-08` [[todos/welcome-existing-users|Approve pending users and send the launch welcome email]] — approve every eligible pending signup, then notify all existing signed-up users that Cloudstash is available to use.
 - [ ] `CORE-05` [[todos/initial-sync-blocking|Research HTTP bootstrap and preloaded library state]] — benchmark WebSocket vs HTTP event-log replay, BootStatus/timeout UX, and an upstream materialized snapshot at an exact event head.
 - [ ] `CORE-04` [[todos/free-ai-summary-allowance|Plan a bounded Free AI-summary allowance]] — saved-link count remains unlimited; exhaustion preserves the link.
-- [ ] `AI-03` [[todos/chat-library-owner|Remove the chat LiveStore replica and route tools through LibraryDO]] — keep the current single chat, make `LibraryDO` the only Cloudflare-side materialized library owner, and preserve the existing DO namespace through a class rename migration.
+- [ ] `AI-03` [[todos/chat-library-owner|Remove the chat LiveStore replica and route tools through LinkProcessorDO]] — keep the current single chat and reuse `LinkProcessorDO` as the only Cloudflare-side materialized library owner.
 - [ ] `AI-08` [[todos/link-notes|Notes on links (user-authored, agent-aware)]]
 
 ## Medium Priority
@@ -21,17 +21,17 @@ kanban-plugin: board
 - [ ] `UX-07` Improve link-card UI for failed/error fetches (404, 5xx, bot challenge, login walls), with an explicit failure category and retry affordance.
 - [ ] `UX-12` Decouple tag search from id format — filter on normalized tag names and reserve `sanitizeTagName` for new-tag ID derivation.
 - [ ] `SYS-03` [[todos/ws-close-scope-teardown-exception|SyncBackendDO webSocketClose throws on abnormal close (1006) — upstream teardown fix]] — 2 new `scriptThrewException` on the v4-cutover day (2026-08-10), zero in the prior week; benign (1ms, socket already dead, reconnect fine) but skips `serverCtxMap` cleanup and pollutes the error signal; small upstream PR candidate (make `Scope.close` teardown non-throwing in common-cf `ws-rpc-server.ts:217`).
-- [ ] `SYS-04` [[todos/simplify-link-processor-wake|Simplify LibraryDO wake path — retire the manual onPush trigger]] — redundant for warm/cold re-wake since upstream #1541–#1545 (KV-persisted `rpc-sub:` registry + store-less `syncUpdateRpc` recovery); still needed as first-subscribe bootstrap + cutover registry backfill. Pick up after the migration soaks in prod.
+- [ ] `SYS-04` [[todos/simplify-link-processor-wake|Simplify LinkProcessorDO wake path — retire the manual onPush trigger]] — redundant for warm/cold re-wake since upstream #1541–#1545 (KV-persisted `rpc-sub:` registry + store-less `syncUpdateRpc` recovery); still needed as first-subscribe bootstrap + cutover registry backfill. Pick up after the staging rollback is verified.
 
 ## Low Priority
 
 - [ ] `CORE-06` [[todos/automatic-summary-recovery|Recover failed summaries automatically]] — bounded primary, fallback, limited automatic retry, then a calm terminal state.
 - [ ] `SYS-01` Retire the local Better Auth MCP JWKS verifier after [#10856](https://github.com/better-auth/better-auth/issues/10856) / [#10888](https://github.com/better-auth/better-auth/issues/10888) and [#10893](https://github.com/better-auth/better-auth/pull/10893) ship in a stable release — installed types must accept an in-process JWKS source plus cache key, and the same-Worker E2E must pass with zero outbound JWKS requests.
 - [ ] `SYS-02` Retest Better Auth OAuth resource seeding on future stable upgrades — the Drizzle-wrapped UNIQUE race is independently reproduced on 1.7.0 and still present upstream; keep the app-wide atomic initializer in `AuthClientLive` until concurrent fresh auth contexts pass without it. No upstream issue is being filed.
-- [ ] `SYS-05` Remove the temp `liveLongTimers` probe (`src/cf-worker/sync/index.ts:23`) once prod `type:hibernation` GB-s are re-confirmed after the v4-cutover deploy — last remainder of [[architecture/sync-backend-do-hibernation-billing]]. LibraryDO client-side hibernation stays deferred (needs a clean-store re-test, not a new patch).
+- [ ] `SYS-05` Remove the temp `liveLongTimers` probe (`src/cf-worker/sync/index.ts:23`) once prod `type:hibernation` GB-s are re-confirmed after the v4-cutover deploy — last remainder of [[architecture/sync-backend-do-hibernation-billing]]. LinkProcessorDO client-side hibernation stays deferred (needs a clean-store re-test, not a new patch).
 - [ ] `TEST-01` [[todos/livestore-testing-ui|Livestore UI feature tests (RTL)]]
 - [ ] `TEST-02` Revamp component interaction tests around `@testing-library/user-event` — add it as a direct dev dependency, replace the nine localized `fireEvent.click` calls, and preserve realistic focus, pointer, keyboard, and disabled-control behavior.
-- [ ] `SYS-07` [[todos/managed-effect-runtime-do|Explore ManagedRuntime for LibraryDO]]
+- [ ] `SYS-07` [[todos/managed-effect-runtime-do|Explore ManagedRuntime for LinkProcessorDO]]
 - [ ] `SYS-09` [[todos/openrouter-production-local-ai|Standardize production AI on OpenRouter with a cost-free local path]] — route all production inference through OpenRouter; keep local development explicit and free by default. Cloudflare AI Gateway may proxy OpenRouter later for a demonstrated operational need, but is not the model provider.
 - [ ] `UX-03` [[todos/mobile-settings-polish|Mobile settings polish — delete flow, Connections overhaul, tab look]]
 - [ ] `UX-09` Pop-animate genuinely new synced/locally-added links without animating filter or category changes.

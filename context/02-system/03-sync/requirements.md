@@ -30,7 +30,7 @@ WebSocket transport, rebase behavior, and server-side client recovery.
 - **CS.SYS.SYNC-T01 Eventual remote visibility:** A local commit is immediately
   visible locally but not necessarily persisted by the sync backend when
   `commit()` returns.
-- **CS.SYS.SYNC-T02 Per-client replica:** LibraryDO and ChatAgentDO each
+- **CS.SYS.SYNC-T02 Per-client replica:** LinkProcessorDO and ChatAgentDO each
   persist their own LiveStore client replica, trading duplicate materialization
   for the common client model.
 

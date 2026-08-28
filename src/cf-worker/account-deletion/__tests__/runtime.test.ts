@@ -127,7 +127,7 @@ const makeEnv = (
   return {
     env: {
       ACCOUNT_DELETION: workflow,
-      LIBRARY_DO: {
+      LINK_PROCESSOR_DO: {
         idFromName: linkProcessorIdFromName,
         get: vi.fn().mockReturnValue({
           retire: linkProcessorPurge,

@@ -13,19 +13,19 @@ Active.
 web app / Chrome extension
   → local LiveStore LinkCreated commit
   → SyncBackendDO onPush
-  → LibraryDO wake
+  → LinkProcessorDO wake
 
 POST /api/links / MCP save_link
-  → LibraryDO LiveStore candidate commit
+  → LinkProcessorDO LiveStore candidate commit
   → bounded leader-sync barrier + canonical URL-winner resolution
   → optional tags + processing-ready commit on the winning link
   → SyncBackendDO onPush
-  → LibraryDO wake
+  → LinkProcessorDO wake
 
 Telegram / Raycast / POST /api/ingest / X bookmark poll
   → cloudstash-link-queue
   → queue consumer
-  → LibraryDO.ingestAndProcess
+  → LinkProcessorDO.ingestAndProcess
   → v2.LinkCreated(source, sourceMeta)
   → bounded leader-sync barrier
 ```
@@ -39,7 +39,7 @@ succeeds. Telegram key authentication uses the same current workspace-access
 decision plus a fresh `integrations` check, while X uses source-specific
 provider authentication before producing the same `LinkQueueMessage` shape.
 The primary `POST /api/links` and MCP `save_link` paths call link-operation RPCs
-on the existing LibraryDO without a second server-side LiveStore replica.
+on the existing LinkProcessorDO without a second server-side LiveStore replica.
 A new save first makes its URL candidate durable, re-resolves the canonical row
 after any concurrent-client rebase, and only then attaches requested tags and
 marks the winning row ready for processing. Losing IDs therefore receive no tag
@@ -62,7 +62,7 @@ confirmed within five seconds.
 
 At consumption the payload is decoded with Effect Schema. A malformed payload is
 non-transient: log and acknowledge. A valid message addresses
-`LibraryDO.idFromName(storeId)` and calls `ingestAndProcess`.
+`LinkProcessorDO.idFromName(storeId)` and calls `ingestAndProcess`.
 
 Current retry policy, mirrored between code comments and `wrangler.jsonc`:
 

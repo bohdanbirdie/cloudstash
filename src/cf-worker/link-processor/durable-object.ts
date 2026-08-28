@@ -31,7 +31,7 @@ import {
   isDurableObjectRetired,
   retireDurableObjectStorage,
 } from "../durable-object-retirement";
-import { fingerprintId, maskId, safeErrorInfo } from "../log-utils";
+import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
 import { OpenRouterApiKeyLive } from "../weekly-digest/generator";
@@ -62,7 +62,7 @@ import { WorkersAiLive } from "./services/workers-ai.live";
 import { MAX_CONCURRENT_AI, MAX_CONCURRENT_METADATA } from "./types";
 import type { LinkQueueMessage } from "./types";
 
-const logger = logSync("LibraryDO");
+const logger = logSync("LinkProcessorDO");
 
 const MAX_NOTIFIED_LINK_IDS = 500;
 const LEADER_SYNC_TIMEOUT_MS = 10_000;
@@ -94,11 +94,11 @@ const workspaceUnavailable = () =>
     error: { code: "unavailable", message: "Library is unavailable" },
   }) as const;
 
-export class LibraryDO
+export class LinkProcessorDO
   extends DurableObject<Env>
   implements ClientDoWithRpcCallback
 {
-  override __DURABLE_OBJECT_BRAND = "library-do" as never;
+  override __DURABLE_OBJECT_BRAND = "link-processor-do" as never;
 
   private storeId: OrgId | undefined;
   private cachedStore: Store<typeof schema> | undefined;
@@ -138,24 +138,22 @@ export class LibraryDO
         yield* Effect.logInfo("retire: storage wiped").pipe(
           Effect.annotateLogs({ storeId: maskId(this.storeId ?? "") })
         );
-      }).pipe(Effect.withSpan("LibraryDO.retire"))
+      }).pipe(Effect.withSpan("LinkProcessorDO.retire"))
     );
   }
 
-  private async getSessionIdentity(
-    generation: number
-  ): Promise<{ readonly sessionId: string; readonly reused: boolean }> {
+  private async getSessionId(generation: number): Promise<string> {
     if (!this.canUseStore(generation)) {
       throw new DurableObjectRetiredError();
     }
     const stored = await this.ctx.storage.get<string>("sessionId");
-    if (stored) return { sessionId: stored, reused: true };
+    if (stored) return stored;
     const newSessionId = nanoid();
     if (!this.canUseStore(generation)) {
       throw new DurableObjectRetiredError();
     }
     await this.ctx.storage.put("sessionId", newSessionId);
-    return { sessionId: newSessionId, reused: false };
+    return newSessionId;
   }
 
   private async getStore(): Promise<Store<typeof schema>> {
@@ -190,33 +188,18 @@ export class LibraryDO
     storeId: OrgId,
     generation: number
   ): Promise<Store<typeof schema>> {
-    const rowsBeforeBoot = this.totalRowsWritten;
-    const databaseSizeBeforeBoot = this.ctx.storage.sql.databaseSize;
-    const { reused: reusedSession, sessionId } =
-      await this.getSessionIdentity(generation);
+    const sessionId = await this.getSessionId(generation);
     if (!this.canUseStore(generation)) {
       throw new DurableObjectRetiredError();
     }
-    const [objectFingerprint, sessionFingerprint] = await Promise.all([
-      fingerprintId(this.ctx.id.toString()),
-      fingerprintId(sessionId),
-    ]);
-
     logger.info("Creating store", {
-      databaseSizeBeforeBoot,
-      objectFingerprint,
-      reusedSession,
-      sessionFingerprint,
+      sessionId: maskId(sessionId),
       storeId: maskId(storeId),
     });
 
     const store = await createStoreDoPromise({
       clientId: "link-processor-do",
       durableObject: {
-        // DO NOT RENAME: LiveStore persists this exact name in SyncBackendDO
-        // reverse-RPC subscriptions. LIBRARY_DO is the application-facing
-        // alias, but existing and future LiveStore callbacks must share this
-        // stable compatibility identity.
         bindingName: "LINK_PROCESSOR_DO",
         ctx: this.ctx,
         env: this.env,
@@ -237,8 +220,6 @@ export class LibraryDO
     this.cachedStore = store;
 
     logger.info("Store created successfully", {
-      databaseSizeAfterBoot: this.ctx.storage.sql.databaseSize,
-      rowsWrittenDuringBoot: this.totalRowsWritten - rowsBeforeBoot,
       storeId: maskId(storeId),
     });
 
@@ -293,7 +274,7 @@ export class LibraryDO
 
   private async bindNamedWorkspace(): Promise<OrgId> {
     const name = this.ctx.id.name;
-    if (!name) throw new Error("LibraryDO requires a named instance");
+    if (!name) throw new Error("LinkProcessorDO requires a named instance");
     const storeId = OrgId.make(name);
     if (this.storeId !== storeId) {
       this.storeId = storeId;
@@ -688,7 +669,7 @@ export class LibraryDO
           )
         )
       ),
-      Effect.withSpan("LibraryDO.processLinkEffect", {
+      Effect.withSpan("LinkProcessorDO.processLinkEffect", {
         attributes: { linkId: link.id, isReprocess },
       })
     );
@@ -710,7 +691,7 @@ export class LibraryDO
           text
         );
       }).pipe(
-        Effect.withSpan("LibraryDO.sendProgressDraft"),
+        Effect.withSpan("LinkProcessorDO.sendProgressDraft"),
         Effect.catch((error) =>
           Effect.logWarning("sendProgressDraft failed").pipe(
             Effect.annotateLogs(safeErrorInfo(error))
@@ -771,7 +752,7 @@ export class LibraryDO
             expected: maskId(this.ctx.id.name ?? ""),
             storeId: maskId(storeId),
           }),
-          Effect.withSpan("LibraryDO.storeIdMismatch", {
+          Effect.withSpan("LinkProcessorDO.storeIdMismatch", {
             attributes: {
               expected: maskId(this.ctx.id.name ?? ""),
               route: "fetch",
@@ -806,7 +787,7 @@ export class LibraryDO
             expected: maskId(this.ctx.id.name ?? ""),
             storeId: maskId(msg.storeId),
           }),
-          Effect.withSpan("LibraryDO.storeIdMismatch", {
+          Effect.withSpan("LinkProcessorDO.storeIdMismatch", {
             attributes: {
               expected: maskId(this.ctx.id.name ?? ""),
               route: "ingestAndProcess",
