@@ -26,7 +26,7 @@ Active.
                                                    │
                               metadata/content/AI ──┘
 
-        ChatAgentDO (per workspace) ─ LiveStore ───┘
+        ChatAgentDO (per workspace) ─ Effect RPC ─► LinkProcessorDO
         XBookmarkSyncDO (per user) ─ Queue
         AccountDeletionWorkflow ─ D1/KV/all relevant DOs
 ```
@@ -44,7 +44,7 @@ Stateful classes:
 | ------------------------- | ------------ | -------------------------------------------------------------------------------------- |
 | `SyncBackendDO`           | workspace ID | Canonical synchronized eventlog and live distribution                                  |
 | `LinkProcessorDO`         | workspace ID | Server-side LiveStore replica, link operations, processing subscriptions, digest alarm |
-| `ChatAgentDO`             | workspace ID | Chat messages, token usage, server-side LiveStore replica                              |
+| `ChatAgentDO`             | workspace ID | Chat messages, token usage, model execution, and typed delegation to LinkProcessorDO   |
 | `XBookmarkSyncDO`         | user ID      | X watermark/status and polling alarm                                                   |
 | `AccountDeletionWorkflow` | workspace ID | Durable deletion job with independently retried multi-store steps                      |
 

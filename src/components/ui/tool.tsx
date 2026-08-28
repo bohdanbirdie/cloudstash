@@ -26,18 +26,12 @@ import { cn } from "@/lib/utils";
 type ToolPartType = ToolUIPart | DynamicToolUIPart;
 type ToolState = ToolPartType["state"];
 
-const APPROVAL = {
-  NO: "No, denied.",
-  YES: "Yes, confirmed.",
-} as const;
-
 export type ToolProps = {
   toolPart: ToolPartType;
   defaultOpen?: boolean;
   className?: string;
-  onApprove?: (toolCallId: string, toolName: string) => void;
-  onReject?: (toolCallId: string, toolName: string) => void;
-  requiresConfirmation?: boolean;
+  onApprove?: (approvalId: string) => void;
+  onReject?: (approvalId: string) => void;
 };
 
 const Tool = ({
@@ -46,7 +40,6 @@ const Tool = ({
   className,
   onApprove,
   onReject,
-  requiresConfirmation = false,
 }: ToolProps) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
@@ -54,24 +47,22 @@ const Tool = ({
   const output = "output" in toolPart ? toolPart.output : undefined;
   const errorText = "errorText" in toolPart ? toolPart.errorText : undefined;
   const toolName = getToolName(toolPart);
-  const toolCallId = "toolCallId" in toolPart ? toolPart.toolCallId : undefined;
   const input = "input" in toolPart ? toolPart.input : undefined;
+  const approvalId =
+    state === "approval-requested" ? toolPart.approval.id : undefined;
 
-  const needsConfirmation =
-    requiresConfirmation && state === "input-available" && toolCallId;
-
-  const stateIcon = getStateIcon(state, !!needsConfirmation);
+  const stateIcon = getStateIcon(state);
   const linkIds = extractLinkIds(toolName, input);
 
   const handleApprove = () => {
-    if (toolCallId && onApprove) {
-      onApprove(toolCallId, toolName);
+    if (approvalId && onApprove) {
+      onApprove(approvalId);
     }
   };
 
   const handleReject = () => {
-    if (toolCallId && onReject) {
-      onReject(toolCallId, toolName);
+    if (approvalId && onReject) {
+      onReject(approvalId);
     }
   };
 
@@ -82,7 +73,7 @@ const Tool = ({
 
   const expandableContent = getExpandableContent(state, output, errorText);
 
-  const renderMode = getRenderMode(!!needsConfirmation, toolName, linkIds);
+  const renderMode = getRenderMode(approvalId !== undefined, toolName, linkIds);
 
   return Match.value(renderMode).pipe(
     Match.when({ type: "delete-confirmation" }, ({ linkIds: ids }) => (
@@ -169,7 +160,7 @@ const Tool = ({
   );
 };
 
-export { Tool, APPROVAL };
+export { Tool };
 export type { ToolPartType };
 
 const ICON_CLASS = "size-3";
@@ -179,21 +170,14 @@ type RenderMode =
   | { type: "fallback-confirmation" }
   | { type: "default" };
 
-const getStateIcon = (
-  state: ToolState,
-  needsConfirmation: boolean
-): ReactNode =>
+const getStateIcon = (state: ToolState): ReactNode =>
   Match.value(state).pipe(
     Match.when("input-streaming", () => (
       <Loader2 className={cn(ICON_CLASS, "animate-spin text-blue-500")} />
     )),
-    Match.when("input-available", () =>
-      needsConfirmation ? (
-        <AlertTriangle className={cn(ICON_CLASS, "text-amber-500")} />
-      ) : (
-        <Settings className={cn(ICON_CLASS, "text-orange-500")} />
-      )
-    ),
+    Match.when("input-available", () => (
+      <Settings className={cn(ICON_CLASS, "text-orange-500")} />
+    )),
     Match.whenOr("approval-requested", "approval-responded", () => (
       <ShieldQuestion className={cn(ICON_CLASS, "text-yellow-500")} />
     )),

@@ -71,8 +71,8 @@ requires its matching `links:read` or `links:write` scope.
 ## Chat Agent
 
 One `ChatAgentDO` currently exists per workspace and extends Cloudflare
-`AIChatAgent`. Agents SDK storage owns message history; the DO also hosts a
-LiveStore client and monthly token-usage record.
+`AIChatAgent`. Agents SDK storage owns message history; the DO also owns the
+monthly token-usage record. It does not host a LiveStore client.
 
 The provider is OpenRouter with Google Gemini. The model sees a hardened system
 prompt and at most the last 30 UI messages. A request is capped at five tool
@@ -80,9 +80,16 @@ steps. Input validation rejects common prompt-injection forms before provider
 execution.
 
 Tools list/search/get/save links, inspect counts, change completion, restore,
-and archive one or many links. Archival tools stop for explicit client
-confirmation. Tool execution queries or commits the workspace LiveStore
-store. Link mentions/citations render from returned IDs.
+and archive one or many links. A shared Effect `RpcGroup` defines their schema,
+success, and typed-error contract. Effect RPC runs over Cloudflare native
+Durable Object RPC and delegates every library operation to the workspace-named
+`LinkProcessorDO`, which owns the canonical server-side LiveStore replica.
+Link mentions/citations render from returned IDs.
+
+Archival tools declare AI SDK `needsApproval` on the server. Approval responses
+use the SDK approval ID and denied calls never execute. The SDK queues approved
+continuations back through `onChatMessage`, so capability and token reservation
+remain authoritative for the post-approval model turn.
 
 Before every model call or tool continuation, the DO rechecks the workspace
 `chatAgent` capability, reads the chat budget, reserves an estimated token
@@ -95,6 +102,6 @@ connection identity, so established-connection approval/membership revocation
 remains tracked in
 [DELTA-042](../../.delta/DELTA-042-established-chat-connections-do-not-reauthorize.md).
 
-This change does not alter `ChatAgentDO` or its tools. The planned multi-chat
-split will remove its LiveStore client and route aligned tools through the
-LinkProcessorDO's link-operation RPCs.
+The current single conversation remains workspace-named. A later multi-chat
+change may split message histories, but it must continue sharing the canonical
+LinkProcessor RPC owner rather than adding another materialized library.

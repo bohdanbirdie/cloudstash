@@ -1,16 +1,15 @@
 import type { UIMessage } from "@ai-sdk/react";
-import { getToolName, isToolUIPart } from "ai";
+import { isToolUIPart } from "ai";
 
 import { MessageContent } from "@/components/ui/message";
 import { Tool } from "@/components/ui/tool";
 import type { ToolPartType } from "@/components/ui/tool";
 import { cn } from "@/lib/utils";
-import { requiresConfirmation } from "@/shared/tool-config";
 
 type ChatMessageProps = {
   message: UIMessage;
-  onApprove: (toolCallId: string, toolName: string) => void;
-  onReject: (toolCallId: string, toolName: string) => void;
+  onApprove: (approvalId: string) => void;
+  onReject: (approvalId: string) => void;
 };
 
 export const ChatMessage = ({
@@ -41,7 +40,6 @@ export const ChatMessage = ({
           <Tool
             key={i}
             toolPart={part}
-            requiresConfirmation={requiresConfirmation(getToolName(part))}
             onApprove={onApprove}
             onReject={onReject}
           />

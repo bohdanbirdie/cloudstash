@@ -8,7 +8,7 @@ kanban-plugin: board
 - [ ] `REL-08` [[todos/welcome-existing-users|Approve pending users and send the launch welcome email]] — approve every eligible pending signup, then notify all existing signed-up users that Cloudstash is available to use.
 - [ ] `CORE-05` [[todos/initial-sync-blocking|Research HTTP bootstrap and preloaded library state]] — benchmark WebSocket vs HTTP event-log replay, BootStatus/timeout UX, and an upstream materialized snapshot at an exact event head.
 - [ ] `CORE-04` [[todos/free-ai-summary-allowance|Plan a bounded Free AI-summary allowance]] — saved-link count remains unlimited; exhaustion preserves the link.
-- [ ] `AI-03` [[todos/chat-library-owner|Remove the chat LiveStore replica and route tools through LinkProcessorDO]] — keep the current single chat and reuse `LinkProcessorDO` as the only Cloudflare-side materialized library owner.
+- [ ] `AI-11` [[todos/chat-token-budget|Make the chat token budget the primary usage guardrail]] — keep safety approval for destructive actions, but control ordinary chat usage by model-token spend instead of arbitrary per-tool restrictions.
 - [ ] `AI-08` [[todos/link-notes|Notes on links (user-authored, agent-aware)]]
 
 ## Medium Priority
@@ -16,6 +16,7 @@ kanban-plugin: board
 - [ ] `AI-01` [[todos/pro-larger-summary-model|Give Pro summaries a larger model]] — choose the quality/cost boundary, fallback behavior, and operation-time entitlement; advertise it only after it ships.
 - [ ] `AI-04` [[todos/weekly-digest-backend|Weekly Digest backend]]
 - [ ] `AI-09` [[todos/multi-chat-architecture|Add multiple chat sessions per library]] — after `AI-03`, give each conversation lightweight message storage without creating another LiveStore replica.
+- [ ] `AI-10` [[todos/legacy-chat-livestore-subscriptions|Retire legacy chat LiveStore subscriptions]] — add a supported upstream unsubscribe path and remove the temporary no-op callback after deployed cleanup evidence.
 - [ ] `CORE-01` [[todos/canonical-url-identity|Canonical URL identity across every capture path]] — prevent new duplicates first; historical reconciliation remains a separate decision.
 - [ ] `CORE-02` [[todos/telemetry-minimization|Minimize telemetry and document retained provider data]] — keep collection purpose-bound and deletion/retention claims accurate.
 - [ ] `UX-07` Improve link-card UI for failed/error fetches (404, 5xx, bot challenge, login walls), with an explicit failure category and retry affordance.
@@ -35,10 +36,12 @@ kanban-plugin: board
 - [ ] `SYS-09` [[todos/openrouter-production-local-ai|Standardize production AI on OpenRouter with a cost-free local path]] — route all production inference through OpenRouter; keep local development explicit and free by default. Cloudflare AI Gateway may proxy OpenRouter later for a demonstrated operational need, but is not the model provider.
 - [ ] `UX-03` [[todos/mobile-settings-polish|Mobile settings polish — delete flow, Connections overhaul, tab look]]
 - [ ] `UX-09` Pop-animate genuinely new synced/locally-added links without animating filter or category changes.
-- [ ] `AI-07` [[todos/chat-approval-needsapproval|Migrate chat approval to server-side needsApproval (drop deprecated toolsRequiringConfirmation)]]
 - [ ] `UX-11` ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
 
 ## In Progress
+
+- [ ] `AI-03` [[todos/chat-library-owner|Remove the chat LiveStore replica and route tools through LinkProcessorDO]] — one persistent chat per library keeps Agents SDK message storage while all link tools use Effect RPC over native Durable Object RPC to `LinkProcessorDO`.
+- [ ] `AI-07` [[todos/chat-approval-needsapproval|Migrate chat approval to server-side needsApproval]] — included with AI-03 because approval and tool execution now share the same server-owned RPC boundary.
 
 ## Done
 

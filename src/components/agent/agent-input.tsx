@@ -1,11 +1,10 @@
-import { getToolName, isToolUIPart } from "ai";
+import { isToolUIPart } from "ai";
 import { SendIcon } from "lucide-react";
 import { useCallback } from "react";
 
 import { Button } from "@/components/ui/button";
 import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
-import { requiresConfirmation } from "@/shared/tool-config";
 
 import {
   useAgentChat,
@@ -85,11 +84,10 @@ export function InputForm({
 export function AgentInput() {
   const { draft, setDraft } = useAgentInput();
   const { isConnected } = useAgentConnection();
-  const { messages, status, sendMessage } = useAgentChat();
+  const { messages, isBusy, sendMessage } = useAgentChat();
 
-  const isStreaming = status === "streaming";
   const hasPendingConfirmation = checkPendingConfirmation(messages);
-  const canSend = isConnected && !isStreaming && !hasPendingConfirmation;
+  const canSend = isConnected && !isBusy && !hasPendingConfirmation;
 
   const submit = useCallback(() => {
     const text = draft.trim();
@@ -117,10 +115,5 @@ const checkPendingConfirmation = (
   messages: ReturnType<typeof useAgentChat>["messages"]
 ): boolean =>
   messages.some((m) =>
-    m.parts?.some(
-      (p) =>
-        isToolUIPart(p) &&
-        p.state === "input-available" &&
-        requiresConfirmation(getToolName(p))
-    )
+    m.parts?.some((p) => isToolUIPart(p) && p.state === "approval-requested")
   );

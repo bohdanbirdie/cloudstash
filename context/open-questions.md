@@ -27,8 +27,9 @@
   [initial-sync-blocking](../docs/todos/initial-sync-blocking.md).
 - **CS-DQ4 Collaboration between chat histories and workspace data.** The
   current system has one chat Durable Object per workspace. The desired
-  multi-chat shape and ownership of the shared LiveStore client remain open and
-  are explored in [multi-chat architecture](../docs/todos/multi-chat-architecture.md).
-  Blocked on choosing thread ownership, deletion/export semantics, and one
-  shared-client topology. Resolve when an accepted decision answers those three
-  points and names the migration path from the single workspace chat.
+  multi-chat shape remains open and is explored in
+  [multi-chat architecture](../docs/todos/multi-chat-architecture.md). Library
+  ownership is resolved: every conversation must reuse the workspace
+  LinkProcessor RPC owner. Blocked on choosing thread ownership and
+  deletion/export semantics. Resolve when an accepted decision answers those
+  questions and names the migration path from the single workspace chat.

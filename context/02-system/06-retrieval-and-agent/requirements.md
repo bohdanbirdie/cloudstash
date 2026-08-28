@@ -14,7 +14,7 @@ agent's retrieval and mutation tools.
 - **CS.SYS.RET-A02 Agent is a library interface:** Chat adds natural-language
   access to existing workspace operations; it is not an independent source of
   content truth.
-  - Validation: tools commit/query the same LiveStore store.
+  - Validation: tools use the canonical workspace LinkProcessor RPC contract.
 
 ## Constraints
 
@@ -27,9 +27,9 @@ agent's retrieval and mutation tools.
 
 - **CS.SYS.RET-T01 LIKE search:** Case-insensitive LIKE and weighted fields are
   accepted instead of FTS5 to avoid a custom SQLite build.
-- **CS.SYS.RET-T02 Shared LinkProcessor client:** REST and MCP reuse the existing
-  workspace-named LinkProcessorDO LiveStore replica; chat remains separate until
-  its planned multi-conversation migration.
+- **CS.SYS.RET-T02 Shared LinkProcessor client:** REST, MCP, and chat reuse the
+  workspace-named LinkProcessorDO LiveStore replica. Chat keeps only message and
+  usage state in its own actor.
 - **CS.SYS.RET-T03 Approximate chat budget:** Token reservations use estimates
   reconciled after calls; fail-closed budget lookup may temporarily deny chat.
 

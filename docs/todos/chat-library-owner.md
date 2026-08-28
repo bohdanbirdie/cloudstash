@@ -2,7 +2,6 @@
 
 - Code: `AI-03`
 - Priority: high
-- Depends on: a supported LiveStore DO-RPC subscription removal operation
 
 ## Goal
 
@@ -54,12 +53,14 @@ ChatAgentDO (one named instance per library for now)
   Agents SDK message history and model execution
   monthly chat usage reservation
   no LiveStore client, queries, events, or sync callback
-  thin Effect-backed calls to LinkProcessorDO RPCs
+  Effect RPC client over Cloudflare native DO RPC
 ```
 
 The chat actor derives the library ID from its existing DO name. It obtains
-`env.LINK_PROCESSOR_DO.getByName(libraryId)` and never receives direct storage or
-database access.
+the matching `env.LINK_PROCESSOR_DO` stub and never receives direct storage or
+database access. A shared schema-backed `WorkspaceLinksRpcs` group infers both
+client and handler contracts; `@livestore/common-cf` supplies the public native
+DO transport adapter already used by the LiveStore Cloudflare stack.
 
 ## Tool alignment
 
@@ -76,70 +77,61 @@ the canonical RPC contract:
 | batch complete / archive              | `updateLinks`                                            |
 | library counts                        | one small canonical stats RPC, not three full list calls |
 
-Keep confirmation behavior for archival tools. Keep reprocessing unavailable to
-the agent. The AI SDK's Promise callbacks are transport boundaries; RPC
-translation, typed failures, and result mapping remain Effect programs. Remote
-rejections and canonical domain failures must not collapse into untyped throws.
+Archival tools use server-side AI SDK `needsApproval`; denied calls never reach
+their executor. Keep reprocessing unavailable to the agent. The AI SDK's
+Promise callbacks are transport boundaries; RPC translation, typed failures,
+and result mapping remain Effect programs. Remote rejections and canonical
+domain failures must not collapse into untyped throws.
 
 Mutating tool calls inherit the canonical RPC durability barrier. This may add
 up to the existing five-second sync timeout in a degraded case, but avoids
 reporting a mutation that only exists in an evictable client replica.
 
-## Removing the old live-pull subscription
+## Legacy subscription compatibility
 
-This cannot be implemented safely by only deleting the chat store code.
-LiveStore currently persists DO-RPC subscribers in SyncBackend storage, keyed
-by the client DO ID, and does not remove that entry when a client store shuts
-down. A stale entry would continue to invoke `ChatAgentDO.syncUpdateRpc` on
-future library pushes, retaining avoidable DO requests and errors.
+LiveStore currently persists DO-RPC subscribers in SyncBackend storage and has
+no supported unsubscribe operation. Existing libraries that previously opened
+chat may therefore continue calling `ChatAgentDO.syncUpdateRpc` after this
+change.
 
-Creating a replacement chat DO class does not remove this registration. The
-persisted callback contains the old binding/class identity and will keep waking
-the old actor until SyncBackend removes it. A new chat class is useful for the
-later multi-session identity change, but it is not an unsubscribe mechanism.
+AI-03 does not reach into LiveStore's private `rpc-sub:*` storage and does not
+patch `vendor/livestore`. Keep a minimal compatibility `syncUpdateRpc` that
+accepts a late callback and returns without decoding the payload, booting a
+store, writing storage, or importing LiveStore. New chat actors never register
+a subscription.
 
-Do not read or delete LiveStore's private `rpc-sub:*` storage keys from
-Cloudstash. Instead:
-
-1. Add a supported unsubscribe operation upstream in LiveStore's DO-RPC sync
-   transport and consume it through a released snapshot; do not patch
-   `vendor/livestore` in this app.
-2. During the transition, retain a minimal compatibility `syncUpdateRpc` that
-   unsubscribes its own callback on the first late delivery and then returns.
-3. Also attempt the idempotent unsubscribe when an existing chat actor is next
-   opened, so quiet libraries clean up without waiting for a new link event.
-4. Remove the compatibility callback only after production evidence shows no
-   old chat subscriptions remain, or keep the no-op method if proving global
-   absence is not possible. It must not boot a store.
-
-New chat actors never register a LiveStore subscription.
+This leaves one small no-op Durable Object RPC per emitted push chunk for
+previously registered chat actors, but removes the materialization, callback
+handling, and new subscription cost. `AI-10` owns a supported upstream
+unsubscribe operation and eventual removal of this compatibility method.
 
 ## Implementation slices
 
-1. Add focused parity tests around a fake typed LinkProcessorDO client for every chat
-   tool, including confirmations, domain failures, and RPC rejection.
+1. Add focused parity tests through Effect's in-memory RPC harness, plus a real
+   Miniflare DO-to-DO E2E covering reads, writes, search, stats, and archival.
 2. Extend the canonical service/RPC only for the missing `chat` save source and
    a bounded stats read.
 3. Replace store-backed chat tools with the Effect-backed LinkProcessorDO client.
 4. Remove `createStoreDoPromise`, LiveStore query/event imports, cached Store,
    session creation, commit helpers, and normal sync handling from chat.
-5. Land the supported upstream unsubscription path and transition existing
-   subscribers without app-owned access to LiveStore internals.
-6. Add a lint boundary for `src/cf-worker/chat-agent/**` forbidding imports from
-   `@livestore/*` and `src/livestore/**` so the replica cannot creep back in.
+5. Retain only a no-op `syncUpdateRpc` compatibility method for callbacks
+   registered before this deployment.
+6. Add a lint boundary for `src/cf-worker/chat-agent/**` forbidding LiveStore
+   client/store imports while allowing the narrow `@livestore/common-cf`
+   Effect-RPC transport adapter.
 
 ## Verification
 
 - Chat behavior remains one conversation per library with existing message
   history and usage accounting intact.
-- All current chat tools have parity through `LinkProcessorDO`; archival confirmation
-  and citations still work.
+- All current chat tools have parity through `LinkProcessorDO`; archival
+  approval uses server `needsApproval`, and citations still work.
 - `ChatAgentDO` does not construct, query, commit, synchronize, or import
   LiveStore.
 - A chat opened against a large existing library produces no Chat DO
   materialization writes.
-- A library push after the transition does not boot a chat LiveStore client and its
-  legacy callback subscription is removed idempotently.
+- A library push after the transition does not boot a chat LiveStore client;
+  legacy callbacks return without reading or writing Chat DO storage.
 - Existing `LinkProcessorDO` processing, API/MCP, digest, and account-deletion
   behavior remains intact.
 - `vp check`, focused Worker tests, real-DO E2E, `bun run check:intent`, Worker
@@ -152,6 +144,7 @@ New chat actors never register a LiveStore subscription.
 - changing the model/provider, prompt, or product entitlement
 - exposing reprocessing to chat
 - changing LiveStore persistence keys or vendored source
+- removing legacy SyncBackend callback registrations (`AI-10`)
 
 ## Research references
 

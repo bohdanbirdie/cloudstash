@@ -64,6 +64,7 @@
     "@lexical/react": "0.45.0",
     "@livestore/adapter-cloudflare": "0.0.0-snapshot-2e4bcfc68f7ddad5696022a10d515a011f5f785a",
     "@livestore/adapter-web": "0.0.0-snapshot-2e4bcfc68f7ddad5696022a10d515a011f5f785a",
+    "@livestore/common-cf": "0.0.0-snapshot-2e4bcfc68f7ddad5696022a10d515a011f5f785a",
     "@livestore/livestore": "0.0.0-snapshot-2e4bcfc68f7ddad5696022a10d515a011f5f785a",
     "@livestore/peer-deps": "0.0.0-snapshot-2e4bcfc68f7ddad5696022a10d515a011f5f785a",
     "@livestore/react": "0.0.0-snapshot-2e4bcfc68f7ddad5696022a10d515a011f5f785a",

@@ -9,28 +9,27 @@ import {
   ConversationScrollButton,
 } from "@/components/chat/conversation";
 import { Thinking } from "@/components/ui/thinking";
-import { APPROVAL } from "@/components/ui/tool";
 
 import { useAgentChat } from "./agent-chat-provider";
 
 export function AgentMessages() {
-  const { messages, status, error, addToolOutput } = useAgentChat();
+  const { messages, status, isBusy, error, addToolApprovalResponse } =
+    useAgentChat();
 
-  const isStreaming = status === "streaming";
   const hasError = status === "error";
 
   const handleApprove = useCallback(
-    (toolCallId: string, toolName: string) => {
-      addToolOutput({ toolCallId, toolName, output: APPROVAL.YES });
+    (approvalId: string) => {
+      addToolApprovalResponse({ id: approvalId, approved: true });
     },
-    [addToolOutput]
+    [addToolApprovalResponse]
   );
 
   const handleReject = useCallback(
-    (toolCallId: string, toolName: string) => {
-      addToolOutput({ toolCallId, toolName, output: APPROVAL.NO });
+    (approvalId: string) => {
+      addToolApprovalResponse({ id: approvalId, approved: false });
     },
-    [addToolOutput]
+    [addToolApprovalResponse]
   );
 
   return (
@@ -45,7 +44,7 @@ export function AgentMessages() {
             onReject={handleReject}
           />
         ))}
-        <Thinking isLoading={isStreaming} />
+        <Thinking isLoading={isBusy} />
         {hasError && <ErrorMessage error={error} />}
       </ConversationContent>
       <ConversationScrollButton className="bottom-2" />

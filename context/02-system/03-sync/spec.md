@@ -15,13 +15,13 @@ extension ───── extension adapter leader ├─ WebSocket ─► SyncB
                                          │                    ▲
                                          │                    │ reverse RPC/live pull
 LinkProcessorDO ─────── adapter-cloudflare client ──────────────────┤
-ChatAgentDO ───── adapter-cloudflare client ──────────────────┘
 ```
 
 Each store uses the workspace ID. Browser/extension sessions query an in-memory
 SQLite state DB and coordinate persistence/sync through their adapter topology.
-Each server-side client uses its hosting Durable Object SQLite and a stable
-persisted session ID.
+The server-side LinkProcessor client uses its hosting Durable Object SQLite and
+a stable persisted session ID. Chat uses that existing materialization through
+Effect RPC instead of opening another sync client.
 
 ## Sync Backend
 
@@ -60,12 +60,17 @@ work after production evidence confirms zero hibernation-blocking timers.
 
 ## Server-Side Client Recovery
 
-`LinkProcessorDO` and `ChatAgentDO` implement `syncUpdateRpc(payload, storeId)`.
-On cold wake they establish the workspace ID, single-flight store boot, then
-hand the payload to LiveStore's RPC handler. Store creation failure clears the
-memo so a later call may retry. Creating concurrent stores over the same DO
-SQLite is forbidden; [PR #30](https://github.com/bohdanbirdie/cloudstash/pull/30)
-records the corruption this caused.
+`LinkProcessorDO` implements `syncUpdateRpc(payload, storeId)`. On cold wake it
+establishes the workspace ID, single-flights store boot, then hands the payload
+to LiveStore's RPC handler. Store creation failure clears the memo so a later
+call may retry. Creating concurrent stores over the same DO SQLite is forbidden;
+[PR #30](https://github.com/bohdanbirdie/cloudstash/pull/30) records the
+corruption this caused.
+
+`ChatAgentDO.syncUpdateRpc` is only a temporary no-op compatibility endpoint for
+subscriptions persisted before the chat replica was removed. It never decodes
+the payload or boots a store. New chat actors do not subscribe; `AI-10` owns a
+supported cleanup path for the legacy registrations.
 
 ## Verification
 

@@ -37,7 +37,10 @@ useAgentChat({ agent,               → /agents/chat/{workspaceId}
 | `getInboxLinks`   | List unread links            | Auto      |
 | `getStats`        | Inbox/completed/total counts | Auto      |
 
-HITL tools have no `execute` function → AI SDK stops, frontend shows confirmation UI, `addToolResult()` sends approval back, `processToolCalls()` executes server-side.
+Archival tools declare `needsApproval: true` and keep their executor on the
+server. The frontend responds with `addToolApprovalResponse()`; approved calls
+execute through the canonical LinkProcessor Effect RPC, while denied calls do
+not execute.
 
 ## Authentication & Feature Gating
 
