@@ -801,7 +801,7 @@ describe("MCP OAuth Worker flow", () => {
     expect(rejection).toMatchObject({
       error: "invalid_request",
       error_description:
-        "The active workspace changed. Restart authorization and review the consent screen again.",
+        "Your Cloudstash account changed. Restart authorization and review the consent screen again.",
     });
     expect(rejection).not.toHaveProperty("url");
 

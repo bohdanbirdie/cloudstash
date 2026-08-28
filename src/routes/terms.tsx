@@ -34,7 +34,7 @@ function TermsPage() {
       lead="The agreement between you and Cloudstash when you save links with us."
     >
       <LegalArticle>
-        <LegalUpdated date="August 21, 2026" />
+        <LegalUpdated date="August 28, 2026" />
         <p>
           These terms are an agreement between you and Phantom Edtech LLC about
           your use of Cloudstash. We’ve kept them short. If something here
@@ -110,10 +110,11 @@ function TermsPage() {
         <section id="ai">
           <h2>5. AI summaries and chat</h2>
           <p>
-            When you save a link, we send its content to Cloudflare’s Workers AI
-            service (currently using Meta’s Llama 3.3 model) to generate a
-            summary. The Pro chat-with-your-archive feature is different: it
-            sends your messages through OpenRouter to Google’s Gemini model.
+            Cloudstash uses AI services to create link summaries and power
+            features such as chat, weekly digests, and enriched X saves. Regular
+            link summaries use Cloudflare Workers AI. Those other AI features
+            use OpenRouter and Google Gemini. We send only the content needed to
+            provide the feature you use.
           </p>
           <p>
             AI gets things wrong. Summaries and chat responses can be
@@ -206,9 +207,10 @@ function TermsPage() {
           <h2>9. Closing your account</h2>
           <p>
             You can delete your account at any time from Settings → Account →
-            Delete. That wipes your archive immediately and we don’t keep a
-            copy. See the <a href="/privacy">Privacy Policy</a> for the full
-            retention details.
+            Delete. Your access ends right away while Cloudstash removes your
+            account data in the background. See the{" "}
+            <a href="/privacy">Privacy Policy</a> for details about deletion and
+            records we may need to retain.
           </p>
           <p>
             We may suspend or close your account if you violate these terms, if

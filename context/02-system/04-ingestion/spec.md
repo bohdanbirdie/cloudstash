@@ -81,7 +81,7 @@ is fixed at 24 hours. Production plan/retention is not repository-verifiable; se
 The processor first checks its generic terminal actor marker. Retirement
 persists that marker before graceful LiveStore shutdown, then clears storage
 while retaining the marker, so a failed shutdown, delayed Queue/DLQ message, or
-external link-operation RPC cannot recreate Vault events.
+external link-operation RPC cannot recreate library events.
 Canonical REST/MCP writes receive the same revision-guarded commit capability
 as ingestion, processing, and digest persistence; business services do not
 receive lifecycle predicates. A provider notification already in flight at

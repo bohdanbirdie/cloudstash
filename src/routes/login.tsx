@@ -1,33 +1,15 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
+import type { ReactNode } from "react";
 
+import { CloudstashLogo } from "@/components/cloudstash-logo";
 import { SITE_URL } from "@/components/landing/seo-data";
 import { LoginAnimation } from "@/components/login-animation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { FieldGroup, FieldDescription } from "@/components/ui/field";
 import { authClient, loadAuth } from "@/lib/auth";
-import type { DitherPalette } from "@/lib/brand/dither";
-import { PALETTES, paintDitherWithEffects } from "@/lib/brand/dither";
 import { META_PIXEL_HEAD_SCRIPTS } from "@/lib/meta-pixel";
 import { PLANS } from "@/lib/plan";
 import { cn } from "@/lib/utils";
-
-const SUNSET = PALETTES.find((p) => p.name === "Sunset")!;
-const DITHER_CELL_SIZE = 3.5;
-const WAVE_VELOCITY_CSS = 0.08;
-const WAVE_SPACING_CSS = 280;
-const WAVE_SIGMA_CSS = 40;
-const WAVE_AMP = 0.012;
-const WAVE_FREQ_CSS = 0.15;
-const DITHER_FPS = 15;
-const ASCII_CHARS = "abcdef0123456789-_~.:/?=&#%";
-const ASCII_CELL_CSS = 18;
-const ASCII_FONT_CSS = 14;
-const ASCII_REVEAL_RADIUS_CSS = 72;
-const ASCII_OPACITY_EASE = 0.16;
-const ASCII_SYMBOL_MIN_MS = 90;
-const ASCII_SYMBOL_MAX_MS = 280;
 
 async function clearOPFS() {
   if (typeof navigator === "undefined" || !navigator.storage?.getDirectory)
@@ -74,361 +56,149 @@ export const Route = createFileRoute("/login")({
   component: LoginPage,
 });
 
-function LoginForm({ className, ...props }: React.ComponentProps<"div">) {
-  const upgrade = Route.useSearch({ select: (s) => s.upgrade });
-  const callbackURL = upgrade ? `/inbox?upgrade=${upgrade}` : "/inbox";
-  const heading = upgrade
-    ? `Sign in to start ${PLANS[upgrade].name}`
-    : "Sign in";
-
+export function LoginSurface({
+  heading = "Sign in to Cloudstash",
+  onContinue,
+  privacyLink,
+  termsLink,
+}: {
+  heading?: string;
+  onContinue: () => void;
+  privacyLink: ReactNode;
+  termsLink: ReactNode;
+}) {
   return (
-    <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card className="overflow-hidden p-0">
-        <CardContent className="grid p-0 md:grid-cols-2">
-          <div className="flex flex-col justify-center p-6 md:p-8 md:min-h-[400px]">
-            <FieldGroup>
-              <div className="flex justify-center md:hidden">
-                <LoginAnimation className="size-36" />
-              </div>
-              <h1 className="text-center text-2xl font-bold text-balance">
+    <main className="grid min-h-svh place-items-center bg-muted/30 p-5 md:p-10">
+      <div className="grid w-full max-w-3xl overflow-hidden rounded-lg bg-card ring-1 ring-foreground/10 md:min-h-[28rem] md:grid-cols-[1.15fr_0.85fr]">
+        <section className="flex flex-col justify-center p-7 md:p-10">
+          <div className="w-full max-w-xs self-center">
+            <div className="md:hidden">
+              <BrandLockup className="mb-7" />
+            </div>
+            <header className="text-start">
+              <h1 className="text-xl font-semibold tracking-tight text-balance">
                 {heading}
               </h1>
-              <Button
-                className="w-full"
-                onClick={() =>
-                  authClient.signIn.social({
-                    provider: "google",
-                    callbackURL,
-                  })
-                }
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  className="h-4 w-4"
-                  aria-hidden
-                >
-                  <path
-                    d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"
-                    fill="currentColor"
-                  />
-                </svg>
-                Continue with Google
-              </Button>
-            </FieldGroup>
+              <p className="mt-2 text-xs/relaxed text-muted-foreground text-pretty">
+                Access your saved links from anywhere.
+              </p>
+            </header>
+            <GoogleButton className="mt-6" onClick={onContinue} />
+            <p className="mt-5 text-start text-[0.6875rem]/relaxed text-muted-foreground [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary">
+              By continuing, you agree to our {termsLink} and {privacyLink}.
+            </p>
           </div>
-          <BrandPane />
-        </CardContent>
-      </Card>
-      <FieldDescription className="px-6 text-center">
-        By clicking continue, you agree to our{" "}
-        <Link to="/terms">Terms of Service</Link> and{" "}
-        <Link to="/privacy">Privacy Policy</Link>.
-      </FieldDescription>
+        </section>
+        <aside
+          aria-hidden="true"
+          className="relative hidden overflow-hidden bg-primary p-8 text-primary-foreground md:flex md:flex-col md:justify-between"
+        >
+          <div className="landing-dot-field landing-dot-field-inverse pointer-events-none absolute inset-0" />
+          <BrandLockup className="relative" tone="inverse" />
+          <LoginAnimation
+            variant="light"
+            className="absolute top-1/2 start-1/2 size-44 -translate-1/2"
+          />
+          <p className="relative max-w-48 text-sm/relaxed font-medium text-pretty">
+            Saved links, ready when you need them.
+          </p>
+        </aside>
+      </div>
+    </main>
+  );
+}
+
+function BrandLockup({
+  className = "",
+  tone = "default",
+}: {
+  className?: string;
+  tone?: "default" | "inverse";
+}) {
+  return (
+    <div className={cn("flex items-center gap-2", className)}>
+      <CloudstashLogo
+        className={cn("size-6", {
+          "text-primary-foreground": tone === "inverse",
+          "text-primary": tone !== "inverse",
+        })}
+      />
+      <span className="text-sm font-semibold tracking-tight">cloudstash</span>
     </div>
   );
 }
 
-type AsciiCell = {
-  cx: number;
-  cy: number;
-  symbol: string;
-  opacity: number;
-  target: number;
-  nextChangeMs: number;
-};
-
-function resolveBrandPalette(): DitherPalette {
-  try {
-    const cnv = document.createElement("canvas");
-    cnv.width = 1;
-    cnv.height = 1;
-    const tctx = cnv.getContext("2d");
-    if (!tctx) return SUNSET;
-    const primaryVar = getComputedStyle(document.documentElement)
-      .getPropertyValue("--primary")
-      .trim();
-    if (!primaryVar) return SUNSET;
-    tctx.fillStyle = primaryVar;
-    tctx.fillRect(0, 0, 1, 1);
-    const [r, g, b] = tctx.getImageData(0, 0, 1, 1).data;
-    return { ...SUNSET, b: { r, g, b } };
-  } catch {
-    return SUNSET;
-  }
-}
-
-function pickSymbol(): string {
-  return ASCII_CHARS[Math.floor(Math.random() * ASCII_CHARS.length)];
-}
-
-function nextSymbolDeadline(now: number): number {
+function GoogleButton({
+  className = "",
+  onClick,
+}: {
+  className?: string;
+  onClick: () => void;
+}) {
   return (
-    now +
-    ASCII_SYMBOL_MIN_MS +
-    Math.random() * (ASCII_SYMBOL_MAX_MS - ASCII_SYMBOL_MIN_MS)
-  );
-}
-
-function BrandPane() {
-  const paneRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const asciiCanvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const pane = paneRef.current;
-    const canvas = canvasRef.current;
-    const asciiCanvas = asciiCanvasRef.current;
-    if (!pane || !canvas || !asciiCanvas) return;
-    const ctx = canvas.getContext("2d")!;
-    const asciiCtx = asciiCanvas.getContext("2d")!;
-    const dpr = window.devicePixelRatio || 1;
-    const palette = resolveBrandPalette();
-
-    let canvasW = 0;
-    let canvasH = 0;
-    let cssW = 0;
-    let cssH = 0;
-    function resize() {
-      const rect = pane!.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) return;
-      cssW = rect.width;
-      cssH = rect.height;
-      canvasW = Math.ceil(cssW * dpr);
-      canvasH = Math.ceil(cssH * dpr);
-      canvas!.width = canvasW;
-      canvas!.height = canvasH;
-      asciiCanvas!.width = canvasW;
-      asciiCanvas!.height = canvasH;
-      asciiCtx.font = `${ASCII_FONT_CSS * dpr}px "JetBrains Mono Variable", ui-monospace, monospace`;
-      asciiCtx.textAlign = "center";
-      asciiCtx.textBaseline = "middle";
-    }
-    resize();
-
-    const reducedMotion = window.matchMedia?.(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
-
-    if (reducedMotion) {
-      function paintStatic() {
-        if (canvasW > 0 && canvasH > 0) {
-          paintDitherWithEffects(
-            ctx,
-            canvasW,
-            canvasH,
-            DITHER_CELL_SIZE * dpr,
-            palette,
-            null,
-            null
-          );
-        }
-      }
-      paintStatic();
-      const ro = new ResizeObserver(() => {
-        resize();
-        paintStatic();
-      });
-      ro.observe(pane);
-      return () => ro.disconnect();
-    }
-
-    let cursorX = 0;
-    let cursorY = 0;
-    let cursorActive = false;
-
-    function onMouseEnter(e: MouseEvent) {
-      const rect = pane!.getBoundingClientRect();
-      cursorX = e.clientX - rect.left;
-      cursorY = e.clientY - rect.top;
-      cursorActive = true;
-    }
-    function onMouseMove(e: MouseEvent) {
-      const rect = pane!.getBoundingClientRect();
-      cursorX = e.clientX - rect.left;
-      cursorY = e.clientY - rect.top;
-    }
-    function onMouseLeave() {
-      cursorActive = false;
-    }
-    pane.addEventListener("mouseenter", onMouseEnter);
-    pane.addEventListener("mousemove", onMouseMove);
-    pane.addEventListener("mouseleave", onMouseLeave);
-
-    const waveSigma = WAVE_SIGMA_CSS * dpr;
-    const waveFreq = WAVE_FREQ_CSS / dpr;
-    const waveSpacing = WAVE_SPACING_CSS * dpr;
-    const waveVelocity = WAVE_VELOCITY_CSS * dpr;
-
-    const cells = new Map<number, AsciiCell>();
-    const removeQueue: number[] = [];
-
-    const startedAt = performance.now();
-    const frameMs = 1000 / DITHER_FPS;
-    let lastFrame = 0;
-    let raf: number;
-
-    function tick(now: number) {
-      if (now - lastFrame >= frameMs && canvasW > 0 && canvasH > 0) {
-        lastFrame = now;
-        const elapsed = now - startedAt;
-        const wavePhase = (elapsed * waveVelocity) % waveSpacing;
-        paintDitherWithEffects(
-          ctx,
-          canvasW,
-          canvasH,
-          DITHER_CELL_SIZE * dpr,
-          palette,
-          {
-            phase: wavePhase,
-            sigma: waveSigma,
-            amplitude: WAVE_AMP,
-            frequency: waveFreq,
-            spacing: waveSpacing,
-          },
-          null
-        );
-      }
-
-      for (const cell of cells.values()) cell.target = 0;
-
-      if (cursorActive && cssW > 0) {
-        const cols = Math.ceil(cssW / ASCII_CELL_CSS);
-        const rows = Math.ceil(cssH / ASCII_CELL_CSS);
-        const radius2 = ASCII_REVEAL_RADIUS_CSS * ASCII_REVEAL_RADIUS_CSS;
-        const cMin = Math.max(
-          0,
-          Math.floor((cursorX - ASCII_REVEAL_RADIUS_CSS) / ASCII_CELL_CSS)
-        );
-        const cMax = Math.min(
-          cols - 1,
-          Math.floor((cursorX + ASCII_REVEAL_RADIUS_CSS) / ASCII_CELL_CSS)
-        );
-        const rMin = Math.max(
-          0,
-          Math.floor((cursorY - ASCII_REVEAL_RADIUS_CSS) / ASCII_CELL_CSS)
-        );
-        const rMax = Math.min(
-          rows - 1,
-          Math.floor((cursorY + ASCII_REVEAL_RADIUS_CSS) / ASCII_CELL_CSS)
-        );
-        for (let r = rMin; r <= rMax; r++) {
-          for (let c = cMin; c <= cMax; c++) {
-            const cx = (c + 0.5) * ASCII_CELL_CSS;
-            const cy = (r + 0.5) * ASCII_CELL_CSS;
-            const dx = cx - cursorX;
-            const dy = cy - cursorY;
-            const d2 = dx * dx + dy * dy;
-            if (d2 < radius2) {
-              const target = 1 - Math.sqrt(d2) / ASCII_REVEAL_RADIUS_CSS;
-              const key = r * 10000 + c;
-              let cell = cells.get(key);
-              if (!cell) {
-                cell = {
-                  cx,
-                  cy,
-                  symbol: pickSymbol(),
-                  opacity: 0,
-                  target,
-                  nextChangeMs: nextSymbolDeadline(now),
-                };
-                cells.set(key, cell);
-              } else {
-                cell.target = target;
-              }
-            }
-          }
-        }
-      }
-
-      asciiCtx.clearRect(0, 0, canvasW, canvasH);
-      asciiCtx.fillStyle = "#ffffff";
-      removeQueue.length = 0;
-      for (const [key, cell] of cells) {
-        cell.opacity += (cell.target - cell.opacity) * ASCII_OPACITY_EASE;
-        if (cell.opacity > 0.12 && now >= cell.nextChangeMs) {
-          cell.symbol = pickSymbol();
-          cell.nextChangeMs = nextSymbolDeadline(now);
-        }
-        if (cell.opacity > 0.005) {
-          asciiCtx.globalAlpha = cell.opacity;
-          asciiCtx.fillText(cell.symbol, cell.cx * dpr, cell.cy * dpr);
-        } else if (cell.target < 0.001) {
-          removeQueue.push(key);
-        }
-      }
-      asciiCtx.globalAlpha = 1;
-      for (const key of removeQueue) cells.delete(key);
-
-      raf = requestAnimationFrame(tick);
-    }
-    raf = requestAnimationFrame(tick);
-
-    const ro = new ResizeObserver(() => {
-      resize();
-      lastFrame = 0;
-    });
-    ro.observe(pane);
-
-    return () => {
-      cancelAnimationFrame(raf);
-      ro.disconnect();
-      pane.removeEventListener("mouseenter", onMouseEnter);
-      pane.removeEventListener("mousemove", onMouseMove);
-      pane.removeEventListener("mouseleave", onMouseLeave);
-    };
-  }, []);
-
-  return (
-    <div
-      ref={paneRef}
-      className="relative hidden md:flex items-center justify-center overflow-hidden"
-      style={{
-        backgroundColor: `rgb(${SUNSET.a.r} ${SUNSET.a.g} ${SUNSET.a.b})`,
-      }}
+    <Button
+      className={cn(
+        "relative h-8 w-full rounded-md border-[#747775] bg-white px-10 text-[14px]/[20px] text-[#1f1f1f] transition-colors duration-150 hover:bg-[#f5f5f5] hover:text-[#1f1f1f] active:not-aria-[haspopup]:translate-y-0 active:bg-[#eeeeee] dark:bg-white dark:text-[#1f1f1f] dark:hover:bg-[#f5f5f5]",
+        className
+      )}
+      onClick={onClick}
+      style={{ fontFamily: '"Google Sans", Roboto, Arial, sans-serif' }}
+      type="button"
+      variant="outline"
     >
-      <canvas
-        ref={canvasRef}
-        aria-hidden
-        className="absolute inset-0 size-full"
-        style={{ imageRendering: "pixelated" }}
+      <span className="absolute start-3">
+        <GoogleLogo />
+      </span>
+      <span>Continue with Google</span>
+    </Button>
+  );
+}
+
+function GoogleLogo() {
+  return (
+    <svg aria-hidden="true" className="size-[1.125rem]" viewBox="0 0 18 18">
+      <path
+        d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.797 2.716v2.258h2.909c1.702-1.567 2.684-3.875 2.684-6.614Z"
+        fill="#4285F4"
       />
-      <canvas
-        ref={asciiCanvasRef}
-        aria-hidden
-        className="pointer-events-none absolute inset-0 size-full"
+      <path
+        d="M9 18c2.43 0 4.468-.806 5.956-2.181l-2.909-2.258c-.806.54-1.835.859-3.047.859-2.344 0-4.328-1.585-5.037-3.714H.956v2.332A9 9 0 0 0 9 18Z"
+        fill="#34A853"
       />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "linear-gradient(to bottom, transparent 70%, rgba(0,0,0,0.22) 100%)",
-        }}
+      <path
+        d="M3.963 10.706A5.41 5.41 0 0 1 3.682 9c0-.592.102-1.168.281-1.706V4.962H.956A9 9 0 0 0 0 9c0 1.45.347 2.823.956 4.038l3.007-2.332Z"
+        fill="#FBBC05"
       />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "linear-gradient(to bottom, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 3%, rgba(0,0,0,0) 97%, rgba(0,0,0,0.15) 100%)",
-        }}
+      <path
+        d="M9 3.58c1.322 0 2.507.454 3.441 1.346l2.581-2.582C13.464.892 11.43 0 9 0A9 9 0 0 0 .956 4.962l3.007 2.332C4.672 5.165 6.656 3.58 9 3.58Z"
+        fill="#EA4335"
       />
-      <LoginAnimation variant="light" className="relative z-10 size-56" />
-    </div>
+    </svg>
   );
 }
 
 function LoginPage() {
+  const upgrade = Route.useSearch({ select: (s) => s.upgrade });
+  const callbackURL = upgrade ? `/inbox?upgrade=${upgrade}` : "/inbox";
+  const heading = upgrade
+    ? `Sign in to start ${PLANS[upgrade].name}`
+    : "Sign in to Cloudstash";
+
   useEffect(() => {
     void clearOPFS();
   }, []);
 
   return (
-    <div className="bg-muted flex min-h-svh flex-col items-center justify-center p-6 md:p-10">
-      <div className="w-full max-w-sm md:max-w-3xl">
-        <LoginForm />
-      </div>
-    </div>
+    <LoginSurface
+      heading={heading}
+      onContinue={() =>
+        authClient.signIn.social({
+          provider: "google",
+          callbackURL,
+        })
+      }
+      privacyLink={<Link to="/privacy">Privacy Policy</Link>}
+      termsLink={<Link to="/terms">Terms of Service</Link>}
+    />
   );
 }

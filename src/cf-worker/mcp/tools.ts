@@ -250,7 +250,7 @@ export const makeMcpServer = (
     {
       title: "Get a Cloudstash link",
       description:
-        "Get the complete saved-link record for an ID in the approved workspace.",
+        "Get the complete saved-link record for an ID in the approved library.",
       inputSchema: McpGetInput,
       annotations: { readOnlyHint: true },
     },
@@ -271,7 +271,7 @@ export const makeMcpServer = (
     {
       title: "Save a Cloudstash link",
       description:
-        "Save an HTTP(S) URL to the approved workspace and optionally attach tags in the same operation.",
+        "Save an HTTP(S) URL to the approved library and optionally attach tags in the same operation.",
       inputSchema: McpSaveInput,
       annotations: { idempotentHint: true, readOnlyHint: false },
     },

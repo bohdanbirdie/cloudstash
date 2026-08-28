@@ -3,7 +3,7 @@
 import { Command as CommandPrimitive } from "cmdk";
 import { animate, useMotionValue } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import type { RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import { useNarrowViewport } from "@/hooks/use-narrow-viewport";
@@ -41,6 +41,24 @@ function useOutsideClick(
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [active, rootRef, onDismiss]);
+}
+
+export function BottomDockSurface({
+  search,
+  agent,
+}: {
+  search: ReactNode;
+  agent: ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2 px-4 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:gap-0">
+      <div className="hidden lg:block" />
+      {search}
+      <div className="relative shrink-0 lg:justify-self-start lg:pl-2">
+        {agent}
+      </div>
+    </div>
+  );
 }
 
 export function BottomDock() {
@@ -141,44 +159,45 @@ export function BottomDock() {
         className="contents"
         label="Search links"
       >
-        <div className="flex items-center gap-2 px-4 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:gap-0">
-          <div className="hidden lg:block" />
-
-          {isNarrow ? (
-            <SearchTriggerButton
-              active={mode === "search"}
-              onActivate={openSearch}
-            />
-          ) : (
-            <SearchTrigger
-              inputRef={inputRef}
-              active={mode === "search"}
-              value={query}
-              onValueChange={setQuery}
-              onActivate={openSearch}
-            />
-          )}
-
-          <div className="relative shrink-0 lg:justify-self-start lg:pl-2">
-            <AgentTrigger active={mode === "agent"} onClick={toggleAgent} />
-
-            {isNarrow ? null : (
-              <MorphingPanel
-                mode={mode}
-                orgId={orgId}
-                agentEverOpened={agentEverOpened}
-                agentTextareaRef={agentTextareaRef}
-                originMV={originMV}
-                rightMV={rightMV}
-                query={query}
-                searchResults={searchResults}
-                recentLinks={recentLinks}
-                onSelect={handleSelect}
-                onClose={dismiss}
+        <BottomDockSurface
+          search={
+            isNarrow ? (
+              <SearchTriggerButton
+                active={mode === "search"}
+                onActivate={openSearch}
               />
-            )}
-          </div>
-        </div>
+            ) : (
+              <SearchTrigger
+                inputRef={inputRef}
+                active={mode === "search"}
+                value={query}
+                onValueChange={setQuery}
+                onActivate={openSearch}
+              />
+            )
+          }
+          agent={
+            <>
+              <AgentTrigger active={mode === "agent"} onClick={toggleAgent} />
+
+              {isNarrow ? null : (
+                <MorphingPanel
+                  mode={mode}
+                  orgId={orgId}
+                  agentEverOpened={agentEverOpened}
+                  agentTextareaRef={agentTextareaRef}
+                  originMV={originMV}
+                  rightMV={rightMV}
+                  query={query}
+                  searchResults={searchResults}
+                  recentLinks={recentLinks}
+                  onSelect={handleSelect}
+                  onClose={dismiss}
+                />
+              )}
+            </>
+          }
+        />
       </CommandPrimitive>
 
       {isNarrow ? (

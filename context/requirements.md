@@ -34,7 +34,7 @@ intent.
   providers, Stripe, Telegram, X, and extension stores may impose availability,
   rate, review, and data-handling constraints outside Cloudstash's control.
 - **CS-C03 Event compatibility:** Deployed workspace events may be replayed for
-  the lifetime of the Vault; incompatible event changes cannot invalidate
+  the lifetime of the library; incompatible event changes cannot invalidate
   existing histories.
 - **CS-C04 Source license:** The repository is source-available under PolyForm
   Noncommercial 1.0.0; commercial operation requires a separate license.
@@ -55,11 +55,11 @@ intent.
 
 ## Requirements
 
-### Must Preserve the User's Vault
+### Must Preserve the User's Library
 
 - **CS-R01 Capture from multiple sources:** Authorized first-party and
-  integration clients must converge on the same workspace Vault.
-- **CS-R02 Local-first use:** Normal Vault reads and user mutations must work
+  integration clients must converge on the same workspace library.
+- **CS-R02 Local-first use:** Normal library reads and user mutations must work
   from local state without a network round-trip.
 - **CS-R03 Eventual convergence:** Connected clients for a workspace must
   converge on the same accepted event history.
@@ -78,7 +78,7 @@ intent.
   initiate deletion of account-owned content across all storage surfaces.
 - **CS-R09 Privacy accuracy:** Product and legal claims about collection,
   processors, analytics, retention, and AI use must match deployed behavior.
-- **CS-R17 Processor disclosure:** Before Vault content is sent to an external
+- **CS-R17 Processor disclosure:** Before library content is sent to an external
   AI provider, the owning product/legal surfaces must identify that provider,
   affected feature and tiers, transmitted fields, and purpose.
 - **CS-R18 Tracking choice:** Tracking and advertising scripts must honor every

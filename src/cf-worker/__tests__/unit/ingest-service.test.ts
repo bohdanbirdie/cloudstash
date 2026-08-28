@@ -410,7 +410,7 @@ describe("ingestRequestToResponse", () => {
           Effect.promise(async () => {
             expect(response.status).toBe(404);
             expect(await response.json()).toEqual({
-              error: "Organization not found",
+              error: "Library not found",
             });
             expect(env._queueSend).not.toHaveBeenCalled();
           })

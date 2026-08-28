@@ -38,11 +38,18 @@ export function SectionHeader({
 
 export function SectionCta({
   label = "Save your first link",
+  lead,
 }: {
   label?: string;
+  lead?: string;
 }) {
   return (
-    <div className="mt-16 flex justify-center sm:mt-20 lg:mt-24">
+    <div className="mt-14 flex flex-col items-center text-center sm:mt-16">
+      {lead && (
+        <p className="mb-4 text-base font-medium tracking-tight text-foreground">
+          {lead}
+        </p>
+      )}
       <Button
         nativeButton={false}
         render={<Link to="/login" />}

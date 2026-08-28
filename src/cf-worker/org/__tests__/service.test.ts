@@ -24,7 +24,7 @@ describe("classifyFullOrgError", () => {
   it("maps Better Auth's 400 'organization not found' to OrgNotFoundError", () => {
     const error = new APIError("BAD_REQUEST", {
       code: "ORGANIZATION_NOT_FOUND",
-      message: "Organization not found",
+      message: "Library not found",
     });
     const result = classifyFullOrgError(error, orgId, userId);
     expect(result._tag).toBe("OrgNotFoundError");

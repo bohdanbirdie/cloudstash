@@ -23,10 +23,9 @@ function CopyField({ label, value }: { label: string; value: string }) {
         <p className="text-xs font-medium text-foreground">{label}</p>
         {status && (
           <p
-            className={cn(
-              "text-xs text-muted-foreground",
-              copyFailed && "text-destructive"
-            )}
+            className={cn("text-xs text-muted-foreground", {
+              "text-destructive": copyFailed,
+            })}
             role="status"
           >
             {status}

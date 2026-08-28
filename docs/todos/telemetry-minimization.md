@@ -2,7 +2,7 @@
 
 ## Problem and outcome
 
-Repository evidence shows that normal telemetry includes raw Vault URLs and
+Repository evidence shows that normal telemetry includes raw library URLs and
 stable identifiers. Reduce collection to a purpose-bound allowlist and reconcile
 privacy copy with actual collection.
 

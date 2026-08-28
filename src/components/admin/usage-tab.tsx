@@ -3,6 +3,7 @@ import { ActivityIcon, UsersIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TabsContent } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 import type { UsagePeriod, UserUsageSummary } from "./use-usage-admin";
 
@@ -49,11 +50,10 @@ export function UsageTab({
             <button
               key={p.value}
               onClick={() => onPeriodChange(p.value)}
-              className={`px-2 py-0.5 text-xs rounded ${
-                period === p.value
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted"
-              }`}
+              className={cn("rounded px-2 py-0.5 text-xs", {
+                "bg-primary text-primary-foreground": period === p.value,
+                "text-muted-foreground hover:bg-muted": period !== p.value,
+              })}
             >
               {p.label}
             </button>

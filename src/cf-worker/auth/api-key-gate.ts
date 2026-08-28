@@ -39,7 +39,7 @@ export const gateUserApiKeyCreate = Effect.fn("Auth.gateUserApiKeyCreate")(
     if (route.value === "/api/auth/api-key/update") {
       return Option.isSome(bodyOption) && containsMetadata(bodyOption.value)
         ? Response.json(
-            { error: "API key workspace scope is immutable" },
+            { error: "API key library scope cannot be changed" },
             { status: 400 }
           )
         : null;
@@ -54,7 +54,7 @@ export const gateUserApiKeyCreate = Effect.fn("Auth.gateUserApiKeyCreate")(
             workspaceAccessHttpResponse(error, {
               missingScope: () =>
                 Response.json(
-                  { error: "No active organization" },
+                  { error: "No Cloudstash library is available" },
                   { status: 400 }
                 ),
             }),
@@ -71,7 +71,7 @@ export const gateUserApiKeyCreate = Effect.fn("Auth.gateUserApiKeyCreate")(
           Effect.succeed(capabilityDeniedResponse(e)),
         OrgNotFoundError: () =>
           Effect.succeed(
-            Response.json({ error: "Organization not found" }, { status: 404 })
+            Response.json({ error: "Library not found" }, { status: 404 })
           ),
         DbError: (cause) =>
           Effect.logError("Auth.gateUserApiKeyCreate DbError").pipe(

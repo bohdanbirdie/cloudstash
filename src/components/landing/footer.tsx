@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 
 import { CloudstashLogo } from "@/components/cloudstash-logo";
 import { SectionEyebrow } from "@/components/right-pane/detail-view/section-eyebrow";
+import { cn } from "@/lib/utils";
 
 import { SHELL } from "./shared";
 
@@ -15,7 +16,7 @@ const FOOTER_COLS: readonly {
     title: "Product",
     links: [
       { label: "Save your first link", to: "/login" },
-      { label: "How it works", to: "/", hash: "how" },
+      { label: "Features", to: "/", hash: "features" },
       { label: "Pricing", to: "/", hash: "pricing" },
       { label: "FAQ", to: "/", hash: "faq" },
     ],
@@ -42,9 +43,12 @@ const FOOTER_COLS: readonly {
 export function Footer() {
   const year = new Date().getFullYear();
   return (
-    <footer className="border-t border-border/60">
+    <footer>
       <div
-        className={`${SHELL} grid gap-10 py-10 sm:grid-cols-[1.4fr_repeat(3,1fr)] sm:gap-12 sm:py-12`}
+        className={cn(
+          SHELL,
+          "grid gap-10 py-10 sm:grid-cols-[1.4fr_repeat(3,1fr)] sm:gap-12 sm:py-12"
+        )}
       >
         <div>
           <div className="flex items-center gap-2.5">
@@ -54,8 +58,7 @@ export function Footer() {
             </span>
           </div>
           <p className="mt-3 max-w-[34ch] text-pretty text-xs leading-relaxed text-muted-foreground">
-            An inbox for the web. Built for people who save a lot of links and
-            want to actually read them.
+            Your saved links, ready when you need them.
           </p>
         </div>
         <div className="grid grid-cols-3 gap-6 sm:contents">
@@ -80,7 +83,10 @@ export function Footer() {
         </div>
       </div>
       <div
-        className={`${SHELL} border-t border-border/60 py-5 text-xs text-muted-foreground`}
+        className={cn(
+          SHELL,
+          "border-t border-border/60 py-5 text-xs text-muted-foreground"
+        )}
       >
         © {year} cloudstash
       </div>

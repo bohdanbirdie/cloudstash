@@ -250,7 +250,7 @@ function ChartTooltipContent({
                 key={index}
                 className={cn(
                   "flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground",
-                  indicator === "dot" && "items-center"
+                  { "items-center": indicator === "dot" }
                 )}
               >
                 {formatter && item?.value !== undefined && item.name ? (

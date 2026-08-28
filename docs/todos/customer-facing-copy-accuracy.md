@@ -16,8 +16,8 @@ availability and policy claims match shipped behavior and executable semantics.
   surface closes or narrows it.
 - This task changes copy and factual documentation, not pricing, feature
   implementation, legal interpretation, or entitlement policy.
-- MCP implementation remains in [[develop-mcp-server]]; this task owns only the
-  interim accuracy of MCP availability copy.
+- External dashboard verification and legal approval remain human operations;
+  this task owns repository-controlled copy and factual handoff notes.
 
 ## Agreed constraints
 
@@ -28,34 +28,32 @@ availability and policy claims match shipped behavior and executable semantics.
 - Keep high-traffic summaries neutral; detailed evidence remains in the owning
   Intent delta.
 
-## Acceptance criteria
+## Completion evidence
 
-- DELTA-006 and DELTA-025 each have a named remediation owner,
-  affected-surface inventory, and factual copy change that resolves or
-  explicitly narrows the remaining divergence.
-- Plan and landing copy agree with executable tier/capability defaults and
-  verified integration availability.
-- README and SEO do not present planned clients or broader product semantics as
-  shipped.
-- Terms and policy copy reflect verified billing/data behavior and are queued for
-  human legal approval where judgment is required.
-- Copy-focused tests or deterministic checks cover shared plan/SEO projections
-  where drift can recur mechanically.
+- Plan, landing, README, SEO, Terms, privacy, and integration copy now agree
+  with executable capabilities and released clients.
+- Summary copy describes the user outcome without promising a fixed shape or a
+  successful summary for every page.
+- Privacy and Terms disclose the AI providers used by summaries and optional AI
+  features in plain language.
+- Account-deletion copy distinguishes immediate loss of access from the durable
+  background purge without inventing a backup-removal deadline.
+- Extension privacy copy matches the popup's URL/title/favicon read on open;
+  the external Chrome Web Store listing remains a human verification under
+  DELTA-017.
+- Visible FAQ and structured FAQ data share one source. A deterministic test
+  also checks structured plan prices against executable plan values and blocks
+  the known absolute summary/deletion claims.
 
-## Dependencies and risks
+## Remaining external verification
 
-Depends on current capability and billing evidence plus owners for the affected
-product surfaces. Copy may need a second pass after pending implementations
-ship; factual reconciliation must not silently redefine product policy.
-
-## Size and uncertainty
-
-Medium. The surface inventory is broad, but changes should remain factual and
-localized; legal approval is external to this task.
+- DELTA-025: verify production annual Stripe prices and Portal behavior.
+- DELTA-017: verify or update the published Chrome Web Store listing.
+- Human legal review of the corrected Terms and Privacy wording.
 
 ## Reconciliation notes
 
-- 2026-08-21: whole-Vault Markdown/plain-link export was confirmed; tag/JSON
+- 2026-08-21: whole-library Markdown/plain-link export was confirmed; tag/JSON
   claims were removed. The unshipped iOS integration was removed from public
   surfaces. Raycast copy now describes its URL command, the larger Pro summary
   model moved to its own implementation task, and the unsupported
@@ -64,3 +62,9 @@ localized; legal approval is external to this task.
   digest selected from recently saved links.
 - Terms now describe both billing intervals; production annual Stripe/Portal
   verification remains external evidence under DELTA-025.
+- 2026-08-28: removed fixed-length and every-save summary promises; aligned AI
+  provider, deletion, extension, and library terminology; deduplicated
+  visible/structured FAQ copy; and added deterministic drift checks.
+- 2026-08-28: standardized customer copy on **library** for the saved-link
+  collection and reserved **workspace** for internal tenancy until customers can
+  select or manage more than one.

@@ -1,42 +1,30 @@
-import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
-import { CheckIcon, RotateCcwIcon } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
-import { create } from "zustand";
+import { useState } from "react";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Favicon } from "@/components/favicon";
 import { cn } from "@/lib/utils";
 
-type Status = "inbox" | "completed";
-
 type DemoLink = {
-  id: string;
-  title: string;
-  domain: string;
-  tag: string;
-  favicon: string;
-  thumb: string;
-  status: Status;
+  readonly id: string;
+  readonly title: string;
+  readonly domain: string;
+  readonly tag: string;
+  readonly favicon: string;
+  readonly pattern: "nodes" | "waves" | "contours" | "grid" | "rings";
+  readonly kind: string;
+  readonly summary: string;
 };
 
-type SeedLink = Omit<DemoLink, "status">;
-
-const SEED: readonly SeedLink[] = [
+const DEMO_LINKS: readonly DemoLink[] = [
   {
     id: "attention",
     title: "Attention Is All You Need",
     domain: "arxiv.org",
     tag: "papers",
     favicon: "/favicons/arxiv.png",
-    thumb: "linear-gradient(135deg,#1a2240,#3a4a78)",
-  },
-  {
-    id: "botanical-garden",
-    title: "A walk through the New York Botanical Garden",
-    domain: "nytimes.com",
-    tag: "travel",
-    favicon: "/favicons/nytimes.png",
-    thumb: "linear-gradient(135deg,#2b5e3a,#73a755)",
+    pattern: "nodes",
+    kind: "Research note",
+    summary:
+      "The paper that introduced the Transformer: a simpler way for models to understand relationships across an entire sequence at once.",
   },
   {
     id: "city-noise",
@@ -44,23 +32,21 @@ const SEED: readonly SeedLink[] = [
     domain: "youtube.com",
     tag: "watch",
     favicon: "/favicons/youtube.png",
-    thumb: "linear-gradient(135deg,#3a2e2a,#7a4f3a)",
+    pattern: "waves",
+    kind: "Video essay",
+    summary:
+      "A tour through the design choices, traffic patterns, and public spaces that shape how a city sounds—and what quieter streets could feel like.",
   },
   {
-    id: "burial",
-    title: "Untrue — Burial",
-    domain: "burial.bandcamp.com",
-    tag: "music",
-    favicon: "/favicons/bandcamp.png",
-    thumb: "linear-gradient(135deg,#2c2540,#5b4a78)",
-  },
-  {
-    id: "roast-chicken",
-    title: "The Best Roast Chicken (Seriously)",
-    domain: "seriouseats.com",
-    tag: "cook",
-    favicon: "/favicons/seriouseats.png",
-    thumb: "linear-gradient(135deg,#caa471,#8c5a2c)",
+    id: "botanical-garden",
+    title: "A walk through the New York Botanical Garden",
+    domain: "nytimes.com",
+    tag: "travel",
+    favicon: "/favicons/nytimes.png",
+    pattern: "contours",
+    kind: "Field note",
+    summary:
+      "A visual walk through seasonal gardens, quiet paths, and the collections worth seeking out on a slow afternoon in the Bronx.",
   },
   {
     id: "typescript",
@@ -68,381 +54,307 @@ const SEED: readonly SeedLink[] = [
     domain: "github.com",
     tag: "code",
     favicon: "/favicons/github.png",
-    thumb: "linear-gradient(135deg,#1a1a1a,#404040)",
+    pattern: "grid",
+    kind: "Repository",
+    summary:
+      "The TypeScript compiler, language services, and tooling live here alongside documentation for contributing to the project.",
   },
   {
-    id: "hn-hobby",
-    title: "Ask HN: What's a hobby that changed your life?",
-    domain: "news.ycombinator.com",
-    tag: "hn",
-    favicon: "/favicons/hn.png",
-    thumb: "linear-gradient(135deg,#ff6600,#ffaa55)",
-  },
-  {
-    id: "finishing-books",
-    title: "How I finally finished the books on my shelf",
-    domain: "x.com",
-    tag: "thread",
-    favicon: "/favicons/x.png",
-    thumb: "linear-gradient(135deg,#15202b,#3a4856)",
-  },
-  {
-    id: "heat-death",
-    title: "Heat death of the universe — Wikipedia",
-    domain: "en.wikipedia.org",
-    tag: "wiki",
-    favicon: "/favicons/wikipedia.png",
-    thumb: "linear-gradient(135deg,#eaeaea,#a5a5a5)",
-  },
-  {
-    id: "past-lives",
-    title: "Past Lives (2023) — a quiet masterpiece",
-    domain: "letterboxd.com",
-    tag: "movies",
-    favicon: "/favicons/letterboxd.png",
-    thumb: "linear-gradient(135deg,#1c2128,#445566)",
-  },
-  {
-    id: "stripe-atlas",
-    title: "Stripe Atlas: starting a company from scratch",
-    domain: "stripe.com",
-    tag: "business",
-    favicon: "/favicons/stripe.png",
-    thumb: "linear-gradient(135deg,#635bff,#8e88ff)",
-  },
-  {
-    id: "letters-again",
-    title: "Why I started writing letters again",
-    domain: "theatlantic.com",
-    tag: "essay",
-    favicon: "/favicons/theatlantic.png",
-    thumb: "linear-gradient(135deg,#5c2a2a,#8e3838)",
-  },
-  {
-    id: "rick-rubin",
-    title: "Rick Rubin on creativity and listening",
-    domain: "lexfridman.com",
-    tag: "podcast",
-    favicon: "/favicons/lexfridman.png",
-    thumb: "linear-gradient(135deg,#2d3142,#4a5168)",
-  },
-  {
-    id: "brat-review",
-    title: "Charli XCX – BRAT (deluxe) reviewed",
-    domain: "pitchfork.com",
-    tag: "music",
-    favicon: "/favicons/pitchfork.png",
-    thumb: "linear-gradient(135deg,#7fce6b,#3aa520)",
-  },
-  {
-    id: "team-meetings",
-    title: "How to keep team meetings short and useful",
-    domain: "linear.app",
-    tag: "work",
-    favicon: "/favicons/linear.png",
-    thumb: "linear-gradient(135deg,#5e6ad2,#8a93e0)",
-  },
-  {
-    id: "personal-site",
-    title: "Designing a personal site that lasts a decade",
-    domain: "vercel.com",
-    tag: "blog",
-    favicon: "/favicons/vercel.png",
-    thumb: "linear-gradient(135deg,#0a0a0a,#3a3a3a)",
-  },
-  {
-    id: "recipe-api",
-    title: "A weekend project: an API for my recipe collection",
-    domain: "fastapi.tiangolo.com",
-    tag: "hobby",
-    favicon: "/favicons/fastapi.png",
-    thumb: "linear-gradient(135deg,#009688,#4db6ac)",
-  },
-  {
-    id: "ernaux-years",
-    title: "Annie Ernaux – The Years",
-    domain: "goodreads.com",
-    tag: "books",
-    favicon: "/favicons/goodreads.png",
-    thumb: "linear-gradient(135deg,#553b08,#8a6228)",
-  },
-  {
-    id: "saturday-mix",
-    title: "Saturday afternoon — a slow playlist",
-    domain: "open.spotify.com",
-    tag: "music",
-    favicon: "/favicons/spotify.png",
-    thumb: "linear-gradient(135deg,#1ed760,#168f40)",
-  },
-  {
-    id: "wedding-design",
-    title: "Designing a wedding invitation, step by step",
-    domain: "figma.com",
-    tag: "design",
-    favicon: "/favicons/figma.png",
-    thumb: "linear-gradient(135deg,#f24e1e,#a259ff)",
-  },
-  {
-    id: "keyboard-ask",
-    title: "What's a good keyboard for typing all day?",
-    domain: "reddit.com",
-    tag: "ask",
-    favicon: "/favicons/reddit.png",
-    thumb: "linear-gradient(135deg,#ff4500,#ff8a55)",
-  },
-  {
-    id: "apple-chips",
-    title: "Apple's quiet revolution in chips",
-    domain: "theverge.com",
-    tag: "tech",
-    favicon: "/favicons/theverge.png",
-    thumb: "linear-gradient(135deg,#5200ff,#9a55ff)",
+    id: "roast-chicken",
+    title: "The Best Roast Chicken (Seriously)",
+    domain: "seriouseats.com",
+    tag: "cook",
+    favicon: "/favicons/seriouseats.png",
+    pattern: "rings",
+    kind: "Recipe",
+    summary:
+      "A practical method for crisp skin and evenly cooked meat, with the preparation choices that make the largest difference.",
   },
 ];
 
-const INITIAL_VISIBLE = 6;
-const PRESEEDED_COMPLETED: ReadonlySet<string> = new Set([
-  "attention",
-  "burial",
-  "roast-chicken",
-]);
-
-const toDemoLink = (l: SeedLink): DemoLink => ({
-  ...l,
-  status: PRESEEDED_COMPLETED.has(l.id) ? "completed" : "inbox",
-});
-const toInbox = (l: SeedLink): DemoLink => ({ ...l, status: "inbox" });
-
-type Store = {
-  links: DemoLink[];
-  pool: DemoLink[];
-  addNext: () => boolean;
-  toggle: (id: string) => void;
-};
-
-const useHeroDemoStore = create<Store>((set, get) => ({
-  links: SEED.slice(0, INITIAL_VISIBLE).map(toDemoLink).toReversed(),
-  pool: SEED.slice(INITIAL_VISIBLE).map(toInbox),
-  addNext: () => {
-    const { pool, links } = get();
-    if (pool.length === 0) return false;
-    const [next, ...rest] = pool;
-    set({ pool: rest, links: [next, ...links] });
-    return true;
-  },
-  toggle: (id) =>
-    set((state) => {
-      const found = state.links.find((l) => l.id === id);
-      if (!found) return state;
-      const others = state.links.filter((l) => l.id !== id);
-      const flipped: DemoLink = {
-        ...found,
-        status: found.status === "inbox" ? "completed" : "inbox",
-      };
-      return { links: [flipped, ...others] };
-    }),
-}));
-
 export function HeroInbox() {
-  const links = useHeroDemoStore((s) => s.links);
-  const [tab, setTab] = useState<Status>("inbox");
-
-  const inbox = useMemo(
-    () => links.filter((l) => l.status === "inbox"),
-    [links]
-  );
-  const completed = useMemo(
-    () => links.filter((l) => l.status === "completed"),
-    [links]
-  );
-
-  useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    let addedCount = 0;
-
-    const nextDelay = () => {
-      if (addedCount === 0) return 800;
-      if (addedCount === 1) return 3200;
-      return 6400 + Math.random() * 1600;
-    };
-
-    const tick = () => {
-      const ok = useHeroDemoStore.getState().addNext();
-      if (!ok) return;
-      addedCount += 1;
-      timeoutId = setTimeout(tick, nextDelay());
-    };
-
-    timeoutId = setTimeout(tick, nextDelay());
-
-    return () => {
-      if (timeoutId !== undefined) clearTimeout(timeoutId);
-    };
-  }, []);
-
-  const onToggle = (id: string) => useHeroDemoStore.getState().toggle(id);
+  const [selectedId, setSelectedId] = useState(DEMO_LINKS[0]!.id);
+  const selected =
+    DEMO_LINKS.find((link) => link.id === selectedId) ?? DEMO_LINKS[0]!;
 
   return (
-    <div className="select-none overflow-hidden rounded-md border border-border/80 bg-background">
-      <Tabs
-        value={tab}
-        onValueChange={(v) => setTab(v as Status)}
-        className="gap-0"
-      >
-        <TabsList
-          variant="line"
-          className="relative h-auto w-full justify-start gap-1 rounded-none border-b border-border/80 px-3 py-0"
-        >
-          <DemoTabTrigger value="inbox" label="Inbox" count={inbox.length} />
-          <DemoTabTrigger
-            value="completed"
-            label="Completed"
-            count={completed.length}
-          />
-          <TabsPrimitive.Indicator className="absolute bottom-[-1px] left-[var(--active-tab-left)] h-px w-[var(--active-tab-width)] bg-foreground transition-[left,width] duration-300 ease-out" />
-        </TabsList>
-
-        <TabsContent value="inbox" className="m-0">
-          <DemoList
-            items={inbox}
-            emptyLabel="Inbox zero. Nice."
-            onToggle={onToggle}
-          />
-        </TabsContent>
-        <TabsContent value="completed" className="m-0">
-          <DemoList
-            items={completed}
-            emptyLabel="Mark a link to file it here."
-            onToggle={onToggle}
-          />
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
-
-function DemoTabTrigger({
-  value,
-  label,
-  count,
-}: {
-  value: Status;
-  label: string;
-  count: number;
-}) {
-  return (
-    <TabsTrigger
-      value={value}
-      className="h-auto rounded-none px-3 py-2.5 text-[13px] font-medium text-muted-foreground transition-colors after:hidden hover:text-foreground data-active:bg-transparent data-active:text-foreground first:pl-0"
-    >
-      {label}
-      <span className="ml-1.5 tabular-nums text-muted-foreground/60">
-        {count}
-      </span>
-    </TabsTrigger>
-  );
-}
-
-function DemoList({
-  items,
-  emptyLabel,
-  onToggle,
-}: {
-  items: readonly DemoLink[];
-  emptyLabel: string;
-  onToggle: (id: string) => void;
-}) {
-  return (
-    <div className="h-80 overflow-hidden px-2 py-1 sm:h-[28.75rem] lg:overflow-y-auto">
-      {items.length === 0 ? (
-        <div className="grid h-full place-items-center text-xs text-muted-foreground">
-          {emptyLabel}
-        </div>
-      ) : (
-        <ul className="flex flex-col">
-          <AnimatePresence initial={false} mode="popLayout">
-            {items.map((l) => (
-              <motion.li
-                key={l.id}
-                layout="position"
-                initial={{ scale: 0.94, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.94, opacity: 0 }}
-                transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+    <div className="overflow-hidden rounded-md border border-border/80 bg-background">
+      <div className="grid md:h-[29rem] md:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
+        <div className="border-b border-border/80 md:border-b-0 md:border-r">
+          <div className="flex items-center justify-between px-4 py-3">
+            <div className="text-[13px] font-semibold">Inbox</div>
+            <div className="text-xs tabular-nums text-muted-foreground">
+              {DEMO_LINKS.length}
+            </div>
+          </div>
+          <ul className="px-2 pb-2">
+            {DEMO_LINKS.map((link, index) => (
+              <li
+                key={link.id}
+                className={cn({ "hidden md:block": index > 2 })}
               >
-                <DemoRow link={l} onToggle={() => onToggle(l.id)} />
-              </motion.li>
+                <DemoLinkRow
+                  link={link}
+                  selected={selected.id === link.id}
+                  onSelect={() => setSelectedId(link.id)}
+                />
+              </li>
             ))}
-          </AnimatePresence>
-        </ul>
-      )}
+          </ul>
+        </div>
+        <DemoLinkPreview link={selected} />
+      </div>
     </div>
   );
 }
 
-function DemoRow({ link, onToggle }: { link: DemoLink; onToggle: () => void }) {
-  const completed = link.status === "completed";
-  const ActionIcon = completed ? RotateCcwIcon : CheckIcon;
+function DemoLinkRow({
+  link,
+  selected,
+  onSelect,
+}: {
+  link: DemoLink;
+  selected: boolean;
+  onSelect: () => void;
+}) {
   return (
     <button
       type="button"
-      onClick={onToggle}
-      aria-label={
-        completed
-          ? `Move "${link.title}" back to inbox`
-          : `Mark "${link.title}" complete`
-      }
-      className="group grid w-full cursor-pointer grid-cols-[1fr_4.75rem] items-start gap-3 rounded-md px-2 py-2.5 text-left transition-colors hover:bg-muted"
+      aria-pressed={selected}
+      onClick={onSelect}
+      className={cn(
+        "flex w-full items-start gap-3 rounded-md px-2.5 py-3 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40",
+        { "bg-muted": selected }
+      )}
     >
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <div
-          className={cn(
-            "truncate text-[15px] font-medium leading-snug",
-            completed && "text-muted-foreground"
-          )}
-        >
+      <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md border border-border/80 bg-background">
+        <Favicon
+          src={link.favicon}
+          className="size-3.5 rounded-[2px] object-contain"
+        />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-[13px] font-medium leading-snug">
           {link.title}
-        </div>
-        <div className="flex min-w-0 items-center gap-3 text-xs text-muted-foreground">
-          <span className="flex min-w-0 items-center gap-1.5">
-            <img
-              src={link.favicon}
-              alt=""
-              width={12}
-              height={12}
-              className="size-3 shrink-0 rounded-[2px] object-contain ring-1 ring-black/[0.08] dark:ring-white/10"
-              decoding="async"
-              onError={(e) => {
-                e.currentTarget.style.visibility = "hidden";
-              }}
-            />
-            <span className="truncate font-medium text-foreground/80">
-              {link.domain}
-            </span>
-          </span>
+        </span>
+        <span className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+          <span className="truncate">{link.domain}</span>
           <span className="whitespace-nowrap">
             <span className="text-muted-foreground/50">#</span>
             {link.tag}
           </span>
-        </div>
-      </div>
-      <div
-        className="relative aspect-[16/9] overflow-hidden rounded-sm"
-        aria-hidden="true"
-      >
-        <div
-          className={cn(
-            "absolute inset-0 transition-opacity",
-            completed && "opacity-50"
-          )}
-          style={{ background: link.thumb }}
-        />
-        <div className="absolute inset-0 grid place-items-center bg-foreground/45 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-          <span className="grid size-7 place-items-center rounded-full bg-background text-foreground shadow-sm transition-transform duration-150 group-hover:scale-100 scale-90">
-            <ActionIcon className="size-3.5" strokeWidth={2.5} />
-          </span>
-        </div>
-      </div>
+        </span>
+      </span>
     </button>
+  );
+}
+
+function DemoLinkPreview({ link }: { link: DemoLink }) {
+  return (
+    <div className="flex min-h-80 flex-col p-4 sm:p-5 md:min-h-0">
+      <DemoArtwork pattern={link.pattern} />
+
+      <div className="mt-5 flex min-h-0 flex-1 flex-col">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Favicon
+            src={link.favicon}
+            className="size-3 rounded-[2px] object-contain"
+          />
+          <span>{link.domain}</span>
+          <span aria-hidden="true">·</span>
+          <span>#{link.tag}</span>
+          <span aria-hidden="true">·</span>
+          <span>{link.kind}</span>
+        </div>
+        <div className="mt-2 text-pretty text-lg font-semibold leading-snug tracking-tight">
+          {link.title}
+        </div>
+        <div className="mt-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-primary">
+          AI summary
+        </div>
+        <p className="mt-2 text-pretty text-[13px] leading-relaxed text-muted-foreground">
+          {link.summary}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function DemoArtwork({ pattern }: { pattern: DemoLink["pattern"] }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="relative h-36 overflow-hidden rounded-md border border-border/80 bg-muted/30 sm:h-44"
+    >
+      <PreviewPattern pattern={pattern} />
+    </div>
+  );
+}
+
+function PreviewPattern({ pattern }: { pattern: DemoLink["pattern"] }) {
+  switch (pattern) {
+    case "nodes":
+      return <NodesPattern />;
+    case "waves":
+      return <WavesPattern />;
+    case "contours":
+      return <ContoursPattern />;
+    case "grid":
+      return <GridPattern />;
+    case "rings":
+      return <RingsPattern />;
+  }
+}
+
+const patternClassName = "absolute inset-0 size-full text-muted-foreground/20";
+
+function NodesPattern() {
+  return (
+    <svg
+      className={patternClassName}
+      viewBox="0 0 480 128"
+      preserveAspectRatio="xMidYMid slice"
+    >
+      <defs>
+        <pattern
+          id="preview-nodes"
+          width="80"
+          height="64"
+          patternUnits="userSpaceOnUse"
+        >
+          <path d="M0 32 40 8l40 24-40 24Z" fill="none" stroke="currentColor" />
+          <circle cx="0" cy="32" r="2.5" fill="currentColor" />
+          <circle cx="40" cy="8" r="2.5" fill="currentColor" />
+          <circle cx="40" cy="56" r="2.5" fill="currentColor" />
+          <circle cx="80" cy="32" r="2.5" fill="currentColor" />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#preview-nodes)" />
+      <circle
+        className="text-primary/35"
+        cx="280"
+        cy="72"
+        r="4"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function WavesPattern() {
+  return (
+    <svg
+      className={patternClassName}
+      viewBox="0 0 480 128"
+      preserveAspectRatio="xMidYMid slice"
+    >
+      <defs>
+        <pattern
+          id="preview-waves"
+          width="120"
+          height="32"
+          patternUnits="userSpaceOnUse"
+        >
+          <path
+            d="M0 16c20-18 40-18 60 0s40 18 60 0"
+            fill="none"
+            stroke="currentColor"
+          />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#preview-waves)" />
+      <path
+        className="text-primary/30"
+        d="M120 80c20-18 40-18 60 0s40 18 60 0"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+function ContoursPattern() {
+  return (
+    <svg
+      className={patternClassName}
+      viewBox="0 0 480 128"
+      preserveAspectRatio="xMidYMid slice"
+    >
+      <g fill="none" stroke="currentColor">
+        <path d="M-20 112C40 36 112 38 162 82s118 32 154-12 94-54 184-8" />
+        <path d="M-20 92C42 24 116 30 170 68s112 26 150-12 94-48 180-8" />
+        <path d="M-20 72C46 12 120 20 178 54s106 20 146-12 94-40 176-6" />
+        <path d="M-20 52C50 0 126 10 186 40s102 14 142-12 94-32 172-4" />
+      </g>
+      <path
+        className="text-primary/30"
+        d="M-20 92C42 24 116 30 170 68s112 26 150-12 94-48 180-8"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+function GridPattern() {
+  return (
+    <svg
+      className={patternClassName}
+      viewBox="0 0 480 128"
+      preserveAspectRatio="xMidYMid slice"
+    >
+      <defs>
+        <pattern
+          id="preview-grid"
+          width="28"
+          height="28"
+          patternUnits="userSpaceOnUse"
+        >
+          <path d="M28 0H0v28" fill="none" stroke="currentColor" />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#preview-grid)" />
+      <rect
+        className="text-primary/25"
+        x="280"
+        y="28"
+        width="56"
+        height="56"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function RingsPattern() {
+  return (
+    <svg
+      className={patternClassName}
+      viewBox="0 0 480 128"
+      preserveAspectRatio="xMidYMid slice"
+    >
+      <defs>
+        <pattern
+          id="preview-rings"
+          width="96"
+          height="96"
+          patternUnits="userSpaceOnUse"
+        >
+          <circle cx="48" cy="48" r="16" fill="none" stroke="currentColor" />
+          <circle cx="48" cy="48" r="32" fill="none" stroke="currentColor" />
+          <circle cx="48" cy="48" r="48" fill="none" stroke="currentColor" />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#preview-rings)" />
+      <circle
+        className="text-primary/25"
+        cx="336"
+        cy="48"
+        r="16"
+        fill="currentColor"
+      />
+    </svg>
   );
 }

@@ -36,7 +36,7 @@ export function FilterDropdown({
             size="sm"
             className={cn(
               "h-8 gap-1.5 text-sm",
-              hasActiveFilters && "border-primary/50 bg-primary/5",
+              { "border-primary/50 bg-primary/5": hasActiveFilters },
               className
             )}
           >

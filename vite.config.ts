@@ -216,7 +216,7 @@ const config: UserConfig = {
       "require-hook": "off",
       "consistent-function-scoping": "off",
 
-      "tailwind-cn/no-cn-ternary": "error",
+      "tailwind-cn/enforce-cn": "error",
       "motion/no-use-reduced-motion": "error",
       "anti-slop/no-chained-type-assertions": "error",
       "anti-slop/no-hidden-app-layer-outputs": "error",

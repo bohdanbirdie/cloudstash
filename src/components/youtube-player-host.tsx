@@ -246,8 +246,10 @@ export function YouTubePlayerHost() {
       data-yt-player
       className={cn(
         "fixed top-0 left-0 z-50 overflow-hidden bg-background will-change-transform",
-        !isAnchored &&
-          "border border-border shadow-[0_2px_6px_-1px_rgb(0_0_0_/_0.06),0_18px_44px_-10px_rgb(0_0_0_/_0.22)] dark:shadow-[0_2px_6px_-1px_rgb(0_0_0_/_0.4),0_22px_50px_-10px_rgb(0_0_0_/_0.65)]"
+        {
+          "border border-border shadow-[0_2px_6px_-1px_rgb(0_0_0_/_0.06),0_18px_44px_-10px_rgb(0_0_0_/_0.22)] dark:shadow-[0_2px_6px_-1px_rgb(0_0_0_/_0.4),0_22px_50px_-10px_rgb(0_0_0_/_0.65)]":
+            !isAnchored,
+        }
       )}
       style={{ x, y }}
       animate={{
@@ -368,10 +370,9 @@ export function YouTubePlayerHost() {
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
         allowFullScreen
         referrerPolicy="strict-origin-when-cross-origin"
-        className={cn(
-          "size-full border-0 bg-black",
-          !isAnchored && "rounded-sm"
-        )}
+        className={cn("size-full border-0 bg-black", {
+          "rounded-sm": !isAnchored,
+        })}
       />
     </motion.div>
   );

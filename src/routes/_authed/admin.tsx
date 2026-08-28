@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 
-import { TopBar } from "@/components/top-bar";
+import { AdminTopBar } from "@/components/top-bar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
@@ -22,7 +22,7 @@ export const Route = createFileRoute("/_authed/admin")({
 function AdminPage() {
   return (
     <div className="flex h-full min-h-0 flex-col px-4 pt-4 lg:px-8 lg:pt-6">
-      <TopBar />
+      <AdminTopBar />
       <div className="mt-5 min-h-0 flex-1 overflow-y-auto px-2 lg:mt-7">
         <Suspense fallback={<AdminFallback />}>
           <AdminSection />

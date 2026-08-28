@@ -5,10 +5,10 @@ Save and organize links with AI-powered summaries. Full-stack TypeScript on Clou
 ## Features
 
 - **Link saving** with automatic metadata extraction (title, description, favicon)
-- **AI summaries** powered by OpenRouter (Gemini 2.5 Flash)
+- **AI summaries** powered by Cloudflare Workers AI
 - **Real-time sync** across devices via LiveStore + WebSocket
 - **Telegram bot** for saving links on the go
-- **Chrome extension** for one-click saving from the browser toolbar
+- **Chrome extension** for quick saving from the browser toolbar
 - **AI chat** for asking questions about your saved links
 - **Admin panel** with usage analytics
 
@@ -17,7 +17,7 @@ Save and organize links with AI-powered summaries. Full-stack TypeScript on Clou
 - **Frontend:** React 19, Vite, TailwindCSS 4, TanStack Router
 - **Backend:** Cloudflare Workers, Hono.js, D1 (SQLite), Drizzle ORM
 - **Real-time:** LiveStore with Durable Objects
-- **AI:** Vercel AI SDK + OpenRouter
+- **AI:** Vercel AI SDK + Cloudflare Workers AI + OpenRouter
 - **Auth:** Better Auth + Google OAuth
 
 ## Quick Start
@@ -54,15 +54,15 @@ and local OAuth/MCP clients on that same origin.
 
 ### Optional
 
-| Variable                  | Description                                                                |
-| ------------------------- | -------------------------------------------------------------------------- |
-| `OPENROUTER_API_KEY`      | [OpenRouter](https://openrouter.ai/keys) API key for AI chat and summaries |
-| `RESEND_API_KEY`          | [Resend](https://resend.com) API key for email notifications               |
-| `EMAIL_FROM`              | Custom sender address (default: `CloudStash <noreply@cloudstash.dev>`)     |
-| `TELEGRAM_BOT_TOKEN`      | Telegram bot token from [@BotFather](https://t.me/BotFather)               |
-| `TELEGRAM_WEBHOOK_SECRET` | Random string for Telegram webhook validation                              |
-| `CF_ACCOUNT_ID`           | Cloudflare account ID (for observability scripts)                          |
-| `CF_ANALYTICS_TOKEN`      | Cloudflare analytics token (for DO metrics)                                |
+| Variable                  | Description                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------------- |
+| `OPENROUTER_API_KEY`      | [OpenRouter](https://openrouter.ai/keys) API key for chat, weekly digests, and X enrichment |
+| `RESEND_API_KEY`          | [Resend](https://resend.com) API key for email notifications                                |
+| `EMAIL_FROM`              | Custom sender address (default: `CloudStash <noreply@cloudstash.dev>`)                      |
+| `TELEGRAM_BOT_TOKEN`      | Telegram bot token from [@BotFather](https://t.me/BotFather)                                |
+| `TELEGRAM_WEBHOOK_SECRET` | Random string for Telegram webhook validation                                               |
+| `CF_ACCOUNT_ID`           | Cloudflare account ID (for observability scripts)                                           |
+| `CF_ANALYTICS_TOKEN`      | Cloudflare analytics token (for DO metrics)                                                 |
 
 **Local:** Store values in the `Cloudstash` 1Password vault. References live in
 `.dev.vars.example`; run `bun run env:sync` on demand after changing a value to
@@ -122,7 +122,7 @@ disconnect - Disconnect account
 
 ## Browser Extension
 
-A Chrome extension for one-click saving lives in `apps/extension` (built with [WXT](https://wxt.dev)). It's published on the [Chrome Web Store](https://chromewebstore.google.com/detail/cloudstash/bdommhffamndfanbpnikgmpjncpcobia) and authenticates with a paired API key — no separate login.
+A Chrome extension for quickly saving the current page lives in `apps/extension` (built with [WXT](https://wxt.dev)). It's published on the [Chrome Web Store](https://chromewebstore.google.com/detail/cloudstash/bdommhffamndfanbpnikgmpjncpcobia) and authenticates with a paired API key — no separate login.
 
 Publishing is automated: bump the version in `apps/extension/package.json`, then run the **Publish Extension** GitHub Action (manual dispatch). It builds, zips, and submits to the Web Store for review. Requires the `CHROME_EXTENSION_ID`, `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`, and `CHROME_REFRESH_TOKEN` repository secrets — full setup in [`docs/todos/chrome-extension-publishing.md`](docs/todos/chrome-extension-publishing.md).
 
@@ -201,7 +201,7 @@ src/
 | **LinkProcessorDO**  | Async link processing + AI summaries     |
 | **ChatAgentDO**      | AI chat agent per workspace              |
 | **KV Namespace**     | Telegram user connections                |
-| **Workers AI**       | Fallback AI for link processing          |
+| **Workers AI**       | AI summaries for saved links             |
 | **Rate Limiting**    | 30 req/min per IP on sync/auth endpoints |
 | **Analytics Engine** | Per-user usage tracking                  |
 

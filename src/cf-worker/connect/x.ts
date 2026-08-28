@@ -279,12 +279,15 @@ export const handleXResume = (request: Request, env: Env): Promise<Response> =>
           Effect.succeed(capabilityDeniedResponse(error)),
         NoActiveOrgError: () =>
           Effect.succeed(
-            Response.json({ error: "No active organization" }, { status: 400 })
+            Response.json(
+              { error: "No Cloudstash library is available" },
+              { status: 400 }
+            )
           ),
         XSyncSideEffectError: unavailable,
         OrgNotFoundError: () =>
           Effect.succeed(
-            Response.json({ error: "Organization not found" }, { status: 404 })
+            Response.json({ error: "Library not found" }, { status: 404 })
           ),
       })
     ),

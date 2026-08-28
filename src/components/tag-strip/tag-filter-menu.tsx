@@ -120,10 +120,9 @@ export function TagFilterMenu({
                     }
                   >
                     <span
-                      className={cn(
-                        "truncate",
-                        tag.id === activeTag && "text-primary"
-                      )}
+                      className={cn("truncate", {
+                        "text-primary": tag.id === activeTag,
+                      })}
                     >
                       #{tag.name}
                     </span>
@@ -157,10 +156,9 @@ export function TagFilterMenu({
                     }
                   >
                     <span
-                      className={cn(
-                        "truncate",
-                        tag.id === activeTag && "text-primary"
-                      )}
+                      className={cn("truncate", {
+                        "text-primary": tag.id === activeTag,
+                      })}
                     >
                       #{tag.name}
                     </span>

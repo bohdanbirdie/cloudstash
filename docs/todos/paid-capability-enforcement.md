@@ -4,9 +4,10 @@
 
 Paid HTTP, integration, alarm, digest, chat, summary, and enrichment paths must
 derive access from current workspace state rather than treating connection or
-setup as a permanent entitlement lease. Most operation boundaries are now
-enforced; established chat connections still lack a supported connection-aware
-reauthorization hook.
+setup as a permanent entitlement lease. Every supported paid-operation boundary
+now enforces current capability and budget state. The Agents SDK does not expose
+the connection identity needed for one narrower membership reauthorization
+case, which remains an independent platform limitation in DELTA-042.
 
 ## Agreed scope and non-goals
 
@@ -62,8 +63,9 @@ Chat WebSocket revocation needs an Agents-SDK-supported connection identity at
 the turn boundary; wrapping installed protocol internals is intentionally out of
 scope.
 
-## Size and uncertainty
+## Completion
 
-Medium remaining uncertainty. Direct gates and atomic budgets are implemented;
-the remaining established-chat identity boundary depends on a clean public SDK
-seam or a deliberate connection-scoped credential design.
+Complete. Direct gates, downgrade behavior, lifecycle reconciliation, and atomic
+budgets are implemented and covered. DELTA-042 remains separate until the
+Agents SDK offers a clean public seam or Cloudstash deliberately adopts a new
+connection-scoped credential design.

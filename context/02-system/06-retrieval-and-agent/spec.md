@@ -33,7 +33,7 @@ count of distinct effective matches with the selected tag count.
 Current export is client-side and ungated. It can generate newline-separated
 URLs or a Markdown document with title, URL, domain, status, saved/completed
 dates, image, description, and AI summary. The account-menu export covers the
-current status view: All exports the full active Vault, while Archive exports
+current status view: All exports the full active library, while Archive exports
 archived links separately. Per-link and multi-select exports use the same two
 formats. Tags are not currently included.
 

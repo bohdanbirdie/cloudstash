@@ -90,7 +90,7 @@ const errorToResponse = (error: ChatAccessError): Response =>
       Response.json(
         {
           _tag: e._tag,
-          message: "Chat feature is not enabled for this workspace",
+          message: "Chat is not included in your current plan",
           status: 403,
         },
         { status: 403 }
@@ -108,7 +108,7 @@ const errorToResponse = (error: ChatAccessError): Response =>
     ),
     Match.tag("OrgNotFoundError", (e) =>
       Response.json(
-        { _tag: e._tag, message: "Workspace not found", status: 404 },
+        { _tag: e._tag, message: "Library not found", status: 404 },
         { status: 404 }
       )
     ),

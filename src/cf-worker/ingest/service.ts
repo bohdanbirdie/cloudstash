@@ -167,7 +167,7 @@ export const ingestResponse = <Requirements>(
         Effect.logWarning("Ingest: org not found").pipe(
           Effect.annotateLogs({ orgId: maskId(error.orgId) }),
           Effect.as(
-            Response.json({ error: "Organization not found" }, { status: 404 })
+            Response.json({ error: "Library not found" }, { status: 404 })
           )
         ),
     }),

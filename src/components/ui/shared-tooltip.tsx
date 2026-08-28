@@ -33,7 +33,7 @@ export function SharedTooltipProvider({
               className={cn(
                 "data-[instant]:animate-none",
                 positionerClassName,
-                hideArrow && "[&>div]:hidden",
+                { "[&>div]:hidden": hideArrow },
                 contentClassName
               )}
             >

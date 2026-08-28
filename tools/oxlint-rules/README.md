@@ -3,27 +3,31 @@
 Local oxlint JS plugins for this repo, registered in `vite.config.ts` under
 `lint.jsPlugins` and run as part of `vp check` / `vp lint`.
 
-## `tailwind-cn/no-cn-ternary`
+## `tailwind-cn/enforce-cn`
 
-Flags a ternary used for class names inside a `cn()` / `clsx()` call and
-autofixes it to clsx object syntax.
+Requires dynamic `className` values to go through `cn()` and conditional classes
+inside `cn()` to use object syntax.
 
 ```tsx
-// before
-cn("base", inverted ? "text-white" : "text-black");
-// after
-cn("base", { "text-white": inverted, "text-black": !inverted });
+// rejected
+<div className={`base ${active ? "active" : ""}`} />;
+<div className={active && "active"} />;
+<div className={cn("base", active ? "active" : "")} />;
+
+// accepted
+<div className={cn("base", { active })} />;
 ```
 
-**Caught:** a ternary that is a direct argument to `cn` / `clsx` / `classnames` /
-`classNames` with two string-literal branches.
+**Caught in `className`:** dynamic template strings, `+` concatenation,
+ternaries, and logical expressions that do not go through `cn()`.
 
-**Skipped by design:** single-sided `cond && "x"`, existing object syntax, a bare
-`className={cond ? a : b}` not wrapped in `cn()`, empty-string branches, and
-non-string branches.
+**Caught in `cn` / `clsx` / `classnames` / `classNames`:** the same expression
+forms when passed as direct arguments, because conditional classes belong in an
+object (`{ "class-name": condition }`). Static strings, class variables, and
+existing object syntax remain valid.
 
-The autofix flips equality operators (`a === b` → `a !== b`) and strips an
-existing `!` instead of double-negating. oxfmt then re-wraps and de-quotes keys.
+The rule is report-only. Adding imports and restructuring arbitrary expressions
+is not a safe mechanical fix.
 
 ## `motion/no-use-reduced-motion`
 

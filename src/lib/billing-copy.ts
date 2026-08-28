@@ -24,5 +24,5 @@ export function formatRenewalDate(iso: string | null): string | null {
 }
 
 export function cancelKeepsFeaturesCopy(planName: string): string {
-  return `You keep every ${planName} feature until then — after that, your workspace moves to Free.`;
+  return `You keep every ${planName} feature until then — after that, your plan changes to Free.`;
 }

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { Spinner } from "../../components/ui/spinner";
+import { cn } from "../../lib/utils";
 
 export const POPUP_MIN_HEIGHT = "min-h-[320px]";
 
@@ -21,7 +22,10 @@ export function LoadingShell({ children }: { children: string }) {
     <div
       role="status"
       aria-live="polite"
-      className={`flex ${POPUP_MIN_HEIGHT} flex-col items-center justify-center gap-3 text-xs text-muted-foreground`}
+      className={cn(
+        "flex flex-col items-center justify-center gap-3 text-xs text-muted-foreground",
+        POPUP_MIN_HEIGHT
+      )}
     >
       <Spinner />
       <span>{children}</span>
