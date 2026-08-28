@@ -15,7 +15,7 @@ const FOOTER_COLS: readonly {
     title: "Product",
     links: [
       { label: "Save your first link", to: "/login" },
-      { label: "How it works", to: "/", hash: "how" },
+      { label: "Features", to: "/", hash: "features" },
       { label: "Pricing", to: "/", hash: "pricing" },
       { label: "FAQ", to: "/", hash: "faq" },
     ],
@@ -42,7 +42,7 @@ const FOOTER_COLS: readonly {
 export function Footer() {
   const year = new Date().getFullYear();
   return (
-    <footer className="border-t border-border/60">
+    <footer>
       <div
         className={`${SHELL} grid gap-10 py-10 sm:grid-cols-[1.4fr_repeat(3,1fr)] sm:gap-12 sm:py-12`}
       >

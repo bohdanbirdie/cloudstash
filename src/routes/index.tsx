@@ -7,7 +7,6 @@ import { Footer } from "@/components/landing/footer";
 import { Hero } from "@/components/landing/hero";
 import { Integrations } from "@/components/landing/integrations";
 import { MobileStickyCta } from "@/components/landing/mobile-sticky-cta";
-import { Pitch } from "@/components/landing/pitch";
 import { Pricing } from "@/components/landing/pricing";
 import { PullQuote } from "@/components/landing/pullquote";
 import {
@@ -58,7 +57,6 @@ function LandingPage() {
       <TopBar />
       <main className="pb-20 sm:pb-0">
         <Hero />
-        <Pitch />
         <Integrations />
         <PullQuote />
         <Benefits />

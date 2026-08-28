@@ -27,10 +27,10 @@ const TELEGRAM_SUMMARY: readonly SummaryToken[] = [
   { word: "soundscape.", primary: true },
 ];
 
-const TELEGRAM_STREAM_START = 1.1;
+const TELEGRAM_STREAM_START = 0.65;
 const TELEGRAM_WORD_STAGGER = 0.06;
 
-const MOCKUP_STAGGER = 0.22;
+const MOCKUP_STAGGER = 0.1;
 
 export function IntegrationsTiles() {
   return (
@@ -112,7 +112,7 @@ function TelegramMockup({ delay = 0 }: { delay?: number }) {
         initial={{ opacity: 0, y: 10, scale: 0.96 }}
         whileInView={{ opacity: 1, y: 0, scale: 1 }}
         viewport={{ once: true, margin: "-40px" }}
-        transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.3 }}
+        transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.12 }}
         className="ml-auto max-w-[240px] rounded-2xl rounded-br-[6px] bg-[#229ED9] px-3 pb-1.5 pt-2 text-white shadow-sm"
       >
         <div className="border-l-2 border-white/70 pl-2">
@@ -143,7 +143,7 @@ function TelegramMockup({ delay = 0 }: { delay?: number }) {
         initial={{ opacity: 0, y: 8 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-40px" }}
-        transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.7 }}
+        transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.35 }}
         className="mt-3 flex items-start gap-1.5"
       >
         <span className="grid size-6 shrink-0 overflow-hidden rounded-full">
@@ -186,7 +186,7 @@ function RaycastMockup({ delay = 0 }: { delay?: number }) {
       initial={{ opacity: 0, y: 10, scale: 0.97 }}
       whileInView={{ opacity: 1, y: 0, scale: 1 }}
       viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.3 }}
+      transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.12 }}
       className="w-full max-w-[320px] overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 text-white shadow-md"
     >
       <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2 text-[12px]">
@@ -204,7 +204,7 @@ function RaycastMockup({ delay = 0 }: { delay?: number }) {
             ],
           }}
           viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 1.0, ease: EASE_OUT, delay: delay + 0.7 }}
+          transition={{ duration: 1.0, ease: EASE_OUT, delay: delay + 0.35 }}
           className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px]"
         >
           <CloudstashLogo className="size-4 rounded-sm" variant="branded" />
@@ -254,7 +254,7 @@ function XBookmarksMockup({ delay = 0 }: { delay?: number }) {
       initial={{ opacity: 0, y: 12, scale: 0.97 }}
       whileInView={{ opacity: 1, y: 0, scale: 1 }}
       viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.3 }}
+      transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.12 }}
       className="w-full max-w-[290px] overflow-hidden rounded-md border border-zinc-800 bg-black text-white shadow-md"
     >
       <div className="flex items-center justify-between border-b border-white/10 px-3.5 py-2">
@@ -293,7 +293,7 @@ function XBookmarksMockup({ delay = 0 }: { delay?: number }) {
               transition={{
                 duration: 0.5,
                 ease: EASE_OUT,
-                delay: delay + 0.85,
+                delay: delay + 0.45,
                 times: [0, 0.5, 1],
               }}
               style={{ color: "#1d9bf0" }}
@@ -307,7 +307,7 @@ function XBookmarksMockup({ delay = 0 }: { delay?: number }) {
         initial={{ opacity: 0, y: 4 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-40px" }}
-        transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 1.15 }}
+        transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.65 }}
         className="flex items-center gap-1.5 border-t border-white/10 bg-white/[0.04] px-3.5 py-2 text-[10.5px] text-white/75"
       >
         <CloudstashLogo className="size-3 rounded-[2px]" variant="branded" />
@@ -403,7 +403,7 @@ function ChromeMockup({ delay = 0 }: { delay?: number }) {
       initial={{ opacity: 0, y: 12, scale: 0.97 }}
       whileInView={{ opacity: 1, y: 0, scale: 1 }}
       viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.3 }}
+      transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.12 }}
       className="w-full max-w-[260px] overflow-hidden rounded-md border border-border/80 bg-background shadow-md"
     >
       <div className="flex items-center justify-between border-b border-border/60 bg-muted/40 px-3 py-2">
@@ -429,7 +429,7 @@ function ChromeMockup({ delay = 0 }: { delay?: number }) {
           initial={{ scale: 0.94, opacity: 0.6 }}
           whileInView={{ scale: 1, opacity: 1 }}
           viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.85 }}
+          transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.45 }}
           className="mt-3 flex items-center justify-center gap-1.5 rounded-sm bg-primary px-3 py-1.5 text-[11px] font-medium text-primary-foreground"
         >
           <svg
@@ -457,7 +457,7 @@ function AiChatMockup({ delay = 0 }: { delay?: number }) {
       initial={{ opacity: 0, y: 12, scale: 0.97 }}
       whileInView={{ opacity: 1, y: 0, scale: 1 }}
       viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.3 }}
+      transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.12 }}
       className="w-full max-w-[300px] overflow-hidden rounded-md border border-border/80 bg-background shadow-sm"
     >
       <div className="flex items-center justify-between border-b border-border/60 bg-muted/20 px-3 py-2">
@@ -475,7 +475,7 @@ function AiChatMockup({ delay = 0 }: { delay?: number }) {
           initial={{ opacity: 0, y: 4 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.55 }}
+          transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.25 }}
           className="ml-auto max-w-[84%] rounded-2xl rounded-br-md bg-primary px-3 py-1.5 text-[11px] leading-snug text-primary-foreground"
         >
           Find my saved pieces on focus.
@@ -485,7 +485,7 @@ function AiChatMockup({ delay = 0 }: { delay?: number }) {
           initial={{ opacity: 0, y: 4 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.9 }}
+          transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.5 }}
           className="min-w-0 max-w-[94%] text-[11px] leading-snug"
         >
           <p className="text-foreground/90">
@@ -495,7 +495,7 @@ function AiChatMockup({ delay = 0 }: { delay?: number }) {
             initial={{ opacity: 0, x: -4 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true, margin: "-40px" }}
-            transition={{ duration: 0.3, ease: EASE_OUT, delay: delay + 1.15 }}
+            transition={{ duration: 0.3, ease: EASE_OUT, delay: delay + 0.7 }}
             className="mt-1.5 flex min-w-0 items-start gap-1.5 rounded-md bg-muted/55 px-2 py-1.5"
           >
             <span
@@ -518,7 +518,7 @@ function AiChatMockup({ delay = 0 }: { delay?: number }) {
         initial={{ opacity: 0 }}
         whileInView={{ opacity: 1 }}
         viewport={{ once: true, margin: "-40px" }}
-        transition={{ duration: 0.3, ease: EASE_OUT, delay: delay + 1.35 }}
+        transition={{ duration: 0.3, ease: EASE_OUT, delay: delay + 0.85 }}
         className="flex items-center gap-2 border-t border-border/60 px-3 py-2"
       >
         <span className="flex-1 text-[10px] text-muted-foreground">
@@ -573,7 +573,7 @@ function AiConnectorMockup({ delay = 0 }: { delay?: number }) {
       initial={{ opacity: 0, y: 12, scale: 0.97 }}
       whileInView={{ opacity: 1, y: 0, scale: 1 }}
       viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.3 }}
+      transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.12 }}
       className="w-full max-w-[300px] overflow-hidden rounded-md border border-border/80 bg-background shadow-sm"
     >
       <div className="flex items-center justify-between border-b border-border/60 bg-muted/20 px-3 py-2">
@@ -591,7 +591,7 @@ function AiConnectorMockup({ delay = 0 }: { delay?: number }) {
           initial={{ opacity: 0, y: 4 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.55 }}
+          transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.25 }}
           className="flex items-center gap-2.5 rounded-md border border-primary/20 bg-primary/[0.04] p-2.5"
         >
           <CloudstashLogo
@@ -615,7 +615,7 @@ function AiConnectorMockup({ delay = 0 }: { delay?: number }) {
           initial={{ opacity: 0, y: 4 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.85 }}
+          transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.45 }}
           className="mt-2.5 grid grid-cols-3 gap-1.5"
         >
           <span className="rounded-md bg-muted/60 px-1.5 py-1.5 text-center text-[9px] font-medium text-foreground/75">
@@ -633,7 +633,7 @@ function AiConnectorMockup({ delay = 0 }: { delay?: number }) {
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.3, ease: EASE_OUT, delay: delay + 1.1 }}
+          transition={{ duration: 0.3, ease: EASE_OUT, delay: delay + 0.65 }}
           className="mt-2.5 flex items-center justify-center gap-1.5 text-[9px] text-muted-foreground"
         >
           <ChatBubbleIcon className="size-2.5 text-primary" />

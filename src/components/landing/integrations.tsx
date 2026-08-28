@@ -3,7 +3,10 @@ import { SectionHeader, SHELL } from "./shared";
 
 export function Integrations() {
   return (
-    <section id="integrations" className={`${SHELL} py-16 sm:py-20 lg:py-24`}>
+    <section
+      id="integrations"
+      className={`${SHELL} pb-16 pt-8 sm:pb-20 sm:pt-10 lg:pb-24 lg:pt-12`}
+    >
       <SectionHeader
         eyebrow="Save from anywhere"
         title="From the apps you already use."

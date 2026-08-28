@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 import { SHELL } from "./shared";
 
 const NAV_ANCHORS: readonly { hash: string; label: string }[] = [
-  { hash: "how", label: "How" },
   { hash: "integrations", label: "Integrations" },
   { hash: "features", label: "Features" },
   { hash: "pricing", label: "Pricing" },

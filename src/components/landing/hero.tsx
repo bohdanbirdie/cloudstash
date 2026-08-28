@@ -77,10 +77,10 @@ export function Hero() {
               Start saving links
             </Button>
             <a
-              href="#how"
+              href="#integrations"
               className="group inline-flex h-12 items-center gap-1.5 rounded-md px-3 text-base font-medium text-foreground outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
-              See how it works
+              Explore integrations
               <span
                 aria-hidden="true"
                 className="transition-transform duration-200 group-hover:translate-x-0.5"
