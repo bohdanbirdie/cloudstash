@@ -9,14 +9,14 @@ Active.
 
 ## Realizations
 
-| Integration      | Auth/connection                                         | Transport into library                                               | Lifecycle                                           |
-| ---------------- | ------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------- |
-| Chrome extension | web-minted paired API key + extension-origin allowlist  | direct LiveStore WebSocket client; local browser adapter             | key revoke/disconnect; extension Web Store release  |
-| Raycast          | browser verification exchange → device-labelled API key | `integrations`-gated ingest Queue with `source: raycast`             | key revoke; separate npm/Raycast repo               |
-| Telegram         | webhook secret + chat mapping to workspace key          | operation-time `integrations` check → Queue                          | connect/check/confirm/status/disconnect; KV mapping |
-| Public API       | Bearer API key                                          | list/search/get/save/update via LinkProcessorDO; legacy ingest Queue | request-time capability and key checks              |
-| MCP clients      | OAuth 2.1 + PKCE/DCR; workspace consent                 | stateless HTTP; matching link operations via LinkProcessorDO         | re-consent/revoke; five-minute JWT                  |
-| X bookmarks      | linked encrypted OAuth account                          | per-user alarm poll → Queue                                          | reconcile/pause/resume/disconnect                   |
+| Integration      | Auth/connection                                         | Transport into library                                         | Lifecycle                                           |
+| ---------------- | ------------------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------- |
+| Chrome extension | web-minted paired API key + extension-origin allowlist  | direct LiveStore WebSocket client; local browser adapter       | key revoke/disconnect; extension Web Store release  |
+| Raycast          | browser verification exchange → device-labelled API key | `integrations`-gated ingest Queue with `source: raycast`       | key revoke; separate npm/Raycast repo               |
+| Telegram         | webhook secret + chat mapping to workspace key          | operation-time `integrations` check → Queue                    | connect/check/confirm/status/disconnect; KV mapping |
+| Public API       | Bearer API key                                          | list/search/get/save/update via LibraryDO; legacy ingest Queue | request-time capability and key checks              |
+| MCP clients      | OAuth 2.1 + PKCE/DCR; workspace consent                 | stateless HTTP; matching link operations via LibraryDO         | re-consent/revoke; five-minute JWT                  |
+| X bookmarks      | linked encrypted OAuth account                          | per-user alarm poll → Queue                                    | reconcile/pause/resume/disconnect                   |
 
 Settings presents the end-user connections in capture-first order:
 Telegram, X bookmarks, MCP, Chrome, then Raycast. A single divided

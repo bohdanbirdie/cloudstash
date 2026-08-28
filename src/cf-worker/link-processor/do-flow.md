@@ -1,4 +1,4 @@
-# LinkProcessorDO - Implementation Complete
+# LibraryDO - Implementation Complete
 
 ## Status: IMPLEMENTED AND TESTED
 
@@ -30,14 +30,14 @@ The trigger (`onPush`) is just an alarm clock. The DO figures out what to do by 
 ┌─────────────────────────────────────────────────────────────────┐
 │                         TRIGGER                                  │
 │                                                                  │
-│   onPush detects v1.LinkCreated → fetch to LinkProcessorDO      │
+│   onPush detects v1.LinkCreated → fetch to LibraryDO            │
 │   (Just wakes up the DO - doesn't pass any data)                │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                     LinkProcessorDO                              │
+│                       LibraryDO                                  │
 │                                                                  │
 │   ┌─────────────────────────────────────────────────────────┐   │
 │   │                    INITIALIZATION                        │   │
@@ -86,14 +86,14 @@ The trigger (`onPush`) is just an alarm clock. The DO figures out what to do by 
 
 ## DO Instance Model
 
-**One LinkProcessorDO per organization, not per user.**
+**One LibraryDO per organization, not per user.**
 
 The DO ID is derived from `storeId`, which equals the organization ID:
 
 ```typescript
 // In sync/index.ts - trigger creates DO from storeId
-const processorId = env.LINK_PROCESSOR_DO.idFromName(storeId);
-const processor = env.LINK_PROCESSOR_DO.get(processorId);
+const processorId = env.LIBRARY_DO.idFromName(storeId);
+const processor = env.LIBRARY_DO.get(processorId);
 
 // storeId === orgId (from JWT claims)
 if (claims.orgId !== context.storeId) {
@@ -103,7 +103,7 @@ if (claims.orgId !== context.storeId) {
 
 This means:
 
-- All users in the same organization share one `LinkProcessorDO` instance
+- All users in the same organization share one `LibraryDO` instance
 - Each organization has its own isolated processor
 - The processor only sees events for its organization's store
 
@@ -262,7 +262,7 @@ Use `typeof tables.links.Type` to infer row types from LiveStore tables.
 - [x] **Task 3:** Schema already complete - `linkProcessingStatus` table exists
 - [x] **Task 4:** Schema already complete - events exist (`linkProcessingStarted`, `linkProcessingCompleted`, `linkProcessingFailed`)
 
-### LinkProcessorDO Implementation
+### LibraryDO Implementation
 
 - [x] **Task 5:** Rewrite `durable-object.ts` with new structure
 - [x] **Task 6:** Implement subscription setup with `queryDb` and `computed`
@@ -288,7 +288,7 @@ Use `typeof tables.links.Type` to infer row types from LiveStore tables.
 
 ## Security
 
-**LinkProcessorDO has no public HTTP access.**
+**LibraryDO has no public HTTP access.**
 
 ### Access Paths
 
@@ -307,14 +307,14 @@ Use `typeof tables.links.Type` to infer row types from LiveStore tables.
 
 3. **External clients go through SyncBackendDO** - Browser clients connect via WebSocket to `handleSyncRequest()` which validates JWT auth before accepting connections.
 
-4. **Org isolation** - Each org has its own `LinkProcessorDO` instance (ID from `storeId`/`orgId`). A processor can only see events for its own org.
+4. **Org isolation** - Each org has its own `LibraryDO` instance (ID from `storeId`/`orgId`). A processor can only see events for its own org.
 
 ### Auth flow for external clients
 
 ```
 Browser → WebSocket → handleSyncRequest() → validatePayload(JWT) → SyncBackendDO
                                                                         ↓
-                                                              LinkProcessorDO (internal)
+                                                                LibraryDO (internal)
 ```
 
 ---
@@ -326,16 +326,16 @@ Browser → WebSocket → handleSyncRequest() → validatePayload(JWT) → SyncB
 3. **Do NOT query once and process** - Use subscription for reactivity
 4. **Do NOT block in subscription callback** - Fire async, use lock for dedup
 5. **Do NOT change the trigger to pass link data** - DO discovers work from state
-6. **Do NOT add public HTTP routes to LinkProcessorDO** - Keep it internal only
+6. **Do NOT add public HTTP routes to LibraryDO** - Keep it internal only
 
 ---
 
 ## TL;DR
 
 ```
-User creates link → SyncBackendDO.onPush → wake LinkProcessorDO via fetch
+User creates link → SyncBackendDO.onPush → wake LibraryDO via fetch
 
-LinkProcessorDO:
+LibraryDO:
   1. One instance per org (ID from storeId/orgId)
   2. Cached LiveStore with livePull:true (never shutdown)
   3. Persisted sessionId → delta sync only (not full refetch)

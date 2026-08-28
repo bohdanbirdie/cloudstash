@@ -20,7 +20,7 @@ const ingestMessage = (storeId: string, url: string): LinkQueueMessage => ({
 });
 
 const linkProcessor = (storeId: string) =>
-  env.LINK_PROCESSOR_DO.get(env.LINK_PROCESSOR_DO.idFromName(storeId));
+  env.LIBRARY_DO.get(env.LIBRARY_DO.idFromName(storeId));
 
 const makeBatch = (messages: LinkQueueMessage[]) =>
   ({

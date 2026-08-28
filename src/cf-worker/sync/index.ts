@@ -206,8 +206,8 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
         yield* Effect.logInfo("Waking up processor").pipe(
           Effect.annotateLogs({ storeId: maskId(storeId) })
         );
-        const processorId = env.LINK_PROCESSOR_DO.idFromName(storeId);
-        const processor = env.LINK_PROCESSOR_DO.get(processorId);
+        const processorId = env.LIBRARY_DO.idFromName(storeId);
+        const processor = env.LIBRARY_DO.get(processorId);
         yield* Effect.tryPromise({
           try: () =>
             processor.fetch(`https://link-processor/?storeId=${storeId}`),

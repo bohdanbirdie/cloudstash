@@ -35,7 +35,7 @@
   "durable_objects": {
     "bindings": [
       { "name": "SYNC_BACKEND_DO", "class_name": "SyncBackendDO" },
-      { "name": "LINK_PROCESSOR_DO", "class_name": "LinkProcessorDO" },
+      { "name": "LIBRARY_DO", "class_name": "LinkProcessorDO" },
       { "name": "Chat", "class_name": "ChatAgentDO" },
       { "name": "X_BOOKMARK_SYNC_DO", "class_name": "XBookmarkSyncDO" },
     ],
@@ -166,7 +166,7 @@
         "bindings": [
           { "name": "SYNC_BACKEND_DO", "class_name": "SyncBackendDO" },
           {
-            "name": "LINK_PROCESSOR_DO",
+            "name": "LIBRARY_DO",
             "class_name": "LinkProcessorDO",
           },
           { "name": "Chat", "class_name": "ChatAgentDO" },

@@ -152,8 +152,8 @@ describe("Account deletion (end-to-end)", () => {
     const syncBackend = env.SYNC_BACKEND_DO.get(
       env.SYNC_BACKEND_DO.idFromName(user.orgId)
     );
-    const linkProcessor = env.LINK_PROCESSOR_DO.get(
-      env.LINK_PROCESSOR_DO.idFromName(user.orgId)
+    const linkProcessor = env.LIBRARY_DO.get(
+      env.LIBRARY_DO.idFromName(user.orgId)
     );
     const chatAgent = env.Chat.get(env.Chat.idFromName(user.orgId));
     const xBookmarkSync = env.X_BOOKMARK_SYNC_DO.get(
@@ -230,9 +230,7 @@ describe("Account deletion (end-to-end)", () => {
           env.SYNC_BACKEND_DO.get(env.SYNC_BACKEND_DO.idFromName(user.orgId))
         ),
         readActorState(
-          env.LINK_PROCESSOR_DO.get(
-            env.LINK_PROCESSOR_DO.idFromName(user.orgId)
-          )
+          env.LIBRARY_DO.get(env.LIBRARY_DO.idFromName(user.orgId))
         ),
         readActorState(env.Chat.get(env.Chat.idFromName(user.orgId))),
         readActorState(

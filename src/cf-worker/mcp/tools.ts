@@ -156,9 +156,7 @@ const workspaceResult = <Value>(result: WorkspaceLinksRpcResult<Value>) =>
   result.ok ? textResult(result.value) : toolError(result.error.message);
 
 const workspace = (env: Env, authorization: McpAuthorization) =>
-  env.LINK_PROCESSOR_DO.get(
-    env.LINK_PROCESSOR_DO.idFromName(authorization.orgId)
-  );
+  env.LIBRARY_DO.get(env.LIBRARY_DO.idFromName(authorization.orgId));
 
 const run = <Value>(
   authorization: McpAuthorization,

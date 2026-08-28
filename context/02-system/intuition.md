@@ -15,7 +15,7 @@ and chat agent are peers with local replicas. They commit facts and derive the
 same link tables through deterministic materializers.
 
 The queue is not another library. It is durable intake for sources that cannot
-stay connected. The LinkProcessorDO converts each accepted message into a
+stay connected. The LibraryDO converts each accepted message into a
 workspace event, then watches derived pending state and emits metadata, summary,
 tag, status, and notification events. The SyncBackendDO is the common ordering
 point that lets every peer observe those facts.

@@ -14,7 +14,7 @@ keep the web app open for server-originated work to finish.
 web / extension          REST / MCP          Telegram / Raycast / X
   │ local commit             │ RPC                       │ queue
   ▼                          └──────────┬────────────────┘
-local LiveStore client ───────► SyncBackendDO ◄──► LinkProcessorDO
+local LiveStore client ───────► SyncBackendDO ◄──► LibraryDO
   │ synchronous reads                │              link operations,
   ▼                                  │              metadata + AI events
 React UI ◄───────────────────────────┘

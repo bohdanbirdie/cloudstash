@@ -9,7 +9,7 @@ Active.
 
 ## Processor Topology
 
-`LinkProcessorDO` is one server-side LiveStore client per workspace. Store boot
+`LibraryDO` is one server-side LiveStore client per workspace. Store boot
 is single-flight. Once booted, it subscribes to a computed set of active links
 whose processing status is absent, pending, or reprocess-requested.
 
@@ -37,7 +37,7 @@ merges the best fields. The separate `/api/metadata` preview helper is an
 internal, non-authoritative path. It requires the normal approved-session and
 current-workspace decision before outbound work, applies dedicated per-user
 abuse protection, and returns non-cacheable responses. Its failure remains
-silent in the add-link flow because `LinkProcessorDO` performs authoritative
+silent in the add-link flow because `LibraryDO` performs authoritative
 enrichment independently.
 
 Metadata preview and processing share the bounded fetch implementation. Targets

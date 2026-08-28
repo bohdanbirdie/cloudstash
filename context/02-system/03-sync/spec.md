@@ -14,7 +14,7 @@ web tabs ───── web adapter leader ───────┐
 extension ───── extension adapter leader ├─ WebSocket ─► SyncBackendDO
                                          │                    ▲
                                          │                    │ reverse RPC/live pull
-LinkProcessorDO ─ adapter-cloudflare client ──────────────────┤
+LibraryDO ─────── adapter-cloudflare client ──────────────────┤
 ChatAgentDO ───── adapter-cloudflare client ──────────────────┘
 ```
 
@@ -60,7 +60,7 @@ work after production evidence confirms zero hibernation-blocking timers.
 
 ## Server-Side Client Recovery
 
-`LinkProcessorDO` and `ChatAgentDO` implement `syncUpdateRpc(payload, storeId)`.
+`LibraryDO` and `ChatAgentDO` implement `syncUpdateRpc(payload, storeId)`.
 On cold wake they establish the workspace ID, single-flight store boot, then
 hand the payload to LiveStore's RPC handler. Store creation failure clears the
 memo so a later call may retry. Creating concurrent stores over the same DO

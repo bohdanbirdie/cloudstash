@@ -1,1 +1,1 @@
-export { LinkProcessorDO } from "./durable-object";
+export { LibraryDO } from "./durable-object";

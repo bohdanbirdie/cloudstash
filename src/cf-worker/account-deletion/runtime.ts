@@ -127,9 +127,7 @@ export const DeletionRuntimeLayer = (env: Env) =>
       return DeletionRuntime.of({
         retireLinkProcessor: (orgId) =>
           tryDO("retireLinkProcessor", () =>
-            env.LINK_PROCESSOR_DO.get(
-              env.LINK_PROCESSOR_DO.idFromName(orgId)
-            ).retire()
+            env.LIBRARY_DO.get(env.LIBRARY_DO.idFromName(orgId)).retire()
           ).pipe(
             Effect.withSpan("DeletionRuntime.retireLinkProcessor", {
               attributes: { orgId: maskId(orgId) },

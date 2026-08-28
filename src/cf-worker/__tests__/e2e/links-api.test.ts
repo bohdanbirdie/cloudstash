@@ -221,15 +221,11 @@ describe("Links REST API", () => {
   });
 
   it("permanently fences workspace operations after retirement", async () => {
-    const workspace = env.LINK_PROCESSOR_DO.get(
-      env.LINK_PROCESSOR_DO.idFromName(orgId)
-    );
+    const workspace = env.LIBRARY_DO.get(env.LIBRARY_DO.idFromName(orgId));
     await workspace.retire();
     await abortAllDurableObjects();
 
-    const freshWorkspace = env.LINK_PROCESSOR_DO.get(
-      env.LINK_PROCESSOR_DO.idFromName(orgId)
-    );
+    const freshWorkspace = env.LIBRARY_DO.get(env.LIBRARY_DO.idFromName(orgId));
     await freshWorkspace.syncUpdateRpc(new Uint8Array(), orgId);
     expect(await freshWorkspace.triggerDigest(OrgId.make(orgId))).toEqual({
       status: "unavailable",
