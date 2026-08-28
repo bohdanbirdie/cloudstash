@@ -1,118 +1,70 @@
-import { motion } from "motion/react";
+import { ArrowDownToLineIcon, SearchIcon, SparklesIcon } from "lucide-react";
 
-import { Kbd } from "@/components/ui/kbd";
-import { KeyChord } from "@/components/ui/key-chord";
+import { SHELL } from "./shared";
 
-import { PitchVisual } from "./pitch-visual";
-import { LandingEyebrow, SectionCta, SHELL } from "./shared";
-
-const PITCH_STEPS: readonly {
-  n: string;
-  title: string;
-  body: React.ReactNode;
-  cue: React.ReactNode;
-}[] = [
+const OUTCOMES = [
   {
-    n: "01",
-    title: "Save",
-    cue: (
-      <Kbd>
-        <KeyChord keys={["cmd", "V"]} />
-      </Kbd>
-    ),
-    body: (
-      <>
-        Paste a URL, forward a message, or hit{" "}
-        <KeyChord keys={["cmd", "shift", "S"]} /> from Raycast.
-      </>
-    ),
+    title: "Save anywhere",
+    body: "Paste a URL, forward from Telegram, sync X bookmarks, or save from Raycast.",
+    icon: ArrowDownToLineIcon,
   },
   {
-    n: "02",
-    title: "Summarize",
-    cue: (
-      <span className="rounded-sm bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-[0.04em] text-primary">
-        TL;DR
-      </span>
-    ),
-    body: "A clear TL;DR makes the link useful before you return to it.",
+    title: "Skim quickly",
+    body: "See the source, preview, and concise summary before opening the original.",
+    icon: SparklesIcon,
   },
   {
-    n: "03",
-    title: "Skim or search",
-    cue: <Kbd>/</Kbd>,
-    body: "Find any link by what it says, not what you remember.",
+    title: "Find it later",
+    body: "Search by what a link says, not only by the title you happen to remember.",
+    icon: SearchIcon,
   },
-];
+] as const;
 
 export function Pitch() {
   return (
     <section
       id="how"
-      className="border-y border-border/60 bg-muted/30 py-16 sm:py-20 lg:py-24"
+      className="relative border-b border-border/60 bg-background pb-16 pt-6 sm:pb-20 sm:pt-8 lg:pb-24"
     >
       <div className={SHELL}>
-        <div className="grid gap-12 lg:grid-cols-[5fr_6fr] lg:items-start lg:gap-16">
-          <div>
-            <LandingEyebrow>How it works</LandingEyebrow>
-            <h2 className="mt-2 text-balance text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
-              Paste a URL. <span className="text-primary">Done.</span>
+        <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+          <div className="border-b border-border/70 px-6 py-6 text-center sm:px-8 sm:py-7">
+            <div className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-primary">
+              One simple loop
+            </div>
+            <h2 className="mt-2 text-balance text-2xl font-semibold tracking-tight sm:text-3xl">
+              Save it. Understand it. Find it again.
             </h2>
-            <p className="mt-4 max-w-[60ch] text-pretty text-sm leading-relaxed text-muted-foreground">
-              Saved to your private library, with a clean preview and searchable
-              summary when available.
-            </p>
-            <PitchSteps />
           </div>
-          <PitchVisual />
+          <ol className="grid divide-y divide-border/70 md:grid-cols-3 md:divide-x md:divide-y-0">
+            {OUTCOMES.map(({ title, body, icon: Icon }, index) => (
+              <li
+                key={title}
+                className="relative px-6 py-7 text-center sm:px-8 sm:py-8 md:text-left"
+              >
+                <div className="flex items-center justify-center gap-3 md:justify-start">
+                  <span className="grid size-9 place-items-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+                    <Icon
+                      className="size-4"
+                      strokeWidth={2}
+                      aria-hidden="true"
+                    />
+                  </span>
+                  <span className="font-mono text-[10px] font-semibold tabular-nums text-muted-foreground">
+                    0{index + 1}
+                  </span>
+                </div>
+                <h3 className="mt-4 text-lg font-semibold tracking-tight">
+                  {title}
+                </h3>
+                <p className="mx-auto mt-2 max-w-[38ch] text-pretty text-sm leading-relaxed text-muted-foreground md:mx-0">
+                  {body}
+                </p>
+              </li>
+            ))}
+          </ol>
         </div>
-        <SectionCta />
       </div>
     </section>
-  );
-}
-
-function PitchSteps() {
-  return (
-    <ol className="relative mt-8 grid gap-7">
-      {PITCH_STEPS.map((step, i) => (
-        <motion.li
-          key={step.n}
-          initial={{ opacity: 0, x: -8 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true, margin: "-60px" }}
-          transition={{
-            duration: 0.4,
-            ease: [0.22, 1, 0.36, 1],
-            delay: 0.2 + i * 0.18,
-          }}
-          className="relative grid grid-cols-[2rem_1fr] items-start gap-4"
-        >
-          {i < PITCH_STEPS.length - 1 && (
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute left-4 top-4 -bottom-7 w-px -translate-x-1/2 bg-border/60"
-            />
-          )}
-          <span
-            aria-hidden="true"
-            className="relative z-10 grid size-8 select-none place-items-center rounded-full border border-border/80 bg-background font-mono text-[10.5px] font-semibold tabular-nums text-primary"
-          >
-            {step.n}
-          </span>
-          <div>
-            <div className="flex min-h-8 flex-wrap items-center gap-2">
-              <span className="text-[15.5px] font-semibold leading-none tracking-tight">
-                {step.title}
-              </span>
-              {step.cue}
-            </div>
-            <p className="mt-1.5 max-w-[44ch] text-pretty text-[13px] leading-relaxed text-muted-foreground">
-              {step.body}
-            </p>
-          </div>
-        </motion.li>
-      ))}
-    </ol>
   );
 }
