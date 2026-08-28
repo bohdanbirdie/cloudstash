@@ -93,7 +93,7 @@ import {
 } from "./x-sync/reconcile-runtime";
 
 export { SyncBackendDO } from "./sync";
-export { LibraryDO } from "./link-processor";
+export { LinkProcessorDO } from "./link-processor";
 export { ChatAgentDO } from "./chat-agent";
 export { XBookmarkSyncDO } from "./x-sync";
 export { AccountDeletionWorkflow } from "./workflows/account-deletion";

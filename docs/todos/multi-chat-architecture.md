@@ -11,7 +11,7 @@ without recreating that cost.
 ## Direction
 
 ```text
-LibraryDO (one per library)
+LinkProcessorDO (one per library)
   one LiveStore client and materialized workspace state
   canonical link-operation RPCs
   library-scoped chat registry and usage accounting
@@ -20,7 +20,7 @@ ChatAgentDO (one per conversation)
   messages and model execution
   its own small SQLite state
   no LiveStore client
-  link tools remain thin calls to LibraryDO RPCs
+  link tools remain thin calls to LinkProcessorDO RPCs
 ```
 
 Do not combine this with `AI-03`. First prove that the current single chat keeps
@@ -29,9 +29,9 @@ UI.
 
 When this task is picked up:
 
-1. Add chat lifecycle RPCs and a small library chat registry to `LibraryDO`.
+1. Add chat lifecycle RPCs and a small library chat registry to `LinkProcessorDO`.
 2. Name each `ChatAgentDO` by chat ID and persist its validated library ID.
-3. Keep link tools on the same canonical `LibraryDO` RPCs established by
+3. Keep link tools on the same canonical `LinkProcessorDO` RPCs established by
    `AI-03`.
 4. Keep reprocessing unavailable to agent tools.
 5. Move library-level usage reservation out of individual conversations so
@@ -60,5 +60,5 @@ When this task is picked up:
 Cloudflare's current stable `AIChatAgent` persists one flat conversation per
 named Agent instance. Its Session API adds richer tree/context memory but remains
 experimental. The lean default for this task is therefore one named
-`ChatAgentDO` per conversation plus a small `LibraryDO` registry, unless the
+`ChatAgentDO` per conversation plus a small `LinkProcessorDO` registry, unless the
 platform has a stable simpler primitive when implementation starts.

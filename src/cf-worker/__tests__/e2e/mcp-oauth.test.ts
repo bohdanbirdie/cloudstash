@@ -1181,8 +1181,8 @@ describe("MCP OAuth Worker flow", () => {
     });
 
     const linksFor = async (orgId: string) => {
-      const result = await env.LIBRARY_DO.get(
-        env.LIBRARY_DO.idFromName(orgId)
+      const result = await env.LINK_PROCESSOR_DO.get(
+        env.LINK_PROCESSOR_DO.idFromName(orgId)
       ).listLinks({ limit: 20, state: "active" });
       if (!result.ok) throw new Error(result.error.message);
       return result.value;

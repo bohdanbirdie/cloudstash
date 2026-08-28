@@ -35,11 +35,7 @@
   "durable_objects": {
     "bindings": [
       { "name": "SYNC_BACKEND_DO", "class_name": "SyncBackendDO" },
-      { "name": "LIBRARY_DO", "class_name": "LibraryDO" },
-      // DO NOT RENAME OR REMOVE: LiveStore persists this exact binding name in
-      // SyncBackendDO reverse-RPC subscriptions. It is a compatibility alias
-      // for LibraryDO, not a separate Durable Object namespace.
-      { "name": "LINK_PROCESSOR_DO", "class_name": "LibraryDO" },
+      { "name": "LINK_PROCESSOR_DO", "class_name": "LinkProcessorDO" },
       { "name": "Chat", "class_name": "ChatAgentDO" },
       { "name": "X_BOOKMARK_SYNC_DO", "class_name": "XBookmarkSyncDO" },
     ],
@@ -50,10 +46,6 @@
     { "tag": "v2", "new_sqlite_classes": ["LinkProcessorDO"] },
     { "tag": "v3", "new_sqlite_classes": ["ChatAgentDO"] },
     { "tag": "v4", "new_sqlite_classes": ["XBookmarkSyncDO"] },
-    {
-      "tag": "v5",
-      "renamed_classes": [{ "from": "LinkProcessorDO", "to": "LibraryDO" }],
-    },
   ],
 
   "workflows": [
@@ -174,15 +166,8 @@
         "bindings": [
           { "name": "SYNC_BACKEND_DO", "class_name": "SyncBackendDO" },
           {
-            "name": "LIBRARY_DO",
-            "class_name": "LibraryDO",
-          },
-          // DO NOT RENAME OR REMOVE: LiveStore persists this exact binding name
-          // in SyncBackendDO reverse-RPC subscriptions. It is a compatibility
-          // alias for LibraryDO, not a separate Durable Object namespace.
-          {
             "name": "LINK_PROCESSOR_DO",
-            "class_name": "LibraryDO",
+            "class_name": "LinkProcessorDO",
           },
           { "name": "Chat", "class_name": "ChatAgentDO" },
           {
@@ -196,9 +181,15 @@
         { "tag": "v2", "new_sqlite_classes": ["LinkProcessorDO"] },
         { "tag": "v3", "new_sqlite_classes": ["ChatAgentDO"] },
         { "tag": "v4", "new_sqlite_classes": ["XBookmarkSyncDO"] },
+        // Staging alone already applied v5 from PR #117's branch build. Reverse
+        // that class rename here. Production remains on v4 and never sees it.
         {
           "tag": "v5",
           "renamed_classes": [{ "from": "LinkProcessorDO", "to": "LibraryDO" }],
+        },
+        {
+          "tag": "v6",
+          "renamed_classes": [{ "from": "LibraryDO", "to": "LinkProcessorDO" }],
         },
       ],
       "workflows": [

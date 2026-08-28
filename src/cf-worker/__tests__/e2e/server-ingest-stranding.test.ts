@@ -12,7 +12,7 @@ import type { UserInfo } from "./helpers";
 /**
  * Reproduction of the cold-DO stranding bug
  * (`docs/todos/server-ingest-cold-do-stranding.md`): `ingestAndProcess` commits
- * `linkCreatedV2` to the LibraryDO's *local* store and returns, but the
+ * `linkCreatedV2` to the LinkProcessorDO's *local* store and returns, but the
  * push of that event to the SyncBackendDO eventlog runs in a background fiber
  * that is killed when the request-scoped DO host is evicted — so the link never
  * reaches the server until the next ingest re-boots the DO and drains the backlog.
@@ -29,7 +29,7 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // The SyncBackend DO's OWN persisted eventlog head, read from a FRESH stub
 // (pre-abort stubs are poisoned). This is the source of truth — independent of
-// the LibraryDO's lifecycle.
+// the LinkProcessorDO's lifecycle.
 const backendMax = (storeId: string): Promise<number | null> =>
   env.SYNC_BACKEND_DO.get(
     env.SYNC_BACKEND_DO.idFromName(storeId)
@@ -81,7 +81,7 @@ describe("server-ingest cold-DO stranding", () => {
   //    id after the abort. This is exactly what kills the un-awaited background
   //    push fiber in production.
   it("abortAllDurableObjects evicts: in-memory state is destroyed and recreated", async () => {
-    const id = env.LIBRARY_DO.idFromName("eviction-probe-store");
+    const id = env.LINK_PROCESSOR_DO.idFromName("eviction-probe-store");
     const incarnationOf = (stub: DurableObjectStub) =>
       runInDurableObject(stub, (instance) => {
         const probe = instance as { __incarnation?: string };
@@ -89,10 +89,10 @@ describe("server-ingest cold-DO stranding", () => {
         return probe.__incarnation;
       });
 
-    const before = await incarnationOf(env.LIBRARY_DO.get(id));
+    const before = await incarnationOf(env.LINK_PROCESSOR_DO.get(id));
     await abortAllDurableObjects();
     // A fresh stub is required — stubs created before the abort are poisoned.
-    const after = await incarnationOf(env.LIBRARY_DO.get(id));
+    const after = await incarnationOf(env.LINK_PROCESSOR_DO.get(id));
 
     expect(before).toBeTruthy();
     expect(after).not.toBe(before);
@@ -108,7 +108,7 @@ describe("server-ingest cold-DO stranding", () => {
     // `ingestAndProcess` must not resolve until the committed `linkCreatedV2` is
     // durable on the SyncBackend. We assert the SyncBackend DO's OWN persisted
     // eventlog (`getEventlogMax() > 0`), read from a FRESH stub — the source of
-    // truth, independent of the LibraryDO's lifecycle and its leader-sync
+    // truth, independent of the LinkProcessorDO's lifecycle and its leader-sync
     // bookkeeping (the surface the fix manipulates). An event durable here
     // survives the client DO being evicted, which is the actual guarantee.
     //
@@ -122,7 +122,9 @@ describe("server-ingest cold-DO stranding", () => {
       { timeout: 30000 },
       async () => {
         const storeId = user.orgId;
-        const lp = env.LIBRARY_DO.get(env.LIBRARY_DO.idFromName(storeId));
+        const lp = env.LINK_PROCESSOR_DO.get(
+          env.LINK_PROCESSOR_DO.idFromName(storeId)
+        );
 
         const r = await lp.ingestAndProcess(
           ingestMessage(storeId, "https://example.com/cloudstash-strand")
@@ -130,7 +132,7 @@ describe("server-ingest cold-DO stranding", () => {
         expect(r.status).toBe("ingested");
 
         // Source of truth: the SyncBackend DO's own persisted eventlog, read from
-        // a FRESH stub. The LibraryDO connects to this exact backend via
+        // a FRESH stub. The LinkProcessorDO connects to this exact backend via
         // `SYNC_BACKEND_DO.idFromName(storeId)` (durable-object.ts), so the event
         // it pushed lands here — and it stays here regardless of the client DO's
         // fate. Pre-fix: empty (null → 0). Post-fix: > 0.
@@ -162,7 +164,9 @@ describe("server-ingest cold-DO stranding", () => {
           "Strand Pipe"
         );
         const storeId = user.orgId;
-        const lp = env.LIBRARY_DO.get(env.LIBRARY_DO.idFromName(storeId));
+        const lp = env.LINK_PROCESSOR_DO.get(
+          env.LINK_PROCESSOR_DO.idFromName(storeId)
+        );
         const headBefore = (await backendMax(storeId)) ?? 0;
 
         await lp.ingestAndProcess(
@@ -198,7 +202,9 @@ describe("server-ingest cold-DO stranding", () => {
       async () => {
         const user = await signupUser("strand-seq@test.com", "Strand Seq");
         const storeId = user.orgId;
-        const lp = env.LIBRARY_DO.get(env.LIBRARY_DO.idFromName(storeId));
+        const lp = env.LINK_PROCESSOR_DO.get(
+          env.LINK_PROCESSOR_DO.idFromName(storeId)
+        );
 
         await lp.ingestAndProcess(
           ingestMessage(storeId, "https://example.com/seq-a")

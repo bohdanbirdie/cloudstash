@@ -22,7 +22,7 @@ Active.
                    │                         ▲       ▲
                    │                         │       │
                    └─────────────────────────┘       │ LiveStore
-                                                LibraryDO
+                                                LinkProcessorDO
                                                    │
                               metadata/content/AI ──┘
 
@@ -43,7 +43,7 @@ Stateful classes:
 | Class                     | Identity     | Owns                                                                                   |
 | ------------------------- | ------------ | -------------------------------------------------------------------------------------- |
 | `SyncBackendDO`           | workspace ID | Canonical synchronized eventlog and live distribution                                  |
-| `LibraryDO`               | workspace ID | Server-side LiveStore replica, link operations, processing subscriptions, digest alarm |
+| `LinkProcessorDO`         | workspace ID | Server-side LiveStore replica, link operations, processing subscriptions, digest alarm |
 | `ChatAgentDO`             | workspace ID | Chat messages, token usage, server-side LiveStore replica                              |
 | `XBookmarkSyncDO`         | user ID      | X watermark/status and polling alarm                                                   |
 | `AccountDeletionWorkflow` | workspace ID | Durable deletion job with independently retried multi-store steps                      |

@@ -186,7 +186,7 @@ export const handleQueueBatch = (
   env: Env
 ): Promise<void> =>
   Effect.runPromise(
-    handleQueueBatchEffect(batch, env.LIBRARY_DO).pipe(
+    handleQueueBatchEffect(batch, env.LINK_PROCESSOR_DO).pipe(
       Effect.tapCause((cause) =>
         Effect.logError("Queue batch failed").pipe(
           Effect.annotateLogs({
@@ -204,7 +204,7 @@ export const handleQueueBatch = (
 
 export const handleDlqBatch = (batch: MessageBatch, env: Env): Promise<void> =>
   Effect.runPromise(
-    handleDlqBatchEffect(batch, env.LIBRARY_DO).pipe(
+    handleDlqBatchEffect(batch, env.LINK_PROCESSOR_DO).pipe(
       Effect.tapCause((cause) =>
         Effect.logError("DLQ batch failed").pipe(
           Effect.annotateLogs({

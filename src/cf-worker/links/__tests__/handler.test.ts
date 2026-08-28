@@ -30,7 +30,7 @@ const createEnv = (
   const searchLinks =
     overrides.searchLinks ?? vi.fn().mockResolvedValue({ ok: true, value: [] });
   return {
-    LIBRARY_DO: {
+    LINK_PROCESSOR_DO: {
       idFromName: vi.fn().mockReturnValue("do-id"),
       get: vi.fn().mockReturnValue({ listLinks, searchLinks }),
     },
@@ -197,7 +197,9 @@ describe("Links API list boundary", () => {
         Effect.promise(async () => {
           expect(response.status).toBe(200);
           expect(await response.json()).toEqual(page);
-          expect(env.LIBRARY_DO.idFromName).toHaveBeenCalledWith("org-1");
+          expect(env.LINK_PROCESSOR_DO.idFromName).toHaveBeenCalledWith(
+            "org-1"
+          );
           expect(env.listLinks).toHaveBeenCalledWith({});
         })
       )

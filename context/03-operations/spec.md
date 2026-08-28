@@ -9,18 +9,18 @@ Active.
 
 ## Cloudflare Resources
 
-| Resource         | Binding/name                                                  | Operational purpose                                                |
-| ---------------- | ------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Worker + Assets  | `cloudstash`, `ASSETS`                                        | SPA/public assets, API, sync/agent routing, queue consumption      |
-| Workers AI       | `AI`                                                          | Basic summary structured output                                    |
-| Durable Objects  | `SYNC_BACKEND_DO`, `LIBRARY_DO`, `Chat`, `X_BOOKMARK_SYNC_DO` | workspace sync/link operations/processing/chat and user X polling  |
-| Workflow         | `ACCOUNT_DELETION`                                            | durable multi-store deletion                                       |
-| D1               | `DB`                                                          | control plane and aggregate activity                               |
-| KV               | `TELEGRAM_KV`, transitional `ENRICHMENT_USAGE`                | integration mapping/index and deletion cleanup for legacy counters |
-| Queues           | `LINK_QUEUE`/DLQ, `X_RECONCILE_QUEUE`                         | external intake/recovery and X reconciliation                      |
-| Cron trigger     | `17 4 * * *`                                                  | daily linked-X-account reconciliation repair                       |
-| Rate limiter     | `SYNC_RATE_LIMITER`                                           | selected auth/MCP/sync/invite abuse protection                     |
-| Analytics Engine | `USAGE_ANALYTICS`                                             | low-overhead usage events                                          |
+| Resource         | Binding/name                                                         | Operational purpose                                                |
+| ---------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Worker + Assets  | `cloudstash`, `ASSETS`                                               | SPA/public assets, API, sync/agent routing, queue consumption      |
+| Workers AI       | `AI`                                                                 | Basic summary structured output                                    |
+| Durable Objects  | `SYNC_BACKEND_DO`, `LINK_PROCESSOR_DO`, `Chat`, `X_BOOKMARK_SYNC_DO` | workspace sync/link operations/processing/chat and user X polling  |
+| Workflow         | `ACCOUNT_DELETION`                                                   | durable multi-store deletion                                       |
+| D1               | `DB`                                                                 | control plane and aggregate activity                               |
+| KV               | `TELEGRAM_KV`, transitional `ENRICHMENT_USAGE`                       | integration mapping/index and deletion cleanup for legacy counters |
+| Queues           | `LINK_QUEUE`/DLQ, `X_RECONCILE_QUEUE`                                | external intake/recovery and X reconciliation                      |
+| Cron trigger     | `17 4 * * *`                                                         | daily linked-X-account reconciliation repair                       |
+| Rate limiter     | `SYNC_RATE_LIMITER`                                                  | selected auth/MCP/sync/invite abuse protection                     |
+| Analytics Engine | `USAGE_ANALYTICS`                                                    | low-overhead usage events                                          |
 
 The repository also declares an isolated `staging` Wrangler environment. It
 targets the `cloudstash-staging` Worker and repeats all non-inherited bindings
@@ -29,12 +29,6 @@ Analytics Engine identities. Provider credentials remain separate deployment
 secrets. Remote provisioning, domain attachment, and GitHub branch connection
 remain externally controlled and are tracked in
 [DELTA-031](../.delta/DELTA-031-staging-and-operational-runbooks-are-not-realized.md).
-
-`LIBRARY_DO` and the legacy `LINK_PROCESSOR_DO` binding address the same
-`LibraryDO` namespace. The latter is intentionally retained because LiveStore
-persists its exact name in SyncBackendDO reverse-RPC subscriptions; it does not
-represent a second processor or a second materialized library. See
-[decision 0002](../02-system/03-sync/.decisions/0002-retain-livestore-binding-identity.md).
 
 Built-in Cloudflare logs and invocation traces are enabled with full head
 sampling in current configuration. `AppLayerLive` installs application services
@@ -52,7 +46,7 @@ Effect spans are not exported through a configured OTLP backend.
 - Queue main/DLQ retry handles transient processor outages; the X reconciliation
   Queue retries DO reconciliation and a daily scan repairs missed messages.
 - Link processing bounds fetch/AI concurrency and I/O duration.
-- LibraryDO storage atomically reserves workspace-period X-enrichment
+- LinkProcessorDO storage atomically reserves workspace-period X-enrichment
   attempts before provider work.
 - Durable Workflows retry named deletion steps.
 - Materializers and ingestion are idempotent under rebase/retry.

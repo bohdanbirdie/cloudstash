@@ -9,8 +9,8 @@ import { signupUser } from "./helpers";
 import type { UserInfo } from "./helpers";
 
 function getLinkProcessorStub(orgId: string) {
-  const id = env.LIBRARY_DO.idFromName(orgId);
-  return env.LIBRARY_DO.get(id);
+  const id = env.LINK_PROCESSOR_DO.idFromName(orgId);
+  return env.LINK_PROCESSOR_DO.get(id);
 }
 
 function makeQueueMessage(
@@ -68,7 +68,7 @@ describe("DO-to-DO Sync E2E", () => {
   });
 
   describe("cold boot sync", () => {
-    it("ingests a link on a fresh LibraryDO", async () => {
+    it("ingests a link on a fresh LinkProcessorDO", async () => {
       const stub = getLinkProcessorStub(user.orgId);
       const msg = makeQueueMessage("https://example.com/cold-boot", user.orgId);
 
@@ -172,7 +172,7 @@ describe("DO-to-DO Sync E2E", () => {
     });
   });
 
-  describe("fetch trigger path (SyncBackendDO → LibraryDO)", () => {
+  describe("fetch trigger path (SyncBackendDO → LinkProcessorDO)", () => {
     it("initializes store and subscription via fetch", async () => {
       const triggerUser = await signupUser(
         "do-sync-trigger@test.com",
