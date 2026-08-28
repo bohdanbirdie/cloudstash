@@ -28,7 +28,7 @@ agent's retrieval and mutation tools.
 - **CS.SYS.RET-T01 LIKE search:** Case-insensitive LIKE and weighted fields are
   accepted instead of FTS5 to avoid a custom SQLite build.
 - **CS.SYS.RET-T02 Shared LinkProcessor client:** REST and MCP reuse the existing
-  workspace-named LinkProcessorDO LiveStore replica; chat remains separate until
+  workspace-named LibraryDO LiveStore replica; chat remains separate until
   its planned multi-conversation migration.
 - **CS.SYS.RET-T03 Approximate chat budget:** Token reservations use estimates
   reconciled after calls; fail-closed budget lookup may temporarily deny chat.

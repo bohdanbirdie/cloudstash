@@ -73,7 +73,7 @@ reject `step.do`, preserving Cloudflare retry/error semantics. Stripe
 cancellation uses the workspace-keyed deletion identity as its idempotency
 key; a resource-missing response means the subscription is already terminated
 and does not block later purge steps. Explicit purge targets are
-SyncBackendDO, LinkProcessorDO,
+SyncBackendDO, LibraryDO,
 ChatAgentDO, XBookmarkSyncDO, Telegram mappings, workspace-keyed enrichment KV,
 and organization-owned D1 rows reached by cascade.
 
@@ -96,7 +96,7 @@ in use by other people, so their creator references use `ON DELETE SET NULL`
 instead of deleting those rows.
 
 The Workflow does not install a separate deletion state in the Worker or its
-actors. `LinkProcessorDO` and `ChatAgentDO` expose the generic terminal
+actors. `LibraryDO` and `ChatAgentDO` expose the generic terminal
 operation `retire`: close active connections/store handles, atomically persist
 an opaque actor-retired marker before graceful cleanup, then coalesce a full
 storage wipe with restoring that marker. The Workflow retires those server-side

@@ -22,7 +22,7 @@ Active.
                    │                         ▲       ▲
                    │                         │       │
                    └─────────────────────────┘       │ LiveStore
-                                             LinkProcessorDO
+                                                LibraryDO
                                                    │
                               metadata/content/AI ──┘
 
@@ -40,13 +40,13 @@ and `/agents/*` through Worker code.
 
 Stateful classes:
 
-| Class                     | Identity     | Owns                                                                  |
-| ------------------------- | ------------ | --------------------------------------------------------------------- |
-| `SyncBackendDO`           | workspace ID | Canonical synchronized eventlog and live distribution                 |
-| `LinkProcessorDO`         | workspace ID | Server-side LiveStore replica, processing subscriptions, digest alarm |
-| `ChatAgentDO`             | workspace ID | Chat messages, token usage, server-side LiveStore replica             |
-| `XBookmarkSyncDO`         | user ID      | X watermark/status and polling alarm                                  |
-| `AccountDeletionWorkflow` | workspace ID | Durable deletion job with independently retried multi-store steps     |
+| Class                     | Identity     | Owns                                                                                   |
+| ------------------------- | ------------ | -------------------------------------------------------------------------------------- |
+| `SyncBackendDO`           | workspace ID | Canonical synchronized eventlog and live distribution                                  |
+| `LibraryDO`               | workspace ID | Server-side LiveStore replica, link operations, processing subscriptions, digest alarm |
+| `ChatAgentDO`             | workspace ID | Chat messages, token usage, server-side LiveStore replica                              |
+| `XBookmarkSyncDO`         | user ID      | X watermark/status and polling alarm                                                   |
+| `AccountDeletionWorkflow` | workspace ID | Durable deletion job with independently retried multi-store steps                      |
 
 ## Subsystem Composition
 

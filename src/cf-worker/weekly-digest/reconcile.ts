@@ -18,16 +18,14 @@ export class DigestScheduleReconciler extends Context.Service<
 >()("@cloudstash/weekly-digest/DigestScheduleReconciler") {}
 
 export const DigestScheduleReconcilerLive = (
-  env: Pick<Env, "LINK_PROCESSOR_DO">
+  env: Pick<Env, "LIBRARY_DO">
 ): Layer.Layer<DigestScheduleReconciler> =>
   Layer.succeed(DigestScheduleReconciler, {
     reconcile: Effect.fn("WeeklyDigest.reconcileSchedule")(function* (
       orgId: OrgId
     ) {
       yield* Effect.annotateCurrentSpan("orgId", maskId(orgId));
-      const stub = env.LINK_PROCESSOR_DO.get(
-        env.LINK_PROCESSOR_DO.idFromName(orgId)
-      );
+      const stub = env.LIBRARY_DO.get(env.LIBRARY_DO.idFromName(orgId));
       yield* Effect.tryPromise({
         try: () => stub.ensureDigestScheduled(),
         catch: (cause) => new DigestScheduleReconcileError({ cause, orgId }),

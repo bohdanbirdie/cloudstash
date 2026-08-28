@@ -136,7 +136,7 @@ const authorize = Effect.fnUntraced(function* (apiKey: ApiKey) {
 });
 
 const stub = (env: Env, orgId: OrgId) =>
-  env.LINK_PROCESSOR_DO.get(env.LINK_PROCESSOR_DO.idFromName(orgId));
+  env.LIBRARY_DO.get(env.LIBRARY_DO.idFromName(orgId));
 
 const queryInput = (url: URL): Record<string, unknown> => {
   const input: Record<string, unknown> = {};

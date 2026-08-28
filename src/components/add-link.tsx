@@ -155,7 +155,7 @@ export function AddLinkProvider({ children }: { children: ReactNode }) {
       track("link_added");
       openDetail(linkId);
 
-      // Runs in parallel with LinkProcessorDO — gives a card preview even if
+      // Runs in parallel with LibraryDO — gives a card preview even if
       // the DO is offline. The two metadata commits race; second one wins.
       void fetchAndCommitMetadata(store, linkId, validUrl);
     },

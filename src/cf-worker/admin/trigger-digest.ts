@@ -61,9 +61,7 @@ export const handleTriggerDigest = (
       );
 
       const storeId = OrgId.make(activeOrgId);
-      const stub = env.LINK_PROCESSOR_DO.get(
-        env.LINK_PROCESSOR_DO.idFromName(storeId)
-      );
+      const stub = env.LIBRARY_DO.get(env.LIBRARY_DO.idFromName(storeId));
       const callRpc = async (): Promise<unknown> => stub.triggerDigest(storeId);
       const raw = yield* Effect.tryPromise({
         catch: (cause) =>

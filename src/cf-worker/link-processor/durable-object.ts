@@ -31,7 +31,7 @@ import {
   isDurableObjectRetired,
   retireDurableObjectStorage,
 } from "../durable-object-retirement";
-import { maskId, safeErrorInfo } from "../log-utils";
+import { fingerprintId, maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
 import { OpenRouterApiKeyLive } from "../weekly-digest/generator";
@@ -62,7 +62,7 @@ import { WorkersAiLive } from "./services/workers-ai.live";
 import { MAX_CONCURRENT_AI, MAX_CONCURRENT_METADATA } from "./types";
 import type { LinkQueueMessage } from "./types";
 
-const logger = logSync("LinkProcessorDO");
+const logger = logSync("LibraryDO");
 
 const MAX_NOTIFIED_LINK_IDS = 500;
 const LEADER_SYNC_TIMEOUT_MS = 10_000;
@@ -94,11 +94,11 @@ const workspaceUnavailable = () =>
     error: { code: "unavailable", message: "Library is unavailable" },
   }) as const;
 
-export class LinkProcessorDO
+export class LibraryDO
   extends DurableObject<Env>
   implements ClientDoWithRpcCallback
 {
-  override __DURABLE_OBJECT_BRAND = "link-processor-do" as never;
+  override __DURABLE_OBJECT_BRAND = "library-do" as never;
 
   private storeId: OrgId | undefined;
   private cachedStore: Store<typeof schema> | undefined;
@@ -138,22 +138,24 @@ export class LinkProcessorDO
         yield* Effect.logInfo("retire: storage wiped").pipe(
           Effect.annotateLogs({ storeId: maskId(this.storeId ?? "") })
         );
-      }).pipe(Effect.withSpan("LinkProcessorDO.retire"))
+      }).pipe(Effect.withSpan("LibraryDO.retire"))
     );
   }
 
-  private async getSessionId(generation: number): Promise<string> {
+  private async getSessionIdentity(
+    generation: number
+  ): Promise<{ readonly sessionId: string; readonly reused: boolean }> {
     if (!this.canUseStore(generation)) {
       throw new DurableObjectRetiredError();
     }
     const stored = await this.ctx.storage.get<string>("sessionId");
-    if (stored) return stored;
+    if (stored) return { sessionId: stored, reused: true };
     const newSessionId = nanoid();
     if (!this.canUseStore(generation)) {
       throw new DurableObjectRetiredError();
     }
     await this.ctx.storage.put("sessionId", newSessionId);
-    return newSessionId;
+    return { sessionId: newSessionId, reused: false };
   }
 
   private async getStore(): Promise<Store<typeof schema>> {
@@ -188,20 +190,30 @@ export class LinkProcessorDO
     storeId: OrgId,
     generation: number
   ): Promise<Store<typeof schema>> {
-    const sessionId = await this.getSessionId(generation);
+    const rowsBeforeBoot = this.totalRowsWritten;
+    const databaseSizeBeforeBoot = this.ctx.storage.sql.databaseSize;
+    const { reused: reusedSession, sessionId } =
+      await this.getSessionIdentity(generation);
     if (!this.canUseStore(generation)) {
       throw new DurableObjectRetiredError();
     }
+    const [objectFingerprint, sessionFingerprint] = await Promise.all([
+      fingerprintId(this.ctx.id.toString()),
+      fingerprintId(sessionId),
+    ]);
 
     logger.info("Creating store", {
-      sessionId: maskId(sessionId),
+      databaseSizeBeforeBoot,
+      objectFingerprint,
+      reusedSession,
+      sessionFingerprint,
       storeId: maskId(storeId),
     });
 
     const store = await createStoreDoPromise({
       clientId: "link-processor-do",
       durableObject: {
-        bindingName: "LINK_PROCESSOR_DO",
+        bindingName: "LIBRARY_DO",
         ctx: this.ctx,
         env: this.env,
       } as never,
@@ -221,6 +233,8 @@ export class LinkProcessorDO
     this.cachedStore = store;
 
     logger.info("Store created successfully", {
+      databaseSizeAfterBoot: this.ctx.storage.sql.databaseSize,
+      rowsWrittenDuringBoot: this.totalRowsWritten - rowsBeforeBoot,
       storeId: maskId(storeId),
     });
 
@@ -275,7 +289,7 @@ export class LinkProcessorDO
 
   private async bindNamedWorkspace(): Promise<OrgId> {
     const name = this.ctx.id.name;
-    if (!name) throw new Error("LinkProcessorDO requires a named instance");
+    if (!name) throw new Error("LibraryDO requires a named instance");
     const storeId = OrgId.make(name);
     if (this.storeId !== storeId) {
       this.storeId = storeId;
@@ -670,7 +684,7 @@ export class LinkProcessorDO
           )
         )
       ),
-      Effect.withSpan("LinkProcessorDO.processLinkEffect", {
+      Effect.withSpan("LibraryDO.processLinkEffect", {
         attributes: { linkId: link.id, isReprocess },
       })
     );
@@ -692,7 +706,7 @@ export class LinkProcessorDO
           text
         );
       }).pipe(
-        Effect.withSpan("LinkProcessorDO.sendProgressDraft"),
+        Effect.withSpan("LibraryDO.sendProgressDraft"),
         Effect.catch((error) =>
           Effect.logWarning("sendProgressDraft failed").pipe(
             Effect.annotateLogs(safeErrorInfo(error))
@@ -753,7 +767,7 @@ export class LinkProcessorDO
             expected: maskId(this.ctx.id.name ?? ""),
             storeId: maskId(storeId),
           }),
-          Effect.withSpan("LinkProcessorDO.storeIdMismatch", {
+          Effect.withSpan("LibraryDO.storeIdMismatch", {
             attributes: {
               expected: maskId(this.ctx.id.name ?? ""),
               route: "fetch",
@@ -788,7 +802,7 @@ export class LinkProcessorDO
             expected: maskId(this.ctx.id.name ?? ""),
             storeId: maskId(msg.storeId),
           }),
-          Effect.withSpan("LinkProcessorDO.storeIdMismatch", {
+          Effect.withSpan("LibraryDO.storeIdMismatch", {
             attributes: {
               expected: maskId(this.ctx.id.name ?? ""),
               route: "ingestAndProcess",

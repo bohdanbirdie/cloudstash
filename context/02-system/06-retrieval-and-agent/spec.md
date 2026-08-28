@@ -52,7 +52,7 @@ excluding archived ones. `archive` selects archived links and `any` selects full
 history. The legacy `all` value remains an alias for `active`; it does not mean
 full history.
 
-REST and MCP call the workspace-named `LinkProcessorDO`, reusing its existing
+REST and MCP call the workspace-named `LibraryDO`, reusing its existing
 LiveStore client. It returns complete link records, commits mutations, and waits
 up to five seconds for SyncBackend durability. Tag reads are restricted to
 returned link IDs. Its RPC boundary decodes exact Effect Schemas and exposes
@@ -97,4 +97,4 @@ remains tracked in
 
 This change does not alter `ChatAgentDO` or its tools. The planned multi-chat
 split will remove its LiveStore client and route aligned tools through the
-LinkProcessorDO's link-operation RPCs.
+LibraryDO's link-operation RPCs.
