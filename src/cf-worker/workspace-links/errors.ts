@@ -24,7 +24,7 @@ export class WorkspaceLinkUnavailableError extends Data.TaggedError(
   "WorkspaceLinkUnavailableError"
 )<{ readonly message: string }> {
   constructor({
-    message = "Workspace is unavailable",
+    message = "Library is unavailable",
   }: { readonly message?: string } = {}) {
     super({ message });
   }
@@ -40,7 +40,7 @@ export class WorkspaceLinkStoreError extends Data.TaggedError(
   constructor({
     operation,
     cause,
-    message = "Workspace link storage failed",
+    message = "Library storage failed",
   }: {
     readonly operation: string;
     readonly cause: unknown;

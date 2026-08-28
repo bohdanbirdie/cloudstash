@@ -31,7 +31,7 @@ const translateWorkspaceAccess = (
     unauthorized: () =>
       syncAuthError("SESSION_EXPIRED", "Session expired or invalid", 401),
     missingScope: () =>
-      syncAuthError("ACCESS_DENIED", "No active workspace", 403),
+      syncAuthError("ACCESS_DENIED", "No library is available", 403),
     forbidden: (forbidden) =>
       Match.value(forbidden).pipe(
         Match.tag("WorkspaceUserUnapprovedError", () =>
@@ -40,7 +40,7 @@ const translateWorkspaceAccess = (
         Match.orElse(() =>
           syncAuthError(
             "ACCESS_DENIED",
-            "You do not have access to this workspace",
+            "You do not have access to this library",
             403
           )
         )

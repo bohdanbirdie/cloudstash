@@ -55,7 +55,7 @@ export function IntegrationsTiles() {
       </IntegrationTile>
       <IntegrationTile
         name="AI chat"
-        caption="Ask questions across your Vault and act on the answers."
+        caption="Ask questions across your library and act on the answers."
       >
         <AiChatMockup delay={3 * MOCKUP_STAGGER} />
       </IntegrationTile>
@@ -224,7 +224,7 @@ function RaycastMockup({ delay = 0 }: { delay?: number }) {
         <li className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px] opacity-50">
           <span className="size-4 rounded-sm bg-white/10" />
           <span className="flex-1 truncate text-white/70">
-            Search your Vault
+            Search your library
           </span>
         </li>
       </ul>
@@ -603,7 +603,7 @@ function AiConnectorMockup({ delay = 0 }: { delay?: number }) {
               Cloudstash
             </div>
             <div className="text-[9px] text-muted-foreground">
-              Your Vault is ready to use
+              Your library is ready to use
             </div>
           </div>
           <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[8px] font-medium text-emerald-700 dark:text-emerald-400">

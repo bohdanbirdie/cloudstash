@@ -125,8 +125,8 @@ function OAuthConsentPage() {
             <CloudstashLogo className="size-12" variant="branded" />
             <CardTitle className="text-base">Connect to Cloudstash</CardTitle>
             <CardDescription>
-              {clientName ?? "An MCP client"} wants to connect to{" "}
-              {workspace.ok ? workspace.workspace.name : "your workspace"}.
+              {clientName ?? "An MCP client"} wants to connect to your
+              Cloudstash library.
             </CardDescription>
           </div>
         </CardHeader>

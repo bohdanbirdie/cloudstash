@@ -89,7 +89,7 @@ describe("tenant isolation", () => {
     });
     expect(update.status).toBe(400);
     expect(await update.json()).toEqual({
-      error: "API key workspace scope is immutable",
+      error: "API key library scope cannot be changed",
     });
 
     const afterUpdate = await env.DB.prepare(

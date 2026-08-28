@@ -53,7 +53,7 @@ availability and policy claims match shipped behavior and executable semantics.
 
 ## Reconciliation notes
 
-- 2026-08-21: whole-Vault Markdown/plain-link export was confirmed; tag/JSON
+- 2026-08-21: whole-library Markdown/plain-link export was confirmed; tag/JSON
   claims were removed. The unshipped iOS integration was removed from public
   surfaces. Raycast copy now describes its URL command, the larger Pro summary
   model moved to its own implementation task, and the unsupported
@@ -63,5 +63,8 @@ availability and policy claims match shipped behavior and executable semantics.
 - Terms now describe both billing intervals; production annual Stripe/Portal
   verification remains external evidence under DELTA-025.
 - 2026-08-28: removed fixed-length and every-save summary promises; aligned AI
-  provider, deletion, extension, and Vault/workspace terminology; deduplicated
+  provider, deletion, extension, and library terminology; deduplicated
   visible/structured FAQ copy; and added deterministic drift checks.
+- 2026-08-28: standardized customer copy on **library** for the saved-link
+  collection and reserved **workspace** for internal tenancy until customers can
+  select or manage more than one.

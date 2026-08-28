@@ -8,7 +8,7 @@ kanban-plugin: board
 - [ ] [[todos/telemetry-minimization|Minimize telemetry and document retained provider data]] — keep collection purpose-bound and deletion/retention claims accurate.
 - [ ] [[todos/admin-purchase-attribution|Extend admin purchase attribution]] — bounded aggregate funnel evidence in the existing dashboard.
 - [ ] [[todos/free-ai-summary-allowance|Plan a bounded Free AI-summary allowance]] — saved-link count remains unlimited; exhaustion preserves the link.
-- [ ] [[todos/initial-sync-blocking|Research large-Vault bootstrap]] — benchmark WebSocket vs supported HTTP replay, BootStatus/timeout UX, and upstream snapshot-at-head feasibility.
+- [ ] [[todos/initial-sync-blocking|Research large-library bootstrap]] — benchmark WebSocket vs supported HTTP replay, BootStatus/timeout UX, and upstream snapshot-at-head feasibility.
 - [ ] [[todos/automatic-summary-recovery|Recover failed summaries automatically]] — bounded primary, fallback, limited automatic retry, then a calm terminal state.
 
 ## Todo

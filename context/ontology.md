@@ -4,13 +4,14 @@ Canonical product and system language for Cloudstash.
 
 ## Language
 
-- **Vault** — The workspace's user-visible collection of saved links and
-  derived context. It includes unread, completed, active, and archived links.
-- **Workspace** — The product term for the tenant that owns one Vault,
-  subscription, capability set, and synchronized event history.
+- **Library** — The user-visible collection of saved links and derived context.
+  It includes unread, completed, active, and archived links.
+- **Workspace** — The internal tenant boundary that owns one library,
+  subscription, capability set, and synchronized event history. Customer copy
+  uses library or account while the product exposes only one workspace.
 - **Organization** — The Better Auth and D1 representation of a workspace.
-  Source identifiers and schema fields may say `orgId`; product prose should
-  prefer workspace.
+  Source identifiers and schema fields may say `orgId`; neither organization
+  nor workspace is needed in ordinary customer copy.
 - **Workspace ID** — The organization identifier reused as the LiveStore
   `storeId` and as the name of workspace-scoped Durable Objects.
 - **Link** — A saved URL plus lifecycle fields such as source, status, and
@@ -73,11 +74,14 @@ Workspace
   └─ content plane: workspace history
        └─ events → materializers → links · snapshots · summaries · tags
 
-Capture source → ingest/save → workspace history → Vault state → retrieval
+Capture source → ingest/save → workspace history → library state → retrieval
                                       └──────────→ enrichment → more events
 ```
 
-**Vault** always names the complete collection; it is never a removal state.
+**Library** always names the complete user-visible collection; **Inbox** is its
+active triage view, not a separate collection. **Workspace** remains an internal
+ownership and isolation boundary until multiple workspaces become a product
+concept.
 “Delete” is reserved for irreversible account/workspace deletion or internal
 soft-delete fields. User-facing link removal is **archive**; its inverse is
 **restore**.

@@ -53,7 +53,7 @@ export const PLANS: Readonly<Record<PlanTier, PlanInfo>> = {
     tagline: "The full Cloudstash. AI everywhere.",
     features: [
       "X bookmark sync",
-      "Chat with your Vault",
+      "Chat with your library",
       "Enriched X summaries",
       "MCP server",
     ],

@@ -2,7 +2,7 @@
 
 - **CS-DQ1 Shared-workspace product semantics.** The implementation supports
   organizations, membership, and invitations, but the product is positioned as
-  a personal Vault. Account deletion now fails closed when the personal
+  a personal library. Account deletion now fails closed when the personal
   organization has another member, so unresolved collaboration semantics cannot
   delete another user's membership or shared content. Should multi-member
   workspaces be a supported product contract or only an internal tenancy
@@ -22,7 +22,7 @@
   remote alignment.
 - **CS-DQ3 Initial sync readiness.** A fresh or large local replica can render
   before its full workspace history arrives, which is confusing at current
-  Vault sizes. What readiness state should block or qualify the initial app
+  library sizes. What readiness state should block or qualify the initial app
   view? Blocked on UX choice and measurements tracked in
   [initial-sync-blocking](../docs/todos/initial-sync-blocking.md).
 - **CS-DQ4 Collaboration between chat histories and workspace data.** The

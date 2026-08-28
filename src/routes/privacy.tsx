@@ -31,7 +31,7 @@ function PrivacyPage() {
     <LegalShell
       eyebrow="Legal"
       title="Privacy Policy"
-      lead="What we collect, what we don't, and how you stay in control of your Vault."
+      lead="What we collect, what we don't, and how you stay in control of your saved links."
     >
       <LegalArticle>
         <LegalUpdated date="August 28, 2026" />
@@ -116,8 +116,8 @@ function PrivacyPage() {
             signed-in app. Meta Pixel, a Facebook tracking script used to
             measure ads, runs only on the landing, login, contact, Terms, and
             Privacy pages. They record that a browser visited a page; they don’t
-            see the contents of your Vault. A Global Privacy Control signal
-            prevents Meta Pixel from loading.
+            see your saved links. A Global Privacy Control signal prevents Meta
+            Pixel from loading.
           </p>
         </section>
 
@@ -248,7 +248,7 @@ function PrivacyPage() {
               <strong>Meta Platforms, Inc.</strong> — Meta Pixel for ad
               measurement on the landing, login, contact, Terms, and Privacy
               pages. It receives the fact that a browser visited a URL on our
-              domain; it does not see your Vault contents. It does not load when
+              domain; it does not see your saved links. It does not load when
               your browser sends a Global Privacy Control signal.
             </li>
             <li>
@@ -288,8 +288,9 @@ function PrivacyPage() {
           </p>
           <p>
             When you delete your account (Settings → Account → Delete), access
-            ends right away. Cloudstash then removes your account and Vault data
-            in the background and automatically retries temporary failures.
+            ends right away. Cloudstash then removes your account and saved
+            links in the background and automatically retries temporary
+            failures.
           </p>
           <p>
             Some billing, security, analytics, or legal records may be kept when

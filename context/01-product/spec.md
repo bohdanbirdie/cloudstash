@@ -17,7 +17,7 @@ The primary authenticated surface is a compact link inbox with Inbox,
 Completed, All, and Archive views. A right pane shows selected-link detail,
 summary, tags, and contextual actions. A bottom dock provides search and the
 workspace agent. Desktop keyboard interaction and mobile sheets expose the same
-underlying Vault operations.
+underlying library operations.
 
 ## Capture Surfaces
 

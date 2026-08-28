@@ -9,7 +9,7 @@ Active.
 
 ## Realizations
 
-| Integration      | Auth/connection                                         | Transport into Vault                                                 | Lifecycle                                           |
+| Integration      | Auth/connection                                         | Transport into library                                               | Lifecycle                                           |
 | ---------------- | ------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------- |
 | Chrome extension | web-minted paired API key + extension-origin allowlist  | direct LiveStore WebSocket client; local browser adapter             | key revoke/disconnect; extension Web Store release  |
 | Raycast          | browser verification exchange → device-labelled API key | `integrations`-gated ingest Queue with `source: raycast`             | key revoke; separate npm/Raycast repo               |

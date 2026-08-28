@@ -30,7 +30,7 @@ Add only bounded aggregate purchase-attribution evidence.
   approved coarse entry source without treating client events as payment truth.
 - Free allowance exhaustion and subsequent upgrade starts are visible as
   aggregates.
-- No raw Vault content, credentials, or unnecessary stable identifiers are
+- No raw library content, credentials, or unnecessary stable identifiers are
   stored or rendered.
 - Tests cover duplicate callbacks, abandonment, and Stripe-as-authority mapping.
 

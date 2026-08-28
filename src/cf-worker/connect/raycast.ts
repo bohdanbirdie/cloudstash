@@ -281,11 +281,14 @@ export const handleRaycastConnect = (
           ),
         NoActiveOrgError: () =>
           Effect.succeed(
-            Response.json({ error: "No active organization" }, { status: 400 })
+            Response.json(
+              { error: "No Cloudstash library is available" },
+              { status: 400 }
+            )
           ),
         OrgNotFoundError: () =>
           Effect.succeed(
-            Response.json({ error: "Organization not found" }, { status: 404 })
+            Response.json({ error: "Library not found" }, { status: 404 })
           ),
         SessionLookupError: () =>
           Effect.succeed(

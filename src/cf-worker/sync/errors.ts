@@ -28,7 +28,7 @@ export class OrgAccessDeniedError extends Schema.TaggedErrorClass<OrgAccessDenie
   }
 ) {
   override get message() {
-    return "Access denied: not a member of this organization";
+    return "Access denied: this library is unavailable to your account";
   }
 }
 

@@ -27,7 +27,7 @@ export function PullQuote() {
               opening one.
             </h2>
             <p className="mt-6 max-w-[44ch] text-pretty text-[15px] leading-relaxed text-primary-foreground/85">
-              Clear summaries turn your Vault into a contents page — you only
+              Clear summaries turn your library into a contents page — you only
               open what earns it.
             </p>
           </motion.div>

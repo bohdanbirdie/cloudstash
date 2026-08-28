@@ -1,4 +1,4 @@
-# Research large-Vault bootstrap
+# Research large-library bootstrap
 
 ## Problem and outcome
 

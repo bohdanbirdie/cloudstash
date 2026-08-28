@@ -33,7 +33,7 @@ for a Cloudstash user and workspace.
   newest bookmark and does not import the existing recent history by default,
   avoiding surprise cost/backlog.
 - **CS.SYS.INT-T03 Best-effort source response:** Telegram draft/final
-  notification failure does not undo a durable Vault save.
+  notification failure does not undo a durable library save.
 
 ## Requirements
 

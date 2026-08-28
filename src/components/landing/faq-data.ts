@@ -1,7 +1,7 @@
 export const FAQ_ITEMS: readonly { q: string; a: string }[] = [
   {
     q: "Where does my data live?",
-    a: "Cloudstash stores your Vault on Cloudflare and syncs it to every device you sign in on, so it works offline after it loads. We don’t sell your data or use it to train AI. You can export your Vault anytime.",
+    a: "Cloudstash stores your library on Cloudflare and syncs it to every device you sign in on, so it works offline after it loads. We don’t sell your data or use it to train AI. You can export your saved links anytime.",
   },
   {
     q: "Do you train AI on my links?",
@@ -17,7 +17,7 @@ export const FAQ_ITEMS: readonly { q: string; a: string }[] = [
   },
   {
     q: "Can I export everything?",
-    a: "Yes — export your whole Vault as Markdown or plain links anytime from the account menu.",
+    a: "Yes — export all saved links as Markdown or plain links anytime from the account menu.",
   },
   {
     q: "How do I delete my account?",

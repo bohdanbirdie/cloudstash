@@ -91,7 +91,7 @@ type Link = typeof tables.links.Type;
 const workspaceUnavailable = () =>
   ({
     ok: false,
-    error: { code: "unavailable", message: "Workspace is unavailable" },
+    error: { code: "unavailable", message: "Library is unavailable" },
   }) as const;
 
 export class LinkProcessorDO

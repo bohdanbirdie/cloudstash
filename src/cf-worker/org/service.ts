@@ -141,10 +141,7 @@ export const handleGetMe = (request: Request, env: Env): Promise<Response> =>
         OrgNotFoundError: () =>
           Effect.logInfo("Get me org not found").pipe(
             Effect.as(
-              Response.json(
-                { error: "Organization not found" },
-                { status: 404 }
-              )
+              Response.json({ error: "Library not found" }, { status: 404 })
             )
           ),
         OrgUpstreamError: (e) =>
@@ -272,10 +269,7 @@ export const handleGetOrg = (
           Effect.logInfo("Get org not found").pipe(
             Effect.annotateLogs({ orgId: maskId(orgId) }),
             Effect.as(
-              Response.json(
-                { error: "Organization not found" },
-                { status: 404 }
-              )
+              Response.json({ error: "Library not found" }, { status: 404 })
             )
           ),
         OrgUpstreamError: (e) =>

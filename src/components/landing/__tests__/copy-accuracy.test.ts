@@ -26,9 +26,10 @@ describe("customer copy projections", () => {
   });
 
   it("does not restore known absolute summary or deletion promises", () => {
-    const copy = JSON.stringify({ FAQ_ITEMS, SOFTWARE_APPLICATION_LD });
+    const copy = JSON.stringify({ FAQ_ITEMS, PLANS, SOFTWARE_APPLICATION_LD });
 
     expect(copy).not.toMatch(/two-paragraph|summary on every save/i);
     expect(copy).not.toMatch(/wiped immediately|don’t hold onto anything/i);
+    expect(copy).not.toMatch(/\bVault\b|\bworkspace\b/i);
   });
 });

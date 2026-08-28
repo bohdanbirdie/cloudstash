@@ -2,7 +2,7 @@
 
 ## Context
 
-Owns local search/filtering, export, public Vault reads, and the workspace chat
+Owns local search/filtering, export, public library reads, and the workspace chat
 agent's retrieval and mutation tools.
 
 ## Assumptions
@@ -11,7 +11,7 @@ agent's retrieval and mutation tools.
   can be searched interactively with indexed/LIKE SQLite queries without a
   remote search service.
   - Validation: current query implementation and list performance work.
-- **CS.SYS.RET-A02 Agent is a Vault interface:** Chat adds natural-language
+- **CS.SYS.RET-A02 Agent is a library interface:** Chat adds natural-language
   access to existing workspace operations; it is not an independent source of
   content truth.
   - Validation: tools commit/query the same LiveStore store.
@@ -53,12 +53,12 @@ agent's retrieval and mutation tools.
 - **CS.SYS.RET-R07 Agent workspace scope:** Chat identity, store, tools, usage,
   and authentication must resolve to one workspace. `refines: CS-R06`
 - **CS.SYS.RET-R08 Server tools:** The entitled agent must expose server-side
-  tools that search and inspect Vault links and mutate supported link state over
+  tools that search and inspect library links and mutate supported link state over
   the workspace store; the model does not receive direct database access.
 - **CS.SYS.RET-R09 Archival confirmation:** Agent tools that archive one or many
   links require human confirmation before execution.
 - **CS.SYS.RET-R10 Guardrails:** Agent input, step count, context window, errors,
   and monthly budget must be bounded before or during provider execution.
-- **CS.SYS.RET-R11 Citations:** When an agent answer relies on a Vault link,
+- **CS.SYS.RET-R11 Citations:** When an agent answer relies on a library link,
   its response/tool result must include the relevant link ID/URL so the client
   can render a grounded record.

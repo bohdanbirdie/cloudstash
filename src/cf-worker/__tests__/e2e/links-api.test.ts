@@ -240,7 +240,7 @@ describe("Links REST API", () => {
     });
     expect(response.status).toBe(410);
     expect(await response.json()).toEqual({
-      error: "Workspace is unavailable",
+      error: "Library is unavailable",
     });
   });
 });

@@ -84,7 +84,7 @@ const rejectedConsent = (baseURL: string): Response =>
     {
       error: "invalid_request",
       error_description:
-        "The active workspace changed. Restart authorization and review the consent screen again.",
+        "Your Cloudstash account changed. Restart authorization and review the consent screen again.",
     },
     {
       headers: { "Set-Cookie": clearConsentBindingCookie(baseURL) },

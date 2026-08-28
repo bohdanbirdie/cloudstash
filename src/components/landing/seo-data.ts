@@ -34,7 +34,7 @@ export const SOFTWARE_APPLICATION_LD = {
       price: "12",
       priceCurrency: "USD",
       description:
-        "X bookmark sync with enriched summaries, chat with your Vault, and MCP server access.",
+        "X bookmark sync with enriched summaries, chat with your library, and MCP server access.",
     },
   ],
 };

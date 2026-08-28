@@ -58,6 +58,7 @@ export const sessionErrorTags = {
     503,
     "Auth backend unavailable"
   ),
-  NoActiveOrgError: () => Effect.succeed(json(400, "No active organization")),
-  OrgNotFoundError: () => Effect.succeed(json(404, "Organization not found")),
+  NoActiveOrgError: () =>
+    Effect.succeed(json(400, "No Cloudstash library is available")),
+  OrgNotFoundError: () => Effect.succeed(json(404, "Library not found")),
 } as const;

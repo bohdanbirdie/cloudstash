@@ -157,7 +157,7 @@ describe("gateUserApiKeyCreate", () => {
         Effect.promise(async () => {
           expect(res?.status).toBe(400);
           expect(await res!.json()).toEqual({
-            error: "API key workspace scope is immutable",
+            error: "API key library scope cannot be changed",
           });
         })
       )
@@ -201,7 +201,7 @@ describe("gateUserApiKeyCreate", () => {
           const body = (yield* Effect.promise(() => res!.json())) as {
             error: string;
           };
-          expect(body.error).toBe("No active organization");
+          expect(body.error).toBe("No Cloudstash library is available");
         })
       )
     )

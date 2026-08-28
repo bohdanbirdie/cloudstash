@@ -37,7 +37,7 @@ export function useApiKeys(enabled = true) {
   const generateKey = useCallback(
     async (name: string): Promise<string | null> => {
       if (!auth.orgId) {
-        setMutationError("No workspace selected");
+        setMutationError("Your library is unavailable");
         return null;
       }
 

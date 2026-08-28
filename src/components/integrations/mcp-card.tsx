@@ -58,7 +58,7 @@ export function McpCard() {
       return <Skeleton className="h-3 w-44 motion-reduce:animate-none" />;
     }
     if (availability === "unavailable") return "Availability couldn't load";
-    if (availability === "disabled") return "Disabled for this workspace";
+    if (availability === "disabled") return "MCP access is disabled";
     return "Connect Cloudstash to any MCP client";
   })();
 
