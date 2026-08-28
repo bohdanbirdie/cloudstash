@@ -91,7 +91,7 @@ export function HeroInbox() {
             {DEMO_LINKS.map((link, index) => (
               <li
                 key={link.id}
-                className={index > 2 ? "hidden md:block" : undefined}
+                className={cn({ "hidden md:block": index > 2 })}
               >
                 <DemoLinkRow
                   link={link}

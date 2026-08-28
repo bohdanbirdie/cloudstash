@@ -53,8 +53,11 @@ function LinkListItemImpl({
         onMouseEnter={onMouseEnter}
         className={cn(
           "group relative -mx-1 grid w-[calc(100%+0.5rem)] cursor-default grid-cols-[1fr_4.75rem] items-start rounded-md px-2 py-2 text-left outline-none transition-colors lg:-mx-3 lg:w-[calc(100%+1.5rem)] mouse:hover:[&:not(:has([data-domain-link]:hover))]:bg-muted focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:ring-inset",
-          { "gap-x-2": showCheckbox, "gap-x-8": !showCheckbox },
-          active && "bg-muted"
+          {
+            "gap-x-2": showCheckbox,
+            "gap-x-8": !showCheckbox,
+            "bg-muted": active,
+          }
         )}
       >
         <div className="flex min-w-0 items-start gap-2">

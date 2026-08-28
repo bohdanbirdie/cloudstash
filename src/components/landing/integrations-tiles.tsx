@@ -3,6 +3,7 @@ import { Fragment } from "react";
 
 import { CloudstashLogo } from "@/components/cloudstash-logo";
 import { KeyChord } from "@/components/ui/key-chord";
+import { cn } from "@/lib/utils";
 
 const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -157,7 +158,7 @@ function TelegramMockup({ delay = 0 }: { delay?: number }) {
                     delay:
                       delay + TELEGRAM_STREAM_START + i * TELEGRAM_WORD_STAGGER,
                   }}
-                  className={isPrimary ? "font-medium text-primary" : undefined}
+                  className={cn({ "font-medium text-primary": isPrimary })}
                 >
                   {word}
                 </motion.span>

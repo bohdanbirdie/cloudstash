@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { authClient, loadAuth } from "@/lib/auth";
 import { META_PIXEL_HEAD_SCRIPTS } from "@/lib/meta-pixel";
 import { PLANS } from "@/lib/plan";
+import { cn } from "@/lib/utils";
 
 async function clearOPFS() {
   if (typeof navigator === "undefined" || !navigator.storage?.getDirectory)
@@ -115,9 +116,12 @@ function BrandLockup({
   tone?: "default" | "inverse";
 }) {
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
+    <div className={cn("flex items-center gap-2", className)}>
       <CloudstashLogo
-        className={`size-6 ${tone === "inverse" ? "text-primary-foreground" : "text-primary"}`}
+        className={cn("size-6", {
+          "text-primary-foreground": tone === "inverse",
+          "text-primary": tone !== "inverse",
+        })}
       />
       <span className="text-sm font-semibold tracking-tight">cloudstash</span>
     </div>
@@ -133,7 +137,10 @@ function GoogleButton({
 }) {
   return (
     <Button
-      className={`relative h-8 w-full rounded-md border-[#747775] bg-white px-10 text-[14px]/[20px] text-[#1f1f1f] transition-colors duration-150 hover:bg-[#f5f5f5] hover:text-[#1f1f1f] active:not-aria-[haspopup]:translate-y-0 active:bg-[#eeeeee] dark:bg-white dark:text-[#1f1f1f] dark:hover:bg-[#f5f5f5] ${className}`}
+      className={cn(
+        "relative h-8 w-full rounded-md border-[#747775] bg-white px-10 text-[14px]/[20px] text-[#1f1f1f] transition-colors duration-150 hover:bg-[#f5f5f5] hover:text-[#1f1f1f] active:not-aria-[haspopup]:translate-y-0 active:bg-[#eeeeee] dark:bg-white dark:text-[#1f1f1f] dark:hover:bg-[#f5f5f5]",
+        className
+      )}
       onClick={onClick}
       style={{ fontFamily: '"Google Sans", Roboto, Arial, sans-serif' }}
       type="button"

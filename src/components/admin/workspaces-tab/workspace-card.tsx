@@ -61,7 +61,7 @@ export function WorkspaceCard({
     <div
       className={cn(
         "border-border/60 bg-background rounded-md border px-3 py-2.5",
-        isCurrent && "bg-primary/[0.03] border-primary/30"
+        { "bg-primary/[0.03] border-primary/30": isCurrent }
       )}
     >
       <div className="mb-2 flex items-start justify-between gap-2">

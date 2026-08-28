@@ -17,7 +17,7 @@ export function TagBadge({
 }: TagBadgeProps) {
   const sharedClassName = cn(
     "inline-flex items-center gap-1 text-xs font-medium text-muted-foreground whitespace-nowrap transition-colors",
-    onClick && "hover:text-foreground",
+    { "hover:text-foreground": Boolean(onClick) },
     className
   );
 

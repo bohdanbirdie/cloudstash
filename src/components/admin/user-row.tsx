@@ -303,7 +303,7 @@ export function UserRow({ user, adminCount, isSelf }: UserRowProps) {
                 />
                 <DropdownMenuContent
                   align="end"
-                  className={lockReason ? "min-w-52" : undefined}
+                  className={cn({ "min-w-52": Boolean(lockReason) })}
                 >
                   <DropdownMenuRadioGroup
                     value={currentRole}

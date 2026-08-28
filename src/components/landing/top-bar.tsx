@@ -33,10 +33,12 @@ export function TopBar() {
     <header
       className={cn(
         "fixed inset-x-0 top-0 z-50 border-b border-transparent bg-linear-to-b from-background via-background/90 to-transparent text-foreground transition-colors duration-200",
-        nudged && "border-border/60 bg-background bg-none"
+        { "border-border/60 bg-background bg-none": nudged }
       )}
     >
-      <div className={`${SHELL} flex h-14 items-center justify-between gap-6`}>
+      <div
+        className={cn(SHELL, "flex h-14 items-center justify-between gap-6")}
+      >
         <Link
           to="/"
           className="group flex items-center gap-2.5 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"

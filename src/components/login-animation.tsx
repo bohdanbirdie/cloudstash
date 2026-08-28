@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 
 import { torusKnotPoint } from "@/lib/brand/torus-knot";
 import type { TorusKnotConfig } from "@/lib/brand/torus-knot";
+import { cn } from "@/lib/utils";
 
 const CONFIG: TorusKnotConfig = { R: 16, r: 8, cx: 50, cy: 50 };
 const PARTICLE_COUNT = 82;
@@ -89,7 +90,14 @@ export function LoginAnimation({
   return (
     <svg
       viewBox="0 0 100 100"
-      className={`overflow-visible ${variant === "light" ? "text-white" : "text-foreground/50"} ${className ?? "size-56"}`}
+      className={cn(
+        "overflow-visible",
+        {
+          "text-white": variant === "light",
+          "text-foreground/50": variant !== "light",
+        },
+        className ?? "size-56"
+      )}
       fill="none"
     >
       <g ref={groupRef}>

@@ -92,10 +92,9 @@ export function DeleteAccountDialog({
                 setConfirmation(event.target.value);
                 if (error) setError(null);
               }}
-              className={cn(
-                "pr-7 transition-colors",
-                canDelete && "border-destructive/40 ring-2 ring-destructive/20"
-              )}
+              className={cn("pr-7 transition-colors", {
+                "border-destructive/40 ring-2 ring-destructive/20": canDelete,
+              })}
             />
             {canDelete && (
               <CheckIcon

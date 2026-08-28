@@ -44,7 +44,7 @@ export function ReprocessButton({ linkId }: { linkId: string }) {
           disabled={busy}
           aria-label="Reprocess"
         >
-          <RefreshCwIcon className={cn(busy && "animate-spin")} />
+          <RefreshCwIcon className={cn({ "animate-spin": busy })} />
         </Button>
       }
     />

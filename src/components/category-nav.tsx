@@ -41,7 +41,7 @@ export function CategoryNav() {
             to={link.to}
             search={{ tag: undefined }}
             activeOptions={link.exact ? { exact: true } : undefined}
-            className={cn(baseClass, isActive && activeClass)}
+            className={cn(baseClass, { [activeClass]: isActive })}
             activeProps={{ "aria-current": "page" }}
             onMouseEnter={() => setHovered(link.to)}
             onFocus={() => setHovered(link.to)}

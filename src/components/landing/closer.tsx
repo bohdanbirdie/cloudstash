@@ -1,13 +1,14 @@
 import { Link } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 import { SHELL } from "./shared";
 
 export function Closer() {
   return (
     <section className="bg-muted/30 py-16 sm:py-20 lg:py-24">
-      <div className={`${SHELL} flex flex-col items-center text-center`}>
+      <div className={cn(SHELL, "flex flex-col items-center text-center")}>
         <h2 className="text-balance text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
           Save your first link.
         </h2>

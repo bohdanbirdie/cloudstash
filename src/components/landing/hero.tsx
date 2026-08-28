@@ -7,6 +7,7 @@ import {
   XLogo,
 } from "@/components/integrations/integration-icons";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 import { HeroInbox } from "./hero-inbox";
 import { SHELL } from "./shared";
@@ -59,7 +60,10 @@ export function Hero() {
     <section id="top" className="relative overflow-hidden bg-background">
       <HeroBackdrop />
       <div
-        className={`relative ${SHELL} pb-14 pt-28 sm:pb-18 sm:pt-32 lg:pb-20 lg:pt-40`}
+        className={cn(
+          "relative pb-14 pt-28 sm:pb-18 sm:pt-32 lg:pb-20 lg:pt-40",
+          SHELL
+        )}
       >
         <div className="mx-auto flex max-w-4xl flex-col items-center text-center">
           <h1 className="text-balance text-5xl font-bold leading-[0.98] tracking-[-0.045em] sm:text-6xl lg:text-[5.25rem]">
@@ -161,13 +165,29 @@ function HeroSourceNodes() {
         }) => (
           <div
             key={label}
-            className={`absolute ${position} flex -translate-y-1/2 items-center ${side === "left" ? "right-full" : "left-full flex-row-reverse"}`}
+            className={cn(
+              "absolute flex -translate-y-1/2 items-center",
+              position,
+              {
+                "right-full": side === "left",
+                "left-full flex-row-reverse": side !== "left",
+              }
+            )}
           >
             <div
-              className={`relative z-20 flex items-center gap-2.5 rounded-full border border-border/80 bg-background/90 py-1.5 ${side === "left" ? "flex-row-reverse pl-3 pr-1.5" : "pl-1.5 pr-3"}`}
+              className={cn(
+                "relative z-20 flex items-center gap-2.5 rounded-full border border-border/80 bg-background/90 py-1.5",
+                {
+                  "flex-row-reverse pl-3 pr-1.5": side === "left",
+                  "pl-1.5 pr-3": side !== "left",
+                }
+              )}
             >
               <span
-                className={`grid size-8 place-items-center rounded-full ${iconClassName}`}
+                className={cn(
+                  "grid size-8 place-items-center rounded-full",
+                  iconClassName
+                )}
               >
                 <Icon className="size-4" />
               </span>

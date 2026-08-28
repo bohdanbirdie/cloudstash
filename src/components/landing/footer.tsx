@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 
 import { CloudstashLogo } from "@/components/cloudstash-logo";
 import { SectionEyebrow } from "@/components/right-pane/detail-view/section-eyebrow";
+import { cn } from "@/lib/utils";
 
 import { SHELL } from "./shared";
 
@@ -44,7 +45,10 @@ export function Footer() {
   return (
     <footer>
       <div
-        className={`${SHELL} grid gap-10 py-10 sm:grid-cols-[1.4fr_repeat(3,1fr)] sm:gap-12 sm:py-12`}
+        className={cn(
+          SHELL,
+          "grid gap-10 py-10 sm:grid-cols-[1.4fr_repeat(3,1fr)] sm:gap-12 sm:py-12"
+        )}
       >
         <div>
           <div className="flex items-center gap-2.5">
@@ -79,7 +83,10 @@ export function Footer() {
         </div>
       </div>
       <div
-        className={`${SHELL} border-t border-border/60 py-5 text-xs text-muted-foreground`}
+        className={cn(
+          SHELL,
+          "border-t border-border/60 py-5 text-xs text-muted-foreground"
+        )}
       >
         © {year} cloudstash
       </div>
