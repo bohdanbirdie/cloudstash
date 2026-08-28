@@ -1,4 +1,4 @@
-# Research large-library bootstrap
+# Research HTTP bootstrap and preloaded library state
 
 ## Problem and outcome
 

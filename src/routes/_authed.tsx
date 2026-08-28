@@ -11,6 +11,10 @@ import { HotkeysProvider } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
 import { AddLinkProvider } from "@/components/add-link";
+import {
+  ApplicationFrame,
+  LibraryLayout,
+} from "@/components/application-layout";
 import { PaywallModal } from "@/components/billing/paywall-modal";
 import { BottomDock } from "@/components/bottom-dock/bottom-dock";
 import { ListDataProvider } from "@/components/list-data-context";
@@ -21,8 +25,7 @@ import { MobileDetailSheet } from "@/components/right-pane/mobile-detail-sheet";
 import { RightPane } from "@/components/right-pane/right-pane";
 import { SettingsDialog } from "@/components/settings/settings-dialog";
 import { TagStrip } from "@/components/tag-strip/tag-strip";
-import { TopBar } from "@/components/top-bar";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { SyncingTopBar, TopBar } from "@/components/top-bar";
 import { YouTubePlayerHost } from "@/components/youtube-player-host";
 import { usePageStaticData } from "@/hooks/use-page-static-data";
 import { loadAuth, useAuth } from "@/lib/auth";
@@ -102,41 +105,67 @@ function AuthedShellWrapper() {
   const { storeRegistry } = Route.useRouteContext();
   useInputMode();
   const matchRoute = useMatchRoute();
-  const showDock = !matchRoute({ to: "/admin" });
+  const isAdmin = Boolean(matchRoute({ to: "/admin" }));
 
   return (
     <StoreRegistryProvider storeRegistry={storeRegistry}>
       <HotkeysProvider initiallyActiveScopes={["global"]}>
-        <Suspense fallback={<LoadingScreen />}>
-          <ConnectionMonitor />
-          <AddLinkProvider>
-            <div className="bg-background flex h-svh flex-col">
-              <div className="mx-auto flex h-full w-full min-h-0 max-w-7xl flex-col">
-                <div className="min-h-0 flex-1 overflow-hidden">
-                  <ListDataProvider>
-                    <AuthedShell />
-                  </ListDataProvider>
-                </div>
-                {showDock && (
-                  <div className="relative z-50 flex h-20 shrink-0 items-center justify-center">
-                    <BottomDock />
-                  </div>
-                )}
-              </div>
-            </div>
-            <SettingsDialog />
-            <PaywallModal />
-            <MobileDetailSheet />
+        <ApplicationFrame
+          dock={
+            isAdmin ? undefined : (
+              <Suspense fallback={null}>
+                <BottomDock />
+              </Suspense>
+            )
+          }
+        >
+          {isAdmin ? (
+            <Outlet />
+          ) : (
+            <Suspense fallback={<LibrarySyncingShell />}>
+              <ConnectionMonitor />
+              <AddLinkProvider>
+                <ListDataProvider>
+                  <AuthedShell />
+                </ListDataProvider>
+              </AddLinkProvider>
+            </Suspense>
+          )}
+        </ApplicationFrame>
+        <Suspense fallback={null}>
+          <SettingsDialog />
+        </Suspense>
+        <PaywallModal />
+        {isAdmin ? null : (
+          <>
+            <Suspense fallback={null}>
+              <MobileDetailSheet />
+            </Suspense>
             <YouTubePlayerHost />
             {import.meta.env.DEV && (
               <Suspense fallback={null}>
                 <DevToolsPanel />
               </Suspense>
             )}
-          </AddLinkProvider>
-        </Suspense>
+          </>
+        )}
       </HotkeysProvider>
     </StoreRegistryProvider>
+  );
+}
+
+function LibrarySyncingShell() {
+  return (
+    <LibraryLayout
+      topBar={<SyncingTopBar />}
+      masthead={null}
+      rightPane={null}
+      loadingState={
+        <LoadingScreen className="h-full" animationClassName="size-20" />
+      }
+    >
+      {null}
+    </LibraryLayout>
   );
 }
 
@@ -152,30 +181,13 @@ function AuthedShell() {
   }
 
   return (
-    <div className="h-full overflow-hidden">
-      <div className="flex h-full flex-col px-4 pt-4 pb-6 lg:px-8 lg:pt-6">
-        <TopBar />
-
-        <TagStrip status={status} />
-
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-x-8 lg:grid-cols-[minmax(0,820px)_540px]">
-          <div className="flex min-h-0 min-w-0 flex-col">
-            <Masthead />
-            <ScrollArea className="min-h-0 flex-1">
-              <div className="px-1 lg:px-3">
-                <Outlet />
-              </div>
-            </ScrollArea>
-          </div>
-          {/* CSS-gated (Tailwind `lg` = min-width:1024px): crossing the
-              boundary is a free visibility toggle, not a mount/unmount.
-              The mobile sheet is hidden by the same `lg:` query, so the
-              pane and sheet can never both show. */}
-          <div className="hidden lg:contents">
-            <RightPane />
-          </div>
-        </div>
-      </div>
-    </div>
+    <LibraryLayout
+      topBar={<TopBar />}
+      tagStrip={<TagStrip status={status} />}
+      masthead={<Masthead />}
+      rightPane={<RightPane />}
+    >
+      <Outlet />
+    </LibraryLayout>
   );
 }
