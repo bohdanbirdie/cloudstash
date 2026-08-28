@@ -1,82 +1,42 @@
-import { Context, Duration, Effect, Layer, Option, Schema } from "effect";
+import { Context, Data, Effect, Layer } from "effect";
 
 import { OrgId } from "../db/branded";
 import { maskId } from "../log-utils";
 import { ENRICHMENT_USAGE_KEY, getCurrentPeriod } from "./types";
 
-const COUNTER_TTL = Duration.days(70);
-
-export class EnrichmentUsageGetError extends Schema.TaggedErrorClass<EnrichmentUsageGetError>()(
-  "EnrichmentUsageGetError",
-  {
-    storeId: OrgId,
-    period: Schema.String,
-    cause: Schema.Defect(),
-  }
-) {}
-
-export class EnrichmentUsagePutError extends Schema.TaggedErrorClass<EnrichmentUsagePutError>()(
-  "EnrichmentUsagePutError",
-  {
-    storeId: OrgId,
-    period: Schema.String,
-    cause: Schema.Defect(),
-  }
-) {}
-
-export type AnyEnrichmentUsageError =
-  | EnrichmentUsageGetError
-  | EnrichmentUsagePutError;
+export class EnrichmentUsageTransactionError extends Data.TaggedError(
+  "EnrichmentUsageTransactionError"
+)<{
+  readonly storeId: OrgId;
+  readonly period: string;
+  readonly cause: unknown;
+}> {}
 
 export interface EnrichmentUsageBindings {
-  readonly kv: KVNamespace;
+  readonly storage: DurableObjectStorage;
+}
+
+export interface EnrichmentReservation {
+  readonly period: string;
+  readonly reserved: boolean;
+  readonly used: number;
 }
 
 export class EnrichmentUsage extends Context.Service<
   EnrichmentUsage,
   {
-    readonly current: (
-      storeId: OrgId
-    ) => Effect.Effect<
-      { used: number; period: string },
-      EnrichmentUsageGetError
-    >;
-    readonly increment: (
-      storeId: OrgId
-    ) => Effect.Effect<
-      { used: number; period: string },
-      AnyEnrichmentUsageError
-    >;
+    readonly reserve: (
+      storeId: OrgId,
+      cap: number
+    ) => Effect.Effect<EnrichmentReservation, EnrichmentUsageTransactionError>;
   }
 >()("@cloudstash/EnrichmentUsage") {}
 
-const parseUsed = (raw: string | null): number =>
-  Option.fromNullishOr(raw).pipe(
-    Option.map((s) => Number.parseInt(s, 10)),
-    Option.filter((n) => Number.isFinite(n)),
-    Option.getOrElse(() => 0)
-  );
-
 export const EnrichmentUsageLive = (bindings: EnrichmentUsageBindings) =>
   Layer.succeed(EnrichmentUsage, {
-    current: Effect.fn("EnrichmentUsage.current")(function* (storeId: OrgId) {
-      const period = getCurrentPeriod();
-      yield* Effect.annotateCurrentSpan({
-        storeId: maskId(storeId),
-        period,
-      });
-      const key = ENRICHMENT_USAGE_KEY(storeId, period);
-      const raw = yield* Effect.tryPromise({
-        try: () => bindings.kv.get(key),
-        catch: (cause) =>
-          new EnrichmentUsageGetError({ storeId, period, cause }),
-      });
-      const used = parseUsed(raw);
-      yield* Effect.annotateCurrentSpan("used", used);
-      return { used, period };
-    }),
-    increment: Effect.fn("EnrichmentUsage.increment")(function* (
-      storeId: OrgId
+    reserve: Effect.fn("EnrichmentUsage.reserve")(function* (
+      storeId: OrgId,
+      cap: number
     ) {
       const period = getCurrentPeriod();
       yield* Effect.annotateCurrentSpan({
@@ -84,21 +44,24 @@ export const EnrichmentUsageLive = (bindings: EnrichmentUsageBindings) =>
         period,
       });
       const key = ENRICHMENT_USAGE_KEY(storeId, period);
-      const raw = yield* Effect.tryPromise({
-        try: () => bindings.kv.get(key),
-        catch: (cause) =>
-          new EnrichmentUsageGetError({ storeId, period, cause }),
-      });
-      const next = parseUsed(raw) + 1;
-      yield* Effect.tryPromise({
+      const reservation = yield* Effect.tryPromise({
         try: () =>
-          bindings.kv.put(key, String(next), {
-            expirationTtl: Duration.toSeconds(COUNTER_TTL),
+          bindings.storage.transaction(async (transaction) => {
+            const used = (await transaction.get<number>(key)) ?? 0;
+            if (used >= cap) {
+              return { period, reserved: false, used } as const;
+            }
+            const next = used + 1;
+            await transaction.put(key, next);
+            return { period, reserved: true, used: next } as const;
           }),
         catch: (cause) =>
-          new EnrichmentUsagePutError({ storeId, period, cause }),
+          new EnrichmentUsageTransactionError({ storeId, period, cause }),
       });
-      yield* Effect.annotateCurrentSpan("used", next);
-      return { used: next, period };
+      yield* Effect.annotateCurrentSpan({
+        reserved: reservation.reserved,
+        used: reservation.used,
+      });
+      return reservation;
     }),
   });

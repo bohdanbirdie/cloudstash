@@ -9,12 +9,12 @@ The **control plane** answers “who may do what?” It is ordinary relational s
 in D1: users, organizations, membership, sessions, API keys, plans, Stripe IDs,
 invites, settings, and aggregate activity.
 
-The **content plane** answers “what happened in this Vault?” It is a LiveStore
+The **content plane** answers “what happened in this library?” It is a LiveStore
 event history per workspace. Browser tabs, the Chrome extension, link processor,
 and chat agent are peers with local replicas. They commit facts and derive the
 same link tables through deterministic materializers.
 
-The queue is not another Vault. It is durable intake for sources that cannot
+The queue is not another library. It is durable intake for sources that cannot
 stay connected. The LinkProcessorDO converts each accepted message into a
 workspace event, then watches derived pending state and emits metadata, summary,
 tag, status, and notification events. The SyncBackendDO is the common ordering

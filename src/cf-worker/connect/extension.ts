@@ -237,7 +237,10 @@ export const handleExtensionConnect = (
           ),
         NoActiveOrgError: () =>
           Effect.succeed(
-            Response.json({ error: "No active organization" }, { status: 400 })
+            Response.json(
+              { error: "No Cloudstash library is available" },
+              { status: 400 }
+            )
           ),
         SessionLookupError: () =>
           Effect.succeed(

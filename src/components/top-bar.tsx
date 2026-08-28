@@ -3,6 +3,7 @@ import { Option, Schema } from "effect";
 import { ClipboardIcon, PlusIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
+import type { ReactNode } from "react";
 
 import { AccountMenu } from "@/components/account-menu";
 import { useAddLink } from "@/components/add-link";
@@ -42,12 +43,138 @@ async function readClipboardUrl(): Promise<string | null> {
   }
 }
 
+export function TopBarSurface({
+  leading,
+  trailing,
+}: {
+  leading: ReactNode;
+  trailing: ReactNode;
+}) {
+  return (
+    <header className="flex items-center justify-between gap-4 px-2">
+      <div className="flex items-center gap-4 lg:gap-10">{leading}</div>
+      <div className="flex items-center gap-2">{trailing}</div>
+    </header>
+  );
+}
+
+export function CloudstashBrand() {
+  return (
+    <>
+      <CloudstashLogo className="size-5 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-safe:group-hover:rotate-[20deg]" />
+      <span className="hidden text-[13px] font-medium tracking-[-0.005em] text-foreground lg:inline">
+        cloudstash
+      </span>
+    </>
+  );
+}
+
+function TopBarLeading() {
+  return (
+    <>
+      <Link
+        to="/inbox"
+        aria-label="Cloudstash inbox"
+        className="group flex items-center gap-2.5 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
+      >
+        <CloudstashBrand />
+      </Link>
+      <CategoryNav />
+    </>
+  );
+}
+
+function UpgradeAction() {
+  const { tier, isLoading } = useOrgFeatures();
+  const openPaywall = usePaywall((s) => s.openPaywall);
+  const showUpgrade = !isLoading && tier !== "pro";
+
+  return (
+    <AnimatePresence>
+      {showUpgrade && (
+        <motion.div
+          key="upgrade"
+          initial={{ opacity: 0, x: 8 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 8 }}
+          transition={{ type: "spring", duration: 0.3, bounce: 0 }}
+          transformTemplate={(_, generated) =>
+            generated === "none"
+              ? "translateZ(0)"
+              : `${generated} translateZ(0)`
+          }
+        >
+          <Button
+            variant="default"
+            size="sm"
+            aria-label="Upgrade"
+            onClick={() => openPaywall()}
+            className="gap-1.5"
+          >
+            <UPGRADE_ICON className="size-3.5" aria-hidden />
+            <motion.span
+              className="max-sm:hidden"
+              initial={{ filter: "blur(4px)" }}
+              animate={{ filter: "blur(0px)" }}
+              exit={{ filter: "blur(4px)" }}
+              transition={{ type: "spring", duration: 0.3, bounce: 0 }}
+            >
+              Upgrade
+            </motion.span>
+          </Button>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function TopBarChrome({
+  libraryAction,
+  showSyncStatus = true,
+}: {
+  libraryAction?: ReactNode;
+  showSyncStatus?: boolean;
+}) {
+  return (
+    <TopBarSurface
+      leading={<TopBarLeading />}
+      trailing={
+        <>
+          <UpgradeAction />
+          {showSyncStatus ? <SyncStatusIndicator /> : null}
+          {libraryAction}
+          <AccountMenu />
+        </>
+      }
+    />
+  );
+}
+
+export function SyncingTopBar() {
+  return (
+    <TopBarChrome
+      showSyncStatus={false}
+      libraryAction={
+        <Button
+          variant="ghost"
+          size="icon"
+          disabled
+          aria-label="Add link unavailable while library syncs"
+        >
+          <PlusIcon strokeWidth={1.75} aria-hidden />
+        </Button>
+      }
+    />
+  );
+}
+
+export function AdminTopBar() {
+  return <TopBarChrome showSyncStatus={false} />;
+}
+
 export function TopBar() {
   const { addLink } = useAddLink();
   const isNarrow = useNarrowViewport();
-  const { tier, isLoading } = useOrgFeatures();
-  const showUpgrade = !isLoading && tier !== "pro";
-  const openPaywall = usePaywall((s) => s.openPaywall);
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
   const [clipboardUrl, setClipboardUrl] = useState<string | null>(null);
@@ -83,58 +210,8 @@ export function TopBar() {
   };
 
   return (
-    <header className="flex items-center justify-between gap-4 px-2">
-      <div className="flex items-center gap-4 lg:gap-10">
-        <Link
-          to="/inbox"
-          aria-label="Cloudstash inbox"
-          className="group flex items-center gap-2.5 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
-        >
-          <CloudstashLogo className="size-5 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-safe:group-hover:rotate-[20deg]" />
-          <span className="hidden text-[13px] font-medium tracking-[-0.005em] text-foreground lg:inline">
-            cloudstash
-          </span>
-        </Link>
-        <CategoryNav />
-      </div>
-
-      <div className="flex items-center gap-2">
-        <AnimatePresence>
-          {showUpgrade && (
-            <motion.div
-              key="upgrade"
-              initial={{ opacity: 0, x: 8 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 8 }}
-              transition={{ type: "spring", duration: 0.3, bounce: 0 }}
-              transformTemplate={(_, generated) =>
-                generated === "none"
-                  ? "translateZ(0)"
-                  : `${generated} translateZ(0)`
-              }
-            >
-              <Button
-                variant="default"
-                size="sm"
-                aria-label="Upgrade"
-                onClick={() => openPaywall()}
-                className="gap-1.5"
-              >
-                <UPGRADE_ICON className="size-3.5" aria-hidden />
-                <motion.span
-                  className="max-sm:hidden"
-                  initial={{ filter: "blur(4px)" }}
-                  animate={{ filter: "blur(0px)" }}
-                  exit={{ filter: "blur(4px)" }}
-                  transition={{ type: "spring", duration: 0.3, bounce: 0 }}
-                >
-                  Upgrade
-                </motion.span>
-              </Button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        <SyncStatusIndicator />
+    <TopBarChrome
+      libraryAction={
         <Popover open={open} onOpenChange={handleOpenChange}>
           <Tooltip>
             <TooltipTrigger
@@ -190,8 +267,7 @@ export function TopBar() {
             </form>
           </PopoverContent>
         </Popover>
-        <AccountMenu />
-      </div>
-    </header>
+      }
+    />
   );
 }

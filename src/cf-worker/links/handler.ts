@@ -177,7 +177,7 @@ const toResponse = <Value, Requirements extends AppCtx>(
         Effect.succeed(capabilityDeniedResponse(error)),
       OrgNotFoundError: () =>
         Effect.succeed(
-          Response.json({ error: "Organization not found" }, { status: 404 })
+          Response.json({ error: "Library not found" }, { status: 404 })
         ),
       LinksApiInternalError: (error) =>
         Effect.logError("Links API operation failed").pipe(

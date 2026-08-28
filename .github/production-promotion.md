@@ -9,5 +9,11 @@ Before merging:
       were smoke-tested on `https://staging.cloudstash.dev`.
 - [ ] Any production migration or provider impact was reviewed.
 
+**Merge this PR with "Create a merge commit", not "Squash and merge".** Both
+`staging` and `main` are long-lived. A squash puts a commit on `main` that git
+cannot relate to the `staging` commits it replaced, so the two branches read as
+divergent and the next promotion PR reports false conflicts. Squashing ordinary
+feature PRs into `staging` stays fine — those branches end at the merge.
+
 Merging this PR updates `main`; the existing production Workers Build then
 deploys `cloudstash`.

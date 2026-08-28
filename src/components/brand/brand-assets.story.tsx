@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -11,15 +11,6 @@ import type { DitherPalette } from "@/lib/brand/dither";
 import { squirclePath } from "@/lib/brand/squircle";
 import { torusKnotPath, torusKnotPoint } from "@/lib/brand/torus-knot";
 import type { TorusKnotConfig } from "@/lib/brand/torus-knot";
-
-export const Route = createFileRoute("/_authed/brand")({
-  beforeLoad: ({ context }) => {
-    // `auth` is guaranteed non-null here — the parent `/_authed` route's
-    // `beforeLoad` already redirected anonymous visitors to /login.
-    if (context.auth.role !== "admin") throw redirect({ to: "/inbox" });
-  },
-  component: BrandPage,
-});
 
 const ANIMATED_CONFIG: TorusKnotConfig = { R: 16, r: 8, cx: 50, cy: 50 };
 const LOGO_CONFIG: TorusKnotConfig = { R: 22, r: 10, cx: 60, cy: 60 };
@@ -69,9 +60,8 @@ function fillDither(
   ctx.putImageData(imgData, 0, 0);
 }
 
-function BrandPage() {
+function BrandAssets() {
   const [cellSize, setCellSize] = useState(3.5);
-  const [ogCellSize, setOgCellSize] = useState(1.25);
   const [cwsCellSize, setCwsCellSize] = useState(1.25);
   const [iconStroke, setIconStroke] = useState(3.25);
 
@@ -181,18 +171,6 @@ function BrandPage() {
           />
         </div>
         <CellSizeSlider value={cellSize} onChange={setCellSize} />
-      </section>
-
-      <section>
-        <SectionLabel>Open Graph — Production</SectionLabel>
-        <div className="flex flex-wrap items-start justify-center gap-10">
-          <OgPreview cellSize={ogCellSize} />
-        </div>
-        <CellSizeSlider
-          value={ogCellSize}
-          onChange={setOgCellSize}
-          label="OG Cell Size"
-        />
       </section>
 
       <section>
@@ -744,120 +722,6 @@ function downloadCanvas(canvas: HTMLCanvasElement, filename: string) {
   a.click();
 }
 
-const OG_W = 1200;
-const OG_H = 630;
-
-function renderOgCanvas(cellSize: number): HTMLCanvasElement {
-  const S = 2;
-  const W = OG_W * S;
-  const H = OG_H * S;
-
-  const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext("2d")!;
-
-  fillDither(ctx, W, H, cellSize);
-
-  const fontFamily = "'JetBrains Mono Variable', monospace";
-  const knotVisualDiameter = 300 * S;
-  const knotMaxR = 32;
-  const knotScale = knotVisualDiameter / 2 / knotMaxR;
-  const gap = 100 * S;
-  const titleSize = Math.round(97 * S);
-  const subtitleSize = Math.round(40 * S);
-
-  ctx.font = `700 ${titleSize}px ${fontFamily}`;
-  const titleWidth = ctx.measureText("Cloudstash").width;
-  ctx.font = `400 ${subtitleSize}px ${fontFamily}`;
-  const subtitleWidth = ctx.measureText("Save links. Read later.").width;
-  const textBlockWidth = Math.max(titleWidth, subtitleWidth);
-
-  const totalWidth = knotVisualDiameter + gap + textBlockWidth;
-  const startX = (W - totalWidth) / 2;
-  const knotCx = startX + knotVisualDiameter / 2;
-  const knotCy = H / 2;
-
-  ctx.save();
-  ctx.translate(knotCx, knotCy);
-  ctx.rotate((45 * Math.PI) / 180);
-  ctx.translate(-knotCx, -knotCy);
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 4 * knotScale;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.beginPath();
-  for (let i = 0; i <= 500; i++) {
-    const prog = i / 500;
-    const tt = prog * Math.PI * 2;
-    const rad = 22 + 10 * Math.cos(4 * tt);
-    const x = knotCx + rad * knotScale * Math.cos(3 * tt);
-    const y = knotCy + rad * knotScale * Math.sin(3 * tt);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.closePath();
-  ctx.stroke();
-  ctx.restore();
-
-  const textX = startX + knotVisualDiameter + gap;
-  ctx.fillStyle = "#ffffff";
-  ctx.textBaseline = "middle";
-
-  ctx.font = `700 ${titleSize}px ${fontFamily}`;
-  const textYOffset = H * 0.025;
-  ctx.fillText("Cloudstash", textX, H / 2 - 32 * S + textYOffset);
-
-  ctx.font = `400 ${subtitleSize}px ${fontFamily}`;
-  ctx.fillText("Save links. Read later.", textX, H / 2 + 38 * S + textYOffset);
-
-  const out = document.createElement("canvas");
-  out.width = OG_W;
-  out.height = OG_H;
-  const outCtx = out.getContext("2d")!;
-  outCtx.drawImage(canvas, 0, 0, OG_W, OG_H);
-  return out;
-}
-
-function OgPreview({ cellSize }: { cellSize: number }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    void document.fonts.ready.then(() => {
-      const rendered = renderOgCanvas(cellSize);
-      canvas.width = OG_W;
-      canvas.height = OG_H;
-      const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(rendered, 0, 0);
-    });
-  }, [cellSize]);
-
-  const handleExport = useCallback(() => {
-    void document.fonts.ready.then(() => {
-      const rendered = renderOgCanvas(cellSize);
-      downloadCanvas(rendered, "cloudstash-og-1200x630.png");
-    });
-  }, [cellSize]);
-
-  return (
-    <div className="flex flex-col items-center gap-3">
-      <canvas
-        ref={canvasRef}
-        style={{
-          width: 600,
-          height: 315,
-          borderRadius: 8,
-          imageRendering: "pixelated",
-        }}
-      />
-      <Label>OG Image (1200×630)</Label>
-      <ExportButton onClick={handleExport} label="OG Image" />
-    </div>
-  );
-}
-
 const BANNER_SUBTITLE = "Save links. Read later.";
 
 // A wordmark-on-dither banner that auto-fits the knot + text block to any
@@ -1106,3 +970,17 @@ function IconExport({
     </div>
   );
 }
+
+const meta = {
+  title: "Brand/Generated assets",
+  component: BrandAssets,
+  parameters: {
+    layout: "fullscreen",
+  },
+} satisfies Meta<typeof BrandAssets>;
+
+export default meta;
+
+type Story = StoryObj<typeof meta>;
+
+export const Gallery: Story = {};

@@ -35,18 +35,24 @@ Implemented gates include:
 
 - `publicApi` — links read and ingest;
 - `mcpServer` — every authenticated MCP exchange before protocol dispatch;
-- `integrations` — Telegram connection and related pairing surfaces;
+- `integrations` — Telegram and Raycast pairing plus every subsequent capture;
 - `xBookmarkSync` — OAuth completion, resume, X reconciliation, and
   alarm-time checks;
-- `chatAgent` + `monthlyChatBudgetUsd` — agent auth and token reservation;
+- `chatAgent` + `monthlyChatBudgetUsd` — initial agent auth plus a capability
+  recheck and atomic token reservation before every model/tool continuation;
 - `aiSummary`/`xContentEnrichment` — LinkProcessorDO;
-- `weeklyDigest` — alarm scheduling/execution; manual trigger and tier-transition
-  lifecycle remain incomplete.
+- `weeklyDigest` — manual generation and alarm scheduling/execution; Stripe,
+  admin-tier, and override changes immediately reconcile the workspace alarm.
 
-The matrix is not yet enforced at every ongoing stateful boundary: Telegram use
-can continue without a fresh capability check; see
-[DELTA-015](../../.delta/DELTA-015-ongoing-integrations-bypass-entitlement-rechecks.md)
-and [DELTA-037](../../.delta/DELTA-037-weekly-digest-entitlement-lifecycle-is-incomplete.md).
+Established sync connections still do not reauthorize approval and membership
+after connection establishment; this access-lifecycle gap is tracked separately
+in
+[DELTA-011](../../.delta/DELTA-011-established-sync-connections-do-not-reauthorize.md).
+Established chat connections recheck capability and budget at every turn, but
+the public `AIChatAgent.onChatMessage` boundary does not expose the originating
+connection identity needed to recheck approval and membership. That narrower
+paid-operation gap is tracked in
+[DELTA-042](../../.delta/DELTA-042-established-chat-connections-do-not-reauthorize.md).
 
 ## Stripe Flow
 
@@ -89,9 +95,10 @@ price and feature copy.
 
 Chat reserves estimated tokens in workspace ChatAgentDO storage by monthly
 period, checks the USD-derived token limit atomically, then reconciles provider
-usage. X enrichment uses KV counter
-`enrichment:<workspace>:<YYYY-MM>` with a configured cap and TTL. The KV
-read-then-write counter is not atomic, so concurrent enrichment can exceed the
-nominal cap; see
-[DELTA-024](../../.delta/DELTA-024-enrichment-budget-is-not-atomic.md). These counters are cost
-controls, not subscription truth.
+usage. X enrichment reserves one attempt atomically in the workspace's
+LinkProcessorDO storage before any provider work. Provider and generator
+failures remain charged because the external attempt has started. Storage
+failure skips enrichment and falls back to the ordinary summary path. These
+counters are cost controls, not subscription truth. The workspace-owner choice
+and cutover are recorded in
+[decision 0002](./.decisions/0002-own-enrichment-reservations-in-link-processor.md).

@@ -1,7 +1,7 @@
 import { StoreRegistry } from "@livestore/livestore";
 import { createRouter } from "@tanstack/react-router";
 
-import { LoadingScreen } from "./components/loading-screen";
+import { AccountLoadingScreen } from "./components/loading-screen";
 import type { LinkStatus } from "./livestore/queries/filtered-links";
 import { routeTree } from "./routeTree.gen";
 
@@ -15,10 +15,9 @@ export const getRouter = () => {
   return createRouter({
     context: { storeRegistry },
     // Auth-gated routes await `loadAuth()` in `beforeLoad`. While that's
-    // pending, TSR shows this component (after a brief debounce so quick
-    // resolutions don't flash). Public routes have no `beforeLoad` and
-    // render immediately.
-    defaultPendingComponent: LoadingScreen,
+    // pending, TSR shows this component after its standard debounce. Public
+    // routes have no `beforeLoad` and render immediately.
+    defaultPendingComponent: AccountLoadingScreen,
     defaultPreloadStaleTime: 0,
     routeTree,
     scrollRestoration: true,

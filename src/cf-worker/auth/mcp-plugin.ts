@@ -30,8 +30,7 @@ export const mcpPlugin = (env: Env) =>
         if (organizationId) return organizationId;
         throw new APIError("BAD_REQUEST", {
           error: "set_organization",
-          error_description:
-            "An active workspace is required for Cloudstash link scopes",
+          error_description: "A Cloudstash library is required for link access",
         });
       },
     },

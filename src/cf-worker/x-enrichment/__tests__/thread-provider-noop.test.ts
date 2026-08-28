@@ -1,24 +1,21 @@
 import { Effect, Result } from "effect";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { FetchHttpClient } from "effect/unstable/http";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ThreadProvider } from "../services";
 import { ThreadProviderNoopLive } from "../services/thread-provider-noop.live";
 
-const mockFetch = vi.fn();
-
-beforeEach(() => {
-  vi.stubGlobal("fetch", mockFetch);
-});
+const mockFetch = vi.fn<typeof globalThis.fetch>();
 
 afterEach(() => {
-  vi.unstubAllGlobals();
   mockFetch.mockReset();
 });
 
 const fetchContextEffect = (url: string) =>
   ThreadProvider.pipe(
     Effect.flatMap((p) => p.fetchContext({ url })),
-    Effect.provide(ThreadProviderNoopLive)
+    Effect.provide(ThreadProviderNoopLive),
+    Effect.provideService(FetchHttpClient.Fetch, mockFetch)
   );
 
 const runFetchContext = (url: string) =>

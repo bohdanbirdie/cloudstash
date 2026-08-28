@@ -91,7 +91,7 @@ type Link = typeof tables.links.Type;
 const workspaceUnavailable = () =>
   ({
     ok: false,
-    error: { code: "unavailable", message: "Workspace is unavailable" },
+    error: { code: "unavailable", message: "Library is unavailable" },
   }) as const;
 
 export class LinkProcessorDO
@@ -273,6 +273,17 @@ export class LinkProcessorDO
     return this.retired;
   }
 
+  private async bindNamedWorkspace(): Promise<OrgId> {
+    const name = this.ctx.id.name;
+    if (!name) throw new Error("LinkProcessorDO requires a named instance");
+    const storeId = OrgId.make(name);
+    if (this.storeId !== storeId) {
+      this.storeId = storeId;
+      await this.ctx.storage.put("storeId", storeId);
+    }
+    return storeId;
+  }
+
   private async runWorkspaceLinksRpc<Value, Error>(
     operation: (
       links: WorkspaceLinks
@@ -281,12 +292,7 @@ export class LinkProcessorDO
     if (await this.isRetired()) return workspaceUnavailable();
     const generation = this.storeGeneration;
 
-    const storeId = this.ctx.id.name;
-    if (!storeId) throw new Error("LinkProcessorDO requires a named instance");
-    if (this.storeId !== storeId) {
-      this.storeId = OrgId.make(storeId);
-      await this.ctx.storage.put("storeId", storeId);
-    }
+    await this.bindNamedWorkspace();
 
     await this.ensureSubscribed();
     if (!this.canUseStore(generation)) return workspaceUnavailable();
@@ -617,7 +623,7 @@ export class LinkProcessorDO
         LinkEventStoreLive(store, this.commitFor(store, generation)),
         ThreadProviderNoopLive,
         EnrichmentGenerator.Default,
-        EnrichmentUsageLive({ kv: this.env.ENRICHMENT_USAGE })
+        EnrichmentUsageLive({ storage: this.ctx.storage })
       ).pipe(
         Layer.provide(WorkersAiLive(this.env.AI)),
         Layer.provide(OpenRouterApiKeyLive(this.env.OPENROUTER_API_KEY))
@@ -900,6 +906,7 @@ export class LinkProcessorDO
 
   async ensureDigestScheduled(): Promise<void> {
     if (await this.isRetired()) return;
+    await this.bindNamedWorkspace();
     const generation = this.storeGeneration;
     try {
       await runEffect(

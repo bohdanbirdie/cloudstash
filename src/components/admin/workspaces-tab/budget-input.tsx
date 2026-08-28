@@ -93,7 +93,7 @@ export function BudgetInput({
           disabled={disabled}
           className={cn(
             "h-6 w-16 pr-1.5 pl-4 text-right font-mono text-xs tabular-nums",
-            isOverridden && "ring-primary/40 font-medium ring-1"
+            { "ring-primary/40 font-medium ring-1": isOverridden }
           )}
         />
       </div>

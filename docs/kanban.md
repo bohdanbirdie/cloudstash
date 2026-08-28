@@ -4,20 +4,15 @@ kanban-plugin: board
 
 ## Near-term Technical Outcomes
 
-- [ ] [[todos/raycast-capability-source-cleanup|Align Raycast source and entitlement semantics]] — publication is complete; preserve first-party attribution and use one operation-time contract.
-- [ ] [[todos/customer-facing-copy-accuracy|Align customer-facing copy with shipped behavior]] — reconcile product, repository, SEO, integration, Terms, and policy surfaces with executable capabilities and current availability.
 - [ ] [[todos/canonical-url-identity|Canonical URL identity across every capture path]] — prevent new duplicates first; historical reconciliation remains a separate decision.
 - [ ] [[todos/telemetry-minimization|Minimize telemetry and document retained provider data]] — keep collection purpose-bound and deletion/retention claims accurate.
-- [ ] [[todos/paid-capability-enforcement|Enforce paid capabilities and budgets at operation time]] — current access/capability at authoritative operations, atomic cost controls, and safe long-lived-session revocation.
-- [ ] Bug: Free workspaces can manually generate weekly digests — enforce `weeklyDigest` at operation time and cover Free/paid manual-trigger paths; complete lifecycle scope remains tracked in [DELTA-037](../context/.delta/DELTA-037-weekly-digest-entitlement-lifecycle-is-incomplete.md).
 - [ ] [[todos/admin-purchase-attribution|Extend admin purchase attribution]] — bounded aggregate funnel evidence in the existing dashboard.
 - [ ] [[todos/free-ai-summary-allowance|Plan a bounded Free AI-summary allowance]] — saved-link count remains unlimited; exhaustion preserves the link.
-- [ ] [[todos/initial-sync-blocking|Research large-Vault bootstrap]] — benchmark WebSocket vs supported HTTP replay, BootStatus/timeout UX, and upstream snapshot-at-head feasibility.
+- [ ] [[todos/initial-sync-blocking|Research HTTP bootstrap and preloaded library state]] — benchmark WebSocket vs HTTP event-log replay, BootStatus/timeout UX, and an upstream materialized snapshot at an exact event head.
 - [ ] [[todos/automatic-summary-recovery|Recover failed summaries automatically]] — bounded primary, fallback, limited automatic retry, then a calm terminal state.
 
 ## Todo
 
-- [ ] Adopt an enforced cyclomatic-complexity budget with Oxc [`eslint/complexity`](https://oxc.rs/docs/guide/usage/linter/rules/eslint/complexity) — inventory current hotspots, choose and document the `max` and `variant`, refactor violations instead of blanket-suppressing them, enable the rule in the Vite+ lint configuration, and ratchet the CI limit downward where practical.
 - [ ] Retire the local Better Auth MCP JWKS verifier after [#10856](https://github.com/better-auth/better-auth/issues/10856) / [#10888](https://github.com/better-auth/better-auth/issues/10888) and [#10893](https://github.com/better-auth/better-auth/pull/10893) ship in a stable release — installed types must accept an in-process JWKS source plus cache key, and the same-Worker E2E must pass with zero outbound JWKS requests.
 - [ ] Retest Better Auth OAuth resource seeding on future stable upgrades — the Drizzle-wrapped UNIQUE race is independently reproduced on 1.7.0 and still present upstream; keep the app-wide atomic initializer in `AuthClientLive` until concurrent fresh auth contexts pass without it. No upstream issue is being filed.
 - [ ] [[todos/ws-close-scope-teardown-exception|SyncBackendDO webSocketClose throws on abnormal close (1006) — upstream teardown fix]] — 2 new `scriptThrewException` on the v4-cutover day (2026-08-10), zero in the prior week; benign (1ms, socket already dead, reconnect fine) but skips `serverCtxMap` cleanup and pollutes the error signal; small upstream PR candidate (make `Scope.close` teardown non-throwing in common-cf `ws-rpc-server.ts:217`).
@@ -63,11 +58,19 @@ kanban-plugin: board
 - [ ] [[todos/human-launch-operations|Verify production Queue retention and recovery]] — durability code is merged; record plan/retention evidence and run the recovery drill.
 - [ ] [[todos/human-launch-operations|Reconcile Stripe and Portal behavior]] — maintainer credentials and production payment authority required.
 - [ ] [[todos/human-launch-operations|Obtain legal sign-off]] — deletion retention, telemetry/privacy, tracking opt-outs, billing consent, and remaining launch clauses.
+- [ ] Verify or update the published Chrome Web Store listing — describe opening the popup and choosing Save without claiming an unavailable global shortcut or automatic toolbar capture; closes DELTA-017.
 - [ ] [[todos/human-launch-operations|Provision and certify staging]] — bootstrap the isolated Worker/resources/Git branch and record the first deployed rehearsal.
 - [ ] [[todos/human-launch-operations|Choose alert destination and owner]] — then wire [[todos/admin-server-ahead-alert|the stuck-sync alert]] and other tripwires.
 
 ## Done
 
+- [x] [[todos/customer-facing-copy-accuracy|Align customer-facing copy with shipped behavior]] — repository-controlled plan, landing, README, SEO, integration, Terms, and privacy copy now matches shipped behavior in plain language; external legal, Stripe, and Chrome Web Store verification remain explicit human operations.
+- [x] [[todos/paid-capability-enforcement|Enforce paid capabilities and budgets at operation time]] — authoritative operation gates and atomic budgets now cover paid features; the separate Agents SDK connection-identity limitation remains tracked in DELTA-042.
+
+- [x] [[todos/raycast-capability-source-cleanup|Align Raycast source and entitlement semantics]] — trusted key metadata now preserves `source: raycast`, pairing and each capture use `integrations`, and direct API keys remain `publicApi`-gated.
+- [x] Free workspaces cannot manually generate weekly digests — manual generation, alarm execution, and entitlement-change scheduling now enforce `weeklyDigest` and remove stale alarms.
+
+- [x] Adopt an enforced cyclomatic-complexity budget with Oxc [`eslint/complexity`](https://oxc.rs/docs/guide/usage/linter/rules/eslint/complexity) — the Vite+ quality lane now enforces Oxc's default classic maximum of 20 across shipped and build code while excluding test scenarios; five existing hotspots were split only at concrete responsibility boundaries, with no intended behavior changes or local suppressions.
 - [x] Repair the new-signup approval gate — the admin switch controls signup approval, app entry bypasses stale Better Auth approval cookies, approved users are not trapped, and pending users retain tested sign-out and account-deletion escape routes.
 - [x] [[todos/done/account-deletion|Reliable account deletion workflow]] — deletion now runs as a durable Cloudflare Workflow with Effect activities, bounded D1 cascades, Stripe cancellation, Durable Object shutdown, integration cleanup, and retry/resume coverage.
 - [x] Shrink and budget the Worker upload — PR #94 Oxc-minified the deployable Worker, reducing the Wrangler dry-run upload from 2963 KiB to 1868 KiB gzipped, and added a CI-enforced 2700 KiB pre-limit budget plus a generated-Worker smoke test.

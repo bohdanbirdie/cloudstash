@@ -1,15 +1,6 @@
 import type { UIMessage } from "@ai-sdk/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
-
-// Mock the ai package before importing the module under test
-vi.mock("ai", () => ({
-  getToolName: (part: { toolName?: string }) => part.toolName,
-  isToolUIPart: (part: unknown) =>
-    part !== null &&
-    typeof part === "object" &&
-    "type" in part &&
-    (part as { type: string }).type === "tool-invocation",
-}));
+import type { DynamicToolUIPart, ToolSet } from "ai";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   APPROVAL,
@@ -22,14 +13,13 @@ const createToolPart = (
   toolName: string,
   output: string,
   input?: Record<string, unknown>
-) => ({
-  type: "tool-invocation" as const,
+): DynamicToolUIPart => ({
+  type: "dynamic-tool",
   toolCallId: `call-${Math.random().toString(36).slice(2)}`,
   toolName,
-  state: "result" as const,
-  result: output,
+  state: "output-available",
   output,
-  input,
+  input: input ?? {},
 });
 
 // Helper to create a text part
@@ -41,15 +31,12 @@ const createTextPart = (text: string) => ({
 // Helper to create a UIMessage
 const createMessage = (
   role: "user" | "assistant",
-  parts: Array<
-    ReturnType<typeof createToolPart> | ReturnType<typeof createTextPart>
-  >
-): UIMessage =>
-  ({
-    id: `msg-${Math.random().toString(36).slice(2)}`,
-    role,
-    parts,
-  }) as UIMessage;
+  parts: UIMessage["parts"]
+): UIMessage => ({
+  id: `msg-${Math.random().toString(36).slice(2)}`,
+  role,
+  parts,
+});
 
 describe("APPROVAL constants", () => {
   it("has YES value", () => {
@@ -110,12 +97,12 @@ describe("hasToolConfirmation", () => {
   });
 
   it("returns false for message with no parts", () => {
-    const message = { id: "msg-1", role: "user" as const } as UIMessage;
+    const message = createMessage("user", []);
     expect(hasToolConfirmation(message)).toBe(false);
   });
 
   it("returns false for undefined message", () => {
-    expect(hasToolConfirmation(undefined as unknown as UIMessage)).toBe(false);
+    expect(hasToolConfirmation(undefined)).toBe(false);
   });
 
   it("handles mixed parts with confirmation tool", () => {
@@ -137,14 +124,14 @@ describe("hasToolConfirmation", () => {
 });
 
 describe("processToolCalls", () => {
-  const mockTools = {} as any;
+  const mockTools = {} satisfies ToolSet;
 
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("returns messages unchanged when last message has no parts", async () => {
-    const messages = [{ id: "msg-1", role: "user" as const }] as UIMessage[];
+    const messages = [createMessage("user", [])];
     const result = await processToolCalls({ tools: mockTools, messages }, {});
     expect(result).toEqual(messages);
   });

@@ -20,7 +20,6 @@ import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as AuthedAdminRouteImport } from './routes/_authed/admin'
 import { Route as AuthedAllRouteImport } from './routes/_authed/all'
 import { Route as AuthedArchiveRouteImport } from './routes/_authed/archive'
-import { Route as AuthedBrandRouteImport } from './routes/_authed/brand'
 import { Route as AuthedCompletedRouteImport } from './routes/_authed/completed'
 import { Route as AuthedInboxRouteImport } from './routes/_authed/inbox'
 import { Route as ConnectExtensionRouteImport } from './routes/connect/extension'
@@ -81,11 +80,6 @@ const AuthedArchiveRoute = AuthedArchiveRouteImport.update({
   path: '/archive',
   getParentRoute: () => AuthedRoute,
 } as any)
-const AuthedBrandRoute = AuthedBrandRouteImport.update({
-  id: '/brand',
-  path: '/brand',
-  getParentRoute: () => AuthedRoute,
-} as any)
 const AuthedCompletedRoute = AuthedCompletedRouteImport.update({
   id: '/completed',
   path: '/completed',
@@ -123,7 +117,6 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthedAdminRoute
   '/all': typeof AuthedAllRoute
   '/archive': typeof AuthedArchiveRoute
-  '/brand': typeof AuthedBrandRoute
   '/completed': typeof AuthedCompletedRoute
   '/inbox': typeof AuthedInboxRoute
   '/connect/extension': typeof ConnectExtensionRoute
@@ -141,7 +134,6 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthedAdminRoute
   '/all': typeof AuthedAllRoute
   '/archive': typeof AuthedArchiveRoute
-  '/brand': typeof AuthedBrandRoute
   '/completed': typeof AuthedCompletedRoute
   '/inbox': typeof AuthedInboxRoute
   '/connect/extension': typeof ConnectExtensionRoute
@@ -161,7 +153,6 @@ export interface FileRoutesById {
   '/_authed/admin': typeof AuthedAdminRoute
   '/_authed/all': typeof AuthedAllRoute
   '/_authed/archive': typeof AuthedArchiveRoute
-  '/_authed/brand': typeof AuthedBrandRoute
   '/_authed/completed': typeof AuthedCompletedRoute
   '/_authed/inbox': typeof AuthedInboxRoute
   '/connect/extension': typeof ConnectExtensionRoute
@@ -181,7 +172,6 @@ export interface FileRouteTypes {
     | '/admin'
     | '/all'
     | '/archive'
-    | '/brand'
     | '/completed'
     | '/inbox'
     | '/connect/extension'
@@ -199,7 +189,6 @@ export interface FileRouteTypes {
     | '/admin'
     | '/all'
     | '/archive'
-    | '/brand'
     | '/completed'
     | '/inbox'
     | '/connect/extension'
@@ -218,7 +207,6 @@ export interface FileRouteTypes {
     | '/_authed/admin'
     | '/_authed/all'
     | '/_authed/archive'
-    | '/_authed/brand'
     | '/_authed/completed'
     | '/_authed/inbox'
     | '/connect/extension'
@@ -319,13 +307,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedArchiveRouteImport
       parentRoute: typeof AuthedRoute
     }
-    '/_authed/brand': {
-      id: '/_authed/brand'
-      path: '/brand'
-      fullPath: '/brand'
-      preLoaderRoute: typeof AuthedBrandRouteImport
-      parentRoute: typeof AuthedRoute
-    }
     '/_authed/completed': {
       id: '/_authed/completed'
       path: '/completed'
@@ -368,7 +349,6 @@ interface AuthedRouteChildren {
   AuthedAdminRoute: typeof AuthedAdminRoute
   AuthedAllRoute: typeof AuthedAllRoute
   AuthedArchiveRoute: typeof AuthedArchiveRoute
-  AuthedBrandRoute: typeof AuthedBrandRoute
   AuthedCompletedRoute: typeof AuthedCompletedRoute
   AuthedInboxRoute: typeof AuthedInboxRoute
 }
@@ -377,7 +357,6 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAdminRoute: AuthedAdminRoute,
   AuthedAllRoute: AuthedAllRoute,
   AuthedArchiveRoute: AuthedArchiveRoute,
-  AuthedBrandRoute: AuthedBrandRoute,
   AuthedCompletedRoute: AuthedCompletedRoute,
   AuthedInboxRoute: AuthedInboxRoute,
 }

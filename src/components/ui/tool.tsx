@@ -147,10 +147,9 @@ const Tool = ({
             </div>
             {hasExpandableContent && (
               <ChevronDown
-                className={cn(
-                  "size-3 text-muted-foreground",
-                  isOpen && "rotate-180"
-                )}
+                className={cn("size-3 text-muted-foreground", {
+                  "rotate-180": isOpen,
+                })}
               />
             )}
           </CollapsibleTrigger>

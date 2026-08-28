@@ -132,6 +132,67 @@ function toAssignableRole(role: string | null | undefined): AssignableRole {
     : "user";
 }
 
+function UserIdentity({
+  user,
+  isSelf,
+  status,
+}: {
+  user: AdminUser;
+  isSelf: boolean;
+  status: ReturnType<typeof getUserStatus>;
+}) {
+  return (
+    <div className="min-w-0 flex-1">
+      <div className="flex items-center gap-2">
+        <span className="min-w-0 truncate font-medium text-xs">
+          {user.name}
+        </span>
+        {isSelf && (
+          <span className={cn(MICRO_LABEL, "shrink-0 text-primary/80")}>
+            you
+          </span>
+        )}
+        {status === "pending" && (
+          <Badge
+            variant="outline"
+            className="bg-yellow-50 text-yellow-700 border-yellow-200"
+          >
+            Pending
+          </Badge>
+        )}
+        {status === "banned" && (
+          <Badge
+            variant="outline"
+            className="bg-red-50 text-red-700 border-red-200"
+          >
+            Banned
+          </Badge>
+        )}
+      </div>
+      <div className="text-xs text-muted-foreground truncate">
+        {IS_DEV ? (
+          user.email
+        ) : (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  aria-label="Reveal email"
+                  className="font-mono text-xs text-muted-foreground hover:text-foreground rounded-sm cursor-help focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/60"
+                >
+                  {redactEmail(user.email)}
+                </button>
+              }
+            />
+            <TooltipContent>{user.email}</TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function UserRow({ user, adminCount, isSelf }: UserRowProps) {
   const [pendingRole, setPendingRole] = useState<AssignableRole | null>(null);
 
@@ -181,54 +242,7 @@ export function UserRow({ user, adminCount, isSelf }: UserRowProps) {
           }
         )}
       >
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="min-w-0 truncate font-medium text-xs">
-              {user.name}
-            </span>
-            {isSelf && (
-              <span className={cn(MICRO_LABEL, "shrink-0 text-primary/80")}>
-                you
-              </span>
-            )}
-            {status === "pending" && (
-              <Badge
-                variant="outline"
-                className="bg-yellow-50 text-yellow-700 border-yellow-200"
-              >
-                Pending
-              </Badge>
-            )}
-            {status === "banned" && (
-              <Badge
-                variant="outline"
-                className="bg-red-50 text-red-700 border-red-200"
-              >
-                Banned
-              </Badge>
-            )}
-          </div>
-          <div className="text-xs text-muted-foreground truncate">
-            {IS_DEV ? (
-              user.email
-            ) : (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <button
-                      type="button"
-                      aria-label="Reveal email"
-                      className="font-mono text-xs text-muted-foreground hover:text-foreground rounded-sm cursor-help focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/60"
-                    >
-                      {redactEmail(user.email)}
-                    </button>
-                  }
-                />
-                <TooltipContent>{user.email}</TooltipContent>
-              </Tooltip>
-            )}
-          </div>
-        </div>
+        <UserIdentity user={user} isSelf={isSelf} status={status} />
 
         <div className="flex gap-1 shrink-0">
           {status === "pending" && (
@@ -289,7 +303,7 @@ export function UserRow({ user, adminCount, isSelf }: UserRowProps) {
                 />
                 <DropdownMenuContent
                   align="end"
-                  className={lockReason ? "min-w-52" : undefined}
+                  className={cn({ "min-w-52": Boolean(lockReason) })}
                 >
                   <DropdownMenuRadioGroup
                     value={currentRole}

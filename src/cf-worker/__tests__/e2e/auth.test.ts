@@ -100,7 +100,7 @@ describe("organization Auth E2E", () => {
       expect(res.status).toBe(404);
 
       const data = (await res.json()) as { error: string };
-      expect(data.error).toBe("Organization not found");
+      expect(data.error).toBe("Library not found");
     });
   });
 

@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils";
+
 import { Footer } from "./footer";
 import { SHELL } from "./shared";
 import { TopBar } from "./top-bar";
@@ -34,7 +36,10 @@ export function LegalShell({
         </section>
         <section className="py-16 sm:py-20">
           <div
-            className={`${SHELL} text-pretty text-sm leading-relaxed text-muted-foreground`}
+            className={cn(
+              SHELL,
+              "text-pretty text-sm leading-relaxed text-muted-foreground"
+            )}
           >
             {children ?? (
               <p>

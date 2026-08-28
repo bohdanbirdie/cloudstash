@@ -2,6 +2,7 @@ import { it, describe } from "@effect/vitest";
 import { Effect, Layer, References } from "effect";
 import { expect } from "vitest";
 
+import { CapabilityDisabledError } from "../../billing/errors";
 import { OrgId, UserId } from "../../db/branded";
 import {
   TelegramInvalidApiKeyError,
@@ -44,6 +45,7 @@ function createTestSourceAuth(
     | { orgId: typeof OrgId.Type; userId: typeof UserId.Type }
     | "not-connected"
     | "invalid-key"
+    | "capability-disabled"
     | "auth-unavailable"
     | "rate-limit"
     | "missing-org-id"
@@ -54,6 +56,14 @@ function createTestSourceAuth(
         return Effect.fail(new NotConnectedError({}));
       if (result === "invalid-key")
         return Effect.fail(new TelegramInvalidApiKeyError({}));
+      if (result === "capability-disabled")
+        return Effect.fail(
+          CapabilityDisabledError.for(
+            OrgId.make("org-1"),
+            "integrations",
+            "plus"
+          )
+        );
       if (result === "auth-unavailable")
         return Effect.fail(
           new TelegramAuthUnavailableError({
@@ -69,6 +79,14 @@ function createTestSourceAuth(
     verify: (_apiKey) => {
       if (result === "invalid-key")
         return Effect.fail(new TelegramInvalidApiKeyError({}));
+      if (result === "capability-disabled")
+        return Effect.fail(
+          CapabilityDisabledError.for(
+            OrgId.make("org-1"),
+            "integrations",
+            "plus"
+          )
+        );
       if (result === "auth-unavailable")
         return Effect.fail(
           new TelegramAuthUnavailableError({
@@ -246,6 +264,29 @@ describe("handleLinks", () => {
     );
   });
 
+  it.effect("does not enqueue after integrations are disabled", () => {
+    const messenger = createTestMessenger();
+    const queue = createTestQueue();
+    const layer = Layer.mergeAll(
+      messenger.layer,
+      createTestSourceAuth("capability-disabled"),
+      queue.layer
+    );
+
+    return handleLinks(["https://example.com"]).pipe(
+      Effect.provide(layer),
+      Effect.provideService(References.MinimumLogLevel, "None"),
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(messenger.replies).toEqual([
+            "Telegram saving is available on Plus and Pro. Upgrade your plan to keep using it.",
+          ]);
+          expect(queue.enqueued).toEqual([]);
+        })
+      )
+    );
+  });
+
   it.effect("PATH 7: replies on rate limit", () => {
     const messenger = createTestMessenger();
     const queue = createTestQueue();
@@ -385,6 +426,30 @@ describe("handleConnect", () => {
         Effect.sync(() => {
           expect(keyStore.stored.size).toBe(0);
           expect(messenger.replies).toEqual(["Invalid or expired API key."]);
+        })
+      )
+    );
+  });
+
+  it.effect("does not store a key after integrations are disabled", () => {
+    const messenger = createTestMessenger();
+    const keyStore = createTestKeyStore();
+    const layer = Layer.mergeAll(
+      messenger.layer,
+      createTestSourceAuth("capability-disabled"),
+      keyStore.layer
+    );
+
+    return handleConnect(123, "key").pipe(
+      Effect.provide(layer),
+      Effect.provideService(References.MinimumLogLevel, "None"),
+      Effect.tap(() =>
+        Effect.sync(() => {
+          expect(keyStore.stored.size).toBe(0);
+          expect(keyStore.reverseIndex.size).toBe(0);
+          expect(messenger.replies).toEqual([
+            "Telegram is available on Plus and Pro.",
+          ]);
         })
       )
     );

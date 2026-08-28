@@ -53,7 +53,7 @@ export function createTools(
   return {
     listRecentLinks: tool({
       description:
-        "List recently saved links in the workspace. Present results as a markdown " +
+        "List recently saved links in the library. Present results as a markdown " +
         "list with plain URLs (not [text](url) format) followed by a brief description. " +
         "Example: '- https://example.com - description'",
       inputSchema: zodSchema(listRecentLinksSchema),
@@ -71,7 +71,7 @@ export function createTools(
     }),
 
     saveLink: tool({
-      description: "Save a new link to the workspace",
+      description: "Save a new link to the library",
       inputSchema: zodSchema(saveLinkSchema),
       execute: async ({ url }) => {
         const parsed = parseHttpUrl(url);
@@ -116,7 +116,7 @@ export function createTools(
         return {
           success: true,
           linkId,
-          message: `Saved "${url}" to workspace`,
+          message: `Saved "${url}" to the library`,
         };
       },
     }),
@@ -263,7 +263,7 @@ export function createTools(
     }),
 
     getStats: tool({
-      description: "Get workspace link statistics",
+      description: "Get library statistics",
       inputSchema: zodSchema(z.object({})),
       execute: async () => ({
         inbox: store.query(inboxCount$),

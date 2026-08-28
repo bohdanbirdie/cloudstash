@@ -1,21 +1,11 @@
-import { Effect, Layer, Result } from "effect";
-import { describe, expect, it, vi } from "vitest";
+import { Effect, Result } from "effect";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { XTweetId, XUsername } from "../../db/branded";
-import { OpenRouterApiKey } from "../../weekly-digest/generator";
 import { composePrompt, EnrichmentGenerator } from "../generator";
+import type { GenerateEnrichmentCompletion } from "../generator";
 import type { ThreadContext } from "../services";
 import { ENRICHMENT_MODEL } from "../types";
-
-vi.mock("ai", () => ({
-  generateObject: vi.fn(),
-}));
-const { generateObject } = await import("ai");
-const mockGenerateObject = vi.mocked(generateObject);
-
-vi.mock("@openrouter/ai-sdk-provider", () => ({
-  createOpenRouter: () => () => ({ id: "openrouter-stub-model" }),
-}));
 
 const baseRoot: ThreadContext["root"] = {
   id: XTweetId.make("1"),
@@ -167,9 +157,8 @@ describe("composePrompt", () => {
 });
 
 describe("EnrichmentGenerator", () => {
-  const generatorLayer = EnrichmentGenerator.Default.pipe(
-    Layer.provide(Layer.succeed(OpenRouterApiKey, "test-key"))
-  );
+  const complete = vi.fn<GenerateEnrichmentCompletion>();
+  const generatorLayer = EnrichmentGenerator.layer(complete);
 
   const params = {
     url: "https://x.com/alice/status/1",
@@ -177,11 +166,15 @@ describe("EnrichmentGenerator", () => {
     existingTags: [],
   };
 
+  beforeEach(() => {
+    complete.mockReset();
+  });
+
   it("returns the parsed {summary, suggestedTags} on success", async () => {
-    mockGenerateObject.mockResolvedValueOnce({
+    complete.mockResolvedValueOnce({
       object: { summary: "model output", suggestedTags: ["ai", "rust"] },
       usage: { inputTokens: 100, outputTokens: 20 },
-    } as never);
+    });
 
     const result = await Effect.runPromise(
       EnrichmentGenerator.pipe(
@@ -193,12 +186,13 @@ describe("EnrichmentGenerator", () => {
       summary: "model output",
       suggestedTags: ["ai", "rust"],
     });
-    expect(mockGenerateObject).toHaveBeenCalledOnce();
+    expect(complete).toHaveBeenCalledOnce();
+    expect(complete).toHaveBeenCalledWith(expect.stringContaining("main body"));
   });
 
   it("wraps a throwing AI call as EnrichmentGenerateError with model + promptChars", async () => {
     const underlying = new Error("openrouter 500");
-    mockGenerateObject.mockRejectedValueOnce(underlying);
+    complete.mockRejectedValueOnce(underlying);
 
     const result = await Effect.runPromise(
       Effect.result(

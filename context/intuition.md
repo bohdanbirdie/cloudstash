@@ -5,7 +5,7 @@ experience · Covers: the whole product and the Intent map_
 
 ## The idea
 
-Cloudstash turns a URL into a durable, searchable item in a private Vault.
+Cloudstash turns a URL into a durable, searchable item in a private library.
 Saving is the foreground action; fetching, summarizing, tagging, notifying, and
 syncing are coordinated background consequences. A user should never have to
 keep the web app open for server-originated work to finish.
@@ -23,7 +23,7 @@ React UI ◄──────────────────────�
 Workspace content follows one model: immutable events are synchronized and
 materialized into local SQLite state. D1 is a different plane: it owns accounts,
 membership, sessions, billing, invites, settings, and aggregate activity—not
-the user's Vault.
+the user's library.
 
 A workspace is the alignment boundary. Its organization ID is also its LiveStore
 `storeId` and names the workspace-scoped sync, processing/link-operation, and

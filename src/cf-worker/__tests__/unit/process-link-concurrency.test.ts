@@ -41,12 +41,8 @@ const enrichmentStubs = Layer.mergeAll(
     })
   ),
   Layer.succeed(EnrichmentUsage, {
-    current: () =>
-      Effect.die(new Error("unexpected EnrichmentUsage.current call in test")),
-    increment: () =>
-      Effect.die(
-        new Error("unexpected EnrichmentUsage.increment call in test")
-      ),
+    reserve: () =>
+      Effect.die(new Error("unexpected EnrichmentUsage.reserve call in test")),
   })
 );
 

@@ -169,7 +169,7 @@ export const runSyncAuth = (
           Effect.succeed(
             authError(
               "ACCESS_DENIED",
-              "You do not have access to this workspace",
+              "You do not have access to this library",
               403
             )
           ),

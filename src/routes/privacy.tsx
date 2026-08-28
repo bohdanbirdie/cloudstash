@@ -31,10 +31,10 @@ function PrivacyPage() {
     <LegalShell
       eyebrow="Legal"
       title="Privacy Policy"
-      lead="What we collect, what we don't, and how you stay in control of your archive."
+      lead="What we collect, what we don't, and how you stay in control of your saved links."
     >
       <LegalArticle>
-        <LegalUpdated date="August 21, 2026" />
+        <LegalUpdated date="August 28, 2026" />
         <p>We made this short and tried to write it in English, not lawyer.</p>
 
         <section id="tldr">
@@ -50,15 +50,14 @@ function PrivacyPage() {
               read your links ourselves.
             </li>
             <li>
-              To make summaries, we send the page content to Cloudflare’s
-              Workers AI service (running Meta’s Llama 3.3 model). It runs on
-              Cloudflare infrastructure — the content doesn’t leave Cloudflare
-              for this step. The Pro chat feature is different: it goes through
-              OpenRouter to Google Gemini.
+              We use trusted AI providers for summaries and features such as
+              chat, weekly digests, and enriched X saves. We send only the
+              content needed to provide the feature.
             </li>
             <li>
               You can export everything and delete your account at any time.
-              Delete means delete.
+              Access ends right away while deletion finishes safely in the
+              background.
             </li>
             <li>
               If you live in the EU/UK or California, you have specific legal
@@ -117,8 +116,8 @@ function PrivacyPage() {
             signed-in app. Meta Pixel, a Facebook tracking script used to
             measure ads, runs only on the landing, login, contact, Terms, and
             Privacy pages. They record that a browser visited a page; they don’t
-            see the contents of your archive. A Global Privacy Control signal
-            prevents Meta Pixel from loading.
+            see your saved links. A Global Privacy Control signal prevents Meta
+            Pixel from loading.
           </p>
         </section>
 
@@ -130,9 +129,10 @@ function PrivacyPage() {
           </p>
           <ul>
             <li>
-              <strong>It reads the URL of the tab you choose to save</strong> —
-              and only when you click to save it. It does not read page
-              contents, monitor your browsing, or track the sites you visit.
+              <strong>It shows the page you’re about to save.</strong> When you
+              open the popup, it reads the current tab’s URL, title, and
+              favicon. It does not read page contents, monitor your browsing, or
+              track the sites you visit.
             </li>
             <li>
               <strong>It stores a paired API key locally</strong> in the browser
@@ -223,15 +223,15 @@ function PrivacyPage() {
               Google user ID.
             </li>
             <li>
-              <strong>OpenRouter, Inc.</strong> — used only for the Pro
-              chat-with-your-archive feature. If you’re on Pro and you chat with
-              your archive, your messages are routed through OpenRouter. Free
-              and Plus users never hit OpenRouter.
+              <strong>OpenRouter, Inc.</strong> — provides AI processing for
+              weekly digests on Plus and Pro, and for chat and enriched X saves
+              on Pro. Depending on the feature, it receives your prompt or the
+              saved-link details and text needed to generate the result.
             </li>
             <li>
-              <strong>Google LLC (Gemini)</strong> — the AI model behind the Pro
-              chat feature, reached through OpenRouter. Free and Plus summaries
-              don’t go through Gemini.
+              <strong>Google LLC (Gemini)</strong> — provides the AI models used
+              for those features through OpenRouter. Regular link summaries use
+              Cloudflare Workers AI instead.
             </li>
             <li>
               <strong>Stripe, Inc.</strong> — subscription billing. Your card
@@ -248,8 +248,8 @@ function PrivacyPage() {
               <strong>Meta Platforms, Inc.</strong> — Meta Pixel for ad
               measurement on the landing, login, contact, Terms, and Privacy
               pages. It receives the fact that a browser visited a URL on our
-              domain; it does not see your archive contents. It does not load
-              when your browser sends a Global Privacy Control signal.
+              domain; it does not see your saved links. It does not load when
+              your browser sends a Global Privacy Control signal.
             </li>
             <li>
               <strong>OneDollarStats</strong> — a lightweight page-view counter
@@ -286,21 +286,18 @@ function PrivacyPage() {
             We keep your account and saved links for as long as your account is
             open.
           </p>
-          <p>When you delete your account (Settings → Account → Delete), we:</p>
-          <ol>
-            <li>
-              Wipe your archive — links, summaries, tags, chat history —
-              promptly (typically within minutes; longer only if a step has to
-              retry).
-            </li>
-            <li>
-              Remove your account record within 30 days, including any backups
-              still in rotation.
-            </li>
-          </ol>
           <p>
-            Server logs from Cloudflare typically roll off within 30 days.
-            Aggregated, anonymous usage counts may be kept for analytics.
+            When you delete your account (Settings → Account → Delete), access
+            ends right away. Cloudstash then removes your account and saved
+            links in the background and automatically retries temporary
+            failures.
+          </p>
+          <p>
+            Some billing, security, analytics, or legal records may be kept when
+            required. Services such as Stripe and Cloudflare keep their own
+            records under their policies. Server logs from Cloudflare typically
+            roll off within 30 days, and aggregated anonymous usage counts may
+            be kept for analytics.
           </p>
         </section>
 

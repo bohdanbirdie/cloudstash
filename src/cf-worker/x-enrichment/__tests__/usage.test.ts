@@ -4,167 +4,103 @@ import { describe, expect, it } from "vitest";
 import { OrgId } from "../../db/branded";
 import { EnrichmentUsage, EnrichmentUsageLive } from "../usage";
 
-interface PutCall {
-  key: string;
-  value: string;
-  options?: KVNamespacePutOptions;
+class FakeStorage {
+  private readonly values = new Map<string, unknown>();
+  private transactionTail: Promise<unknown> = Promise.resolve();
+  transactionError: Error | null = null;
+
+  async get<T>(key: string): Promise<T | undefined> {
+    return this.values.get(key) as T | undefined;
+  }
+
+  async put(key: string, value: unknown): Promise<void> {
+    this.values.set(key, value);
+  }
+
+  private runTransaction<T>(
+    transactionFn: (transaction: DurableObjectTransaction) => Promise<T>
+  ): Promise<T> {
+    return transactionFn(this as unknown as DurableObjectTransaction);
+  }
+
+  transaction<T>(
+    transactionFn: (transaction: DurableObjectTransaction) => Promise<T>
+  ): Promise<T> {
+    const run = this.transactionTail.then(async () => {
+      if (this.transactionError) throw this.transactionError;
+      return this.runTransaction(transactionFn);
+    });
+    this.transactionTail = run.then(
+      () => undefined,
+      () => undefined
+    );
+    return run;
+  }
 }
 
-class FakeKv {
-  private map = new Map<string, string>();
-  readonly puts: PutCall[] = [];
-  getError: Error | null = null;
-  putError: Error | null = null;
-
-  async get(key: string): Promise<string | null> {
-    if (this.getError) throw this.getError;
-    return this.map.get(key) ?? null;
-  }
-
-  async put(
-    key: string,
-    value: string,
-    options?: KVNamespacePutOptions
-  ): Promise<void> {
-    if (this.putError) throw this.putError;
-    this.puts.push({ key, value, options });
-    this.map.set(key, value);
-  }
-
-  size(): number {
-    return this.map.size;
-  }
-}
-
-const runWithKv = <A, E>(
-  kv: FakeKv,
+const runWithStorage = <A, E>(
+  storage: FakeStorage,
   effect: Effect.Effect<A, E, EnrichmentUsage>
 ): Promise<A> =>
   Effect.runPromise(
     effect.pipe(
-      Effect.provide(EnrichmentUsageLive({ kv: kv as unknown as KVNamespace }))
+      Effect.provide(
+        EnrichmentUsageLive({
+          storage: storage as unknown as DurableObjectStorage,
+        })
+      )
     )
   );
-
-const runEitherWithKv = <A, E>(
-  kv: FakeKv,
-  effect: Effect.Effect<A, E, EnrichmentUsage>
-) => runWithKv(kv, Effect.result(effect));
 
 describe("EnrichmentUsage", () => {
   const orgId = OrgId.make("org-1");
 
-  it("reports zero when the period has no key yet", async () => {
-    const kv = new FakeKv();
-    const result = await runWithKv(
-      kv,
-      EnrichmentUsage.pipe(Effect.flatMap((u) => u.current(orgId)))
+  it("atomically refuses concurrent reservations beyond the cap", async () => {
+    const storage = new FakeStorage();
+    const reserve = EnrichmentUsage.pipe(
+      Effect.flatMap((usage) => usage.reserve(orgId, 10))
     );
-    expect(result.used).toBe(0);
-    expect(result.period).toMatch(/^\d{4}-\d{2}$/);
+
+    const reservations = await Promise.all(
+      Array.from({ length: 25 }, () => runWithStorage(storage, reserve))
+    );
+
+    expect(reservations.filter(({ reserved }) => reserved)).toHaveLength(10);
+    expect(reservations.filter(({ reserved }) => !reserved)).toHaveLength(15);
+    expect(Math.max(...reservations.map(({ used }) => used))).toBe(10);
   });
 
-  it("increments monotonically and persists to KV", async () => {
-    const kv = new FakeKv();
-    const incEffect = EnrichmentUsage.pipe(
-      Effect.flatMap((u) => u.increment(orgId))
+  it("increments successful reservations monotonically", async () => {
+    const storage = new FakeStorage();
+    const first = await runWithStorage(
+      storage,
+      EnrichmentUsage.pipe(Effect.flatMap((usage) => usage.reserve(orgId, 100)))
     );
-
-    const first = await runWithKv(kv, incEffect);
-    const second = await runWithKv(kv, incEffect);
-    const third = await runWithKv(kv, incEffect);
-
-    expect(first.used).toBe(1);
-    expect(second.used).toBe(2);
-    expect(third.used).toBe(3);
-    expect(kv.size()).toBe(1);
-
-    const current = await runWithKv(
-      kv,
-      EnrichmentUsage.pipe(Effect.flatMap((u) => u.current(orgId)))
+    const second = await runWithStorage(
+      storage,
+      EnrichmentUsage.pipe(Effect.flatMap((usage) => usage.reserve(orgId, 100)))
     );
-    expect(current.used).toBe(3);
+    expect(first).toMatchObject({ reserved: true, used: 1 });
+    expect(second).toMatchObject({ reserved: true, used: 2 });
   });
 
-  it("keeps counters isolated by orgId", async () => {
-    const kv = new FakeKv();
-    const a = OrgId.make("org-a");
-    const b = OrgId.make("org-b");
-    await runWithKv(
-      kv,
-      EnrichmentUsage.pipe(Effect.flatMap((u) => u.increment(a)))
-    );
-    await runWithKv(
-      kv,
-      EnrichmentUsage.pipe(Effect.flatMap((u) => u.increment(a)))
-    );
-    await runWithKv(
-      kv,
-      EnrichmentUsage.pipe(Effect.flatMap((u) => u.increment(b)))
-    );
-    const aUsed = await runWithKv(
-      kv,
-      EnrichmentUsage.pipe(Effect.flatMap((u) => u.current(a)))
-    );
-    const bUsed = await runWithKv(
-      kv,
-      EnrichmentUsage.pipe(Effect.flatMap((u) => u.current(b)))
-    );
-    expect(aUsed.used).toBe(2);
-    expect(bUsed.used).toBe(1);
-  });
-
-  it("writes a TTL on every increment so counters auto-expire after the active period", async () => {
-    const kv = new FakeKv();
-    await runWithKv(
-      kv,
-      EnrichmentUsage.pipe(Effect.flatMap((u) => u.increment(orgId)))
-    );
-    expect(kv.puts).toHaveLength(1);
-    const put = kv.puts[0];
-    expect(put.options?.expirationTtl).toBeGreaterThan(0);
-    expect(put.options?.expirationTtl).toBe(60 * 60 * 24 * 70);
-  });
-
-  it("treats a non-numeric stored value as zero (defensive on corruption)", async () => {
-    const kv = new FakeKv();
-    await kv.put("enrichment:org-1:2026-01", "garbage");
-    kv.puts.length = 0;
-    const got = await kv.get("enrichment:org-1:2026-01");
-    expect(got).toBe("garbage");
-
-    const result = await runWithKv(
-      kv,
-      EnrichmentUsage.pipe(Effect.flatMap((u) => u.current(orgId)))
-    );
-    expect(result.used).toBe(0);
-  });
-
-  it("surfaces KV.get failures as EnrichmentUsageGetError", async () => {
-    const kv = new FakeKv();
-    kv.getError = new Error("KV down");
-    const result = await runEitherWithKv(
-      kv,
-      EnrichmentUsage.pipe(Effect.flatMap((u) => u.current(orgId)))
+  it("fails closed when the storage transaction is unavailable", async () => {
+    const storage = new FakeStorage();
+    storage.transactionError = new Error("storage unavailable");
+    const result = await runWithStorage(
+      storage,
+      Effect.result(
+        EnrichmentUsage.pipe(
+          Effect.flatMap((usage) => usage.reserve(orgId, 100))
+        )
+      )
     );
     expect(Result.isFailure(result)).toBe(true);
     if (Result.isFailure(result)) {
-      expect(result.failure._tag).toBe("EnrichmentUsageGetError");
-      expect(result.failure).toMatchObject({ storeId: orgId });
-    }
-  });
-
-  it("surfaces KV.put failures as EnrichmentUsagePutError", async () => {
-    const kv = new FakeKv();
-    kv.putError = new Error("KV down");
-    const result = await runEitherWithKv(
-      kv,
-      EnrichmentUsage.pipe(Effect.flatMap((u) => u.increment(orgId)))
-    );
-    expect(Result.isFailure(result)).toBe(true);
-    if (Result.isFailure(result)) {
-      expect(result.failure._tag).toBe("EnrichmentUsagePutError");
-      expect(result.failure).toMatchObject({ storeId: orgId });
+      expect(result.failure).toMatchObject({
+        _tag: "EnrichmentUsageTransactionError",
+        storeId: orgId,
+      });
     }
   });
 });

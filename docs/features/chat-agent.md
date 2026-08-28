@@ -30,10 +30,10 @@ useAgentChat({ agent,               → /agents/chat/{workspaceId}
 | `getLink`         | Get link details by ID       | Auto      |
 | `completeLink`    | Mark as done                 | Auto      |
 | `uncompleteLink`  | Mark as unread               | Auto      |
-| `deleteLink`      | Move to trash                | **HITL**  |
-| `restoreLink`     | Restore from trash           | Auto      |
+| `deleteLink`      | Archive a link               | **HITL**  |
+| `restoreLink`     | Restore an archived link     | Auto      |
 | `completeLinks`   | Bulk mark as done            | Auto      |
-| `deleteLinks`     | Bulk move to trash           | **HITL**  |
+| `deleteLinks`     | Archive links in bulk        | **HITL**  |
 | `getInboxLinks`   | List unread links            | Auto      |
 | `getStats`        | Inbox/completed/total counts | Auto      |
 

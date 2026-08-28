@@ -21,7 +21,7 @@ describe("OAuth consent workspace loader", () => {
 
     await expect(loadConsentWorkspace(fetcher)).resolves.toEqual({
       ok: true,
-      workspace: { id: "workspace-b", name: "Research" },
+      workspace: { id: "workspace-b" },
     });
     expect(fetcher).toHaveBeenCalledWith("/api/auth/me");
   });
@@ -36,7 +36,7 @@ describe("OAuth consent workspace loader", () => {
 
     await expect(loadConsentWorkspace(fetcher)).resolves.toEqual({
       ok: false,
-      error: "Select an active workspace before authorizing this MCP client.",
+      error: "Open your Cloudstash library before authorizing this MCP client.",
     });
   });
 

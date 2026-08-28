@@ -383,7 +383,7 @@ function TileCta({
         onClick={() => onChange(plan.id)}
         disabled={pending !== null && !isPending}
         aria-busy={isPending}
-        className={cn("w-full", variant === "secondary" && "h-9")}
+        className={cn("w-full", { "h-9": variant === "secondary" })}
       >
         {isUpgrade ? `Upgrade to ${plan.name}` : `Downgrade to ${plan.name}`}
         {isPending ? (

@@ -109,11 +109,19 @@ export interface EnrichmentGenerateParams {
   readonly existingTags: ReadonlyArray<{ readonly name: string }>;
 }
 
-const make = Effect.gen(function* () {
-  const apiKey = yield* OpenRouterApiKey;
-  const openrouter = createOpenRouter({ apiKey });
-  const model = openrouter(ENRICHMENT_MODEL);
+export interface EnrichmentCompletion {
+  readonly object: EnrichmentOutput;
+  readonly usage?: {
+    readonly inputTokens?: number;
+    readonly outputTokens?: number;
+  };
+}
 
+export type GenerateEnrichmentCompletion = (
+  prompt: string
+) => Promise<EnrichmentCompletion>;
+
+const make = (complete: GenerateEnrichmentCompletion) => {
   const generate = Effect.fn("EnrichmentGenerator.generate")(function* (
     params: EnrichmentGenerateParams
   ) {
@@ -129,15 +137,7 @@ const make = Effect.gen(function* () {
     yield* Effect.annotateCurrentSpan("promptChars", promptChars);
 
     const result = yield* Effect.tryPromise({
-      try: () =>
-        generateObject({
-          experimental_telemetry: { isEnabled: true },
-          maxOutputTokens: 512,
-          model,
-          prompt,
-          schema: enrichmentOutputSchema,
-          system: SYSTEM_PROMPT,
-        }),
+      try: () => complete(prompt),
       catch: (cause) =>
         new EnrichmentGenerateError({
           model: ENRICHMENT_MODEL,
@@ -159,11 +159,31 @@ const make = Effect.gen(function* () {
   });
 
   return { generate };
+};
+
+const makeLive = Effect.gen(function* () {
+  const apiKey = yield* OpenRouterApiKey;
+  const openrouter = createOpenRouter({ apiKey });
+  const model = openrouter(ENRICHMENT_MODEL);
+
+  return make((prompt) =>
+    generateObject({
+      experimental_telemetry: { isEnabled: true },
+      maxOutputTokens: 512,
+      model,
+      prompt,
+      schema: enrichmentOutputSchema,
+      system: SYSTEM_PROMPT,
+    })
+  );
 });
 
 export class EnrichmentGenerator extends Context.Service<
   EnrichmentGenerator,
-  Effect.Success<typeof make>
+  Effect.Success<typeof makeLive>
 >()("@cloudstash/EnrichmentGenerator") {
-  static readonly Default = Layer.effect(EnrichmentGenerator, make);
+  static readonly layer = (complete: GenerateEnrichmentCompletion) =>
+    Layer.succeed(EnrichmentGenerator, make(complete));
+
+  static readonly Default = Layer.effect(EnrichmentGenerator, makeLive);
 }

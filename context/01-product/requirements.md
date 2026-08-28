@@ -32,14 +32,14 @@ outputs of this node, not independent sources of requirements.
 - **CS.PROD-T02 Eventual enrichment:** A saved item may temporarily show only
   its URL/domain and processing state.
 - **CS.PROD-T03 Personal-first UX:** The interface optimizes for a personal
-  Vault even though the tenancy model can represent members and invitations.
+  library even though the tenancy model can represent members and invitations.
 
 ## Requirements
 
 ### Must Make Capture Frictionless
 
-- **CS.PROD-R01 Common Vault:** Every supported capture surface must save into
-  the selected workspace's same Vault. `refines: CS-R01`
+- **CS.PROD-R01 Common library:** Every supported capture surface must save into
+  the selected workspace's same library. `refines: CS-R01`
 - **CS.PROD-R02 Immediate local capture:** Web capture must be visible from
   local state without waiting for metadata or AI. `refines: CS-R02, CS-R04`
 - **CS.PROD-R03 Source context:** A link retains source type and the minimum
@@ -49,14 +49,14 @@ outputs of this node, not independent sources of requirements.
 
 ### Must Make Saved Material Useful
 
-- **CS.PROD-R04 Preview:** The Vault displays every successfully extracted
+- **CS.PROD-R04 Preview:** The library displays every successfully extracted
   title, description, image, favicon, domain, and timestamp while allowing any
   unavailable optional field to be absent.
 - **CS.PROD-R05 Reading lifecycle:** Users must be able to move links between
   unread and completed states and reversibly archive/restore them.
 - **CS.PROD-R06 Retrieval:** Direct local search must retrieve by title, domain,
   description, summary, URL, and effective tags; the entitled workspace agent
-  must be able to search and inspect the same Vault records.
+  must be able to search and inspect the same library records.
 - **CS.PROD-R07 AI triage:** When extraction and model generation succeed, an
   entitled workspace receives a two-to-three-sentence summary of at most 600
   characters and no more than the configured number of tag suggestions.

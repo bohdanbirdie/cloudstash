@@ -60,7 +60,7 @@ export function PaywallModal() {
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">
               {reason ??
-                "AI on every save, your archive in chat, and every way to save."}
+                "AI summaries, chat with your library, and every way to save."}
             </DialogDescription>
           </DialogHeader>
 

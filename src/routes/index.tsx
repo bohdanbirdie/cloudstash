@@ -7,9 +7,7 @@ import { Footer } from "@/components/landing/footer";
 import { Hero } from "@/components/landing/hero";
 import { Integrations } from "@/components/landing/integrations";
 import { MobileStickyCta } from "@/components/landing/mobile-sticky-cta";
-import { Pitch } from "@/components/landing/pitch";
 import { Pricing } from "@/components/landing/pricing";
-import { PullQuote } from "@/components/landing/pullquote";
 import {
   FAQ_LD,
   SITE_URL,
@@ -20,9 +18,9 @@ import { META_PIXEL_HEAD_SCRIPTS } from "@/lib/meta-pixel";
 
 const TITLE = "Cloudstash — Save links, skim AI summaries";
 const DESCRIPTION =
-  "Save links from Telegram, Raycast, Chrome, or the web. Cloudstash writes a two-paragraph AI summary so you can skim before you read.";
+  "Save links from Telegram, Raycast, Chrome, or the web. Cloudstash adds clear AI summaries so you can skim before you read.";
 const OG_DESCRIPTION =
-  "Save links from anywhere. Cloudstash writes a short summary on every save so you can skim before you read.";
+  "Save links from anywhere. Cloudstash adds clear summaries so you can skim before you read.";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -58,9 +56,7 @@ function LandingPage() {
       <TopBar />
       <main className="pb-20 sm:pb-0">
         <Hero />
-        <Pitch />
         <Integrations />
-        <PullQuote />
         <Benefits />
         <Pricing />
         <Faq />

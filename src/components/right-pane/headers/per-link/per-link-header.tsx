@@ -118,10 +118,10 @@ function Loaded({ link }: { link: LinkWithDetails }) {
                 variant="ghost"
                 onClick={onArchiveToggle}
                 aria-label={archiveMeta.label}
-                className={cn(
-                  archiveAction === "archive" &&
-                    "hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20"
-                )}
+                className={cn({
+                  "hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20":
+                    archiveAction === "archive",
+                })}
               >
                 <IconSwap iconKey={archiveAction}>
                   <ArchiveIcon />

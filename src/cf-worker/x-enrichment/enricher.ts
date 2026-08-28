@@ -24,12 +24,12 @@ export const enrichSummary = Effect.fn("X.enrichSummary")(function* (
   });
 
   const usage = yield* EnrichmentUsage;
-  const current = yield* usage.current(storeId);
-  if (current.used >= MONTHLY_ENRICHMENT_CAP) {
+  const reservation = yield* usage.reserve(storeId, MONTHLY_ENRICHMENT_CAP);
+  if (!reservation.reserved) {
     return yield* new EnrichmentBudgetExhaustedError({
       storeId,
-      period: current.period,
-      used: current.used,
+      period: reservation.period,
+      used: reservation.used,
       cap: MONTHLY_ENRICHMENT_CAP,
     });
   }
@@ -46,10 +46,9 @@ export const enrichSummary = Effect.fn("X.enrichSummary")(function* (
   const generator = yield* EnrichmentGenerator;
   const output = yield* generator.generate({ url, context, existingTags });
 
-  const reserved = yield* usage.increment(storeId);
   yield* Effect.annotateCurrentSpan({
-    enrichmentsUsedAfter: reserved.used,
-    period: reserved.period,
+    enrichmentsUsedAfter: reservation.used,
+    period: reservation.period,
     summaryLength: output.summary.length,
     suggestedTagsCount: output.suggestedTags.length,
   });

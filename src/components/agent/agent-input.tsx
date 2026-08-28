@@ -36,7 +36,7 @@ export function InputForm({
       }}
       className={cn(
         "flex shrink-0 items-end gap-1.5 border-t border-border p-2 lg:gap-1 lg:p-1",
-        muted && "opacity-60"
+        { "opacity-60": muted }
       )}
     >
       <textarea

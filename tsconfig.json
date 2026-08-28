@@ -37,7 +37,16 @@
     "noUncheckedSideEffectImports": true,
     "plugins": [
       {
-        "name": "@effect/language-service"
+        "name": "@effect/language-service",
+        "diagnosticSeverity": {
+          "anyUnknownInErrorContext": "warning",
+          "effectFnOpportunity": "warning",
+          "globalFetchInEffect": "warning",
+          "globalTimersInEffect": "warning",
+          "nestedEffectGenYield": "warning",
+          "tryCatchInEffectGen": "warning",
+          "unsafeEffectTypeAssertion": "warning"
+        }
       }
     ],
     "paths": {

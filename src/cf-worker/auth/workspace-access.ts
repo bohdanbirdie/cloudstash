@@ -81,6 +81,7 @@ export type WorkspaceAccessDeniedError = Exclude<
 
 export const WorkspaceAuthorization = Schema.Struct({
   orgId: OrgId,
+  source: Schema.optional(Schema.String),
   userId: UserId,
 });
 export type WorkspaceAuthorization = typeof WorkspaceAuthorization.Type;
@@ -201,7 +202,11 @@ const resolveApiKey = Effect.fnUntraced(function* (auth: Auth, apiKey: ApiKey) {
     ),
     () => new WorkspaceApiKeyReferenceMissingError()
   );
-  return { orgId: metadata.orgId, userId };
+  return {
+    orgId: metadata.orgId,
+    ...(metadata.source === undefined ? {} : { source: metadata.source }),
+    userId,
+  };
 });
 
 const make = (auth: Auth, db: Database) => {

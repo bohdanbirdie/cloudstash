@@ -36,15 +36,12 @@ interface CallLog {
 
 const FakeUsageLive = (initialUsed: number, log: CallLog) =>
   Layer.succeed(EnrichmentUsage, {
-    current: () =>
+    reserve: (_storeId, cap) =>
       Effect.sync(() => {
-        log.events.push("usage.current");
-        return { used: initialUsed, period: "2026-05" };
-      }),
-    increment: () =>
-      Effect.sync(() => {
-        log.events.push("usage.increment");
-        return { used: initialUsed + 1, period: "2026-05" };
+        log.events.push("usage.reserve");
+        return initialUsed >= cap
+          ? { reserved: false, used: initialUsed, period: "2026-05" }
+          : { reserved: true, used: initialUsed + 1, period: "2026-05" };
       }),
   });
 
@@ -106,10 +103,10 @@ describe("enrichSummary orchestrator", () => {
         cap: MONTHLY_ENRICHMENT_CAP,
       });
     }
-    expect(log.events).toEqual(["usage.current"]);
+    expect(log.events).toEqual(["usage.reserve"]);
   });
 
-  it("happy path: checks budget, fetches context, generates, increments — returns {summary, suggestedTags}", async () => {
+  it("happy path: reserves budget before provider work", async () => {
     const log: CallLog = { events: [] };
     const layer = Layer.mergeAll(
       FakeUsageLive(7, log),
@@ -133,14 +130,13 @@ describe("enrichSummary orchestrator", () => {
       suggestedTags: ["ai", "rust"],
     });
     expect(log.events).toEqual([
-      "usage.current",
+      "usage.reserve",
       "provider.fetch",
       "generator.generate",
-      "usage.increment",
     ]);
   });
 
-  it("provider failure: no generator call, no usage increment (budget not consumed)", async () => {
+  it("provider failure remains charged because provider work started", async () => {
     const log: CallLog = { events: [] };
     const layer = Layer.mergeAll(
       FakeUsageLive(3, log),
@@ -168,10 +164,10 @@ describe("enrichSummary orchestrator", () => {
     if (Result.isFailure(result)) {
       expect(result.failure._tag).toBe("ThreadProviderEmptyError");
     }
-    expect(log.events).toEqual(["usage.current", "provider.fetch"]);
+    expect(log.events).toEqual(["usage.reserve", "provider.fetch"]);
   });
 
-  it("generator failure: no usage increment (budget not consumed)", async () => {
+  it("generator failure remains charged because provider work started", async () => {
     const log: CallLog = { events: [] };
     const layer = Layer.mergeAll(
       FakeUsageLive(0, log),
@@ -203,7 +199,7 @@ describe("enrichSummary orchestrator", () => {
       });
     }
     expect(log.events).toEqual([
-      "usage.current",
+      "usage.reserve",
       "provider.fetch",
       "generator.generate",
     ]);

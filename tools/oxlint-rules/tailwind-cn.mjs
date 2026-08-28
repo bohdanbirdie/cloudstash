@@ -1,72 +1,68 @@
-const CLSX_CALLEES = new Set(["cn", "clsx", "classnames", "classNames"]);
+const CN_CALLEES = new Set(["cn", "clsx", "classnames", "classNames"]);
 
-const isStringLiteral = (node) =>
-  node != null && node.type === "Literal" && typeof node.value === "string";
-
-const isClsxCall = (node) =>
+const isCnCall = (node) =>
   node != null &&
   node.type === "CallExpression" &&
   node.callee.type === "Identifier" &&
-  CLSX_CALLEES.has(node.callee.name);
+  CN_CALLEES.has(node.callee.name);
 
-const FLIPPED_OPERATOR = { "===": "!==", "!==": "===", "==": "!=", "!=": "==" };
+const isDynamicTemplate = (node) =>
+  node?.type === "TemplateLiteral" && node.expressions.length > 0;
 
-const negateText = (sourceCode, test) => {
-  if (test.type === "UnaryExpression" && test.operator === "!") {
-    return sourceCode.getText(test.argument);
-  }
-  if (test.type === "BinaryExpression" && FLIPPED_OPERATOR[test.operator]) {
-    const left = sourceCode.getText(test.left);
-    const right = sourceCode.getText(test.right);
-    return `${left} ${FLIPPED_OPERATOR[test.operator]} ${right}`;
-  }
-  const isAtom =
-    test.type === "Identifier" ||
-    test.type === "MemberExpression" ||
-    test.type === "CallExpression";
-  const text = sourceCode.getText(test);
-  return isAtom ? `!${text}` : `!(${text})`;
-};
+const isTextConcatenation = (node) =>
+  node?.type === "BinaryExpression" && node.operator === "+";
 
-const noCnTernary = {
+const isConditionalExpression = (node) =>
+  node?.type === "ConditionalExpression" ||
+  (node?.type === "LogicalExpression" && node.operator === "&&");
+
+const requiresCnObjectSyntax = (node) =>
+  isDynamicTemplate(node) ||
+  isTextConcatenation(node) ||
+  isConditionalExpression(node);
+
+const isClassNameAttribute = (node) =>
+  node.name?.type === "JSXIdentifier" && node.name.name === "className";
+
+const enforceCn = {
   meta: {
     type: "suggestion",
-    fixable: "code",
     messages: {
-      preferObject:
-        "Use cn() object syntax instead of a ternary for conditional classes.",
+      noConcatenation:
+        "Pass class values as separate cn() arguments instead of concatenating className text; put conditional classes in cn() object syntax.",
+      requireObjectSyntax:
+        "Use cn() object syntax for conditional classes instead of a ternary or && expression.",
     },
   },
   create(context) {
-    const sourceCode = context.sourceCode ?? context.getSourceCode();
-
     return {
-      ConditionalExpression(node) {
-        const parent = node.parent;
-        if (!isClsxCall(parent) || !parent.arguments.includes(node)) return;
-        if (
-          !isStringLiteral(node.consequent) ||
-          !isStringLiteral(node.alternate)
-        ) {
-          return;
-        }
-        if (node.consequent.value === "" || node.alternate.value === "") return;
+      JSXAttribute(node) {
+        if (!isClassNameAttribute(node)) return;
+        if (node.value?.type !== "JSXExpressionContainer") return;
 
-        const consequentKey = JSON.stringify(node.consequent.value);
-        const alternateKey = JSON.stringify(node.alternate.value);
-        const testText = sourceCode.getText(node.test);
-        const negated = negateText(sourceCode, node.test);
+        const expression = node.value.expression;
+        if (isCnCall(expression)) return;
+        if (!requiresCnObjectSyntax(expression)) return;
 
         context.report({
-          node,
-          messageId: "preferObject",
-          fix(fixer) {
-            return fixer.replaceText(
-              node,
-              `{ ${consequentKey}: ${testText}, ${alternateKey}: ${negated} }`
-            );
-          },
+          node: expression,
+          messageId: isConditionalExpression(expression)
+            ? "requireObjectSyntax"
+            : "noConcatenation",
         });
+      },
+      CallExpression(node) {
+        if (!isCnCall(node)) return;
+
+        for (const argument of node.arguments) {
+          if (!requiresCnObjectSyntax(argument)) continue;
+          context.report({
+            node: argument,
+            messageId: isConditionalExpression(argument)
+              ? "requireObjectSyntax"
+              : "noConcatenation",
+          });
+        }
       },
     };
   },
@@ -74,5 +70,5 @@ const noCnTernary = {
 
 export default {
   meta: { name: "tailwind-cn" },
-  rules: { "no-cn-ternary": noCnTernary },
+  rules: { "enforce-cn": enforceCn },
 };

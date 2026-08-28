@@ -7,7 +7,6 @@ const ConsentWorkspaceResponse = Schema.Struct({
     Schema.NullOr(
       Schema.Struct({
         id: Schema.String,
-        name: Schema.String,
       })
     )
   ),
@@ -23,7 +22,6 @@ const decodeUrl = Schema.decodeUnknownOption(Schema.URLFromString);
 
 type ConsentWorkspace = {
   readonly id: string;
-  readonly name: string;
 };
 
 export type ConsentWorkspaceResult =
@@ -42,39 +40,41 @@ export const loadConsentWorkspaceEffect = Effect.fn(
     Effect.option
   );
   if (Option.isNone(response) || !response.value.ok) {
-    return failure("Cloudstash could not resolve your active workspace.");
+    return failure("Cloudstash could not find your library.");
   }
 
   const body = yield* Effect.tryPromise(() =>
     response.value.json<unknown>()
   ).pipe(Effect.option);
   if (Option.isNone(body)) {
-    return failure("Cloudstash could not verify the workspace for this grant.");
+    return failure(
+      "Cloudstash could not verify your library for this connection."
+    );
   }
   const decoded = decodeConsentWorkspace(body.value);
   if (Option.isNone(decoded)) {
-    return failure("Cloudstash could not verify the workspace for this grant.");
+    return failure(
+      "Cloudstash could not verify your library for this connection."
+    );
   }
 
   const { activeOrganizationId } = decoded.value.session;
   if (!activeOrganizationId) {
     return failure(
-      "Select an active workspace before authorizing this MCP client."
+      "Open your Cloudstash library before authorizing this MCP client."
     );
   }
 
   const organization = decoded.value.organization;
-  if (
-    !organization ||
-    organization.id !== activeOrganizationId ||
-    !organization.name.trim()
-  ) {
-    return failure("Cloudstash could not verify the workspace for this grant.");
+  if (!organization || organization.id !== activeOrganizationId) {
+    return failure(
+      "Cloudstash could not verify your library for this connection."
+    );
   }
 
   return {
     ok: true as const,
-    workspace: { id: activeOrganizationId, name: organization.name },
+    workspace: { id: activeOrganizationId },
   };
 });
 

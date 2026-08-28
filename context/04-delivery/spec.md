@@ -48,6 +48,12 @@ Submodule and snapshot move atomically. The rationale is recorded in
 `bun run build` ensures the submodule, runs `vp build`, verifies the bundle, and
 prerenders public pages. The Cloudflare Worker environment is Oxc-minified while
 client build defaults remain independent. Vite fails default builds without vendored source.
+Deploy builds (`build:prod`, `build:staging`) install less of the vendored
+workspace than local and CI builds: the submodule checkout is shallow, and the
+pnpm install covers only the `@livestore/*` packages the app imports plus their
+dependencies. The package set is derived from source, so an unlisted import
+fails the deploy build rather than dropping out of it silently. Local dev and CI
+test jobs keep the full workspace install, because tests need the other packages.
 `__LIVESTORE_BUILD__` embeds `vendored@<sha>` or explicit `published` mode.
 Bundle certification checks revision marker count, no known Effect v3 version
 string, the msgpack runtime/no-native-extraction path, one distinct React

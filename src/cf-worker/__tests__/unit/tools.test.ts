@@ -185,7 +185,7 @@ describe("createTools", () => {
       expect(typeof result.linkId).toBe("string");
       expect(result.linkId.length).toBeGreaterThan(0);
       expect(result.message).toBe(
-        'Saved "https://example.com/page" to workspace'
+        'Saved "https://example.com/page" to the library'
       );
 
       // Verify state via query

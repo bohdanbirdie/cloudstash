@@ -3,29 +3,15 @@ import { SectionCta, SectionHeader, SHELL } from "./shared";
 
 export function Benefits() {
   return (
-    <section
-      id="features"
-      className="border-y border-border/60 bg-muted/30 py-16 sm:py-20 lg:py-24"
-    >
+    <section id="features" className="bg-muted/30 py-16 sm:py-20 lg:py-24">
       <div className={SHELL}>
         <SectionHeader
           eyebrow="What changes"
-          title={
-            <>
-              The things you{" "}
-              <span
-                className="font-italic-accent text-primary"
-                style={{ fontSize: "1.17em" }}
-              >
-                stop
-              </span>{" "}
-              doing.
-            </>
-          }
-          lead="A summary on every save. An archive you can actually search. The end of “I read that somewhere.”"
+          title="Your saved links stay useful."
+          lead="Find what you need, understand it quickly, and use it without reopening every page."
         />
         <BenefitsGrid />
-        <SectionCta />
+        <SectionCta lead="Start a library you’ll actually use." />
       </div>
     </section>
   );

@@ -29,8 +29,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       { property: "og:image:height", content: "630" },
       {
         property: "og:image:alt",
-        content:
-          "Cloudstash inbox showing saved links with AI-generated summaries",
+        content: "Cloudstash: Saved links, made useful.",
       },
       { name: "twitter:card", content: "summary_large_image" },
       {
@@ -39,8 +38,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       },
       {
         name: "twitter:image:alt",
-        content:
-          "Cloudstash inbox showing saved links with AI-generated summaries",
+        content: "Cloudstash: Saved links, made useful.",
       },
     ],
     scripts: ANALYTICS_SCRIPTS,

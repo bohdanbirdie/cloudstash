@@ -36,9 +36,9 @@ export const PLANS: Readonly<Record<PlanTier, PlanInfo>> = {
     id: "plus",
     name: "Plus",
     pricing: { monthly: 5, yearly: 50 },
-    tagline: "Every save, summarized by AI.",
+    tagline: "Your saves, ready to skim.",
     features: [
-      "AI summary on every save",
+      "AI summaries for saved links",
       "Save from Telegram and Raycast",
       "Weekly digest of what you read",
       "Public API",
@@ -53,7 +53,7 @@ export const PLANS: Readonly<Record<PlanTier, PlanInfo>> = {
     tagline: "The full Cloudstash. AI everywhere.",
     features: [
       "X bookmark sync",
-      "Chat with your archive",
+      "Chat with your library",
       "Enriched X summaries",
       "MCP server",
     ],

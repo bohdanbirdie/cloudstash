@@ -10,6 +10,16 @@ export const Masthead = memo(function Masthead() {
 
   if (!title || !status) return null;
 
+  return <MastheadSurface title={title} count={links.length} />;
+});
+
+export function MastheadSurface({
+  title,
+  count,
+}: {
+  title: string;
+  count: number;
+}) {
   return (
     <div className="flex shrink-0 items-baseline justify-between gap-2 pl-2 pr-5 pt-3 pb-1">
       <h2 className="text-sm font-semibold text-foreground">{title}</h2>
@@ -17,8 +27,8 @@ export const Masthead = memo(function Masthead() {
         as="span"
         className="text-xs text-muted-foreground tabular-nums"
       >
-        {String(links.length)}
+        {String(count)}
       </TextMorph>
     </div>
   );
-});
+}

@@ -414,7 +414,7 @@ const handleSync = async (
   const authResult = await runSyncAuth(
     searchParams.payload,
     searchParams.storeId,
-    request.headers as unknown as Headers,
+    request.headers,
     env
   );
 
@@ -429,12 +429,7 @@ const handleSync = async (
     orgId: searchParams.storeId,
   });
 
-  return handleSyncRequest(
-    request,
-    searchParams,
-    ctx,
-    env
-  ) as unknown as Response;
+  return handleSyncRequest(request, searchParams, ctx, env);
 };
 
 export const fetch = async (
@@ -446,16 +441,12 @@ export const fetch = async (
   const rateLimited = await checkRateLimit(request, env);
   if (rateLimited) return rateLimited;
 
-  const agentResponse = await routeAgentRequest(
-    request as unknown as Request,
-    env,
-    {
-      onBeforeConnect: (req, lobby) =>
-        agentHooks.onBeforeConnect(req, lobby, env),
-      onBeforeRequest: (req, lobby) =>
-        agentHooks.onBeforeRequest(req, lobby, env),
-    }
-  );
+  const agentResponse = await routeAgentRequest(request, env, {
+    onBeforeConnect: (req, lobby) =>
+      agentHooks.onBeforeConnect(req, lobby, env),
+    onBeforeRequest: (req, lobby) =>
+      agentHooks.onBeforeRequest(req, lobby, env),
+  });
   if (agentResponse) return agentResponse;
 
   if (url.pathname === "/sync") {
@@ -463,12 +454,10 @@ export const fetch = async (
   }
 
   if (url.pathname === "/") {
-    return env.ASSETS.fetch(
-      new Request(new URL("/__landing.html", url))
-    ) as unknown as Promise<Response>;
+    return env.ASSETS.fetch(new Request(new URL("/__landing.html", url)));
   }
 
-  return app.fetch(request as unknown as Request, env, ctx);
+  return app.fetch(request, env, ctx);
 };
 
 export const queue = (batch: MessageBatch, env: Env): Promise<void> => {

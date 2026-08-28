@@ -1,361 +1,140 @@
-import { SearchIcon } from "lucide-react";
-import { motion } from "motion/react";
-
-import { cn } from "@/lib/utils";
-
-const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
-
 export function BenefitsGrid() {
   return (
-    <div className="grid gap-6 sm:grid-cols-2 sm:gap-x-8 sm:gap-y-10 lg:grid-cols-12">
-      <FeatureBenefit
-        delay={0}
-        title="Find anything in two keystrokes."
-        body="Title, domain, summary, tag — instantly. Your archive is a keystroke away, even offline."
-        className="sm:col-span-2 lg:col-span-6"
-      >
-        <SearchMockup />
-      </FeatureBenefit>
-      <SmallBenefit
-        delay={0.08}
-        title="A summary, ready to skim."
-        body="Two paragraphs on every save. Decide what's worth opening, in seconds."
-        visual={<TldrCard />}
-        className="lg:col-span-3"
+    <ul className="grid gap-14 lg:grid-cols-3 lg:gap-8 xl:gap-10">
+      <StoryStep
+        number="01"
+        action="Find it"
+        title="Find anything you saved."
+        body="Search titles, sites, tags, and summaries—even when you only remember the idea."
+        visual={<SearchStory />}
       />
-      <SmallBenefit
-        delay={0.16}
-        title="Tag what matters. Skip the folders."
-        body="Tagging is optional. Archiving is one tap. No folder tree to maintain."
-        visual={<TagsRow />}
-        className="lg:col-span-3"
+      <StoryStep
+        number="02"
+        action="Understand it"
+        title="Know what’s worth opening."
+        body="Read a clear summary first, then open the original when you need the full story."
+        visual={<SummaryStory />}
       />
-
-      <FeatureBenefit
-        delay={0.24}
-        title="Ask your library a question."
-        body="Forget which article said what. Ask — get a paragraph back, with citations."
-        className="sm:col-span-2 lg:col-span-6"
-      >
-        <ChatMockup />
-      </FeatureBenefit>
-      <SmallBenefit
-        delay={0.32}
-        title="Phone, laptop, web — same second."
-        body="Save anywhere, see it everywhere. Real-time sync, works offline too."
-        visual={<SyncRow />}
-        className="lg:col-span-3"
+      <StoryStep
+        number="03"
+        action="Use it"
+        title="Ask about what you saved."
+        body="Ask a question and get an answer with links back to the original sources."
+        visual={<AnswerStory />}
       />
-      <SmallBenefit
-        delay={0.4}
-        title="Walk away anytime. Take everything."
-        body="Export the whole archive as Markdown or plain links in one click. No lock-in."
-        visual={<ArchiveCard />}
-        className="lg:col-span-3"
-      />
-    </div>
+    </ul>
   );
 }
 
-function FeatureBenefit({
+function StoryStep({
+  number,
+  action,
   title,
   body,
-  delay,
-  className,
-  children,
-}: {
-  title: string;
-  body: string;
-  delay: number;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.45, ease: EASE_OUT, delay }}
-      className={cn(
-        "flex flex-col gap-5 border-t border-border/60 pt-5",
-        className
-      )}
-    >
-      <div>
-        <h3 className="text-xl font-semibold tracking-tight">{title}</h3>
-        <p className="mt-1.5 max-w-[42ch] text-pretty text-sm leading-relaxed text-muted-foreground">
-          {body}
-        </p>
-      </div>
-      <div className="mt-auto">{children}</div>
-    </motion.div>
-  );
-}
-
-function SmallBenefit({
-  title,
-  body,
-  delay,
   visual,
-  className,
 }: {
+  number: string;
+  action: string;
   title: string;
   body: string;
-  delay: number;
-  visual?: React.ReactNode;
-  className?: string;
+  visual: React.ReactNode;
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.45, ease: EASE_OUT, delay }}
-      className={cn(
-        "flex flex-col gap-4 border-t border-border/60 pt-5",
-        className
-      )}
-    >
+    <li className="flex min-w-0 flex-col">
+      <div className="mb-4 flex items-center gap-2 font-mono text-[10.5px] font-semibold uppercase tracking-[0.08em]">
+        <span className="text-primary">{number}</span>
+        <span className="text-muted-foreground">{action}</span>
+      </div>
+      <div
+        aria-hidden="true"
+        className="h-[13rem] overflow-hidden rounded-lg border border-border/70 bg-background p-5"
+      >
+        {visual}
+      </div>
+      <h3 className="mt-5 text-xl font-semibold tracking-tight">{title}</h3>
+      <p className="mt-2 max-w-[36ch] text-pretty text-sm leading-relaxed text-muted-foreground lg:min-h-[4.5rem]">
+        {body}
+      </p>
+    </li>
+  );
+}
+
+function SearchStory() {
+  return (
+    <div className="flex h-full flex-col gap-4">
+      <div className="rounded-md border border-border/70 bg-muted/40 px-3 py-2 font-mono text-xs text-foreground/80">
+        weekend in lisbon
+        <span className="landing-search-cursor ml-0.5 inline-block h-[1em] w-0.5 translate-y-[0.15em] rounded-full bg-primary" />
+      </div>
+      <div className="rounded-md bg-muted/55 p-3">
+        <SavedLink />
+        <p className="mt-2 line-clamp-2 text-[11.5px] leading-relaxed text-muted-foreground">
+          A relaxed three-day plan for food, walks, and the river.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function SummaryStory() {
+  return (
+    <div className="flex h-full flex-col gap-4">
+      <SavedLink />
       <div>
-        <h3 className="text-[1.0625rem] font-semibold leading-snug tracking-tight">
-          {title}
-        </h3>
-        <p className="mt-1.5 text-pretty text-sm leading-relaxed text-muted-foreground">
-          {body}
+        <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">
+          AI summary
+        </div>
+        <p className="mt-2 text-pretty text-[12.5px] leading-relaxed text-foreground/80">
+          Spend three days exploring old neighborhoods, small restaurants, and
+          the riverfront, with plenty of time left unscheduled.
         </p>
       </div>
-      {visual && <div className="mt-auto">{visual}</div>}
-    </motion.div>
-  );
-}
-
-function TldrCard() {
-  return (
-    <div className="select-none rounded-md border border-border/60 bg-background p-2.5">
-      <div className="flex items-baseline gap-2">
-        <span className="shrink-0 rounded-sm bg-primary/10 px-1.5 py-0.5 font-mono text-[9.5px] font-semibold tracking-[0.04em] text-primary">
-          TL;DR
-        </span>
-        <span className="text-pretty text-[11.5px] leading-relaxed text-muted-foreground">
-          A weekend in Lisbon — small bars, blue tiles, custard tarts at 9 AM.
-        </span>
-      </div>
     </div>
   );
 }
 
-function TagsRow() {
+function AnswerStory() {
   return (
-    <div className="select-none rounded-md border border-border/60 bg-background p-2.5">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <TagChip>read</TagChip>
-        <TagChip>cook</TagChip>
-        <TagChip primary>later</TagChip>
-        <span className="font-mono text-[11px] text-muted-foreground/50">
-          +
+    <div className="flex h-full flex-col gap-4">
+      <div className="ml-auto max-w-[88%] rounded-xl rounded-br-sm bg-muted px-3 py-2 text-[12px] leading-snug text-foreground">
+        Do I need a car?
+      </div>
+      <div className="text-[12.5px] leading-relaxed text-foreground/80">
+        No. Most stops are walkable, and trams cover the longer trips.
+      </div>
+      <div className="mt-auto flex min-w-0 items-center gap-2 rounded-md border border-border/70 bg-muted/30 px-2.5 py-2">
+        <SourceMark />
+        <span className="truncate text-[11px] font-medium">
+          A Weekend in Lisbon
+        </span>
+        <span className="ml-auto shrink-0 font-mono text-[9.5px] text-muted-foreground">
+          source
         </span>
       </div>
     </div>
   );
 }
 
-function TagChip({
-  children,
-  primary,
-}: {
-  children: React.ReactNode;
-  primary?: boolean;
-}) {
+function SavedLink() {
   return (
-    <span
-      className={cn("rounded-sm px-1.5 py-0.5 font-mono text-[10.5px]", {
-        "bg-primary/10 text-primary": primary,
-        "bg-muted/60 text-foreground/80": !primary,
-      })}
-    >
-      <span
-        className={primary ? "text-primary/60" : "text-muted-foreground/55"}
-      >
-        #
-      </span>
-      {children}
-    </span>
-  );
-}
-
-function SyncRow() {
-  return (
-    <div className="flex h-10 select-none items-center rounded-md border border-border/60 bg-background px-2.5">
-      <div className="flex w-full items-center gap-2">
-        <DeviceChip>macOS</DeviceChip>
-        <DotsTrail baseDelay={0.4} />
-        <DeviceChip>Mobile web</DeviceChip>
-        <DotsTrail baseDelay={0.58} />
-        <DeviceChip>Web</DeviceChip>
+    <div className="flex min-w-0 items-center gap-2.5">
+      <SourceMark />
+      <div className="min-w-0">
+        <div className="truncate text-[12.5px] font-semibold tracking-tight">
+          A Weekend in Lisbon
+        </div>
+        <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+          lonelyplanet.com · #travel
+        </div>
       </div>
     </div>
   );
 }
 
-function DeviceChip({ children }: { children: React.ReactNode }) {
+function SourceMark() {
   return (
-    <span className="shrink-0 rounded-sm bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-foreground/80">
-      {children}
+    <span className="grid size-7 shrink-0 place-items-center rounded-md bg-primary/10 font-serif text-xs font-semibold text-primary">
+      L
     </span>
-  );
-}
-
-function DotsTrail({ baseDelay }: { baseDelay: number }) {
-  return (
-    <span className="flex flex-1 items-center justify-center gap-1">
-      {[0, 1, 2].map((i) => (
-        <motion.span
-          key={i}
-          initial={{ opacity: 0.18 }}
-          whileInView={{ opacity: [0.18, 1, 0.4] }}
-          viewport={{ once: true, margin: "-40px" }}
-          transition={{
-            duration: 0.6,
-            ease: EASE_OUT,
-            delay: baseDelay + i * 0.08,
-            times: [0, 0.5, 1],
-          }}
-          className="size-1 rounded-full bg-primary"
-        />
-      ))}
-    </span>
-  );
-}
-
-function ArchiveCard() {
-  return (
-    <div className="flex h-10 select-none items-center gap-2 rounded-md border border-border/60 bg-background px-2.5">
-      <FileMark />
-      <span className="font-mono text-[11.5px] text-foreground">
-        cloudstash-export.md
-      </span>
-      <span className="ml-auto font-mono text-[10px] tabular-nums text-muted-foreground">
-        1,247 links
-      </span>
-    </div>
-  );
-}
-
-function FileMark() {
-  return (
-    <svg
-      className="size-3.5 shrink-0 text-muted-foreground"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-    </svg>
-  );
-}
-
-function SearchMockup() {
-  const results = [
-    {
-      title: "The Best Cacio e Pepe (Trust Us)",
-      meta: "seriouseats.com · #cook",
-    },
-    {
-      title: "Marcella Hazan's Tomato Sauce",
-      meta: "nytimes.com · #cook",
-    },
-    {
-      title: "Why I gave up on perfectly al dente",
-      meta: "thekitchn.com · #essay",
-    },
-  ];
-  return (
-    <div className="select-none rounded-md border border-border/60 bg-background p-3.5">
-      <motion.div
-        initial={{ opacity: 0, y: 4 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-40px" }}
-        transition={{ duration: 0.35, ease: EASE_OUT, delay: 0.35 }}
-        className="flex items-center gap-2 rounded-sm border border-border/60 bg-muted/50 px-2.5 py-1.5"
-      >
-        <SearchIcon
-          className="size-3.5 text-muted-foreground"
-          aria-hidden="true"
-        />
-        <span className="text-[12px] text-foreground/80">pasta</span>
-      </motion.div>
-      <ul className="mt-3 grid gap-2.5">
-        {results.map((r, i) => (
-          <motion.li
-            key={r.title}
-            initial={{ opacity: 0, x: -4 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true, margin: "-40px" }}
-            transition={{
-              duration: 0.3,
-              ease: EASE_OUT,
-              delay: 0.55 + i * 0.07,
-            }}
-          >
-            <div className="text-[12.5px] font-medium leading-snug">
-              {r.title}
-            </div>
-            <div className="mt-0.5 text-[11px] text-muted-foreground">
-              {r.meta}
-            </div>
-          </motion.li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function ChatMockup() {
-  return (
-    <div className="grid select-none gap-2.5">
-      <motion.div
-        initial={{ opacity: 0, y: 4 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-40px" }}
-        transition={{ duration: 0.35, ease: EASE_OUT, delay: 0.35 }}
-        className="ml-auto max-w-[78%] rounded-2xl rounded-br-[6px] bg-muted px-3 py-1.5 text-[12.5px] leading-snug"
-      >
-        What did I save about gardens?
-      </motion.div>
-      <motion.div
-        initial={{ opacity: 0, y: 4 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-40px" }}
-        transition={{ duration: 0.35, ease: EASE_OUT, delay: 0.7 }}
-        className="max-w-[92%] rounded-2xl rounded-bl-[6px] border border-border/60 bg-background px-3 py-2.5 text-[12.5px] leading-relaxed"
-      >
-        <p>
-          A New York Times piece on the Botanical Garden in the Bronx — gentle
-          and easy to skim.
-        </p>
-        <motion.span
-          initial={{ opacity: 0, y: 2 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.3, ease: EASE_OUT, delay: 1.0 }}
-          className="mt-2 inline-flex items-center gap-1.5 rounded-sm border border-border/60 bg-muted/40 px-1.5 py-0.5 text-[10.5px] font-medium text-foreground/85"
-        >
-          <span
-            className="grid size-2.5 shrink-0 place-items-center rounded-[2px] font-serif text-[7px] font-bold text-white"
-            style={{ backgroundColor: "#000" }}
-            aria-hidden="true"
-          >
-            T
-          </span>
-          <span>A walk through the New York Botanical Garden</span>
-          <span className="text-muted-foreground/60">· nytimes.com</span>
-        </motion.span>
-      </motion.div>
-    </div>
   );
 }

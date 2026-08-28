@@ -93,7 +93,7 @@ function renderAttrs(
 // Mirrors TanStack Router's `buildTagsFromMatches`: walk matches leaf→root,
 // keep the first title and dedupe meta by name/property. Title gets emitted
 // last so it overrides any earlier <title> if a browser scans loosely.
-function buildHeadHtml(heads: ReadonlyArray<HeadResult>): string {
+function renderMetaTags(heads: ReadonlyArray<HeadResult>): string[] {
   const out: string[] = [];
   const seenAttr = new Set<string>();
   let title: string | undefined;
@@ -118,15 +118,18 @@ function buildHeadHtml(heads: ReadonlyArray<HeadResult>): string {
   out.reverse();
 
   if (title) out.push(`<title>${escapeHtml(title)}</title>`);
+  return out;
+}
 
-  for (const head of heads) {
-    for (const link of head?.links ?? []) {
-      out.push(`<link${renderAttrs(link)} />`);
-    }
-  }
+function renderLinkTags(heads: ReadonlyArray<HeadResult>): string[] {
+  return heads.flatMap((head) =>
+    (head?.links ?? []).map((link) => `<link${renderAttrs(link)} />`)
+  );
+}
 
-  for (const head of heads) {
-    for (const script of head?.scripts ?? []) {
+function renderScriptTags(heads: ReadonlyArray<HeadResult>): string[] {
+  return heads.flatMap((head) =>
+    (head?.scripts ?? []).map((script) => {
       const { children, ...attrs } = script;
       // Escape any literal `</script>` in inline content so a stray
       // closing tag inside JSON-LD / pixel snippets can't terminate
@@ -135,11 +138,17 @@ function buildHeadHtml(heads: ReadonlyArray<HeadResult>): string {
         /<\/script>/gi,
         "<\\/script>"
       );
-      out.push(`<script${renderAttrs(attrs)}>${safeChildren}</script>`);
-    }
-  }
+      return `<script${renderAttrs(attrs)}>${safeChildren}</script>`;
+    })
+  );
+}
 
-  return out.join("\n    ");
+function buildHeadHtml(heads: ReadonlyArray<HeadResult>): string {
+  return [
+    ...renderMetaTags(heads),
+    ...renderLinkTags(heads),
+    ...renderScriptTags(heads),
+  ].join("\n    ");
 }
 
 async function main(): Promise<void> {

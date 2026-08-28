@@ -33,7 +33,7 @@ const announceOutcome = (outcome: DigestTriggerOutcome): void => {
       toast.error(`Digest failed (${outcome.reason}): ${outcome.message}`);
       return;
     case "unavailable":
-      toast.warning("Digest skipped: workspace unavailable");
+      toast.warning("Digest skipped: library unavailable");
       return;
     default: {
       const _exhaustive: never = outcome;

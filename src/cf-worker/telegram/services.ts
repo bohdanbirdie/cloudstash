@@ -1,6 +1,7 @@
 import { Context, Schema } from "effect";
 import type { Effect } from "effect";
 
+import type { CapabilityDisabledError } from "../billing/errors";
 import type { OrgId, UserId } from "../db/branded";
 import type {
   TelegramInvalidApiKeyError,
@@ -37,6 +38,7 @@ export class SourceAuth extends Context.Service<
       | TelegramAuthUnavailableError
       | RateLimitError
       | TelegramMissingOrgIdError
+      | CapabilityDisabledError
     >;
     readonly verify: (
       apiKey: string
@@ -46,6 +48,7 @@ export class SourceAuth extends Context.Service<
       | TelegramAuthUnavailableError
       | RateLimitError
       | TelegramMissingOrgIdError
+      | CapabilityDisabledError
     >;
   }
 >()("SourceAuth") {}

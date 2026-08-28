@@ -58,6 +58,7 @@ export class TelegramAuthUnavailableError extends Schema.TaggedErrorClass<Telegr
       "verifyApiKey",
       "lookupUser",
       "lookupMembership",
+      "lookupCapabilities",
     ]),
   }
 ) {}
