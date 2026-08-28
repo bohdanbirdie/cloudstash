@@ -2,67 +2,70 @@
 kanban-plugin: board
 ---
 
-## Near-term Technical Outcomes
+## High Priority
 
-- [ ] [[todos/canonical-url-identity|Canonical URL identity across every capture path]] — prevent new duplicates first; historical reconciliation remains a separate decision.
-- [ ] [[todos/telemetry-minimization|Minimize telemetry and document retained provider data]] — keep collection purpose-bound and deletion/retention claims accurate.
-- [ ] [[todos/admin-purchase-attribution|Extend admin purchase attribution]] — bounded aggregate funnel evidence in the existing dashboard.
-- [ ] [[todos/free-ai-summary-allowance|Plan a bounded Free AI-summary allowance]] — saved-link count remains unlimited; exhaustion preserves the link.
-- [ ] [[todos/initial-sync-blocking|Research HTTP bootstrap and preloaded library state]] — benchmark WebSocket vs HTTP event-log replay, BootStatus/timeout UX, and an upstream materialized snapshot at an exact event head.
-- [ ] [[todos/automatic-summary-recovery|Recover failed summaries automatically]] — bounded primary, fallback, limited automatic retry, then a calm terminal state.
+- [ ] `REL-07` [[todos/restore-chrome-web-store-listing|Restore the removed Chrome Web Store listing]] — determine why Google removed it, satisfy the publisher requirements, resubmit it, and verify the restored listing describes the actual popup-and-Save flow.
+- [ ] `REL-08` [[todos/welcome-existing-users|Approve pending users and send the launch welcome email]] — approve every eligible pending signup, then notify all existing signed-up users that Cloudstash is available to use.
+- [ ] `CORE-05` [[todos/initial-sync-blocking|Research HTTP bootstrap and preloaded library state]] — benchmark WebSocket vs HTTP event-log replay, BootStatus/timeout UX, and an upstream materialized snapshot at an exact event head.
+- [ ] `CORE-04` [[todos/free-ai-summary-allowance|Plan a bounded Free AI-summary allowance]] — saved-link count remains unlimited; exhaustion preserves the link.
+- [ ] `AI-03` [[todos/multi-chat-architecture|Multi-chat architecture + align chat tools with canonical link RPCs]] — keep each conversation DO lightweight and move link tools behind the same workspace RPC capability used by API/MCP.
+- [ ] `AI-08` [[todos/link-notes|Notes on links (user-authored, agent-aware)]]
 
-## Todo
+## Medium Priority
 
-- [ ] Retire the local Better Auth MCP JWKS verifier after [#10856](https://github.com/better-auth/better-auth/issues/10856) / [#10888](https://github.com/better-auth/better-auth/issues/10888) and [#10893](https://github.com/better-auth/better-auth/pull/10893) ship in a stable release — installed types must accept an in-process JWKS source plus cache key, and the same-Worker E2E must pass with zero outbound JWKS requests.
-- [ ] Retest Better Auth OAuth resource seeding on future stable upgrades — the Drizzle-wrapped UNIQUE race is independently reproduced on 1.7.0 and still present upstream; keep the app-wide atomic initializer in `AuthClientLive` until concurrent fresh auth contexts pass without it. No upstream issue is being filed.
-- [ ] [[todos/ws-close-scope-teardown-exception|SyncBackendDO webSocketClose throws on abnormal close (1006) — upstream teardown fix]] — 2 new `scriptThrewException` on the v4-cutover day (2026-08-10), zero in the prior week; benign (1ms, socket already dead, reconnect fine) but skips `serverCtxMap` cleanup and pollutes the error signal; small upstream PR candidate (make `Scope.close` teardown non-throwing in common-cf `ws-rpc-server.ts:217`).
-- [ ] [[todos/simplify-link-processor-wake|Simplify LinkProcessorDO wake path — retire the manual onPush trigger]] — redundant for warm/cold re-wake since upstream #1541–#1545 (KV-persisted `rpc-sub:` registry + store-less `syncUpdateRpc` recovery); still needed as first-subscribe bootstrap + cutover registry backfill. Pick up after the migration soaks in prod.
-- [ ] Remove the temp `liveLongTimers` probe (`src/cf-worker/sync/index.ts:23`) once prod `type:hibernation` GB-s are re-confirmed after the v4-cutover deploy — last remainder of [[architecture/sync-backend-do-hibernation-billing]]. LinkProcessorDO client-side hibernation stays deferred (needs a clean-store re-test, not a new patch).
-- [ ] [[todos/livestore-testing-ui|Livestore UI feature tests (RTL)]]
-- [ ] Revamp component interaction tests around `@testing-library/user-event` — add it as a direct dev dependency, replace the nine localized `fireEvent.click` calls, and preserve realistic focus, pointer, keyboard, and disabled-control behavior.
-- [ ] [[todos/progress-tracker-sqlite-review|Review stateful SQLite ProgressTracker]]
-- [ ] [[todos/managed-effect-runtime-do|Explore ManagedRuntime for LinkProcessorDO]]
-- [ ] Develop CLI for ingestion and management
-- [ ] Use Cloudflare Email instead of Resend
-- [ ] Replace OpenRouter with Cloudflare AI Gateway
-- [ ] [[todos/pro-larger-summary-model|Give Pro summaries a larger model]] — choose the quality/cost boundary, fallback behavior, and operation-time entitlement; advertise it only after it ships.
-- [ ] [[todos/agent-context-chips-entry-points|Agent context chips + entry points]]
-- [ ] [[todos/multi-chat-architecture|Multi-chat architecture + align chat tools with canonical link RPCs]] — keep each conversation DO lightweight and move link tools behind the same workspace RPC capability used by API/MCP.
-- [ ] Extend Pro plan with twitter historical sync of bookmarks
-- [ ] [[todos/weekly-digest-backend|Weekly Digest backend]]
-- [ ] Bug: accepting a suggested tag stutters the app — profile the accept path and decouple or memoize the synchronous tag-strip count/order recompute.
-- [ ] Review and develop Twitter integrations (https://x.com/mynameistito/status/2046213790623301955)
-- [ ] [[todos/mobile-view-review|Mobile view review + fixes]]
-- [ ] [[todos/mobile-settings-polish|Mobile settings polish — delete flow, Connections overhaul, tab look]]
-- [ ] [[todos/telegram-login-link|Simplify Telegram bot auth with login link]]
-- [ ] AI summary loading messages like in agents, eg swap phrases
-- [ ] Improve UX of tags strip, maybe add counters and exclude tags that are unused on the specific page
-- [ ] Let LLM suggest more tags from existing ones. Respect domains for tags as a fallback
-- [ ] [[todos/further-list-mount-perf|Further list-mount perf improvements]]
-- [ ] Reduce monospace font usage — pair a refined sans for body/UI and reserve mono for tokens that earn it.
-- [ ] Connections modal revamp — simplify per-user Telegram, Raycast, and API-key management and clarify its relationship to Settings.
-- [ ] Improve link-card UI for failed/error fetches (404, 5xx, bot challenge, login walls), with an explicit failure category and retry affordance.
-- [ ] Clean up `createStoreInternal`
-- [ ] Make link list items more vertically compact and keep processing, idle, and failed states distinct.
-- [ ] Pop-animate genuinely new synced/locally-added links without animating filter or category changes.
-- [ ] Restore contextual hotkey-tip overlays while modifier keys are held.
-- [ ] [[todos/chat-approval-needsapproval|Migrate chat approval to server-side needsApproval (drop deprecated toolsRequiringConfirmation)]]
-- [ ] ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
-- [ ] Decouple tag search from id format — filter on normalized tag names and reserve `sanitizeTagName` for new-tag ID derivation.
-- [ ] [[todos/link-notes|Notes on links (user-authored, agent-aware)]]
+- [ ] `AI-01` [[todos/pro-larger-summary-model|Give Pro summaries a larger model]] — choose the quality/cost boundary, fallback behavior, and operation-time entitlement; advertise it only after it ships.
+- [ ] `AI-04` [[todos/weekly-digest-backend|Weekly Digest backend]]
+- [ ] `CORE-01` [[todos/canonical-url-identity|Canonical URL identity across every capture path]] — prevent new duplicates first; historical reconciliation remains a separate decision.
+- [ ] `CORE-02` [[todos/telemetry-minimization|Minimize telemetry and document retained provider data]] — keep collection purpose-bound and deletion/retention claims accurate.
+- [ ] `UX-07` Improve link-card UI for failed/error fetches (404, 5xx, bot challenge, login walls), with an explicit failure category and retry affordance.
+- [ ] `UX-12` Decouple tag search from id format — filter on normalized tag names and reserve `sanitizeTagName` for new-tag ID derivation.
+- [ ] `SYS-03` [[todos/ws-close-scope-teardown-exception|SyncBackendDO webSocketClose throws on abnormal close (1006) — upstream teardown fix]] — 2 new `scriptThrewException` on the v4-cutover day (2026-08-10), zero in the prior week; benign (1ms, socket already dead, reconnect fine) but skips `serverCtxMap` cleanup and pollutes the error signal; small upstream PR candidate (make `Scope.close` teardown non-throwing in common-cf `ws-rpc-server.ts:217`).
+- [ ] `SYS-04` [[todos/simplify-link-processor-wake|Simplify LinkProcessorDO wake path — retire the manual onPush trigger]] — redundant for warm/cold re-wake since upstream #1541–#1545 (KV-persisted `rpc-sub:` registry + store-less `syncUpdateRpc` recovery); still needed as first-subscribe bootstrap + cutover registry backfill. Pick up after the migration soaks in prod.
+
+## Low Priority
+
+- [ ] `CORE-06` [[todos/automatic-summary-recovery|Recover failed summaries automatically]] — bounded primary, fallback, limited automatic retry, then a calm terminal state.
+- [ ] `SYS-01` Retire the local Better Auth MCP JWKS verifier after [#10856](https://github.com/better-auth/better-auth/issues/10856) / [#10888](https://github.com/better-auth/better-auth/issues/10888) and [#10893](https://github.com/better-auth/better-auth/pull/10893) ship in a stable release — installed types must accept an in-process JWKS source plus cache key, and the same-Worker E2E must pass with zero outbound JWKS requests.
+- [ ] `SYS-02` Retest Better Auth OAuth resource seeding on future stable upgrades — the Drizzle-wrapped UNIQUE race is independently reproduced on 1.7.0 and still present upstream; keep the app-wide atomic initializer in `AuthClientLive` until concurrent fresh auth contexts pass without it. No upstream issue is being filed.
+- [ ] `SYS-05` Remove the temp `liveLongTimers` probe (`src/cf-worker/sync/index.ts:23`) once prod `type:hibernation` GB-s are re-confirmed after the v4-cutover deploy — last remainder of [[architecture/sync-backend-do-hibernation-billing]]. LinkProcessorDO client-side hibernation stays deferred (needs a clean-store re-test, not a new patch).
+- [ ] `TEST-01` [[todos/livestore-testing-ui|Livestore UI feature tests (RTL)]]
+- [ ] `TEST-02` Revamp component interaction tests around `@testing-library/user-event` — add it as a direct dev dependency, replace the nine localized `fireEvent.click` calls, and preserve realistic focus, pointer, keyboard, and disabled-control behavior.
+- [ ] `SYS-07` [[todos/managed-effect-runtime-do|Explore ManagedRuntime for LinkProcessorDO]]
+- [ ] `SYS-09` [[todos/openrouter-production-local-ai|Standardize production AI on OpenRouter with a cost-free local path]] — route all production inference through OpenRouter; keep local development explicit and free by default. Cloudflare AI Gateway may proxy OpenRouter later for a demonstrated operational need, but is not the model provider.
+- [ ] `UX-03` [[todos/mobile-settings-polish|Mobile settings polish — delete flow, Connections overhaul, tab look]]
+- [ ] `UX-09` Pop-animate genuinely new synced/locally-added links without animating filter or category changes.
+- [ ] `AI-07` [[todos/chat-approval-needsapproval|Migrate chat approval to server-side needsApproval (drop deprecated toolsRequiringConfirmation)]]
+- [ ] `UX-11` ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
 
 ## In Progress
 
-## Human Operations
-
-- [ ] [[todos/human-launch-operations|Verify production Queue retention and recovery]] — durability code is merged; record plan/retention evidence and run the recovery drill.
-- [ ] [[todos/human-launch-operations|Reconcile Stripe and Portal behavior]] — maintainer credentials and production payment authority required.
-- [ ] [[todos/human-launch-operations|Obtain legal sign-off]] — deletion retention, telemetry/privacy, tracking opt-outs, billing consent, and remaining launch clauses.
-- [ ] Verify or update the published Chrome Web Store listing — describe opening the popup and choosing Save without claiming an unavailable global shortcut or automatic toolbar capture; closes DELTA-017.
-- [ ] [[todos/human-launch-operations|Provision and certify staging]] — bootstrap the isolated Worker/resources/Git branch and record the first deployed rehearsal.
-- [ ] [[todos/human-launch-operations|Choose alert destination and owner]] — then wire [[todos/admin-server-ahead-alert|the stuck-sync alert]] and other tripwires.
-
 ## Done
+
+- [x] `SYS-08` Replace Resend with Cloudflare Email — obsolete; the existing email provider remains sufficient.
+- [x] `CORE-03` Extend admin purchase attribution — obsolete; the expected use is too rare to justify additional funnel instrumentation and maintenance.
+- [x] `AI-02` Agent context chips and entry points — obsolete; the additional context-management UI is not justified by expected usage.
+- [x] `REL-01` Verify production Queue retention and recovery — obsolete; production ingestion is healthy and no additional recovery drill is required for release.
+- [x] `REL-02` Reconcile Stripe and Portal behavior — removed from the engineering board; the maintainer will verify production billing manually.
+- [x] `REL-03` Obtain legal sign-off — removed from the engineering board as a separate maintainer responsibility.
+- [x] `REL-04` Verify or update the published Chrome Web Store listing — superseded by `REL-07` after Google removed the listing.
+- [x] `REL-05` Provision and certify staging — staging deployment and its critical flows were tested successfully.
+- [x] `REL-06` Choose alert destination and owner — obsolete as a release-tracked engineering task.
+- [x] `SYS-06` Review stateful SQLite ProgressTracker — obsolete; no measured issue justifies adding a table, migration, and lifecycle writes.
+- [x] `SYS-10` Clean up `createStoreInternal` — obsolete; no concrete defect or simplification target remains.
+- [x] `UX-01` Fix suggested-tag acceptance stutter — reconciled as obsolete; no current release work remains for this behavior.
+- [x] `AI-05` Rotate AI-summary loading messages — shipped with distinct initial and reprocessing phrase sets in the link detail summary.
+- [x] `AI-06` Prefer existing tags and use domain context for AI suggestions — shipped in the summary prompt, matching logic, and regression coverage.
+- [x] `INT-01` Develop CLI for ingestion and management — obsolete; supported ingestion is covered by the web, extension, Telegram, Raycast, API, MCP, and the local mock-ingest diagnostic tool.
+- [x] `INT-02` Historical X bookmark import for Pro — obsolete; the shipped integration intentionally pins the newest bookmark on connect and syncs new bookmarks from that point onward.
+- [x] `INT-03` Review and develop X integrations — shipped with account connection, automatic new-bookmark sync, pause/resume/reconnect handling, and Pro enrichment.
+- [x] `INT-04` Simplify Telegram bot auth with a login link — shipped through the browser-based one-time-code connection flow; the manual API-key path remains only as a legacy compatibility path.
+- [x] `INT-05` Connections modal revamp — shipped as the unified Integrations section in Settings with Telegram, X, MCP, Chrome, and Raycast states.
+- [x] `UX-02` Mobile view review and fixes — reconciled as complete after the responsive application and detail surfaces shipped.
+- [x] `UX-04` Improve the tags strip — shipped with status-aware counts, responsive overflow, suggestion handling, and keyboard navigation.
+- [x] `UX-05` Further list-mount performance improvements — reconciled as complete; the current memoized/query-indexed list is within the accepted performance envelope.
+- [x] `UX-06` Reduce monospace font usage — shipped; mono is now reserved for code, identifiers, numeric data, shortcuts, and deliberate display accents.
+- [x] `UX-08` Make link-list items more compact — shipped with the current dense row geometry and distinct state presentation.
+- [x] `UX-10` Restore contextual modifier-key hotkey tips — shipped as the held-modifier selection preview and contextual shortcut affordances.
 
 - [x] [[todos/customer-facing-copy-accuracy|Align customer-facing copy with shipped behavior]] — repository-controlled plan, landing, README, SEO, integration, Terms, and privacy copy now matches shipped behavior in plain language; external legal, Stripe, and Chrome Web Store verification remain explicit human operations.
 - [x] [[todos/paid-capability-enforcement|Enforce paid capabilities and budgets at operation time]] — authoritative operation gates and atomic budgets now cover paid features; the separate Agents SDK connection-identity limitation remains tracked in DELTA-042.
