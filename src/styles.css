@@ -208,7 +208,8 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .landing-source-traveler-mask {
-    animation: landing-source-traveler 6s infinite;
+    animation: landing-source-traveler
+      var(--landing-source-travel-duration, 5.5s) infinite;
   }
 }
 

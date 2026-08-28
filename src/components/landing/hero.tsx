@@ -19,6 +19,7 @@ const SAVE_SOURCES = [
     position: "top-[26%]",
     bend: "down",
     delay: "0s",
+    duration: "5.2s",
     iconClassName: "bg-foreground/5 text-foreground",
   },
   {
@@ -27,7 +28,8 @@ const SAVE_SOURCES = [
     side: "left",
     position: "top-[68%]",
     bend: "up",
-    delay: "3s",
+    delay: "2.45s",
+    duration: "5.7s",
     iconClassName: "bg-[#26A5E4]/10 text-[#229ED9]",
   },
   {
@@ -36,7 +38,8 @@ const SAVE_SOURCES = [
     side: "right",
     position: "top-[30%]",
     bend: "down",
-    delay: "1.5s",
+    delay: "0.35s",
+    duration: "5.5s",
     iconClassName: "bg-[#4285F4]/10 text-[#4285F4]",
   },
   {
@@ -45,7 +48,8 @@ const SAVE_SOURCES = [
     side: "right",
     position: "top-[72%]",
     bend: "up",
-    delay: "4.5s",
+    delay: "2.8s",
+    duration: "6.1s",
     iconClassName: "bg-[#FF6363]/10 text-[#FF6363]",
   },
 ] as const;
@@ -145,7 +149,16 @@ function HeroSourceNodes() {
       className="pointer-events-none absolute inset-0 hidden min-[96rem]:block"
     >
       {SAVE_SOURCES.map(
-        ({ label, icon: Icon, side, position, bend, delay, iconClassName }) => (
+        ({
+          label,
+          icon: Icon,
+          side,
+          position,
+          bend,
+          delay,
+          duration,
+          iconClassName,
+        }) => (
           <div
             key={label}
             className={`absolute ${position} flex -translate-y-1/2 items-center ${side === "left" ? "right-full" : "left-full flex-row-reverse"}`}
@@ -162,7 +175,12 @@ function HeroSourceNodes() {
                 {label}
               </span>
             </div>
-            <SourceArc side={side} bend={bend} delay={delay} />
+            <SourceArc
+              side={side}
+              bend={bend}
+              delay={delay}
+              duration={duration}
+            />
           </div>
         )
       )}
@@ -174,10 +192,12 @@ function SourceArc({
   side,
   bend,
   delay,
+  duration,
 }: {
   side: "left" | "right";
   bend: "up" | "down";
   delay: string;
+  duration: string;
 }) {
   const path = getSourceArcPath(side, bend);
   const gradientId = `source-traveler-gradient-${side}-${bend}`;
@@ -222,6 +242,7 @@ function SourceArc({
               style={
                 {
                   animationDelay: delay,
+                  "--landing-source-travel-duration": duration,
                   "--landing-source-travel-distance": travelsRight
                     ? "120px"
                     : "-120px",
