@@ -55,18 +55,19 @@ export function Hero() {
               </span>
             </h1>
             <p className="mb-8 max-w-[52ch] text-pretty text-base font-normal leading-relaxed text-primary-foreground sm:text-lg lg:text-xl">
-              Save your{" "}
-              <span className="inline-flex items-center gap-[0.3em] whitespace-nowrap font-medium">
-                <XLogo className="size-[0.85em] shrink-0" />X bookmarks
+              Save{" "}
+              <span className="whitespace-nowrap">
+                <XLogo className="mr-[0.24em] inline size-[0.78em] align-[0.04em] text-black" />
+                <span className="sr-only">X </span>
+                bookmarks
               </span>
-              , forward links from{" "}
-              <span className="inline-flex items-center gap-[0.3em] whitespace-nowrap font-medium">
-                <TelegramLogo className="size-[0.85em] shrink-0" />
-                Telegram
+              ,{" "}
+              <span className="whitespace-nowrap">
+                <TelegramLogo className="mr-[0.24em] inline size-[0.78em] align-[0.04em] text-[#229ED9]" />
+                Telegram links
               </span>
-              , or save from anywhere on the web. Cloudstash{" "}
-              <span className="font-italic-accent">skims</span> readable pages
-              into clear previews and summaries.
+              , and pages from across the web. Cloudstash adds clear previews
+              and summaries, so what matters stays easy to find.
             </p>
             <div className="flex flex-wrap items-center gap-5">
               <Button
