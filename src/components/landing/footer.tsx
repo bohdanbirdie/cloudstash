@@ -54,8 +54,7 @@ export function Footer() {
             </span>
           </div>
           <p className="mt-3 max-w-[34ch] text-pretty text-xs leading-relaxed text-muted-foreground">
-            An inbox for the web. Built for people who save a lot of links and
-            want to actually read them.
+            Your saved links, ready when you need them.
           </p>
         </div>
         <div className="grid grid-cols-3 gap-6 sm:contents">
