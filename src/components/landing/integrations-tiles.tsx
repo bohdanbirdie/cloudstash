@@ -34,48 +34,36 @@ const MOCKUP_STAGGER = 0.1;
 
 export function IntegrationsTiles() {
   return (
-    <ul className="grid gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
-      <IntegrationTile
+    <ul className="grid gap-x-14 gap-y-16 sm:grid-cols-2 lg:gap-x-20 lg:gap-y-20">
+      <IntegrationItem
         name="Telegram"
         caption="Forward a link to the bot and save it without leaving Telegram."
       >
         <TelegramMockup delay={0} />
-      </IntegrationTile>
-      <IntegrationTile
-        name="Raycast"
-        caption="Paste a URL into Raycast and save it to Cloudstash."
-      >
-        <RaycastMockup delay={MOCKUP_STAGGER} />
-      </IntegrationTile>
-      <IntegrationTile
+      </IntegrationItem>
+      <IntegrationItem
         name="X bookmarks"
         caption="Bookmark on X. It lands here, summarized."
       >
-        <XBookmarksMockup delay={2 * MOCKUP_STAGGER} />
-      </IntegrationTile>
-      <IntegrationTile
-        name="AI chat"
-        caption="Ask questions across your library and act on the answers."
-      >
-        <AiChatMockup delay={3 * MOCKUP_STAGGER} />
-      </IntegrationTile>
-      <IntegrationTile
+        <XBookmarksMockup delay={MOCKUP_STAGGER} />
+      </IntegrationItem>
+      <IntegrationItem
         name="Chrome extension"
-        caption="Save the current page from the toolbar, or paste any link."
+        caption="Open the extension and save the current tab in one click."
       >
-        <ChromeMockup delay={4 * MOCKUP_STAGGER} />
-      </IntegrationTile>
-      <IntegrationTile
-        name="Cloudstash in your AI"
-        caption="Use your saved links without leaving your AI assistant."
+        <ChromeMockup delay={2 * MOCKUP_STAGGER} />
+      </IntegrationItem>
+      <IntegrationItem
+        name="Raycast"
+        caption="Paste a URL into Raycast and save it to Cloudstash."
       >
-        <AiConnectorMockup delay={5 * MOCKUP_STAGGER} />
-      </IntegrationTile>
+        <RaycastMockup delay={3 * MOCKUP_STAGGER} />
+      </IntegrationItem>
     </ul>
   );
 }
 
-function IntegrationTile({
+function IntegrationItem({
   children,
   name,
   caption,
@@ -90,16 +78,18 @@ function IntegrationTile({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-60px" }}
       transition={{ duration: 0.5, ease: EASE_OUT }}
-      className="flex flex-col overflow-hidden rounded-md border border-border/80 bg-background transition-[border-color,box-shadow] hover:border-border hover:shadow-[0_1px_0_oklch(0_0_0_/_0.04),0_8px_20px_-16px_oklch(0_0_0_/_0.18)]"
+      className="flex min-w-0 flex-col"
     >
-      <div className="grid min-h-[180px] flex-1 select-none place-items-center px-5 py-7">
-        {children}
-      </div>
-      <div className="min-h-[6rem] border-t border-border/60 px-5 py-3.5">
-        <div className="text-[13px] font-semibold tracking-tight">{name}</div>
-        <p className="mt-0.5 text-pretty text-[13px] leading-relaxed text-muted-foreground">
-          {caption}
-        </p>
+      <div className="mx-auto flex w-full max-w-xs flex-1 flex-col">
+        <div className="flex flex-1 select-none items-center justify-center py-4">
+          {children}
+        </div>
+        <div className="mt-4">
+          <div className="text-base font-semibold tracking-tight">{name}</div>
+          <p className="mt-1 text-pretty text-sm leading-relaxed text-muted-foreground">
+            {caption}
+          </p>
+        </div>
       </div>
     </motion.li>
   );
@@ -107,13 +97,13 @@ function IntegrationTile({
 
 function TelegramMockup({ delay = 0 }: { delay?: number }) {
   return (
-    <div className="w-full max-w-[300px]">
+    <div className="w-full max-w-xs">
       <motion.div
         initial={{ opacity: 0, y: 10, scale: 0.96 }}
         whileInView={{ opacity: 1, y: 0, scale: 1 }}
         viewport={{ once: true, margin: "-40px" }}
         transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.12 }}
-        className="ml-auto max-w-[240px] rounded-2xl rounded-br-[6px] bg-[#229ED9] px-3 pb-1.5 pt-2 text-white shadow-sm"
+        className="ml-auto max-w-[260px] rounded-2xl rounded-br-[6px] bg-[#229ED9] px-3 pb-1.5 pt-2 text-white shadow-sm"
       >
         <div className="border-l-2 border-white/70 pl-2">
           <div className="text-[11px] font-medium opacity-90">youtube.com</div>
@@ -187,7 +177,7 @@ function RaycastMockup({ delay = 0 }: { delay?: number }) {
       whileInView={{ opacity: 1, y: 0, scale: 1 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.12 }}
-      className="w-full max-w-[320px] overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 text-white shadow-md"
+      className="w-full max-w-xs overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 text-white shadow-md"
     >
       <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2 text-[12px]">
         <RaycastMark className="size-3.5" />
@@ -255,7 +245,7 @@ function XBookmarksMockup({ delay = 0 }: { delay?: number }) {
       whileInView={{ opacity: 1, y: 0, scale: 1 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.12 }}
-      className="w-full max-w-[290px] overflow-hidden rounded-md border border-zinc-800 bg-black text-white shadow-md"
+      className="w-full max-w-xs overflow-hidden rounded-md border border-zinc-800 bg-black text-white shadow-md"
     >
       <div className="flex items-center justify-between border-b border-white/10 px-3.5 py-2">
         <div className="flex items-center gap-1.5">
@@ -404,240 +394,57 @@ function ChromeMockup({ delay = 0 }: { delay?: number }) {
       whileInView={{ opacity: 1, y: 0, scale: 1 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.12 }}
-      className="w-full max-w-[260px] overflow-hidden rounded-md border border-border/80 bg-background shadow-md"
+      className="w-full max-w-xs overflow-hidden rounded-md border border-border/80 bg-background shadow-md"
     >
-      <div className="flex items-center justify-between border-b border-border/60 bg-muted/40 px-3 py-2">
+      <div className="flex items-center justify-between border-b border-border/60 px-3 py-2">
         <div className="flex items-center gap-1.5">
           <CloudstashLogo
             className="size-3.5 rounded-[3px]"
             variant="branded"
           />
-          <span className="text-[11px] font-semibold tracking-tight">
-            Cloudstash
+          <span className="text-[11.5px] font-semibold tracking-tight">
+            cloudstash
           </span>
         </div>
-        <span className="grid size-5 place-items-center rounded-full bg-muted text-[9px] font-medium text-muted-foreground">
+        <span className="grid size-5 place-items-center rounded-full bg-muted text-[9.5px] font-medium text-muted-foreground">
           B
         </span>
       </div>
       <div className="px-3.5 py-3">
-        <div className="text-[11.5px] font-medium leading-snug">This page</div>
-        <div className="mt-1 truncate text-[10px] text-muted-foreground">
-          nytimes.com/style/high-line-dawn
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
+            This page
+          </span>
+          <span className="flex items-center gap-1 text-[9.5px] text-muted-foreground/70">
+            <kbd className="rounded-sm border border-border/80 bg-muted px-1 py-0.5 leading-none">
+              ↵
+            </kbd>
+            save
+          </span>
+        </div>
+        <div className="mt-2.5 flex min-w-0 items-center gap-2.5">
+          <img
+            src="/favicons/youtube.png"
+            alt=""
+            className="size-6 shrink-0 rounded-sm object-contain"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[12px] font-medium leading-snug">
+              Why Cities Are So Loud
+            </div>
+            <div className="mt-0.5 truncate text-[10.5px] text-muted-foreground">
+              youtube.com
+            </div>
+          </div>
         </div>
         <motion.div
           initial={{ scale: 0.94, opacity: 0.6 }}
           whileInView={{ scale: 1, opacity: 1 }}
           viewport={{ once: true, margin: "-40px" }}
           transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.45 }}
-          className="mt-3 flex items-center justify-center gap-1.5 rounded-sm bg-primary px-3 py-1.5 text-[11px] font-medium text-primary-foreground"
+          className="mt-3 flex items-center justify-center rounded-sm bg-primary px-3 py-1.5 text-[11.5px] font-medium text-primary-foreground"
         >
-          <svg
-            className="size-3"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-          Saved
-        </motion.div>
-      </div>
-    </motion.div>
-  );
-}
-
-function AiChatMockup({ delay = 0 }: { delay?: number }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12, scale: 0.97 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
-      viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.12 }}
-      className="w-full max-w-[300px] overflow-hidden rounded-md border border-border/80 bg-background shadow-sm"
-    >
-      <div className="flex items-center justify-between border-b border-border/60 bg-muted/20 px-3 py-2">
-        <div className="flex items-center gap-1.5">
-          <ChatBubbleIcon className="size-3 text-primary" />
-          <span className="text-[11px] font-semibold tracking-tight">
-            Assistant
-          </span>
-        </div>
-        <span className="size-1.5 rounded-full bg-emerald-500" />
-      </div>
-
-      <div className="flex min-w-0 flex-col gap-2 px-3 py-2.5">
-        <motion.div
-          initial={{ opacity: 0, y: 4 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.25 }}
-          className="ml-auto max-w-[84%] rounded-2xl rounded-br-md bg-primary px-3 py-1.5 text-[11px] leading-snug text-primary-foreground"
-        >
-          Find my saved pieces on focus.
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 4 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.5 }}
-          className="min-w-0 max-w-[94%] text-[11px] leading-snug"
-        >
-          <p className="text-foreground/90">
-            Three links stand out. Start here:
-          </p>
-          <motion.div
-            initial={{ opacity: 0, x: -4 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true, margin: "-40px" }}
-            transition={{ duration: 0.3, ease: EASE_OUT, delay: delay + 0.7 }}
-            className="mt-1.5 flex min-w-0 items-start gap-1.5 rounded-md bg-muted/55 px-2 py-1.5"
-          >
-            <span
-              className="mt-0.5 grid size-3 shrink-0 place-items-center rounded-sm bg-black font-serif text-[0.5rem] font-bold text-white"
-              aria-hidden="true"
-            >
-              T
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-medium">How to Do Deep Work</div>
-              <div className="truncate text-[0.62rem] text-muted-foreground">
-                nytimes.com · #focus
-              </div>
-            </div>
-          </motion.div>
-        </motion.div>
-      </div>
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true, margin: "-40px" }}
-        transition={{ duration: 0.3, ease: EASE_OUT, delay: delay + 0.85 }}
-        className="flex items-center gap-2 border-t border-border/60 px-3 py-2"
-      >
-        <span className="flex-1 text-[10px] text-muted-foreground">
-          Ask about your links…
-        </span>
-        <span className="grid size-5 place-items-center rounded-sm bg-primary text-primary-foreground">
-          <ArrowUpIcon className="size-2.5" />
-        </span>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-function ChatBubbleIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-    </svg>
-  );
-}
-
-function ArrowUpIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="m5 12 7-7 7 7" />
-      <path d="M12 19V5" />
-    </svg>
-  );
-}
-
-function AiConnectorMockup({ delay = 0 }: { delay?: number }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12, scale: 0.97 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
-      viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.4, ease: EASE_OUT, delay: delay + 0.12 }}
-      className="w-full max-w-[300px] overflow-hidden rounded-md border border-border/80 bg-background shadow-sm"
-    >
-      <div className="flex items-center justify-between border-b border-border/60 bg-muted/20 px-3 py-2">
-        <span className="text-[10px] font-semibold tracking-tight">
-          Connected apps
-        </span>
-        <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
-          <span className="size-1.5 rounded-full bg-emerald-500" />
-          Active
-        </span>
-      </div>
-
-      <div className="px-3 py-3">
-        <motion.div
-          initial={{ opacity: 0, y: 4 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.25 }}
-          className="flex items-center gap-2.5 rounded-md border border-primary/20 bg-primary/[0.04] p-2.5"
-        >
-          <CloudstashLogo
-            className="size-8 shrink-0 rounded-md"
-            variant="branded"
-          />
-          <div className="min-w-0 flex-1">
-            <div className="text-[11px] font-semibold tracking-tight">
-              Cloudstash
-            </div>
-            <div className="text-[9px] text-muted-foreground">
-              Your library is ready to use
-            </div>
-          </div>
-          <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[8px] font-medium text-emerald-700 dark:text-emerald-400">
-            Connected
-          </span>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 4 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.45 }}
-          className="mt-2.5 grid grid-cols-3 gap-1.5"
-        >
-          <span className="rounded-md bg-muted/60 px-1.5 py-1.5 text-center text-[9px] font-medium text-foreground/75">
-            Search
-          </span>
-          <span className="rounded-md bg-muted/60 px-1.5 py-1.5 text-center text-[9px] font-medium text-foreground/75">
-            Save
-          </span>
-          <span className="rounded-md bg-muted/60 px-1.5 py-1.5 text-center text-[9px] font-medium text-foreground/75">
-            Organize
-          </span>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.3, ease: EASE_OUT, delay: delay + 0.65 }}
-          className="mt-2.5 flex items-center justify-center gap-1.5 text-[9px] text-muted-foreground"
-        >
-          <ChatBubbleIcon className="size-2.5 text-primary" />
-          Available in your AI chats
+          Save this page
         </motion.div>
       </div>
     </motion.div>
