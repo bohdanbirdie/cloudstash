@@ -133,7 +133,7 @@ function GoogleButton({
 }) {
   return (
     <Button
-      className={`relative h-8 w-full rounded-md border-[#747775] bg-white px-10 text-[14px]/[20px] text-[#1f1f1f] hover:bg-[#f8faff] dark:bg-white dark:text-[#1f1f1f] dark:hover:bg-[#f8faff] ${className}`}
+      className={`relative h-8 w-full rounded-md border-[#747775] bg-white px-10 text-[14px]/[20px] text-[#1f1f1f] transition-colors duration-150 hover:bg-[#f5f5f5] hover:text-[#1f1f1f] active:not-aria-[haspopup]:translate-y-0 active:bg-[#eeeeee] dark:bg-white dark:text-[#1f1f1f] dark:hover:bg-[#f5f5f5] ${className}`}
       onClick={onClick}
       style={{ fontFamily: '"Google Sans", Roboto, Arial, sans-serif' }}
       type="button"
