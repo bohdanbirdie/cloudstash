@@ -213,7 +213,11 @@ export class LibraryDO
     const store = await createStoreDoPromise({
       clientId: "link-processor-do",
       durableObject: {
-        bindingName: "LIBRARY_DO",
+        // DO NOT RENAME: LiveStore persists this exact name in SyncBackendDO
+        // reverse-RPC subscriptions. LIBRARY_DO is the application-facing
+        // alias, but existing and future LiveStore callbacks must share this
+        // stable compatibility identity.
+        bindingName: "LINK_PROCESSOR_DO",
         ctx: this.ctx,
         env: this.env,
       } as never,

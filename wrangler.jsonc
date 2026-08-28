@@ -35,7 +35,11 @@
   "durable_objects": {
     "bindings": [
       { "name": "SYNC_BACKEND_DO", "class_name": "SyncBackendDO" },
-      { "name": "LIBRARY_DO", "class_name": "LinkProcessorDO" },
+      { "name": "LIBRARY_DO", "class_name": "LibraryDO" },
+      // DO NOT RENAME OR REMOVE: LiveStore persists this exact binding name in
+      // SyncBackendDO reverse-RPC subscriptions. It is a compatibility alias
+      // for LibraryDO, not a separate Durable Object namespace.
+      { "name": "LINK_PROCESSOR_DO", "class_name": "LibraryDO" },
       { "name": "Chat", "class_name": "ChatAgentDO" },
       { "name": "X_BOOKMARK_SYNC_DO", "class_name": "XBookmarkSyncDO" },
     ],
@@ -46,6 +50,10 @@
     { "tag": "v2", "new_sqlite_classes": ["LinkProcessorDO"] },
     { "tag": "v3", "new_sqlite_classes": ["ChatAgentDO"] },
     { "tag": "v4", "new_sqlite_classes": ["XBookmarkSyncDO"] },
+    {
+      "tag": "v5",
+      "renamed_classes": [{ "from": "LinkProcessorDO", "to": "LibraryDO" }],
+    },
   ],
 
   "workflows": [
@@ -167,7 +175,14 @@
           { "name": "SYNC_BACKEND_DO", "class_name": "SyncBackendDO" },
           {
             "name": "LIBRARY_DO",
-            "class_name": "LinkProcessorDO",
+            "class_name": "LibraryDO",
+          },
+          // DO NOT RENAME OR REMOVE: LiveStore persists this exact binding name
+          // in SyncBackendDO reverse-RPC subscriptions. It is a compatibility
+          // alias for LibraryDO, not a separate Durable Object namespace.
+          {
+            "name": "LINK_PROCESSOR_DO",
+            "class_name": "LibraryDO",
           },
           { "name": "Chat", "class_name": "ChatAgentDO" },
           {
@@ -181,6 +196,10 @@
         { "tag": "v2", "new_sqlite_classes": ["LinkProcessorDO"] },
         { "tag": "v3", "new_sqlite_classes": ["ChatAgentDO"] },
         { "tag": "v4", "new_sqlite_classes": ["XBookmarkSyncDO"] },
+        {
+          "tag": "v5",
+          "renamed_classes": [{ "from": "LinkProcessorDO", "to": "LibraryDO" }],
+        },
       ],
       "workflows": [
         {

@@ -88,19 +88,20 @@ reporting a mutation that only exists in an evictable client replica.
 
 ## Safe Durable Object rename
 
-Use `LibraryDO` / `LIBRARY_DO`. This is a class and binding rename, not a new
-namespace. Follow Cloudflare's alias-first safe rollout as three deployments:
+Use `LibraryDO` / `LIBRARY_DO` for the class and ordinary application calls.
+Append the legacy
+`renamed_classes: [{ from: "LinkProcessorDO", to: "LibraryDO" }]` migration in
+production and staging so Cloudflare moves the existing namespace rather than
+provisioning another one. One final build per environment is sufficient;
+staging remains the safety check before promoting the same source to production.
 
-1. Rename the canonical TypeScript class to `LibraryDO`, export it under both
-   names, and move callers to the `LIBRARY_DO` binding while that binding still
-   targets the exported `LinkProcessorDO` alias. Deploy this first. Existing
-   instances continue resolving through the old namespace and the deploy also
-   establishes the staging baseline described below.
-2. Keep both exports, point `LIBRARY_DO` at `LibraryDO`, and append the legacy
-   `renamed_classes: [{ from: "LinkProcessorDO", to: "LibraryDO" }]` migration
-   in production and staging. Deploy and certify staging before production.
-3. After the rename has fully rolled out, remove the `LinkProcessorDO` export
-   alias in a final deploy. Keep the migration history intact.
+Keep `LINK_PROCESSOR_DO` as a second Wrangler binding to `LibraryDO` and as the
+LiveStore adapter's `bindingName`. LiveStore persists that exact identity in
+SyncBackendDO reverse-RPC subscriber records. Removing it already stranded
+post-deploy processing on staging, and LiveStore provides no supported migration
+for rewriting those records. The compatibility binding does not create another
+namespace. Both hard-commented references are intentional protocol surface, not
+unfinished cleanup.
 
 Never declare `LibraryDO` in `new_sqlite_classes`; that would provision an empty
 namespace instead of moving the existing one. Preserve `idFromName(orgId)`,
@@ -108,11 +109,9 @@ stored keys, the LiveStore session ID, and its existing client identity during
 the rename. Cosmetic storage/protocol renames are separate work.
 
 Cloudflare class rename migrations move the existing namespace and stored data
-to the new class. The binding identifier is only the Worker-side reference. The
-alias-first rollout prevents the few-second runtime rollout window from finding
-a class name that the active Worker version does not export. The project stays
-on its supported legacy migration history during this operation rather than
-combining the rename with a one-way move to declarative `exports`.
+to the new class. The project stays on its supported legacy migration history
+during this operation rather than combining the rename with a one-way move to
+declarative `exports`.
 
 ### Local rename drill
 
@@ -137,8 +136,9 @@ used only a copied state directory and did not modify the working local state.
 
 ### Staging certification
 
-The first alias deployment records a baseline without reading LiveStore's
-private schema. On the first store boot for a known staging library, record:
+The currently deployed alias build can record a pre-migration baseline without
+reading LiveStore's private schema. On the first store boot for a known staging
+library, record:
 
 - a cryptographic fingerprint of the app-owned persisted LiveStore session ID;
 - a cryptographic fingerprint of the Cloudflare Durable Object ID;
@@ -146,14 +146,14 @@ private schema. On the first store boot for a known staging library, record:
 - Cloudflare's generic `ctx.storage.sql.databaseSize` before boot; and
 - the number of SQL rows written while the store boots.
 
-After the second deployment applies the class migration, wake the same named
-library and compare the same two structured log entries. The rename is accepted
-only when both the Durable Object ID and persisted session fingerprints match,
-`reusedSession` remains true, the pre-boot database size remains in the
-established range, and boot writes remain at the normal warm-restart baseline.
-A changed object or session fingerprint, a near-empty pre-boot database, or
-replay-sized boot writes means the object was recreated or rematerialized and
-blocks the production rename.
+After the final build applies the class migration and restores the compatibility
+binding, wake the same named library and compare the same two structured log
+entries. The rename is accepted only when both the Durable Object ID and
+persisted session fingerprints match, `reusedSession` remains true, the pre-boot
+database size remains in the established range, and boot writes remain at the
+normal warm-restart baseline. A changed object or session fingerprint, a
+near-empty pre-boot database, or replay-sized boot writes means the object was
+recreated or rematerialized and blocks the production rename.
 
 Use Workers Logs for the retained record or `wrangler tail --env staging` while
 performing the drill. Repeat the same baseline/migration comparison in
@@ -192,9 +192,10 @@ New chat actors never register a LiveStore subscription.
 
 ## Implementation slices
 
-1. Rename `LinkProcessorDO` to `LibraryDO` through the alias-first,
-   namespace-preserving rollout, then update bindings, account deletion,
-   queues, sync wakeups, digest, API/MCP, tests, logs, and Intent terminology.
+1. Rename `LinkProcessorDO` to `LibraryDO` through the namespace-preserving
+   migration, retaining LiveStore's legacy compatibility binding, then update
+   account deletion, queues, sync wakeups, digest, API/MCP, tests, logs, and
+   Intent terminology.
 2. Add focused parity tests around a fake typed LibraryDO client for every chat
    tool, including confirmations, domain failures, and RPC rejection.
 3. Extend the canonical service/RPC only for the missing `chat` save source and
