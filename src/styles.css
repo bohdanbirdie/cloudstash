@@ -186,9 +186,10 @@
 }
 
 .landing-dot-field {
+  --landing-dot-color: color-mix(in oklab, var(--primary) 13%, transparent);
   background-image: radial-gradient(
     circle,
-    color-mix(in oklab, var(--primary) 13%, transparent) 1px,
+    var(--landing-dot-color) 1px,
     transparent 1.25px
   );
   background-size: 18px 18px;
@@ -199,6 +200,14 @@
     transparent 98%
   );
   mask-image: linear-gradient(to bottom, black 0%, black 68%, transparent 98%);
+}
+
+.landing-dot-field-inverse {
+  --landing-dot-color: color-mix(
+    in oklab,
+    var(--primary-foreground) 12%,
+    transparent
+  );
 }
 
 .landing-source-traveler-mask {
