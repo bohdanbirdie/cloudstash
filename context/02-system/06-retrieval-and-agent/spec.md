@@ -74,17 +74,22 @@ One `ChatAgentDO` currently exists per workspace and extends Cloudflare
 `AIChatAgent`. Agents SDK storage owns message history; the DO also owns the
 monthly token-usage record. It does not host a LiveStore client.
 
-The provider is OpenRouter with Google Gemini. The model sees a hardened system
+Per [decision 0002](./.decisions/0002-pin-gpt-5-6-luna-for-chat.md), the
+provider is OpenRouter with the pinned `openai/gpt-5.6-luna-20260709` model.
+Chat, weekly digests, and X enrichment share one executable model constant;
+chat pricing is keyed by that same constant. The model sees a hardened system
 prompt and at most the last 30 UI messages. A request is capped at five tool
 steps. Input validation rejects common prompt-injection forms before provider
 execution.
 
 Tools list/search/get/save links, inspect counts, change completion, restore,
-and archive one or many links. A shared Effect `RpcGroup` defines their schema,
-success, and typed-error contract. Effect RPC runs over Cloudflare native
-Durable Object RPC and delegates every library operation to the workspace-named
-`LinkProcessorDO`, which owns the canonical server-side LiveStore replica.
-Link mentions/citations render from returned IDs.
+and archive one or many links. Recent-link reads accept saved-date bounds and
+return saved timestamps so a period lookup does not fan out into per-link reads.
+A shared Effect `RpcGroup` defines their schema, success, and typed-error
+contract. Effect RPC runs over Cloudflare native Durable Object RPC and
+delegates every library operation to the workspace-named `LinkProcessorDO`,
+which owns the canonical server-side LiveStore replica. Link mentions/citations
+render from returned IDs.
 
 Archival tools declare AI SDK `needsApproval` on the server. Approval responses
 use the SDK approval ID and denied calls never execute. The SDK queues approved

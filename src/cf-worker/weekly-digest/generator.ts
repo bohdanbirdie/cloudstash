@@ -2,9 +2,8 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { generateText } from "ai";
 import { Context, Effect, Layer, Schema } from "effect";
 
+import { OPENROUTER_MODEL_ID } from "../openrouter-model";
 import { weeklyDigestGenerateErrorFromAiSdk } from "./errors";
-
-export const MODEL_ID = "google/gemini-3.1-flash-lite";
 
 const SYSTEM_PROMPT = `You write a short weekly digest for a user of Cloudstash, a personal link-saving app.
 
@@ -49,14 +48,14 @@ export function formatLinks(input: ReadonlyArray<DigestLinkInput>): string {
 const make = Effect.gen(function* () {
   const apiKey = yield* OpenRouterApiKey;
   const openrouter = createOpenRouter({ apiKey });
-  const model = openrouter(MODEL_ID);
+  const model = openrouter(OPENROUTER_MODEL_ID);
 
   const generate = Effect.fn("WeeklyDigestGenerator.generate")(function* (
     params: WeeklyDigestParams
   ) {
     const { links, generatedAt } = params;
     yield* Effect.annotateCurrentSpan("linkCount", links.length);
-    yield* Effect.annotateCurrentSpan("model", MODEL_ID);
+    yield* Effect.annotateCurrentSpan("model", OPENROUTER_MODEL_ID);
     yield* Effect.annotateCurrentSpan("generatedAt", generatedAt.toISOString());
 
     const userPrompt = `The user's saves this week:\n\n${formatLinks(links)}`;
@@ -64,7 +63,7 @@ const make = Effect.gen(function* () {
     const result = yield* Effect.tryPromise({
       catch: weeklyDigestGenerateErrorFromAiSdk({
         linkCount: links.length,
-        model: MODEL_ID,
+        model: OPENROUTER_MODEL_ID,
       }),
       try: () =>
         generateText({

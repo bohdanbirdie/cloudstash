@@ -13,6 +13,14 @@ const listRecentLinksSchema = z.object({
     .number()
     .optional()
     .describe("Number of links to return (default 5)"),
+  createdAfter: z.iso
+    .datetime({ offset: true })
+    .optional()
+    .describe("Include links saved at or after this ISO 8601 timestamp"),
+  createdBefore: z.iso
+    .datetime({ offset: true })
+    .optional()
+    .describe("Include links saved before this ISO 8601 timestamp"),
 });
 const saveLinkSchema = z.object({
   url: z.string().describe("The URL to save"),
@@ -51,12 +59,18 @@ const runTool = <Value>(
 
 const listRecentLinks = Effect.fn("ChatTools.listRecentLinks")(function* (
   library: ChatLibrary,
-  limit: number
+  input: z.infer<typeof listRecentLinksSchema>
 ) {
   const page = yield* library.list({
     state: "active",
-    limit: limitTo(limit, 5),
+    limit: limitTo(input.limit ?? 5, 5),
     sort: "newest",
+    ...(input.createdAfter === undefined
+      ? {}
+      : { createdAfter: input.createdAfter }),
+    ...(input.createdBefore === undefined
+      ? {}
+      : { createdBefore: input.createdBefore }),
   });
   return {
     links: page.links.map((link) => ({
@@ -64,6 +78,7 @@ const listRecentLinks = Effect.fn("ChatTools.listRecentLinks")(function* (
       url: link.url,
       title: link.title || link.domain,
       description: link.description,
+      createdAt: link.createdAt,
     })),
   };
 });
@@ -252,11 +267,13 @@ export function createTools(library: ChatLibrary, runEffect: ToolEffectRunner) {
     listRecentLinks: tool({
       description:
         "List saved links newest first. Use this for requests about the latest, " +
-        "last, newest, or recently saved links; use limit 1 when the user asks for " +
-        "the single last link. Present results with a plain URL and a brief description.",
+        "last, newest, recently saved, or links saved during a date range. Use " +
+        "createdAfter and createdBefore for periods such as this week or last week, " +
+        "and limit 1 for the single last link. Results include the saved timestamp; " +
+        "do not call getLink unless the user needs fields missing from these results. " +
+        "Present results with a plain URL and a brief description.",
       inputSchema: zodSchema(listRecentLinksSchema),
-      execute: ({ limit = 5 }) =>
-        runTool(listRecentLinks(library, limit), runEffect),
+      execute: (input) => runTool(listRecentLinks(library, input), runEffect),
     }),
     saveLink: tool({
       description:

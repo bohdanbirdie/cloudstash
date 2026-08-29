@@ -205,6 +205,49 @@ describe("agent tool approval", () => {
     expect(screen.queryByText(/technical-content/)).toBeNull();
   });
 
+  it("groups only consecutive runs of the same tool", () => {
+    const completedTool = (toolName: string, toolCallId: string) => ({
+      type: "dynamic-tool" as const,
+      toolName,
+      toolCallId,
+      state: "output-available" as const,
+      input: {},
+      output: {},
+    });
+
+    render(
+      <AgentMessagesView
+        messages={[
+          {
+            id: "assistant-grouped-tools",
+            role: "assistant",
+            parts: [
+              completedTool("listRecentLinks", "recent"),
+              completedTool("getLink", "open-1"),
+              completedTool("getLink", "open-2"),
+              completedTool("getLink", "open-3"),
+              completedTool("searchLinks", "search"),
+              completedTool("getLink", "open-4"),
+              completedTool("getLink", "open-5"),
+            ],
+          },
+        ]}
+        status="ready"
+        isBusy={false}
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+      />
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Checked recent links · 6 more" })
+    );
+
+    expect(screen.getByText("Opened link details · 3")).not.toBeNull();
+    expect(screen.getByText("Opened link details · 2")).not.toBeNull();
+    expect(screen.getAllByText(/Opened link details/)).toHaveLength(2);
+  });
+
   it("keeps tool implementation details out of the transcript", () => {
     render(
       <AgentMessagesView

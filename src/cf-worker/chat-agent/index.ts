@@ -19,7 +19,8 @@ import {
   isDurableObjectRetired,
   retireDurableObjectStorage,
 } from "../durable-object-retirement";
-import { maskId } from "../log-utils";
+import { maskId, safeErrorInfo } from "../log-utils";
+import { OPENROUTER_MODEL_ID } from "../openrouter-model";
 import { getAppLayer } from "../runtime";
 import type { Env } from "../shared";
 import { OtelTracingLive } from "../tracing";
@@ -373,7 +374,7 @@ export class ChatAgentDO extends AIChatAgent<Env> {
     const openrouter = createOpenRouter({
       apiKey: this.env.OPENROUTER_API_KEY,
     });
-    const model = openrouter("google/gemini-2.5-flash");
+    const model = openrouter(OPENROUTER_MODEL_ID);
 
     const libraryId = this.env.LINK_PROCESSOR_DO.idFromName(this.name);
     const libraryStub = this.env.LINK_PROCESSOR_DO.get(libraryId);
@@ -417,8 +418,22 @@ export class ChatAgentDO extends AIChatAgent<Env> {
     generation: number,
     abortSignal?: AbortSignal
   ) {
+    const onError = (error: unknown) => {
+      this.ctx.waitUntil(
+        Effect.logError("Chat stream failed").pipe(
+          Effect.annotateLogs({
+            ...safeErrorInfo(error),
+            errorKind: classifyError(error),
+            orgId: maskId(this.orgId()),
+          }),
+          Effect.provide(getAppLayer(this.env)),
+          Effect.runPromise
+        )
+      );
+      return formatError(error);
+    };
     const stream = createUIMessageStream({
-      onError: formatError,
+      onError,
       execute: async ({ writer }) => {
         const recentMessages = this.messages.slice(-CONTEXT_WINDOW_SIZE);
         const messages = await convertToModelMessages(recentMessages);
@@ -456,7 +471,7 @@ export class ChatAgentDO extends AIChatAgent<Env> {
           },
         });
 
-        writer.merge(result.toUIMessageStream());
+        writer.merge(result.toUIMessageStream({ onError }));
       },
     });
 

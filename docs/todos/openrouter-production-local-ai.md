@@ -16,7 +16,7 @@ logging and retention with `CORE-02` first.
 ## Current split
 
 - Regular link summaries use Workers AI through the `AI` binding.
-- X enrichment, weekly digests, and chat use OpenRouter.
+- X enrichment, weekly digests, and chat use OpenRouter with one pinned model.
 - Tests provide fakes at the Effect service boundary.
 
 ## Scope
@@ -25,8 +25,9 @@ logging and retention with `CORE-02` first.
   than scattering environment switches through feature code.
 - Route every production LLM feature through OpenRouter, including regular link
   summaries.
-- Preserve feature-specific model selection, structured-output validation,
-  timeouts, fallback behavior, and recorded model attribution.
+- Preserve structured-output validation, timeouts, fallback behavior, and
+  recorded model attribution. Keep one shared model unless a measured feature
+  requirement justifies another.
 - Make local development default to a deterministic fake, local model, or the
   existing Workers AI path without requiring an OpenRouter key or spending
   OpenRouter credits.

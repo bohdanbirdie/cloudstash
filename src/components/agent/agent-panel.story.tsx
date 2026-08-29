@@ -490,6 +490,80 @@ const TOOL_ERROR: DynamicToolUIPart = {
   errorText: "Internal implementation detail that must stay hidden.",
 };
 
+const completedTool = (
+  toolName: string,
+  toolCallId: string
+): DynamicToolUIPart => ({
+  type: "dynamic-tool",
+  toolName,
+  toolCallId,
+  state: "output-available",
+  input: {},
+  output: {},
+});
+
+const TOOL_RUN_EXAMPLES: ReadonlyArray<{
+  title: string;
+  parts: DynamicToolUIPart[];
+}> = [
+  {
+    title: "Single tool",
+    parts: [completedTool("searchLinks", "single-search")],
+  },
+  {
+    title: "Mixed tools",
+    parts: [
+      completedTool("searchLinks", "mixed-search"),
+      completedTool("getLink", "mixed-open"),
+    ],
+  },
+  {
+    title: "Consecutive repeats",
+    parts: [
+      completedTool("listRecentLinks", "recent-list"),
+      ...Array.from({ length: 5 }, (_, index) =>
+        completedTool("getLink", `recent-open-${index}`)
+      ),
+    ],
+  },
+  {
+    title: "Interrupted repeats",
+    parts: [
+      completedTool("getLink", "first-open-1"),
+      completedTool("getLink", "first-open-2"),
+      completedTool("searchLinks", "interrupted-search"),
+      completedTool("getLink", "second-open-1"),
+      completedTool("getLink", "second-open-2"),
+    ],
+  },
+];
+
+function ToolRunGallery() {
+  return (
+    <div className="grid w-[min(960px,calc(100vw-2rem))] gap-4 md:grid-cols-2">
+      {TOOL_RUN_EXAMPLES.map((example) => (
+        <section
+          key={example.title}
+          className="space-y-3 rounded-lg border p-4"
+        >
+          <h2 className="text-xs font-medium text-muted-foreground">
+            {example.title}
+          </h2>
+          <ChatMessage
+            message={toolSequenceMessage(
+              `tool-run-${example.title}`,
+              example.parts,
+              "Assistant text shares this leading edge."
+            )}
+            onApprove={onApprove}
+            onReject={onReject}
+          />
+        </section>
+      ))}
+    </div>
+  );
+}
+
 function ActivityAndConfirmationsGallery() {
   return (
     <div className="grid w-[min(960px,calc(100vw-2rem))] gap-4 md:grid-cols-2">
@@ -583,4 +657,7 @@ export const Disconnected: Story = { args: { scenario: "disconnected" } };
 export const UsageWarning: Story = { args: { scenario: "usage-warning" } };
 export const ActivityAndConfirmations: Story = {
   render: () => <ActivityAndConfirmationsGallery />,
+};
+export const ToolRunSummaries: Story = {
+  render: () => <ToolRunGallery />,
 };

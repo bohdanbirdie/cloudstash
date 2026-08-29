@@ -197,7 +197,41 @@ describe("createTools", () => {
         url: "https://test.com",
         title: "Test Title",
         description: "Test desc",
+        createdAt: "2024-01-01T00:00:00.000Z",
       });
+    });
+
+    it("filters a saved-date range without opening each link", async () => {
+      seedLink({
+        title: "Before range",
+        createdAt: new Date("2026-08-16T23:59:59Z"),
+      });
+      const inRangeId = seedLink({
+        title: "In range",
+        createdAt: new Date("2026-08-20T12:00:00Z"),
+      });
+      seedLink({
+        title: "After range",
+        createdAt: new Date("2026-08-24T00:00:00Z"),
+      });
+
+      const result = unwrap(
+        await tools.listRecentLinks.execute!(
+          {
+            limit: 20,
+            createdAfter: "2026-08-17T00:00:00Z",
+            createdBefore: "2026-08-24T00:00:00Z",
+          },
+          stubCtx
+        )
+      );
+
+      expect(result.links).toEqual([
+        expect.objectContaining({
+          id: inRangeId,
+          createdAt: "2026-08-20T12:00:00.000Z",
+        }),
+      ]);
     });
 
     it("uses domain as title fallback", async () => {

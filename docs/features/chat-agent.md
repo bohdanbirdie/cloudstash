@@ -4,7 +4,7 @@ AI chat for managing links via natural language, built on Cloudflare Agents SDK.
 
 ## Overview
 
-One chat per workspace with real-time WebSocket, message persistence in DO SQLite, and LiveStore integration for link management. Uses OpenRouter (`google/gemini-2.5-flash`) via Vercel AI SDK.
+One chat per workspace with real-time WebSocket, message persistence in DO SQLite, and Effect RPC access to the canonical link library. Uses the pinned OpenRouter model `openai/gpt-5.6-luna-20260709` via Vercel AI SDK. Chat, weekly digests, and X enrichment share one `OPENROUTER_MODEL_ID`; chat pricing is keyed by that same constant.
 
 ## Architecture
 
@@ -17,7 +17,7 @@ useAgentChat({ agent,               → /agents/chat/{workspaceId}
   credentials: "include" })
                                   ChatAgentDO extends AIChatAgent
                                     onChatMessage() → streamText()
-                                    with tools + LiveStore store
+                                    with tools + LinkProcessor Effect RPC
 ```
 
 ## Tools

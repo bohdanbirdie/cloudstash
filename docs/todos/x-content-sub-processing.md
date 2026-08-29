@@ -19,7 +19,7 @@ LinkProcessor (single pass)
           ├─ EnrichmentUsage.current (KV) — bail with BudgetExhausted if ≥ cap
           ├─ ThreadProvider.fetchContext(url)  ← syndication-only impl
           ├─ EnrichmentGenerator.generate({url, context, existingTags})
-          │     OpenRouter generateObject → google/gemini-2.5-flash
+          │     OpenRouter generateObject → openai/gpt-5.6-luna-20260709
           │     returns {summary, suggestedTags}
           └─ EnrichmentUsage.increment (KV)   ← only on success
         catchTags → all enrichment errors fall back to basic
@@ -33,14 +33,14 @@ The router catches 10 enrichment error tags individually (`EnrichmentBudgetExhau
 ## Components
 
 - **`ThreadProvider`** Effect.Service abstracting tweet-context retrieval. Live impl pulls the bookmarked tweet via `cdn.syndication.twimg.com/tweet-result` with a 10s timeout; returns root text, quoted body, author, conversation id, external URLs. Branded `XTweetId` / `XUsername`. Six tagged error variants for invalid URL / transport / HTTP / response parse / empty / timeout.
-- **`EnrichmentGenerator`** Effect.Service running Vercel AI SDK `generateObject` against `google/gemini-2.5-flash` via OpenRouter. Prompt rules forbid fabrication (every fact in the summary must appear in the input). Returns `{summary, suggestedTags}`.
+- **`EnrichmentGenerator`** Effect.Service running Vercel AI SDK `generateObject` against the shared `OPENROUTER_MODEL_ID` via OpenRouter. Prompt rules forbid fabrication (every fact in the summary must appear in the input). Returns `{summary, suggestedTags}`.
 - **`EnrichmentUsage`** Effect.Service backed by the `ENRICHMENT_USAGE` KV namespace. Counter keyed `enrichment:{orgId}:{YYYY-MM}` with a 70-day TTL. Split `Get` / `Put` tagged errors so KV failures route distinctly through `catchTags`.
 - **Image-fallback chain** in the X metadata extractor (`pickImage(data, tweetUrl, lookupOgImage)`): parent media → quoted-tweet media → first non-twitter linked-URL og:image → tweet-page og:image. Decision logic takes the og lookup as an injected function, so tests stub it with `vi.fn` and assert call order without HTMLRewriter.
 
 ## Configuration
 
 - **Capability:** `xContentEnrichment: boolean` on `TierCapabilities` (`free=false, plus=false, pro=true`). Admin override via `BOOLEAN_CAPABILITY_KEYS`.
-- **Model:** `ENRICHMENT_MODEL = "google/gemini-2.5-flash"` (`src/cf-worker/x-enrichment/types.ts`).
+- **Model:** `ENRICHMENT_MODEL` aliases the shared `OPENROUTER_MODEL_ID` (`src/cf-worker/openrouter-model.ts`).
 - **Cap:** `MONTHLY_ENRICHMENT_CAP = 100`.
 - **KV binding:** `ENRICHMENT_USAGE` in `wrangler.jsonc`.
 
@@ -60,4 +60,4 @@ Load-bearing paths:
 - [[architecture/link-processor]] — pipeline the router sits inside
 - [[features/x-bookmark-sync]] — existing Pro X integration; entitlement pattern reused
 - `src/cf-worker/billing/service.ts` — `requireCapability` (used for capability gating)
-- `src/cf-worker/weekly-digest/generator.ts` — sibling OpenRouter + Gemini Flash integration
+- `src/cf-worker/weekly-digest/generator.ts` — sibling OpenRouter integration using the same pinned model

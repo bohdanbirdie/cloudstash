@@ -58,7 +58,7 @@ export function InputForm({
         e.preventDefault();
         submit();
       }}
-      className={cn("shrink-0 border-t border-border bg-background p-1", {
+      className={cn("shrink-0 bg-background p-1", {
         "opacity-60": muted,
       })}
     >

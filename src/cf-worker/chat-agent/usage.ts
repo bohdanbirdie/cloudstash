@@ -1,8 +1,10 @@
+import { OPENROUTER_MODEL_ID } from "../openrouter-model";
+
 export const MODEL_PRICING: Record<
   string,
   { inputPer1M: number; outputPer1M: number }
 > = {
-  "google/gemini-2.5-flash": { inputPer1M: 0.3, outputPer1M: 2.5 },
+  [OPENROUTER_MODEL_ID]: { inputPer1M: 0.2, outputPer1M: 1.2 },
 };
 
 /** Chat workloads are roughly 4:1 input:output */
@@ -17,10 +19,9 @@ export const INPUT_OUTPUT_RATIO = 4;
  */
 export function budgetToTokenLimit(
   budget: number,
-  model = "google/gemini-2.5-flash"
+  model = OPENROUTER_MODEL_ID
 ): number {
-  const pricing =
-    MODEL_PRICING[model] ?? MODEL_PRICING["google/gemini-2.5-flash"];
+  const pricing = MODEL_PRICING[model] ?? MODEL_PRICING[OPENROUTER_MODEL_ID];
   const inputPerToken = pricing.inputPer1M / 1_000_000;
   const outputPerToken = pricing.outputPer1M / 1_000_000;
 

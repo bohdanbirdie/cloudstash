@@ -19,7 +19,7 @@ export function AssistantActivity({
       role="status"
       aria-live="polite"
       className={cn(
-        "min-h-6 text-xs leading-6 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150",
+        "min-h-6 text-sm leading-6 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150",
         className
       )}
       style={{

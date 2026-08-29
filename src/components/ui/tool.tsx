@@ -129,12 +129,13 @@ export function ToolRunSummary({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const items = toolParts.filter(isTerminalToolPart).map(getToolSummaryItem);
+  const rawItems = toolParts.filter(isTerminalToolPart).map(getToolSummaryItem);
+  const items = groupSequentialToolSummaryItems(rawItems);
 
   if (items.length === 0) return null;
 
   const firstItem = items[0];
-  const remainingCount = items.length - 1;
+  const remainingCount = rawItems.length - 1;
   const hasDetails = items.length > 1;
   const aggregateStatus = Match.value(items).pipe(
     Match.when(
@@ -156,7 +157,7 @@ export function ToolRunSummary({
       <div
         role={aggregateStatus === "error" ? "alert" : "status"}
         className={cn(
-          "min-h-6 w-fit max-w-full text-xs leading-6 text-muted-foreground",
+          "min-h-6 w-fit max-w-full text-sm leading-6 text-muted-foreground",
           className
         )}
       >
@@ -175,7 +176,7 @@ export function ToolRunSummary({
           {getToolRunErrorAnnouncement(items)}
         </span>
       )}
-      <CollapsibleTrigger className="group flex min-h-6 max-w-full items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground outline-none transition-colors duration-150 hover:bg-muted/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30">
+      <CollapsibleTrigger className="group -ms-1.5 flex min-h-6 max-w-full items-center gap-1.5 rounded-md px-1.5 text-sm text-muted-foreground outline-none transition-colors duration-150 hover:bg-muted/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30">
         <span className="truncate">{label}</span>
         <ChevronDownIcon
           aria-hidden="true"
@@ -189,7 +190,7 @@ export function ToolRunSummary({
           {items.map((item) => (
             <li
               key={item.id}
-              className="min-h-6 min-w-0 text-xs text-muted-foreground"
+              className="min-h-6 min-w-0 text-sm text-muted-foreground"
             >
               <span className="min-w-0 leading-5">
                 <span className="block truncate text-foreground/80">
@@ -234,8 +235,11 @@ type ToolSummaryStatus = "success" | "error" | "cancelled";
 
 type ToolSummaryItem = {
   id: string;
+  baseLabel: string;
   label: string;
   status: ToolSummaryStatus;
+  toolName: string;
+  count: number;
   detail?: string;
 };
 
@@ -245,21 +249,56 @@ function getToolSummaryItem(toolPart: ToolPartType): ToolSummaryItem {
   return Match.value(toolPart).pipe(
     Match.when({ state: "output-error" }, (part) => ({
       id: part.toolCallId,
+      baseLabel: getToolFailureLabel(toolName),
       label: getToolFailureLabel(toolName),
       status: "error" as const,
+      toolName,
+      count: 1,
       detail: getToolErrorMessage(),
     })),
     Match.when({ state: "output-denied" }, (part) => ({
       id: part.toolCallId,
+      baseLabel: getToolCancelledLabel(toolName),
       label: getToolCancelledLabel(toolName),
       status: "cancelled" as const,
+      toolName,
+      count: 1,
     })),
-    Match.orElse((part) => ({
-      id: part.toolCallId,
-      label: getToolCompletedLabel(toolName, part.input),
-      status: "success" as const,
-    }))
+    Match.orElse((part) => {
+      const label = getToolCompletedLabel(toolName, part.input);
+      return {
+        id: part.toolCallId,
+        baseLabel: label,
+        label,
+        status: "success" as const,
+        toolName,
+        count: 1,
+      };
+    })
   );
+}
+
+function groupSequentialToolSummaryItems(
+  items: ToolSummaryItem[]
+): ToolSummaryItem[] {
+  return items.reduce<ToolSummaryItem[]>((groups, item) => {
+    const previous = groups.at(-1);
+    if (
+      previous?.toolName === item.toolName &&
+      previous.status === item.status &&
+      previous.baseLabel === item.baseLabel &&
+      previous.detail === item.detail
+    ) {
+      groups[groups.length - 1] = {
+        ...previous,
+        count: previous.count + 1,
+        label: `${previous.baseLabel} · ${previous.count + 1}`,
+      };
+      return groups;
+    }
+    groups.push(item);
+    return groups;
+  }, []);
 }
 
 function getToolRunLabel(

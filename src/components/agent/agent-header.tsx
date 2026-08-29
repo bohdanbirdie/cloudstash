@@ -1,5 +1,3 @@
-import { MessageCircleIcon } from "lucide-react";
-
 import { UsageIndicator } from "@/components/chat/chat-content/usage-indicator";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -35,11 +33,9 @@ export function AgentHeaderView({
   return (
     <header className="flex h-8 shrink-0 items-center justify-between border-b border-border px-2">
       <div className="flex min-w-0 items-center gap-1">
-        <MessageCircleIcon
-          aria-hidden="true"
-          className="size-3.5 shrink-0 text-primary"
-        />
-        <span className="truncate text-xs font-medium">Assistant</span>
+        <span className="truncate text-xs font-medium">
+          Cloudstash Assistant
+        </span>
         {!isConnected && (
           <Spinner
             aria-label="Connecting to assistant"
