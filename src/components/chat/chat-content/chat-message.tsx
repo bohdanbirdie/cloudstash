@@ -2,39 +2,25 @@ import type { UIMessage } from "@ai-sdk/react";
 import { isToolUIPart } from "ai";
 
 import { MessageContent } from "@/components/ui/message";
-import {
-  isApprovalToolPart,
-  isTerminalToolPart,
-  Tool,
-  ToolRunSummary,
-} from "@/components/ui/tool";
+import { isTerminalToolPart, ToolRunSummary } from "@/components/ui/tool";
 import type { ToolPartType } from "@/components/ui/tool";
 import { cn } from "@/lib/utils";
 
 type ChatMessageProps = {
   message: UIMessage;
-  onApprove: (approvalId: string) => void;
-  onReject: (approvalId: string) => void;
   showToolSummary?: boolean;
 };
 
 export const ChatMessage = ({
   message,
-  onApprove,
-  onReject,
   showToolSummary = true,
 }: ChatMessageProps) => {
   const isUser = message.role === "user";
   const { textContent, toolParts } = parseMessageParts(message.parts);
-  const approvalParts = toolParts.filter(isApprovalToolPart);
   const terminalParts = toolParts.filter(isTerminalToolPart);
   const visibleTerminalParts = showToolSummary ? terminalParts : [];
 
-  if (
-    !textContent &&
-    approvalParts.length === 0 &&
-    visibleTerminalParts.length === 0
-  ) {
+  if (!textContent && visibleTerminalParts.length === 0) {
     return null;
   }
 
@@ -58,14 +44,6 @@ export const ChatMessage = ({
             {textContent}
           </MessageContent>
         )}
-        {approvalParts.map((part) => (
-          <Tool
-            key={part.toolCallId}
-            toolPart={part}
-            onApprove={onApprove}
-            onReject={onReject}
-          />
-        ))}
       </div>
     </div>
   );

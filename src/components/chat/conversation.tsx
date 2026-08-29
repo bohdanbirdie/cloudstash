@@ -32,7 +32,7 @@ export function ConversationContent({
   return (
     <StickToBottom.Content
       scrollClassName={cn("scroll-fade overflow-y-auto", scrollClassName)}
-      className={cn("flex flex-col gap-4 px-3 py-5", className)}
+      className={cn("flex flex-col gap-2 px-3 py-5", className)}
       {...props}
     />
   );

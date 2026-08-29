@@ -1,8 +1,11 @@
 import { isToolUIPart } from "ai";
 import { ArrowUpIcon } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useRef, useState } from "react";
+import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import { isApprovalToolPart, ToolApproval } from "@/components/ui/tool";
 import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +20,7 @@ interface InputFormProps {
   canSend: boolean;
   placeholder: string;
   muted?: boolean;
+  approval?: ReactNode;
 }
 
 export function InputForm({
@@ -24,6 +28,7 @@ export function InputForm({
   canSend,
   placeholder,
   muted = false,
+  approval,
 }: InputFormProps) {
   const { draft, setDraft, selectionRef, setupTextarea } = useAgentInput();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -58,11 +63,32 @@ export function InputForm({
         e.preventDefault();
         submit();
       }}
-      className={cn("shrink-0 bg-background p-1", {
-        "opacity-60": muted,
-      })}
+      className="relative z-10 shrink-0 bg-background p-1"
     >
-      <div className="relative flex min-h-8 items-end rounded-lg border border-input bg-input/20 p-1 transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30 dark:bg-input/30">
+      <AnimatePresence initial={false}>
+        {approval && (
+          <motion.div
+            key="composer-approval"
+            initial={{ height: 0, opacity: 0, y: 8 }}
+            animate={{ height: "auto", opacity: 1, y: 0 }}
+            exit={{ height: 0, opacity: 0, y: 8 }}
+            transition={{ type: "spring", duration: 0.3, bounce: 0 }}
+            className="relative z-0 mx-2 origin-bottom overflow-hidden"
+          >
+            <div
+              role="region"
+              aria-label="Confirmation required"
+              className="overflow-hidden rounded-t-lg border border-b-0 border-border bg-[color-mix(in_oklch,var(--background)_70%,var(--muted))] text-foreground"
+            >
+              <span role="status" className="sr-only">
+                Confirmation required. Use the available actions to continue.
+              </span>
+              {approval}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <div className="relative z-10 flex min-h-8 items-end rounded-lg border border-input bg-input/20 p-1 transition-colors focus-within:border-ring/70 focus-within:ring-1 focus-within:ring-ring/20 dark:bg-input/30">
         <textarea
           ref={setTextareaRef}
           value={draft}
@@ -87,6 +113,21 @@ export function InputForm({
             };
           }}
           onKeyDown={(e) => {
+            if (approval) {
+              if (e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                activateApprovalAction(e.currentTarget, "reject");
+                return;
+              }
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                e.stopPropagation();
+                activateApprovalAction(e.currentTarget, "approve");
+                return;
+              }
+            }
+
             if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
 
             // The production dock lives inside cmdk, which handles every
@@ -100,7 +141,8 @@ export function InputForm({
           }}
           placeholder={placeholder}
           aria-label="Message the assistant"
-          aria-keyshortcuts="Enter"
+          aria-keyshortcuts={approval ? undefined : "Enter"}
+          readOnly={Boolean(approval)}
           spellCheck={false}
           autoCorrect="off"
           autoCapitalize="none"
@@ -111,7 +153,10 @@ export function InputForm({
           rows={1}
           // 16px text on mobile keeps iOS Safari from zooming the page on focus;
           // the desktop popup keeps its compact density.
-          className="min-h-6 max-h-24 w-full resize-none bg-transparent py-1 ps-1.5 pe-8 text-sm/4 outline-none placeholder:text-muted-foreground [@media(pointer:coarse)]:text-base [@media(pointer:coarse)]:leading-5"
+          className={cn(
+            "min-h-6 max-h-24 w-full resize-none bg-transparent py-1 ps-1.5 pe-8 text-sm/4 outline-none placeholder:text-muted-foreground [@media(pointer:coarse)]:text-base [@media(pointer:coarse)]:leading-5",
+            { "opacity-60": muted }
+          )}
         />
         <Button
           type="submit"
@@ -173,10 +218,26 @@ function resetTextarea(
 export function AgentInput() {
   const { draft, setDraft } = useAgentInput();
   const { isConnected } = useAgentConnection();
-  const { messages, isBusy, sendMessage } = useAgentChat();
+  const { messages, isBusy, sendMessage, addToolApprovalResponse } =
+    useAgentChat();
 
-  const hasPendingConfirmation = checkPendingConfirmation(messages);
+  const pendingApproval = getPendingApproval(messages);
+  const hasPendingConfirmation = pendingApproval !== undefined;
   const canSend = isConnected && !isBusy && !hasPendingConfirmation;
+
+  const approve = useCallback(
+    (approvalId: string) => {
+      addToolApprovalResponse({ id: approvalId, approved: true });
+    },
+    [addToolApprovalResponse]
+  );
+
+  const reject = useCallback(
+    (approvalId: string) => {
+      addToolApprovalResponse({ id: approvalId, approved: false });
+    },
+    [addToolApprovalResponse]
+  );
 
   const submit = useCallback(() => {
     const text = draft.trim();
@@ -196,13 +257,33 @@ export function AgentInput() {
           : "Ask about your links…"
       }
       muted={hasPendingConfirmation}
+      approval={
+        pendingApproval ? (
+          <ToolApproval
+            toolPart={pendingApproval}
+            surface="composer"
+            onApprove={approve}
+            onReject={reject}
+          />
+        ) : undefined
+      }
     />
   );
 }
 
-const checkPendingConfirmation = (
+const getPendingApproval = (
   messages: ReturnType<typeof useAgentChat>["messages"]
-): boolean =>
-  messages.some((m) =>
-    m.parts?.some((p) => isToolUIPart(p) && p.state === "approval-requested")
+) =>
+  messages
+    .flatMap((message) => message.parts.filter(isToolUIPart))
+    .findLast(isApprovalToolPart);
+
+function activateApprovalAction(
+  textarea: HTMLTextAreaElement,
+  action: "approve" | "reject"
+) {
+  const button = textarea.form?.querySelector<HTMLButtonElement>(
+    `[data-approval-action="${action}"]`
   );
+  if (button && !button.disabled) button.click();
+}

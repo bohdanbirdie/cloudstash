@@ -37,8 +37,16 @@ vi.mock("@/components/agent/agent-chat-provider", () => ({
     error: undefined,
     addToolApprovalResponse,
   }),
+  useAgentConnection: () => ({ isConnected: true }),
+  useAgentInput: () => ({
+    draft: "",
+    setDraft: vi.fn(),
+    selectionRef: { current: { start: 0, end: 0 } },
+    setupTextarea: vi.fn(),
+  }),
 }));
 
+import { AgentInput } from "@/components/agent/agent-input";
 import {
   AgentMessages,
   AgentMessagesView,
@@ -64,12 +72,34 @@ describe("agent tool approval", () => {
   });
 
   it("forwards the approval id and exact approve or reject decision", () => {
+    render(<AgentInput />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Allow" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(addToolApprovalResponse.mock.calls).toEqual([
+      [{ id: "approval-1", approved: true }],
+      [{ id: "approval-1", approved: false }],
+    ]);
+  });
+
+  it("keeps the pending confirmation out of the transcript", () => {
     render(<AgentMessages />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Allow destructive action" })
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByText("Allow destructive action?")).toBeNull();
+  });
+
+  it("routes composer shortcuts through the real approval buttons", () => {
+    render(<AgentInput />);
+
+    const composer = screen.getByRole("textbox", {
+      name: "Message the assistant",
+    });
+    expect((composer as HTMLTextAreaElement).readOnly).toBe(true);
+
+    fireEvent.keyDown(composer, { key: "Enter", metaKey: true });
+    fireEvent.keyDown(composer, { key: "Escape" });
 
     expect(addToolApprovalResponse.mock.calls).toEqual([
       [{ id: "approval-1", approved: true }],
@@ -104,8 +134,6 @@ describe("agent tool approval", () => {
         ]}
         status="streaming"
         isBusy
-        onApprove={vi.fn()}
-        onReject={vi.fn()}
       />
     );
 
@@ -144,8 +172,6 @@ describe("agent tool approval", () => {
         ]}
         status="streaming"
         isBusy
-        onApprove={vi.fn()}
-        onReject={vi.fn()}
       />
     );
 
@@ -187,8 +213,6 @@ describe("agent tool approval", () => {
         ]}
         status="ready"
         isBusy={false}
-        onApprove={vi.fn()}
-        onReject={vi.fn()}
       />
     );
 
@@ -234,8 +258,6 @@ describe("agent tool approval", () => {
         ]}
         status="ready"
         isBusy={false}
-        onApprove={vi.fn()}
-        onReject={vi.fn()}
       />
     );
 
@@ -269,8 +291,6 @@ describe("agent tool approval", () => {
         ]}
         status="ready"
         isBusy={false}
-        onApprove={vi.fn()}
-        onReject={vi.fn()}
       />
     );
 
@@ -299,8 +319,6 @@ describe("agent tool approval", () => {
         ]}
         status="ready"
         isBusy={false}
-        onApprove={vi.fn()}
-        onReject={vi.fn()}
       />
     );
 
@@ -331,8 +349,6 @@ describe("agent tool approval", () => {
         ]}
         status="ready"
         isBusy={false}
-        onApprove={vi.fn()}
-        onReject={vi.fn()}
       />
     );
 
@@ -358,11 +374,13 @@ describe("agent tool approval", () => {
       />
     );
 
-    expect(screen.getByText("Saved link 3")).not.toBeNull();
-    expect(screen.queryByText("Saved link 4")).toBeNull();
+    expect(screen.getByText("Saved link 2")).not.toBeNull();
+    expect(screen.queryByText("Saved link 3")).toBeNull();
     expect(screen.queryByText("Saved link 20")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Show all 20 links" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Review all 20 links" })
+    );
 
     expect(screen.getByText("Saved link 20")).not.toBeNull();
     expect(

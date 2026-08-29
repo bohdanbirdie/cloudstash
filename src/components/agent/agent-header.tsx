@@ -5,7 +5,6 @@ import {
   useAgentChatOptional,
   useAgentConnection,
 } from "./agent-chat-provider";
-import { AgentHelpHint } from "./agent-help-hint";
 
 export function AgentHeader() {
   const { isConnected, usage } = useAgentConnection();
@@ -31,7 +30,7 @@ export function AgentHeaderView({
   onClear?: () => void;
 }) {
   return (
-    <header className="flex h-8 shrink-0 items-center justify-between border-b border-border px-2">
+    <header className="flex h-8 shrink-0 items-center border-b border-border px-2">
       <div className="flex min-w-0 items-center gap-1">
         <span className="truncate text-xs font-medium">
           Cloudstash Assistant
@@ -48,7 +47,6 @@ export function AgentHeaderView({
           </div>
         )}
       </div>
-      <AgentHelpHint />
     </header>
   );
 }

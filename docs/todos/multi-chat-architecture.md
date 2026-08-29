@@ -37,6 +37,12 @@ When this task is picked up:
 5. Move library-level usage reservation out of individual conversations so
    parallel chats cannot exceed the shared budget.
 6. Add bounded retention/deletion and the minimal chat-list UI.
+7. Remove `/clear`; creating a new conversation replaces the destructive reset
+   command, while normal session deletion follows the same retention path.
+
+Implement the shared spending work from `AI-11` in this task rather than adding
+a second accounting migration. The user-visible token allowance and the
+provider-cost ceiling are one library-wide budget across every conversation.
 
 ## Why separate conversation DOs
 

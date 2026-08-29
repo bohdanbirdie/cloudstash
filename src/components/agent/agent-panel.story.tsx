@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { DynamicToolUIPart, UIMessage } from "ai";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fn } from "storybook/test";
 
 import {
@@ -19,7 +19,7 @@ import {
 } from "@/components/chat/conversation";
 import type { ArchiveLinkPreview } from "@/components/chat/link-delete-confirmation";
 import { LinkDeleteConfirmationView } from "@/components/chat/link-delete-confirmation";
-import { Tool } from "@/components/ui/tool";
+import { Tool, ToolApproval } from "@/components/ui/tool";
 
 type Scenario =
   | "empty"
@@ -309,8 +309,7 @@ function AgentPanelPreview({ scenario }: { scenario: Scenario }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const config = SCENARIOS[scenario];
   const [messages, setMessages] = useState(config.messages);
-  const hasPendingAction = scenario === "approval-continuation";
-  const canSend = config.isConnected && !config.isBusy && !hasPendingAction;
+  const canSend = config.isConnected && !config.isBusy;
   const initialDraft =
     scenario === "multiline-composer"
       ? "Find my saved guides to Lisbon\nand compare their recommendations"
@@ -333,19 +332,12 @@ function AgentPanelPreview({ scenario }: { scenario: Scenario }) {
               status={config.status}
               isBusy={config.isBusy}
               error={config.error}
-              onApprove={onApprove}
-              onReject={onReject}
             />
           }
           input={
             <StoryInput
               canSend={canSend}
-              placeholder={
-                hasPendingAction
-                  ? "Choose an action above"
-                  : "Ask about your links…"
-              }
-              muted={hasPendingAction}
+              placeholder="Ask about your links…"
               onSend={(text) =>
                 setMessages((current) => [
                   ...current,
@@ -426,9 +418,13 @@ const ARCHIVE_LINKS: ArchiveLinkPreview[] = [
 }));
 
 function ArchiveConfirmationPreview({
-  links = ARCHIVE_LINKS.slice(0, 2),
+  links = ARCHIVE_LINKS.slice(0, 1),
+  defaultExpanded = false,
+  visible = true,
 }: {
   links?: ArchiveLinkPreview[];
+  defaultExpanded?: boolean;
+  visible?: boolean;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -447,22 +443,28 @@ function ArchiveConfirmationPreview({
                       ? "Archive these travel links"
                       : "Archive those two travel links"
                   )}
-                  onApprove={onApprove}
-                  onReject={onReject}
-                />
-                <LinkDeleteConfirmationView
-                  links={links}
-                  onApprove={onApprove}
-                  onReject={onReject}
                 />
               </ConversationContent>
             </Conversation>
           }
           input={
             <InputForm
-              canSend={false}
-              muted
-              placeholder="Choose an action above"
+              canSend={!visible}
+              muted={visible}
+              placeholder={
+                visible ? "Confirmation required" : "Ask about your links…"
+              }
+              approval={
+                visible ? (
+                  <LinkDeleteConfirmationView
+                    links={links}
+                    onApprove={onApprove}
+                    onReject={onReject}
+                    surface="composer"
+                    defaultExpanded={defaultExpanded}
+                  />
+                ) : undefined
+              }
               onSubmit={() => {}}
             />
           }
@@ -472,14 +474,74 @@ function ArchiveConfirmationPreview({
   );
 }
 
-const GENERIC_APPROVAL: DynamicToolUIPart = {
+function AnimatedArchiveConfirmationPreview() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setVisible((current) => !current);
+    }, 3000);
+    return () => window.clearTimeout(timeout);
+  }, [visible]);
+
+  return (
+    <ArchiveConfirmationPreview
+      links={ARCHIVE_LINKS.slice(0, 3)}
+      visible={visible}
+    />
+  );
+}
+
+function GenericConfirmationPreview() {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  return (
+    <div className="h-[480px] w-[min(480px,calc(100vw-2rem))] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground">
+      <AgentInputProvider textareaRef={textareaRef}>
+        <AgentPanelSurface
+          header={<AgentHeaderView isConnected onClear={onClear} />}
+          messages={
+            <Conversation>
+              <ConversationContent>
+                <ChatMessage
+                  message={userMessage(
+                    "generic-approval-request",
+                    "Use the suggested action"
+                  )}
+                />
+              </ConversationContent>
+            </Conversation>
+          }
+          input={
+            <InputForm
+              canSend={false}
+              muted
+              placeholder="Confirmation required"
+              approval={
+                <ToolApproval
+                  toolPart={GENERIC_APPROVAL}
+                  surface="composer"
+                  onApprove={onApprove}
+                  onReject={onReject}
+                />
+              }
+              onSubmit={() => {}}
+            />
+          }
+        />
+      </AgentInputProvider>
+    </div>
+  );
+}
+
+const GENERIC_APPROVAL = {
   type: "dynamic-tool",
   toolName: "futureAction",
   toolCallId: "approval",
   state: "approval-requested",
   input: {},
   approval: { id: "approval" },
-};
+} satisfies DynamicToolUIPart;
 
 const TOOL_ERROR: DynamicToolUIPart = {
   type: "dynamic-tool",
@@ -555,8 +617,6 @@ function ToolRunGallery() {
               example.parts,
               "Assistant text shares this leading edge."
             )}
-            onApprove={onApprove}
-            onReject={onReject}
           />
         </section>
       ))}
@@ -564,7 +624,7 @@ function ToolRunGallery() {
   );
 }
 
-function ActivityAndConfirmationsGallery() {
+function ActivityAndErrorsGallery() {
   return (
     <div className="grid w-[min(960px,calc(100vw-2rem))] gap-4 md:grid-cols-2">
       <section className="space-y-3 rounded-lg border p-4">
@@ -580,33 +640,6 @@ function ActivityAndConfirmationsGallery() {
           Recoverable error
         </h2>
         <Tool toolPart={TOOL_ERROR} />
-      </section>
-      <section className="space-y-3 rounded-lg border p-4">
-        <h2 className="text-xs font-medium text-muted-foreground">
-          Generic confirmation
-        </h2>
-        <Tool
-          toolPart={GENERIC_APPROVAL}
-          onApprove={onApprove}
-          onReject={onReject}
-        />
-      </section>
-      <section className="space-y-3 rounded-lg border p-4">
-        <h2 className="text-xs font-medium text-muted-foreground">
-          Archive confirmations
-        </h2>
-        <div className="grid gap-3">
-          <LinkDeleteConfirmationView
-            links={ARCHIVE_LINKS.slice(0, 1)}
-            onApprove={onApprove}
-            onReject={onReject}
-          />
-          <LinkDeleteConfirmationView
-            links={ARCHIVE_LINKS}
-            onApprove={onApprove}
-            onReject={onReject}
-          />
-        </div>
       </section>
     </div>
   );
@@ -644,19 +677,32 @@ export const ApprovalContinuation: Story = {
 export const ArchiveComplete: Story = {
   args: { scenario: "archive-complete" },
 };
-export const ArchiveConfirmation: Story = {
-  render: () => <ArchiveConfirmationPreview />,
+export const SingleArchiveConfirmation: Story = {
+  render: () => (
+    <ArchiveConfirmationPreview links={ARCHIVE_LINKS.slice(0, 1)} />
+  ),
 };
-export const LargeArchiveConfirmation: Story = {
+export const BulkArchiveConfirmation: Story = {
   render: () => <ArchiveConfirmationPreview links={ARCHIVE_LINKS} />,
+};
+export const ExpandedBulkArchiveConfirmation: Story = {
+  render: () => (
+    <ArchiveConfirmationPreview links={ARCHIVE_LINKS} defaultExpanded />
+  ),
+};
+export const AnimatedArchiveConfirmation: Story = {
+  render: () => <AnimatedArchiveConfirmationPreview />,
+};
+export const GenericConfirmation: Story = {
+  render: () => <GenericConfirmationPreview />,
 };
 export const ToolError: Story = { args: { scenario: "tool-error" } };
 export const ToolDenied: Story = { args: { scenario: "tool-denied" } };
 export const ChatError: Story = { args: { scenario: "chat-error" } };
 export const Disconnected: Story = { args: { scenario: "disconnected" } };
 export const UsageWarning: Story = { args: { scenario: "usage-warning" } };
-export const ActivityAndConfirmations: Story = {
-  render: () => <ActivityAndConfirmationsGallery />,
+export const ActivityAndErrors: Story = {
+  render: () => <ActivityAndErrorsGallery />,
 };
 export const ToolRunSummaries: Story = {
   render: () => <ToolRunGallery />,

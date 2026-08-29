@@ -1,7 +1,6 @@
 import type { UIMessage } from "ai";
 import { isToolUIPart } from "ai";
 import { Match } from "effect";
-import { useCallback } from "react";
 
 import { AssistantActivity } from "@/components/chat/chat-content/assistant-activity";
 import { ChatMessage } from "@/components/chat/chat-content/chat-message";
@@ -17,22 +16,7 @@ import { getToolActivityLabel, isActiveToolPart } from "@/components/ui/tool";
 import { useAgentChat } from "./agent-chat-provider";
 
 export function AgentMessages() {
-  const { messages, status, isBusy, error, addToolApprovalResponse } =
-    useAgentChat();
-
-  const handleApprove = useCallback(
-    (approvalId: string) => {
-      addToolApprovalResponse({ id: approvalId, approved: true });
-    },
-    [addToolApprovalResponse]
-  );
-
-  const handleReject = useCallback(
-    (approvalId: string) => {
-      addToolApprovalResponse({ id: approvalId, approved: false });
-    },
-    [addToolApprovalResponse]
-  );
+  const { messages, status, isBusy, error } = useAgentChat();
 
   return (
     <AgentMessagesView
@@ -40,8 +24,6 @@ export function AgentMessages() {
       status={status}
       isBusy={isBusy}
       error={error}
-      onApprove={handleApprove}
-      onReject={handleReject}
     />
   );
 }
@@ -51,15 +33,11 @@ export function AgentMessagesView({
   status,
   isBusy,
   error,
-  onApprove,
-  onReject,
 }: {
   messages: UIMessage[];
   status: "submitted" | "streaming" | "ready" | "error";
   isBusy: boolean;
   error?: Error;
-  onApprove: (approvalId: string) => void;
-  onReject: (approvalId: string) => void;
 }) {
   const hasError = status === "error";
   const activityLabel = getActivityLabel(messages, status);
@@ -72,8 +50,6 @@ export function AgentMessagesView({
           <ChatMessage
             key={message.id}
             message={message}
-            onApprove={onApprove}
-            onReject={onReject}
             showToolSummary={!isBusy || index < messages.length - 1}
           />
         ))}

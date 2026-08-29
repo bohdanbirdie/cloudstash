@@ -30,6 +30,10 @@ a billing boundary.
 - Preserve the same library-wide budget when `AI-09` introduces multiple chat
   sessions.
 
+The final ownership move ships with `AI-09`: its chat registry becomes the one
+library-level accounting boundary, and `/clear` is removed in favor of creating
+or deleting explicit conversations.
+
 ## Verification
 
 - Concurrent turns cannot reserve beyond the configured period budget.

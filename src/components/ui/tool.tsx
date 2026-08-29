@@ -1,7 +1,7 @@
 import type { DynamicToolUIPart, ToolUIPart } from "ai";
 import { getToolName } from "ai";
 import { Match } from "effect";
-import { ChevronDownIcon, ShieldQuestionIcon } from "lucide-react";
+import { ChevronDownIcon } from "lucide-react";
 import { useState } from "react";
 
 import { LinkDeleteConfirmation } from "@/components/chat/link-delete-confirmation";
@@ -11,6 +11,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Kbd } from "@/components/ui/kbd";
+import { KeyChord } from "@/components/ui/key-chord";
 import { cn } from "@/lib/utils";
 
 type ToolPartType = ToolUIPart | DynamicToolUIPart;
@@ -111,13 +113,36 @@ export function Tool({ toolPart, className, onApprove, onReject }: ToolProps) {
 
   return Match.value(toolPart).pipe(
     Match.when({ state: "approval-requested" }, (part) =>
-      renderApproval(part, toolName, className, onApprove, onReject)
+      renderApproval(part, toolName, className, onApprove, onReject, "card")
     ),
     Match.when(
       (part) => isTerminalToolPart(part),
       (part) => <ToolRunSummary toolParts={[part]} className={className} />
     ),
     Match.orElse(() => null)
+  );
+}
+
+export function ToolApproval({
+  toolPart,
+  className,
+  onApprove,
+  onReject,
+  surface = "card",
+}: {
+  toolPart: Extract<ToolPartType, { state: "approval-requested" }>;
+  className?: string;
+  onApprove?: (approvalId: string) => void;
+  onReject?: (approvalId: string) => void;
+  surface?: "card" | "composer";
+}) {
+  return renderApproval(
+    toolPart,
+    getToolName(toolPart),
+    className,
+    onApprove,
+    onReject,
+    surface
   );
 }
 
@@ -418,7 +443,8 @@ function renderApproval(
   toolName: string,
   className: string | undefined,
   onApprove: ((approvalId: string) => void) | undefined,
-  onReject: ((approvalId: string) => void) | undefined
+  onReject: ((approvalId: string) => void) | undefined,
+  surface: "card" | "composer"
 ) {
   const approvalId = toolPart.approval.id;
   const linkIds = extractLinkIds(toolName, toolPart.input);
@@ -432,35 +458,63 @@ function renderApproval(
         linkIds={linkIds}
         onApprove={() => onApprove?.(approvalId)}
         onReject={() => onReject?.(approvalId)}
+        surface={surface}
       />
     )),
     Match.orElse(() => {
       const action = getToolActionLabel(toolPart, toolName);
       return (
-        <div className={cn("rounded-lg bg-muted/50 p-3", className)}>
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <ShieldQuestionIcon
-              aria-hidden="true"
-              className="size-4 shrink-0 text-muted-foreground"
-            />
-            <span>Allow {action}?</span>
-          </div>
-          <div className="mt-3 flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 flex-1"
-              onClick={() => onReject?.(approvalId)}
-            >
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              className="h-8 flex-1"
-              onClick={() => onApprove?.(approvalId)}
-            >
-              Allow {action}
-            </Button>
+        <div
+          className={cn(
+            {
+              "rounded-lg bg-muted/50 p-3": surface === "card",
+              "p-2": surface === "composer",
+            },
+            className
+          )}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="min-w-0 text-sm font-medium">Allow {action}?</p>
+            <div className="ms-auto flex shrink-0 gap-1.5">
+              <Button
+                type="button"
+                data-approval-action="reject"
+                variant="outline"
+                size="sm"
+                aria-keyshortcuts={
+                  surface === "composer" ? "Escape" : undefined
+                }
+                onClick={() => onReject?.(approvalId)}
+              >
+                Cancel
+                {surface === "composer" && (
+                  <Kbd aria-hidden="true" className="ms-1 h-4 min-w-4">
+                    Esc
+                  </Kbd>
+                )}
+              </Button>
+              <Button
+                type="button"
+                data-approval-action="approve"
+                size="sm"
+                aria-keyshortcuts={
+                  surface === "composer"
+                    ? "Meta+Enter Control+Enter"
+                    : undefined
+                }
+                onClick={() => onApprove?.(approvalId)}
+              >
+                Allow
+                {surface === "composer" && (
+                  <Kbd
+                    aria-hidden="true"
+                    className="ms-1 h-4 min-w-4 bg-primary-foreground/15 text-primary-foreground"
+                  >
+                    <KeyChord keys={["cmd", "enter"]} />
+                  </Kbd>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       );

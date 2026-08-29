@@ -1,9 +1,11 @@
 import { Match } from "effect";
-import { ArchiveIcon, ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
+import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
 import { useId, useState } from "react";
 
 import { Favicon } from "@/components/favicon";
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
+import { KeyChord } from "@/components/ui/key-chord";
 import { displayTitle } from "@/lib/link-display";
 import { cn } from "@/lib/utils";
 import { linksByIds$ } from "@/livestore/queries/links";
@@ -13,6 +15,7 @@ interface LinkDeleteConfirmationProps {
   linkIds: string[];
   onApprove: () => void;
   onReject: () => void;
+  surface?: "card" | "composer";
 }
 
 export interface ArchiveLinkPreview {
@@ -24,7 +27,7 @@ export interface ArchiveLinkPreview {
 
 function LinkPreview({ link }: { link: ArchiveLinkPreview }) {
   return (
-    <div className="flex min-h-8 items-center gap-2 px-2 py-1.5">
+    <div className="flex min-h-7 items-center gap-2 px-2 py-1">
       {link.favicon ? (
         <Favicon src={link.favicon} className="size-3.5 shrink-0 rounded-sm" />
       ) : (
@@ -47,6 +50,7 @@ export function LinkDeleteConfirmation({
   linkIds,
   onApprove,
   onReject,
+  surface = "card",
 }: LinkDeleteConfirmationProps) {
   const store = useAppStore();
   const links = store.useQuery(linksByIds$(linkIds));
@@ -69,6 +73,7 @@ export function LinkDeleteConfirmation({
       links={orderedLinks}
       onApprove={onApprove}
       onReject={onReject}
+      surface={surface}
     />
   );
 }
@@ -77,21 +82,25 @@ export function LinkDeleteConfirmationView({
   links,
   onApprove,
   onReject,
+  surface = "card",
+  defaultExpanded = false,
 }: {
   links: readonly (ArchiveLinkPreview | null)[];
   onApprove: () => void;
   onReject: () => void;
+  surface?: "card" | "composer";
+  defaultExpanded?: boolean;
 }) {
   const listId = useId();
-  const [showAll, setShowAll] = useState(false);
+  const [showAll, setShowAll] = useState(defaultExpanded);
   const availableLinks = links.filter(
     (link): link is ArchiveLinkPreview => link !== null
   );
   const validLinkCount = availableLinks.length;
-  const canExpand = validLinkCount > 3;
+  const canExpand = validLinkCount > 2;
   const visibleLinks = Match.value(showAll).pipe(
     Match.when(true, () => availableLinks),
-    Match.orElse(() => availableLinks.slice(0, 3))
+    Match.orElse(() => availableLinks.slice(0, 2))
   );
   const title = Match.value(validLinkCount).pipe(
     Match.when(0, () => "Links no longer available"),
@@ -103,25 +112,65 @@ export function LinkDeleteConfirmationView({
   );
   const disclosureLabel = Match.value(showAll).pipe(
     Match.when(true, () => "Show fewer links"),
-    Match.orElse(() => `Show all ${validLinkCount} links`)
+    Match.orElse(() => `Review all ${validLinkCount} links`)
   );
+  const isComposer = surface === "composer";
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border/70 bg-background">
-      <div className="p-3">
-        <div className="flex items-center gap-2">
-          <ArchiveIcon
-            aria-hidden="true"
-            className="size-4 shrink-0 text-muted-foreground"
-          />
-          <span className="text-sm font-medium tabular-nums">{title}</span>
+    <div
+      className={cn("overflow-hidden", {
+        "rounded-lg border border-border/70 bg-background": !isComposer,
+      })}
+    >
+      <div className={cn({ "p-3": !isComposer, "p-2": isComposer })}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="min-w-0 text-sm font-medium tabular-nums">
+            {title}
+          </span>
+          <div className="ms-auto flex shrink-0 gap-1.5">
+            <Button
+              type="button"
+              data-approval-action="reject"
+              variant="outline"
+              size="sm"
+              aria-keyshortcuts={isComposer ? "Escape" : undefined}
+              onClick={onReject}
+            >
+              Keep
+              {isComposer && (
+                <Kbd aria-hidden="true" className="ms-1 h-4 min-w-4">
+                  Esc
+                </Kbd>
+              )}
+            </Button>
+            <Button
+              type="button"
+              data-approval-action="approve"
+              size="sm"
+              aria-keyshortcuts={
+                isComposer ? "Meta+Enter Control+Enter" : undefined
+              }
+              onClick={onApprove}
+              disabled={validLinkCount === 0}
+            >
+              Archive
+              {isComposer && (
+                <Kbd
+                  aria-hidden="true"
+                  className="ms-1 h-4 min-w-4 bg-primary-foreground/15 text-primary-foreground"
+                >
+                  <KeyChord keys={["cmd", "enter"]} />
+                </Kbd>
+              )}
+            </Button>
+          </div>
         </div>
 
         {validLinkCount > 0 && (
           <div
             id={listId}
             className={cn(
-              "mt-2 divide-y divide-border/60 overflow-hidden rounded-md bg-muted/40",
+              "mt-1.5 divide-y divide-border/60 overflow-hidden rounded-md bg-muted/40",
               {
                 "scroll-fade-y max-h-44 overflow-y-auto overscroll-contain":
                   showAll,
@@ -141,7 +190,7 @@ export function LinkDeleteConfirmationView({
             size="sm"
             aria-expanded={showAll}
             aria-controls={listId}
-            className="mt-1 h-7 w-full justify-between px-2 text-muted-foreground"
+            className="mt-1 h-6 w-full justify-between px-2 text-muted-foreground"
             onClick={() => setShowAll((current) => !current)}
           >
             <span>{disclosureLabel}</span>
@@ -156,26 +205,6 @@ export function LinkDeleteConfirmationView({
             />
           </Button>
         )}
-
-        <div className="mt-3 flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 flex-1"
-            onClick={onReject}
-          >
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            className="h-7 flex-1"
-            onClick={onApprove}
-            disabled={validLinkCount === 0}
-          >
-            <ArchiveIcon aria-hidden="true" className="mr-1 size-3" />
-            Move to archive
-          </Button>
-        </div>
       </div>
     </div>
   );
