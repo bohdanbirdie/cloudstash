@@ -1,6 +1,10 @@
+import type { UIMessage } from "ai";
 import { describe, expect, it } from "vitest";
 
-import { isAgentChatBusy } from "@/components/agent/agent-chat-provider";
+import {
+  hasPendingToolApproval,
+  isAgentChatBusy,
+} from "@/components/agent/agent-chat-provider";
 
 describe("isAgentChatBusy", () => {
   it.each([
@@ -24,5 +28,49 @@ describe("isAgentChatBusy", () => {
         isToolContinuation: false,
       })
     ).toBe(false);
+  });
+});
+
+describe("hasPendingToolApproval", () => {
+  const pendingMessages = [
+    {
+      id: "assistant-pending",
+      role: "assistant",
+      parts: [
+        {
+          type: "dynamic-tool",
+          toolName: "deleteLink",
+          toolCallId: "delete-link-1",
+          state: "approval-requested",
+          input: { id: "link-1" },
+          approval: { id: "approval-1" },
+        },
+      ],
+    },
+  ] satisfies UIMessage[];
+
+  const completedMessages = [
+    {
+      id: "assistant-completed",
+      role: "assistant",
+      parts: [
+        {
+          type: "dynamic-tool",
+          toolName: "deleteLink",
+          toolCallId: "delete-link-1",
+          state: "output-available",
+          input: { id: "link-1" },
+          output: { success: true },
+        },
+      ],
+    },
+  ] satisfies UIMessage[];
+
+  it("reports an unanswered tool approval", () => {
+    expect(hasPendingToolApproval(pendingMessages)).toBe(true);
+  });
+
+  it("stops reporting attention after the tool settles", () => {
+    expect(hasPendingToolApproval(completedMessages)).toBe(false);
   });
 });

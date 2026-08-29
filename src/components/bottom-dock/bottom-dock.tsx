@@ -1,12 +1,21 @@
 "use client";
 
 import { Command as CommandPrimitive } from "cmdk";
+import { Match } from "effect";
 import { animate, useMotionValue } from "motion/react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef } from "react";
 import type { ReactNode, RefObject } from "react";
 
+import {
+  AgentChatProvider,
+  AgentConnectionProvider,
+  AgentInputProvider,
+  hasPendingToolApproval,
+  useAgentChatOptional,
+} from "@/components/agent/agent-chat-provider";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import { useNarrowViewport } from "@/hooks/use-narrow-viewport";
+import { useOrgFeatures } from "@/hooks/use-org-features";
 import { useRecentLinks } from "@/hooks/use-recent-links";
 import { useTrackLinkOpen } from "@/hooks/use-track-link-open";
 import { track } from "@/lib/analytics";
@@ -19,6 +28,7 @@ import { useDockStore } from "@/stores/dock-store";
 import { useRightPaneStore } from "@/stores/right-pane-store";
 
 import { AgentTrigger } from "./agent-trigger";
+import type { AgentSurfaceState } from "./dock-content";
 import { MobileDockSheet } from "./mobile-dock-sheet";
 import { MorphingPanel } from "./morphing-panel";
 import { SearchTrigger } from "./search-trigger";
@@ -62,20 +72,85 @@ export function BottomDockSurface({
 }
 
 export function BottomDock() {
+  const { orgId } = useAuth();
+  const agentEverOpened = useDockStore((s) => s.agentEverOpened);
+  const agentTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const { isLoading: isLoadingFeatures, isChatEnabled } = useOrgFeatures();
+
+  const featureState = Match.value({
+    orgId,
+    isLoadingFeatures,
+    isChatEnabled,
+    agentEverOpened,
+  }).pipe(
+    Match.when(
+      (state) => state.orgId === null,
+      () => "hidden" as const
+    ),
+    Match.when(
+      (state) => state.isLoadingFeatures,
+      () => "features-loading" as const
+    ),
+    Match.when(
+      (state) => !state.isChatEnabled,
+      () => "promo" as const
+    ),
+    Match.when(
+      (state) => !state.agentEverOpened,
+      () => "dormant" as const
+    ),
+    Match.orElse(() => "ready" as const)
+  ) satisfies AgentSurfaceState;
+
+  const dock = (
+    <BottomDockInner
+      agentTextareaRef={agentTextareaRef}
+      featureState={featureState}
+    />
+  );
+
+  if (featureState !== "ready" || !orgId) return dock;
+
+  return (
+    <AgentConnectionProvider workspaceId={orgId}>
+      <AgentInputProvider textareaRef={agentTextareaRef}>
+        <Suspense
+          fallback={
+            <BottomDockInner
+              agentTextareaRef={agentTextareaRef}
+              featureState="connecting"
+            />
+          }
+        >
+          <AgentChatProvider>{dock}</AgentChatProvider>
+        </Suspense>
+      </AgentInputProvider>
+    </AgentConnectionProvider>
+  );
+}
+
+function BottomDockInner({
+  agentTextareaRef,
+  featureState,
+}: {
+  agentTextareaRef: RefObject<HTMLTextAreaElement | null>;
+  featureState: AgentSurfaceState;
+}) {
   const mode = useDockStore((s) => s.mode);
   const setMode = useDockStore((s) => s.setMode);
   const close = useDockStore((s) => s.close);
   const query = useDockStore((s) => s.query);
   const setQuery = useDockStore((s) => s.setQuery);
-  const agentEverOpened = useDockStore((s) => s.agentEverOpened);
-
-  const { orgId } = useAuth();
   const isNarrow = useNarrowViewport();
+  const chat = useAgentChatOptional();
+  const hasPendingAgentApproval = chat
+    ? hasPendingToolApproval(chat.messages)
+    : false;
+  const agentState: AgentSurfaceState =
+    featureState === "ready" && !chat ? "connecting" : featureState;
 
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const agentTextareaRef = useRef<HTMLTextAreaElement>(null);
-
   const originMV = useMotionValue<string>("bottom");
   const rightMV = useMotionValue<number>(48);
 
@@ -90,7 +165,7 @@ export function BottomDock() {
     if (!isNarrow) {
       requestAnimationFrame(() => agentTextareaRef.current?.focus());
     }
-  }, [mode, originMV, rightMV, setMode, isNarrow]);
+  }, [mode, originMV, rightMV, setMode, isNarrow, agentTextareaRef]);
 
   const openSearch = useCallback(() => {
     originMV.set("bottom");
@@ -178,14 +253,16 @@ export function BottomDock() {
           }
           agent={
             <>
-              <AgentTrigger active={mode === "agent"} onClick={toggleAgent} />
+              <AgentTrigger
+                active={mode === "agent"}
+                attention={hasPendingAgentApproval && mode !== "agent"}
+                onClick={toggleAgent}
+              />
 
               {isNarrow ? null : (
                 <MorphingPanel
                   mode={mode}
-                  orgId={orgId}
-                  agentEverOpened={agentEverOpened}
-                  agentTextareaRef={agentTextareaRef}
+                  agentState={agentState}
                   originMV={originMV}
                   rightMV={rightMV}
                   query={query}
@@ -208,9 +285,7 @@ export function BottomDock() {
           searchResults={searchResults}
           recentLinks={recentLinks}
           onSelect={handleSelect}
-          orgId={orgId}
-          agentEverOpened={agentEverOpened}
-          agentTextareaRef={agentTextareaRef}
+          agentState={agentState}
           onDismiss={dismiss}
         />
       ) : null}

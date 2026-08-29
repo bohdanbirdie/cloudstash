@@ -1,5 +1,6 @@
 import { useAgentChat as useSdkAgentChat } from "@cloudflare/ai-chat/react";
 import { useAgent } from "agents/react";
+import { isToolUIPart } from "ai";
 import {
   createContext,
   useCallback,
@@ -62,6 +63,15 @@ export function AgentConnectionProvider({
 }
 
 type SdkChat = ReturnType<typeof useSdkAgentChat>;
+
+export const hasPendingToolApproval = (
+  messages: SdkChat["messages"]
+): boolean =>
+  messages.some((message) =>
+    message.parts.some(
+      (part) => isToolUIPart(part) && part.state === "approval-requested"
+    )
+  );
 
 interface AgentChatValue {
   messages: SdkChat["messages"];
