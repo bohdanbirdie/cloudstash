@@ -14,6 +14,7 @@ import {
   useAgentConnection,
   useAgentInput,
 } from "./agent-chat-provider";
+import { useAgentSessionsOptional } from "./agent-sessions-provider";
 
 interface InputFormProps {
   onSubmit: () => void;
@@ -220,6 +221,7 @@ export function AgentInput() {
   const { isConnected } = useAgentConnection();
   const { messages, isBusy, sendMessage, addToolApprovalResponse } =
     useAgentChat();
+  const sessions = useAgentSessionsOptional();
 
   const pendingApproval = getPendingApproval(messages);
   const hasPendingConfirmation = pendingApproval !== undefined;
@@ -242,10 +244,11 @@ export function AgentInput() {
   const submit = useCallback(() => {
     const text = draft.trim();
     if (!text || !canSend) return;
+    sessions?.noteFirstMessage(text);
     void sendMessage({ role: "user", parts: [{ type: "text", text }] });
     track("chat_message_sent");
     setDraft("");
-  }, [draft, canSend, sendMessage, setDraft]);
+  }, [draft, canSend, sessions, sendMessage, setDraft]);
 
   return (
     <InputForm

@@ -43,6 +43,8 @@ const sub = (
     id?: string;
     priceId?: string;
     cancelAtPeriodEnd?: boolean;
+    billingCycleAnchor?: number;
+    periodStart?: number;
     periodEnd?: number;
     noItems?: boolean;
     interval?: BillingInterval;
@@ -51,6 +53,7 @@ const sub = (
   ({
     id: opts.id ?? "sub_1",
     status,
+    billing_cycle_anchor: opts.billingCycleAnchor ?? 1_699_000_000,
     cancel_at: opts.cancelAtPeriodEnd
       ? (opts.periodEnd ?? 1_700_000_000)
       : null,
@@ -64,6 +67,7 @@ const sub = (
                 id: opts.priceId ?? "price_pro",
                 recurring: { interval: opts.interval ?? "month" },
               },
+              current_period_start: opts.periodStart ?? 1_699_000_000,
               current_period_end: opts.periodEnd ?? 1_700_000_000,
             },
           ],
@@ -164,8 +168,10 @@ describe("syncFromStripe", () => {
           expect(v.stripeSubscriptionId).toBe("sub_pro");
           expect(v.subscriptionStatus).toBe("active");
           expect(v.cancelAtPeriodEnd).toBe(false);
+          expect(v.currentPeriodStart).toBeInstanceOf(Date);
           expect(v.currentPeriodEnd).toBeInstanceOf(Date);
           expect(v.billingInterval).toBe("month");
+          expect(v.usageCycleAnchor).toBeInstanceOf(Date);
         })
       )
     );
@@ -279,6 +285,9 @@ describe("syncFromStripe", () => {
           expect(updates[0]?.subscriptionStatus).toBe("canceled");
           // No active plan → no interval.
           expect(updates[0]?.billingInterval).toBeNull();
+          expect(updates[0]?.currentPeriodStart).toBeNull();
+          expect(updates[0]?.currentPeriodEnd).toBeNull();
+          expect(updates[0]?.usageCycleAnchor).toBeNull();
         })
       )
     );

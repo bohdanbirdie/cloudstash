@@ -87,10 +87,16 @@ function SettingsStory({
       Icon: UserIcon,
       content: (
         <AccountSectionView
+          assistantCredits={{
+            limit: 1_000,
+            remaining: 842,
+            resetsAt: "2026-09-01T00:00:00.000Z",
+          }}
           email="alex@example.com"
           image={null}
           name="Alex Morgan"
           onDeleteAccount={() => undefined}
+          showAssistantCredits
         />
       ),
     },

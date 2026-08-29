@@ -13,6 +13,11 @@ import {
   hasPendingToolApproval,
   useAgentChatOptional,
 } from "@/components/agent/agent-chat-provider";
+import {
+  AgentSessionsProvider,
+  useAgentSessions,
+  useAgentSessionsOptional,
+} from "@/components/agent/agent-sessions-provider";
 import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import { useNarrowViewport } from "@/hooks/use-narrow-viewport";
 import { useOrgFeatures } from "@/hooks/use-org-features";
@@ -102,6 +107,36 @@ export function BottomDock() {
     Match.orElse(() => "ready" as const)
   ) satisfies AgentSurfaceState;
 
+  if (!orgId || isLoadingFeatures || !isChatEnabled) {
+    return (
+      <BottomDockInner
+        agentTextareaRef={agentTextareaRef}
+        featureState={featureState}
+      />
+    );
+  }
+
+  return (
+    <AgentSessionsProvider workspaceId={orgId} enabled>
+      <BottomDockWithSessions
+        agentTextareaRef={agentTextareaRef}
+        featureState={featureState}
+        workspaceId={orgId}
+      />
+    </AgentSessionsProvider>
+  );
+}
+
+function BottomDockWithSessions({
+  agentTextareaRef,
+  featureState,
+  workspaceId,
+}: {
+  agentTextareaRef: RefObject<HTMLTextAreaElement | null>;
+  featureState: AgentSurfaceState;
+  workspaceId: string;
+}) {
+  const { selectedSession } = useAgentSessions();
   const dock = (
     <BottomDockInner
       agentTextareaRef={agentTextareaRef}
@@ -109,19 +144,16 @@ export function BottomDock() {
     />
   );
 
-  if (featureState !== "ready" || !orgId) return dock;
+  if (featureState !== "ready" || !selectedSession) return dock;
 
   return (
-    <AgentConnectionProvider workspaceId={orgId}>
+    <AgentConnectionProvider
+      key={selectedSession.agentName}
+      workspaceId={workspaceId}
+      agentName={selectedSession.agentName}
+    >
       <AgentInputProvider textareaRef={agentTextareaRef}>
-        <Suspense
-          fallback={
-            <BottomDockInner
-              agentTextareaRef={agentTextareaRef}
-              featureState="connecting"
-            />
-          }
-        >
+        <Suspense fallback={dock}>
           <AgentChatProvider>{dock}</AgentChatProvider>
         </Suspense>
       </AgentInputProvider>
@@ -143,16 +175,21 @@ function BottomDockInner({
   const setQuery = useDockStore((s) => s.setQuery);
   const isNarrow = useNarrowViewport();
   const chat = useAgentChatOptional();
+  const sessions = useAgentSessionsOptional();
   const hasPendingAgentApproval = chat
     ? hasPendingToolApproval(chat.messages)
     : false;
   const agentState: AgentSurfaceState =
-    featureState === "ready" && !chat ? "connecting" : featureState;
+    featureState === "ready" && Boolean(sessions?.selectedSession) && !chat
+      ? "connecting"
+      : featureState;
 
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const originMV = useMotionValue<string>("bottom");
-  const rightMV = useMotionValue<number>(48);
+  const originMV = useMotionValue<string>(
+    mode === "agent" ? "bottom right" : "bottom"
+  );
+  const rightMV = useMotionValue<number>(mode === "agent" ? 0 : 48);
 
   const openAgent = useCallback(() => {
     originMV.set("bottom right");

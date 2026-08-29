@@ -41,8 +41,8 @@ Net effect: deletes ~150 lines of custom approval plumbing + a 353-line test. To
 
 The installed SDK applies the approval, queues auto-continuation through its
 exclusive turn queue, and calls `onChatMessage(..., { continuation: true })`.
-Therefore the existing capability check and token reservation run again before
-the post-approval model turn; continuation does not bypass metering.
+Therefore the existing capability and settled-spend checks run again before the
+post-approval model turn; continuation does not bypass metering.
 
 ## Verification
 

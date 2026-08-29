@@ -17,6 +17,7 @@ GOOGLE_CLIENT_SECRET={{ op://Cloudstash/secrets/shared/GOOGLE_CLIENT_SECRET }}
 # AI chat, summaries, and enrichment (optional)
 # Create a local-only key at https://openrouter.ai/keys
 OPENROUTER_API_KEY={{ op://Cloudstash/secrets/local/OPENROUTER_API_KEY }}
+AI_METER_LIMIT={{ op://Cloudstash/secrets/local/AI_METER_LIMIT }}
 
 # Approval and invite email (optional)
 # Create at https://resend.com/api-keys; the sender domain must be verified.

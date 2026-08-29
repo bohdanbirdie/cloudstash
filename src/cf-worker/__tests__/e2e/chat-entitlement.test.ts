@@ -11,6 +11,9 @@ describe("chat entitlement", () => {
       "Free chat user"
     );
     const stub = env.Chat.get(env.Chat.idFromName(user.orgId));
+    const processor = env.LINK_PROCESSOR_DO.get(
+      env.LINK_PROCESSOR_DO.idFromName(user.orgId)
+    );
 
     const result = await runInDurableObject(stub, async (instance, state) => {
       const response = await instance.onChatMessage(() => undefined);
@@ -25,5 +28,10 @@ describe("chat entitlement", () => {
     expect(result.status).toBe(200);
     expect(result.body).toContain(CHAT_DISABLED_MESSAGE);
     expect(result.usageKeys).toEqual([]);
+    expect(
+      await runInDurableObject(processor, (_instance, state) =>
+        state.storage.list({ prefix: "usage:" })
+      )
+    ).toEqual(new Map());
   });
 });

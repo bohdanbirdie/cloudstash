@@ -11,15 +11,13 @@ import {
 } from "react";
 import type { ReactNode, RefObject } from "react";
 
-import type { ChatAgentState } from "@/cf-worker/chat-agent/usage";
 import { useNarrowViewport } from "@/hooks/use-narrow-viewport";
 
-type Agent = ReturnType<typeof useAgent<ChatAgentState>>;
+type Agent = Parameters<typeof useSdkAgentChat>[0]["agent"];
 
 interface AgentConnectionValue {
   agent: Agent;
   isConnected: boolean;
-  usage: ChatAgentState["usage"];
 }
 
 const AgentConnectionContext = createContext<AgentConnectionValue | null>(null);
@@ -35,24 +33,26 @@ export function useAgentConnection(): AgentConnectionValue {
 
 export function AgentConnectionProvider({
   workspaceId,
+  agentName,
   children,
 }: {
   workspaceId: string;
+  agentName: string;
   children: ReactNode;
 }) {
   const [isConnected, setIsConnected] = useState(false);
 
-  const agent = useAgent<ChatAgentState>({
+  const agent = useAgent({
     agent: "chat",
-    name: workspaceId,
+    name: agentName,
+    query: { workspaceId },
     onOpen: () => setIsConnected(true),
     onClose: () => setIsConnected(false),
   });
 
-  const usage = agent.state?.usage;
   const value = useMemo<AgentConnectionValue>(
-    () => ({ agent, isConnected, usage }),
-    [agent, isConnected, usage]
+    () => ({ agent, isConnected }),
+    [agent, isConnected]
   );
 
   return (
@@ -79,7 +79,6 @@ interface AgentChatValue {
   isBusy: boolean;
   error: SdkChat["error"];
   sendMessage: SdkChat["sendMessage"];
-  clearHistory: SdkChat["clearHistory"];
   addToolApprovalResponse: SdkChat["addToolApprovalResponse"];
 }
 
@@ -118,7 +117,6 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     isToolContinuation,
     error,
     sendMessage,
-    clearHistory,
     addToolApprovalResponse,
   } = chat;
   const isBusy = isAgentChatBusy({
@@ -134,18 +132,9 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
       isBusy,
       error,
       sendMessage,
-      clearHistory,
       addToolApprovalResponse,
     }),
-    [
-      messages,
-      status,
-      isBusy,
-      error,
-      sendMessage,
-      clearHistory,
-      addToolApprovalResponse,
-    ]
+    [messages, status, isBusy, error, sendMessage, addToolApprovalResponse]
   );
 
   return (

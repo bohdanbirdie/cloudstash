@@ -20,13 +20,16 @@ admin featureOverrides ───────────────────
 
 Stripe owns payment/subscription truth. D1 owns operational entitlement truth.
 `Billing.capabilities(orgId)` merges `TIER_CAPABILITIES[tier]` with
-`featureOverrides`; request paths do not contact Stripe.
+`featureOverrides`; normal request paths do not contact Stripe. After the usage
+cycle projection first ships, an entitled Assistant request with missing cycle
+fields performs one Stripe refresh and persists the result. Later requests use
+D1 only.
 
 ## Capability Surface
 
 Current boolean capability fields are AI summaries, chat agent, integrations, X
 bookmark sync, X content enrichment, public API, MCP server, and weekly digest;
-chat also has a monthly USD budget. Free, Plus, and Pro defaults are declared in
+chat also has monthly Assistant credits. Free, Plus, and Pro defaults are declared in
 [`src/lib/plan.ts`](../../../src/lib/plan.ts). A per-workspace override can force
 an individual value. Capability denial maps to HTTP 402 with capability and
 required tier where an HTTP boundary applies.
@@ -38,8 +41,8 @@ Implemented gates include:
 - `integrations` — Telegram and Raycast pairing plus every subsequent capture;
 - `xBookmarkSync` — OAuth completion, resume, X reconciliation, and
   alarm-time checks;
-- `chatAgent` + `monthlyChatBudgetUsd` — initial agent auth plus a capability
-  recheck and atomic token reservation before every model/tool continuation;
+- `chatAgent` + `monthlyAssistantCredits` — initial agent auth plus a capability
+  recheck and settled-spend preflight before every model/tool continuation;
 - `aiSummary`/`xContentEnrichment` — LinkProcessorDO;
 - `weeklyDigest` — manual generation and alarm scheduling/execution; Stripe,
   admin-tier, and override changes immediately reconcile the workspace alarm.
@@ -48,7 +51,7 @@ Established sync connections still do not reauthorize approval and membership
 after connection establishment; this access-lifecycle gap is tracked separately
 in
 [DELTA-011](../../.delta/DELTA-011-established-sync-connections-do-not-reauthorize.md).
-Established chat connections recheck capability and budget at every turn, but
+Established chat connections recheck capability and allowance at every turn, but
 the public `AIChatAgent.onChatMessage` boundary does not expose the originating
 connection identity needed to recheck approval and membership. That narrower
 paid-operation gap is tracked in
@@ -65,9 +68,10 @@ arrive first.
 
 Webhook verification uses the raw request body. A signal resolves customer ID,
 fetches live subscriptions, chooses the applicable subscription, maps its price
-to tier/interval, and updates D1. Writes persist subscription ID/status, period
-end, cancellation state, and interval. Stripe sync returns without changing
-manual `tierSource: admin` grants.
+to tier/interval, and updates D1. Writes persist subscription ID/status, item
+period start/end, billing-cycle anchor, cancellation state, and interval. Stripe
+sync returns without changing manual `tierSource: admin` grants. Admin paid-tier
+grants persist their grant time as a separate usage-cycle anchor.
 
 ## Billing Return Experience
 
@@ -93,12 +97,20 @@ price and feature copy.
 
 ## Usage Budgets
 
-Chat reserves estimated tokens in workspace ChatAgentDO storage by monthly
-period, checks the USD-derived token limit atomically, then reconciles provider
-usage. X enrichment reserves one attempt atomically in the workspace's
+Chat checks settled monthly spend in workspace LinkProcessorDO storage, then
+records actual provider-reported cost in an idempotent settlement and monthly
+aggregate. X enrichment reserves one attempt atomically in the workspace's
 LinkProcessorDO storage before any provider work. Provider and generator
 failures remain charged because the external attempt has started. Storage
 failure skips enrichment and falls back to the ordinary summary path. These
 counters are cost controls, not subscription truth. The workspace-owner choice
 and cutover are recorded in
 [decision 0002](./.decisions/0002-own-enrichment-reservations-in-link-processor.md).
+
+Assistant periods follow the workspace entitlement rather than UTC calendar
+months. Monthly Stripe subscriptions use their exact item period. Annual Stripe
+subscriptions receive monthly subwindows derived from the persisted billing
+anchor and bounded by the active annual period. Admin grants use their grant
+anchor (legacy grants fall back to workspace creation time). UTC recurrence
+clamps end-of-month anchors deterministically. One resolved window is carried
+through preflight and settlement for the complete model run.

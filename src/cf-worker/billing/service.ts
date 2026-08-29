@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Match, Option, Schema } from "effect";
 
 import type {
   BooleanCapability,
@@ -21,6 +21,10 @@ import { DbClient, DbError, query } from "../db/service";
 import { maskId } from "../log-utils";
 import { OrgNotFoundError } from "../org/errors";
 import { CapabilityDisabledError } from "./errors";
+import {
+  AssistantUsageWindow,
+  resolveAssistantUsageWindow,
+} from "./usage-cycle";
 
 export interface WorkspaceWithOwner {
   id: OrgId;
@@ -34,9 +38,34 @@ export interface WorkspaceWithOwner {
 }
 
 type OrgRow = {
+  createdAt: Date;
   tier: PlanTier;
+  tierSource: TierSource;
   featureOverrides: CapabilityOverrides | null;
+  billingInterval: "month" | "year" | null;
+  currentPeriodStart: Date | null;
+  currentPeriodEnd: Date | null;
+  usageCycleAnchor: Date | null;
 };
+
+const TierCapabilitiesSchema = Schema.Struct({
+  aiSummary: Schema.Boolean,
+  chatAgent: Schema.Boolean,
+  integrations: Schema.Boolean,
+  xBookmarkSync: Schema.Boolean,
+  xContentEnrichment: Schema.Boolean,
+  publicApi: Schema.Boolean,
+  mcpServer: Schema.Boolean,
+  weeklyDigest: Schema.Boolean,
+  monthlyAssistantCredits: Schema.Number,
+});
+
+export const AssistantAllowance = Schema.Struct({
+  capabilities: TierCapabilitiesSchema,
+  source: Schema.Literals(["stripe", "admin"]),
+  usageWindow: Schema.Option(AssistantUsageWindow),
+});
+export type AssistantAllowance = Schema.Schema.Type<typeof AssistantAllowance>;
 
 const make = Effect.gen(function* () {
   const db = yield* DbClient;
@@ -47,7 +76,16 @@ const make = Effect.gen(function* () {
     query(
       db.query.organization.findFirst({
         where: eq(schema.organization.id, orgId),
-        columns: { tier: true, featureOverrides: true },
+        columns: {
+          createdAt: true,
+          tier: true,
+          tierSource: true,
+          featureOverrides: true,
+          billingInterval: true,
+          currentPeriodStart: true,
+          currentPeriodEnd: true,
+          usageCycleAnchor: true,
+        },
       })
     ).pipe(
       Effect.flatMap((row) =>
@@ -71,6 +109,41 @@ const make = Effect.gen(function* () {
         })
       );
       return mergeCapabilities(row.tier, row.featureOverrides);
+    }),
+
+    assistantAllowance: Effect.fn("Billing.assistantAllowance")(function* (
+      orgId: OrgId,
+      now = new Date()
+    ) {
+      const row = yield* fetchOrgRow(orgId);
+      const capabilities = mergeCapabilities(row.tier, row.featureOverrides);
+      const adminAnchor = Match.value(row.tierSource).pipe(
+        Match.when("admin", () => row.usageCycleAnchor ?? row.createdAt),
+        Match.when("stripe", () => row.usageCycleAnchor),
+        Match.exhaustive
+      );
+      const usageWindow = Option.fromNullishOr(
+        resolveAssistantUsageWindow(
+          {
+            source: row.tierSource,
+            billingInterval: row.billingInterval,
+            currentPeriodStart: row.currentPeriodStart,
+            currentPeriodEnd: row.currentPeriodEnd,
+            usageCycleAnchor: adminAnchor,
+          },
+          now
+        )
+      );
+      yield* Effect.annotateCurrentSpan({
+        orgId: maskId(orgId),
+        source: row.tierSource,
+        hasUsageWindow: Option.isSome(usageWindow),
+      });
+      return AssistantAllowance.make({
+        capabilities,
+        source: row.tierSource,
+        usageWindow,
+      });
     }),
 
     tier: Effect.fn("Billing.tier")(function* (orgId: OrgId) {
@@ -133,10 +206,25 @@ const make = Effect.gen(function* () {
         from: existing.tier,
         to: tier,
       });
+      const usageCycleAnchor = Match.value({
+        isFree: tier === "free",
+        needsAnchor:
+          existing.tierSource !== "admin" ||
+          existing.tier !== tier ||
+          existing.usageCycleAnchor === null,
+      }).pipe(
+        Match.when({ isFree: true }, () => null),
+        Match.when({ needsAnchor: true }, () => new Date()),
+        Match.orElse(() => existing.usageCycleAnchor)
+      );
       yield* query(
         db
           .update(schema.organization)
-          .set({ tier, tierSource: "admin" })
+          .set({
+            tier,
+            tierSource: "admin",
+            usageCycleAnchor,
+          })
           .where(eq(schema.organization.id, orgId))
       );
       yield* Effect.logInfo("Billing.setTier applied").pipe(

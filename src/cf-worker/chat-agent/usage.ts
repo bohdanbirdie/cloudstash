@@ -1,72 +1,120 @@
-import { OPENROUTER_MODEL_ID } from "../openrouter-model";
+import { Option, Schema } from "effect";
 
-export const MODEL_PRICING: Record<
-  string,
-  { inputPer1M: number; outputPer1M: number }
-> = {
-  [OPENROUTER_MODEL_ID]: { inputPer1M: 0.2, outputPer1M: 1.2 },
-};
+const MICRO_USD_PER_USD = 1_000_000;
 
-/** Chat workloads are roughly 4:1 input:output */
-export const INPUT_OUTPUT_RATIO = 4;
+const AiMeterLimit = Schema.NumberFromString.check(Schema.isGreaterThan(0));
+const OpenRouterMetadata = Schema.Struct({
+  openrouter: Schema.Struct({
+    usage: Schema.Struct({
+      cost: Schema.optional(Schema.Number),
+    }),
+  }),
+});
 
-/**
- * Convert a USD budget into a total token limit (input + output)
- * using a blended rate based on INPUT_OUTPUT_RATIO.
- *
- * blendedRate = (ratio * inputRate + outputRate) / (ratio + 1)  per token
- * tokenLimit  = budget / blendedRate
- */
-export function budgetToTokenLimit(
-  budget: number,
-  model = OPENROUTER_MODEL_ID
-): number {
-  const pricing = MODEL_PRICING[model] ?? MODEL_PRICING[OPENROUTER_MODEL_ID];
-  const inputPerToken = pricing.inputPer1M / 1_000_000;
-  const outputPerToken = pricing.outputPer1M / 1_000_000;
-
-  const blendedPerToken =
-    (INPUT_OUTPUT_RATIO * inputPerToken + outputPerToken) /
-    (INPUT_OUTPUT_RATIO + 1);
-
-  return Math.floor(budget / blendedPerToken);
+export function usdToMicroUsd(value: number): number | undefined {
+  if (!Number.isFinite(value) || value < 0) return undefined;
+  const microUsd = Math.ceil(value * MICRO_USD_PER_USD);
+  return Number.isSafeInteger(microUsd) ? microUsd : undefined;
 }
 
-export type UsageData = {
-  promptTokens: number;
-  completionTokens: number;
-  // In-flight reservation; counts against the cap so concurrent messages
-  // can't all observe the same pre-stream usage and bypass it together.
-  reservedTokens?: number;
-};
+export function parseAiMeterLimit(
+  value: string | undefined
+): number | undefined {
+  if (!value) return undefined;
+  return Schema.decodeUnknownOption(AiMeterLimit)(value).pipe(
+    Option.flatMap((usd) => Option.fromNullishOr(usdToMicroUsd(usd))),
+    Option.getOrUndefined
+  );
+}
 
-export const ESTIMATED_TOKENS_PER_CALL = 10_000;
+export function openRouterCostMicroUsd(
+  providerMetadata: unknown
+): number | undefined {
+  return Schema.decodeUnknownOption(OpenRouterMetadata)(providerMetadata).pipe(
+    Option.flatMap(({ openrouter }) =>
+      Option.fromNullishOr(openrouter.usage.cost)
+    ),
+    Option.flatMap((usd) => Option.fromNullishOr(usdToMicroUsd(usd))),
+    Option.getOrUndefined
+  );
+}
+
+export const ProviderSpend = Schema.Struct({
+  complete: Schema.Boolean,
+  spentMicroUsd: Schema.Number,
+});
+export type ProviderSpend = Schema.Schema.Type<typeof ProviderSpend>;
+
+export function openRouterSpend(metadata: readonly unknown[]): ProviderSpend {
+  let complete = true;
+  let spentMicroUsd = 0;
+  for (const item of metadata) {
+    const cost = openRouterCostMicroUsd(item);
+    if (cost === undefined) {
+      complete = false;
+      continue;
+    }
+    spentMicroUsd += cost;
+  }
+  return { complete, spentMicroUsd };
+}
+
+export const UsageData = Schema.Struct({
+  spentMicroUsd: Schema.Number,
+});
+export type UsageData = Schema.Schema.Type<typeof UsageData>;
+
+export const UsageSettlement = Schema.Struct({
+  spentMicroUsd: Schema.Number,
+  recordedAt: Schema.String,
+});
+export type UsageSettlement = Schema.Schema.Type<typeof UsageSettlement>;
+
+export const AssistantCreditStatus = Schema.Struct({
+  limit: Schema.Number,
+  remaining: Schema.Number,
+  resetsAt: Schema.String,
+});
+export type AssistantCreditStatus = Schema.Schema.Type<
+  typeof AssistantCreditStatus
+>;
+
+export function assistantCreditStatus(
+  data: UsageData | undefined,
+  creditLimit: number,
+  limitMicroUsd: number,
+  resetsAt: string
+): AssistantCreditStatus {
+  const usedCredits = Math.min(
+    creditLimit,
+    Math.ceil(((data?.spentMicroUsd ?? 0) / limitMicroUsd) * creditLimit)
+  );
+  return AssistantCreditStatus.make({
+    limit: creditLimit,
+    remaining: Math.max(0, creditLimit - usedCredits),
+    resetsAt,
+  });
+}
 
 const USAGE_KEY_PREFIX = "usage:";
+const USAGE_SETTLEMENT_KEY_PREFIX = "usage-settlement:";
 
 export function getUsageKey(period: string): string {
   return `${USAGE_KEY_PREFIX}${period}`;
 }
 
-export function getCurrentPeriod(): string {
-  return new Date().toISOString().slice(0, 7); // "YYYY-MM"
+export function getUsageSettlementKey(
+  period: string,
+  settlementId: string
+): string {
+  return `${USAGE_SETTLEMENT_KEY_PREFIX}${period}:${settlementId}`;
 }
 
 export const LIMIT_REACHED_MESSAGE =
-  "You've reached your monthly usage limit for the chat agent. Your limit resets at the start of next month. If you need a higher limit, please contact support.";
+  "You've used this month's Assistant credits. They reset with your next monthly allowance.";
 
-export const BUDGET_UNAVAILABLE_MESSAGE =
+export const ALLOWANCE_UNAVAILABLE_MESSAGE =
   "Chat is temporarily unavailable while we verify your plan. Please try again in a moment.";
 
 export const CHAT_DISABLED_MESSAGE =
   "Chat is no longer available on your current plan.";
-
-/** State broadcast from ChatAgentDO to connected clients */
-export type ChatAgentState = {
-  usage?: {
-    used: number; // tokens used
-    limit: number; // token limit
-    budget: number; // USD budget
-    period: string; // "YYYY-MM"
-  };
-};

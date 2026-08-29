@@ -3,6 +3,7 @@
 - Code: `AI-09`
 - Priority: medium
 - Depends on: `AI-03`
+- Status: in progress
 
 Today, one `ChatAgentDO` represents one library and one conversation. After
 `AI-03` removes its LiveStore replica, add multiple lightweight conversations
@@ -23,9 +24,9 @@ ChatAgentDO (one per conversation)
   link tools remain thin calls to LinkProcessorDO RPCs
 ```
 
-Do not combine this with `AI-03`. First prove that the current single chat keeps
-working without a LiveStore client; only then change conversation identity and
-UI.
+`AI-03` has shipped and proved that the current chat works without a LiveStore
+client. This task now owns conversation identity, lifecycle, shared accounting,
+and seamless context compaction.
 
 When this task is picked up:
 
@@ -34,15 +35,17 @@ When this task is picked up:
 3. Keep link tools on the same canonical `LinkProcessorDO` RPCs established by
    `AI-03`.
 4. Keep reprocessing unavailable to agent tools.
-5. Move library-level usage reservation out of individual conversations so
-   parallel chats cannot exceed the shared budget.
+5. Move library-level settled-spend accounting out of individual conversations
+   so every chat uses the shared allowance.
 6. Add bounded retention/deletion and the minimal chat-list UI.
 7. Remove `/clear`; creating a new conversation replaces the destructive reset
    command, while normal session deletion follows the same retention path.
+8. Preserve the complete UI transcript while privately compacting older model
+   context into a rolling bounded summary.
 
-Implement the shared spending work from `AI-11` in this task rather than adding
-a second accounting migration. The user-visible token allowance and the
-provider-cost ceiling are one library-wide budget across every conversation.
+Implement the shared allowance work from `AI-11` in this task rather than adding
+a second accounting migration. Public Assistant credits and the private
+settled-cost limit share one library-wide ledger across every conversation.
 
 ## Why separate conversation DOs
 
@@ -52,14 +55,18 @@ provider-cost ceiling are one library-wide budget across every conversation.
 - Cloudflare Agents facets remain experimental and can be reconsidered when the
   planned `Chats` abstraction is stable.
 
-## Open decisions
+## Accepted first version
 
-- chat ID to library ID mapping
-- chat count/retention policy
-- chat list UX
-- whether Cloudflare's experimental Session API has graduated and materially
-  simplifies the design by then; do not adopt an experimental memory layer only
-  to obtain multiple conversations
+- The original workspace-named chat remains the default; new actors use UUIDs
+  and persist their validated library binding.
+- `LinkProcessorDO` key-value storage keeps at most 50 metadata records. It is
+  not D1 and does not initialize LiveStore when listing sessions.
+- Only the selected chat's messages load. Registry metadata preloads after the
+  chat entitlement resolves.
+- The final session can be deleted; the empty registry remains empty until the
+  user starts a fresh chat. Account deletion retires every registered actor.
+- The visible transcript remains complete; only provider context is compacted.
+- The experimental Session API is not adopted.
 
 ## Platform note
 

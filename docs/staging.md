@@ -122,6 +122,7 @@ Set these on `cloudstash-staging`, never in Git:
   `STRIPE_PRICE_PLUS_YEARLY`, `STRIPE_PRICE_PRO`, and
   `STRIPE_PRICE_PRO_YEARLY` using Stripe test mode
 - `OPENROUTER_API_KEY`
+- `AI_METER_LIMIT`
 - `RESEND_API_KEY`
 - `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` for a separate staging bot
 - `X_CLIENT_ID` and `X_CLIENT_SECRET`

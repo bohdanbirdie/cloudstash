@@ -1,7 +1,7 @@
 # Retire legacy chat LiveStore subscriptions
 
 - Code: `AI-10`
-- Priority: medium
+- Priority: low
 - Depends on: `AI-03` and a supported LiveStore DO-RPC unsubscribe operation
 
 ## Goal

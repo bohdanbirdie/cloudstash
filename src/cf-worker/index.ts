@@ -38,6 +38,11 @@ import { handleStripeSuccess } from "./billing/routes/success";
 import { handleStripeWebhook } from "./billing/routes/webhook";
 import { agentHooks } from "./chat-agent/hooks";
 import {
+  handleCreateChatSession,
+  handleDeleteChatSession,
+  handleListChatSessions,
+} from "./chat-agent/sessions-handler";
+import {
   handleExtensionAccount,
   handleExtensionConnect,
   handleExtensionDisconnect,
@@ -277,6 +282,14 @@ app.delete("/api/invites/:id", (c) =>
   handleDeleteInvite(c.req.raw, InviteId.make(c.req.param("id")), c.env)
 );
 app.post("/api/invites/redeem", (c) => handleRedeemInvite(c.req.raw, c.env));
+
+app.get("/api/chat/sessions", (c) => handleListChatSessions(c.req.raw, c.env));
+app.post("/api/chat/sessions", (c) =>
+  handleCreateChatSession(c.req.raw, c.env)
+);
+app.delete("/api/chat/sessions/:agentName", (c) =>
+  handleDeleteChatSession(c.req.raw, c.req.param("agentName"), c.env)
+);
 
 app.get("/api/metadata", (c) =>
   runHandler(

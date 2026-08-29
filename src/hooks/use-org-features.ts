@@ -63,6 +63,6 @@ export function useOrgFeatures() {
     retry: mutate,
     isChatEnabled: capabilities.chatAgent,
     isAiSummaryEnabled: capabilities.aiSummary,
-    monthlyChatBudgetUsd: capabilities.monthlyChatBudgetUsd,
+    monthlyAssistantCredits: capabilities.monthlyAssistantCredits,
   };
 }

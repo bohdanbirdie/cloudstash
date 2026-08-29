@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import { assertInstanceOf } from "@effect/vitest/utils";
-import { Effect, Layer, References } from "effect";
+import { Effect, Layer, Option, References } from "effect";
 
 import {
   capabilitiesFor,
@@ -8,7 +8,7 @@ import {
   TIER_CAPABILITIES,
 } from "@/lib/plan";
 
-import { Billing } from "../../billing/service";
+import { AssistantAllowance, Billing } from "../../billing/service";
 import {
   ChatFeatureDisabledError,
   checkChatFeatureEnabled,
@@ -22,6 +22,14 @@ type BillingImpl = Billing["Service"];
 function makeBillingLayer(overrides: Partial<BillingImpl> = {}) {
   const defaults: BillingImpl = {
     capabilities: () => Effect.succeed(capabilitiesFor("free")),
+    assistantAllowance: () =>
+      Effect.succeed(
+        AssistantAllowance.make({
+          capabilities: capabilitiesFor("free"),
+          source: "stripe",
+          usageWindow: Option.none(),
+        })
+      ),
     tier: () => Effect.succeed("free"),
     subscription: () =>
       Effect.succeed({
@@ -43,7 +51,7 @@ describe("capabilitiesFor (pure)", () => {
     const caps = capabilitiesFor("free");
     expect(caps.chatAgent).toBe(false);
     expect(caps.aiSummary).toBe(false);
-    expect(caps.monthlyChatBudgetUsd).toBe(0);
+    expect(caps.monthlyAssistantCredits).toBe(0);
   });
 
   it("returns plus caps with aiSummary on, chatAgent off", () => {
@@ -83,7 +91,7 @@ describe("capabilitiesFor (pure)", () => {
         publicApi: false,
         mcpServer: false,
         weeklyDigest: false,
-        monthlyChatBudgetUsd: 0,
+        monthlyAssistantCredits: 0,
       },
       plus: {
         aiSummary: true,
@@ -94,7 +102,7 @@ describe("capabilitiesFor (pure)", () => {
         publicApi: true,
         mcpServer: false,
         weeklyDigest: true,
-        monthlyChatBudgetUsd: 0,
+        monthlyAssistantCredits: 0,
       },
       pro: {
         aiSummary: true,
@@ -105,7 +113,7 @@ describe("capabilitiesFor (pure)", () => {
         publicApi: true,
         mcpServer: true,
         weeklyDigest: true,
-        monthlyChatBudgetUsd: 5,
+        monthlyAssistantCredits: 1_000,
       },
     });
   });
@@ -132,9 +140,11 @@ describe("mergeCapabilities", () => {
     expect(merged.aiSummary).toBe(true);
   });
 
-  it("override budget replaces tier budget", () => {
-    const merged = mergeCapabilities("plus", { monthlyChatBudgetUsd: 100 });
-    expect(merged.monthlyChatBudgetUsd).toBe(100);
+  it("override replaces the monthly Assistant credit allowance", () => {
+    const merged = mergeCapabilities("plus", {
+      monthlyAssistantCredits: 100,
+    });
+    expect(merged.monthlyAssistantCredits).toBe(100);
   });
 });
 

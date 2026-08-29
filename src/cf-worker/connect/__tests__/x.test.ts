@@ -32,6 +32,7 @@ const billingLayer = (capabilities: TierCapabilities) => {
     Billing,
     Billing.of({
       capabilities: () => Effect.succeed(capabilities),
+      assistantAllowance: notUsed,
       tier: notUsed,
       subscription: notUsed,
       getOverrides: notUsed,

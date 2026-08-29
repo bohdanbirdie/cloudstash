@@ -4,7 +4,13 @@ AI chat for managing links via natural language, built on Cloudflare Agents SDK.
 
 ## Overview
 
-One chat per workspace with real-time WebSocket, message persistence in DO SQLite, and Effect RPC access to the canonical link library. Uses the pinned OpenRouter model `openai/gpt-5.6-luna-20260709` via Vercel AI SDK. Chat, weekly digests, and X enrichment share one `OPENROUTER_MODEL_ID`; chat pricing is keyed by that same constant.
+Multiple chats per workspace with real-time WebSockets, isolated message
+persistence in each conversation DO, and Effect RPC access to the canonical
+link library. The lightweight session registry and library-wide Assistant usage
+ledger live in `LinkProcessorDO`; listing sessions does not materialize chat
+content. Uses the pinned OpenRouter model `openai/gpt-5.6-luna-20260709` via
+Vercel AI SDK. Chat, weekly digests, and X enrichment share one
+`OPENROUTER_MODEL_ID`.
 
 ## Architecture
 
@@ -12,8 +18,8 @@ One chat per workspace with real-time WebSocket, message persistence in DO SQLit
 Frontend                          Backend
 ─────────                         ───────
 useAgent({ agent: "chat",        Worker: routeAgentRequest()
-  name: workspaceId })              → env.Chat binding
-useAgentChat({ agent,               → /agents/chat/{workspaceId}
+  name: conversationId })           → env.Chat binding
+useAgentChat({ agent,               → /agents/chat/{conversationId}
   credentials: "include" })
                                   ChatAgentDO extends AIChatAgent
                                     onChatMessage() → streamText()
@@ -59,7 +65,9 @@ Frontend gates the Chat sidebar button on `useOrgFeatures().isChatEnabled`. Admi
 
 **Connection state:** Track via `onOpen`/`onClose` callbacks, not `agent.readyState` (doesn't trigger re-renders).
 
-**Context window:** Full history in SQLite for UI display, but only last 30 messages sent to model. `/clear` resets conversation.
+**Context window:** Full history remains in SQLite for UI display. The model
+receives a bounded recent tail plus a private rolling summary of older context.
+Conversation deletion replaces the removed `/clear` command.
 
 **Assets routing:** `/agents/*` must be in `run_worker_first` in wrangler.toml, otherwise SPA returns `index.html`.
 

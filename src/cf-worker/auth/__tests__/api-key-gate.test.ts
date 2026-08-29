@@ -73,6 +73,7 @@ const billingStub = (
     Billing,
     Billing.of({
       capabilities: override?.capabilities ?? (() => Effect.succeed(caps)),
+      assistantAllowance: notImpl,
       tier: notImpl,
       subscription: notImpl,
       getOverrides: notImpl,

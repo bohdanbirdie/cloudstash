@@ -65,11 +65,17 @@ export const organization = sqliteTable("organization", {
     "stripe_subscription_id"
   ).$type<StripeSubscriptionId>(),
   subscriptionStatus: text("subscription_status"),
+  currentPeriodStart: integer("current_period_start", {
+    mode: "timestamp_ms",
+  }),
   currentPeriodEnd: integer("current_period_end", { mode: "timestamp_ms" }),
   cancelAtPeriodEnd: integer("cancel_at_period_end", { mode: "boolean" })
     .default(false)
     .notNull(),
   billingInterval: text("billing_interval").$type<BillingInterval>(),
+  // Stripe's billing_cycle_anchor for paid subscriptions; the grant timestamp
+  // for admin-sourced tiers. Assistant usage derives monthly windows from it.
+  usageCycleAnchor: integer("usage_cycle_anchor", { mode: "timestamp_ms" }),
 });
 
 export const session = sqliteTable(

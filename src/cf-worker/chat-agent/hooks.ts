@@ -12,6 +12,7 @@ import {
   ChatFeatureDisabledError,
   FeatureCheckUnavailableError,
   UnknownAgentPartyError,
+  UnknownChatSessionError,
   checkChatFeatureEnabled,
 } from "./auth";
 
@@ -27,6 +28,7 @@ type ChatAccessError =
   | ChatFeatureDisabledError
   | FeatureCheckUnavailableError
   | UnknownAgentPartyError
+  | UnknownChatSessionError
   | OrgNotFoundError;
 
 const featureCheckUnavailable = (cause: unknown, orgId: OrgId) =>
@@ -46,7 +48,9 @@ const checkChatAgentAccess = (
     return Effect.fail(new UnknownAgentPartyError({ party: lobby.className }));
   }
 
-  const workspaceId = OrgId.make(lobby.name);
+  const workspaceId = OrgId.make(
+    new URL(request.url).searchParams.get("workspaceId") ?? lobby.name
+  );
   return Effect.gen(function* () {
     const cookie = request.headers.get("cookie");
 
@@ -61,6 +65,13 @@ const checkChatAgentAccess = (
         featureCheckUnavailable(cause, workspaceId)
       )
     );
+    const processorId = env.LINK_PROCESSOR_DO.idFromName(workspaceId);
+    const registered = yield* Effect.promise(() =>
+      env.LINK_PROCESSOR_DO.get(processorId).hasChatSession(lobby.name)
+    );
+    if (!registered) {
+      return yield* new UnknownChatSessionError({ agentName: lobby.name });
+    }
   }).pipe(
     Effect.withSpan("ChatAgent.checkChatAgentAccess", {
       attributes: { agentClass: lobby.className, orgId: maskId(workspaceId) },
@@ -77,6 +88,16 @@ const errorToResponse = (error: ChatAccessError): Response =>
     Match.tag("UnknownAgentPartyError", (e) =>
       Response.json(
         { _tag: e._tag, message: "Unknown agent", party: e.party, status: 404 },
+        { status: 404 }
+      )
+    ),
+    Match.tag("UnknownChatSessionError", (e) =>
+      Response.json(
+        {
+          _tag: e._tag,
+          message: "Chat session not found",
+          status: 404,
+        },
         { status: 404 }
       )
     ),

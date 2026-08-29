@@ -104,7 +104,7 @@ export interface TierCapabilities {
   publicApi: boolean;
   mcpServer: boolean;
   weeklyDigest: boolean;
-  monthlyChatBudgetUsd: number;
+  monthlyAssistantCredits: number;
 }
 
 export const TIER_CAPABILITIES: Readonly<Record<PlanTier, TierCapabilities>> = {
@@ -117,7 +117,7 @@ export const TIER_CAPABILITIES: Readonly<Record<PlanTier, TierCapabilities>> = {
     publicApi: false,
     mcpServer: false,
     weeklyDigest: false,
-    monthlyChatBudgetUsd: 0,
+    monthlyAssistantCredits: 0,
   },
   plus: {
     aiSummary: true,
@@ -128,7 +128,7 @@ export const TIER_CAPABILITIES: Readonly<Record<PlanTier, TierCapabilities>> = {
     publicApi: true,
     mcpServer: false,
     weeklyDigest: true,
-    monthlyChatBudgetUsd: 0,
+    monthlyAssistantCredits: 0,
   },
   pro: {
     aiSummary: true,
@@ -139,7 +139,7 @@ export const TIER_CAPABILITIES: Readonly<Record<PlanTier, TierCapabilities>> = {
     publicApi: true,
     mcpServer: true,
     weeklyDigest: true,
-    monthlyChatBudgetUsd: 5,
+    monthlyAssistantCredits: 1_000,
   },
 };
 

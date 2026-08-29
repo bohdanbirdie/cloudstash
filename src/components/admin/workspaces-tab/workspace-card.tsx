@@ -53,7 +53,7 @@ export function WorkspaceCard({
   ) => void;
 }) {
   const tierDefaults = TIER_CAPABILITIES[workspace.tier];
-  const budgetOverride = workspace.overrides.monthlyChatBudgetUsd;
+  const creditOverride = workspace.overrides.monthlyAssistantCredits;
   const shortId = shortenId(workspace.id);
   const displayName = workspace.name ? cleanWorkspaceName(workspace.name) : "";
 
@@ -197,14 +197,14 @@ export function WorkspaceCard({
 
         <div className="ml-auto">
           <BudgetInput
-            override={budgetOverride}
-            tierDefault={tierDefaults.monthlyChatBudgetUsd}
+            override={creditOverride}
+            tierDefault={tierDefaults.monthlyAssistantCredits}
             disabled={isMutating || !canManage}
             onCommit={(value) =>
-              onSetOverride(workspace.id, "monthlyChatBudgetUsd", value)
+              onSetOverride(workspace.id, "monthlyAssistantCredits", value)
             }
             onClear={() =>
-              onSetOverride(workspace.id, "monthlyChatBudgetUsd", null)
+              onSetOverride(workspace.id, "monthlyAssistantCredits", null)
             }
           />
         </div>

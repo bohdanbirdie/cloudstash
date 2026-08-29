@@ -41,6 +41,8 @@ export default defineConfig({
           },
         },
         bindings: {
+          // Synthetic test-only private limit; production values stay in secrets.
+          AI_METER_LIMIT: "1",
           BETTER_AUTH_SECRET: "test-secret-for-jwt-signing-32chars",
           BETTER_AUTH_URL: "http://localhost",
           GOOGLE_CLIENT_ID: "test-google-client-id",

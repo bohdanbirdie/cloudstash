@@ -1,43 +1,48 @@
-# Make the chat token budget the primary usage guardrail
+# Make Assistant credits the primary chat usage guardrail
 
 - Code: `AI-11`
 - Priority: high
+- Status: in progress with `AI-09`
 
 ## Goal
 
-Treat model-token spend as the economic limit for chat. Users may spend their
-included chat budget on whichever read or write tools help them, without
-artificial per-tool restrictions whose only purpose is cost control.
+Treat the monthly Assistant allowance as the primary chat usage guardrail.
+Users may use their included credits on whichever read or write tools help them,
+without artificial per-tool restrictions whose only purpose is limiting usage.
 
 ## Current baseline
 
-The single-session chat already resolves a plan budget, atomically reserves an
-estimated token amount before each model turn or continuation, and reconciles
-the reservation against actual usage afterward. Destructive link archival
-still requires explicit AI SDK approval because that is a safety boundary, not
-a billing boundary.
+The multi-session implementation resolves one library allowance before each
+model turn or continuation, then records actual OpenRouter cost in a shared
+settled ledger. Destructive link archival still requires explicit AI SDK
+approval because that is a safety boundary, not a billing boundary.
 
 ## Work
 
 - Verify that every initial turn, tool continuation, and approved-tool
-  continuation passes through the same atomic token reservation.
-- Reconcile actual provider usage without allowing concurrent turns to exceed
-  the period budget.
+  continuation passes through the same settled-spend preflight.
+- Settle actual provider-reported cost idempotently without hard-coded model
+  prices. Accept a small possible overage from rare overlapping short calls.
 - Review chat-only tool limits and keep only bounded-response, platform-safety,
   and destructive-action controls; do not use per-tool quotas as a substitute
-  for the token budget.
+  for the Assistant allowance.
 - Present exhaustion and reset timing in calm user-facing language.
-- Preserve the same library-wide budget when `AI-09` introduces multiple chat
+- Align reset timing with persisted Stripe item periods/billing anchors (and an
+  explicit admin-grant anchor), carrying one window through each run.
+- Preserve the same library-wide allowance when `AI-09` introduces multiple chat
   sessions.
 
-The final ownership move ships with `AI-09`: its chat registry becomes the one
-library-level accounting boundary, and `/clear` is removed in favor of creating
-or deleting explicit conversations.
+The final ownership move ships with `AI-09`: the registry-owning
+`LinkProcessorDO` becomes the one library-level accounting boundary, and
+`/clear` is removed in favor of creating or deleting explicit conversations.
+Automatic context compaction settles against the same allowance as its answer
+turn.
 
 ## Verification
 
-- Concurrent turns cannot reserve beyond the configured period budget.
+- A settled period at the limit rejects later turns; repeated settlements do
+  not double-count.
 - Approved tool continuations are metered exactly like ordinary turns.
 - Rejected destructive tools consume no tool-side work.
 - Read and non-destructive write tools remain available until the shared token
-  budget is exhausted.
+  allowance is exhausted.
