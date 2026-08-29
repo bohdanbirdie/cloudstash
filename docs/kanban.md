@@ -37,13 +37,10 @@ kanban-plugin: board
 - [ ] `UX-09` Pop-animate genuinely new synced/locally-added links without animating filter or category changes.
 - [ ] `UX-11` ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
 
-## In Progress
-
-- [ ] `AI-11` [[todos/chat-token-budget|Make Assistant credits the primary chat usage guardrail]] — move accounting to one atomic library ledger shared by all conversations and include private context-compaction usage.
-- [ ] `AI-09` [[todos/multi-chat-architecture|Add multiple chat sessions per library]] — isolate conversation histories without creating another LiveStore replica; preload metadata, load selected content on demand, and compact old model context seamlessly.
-
 ## Done
 
+- [x] `AI-11` [[todos/chat-token-budget|Make Assistant credits the primary chat usage guardrail]] — one atomic library ledger now meters every conversation and continuation from provider-reported cost, including private context compaction, with a calm shared credits surface.
+- [x] `AI-09` [[todos/multi-chat-architecture|Add multiple chat sessions per library]] — conversation actors now have a bounded library registry, on-demand history, explicit lifecycle UI, shared accounting, and seamless model-context compaction without another LiveStore replica.
 - [x] `AI-03` [[todos/chat-library-owner|Remove the chat LiveStore replica and route tools through LinkProcessorDO]] — the Agents SDK retains messages while every link tool uses Effect RPC over native Durable Object RPC to the canonical `LinkProcessorDO` replica.
 - [x] `AI-07` [[todos/chat-approval-needsapproval|Migrate chat approval to server-side needsApproval]] — destructive archive tools use server-declared AI SDK approval and resume through the same authorized RPC boundary.
 - [x] `SYS-08` Replace Resend with Cloudflare Email — obsolete; the existing email provider remains sufficient.

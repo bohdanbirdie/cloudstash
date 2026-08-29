@@ -2,7 +2,7 @@
 
 - Code: `AI-11`
 - Priority: high
-- Status: in progress with `AI-09`
+- Status: done with `AI-09`
 
 ## Goal
 
@@ -46,3 +46,11 @@ turn.
 - Rejected destructive tools consume no tool-side work.
 - Read and non-destructive write tools remain available until the shared token
   allowance is exhausted.
+
+## Delivered
+
+Completed in PR #121. `LinkProcessorDO` owns one atomic, idempotently settled
+ledger per library and usage window. Every normal turn, continuation, approved
+or rejected destructive-tool continuation, and private compaction uses the same
+allowance path, while customer-facing credits remain independent from private
+provider-cost configuration.

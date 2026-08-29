@@ -3,7 +3,7 @@
 - Code: `AI-09`
 - Priority: medium
 - Depends on: `AI-03`
-- Status: in progress
+- Status: done
 
 Today, one `ChatAgentDO` represents one library and one conversation. After
 `AI-03` removes its LiveStore replica, add multiple lightweight conversations
@@ -67,6 +67,13 @@ settled-cost limit share one library-wide ledger across every conversation.
   user starts a fresh chat. Account deletion retires every registered actor.
 - The visible transcript remains complete; only provider context is compacted.
 - The experimental Session API is not adopted.
+
+## Delivered
+
+Completed in PR #121 with one bounded registry in `LinkProcessorDO`, one
+`ChatAgentDO` per conversation, on-demand message loading, explicit create/list/
+delete UI, shared Assistant accounting, and provider-context compaction that
+preserves the visible transcript.
 
 ## Platform note
 

@@ -23,6 +23,24 @@ const enableChat = (workspaceId: string) =>
     .run();
 
 describe("chat sessions", () => {
+  it("returns the standard upgrade response when chat is unavailable", async () => {
+    const user = await signupUser(
+      `chat-sessions-free-${crypto.randomUUID()}@example.com`,
+      "Free chat sessions"
+    );
+
+    const response = await SELF.fetch(sessionsUrl(user.orgId), {
+      headers: { Cookie: user.cookie },
+    });
+
+    expect(response.status).toBe(402);
+    expect(await response.json()).toEqual({
+      error: "Upgrade required",
+      capability: "chatAgent",
+      requiredTier: "pro",
+    });
+  });
+
   it("preloads metadata without materializing LiveStore and manages isolated chats", async () => {
     const user = await signupUser(
       `chat-sessions-${crypto.randomUUID()}@example.com`,

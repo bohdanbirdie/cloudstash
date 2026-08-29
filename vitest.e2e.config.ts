@@ -52,6 +52,9 @@ export default defineConfig({
           ENABLE_TEST_AUTH: "true",
           RESEND_API_KEY: "re_test_dummy",
           EMAIL_FROM: "test@example.com",
+          // Provider tests intercept the outbound request, but the SDK validates
+          // its key before calling fetch. Keep CI independent from real secrets.
+          OPENROUTER_API_KEY: "test-openrouter-api-key",
           STRIPE_API_KEY: "sk_test_delete",
           STRIPE_PRICE_PLUS: "price_plus",
           STRIPE_PRICE_PLUS_YEARLY: "price_plus_yearly",

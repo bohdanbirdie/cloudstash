@@ -1,8 +1,14 @@
 import { Effect, Layer, Match, Option, Schema } from "effect";
 
+import { requiredTierForBooleanCap } from "@/lib/plan";
+
 import { checkSyncAuth } from "../auth/sync-auth";
 import type { SyncAuthError } from "../auth/sync-auth";
 import { resolveAssistantAllowance } from "../billing/assistant-allowance";
+import {
+  capabilityDeniedResponse,
+  CapabilityDisabledError,
+} from "../billing/errors";
 import type { StripeApiError } from "../billing/errors";
 import type { AssistantAllowance } from "../billing/service";
 import { StripeClientLive } from "../billing/stripe-client";
@@ -12,8 +18,6 @@ import { maskId, safeErrorInfo } from "../log-utils";
 import type { OrgNotFoundError } from "../org/errors";
 import { getAppLayer } from "../runtime";
 import type { Env } from "../shared";
-import type { ChatFeatureDisabledError } from "./auth";
-import { ChatFeatureDisabledError as ChatFeatureDisabled } from "./auth";
 import type { ChatSession, ChatSessionRegistryResult } from "./sessions";
 import { CHAT_SESSION_LIMIT } from "./sessions";
 import { assistantCreditStatus, parseAiMeterLimit } from "./usage";
@@ -28,7 +32,11 @@ const authorize = Effect.fn("ChatSessions.authorize")(function* (
   yield* checkSyncAuth(request.headers.get("cookie"), workspaceId);
   const allowance = yield* resolveAssistantAllowance(workspaceId);
   if (!allowance.capabilities.chatAgent) {
-    return yield* new ChatFeatureDisabled({ orgId: workspaceId });
+    return yield* CapabilityDisabledError.for(
+      workspaceId,
+      "chatAgent",
+      requiredTierForBooleanCap("chatAgent")
+    );
   }
   return allowance;
 });
@@ -43,7 +51,7 @@ class ChatSessionsRpcError extends Schema.TaggedErrorClass<ChatSessionsRpcError>
 
 type AuthorizationError =
   | SyncAuthError
-  | ChatFeatureDisabledError
+  | CapabilityDisabledError
   | DbError
   | OrgNotFoundError
   | StripeApiError;
@@ -63,7 +71,7 @@ const processorRpc = Effect.fn("ChatSessions.processorRpc")(function* <A>(
 const logHandlerError = (error: HandlerError, workspaceId: OrgId) =>
   Match.value(error).pipe(
     Match.tag("SyncAuthError", () => Effect.void),
-    Match.tag("ChatFeatureDisabledError", () => Effect.void),
+    Match.tag("CapabilityDisabledError", () => Effect.void),
     Match.tag("OrgNotFoundError", () =>
       Effect.logWarning("Chat sessions workspace is missing").pipe(
         Effect.annotateLogs({ orgId: maskId(workspaceId) })
@@ -104,9 +112,7 @@ const authorizationError = (error: AuthorizationError) =>
         status: syncError.status as 401 | 403 | 503,
       })
     ),
-    Match.tag("ChatFeatureDisabledError", () =>
-      Response.json({ error: "Chat is unavailable" }, { status: 403 })
-    ),
+    Match.tag("CapabilityDisabledError", capabilityDeniedResponse),
     Match.orElse(() =>
       Response.json(
         { error: "Chat is temporarily unavailable" },
