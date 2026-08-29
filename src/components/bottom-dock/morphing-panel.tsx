@@ -24,7 +24,6 @@ interface MorphingPanelProps {
   searchResults: readonly SearchResult[];
   recentLinks: readonly LinkWithDetails[];
   onSelect: (link: LinkWithDetails | SearchResult) => void;
-  onClose: () => void;
 }
 
 export function MorphingPanel({
@@ -38,7 +37,6 @@ export function MorphingPanel({
   searchResults,
   recentLinks,
   onSelect,
-  onClose,
 }: MorphingPanelProps) {
   const isOpen = mode !== "closed";
 
@@ -72,7 +70,6 @@ export function MorphingPanel({
         orgId={orgId}
         agentEverOpened={agentEverOpened}
         agentTextareaRef={agentTextareaRef}
-        onClose={onClose}
       />
     </motion.div>
   );

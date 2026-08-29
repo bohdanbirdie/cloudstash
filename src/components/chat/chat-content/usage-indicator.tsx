@@ -18,7 +18,6 @@ export const UsageIndicator = ({ usage, onClear }: UsageIndicatorProps) => {
   const actionsRef = useRef<PreviewCardPrimitive.Root.Actions | null>(null);
   const percent = Math.min(Math.round((usage.used / usage.limit) * 100), 100);
   const spent = usage.budget * (usage.used / usage.limit);
-  const isWarning = percent >= 80;
   const isCritical = percent >= 90;
 
   const size = 14;
@@ -27,17 +26,9 @@ export const UsageIndicator = ({ usage, onClear }: UsageIndicatorProps) => {
   const circumference = 2 * Math.PI * radius;
   const filled = (percent / 100) * circumference;
 
-  const strokeColor = isCritical
-    ? "stroke-destructive"
-    : isWarning
-      ? "stroke-amber-500"
-      : "stroke-primary";
+  const strokeColor = isCritical ? "stroke-destructive" : "stroke-primary";
 
-  const barColor = isCritical
-    ? "bg-destructive"
-    : isWarning
-      ? "bg-amber-500"
-      : "bg-primary";
+  const barColor = isCritical ? "bg-destructive" : "bg-primary";
 
   return (
     <PreviewCard actionsRef={actionsRef}>
@@ -48,7 +39,7 @@ export const UsageIndicator = ({ usage, onClear }: UsageIndicatorProps) => {
           <button
             type="button"
             aria-label={`Monthly usage: $${spent.toFixed(2)} of $${usage.budget.toFixed(2)}`}
-            className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none lg:size-5"
+            className="flex size-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none"
           >
             <svg
               width={size}

@@ -168,12 +168,14 @@ export function useAgentInput(): AgentInputValue {
 
 export function AgentInputProvider({
   textareaRef,
+  initialDraft = "",
   children,
 }: {
   textareaRef: RefObject<HTMLTextAreaElement | null>;
+  initialDraft?: string;
   children: ReactNode;
 }) {
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(initialDraft);
   const selectionRef = useRef<TextareaSelection>({ start: 0, end: 0 });
 
   const isNarrow = useNarrowViewport();

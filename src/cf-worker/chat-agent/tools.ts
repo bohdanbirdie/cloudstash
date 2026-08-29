@@ -251,69 +251,78 @@ export function createTools(library: ChatLibrary, runEffect: ToolEffectRunner) {
   return {
     listRecentLinks: tool({
       description:
-        "List recently saved links in the library. Present results as a markdown " +
-        "list with plain URLs (not [text](url) format) followed by a brief description. " +
-        "Example: '- https://example.com - description'",
+        "List saved links newest first. Use this for requests about the latest, " +
+        "last, newest, or recently saved links; use limit 1 when the user asks for " +
+        "the single last link. Present results with a plain URL and a brief description.",
       inputSchema: zodSchema(listRecentLinksSchema),
       execute: ({ limit = 5 }) =>
         runTool(listRecentLinks(library, limit), runEffect),
     }),
     saveLink: tool({
-      description: "Save a new link to the library",
+      description:
+        "Save an HTTP(S) URL to the library. Use this when the user supplies a URL " +
+        "and asks to save, keep, or add it. Pass the URL unchanged.",
       inputSchema: zodSchema(saveLinkSchema),
       execute: ({ url }) => runTool(saveLink(library, url), runEffect),
     }),
     searchLinks: tool({
       description:
-        "Search for links by keywords. Returns keyword matches - filter results to only " +
-        "include links that conceptually match what the user is looking for. Present " +
-        "relevant results as a markdown list with plain URLs (not [text](url) format) " +
-        "followed by a brief description. Example: '- https://example.com - description'",
+        "Search saved links by topic, title, site, description, summary, tag, or URL. " +
+        "Use this when the user wants to find or recall something they saved. Pass " +
+        "short meaningful keywords and present only relevant ranked results with plain URLs.",
       inputSchema: zodSchema(searchLinksSchema),
       execute: ({ query }) => runTool(searchLinks(library, query), runEffect),
     }),
     getLink: tool({
-      description: "Get details of a specific link by ID",
+      description:
+        "Get the complete record for one saved link. Use an ID returned by another " +
+        "tool when the user needs its URL, metadata, summary, tags, or current state.",
       inputSchema: zodSchema(linkIdSchema),
       execute: ({ id }) => runTool(getLink(library, id), runEffect),
     }),
     completeLink: tool({
-      description: "Mark a link as completed/done",
+      description:
+        "Mark one saved link as completed. Use an ID returned by another tool.",
       inputSchema: zodSchema(linkIdSchema),
       execute: ({ id }) => runTool(completeLink(library, id), runEffect),
     }),
     uncompleteLink: tool({
-      description: "Mark a completed link back as unread",
+      description:
+        "Move one completed link back to the unread inbox. Use an ID returned by another tool.",
       inputSchema: zodSchema(linkIdSchema),
       execute: ({ id }) => runTool(uncompleteLink(library, id), runEffect),
     }),
     deleteLink: tool({
-      description: "Move a link to archive (requires confirmation)",
+      description:
+        "Move one active link to Archive. This is reversible and the interface asks " +
+        "the user to approve it before execution.",
       inputSchema: zodSchema(linkIdSchema),
       needsApproval: true,
       execute: ({ id }) => runTool(deleteLink(library, id), runEffect),
     }),
     restoreLink: tool({
-      description: "Restore a link from archive",
+      description: "Restore one archived link to the unread inbox.",
       inputSchema: zodSchema(linkIdSchema),
       execute: ({ id }) => runTool(restoreLink(library, id), runEffect),
     }),
     completeLinks: tool({
-      description: "Mark multiple links as completed",
+      description:
+        "Mark several saved links as completed. Use IDs returned by another tool.",
       inputSchema: zodSchema(linkIdsSchema),
       execute: ({ ids }) => runTool(completeLinks(library, ids), runEffect),
     }),
     deleteLinks: tool({
-      description: "Move multiple links to archive (requires confirmation)",
+      description:
+        "Move several active links to Archive. This is reversible and the interface " +
+        "asks the user to approve it before execution.",
       inputSchema: zodSchema(linkIdsSchema),
       needsApproval: true,
       execute: ({ ids }) => runTool(deleteLinks(library, ids), runEffect),
     }),
     getInboxLinks: tool({
       description:
-        "List unread links in the inbox. Present results as a markdown list with " +
-        "plain URLs (not [text](url) format) followed by a brief description. " +
-        "Example: '- https://example.com - description'",
+        "List unread links currently in the inbox, newest first. Use this for requests " +
+        "about unread, unfinished, or inbox links. Present each result with a plain URL.",
       inputSchema: zodSchema(getInboxSchema),
       execute: ({ limit = 10 }) =>
         runTool(
@@ -334,7 +343,8 @@ export function createTools(library: ChatLibrary, runEffect: ToolEffectRunner) {
         ),
     }),
     getStats: tool({
-      description: "Get library statistics",
+      description:
+        "Get counts for the library: unread inbox links, completed links, and total active links.",
       inputSchema: zodSchema(z.object({})),
       execute: () => runTool(library.stats(), runEffect),
     }),

@@ -192,7 +192,6 @@ export function BottomDock() {
                   searchResults={searchResults}
                   recentLinks={recentLinks}
                   onSelect={handleSelect}
-                  onClose={dismiss}
                 />
               )}
             </>

@@ -15,7 +15,7 @@ export function AgentTrigger({ active, onClick }: AgentTriggerProps) {
     <button
       type="button"
       onClick={onClick}
-      aria-label={`Agent (${HOTKEY_LABEL})`}
+      aria-label={`Assistant (${HOTKEY_LABEL})`}
       className={cn(
         "relative flex size-10 shrink-0 items-center justify-center rounded-full border bg-background text-foreground shadow-sm transition-[colors,scale] active:scale-[0.96] hover:z-10 hover:bg-muted",
         { "z-10 border-primary/40": active, "border-border": !active }

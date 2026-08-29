@@ -73,7 +73,7 @@ export function MobileDockSheet({
               active={mode === "agent"}
               onClick={() => setMode("agent")}
               icon={<MessageCircleIcon className="size-4" />}
-              label="Agent"
+              label="Assistant"
             />
           </div>
 
@@ -112,7 +112,6 @@ export function MobileDockSheet({
                 orgId={orgId}
                 agentEverOpened={agentEverOpened}
                 agentTextareaRef={agentTextareaRef}
-                onClose={onDismiss}
               />
             </div>
           </CommandPrimitive>

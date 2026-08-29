@@ -32,7 +32,6 @@ interface DockContentProps {
   orgId: string | null;
   agentEverOpened: boolean;
   agentTextareaRef: RefObject<HTMLTextAreaElement | null>;
-  onClose: () => void;
 }
 
 // Each shell supplies its own search input + `CommandPrimitive` — cmdk context
@@ -46,7 +45,6 @@ export function DockContent({
   orgId,
   agentEverOpened,
   agentTextareaRef,
-  onClose,
 }: DockContentProps) {
   const [displayMode, setDisplayMode] = useState<DisplayMode>(
     mode === "agent" ? "agent" : "search"
@@ -104,9 +102,9 @@ export function DockContent({
     content = (
       <AgentConnectionProvider workspaceId={orgId}>
         <AgentInputProvider textareaRef={agentTextareaRef}>
-          <Suspense fallback={<SkeletonAgentPanel onClose={onClose} />}>
+          <Suspense fallback={<SkeletonAgentPanel />}>
             <AgentChatProvider>
-              {renderSwitcher(<AgentPanel onClose={onClose} />)}
+              {renderSwitcher(<AgentPanel />)}
             </AgentChatProvider>
           </Suspense>
         </AgentInputProvider>
@@ -158,10 +156,10 @@ function ContentSwitcher({
   );
 }
 
-function SkeletonAgentPanel({ onClose }: { onClose: () => void }) {
+function SkeletonAgentPanel() {
   return (
     <div className="flex h-full flex-col">
-      <AgentHeader onClose={onClose} />
+      <AgentHeader />
       <div className="flex flex-1 flex-col gap-3 overflow-hidden p-3">
         <AgentSkeleton />
       </div>
