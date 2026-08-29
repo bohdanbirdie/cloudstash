@@ -1,9 +1,15 @@
-import { env, runInDurableObject, SELF } from "cloudflare:test";
+import {
+  abortAllDurableObjects,
+  env,
+  runInDurableObject,
+  SELF,
+} from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 import { agentHooks } from "../../chat-agent/hooks";
 import type { ChatSession } from "../../chat-agent/sessions";
 import { getUsageKey } from "../../chat-agent/usage";
+import { DURABLE_OBJECT_RETIRED_KEY } from "../../durable-object-retirement";
 import { signupUser } from "./helpers";
 
 const sessionsUrl = (workspaceId: string) =>
@@ -100,12 +106,26 @@ describe("chat sessions", () => {
       ])
     );
 
+    const deletedChat = env.Chat.get(env.Chat.idFromName(newSession.agentName));
+    await runInDurableObject(deletedChat, (_instance, state) =>
+      state.storage.put("deletion-probe", true)
+    );
+
     const deletedResponse = await SELF.fetch(
       `http://worker/api/chat/sessions/${newSession.agentName}?workspaceId=${user.orgId}`,
       { method: "DELETE", headers: { Cookie: user.cookie } }
     );
     expect(deletedResponse.status).toBe(200);
     expect(await processor.hasChatSession(newSession.agentName)).toBe(false);
+    const retiredChat = env.Chat.get(env.Chat.idFromName(newSession.agentName));
+    expect(await retiredChat.fetch(new Request("http://chat/"))).toMatchObject({
+      status: 410,
+    });
+    expect(
+      await runInDurableObject(retiredChat, (_instance, state) =>
+        state.storage.list()
+      )
+    ).toEqual(new Map([[DURABLE_OBJECT_RETIRED_KEY, true]]));
 
     const lastDelete = await SELF.fetch(
       `http://worker/api/chat/sessions/${user.orgId}?workspaceId=${user.orgId}`,
@@ -170,6 +190,49 @@ describe("chat sessions", () => {
     await processor.createChatSession();
 
     expect(await processor.getChatUsage(period)).toBeUndefined();
+  });
+
+  it("rehydrates the session registry and shared spend ledger after eviction", async () => {
+    const user = await signupUser(
+      `chat-eviction-${crypto.randomUUID()}@example.com`,
+      "Chat eviction"
+    );
+    await enableChat(user.orgId);
+    const processor = env.LINK_PROCESSOR_DO.get(
+      env.LINK_PROCESSOR_DO.idFromName(user.orgId)
+    );
+    const created = await processor.createChatSession();
+    if (!created.ok) throw new Error(created.code);
+    const session = created.sessions[0]!;
+    await processor.touchChatSession(session.agentName, "Persistent title");
+    await processor.settleChatSpend("eviction-window", "turn-1", 321);
+
+    await abortAllDurableObjects();
+
+    const freshProcessor = env.LINK_PROCESSOR_DO.get(
+      env.LINK_PROCESSOR_DO.idFromName(user.orgId)
+    );
+    expect(await freshProcessor.listChatSessions()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          agentName: session.agentName,
+          title: "Persistent title",
+        }),
+      ])
+    );
+    expect(await freshProcessor.getChatUsage("eviction-window")).toEqual({
+      spentMicroUsd: 321,
+    });
+    expect(
+      await agentHooks.onBeforeConnect(
+        new Request(
+          `http://worker/agents/chat/${session.agentName}?workspaceId=${user.orgId}`,
+          { headers: { Cookie: user.cookie } }
+        ),
+        { className: "Chat", name: session.agentName },
+        env
+      )
+    ).toBeUndefined();
   });
 
   it("does not expose one library's registry to another session", async () => {

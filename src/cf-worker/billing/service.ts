@@ -1,5 +1,13 @@
 import { eq } from "drizzle-orm";
-import { Context, Effect, Layer, Match, Option, Schema } from "effect";
+import {
+  Context,
+  DateTime,
+  Effect,
+  Layer,
+  Match,
+  Option,
+  Schema,
+} from "effect";
 
 import type {
   BooleanCapability,
@@ -57,7 +65,7 @@ const TierCapabilitiesSchema = Schema.Struct({
   publicApi: Schema.Boolean,
   mcpServer: Schema.Boolean,
   weeklyDigest: Schema.Boolean,
-  monthlyAssistantCredits: Schema.Number,
+  monthlyAssistantCredits: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 });
 
 export const AssistantAllowance = Schema.Struct({
@@ -66,6 +74,44 @@ export const AssistantAllowance = Schema.Struct({
   usageWindow: Schema.Option(AssistantUsageWindow),
 });
 export type AssistantAllowance = Schema.Schema.Type<typeof AssistantAllowance>;
+
+interface BillingShape {
+  readonly capabilities: (
+    orgId: OrgId
+  ) => Effect.Effect<TierCapabilities, DbError | OrgNotFoundError>;
+  readonly assistantAllowance: (
+    orgId: OrgId,
+    now?: Date
+  ) => Effect.Effect<AssistantAllowance, DbError | OrgNotFoundError>;
+  readonly tier: (
+    orgId: OrgId
+  ) => Effect.Effect<PlanTier, DbError | OrgNotFoundError>;
+  readonly subscription: (orgId: OrgId) => Effect.Effect<
+    {
+      readonly cancelAtPeriodEnd: boolean;
+      readonly currentPeriodEnd: string | null;
+      readonly billingInterval: "month" | "year" | null;
+    },
+    DbError | OrgNotFoundError
+  >;
+  readonly getOverrides: (
+    orgId: OrgId
+  ) => Effect.Effect<CapabilityOverrides, DbError | OrgNotFoundError>;
+  readonly setTier: (
+    orgId: OrgId,
+    tier: PlanTier
+  ) => Effect.Effect<void, DbError | OrgNotFoundError>;
+  readonly setOverride: <K extends keyof TierCapabilities>(
+    orgId: OrgId,
+    key: K,
+    value: TierCapabilities[K] | null
+  ) => Effect.Effect<void, DbError | OrgNotFoundError>;
+  readonly exists: (orgId: OrgId) => Effect.Effect<boolean, DbError>;
+  readonly listWithOwners: () => Effect.Effect<
+    readonly WorkspaceWithOwner[],
+    DbError
+  >;
+}
 
 const make = Effect.gen(function* () {
   const db = yield* DbClient;
@@ -113,8 +159,9 @@ const make = Effect.gen(function* () {
 
     assistantAllowance: Effect.fn("Billing.assistantAllowance")(function* (
       orgId: OrgId,
-      now = new Date()
+      now?: Date
     ) {
+      const effectiveNow = now ?? (yield* DateTime.nowAsDate);
       const row = yield* fetchOrgRow(orgId);
       const capabilities = mergeCapabilities(row.tier, row.featureOverrides);
       const adminAnchor = Match.value(row.tierSource).pipe(
@@ -131,7 +178,7 @@ const make = Effect.gen(function* () {
             currentPeriodEnd: row.currentPeriodEnd,
             usageCycleAnchor: adminAnchor,
           },
-          now
+          effectiveNow
         )
       );
       yield* Effect.annotateCurrentSpan({
@@ -213,17 +260,18 @@ const make = Effect.gen(function* () {
           existing.tier !== tier ||
           existing.usageCycleAnchor === null,
       }).pipe(
-        Match.when({ isFree: true }, () => null),
-        Match.when({ needsAnchor: true }, () => new Date()),
-        Match.orElse(() => existing.usageCycleAnchor)
+        Match.when({ isFree: true }, () => Effect.succeed(null)),
+        Match.when({ needsAnchor: true }, () => DateTime.nowAsDate),
+        Match.orElse(() => Effect.succeed(existing.usageCycleAnchor))
       );
+      const resolvedUsageCycleAnchor = yield* usageCycleAnchor;
       yield* query(
         db
           .update(schema.organization)
           .set({
             tier,
             tierSource: "admin",
-            usageCycleAnchor,
+            usageCycleAnchor: resolvedUsageCycleAnchor,
           })
           .where(eq(schema.organization.id, orgId))
       );
@@ -314,13 +362,12 @@ const make = Effect.gen(function* () {
         };
       });
     }),
-  };
+  } satisfies BillingShape;
 });
 
-export class Billing extends Context.Service<
-  Billing,
-  Effect.Success<typeof make>
->()("@cloudstash/Billing") {
+export class Billing extends Context.Service<Billing, BillingShape>()(
+  "@cloudstash/Billing"
+) {
   static readonly Default = Layer.effect(Billing, make);
 }
 

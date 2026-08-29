@@ -1,4 +1,4 @@
-import { Effect, Match, Option } from "effect";
+import { DateTime, Effect, Match, Option } from "effect";
 
 import type { OrgId } from "../db/branded";
 import { maskId } from "../log-utils";
@@ -12,9 +12,10 @@ import { getStripeCustomerId, syncFromStripe } from "./stripe-sync";
  */
 export const resolveAssistantAllowance = Effect.fn(
   "Billing.resolveAssistantAllowance"
-)(function* (orgId: OrgId, now = new Date()) {
+)(function* (orgId: OrgId, now?: Date) {
   const billing = yield* Billing;
-  const current = yield* billing.assistantAllowance(orgId, now);
+  const effectiveNow = now ?? (yield* DateTime.nowAsDate);
+  const current = yield* billing.assistantAllowance(orgId, effectiveNow);
   const needsStripeRefresh =
     current.source === "stripe" &&
     current.capabilities.chatAgent &&
@@ -31,7 +32,7 @@ export const resolveAssistantAllowance = Effect.fn(
       ),
     onSome: (id) =>
       syncFromStripe(id).pipe(
-        Effect.andThen(billing.assistantAllowance(orgId, now)),
+        Effect.andThen(billing.assistantAllowance(orgId, effectiveNow)),
         Effect.tap((refreshed) =>
           Match.value(Option.isSome(refreshed.usageWindow)).pipe(
             Match.when(true, () => Effect.void),

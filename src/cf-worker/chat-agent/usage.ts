@@ -41,7 +41,7 @@ export function openRouterCostMicroUsd(
 
 export const ProviderSpend = Schema.Struct({
   complete: Schema.Boolean,
-  spentMicroUsd: Schema.Number,
+  spentMicroUsd: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 });
 export type ProviderSpend = Schema.Schema.Type<typeof ProviderSpend>;
 
@@ -60,19 +60,19 @@ export function openRouterSpend(metadata: readonly unknown[]): ProviderSpend {
 }
 
 export const UsageData = Schema.Struct({
-  spentMicroUsd: Schema.Number,
+  spentMicroUsd: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 });
 export type UsageData = Schema.Schema.Type<typeof UsageData>;
 
 export const UsageSettlement = Schema.Struct({
-  spentMicroUsd: Schema.Number,
+  spentMicroUsd: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   recordedAt: Schema.String,
 });
 export type UsageSettlement = Schema.Schema.Type<typeof UsageSettlement>;
 
 export const AssistantCreditStatus = Schema.Struct({
-  limit: Schema.Number,
-  remaining: Schema.Number,
+  limit: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  remaining: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   resetsAt: Schema.String,
 });
 export type AssistantCreditStatus = Schema.Schema.Type<

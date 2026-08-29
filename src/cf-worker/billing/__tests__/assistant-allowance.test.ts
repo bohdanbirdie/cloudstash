@@ -10,36 +10,46 @@ import { resolveAssistantAllowance } from "../assistant-allowance";
 import { AssistantAllowance, Billing } from "../service";
 import { StripeClient } from "../stripe-client";
 import type { StripeClientShape } from "../stripe-client";
+import { resolveAssistantUsageWindow } from "../usage-cycle";
 
 const ORG_ID = OrgId.make("11111111-1111-4111-8111-111111111111");
 const CUSTOMER_ID = StripeCustomerId.make("cus_existing");
 const WINDOW = {
-  id: "2026-08-17T14:30:00.000Z",
-  startsAt: "2026-08-17T14:30:00.000Z",
-  resetsAt: "2026-09-17T14:30:00.000Z",
+  id: "2026-08-17T15:30:00.000Z",
+  startsAt: "2026-08-17T15:30:00.000Z",
+  resetsAt: "2026-09-17T15:30:00.000Z",
 } as const;
 
 const notUsed = <A>(): Effect.Effect<A> => Effect.die("Unexpected Stripe call");
 
 describe("resolveAssistantAllowance", () => {
   it.effect("refreshes a missing legacy Stripe cycle once", () => {
-    let allowanceReads = 0;
     let organizationReads = 0;
     let subscriptionReads = 0;
     const updates: Record<string, unknown>[] = [];
 
     const billing = Layer.succeed(Billing, {
-      assistantAllowance: () => {
-        allowanceReads += 1;
-        return Effect.succeed(
-          AssistantAllowance.make({
+      assistantAllowance: (_orgId: OrgId, now?: Date) =>
+        Effect.sync(() => {
+          const update = updates.at(-1);
+          const usageWindow = update
+            ? resolveAssistantUsageWindow(
+                {
+                  source: "stripe",
+                  billingInterval: update.billingInterval as "month" | "year",
+                  currentPeriodStart: update.currentPeriodStart as Date,
+                  currentPeriodEnd: update.currentPeriodEnd as Date,
+                  usageCycleAnchor: update.usageCycleAnchor as Date,
+                },
+                now ?? new Date("2026-08-29T12:00:00.000Z")
+              )
+            : undefined;
+          return AssistantAllowance.make({
             capabilities: capabilitiesFor("pro"),
             source: "stripe",
-            usageWindow:
-              allowanceReads === 1 ? Option.none() : Option.some(WINDOW),
-          })
-        );
-      },
+            usageWindow: Option.fromNullishOr(usageWindow),
+          });
+        }),
     } as unknown as Billing["Service"]);
     const db = Layer.succeed(DbClient, {
       query: {
@@ -98,8 +108,9 @@ describe("resolveAssistantAllowance", () => {
     } satisfies StripeClientShape);
 
     return Effect.gen(function* () {
-      const first = yield* resolveAssistantAllowance(ORG_ID);
-      const second = yield* resolveAssistantAllowance(ORG_ID);
+      const now = new Date("2026-08-29T12:00:00.000Z");
+      const first = yield* resolveAssistantAllowance(ORG_ID, now);
+      const second = yield* resolveAssistantAllowance(ORG_ID, now);
       expect(Option.getOrNull(first.usageWindow)).toEqual(WINDOW);
       expect(Option.getOrNull(second.usageWindow)).toEqual(WINDOW);
       expect(subscriptionReads).toBe(1);

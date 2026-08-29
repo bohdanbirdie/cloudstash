@@ -6,7 +6,7 @@ import type { Store, Unsubscribe } from "@livestore/livestore";
 import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
 /// <reference types="@cloudflare/workers-types" />
 import { DurableObject } from "cloudflare:workers";
-import { DateTime, Effect, Layer, Option, Semaphore } from "effect";
+import { DateTime, Effect, Layer, Option, Schema, Semaphore } from "effect";
 
 import type {
   GetLinkInput,
@@ -28,9 +28,11 @@ import { Billing } from "../billing/service";
 import {
   CHAT_SESSION_LIMIT,
   CHAT_SESSION_REGISTRY_KEY,
+  ChatSessionRegistry,
   chatUsageStorage,
   makeDefaultChatSession,
   makeNewChatSession,
+  retireRegisteredChatSession,
   titleFromMessage,
 } from "../chat-agent/sessions";
 import type {
@@ -307,10 +309,10 @@ export class LinkProcessorDO
   private async readChatSessions(
     storage: Pick<DurableObjectStorage, "get" | "put"> = this.ctx.storage
   ): Promise<readonly ChatSession[]> {
-    const stored = await storage.get<readonly ChatSession[]>(
-      CHAT_SESSION_REGISTRY_KEY
-    );
-    if (stored !== undefined) return stored;
+    const stored = await storage.get(CHAT_SESSION_REGISTRY_KEY);
+    if (stored !== undefined) {
+      return Schema.decodeUnknownPromise(ChatSessionRegistry)(stored);
+    }
 
     const workspaceId = this.ctx.id.name;
     if (!workspaceId) {
@@ -375,31 +377,44 @@ export class LinkProcessorDO
     agentName: string
   ): Promise<ChatSessionRegistryResult> {
     if (await this.isRetired()) return { ok: false, code: "not_found" };
-    const result = await this.ctx.storage.transaction(async (transaction) => {
-      const sessions = await this.readChatSessions(transaction);
-      if (!sessions.some((session) => session.agentName === agentName)) {
-        return { ok: false, code: "not_found" } as const;
-      }
-      const next = sessions.filter(
-        (session) => session.agentName !== agentName
-      );
-      await transaction.put(CHAT_SESSION_REGISTRY_KEY, next);
-      return { ok: true, sessions: next } as const;
+    return retireRegisteredChatSession(agentName, {
+      read: () => this.readChatSessions(),
+      retire: () =>
+        this.env.Chat.get(this.env.Chat.idFromName(agentName)).retire(),
+      remove: () =>
+        this.ctx.storage.transaction(async (transaction) => {
+          const current = await this.readChatSessions(transaction);
+          if (!current.some((session) => session.agentName === agentName)) {
+            return { ok: false, code: "not_found" } as const;
+          }
+          const next = current.filter(
+            (session) => session.agentName !== agentName
+          );
+          await transaction.put(CHAT_SESSION_REGISTRY_KEY, next);
+          return { ok: true, sessions: next } as const;
+        }),
     });
-
-    if (result.ok) {
-      await this.env.Chat.get(this.env.Chat.idFromName(agentName)).retire();
-    }
-    return result;
   }
 
   async retireChatSessions(): Promise<void> {
     const sessions = await this.readChatSessions();
+    logger.info("Retiring chat sessions", { count: sessions.length });
     await Promise.all(
-      sessions.map((session) =>
-        this.env.Chat.get(this.env.Chat.idFromName(session.agentName)).retire()
-      )
+      sessions.map(async (session) => {
+        try {
+          await this.env.Chat.get(
+            this.env.Chat.idFromName(session.agentName)
+          ).retire();
+        } catch (error) {
+          logger.error("Chat session retirement failed", {
+            agentName: maskId(session.agentName),
+            ...safeErrorInfo(error),
+          });
+          throw error;
+        }
+      })
     );
+    logger.info("Retired chat sessions", { count: sessions.length });
   }
 
   async canSpendChatUsage(

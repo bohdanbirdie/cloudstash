@@ -1,5 +1,6 @@
 import { isToolUIPart } from "ai";
 import type { UIMessage } from "ai";
+import { Schema } from "effect";
 
 export const COMPACTION_TRIGGER_TOKENS = 24_000;
 export const COMPACTION_TAIL_MESSAGES = 12;
@@ -8,11 +9,12 @@ export const COMPACTION_STORAGE_KEY = "chat:context-summary:v1";
 
 const MAX_TOOL_DETAIL_CHARS = 2_000;
 
-export interface ChatContextSummary {
-  readonly summary: string;
-  readonly throughMessageId: string;
-  readonly updatedAt: string;
-}
+export const ChatContextSummary = Schema.Struct({
+  summary: Schema.String,
+  throughMessageId: Schema.String,
+  updatedAt: Schema.String,
+});
+export type ChatContextSummary = Schema.Schema.Type<typeof ChatContextSummary>;
 
 export interface ChatCompactionPlan {
   readonly previousSummary?: string;

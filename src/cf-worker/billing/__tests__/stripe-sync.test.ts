@@ -146,13 +146,22 @@ describe("syncFromStripe", () => {
 
   it.effect("maps an active subscription to its tier", () => {
     const updates: Record<string, unknown>[] = [];
+    const billingCycleAnchor = 1_768_663_800;
+    const periodStart = 1_768_663_923;
+    const periodEnd = 1_771_342_456;
     return syncFromStripe(CUSTOMER_ID).pipe(
       Effect.provide(
         Layer.mergeAll(
           stripeStub({
             listSubscriptions: () =>
               Effect.succeed([
-                sub("active", { id: "sub_pro", priceId: "price_pro" }),
+                sub("active", {
+                  id: "sub_pro",
+                  priceId: "price_pro",
+                  billingCycleAnchor,
+                  periodStart,
+                  periodEnd,
+                }),
               ]),
           }),
           syncDb({ org: ORG, updates })
@@ -168,10 +177,12 @@ describe("syncFromStripe", () => {
           expect(v.stripeSubscriptionId).toBe("sub_pro");
           expect(v.subscriptionStatus).toBe("active");
           expect(v.cancelAtPeriodEnd).toBe(false);
-          expect(v.currentPeriodStart).toBeInstanceOf(Date);
-          expect(v.currentPeriodEnd).toBeInstanceOf(Date);
+          expect(v.currentPeriodStart).toEqual(new Date(periodStart * 1_000));
+          expect(v.currentPeriodEnd).toEqual(new Date(periodEnd * 1_000));
           expect(v.billingInterval).toBe("month");
-          expect(v.usageCycleAnchor).toBeInstanceOf(Date);
+          expect(v.usageCycleAnchor).toEqual(
+            new Date(billingCycleAnchor * 1_000)
+          );
         })
       )
     );

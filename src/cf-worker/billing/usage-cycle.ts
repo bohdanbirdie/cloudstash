@@ -1,4 +1,4 @@
-import { Match, Schema } from "effect";
+import { DateTime, Match, Schema } from "effect";
 
 export const AssistantUsageWindow = Schema.Struct({
   id: Schema.String,
@@ -21,25 +21,11 @@ export type UsageCycleState = Schema.Schema.Type<typeof UsageCycleState>;
 const isValidDate = (value: Date | null): value is Date =>
   value !== null && !Number.isNaN(value.getTime());
 
-const daysInUtcMonth = (year: number, month: number): number =>
-  new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-
-const monthlyOccurrence = (anchor: Date, monthOffset: number): Date => {
-  const absoluteMonth = anchor.getUTCMonth() + monthOffset;
-  const year = anchor.getUTCFullYear() + Math.floor(absoluteMonth / 12);
-  const month = ((absoluteMonth % 12) + 12) % 12;
-  return new Date(
-    Date.UTC(
-      year,
-      month,
-      Math.min(anchor.getUTCDate(), daysInUtcMonth(year, month)),
-      anchor.getUTCHours(),
-      anchor.getUTCMinutes(),
-      anchor.getUTCSeconds(),
-      anchor.getUTCMilliseconds()
-    )
+const monthlyOccurrence = (anchor: Date, monthOffset: number): Date =>
+  DateTime.makeUnsafe(anchor).pipe(
+    DateTime.add({ months: monthOffset }),
+    DateTime.toDateUtc
   );
-};
 
 const monthlyWindowFromAnchor = (
   anchor: Date,
@@ -88,23 +74,28 @@ const stripeWindow = (
   }
   const monthly = monthlyWindowFromAnchor(state.usageCycleAnchor, now);
   if (!monthly) return undefined;
-  const startsAt = new Date(
-    Math.max(new Date(monthly.startsAt).getTime(), currentPeriodStart.getTime())
+  const startsAt = DateTime.max(
+    DateTime.makeUnsafe(monthly.startsAt),
+    DateTime.makeUnsafe(currentPeriodStart)
   );
-  const resetsAt = new Date(
-    Math.min(new Date(monthly.resetsAt).getTime(), currentPeriodEnd.getTime())
+  const resetsAt = DateTime.min(
+    DateTime.makeUnsafe(monthly.resetsAt),
+    DateTime.makeUnsafe(currentPeriodEnd)
   );
-  if (resetsAt <= startsAt) return undefined;
+  if (DateTime.toEpochMillis(resetsAt) <= DateTime.toEpochMillis(startsAt)) {
+    return undefined;
+  }
+  const startsAtIso = DateTime.formatIso(startsAt);
   return {
-    id: startsAt.toISOString(),
-    startsAt: startsAt.toISOString(),
-    resetsAt: resetsAt.toISOString(),
+    id: startsAtIso,
+    startsAt: startsAtIso,
+    resetsAt: DateTime.formatIso(resetsAt),
   };
 };
 
 export function resolveAssistantUsageWindow(
   state: UsageCycleState,
-  now = new Date()
+  now: Date
 ): AssistantUsageWindow | undefined {
   return Match.value(state.source).pipe(
     Match.when("stripe", () => stripeWindow(state, now)),

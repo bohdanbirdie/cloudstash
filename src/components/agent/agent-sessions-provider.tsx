@@ -14,9 +14,9 @@ import type { AssistantCreditStatus } from "@/cf-worker/chat-agent/usage";
 import {
   chatSessionEndpoint,
   chatSessionsEndpoint,
+  decodeChatSessionsResponse,
   fetchChatSessions,
 } from "@/lib/chat-sessions-api";
-import type { ChatSessionsResponse } from "@/lib/chat-sessions-api";
 
 const EMPTY_SESSIONS: readonly ChatSession[] = [];
 
@@ -69,7 +69,7 @@ export function AgentSessionsProvider({
       credentials: "include",
     });
     if (!response.ok) throw new Error(`Create chat failed: ${response.status}`);
-    const result = await response.json<ChatSessionsResponse>();
+    const result = await decodeChatSessionsResponse(await response.json());
     await mutate(result, { revalidate: false });
     setSelectedAgentName(result.sessions[0]?.agentName);
   }, [mutate, workspaceId]);
@@ -85,7 +85,7 @@ export function AgentSessionsProvider({
       );
       if (!response.ok)
         throw new Error(`Delete chat failed: ${response.status}`);
-      const result = await response.json<ChatSessionsResponse>();
+      const result = await decodeChatSessionsResponse(await response.json());
       await mutate(result, { revalidate: false });
       setSelectedAgentName((selected) =>
         selected === agentName ? undefined : selected

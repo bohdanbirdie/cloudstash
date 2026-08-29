@@ -11,7 +11,7 @@ import {
   stepCountIs,
 } from "ai";
 import type { LanguageModel } from "ai";
-import { Effect, Match, Option, Schema } from "effect";
+import { Cause, Effect, Match, Option, Schedule, Schema } from "effect";
 
 import { resolveAssistantAllowance } from "../billing/assistant-allowance";
 import { StripeClientLive } from "../billing/stripe-client";
@@ -30,12 +30,13 @@ import { OtelTracingLive } from "../tracing";
 import {
   COMPACTION_MAX_OUTPUT_TOKENS,
   COMPACTION_STORAGE_KEY,
+  ChatContextSummary,
   buildCompactionPrompt,
   messagesAfterSummary,
   planChatCompaction,
   systemPromptWithSummary,
 } from "./compaction";
-import type { ChatCompactionPlan, ChatContextSummary } from "./compaction";
+import type { ChatCompactionPlan } from "./compaction";
 import {
   CONTEXT_WINDOW_SIZE,
   MAX_OUTPUT_TOKENS_PER_STEP,
@@ -77,6 +78,14 @@ const ResolvedChatAllowance = Schema.Struct({
 });
 type ResolvedChatAllowance = Schema.Schema.Type<typeof ResolvedChatAllowance>;
 
+class ChatUsageRpcError extends Schema.TaggedErrorClass<ChatUsageRpcError>()(
+  "ChatUsageRpcError",
+  {
+    operation: Schema.String,
+    cause: Schema.Defect(),
+  }
+) {}
+
 const AllowanceCheck = Schema.Union([
   Schema.Struct({
     outcome: Schema.Literal(ALLOWANCE_OUTCOME.Allowed),
@@ -107,8 +116,8 @@ const resolveChatAllowance = Effect.fnUntraced(function* (
       DbError: (cause) =>
         Effect.logWarning("Assistant allowance lookup failed").pipe(
           Effect.annotateLogs({
-            cause: String(cause),
             orgId: maskId(orgId),
+            ...safeErrorInfo(cause.cause),
           }),
           Effect.as({
             credits: 0,
@@ -130,8 +139,8 @@ const resolveChatAllowance = Effect.fnUntraced(function* (
       StripeApiError: (cause) =>
         Effect.logWarning("Assistant Stripe cycle refresh failed").pipe(
           Effect.annotateLogs({
-            cause: String(cause),
             orgId: maskId(orgId),
+            ...safeErrorInfo(cause.cause),
           }),
           Effect.as({
             credits: 0,
@@ -333,9 +342,30 @@ export class ChatAgentDO extends AIChatAgent<Env> {
           onSome: (window) =>
             Effect.gen({ self: this }, function* () {
               const { stub } = this.libraryStub();
-              const allowed = yield* Effect.promise(() =>
-                stub.canSpendChatUsage(window.id, limitMicroUsd)
+              const allowed = yield* Effect.tryPromise({
+                try: () => stub.canSpendChatUsage(window.id, limitMicroUsd),
+                catch: (cause) =>
+                  new ChatUsageRpcError({
+                    operation: "canSpendChatUsage",
+                    cause,
+                  }),
+              }).pipe(
+                Effect.catchTag("ChatUsageRpcError", (error) =>
+                  Effect.logError("Assistant allowance RPC failed").pipe(
+                    Effect.annotateLogs({
+                      operation: error.operation,
+                      orgId: maskId(this.orgId()),
+                      ...safeErrorInfo(error.cause),
+                    }),
+                    Effect.as("unavailable" as const)
+                  )
+                )
               );
+              if (allowed === "unavailable") {
+                return AllowanceCheck.make({
+                  outcome: ALLOWANCE_OUTCOME.Unavailable,
+                });
+              }
               const outcome = Match.value(allowed).pipe(
                 Match.when(true, () => ALLOWANCE_OUTCOME.Allowed),
                 Match.when(false, () => ALLOWANCE_OUTCOME.LimitReached),
@@ -372,7 +402,7 @@ export class ChatAgentDO extends AIChatAgent<Env> {
     settlementId: string,
     spentMicroUsd: number,
     generation: number
-  ): Effect.Effect<void> {
+  ): Effect.Effect<void, ChatUsageRpcError> {
     return Effect.gen({ self: this }, function* () {
       if (!this.isCurrent(generation)) {
         yield* Effect.logInfo(
@@ -381,9 +411,26 @@ export class ChatAgentDO extends AIChatAgent<Env> {
         return;
       }
       const { stub } = this.libraryStub();
-      yield* Effect.promise(() =>
-        stub.settleChatSpend(usageWindowId, settlementId, spentMicroUsd)
+      const recorded = yield* Effect.tryPromise({
+        try: () =>
+          stub.settleChatSpend(usageWindowId, settlementId, spentMicroUsd),
+        catch: (cause) =>
+          new ChatUsageRpcError({
+            operation: "settleChatSpend",
+            cause,
+          }),
+      }).pipe(
+        Effect.retry({
+          schedule: Schedule.exponential("100 millis").pipe(
+            Schedule.upTo({ times: 4 })
+          ),
+        })
       );
+      yield* Effect.annotateCurrentSpan({
+        recorded,
+        spentMicroUsd,
+        usageWindowId,
+      });
     }).pipe(
       Effect.withSpan("ChatAgentDO.recordSpend", {
         attributes: {
@@ -444,7 +491,7 @@ export class ChatAgentDO extends AIChatAgent<Env> {
     );
   }
 
-  private async compactContext(
+  private async generateCompaction(
     model: LanguageModel,
     plan: ChatCompactionPlan
   ): Promise<{ summary: ChatContextSummary; spend: ProviderSpend }> {
@@ -459,11 +506,47 @@ export class ChatAgentDO extends AIChatAgent<Env> {
       throughMessageId: plan.throughMessageId,
       updatedAt: new Date().toISOString(),
     } satisfies ChatContextSummary;
-    await this.ctx.storage.put(COMPACTION_STORAGE_KEY, summary);
     return {
       summary,
       spend: openRouterSpend([result.providerMetadata]),
     };
+  }
+
+  private async loadStoredSummary(): Promise<ChatContextSummary | undefined> {
+    const stored = await this.ctx.storage.get(COMPACTION_STORAGE_KEY);
+    if (stored === undefined) return undefined;
+    try {
+      return await Schema.decodeUnknownPromise(ChatContextSummary)(stored);
+    } catch (error) {
+      this.ctx.waitUntil(
+        Effect.logError("Stored chat compaction summary is invalid").pipe(
+          Effect.annotateLogs({
+            orgId: maskId(this.orgId()),
+            ...safeErrorInfo(error),
+          }),
+          Effect.provide(getAppLayer(this.env)),
+          Effect.runPromise
+        )
+      );
+      return undefined;
+    }
+  }
+
+  private async persistCompaction(summary: ChatContextSummary): Promise<void> {
+    await Effect.runPromise(
+      Effect.tryPromise({
+        try: () => this.ctx.storage.put(COMPACTION_STORAGE_KEY, summary),
+        catch: (cause) =>
+          new ChatUsageRpcError({ operation: "persistCompaction", cause }),
+      }).pipe(
+        Effect.retry({
+          schedule: Schedule.exponential("50 millis").pipe(
+            Schedule.upTo({ times: 3 })
+          ),
+        }),
+        Effect.provide(getAppLayer(this.env))
+      )
+    );
   }
 
   override async onChatMessage(
@@ -492,9 +575,7 @@ export class ChatAgentDO extends AIChatAgent<Env> {
       await this.touchCurrentSession(userText);
     }
 
-    const storedSummary = await this.ctx.storage.get<ChatContextSummary>(
-      COMPACTION_STORAGE_KEY
-    );
+    const storedSummary = await this.loadStoredSummary();
     const compactionPlan = planChatCompaction(this.messages, storedSummary);
 
     const allowance = await this.checkAllowance(generation);
@@ -507,7 +588,7 @@ export class ChatAgentDO extends AIChatAgent<Env> {
           () => ALLOWANCE_UNAVAILABLE_MESSAGE
         ),
         Match.when(ALLOWANCE_OUTCOME.LimitReached, () => LIMIT_REACHED_MESSAGE),
-        Match.orElse(() => ALLOWANCE_UNAVAILABLE_MESSAGE)
+        Match.exhaustive
       );
       const blockedStream = createUIMessageStream({
         execute: ({ writer }) => {
@@ -529,11 +610,25 @@ export class ChatAgentDO extends AIChatAgent<Env> {
     };
     if (compactionPlan) {
       try {
-        const compacted = await this.compactContext(model, compactionPlan);
+        const compacted = await this.generateCompaction(model, compactionPlan);
         summary = compacted.summary;
         compactionSpend = compacted.spend;
         if (!compacted.spend.complete) {
           this.logMissingProviderCost("compaction");
+        }
+        try {
+          await this.persistCompaction(compacted.summary);
+        } catch (error) {
+          this.ctx.waitUntil(
+            Effect.logError("Chat context compaction could not be saved").pipe(
+              Effect.annotateLogs({
+                ...safeErrorInfo(error),
+                orgId: maskId(this.orgId()),
+              }),
+              Effect.provide(getAppLayer(this.env)),
+              Effect.runPromise
+            )
+          );
         }
       } catch (error) {
         this.ctx.waitUntil(
@@ -580,10 +675,10 @@ export class ChatAgentDO extends AIChatAgent<Env> {
     abortSignal?: AbortSignal
   ) {
     const settlementId = crypto.randomUUID();
-    let usageSettled = false;
+    let usageSettlementStarted = false;
     const settleUsage = (spend: ProviderSpend) => {
-      if (usageSettled || !this.isCurrent(generation)) return;
-      usageSettled = true;
+      if (usageSettlementStarted || !this.isCurrent(generation)) return;
+      usageSettlementStarted = true;
       if (!spend.complete) this.logMissingProviderCost("answer");
       const spentMicroUsd = compactionSpend.spentMicroUsd + spend.spentMicroUsd;
       if (spentMicroUsd === 0) return;
@@ -596,7 +691,13 @@ export class ChatAgentDO extends AIChatAgent<Env> {
         ).pipe(
           Effect.tapCause((cause) =>
             Effect.logError("recordSpend failed").pipe(
-              Effect.annotateLogs({ cause: String(cause) })
+              Effect.annotateLogs({
+                cause: Cause.pretty(cause),
+                orgId: maskId(this.orgId()),
+                settlementId,
+                spentMicroUsd,
+                usageWindowId,
+              })
             )
           ),
           Effect.provide(getAppLayer(this.env)),

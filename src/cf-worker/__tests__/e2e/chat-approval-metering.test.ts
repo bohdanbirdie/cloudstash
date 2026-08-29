@@ -139,17 +139,113 @@ describe("chat approval metering", () => {
       value: { state: "archive" },
     });
 
-    const usageWindow = resolveAssistantUsageWindow({
-      source: "admin",
-      billingInterval: null,
-      currentPeriodStart: null,
-      currentPeriodEnd: null,
-      usageCycleAnchor: anchor,
-    });
+    const usageWindow = resolveAssistantUsageWindow(
+      {
+        source: "admin",
+        billingInterval: null,
+        currentPeriodStart: null,
+        currentPeriodEnd: null,
+        usageCycleAnchor: anchor,
+      },
+      new Date()
+    );
     if (!usageWindow) throw new Error("Expected active Assistant usage window");
     await vi.waitFor(async () => {
       expect(await linkProcessor!.getChatUsage(usageWindow.id)).toEqual({
         spentMicroUsd: 500,
+      });
+    });
+  });
+
+  it("does not run a rejected destructive tool and still settles the continuation", async () => {
+    const anchor = new Date(Date.now() - 60_000);
+    const providerResponses = [{ cost: 0.000_2, text: "Kept the link." }];
+    const url = `https://example.com/rejected-delete-${crypto.randomUUID()}`;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const request = new Request(input, init);
+      if (request.url === url) {
+        return new Response("<!doctype html><title>Keep me</title>", {
+          headers: { "Content-Type": "text/html" },
+        });
+      }
+      if (
+        request.url.startsWith("https://openrouter.ai/api/v1/chat/completions")
+      ) {
+        const response = providerResponses.shift();
+        if (!response) throw new Error("Unexpected extra OpenRouter request");
+        return openRouterStream(response.cost, response.text);
+      }
+      throw new Error(`Unexpected outbound request: ${request.url}`);
+    });
+
+    const user = await signupUser(
+      `chat-rejected-approval-${crypto.randomUUID()}@example.com`,
+      "Rejected chat approval"
+    );
+    await env.DB.prepare(
+      "UPDATE organization SET tier = 'pro', tier_source = 'admin', usage_cycle_anchor = ? WHERE id = ?"
+    )
+      .bind(anchor.getTime(), user.orgId)
+      .run();
+
+    linkProcessor = env.LINK_PROCESSOR_DO.get(
+      env.LINK_PROCESSOR_DO.idFromName(user.orgId)
+    );
+    const saved = await linkProcessor.saveLink({ url, source: "api" });
+    if (!saved.ok) throw new Error(saved.error.message);
+    const linkId = saved.value.link.id;
+    const chat = env.Chat.get(env.Chat.idFromName(user.orgId));
+
+    const body = await runInDurableObject(chat, async (instance) => {
+      instance.messages = [
+        {
+          id: "user-rejected-delete",
+          role: "user",
+          parts: [{ type: "text", text: "Delete this link" }],
+        },
+        {
+          id: "assistant-rejected-delete",
+          role: "assistant",
+          parts: [
+            {
+              type: "dynamic-tool",
+              toolName: "deleteLink",
+              toolCallId: "rejected-delete-call",
+              state: "approval-responded",
+              input: { id: linkId },
+              approval: { id: "rejected-delete-approval", approved: false },
+            },
+          ],
+        },
+      ] satisfies UIMessage[];
+      const response = await instance.onChatMessage(() => undefined, {
+        requestId: "rejected-approval-continuation",
+        continuation: true,
+      });
+      return response?.text();
+    });
+
+    expect(body).toContain("Kept the link.");
+    expect(providerResponses).toEqual([]);
+    expect(await linkProcessor.getLink({ id: linkId })).toMatchObject({
+      ok: true,
+      value: { state: "inbox" },
+    });
+
+    const usageWindow = resolveAssistantUsageWindow(
+      {
+        source: "admin",
+        billingInterval: null,
+        currentPeriodStart: null,
+        currentPeriodEnd: null,
+        usageCycleAnchor: anchor,
+      },
+      new Date()
+    );
+    if (!usageWindow) throw new Error("Expected active Assistant usage window");
+    await vi.waitFor(async () => {
+      expect(await linkProcessor!.getChatUsage(usageWindow.id)).toEqual({
+        spentMicroUsd: 200,
       });
     });
   });

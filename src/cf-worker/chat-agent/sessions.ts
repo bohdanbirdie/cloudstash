@@ -1,7 +1,11 @@
 import { Schema } from "effect";
 
-import type { UsageData, UsageSettlement } from "./usage";
-import { getUsageKey, getUsageSettlementKey } from "./usage";
+import {
+  getUsageKey,
+  getUsageSettlementKey,
+  UsageData,
+  UsageSettlement,
+} from "./usage";
 import type { UsageStorage } from "./usage-core";
 
 export const CHAT_SESSION_LIMIT = 50;
@@ -16,6 +20,7 @@ export const ChatSession = Schema.Struct({
 });
 
 export type ChatSession = typeof ChatSession.Type;
+export const ChatSessionRegistry = Schema.Array(ChatSession);
 
 export type ChatSessionRegistryResult =
   | { readonly ok: true; readonly sessions: readonly ChatSession[] }
@@ -23,6 +28,22 @@ export type ChatSessionRegistryResult =
       readonly ok: false;
       readonly code: "limit_reached" | "not_found";
     };
+
+export async function retireRegisteredChatSession(
+  agentName: string,
+  operations: {
+    readonly read: () => Promise<readonly ChatSession[]>;
+    readonly retire: () => Promise<void>;
+    readonly remove: () => Promise<ChatSessionRegistryResult>;
+  }
+): Promise<ChatSessionRegistryResult> {
+  const sessions = await operations.read();
+  if (!sessions.some((session) => session.agentName === agentName)) {
+    return { ok: false, code: "not_found" };
+  }
+  await operations.retire();
+  return operations.remove();
+}
 
 export function makeDefaultChatSession(
   workspaceId: string,
@@ -62,9 +83,20 @@ export function chatUsageStorage(
 ): UsageStorage {
   const key = getUsageKey(period);
   return {
-    getUsage: () => storage.get<UsageData>(key),
-    getSettlement: (settlementId) =>
-      storage.get<UsageSettlement>(getUsageSettlementKey(period, settlementId)),
+    getUsage: async () => {
+      const stored = await storage.get(key);
+      return stored === undefined
+        ? undefined
+        : Schema.decodeUnknownPromise(UsageData)(stored);
+    },
+    getSettlement: async (settlementId) => {
+      const stored = await storage.get(
+        getUsageSettlementKey(period, settlementId)
+      );
+      return stored === undefined
+        ? undefined
+        : Schema.decodeUnknownPromise(UsageSettlement)(stored);
+    },
     putUsage: (data) => storage.put(key, data),
     putSettlement: (settlementId, data) =>
       storage.put(getUsageSettlementKey(period, settlementId), data),
