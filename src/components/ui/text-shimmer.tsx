@@ -1,7 +1,5 @@
 "use client";
-import { motion } from "motion/react";
-import React, { useMemo } from "react";
-import type { JSX } from "react";
+import React from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -20,40 +18,23 @@ function TextShimmerComponent({
   duration = 2,
   spread = 2,
 }: TextShimmerProps) {
-  const MotionComponent = motion.create(
-    Component as keyof JSX.IntrinsicElements
-  );
-
-  const dynamicSpread = useMemo(
-    () => children.length * spread,
-    [children, spread]
-  );
+  const dynamicSpread = children.length * spread;
 
   return (
-    <MotionComponent
-      className={cn(
-        "relative inline-block bg-[length:250%_100%,auto] bg-clip-text",
-        "text-transparent [--base-color:var(--muted-foreground)] [--base-gradient-color:var(--foreground)]",
-        "[background-repeat:no-repeat,padding-box] [--bg:linear-gradient(90deg,#0000_calc(50%-var(--spread)),var(--base-gradient-color),#0000_calc(50%+var(--spread)))]",
-        "motion-reduce:bg-none motion-reduce:text-muted-foreground",
-        className
-      )}
-      initial={{ backgroundPosition: "100% center" }}
-      animate={{ backgroundPosition: "0% center" }}
-      transition={{
-        duration,
-        ease: "linear",
-        repeat: Infinity,
-      }}
+    <Component
+      className={cn("text-shimmer", className)}
       style={
         {
-          "--spread": `${dynamicSpread}px`,
-          backgroundImage: `var(--bg), linear-gradient(var(--base-color), var(--base-color))`,
+          "--text-shimmer-duration": `${duration}s`,
+          "--text-shimmer-spread": `${dynamicSpread}px`,
         } as React.CSSProperties
       }
     >
-      {children}
-    </MotionComponent>
+      <span className="text-shimmer__text">{children}</span>
+      <span aria-hidden="true" className="text-shimmer__mask">
+        {children}
+      </span>
+    </Component>
   );
 }
 

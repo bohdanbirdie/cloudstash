@@ -16,11 +16,11 @@ import {
 } from "./auth";
 
 interface Lobby {
-  party: string;
+  className: string;
   name: string;
 }
 
-const KNOWN_PARTIES = new Set<string>(["chat"]);
+const KNOWN_AGENT_CLASSES = new Set<string>(["Chat"]);
 
 type ChatAccessError =
   | SyncAuthError
@@ -42,8 +42,8 @@ const checkChatAgentAccess = (
   lobby: Lobby,
   env: Env
 ): Effect.Effect<void, ChatAccessError> => {
-  if (!KNOWN_PARTIES.has(lobby.party)) {
-    return Effect.fail(new UnknownAgentPartyError({ party: lobby.party }));
+  if (!KNOWN_AGENT_CLASSES.has(lobby.className)) {
+    return Effect.fail(new UnknownAgentPartyError({ party: lobby.className }));
   }
 
   const workspaceId = OrgId.make(lobby.name);
@@ -63,7 +63,7 @@ const checkChatAgentAccess = (
     );
   }).pipe(
     Effect.withSpan("ChatAgent.checkChatAgentAccess", {
-      attributes: { orgId: maskId(workspaceId), party: lobby.party },
+      attributes: { agentClass: lobby.className, orgId: maskId(workspaceId) },
     }),
     Effect.provide(getAppLayer(env)),
     Effect.catchTag("DbError", (cause) =>

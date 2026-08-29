@@ -7,6 +7,7 @@ import {
   MODEL_PRICING,
   INPUT_OUTPUT_RATIO,
 } from "../../chat-agent/usage";
+import { OPENROUTER_MODEL_ID } from "../../openrouter-model";
 
 describe("usage", () => {
   describe("getCurrentPeriod", () => {
@@ -28,11 +29,11 @@ describe("usage", () => {
       const limit = budgetToTokenLimit(budget);
 
       // Manual calculation:
-      // inputPerToken = 0.30 / 1_000_000 = 0.0000003
-      // outputPerToken = 2.50 / 1_000_000 = 0.0000025
-      // blendedPerToken = (4 * 0.0000003 + 0.0000025) / 5 = 0.00000074
-      // tokenLimit = 0.5 / 0.00000074 = 675675.67... → 675675
-      expect(limit).toBe(675675);
+      // inputPerToken = 0.20 / 1_000_000 = 0.0000002
+      // outputPerToken = 1.20 / 1_000_000 = 0.0000012
+      // blendedPerToken = (4 * 0.0000002 + 0.0000012) / 5 = 0.0000004
+      // tokenLimit = 0.5 / 0.0000004 = 1_250_000
+      expect(limit).toBe(1_250_000);
     });
 
     it("scales approximately linearly with budget", () => {
@@ -57,7 +58,7 @@ describe("usage", () => {
 
     it("uses correct pricing from MODEL_PRICING", () => {
       const budget = 1.0;
-      const pricing = MODEL_PRICING["google/gemini-2.5-flash"];
+      const pricing = MODEL_PRICING[OPENROUTER_MODEL_ID];
 
       const inputPerToken = pricing.inputPer1M / 1_000_000;
       const outputPerToken = pricing.outputPer1M / 1_000_000;

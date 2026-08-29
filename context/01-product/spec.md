@@ -33,7 +33,8 @@ underlying library operations.
 
 Every capture reaches the same workspace content model. Browser and extension
 clients commit through LiveStore; external request sources enqueue ingestion;
-chat commits through its server-side LiveStore client.
+chat calls the workspace `LinkProcessorDO`, which commits through the existing
+canonical server-side LiveStore client.
 
 ## Link Experience
 

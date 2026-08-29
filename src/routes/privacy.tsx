@@ -34,7 +34,7 @@ function PrivacyPage() {
       lead="What we collect, what we don't, and how you stay in control of your saved links."
     >
       <LegalArticle>
-        <LegalUpdated date="August 28, 2026" />
+        <LegalUpdated date="August 29, 2026" />
         <p>We made this short and tried to write it in English, not lawyer.</p>
 
         <section id="tldr">
@@ -229,9 +229,9 @@ function PrivacyPage() {
               saved-link details and text needed to generate the result.
             </li>
             <li>
-              <strong>Google LLC (Gemini)</strong> — provides the AI models used
-              for those features through OpenRouter. Regular link summaries use
-              Cloudflare Workers AI instead.
+              <strong>OpenAI, L.L.C.</strong> — provides the AI model used for
+              chat, weekly digests, and enriched X saves through OpenRouter.
+              Regular link summaries use Cloudflare Workers AI instead.
             </li>
             <li>
               <strong>Stripe, Inc.</strong> — subscription billing. Your card

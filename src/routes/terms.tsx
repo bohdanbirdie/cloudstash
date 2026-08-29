@@ -34,7 +34,7 @@ function TermsPage() {
       lead="The agreement between you and Cloudstash when you save links with us."
     >
       <LegalArticle>
-        <LegalUpdated date="August 28, 2026" />
+        <LegalUpdated date="August 29, 2026" />
         <p>
           These terms are an agreement between you and Phantom Edtech LLC about
           your use of Cloudstash. We’ve kept them short. If something here
@@ -112,9 +112,9 @@ function TermsPage() {
           <p>
             Cloudstash uses AI services to create link summaries and power
             features such as chat, weekly digests, and enriched X saves. Regular
-            link summaries use Cloudflare Workers AI. Those other AI features
-            use OpenRouter and Google Gemini. We send only the content needed to
-            provide the feature you use.
+            link summaries use Cloudflare Workers AI. Chat, weekly digests, and
+            enriched X saves use an OpenAI model through OpenRouter. We send
+            only the content needed to provide the feature you use.
           </p>
           <p>
             AI gets things wrong. Summaries and chat responses can be

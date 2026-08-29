@@ -27,12 +27,12 @@ export type WorkspaceLinksRpcResult<Value> =
   | { readonly ok: false; readonly error: WorkspaceLinksRpcError };
 
 export type SaveLinkRpcInput = SaveLinkInput & {
-  readonly source: "api" | "mcp";
+  readonly source: "api" | "chat" | "mcp";
 };
 
-const SaveLinkRpcInputSchema = Schema.Struct({
+export const SaveLinkRpcInputSchema = Schema.Struct({
   ...SaveLinkInput.fields,
-  source: Schema.Literals(["api", "mcp"]),
+  source: Schema.Literals(["api", "chat", "mcp"]),
 });
 
 const decode = Effect.fnUntraced(function* <S extends Schema.Top>(
@@ -137,4 +137,6 @@ export const WorkspaceLinksRpc = {
     invoke(links, UpdateLinksInput, input, (service, value) =>
       service.updateMany(value)
     ),
+
+  stats: (links: WorkspaceLinks) => domainOutcome(links.stats()),
 };

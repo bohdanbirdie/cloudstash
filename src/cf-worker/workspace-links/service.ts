@@ -98,9 +98,21 @@ type WorkspaceLinkBatchQuery =
       readonly limit: number;
     };
 
-interface WorkspaceLinkSaveResult {
+export interface WorkspaceLinkSaveResult {
   readonly created: boolean;
   readonly link: ApiLink;
+}
+
+export interface WorkspaceLinkStats {
+  readonly inbox: number;
+  readonly completed: number;
+  readonly total: number;
+}
+
+export interface WorkspaceLinkBatchUpdateResult {
+  readonly links: readonly ApiLink[];
+  readonly updated: number;
+  readonly nextCursor: string | null;
 }
 
 const storeFailure = (operation: string) => (cause: unknown) =>
@@ -553,7 +565,7 @@ export const makeWorkspaceLinks = (
     }),
 
     save: Effect.fn("WorkspaceLinks.save")(function* (
-      input: SaveLinkInput & { readonly source: "api" | "mcp" }
+      input: SaveLinkInput & { readonly source: "api" | "chat" | "mcp" }
     ) {
       const decoded = decodeUrl(input.url);
       const url = yield* Option.match(decoded, {
@@ -683,7 +695,18 @@ export const makeWorkspaceLinks = (
         links,
         updated: links.length,
         nextCursor: selected.nextCursor,
-      };
+      } satisfies WorkspaceLinkBatchUpdateResult;
+    }),
+
+    stats: Effect.fn("WorkspaceLinks.stats")(function* () {
+      const [inbox, completed, total] = yield* Effect.all([
+        query("countInboxLinks", () => store.query(apiLinksCount$("inbox"))),
+        query("countCompletedLinks", () =>
+          store.query(apiLinksCount$("completed"))
+        ),
+        query("countActiveLinks", () => store.query(apiLinksCount$("active"))),
+      ]);
+      return { inbox, completed, total } satisfies WorkspaceLinkStats;
     }),
   };
 };

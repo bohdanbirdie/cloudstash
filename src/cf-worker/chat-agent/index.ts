@@ -1,10 +1,5 @@
 import { AIChatAgent } from "@cloudflare/ai-chat";
 import type { OnChatMessageOptions } from "@cloudflare/ai-chat";
-import { createStoreDoPromise } from "@livestore/adapter-cloudflare";
-import type { ClientDoWithRpcCallback } from "@livestore/adapter-cloudflare";
-import { nanoid } from "@livestore/livestore";
-import type { Store } from "@livestore/livestore";
-import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { Connection, ConnectionContext } from "agents";
 import {
@@ -17,17 +12,6 @@ import {
 import type { LanguageModel } from "ai";
 import { Effect, Match } from "effect";
 
-import { normalizeLinkSearchQuery } from "../../lib/link-search";
-import type { LinkStatus } from "../../livestore/queries/filtered-links";
-import {
-  apiLinksCount$,
-  apiLinksPage$,
-  searchLinks$,
-} from "../../livestore/queries/links";
-import type { SearchResult } from "../../livestore/queries/schemas";
-import { pendingTagsByLink$, tagsByLink$ } from "../../livestore/queries/tags";
-import { schema } from "../../livestore/schema";
-import type { StoreEvent } from "../../livestore/schema";
 import { Billing } from "../billing/service";
 import { OrgId } from "../db/branded";
 import {
@@ -35,9 +19,8 @@ import {
   isDurableObjectRetired,
   retireDurableObjectStorage,
 } from "../durable-object-retirement";
-import type { ApiLinksPage } from "../links/api";
-import { encodeLinksPage, mergeTagNamesByLink } from "../links/api";
-import { maskId } from "../log-utils";
+import { maskId, safeErrorInfo } from "../log-utils";
+import { OPENROUTER_MODEL_ID } from "../openrouter-model";
 import { getAppLayer } from "../runtime";
 import type { Env } from "../shared";
 import { OtelTracingLive } from "../tracing";
@@ -48,8 +31,10 @@ import {
   isRateLimitError,
 } from "./errors";
 import { getLastUserMessageText, validateInput } from "./input-validator";
+import { makeChatLibrary } from "./library";
 import { writeTextMessage } from "./stream-helpers";
-import { createTools, createToolExecutors } from "./tools";
+import { createTools } from "./tools";
+import type { ToolEffectRunner } from "./tools";
 import {
   BUDGET_UNAVAILABLE_MESSAGE,
   CHAT_DISABLED_MESSAGE,
@@ -62,7 +47,6 @@ import {
 import type { ChatAgentState, UsageData } from "./usage";
 import { reconcileTokenUsageIn, reserveTokensIn } from "./usage-core";
 import type { UsageStorage } from "./usage-core";
-import { hasToolConfirmation, processToolCalls } from "./utils";
 
 const RESERVE_OUTCOME = {
   Disabled: "disabled",
@@ -148,12 +132,8 @@ function formatError(error: unknown): string {
   );
 }
 
-export class ChatAgentDO
-  extends AIChatAgent<Env>
-  implements ClientDoWithRpcCallback
-{
+export class ChatAgentDO extends AIChatAgent<Env> {
   override __DURABLE_OBJECT_BRAND = "chat-agent-do" as never;
-  private storePromise: Promise<Store<typeof schema>> | null = null;
   private cachedOrgId: OrgId | undefined;
   private retired = false;
   private storeRevision = 0;
@@ -189,15 +169,10 @@ export class ChatAgentDO
     for (const connection of this.getConnections()) {
       connection.close(1001, "Chat retired");
     }
-    const storePromise = this.storePromise?.catch(() => null);
-    this.storePromise = null;
     await Effect.runPromise(
       Effect.gen({ self: this }, function* () {
         yield* Effect.promise(() =>
-          retireDurableObjectStorage(this.ctx.storage, async () => {
-            const store = await storePromise;
-            await store?.shutdownPromise?.();
-          })
+          retireDurableObjectStorage(this.ctx.storage)
         );
         yield* Effect.logInfo("retire: storage wiped").pipe(
           Effect.annotateLogs({ doId: this.ctx.id.toString() })
@@ -207,62 +182,6 @@ export class ChatAgentDO
         Effect.provide(OtelTracingLive)
       )
     );
-  }
-
-  private async getSessionId(
-    storeId: string,
-    generation: number
-  ): Promise<string> {
-    if (!this.isCurrent(generation)) {
-      throw new DurableObjectRetiredError();
-    }
-    const key = "chat-session-id";
-    const stored = await this.ctx.storage.get<string>(key);
-    if (stored) return stored;
-
-    const newSessionId = `chat-${storeId}-${nanoid()}`;
-    if (!this.isCurrent(generation)) {
-      throw new DurableObjectRetiredError();
-    }
-    await this.ctx.storage.put(key, newSessionId);
-    return newSessionId;
-  }
-
-  private getStore(storeId?: string): Promise<Store<typeof schema>> {
-    const generation = this.storeRevision;
-    const existing = this.storePromise;
-    if (existing) return existing;
-
-    const id = storeId ?? this.name;
-    const promise = (async () => {
-      if (await this.isRetired()) throw new DurableObjectRetiredError();
-      const sessionId = await this.getSessionId(id, generation);
-      const store = await createStoreDoPromise({
-        clientId: "chat-agent-do",
-        durableObject: {
-          bindingName: "Chat",
-          ctx: this.ctx,
-          env: this.env,
-        } as never,
-        livePull: true,
-        schema,
-        sessionId,
-        storeId: id,
-        syncBackendStub: this.env.SYNC_BACKEND_DO.get(
-          this.env.SYNC_BACKEND_DO.idFromName(id)
-        ) as never,
-      });
-      if (!this.isCurrent(generation)) {
-        await store.shutdownPromise?.();
-        throw new DurableObjectRetiredError();
-      }
-      return store;
-    })();
-    promise.catch(() => {
-      if (this.storePromise === promise) this.storePromise = null;
-    });
-    this.storePromise = promise;
-    return promise;
   }
 
   private async isRetired(): Promise<boolean> {
@@ -276,90 +195,11 @@ export class ChatAgentDO
     return !this.retired && revision === this.storeRevision;
   }
 
-  private commitFor(
-    store: Store<typeof schema>,
-    revision: number
-  ): (...storeEvents: StoreEvent[]) => void {
-    return (...storeEvents) => {
-      if (!this.isCurrent(revision)) throw new DurableObjectRetiredError();
-      return store.commit(...storeEvents);
-    };
-  }
-
+  /** Compatibility target for SyncBackend subscriptions created by old actors. */
   async syncUpdateRpc(
-    payload: Uint8Array<ArrayBuffer>,
-    storeId: string
-  ): Promise<void> {
-    if (await this.isRetired()) return;
-    const generation = this.storeRevision;
-    await this.getStore(storeId);
-    await this.ctx.blockConcurrencyWhile(async () => {
-      if (!this.isCurrent(generation)) return;
-      await handleSyncUpdateRpc(this.ctx, payload);
-    });
-  }
-
-  // Read-only keyset page over this org's links, exposed to the public links
-  // API. Reuses the per-org store this DO already hosts for chat.
-  async listLinks(params: {
-    state: LinkStatus;
-    limit: number;
-    cursor: { createdAt: number; id: string } | null;
-  }): Promise<ApiLinksPage> {
-    return Effect.runPromise(
-      Effect.gen({ self: this }, function* () {
-        const store = yield* Effect.promise(() => this.getStore());
-        const rows = store.query(
-          apiLinksPage$({
-            state: params.state,
-            limitPlusOne: params.limit + 1,
-            cursor: params.cursor,
-          })
-        );
-        const tagRows = store.query(tagsByLink$);
-        const pendingTagRows = store.query(pendingTagsByLink$);
-        const total = store.query(apiLinksCount$(params.state));
-        return encodeLinksPage(
-          rows,
-          mergeTagNamesByLink(tagRows, pendingTagRows),
-          total,
-          params.limit
-        );
-      }).pipe(
-        Effect.withSpan("ChatAgentDO.listLinks", {
-          attributes: {
-            orgId: maskId(this.orgId()),
-            state: params.state,
-            limit: params.limit,
-          },
-        }),
-        Effect.provide(getAppLayer(this.env))
-      )
-    );
-  }
-
-  // Bounded ranked search over this org's links for read-only external callers.
-  async searchLinks(params: {
-    query: string;
-  }): Promise<readonly SearchResult[]> {
-    const query = normalizeLinkSearchQuery(params.query);
-    if (query === null) return [];
-
-    return Effect.runPromise(
-      Effect.gen({ self: this }, function* () {
-        const store = yield* Effect.promise(() => this.getStore());
-        return store.query(searchLinks$(query));
-      }).pipe(
-        Effect.withSpan("ChatAgentDO.searchLinks", {
-          attributes: {
-            orgId: maskId(this.orgId()),
-            queryLength: query.length,
-          },
-        }),
-        Effect.provide(getAppLayer(this.env))
-      )
-    );
-  }
+    _payload: Uint8Array<ArrayBuffer>,
+    _storeId: string
+  ): Promise<void> {}
 
   private usageStorage(
     storage: Pick<DurableObjectStorage, "get" | "put"> = this.ctx.storage
@@ -534,23 +374,18 @@ export class ChatAgentDO
     const openrouter = createOpenRouter({
       apiKey: this.env.OPENROUTER_API_KEY,
     });
-    const model = openrouter("google/gemini-2.5-flash");
+    const model = openrouter(OPENROUTER_MODEL_ID);
 
-    const store = await this.getStore();
-    const commit = this.commitFor(store, generation);
-    const tools = createTools(store, commit);
-    const toolExecutors = createToolExecutors(store, commit);
-
-    const lastMessage = this.messages[this.messages.length - 1];
-    if (hasToolConfirmation(lastMessage)) {
-      return this.handleToolConfirmation(
-        model,
-        tools,
-        toolExecutors,
-        generation,
-        options?.abortSignal
-      );
-    }
+    const libraryId = this.env.LINK_PROCESSOR_DO.idFromName(this.name);
+    const libraryStub = this.env.LINK_PROCESSOR_DO.get(libraryId);
+    const library = makeChatLibrary({
+      callRpc: (payload) =>
+        libraryStub.workspaceLinksRpc(Uint8Array.from(payload)),
+      durableObjectId: libraryId.toString(),
+    });
+    const runToolEffect: ToolEffectRunner = (effect) =>
+      effect.pipe(Effect.provide(getAppLayer(this.env)), Effect.runPromise);
+    const tools = createTools(library, runToolEffect);
 
     const userText = getLastUserMessageText(this.messages);
     if (userText) {
@@ -577,77 +412,28 @@ export class ChatAgentDO
     );
   }
 
-  private handleToolConfirmation(
-    model: LanguageModel,
-    tools: ReturnType<typeof createTools>,
-    toolExecutors: ReturnType<typeof createToolExecutors>,
-    generation: number,
-    abortSignal?: AbortSignal
-  ) {
-    const stream = createUIMessageStream({
-      onError: formatError,
-      execute: async ({ writer }) => {
-        const updatedMessages = await processToolCalls(
-          { messages: this.messages, tools },
-          toolExecutors
-        );
-
-        if (!this.isCurrent(generation)) return;
-
-        this.messages = updatedMessages;
-        await this.persistMessages(this.messages);
-
-        const recentMessages = this.messages.slice(-CONTEXT_WINDOW_SIZE);
-        const messages = await convertToModelMessages(recentMessages);
-
-        const result = streamText({
-          model,
-          system: SYSTEM_PROMPT,
-          messages,
-          tools,
-          abortSignal,
-          stopWhen: stepCountIs(5),
-          experimental_telemetry: { isEnabled: true },
-          onFinish: ({ usage }) => {
-            if (!this.isCurrent(generation)) return;
-            // ctx.waitUntil so DO eviction can't drop the usage write.
-            this.ctx.waitUntil(
-              this.recordTokenUsage(
-                usage.inputTokens ?? 0,
-                usage.outputTokens ?? 0,
-                ESTIMATED_TOKENS_PER_CALL,
-                generation
-              ).pipe(
-                Effect.tap(() =>
-                  Effect.promise(() => this.broadcastUsage(generation))
-                ),
-                Effect.tapCause((cause) =>
-                  Effect.logError("recordTokenUsage failed").pipe(
-                    Effect.annotateLogs({ cause: String(cause) })
-                  )
-                ),
-                Effect.provide(getAppLayer(this.env)),
-                Effect.runPromise
-              )
-            );
-          },
-        });
-
-        writer.merge(result.toUIMessageStream());
-      },
-    });
-
-    return createUIMessageStreamResponse({ stream });
-  }
-
   private handleNormalChat(
     model: LanguageModel,
     tools: ReturnType<typeof createTools>,
     generation: number,
     abortSignal?: AbortSignal
   ) {
+    const onError = (error: unknown) => {
+      this.ctx.waitUntil(
+        Effect.logError("Chat stream failed").pipe(
+          Effect.annotateLogs({
+            ...safeErrorInfo(error),
+            errorKind: classifyError(error),
+            orgId: maskId(this.orgId()),
+          }),
+          Effect.provide(getAppLayer(this.env)),
+          Effect.runPromise
+        )
+      );
+      return formatError(error);
+    };
     const stream = createUIMessageStream({
-      onError: formatError,
+      onError,
       execute: async ({ writer }) => {
         const recentMessages = this.messages.slice(-CONTEXT_WINDOW_SIZE);
         const messages = await convertToModelMessages(recentMessages);
@@ -685,7 +471,7 @@ export class ChatAgentDO
           },
         });
 
-        writer.merge(result.toUIMessageStream());
+        writer.merge(result.toUIMessageStream({ onError }));
       },
     });
 

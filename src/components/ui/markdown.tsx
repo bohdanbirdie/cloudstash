@@ -6,7 +6,6 @@ import remarkGfm from "remark-gfm";
 
 import { cn } from "@/lib/utils";
 
-import { CodeBlock, CodeBlockCode } from "./code-block";
 import { LinkMention } from "./link-mention";
 
 export type MarkdownProps = {
@@ -19,12 +18,6 @@ export type MarkdownProps = {
 function parseMarkdownIntoBlocks(markdown: string): string[] {
   const tokens = marked.lexer(markdown);
   return tokens.map((token) => token.raw);
-}
-
-function extractLanguage(className?: string): string {
-  if (!className) return "plaintext";
-  const match = className.match(/language-(\w+)/);
-  return match ? match[1] : "plaintext";
 }
 
 const INITIAL_COMPONENTS: Partial<Components> = {
@@ -46,13 +39,25 @@ const INITIAL_COMPONENTS: Partial<Components> = {
     return <p className="my-2 leading-relaxed">{children}</p>;
   },
   ul: function UnorderedListComponent({ children }) {
-    return <ul className="list-inside list-disc my-2">{children}</ul>;
+    return (
+      <ul className="my-3 list-none space-y-1.5 [&>li]:flex [&>li]:items-start [&>li]:gap-2.5 [&>li]:before:mt-[0.65em] [&>li]:before:size-1 [&>li]:before:shrink-0 [&>li]:before:rounded-full [&>li]:before:bg-muted-foreground/45 [&>li]:before:content-['']">
+        {children}
+      </ul>
+    );
   },
   ol: function OrderedListComponent({ children }) {
-    return <ol className="list-inside list-decimal my-2">{children}</ol>;
+    return (
+      <ol className="my-3 list-outside list-decimal space-y-1.5 ps-5 marker:text-xs marker:font-medium marker:text-muted-foreground/60">
+        {children}
+      </ol>
+    );
   },
   li: function ListItemComponent({ children }) {
-    return <li className="my-0.5">{children}</li>;
+    return (
+      <li className="min-w-0 leading-relaxed">
+        <span className="min-w-0">{children}</span>
+      </li>
+    );
   },
   a: function AnchorComponent({ href, children }) {
     if (!href) {
@@ -60,10 +65,10 @@ const INITIAL_COMPONENTS: Partial<Components> = {
     }
     return <LinkMention href={href}>{children}</LinkMention>;
   },
-  code: function CodeComponent({ className, children, ...props }) {
+  code: function CodeComponent({ className, children, node, ...props }) {
     const isInline =
-      !props.node?.position?.start.line ||
-      props.node?.position?.start.line === props.node?.position?.end.line;
+      !node?.position?.start.line ||
+      node.position.start.line === node.position.end.line;
 
     if (isInline) {
       return (
@@ -79,19 +84,24 @@ const INITIAL_COMPONENTS: Partial<Components> = {
       );
     }
 
-    const language = extractLanguage(className);
-
     return (
-      <CodeBlock className={className}>
-        <CodeBlockCode
-          code={typeof children === "string" ? children : ""}
-          language={language}
-        />
-      </CodeBlock>
+      <code
+        className={cn(
+          "block min-w-max p-3 font-mono text-[13px] leading-relaxed text-foreground",
+          className
+        )}
+        {...props}
+      >
+        {children}
+      </code>
     );
   },
   pre: function PreComponent({ children }) {
-    return <>{children}</>;
+    return (
+      <pre className="my-3 max-w-full overflow-x-auto rounded-lg border border-border bg-muted/40">
+        {children}
+      </pre>
+    );
   },
 };
 
@@ -113,7 +123,10 @@ const MemoizedMarkdownBlock = memo(
     );
   },
   function propsAreEqual(prevProps, nextProps) {
-    return prevProps.content === nextProps.content;
+    return (
+      prevProps.content === nextProps.content &&
+      prevProps.components === nextProps.components
+    );
   }
 );
 
@@ -123,11 +136,18 @@ function MarkdownComponent({
   children,
   id,
   className,
-  components = INITIAL_COMPONENTS,
+  components,
 }: MarkdownProps) {
   const generatedId = useId();
   const blockId = id ?? generatedId;
   const blocks = useMemo(() => parseMarkdownIntoBlocks(children), [children]);
+  const resolvedComponents = useMemo(
+    () =>
+      components
+        ? { ...INITIAL_COMPONENTS, ...components }
+        : INITIAL_COMPONENTS,
+    [components]
+  );
 
   return (
     <div className={className}>
@@ -135,7 +155,7 @@ function MarkdownComponent({
         <MemoizedMarkdownBlock
           key={`${blockId}-block-${index}`}
           content={block}
-          components={components}
+          components={resolvedComponents}
         />
       ))}
     </div>

@@ -1,6 +1,7 @@
 import type { OrgId } from "../db/branded";
+import { OPENROUTER_MODEL_ID } from "../openrouter-model";
 
-export const ENRICHMENT_MODEL = "google/gemini-2.5-flash";
+export const ENRICHMENT_MODEL = OPENROUTER_MODEL_ID;
 
 export const MONTHLY_ENRICHMENT_CAP = 100;
 

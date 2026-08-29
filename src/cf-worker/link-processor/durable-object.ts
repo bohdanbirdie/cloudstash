@@ -1,5 +1,6 @@
 import { createStoreDoPromise } from "@livestore/adapter-cloudflare";
 import type { ClientDoWithRpcCallback } from "@livestore/adapter-cloudflare";
+import { toDurableObjectHandler } from "@livestore/common-cf";
 import { computed, nanoid, queryDb } from "@livestore/livestore";
 import type { Store, Unsubscribe } from "@livestore/livestore";
 import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
@@ -35,6 +36,13 @@ import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
 import type { Env } from "../shared";
 import { OpenRouterApiKeyLive } from "../weekly-digest/generator";
+import {
+  makeWorkspaceLinksRpcHandlers,
+  unwrapWorkspaceLinksRpcResult,
+  WorkspaceLinksRemoteError,
+  WorkspaceLinksRpcs,
+} from "../workspace-links/effect-rpc";
+import type { WorkspaceLinksRpcRunner } from "../workspace-links/effect-rpc";
 import { WorkspaceLinkUnavailableError } from "../workspace-links/errors";
 import type {
   SaveLinkRpcInput,
@@ -309,6 +317,33 @@ export class LinkProcessorDO
     return runEffect(operation(links));
   }
 
+  private readonly runWorkspaceLinksEffectRpc: WorkspaceLinksRpcRunner = (
+    operation
+  ) =>
+    Effect.tryPromise(() => this.runWorkspaceLinksRpc(operation)).pipe(
+      Effect.tapError((error) =>
+        Effect.logError("Workspace links RPC failed").pipe(
+          Effect.annotateLogs(safeErrorInfo(error.cause))
+        )
+      ),
+      Effect.mapError(
+        () =>
+          new WorkspaceLinksRemoteError({
+            code: "unavailable",
+            message: "Library is unavailable",
+          })
+      ),
+      Effect.flatMap(unwrapWorkspaceLinksRpcResult)
+    );
+
+  async workspaceLinksRpc(payload: Uint8Array<ArrayBuffer>) {
+    return runEffect(
+      toDurableObjectHandler(WorkspaceLinksRpcs, {
+        layer: makeWorkspaceLinksRpcHandlers(this.runWorkspaceLinksEffectRpc),
+      })(payload)
+    );
+  }
+
   async listLinks(input: ListLinksInput) {
     return this.runWorkspaceLinksRpc((links) =>
       WorkspaceLinksRpc.list(links, input)
@@ -343,6 +378,10 @@ export class LinkProcessorDO
     return this.runWorkspaceLinksRpc((links) =>
       WorkspaceLinksRpc.updateMany(links, input)
     );
+  }
+
+  async getLinkStats() {
+    return this.runWorkspaceLinksRpc((links) => WorkspaceLinksRpc.stats(links));
   }
 
   private async ensureSubscribed(): Promise<void> {
