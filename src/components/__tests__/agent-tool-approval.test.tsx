@@ -387,4 +387,29 @@ describe("agent tool approval", () => {
       screen.getByRole("button", { name: "Show fewer links" })
     ).not.toBeNull();
   });
+
+  it("keeps requested links approvable while local previews catch up", () => {
+    render(
+      <LinkDeleteConfirmationView
+        links={[
+          {
+            id: "link-1",
+            title: "Available preview",
+            domain: "example.com",
+            favicon: null,
+          },
+          null,
+          null,
+        ]}
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Move 3 links to archive?")).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Archive" }).hasAttribute("disabled")
+    ).toBe(false);
+    expect(screen.getByText("Available preview")).not.toBeNull();
+  });
 });

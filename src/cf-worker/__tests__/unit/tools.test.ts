@@ -583,6 +583,19 @@ describe("createTools", () => {
 
       expect(result).toEqual({ error: "Link is already unread" });
     });
+
+    it("does not restore an archived link", async () => {
+      const deletedAt = new Date("2024-02-01T00:00:00Z");
+      const id = seedLink({ title: "Example Title", deletedAt });
+
+      const result = await tools.uncompleteLink.execute!({ id }, stubCtx);
+
+      expect(result).toEqual({
+        error: "Cannot mark a deleted link as unread",
+      });
+      const row = store.query(tables.links.where({ id }))[0];
+      expect(row.deletedAt).toEqual(deletedAt);
+    });
   });
 
   describe("restoreLink", () => {

@@ -176,6 +176,8 @@ const uncompleteLink = Effect.fn("ChatTools.uncompleteLink")(function* (
 ) {
   const link = yield* findLink(library, id);
   if (link === null) return { error: "Link not found" };
+  if (link.state === "archive")
+    return { error: "Cannot mark a deleted link as unread" };
   if (link.state === "inbox") return { error: "Link is already unread" };
   yield* library.update({ id, changes: { state: "inbox" } });
   return { success: true, message: `Marked "${titleOf(link)}" as unread` };

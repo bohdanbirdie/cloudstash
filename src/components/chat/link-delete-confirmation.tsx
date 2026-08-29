@@ -96,13 +96,14 @@ export function LinkDeleteConfirmationView({
   const availableLinks = links.filter(
     (link): link is ArchiveLinkPreview => link !== null
   );
-  const validLinkCount = availableLinks.length;
-  const canExpand = validLinkCount > 2;
+  const requestedLinkCount = links.length;
+  const availableLinkCount = availableLinks.length;
+  const canExpand = availableLinkCount > 2;
   const visibleLinks = Match.value(showAll).pipe(
     Match.when(true, () => availableLinks),
     Match.orElse(() => availableLinks.slice(0, 2))
   );
-  const title = Match.value(validLinkCount).pipe(
+  const title = Match.value(requestedLinkCount).pipe(
     Match.when(0, () => "Links no longer available"),
     Match.when(
       (count) => count > 1,
@@ -112,7 +113,7 @@ export function LinkDeleteConfirmationView({
   );
   const disclosureLabel = Match.value(showAll).pipe(
     Match.when(true, () => "Show fewer links"),
-    Match.orElse(() => `Review all ${validLinkCount} links`)
+    Match.orElse(() => `Review all ${availableLinkCount} links`)
   );
   const isComposer = surface === "composer";
 
@@ -151,7 +152,7 @@ export function LinkDeleteConfirmationView({
                 isComposer ? "Meta+Enter Control+Enter" : undefined
               }
               onClick={onApprove}
-              disabled={validLinkCount === 0}
+              disabled={requestedLinkCount === 0}
             >
               Archive
               {isComposer && (
@@ -166,7 +167,7 @@ export function LinkDeleteConfirmationView({
           </div>
         </div>
 
-        {validLinkCount > 0 && (
+        {availableLinkCount > 0 && (
           <div
             id={listId}
             className={cn(
