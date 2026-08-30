@@ -88,7 +88,8 @@ const initializeSyncWithTokenEffect = Effect.fn(
   const me = yield* api.getMe(accessToken).pipe(
     Effect.map(Option.some),
     Effect.catchTag("XUnauthorizedError", (error) =>
-      store.setStatus("needs_reconnect").pipe(
+      store.setReconnectReason("auth").pipe(
+        Effect.andThen(store.setStatus("needs_reconnect")),
         Effect.tap(() =>
           Effect.logWarning("start: getMe unauthorized").pipe(
             Effect.annotateLogs({
@@ -239,14 +240,26 @@ const reconcileCoreEffect = Effect.fn("XBookmarkSyncDO.reconcileCore")(
     const accessToken = yield* repository.getAccessToken(userId, account.id);
     const connected = isConnectedState(state);
     if (connected && state.status === "needs_reconnect") {
-      const api = yield* XApiClient;
-      const credentialValid = yield* api.getMe(accessToken).pipe(
-        Effect.as(true),
-        Effect.catchTag("XUnauthorizedError", () => Effect.succeed(false))
-      );
+      const reason = yield* store.readReconnectReason();
+      const recoverable = reason === "auth";
+      const credentialValid =
+        recoverable &&
+        (yield* (yield* XApiClient).getMe(accessToken).pipe(
+          Effect.as(true),
+          Effect.catchTag("XUnauthorizedError", () => Effect.succeed(false))
+        ));
       if (!credentialValid) {
         yield* setControlEffect(state, organizationId, "needs_reconnect");
         yield* alarm.cancel();
+        if (!recoverable) {
+          yield* Effect.logInfo("reconcile: parked on provider access").pipe(
+            Effect.annotateLogs({
+              userId: maskId(userId),
+              organizationId: maskId(organizationId),
+              reason,
+            })
+          );
+        }
         return Option.none<ActiveReconcileContext>();
       }
     }
@@ -307,6 +320,14 @@ export const reconcileBeforePollEffect = Effect.fn(
   return yield* reconcileCoreEffect(userId, undefined);
 });
 
+export const reconnectSyncEffect = Effect.fn("XBookmarkSyncDO.reconnect")(
+  function* (userId: UserId, requestedOrgId: OrgId | undefined) {
+    const store = yield* XSyncStateStore;
+    yield* store.setReconnectReason("auth");
+    return yield* reconcileSyncEffect(userId, requestedOrgId);
+  }
+);
+
 export const resumeSyncEffect = Effect.fn("XBookmarkSyncDO.resume")(function* (
   userId: UserId,
   requestedOrgId: OrgId | undefined
@@ -322,5 +343,6 @@ export const resumeSyncEffect = Effect.fn("XBookmarkSyncDO.resume")(function* (
     return;
   }
   yield* store.setSyncEnabled(true);
+  yield* store.setReconnectReason("auth");
   return yield* reconcileSyncEffect(userId, requestedOrgId);
 });

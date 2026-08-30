@@ -20,7 +20,6 @@ A `LinkProjection` defines a view's navigation behavior:
 
 ```typescript
 interface LinkProjection {
-  query: typeof inboxLinks$;
   status: LinkStatus;
   filteredQuery: (options) => typeof filteredLinks$;
   willActionRemoveLink: (action: LinkAction) => boolean;

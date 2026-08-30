@@ -47,6 +47,15 @@ const makeXSyncControl = (
         catch: sideEffectError("DO.reconcile"),
       });
     }),
+    reconnect: Effect.fn("XSyncControl.reconnect")(function* (
+      userId: UserId,
+      orgId?: OrgId
+    ) {
+      yield* Effect.tryPromise({
+        try: () => stubFor(userId).reconnect(orgId),
+        catch: sideEffectError("DO.reconnect"),
+      });
+    }),
     resume: Effect.fn("XSyncControl.resume")(function* (
       userId: UserId,
       orgId?: OrgId

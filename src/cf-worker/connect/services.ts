@@ -4,6 +4,7 @@ import { matchWorkspaceAccessError } from "../auth/workspace-access";
 import type { WorkspaceAccess } from "../auth/workspace-access";
 import { ApiKey, ApiKeyRowId, OrgId, UserId } from "../db/branded";
 import type { DbError } from "../db/service";
+import { maskId } from "../log-utils";
 import { ConnectUnauthorizedError, SessionLookupError } from "./errors";
 import type { KeyCreationError } from "./errors";
 
@@ -87,6 +88,16 @@ export class SessionProvider extends Context.Service<
     ) => Effect.Effect<SessionData | null, SessionLookupError>;
   }
 >()("SessionProvider") {}
+
+export const requireAuthorizedSession = Effect.fn("Connect.requireSession")(
+  function* (headers: Headers) {
+    const sessionProvider = yield* SessionProvider;
+    const session = yield* sessionProvider.getSession(headers);
+    if (!session) return yield* new ConnectUnauthorizedError();
+    yield* Effect.annotateCurrentSpan("userId", maskId(session.userId));
+    return session;
+  }
+);
 
 export class ApiKeyStore extends Context.Service<
   ApiKeyStore,

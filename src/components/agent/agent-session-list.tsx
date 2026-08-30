@@ -91,7 +91,13 @@ export function AgentSessionListView({
   onRetry: () => Promise<void>;
 }) {
   const runAction = (action: () => Promise<void>) => {
-    void action().catch(() => toast.error("Couldn’t update chats. Try again."));
+    void action().catch((cause: unknown) =>
+      toast.error(
+        cause instanceof Error && cause.message
+          ? cause.message
+          : "Couldn’t update chats. Try again."
+      )
+    );
   };
 
   return (

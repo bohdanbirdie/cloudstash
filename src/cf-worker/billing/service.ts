@@ -35,6 +35,7 @@ import {
 } from "./usage-cycle";
 
 type OrgRow = {
+  cancelAtPeriodEnd: boolean;
   createdAt: Date;
   tier: PlanTier;
   adminTierGrant: PlanTier | null;
@@ -123,6 +124,12 @@ export const AssistantAllowance = Schema.Struct({
 });
 export type AssistantAllowance = Schema.Schema.Type<typeof AssistantAllowance>;
 
+interface Subscription {
+  readonly cancelAtPeriodEnd: boolean;
+  readonly currentPeriodEnd: string | null;
+  readonly billingInterval: "month" | "year" | null;
+}
+
 interface BillingShape {
   readonly capabilities: (
     orgId: OrgId
@@ -134,11 +141,14 @@ interface BillingShape {
   readonly tier: (
     orgId: OrgId
   ) => Effect.Effect<PlanTier, DbError | OrgNotFoundError>;
-  readonly subscription: (orgId: OrgId) => Effect.Effect<
+  readonly subscription: (
+    orgId: OrgId
+  ) => Effect.Effect<Subscription, DbError | OrgNotFoundError>;
+  readonly orgBillingSnapshot: (orgId: OrgId) => Effect.Effect<
     {
-      readonly cancelAtPeriodEnd: boolean;
-      readonly currentPeriodEnd: string | null;
-      readonly billingInterval: "month" | "year" | null;
+      readonly tier: PlanTier;
+      readonly capabilities: TierCapabilities;
+      readonly subscription: Subscription;
     },
     DbError | OrgNotFoundError
   >;
@@ -171,6 +181,7 @@ const make = Effect.gen(function* () {
       db.query.organization.findFirst({
         where: eq(schema.organization.id, orgId),
         columns: {
+          cancelAtPeriodEnd: true,
           createdAt: true,
           tier: true,
           adminTierGrant: true,
@@ -187,6 +198,12 @@ const make = Effect.gen(function* () {
         row ? Effect.succeed(row) : OrgNotFoundError.make({ orgId })
       )
     );
+
+  const toSubscription = (row: OrgRow): Subscription => ({
+    billingInterval: row.billingInterval ?? null,
+    cancelAtPeriodEnd: row.cancelAtPeriodEnd,
+    currentPeriodEnd: row.currentPeriodEnd?.toISOString() ?? null,
+  });
 
   return {
     /** Tier + admin overrides, merged into the runtime capability surface. */
@@ -260,29 +277,29 @@ const make = Effect.gen(function* () {
     }),
 
     subscription: Effect.fn("Billing.subscription")(function* (orgId: OrgId) {
-      const row = yield* query(
-        db.query.organization.findFirst({
-          where: eq(schema.organization.id, orgId),
-          columns: {
-            cancelAtPeriodEnd: true,
-            currentPeriodEnd: true,
-            billingInterval: true,
-          },
-        })
-      ).pipe(
-        Effect.flatMap((r) =>
-          r ? Effect.succeed(r) : OrgNotFoundError.make({ orgId })
-        )
-      );
+      const row = yield* fetchOrgRow(orgId);
       yield* Effect.annotateCurrentSpan({
         orgId: maskId(orgId),
         interval: row.billingInterval ?? "none",
         cancelAtPeriodEnd: row.cancelAtPeriodEnd,
       });
+      return toSubscription(row);
+    }),
+
+    orgBillingSnapshot: Effect.fn("Billing.orgBillingSnapshot")(function* (
+      orgId: OrgId
+    ) {
+      const row = yield* fetchOrgRow(orgId);
+      const plan = resolveEffectivePlan(row);
+      yield* Effect.annotateCurrentSpan({
+        orgId: maskId(orgId),
+        tier: plan.tier,
+        source: plan.source,
+      });
       return {
-        cancelAtPeriodEnd: row.cancelAtPeriodEnd,
-        currentPeriodEnd: row.currentPeriodEnd?.toISOString() ?? null,
-        billingInterval: row.billingInterval ?? null,
+        capabilities: mergeCapabilities(plan.tier, row.featureOverrides),
+        subscription: toSubscription(row),
+        tier: plan.tier,
       };
     }),
 
@@ -415,6 +432,7 @@ const make = Effect.gen(function* () {
       return orgs.map((org) => {
         const overrides = org.featureOverrides ?? {};
         const plan = resolveEffectivePlan({
+          cancelAtPeriodEnd: org.cancelAtPeriodEnd,
           createdAt: org.createdAt,
           tier: org.tier ?? "free",
           adminTierGrant: org.adminTierGrant,

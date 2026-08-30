@@ -13,6 +13,7 @@ import { titleFromMessage } from "@/cf-worker/chat-agent/sessions";
 import type { AssistantCreditStatus } from "@/cf-worker/chat-agent/usage";
 import {
   chatSessionEndpoint,
+  chatSessionFailure,
   chatSessionsEndpoint,
   decodeChatSessionsResponse,
   fetchChatSessions,
@@ -20,6 +21,11 @@ import {
 
 const EMPTY_SESSIONS: readonly ChatSession[] = [];
 
+/**
+ * The session endpoints answer a failure with a specific, user-facing reason —
+ * the chat limit, for instance, tells the reader to delete a chat first.
+ * Prefer it over a status code, and fall back only when the body is unusable.
+ */
 interface AgentSessionsValue {
   readonly sessions: readonly ChatSession[];
   readonly assistantCredits: AssistantCreditStatus | undefined;
@@ -68,7 +74,8 @@ export function AgentSessionsProvider({
       method: "POST",
       credentials: "include",
     });
-    if (!response.ok) throw new Error(`Create chat failed: ${response.status}`);
+    if (!response.ok)
+      throw await chatSessionFailure(response, "Create chat failed");
     const result = await decodeChatSessionsResponse(await response.json());
     await mutate(result, { revalidate: false });
     setSelectedAgentName(result.sessions[0]?.agentName);
@@ -84,7 +91,7 @@ export function AgentSessionsProvider({
         }
       );
       if (!response.ok)
-        throw new Error(`Delete chat failed: ${response.status}`);
+        throw await chatSessionFailure(response, "Delete chat failed");
       const result = await decodeChatSessionsResponse(await response.json());
       await mutate(result, { revalidate: false });
       setSelectedAgentName((selected) =>

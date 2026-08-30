@@ -49,9 +49,8 @@ const getOrgWithCapabilities = Effect.fn("Org.getOrgWithCapabilities")(
     }
 
     const billing = yield* Billing;
-    const tier = yield* billing.tier(orgId);
-    const capabilities = yield* billing.capabilities(orgId);
-    const subscription = yield* billing.subscription(orgId);
+    const { capabilities, subscription, tier } =
+      yield* billing.orgBillingSnapshot(orgId);
 
     yield* Effect.annotateCurrentSpan({
       tier,

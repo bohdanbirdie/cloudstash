@@ -35,6 +35,7 @@ const billingLayer = (capabilities: TierCapabilities) => {
       assistantAllowance: notUsed,
       tier: notUsed,
       subscription: notUsed,
+      orgBillingSnapshot: notUsed,
       getOverrides: notUsed,
       setTier: notUsed,
       setOverride: notUsed,
@@ -53,6 +54,7 @@ const controlLayer = (overrides: Partial<XSyncControl["Service"]> = {}) => {
       disconnect: notUsed,
       pause: notUsed,
       reconcile: notUsed,
+      reconnect: notUsed,
       resume: notUsed,
       status: notUsed,
       ...overrides,
@@ -156,9 +158,9 @@ describe("X control failures", () => {
 });
 
 describe("xCompleteRequest", () => {
-  it.effect("reconciles once and redirects with transient UI state", () =>
+  it.effect("reconnects once and redirects with transient UI state", () =>
     Effect.gen(function* () {
-      const reconciliations = yield* Ref.make(0);
+      const reconnections = yield* Ref.make(0);
       const response = yield* xCompleteRequest(
         request(
           "/api/connect/x/complete?returnTo=%2Fsettings%3Ftab%3Dintegration"
@@ -168,8 +170,8 @@ describe("xCompleteRequest", () => {
           Layer.mergeAll(
             sessionLayer(),
             controlLayer({
-              reconcile: () =>
-                Ref.update(reconciliations, (count) => count + 1).pipe(
+              reconnect: () =>
+                Ref.update(reconnections, (count) => count + 1).pipe(
                   Effect.as({ kind: "active", organizationId: ORG })
                 ),
             })
@@ -182,7 +184,7 @@ describe("xCompleteRequest", () => {
         response.headers.get("location"),
         "http://worker/settings?tab=integration&integrationResult=x-connected"
       );
-      assert.strictEqual(yield* Ref.get(reconciliations), 1);
+      assert.strictEqual(yield* Ref.get(reconnections), 1);
     })
   );
 
@@ -194,7 +196,7 @@ describe("xCompleteRequest", () => {
         Layer.mergeAll(
           sessionLayer(),
           controlLayer({
-            reconcile: () =>
+            reconnect: () =>
               Effect.succeed({ kind: "active", organizationId: ORG }),
           })
         )

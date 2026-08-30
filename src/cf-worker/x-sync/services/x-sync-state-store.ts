@@ -5,6 +5,7 @@ import { XSyncStatus } from "../../../lib/x-sync-status";
 import { OrgId, XTweetId, XUserId, XUsername } from "../../db/branded";
 import type { XSyncStorageError } from "../errors";
 import type { XSyncPollControl } from "../poll-control";
+import type { XSyncReconnectReason } from "../reconnect-reason";
 
 const XSyncStateFields = {
   organizationId: Schema.NullOr(OrgId),
@@ -71,6 +72,13 @@ export interface XSyncStateStoreShape {
   >;
   readonly setPollControl: (
     control: XSyncPollControl
+  ) => Effect.Effect<void, XSyncStorageError>;
+  readonly readReconnectReason: () => Effect.Effect<
+    XSyncReconnectReason,
+    XSyncStorageError
+  >;
+  readonly setReconnectReason: (
+    reason: XSyncReconnectReason
   ) => Effect.Effect<void, XSyncStorageError>;
   readonly clear: () => Effect.Effect<void, XSyncStorageError>;
 }

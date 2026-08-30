@@ -11,7 +11,6 @@ import { tables } from "../schema";
 import {
   ApiLinkRowSchema,
   apiLinkRowsSchema,
-  linksListSchema,
   linkByIdSchema,
   searchResultsSchema,
 } from "./schemas";
@@ -56,86 +55,6 @@ export const archiveCount$ = queryDb(
     schema: archiveCountSchema,
   }),
   { label: "archiveCount" }
-);
-
-export const inboxLinks$ = queryDb(
-  () => ({
-    query: `
-      SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
-             s.title, s.description, s.image, s.favicon
-      FROM links l
-      LEFT JOIN link_snapshots s ON s.id = (
-        SELECT s2.id FROM link_snapshots s2
-        WHERE s2.linkId = l.id
-        ORDER BY s2.fetchedAt DESC
-        LIMIT 1
-      )
-      WHERE l.status = 'unread' AND l.deletedAt IS NULL
-      ORDER BY l.createdAt DESC
-    `,
-    schema: linksListSchema,
-  }),
-  { label: "inboxLinks" }
-);
-
-export const completedLinks$ = queryDb(
-  () => ({
-    query: `
-      SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
-             s.title, s.description, s.image, s.favicon
-      FROM links l
-      LEFT JOIN link_snapshots s ON s.id = (
-        SELECT s2.id FROM link_snapshots s2
-        WHERE s2.linkId = l.id
-        ORDER BY s2.fetchedAt DESC
-        LIMIT 1
-      )
-      WHERE l.status = 'completed' AND l.deletedAt IS NULL
-      ORDER BY l.completedAt DESC
-    `,
-    schema: linksListSchema,
-  }),
-  { label: "completedLinks" }
-);
-
-export const allLinks$ = queryDb(
-  () => ({
-    query: `
-      SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
-             s.title, s.description, s.image, s.favicon
-      FROM links l
-      LEFT JOIN link_snapshots s ON s.id = (
-        SELECT s2.id FROM link_snapshots s2
-        WHERE s2.linkId = l.id
-        ORDER BY s2.fetchedAt DESC
-        LIMIT 1
-      )
-      WHERE l.deletedAt IS NULL
-      ORDER BY l.createdAt DESC
-    `,
-    schema: linksListSchema,
-  }),
-  { label: "allLinks" }
-);
-
-export const archiveLinks$ = queryDb(
-  () => ({
-    query: `
-      SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
-             s.title, s.description, s.image, s.favicon
-      FROM links l
-      LEFT JOIN link_snapshots s ON s.id = (
-        SELECT s2.id FROM link_snapshots s2
-        WHERE s2.linkId = l.id
-        ORDER BY s2.fetchedAt DESC
-        LIMIT 1
-      )
-      WHERE l.deletedAt IS NOT NULL
-      ORDER BY l.deletedAt DESC
-    `,
-    schema: linksListSchema,
-  }),
-  { label: "archiveLinks" }
 );
 
 function apiLinkStateFilter(state: LinkCollectionState): string {

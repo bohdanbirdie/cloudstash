@@ -20,6 +20,7 @@ import {
   SessionProvider,
   connectWorkspaceAccessError,
   getAuthorizedSession,
+  requireAuthorizedSession,
 } from "./services";
 
 const authorizeExtensionKey = Effect.fn("ExtensionConnect.authorizeKey")(
@@ -36,16 +37,9 @@ const authorizeExtensionKey = Effect.fn("ExtensionConnect.authorizeKey")(
 export const handleConnectRequest = Effect.fn(
   "ExtensionConnect.handleConnectRequest"
 )(function* (headers: Headers) {
-  const sessionProvider = yield* SessionProvider;
   const apiKeyStore = yield* ApiKeyStore;
 
-  const session = yield* sessionProvider
-    .getSession(headers)
-    .pipe(
-      Effect.flatMap((s) =>
-        s ? Effect.succeed(s) : Effect.fail(new ConnectUnauthorizedError())
-      )
-    );
+  const session = yield* requireAuthorizedSession(headers);
 
   const { userId, orgId } = session;
   if (!orgId) {

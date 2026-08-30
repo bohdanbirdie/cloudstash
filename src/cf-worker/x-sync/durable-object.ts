@@ -25,6 +25,7 @@ import {
 import {
   reconcileBeforePollEffect,
   reconcileSyncEffect,
+  reconnectSyncEffect,
   resumeSyncEffect,
 } from "./reconcile";
 import { XApiClient } from "./services";
@@ -145,6 +146,12 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
       yield* alarm.cancel();
     }
   );
+
+  async reconnect(orgId?: string): Promise<void> {
+    await this.runEffect(
+      reconnectSyncEffect(this.userId, optionalOrgId(orgId))
+    );
+  }
 
   async resume(orgId?: string): Promise<void> {
     await this.runEffect(resumeSyncEffect(this.userId, optionalOrgId(orgId)));

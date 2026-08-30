@@ -10,6 +10,8 @@ import type { XApiFailure } from "../../x-sync/errors";
 import { XSyncSideEffectError } from "../../x-sync/errors";
 import { activePollControl } from "../../x-sync/poll-control";
 import type { XSyncPollControl } from "../../x-sync/poll-control";
+import { defaultReconnectReason } from "../../x-sync/reconnect-reason";
+import type { XSyncReconnectReason } from "../../x-sync/reconnect-reason";
 import type { BookmarksPage } from "../../x-sync/services";
 import { XApiClient } from "../../x-sync/services";
 import { LinkQueueClient } from "../../x-sync/services/link-queue-client";
@@ -51,6 +53,8 @@ export interface StoreRec {
   controlSyncEnabled: boolean | null;
   pollControl: XSyncPollControl;
   setPollControlCalls: XSyncPollControl[];
+  reconnectReason: XSyncReconnectReason;
+  setReconnectReasonCalls: XSyncReconnectReason[];
 }
 
 const pendingSnapshot = (rec: StoreRec): XSyncStateSnapshot | null => {
@@ -95,6 +99,8 @@ export const makeStoreLayer = (initial: XSyncStateSnapshot | null) => {
     controlSyncEnabled: initial?.syncEnabled ?? null,
     pollControl: activePollControl,
     setPollControlCalls: [],
+    reconnectReason: defaultReconnectReason,
+    setReconnectReasonCalls: [],
   };
   const layer = Layer.succeed(XSyncStateStore, {
     read: () => Effect.sync(() => currentSnapshot(rec)),
@@ -150,6 +156,12 @@ export const makeStoreLayer = (initial: XSyncStateSnapshot | null) => {
         rec.pollControl = control;
         rec.setPollControlCalls.push(control);
       }),
+    readReconnectReason: () => Effect.sync(() => rec.reconnectReason),
+    setReconnectReason: (reason) =>
+      Effect.sync(() => {
+        rec.reconnectReason = reason;
+        rec.setReconnectReasonCalls.push(reason);
+      }),
     clear: () =>
       Effect.sync(() => {
         rec.clearCalls += 1;
@@ -158,6 +170,7 @@ export const makeStoreLayer = (initial: XSyncStateSnapshot | null) => {
         rec.controlStatus = null;
         rec.controlSyncEnabled = null;
         rec.pollControl = activePollControl;
+        rec.reconnectReason = defaultReconnectReason;
       }),
   });
   return { layer, rec };
