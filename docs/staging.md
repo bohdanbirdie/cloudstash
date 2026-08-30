@@ -126,14 +126,15 @@ Set these on `cloudstash-staging`, never in Git:
 - `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` for a separate staging bot
 - `X_CLIENT_ID` and `X_CLIENT_SECRET`
 - `CF_ACCOUNT_ID` and `CF_ANALYTICS_TOKEN` if the admin usage view is exercised
+- `AI_METER_LIMIT`, the private Assistant spend cap
 
 Staging credentials may reuse a provider project only when that provider
 supports an additional callback cleanly. Signing keys, Stripe mode, Telegram
 webhook ownership, state stores, and Queues must remain isolated.
 
-## Required staging variables
-
-Set `AI_METER_LIMIT` as a plain Worker variable in the Cloudflare dashboard.
-Its value is intentionally environment-owned rather than committed. Deployment
-scripts use Wrangler's `--keep-vars` option so dashboard-managed variables are
-not removed by later deployments.
+`AI_METER_LIMIT` must be a secret, not a plain Worker variable. Wrangler treats
+`vars` in `wrangler.jsonc` as the complete set and deletes any it does not
+declare, so a dashboard-only variable disappears on the next deploy — which
+disables the Assistant, because `resolveAllowance` fails closed when the limit
+is missing. Secrets are stored separately and are never pruned. Committing the
+value instead is not an option: this repository is public.

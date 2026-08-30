@@ -140,6 +140,12 @@ Cloudflare Workers Builds (connected to the repo) runs, from the dashboard:
 - **Version command (non-prod branches):** `npx wrangler versions upload`
 - Root directory `/`; production branch `main`; non-prod branch builds enabled.
 
+Note that the production deploy command calls `wrangler deploy` directly rather
+than `bun run deploy`, so the `--keep-vars` flag in that script never applies
+here. Any plain Worker variable set only in the production dashboard is deleted
+on the next deploy. Configuration that must survive belongs in `wrangler.jsonc`
+if it is public, or in a secret if it is not.
+
 **The build self-bootstraps the submodule.** `bun run build` is
 `bash scripts/ensure-livestore.sh && vp build && bun scripts/prerender.tsx`.
 `ensure-livestore.sh` is idempotent and non-destructive (skips work already
