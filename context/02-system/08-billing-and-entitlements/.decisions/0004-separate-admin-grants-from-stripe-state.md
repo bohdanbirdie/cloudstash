@@ -36,8 +36,9 @@ Persist the Stripe-derived tier and subscription projection on every relevant
 Stripe signal. Persist an optional admin tier grant and grant timestamp
 separately. `Billing` resolves the effective tier as the higher of the Stripe
 tier and the grant before applying sparse capability overrides. Free clears the
-grant. When the grant supplies the effective paid tier, its timestamp anchors
-monthly Assistant allowance windows; otherwise the Stripe cycle does.
+grant. Stripe wins an equal-tier tie; the grant supplies the effective paid tier
+only when it raises access above Stripe. Its timestamp then anchors monthly
+Assistant allowance windows; otherwise the Stripe cycle does.
 
 The legacy `tier_source` column is normalized to `stripe` during migration and
 no longer participates in runtime authority. It can be removed in a later

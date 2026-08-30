@@ -23,10 +23,12 @@ Stripe owns payment/subscription truth. D1 owns operational entitlement truth.
 `Billing.capabilities(orgId)` resolves one effective tier as the higher of the
 synchronized Stripe tier and an optional admin grant, then merges
 `TIER_CAPABILITIES[tier]` with `featureOverrides`; normal request paths do not
-contact Stripe. Admin grants are independent of payment state and selecting
-Free removes the grant. After the usage cycle projection first ships, an
-entitled Assistant request with missing cycle fields performs one Stripe refresh
-and persists the result. Later requests use D1 only.
+contact Stripe. Stripe remains authoritative when the tiers are equal, so its
+subscription cycle continues to anchor usage; an admin grant becomes the
+effective source only when it raises the tier. Admin grants are independent of
+payment state and selecting Free removes the grant. After the usage cycle
+projection first ships, an entitled Assistant request with missing cycle fields
+performs one Stripe refresh and persists the result. Later requests use D1 only.
 
 ## Capability Surface
 

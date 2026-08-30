@@ -60,7 +60,7 @@ const tierRank = (tier: PlanTier): number => PLAN_ORDER.indexOf(tier);
 
 const resolveEffectivePlan = (row: OrgRow): EffectivePlan =>
   Option.fromNullishOr(row.adminTierGrant).pipe(
-    Option.filter((grant) => tierRank(grant) >= tierRank(row.tier)),
+    Option.filter((grant) => tierRank(grant) > tierRank(row.tier)),
     Option.match({
       onNone: () =>
         EffectivePlan.make({

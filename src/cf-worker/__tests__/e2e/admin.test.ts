@@ -295,6 +295,75 @@ describe("admin Endpoints E2E", () => {
       expect(settings.tier).toBe("pro");
     });
 
+    it("keeps Stripe authoritative when an admin grant ties its tier", async () => {
+      const target = await signupUser(freshEmail("tier-tie"), "Tier Tie");
+      const now = Date.now();
+      const currentPeriodStart = now - 10 * 24 * 60 * 60 * 1_000;
+      const currentPeriodEnd = now + 20 * 24 * 60 * 60 * 1_000;
+      await env.DB.prepare(
+        `UPDATE organization
+         SET tier = 'pro',
+             tier_source = 'stripe',
+             billing_interval = 'month',
+             current_period_start = ?,
+             current_period_end = ?,
+             usage_cycle_anchor = ?
+         WHERE id = ?`
+      )
+        .bind(
+          currentPeriodStart,
+          currentPeriodEnd,
+          currentPeriodStart,
+          target.orgId
+        )
+        .run();
+
+      const setRes = await SELF.fetch(
+        `http://worker/api/org/${target.orgId}/tier`,
+        {
+          method: "PUT",
+          headers: {
+            Cookie: adminUser.cookie,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ tier: "pro" }),
+        }
+      );
+      expect(setRes.status).toBe(200);
+
+      const listRes = await SELF.fetch("http://worker/api/admin/workspaces", {
+        headers: { Cookie: adminUser.cookie },
+      });
+      expect(listRes.status).toBe(200);
+      const list = (await listRes.json()) as {
+        workspaces: Array<{
+          id: string;
+          tier: string;
+          tierSource: string;
+          adminTierGrant: string | null;
+        }>;
+      };
+      expect(
+        list.workspaces.find((workspace) => workspace.id === target.orgId)
+      ).toMatchObject({
+        tier: "pro",
+        tierSource: "stripe",
+        adminTierGrant: "pro",
+      });
+
+      const sessionsRes = await SELF.fetch(
+        `http://worker/api/chat/sessions?workspaceId=${target.orgId}`,
+        { headers: { Cookie: target.cookie } }
+      );
+      expect(sessionsRes.status).toBe(200);
+      const sessions = (await sessionsRes.json()) as {
+        assistantCredits: { resetsAt: string };
+      };
+      expect(sessions.assistantCredits.resetsAt).toBe(
+        new Date(currentPeriodEnd).toISOString()
+      );
+    });
+
     it("clears an admin grant without downgrading the Stripe tier", async () => {
       const target = await signupUser(freshEmail("clear-grant"), "Clear Grant");
       await env.DB.prepare(
