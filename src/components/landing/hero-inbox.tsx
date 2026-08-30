@@ -180,181 +180,31 @@ function DemoLinkPreview({ link }: { link: DemoLink }) {
   );
 }
 
+const artworkPatternClass: Record<DemoLink["pattern"], string> = {
+  nodes:
+    "bg-[radial-gradient(circle_at_20%_45%,currentColor_0_2px,transparent_2.5px),radial-gradient(circle_at_55%_20%,currentColor_0_2px,transparent_2.5px),linear-gradient(135deg,transparent_48%,currentColor_49%_51%,transparent_52%)] bg-[length:80px_64px]",
+  waves:
+    "bg-[repeating-radial-gradient(ellipse_at_center,transparent_0_16px,currentColor_17px_18px,transparent_19px_32px)]",
+  contours:
+    "bg-[repeating-radial-gradient(ellipse_at_30%_70%,transparent_0_18px,currentColor_19px_20px,transparent_21px_36px)]",
+  grid: "bg-[linear-gradient(currentColor_1px,transparent_1px),linear-gradient(90deg,currentColor_1px,transparent_1px)] bg-[size:28px_28px]",
+  rings:
+    "bg-[repeating-radial-gradient(circle_at_30%_50%,transparent_0_15px,currentColor_16px_17px,transparent_18px_31px)]",
+};
+
 function DemoArtwork({ pattern }: { pattern: DemoLink["pattern"] }) {
   return (
     <div
       aria-hidden="true"
       className="relative h-36 overflow-hidden rounded-md border border-border/80 bg-muted/30 sm:h-44"
     >
-      <PreviewPattern pattern={pattern} />
+      <div
+        className={cn(
+          "absolute inset-0 text-muted-foreground/20",
+          artworkPatternClass[pattern]
+        )}
+      />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_40%,color-mix(in_oklch,var(--primary)_25%,transparent),transparent_18%),linear-gradient(135deg,transparent,color-mix(in_oklch,var(--background)_65%,transparent))]" />
     </div>
-  );
-}
-
-function PreviewPattern({ pattern }: { pattern: DemoLink["pattern"] }) {
-  switch (pattern) {
-    case "nodes":
-      return <NodesPattern />;
-    case "waves":
-      return <WavesPattern />;
-    case "contours":
-      return <ContoursPattern />;
-    case "grid":
-      return <GridPattern />;
-    case "rings":
-      return <RingsPattern />;
-  }
-}
-
-const patternClassName = "absolute inset-0 size-full text-muted-foreground/20";
-
-function NodesPattern() {
-  return (
-    <svg
-      className={patternClassName}
-      viewBox="0 0 480 128"
-      preserveAspectRatio="xMidYMid slice"
-    >
-      <defs>
-        <pattern
-          id="preview-nodes"
-          width="80"
-          height="64"
-          patternUnits="userSpaceOnUse"
-        >
-          <path d="M0 32 40 8l40 24-40 24Z" fill="none" stroke="currentColor" />
-          <circle cx="0" cy="32" r="2.5" fill="currentColor" />
-          <circle cx="40" cy="8" r="2.5" fill="currentColor" />
-          <circle cx="40" cy="56" r="2.5" fill="currentColor" />
-          <circle cx="80" cy="32" r="2.5" fill="currentColor" />
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#preview-nodes)" />
-      <circle
-        className="text-primary/35"
-        cx="280"
-        cy="72"
-        r="4"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function WavesPattern() {
-  return (
-    <svg
-      className={patternClassName}
-      viewBox="0 0 480 128"
-      preserveAspectRatio="xMidYMid slice"
-    >
-      <defs>
-        <pattern
-          id="preview-waves"
-          width="120"
-          height="32"
-          patternUnits="userSpaceOnUse"
-        >
-          <path
-            d="M0 16c20-18 40-18 60 0s40 18 60 0"
-            fill="none"
-            stroke="currentColor"
-          />
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#preview-waves)" />
-      <path
-        className="text-primary/30"
-        d="M120 80c20-18 40-18 60 0s40 18 60 0"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-    </svg>
-  );
-}
-
-function ContoursPattern() {
-  return (
-    <svg
-      className={patternClassName}
-      viewBox="0 0 480 128"
-      preserveAspectRatio="xMidYMid slice"
-    >
-      <g fill="none" stroke="currentColor">
-        <path d="M-20 112C40 36 112 38 162 82s118 32 154-12 94-54 184-8" />
-        <path d="M-20 92C42 24 116 30 170 68s112 26 150-12 94-48 180-8" />
-        <path d="M-20 72C46 12 120 20 178 54s106 20 146-12 94-40 176-6" />
-        <path d="M-20 52C50 0 126 10 186 40s102 14 142-12 94-32 172-4" />
-      </g>
-      <path
-        className="text-primary/30"
-        d="M-20 92C42 24 116 30 170 68s112 26 150-12 94-48 180-8"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-    </svg>
-  );
-}
-
-function GridPattern() {
-  return (
-    <svg
-      className={patternClassName}
-      viewBox="0 0 480 128"
-      preserveAspectRatio="xMidYMid slice"
-    >
-      <defs>
-        <pattern
-          id="preview-grid"
-          width="28"
-          height="28"
-          patternUnits="userSpaceOnUse"
-        >
-          <path d="M28 0H0v28" fill="none" stroke="currentColor" />
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#preview-grid)" />
-      <rect
-        className="text-primary/25"
-        x="280"
-        y="28"
-        width="56"
-        height="56"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function RingsPattern() {
-  return (
-    <svg
-      className={patternClassName}
-      viewBox="0 0 480 128"
-      preserveAspectRatio="xMidYMid slice"
-    >
-      <defs>
-        <pattern
-          id="preview-rings"
-          width="96"
-          height="96"
-          patternUnits="userSpaceOnUse"
-        >
-          <circle cx="48" cy="48" r="16" fill="none" stroke="currentColor" />
-          <circle cx="48" cy="48" r="32" fill="none" stroke="currentColor" />
-          <circle cx="48" cy="48" r="48" fill="none" stroke="currentColor" />
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#preview-rings)" />
-      <circle
-        className="text-primary/25"
-        cx="336"
-        cy="48"
-        r="16"
-        fill="currentColor"
-      />
-    </svg>
   );
 }
