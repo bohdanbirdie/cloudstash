@@ -1,4 +1,13 @@
 import { env, runInDurableObject, SELF } from "cloudflare:test";
+import { Effect } from "effect";
+
+import type { ChatAgentDO } from "../../chat-agent";
+import { CHAT_MODEL_PROVIDER_TEST_OVERRIDE } from "../../chat-agent";
+import { makeChatModelProvider } from "../../chat-agent/model-provider";
+import type { LinkProcessorDO } from "../../link-processor";
+import { METADATA_FETCHER_TEST_OVERRIDE } from "../../link-processor/durable-object";
+import { MetadataFetcher } from "../../link-processor/services";
+import { OgMetadata } from "../../metadata/schema";
 
 export interface UserInfo {
   cookie: string;
@@ -52,6 +61,34 @@ export async function makeAdmin(userId: string): Promise<void> {
     .bind(userId)
     .run();
 }
+
+export const installTestMetadataFetcher = (
+  stub: DurableObjectStub<LinkProcessorDO>,
+  onFetch: (url: string) => void = () => undefined
+): Promise<void> =>
+  runInDurableObject(stub, (instance) => {
+    instance[METADATA_FETCHER_TEST_OVERRIDE](
+      MetadataFetcher.of({
+        fetch: (url) =>
+          Effect.sync(() => {
+            onFetch(url);
+            return new OgMetadata({
+              title: new URL(url).pathname.slice(1) || "Saved link",
+            });
+          }),
+      })
+    );
+  });
+
+export const installTestChatModelProvider = (
+  stub: DurableObjectStub<ChatAgentDO>,
+  fetcher: typeof fetch
+): Promise<void> =>
+  runInDurableObject(stub, (instance) =>
+    instance[CHAT_MODEL_PROVIDER_TEST_OVERRIDE](
+      makeChatModelProvider("test-openrouter-api-key", fetcher)
+    )
+  );
 
 export const backendEventlogMax = (storeId: string): Promise<number | null> =>
   env.SYNC_BACKEND_DO.get(

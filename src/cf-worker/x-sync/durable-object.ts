@@ -37,6 +37,10 @@ import { XSyncStateStoreLive } from "./services/x-sync-state-store.live";
 
 const XSyncLogger = createLogger("XBookmarkSyncDO");
 
+export const X_API_CLIENT_TEST_OVERRIDE = Symbol(
+  "@cloudstash/x-sync/XApiClientTestOverride"
+);
+
 export type { XStatusResponse } from "../../lib/x-sync-status";
 
 const optionalOrgId = (value: string | undefined): OrgId | undefined => {
@@ -54,6 +58,7 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
   // to null on cold start. UI displays "—" briefly until the next alarm fires
   // (≤5m). Persisting this on every poll would burn DO write budget.
   private lastSyncedAt: number | null = null;
+  private xApiClientLayer: Layer.Layer<XApiClient> = XApiClientLive;
 
   private get userId(): UserId {
     const name = this.ctx.id.name;
@@ -73,7 +78,7 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
     );
 
     return Layer.mergeAll(
-      XApiClientLive,
+      this.xApiClientLayer,
       accountLayer,
       XSyncStateStoreLive(this.ctx.storage),
       XSyncAlarm.layer(this.ctx.storage),
@@ -84,7 +89,18 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
     );
   }
 
-  private readonly runtime = ManagedRuntime.make(this.baseLayer);
+  private runtime = ManagedRuntime.make(this.baseLayer);
+
+  async [X_API_CLIENT_TEST_OVERRIDE](
+    service: typeof XApiClient.Service
+  ): Promise<void> {
+    if (this.env.ENABLE_TEST_AUTH !== "true") {
+      throw new Error("X API client overrides are disabled");
+    }
+    await this.runtime.dispose();
+    this.xApiClientLayer = Layer.succeed(XApiClient, service);
+    this.runtime = ManagedRuntime.make(this.baseLayer);
+  }
 
   private runEffect<A, E>(
     effect: Effect.Effect<

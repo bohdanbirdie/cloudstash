@@ -222,6 +222,7 @@ const config: UserConfig = {
       "anti-slop/no-hidden-app-layer-outputs": "error",
       "anti-slop/no-capability-recovery-after-span": "error",
       "anti-slop/no-module-mocking": "off",
+      "anti-slop/no-test-spies": "off",
     },
     options: {
       typeAware: true,
@@ -276,6 +277,7 @@ const config: UserConfig = {
         ],
         rules: {
           "anti-slop/no-module-mocking": "error",
+          "anti-slop/no-test-spies": "error",
         },
       },
       {

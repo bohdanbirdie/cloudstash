@@ -1,6 +1,5 @@
 import { AIChatAgent } from "@cloudflare/ai-chat";
 import type { OnChatMessageOptions } from "@cloudflare/ai-chat";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { Connection, ConnectionContext } from "agents";
 import {
   streamText,
@@ -11,7 +10,16 @@ import {
   stepCountIs,
 } from "ai";
 import type { LanguageModel } from "ai";
-import { Cause, Effect, Match, Option, Schedule, Schema } from "effect";
+import {
+  Cause,
+  Effect,
+  Layer,
+  ManagedRuntime,
+  Match,
+  Option,
+  Schedule,
+  Schema,
+} from "effect";
 
 import { resolveAssistantAllowance } from "../billing/assistant-allowance";
 import { StripeClientLive } from "../billing/stripe-client";
@@ -23,10 +31,6 @@ import {
   retireDurableObjectStorage,
 } from "../durable-object-retirement";
 import { maskId, safeErrorInfo } from "../log-utils";
-import {
-  OPENROUTER_MODEL_ID,
-  openRouterChatSettings,
-} from "../openrouter-model";
 import { getAppLayer } from "../runtime";
 import type { Env } from "../shared";
 import { OtelTracingLive } from "../tracing";
@@ -52,6 +56,7 @@ import {
 } from "./errors";
 import { getLastUserMessageText, validateInput } from "./input-validator";
 import { makeChatLibrary } from "./library";
+import { ChatModelProvider, ChatModelProviderLive } from "./model-provider";
 import { writeTextMessage } from "./stream-helpers";
 import { createChatRetrievalTelemetry, createTools } from "./tools";
 import type { ChatRetrievalTelemetry, ToolEffectRunner } from "./tools";
@@ -66,6 +71,10 @@ import type { ProviderSpend, ProviderUsageTelemetry } from "./usage";
 
 const WORKSPACE_STORAGE_KEY = "chat:workspace-id:v1";
 const LAST_TOUCHED_USER_MESSAGE_KEY = "chat:last-touched-user-message:v1";
+
+export const CHAT_MODEL_PROVIDER_TEST_OVERRIDE = Symbol(
+  "@cloudstash/chat-agent/ChatModelProviderTestOverride"
+);
 
 const ALLOWANCE_OUTCOME = {
   Allowed: "allowed",
@@ -207,6 +216,21 @@ export class ChatAgentDO extends AIChatAgent<Env> {
   private cachedOrgId: OrgId | undefined;
   private retired = false;
   private storeRevision = 0;
+  private modelRuntime = ManagedRuntime.make(
+    ChatModelProviderLive(this.env.OPENROUTER_API_KEY)
+  );
+
+  async [CHAT_MODEL_PROVIDER_TEST_OVERRIDE](
+    service: typeof ChatModelProvider.Service
+  ): Promise<void> {
+    if (this.env.ENABLE_TEST_AUTH !== "true") {
+      throw new Error("Chat model provider overrides are disabled");
+    }
+    await this.modelRuntime.dispose();
+    this.modelRuntime = ManagedRuntime.make(
+      Layer.succeed(ChatModelProvider, service)
+    );
+  }
 
   private orgId(): OrgId {
     if (!this.cachedOrgId) {
@@ -266,6 +290,7 @@ export class ChatAgentDO extends AIChatAgent<Env> {
     for (const connection of this.getConnections()) {
       connection.close(1001, "Chat retired");
     }
+    await this.modelRuntime.dispose();
     await Effect.runPromise(
       Effect.gen({ self: this }, function* () {
         yield* Effect.promise(() =>
@@ -640,17 +665,11 @@ export class ChatAgentDO extends AIChatAgent<Env> {
       return createUIMessageStreamResponse({ stream: blockedStream });
     }
 
-    const openrouter = createOpenRouter({
-      apiKey: this.env.OPENROUTER_API_KEY,
-    });
     const providerSessionId = this.ctx.id.toString();
-    const model = openrouter(
-      OPENROUTER_MODEL_ID,
-      openRouterChatSettings(providerSessionId, "assistant")
-    );
-    const compactionModel = openrouter(
-      OPENROUTER_MODEL_ID,
-      openRouterChatSettings(providerSessionId, "compaction")
+    const models = await this.modelRuntime.runPromise(
+      Effect.flatMap(ChatModelProvider, (provider) =>
+        provider.models(providerSessionId)
+      )
     );
 
     let summary = storedSummary;
@@ -661,7 +680,7 @@ export class ChatAgentDO extends AIChatAgent<Env> {
     if (compactionPlan) {
       try {
         const compacted = await this.generateCompaction(
-          compactionModel,
+          models.compaction,
           compactionPlan
         );
         summary = compacted.summary;
@@ -709,7 +728,7 @@ export class ChatAgentDO extends AIChatAgent<Env> {
     const tools = createTools(library, runToolEffect, retrievalTelemetry);
 
     return this.handleNormalChat(
-      model,
+      models.assistant,
       tools,
       generation,
       allowance.usageWindow.id,

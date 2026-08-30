@@ -67,6 +67,7 @@ export const fetchOgMetadata = Effect.fnUntraced(function* (
   options: {
     readonly fetcher?: typeof fetch;
     readonly ownHostname?: string;
+    readonly signal?: AbortSignal;
     readonly policy?: {
       readonly maxBytes: number;
       readonly maxRedirects: number;
@@ -80,7 +81,7 @@ export const fetchOgMetadata = Effect.fnUntraced(function* (
   const targetUrl = yield* Schema.decodeUnknownEffect(targetSchema)(
     target
   ).pipe(Effect.mapError(() => new MetadataInvalidTargetError()));
-  const signal = AbortSignal.timeout(policy.timeoutMs);
+  const signal = options.signal ?? AbortSignal.timeout(policy.timeoutMs);
 
   const extracted = yield* tryExtract(targetUrl, {
     fetcher,

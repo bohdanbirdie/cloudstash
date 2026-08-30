@@ -9,10 +9,16 @@ import {
   SELF,
   waitOnExecutionContext,
 } from "cloudflare:test";
-import { afterAll, afterEach, beforeAll, vi } from "vitest";
+import { Effect, Schema } from "effect";
+import { afterEach } from "vitest";
 
 import { scheduled } from "../../index";
 import type { XBookmarkSyncDO } from "../../x-sync";
+import { X_API_CLIENT_TEST_OVERRIDE } from "../../x-sync/durable-object";
+import type { XApiFailure } from "../../x-sync/errors";
+import { XApiError, XRateLimitedError } from "../../x-sync/errors";
+import type { BookmarksPage as BookmarksPageType } from "../../x-sync/services";
+import { BookmarksPage, XApiClient } from "../../x-sync/services";
 import { makeAdmin, signupUser } from "./helpers";
 
 const WATERMARK = "bookmark-before-reconciliation";
@@ -20,7 +26,7 @@ const MINUTE = 60_000;
 
 interface XResponsePlan {
   readonly body?: unknown;
-  readonly headers?: HeadersInit;
+  readonly retryAfterMs?: number;
   readonly status: number;
 }
 
@@ -32,28 +38,44 @@ const planBookmarksResponse = (plan: XResponsePlan) => {
   xRequestCount = 0;
 };
 
-const installXProviderMock = () =>
-  vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
-    const request = input instanceof Request ? input : new Request(input, init);
-    if (!request.url.startsWith("https://api.x.com/2/users/")) {
-      throw new Error(`Unexpected outbound request: ${request.url}`);
-    }
-    if (xResponsePlan === undefined) {
-      throw new Error(`Unplanned X request: ${request.url}`);
-    }
-    xRequestCount += 1;
-    return Promise.resolve(
-      new Response(
-        xResponsePlan.body === undefined
-          ? null
-          : JSON.stringify(xResponsePlan.body),
-        {
-          headers: xResponsePlan.headers,
-          status: xResponsePlan.status,
-        }
-      )
-    );
-  });
+const testXApiClient = XApiClient.of({
+  getMe: () => Effect.die("Unexpected XApiClient.getMe call"),
+  getBookmarks: () =>
+    Effect.suspend((): Effect.Effect<BookmarksPageType, XApiFailure> => {
+      if (xResponsePlan === undefined) {
+        return Effect.die("Unplanned XApiClient.getBookmarks call");
+      }
+      const plan = xResponsePlan;
+      xRequestCount += 1;
+      if (plan.status === 429) {
+        return Effect.fail(
+          new XRateLimitedError({
+            endpoint: "bookmarks",
+            retryAfterMs: plan.retryAfterMs ?? 60_000,
+          })
+        );
+      }
+      if (plan.status < 200 || plan.status >= 300) {
+        return Effect.fail(
+          new XApiError({
+            endpoint: "bookmarks",
+            message: `HTTP ${plan.status}`,
+            status: plan.status,
+          })
+        );
+      }
+      return Schema.decodeUnknownEffect(BookmarksPage)(plan.body ?? {}).pipe(
+        Effect.orDie
+      );
+    }),
+});
+
+const installXProviderService = (
+  stub: DurableObjectStub<XBookmarkSyncDO>
+): Promise<void> =>
+  runInDurableObject(stub, (instance) =>
+    instance[X_API_CLIENT_TEST_OVERRIDE](testXApiClient)
+  );
 
 interface ObservedXState {
   readonly alarm: number | null;
@@ -150,6 +172,7 @@ const createLinkedPoller = async (options: {
     });
     if (options.alarm) await storage.setAlarm(Date.now() + 30_000);
   });
+  await installXProviderService(stub);
 
   return { stub, user };
 };
@@ -168,17 +191,9 @@ const setTier = async (
 };
 
 describe("X reconciliation E2E", () => {
-  beforeAll(() => {
-    installXProviderMock();
-  });
-
   afterEach(() => {
     xResponsePlan = undefined;
     xRequestCount = 0;
-  });
-
-  afterAll(() => {
-    vi.restoreAllMocks();
   });
 
   it("cleans itself up when delayed reconciliation finds no X account", async () => {
@@ -399,7 +414,7 @@ describe("X reconciliation E2E", () => {
       label: "alarm-rate-limit",
     });
     planBookmarksResponse({
-      headers: { "Retry-After": "45" },
+      retryAfterMs: 45_000,
       status: 429,
     });
 
@@ -427,7 +442,7 @@ describe("X reconciliation E2E", () => {
       await state.storage.put("pollControl", pollControl);
     });
     planBookmarksResponse({
-      headers: { "Retry-After": "45" },
+      retryAfterMs: 45_000,
       status: 429,
     });
 

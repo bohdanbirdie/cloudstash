@@ -1,8 +1,8 @@
 import { abortAllDurableObjects, env, SELF } from "cloudflare:test";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { OrgId } from "../../db/branded";
-import { signupUser } from "./helpers";
+import { installTestMetadataFetcher, signupUser } from "./helpers";
 
 const SAVED_URL = "https://example.com/rest-api-link";
 const SECOND_URL = "https://example.net/rest-api-second";
@@ -22,24 +22,13 @@ const json = (apiKey: string) => ({
 describe("Links REST API", () => {
   let apiKey: string;
   let orgId: string;
-  let restoreFetch: (() => void) | undefined;
 
   beforeAll(async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockImplementation(async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url === SAVED_URL || request.url === SECOND_URL) {
-          return new Response(`<!doctype html><title>${request.url}</title>`, {
-            headers: { "Content-Type": "text/html" },
-          });
-        }
-        throw new Error(`Unexpected outbound request: ${request.url}`);
-      });
-    restoreFetch = () => fetchSpy.mockRestore();
-
     const user = await signupUser("links-api@test.com", "Links API User");
     orgId = user.orgId;
+    await installTestMetadataFetcher(
+      env.LINK_PROCESSOR_DO.get(env.LINK_PROCESSOR_DO.idFromName(user.orgId))
+    );
     await env.DB.prepare(
       "UPDATE organization SET feature_overrides = ? WHERE id = ?"
     )
@@ -58,7 +47,7 @@ describe("Links REST API", () => {
     apiKey = (await response.json<{ key: string }>()).key;
   });
 
-  afterAll(() => restoreFetch?.());
+  afterAll(() => abortAllDurableObjects());
 
   it("provides CRUD, pagination, search, and bounded batch updates", async () => {
     const createdResponse = await SELF.fetch("http://worker/api/links", {

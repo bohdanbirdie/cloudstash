@@ -59,6 +59,13 @@ real service/layer seam or exercised through the installed library's real API.
 The rule is adapted from
 [`dmmulroy/anti-slop`](https://github.com/dmmulroy/anti-slop).
 
+## `anti-slop/no-test-spies`
+
+Forbids `vi.spyOn`, `jest.spyOn`, and computed equivalents. Worker tests enable
+this rule so observable behavior comes from injected Effect services, explicit
+function arguments, or faithful test implementations instead of mutating real
+objects or globals at runtime.
+
 ## `anti-slop/no-chained-type-assertions`
 
 Forbids production code from forcing a value through assertion chains such as
