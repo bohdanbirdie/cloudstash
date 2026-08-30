@@ -30,7 +30,7 @@ import {
   linksByIds$,
   searchLinks$,
 } from "@/livestore/queries/links";
-import type { ApiLinkRow, SearchResult } from "@/livestore/queries/schemas";
+import type { SearchResult } from "@/livestore/queries/schemas";
 import {
   allTagRows$,
   pendingSuggestionsForLink$,
@@ -428,14 +428,11 @@ export const makeWorkspaceLinks = (
 
   const updateByIds = Effect.fnUntraced(function* (
     ids: readonly LinkId[],
-    patch: WorkspaceLinkPatch,
-    prefetched?: readonly ApiLinkRow[]
+    patch: WorkspaceLinkPatch
   ) {
-    const links =
-      prefetched ??
-      (yield* query("findLinksForUpdate", () =>
-        store.query(linksByIds$([...ids]))
-      ));
+    const links = yield* query("findLinksForUpdate", () =>
+      store.query(linksByIds$([...ids]))
+    );
     if (links.length === 0) return [];
     const now = yield* DateTime.nowAsDate;
     const tagPatch = patch.tags ? normalizeTagPatch(patch.tags) : undefined;
@@ -466,7 +463,6 @@ export const makeWorkspaceLinks = (
         ids: ids.filter((id) => found.has(id)),
         missingId: ids.find((id) => !found.has(id)),
         nextCursor: null,
-        rows,
       };
     }
     const where = input.where;
@@ -487,9 +483,6 @@ export const makeWorkspaceLinks = (
       ids: page.links.map((link) => LinkId.make(link.id)),
       missingId: undefined,
       nextCursor: page.nextCursor,
-      // apiLinksPage$ returns the API page shape, not the row shape
-      // updateEvents needs, so this branch still pays its own read.
-      rows: undefined,
     };
   });
 
@@ -697,7 +690,7 @@ export const makeWorkspaceLinks = (
           linkId: selected.missingId,
         });
       }
-      const links = yield* updateByIds(selected.ids, patch, selected.rows);
+      const links = yield* updateByIds(selected.ids, patch);
       return {
         links,
         updated: links.length,

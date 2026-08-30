@@ -93,12 +93,25 @@ let liveLongTimers = 0;
     wrappedClearTimeout as typeof globalThis.clearTimeout;
 }
 
-let currentSyncBackend: {
-  storeId: string | undefined;
+interface SyncBackendHandle {
   triggerLinkProcessor: (storeId: OrgId) => void;
   getEventlogMax: () => number | null;
   recordActivity: (storeId: OrgId, batch: readonly PushEvent[]) => void;
-} | null = null;
+}
+
+// onPush is a static option with no binding to the instance handling it, so
+// the only route back to "self" is module state. Instances of one class share
+// an isolate, so a single reference would be whichever was constructed last —
+// fine for the env-only helpers, wrong for anything reading instance storage.
+// Weak references keep an evicted instance collectable.
+let anySyncBackend: SyncBackendHandle | null = null;
+const syncBackendsByStore = new Map<string, WeakRef<SyncBackendHandle>>();
+
+const syncBackendFor = (storeId: string): SyncBackendHandle | null => {
+  const held = syncBackendsByStore.get(storeId)?.deref();
+  if (!held) syncBackendsByStore.delete(storeId);
+  return held ?? null;
+};
 
 // Stuck-LP tripwire: if a push's first parentSeqNum is more than
 // STUCK_GAP_THRESHOLD events behind SB's eventlog max, the client is far
@@ -122,20 +135,23 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
         event.name === "v2.LinkCreated" ||
         event.name === "v1.LinkReprocessRequested"
     );
-    if (shouldWakeProcessor && currentSyncBackend) {
-      currentSyncBackend.triggerLinkProcessor(storeId);
+    // These take storeId explicitly and only reach for env, which is identical
+    // across instances of this class.
+    const anyBackend = anySyncBackend;
+    if (shouldWakeProcessor && anyBackend) {
+      anyBackend.triggerLinkProcessor(storeId);
     }
 
-    if (currentSyncBackend) {
-      currentSyncBackend.recordActivity(storeId, message.batch);
+    if (anyBackend) {
+      anyBackend.recordActivity(storeId, message.batch);
     }
 
     const firstParent = message.batch[0]?.parentSeqNum;
-    // getEventlogMax reads this instance's own SQLite, but instances of one
-    // class share an isolate and the singleton holds whichever was constructed
-    // last. Only compare when that instance owns the store being pushed.
-    if (firstParent !== undefined && currentSyncBackend?.storeId === storeId) {
-      const sbMax = currentSyncBackend.getEventlogMax();
+    // getEventlogMax reads instance storage, so it must come from the instance
+    // that owns this store rather than whichever was constructed last.
+    const owner = syncBackendFor(storeId);
+    if (firstParent !== undefined && owner) {
+      const sbMax = owner.getEventlogMax();
       if (sbMax !== null && sbMax - firstParent > STUCK_GAP_THRESHOLD) {
         logger.warn("LP push lags SB eventlog — possible stuck client", {
           storeId: maskId(storeId),
@@ -159,7 +175,10 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
     this._env = env;
     this._ctx = ctx;
     this.storeId = ctx.id.name;
-    currentSyncBackend = this;
+    anySyncBackend = this;
+    if (this.storeId !== undefined) {
+      syncBackendsByStore.set(this.storeId, new WeakRef(this));
+    }
     logger.info("DO woke up", { doId: ctx.id.toString() });
   }
 

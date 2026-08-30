@@ -1,19 +1,14 @@
-import { useState } from "react";
-
-import { DeleteAccountDialog } from "@/components/settings/delete-account-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FieldDescription, FieldGroup } from "@/components/ui/field";
-import { invalidateAuthCache, logout } from "@/lib/auth";
+import { logout } from "@/lib/auth";
 
+// The library is created by resolveActiveOrg, which runs only in Better Auth's
+// session.create.before hook. Reloading re-reads the same session and never
+// re-runs it, so signing back in — a new session — is the only recovery the
+// client can offer. Account deletion is deliberately absent: it resolves the
+// personal organization by slug and fails for an account that never got one.
 export function WorkspaceUnavailable() {
-  const [deleteOpen, setDeleteOpen] = useState(false);
-
-  const handleRetry = () => {
-    invalidateAuthCache();
-    window.location.reload();
-  };
-
   return (
     <div className="bg-muted flex min-h-svh flex-col items-center justify-center p-6 md:p-10">
       <div className="flex w-full max-w-md flex-col gap-6">
@@ -29,34 +24,18 @@ export function WorkspaceUnavailable() {
                 </h1>
                 <p className="text-muted-foreground text-balance">
                   Your account is approved, but we couldn&rsquo;t finish
-                  preparing your library. Trying again usually fixes it.
+                  preparing your library. Signing in again usually finishes it.
                 </p>
               </div>
-              <Button onClick={handleRetry}>Try again</Button>
+              <Button onClick={() => void logout()}>Sign in again</Button>
               <FieldDescription className="text-center">
-                Still stuck?{" "}
-                <button
-                  type="button"
-                  className="underline underline-offset-4"
-                  onClick={() => void logout()}
-                >
-                  Sign out
-                </button>{" "}
-                and back in, or{" "}
-                <button
-                  type="button"
-                  className="underline underline-offset-4"
-                  onClick={() => setDeleteOpen(true)}
-                >
-                  delete your account
-                </button>
-                .
+                If this keeps happening, contact support and we&rsquo;ll set up
+                your library for you.
               </FieldDescription>
             </FieldGroup>
           </CardContent>
         </Card>
       </div>
-      <DeleteAccountDialog open={deleteOpen} onOpenChange={setDeleteOpen} />
     </div>
   );
 }
