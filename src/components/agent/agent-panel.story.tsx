@@ -3,6 +3,7 @@ import type { DynamicToolUIPart, UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { fn } from "storybook/test";
 
+import type { ChatSession } from "@/cf-worker/chat-agent/sessions";
 import {
   AgentInputProvider,
   useAgentInput,
@@ -11,6 +12,7 @@ import { AgentHeaderView } from "@/components/agent/agent-header";
 import { InputForm } from "@/components/agent/agent-input";
 import { AgentMessagesView } from "@/components/agent/agent-messages";
 import { AgentPanelSurface } from "@/components/agent/agent-panel";
+import { AgentSessionListView } from "@/components/agent/agent-session-list";
 import { AssistantActivity } from "@/components/chat/chat-content/assistant-activity";
 import { ChatMessage } from "@/components/chat/chat-content/chat-message";
 import {
@@ -32,12 +34,53 @@ type Scenario =
   | "tool-error"
   | "tool-denied"
   | "chat-error"
-  | "disconnected"
-  | "usage-warning";
+  | "disconnected";
 
 const onApprove = fn();
 const onReject = fn();
-const onClear = fn();
+const onSelectSession = fn();
+const noopSessionAction = async () => {};
+const noopDeleteSession = async (_agentName: string) => {};
+const STORY_SESSIONS: readonly ChatSession[] = [
+  {
+    id: "lisbon",
+    agentName: "lisbon",
+    title: "Weekend in Lisbon",
+    createdAt: "2026-08-29T08:00:00.000Z",
+    updatedAt: "2026-08-29T09:30:00.000Z",
+  },
+  {
+    id: "reading",
+    agentName: "reading",
+    title: "Reading queue",
+    createdAt: "2026-08-25T08:00:00.000Z",
+    updatedAt: "2026-08-28T15:20:00.000Z",
+  },
+  {
+    id: "legacy",
+    agentName: "legacy",
+    title: "A deliberately long chat title that should truncate cleanly",
+    createdAt: "2026-08-20T08:00:00.000Z",
+    updatedAt: "2026-08-27T12:00:00.000Z",
+  },
+];
+
+const MANY_STORY_SESSIONS: readonly ChatSession[] = Array.from(
+  { length: 40 },
+  (_, index) => {
+    const day = String(29 - (index % 28)).padStart(2, "0");
+    return {
+      id: `session-${index + 1}`,
+      agentName: `session-${index + 1}`,
+      title:
+        index % 7 === 0
+          ? `A deliberately long chat title for saved-link research ${index + 1}`
+          : `Saved-link conversation ${index + 1}`,
+      createdAt: `2026-08-${day}T08:00:00.000Z`,
+      updatedAt: `2026-08-${day}T09:30:00.000Z`,
+    };
+  }
+);
 
 const userMessage = (id: string, text: string): UIMessage => ({
   id,
@@ -172,7 +215,6 @@ const SCENARIOS: Record<
     isBusy: boolean;
     isConnected: boolean;
     error?: Error;
-    usage?: { used: number; limit: number; budget: number };
   }
 > = {
   empty: {
@@ -186,7 +228,6 @@ const SCENARIOS: Record<
     status: "ready",
     isBusy: false,
     isConnected: true,
-    usage: { used: 2400, limit: 20_000, budget: 5 },
   },
   "long-conversation": {
     messages: LONG_CONVERSATION,
@@ -296,13 +337,6 @@ const SCENARIOS: Record<
     isBusy: false,
     isConnected: false,
   },
-  "usage-warning": {
-    messages: CONVERSATION,
-    status: "ready",
-    isBusy: false,
-    isConnected: true,
-    usage: { used: 18_500, limit: 20_000, budget: 5 },
-  },
 };
 
 function AgentPanelPreview({ scenario }: { scenario: Scenario }) {
@@ -322,8 +356,8 @@ function AgentPanelPreview({ scenario }: { scenario: Scenario }) {
           header={
             <AgentHeaderView
               isConnected={config.isConnected}
-              usage={config.usage}
-              onClear={onClear}
+              title="Weekend in Lisbon"
+              onBack={() => onSelectSession("list")}
             />
           }
           messages={
@@ -432,7 +466,7 @@ function ArchiveConfirmationPreview({
     <div className="h-[480px] w-[min(480px,calc(100vw-2rem))] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground">
       <AgentInputProvider textareaRef={textareaRef}>
         <AgentPanelSurface
-          header={<AgentHeaderView isConnected onClear={onClear} />}
+          header={<AgentHeaderView isConnected />}
           messages={
             <Conversation>
               <ConversationContent>
@@ -499,7 +533,7 @@ function GenericConfirmationPreview() {
     <div className="h-[480px] w-[min(480px,calc(100vw-2rem))] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground">
       <AgentInputProvider textareaRef={textareaRef}>
         <AgentPanelSurface
-          header={<AgentHeaderView isConnected onClear={onClear} />}
+          header={<AgentHeaderView isConnected />}
           messages={
             <Conversation>
               <ConversationContent>
@@ -645,6 +679,39 @@ function ActivityAndErrorsGallery() {
   );
 }
 
+function SessionListPreview({
+  sessions = STORY_SESSIONS,
+  error,
+  assistantCredits = {
+    limit: 1_000,
+    remaining: 842,
+    resetsAt: "2026-09-01T00:00:00.000Z",
+  },
+}: {
+  sessions?: readonly ChatSession[];
+  error?: Error;
+  assistantCredits?: {
+    limit: number;
+    remaining: number;
+    resetsAt: string;
+  };
+}) {
+  return (
+    <div className="h-[480px] w-[min(480px,calc(100vw-2rem))] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground">
+      <AgentSessionListView
+        sessions={sessions}
+        assistantCredits={assistantCredits}
+        error={error}
+        onSelect={onSelectSession}
+        onCreate={noopSessionAction}
+        onDelete={noopDeleteSession}
+        onOpenUsage={() => undefined}
+        onRetry={noopSessionAction}
+      />
+    </div>
+  );
+}
+
 const meta = {
   title: "Surfaces/Assistant/Chat",
   component: AgentPanelPreview,
@@ -663,6 +730,23 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const ConversationReady: Story = {};
+export const SessionList: Story = {
+  render: () => <SessionListPreview />,
+};
+export const ScrollableSessionList: Story = {
+  render: () => <SessionListPreview sessions={MANY_STORY_SESSIONS} />,
+};
+export const EmptySessionList: Story = {
+  render: () => <SessionListPreview sessions={[]} />,
+};
+export const SessionListError: Story = {
+  render: () => (
+    <SessionListPreview
+      sessions={[]}
+      error={new Error("Session registry unavailable")}
+    />
+  ),
+};
 export const LongConversation: Story = {
   args: { scenario: "long-conversation" },
 };
@@ -700,7 +784,6 @@ export const ToolError: Story = { args: { scenario: "tool-error" } };
 export const ToolDenied: Story = { args: { scenario: "tool-denied" } };
 export const ChatError: Story = { args: { scenario: "chat-error" } };
 export const Disconnected: Story = { args: { scenario: "disconnected" } };
-export const UsageWarning: Story = { args: { scenario: "usage-warning" } };
 export const ActivityAndErrors: Story = {
   render: () => <ActivityAndErrorsGallery />,
 };

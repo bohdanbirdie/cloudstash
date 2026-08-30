@@ -51,7 +51,7 @@ LinkProcessorDO (one named instance per library/org)
 
 ChatAgentDO (one named instance per library for now)
   Agents SDK message history and model execution
-  monthly chat usage reservation
+  monthly chat settled-spend accounting
   no LiveStore client, queries, events, or sync callback
   Effect RPC client over Cloudflare native DO RPC
 ```

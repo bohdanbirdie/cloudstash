@@ -164,17 +164,17 @@ export const ACCOUNT_DELETION_STEPS: readonly AccountDeletionStepDefinition[] =
       config: STEP_RETRY,
       activity: cancelStripeSubscription,
     },
-    // Stop the server-side LiveStore clients before deleting their source so
-    // neither can reconnect and recreate the canonical eventlog after purge.
-    {
-      name: "wipe-link-processor",
-      config: STEP_RETRY,
-      activity: wipeLinkProcessor,
-    },
+    // The processor owns the chat registry, so retire its conversations before
+    // wiping that registry and the server-side LiveStore client.
     {
       name: "wipe-chat-agent",
       config: STEP_RETRY,
       activity: wipeChatAgent,
+    },
+    {
+      name: "wipe-link-processor",
+      config: STEP_RETRY,
+      activity: wipeLinkProcessor,
     },
     {
       name: "purge-sync-backend",

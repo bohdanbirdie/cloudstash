@@ -1,40 +1,34 @@
-import type { UsageData } from "./usage";
+import type { UsageData, UsageSettlement } from "./usage";
 
 export interface UsageStorage {
-  get: () => Promise<UsageData | undefined>;
-  put: (data: UsageData) => Promise<void>;
+  getUsage: () => Promise<UsageData | undefined>;
+  getSettlement: (settlementId: string) => Promise<UsageSettlement | undefined>;
+  putUsage: (data: UsageData) => Promise<void>;
+  putSettlement: (settlementId: string, data: UsageSettlement) => Promise<void>;
 }
 
-export async function reserveTokensIn(
-  storage: UsageStorage,
-  estimate: number,
-  limit: number
+export async function hasSpendAvailableIn(
+  storage: Pick<UsageStorage, "getUsage">,
+  limitMicroUsd: number
 ): Promise<boolean> {
-  const current = await storage.get();
-  const used =
-    (current?.promptTokens ?? 0) +
-    (current?.completionTokens ?? 0) +
-    (current?.reservedTokens ?? 0);
-  if (used + estimate > limit) return false;
-  await storage.put({
-    completionTokens: current?.completionTokens ?? 0,
-    promptTokens: current?.promptTokens ?? 0,
-    reservedTokens: (current?.reservedTokens ?? 0) + estimate,
+  const current = await storage.getUsage();
+  return (current?.spentMicroUsd ?? 0) < limitMicroUsd;
+}
+
+export async function settleSpendIn(
+  storage: UsageStorage,
+  settlementId: string,
+  spentMicroUsd: number,
+  recordedAt = new Date().toISOString()
+): Promise<boolean> {
+  if (!Number.isSafeInteger(spentMicroUsd) || spentMicroUsd < 0) {
+    throw new Error("Assistant settlement must use non-negative microdollars");
+  }
+  if (await storage.getSettlement(settlementId)) return false;
+  const current = await storage.getUsage();
+  await storage.putSettlement(settlementId, { recordedAt, spentMicroUsd });
+  await storage.putUsage({
+    spentMicroUsd: (current?.spentMicroUsd ?? 0) + spentMicroUsd,
   });
   return true;
-}
-
-export async function reconcileTokenUsageIn(
-  storage: UsageStorage,
-  promptTokens: number,
-  completionTokens: number,
-  releaseReservation: number
-): Promise<void> {
-  const current = await storage.get();
-  const reserved = current?.reservedTokens ?? 0;
-  await storage.put({
-    completionTokens: (current?.completionTokens ?? 0) + completionTokens,
-    promptTokens: (current?.promptTokens ?? 0) + promptTokens,
-    reservedTokens: Math.max(0, reserved - releaseReservation),
-  });
 }

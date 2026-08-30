@@ -1,10 +1,11 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useRef, useState } from "react";
 
-import { AgentHeader } from "@/components/agent/agent-header";
+import { AgentHeaderView } from "@/components/agent/agent-header";
 import { InputForm } from "@/components/agent/agent-input";
 import { AgentPanel } from "@/components/agent/agent-panel";
 import { AgentPlaceholderPanel } from "@/components/agent/agent-placeholder-panel";
+import { useAgentSessions } from "@/components/agent/agent-sessions-provider";
 import { AgentSkeleton } from "@/components/agent/agent-skeleton";
 import type { LinkWithDetails, SearchResult } from "@/livestore/queries/links";
 import type { DockMode } from "@/stores/dock-store";
@@ -148,9 +149,14 @@ function ContentSwitcher({
 }
 
 function SkeletonAgentPanel() {
+  const { selectedSession, showSessionList } = useAgentSessions();
+
   return (
     <div className="flex h-full flex-col">
-      <AgentHeader />
+      <AgentHeaderView
+        title={selectedSession?.title}
+        onBack={showSessionList}
+      />
       <div className="flex flex-1 flex-col gap-3 overflow-hidden p-3">
         <AgentSkeleton />
       </div>

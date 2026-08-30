@@ -205,12 +205,17 @@ describe("admin Endpoints E2E", () => {
       expect(setRes.status).toBe(200);
 
       const row = await env.DB.prepare(
-        "SELECT tier, tier_source FROM organization WHERE id = ?"
+        "SELECT tier, tier_source, usage_cycle_anchor FROM organization WHERE id = ?"
       )
         .bind(target.orgId)
-        .first<{ tier: string; tier_source: string }>();
+        .first<{
+          tier: string;
+          tier_source: string;
+          usage_cycle_anchor: number | null;
+        }>();
       expect(row?.tier).toBe("pro");
       expect(row?.tier_source).toBe("admin");
+      expect(row?.usage_cycle_anchor).toEqual(expect.any(Number));
     });
 
     it("admin re-set on same tier still flips tierSource from stripe to admin", async () => {
@@ -238,12 +243,17 @@ describe("admin Endpoints E2E", () => {
       expect(res.status).toBe(200);
 
       const row = await env.DB.prepare(
-        "SELECT tier, tier_source FROM organization WHERE id = ?"
+        "SELECT tier, tier_source, usage_cycle_anchor FROM organization WHERE id = ?"
       )
         .bind(target.orgId)
-        .first<{ tier: string; tier_source: string }>();
+        .first<{
+          tier: string;
+          tier_source: string;
+          usage_cycle_anchor: number | null;
+        }>();
       expect(row?.tier).toBe("pro");
       expect(row?.tier_source).toBe("admin");
+      expect(row?.usage_cycle_anchor).toEqual(expect.any(Number));
     });
   });
 
@@ -363,7 +373,7 @@ describe("admin Endpoints E2E", () => {
             Cookie: adminUser.cookie,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ key: "monthlyChatBudgetUsd", value: true }),
+          body: JSON.stringify({ key: "monthlyAssistantCredits", value: true }),
         }
       );
       expect(res.status).toBe(400);

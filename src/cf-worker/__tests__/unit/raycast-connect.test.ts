@@ -65,6 +65,7 @@ function makeBillingLayer(caps: TierCapabilities = capabilitiesFor("plus")) {
     Billing,
     Billing.of({
       capabilities: () => Effect.succeed(caps),
+      assistantAllowance: notImpl,
       tier: notImpl,
       subscription: notImpl,
       getOverrides: notImpl,

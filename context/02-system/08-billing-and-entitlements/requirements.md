@@ -3,7 +3,7 @@
 ## Context
 
 Owns pricing tiers, Stripe synchronization, server-enforced capabilities,
-administrator overrides, and usage budgets.
+administrator overrides, and usage allowances.
 
 ## Assumptions
 
@@ -41,8 +41,9 @@ administrator overrides, and usage budgets.
 - **CS.SYS.BILL-R02 Request-time gates:** Paid HTTP and stateful operations must
   check capability at the authoritative boundary and return a structured
   required-tier denial.
-- **CS.SYS.BILL-R03 Stripe-free request path:** Normal feature checks must not
-  call Stripe; webhook/success/checkout/portal flows reconcile D1 separately.
+- **CS.SYS.BILL-R03 Stripe-free request path:** Normal feature checks must use
+  D1. An entitled Assistant request may perform one Stripe refresh only when a
+  required billing-cycle projection is missing, then persist it for later reads.
 - **CS.SYS.BILL-R04 Live subscription reconciliation:** Stripe events are a
   signal to fetch current subscriptions; webhook payload fields are not copied
   as authority.
@@ -57,11 +58,15 @@ administrator overrides, and usage budgets.
 - **CS.SYS.BILL-R09 Unknown-price safety:** An active unrecognized Stripe price
   must not silently downgrade or invent a tier; it is logged and preserves the
   current tier pending reconciliation.
-- **CS.SYS.BILL-R10 Budget fail closed:** Cost-bearing chat and enrichment
-  operations must enforce their workspace/period budgets; unavailable chat
-  budget state denies provider execution.
+- **CS.SYS.BILL-R10 Allowance fail closed:** Bounded chat and enrichment
+  operations must enforce their workspace/period allowances; unavailable chat
+  allowance state denies model execution.
 - **CS.SYS.BILL-R11 Matrix verification:** Tests must lock every default tier
   capability to prevent a shipped path remaining unreachable after a new
   capability is introduced.
 - **CS.SYS.BILL-R12 Pricing reconciliation:** Executable plan prices and Stripe
   prices must have an explicit drift check before release/config changes.
+- **CS.SYS.BILL-R13 Subscription-aligned usage:** Assistant allowance windows
+  must derive from persisted Stripe period/anchor data or an explicit admin
+  grant anchor, and one model run must use one immutable window for preflight
+  and settlement.

@@ -4,19 +4,17 @@ kanban-plugin: board
 
 ## High Priority
 
+- [ ] `BILL-01` [[todos/plan-usage-limits|Define and enforce usage limits for every plan]] — decide explicit per-plan allowances for saved links, AI summaries, Assistant credits, enrichment, and other bounded work; keep configuration, enforcement, and customer-facing usage states consistent.
 - [ ] `REL-07` [[todos/restore-chrome-web-store-listing|Restore the removed Chrome Web Store listing]] — determine why Google removed it, satisfy the publisher requirements, resubmit it, and verify the restored listing describes the actual popup-and-Save flow.
 - [ ] `REL-08` [[todos/welcome-existing-users|Approve pending users and send the launch welcome email]] — approve every eligible pending signup, then notify all existing signed-up users that Cloudstash is available to use.
 - [ ] `CORE-05` [[todos/initial-sync-blocking|Research HTTP bootstrap and preloaded library state]] — benchmark WebSocket vs HTTP event-log replay, BootStatus/timeout UX, and an upstream materialized snapshot at an exact event head.
 - [ ] `CORE-04` [[todos/free-ai-summary-allowance|Plan a bounded Free AI-summary allowance]] — saved-link count remains unlimited; exhaustion preserves the link.
-- [ ] `AI-11` [[todos/chat-token-budget|Make the chat token budget the primary usage guardrail]] — keep safety approval for destructive actions, but control ordinary chat usage by model-token spend instead of arbitrary per-tool restrictions.
 - [ ] `AI-08` [[todos/link-notes|Notes on links (user-authored, agent-aware)]]
 
 ## Medium Priority
 
 - [ ] `AI-01` [[todos/pro-larger-summary-model|Give Pro summaries a larger model]] — choose the quality/cost boundary, fallback behavior, and operation-time entitlement; advertise it only after it ships.
 - [ ] `AI-04` [[todos/weekly-digest-backend|Weekly Digest backend]]
-- [ ] `AI-09` [[todos/multi-chat-architecture|Add multiple chat sessions per library]] — after `AI-03`, give each conversation lightweight message storage without creating another LiveStore replica.
-- [ ] `AI-10` [[todos/legacy-chat-livestore-subscriptions|Retire legacy chat LiveStore subscriptions]] — add a supported upstream unsubscribe path and remove the temporary no-op callback after deployed cleanup evidence.
 - [ ] `CORE-01` [[todos/canonical-url-identity|Canonical URL identity across every capture path]] — prevent new duplicates first; historical reconciliation remains a separate decision.
 - [ ] `CORE-02` [[todos/telemetry-minimization|Minimize telemetry and document retained provider data]] — keep collection purpose-bound and deletion/retention claims accurate.
 - [ ] `UX-07` Improve link-card UI for failed/error fetches (404, 5xx, bot challenge, login walls), with an explicit failure category and retry affordance.
@@ -26,6 +24,7 @@ kanban-plugin: board
 
 ## Low Priority
 
+- [ ] `AI-10` [[todos/legacy-chat-livestore-subscriptions|Retire legacy chat LiveStore subscriptions]] — consume the supported upstream unsubscribe path after [LiveStore PR #1551](https://github.com/livestorejs/livestore/pull/1551) lands, then remove the temporary no-op callback after deployed cleanup evidence.
 - [ ] `CORE-06` [[todos/automatic-summary-recovery|Recover failed summaries automatically]] — bounded primary, fallback, limited automatic retry, then a calm terminal state.
 - [ ] `SYS-01` Retire the local Better Auth MCP JWKS verifier after [#10856](https://github.com/better-auth/better-auth/issues/10856) / [#10888](https://github.com/better-auth/better-auth/issues/10888) and [#10893](https://github.com/better-auth/better-auth/pull/10893) ship in a stable release — installed types must accept an in-process JWKS source plus cache key, and the same-Worker E2E must pass with zero outbound JWKS requests.
 - [ ] `SYS-02` Retest Better Auth OAuth resource seeding on future stable upgrades — the Drizzle-wrapped UNIQUE race is independently reproduced on 1.7.0 and still present upstream; keep the app-wide atomic initializer in `AuthClientLive` until concurrent fresh auth contexts pass without it. No upstream issue is being filed.
@@ -38,13 +37,12 @@ kanban-plugin: board
 - [ ] `UX-09` Pop-animate genuinely new synced/locally-added links without animating filter or category changes.
 - [ ] `UX-11` ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
 
-## In Progress
-
-- [ ] `AI-03` [[todos/chat-library-owner|Remove the chat LiveStore replica and route tools through LinkProcessorDO]] — one persistent chat per library keeps Agents SDK message storage while all link tools use Effect RPC over native Durable Object RPC to `LinkProcessorDO`.
-- [ ] `AI-07` [[todos/chat-approval-needsapproval|Migrate chat approval to server-side needsApproval]] — included with AI-03 because approval and tool execution now share the same server-owned RPC boundary.
-
 ## Done
 
+- [x] `AI-11` [[todos/chat-token-budget|Make Assistant credits the primary chat usage guardrail]] — one atomic library ledger now meters every conversation and continuation from provider-reported cost, including private context compaction, with a calm shared credits surface.
+- [x] `AI-09` [[todos/multi-chat-architecture|Add multiple chat sessions per library]] — conversation actors now have a bounded library registry, on-demand history, explicit lifecycle UI, shared accounting, and seamless model-context compaction without another LiveStore replica.
+- [x] `AI-03` [[todos/chat-library-owner|Remove the chat LiveStore replica and route tools through LinkProcessorDO]] — the Agents SDK retains messages while every link tool uses Effect RPC over native Durable Object RPC to the canonical `LinkProcessorDO` replica.
+- [x] `AI-07` [[todos/chat-approval-needsapproval|Migrate chat approval to server-side needsApproval]] — destructive archive tools use server-declared AI SDK approval and resume through the same authorized RPC boundary.
 - [x] `SYS-08` Replace Resend with Cloudflare Email — obsolete; the existing email provider remains sufficient.
 - [x] `CORE-03` Extend admin purchase attribution — obsolete; the expected use is too rare to justify additional funnel instrumentation and maintenance.
 - [x] `AI-02` Agent context chips and entry points — obsolete; the additional context-management UI is not justified by expected usage.

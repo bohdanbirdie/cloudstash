@@ -4,7 +4,7 @@ import { trackEvent } from "../analytics";
 import { checkSyncAuth } from "../auth/sync-auth";
 import type { SyncAuthError } from "../auth/sync-auth";
 import { OrgId } from "../db/branded";
-import { maskId } from "../log-utils";
+import { maskId, safeErrorInfo } from "../log-utils";
 import { OrgNotFoundError } from "../org/errors";
 import { getAppLayer } from "../runtime";
 import type { Env } from "../shared";
@@ -12,6 +12,7 @@ import {
   ChatFeatureDisabledError,
   FeatureCheckUnavailableError,
   UnknownAgentPartyError,
+  UnknownChatSessionError,
   checkChatFeatureEnabled,
 } from "./auth";
 
@@ -27,11 +28,12 @@ type ChatAccessError =
   | ChatFeatureDisabledError
   | FeatureCheckUnavailableError
   | UnknownAgentPartyError
+  | UnknownChatSessionError
   | OrgNotFoundError;
 
 const featureCheckUnavailable = (cause: unknown, orgId: OrgId) =>
   Effect.logError("Feature check unavailable").pipe(
-    Effect.annotateLogs({ orgId: maskId(orgId), cause: String(cause) }),
+    Effect.annotateLogs({ orgId: maskId(orgId), ...safeErrorInfo(cause) }),
     Effect.flatMap(() =>
       Effect.fail(new FeatureCheckUnavailableError({ cause, orgId }))
     )
@@ -46,8 +48,10 @@ const checkChatAgentAccess = (
     return Effect.fail(new UnknownAgentPartyError({ party: lobby.className }));
   }
 
-  const workspaceId = OrgId.make(lobby.name);
-  return Effect.gen(function* () {
+  const workspaceId = OrgId.make(
+    new URL(request.url).searchParams.get("workspaceId") ?? lobby.name
+  );
+  const accessCheck = Effect.gen(function* () {
     const cookie = request.headers.get("cookie");
 
     const { userId } = yield* checkSyncAuth(cookie, workspaceId);
@@ -61,6 +65,22 @@ const checkChatAgentAccess = (
         featureCheckUnavailable(cause, workspaceId)
       )
     );
+    const processorId = env.LINK_PROCESSOR_DO.idFromName(workspaceId);
+    return yield* Effect.tryPromise({
+      try: () =>
+        env.LINK_PROCESSOR_DO.get(processorId).hasChatSession(lobby.name),
+      catch: (cause) =>
+        new FeatureCheckUnavailableError({ cause, orgId: workspaceId }),
+    }).pipe(
+      Effect.tapError((error) =>
+        Effect.logError("Chat session registry check failed").pipe(
+          Effect.annotateLogs({
+            orgId: maskId(workspaceId),
+            ...safeErrorInfo(error.cause),
+          })
+        )
+      )
+    );
   }).pipe(
     Effect.withSpan("ChatAgent.checkChatAgentAccess", {
       attributes: { agentClass: lobby.className, orgId: maskId(workspaceId) },
@@ -70,6 +90,19 @@ const checkChatAgentAccess = (
       featureCheckUnavailable(cause, workspaceId)
     )
   );
+
+  return accessCheck.pipe(
+    Effect.flatMap((registered) =>
+      Match.value(registered).pipe(
+        Match.when(true, () => Effect.void),
+        Match.when(
+          false,
+          () => new UnknownChatSessionError({ agentName: lobby.name })
+        ),
+        Match.exhaustive
+      )
+    )
+  );
 };
 
 const errorToResponse = (error: ChatAccessError): Response =>
@@ -77,6 +110,16 @@ const errorToResponse = (error: ChatAccessError): Response =>
     Match.tag("UnknownAgentPartyError", (e) =>
       Response.json(
         { _tag: e._tag, message: "Unknown agent", party: e.party, status: 404 },
+        { status: 404 }
+      )
+    ),
+    Match.tag("UnknownChatSessionError", (e) =>
+      Response.json(
+        {
+          _tag: e._tag,
+          message: "Chat session not found",
+          status: 404,
+        },
         { status: 404 }
       )
     ),

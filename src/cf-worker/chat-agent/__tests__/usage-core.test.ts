@@ -1,109 +1,62 @@
 import { describe, expect, it } from "vitest";
 
-import type { UsageData } from "../usage";
-import { reconcileTokenUsageIn, reserveTokensIn } from "../usage-core";
+import type { UsageData, UsageSettlement } from "../usage";
+import { hasSpendAvailableIn, settleSpendIn } from "../usage-core";
 import type { UsageStorage } from "../usage-core";
 
 function makeStorage(initial?: UsageData): {
-  storage: UsageStorage;
+  settlements: Map<string, UsageSettlement>;
   state: { current: UsageData | undefined };
+  storage: UsageStorage;
 } {
+  const settlements = new Map<string, UsageSettlement>();
   const state: { current: UsageData | undefined } = { current: initial };
   const storage: UsageStorage = {
-    get: async () => state.current,
-    put: async (data) => {
+    getUsage: async () => state.current,
+    getSettlement: async (id) => settlements.get(id),
+    putUsage: async (data) => {
       state.current = data;
     },
+    putSettlement: async (id, data) => {
+      settlements.set(id, data);
+    },
   };
-  return { state, storage };
+  return { settlements, state, storage };
 }
 
-describe("reserveTokensIn", () => {
-  it("reserves tokens when there is room and reports true", async () => {
-    const { state, storage } = makeStorage();
-    const ok = await reserveTokensIn(storage, 100, 1000);
-    expect(ok).toBe(true);
-    expect(state.current).toEqual({
-      completionTokens: 0,
-      promptTokens: 0,
-      reservedTokens: 100,
-    });
+describe("hasSpendAvailableIn", () => {
+  it("allows work below the private period limit", async () => {
+    const { storage } = makeStorage({ spentMicroUsd: 999 });
+    expect(await hasSpendAvailableIn(storage, 1_000)).toBe(true);
   });
 
-  it("counts existing prompt/completion/reserved against the cap", async () => {
-    const { state, storage } = makeStorage({
-      completionTokens: 200,
-      promptTokens: 300,
-      reservedTokens: 400,
-    });
-    const ok = await reserveTokensIn(storage, 100, 1000);
-    expect(ok).toBe(true);
-    expect(state.current?.reservedTokens).toBe(500);
-  });
-
-  it("refuses when reservation would exceed the cap and leaves storage untouched", async () => {
-    const { state, storage } = makeStorage({
-      completionTokens: 400,
-      promptTokens: 400,
-      reservedTokens: 100,
-    });
-    const ok = await reserveTokensIn(storage, 200, 1000);
-    expect(ok).toBe(false);
-    expect(state.current?.reservedTokens).toBe(100);
-  });
-
-  it("refuses when used + estimate exactly equals limit + 1 (boundary)", async () => {
-    const { storage } = makeStorage({
-      completionTokens: 0,
-      promptTokens: 0,
-      reservedTokens: 901,
-    });
-    expect(await reserveTokensIn(storage, 100, 1000)).toBe(false);
-  });
-
-  it("admits at the exact limit boundary (used + estimate === limit)", async () => {
-    const { state, storage } = makeStorage({
-      completionTokens: 0,
-      promptTokens: 0,
-      reservedTokens: 900,
-    });
-    expect(await reserveTokensIn(storage, 100, 1000)).toBe(true);
-    expect(state.current?.reservedTokens).toBe(1000);
+  it("rejects work at the private period limit", async () => {
+    const { storage } = makeStorage({ spentMicroUsd: 1_000 });
+    expect(await hasSpendAvailableIn(storage, 1_000)).toBe(false);
   });
 });
 
-describe("reconcileTokenUsageIn", () => {
-  it("subtracts the reservation and adds the actual usage", async () => {
-    const { state, storage } = makeStorage({
-      completionTokens: 50,
-      promptTokens: 100,
-      reservedTokens: 1000,
-    });
-    await reconcileTokenUsageIn(storage, 200, 80, 1000);
-    expect(state.current).toEqual({
-      completionTokens: 130,
-      promptTokens: 300,
-      reservedTokens: 0,
-    });
+describe("settleSpendIn", () => {
+  it("adds actual provider spend to the monthly aggregate", async () => {
+    const { state, storage } = makeStorage({ spentMicroUsd: 100 });
+    expect(
+      await settleSpendIn(storage, "turn-1", 250, "2026-08-29T00:00:00.000Z")
+    ).toBe(true);
+    expect(state.current).toEqual({ spentMicroUsd: 350 });
   });
 
-  it("clamps reservedTokens at zero when release > reserved", async () => {
-    const { state, storage } = makeStorage({
-      completionTokens: 0,
-      promptTokens: 0,
-      reservedTokens: 100,
-    });
-    await reconcileTokenUsageIn(storage, 0, 0, 500);
-    expect(state.current?.reservedTokens).toBe(0);
+  it("makes a repeated settlement idempotent", async () => {
+    const { settlements, state, storage } = makeStorage();
+    expect(await settleSpendIn(storage, "turn-1", 250)).toBe(true);
+    expect(await settleSpendIn(storage, "turn-1", 250)).toBe(false);
+    expect(state.current).toEqual({ spentMicroUsd: 250 });
+    expect(settlements.size).toBe(1);
   });
 
-  it("treats missing usage as zero baseline", async () => {
-    const { state, storage } = makeStorage();
-    await reconcileTokenUsageIn(storage, 50, 25, 0);
-    expect(state.current).toEqual({
-      completionTokens: 25,
-      promptTokens: 50,
-      reservedTokens: 0,
-    });
+  it("rejects invalid monetary records", async () => {
+    const { storage } = makeStorage();
+    await expect(settleSpendIn(storage, "turn-1", -1)).rejects.toThrow(
+      "non-negative microdollars"
+    );
   });
 });

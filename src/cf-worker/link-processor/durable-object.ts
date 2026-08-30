@@ -6,7 +6,7 @@ import type { Store, Unsubscribe } from "@livestore/livestore";
 import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
 /// <reference types="@cloudflare/workers-types" />
 import { DurableObject } from "cloudflare:workers";
-import { DateTime, Effect, Layer, Option, Semaphore } from "effect";
+import { DateTime, Effect, Layer, Option, Schema, Semaphore } from "effect";
 
 import type {
   GetLinkInput,
@@ -25,6 +25,21 @@ import {
   whenLeaderSynced,
 } from "../../livestore/when-leader-synced";
 import { Billing } from "../billing/service";
+import {
+  CHAT_SESSION_LIMIT,
+  CHAT_SESSION_REGISTRY_KEY,
+  ChatSessionRegistry,
+  chatUsageStorage,
+  makeDefaultChatSession,
+  makeNewChatSession,
+  retireRegisteredChatSession,
+  titleFromMessage,
+} from "../chat-agent/sessions";
+import type {
+  ChatSession,
+  ChatSessionRegistryResult,
+} from "../chat-agent/sessions";
+import { hasSpendAvailableIn, settleSpendIn } from "../chat-agent/usage-core";
 import { LinkId, OrgId } from "../db/branded";
 import { DbClientLive } from "../db/service";
 import {
@@ -289,6 +304,148 @@ export class LinkProcessorDO
       await this.ctx.storage.put("storeId", storeId);
     }
     return storeId;
+  }
+
+  private async readChatSessions(
+    storage: Pick<DurableObjectStorage, "get" | "put"> = this.ctx.storage
+  ): Promise<readonly ChatSession[]> {
+    const stored = await storage.get(CHAT_SESSION_REGISTRY_KEY);
+    if (stored !== undefined) {
+      return Schema.decodeUnknownPromise(ChatSessionRegistry)(stored);
+    }
+
+    const workspaceId = this.ctx.id.name;
+    if (!workspaceId) {
+      throw new Error("LinkProcessorDO requires a named instance");
+    }
+    const initial = [makeDefaultChatSession(workspaceId)];
+    await storage.put(CHAT_SESSION_REGISTRY_KEY, initial);
+    return initial;
+  }
+
+  /** Lightweight chat metadata only. Does not start the LiveStore client. */
+  async listChatSessions(): Promise<readonly ChatSession[]> {
+    if (await this.isRetired()) return [];
+    const sessions = await this.readChatSessions();
+    return sessions.toSorted((left, right) =>
+      right.updatedAt.localeCompare(left.updatedAt)
+    );
+  }
+
+  /** Creates one isolated AIChatAgent conversation without materializing links. */
+  async createChatSession(): Promise<ChatSessionRegistryResult> {
+    if (await this.isRetired()) return { ok: false, code: "not_found" };
+    return this.ctx.storage.transaction(async (transaction) => {
+      const sessions = await this.readChatSessions(transaction);
+      if (sessions.length >= CHAT_SESSION_LIMIT) {
+        return { ok: false, code: "limit_reached" } as const;
+      }
+      const session = makeNewChatSession();
+      const next = [session, ...sessions];
+      await transaction.put(CHAT_SESSION_REGISTRY_KEY, next);
+      return { ok: true, sessions: next } as const;
+    });
+  }
+
+  async hasChatSession(agentName: string): Promise<boolean> {
+    if (await this.isRetired()) return false;
+    const sessions = await this.readChatSessions();
+    return sessions.some((session) => session.agentName === agentName);
+  }
+
+  async touchChatSession(
+    agentName: string,
+    firstUserMessage?: string
+  ): Promise<void> {
+    if (await this.isRetired()) return;
+    await this.ctx.storage.transaction(async (transaction) => {
+      const sessions = await this.readChatSessions(transaction);
+      const now = new Date().toISOString();
+      const next = sessions.map((session) => {
+        if (session.agentName !== agentName) return session;
+        const title =
+          session.title === "New chat" && firstUserMessage
+            ? titleFromMessage(firstUserMessage)
+            : session.title;
+        return { ...session, title, updatedAt: now };
+      });
+      await transaction.put(CHAT_SESSION_REGISTRY_KEY, next);
+    });
+  }
+
+  async deleteChatSession(
+    agentName: string
+  ): Promise<ChatSessionRegistryResult> {
+    if (await this.isRetired()) return { ok: false, code: "not_found" };
+    return retireRegisteredChatSession(agentName, {
+      read: () => this.readChatSessions(),
+      retire: () =>
+        this.env.Chat.get(this.env.Chat.idFromName(agentName)).retire(),
+      remove: () =>
+        this.ctx.storage.transaction(async (transaction) => {
+          const current = await this.readChatSessions(transaction);
+          if (!current.some((session) => session.agentName === agentName)) {
+            return { ok: false, code: "not_found" } as const;
+          }
+          const next = current.filter(
+            (session) => session.agentName !== agentName
+          );
+          await transaction.put(CHAT_SESSION_REGISTRY_KEY, next);
+          return { ok: true, sessions: next } as const;
+        }),
+    });
+  }
+
+  async retireChatSessions(): Promise<void> {
+    const sessions = await this.readChatSessions();
+    logger.info("Retiring chat sessions", { count: sessions.length });
+    await Promise.all(
+      sessions.map(async (session) => {
+        try {
+          await this.env.Chat.get(
+            this.env.Chat.idFromName(session.agentName)
+          ).retire();
+        } catch (error) {
+          logger.error("Chat session retirement failed", {
+            agentName: maskId(session.agentName),
+            ...safeErrorInfo(error),
+          });
+          throw error;
+        }
+      })
+    );
+    logger.info("Retired chat sessions", { count: sessions.length });
+  }
+
+  async canSpendChatUsage(
+    period: string,
+    limitMicroUsd: number
+  ): Promise<boolean> {
+    if (await this.isRetired()) return false;
+    return hasSpendAvailableIn(
+      chatUsageStorage(this.ctx.storage, period),
+      limitMicroUsd
+    );
+  }
+
+  async settleChatSpend(
+    period: string,
+    settlementId: string,
+    spentMicroUsd: number
+  ): Promise<boolean> {
+    if (await this.isRetired()) return false;
+    return this.ctx.storage.transaction((transaction) =>
+      settleSpendIn(
+        chatUsageStorage(transaction, period),
+        settlementId,
+        spentMicroUsd
+      )
+    );
+  }
+
+  async getChatUsage(period: string) {
+    if (await this.isRetired()) return undefined;
+    return chatUsageStorage(this.ctx.storage, period).getUsage();
   }
 
   private async runWorkspaceLinksRpc<Value, Error>(

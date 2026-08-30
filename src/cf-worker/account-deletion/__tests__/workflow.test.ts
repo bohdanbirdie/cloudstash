@@ -88,8 +88,8 @@ describe("account deletion activities", () => {
     expect(ACCOUNT_DELETION_STEPS.map(({ name }) => name)).toEqual([
       "wait-for-identity-deletion",
       "cancel-stripe-subscription",
-      "wipe-link-processor",
       "wipe-chat-agent",
+      "wipe-link-processor",
       "purge-sync-backend",
       "purge-x-bookmark-sync",
       "purge-telegram",

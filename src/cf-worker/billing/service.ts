@@ -1,5 +1,13 @@
 import { eq } from "drizzle-orm";
-import { Context, Effect, Layer } from "effect";
+import {
+  Context,
+  DateTime,
+  Effect,
+  Layer,
+  Match,
+  Option,
+  Schema,
+} from "effect";
 
 import type {
   BooleanCapability,
@@ -21,6 +29,10 @@ import { DbClient, DbError, query } from "../db/service";
 import { maskId } from "../log-utils";
 import { OrgNotFoundError } from "../org/errors";
 import { CapabilityDisabledError } from "./errors";
+import {
+  AssistantUsageWindow,
+  resolveAssistantUsageWindow,
+} from "./usage-cycle";
 
 export interface WorkspaceWithOwner {
   id: OrgId;
@@ -34,9 +46,72 @@ export interface WorkspaceWithOwner {
 }
 
 type OrgRow = {
+  createdAt: Date;
   tier: PlanTier;
+  tierSource: TierSource;
   featureOverrides: CapabilityOverrides | null;
+  billingInterval: "month" | "year" | null;
+  currentPeriodStart: Date | null;
+  currentPeriodEnd: Date | null;
+  usageCycleAnchor: Date | null;
 };
+
+const TierCapabilitiesSchema = Schema.Struct({
+  aiSummary: Schema.Boolean,
+  chatAgent: Schema.Boolean,
+  integrations: Schema.Boolean,
+  xBookmarkSync: Schema.Boolean,
+  xContentEnrichment: Schema.Boolean,
+  publicApi: Schema.Boolean,
+  mcpServer: Schema.Boolean,
+  weeklyDigest: Schema.Boolean,
+  monthlyAssistantCredits: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+});
+
+export const AssistantAllowance = Schema.Struct({
+  capabilities: TierCapabilitiesSchema,
+  source: Schema.Literals(["stripe", "admin"]),
+  usageWindow: Schema.Option(AssistantUsageWindow),
+});
+export type AssistantAllowance = Schema.Schema.Type<typeof AssistantAllowance>;
+
+interface BillingShape {
+  readonly capabilities: (
+    orgId: OrgId
+  ) => Effect.Effect<TierCapabilities, DbError | OrgNotFoundError>;
+  readonly assistantAllowance: (
+    orgId: OrgId,
+    now?: Date
+  ) => Effect.Effect<AssistantAllowance, DbError | OrgNotFoundError>;
+  readonly tier: (
+    orgId: OrgId
+  ) => Effect.Effect<PlanTier, DbError | OrgNotFoundError>;
+  readonly subscription: (orgId: OrgId) => Effect.Effect<
+    {
+      readonly cancelAtPeriodEnd: boolean;
+      readonly currentPeriodEnd: string | null;
+      readonly billingInterval: "month" | "year" | null;
+    },
+    DbError | OrgNotFoundError
+  >;
+  readonly getOverrides: (
+    orgId: OrgId
+  ) => Effect.Effect<CapabilityOverrides, DbError | OrgNotFoundError>;
+  readonly setTier: (
+    orgId: OrgId,
+    tier: PlanTier
+  ) => Effect.Effect<void, DbError | OrgNotFoundError>;
+  readonly setOverride: <K extends keyof TierCapabilities>(
+    orgId: OrgId,
+    key: K,
+    value: TierCapabilities[K] | null
+  ) => Effect.Effect<void, DbError | OrgNotFoundError>;
+  readonly exists: (orgId: OrgId) => Effect.Effect<boolean, DbError>;
+  readonly listWithOwners: () => Effect.Effect<
+    readonly WorkspaceWithOwner[],
+    DbError
+  >;
+}
 
 const make = Effect.gen(function* () {
   const db = yield* DbClient;
@@ -47,7 +122,16 @@ const make = Effect.gen(function* () {
     query(
       db.query.organization.findFirst({
         where: eq(schema.organization.id, orgId),
-        columns: { tier: true, featureOverrides: true },
+        columns: {
+          createdAt: true,
+          tier: true,
+          tierSource: true,
+          featureOverrides: true,
+          billingInterval: true,
+          currentPeriodStart: true,
+          currentPeriodEnd: true,
+          usageCycleAnchor: true,
+        },
       })
     ).pipe(
       Effect.flatMap((row) =>
@@ -71,6 +155,42 @@ const make = Effect.gen(function* () {
         })
       );
       return mergeCapabilities(row.tier, row.featureOverrides);
+    }),
+
+    assistantAllowance: Effect.fn("Billing.assistantAllowance")(function* (
+      orgId: OrgId,
+      now?: Date
+    ) {
+      const effectiveNow = now ?? (yield* DateTime.nowAsDate);
+      const row = yield* fetchOrgRow(orgId);
+      const capabilities = mergeCapabilities(row.tier, row.featureOverrides);
+      const adminAnchor = Match.value(row.tierSource).pipe(
+        Match.when("admin", () => row.usageCycleAnchor ?? row.createdAt),
+        Match.when("stripe", () => row.usageCycleAnchor),
+        Match.exhaustive
+      );
+      const usageWindow = Option.fromNullishOr(
+        resolveAssistantUsageWindow(
+          {
+            source: row.tierSource,
+            billingInterval: row.billingInterval,
+            currentPeriodStart: row.currentPeriodStart,
+            currentPeriodEnd: row.currentPeriodEnd,
+            usageCycleAnchor: adminAnchor,
+          },
+          effectiveNow
+        )
+      );
+      yield* Effect.annotateCurrentSpan({
+        orgId: maskId(orgId),
+        source: row.tierSource,
+        hasUsageWindow: Option.isSome(usageWindow),
+      });
+      return AssistantAllowance.make({
+        capabilities,
+        source: row.tierSource,
+        usageWindow,
+      });
     }),
 
     tier: Effect.fn("Billing.tier")(function* (orgId: OrgId) {
@@ -133,10 +253,26 @@ const make = Effect.gen(function* () {
         from: existing.tier,
         to: tier,
       });
+      const usageCycleAnchor = Match.value({
+        isFree: tier === "free",
+        needsAnchor:
+          existing.tierSource !== "admin" ||
+          existing.tier !== tier ||
+          existing.usageCycleAnchor === null,
+      }).pipe(
+        Match.when({ isFree: true }, () => Effect.succeed(null)),
+        Match.when({ needsAnchor: true }, () => DateTime.nowAsDate),
+        Match.orElse(() => Effect.succeed(existing.usageCycleAnchor))
+      );
+      const resolvedUsageCycleAnchor = yield* usageCycleAnchor;
       yield* query(
         db
           .update(schema.organization)
-          .set({ tier, tierSource: "admin" })
+          .set({
+            tier,
+            tierSource: "admin",
+            usageCycleAnchor: resolvedUsageCycleAnchor,
+          })
           .where(eq(schema.organization.id, orgId))
       );
       yield* Effect.logInfo("Billing.setTier applied").pipe(
@@ -226,13 +362,12 @@ const make = Effect.gen(function* () {
         };
       });
     }),
-  };
+  } satisfies BillingShape;
 });
 
-export class Billing extends Context.Service<
-  Billing,
-  Effect.Success<typeof make>
->()("@cloudstash/Billing") {
+export class Billing extends Context.Service<Billing, BillingShape>()(
+  "@cloudstash/Billing"
+) {
   static readonly Default = Layer.effect(Billing, make);
 }
 

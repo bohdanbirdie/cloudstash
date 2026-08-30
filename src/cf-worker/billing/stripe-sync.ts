@@ -126,6 +126,7 @@ export const syncFromStripe = Effect.fn("Billing.syncFromStripe")(function* (
   const keepsTier = subscription.pipe(
     Option.exists((s) => ACTIVE_SUBSCRIPTION_STATUSES.has(s.status))
   );
+  const activeItem = keepsTier ? item : Option.none();
 
   const tier: PlanTier = !keepsTier
     ? "free"
@@ -183,7 +184,11 @@ export const syncFromStripe = Effect.fn("Billing.syncFromStripe")(function* (
           Option.getOrNull
         ),
         // Stripe period end is unix seconds; the column stores a ms timestamp.
-        currentPeriodEnd: item.pipe(
+        currentPeriodStart: activeItem.pipe(
+          Option.map((i) => new Date(i.current_period_start * 1000)),
+          Option.getOrNull
+        ),
+        currentPeriodEnd: activeItem.pipe(
           Option.map((i) => new Date(i.current_period_end * 1000)),
           Option.getOrNull
         ),
@@ -192,6 +197,12 @@ export const syncFromStripe = Effect.fn("Billing.syncFromStripe")(function* (
           Option.getOrElse(() => false)
         ),
         billingInterval,
+        usageCycleAnchor: keepsTier
+          ? subscription.pipe(
+              Option.map((s) => new Date(s.billing_cycle_anchor * 1000)),
+              Option.getOrNull
+            )
+          : null,
       })
       .where(eq(schema.organization.id, org.id))
   );

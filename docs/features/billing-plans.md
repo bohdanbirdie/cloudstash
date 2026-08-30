@@ -18,8 +18,8 @@ deltas.
 ## Current capability shape
 
 The runtime matrix includes AI summaries, chat agent, integrations, X bookmark
-sync/content enrichment, public API, MCP server, weekly digest, and a monthly
-chat budget. Exact tier values belong only in `src/lib/plan.ts`.
+sync/content enrichment, public API, MCP server, weekly digest, and monthly
+Assistant credits. Exact tier values belong only in `src/lib/plan.ts`.
 
 Authoritative handlers return a structured capability denial when the current
 workspace lacks a feature. Some ongoing stateful paths still need operation-time
@@ -33,14 +33,16 @@ Checkout creates/reuses a workspace customer and uses deterministic idempotency.
 Webhook and browser-success signals both fetch current Stripe subscription state
 before updating D1. Active/trialing/past-due subscriptions retain their mapped
 tier; cancelled/unpaid/incomplete states map according to current billing policy.
-Stripe synchronization preserves `tierSource: admin` grants.
+Stripe synchronization persists the selected item's period start/end and the
+subscription billing anchor while preserving `tierSource: admin` grants.
 
 Settings is the subscription-management surface; the shipped paywall is the
 acquisition surface. Production Stripe/Portal reconciliation remains a
 maintainer-controlled launch action in [[../todos/human-launch-operations]].
 
-## Usage budgets
+## Usage allowances
 
-Chat atomically reserves and reconciles monthly tokens. X enrichment needs the
-same atomic reservation contract. Free saved-link count is unlimited; a bounded
-monthly Free summary allowance remains planning work. See [[usage-limits]].
+Chat checks and settles actual monthly provider cost against the workspace's
+Assistant credits. X enrichment keeps its attempt reservation contract. Free
+saved-link count is unlimited; a bounded monthly Free summary
+allowance remains planning work. See [[usage-limits]].

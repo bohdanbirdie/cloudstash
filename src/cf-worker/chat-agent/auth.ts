@@ -26,6 +26,13 @@ export class UnknownAgentPartyError extends Schema.TaggedErrorClass<UnknownAgent
   }
 ) {}
 
+export class UnknownChatSessionError extends Schema.TaggedErrorClass<UnknownChatSessionError>()(
+  "UnknownChatSessionError",
+  {
+    agentName: Schema.String,
+  }
+) {}
+
 export const checkChatFeatureEnabled = Effect.fn(
   "ChatAgent.checkChatFeatureEnabled"
 )(function* (workspaceId: OrgId) {
@@ -47,7 +54,9 @@ export const checkChatFeatureEnabled = Effect.fn(
   yield* Effect.logDebug("ChatAgent gate allowed").pipe(
     Effect.annotateLogs({
       orgId: maskId(workspaceId),
-      monthlyChatBudgetUsd: caps.monthlyChatBudgetUsd,
+      monthlyAssistantCredits: caps.monthlyAssistantCredits,
     })
   );
+
+  return caps;
 });

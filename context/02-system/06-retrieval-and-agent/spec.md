@@ -70,17 +70,38 @@ requires its matching `links:read` or `links:write` scope.
 
 ## Chat Agent
 
-One `ChatAgentDO` currently exists per workspace and extends Cloudflare
-`AIChatAgent`. Agents SDK storage owns message history; the DO also owns the
-monthly token-usage record. It does not host a LiveStore client.
+Each conversation is one named `ChatAgentDO` extending Cloudflare
+`AIChatAgent`. Agents SDK storage owns that conversation's complete visible
+message history. The original workspace-named actor remains the default
+conversation, so existing histories require no migration. New conversations use
+generated IDs, persist their validated workspace binding, and do not host a
+LiveStore client.
+
+The workspace-named `LinkProcessorDO` stores a bounded chat registry through its
+own key-value storage API; this does not add a D1 table or a new external KV
+binding. The registry contains only conversation ID, actor name, title, and
+created/updated timestamps. The client preloads this metadata after entitlement
+resolution. A page load starts on the conversation list; opening a conversation
+connects to and loads messages from only that selected actor. Closing and
+reopening the dock preserves its list-or-conversation view while the application
+remains mounted. Unknown actor names are rejected against the registry before
+connection.
 
 Per [decision 0002](./.decisions/0002-pin-gpt-5-6-luna-for-chat.md), the
 provider is OpenRouter with the pinned `openai/gpt-5.6-luna-20260709` model.
-Chat, weekly digests, and X enrichment share one executable model constant;
-chat pricing is keyed by that same constant. The model sees a hardened system
-prompt and at most the last 30 UI messages. A request is capped at five tool
-steps. Input validation rejects common prompt-injection forms before provider
-execution.
+Chat, weekly digests, and X enrichment share one executable model constant. The
+model sees a hardened system
+prompt and at most the last 30 uncompacted UI messages. A request is capped at
+five tool steps. Input validation rejects common prompt-injection forms before
+provider execution.
+
+Full visible history remains intact for the UI. When estimated pending context
+crosses the compaction threshold, the chat privately summarizes the old prefix,
+keeps a recent tail verbatim, stores only the rolling summary and boundary, and
+injects that summary into later model context. Compaction is not rendered as a
+user or assistant message. It uses the same pinned model, usage accounting, and
+monthly Assistant allowance as the answer turn; a compaction failure is logged
+and the answer continues with bounded recent context.
 
 Tools list/search/get/save links, inspect counts, change completion, restore,
 and archive one or many links. Recent-link reads accept saved-date bounds and
@@ -93,13 +114,30 @@ render from returned IDs.
 
 Archival tools declare AI SDK `needsApproval` on the server. Approval responses
 use the SDK approval ID and denied calls never execute. The SDK queues approved
-continuations back through `onChatMessage`, so capability and token reservation
+continuations back through `onChatMessage`, so capability and allowance checks
 remain authoritative for the post-approval model turn.
 
 Before every model call or tool continuation, the DO rechecks the workspace
-`chatAgent` capability, reads the chat budget, reserves an estimated token
-amount atomically in DO storage, and reconciles actual usage after completion.
-Capability denial and budget lookup failure stop provider and tool work;
+`chatAgent` capability and reads settled monthly spend from the workspace
+`LinkProcessorDO`. Completion appends one idempotent settlement using the actual
+cost reported by OpenRouter and updates the monthly aggregate atomically.
+Context compaction and the answer settle together. A private runtime limit maps
+that aggregate to public credits without exposing provider-accounting
+configuration. A run resolves one immutable allowance-window ID before provider
+work and uses that same ID for settlement even if the reset boundary passes
+during the run. Monthly Stripe plans use the subscription item's exact current
+period; annual plans derive monthly subwindows from Stripe's billing anchor;
+admin grants derive them from the grant anchor. Remaining credits and the reset date appear quietly below the
+conversation list and in the Account usage section; neither surface exposes
+provider costs or the private limit. The old token ledger is intentionally not
+converted because a faithful conversion would require stale model pricing.
+
+There is no in-flight reservation. Rare overlapping short calls can both pass
+the preflight and settle slightly above the limit; this accepted tradeoff keeps
+the path to one read RPC and one atomic settlement RPC per run. Missing provider
+cost metadata is logged rather than estimated, and the shared provider account
+cap remains the emergency backstop.
+Capability denial and allowance lookup failure stop model and tool work;
 provider rate/credit/tool errors map to concise user-facing messages. Initial
 connection/request hooks also verify the session, current approval, and
 membership. The current SDK turn callback does not expose the originating
@@ -107,6 +145,9 @@ connection identity, so established-connection approval/membership revocation
 remains tracked in
 [DELTA-042](../../.delta/DELTA-042-established-chat-connections-do-not-reauthorize.md).
 
-The current single conversation remains workspace-named. A later multi-chat
-change may split message histories, but it must continue sharing the canonical
-LinkProcessor RPC owner rather than adding another materialized library.
+Creating and deleting conversations updates the registry; deletion retires and
+wipes only the selected chat actor, including when it is the final conversation.
+An explicitly empty registry stays empty until the user creates a fresh chat.
+Account deletion retires every registered chat before wiping the registry and
+canonical LinkProcessor actor. The old destructive `/clear` command is removed
+in favor of explicit conversation lifecycle.

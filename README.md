@@ -57,6 +57,7 @@ and local OAuth/MCP clients on that same origin.
 | Variable                  | Description                                                                                 |
 | ------------------------- | ------------------------------------------------------------------------------------------- |
 | `OPENROUTER_API_KEY`      | [OpenRouter](https://openrouter.ai/keys) API key for chat, weekly digests, and X enrichment |
+| `AI_METER_LIMIT`          | Private Assistant metering configuration                                                    |
 | `RESEND_API_KEY`          | [Resend](https://resend.com) API key for email notifications                                |
 | `EMAIL_FROM`              | Custom sender address (default: `CloudStash <noreply@cloudstash.dev>`)                      |
 | `TELEGRAM_BOT_TOKEN`      | Telegram bot token from [@BotFather](https://t.me/BotFather)                                |

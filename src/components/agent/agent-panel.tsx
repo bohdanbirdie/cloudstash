@@ -6,8 +6,16 @@ import { ChatContainerContext } from "@/components/chat/chat-container-context";
 import { AgentHeader } from "./agent-header";
 import { AgentInput } from "./agent-input";
 import { AgentMessages } from "./agent-messages";
+import { AgentSessionList } from "./agent-session-list";
+import { useAgentSessionsOptional } from "./agent-sessions-provider";
 
 export function AgentPanel() {
+  const sessions = useAgentSessionsOptional();
+
+  if (sessions && !sessions.selectedSession) {
+    return <AgentSessionList />;
+  }
+
   return (
     <AgentPanelSurface
       header={<AgentHeader />}

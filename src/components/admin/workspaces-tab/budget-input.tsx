@@ -60,22 +60,19 @@ export function BudgetInput({
         />
         <TooltipContent>
           <div className="flex flex-col gap-0.5 text-xs">
-            <span>Monthly chat budget in USD</span>
+            <span>Monthly Assistant credits</span>
             <span className="text-muted-foreground">
-              Tier default is ${tierDefault}. Type a different number to set a
-              custom limit; click reset to use the default again.
+              Tier default is {tierDefault}. Type a different number to set a
+              custom allowance; select reset to use the default again.
             </span>
           </div>
         </TooltipContent>
       </Tooltip>
       <div className="relative">
-        <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-1.5 -translate-y-1/2 font-mono text-[11px]">
-          $
-        </span>
         <Input
           key={`${tierDefault}:${override ?? "default"}`}
           ref={inputRef}
-          aria-label="Monthly chat budget in USD"
+          aria-label="Monthly Assistant credits"
           type="number"
           min="0"
           step="1"
@@ -92,7 +89,7 @@ export function BudgetInput({
           }}
           disabled={disabled}
           className={cn(
-            "h-6 w-16 pr-1.5 pl-4 text-right font-mono text-xs tabular-nums",
+            "h-6 w-16 px-1.5 text-right font-mono text-xs tabular-nums",
             { "ring-primary/40 font-medium ring-1": isOverridden }
           )}
         />
@@ -102,7 +99,7 @@ export function BudgetInput({
           type="button"
           onClick={onClear}
           disabled={disabled}
-          aria-label={`Reset chat budget to tier default $${tierDefault}`}
+          aria-label={`Reset Assistant credits to tier default ${tierDefault}`}
           className="text-muted-foreground hover:text-foreground rounded-sm text-[10px] underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none disabled:opacity-50"
         >
           reset
