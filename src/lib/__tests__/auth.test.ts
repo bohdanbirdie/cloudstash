@@ -93,6 +93,9 @@ describe("auth status", () => {
     const auth = await loadAuth();
 
     expect(auth?.status).toBe("unapproved");
+    // Without this, dropping the approval conjunct from isAuthenticated
+    // passes every other case in this file.
+    expect(auth?.isAuthenticated).toBe(false);
     expect(auth?.orgId).toBeNull();
   });
 });

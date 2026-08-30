@@ -27,7 +27,9 @@ export function WorkspaceUnavailable() {
                   preparing your library. Signing in again usually finishes it.
                 </p>
               </div>
-              <Button onClick={() => void logout()}>Sign in again</Button>
+              <Button onClick={() => void logout()}>
+                Sign out and back in
+              </Button>
               <FieldDescription className="text-center">
                 If this keeps happening, contact support and we&rsquo;ll set up
                 your library for you.

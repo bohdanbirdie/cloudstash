@@ -18,7 +18,7 @@ describe("toActivityRows", () => {
           createdAt: "2026-08-01T10:00:00.000Z",
           domain: "example.com",
           id: "link-1",
-          source: "manual",
+          url: "https://example.com/a",
         },
         name: "v1.LinkCreated",
       },
@@ -28,6 +28,8 @@ describe("toActivityRows", () => {
           domain: "example.org",
           id: "link-2",
           source: "telegram",
+          sourceMeta: null,
+          url: "https://example.org/b",
         },
         name: "v2.LinkCreated",
       },
@@ -39,9 +41,11 @@ describe("toActivityRows", () => {
       meta: { domain: "example.com" },
       organizationId: ORG,
       refId: "link-1",
-      source: "manual",
+      // v1 carries no source; only v2 does.
+      source: null,
       type: "link_saved",
     });
+    expect(rows[1]?.source).toBe("telegram");
     expect(rows[0]?.occurredAt).toEqual(new Date("2026-08-01T10:00:00.000Z"));
     expect(rows[1]?.occurredAt).toEqual(new Date("2026-08-02T10:00:00.000Z"));
   });
@@ -89,5 +93,41 @@ describe("toActivityRows", () => {
 
     expect(row?.meta).toBeNull();
     expect(row?.source).toBeNull();
+  });
+});
+
+// The row still has to be writable when a push carries something the schema
+// would not produce, since onPush sees raw client data.
+describe("toActivityRows with unexpected args", () => {
+  it("falls back to the push time when the timestamp is unusable", () => {
+    const before = Date.now();
+    const [row] = toActivityRows(ORG, [
+      {
+        args: { createdAt: "not-a-date", id: "link-8" },
+        name: "v1.LinkCreated",
+      },
+    ]);
+
+    expect(row?.occurredAt.getTime()).toBeGreaterThanOrEqual(before);
+    expect(row?.type).toBe("link_saved");
+  });
+
+  it("drops the dedupe key when the event carries no id", () => {
+    const [row] = toActivityRows(ORG, [
+      {
+        args: { createdAt: "2026-08-06T10:00:00.000Z" },
+        name: "v1.LinkCreated",
+      },
+    ]);
+
+    expect(row?.dedupeKey).toBeNull();
+    expect(row?.refId).toBeNull();
+  });
+
+  it("tolerates an event with no args at all", () => {
+    const [row] = toActivityRows(ORG, [{ args: null, name: "v1.LinkDeleted" }]);
+
+    expect(row?.type).toBe("link_deleted");
+    expect(row?.dedupeKey).toBeNull();
   });
 });

@@ -107,11 +107,8 @@ interface SyncBackendHandle {
 let anySyncBackend: SyncBackendHandle | null = null;
 const syncBackendsByStore = new Map<string, WeakRef<SyncBackendHandle>>();
 
-const syncBackendFor = (storeId: string): SyncBackendHandle | null => {
-  const held = syncBackendsByStore.get(storeId)?.deref();
-  if (!held) syncBackendsByStore.delete(storeId);
-  return held ?? null;
-};
+const syncBackendFor = (storeId: string): SyncBackendHandle | null =>
+  syncBackendsByStore.get(storeId)?.deref() ?? null;
 
 // Stuck-LP tripwire: if a push's first parentSeqNum is more than
 // STUCK_GAP_THRESHOLD events behind SB's eventlog max, the client is far
@@ -135,20 +132,21 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
         event.name === "v2.LinkCreated" ||
         event.name === "v1.LinkReprocessRequested"
     );
-    // These take storeId explicitly and only reach for env, which is identical
-    // across instances of this class.
-    const anyBackend = anySyncBackend;
-    if (shouldWakeProcessor && anyBackend) {
-      anyBackend.triggerLinkProcessor(storeId);
+    // onPush runs inside the instance owning storeId, so this resolves to it.
+    // anySyncBackend only covers the case where the registry lost the entry;
+    // the helpers below take storeId explicitly and reach only for env.
+    const backend = syncBackendFor(storeId) ?? anySyncBackend;
+    if (shouldWakeProcessor && backend) {
+      backend.triggerLinkProcessor(storeId);
     }
 
-    if (anyBackend) {
-      anyBackend.recordActivity(storeId, message.batch);
+    if (backend) {
+      backend.recordActivity(storeId, message.batch);
     }
 
     const firstParent = message.batch[0]?.parentSeqNum;
-    // getEventlogMax reads instance storage, so it must come from the instance
-    // that owns this store rather than whichever was constructed last.
+    // getEventlogMax reads instance storage, so only the owning instance can
+    // answer it — anySyncBackend would report another tenant's head.
     const owner = syncBackendFor(storeId);
     if (firstParent !== undefined && owner) {
       const sbMax = owner.getEventlogMax();
@@ -168,16 +166,15 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
   // Cached once the eventlog table is created (livestore creates it on first
   // push). Stays undefined until then; we re-lookup on each call until found.
   private _eventlogTable: string | undefined;
-  readonly storeId: string | undefined;
 
   constructor(ctx: CfTypes.DurableObjectState, env: Env) {
     super(ctx, env);
     this._env = env;
     this._ctx = ctx;
-    this.storeId = ctx.id.name;
     anySyncBackend = this;
-    if (this.storeId !== undefined) {
-      syncBackendsByStore.set(this.storeId, new WeakRef(this));
+    const storeId = ctx.id.name;
+    if (storeId !== undefined) {
+      syncBackendsByStore.set(storeId, new WeakRef(this));
     }
     logger.info("DO woke up", { doId: ctx.id.toString() });
   }
