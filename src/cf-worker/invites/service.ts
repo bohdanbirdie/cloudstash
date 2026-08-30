@@ -68,13 +68,11 @@ const requireMemberManagement = (session: Session) =>
 const jsonError = (error: string, status: number) =>
   Effect.succeed(Response.json({ error }, { status }));
 
-/** Present on every invite handler's error channel. */
 const commonErrors = {
   DbError: () => jsonError("Internal server error", 500),
   InvitesUnauthorizedError: () => jsonError("Unauthorized", 401),
 };
 
-/** The three handlers gated behind member management. */
 const adminErrors = {
   ...commonErrors,
   InvitesForbiddenError: () => jsonError("Admin access required", 403),

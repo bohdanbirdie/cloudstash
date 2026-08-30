@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import useSWR from "swr";
 
-import { useFlashValue } from "@/hooks/use-flash-value";
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import type {
   InviteWithRelations,
   InvitesListResponse,
@@ -22,14 +22,10 @@ export function useInvitesAdmin(enabled = true) {
   const [isCreating, setIsCreating] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [newInviteCode, setNewInviteCode] = useState<string | null>(null);
-  // Holds the code that was copied, so the confirmation can be attached to
-  // the item it belongs to instead of to whatever the banner happens to show.
-  const {
-    value: copiedCode,
-    trigger: flashCopiedCode,
-    reset: resetCopiedCode,
-  } = useFlashValue<string>();
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const { copied, copy } = useCopyToClipboard();
+  const [lastCopiedCode, setLastCopiedCode] = useState<string | null>(null);
+  const copiedCode = copied ? lastCopiedCode : null;
 
   const {
     data: invites = [],
@@ -95,17 +91,17 @@ export function useInvitesAdmin(enabled = true) {
   );
 
   const handleCopyCode = useCallback(
-    async (code: string) => {
-      await navigator.clipboard.writeText(code);
-      flashCopiedCode(code);
+    (code: string) => {
+      setLastCopiedCode(code);
+      copy(code);
     },
-    [flashCopiedCode]
+    [copy]
   );
 
   const reset = useCallback(() => {
     setNewInviteCode(null);
-    resetCopiedCode();
-  }, [resetCopiedCode]);
+    setLastCopiedCode(null);
+  }, []);
 
   const availableCount = invites.filter(
     (i) => getInviteStatus(i) === "available"

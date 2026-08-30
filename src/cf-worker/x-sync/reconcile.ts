@@ -241,10 +241,6 @@ const reconcileCoreEffect = Effect.fn("XBookmarkSyncDO.reconcileCore")(
     const connected = isConnectedState(state);
     if (connected && state.status === "needs_reconnect") {
       const reason = yield* store.readReconnectReason();
-      // A 402 comes only from the bookmarks endpoint, so getMe cannot observe
-      // it. Recovering on a getMe success would return the account to active
-      // and the next poll would park it again, every cycle. Only an explicit
-      // resume clears this.
       const recoverable = reason === "auth";
       const credentialValid =
         recoverable &&
@@ -339,9 +335,6 @@ export const resumeSyncEffect = Effect.fn("XBookmarkSyncDO.resume")(function* (
     return;
   }
   yield* store.setSyncEnabled(true);
-  // An explicit resume is the user asserting the problem is fixed. Clear a
-  // provider-access park so reconcile gives it one more attempt; if the
-  // provider still refuses, the next poll parks it again.
   yield* store.setReconnectReason("auth");
   return yield* reconcileSyncEffect(userId, requestedOrgId);
 });

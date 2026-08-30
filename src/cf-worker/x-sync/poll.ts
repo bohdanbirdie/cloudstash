@@ -24,10 +24,6 @@ export type PollOutcome =
   | { kind: "rate_limited"; retryAfterMs: number }
   | { kind: "needs_reconnect" };
 
-/**
- * Park the account, recording why. The reason is written first so a reader can
- * never observe `needs_reconnect` alongside a stale reason.
- */
 const park = (
   store: XSyncStateStoreShape,
   reason: XSyncReconnectReason
@@ -253,8 +249,6 @@ export const pollReconciledEffect = Effect.fn("XBookmarkSyncDO.pollReconciled")(
             retryAfterMs: error.retryAfterMs,
           })
         ),
-        // Both park the account, but for different reasons. Record which, so
-        // reconcile knows whether its getMe check can actually clear the park.
         Effect.catchTag("XUnauthorizedError", () => park(store, "auth")),
         Effect.catchTag("XPaymentRequiredError", () =>
           park(store, "access_level")

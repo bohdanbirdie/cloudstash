@@ -144,11 +144,6 @@ interface BillingShape {
   readonly subscription: (
     orgId: OrgId
   ) => Effect.Effect<Subscription, DbError | OrgNotFoundError>;
-  /**
-   * Tier, capabilities and subscription from a single row read. Callers that
-   * need more than one of them — /api/auth/me needs all three — should use
-   * this rather than paying a round trip each.
-   */
   readonly orgBillingSnapshot: (orgId: OrgId) => Effect.Effect<
     {
       readonly tier: PlanTier;

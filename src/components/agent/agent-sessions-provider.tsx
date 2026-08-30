@@ -13,6 +13,7 @@ import { titleFromMessage } from "@/cf-worker/chat-agent/sessions";
 import type { AssistantCreditStatus } from "@/cf-worker/chat-agent/usage";
 import {
   chatSessionEndpoint,
+  chatSessionFailure,
   chatSessionsEndpoint,
   decodeChatSessionsResponse,
   fetchChatSessions,
@@ -25,20 +26,6 @@ const EMPTY_SESSIONS: readonly ChatSession[] = [];
  * the chat limit, for instance, tells the reader to delete a chat first.
  * Prefer it over a status code, and fall back only when the body is unusable.
  */
-const failureFor = async (
-  response: Response,
-  fallback: string
-): Promise<Error> => {
-  const body: unknown = await response.json().catch(() => null);
-  if (body && typeof body === "object" && "error" in body) {
-    const message: unknown = (body as { error: unknown }).error;
-    if (typeof message === "string" && message.length > 0) {
-      return new Error(message);
-    }
-  }
-  return new Error(`${fallback}: ${response.status}`);
-};
-
 interface AgentSessionsValue {
   readonly sessions: readonly ChatSession[];
   readonly assistantCredits: AssistantCreditStatus | undefined;
@@ -87,7 +74,8 @@ export function AgentSessionsProvider({
       method: "POST",
       credentials: "include",
     });
-    if (!response.ok) throw await failureFor(response, "Create chat failed");
+    if (!response.ok)
+      throw await chatSessionFailure(response, "Create chat failed");
     const result = await decodeChatSessionsResponse(await response.json());
     await mutate(result, { revalidate: false });
     setSelectedAgentName(result.sessions[0]?.agentName);
@@ -102,7 +90,8 @@ export function AgentSessionsProvider({
           credentials: "include",
         }
       );
-      if (!response.ok) throw await failureFor(response, "Delete chat failed");
+      if (!response.ok)
+        throw await chatSessionFailure(response, "Delete chat failed");
       const result = await decodeChatSessionsResponse(await response.json());
       await mutate(result, { revalidate: false });
       setSelectedAgentName((selected) =>

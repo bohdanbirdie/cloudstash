@@ -45,10 +45,7 @@ function Harness() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => void invites.handleCopyCode(OTHER_CODE)}
-      >
+      <button type="button" onClick={() => invites.handleCopyCode(OTHER_CODE)}>
         Copy another code
       </button>
       <Tabs defaultValue="invites">

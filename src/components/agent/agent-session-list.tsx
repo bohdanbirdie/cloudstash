@@ -91,8 +91,6 @@ export function AgentSessionListView({
   onRetry: () => Promise<void>;
 }) {
   const runAction = (action: () => Promise<void>) => {
-    // The server explains what went wrong — at the chat limit it names the
-    // limit and says to delete a chat. "Try again" would be wrong there.
     void action().catch((cause: unknown) =>
       toast.error(
         cause instanceof Error && cause.message

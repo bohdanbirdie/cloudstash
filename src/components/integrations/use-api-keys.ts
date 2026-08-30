@@ -3,7 +3,6 @@ import useSWR from "swr";
 
 import { authClient, useAuth } from "@/lib/auth";
 
-/** Tags the server writes into key metadata when it issues a first-party key. */
 export const INTEGRATION_SOURCES = [
   "chrome-extension",
   "raycast",
@@ -16,7 +15,6 @@ export interface ApiKey {
   name: string | null;
   createdAt: Date;
   lastRequest: Date | null;
-  /** null for keys the user generated themselves. */
   source: IntegrationSource | null;
 }
 
@@ -24,11 +22,6 @@ const isIntegrationSource = (value: unknown): value is IntegrationSource =>
   typeof value === "string" &&
   INTEGRATION_SOURCES.includes(value as IntegrationSource);
 
-/**
- * Keys issued before the server recorded a source carry only a display name,
- * and Raycast rewrites its own name per device. Fall back to the historical
- * name shapes so those keys stay attached to their integration card.
- */
 const sourceFromName = (name: string | null): IntegrationSource | null => {
   if (name === "Chrome Extension") return "chrome-extension";
   if (name === "Raycast Extension" || name?.startsWith("Raycast — ")) {
