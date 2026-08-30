@@ -25,7 +25,6 @@ import {
 import type { OrgId } from "../db/branded";
 import { OrgId as OrgIdBrand } from "../db/branded";
 import * as schema from "../db/schema";
-import type { TierSource } from "../db/schema";
 import { DbClient, DbError, query } from "../db/service";
 import { maskId } from "../log-utils";
 import { OrgNotFoundError } from "../org/errors";
@@ -34,18 +33,6 @@ import {
   AssistantUsageWindow,
   resolveAssistantUsageWindow,
 } from "./usage-cycle";
-
-export interface WorkspaceWithOwner {
-  id: OrgId;
-  name: string;
-  slug: string | null;
-  creatorEmail: string | null;
-  tier: PlanTier;
-  tierSource: TierSource;
-  adminTierGrant: PlanTier | null;
-  overrides: CapabilityOverrides;
-  capabilities: TierCapabilities;
-}
 
 type OrgRow = {
   createdAt: Date;
@@ -59,9 +46,12 @@ type OrgRow = {
   usageCycleAnchor: Date | null;
 };
 
+const PlanTierSchema = Schema.Literals(PLAN_ORDER);
+const TierSourceSchema = Schema.Literals(["stripe", "admin"]);
+
 const EffectivePlan = Schema.Struct({
-  tier: Schema.Literals(PLAN_ORDER),
-  source: Schema.Literals(["stripe", "admin"]),
+  tier: PlanTierSchema,
+  source: TierSourceSchema,
   usageCycleAnchor: Schema.NullOr(Schema.DateValid),
 });
 type EffectivePlan = Schema.Schema.Type<typeof EffectivePlan>;
@@ -99,9 +89,36 @@ const TierCapabilitiesSchema = Schema.Struct({
   monthlyAssistantCredits: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 });
 
+const CapabilityOverridesSchema = Schema.Struct({
+  aiSummary: Schema.optionalKey(Schema.Boolean),
+  chatAgent: Schema.optionalKey(Schema.Boolean),
+  integrations: Schema.optionalKey(Schema.Boolean),
+  xBookmarkSync: Schema.optionalKey(Schema.Boolean),
+  xContentEnrichment: Schema.optionalKey(Schema.Boolean),
+  publicApi: Schema.optionalKey(Schema.Boolean),
+  mcpServer: Schema.optionalKey(Schema.Boolean),
+  weeklyDigest: Schema.optionalKey(Schema.Boolean),
+  monthlyAssistantCredits: Schema.optionalKey(
+    Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+  ),
+});
+
+export const WorkspaceWithOwner = Schema.Struct({
+  id: OrgIdBrand,
+  name: Schema.String,
+  slug: Schema.NullOr(Schema.String),
+  creatorEmail: Schema.NullOr(Schema.String),
+  tier: PlanTierSchema,
+  tierSource: TierSourceSchema,
+  adminTierGrant: Schema.NullOr(PlanTierSchema),
+  overrides: CapabilityOverridesSchema,
+  capabilities: TierCapabilitiesSchema,
+});
+export type WorkspaceWithOwner = typeof WorkspaceWithOwner.Type;
+
 export const AssistantAllowance = Schema.Struct({
   capabilities: TierCapabilitiesSchema,
-  source: Schema.Literals(["stripe", "admin"]),
+  source: TierSourceSchema,
   usageWindow: Schema.Option(AssistantUsageWindow),
 });
 export type AssistantAllowance = Schema.Schema.Type<typeof AssistantAllowance>;
@@ -282,11 +299,6 @@ const make = Effect.gen(function* () {
     ) {
       const existing = yield* fetchOrgRow(orgId);
       const previousPlan = resolveEffectivePlan(existing);
-      yield* Effect.annotateCurrentSpan({
-        orgId: maskId(orgId),
-        from: previousPlan.tier,
-        to: tier,
-      });
       const grant = Match.value({
         isFree: tier === "free",
         isUnchanged: existing.adminTierGrant === tier,
@@ -307,6 +319,22 @@ const make = Effect.gen(function* () {
         )
       );
       const resolvedGrant = yield* grant;
+      const nextPlan = resolveEffectivePlan({
+        ...existing,
+        adminTierGrant: resolvedGrant.tier,
+        adminTierGrantedAt: resolvedGrant.grantedAt,
+      });
+      const telemetry = {
+        orgId: maskId(orgId),
+        from: previousPlan.tier,
+        to: nextPlan.tier,
+        requestedGrant: tier,
+        storedGrant: resolvedGrant.tier ?? "none",
+        fromSource: previousPlan.source,
+        toSource: nextPlan.source,
+        grantCleared: resolvedGrant.tier === null,
+      };
+      yield* Effect.annotateCurrentSpan(telemetry);
       yield* query(
         db
           .update(schema.organization)
@@ -317,12 +345,7 @@ const make = Effect.gen(function* () {
           .where(eq(schema.organization.id, orgId))
       );
       yield* Effect.logInfo("Billing.setTier applied").pipe(
-        Effect.annotateLogs({
-          orgId: maskId(orgId),
-          from: previousPlan.tier,
-          to: tier,
-          grantCleared: resolvedGrant.tier === null,
-        })
+        Effect.annotateLogs(telemetry)
       );
     }),
 
@@ -366,6 +389,7 @@ const make = Effect.gen(function* () {
 
     /** True if the org row exists. */
     exists: Effect.fn("Billing.exists")(function* (orgId: OrgId) {
+      yield* Effect.annotateCurrentSpan({ orgId: maskId(orgId) });
       const row = yield* query(
         db.query.organization.findFirst({
           where: eq(schema.organization.id, orgId),
@@ -388,7 +412,7 @@ const make = Effect.gen(function* () {
         })
       );
       yield* Effect.annotateCurrentSpan({ count: orgs.length });
-      return orgs.map((org): WorkspaceWithOwner => {
+      return orgs.map((org) => {
         const overrides = org.featureOverrides ?? {};
         const plan = resolveEffectivePlan({
           createdAt: org.createdAt,
@@ -401,7 +425,7 @@ const make = Effect.gen(function* () {
           currentPeriodEnd: org.currentPeriodEnd,
           usageCycleAnchor: org.usageCycleAnchor,
         });
-        return {
+        return WorkspaceWithOwner.make({
           id: OrgIdBrand.make(org.id),
           name: org.name,
           slug: org.slug,
@@ -411,7 +435,7 @@ const make = Effect.gen(function* () {
           adminTierGrant: org.adminTierGrant,
           overrides,
           capabilities: { ...TIER_CAPABILITIES[plan.tier], ...overrides },
-        };
+        });
       });
     }),
   } satisfies BillingShape;
@@ -420,7 +444,7 @@ const make = Effect.gen(function* () {
 export class Billing extends Context.Service<Billing, BillingShape>()(
   "@cloudstash/Billing"
 ) {
-  static readonly Default = Layer.effect(Billing, make);
+  static readonly layer = Layer.effect(Billing, make);
 }
 
 /**

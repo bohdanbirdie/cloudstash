@@ -231,6 +231,26 @@ describe("admin Endpoints E2E", () => {
       };
       expect(settings.tier).toBe("pro");
       expect(settings.capabilities.chatAgent).toBe(true);
+
+      const listRes = await SELF.fetch("http://worker/api/admin/workspaces", {
+        headers: { Cookie: adminUser.cookie },
+      });
+      expect(listRes.status).toBe(200);
+      const list = (await listRes.json()) as {
+        workspaces: Array<{
+          id: string;
+          tier: string;
+          tierSource: string;
+          adminTierGrant: string | null;
+        }>;
+      };
+      expect(
+        list.workspaces.find((workspace) => workspace.id === target.orgId)
+      ).toMatchObject({
+        tier: "pro",
+        tierSource: "admin",
+        adminTierGrant: "pro",
+      });
     });
 
     it("does not let a lower admin grant downgrade the Stripe tier", async () => {

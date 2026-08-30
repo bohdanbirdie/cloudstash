@@ -76,6 +76,7 @@ export const getOrCreateStripeCustomer = Effect.fn(
 export const getStripeCustomerId = Effect.fn("Billing.getStripeCustomerId")(
   function* (orgId: OrgId) {
     const db = yield* DbClient;
+    yield* Effect.annotateCurrentSpan({ orgId: maskId(orgId) });
     const org = yield* query(
       db.query.organization.findFirst({
         where: eq(schema.organization.id, orgId),

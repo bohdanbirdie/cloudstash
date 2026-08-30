@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 
+import { Schema } from "effect";
+
 const migrationsDirectory = new URL("../drizzle/migrations/", import.meta.url);
 const checksumsFile = new URL(
   "../drizzle/migrations/meta/generated-migration-checksums.json",
@@ -22,12 +24,14 @@ const containsHandwrittenDataMutation = (sql: string) => {
 const checksum = (sql: string) =>
   createHash("sha256").update(sql).digest("hex");
 
-const readRecordedChecksums = async (): Promise<Record<string, string>> => {
+const MigrationChecksums = Schema.Record(Schema.String, Schema.String);
+type MigrationChecksums = typeof MigrationChecksums.Type;
+
+const readRecordedChecksums = async (): Promise<MigrationChecksums> => {
   try {
-    return JSON.parse(await readFile(checksumsFile, "utf8")) as Record<
-      string,
-      string
-    >;
+    return Schema.decodeUnknownSync(MigrationChecksums)(
+      JSON.parse(await readFile(checksumsFile, "utf8"))
+    );
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
       return {};
