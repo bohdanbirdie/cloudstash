@@ -5,6 +5,7 @@ import { events } from "../../livestore/schema";
 import { LinkId as LinkIdBrand } from "../db/branded";
 import type { LinkId, OrgId } from "../db/branded";
 import { maskId } from "../log-utils";
+import { TERMINAL_STATUSES } from "./progress-draft";
 import { LinkRepository, SourceNotifier } from "./services";
 
 const STUCK_TIMEOUT_MS = 5 * 60 * 1000;
@@ -94,12 +95,7 @@ export const cancelStaleLinks = Effect.fn("LinkProcessor.cancelStaleLinks")(
     const staleLinks = links.filter((link) => {
       if (currentlyProcessing.has(link.id)) return false;
       const status = statusMap.get(link.id);
-      if (
-        status?.status === "completed" ||
-        status?.status === "cancelled" ||
-        status?.status === "failed"
-      )
-        return false;
+      if (status && TERMINAL_STATUSES.has(status.status)) return false;
       const updatedAt = status
         ? new Date(status.updatedAt).getTime()
         : new Date(link.createdAt).getTime();

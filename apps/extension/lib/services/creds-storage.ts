@@ -117,7 +117,7 @@ export class CredsStorage extends Context.Service<
           { type: "cs:get-creds" },
           CredsPayload
         );
-        return toCreds(reply);
+        return reply;
       }).pipe(Effect.withSpan("CredsStorage.getProxy"));
 
       const set = (_creds: Creds | null) =>
@@ -126,7 +126,7 @@ export class CredsStorage extends Context.Service<
       const changes = messenger.listen.pipe(
         Stream.filterMap((msg) =>
           msg.type === "cs:creds-changed"
-            ? Result.succeed(toCreds(msg.creds))
+            ? Result.succeed(msg.creds)
             : Result.fail(null)
         )
       );

@@ -93,11 +93,22 @@ let liveLongTimers = 0;
     wrappedClearTimeout as typeof globalThis.clearTimeout;
 }
 
-let currentSyncBackend: {
+interface SyncBackendHandle {
   triggerLinkProcessor: (storeId: OrgId) => void;
   getEventlogMax: () => number | null;
   recordActivity: (storeId: OrgId, batch: readonly PushEvent[]) => void;
-} | null = null;
+}
+
+// onPush is a static option with no binding to the instance handling it, so
+// the only route back to "self" is module state. Instances of one class share
+// an isolate, so a single reference would be whichever was constructed last —
+// fine for the env-only helpers, wrong for anything reading instance storage.
+// Weak references keep an evicted instance collectable.
+let anySyncBackend: SyncBackendHandle | null = null;
+const syncBackendsByStore = new Map<string, WeakRef<SyncBackendHandle>>();
+
+const syncBackendFor = (storeId: string): SyncBackendHandle | null =>
+  syncBackendsByStore.get(storeId)?.deref() ?? null;
 
 // Stuck-LP tripwire: if a push's first parentSeqNum is more than
 // STUCK_GAP_THRESHOLD events behind SB's eventlog max, the client is far
@@ -121,17 +132,24 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
         event.name === "v2.LinkCreated" ||
         event.name === "v1.LinkReprocessRequested"
     );
-    if (shouldWakeProcessor && currentSyncBackend) {
-      currentSyncBackend.triggerLinkProcessor(storeId);
+    // onPush runs inside the instance owning storeId, so this resolves to it.
+    // anySyncBackend only covers the case where the registry lost the entry;
+    // the helpers below take storeId explicitly and reach only for env.
+    const backend = syncBackendFor(storeId) ?? anySyncBackend;
+    if (shouldWakeProcessor && backend) {
+      backend.triggerLinkProcessor(storeId);
     }
 
-    if (currentSyncBackend) {
-      currentSyncBackend.recordActivity(storeId, message.batch);
+    if (backend) {
+      backend.recordActivity(storeId, message.batch);
     }
 
     const firstParent = message.batch[0]?.parentSeqNum;
-    if (firstParent !== undefined && currentSyncBackend) {
-      const sbMax = currentSyncBackend.getEventlogMax();
+    // getEventlogMax reads instance storage, so only the owning instance can
+    // answer it — anySyncBackend would report another tenant's head.
+    const owner = syncBackendFor(storeId);
+    if (firstParent !== undefined && owner) {
+      const sbMax = owner.getEventlogMax();
       if (sbMax !== null && sbMax - firstParent > STUCK_GAP_THRESHOLD) {
         logger.warn("LP push lags SB eventlog — possible stuck client", {
           storeId: maskId(storeId),
@@ -153,7 +171,11 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
     super(ctx, env);
     this._env = env;
     this._ctx = ctx;
-    currentSyncBackend = this;
+    anySyncBackend = this;
+    const storeId = ctx.id.name;
+    if (storeId !== undefined) {
+      syncBackendsByStore.set(storeId, new WeakRef(this));
+    }
     logger.info("DO woke up", { doId: ctx.id.toString() });
   }
 

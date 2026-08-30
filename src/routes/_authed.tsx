@@ -26,6 +26,7 @@ import { RightPane } from "@/components/right-pane/right-pane";
 import { SettingsDialog } from "@/components/settings/settings-dialog";
 import { TagStrip } from "@/components/tag-strip/tag-strip";
 import { SyncingTopBar, TopBar } from "@/components/top-bar";
+import { WorkspaceUnavailable } from "@/components/workspace-unavailable";
 import { YouTubePlayerHost } from "@/components/youtube-player-host";
 import { usePageStaticData } from "@/hooks/use-page-static-data";
 import { loadAuth, useAuth } from "@/lib/auth";
@@ -97,6 +98,7 @@ export const Route = createFileRoute("/_authed")({
 
 function AuthedLayout() {
   const auth = useAuth();
+  if (auth.status === "org-pending") return <WorkspaceUnavailable />;
   if (!auth.isAuthenticated) return <PendingApproval />;
   return <AuthedShellWrapper />;
 }
