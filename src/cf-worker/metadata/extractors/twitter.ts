@@ -1,7 +1,7 @@
 import { Effect, Schema } from "effect";
 
 import { fetchBoundedText } from "../../net/bounded-fetch";
-import { MetadataParser } from "../parser";
+import { METADATA_FETCH_HEADERS, parseMetadataHtml } from "../parser";
 import { defaultExtractorContext } from "./types";
 import type { Extractor, ExtractorContext } from "./types";
 
@@ -118,11 +118,7 @@ const fetchOgImage = (target: string, context: ExtractorContext) =>
       fetchBoundedText({
         acceptedContentTypes: ["text/html", "application/xhtml+xml"],
         fetcher: context.fetcher,
-        headers: {
-          Accept: "text/html",
-          "User-Agent":
-            "Mozilla/5.0 (compatible; CloudstashBot/1.0; +https://cloudstash.app)",
-        },
+        headers: METADATA_FETCH_HEADERS,
         maxBytes: context.maxBytes,
         maxRedirects: context.maxRedirects,
         signal: context.signal,
@@ -130,20 +126,10 @@ const fetchOgImage = (target: string, context: ExtractorContext) =>
         url: targetUrl,
       })
     );
-    const parser = new MetadataParser(response.finalUrl.href);
-    yield* Effect.tryPromise(() =>
-      new HTMLRewriter()
-        .on("meta", parser)
-        .on("link", parser)
-        .on("script", parser)
-        .transform(
-          new Response(response.body, {
-            headers: { "Content-Type": "text/html; charset=utf-8" },
-          })
-        )
-        .text()
+    const result = yield* Effect.tryPromise(() =>
+      parseMetadataHtml(response.body, response.finalUrl)
     );
-    return parser.getResult().image ?? null;
+    return result.image ?? null;
   }).pipe(Effect.catch(() => Effect.succeed(null)));
 
 function firstExternalUrl(data: TweetResponse): string | null {

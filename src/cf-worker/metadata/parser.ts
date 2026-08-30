@@ -138,3 +138,37 @@ export class MetadataParser implements HTMLRewriterElementContentHandlers {
     }
   }
 }
+
+/**
+ * The shared bot identity for metadata fetches. Extractors that fetch HTML
+ * themselves use the same headers, so a host that allowlists or blocks us sees
+ * one identity rather than several.
+ */
+export const METADATA_FETCH_HEADERS = {
+  Accept: "text/html",
+  "User-Agent": "Mozilla/5.0 (compatible; CloudstashBot/1.0)",
+};
+
+/**
+ * Run a fetched HTML body through MetadataParser. Callers own their own fetch
+ * and their own error mapping — service.ts distinguishes a fetch failure from
+ * a parse failure, while extractors fall back to null on either.
+ */
+export const parseMetadataHtml = async (
+  body: BodyInit,
+  finalUrl: URL
+): Promise<MetadataResult> => {
+  const parser = new MetadataParser(finalUrl.href);
+  await new HTMLRewriter()
+    .on("title", parser)
+    .on("meta", parser)
+    .on("link", parser)
+    .on("script", parser)
+    .transform(
+      new Response(body, {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      })
+    )
+    .text();
+  return parser.getResult();
+};
