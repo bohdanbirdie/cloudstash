@@ -68,16 +68,6 @@ const requireMemberManagement = (session: Session) =>
 const jsonError = (error: string, status: number) =>
   Effect.succeed(Response.json({ error }, { status }));
 
-const commonErrors = {
-  DbError: () => jsonError("Internal server error", 500),
-  InvitesUnauthorizedError: () => jsonError("Unauthorized", 401),
-};
-
-const adminErrors = {
-  ...commonErrors,
-  InvitesForbiddenError: () => jsonError("Admin access required", 403),
-};
-
 const invitesLayer = (env: Env) =>
   Layer.provideMerge(InviteStoreLive, AppLayerLive(env));
 
@@ -136,8 +126,10 @@ export const handleCreateInvite = (
       Effect.provide(invitesLayer(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
-        ...adminErrors,
+        DbError: () => jsonError("Internal server error", 500),
         InvalidInviteRequestError: (error) => jsonError(error.reason, 400),
+        InvitesForbiddenError: () => jsonError("Admin access required", 403),
+        InvitesUnauthorizedError: () => jsonError("Unauthorized", 401),
       })
     )
   );
@@ -166,7 +158,11 @@ export const handleListInvites = (
     handleListInvitesRequest(request).pipe(
       Effect.provide(invitesLayer(env)),
       Effect.map((data) => Response.json(data)),
-      Effect.catchTags(adminErrors)
+      Effect.catchTags({
+        DbError: () => jsonError("Internal server error", 500),
+        InvitesForbiddenError: () => jsonError("Admin access required", 403),
+        InvitesUnauthorizedError: () => jsonError("Unauthorized", 401),
+      })
     )
   );
 
@@ -201,8 +197,10 @@ export const handleDeleteInvite = (
       Effect.provide(invitesLayer(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
-        ...adminErrors,
+        DbError: () => jsonError("Internal server error", 500),
         InviteNotFoundError: () => jsonError("Invite not found", 404),
+        InvitesForbiddenError: () => jsonError("Admin access required", 403),
+        InvitesUnauthorizedError: () => jsonError("Unauthorized", 401),
       })
     )
   );
@@ -267,9 +265,10 @@ export const handleRedeemInvite = (
       Effect.provide(invitesLayer(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
-        ...commonErrors,
+        DbError: () => jsonError("Internal server error", 500),
         InvalidInviteError: () =>
           jsonError("Invalid or expired invite code", 400),
+        InvitesUnauthorizedError: () => jsonError("Unauthorized", 401),
       })
     )
   );
