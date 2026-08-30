@@ -1,11 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  filteredLinks$,
-  linksWithAllTags$,
-  linksWithTag$,
-} from "../../queries/filtered-links";
+import { filteredLinks$ } from "../../queries/filtered-links";
 import { events } from "../../schema";
 import { makeTestStore, testId } from "../test-helpers";
 import type { TestStore } from "../test-helpers";
@@ -89,7 +85,7 @@ describe("filtered-links queries", () => {
   const deleteLink = (id: string, deletedAt: Date) =>
     store.commit(events.linkDeleted({ id, deletedAt }));
 
-  describe("linksWithTag$", () => {
+  describe("filteredLinks$ single tag", () => {
     it("returns only links tagged with the given tag, excluding deleted links", () => {
       const linkA = seedLink({
         url: "https://a.test/1",
@@ -109,7 +105,7 @@ describe("filtered-links queries", () => {
       tagLink(linkB, t1);
       tagLink(linkC, t2);
 
-      const rows = store.query(linksWithTag$(t1));
+      const rows = store.query(filteredLinks$("all", { tagIds: [t1] }));
       expect(rows.map((r) => r.id)).toEqual([linkB, linkA]);
     });
 
@@ -121,7 +117,7 @@ describe("filtered-links queries", () => {
       tagLink(linkB, t1);
       deleteLink(linkB, new Date("2026-01-05T10:00:00Z"));
 
-      const rows = store.query(linksWithTag$(t1));
+      const rows = store.query(filteredLinks$("all", { tagIds: [t1] }));
       expect(rows.map((r) => r.id)).toEqual([linkA]);
     });
 
@@ -136,11 +132,11 @@ describe("filtered-links queries", () => {
         })
       );
 
-      expect(store.query(linksWithTag$(tag))).toEqual([]);
+      expect(store.query(filteredLinks$("all", { tagIds: [tag] }))).toEqual([]);
     });
   });
 
-  describe("linksWithAllTags$", () => {
+  describe("filteredLinks$ all tags", () => {
     it("returns only links that have every requested tag", () => {
       const linkAB = seedLink({
         url: "https://a.test/1",
@@ -164,13 +160,13 @@ describe("filtered-links queries", () => {
       tagLink(linkABC, tB);
       tagLink(linkABC, tC);
 
-      const rows = store.query(linksWithAllTags$([tA, tB]));
+      const rows = store.query(filteredLinks$("all", { tagIds: [tA, tB] }));
       expect(rows.map((r) => r.id).toSorted()).toEqual(
         [linkAB, linkABC].toSorted()
       );
     });
 
-    it("with empty tagIds falls back to allLinks$ (all non-deleted)", () => {
+    it("with empty tagIds returns all non-deleted", () => {
       const a = seedLink({
         url: "https://a.test/1",
         createdAt: new Date("2026-01-01T10:00:00Z"),
@@ -181,7 +177,7 @@ describe("filtered-links queries", () => {
       });
       deleteLink(b, new Date("2026-01-05T10:00:00Z"));
 
-      const rows = store.query(linksWithAllTags$([]));
+      const rows = store.query(filteredLinks$("all", { tagIds: [] }));
       expect(rows.map((r) => r.id)).toEqual([a]);
     });
 
@@ -198,12 +194,12 @@ describe("filtered-links queries", () => {
         })
       );
 
-      const rows = store.query(linksWithAllTags$([tA, tB]));
+      const rows = store.query(filteredLinks$("all", { tagIds: [tA, tB] }));
       expect(rows).toEqual([]);
     });
   });
 
-  describe("linksWithTag$ with suggestions", () => {
+  describe("filteredLinks$ single tag with suggestions", () => {
     it("matches links that have the existing tag as a pending suggestion", () => {
       const applied = seedLink({ url: "https://a.test/1" });
       const suggested = seedLink({ url: "https://a.test/2" });
@@ -212,7 +208,7 @@ describe("filtered-links queries", () => {
       tagLink(applied, tag);
       suggest(suggested, { tagId: tag, suggestedName: "focus" });
 
-      const rows = store.query(linksWithTag$(tag));
+      const rows = store.query(filteredLinks$("all", { tagIds: [tag] }));
       expect(rows.map((r) => r.id).toSorted()).toEqual(
         [applied, suggested].toSorted()
       );
@@ -223,7 +219,7 @@ describe("filtered-links queries", () => {
       const link = seedLink();
       suggest(link, { suggestedName: "bullmq" });
 
-      const rows = store.query(linksWithTag$("bullmq"));
+      const rows = store.query(filteredLinks$("all", { tagIds: ["bullmq"] }));
       expect(rows.map((r) => r.id)).toEqual([link]);
     });
 
@@ -235,11 +231,13 @@ describe("filtered-links queries", () => {
       store.commit(events.tagSuggestionDismissed({ id: s1 }));
       store.commit(events.tagSuggestionAccepted({ id: s2 }));
 
-      expect(store.query(linksWithTag$("bullmq"))).toEqual([]);
+      expect(
+        store.query(filteredLinks$("all", { tagIds: ["bullmq"] }))
+      ).toEqual([]);
     });
   });
 
-  describe("linksWithAllTags$ with suggestions", () => {
+  describe("filteredLinks$ all-tags with suggestions", () => {
     it("counts applied and suggested matches together toward 'all tags' requirement", () => {
       const link = seedLink();
       const tA = seedTag("A", 1);
@@ -247,7 +245,9 @@ describe("filtered-links queries", () => {
       // Second tag is only a new-tag suggestion
       suggest(link, { suggestedName: "bullmq" });
 
-      const rows = store.query(linksWithAllTags$([tA, "bullmq"]));
+      const rows = store.query(
+        filteredLinks$("all", { tagIds: [tA, "bullmq"] })
+      );
       expect(rows.map((r) => r.id)).toEqual([link]);
     });
 
@@ -256,7 +256,9 @@ describe("filtered-links queries", () => {
       const tA = seedTag("A", 1);
       tagLink(link, tA);
 
-      const rows = store.query(linksWithAllTags$([tA, "missing"]));
+      const rows = store.query(
+        filteredLinks$("all", { tagIds: [tA, "missing"] })
+      );
       expect(rows).toEqual([]);
     });
   });

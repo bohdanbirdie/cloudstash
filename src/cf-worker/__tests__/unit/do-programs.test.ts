@@ -11,7 +11,6 @@ import { events, tables } from "../../../livestore/schema";
 import { LinkId, OrgId } from "../../db/branded";
 import {
   cancelStaleLinks,
-  detectStuckLinks,
   ingestLink,
   notifyResult,
 } from "../../link-processor/do-programs";
@@ -115,28 +114,6 @@ function createTestNotifier() {
   });
   return { layer, drafts, finalized, replies };
 }
-
-const makeLink = (overrides: Partial<Link> = {}): Link => ({
-  id: "link-1",
-  url: "https://example.com",
-  domain: "example.com",
-  status: "unread",
-  source: null,
-  sourceMeta: null,
-  createdAt: new Date("2026-01-01"),
-  completedAt: null,
-  deletedAt: null,
-  ...overrides,
-});
-
-const makeStatus = (overrides: Partial<Status> = {}): Status => ({
-  linkId: "link-1",
-  status: "pending",
-  error: null,
-  notified: 0,
-  updatedAt: new Date("2026-01-01"),
-  ...overrides,
-});
 
 describe("ingestLink", () => {
   it.effect("atomically creates a link with pending processing", () => {
@@ -521,73 +498,6 @@ describe("notifyResult", () => {
         })
       )
     );
-  });
-});
-
-describe("detectStuckLinks", () => {
-  const FIVE_MIN = 5 * 60 * 1000;
-  const now = Date.now();
-
-  it("detects a stuck pending link", () => {
-    const link = makeLink();
-    const status = makeStatus({
-      updatedAt: new Date(now - FIVE_MIN - 1000),
-    });
-
-    const stuck = detectStuckLinks([link], [status], new Set(), now);
-
-    expect(stuck).toHaveLength(1);
-    expect(stuck[0].linkId).toBe("link-1");
-    expect(stuck[0].stuckMs).toBeGreaterThan(FIVE_MIN);
-  });
-
-  it("skips links currently processing", () => {
-    const link = makeLink();
-    const status = makeStatus({
-      updatedAt: new Date(now - FIVE_MIN - 1000),
-    });
-
-    const stuck = detectStuckLinks([link], [status], new Set(["link-1"]), now);
-
-    expect(stuck).toHaveLength(0);
-  });
-
-  it("skips fresh pending links", () => {
-    const link = makeLink();
-    const status = makeStatus({ updatedAt: new Date(now - 1000) });
-
-    const stuck = detectStuckLinks([link], [status], new Set(), now);
-
-    expect(stuck).toHaveLength(0);
-  });
-
-  it("skips links without a pending status", () => {
-    const link = makeLink();
-
-    const stuck = detectStuckLinks([link], [], new Set(), now);
-
-    expect(stuck).toHaveLength(0);
-  });
-
-  it("skips links with reprocess-requested status", () => {
-    const link = makeLink();
-    const status = makeStatus({
-      status: "reprocess-requested",
-      updatedAt: new Date(now - FIVE_MIN - 1000),
-    });
-
-    const stuck = detectStuckLinks([link], [status], new Set(), now);
-
-    expect(stuck).toHaveLength(0);
-  });
-
-  it("does not detect link at exactly 5 minutes", () => {
-    const link = makeLink();
-    const status = makeStatus({ updatedAt: new Date(now - FIVE_MIN) });
-
-    const stuck = detectStuckLinks([link], [status], new Set(), now);
-
-    expect(stuck).toHaveLength(0);
   });
 });
 

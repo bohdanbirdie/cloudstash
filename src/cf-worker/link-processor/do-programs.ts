@@ -6,7 +6,6 @@ import { LinkId as LinkIdBrand } from "../db/branded";
 import type { LinkId, OrgId } from "../db/branded";
 import { maskId } from "../log-utils";
 import { LinkRepository, SourceNotifier } from "./services";
-import type { Link, Status } from "./services";
 
 const STUCK_TIMEOUT_MS = 5 * 60 * 1000;
 
@@ -175,32 +174,3 @@ export const notifyResult = Effect.fn("LinkProcessor.notifyResult")(function* (
     })
   );
 });
-
-interface StuckLinkEvent {
-  linkId: LinkId;
-  stuckMs: number;
-}
-
-export const detectStuckLinks = (
-  pendingLinks: readonly Link[],
-  statuses: readonly Status[],
-  currentlyProcessing: ReadonlySet<string>,
-  now: number
-): StuckLinkEvent[] => {
-  const statusMap = new Map(statuses.map((s) => [s.linkId, s]));
-  const stuck: StuckLinkEvent[] = [];
-
-  for (const link of pendingLinks) {
-    if (currentlyProcessing.has(link.id)) continue;
-
-    const existingStatus = statusMap.get(link.id);
-    if (!existingStatus || existingStatus.status !== "pending") continue;
-
-    const elapsed = now - new Date(existingStatus.updatedAt).getTime();
-    if (elapsed > STUCK_TIMEOUT_MS) {
-      stuck.push({ linkId: LinkIdBrand.make(link.id), stuckMs: elapsed });
-    }
-  }
-
-  return stuck;
-};

@@ -32,11 +32,6 @@ export type InviteWithRelations = InviteRow & {
   usedBy: UserBasic | null;
 };
 
-export type AdminUser = Pick<
-  UserRow,
-  "id" | "name" | "email" | "role" | "approved" | "banned" | "createdAt"
->;
-
 export interface InvitesListResponse {
   invites: InviteWithRelations[];
 }
