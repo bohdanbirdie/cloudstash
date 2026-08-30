@@ -46,7 +46,11 @@ export const renderProgressDraft = (links: Map<string, LinkInfo>): string => {
   return lines.join("\n");
 };
 
-const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
+export const TERMINAL_STATUSES: ReadonlySet<string> = new Set([
+  "completed",
+  "failed",
+  "cancelled",
+]);
 
 interface ProgressLink {
   id: string;

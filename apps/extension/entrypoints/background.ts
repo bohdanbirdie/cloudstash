@@ -30,10 +30,7 @@ const broadcastCredsChanges = Effect.gen(function* () {
         try: () =>
           chrome.runtime.sendMessage({
             type: "cs:creds-changed",
-            creds: {
-              apiKey: next?.apiKey ?? null,
-              orgId: next?.orgId ?? null,
-            },
+            creds: next,
           }),
         catch: (cause) => cause,
       }).pipe(
@@ -52,26 +49,14 @@ const handleGetCreds = (sendResponse: (data: unknown) => void) =>
   Effect.gen(function* () {
     const creds = yield* CredsStorage;
     const current = yield* creds.get;
-    sendResponse({
-      apiKey: current?.apiKey ?? null,
-      orgId: current?.orgId ?? null,
-    });
+    sendResponse(current);
   }).pipe(
     Effect.tapError((cause) =>
       Effect.logWarning("[background] get-creds failed").pipe(
         Effect.annotateLogs(safeErrorInfo(cause))
       )
     ),
-    Effect.catch((cause) =>
-      Effect.sync(() => {
-        const info = safeErrorInfo(cause);
-        sendResponse({
-          apiKey: null,
-          orgId: null,
-          error: info.tag ?? info.errorType,
-        });
-      })
-    )
+    Effect.catch(() => Effect.sync(() => sendResponse(null)))
   );
 
 const handlePing = (sendResponse: (data: unknown) => void) =>

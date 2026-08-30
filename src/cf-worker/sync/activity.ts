@@ -9,17 +9,25 @@ export interface PushEvent {
   readonly args: unknown;
 }
 
-const LINK_EVENT_TYPE: Record<string, ActivityType> = {
-  [events.linkCreated.name]: "link_saved",
-  [events.linkCreatedV2.name]: "link_saved",
-  [events.linkDeleted.name]: "link_deleted",
-  [events.linkCompleted.name]: "link_completed",
-};
+interface LinkActivity {
+  readonly type: ActivityType;
+  readonly occurredAtArg: string;
+}
 
-const TIME_ARG: Partial<Record<ActivityType, string>> = {
-  link_saved: "createdAt",
-  link_deleted: "deletedAt",
-  link_completed: "completedAt",
+const LINK_EVENTS: Record<string, LinkActivity> = {
+  [events.linkCreated.name]: { type: "link_saved", occurredAtArg: "createdAt" },
+  [events.linkCreatedV2.name]: {
+    type: "link_saved",
+    occurredAtArg: "createdAt",
+  },
+  [events.linkDeleted.name]: {
+    type: "link_deleted",
+    occurredAtArg: "deletedAt",
+  },
+  [events.linkCompleted.name]: {
+    type: "link_completed",
+    occurredAtArg: "completedAt",
+  },
 };
 
 function toDate(value: unknown): Date {
@@ -42,8 +50,9 @@ export function toActivityRows(
 ): ActivityRow[] {
   const rows: ActivityRow[] = [];
   for (const event of batch) {
-    const type = LINK_EVENT_TYPE[event.name];
-    if (type === undefined) continue;
+    const activity = LINK_EVENTS[event.name];
+    if (activity === undefined) continue;
+    const { occurredAtArg, type } = activity;
 
     const args = (event.args ?? {}) as Record<string, unknown>;
     const linkId = asString(args.id);
@@ -56,7 +65,7 @@ export function toActivityRows(
       source: asString(args.source),
       refId: linkId,
       meta: domain ? { domain } : null,
-      occurredAt: toDate(args[TIME_ARG[type] ?? ""]),
+      occurredAt: toDate(args[occurredAtArg]),
       // dedupeKey from linkId (not seqNum) survives ServerAheadError rebases.
       dedupeKey: linkId ? `lvs:${type}:${linkId}` : null,
     });

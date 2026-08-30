@@ -28,9 +28,22 @@ describe("decodeExtMessage (popup ↔ background)", () => {
   it("accepts cs:creds-changed with null creds (disconnect broadcast)", () => {
     const decoded = decodeExtMessage({
       type: "cs:creds-changed",
-      creds: { apiKey: null, orgId: null },
+      creds: null,
     });
     expect(Result.isSuccess(decoded)).toBe(true);
+  });
+
+  // EXT-01-A: the payload used to be two independent nullables, so half a
+  // credential decoded successfully and every consumer had to collapse it.
+  it("rejects cs:creds-changed carrying only half a credential", () => {
+    expect(
+      Result.isFailure(
+        decodeExtMessage({
+          type: "cs:creds-changed",
+          creds: { apiKey: "lb_key", orgId: null },
+        })
+      )
+    ).toBe(true);
   });
 
   it("rejects an unknown message type", () => {
