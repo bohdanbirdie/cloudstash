@@ -121,7 +121,13 @@ export function LinkList({
     return result;
   }, [ids, anchor, allIds, activeLinkId, hoveredId, modifier]);
 
-  const tabbableId = activeLinkId ?? links[0]?.id ?? null;
+  // The detail pane may hold a link the current filter excludes, which is
+  // intended. The tab stop cannot follow it there or the list has none.
+  const visibleIds = useMemo(() => new Set(allIds), [allIds]);
+  const tabbableId =
+    (activeLinkId && visibleIds.has(activeLinkId) ? activeLinkId : null) ??
+    links[0]?.id ??
+    null;
 
   const containerRef = useRef<HTMLDivElement>(null);
 

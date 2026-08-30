@@ -94,6 +94,7 @@ let liveLongTimers = 0;
 }
 
 let currentSyncBackend: {
+  storeId: string | undefined;
   triggerLinkProcessor: (storeId: OrgId) => void;
   getEventlogMax: () => number | null;
   recordActivity: (storeId: OrgId, batch: readonly PushEvent[]) => void;
@@ -130,7 +131,10 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
     }
 
     const firstParent = message.batch[0]?.parentSeqNum;
-    if (firstParent !== undefined && currentSyncBackend) {
+    // getEventlogMax reads this instance's own SQLite, but instances of one
+    // class share an isolate and the singleton holds whichever was constructed
+    // last. Only compare when that instance owns the store being pushed.
+    if (firstParent !== undefined && currentSyncBackend?.storeId === storeId) {
       const sbMax = currentSyncBackend.getEventlogMax();
       if (sbMax !== null && sbMax - firstParent > STUCK_GAP_THRESHOLD) {
         logger.warn("LP push lags SB eventlog — possible stuck client", {
@@ -148,11 +152,13 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
   // Cached once the eventlog table is created (livestore creates it on first
   // push). Stays undefined until then; we re-lookup on each call until found.
   private _eventlogTable: string | undefined;
+  readonly storeId: string | undefined;
 
   constructor(ctx: CfTypes.DurableObjectState, env: Env) {
     super(ctx, env);
     this._env = env;
     this._ctx = ctx;
+    this.storeId = ctx.id.name;
     currentSyncBackend = this;
     logger.info("DO woke up", { doId: ctx.id.toString() });
   }

@@ -21,8 +21,9 @@ export function YouTubeThumbnail({
   className,
   buttonRef,
 }: YouTubeThumbnailProps) {
-  const [imgFailed, setImgFailed] = useState(false);
   const imgSrc = thumbnail ?? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const imgFailed = failedSrc === imgSrc;
 
   return (
     <button
@@ -45,7 +46,7 @@ export function YouTubeThumbnail({
           loading="eager"
           decoding="async"
           draggable={false}
-          onError={() => setImgFailed(true)}
+          onError={() => setFailedSrc(imgSrc)}
           className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
         />
       )}

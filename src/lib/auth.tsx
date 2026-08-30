@@ -23,9 +23,12 @@ export const authClient = createAuthClient({
   ],
 });
 
+export type AuthStatus = "unapproved" | "org-pending" | "active";
+
 export interface AuthState {
   userId: string;
   orgId: string | null;
+  status: AuthStatus;
   isAuthenticated: boolean;
   role: string;
   approved: boolean;
@@ -40,15 +43,24 @@ function deriveAuthState(session: Session): AuthState | null {
   if (!session?.user) return null;
   const user = session.user;
   const approved = user.approved ?? false;
-  const orgId = session.session?.activeOrganizationId ?? null;
+  const activeOrgId = session.session?.activeOrganizationId ?? null;
+  // Org provisioning can fail and be swallowed server-side, so an approved
+  // user can arrive with no library. That is not the same as awaiting
+  // approval, and it needs a different screen.
+  const status: AuthStatus = !approved
+    ? "unapproved"
+    : activeOrgId
+      ? "active"
+      : "org-pending";
   return {
     approved,
     email: user.email,
     image: user.image ?? null,
-    isAuthenticated: approved && !!orgId,
+    isAuthenticated: status === "active",
     name: user.name ?? null,
-    orgId: approved ? orgId : null,
+    orgId: status === "active" ? activeOrgId : null,
     role: user.role ?? "user",
+    status,
     userId: user.id,
   };
 }
