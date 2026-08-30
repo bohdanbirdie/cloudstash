@@ -5,6 +5,7 @@ import { XSyncStatus } from "../../../lib/x-sync-status";
 import { OrgId, XTweetId, XUserId, XUsername } from "../../db/branded";
 import { maskId } from "../../log-utils";
 import { XSyncStorageError } from "../errors";
+import { activePollControl, XSyncPollControl } from "../poll-control";
 import { XSyncStateStore } from "./x-sync-state-store";
 import type {
   Status,
@@ -19,6 +20,7 @@ const K_WATERMARK = "watermark";
 const K_STATUS = "status";
 const K_SYNC_ENABLED = "syncEnabled";
 const K_ORGANIZATION_ID = "organizationId";
+const K_POLL_CONTROL = "pollControl";
 const STATE_KEYS = [
   K_X_USER_ID,
   K_X_USERNAME,
@@ -144,6 +146,25 @@ export const makeXSyncStateStore = (
       catch: storageError("storage.setControl"),
     });
   }),
+
+  readPollControl: Effect.fn("XSyncStateStore.readPollControl")(function* () {
+    const raw = yield* Effect.tryPromise({
+      try: () => storage.get(K_POLL_CONTROL),
+      catch: storageError("storage.readPollControl"),
+    });
+    return Schema.decodeUnknownOption(XSyncPollControl)(raw).pipe(
+      Option.getOrElse(() => activePollControl)
+    );
+  }),
+
+  setPollControl: Effect.fn("XSyncStateStore.setPollControl")(
+    function* (control) {
+      yield* Effect.tryPromise({
+        try: () => storage.put(K_POLL_CONTROL, control),
+        catch: storageError("storage.setPollControl"),
+      });
+    }
+  ),
 
   clear: Effect.fn("XSyncStateStore.clear")(function* () {
     yield* Effect.tryPromise({

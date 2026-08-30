@@ -12,8 +12,16 @@ import { createLogger } from "../logger";
 import type { Env } from "../shared";
 import { OtelTracingLive } from "../tracing";
 import { XSyncAccountRepository } from "./account";
-import { BACKOFF_BASE_MS, BACKOFF_CAP_MS, pollReconciledEffect } from "./poll";
+import { pollReconciledEffect } from "./poll";
 import type { PollOutcome } from "./poll";
+import {
+  healthyPollDelay,
+  pollControlAfterSuccess,
+  pollControlAfterTransientFailure,
+  pollControlsEqual,
+  rateLimitDelay,
+  transientFailureDelay,
+} from "./poll-control";
 import {
   reconcileBeforePollEffect,
   reconcileSyncEffect,
@@ -41,19 +49,10 @@ type AlarmOutcome =
   | { readonly kind: "error" }
   | PollOutcome;
 
-const pollDelay = (
-  result: Extract<PollOutcome, { kind: "ok" | "rate_limited" }>
-): number => {
-  if (result.kind === "rate_limited") return result.retryAfterMs;
-  return result.rescheduleInMs;
-};
-
 export class XBookmarkSyncDO extends DurableObject<Env> {
-  private retryAttempt = 0;
-
   // In-memory only — survives across alarms within a DO lifecycle, resets
   // to null on cold start. UI displays "—" briefly until the next alarm fires
-  // (≤30s). Persisting this on every poll would burn DO write budget.
+  // (≤5m). Persisting this on every poll would burn DO write budget.
   private lastSyncedAt: number | null = null;
 
   private get userId(): UserId {
@@ -132,7 +131,6 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
   );
 
   async resume(orgId?: string): Promise<void> {
-    this.retryAttempt = 0;
     await this.runEffect(resumeSyncEffect(this.userId, optionalOrgId(orgId)));
   }
 
@@ -214,20 +212,23 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
     function* (this: XBookmarkSyncDO, userId: UserId, outcome: AlarmOutcome) {
       if (outcome.kind === "halt") return;
 
+      const store = yield* XSyncStateStore;
+      const alarm = yield* XSyncAlarm;
+      const current = yield* store.readPollControl();
+
       if (outcome.kind === "error") {
-        this.retryAttempt += 1;
-        const delay = Math.min(
-          BACKOFF_BASE_MS * 2 ** (this.retryAttempt - 1),
-          BACKOFF_CAP_MS
-        );
+        const next = pollControlAfterTransientFailure(current);
+        if (!pollControlsEqual(current, next)) {
+          yield* store.setPollControl(next);
+        }
+        const delay = transientFailureDelay(next);
         yield* Effect.logWarning("alarm: backing off").pipe(
           Effect.annotateLogs({
             userId: maskId(userId),
-            retryAttempt: this.retryAttempt,
+            transientFailures: next.transientFailures,
             delayMs: delay,
           })
         );
-        const alarm = yield* XSyncAlarm;
         return yield* alarm.scheduleAfter(delay);
       }
 
@@ -235,14 +236,29 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
         return;
       }
 
-      this.retryAttempt = 0;
-      const alarm = yield* XSyncAlarm;
-      this.lastSyncedAt = yield* Clock.currentTimeMillis;
-      const rescheduleMs = pollDelay(outcome);
+      const now = yield* Clock.currentTimeMillis;
+      if (outcome.kind === "rate_limited") {
+        const rescheduleMs = rateLimitDelay(current, now, outcome.retryAfterMs);
+        yield* Effect.logWarning("alarm: provider rate limited").pipe(
+          Effect.annotateLogs({
+            userId: maskId(userId),
+            rescheduleMs,
+          })
+        );
+        return yield* alarm.scheduleAfter(rescheduleMs);
+      }
+
+      const next = pollControlAfterSuccess(current, outcome.newCount, now);
+      if (!pollControlsEqual(current, next)) {
+        yield* store.setPollControl(next);
+      }
+      this.lastSyncedAt = now;
+      const rescheduleMs = healthyPollDelay(next, now);
       yield* Effect.logDebug("alarm: rescheduled").pipe(
         Effect.annotateLogs({
           userId: maskId(userId),
           outcome: outcome.kind,
+          newCount: outcome.newCount,
           rescheduleMs,
         })
       );
@@ -298,9 +314,7 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
         Effect.annotateCurrentSpan("alarmOutcomeKind", outcome.kind)
       ),
       Effect.flatMap((outcome) => this.resolveAlarmEffect(userId, outcome)),
-      Effect.withSpan("XBookmarkSyncDO.alarm", {
-        attributes: { retryAttempt: this.retryAttempt },
-      })
+      Effect.withSpan("XBookmarkSyncDO.alarm")
     );
   }
 }

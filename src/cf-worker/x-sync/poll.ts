@@ -13,13 +13,10 @@ import { LinkQueueClient } from "./services/link-queue-client";
 import type { XSyncConnectedState } from "./services/x-sync-state-store";
 import { XSyncStateStore } from "./services/x-sync-state-store";
 
-export const BACKOFF_BASE_MS = 60_000;
-export const BACKOFF_CAP_MS = 15 * 60_000;
-export const POLL_INTERVAL_MS = 30_000;
 const PAGINATION_PAGE_SIZE = 50;
 
 export type PollOutcome =
-  | { kind: "ok"; newCount: number; rescheduleInMs: number }
+  | { kind: "ok"; newCount: number }
   | { kind: "rate_limited"; retryAfterMs: number }
   | { kind: "needs_reconnect" };
 
@@ -166,7 +163,6 @@ const processBookmarksEffect = Effect.fnUntraced(function* (
     return {
       kind: "ok",
       newCount: 0,
-      rescheduleInMs: POLL_INTERVAL_MS,
     } satisfies PollOutcome;
   }
 
@@ -175,7 +171,6 @@ const processBookmarksEffect = Effect.fnUntraced(function* (
     return {
       kind: "ok",
       newCount: 0,
-      rescheduleInMs: POLL_INTERVAL_MS,
     } satisfies PollOutcome;
   }
 
@@ -204,7 +199,6 @@ const processBookmarksEffect = Effect.fnUntraced(function* (
   return {
     kind: "ok",
     newCount: newBookmarks.length,
-    rescheduleInMs: POLL_INTERVAL_MS,
   } satisfies PollOutcome;
 });
 

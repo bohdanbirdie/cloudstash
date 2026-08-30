@@ -8,7 +8,7 @@ import {
 } from "../errors";
 import type { DigestLinkInput } from "../generator";
 import { WeeklyDigestGenerator } from "../generator";
-import { runDigest } from "../runner";
+import { runDigest, selectDigestLinksForPrompt } from "../runner";
 import type { DigestCommitParams } from "../services";
 import { DigestEventSink, DigestLinkSource } from "../services";
 
@@ -80,6 +80,26 @@ const buildLayer = (
   );
 
 describe("runDigest", () => {
+  it("selects at most 100 links across the complete ordered week", () => {
+    const links = Array.from({ length: 201 }, (_, index) => ({
+      ...sampleLinks[0],
+      title: `Link ${index}`,
+      url: `https://example.com/${index}`,
+    }));
+
+    const selected = selectDigestLinksForPrompt(links);
+
+    expect(selected).toHaveLength(100);
+    expect(selected[0].title).toBe("Link 0");
+    expect(selected.at(-1)?.title).toBe("Link 200");
+    expect(
+      selected.some((link) => {
+        const index = Number(link.title.replace("Link ", ""));
+        return index >= 95 && index <= 105;
+      })
+    ).toBe(true);
+  });
+
   it.effect(
     "generates a digest, commits the event, and reports linkCount",
     () =>

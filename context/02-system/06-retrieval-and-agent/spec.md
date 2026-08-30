@@ -90,7 +90,10 @@ connection.
 Per [decision 0002](./.decisions/0002-pin-gpt-5-6-luna-for-chat.md), the
 provider is OpenRouter with the pinned `openai/gpt-5.6-luna-20260709` model.
 Chat, weekly digests, and X enrichment share one executable model constant. The
-model sees a hardened system
+interactive Assistant uses explicit `low` reasoning; private compaction uses
+`none`. Both use the conversation Durable Object ID as one opaque, stable
+OpenRouter session identity, so provider routing and automatic prefix caching
+can remain sticky across turns without application cache state. The model sees a hardened system
 prompt and at most the last 30 uncompacted UI messages. A request is capped at
 five tool steps. Input validation rejects common prompt-injection forms before
 provider execution.
@@ -137,6 +140,19 @@ the preflight and settle slightly above the limit; this accepted tradeoff keeps
 the path to one read RPC and one atomic settlement RPC per run. Missing provider
 cost metadata is logged rather than estimated, and the shared provider account
 cap remains the emergency backstop.
+Each completed Assistant or compaction generation also logs aggregate input,
+output, cache-read, cache-write, reasoning-token, and provider-cost signals.
+Cloudstash does not store prompt-cache entries or configure explicit cache
+breakpoints; the provider owns cache lifetime and invalidation. This choice is
+recorded in
+[decision 0006](./.decisions/0006-use-provider-prompt-cache-with-stable-session-routing.md).
+Assistant answer telemetry also records aggregate list/search/get call counts,
+returned item count, and serialized result characters. Character measurement is
+capped per call, and no query or link content is logged. Ranked search continues
+to return at most 20 reduced-shape results until correlated production evidence
+shows that a smaller payload would materially reduce spend without harming
+recall. This measurement-first boundary is recorded in
+[decision 0007](./.decisions/0007-measure-chat-retrieval-before-reducing-results.md).
 Capability denial and allowance lookup failure stop model and tool work;
 provider rate/credit/tool errors map to concise user-facing messages. Initial
 connection/request hooks also verify the session, current approval, and
@@ -151,3 +167,19 @@ An explicitly empty registry stays empty until the user creates a fresh chat.
 Account deletion retires every registered chat before wiping the registry and
 canonical LinkProcessor actor. The old destructive `/clear` command is removed
 in favor of explicit conversation lifecycle.
+
+## Weekly Digest Inference
+
+Weekly digest source links are ordered chronologically. When a workspace saved
+more than 100 eligible links during the seven-day window, the generator receives
+100 links sampled evenly across the full ordered week rather than only the newest
+links. The formatted saved-link data is capped at 24,000 characters; titles,
+summaries, and tag lists have smaller per-field bounds, while an exact URL that
+cannot fit is omitted with its record rather than truncated. Digest output is
+capped at 384 tokens. This ceiling preserves the existing two-to-four-sentence,
+70-word prose contract while leaving room for cited URLs; a 256-token comparison
+produced a truncated response. Digest generation uses explicit `none` reasoning.
+The bounded envelope and its evaluation are recorded in
+[decision 0004](./.decisions/0004-bound-weekly-digest-inference.md).
+The shared workload policy is recorded in
+[decision 0005](./.decisions/0005-set-reasoning-by-workload.md).

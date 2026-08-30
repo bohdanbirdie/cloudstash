@@ -65,14 +65,21 @@ Readable content extraction:
 For entitled workspaces, the basic summarizer sends at most 4,000 characters of
 sanitized content/metadata to Cloudflare Workers AI model
 `@cf/meta/llama-3.3-70b-instruct-fp8-fast`. It forces a structured tool call
-validated by Zod. The output is a two-to-three-sentence summary, up to two names
-from existing tags, and at most one new tag.
+validated by Zod with a 384-token output ceiling. Its existing-tag vocabulary is
+sorted deterministically and capped at 100 entries. The output is a
+two-to-three-sentence summary, up to two names from existing tags, and at most
+one new tag.
 
 X tweet links in entitled Pro workspaces first attempt the X enrichment path,
 which has a per-workspace monthly KV cap and may use OpenRouter/Gemini. Every
 typed enrichment/provider/usage failure falls back to the basic Workers AI
-summary. Basic AI call timeout is thirty seconds and commits `AiCallError` on
-failure.
+summary. X enrichment uses the same bounded 100-entry tag vocabulary, explicit
+`none` reasoning, and its existing output safety envelope. Basic AI call timeout
+is thirty seconds and commits `AiCallError` on failure. The prompt-envelope
+choice is recorded in
+[decision 0003](./.decisions/0003-bound-summary-prompt-envelopes.md).
+The shared OpenRouter reasoning policy is recorded in
+[retrieval decision 0005](../06-retrieval-and-agent/.decisions/0005-set-reasoning-by-workload.md).
 
 Suggested tags are sanitized, fuzzy-matched against existing tags, skipped when
 already effective on the link, and committed as separate `TagSuggested` events.

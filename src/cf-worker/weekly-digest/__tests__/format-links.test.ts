@@ -1,6 +1,10 @@
 import { describe, expect, it } from "@effect/vitest";
 
-import { formatLinks } from "../generator";
+import {
+  DIGEST_USER_PROMPT_MAX_CHARS,
+  formatDigestPrompt,
+  formatLinks,
+} from "../generator";
 import type { DigestLinkInput } from "../generator";
 
 const sample: DigestLinkInput = {
@@ -37,5 +41,47 @@ describe("formatLinks", () => {
   it("emits 'tags: ' for empty tag list", () => {
     const out = formatLinks([{ ...sample, tags: [] }]);
     expect(out).toContain("tags: \n");
+  });
+
+  it("bounds untrusted fields and removes their structural whitespace", () => {
+    const out = formatLinks([
+      {
+        ...sample,
+        summary: `summary\n${"s".repeat(1000)}`,
+        tags: Array.from(
+          { length: 20 },
+          (_, index) => `tag-${index}-${"x".repeat(30)}`
+        ),
+        title: `title\n${"t".repeat(500)}`,
+      },
+    ]);
+
+    expect(out).not.toContain("title\n");
+    expect(out).not.toContain("summary\n");
+    expect(out).toContain("tag-4-");
+    expect(out).not.toContain("tag-5-");
+    expect(out).toContain("…");
+  });
+
+  it("skips links whose exact URL cannot fit safely", () => {
+    expect(
+      formatLinks([
+        { ...sample, url: `https://example.com/${"x".repeat(3000)}` },
+      ])
+    ).toBe("");
+  });
+
+  it("caps the complete user prompt without cutting a record", () => {
+    const links = Array.from({ length: 100 }, (_, index) => ({
+      ...sample,
+      summary: "s".repeat(1000),
+      tags: Array.from({ length: 20 }, () => "tag".repeat(20)),
+      title: `Link ${index} ${"t".repeat(500)}`,
+      url: `https://example.com/${index}/${"u".repeat(1000)}`,
+    }));
+    const prompt = formatDigestPrompt(links);
+
+    expect(prompt.length).toBeLessThanOrEqual(DIGEST_USER_PROMPT_MAX_CHARS);
+    expect(prompt).not.toMatch(/https:\/\/example\.com\/\d+\/u+…/);
   });
 });

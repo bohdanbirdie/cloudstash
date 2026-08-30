@@ -6,6 +6,7 @@ import {
   getUsageSettlementKey,
   openRouterCostMicroUsd,
   openRouterSpend,
+  openRouterUsageTelemetry,
   parseAiMeterLimit,
   usdToMicroUsd,
 } from "../../chat-agent/usage";
@@ -54,6 +55,52 @@ describe("usage", () => {
       {},
     ]);
     expect(result).toEqual({ complete: false, spentMicroUsd: 3_000 });
+  });
+
+  it("aggregates cache and reasoning telemetry across provider steps", () => {
+    const result = openRouterUsageTelemetry([
+      {
+        providerMetadata: { openrouter: { usage: { cost: 0.001 } } },
+        usage: {
+          inputTokens: 100,
+          inputTokenDetails: {
+            noCacheTokens: 60,
+            cacheReadTokens: 30,
+            cacheWriteTokens: 10,
+          },
+          outputTokens: 25,
+          outputTokenDetails: { textTokens: 20, reasoningTokens: 5 },
+          totalTokens: 125,
+        },
+      },
+      {
+        providerMetadata: { openrouter: { usage: { cost: 0.002 } } },
+        usage: {
+          inputTokens: 80,
+          inputTokenDetails: {
+            noCacheTokens: 80,
+            cacheReadTokens: undefined,
+            cacheWriteTokens: undefined,
+          },
+          outputTokens: 10,
+          outputTokenDetails: {
+            textTokens: 10,
+            reasoningTokens: undefined,
+          },
+          totalTokens: 90,
+        },
+      },
+    ]);
+
+    expect(result).toEqual({
+      cacheReadTokens: 30,
+      cacheWriteTokens: 10,
+      inputTokens: 180,
+      outputTokens: 35,
+      reasoningTokens: 5,
+      spend: { complete: true, spentMicroUsd: 3_000 },
+      stepCount: 2,
+    });
   });
 
   it("reports public credits without exposing provider cost", () => {

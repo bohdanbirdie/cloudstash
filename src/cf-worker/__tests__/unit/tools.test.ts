@@ -14,7 +14,10 @@ import {
   makeChatLibrary,
   makeChatLibraryFromClient,
 } from "../../chat-agent/library";
-import { createTools } from "../../chat-agent/tools";
+import {
+  createChatRetrievalTelemetry,
+  createTools,
+} from "../../chat-agent/tools";
 import {
   makeWorkspaceLinksRpcHandlers,
   unwrapWorkspaceLinksRpcResult,
@@ -445,6 +448,18 @@ describe("createTools", () => {
       expect(result.results[1].score).toBeGreaterThan(0);
     });
 
+    it("preserves the ranked 20-result search ceiling", async () => {
+      for (let index = 0; index < 30; index++) {
+        seedLink({ title: `shared topic ${index}` });
+      }
+
+      const result = unwrap(
+        await tools.searchLinks.execute!({ query: "shared" }, stubCtx)
+      );
+
+      expect(result.results).toHaveLength(20);
+    });
+
     it("maps result fields correctly", async () => {
       const id = seedLink({
         url: "https://search.com",
@@ -467,6 +482,42 @@ describe("createTools", () => {
       expect(r.summary).toBe("Summary here");
       expect(typeof r.score).toBe("number");
       expect(r.score).toBeGreaterThan(0);
+    });
+  });
+
+  describe("retrieval telemetry", () => {
+    it("aggregates bounded retrieval shape without changing tool results", async () => {
+      const firstId = seedLink({ title: "observed topic" });
+      seedLink({ title: "another observed topic" });
+      const telemetry = createChatRetrievalTelemetry();
+      const observedTools = createTools(
+        makeTestLibrary(store),
+        Effect.runPromise,
+        telemetry
+      );
+
+      const listed = unwrap(
+        await observedTools.listRecentLinks.execute!({ limit: 2 }, stubCtx)
+      );
+      const searched = unwrap(
+        await observedTools.searchLinks.execute!({ query: "observed" }, stubCtx)
+      );
+      const opened = unwrap(
+        await observedTools.getLink.execute!({ id: firstId }, stubCtx)
+      );
+
+      expect(listed.links).toHaveLength(2);
+      expect(searched.results).toHaveLength(2);
+      expect(opened).toHaveProperty("link.id", firstId);
+      expect(telemetry.snapshot()).toEqual({
+        getCalls: 1,
+        listCalls: 1,
+        searchCalls: 1,
+        returnedItems: 5,
+        serializedCharacters: expect.any(Number),
+        cappedCalls: 0,
+      });
+      expect(telemetry.snapshot().serializedCharacters).toBeGreaterThan(0);
     });
   });
 

@@ -202,6 +202,32 @@ describe("generateSummary", () => {
     );
   });
 
+  it.effect("bounds and deterministically orders the tag vocabulary", () => {
+    const { layer, getParams } = capturePrompt(
+      emptyAiOutput("A summary with bounded tags.")
+    );
+    const existingTags = Array.from({ length: 105 }, (_, index) => ({
+      id: TagId.make(String(index)),
+      name: `tag-${String(104 - index).padStart(3, "0")}`,
+    }));
+
+    return run({ existingTags }, layer).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          const prompt = getParams().prompt;
+          const expected = Array.from(
+            { length: 100 },
+            (_, index) => `tag-${String(index).padStart(3, "0")}`
+          ).join(", ");
+          expect(prompt).toContain(
+            `<existing-tags>${expected}</existing-tags>`
+          );
+          expect(prompt).not.toContain("tag-100");
+        })
+      )
+    );
+  });
+
   for (const [url, expected] of [
     ["https://www.github.com/foo/bar", "github.com"],
     ["https://github.com/foo/bar", "github.com"],
@@ -424,7 +450,7 @@ describe("generateSummary", () => {
           expect(getParams().system).toContain(
             "summarization and categorization"
           );
-          expect(getParams().maxOutputTokens).toBe(512);
+          expect(getParams().maxOutputTokens).toBe(384);
         })
       )
     );

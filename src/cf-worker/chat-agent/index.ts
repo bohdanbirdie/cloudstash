@@ -23,7 +23,10 @@ import {
   retireDurableObjectStorage,
 } from "../durable-object-retirement";
 import { maskId, safeErrorInfo } from "../log-utils";
-import { OPENROUTER_MODEL_ID } from "../openrouter-model";
+import {
+  OPENROUTER_MODEL_ID,
+  openRouterChatSettings,
+} from "../openrouter-model";
 import { getAppLayer } from "../runtime";
 import type { Env } from "../shared";
 import { OtelTracingLive } from "../tracing";
@@ -50,16 +53,16 @@ import {
 import { getLastUserMessageText, validateInput } from "./input-validator";
 import { makeChatLibrary } from "./library";
 import { writeTextMessage } from "./stream-helpers";
-import { createTools } from "./tools";
-import type { ToolEffectRunner } from "./tools";
+import { createChatRetrievalTelemetry, createTools } from "./tools";
+import type { ChatRetrievalTelemetry, ToolEffectRunner } from "./tools";
 import {
   ALLOWANCE_UNAVAILABLE_MESSAGE,
   CHAT_DISABLED_MESSAGE,
   LIMIT_REACHED_MESSAGE,
-  openRouterSpend,
+  openRouterUsageTelemetry,
   parseAiMeterLimit,
 } from "./usage";
-import type { ProviderSpend } from "./usage";
+import type { ProviderSpend, ProviderUsageTelemetry } from "./usage";
 
 const WORKSPACE_STORAGE_KEY = "chat:workspace-id:v1";
 const LAST_TOUCHED_USER_MESSAGE_KEY = "chat:last-touched-user-message:v1";
@@ -491,6 +494,41 @@ export class ChatAgentDO extends AIChatAgent<Env> {
     );
   }
 
+  private logProviderUsage(
+    stage: "answer" | "compaction",
+    telemetry: ProviderUsageTelemetry,
+    retrieval?: ChatRetrievalTelemetry
+  ): void {
+    this.ctx.waitUntil(
+      Effect.logInfo("OpenRouter generation usage").pipe(
+        Effect.annotateLogs({
+          orgId: maskId(this.orgId()),
+          stage,
+          stepCount: telemetry.stepCount,
+          inputTokens: telemetry.inputTokens,
+          outputTokens: telemetry.outputTokens,
+          cacheReadTokens: telemetry.cacheReadTokens,
+          cacheWriteTokens: telemetry.cacheWriteTokens,
+          reasoningTokens: telemetry.reasoningTokens,
+          spentMicroUsd: telemetry.spend.spentMicroUsd,
+          costComplete: telemetry.spend.complete,
+          ...(retrieval === undefined
+            ? {}
+            : {
+                retrievalGetCalls: retrieval.getCalls,
+                retrievalListCalls: retrieval.listCalls,
+                retrievalSearchCalls: retrieval.searchCalls,
+                retrievalReturnedItems: retrieval.returnedItems,
+                retrievalSerializedCharacters: retrieval.serializedCharacters,
+                retrievalCappedCalls: retrieval.cappedCalls,
+              }),
+        }),
+        Effect.provide(getAppLayer(this.env)),
+        Effect.runPromise
+      )
+    );
+  }
+
   private async generateCompaction(
     model: LanguageModel,
     plan: ChatCompactionPlan
@@ -506,9 +544,13 @@ export class ChatAgentDO extends AIChatAgent<Env> {
       throughMessageId: plan.throughMessageId,
       updatedAt: new Date().toISOString(),
     } satisfies ChatContextSummary;
+    const telemetry = openRouterUsageTelemetry([
+      { usage: result.usage, providerMetadata: result.providerMetadata },
+    ]);
+    this.logProviderUsage("compaction", telemetry);
     return {
       summary,
-      spend: openRouterSpend([result.providerMetadata]),
+      spend: telemetry.spend,
     };
   }
 
@@ -601,7 +643,15 @@ export class ChatAgentDO extends AIChatAgent<Env> {
     const openrouter = createOpenRouter({
       apiKey: this.env.OPENROUTER_API_KEY,
     });
-    const model = openrouter(OPENROUTER_MODEL_ID);
+    const providerSessionId = this.ctx.id.toString();
+    const model = openrouter(
+      OPENROUTER_MODEL_ID,
+      openRouterChatSettings(providerSessionId, "assistant")
+    );
+    const compactionModel = openrouter(
+      OPENROUTER_MODEL_ID,
+      openRouterChatSettings(providerSessionId, "compaction")
+    );
 
     let summary = storedSummary;
     let compactionSpend: ProviderSpend = {
@@ -610,7 +660,10 @@ export class ChatAgentDO extends AIChatAgent<Env> {
     };
     if (compactionPlan) {
       try {
-        const compacted = await this.generateCompaction(model, compactionPlan);
+        const compacted = await this.generateCompaction(
+          compactionModel,
+          compactionPlan
+        );
         summary = compacted.summary;
         compactionSpend = compacted.spend;
         if (!compacted.spend.complete) {
@@ -652,7 +705,8 @@ export class ChatAgentDO extends AIChatAgent<Env> {
     });
     const runToolEffect: ToolEffectRunner = (effect) =>
       effect.pipe(Effect.provide(getAppLayer(this.env)), Effect.runPromise);
-    const tools = createTools(library, runToolEffect);
+    const retrievalTelemetry = createChatRetrievalTelemetry();
+    const tools = createTools(library, runToolEffect, retrievalTelemetry);
 
     return this.handleNormalChat(
       model,
@@ -661,6 +715,7 @@ export class ChatAgentDO extends AIChatAgent<Env> {
       allowance.usageWindow.id,
       summary,
       compactionSpend,
+      retrievalTelemetry,
       options?.abortSignal
     );
   }
@@ -672,6 +727,7 @@ export class ChatAgentDO extends AIChatAgent<Env> {
     usageWindowId: string,
     summary: ChatContextSummary | undefined,
     compactionSpend: ProviderSpend,
+    retrievalTelemetry: ReturnType<typeof createChatRetrievalTelemetry>,
     abortSignal?: AbortSignal
   ) {
     const settlementId = crypto.randomUUID();
@@ -739,9 +795,13 @@ export class ChatAgentDO extends AIChatAgent<Env> {
           stopWhen: stepCountIs(5),
           experimental_telemetry: { isEnabled: true },
           onFinish: ({ steps }) => {
-            settleUsage(
-              openRouterSpend(steps.map((step) => step.providerMetadata))
+            const telemetry = openRouterUsageTelemetry(steps);
+            this.logProviderUsage(
+              "answer",
+              telemetry,
+              retrievalTelemetry.snapshot()
             );
+            settleUsage(telemetry.spend);
           },
         });
 
