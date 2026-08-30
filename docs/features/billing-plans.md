@@ -9,7 +9,8 @@ server-side capability gates.
 Stripe owns subscription/payment truth. D1 stores the operational projection
 for one workspace. `Billing.capabilities(orgId)` merges the tier defaults in
 `src/lib/plan.ts` with sparse workspace overrides; normal feature checks never
-call Stripe.
+call Stripe. An optional admin grant is a tier floor over the synchronized
+Stripe tier, so it can add access without replacing payment state.
 
 `PLANS` is product copy. `TIER_CAPABILITIES` is executable policy. Copy is never
 an authorization source and known mismatches remain tracked in the Intent
@@ -34,7 +35,8 @@ Webhook and browser-success signals both fetch current Stripe subscription state
 before updating D1. Active/trialing/past-due subscriptions retain their mapped
 tier; cancelled/unpaid/incomplete states map according to current billing policy.
 Stripe synchronization persists the selected item's period start/end and the
-subscription billing anchor while preserving `tierSource: admin` grants.
+subscription billing anchor regardless of admin grants. Admin grants persist
+separately and Stripe continues to reconcile underneath them.
 
 Settings is the subscription-management surface; the shipped paywall is the
 acquisition surface. Production Stripe/Portal reconciliation remains a

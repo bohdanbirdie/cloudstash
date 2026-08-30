@@ -75,7 +75,7 @@ describe("chat approval metering", () => {
       "Chat approval metering"
     );
     await env.DB.prepare(
-      "UPDATE organization SET tier = 'pro', tier_source = 'admin', usage_cycle_anchor = ?, feature_overrides = ? WHERE id = ?"
+      "UPDATE organization SET admin_tier_grant = 'pro', admin_tier_granted_at = ?, feature_overrides = ? WHERE id = ?"
     )
       .bind(anchor.getTime(), JSON.stringify({ aiSummary: false }), user.orgId)
       .run();
@@ -179,7 +179,7 @@ describe("chat approval metering", () => {
       "Rejected chat approval"
     );
     await env.DB.prepare(
-      "UPDATE organization SET tier = 'pro', tier_source = 'admin', usage_cycle_anchor = ?, feature_overrides = ? WHERE id = ?"
+      "UPDATE organization SET admin_tier_grant = 'pro', admin_tier_granted_at = ?, feature_overrides = ? WHERE id = ?"
     )
       .bind(anchor.getTime(), JSON.stringify({ aiSummary: false }), user.orgId)
       .run();

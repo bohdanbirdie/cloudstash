@@ -74,7 +74,7 @@ const sub = (
     },
   }) as unknown as StripeSdk.Subscription;
 
-type OrgRow = { id: string; tier: PlanTier; tierSource: string };
+type OrgRow = { id: string; tier: PlanTier };
 
 interface SyncDbOptions {
   org?: OrgRow | undefined;
@@ -98,7 +98,7 @@ const syncDb = (opts: SyncDbOptions) =>
     }),
   } as never);
 
-const ORG: OrgRow = { id: ORG_ID, tier: "free", tierSource: "stripe" };
+const ORG: OrgRow = { id: ORG_ID, tier: "free" };
 
 describe("syncFromStripe", () => {
   it.effect("no-ops when no org maps to the customer", () => {
@@ -116,7 +116,7 @@ describe("syncFromStripe", () => {
     );
   });
 
-  it.effect("preserves an admin tier grant without touching Stripe", () => {
+  it.effect("syncs Stripe state without touching the admin grant", () => {
     const updates: Record<string, unknown>[] = [];
     let listed = false;
     return syncFromStripe(CUSTOMER_ID).pipe(
@@ -125,20 +125,21 @@ describe("syncFromStripe", () => {
           stripeStub({
             listSubscriptions: () => {
               listed = true;
-              return Effect.succeed([]);
+              return Effect.succeed([
+                sub("active", { id: "sub_plus", priceId: "price_plus" }),
+              ]);
             },
           }),
-          syncDb({
-            org: { ...ORG, tierSource: "admin" },
-            updates,
-          })
+          syncDb({ org: ORG, updates })
         )
       ),
       quiet,
       Effect.tap(() =>
         Effect.sync(() => {
-          expect(updates).toEqual([]);
-          expect(listed).toBe(false);
+          expect(listed).toBe(true);
+          expect(updates).toHaveLength(1);
+          expect(updates[0]?.tier).toBe("plus");
+          expect(updates[0]).not.toHaveProperty("adminTierGrant");
         })
       )
     );

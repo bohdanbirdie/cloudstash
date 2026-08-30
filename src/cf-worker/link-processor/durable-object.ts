@@ -765,7 +765,7 @@ export class LinkProcessorDO
       Effect.flatMap((fs) => fs.getCapabilities(this.storeId!)),
       Effect.provide(
         FeatureStoreLive.pipe(
-          Layer.provide(Billing.Default),
+          Layer.provide(Billing.layer),
           Layer.provide(DbClientLive(this.env.DB))
         )
       ),

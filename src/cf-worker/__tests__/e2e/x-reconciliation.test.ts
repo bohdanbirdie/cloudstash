@@ -228,6 +228,11 @@ describe("X reconciliation E2E", () => {
       label: "entitlement",
     });
     await makeAdmin(user.userId);
+    await env.DB.prepare(
+      "UPDATE organization SET tier = 'free', admin_tier_grant = 'pro', admin_tier_granted_at = ? WHERE id = ?"
+    )
+      .bind(Date.now(), user.orgId)
+      .run();
 
     await setTier(user.orgId, user.cookie, "free");
 

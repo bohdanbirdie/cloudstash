@@ -76,6 +76,7 @@ export const getOrCreateStripeCustomer = Effect.fn(
 export const getStripeCustomerId = Effect.fn("Billing.getStripeCustomerId")(
   function* (orgId: OrgId) {
     const db = yield* DbClient;
+    yield* Effect.annotateCurrentSpan({ orgId: maskId(orgId) });
     const org = yield* query(
       db.query.organization.findFirst({
         where: eq(schema.organization.id, orgId),
@@ -95,7 +96,7 @@ export const syncFromStripe = Effect.fn("Billing.syncFromStripe")(function* (
   const org = yield* query(
     db.query.organization.findFirst({
       where: eq(schema.organization.stripeCustomerId, customerId),
-      columns: { id: true, tier: true, tierSource: true },
+      columns: { id: true, tier: true },
     })
   );
 
@@ -108,15 +109,7 @@ export const syncFromStripe = Effect.fn("Billing.syncFromStripe")(function* (
 
   yield* Effect.annotateCurrentSpan({
     orgId: maskId(org.id),
-    tierSource: org.tierSource,
   });
-
-  if (org.tierSource === "admin") {
-    yield* Effect.logInfo("syncFromStripe: preserving admin grant").pipe(
-      Effect.annotateLogs({ orgId: maskId(org.id) })
-    );
-    return null;
-  }
 
   const subscriptions = yield* stripe.listSubscriptions(customerId);
   const subscription = selectSubscription(subscriptions);
@@ -174,6 +167,8 @@ export const syncFromStripe = Effect.fn("Billing.syncFromStripe")(function* (
       .update(schema.organization)
       .set({
         tier,
+        // Kept normalized while the legacy column remains in D1. Effective
+        // admin access is stored independently in `adminTierGrant`.
         tierSource: "stripe",
         stripeSubscriptionId: subscription.pipe(
           Option.map((s) => StripeSubscriptionId.make(s.id)),

@@ -72,7 +72,7 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
 
   private get baseLayer() {
     const accountLayer = XSyncAccountRepository.layer.pipe(
-      Layer.provideMerge(Billing.Default),
+      Layer.provideMerge(Billing.layer),
       Layer.provideMerge(AuthClientLive(this.env)),
       Layer.provideMerge(DbClientLive(this.env.DB))
     );

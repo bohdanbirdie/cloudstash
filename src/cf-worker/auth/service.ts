@@ -71,11 +71,7 @@ const WorkspaceAccessLive = Layer.effect(
 );
 
 export const AppLayerLive = (env: Env) =>
-  Layer.mergeAll(
-    Billing.Default,
-    AppSettings.Default,
-    WorkspaceAccessLive
-  ).pipe(
+  Layer.mergeAll(Billing.layer, AppSettings.Default, WorkspaceAccessLive).pipe(
     Layer.provideMerge(AuthClientLive(env)),
     Layer.provideMerge(DbClientLive(env.DB)),
     Layer.provideMerge(OtelTracingLive)
