@@ -290,14 +290,16 @@ const make = Effect.gen(function* () {
       orgId: OrgId
     ) {
       const row = yield* fetchOrgRow(orgId);
+      const plan = resolveEffectivePlan(row);
       yield* Effect.annotateCurrentSpan({
         orgId: maskId(orgId),
-        tier: row.tier,
+        tier: plan.tier,
+        source: plan.source,
       });
       return {
-        capabilities: mergeCapabilities(row.tier, row.featureOverrides),
+        capabilities: mergeCapabilities(plan.tier, row.featureOverrides),
         subscription: toSubscription(row),
-        tier: row.tier,
+        tier: plan.tier,
       };
     }),
 
@@ -430,6 +432,7 @@ const make = Effect.gen(function* () {
       return orgs.map((org) => {
         const overrides = org.featureOverrides ?? {};
         const plan = resolveEffectivePlan({
+          cancelAtPeriodEnd: org.cancelAtPeriodEnd,
           createdAt: org.createdAt,
           tier: org.tier ?? "free",
           adminTierGrant: org.adminTierGrant,
