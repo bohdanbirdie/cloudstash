@@ -143,7 +143,25 @@ describe("composePrompt", () => {
       context: { root: baseRoot, authorContinuations: [], isReply: false },
       existingTags: [{ name: "ai" }, { name: "rust" }, { name: "infra" }],
     });
-    expect(out).toContain("<existing-tags>ai, rust, infra</existing-tags>");
+    expect(out).toContain("<existing-tags>ai, infra, rust</existing-tags>");
+  });
+
+  it("bounds and deterministically orders the existing-tag vocabulary", () => {
+    const existingTags = Array.from({ length: 105 }, (_, index) => ({
+      name: `tag-${String(104 - index).padStart(3, "0")}`,
+    }));
+    const out = composePrompt({
+      url: "https://x.com/alice/status/1",
+      context: { root: baseRoot, authorContinuations: [], isReply: false },
+      existingTags,
+    });
+    const expected = Array.from(
+      { length: 100 },
+      (_, index) => `tag-${String(index).padStart(3, "0")}`
+    ).join(", ");
+
+    expect(out).toContain(`<existing-tags>${expected}</existing-tags>`);
+    expect(out).not.toContain("tag-100");
   });
 
   it("omits the <existing-tags> block entirely when no tags are provided", () => {

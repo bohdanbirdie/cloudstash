@@ -1,10 +1,14 @@
-import { Effect, Option } from "effect";
+import { Clock, Effect, Option } from "effect";
 
 import { OrgId, UserId, XUserId, XUsername } from "../db/branded";
 import { maskId } from "../log-utils";
 import { XSyncAccountRepository } from "./account";
 import type { XApiFailure } from "./errors";
-import { POLL_INTERVAL_MS } from "./poll";
+import {
+  activePollControl,
+  pollControlsEqual,
+  repairedPollDelay,
+} from "./poll-control";
 import { XApiClient } from "./services";
 import { XSyncAlarm } from "./services/x-sync-alarm";
 import type {
@@ -116,6 +120,7 @@ interface ActiveReconcileContext {
   readonly organizationId: OrgId;
   readonly state: XSyncConnectedState;
   readonly accessToken: string;
+  readonly activated: boolean;
 }
 
 const isConnectedState = (
@@ -260,7 +265,8 @@ const reconcileCoreEffect = Effect.fn("XBookmarkSyncDO.reconcileCore")(
     yield* setControlEffect(state, organizationId, "active");
     const activeState = yield* activeStateEffect(state, organizationId);
 
-    if (!connected || state.status !== "active") {
+    const activated = !connected || state.status !== "active";
+    if (activated) {
       yield* Effect.logInfo("reconcile: active").pipe(
         Effect.annotateLogs({
           userId: maskId(userId),
@@ -273,6 +279,7 @@ const reconcileCoreEffect = Effect.fn("XBookmarkSyncDO.reconcileCore")(
       organizationId,
       state: activeState,
       accessToken,
+      activated,
     } satisfies ActiveReconcileContext);
   }
 );
@@ -281,8 +288,15 @@ export const reconcileSyncEffect = Effect.fn("XBookmarkSyncDO.reconcile")(
   function* (userId: UserId, requestedOrgId: OrgId | undefined) {
     const reconciled = yield* reconcileCoreEffect(userId, requestedOrgId);
     if (Option.isSome(reconciled)) {
+      const store = yield* XSyncStateStore;
       const alarm = yield* XSyncAlarm;
-      yield* alarm.ensureAfter(POLL_INTERVAL_MS);
+      const current = yield* store.readPollControl();
+      const control = reconciled.value.activated ? activePollControl : current;
+      if (!pollControlsEqual(current, control)) {
+        yield* store.setPollControl(control);
+      }
+      const now = yield* Clock.currentTimeMillis;
+      yield* alarm.ensureAfter(repairedPollDelay(control, now));
     }
   }
 );

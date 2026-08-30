@@ -1,8 +1,8 @@
 import { env, SELF } from "cloudflare:test";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { fetch as workerFetch } from "../../index";
-import { signupUser } from "./helpers";
+import { installTestMetadataFetcher, signupUser } from "./helpers";
 import type { UserInfo } from "./helpers";
 
 const AUTH_ORIGIN = "http://localhost";
@@ -13,11 +13,6 @@ const SCOPES = "openid offline_access links:read links:write";
 const SAVED_LINK_URL = "https://example.com/from-mcp";
 const WORKSPACE_A_URL = "https://example.com/workspace-proof-a";
 const WORKSPACE_B_URL = "https://example.com/workspace-proof-b";
-const EXPECTED_OUTBOUND_URLS = new Set([
-  SAVED_LINK_URL,
-  WORKSPACE_A_URL,
-  WORKSPACE_B_URL,
-]);
 const WORKSPACE_CLAIM = "https://cloudstash.dev/claims/workspace-id";
 
 type RegisteredClient = {
@@ -302,31 +297,19 @@ describe("MCP OAuth Worker flow", () => {
   let client: RegisteredClient;
   let tokens: TokenSet;
   let expiredAssertionCountAfterToken = -1;
-  let restoreFetch: (() => void) | undefined;
   const observedOutboundUrls: string[] = [];
 
   beforeAll(async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockImplementation(async (input, init) => {
-        const request = new Request(input, init);
-        observedOutboundUrls.push(request.url);
-        if (EXPECTED_OUTBOUND_URLS.has(request.url)) {
-          return new Response(
-            `<!doctype html><title>${new URL(request.url).pathname.slice(1)}</title><p>Saved from MCP.</p>`,
-            { headers: { "Content-Type": "text/html" } }
-          );
-        }
-        throw new Error(`Unexpected outbound request: ${request.url}`);
-      });
-    restoreFetch = () => {
-      fetchSpy.mockRestore();
-    };
-
     user = await signupUser("mcp-oauth@test.com", "MCP OAuth User");
-    await env.DB.prepare("UPDATE organization SET tier = 'pro' WHERE id = ?")
-      .bind(user.orgId)
+    await env.DB.prepare(
+      "UPDATE organization SET tier = 'pro', feature_overrides = ? WHERE id = ?"
+    )
+      .bind(JSON.stringify({ aiSummary: false }), user.orgId)
       .run();
+    await installTestMetadataFetcher(
+      env.LINK_PROCESSOR_DO.get(env.LINK_PROCESSOR_DO.idFromName(user.orgId)),
+      (url) => observedOutboundUrls.push(url)
+    );
     client = await registerCurrentMcpJamClient();
     await env.DB.prepare(
       "INSERT INTO oauth_client_assertion (id, expires_at) VALUES (?, ?)"
@@ -342,10 +325,6 @@ describe("MCP OAuth Worker flow", () => {
           .bind("expired-before-token")
           .first<{ count: number }>()
       )?.count ?? -1;
-  });
-
-  afterAll(() => {
-    restoreFetch?.();
   });
 
   it("publishes usable OAuth discovery metadata", async () => {
@@ -1135,8 +1114,10 @@ describe("MCP OAuth Worker flow", () => {
       "mcp-workspace-routing@test.com",
       "MCP Workspace Routing User"
     );
-    await env.DB.prepare("UPDATE organization SET tier = 'pro' WHERE id = ?")
-      .bind(isolatedUser.orgId)
+    await env.DB.prepare(
+      "UPDATE organization SET tier = 'pro', feature_overrides = ? WHERE id = ?"
+    )
+      .bind(JSON.stringify({ aiSummary: false }), isolatedUser.orgId)
       .run();
     const otherOrgId = crypto.randomUUID();
     await env.DB.prepare(
@@ -1149,6 +1130,23 @@ describe("MCP OAuth Worker flow", () => {
     )
       .bind(crypto.randomUUID(), otherOrgId, isolatedUser.userId)
       .run();
+    await env.DB.prepare(
+      "UPDATE organization SET feature_overrides = ? WHERE id = ?"
+    )
+      .bind(JSON.stringify({ aiSummary: false }), otherOrgId)
+      .run();
+    await Promise.all([
+      installTestMetadataFetcher(
+        env.LINK_PROCESSOR_DO.get(
+          env.LINK_PROCESSOR_DO.idFromName(isolatedUser.orgId)
+        ),
+        (url) => observedOutboundUrls.push(url)
+      ),
+      installTestMetadataFetcher(
+        env.LINK_PROCESSOR_DO.get(env.LINK_PROCESSOR_DO.idFromName(otherOrgId)),
+        (url) => observedOutboundUrls.push(url)
+      ),
+    ]);
 
     const isolatedClient = await registerCurrentMcpJamClient();
     const isolatedTokens = await authorizeClient(isolatedUser, isolatedClient);

@@ -1,5 +1,5 @@
 import { env, runInDurableObject } from "cloudflare:test";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { resolveAssistantUsageWindow } from "../../billing/usage-cycle";
 import {
@@ -7,11 +7,7 @@ import {
   LIMIT_REACHED_MESSAGE,
   parseAiMeterLimit,
 } from "../../chat-agent/usage";
-import { signupUser } from "./helpers";
-
-afterEach(() => {
-  vi.restoreAllMocks();
-});
+import { installTestChatModelProvider, signupUser } from "./helpers";
 
 describe("chat entitlement", () => {
   it("blocks a free workspace before reserving tokens or invoking the model", async () => {
@@ -81,8 +77,12 @@ describe("chat entitlement", () => {
       "exact-limit",
       limitMicroUsd
     );
-    const providerFetch = vi.spyOn(globalThis, "fetch");
     const chat = env.Chat.get(env.Chat.idFromName(user.orgId));
+    let providerCalls = 0;
+    await installTestChatModelProvider(chat, () => {
+      providerCalls += 1;
+      return Promise.reject(new Error("Model must not run at the usage limit"));
+    });
     const body = await runInDurableObject(chat, async (instance) => {
       instance.messages = [
         {
@@ -96,7 +96,7 @@ describe("chat entitlement", () => {
     });
 
     expect(body).toContain(LIMIT_REACHED_MESSAGE);
-    expect(providerFetch).not.toHaveBeenCalled();
+    expect(providerCalls).toBe(0);
     expect(await processor.getChatUsage(usageWindow.id)).toEqual({
       spentMicroUsd: limitMicroUsd,
     });

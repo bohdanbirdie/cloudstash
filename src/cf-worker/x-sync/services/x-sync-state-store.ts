@@ -4,6 +4,7 @@ import type { Effect } from "effect";
 import { XSyncStatus } from "../../../lib/x-sync-status";
 import { OrgId, XTweetId, XUserId, XUsername } from "../../db/branded";
 import type { XSyncStorageError } from "../errors";
+import type { XSyncPollControl } from "../poll-control";
 
 const XSyncStateFields = {
   organizationId: Schema.NullOr(OrgId),
@@ -63,6 +64,13 @@ export interface XSyncStateStoreShape {
   ) => Effect.Effect<void, XSyncStorageError>;
   readonly setControl: (
     control: XSyncControlState
+  ) => Effect.Effect<void, XSyncStorageError>;
+  readonly readPollControl: () => Effect.Effect<
+    XSyncPollControl,
+    XSyncStorageError
+  >;
+  readonly setPollControl: (
+    control: XSyncPollControl
   ) => Effect.Effect<void, XSyncStorageError>;
   readonly clear: () => Effect.Effect<void, XSyncStorageError>;
 }

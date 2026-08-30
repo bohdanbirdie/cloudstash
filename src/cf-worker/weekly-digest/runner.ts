@@ -7,6 +7,7 @@ import { isoWeek } from "./iso-week";
 import { DigestEventSink, DigestLinkSource } from "./services";
 
 const DIGEST_LOOKBACK_MS = Duration.toMillis("7 days");
+const MAX_DIGEST_LINKS = 100;
 
 export type WeeklyDigestTrigger = "alarm" | "manual";
 
@@ -28,6 +29,20 @@ const skippedEmpty = (period: string): WeeklyDigestResult => ({
   period,
   status: "skipped-empty",
 });
+
+export const selectDigestLinksForPrompt = <T>(
+  links: ReadonlyArray<T>
+): ReadonlyArray<T> => {
+  if (links.length <= MAX_DIGEST_LINKS) return links;
+
+  const lastIndex = links.length - 1;
+  return Array.from({ length: MAX_DIGEST_LINKS }, (_, index) => {
+    const sourceIndex = Math.round(
+      (index * lastIndex) / (MAX_DIGEST_LINKS - 1)
+    );
+    return links[sourceIndex];
+  });
+};
 
 export interface RunDigestParams {
   readonly trigger: WeeklyDigestTrigger;
@@ -55,8 +70,14 @@ export const runDigest = Effect.fn("WeeklyDigest.run")(function* (
     return skippedEmpty(period);
   }
 
+  const promptLinks = selectDigestLinksForPrompt(links);
+  yield* Effect.annotateCurrentSpan("promptLinkCount", promptLinks.length);
+
   const generator = yield* WeeklyDigestGenerator;
-  const contentMd = yield* generator.generate({ generatedAt: now, links });
+  const contentMd = yield* generator.generate({
+    generatedAt: now,
+    links: promptLinks,
+  });
 
   const eventSink = yield* DigestEventSink;
   yield* eventSink.commit({

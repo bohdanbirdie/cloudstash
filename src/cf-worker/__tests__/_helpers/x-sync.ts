@@ -8,6 +8,8 @@ import { OtelTracingLive } from "../../tracing";
 import { XSyncAccountRepository } from "../../x-sync/account";
 import type { XApiFailure } from "../../x-sync/errors";
 import { XSyncSideEffectError } from "../../x-sync/errors";
+import { activePollControl } from "../../x-sync/poll-control";
+import type { XSyncPollControl } from "../../x-sync/poll-control";
 import type { BookmarksPage } from "../../x-sync/services";
 import { XApiClient } from "../../x-sync/services";
 import { LinkQueueClient } from "../../x-sync/services/link-queue-client";
@@ -47,6 +49,8 @@ export interface StoreRec {
   setControlCalls: XSyncControlState[];
   controlStatus: Status | null;
   controlSyncEnabled: boolean | null;
+  pollControl: XSyncPollControl;
+  setPollControlCalls: XSyncPollControl[];
 }
 
 const pendingSnapshot = (rec: StoreRec): XSyncStateSnapshot | null => {
@@ -89,6 +93,8 @@ export const makeStoreLayer = (initial: XSyncStateSnapshot | null) => {
     setControlCalls: [],
     controlStatus: initial?.status ?? null,
     controlSyncEnabled: initial?.syncEnabled ?? null,
+    pollControl: activePollControl,
+    setPollControlCalls: [],
   };
   const layer = Layer.succeed(XSyncStateStore, {
     read: () => Effect.sync(() => currentSnapshot(rec)),
@@ -138,6 +144,12 @@ export const makeStoreLayer = (initial: XSyncStateSnapshot | null) => {
           };
         }
       }),
+    readPollControl: () => Effect.sync(() => rec.pollControl),
+    setPollControl: (control) =>
+      Effect.sync(() => {
+        rec.pollControl = control;
+        rec.setPollControlCalls.push(control);
+      }),
     clear: () =>
       Effect.sync(() => {
         rec.clearCalls += 1;
@@ -145,6 +157,7 @@ export const makeStoreLayer = (initial: XSyncStateSnapshot | null) => {
         rec.organizationId = null;
         rec.controlStatus = null;
         rec.controlSyncEnabled = null;
+        rec.pollControl = activePollControl;
       }),
   });
   return { layer, rec };
@@ -206,16 +219,20 @@ export const makeAccountLayer = (
 export interface AlarmRec {
   alarmScheduled: boolean;
   ensureWrites: number;
+  ensureDelays: number[];
   cancelWrites: number;
   scheduleWrites: number;
+  scheduleDelays: number[];
 }
 
 export const makeAlarmLayer = (initiallyScheduled = false) => {
   const rec: AlarmRec = {
     alarmScheduled: initiallyScheduled,
     ensureWrites: 0,
+    ensureDelays: [],
     cancelWrites: 0,
     scheduleWrites: 0,
+    scheduleDelays: [],
   };
   const layer = Layer.succeed(XSyncAlarm, {
     cancel: () =>
@@ -224,16 +241,18 @@ export const makeAlarmLayer = (initiallyScheduled = false) => {
         rec.alarmScheduled = false;
         rec.cancelWrites += 1;
       }),
-    ensureAfter: () =>
+    ensureAfter: (delay) =>
       Effect.sync(() => {
         if (rec.alarmScheduled) return;
         rec.alarmScheduled = true;
         rec.ensureWrites += 1;
+        rec.ensureDelays.push(delay);
       }),
-    scheduleAfter: () =>
+    scheduleAfter: (delay) =>
       Effect.sync(() => {
         rec.alarmScheduled = true;
         rec.scheduleWrites += 1;
+        rec.scheduleDelays.push(delay);
       }),
   });
   return { layer, rec };

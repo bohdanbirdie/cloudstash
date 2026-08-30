@@ -1,11 +1,15 @@
 import type { ToolCallOptions } from "ai";
 import { env, runInDurableObject } from "cloudflare:test";
 import { Effect } from "effect";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { makeChatLibrary } from "../../chat-agent/library";
 import { createTools } from "../../chat-agent/tools";
-import { quiesceLinkProcessor, signupUser } from "./helpers";
+import {
+  installTestMetadataFetcher,
+  quiesceLinkProcessor,
+  signupUser,
+} from "./helpers";
 
 const stubCtx = {} as ToolCallOptions;
 
@@ -13,7 +17,6 @@ type LinkProcessorStub = ReturnType<(typeof env.LINK_PROCESSOR_DO)["get"]>;
 let linkProcessor: LinkProcessorStub | undefined;
 
 afterEach(async () => {
-  vi.restoreAllMocks();
   if (linkProcessor) await quiesceLinkProcessor(linkProcessor);
   linkProcessor = undefined;
 });
@@ -36,25 +39,13 @@ describe("chat library RPC", () => {
 
   it("runs chat tools through Effect RPC against the canonical library", async () => {
     const url = `https://example.com/chat-rpc-${crypto.randomUUID()}`;
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-      const request = new Request(input, init);
-      if (request.url === url) {
-        return new Response(
-          "<!doctype html><title>Effect RPC example</title>",
-          {
-            headers: { "Content-Type": "text/html" },
-          }
-        );
-      }
-      throw new Error(`Unexpected outbound request: ${request.url}`);
-    });
-
     const user = await signupUser(
       `chat-rpc-${crypto.randomUUID()}@example.com`,
       "Chat RPC user"
     );
     const libraryId = env.LINK_PROCESSOR_DO.idFromName(user.orgId);
     linkProcessor = env.LINK_PROCESSOR_DO.get(libraryId);
+    await installTestMetadataFetcher(linkProcessor);
     const library = makeChatLibrary({
       callRpc: (payload) =>
         linkProcessor!.workspaceLinksRpc(Uint8Array.from(payload)),

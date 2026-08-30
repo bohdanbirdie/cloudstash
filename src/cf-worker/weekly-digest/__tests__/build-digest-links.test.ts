@@ -83,6 +83,35 @@ describe("buildDigestLinks", () => {
     expect(result[0].title).toBe("Edge");
   });
 
+  it("orders digest candidates chronologically across the week", () => {
+    const result = buildDigestLinks(
+      {
+        ...baseData,
+        links: [
+          {
+            createdAt: new Date(NOW),
+            domain: "new.com",
+            id: lid("new"),
+            url: "https://new.com",
+          },
+          {
+            createdAt: new Date(CUTOFF),
+            domain: "old.com",
+            id: lid("old"),
+            url: "https://old.com",
+          },
+        ],
+        snapshots: [
+          { fetchedAt: new Date(NOW), linkId: lid("new"), title: "New" },
+          { fetchedAt: new Date(NOW), linkId: lid("old"), title: "Old" },
+        ],
+      },
+      CUTOFF
+    );
+
+    expect(result.map((link) => link.title)).toEqual(["Old", "New"]);
+  });
+
   it("picks the latest snapshot by fetchedAt when multiple exist", () => {
     const result = buildDigestLinks(
       {

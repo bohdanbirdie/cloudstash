@@ -1,3 +1,4 @@
+import type { LanguageModelUsage } from "ai";
 import { Option, Schema } from "effect";
 
 const MICRO_USD_PER_USD = 1_000_000;
@@ -57,6 +58,56 @@ export function openRouterSpend(metadata: readonly unknown[]): ProviderSpend {
     spentMicroUsd += cost;
   }
   return { complete, spentMicroUsd };
+}
+
+export interface ProviderUsageStep {
+  readonly usage: LanguageModelUsage;
+  readonly providerMetadata: unknown;
+}
+
+export const ProviderUsageTelemetry = Schema.Struct({
+  cacheReadTokens: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  cacheWriteTokens: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  inputTokens: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  outputTokens: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  reasoningTokens: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  spend: ProviderSpend,
+  stepCount: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+});
+export type ProviderUsageTelemetry = Schema.Schema.Type<
+  typeof ProviderUsageTelemetry
+>;
+
+export function openRouterUsageTelemetry(
+  steps: readonly ProviderUsageStep[]
+): ProviderUsageTelemetry {
+  return ProviderUsageTelemetry.make({
+    cacheReadTokens: steps.reduce(
+      (total, step) =>
+        total + (step.usage.inputTokenDetails.cacheReadTokens ?? 0),
+      0
+    ),
+    cacheWriteTokens: steps.reduce(
+      (total, step) =>
+        total + (step.usage.inputTokenDetails.cacheWriteTokens ?? 0),
+      0
+    ),
+    inputTokens: steps.reduce(
+      (total, step) => total + (step.usage.inputTokens ?? 0),
+      0
+    ),
+    outputTokens: steps.reduce(
+      (total, step) => total + (step.usage.outputTokens ?? 0),
+      0
+    ),
+    reasoningTokens: steps.reduce(
+      (total, step) =>
+        total + (step.usage.outputTokenDetails.reasoningTokens ?? 0),
+      0
+    ),
+    spend: openRouterSpend(steps.map((step) => step.providerMetadata)),
+    stepCount: steps.length,
+  });
 }
 
 export const UsageData = Schema.Struct({

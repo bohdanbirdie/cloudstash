@@ -63,7 +63,6 @@ describe("pollReconciledEffect", () => {
           expect(outcome).toEqual({
             kind: "ok",
             newCount: 0,
-            rescheduleInMs: 30_000,
           });
           expect(queue.calls).toEqual([]);
           expect(x.calls).toHaveLength(1);

@@ -3,7 +3,12 @@ import { env, runInDurableObject } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { resolveAssistantUsageWindow } from "../../billing/usage-cycle";
-import { quiesceLinkProcessor, signupUser } from "./helpers";
+import {
+  installTestChatModelProvider,
+  installTestMetadataFetcher,
+  quiesceLinkProcessor,
+  signupUser,
+} from "./helpers";
 
 type LinkProcessorStub = ReturnType<(typeof env.LINK_PROCESSOR_DO)["get"]>;
 let linkProcessor: LinkProcessorStub | undefined;
@@ -41,7 +46,6 @@ const openRouterStream = (cost: number, text: string) =>
   );
 
 afterEach(async () => {
-  vi.restoreAllMocks();
   if (linkProcessor) await quiesceLinkProcessor(linkProcessor);
   linkProcessor = undefined;
 });
@@ -54,13 +58,8 @@ describe("chat approval metering", () => {
       { cost: 0.000_375, text: "Deleted." },
     ];
     const url = `https://example.com/approved-delete-${crypto.randomUUID()}`;
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    const providerFetch: typeof fetch = async (input, init) => {
       const request = new Request(input, init);
-      if (request.url === url) {
-        return new Response("<!doctype html><title>Delete me</title>", {
-          headers: { "Content-Type": "text/html" },
-        });
-      }
       if (
         request.url.startsWith("https://openrouter.ai/api/v1/chat/completions")
       ) {
@@ -69,27 +68,29 @@ describe("chat approval metering", () => {
         return openRouterStream(response.cost, response.text);
       }
       throw new Error(`Unexpected outbound request: ${request.url}`);
-    });
+    };
 
     const user = await signupUser(
       `chat-approval-metering-${crypto.randomUUID()}@example.com`,
       "Chat approval metering"
     );
     await env.DB.prepare(
-      "UPDATE organization SET tier = 'pro', tier_source = 'admin', usage_cycle_anchor = ? WHERE id = ?"
+      "UPDATE organization SET tier = 'pro', tier_source = 'admin', usage_cycle_anchor = ?, feature_overrides = ? WHERE id = ?"
     )
-      .bind(anchor.getTime(), user.orgId)
+      .bind(anchor.getTime(), JSON.stringify({ aiSummary: false }), user.orgId)
       .run();
 
     linkProcessor = env.LINK_PROCESSOR_DO.get(
       env.LINK_PROCESSOR_DO.idFromName(user.orgId)
     );
+    await installTestMetadataFetcher(linkProcessor);
     const saved = await linkProcessor.saveLink({ url, source: "api" });
     expect(saved.ok).toBe(true);
     if (!saved.ok) throw new Error(saved.error.message);
 
     const linkId = saved.value.link.id;
     const chat = env.Chat.get(env.Chat.idFromName(user.orgId));
+    await installTestChatModelProvider(chat, providerFetch);
     const bodies = await runInDurableObject(chat, async (instance) => {
       instance.messages = [
         {
@@ -161,13 +162,8 @@ describe("chat approval metering", () => {
     const anchor = new Date(Date.now() - 60_000);
     const providerResponses = [{ cost: 0.000_2, text: "Kept the link." }];
     const url = `https://example.com/rejected-delete-${crypto.randomUUID()}`;
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    const providerFetch: typeof fetch = async (input, init) => {
       const request = new Request(input, init);
-      if (request.url === url) {
-        return new Response("<!doctype html><title>Keep me</title>", {
-          headers: { "Content-Type": "text/html" },
-        });
-      }
       if (
         request.url.startsWith("https://openrouter.ai/api/v1/chat/completions")
       ) {
@@ -176,25 +172,27 @@ describe("chat approval metering", () => {
         return openRouterStream(response.cost, response.text);
       }
       throw new Error(`Unexpected outbound request: ${request.url}`);
-    });
+    };
 
     const user = await signupUser(
       `chat-rejected-approval-${crypto.randomUUID()}@example.com`,
       "Rejected chat approval"
     );
     await env.DB.prepare(
-      "UPDATE organization SET tier = 'pro', tier_source = 'admin', usage_cycle_anchor = ? WHERE id = ?"
+      "UPDATE organization SET tier = 'pro', tier_source = 'admin', usage_cycle_anchor = ?, feature_overrides = ? WHERE id = ?"
     )
-      .bind(anchor.getTime(), user.orgId)
+      .bind(anchor.getTime(), JSON.stringify({ aiSummary: false }), user.orgId)
       .run();
 
     linkProcessor = env.LINK_PROCESSOR_DO.get(
       env.LINK_PROCESSOR_DO.idFromName(user.orgId)
     );
+    await installTestMetadataFetcher(linkProcessor);
     const saved = await linkProcessor.saveLink({ url, source: "api" });
     if (!saved.ok) throw new Error(saved.error.message);
     const linkId = saved.value.link.id;
     const chat = env.Chat.get(env.Chat.idFromName(user.orgId));
+    await installTestChatModelProvider(chat, providerFetch);
 
     const body = await runInDurableObject(chat, async (instance) => {
       instance.messages = [

@@ -1,5 +1,5 @@
 import { tool, zodSchema } from "ai";
-import { Effect } from "effect";
+import { Effect, Match, Schema } from "effect";
 import { z } from "zod";
 
 import { normalizeLinkSearchQuery } from "../../lib/link-search";
@@ -7,6 +7,97 @@ import { WorkspaceLinksRemoteError } from "../workspace-links/effect-rpc";
 import type { ChatLibrary } from "./library";
 
 const MAX_TOOL_LINKS = 20;
+const MAX_RETRIEVAL_TELEMETRY_CHARACTERS_PER_CALL = 100_000;
+
+type RetrievalToolKind = "get" | "list" | "search";
+
+export const ChatRetrievalTelemetry = Schema.Struct({
+  getCalls: Schema.Number,
+  listCalls: Schema.Number,
+  searchCalls: Schema.Number,
+  returnedItems: Schema.Number,
+  serializedCharacters: Schema.Number,
+  cappedCalls: Schema.Number,
+});
+export type ChatRetrievalTelemetry = Schema.Schema.Type<
+  typeof ChatRetrievalTelemetry
+>;
+
+export interface ChatRetrievalTelemetryCollector {
+  readonly record: (kind: RetrievalToolKind, result: unknown) => void;
+  readonly snapshot: () => ChatRetrievalTelemetry;
+}
+
+const arrayLengthAt = (result: unknown, key: "links" | "results") => {
+  if (typeof result !== "object" || result === null || !(key in result)) {
+    return 0;
+  }
+  const value = (result as Record<string, unknown>)[key];
+  return Array.isArray(value) ? value.length : 0;
+};
+
+const returnedItemCount = (kind: RetrievalToolKind, result: unknown) =>
+  Match.value(kind).pipe(
+    Match.when("list", () => arrayLengthAt(result, "links")),
+    Match.when("search", () => arrayLengthAt(result, "results")),
+    Match.when("get", () =>
+      typeof result === "object" && result !== null && "link" in result ? 1 : 0
+    ),
+    Match.exhaustive
+  );
+
+const serializedCharacters = (result: unknown) => {
+  try {
+    return JSON.stringify(result)?.length ?? 0;
+  } catch {
+    return MAX_RETRIEVAL_TELEMETRY_CHARACTERS_PER_CALL;
+  }
+};
+
+export const createChatRetrievalTelemetry =
+  (): ChatRetrievalTelemetryCollector => {
+    let getCalls = 0;
+    let listCalls = 0;
+    let searchCalls = 0;
+    let returnedItems = 0;
+    let serializedCharacterCount = 0;
+    let cappedCalls = 0;
+
+    return {
+      record: (kind, result) => {
+        Match.value(kind).pipe(
+          Match.when("get", () => {
+            getCalls += 1;
+          }),
+          Match.when("list", () => {
+            listCalls += 1;
+          }),
+          Match.when("search", () => {
+            searchCalls += 1;
+          }),
+          Match.exhaustive
+        );
+        returnedItems += returnedItemCount(kind, result);
+        const characters = serializedCharacters(result);
+        serializedCharacterCount += Math.min(
+          characters,
+          MAX_RETRIEVAL_TELEMETRY_CHARACTERS_PER_CALL
+        );
+        if (characters >= MAX_RETRIEVAL_TELEMETRY_CHARACTERS_PER_CALL) {
+          cappedCalls += 1;
+        }
+      },
+      snapshot: () =>
+        ChatRetrievalTelemetry.make({
+          getCalls,
+          listCalls,
+          searchCalls,
+          returnedItems,
+          serializedCharacters: serializedCharacterCount,
+          cappedCalls,
+        }),
+    };
+  };
 
 const listRecentLinksSchema = z.object({
   limit: z
@@ -45,15 +136,29 @@ export interface ToolEffectRunner {
   <Value, Error>(effect: Effect.Effect<Value, Error>): Promise<Value>;
 }
 
+const recoverToolError = <Value>(
+  effect: Effect.Effect<Value, WorkspaceLinksRemoteError>
+) =>
+  effect.pipe(
+    Effect.catchTag("WorkspaceLinksRemoteError", (error) =>
+      Effect.succeed({ error: error.message })
+    )
+  );
+
 const runTool = <Value>(
   effect: Effect.Effect<Value, WorkspaceLinksRemoteError>,
   runEffect: ToolEffectRunner
+) => runEffect(recoverToolError(effect));
+
+const runRetrievalTool = <Value>(
+  effect: Effect.Effect<Value, WorkspaceLinksRemoteError>,
+  runEffect: ToolEffectRunner,
+  telemetry: ChatRetrievalTelemetryCollector | undefined,
+  kind: RetrievalToolKind
 ) =>
   runEffect(
-    effect.pipe(
-      Effect.catchTag("WorkspaceLinksRemoteError", (error) =>
-        Effect.succeed({ error: error.message })
-      )
+    recoverToolError(effect).pipe(
+      Effect.tap((result) => Effect.sync(() => telemetry?.record(kind, result)))
     )
   );
 
@@ -264,7 +369,11 @@ const deleteLinks = Effect.fn("ChatTools.deleteLinks")(function* (
   return { success: true, deleted: batch.ids.length, errors: batch.errors };
 });
 
-export function createTools(library: ChatLibrary, runEffect: ToolEffectRunner) {
+export function createTools(
+  library: ChatLibrary,
+  runEffect: ToolEffectRunner,
+  retrievalTelemetry?: ChatRetrievalTelemetryCollector
+) {
   return {
     listRecentLinks: tool({
       description:
@@ -275,7 +384,13 @@ export function createTools(library: ChatLibrary, runEffect: ToolEffectRunner) {
         "do not call getLink unless the user needs fields missing from these results. " +
         "Present results with a plain URL and a brief description.",
       inputSchema: zodSchema(listRecentLinksSchema),
-      execute: (input) => runTool(listRecentLinks(library, input), runEffect),
+      execute: (input) =>
+        runRetrievalTool(
+          listRecentLinks(library, input),
+          runEffect,
+          retrievalTelemetry,
+          "list"
+        ),
     }),
     saveLink: tool({
       description:
@@ -290,14 +405,26 @@ export function createTools(library: ChatLibrary, runEffect: ToolEffectRunner) {
         "Use this when the user wants to find or recall something they saved. Pass " +
         "short meaningful keywords and present only relevant ranked results with plain URLs.",
       inputSchema: zodSchema(searchLinksSchema),
-      execute: ({ query }) => runTool(searchLinks(library, query), runEffect),
+      execute: ({ query }) =>
+        runRetrievalTool(
+          searchLinks(library, query),
+          runEffect,
+          retrievalTelemetry,
+          "search"
+        ),
     }),
     getLink: tool({
       description:
         "Get the complete record for one saved link. Use an ID returned by another " +
         "tool when the user needs its URL, metadata, summary, tags, or current state.",
       inputSchema: zodSchema(linkIdSchema),
-      execute: ({ id }) => runTool(getLink(library, id), runEffect),
+      execute: ({ id }) =>
+        runRetrievalTool(
+          getLink(library, id),
+          runEffect,
+          retrievalTelemetry,
+          "get"
+        ),
     }),
     completeLink: tool({
       description:
@@ -344,7 +471,7 @@ export function createTools(library: ChatLibrary, runEffect: ToolEffectRunner) {
         "about unread, unfinished, or inbox links. Present each result with a plain URL.",
       inputSchema: zodSchema(getInboxSchema),
       execute: ({ limit = 10 }) =>
-        runTool(
+        runRetrievalTool(
           library
             .list({ state: "inbox", limit: limitTo(limit, 10), sort: "newest" })
             .pipe(
@@ -358,7 +485,9 @@ export function createTools(library: ChatLibrary, runEffect: ToolEffectRunner) {
                 total: page.total,
               }))
             ),
-          runEffect
+          runEffect,
+          retrievalTelemetry,
+          "list"
         ),
     }),
     getStats: tool({

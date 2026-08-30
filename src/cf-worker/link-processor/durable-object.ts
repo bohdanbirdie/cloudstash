@@ -73,7 +73,7 @@ import { cancelStaleLinks, ingestLink, notifyResult } from "./do-programs";
 import type { NotifyResultParams } from "./do-programs";
 import { runEffect } from "./logger";
 import { processLink } from "./process-link";
-import { FeatureStore, SourceNotifier } from "./services";
+import { FeatureStore, MetadataFetcher, SourceNotifier } from "./services";
 import { AiSummaryGeneratorLive } from "./services/ai-summary-generator.live";
 import { ContentExtractorLive } from "./services/content-extractor.live";
 import { FeatureStoreLive } from "./services/feature-store.live";
@@ -89,6 +89,10 @@ const logger = logSync("LinkProcessorDO");
 
 const MAX_NOTIFIED_LINK_IDS = 500;
 const LEADER_SYNC_TIMEOUT_MS = 10_000;
+
+export const METADATA_FETCHER_TEST_OVERRIDE = Symbol(
+  "@cloudstash/link-processor/MetadataFetcherTestOverride"
+);
 
 import type { WeeklyDigestRpcResult } from "../weekly-digest/rpc";
 import {
@@ -128,6 +132,16 @@ export class LinkProcessorDO
   private storeCreationPromise: Promise<Store<typeof schema>> | undefined;
   private subscriptions = new Set<Unsubscribe>();
   private storeGeneration = 0;
+  private metadataFetcherOverride: typeof MetadataFetcher.Service | undefined;
+
+  [METADATA_FETCHER_TEST_OVERRIDE](
+    service: typeof MetadataFetcher.Service
+  ): void {
+    if (this.env.ENABLE_TEST_AUTH !== "true") {
+      throw new Error("Metadata fetcher overrides are disabled");
+    }
+    this.metadataFetcherOverride = service;
+  }
   private submittedLinks = new Set<string>();
   private metadataSemaphore = Semaphore.makeUnsafe(MAX_CONCURRENT_METADATA);
   private aiSemaphore = Semaphore.makeUnsafe(MAX_CONCURRENT_AI);
@@ -811,8 +825,11 @@ export class LinkProcessorDO
       );
 
       const applicationHostname = new URL(this.env.BETTER_AUTH_URL).hostname;
+      const metadataFetcherLayer = this.metadataFetcherOverride
+        ? Layer.succeed(MetadataFetcher, this.metadataFetcherOverride)
+        : MetadataFetcherLive(applicationHostname);
       const liveLayer = Layer.mergeAll(
-        MetadataFetcherLive(applicationHostname),
+        metadataFetcherLayer,
         ContentExtractorLive(applicationHostname),
         AiSummaryGeneratorLive,
         LinkEventStoreLive(store, this.commitFor(store, generation)),

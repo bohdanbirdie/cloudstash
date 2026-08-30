@@ -5,7 +5,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { resolveAssistantUsageWindow } from "../../billing/usage-cycle";
 import type { ChatContextSummary } from "../../chat-agent/compaction";
 import { COMPACTION_STORAGE_KEY } from "../../chat-agent/compaction";
-import { quiesceLinkProcessor, signupUser } from "./helpers";
+import {
+  installTestChatModelProvider,
+  quiesceLinkProcessor,
+  signupUser,
+} from "./helpers";
 
 type LinkProcessorStub = ReturnType<(typeof env.LINK_PROCESSOR_DO)["get"]>;
 let linkProcessor: LinkProcessorStub | undefined;
@@ -63,7 +67,6 @@ const streamResponse = (cost: number, text: string) =>
   );
 
 afterEach(async () => {
-  vi.restoreAllMocks();
   if (linkProcessor) await quiesceLinkProcessor(linkProcessor);
   linkProcessor = undefined;
 });
@@ -72,7 +75,7 @@ describe("chat context compaction", () => {
   it("persists a real compacted summary and settles compaction plus answer spend", async () => {
     const anchor = new Date(Date.now() - 60_000);
     const calls: string[] = [];
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    const providerFetch: typeof fetch = async (input, init) => {
       const request = new Request(input, init);
       if (
         !request.url.startsWith("https://openrouter.ai/api/v1/chat/completions")
@@ -84,7 +87,7 @@ describe("chat context compaction", () => {
       return body.stream
         ? streamResponse(0.000_375, "The compacted conversation still works.")
         : completionResponse(0.000_125, "The user is reviewing saved links.");
-    });
+    };
 
     const user = await signupUser(
       `chat-compaction-${crypto.randomUUID()}@example.com`,
@@ -100,6 +103,7 @@ describe("chat context compaction", () => {
     );
 
     const chat = env.Chat.get(env.Chat.idFromName(user.orgId));
+    await installTestChatModelProvider(chat, providerFetch);
     const result = await runInDurableObject(chat, async (instance, state) => {
       instance.messages = Array.from({ length: 20 }, (_, index) => ({
         id: `message-${index}`,

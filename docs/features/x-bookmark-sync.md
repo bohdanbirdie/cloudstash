@@ -1,6 +1,8 @@
 # X Bookmark Sync
 
-Automatically sync new X (Twitter) bookmarks into Cloudstash. Per-user polling via Durable Object, ~30s latency, zero D1 footprint, gated to Pro tier.
+Automatically sync new X (Twitter) bookmarks into Cloudstash. Per-user adaptive
+polling via Durable Object, 30-second to five-minute latency based on recent
+activity, zero D1 polling state, gated to Pro tier.
 
 ## Overview
 
@@ -25,11 +27,11 @@ Automatically sync new X (Twitter) bookmarks into Cloudstash. Per-user polling v
 │  │ X_BOOKMARK_  │ ──── fetches /users/me                                  │
 │  │   SYNC_DO    │ ──── persists identity in DO storage                    │
 │  │ (per user)   │ ──── PINS watermark to current head (no enqueue!)       │
-│  └──────────────┘ ──── arms 30s alarm                                     │
+│  └──────────────┘ ──── arms fast 30s alarm                                │
 └──────────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                         POLLING (every 30s)                               │
+│                    POLLING (adaptive 30s → 5m)                            │
 │                                                                           │
 │  ┌──────────────┐  1. alarm fires      ┌──────────┐                      │
 │  │ X_BOOKMARK_  │ ───────────────────► │ X API v2 │                      │
@@ -76,7 +78,9 @@ Long-standing bug (years old, never fixed): at `max_results=100`, `next_token` o
 - 180 GET requests / 15-min window per user
 - 50 POST/DELETE / 15-min per user
 
-A 30s poll cadence = 30 requests/15min/user. Well under the limit.
+The fastest 30s cadence = 30 requests/15min/user. An account idle for six
+hours polls every five minutes = 3 requests/15min/user. Both remain under the
+limit.
 
 ### Pricing (April 20, 2026 change)
 
@@ -86,10 +90,11 @@ A 30s poll cadence = 30 requests/15min/user. Well under the limit.
 
 ### Why Durable Object (vs. cron worker)
 
-- **CF cron minimum is 1 minute** — cannot do 30s polling.
+- **CF cron minimum is 1 minute** — cannot provide the active 30s cadence.
 - Cron + fan-out via Queue rebuilds per-user state in D1 and reasons about it on every tick. DO gives per-user state isolation for free.
 - DO aggressively hibernates — only billed for the ~250ms of active alarm execution.
-- Built-in per-user backoff: `retryAttempt`, `retryAfterMs` from 429s, exponential backoff without coordinating across users.
+- Persisted per-user cadence and failure control survives DO eviction; 429s
+  retain that state and honor the provider delay.
 - Pause/resume/disconnect = direct alarm manipulation on one DO. No need to consult an "active users" table.
 
 ### State storage: DO SQLite (not D1, not KV)
@@ -112,8 +117,9 @@ Fields stored in DO SQLite (per user):
 - `watermarkTweetId` (the sync mechanic)
 - `status` (`active` | `needs_reconnect` | `paused` | `disconnected`)
 - `syncEnabled` (user toggle)
+- `pollControl` (idle start + bounded transient-failure count)
 
-`lastSyncedAt` lives in DO memory only — surfaced via the `DO.status()` RPC. Persisting it on every poll would have eaten the included writes tier. UI shows "—" briefly until next alarm fires (≤30s) on cold start. Acceptable.
+`lastSyncedAt` lives in DO memory only — surfaced via the `DO.status()` RPC. Persisting it on every poll would have eaten the included writes tier. UI shows "—" briefly until the next adaptive alarm fires (at most five minutes) on cold start. Acceptable.
 
 ## The watermark mechanic
 
@@ -193,10 +199,6 @@ Reframed from the original "full historical sync" vision. The 800 cap applies to
 
 **Not feasible via the official API at any tier.** Only browser automation (Playwright) reaches deeper into a user's bookmark history. Brittle, TOS-risky, not viable as a clean paid feature. **Do not build this.**
 
-### Adaptive polling cadence (30s → 120s on idle)
-
-After N consecutive empty polls, back off to 60s, then 120s; snap back to 30s on any new bookmark. Cuts DO duration cost meaningfully. Worth doing once polling volume justifies it.
-
 ### Bookmark-deletion mirroring
 
 If a user un-bookmarks on X, we currently leave the link in Cloudstash. The API exposes only the current bookmark set, not a deletion event. Implementing this would require comparing every poll's full set against our local store — expensive and rarely wanted. Deferred indefinitely.
@@ -207,7 +209,11 @@ If a user un-bookmarks on X, we currently leave the link in Cloudstash. The API 
 - **No `lastSyncedAt` persisted**. In-memory only, surfaces via the `status()` RPC. Resets to `null` on cold start (UI shows "—" briefly).
 - **`max_results: 50`** for pagination walks (not 100) due to the X bug.
 - **Mid-walk pagination errors DEFER** (never advance the watermark). If page 2/3/... fails with 401/402/429/5xx after a successful probe, we log the truncation, skip both enqueue and watermark write, and let the next poll re-walk from the same watermark. Without this, an error after page 2 would silently drop pages 3+ forever. Locked in by a dedicated test.
-- **401 / 402 on the probe → mark `needs_reconnect`** and stop alarming. 429 → reschedule using the response's `retry-after`. Generic API errors on the probe → exponential backoff up to 15 min (handled by the DO, not by the poll effect — the effect surfaces the typed failure cleanly).
+- **401 / 402 on the probe → mark `needs_reconnect`** and stop alarming. 429
+  → reschedule after the response's `retry-after` plus a one-second buffer.
+  Generic API errors on the probe → persisted exponential backoff up to 15 min
+  (handled by the DO, not by the poll effect — the effect surfaces the typed
+  failure cleanly).
 - **Post-OAuth hook is trivial** — entitlement check, then start the DO. The DO fetches `/users/me` itself.
 - **Account deletion** — the workflow step calls the DO's `disconnect()`, which wipes DO storage. Runs after the link-processor wipes so any in-flight queue messages drop.
 - **Full Layer-based DI**: `pollOnceEffect` and `initializeWatermarkEffect` take no `env`. All dependencies (X API client, state store, link-queue client, auth client, DB client) come via Layer — `Layer.succeed` mocks drive the tests. The link-queue service wraps the queue binding so payloads are assertable in tests without touching CF bindings.

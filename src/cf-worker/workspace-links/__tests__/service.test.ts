@@ -2,7 +2,7 @@ import { it } from "@effect/vitest";
 import { Effect } from "effect";
 import { TestClock } from "effect/testing";
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect } from "vitest";
 
 import { makeTestStore } from "@/livestore/__tests__/test-helpers";
 import type { TestStore } from "@/livestore/__tests__/test-helpers";
@@ -10,7 +10,7 @@ import { events } from "@/livestore/schema";
 
 import { WorkspaceLinkUnavailableError } from "../errors";
 import { makeWorkspaceLinks } from "../service";
-import type { WorkspaceLinks } from "../service";
+import type { CommitWorkspaceLinks, WorkspaceLinks } from "../service";
 
 describe("WorkspaceLinks", () => {
   let store: TestStore;
@@ -20,7 +20,6 @@ describe("WorkspaceLinks", () => {
   });
 
   afterEach(async () => {
-    vi.restoreAllMocks();
     await store.shutdownPromise?.();
   });
 
@@ -29,31 +28,39 @@ describe("WorkspaceLinks", () => {
     readonly args?: Record<string, unknown>;
   };
 
-  const captureCommits = (
+  const makeCommitRecorder = (
     beforeCommit?: (
       changes: readonly RecordedEvent[],
       commit: TestStore["commit"]
     ) => void
-  ): RecordedEvent[] => {
+  ): {
+    readonly committed: RecordedEvent[];
+    readonly commit: CommitWorkspaceLinks;
+  } => {
     const committed: RecordedEvent[] = [];
     const commit = store.commit.bind(store);
-    vi.spyOn(store, "commit").mockImplementation((...changes) => {
-      const recorded = changes as RecordedEvent[];
-      beforeCommit?.(recorded, commit);
-      committed.push(...recorded);
-      return commit(...changes);
-    });
-    return committed;
+    return {
+      committed,
+      commit: (_operation, changes) =>
+        Effect.sync(() => {
+          const recorded = changes as readonly RecordedEvent[];
+          beforeCommit?.(recorded, commit);
+          committed.push(...recorded);
+          commit(...changes);
+        }),
+    };
   };
 
   const runWithSync = <Value, Error>(
     program: (links: WorkspaceLinks) => Effect.Effect<Value, Error>,
-    sync: NonNullable<Parameters<typeof makeWorkspaceLinks>[1]>["sync"]
-  ) => program(makeWorkspaceLinks(store, { sync }));
+    sync: NonNullable<Parameters<typeof makeWorkspaceLinks>[1]>["sync"],
+    commit?: CommitWorkspaceLinks
+  ) => program(makeWorkspaceLinks(store, { sync, commit }));
 
   const run = <Value, Error>(
-    program: (links: WorkspaceLinks) => Effect.Effect<Value, Error>
-  ) => runWithSync(program, async () => true);
+    program: (links: WorkspaceLinks) => Effect.Effect<Value, Error>,
+    commit?: CommitWorkspaceLinks
+  ) => runWithSync(program, async () => true, commit);
 
   const seed = (
     id: string,
@@ -117,6 +124,7 @@ describe("WorkspaceLinks", () => {
   it.effect("repairs an interrupted external save when it is retried", () =>
     Effect.gen(function* () {
       let syncCalls = 0;
+      const recorder = makeCommitRecorder();
       yield* runWithSync(
         (links) =>
           Effect.gen(function* () {
@@ -132,8 +140,6 @@ describe("WorkspaceLinks", () => {
               })
             );
 
-            const committed = captureCommits();
-
             const saved = yield* links.save({ url, source: "mcp" });
 
             expect(saved).toMatchObject({
@@ -141,7 +147,7 @@ describe("WorkspaceLinks", () => {
               link: { id: "interrupted" },
             });
             expect(
-              committed.find(
+              recorder.committed.find(
                 (event) => event.name === "v1.LinkProcessingStarted"
               )?.args?.linkId
             ).toBe("interrupted");
@@ -149,7 +155,8 @@ describe("WorkspaceLinks", () => {
         async () => {
           syncCalls += 1;
           return true;
-        }
+        },
+        recorder.commit
       );
       expect(syncCalls).toBeGreaterThanOrEqual(1);
     })
@@ -161,7 +168,7 @@ describe("WorkspaceLinks", () => {
       const url = "https://race.example.com/article";
       const winnerId = "concurrent-winner";
       let raced = false;
-      const committed = captureCommits((changes, commit) => {
+      const recorder = makeCommitRecorder((changes, commit) => {
         const createsLink = changes.some(
           (change) => change.name === "v2.LinkCreated"
         );
@@ -180,37 +187,40 @@ describe("WorkspaceLinks", () => {
         }
       });
 
-      return run((links) =>
-        Effect.gen(function* () {
-          const saved = yield* links.save({
-            url,
-            tags: ["winner"],
-            source: "mcp",
-          });
+      return run(
+        (links) =>
+          Effect.gen(function* () {
+            const saved = yield* links.save({
+              url,
+              tags: ["winner"],
+              source: "mcp",
+            });
 
-          expect(saved).toMatchObject({
-            created: false,
-            link: { id: winnerId, tags: ["winner"] },
-          });
-          const losingCreate = committed.find(
-            (event) => event.name === "v2.LinkCreated"
-          );
-          const losingId = losingCreate?.args?.id;
-          expect(losingId).toBeTypeOf("string");
-          expect(losingId).not.toBe(winnerId);
-          expect(
-            committed.filter(
-              (event) =>
-                event.args?.linkId === losingId &&
-                (event.name === "v1.LinkTagged" ||
-                  event.name === "v1.LinkProcessingStarted")
-            )
-          ).toEqual([]);
-          expect(
-            committed.find((event) => event.name === "v1.LinkProcessingStarted")
-              ?.args?.linkId
-          ).toBe(winnerId);
-        })
+            expect(saved).toMatchObject({
+              created: false,
+              link: { id: winnerId, tags: ["winner"] },
+            });
+            const losingCreate = recorder.committed.find(
+              (event) => event.name === "v2.LinkCreated"
+            );
+            const losingId = losingCreate?.args?.id;
+            expect(losingId).toBeTypeOf("string");
+            expect(losingId).not.toBe(winnerId);
+            expect(
+              recorder.committed.filter(
+                (event) =>
+                  event.args?.linkId === losingId &&
+                  (event.name === "v1.LinkTagged" ||
+                    event.name === "v1.LinkProcessingStarted")
+              )
+            ).toEqual([]);
+            expect(
+              recorder.committed.find(
+                (event) => event.name === "v1.LinkProcessingStarted"
+              )?.args?.linkId
+            ).toBe(winnerId);
+          }),
+        recorder.commit
       );
     }
   );
@@ -514,33 +524,34 @@ describe("WorkspaceLinks", () => {
     )
   );
 
-  it.effect("does not create tags when an update has no target links", () =>
-    run((links) =>
-      Effect.gen(function* () {
-        const committed = captureCommits();
+  it.effect("does not create tags when an update has no target links", () => {
+    const recorder = makeCommitRecorder();
+    return run(
+      (links) =>
+        Effect.gen(function* () {
+          const missing = yield* Effect.result(
+            links.update({
+              id: "missing",
+              changes: { tags: { add: ["unused"] } },
+            })
+          );
+          const emptyBatch = yield* links.updateMany({
+            where: { createdBefore: "2020-01-01T00:00:00Z" },
+            changes: { tags: { add: ["also-unused"] } },
+          });
 
-        const missing = yield* Effect.result(
-          links.update({
-            id: "missing",
-            changes: { tags: { add: ["unused"] } },
-          })
-        );
-        const emptyBatch = yield* links.updateMany({
-          where: { createdBefore: "2020-01-01T00:00:00Z" },
-          changes: { tags: { add: ["also-unused"] } },
-        });
-
-        expect(missing).toMatchObject({
-          _tag: "Failure",
-          failure: { _tag: "WorkspaceLinkNotFoundError" },
-        });
-        expect(emptyBatch.updated).toBe(0);
-        expect(
-          committed.filter((event) => event.name === "v1.TagCreated")
-        ).toEqual([]);
-      })
-    )
-  );
+          expect(missing).toMatchObject({
+            _tag: "Failure",
+            failure: { _tag: "WorkspaceLinkNotFoundError" },
+          });
+          expect(emptyBatch.updated).toBe(0);
+          expect(
+            recorder.committed.filter((event) => event.name === "v1.TagCreated")
+          ).toEqual([]);
+        }),
+      recorder.commit
+    );
+  });
 
   it.effect(
     "creates a new batch tag once and attaches it to every link",
@@ -548,23 +559,29 @@ describe("WorkspaceLinks", () => {
       seed("first", "2026-01-01T00:00:00Z");
       seed("second", "2026-02-01T00:00:00Z");
       seed("third", "2026-03-01T00:00:00Z");
-      const committed = captureCommits();
+      const recorder = makeCommitRecorder();
 
-      return run((links) =>
-        Effect.gen(function* () {
-          const result = yield* links.updateMany({
-            ids: ["first", "second", "third"],
-            changes: { tags: { add: ["shared"] } },
-          });
+      return run(
+        (links) =>
+          Effect.gen(function* () {
+            const result = yield* links.updateMany({
+              ids: ["first", "second", "third"],
+              changes: { tags: { add: ["shared"] } },
+            });
 
-          expect(result.updated).toBe(3);
-          expect(
-            committed.filter((event) => event.name === "v1.TagCreated")
-          ).toHaveLength(1);
-          expect(
-            committed.filter((event) => event.name === "v1.LinkTagged")
-          ).toHaveLength(3);
-        })
+            expect(result.updated).toBe(3);
+            expect(
+              recorder.committed.filter(
+                (event) => event.name === "v1.TagCreated"
+              )
+            ).toHaveLength(1);
+            expect(
+              recorder.committed.filter(
+                (event) => event.name === "v1.LinkTagged"
+              )
+            ).toHaveLength(3);
+          }),
+        recorder.commit
       );
     }
   );

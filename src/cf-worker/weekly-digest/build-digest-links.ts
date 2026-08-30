@@ -58,7 +58,12 @@ export function buildDigestLinks(
   data: DigestSourceData,
   cutoffMs: number
 ): ReadonlyArray<DigestLinkInput> {
-  const recent = A.filter(data.links, (l) => l.createdAt.getTime() >= cutoffMs);
+  const recent = A.filter(
+    data.links,
+    (link) => link.createdAt.getTime() >= cutoffMs
+  ).toSorted(
+    (left, right) => left.createdAt.getTime() - right.createdAt.getTime()
+  );
   if (recent.length === 0) return [];
 
   const latestSnapshot = A.reduce(

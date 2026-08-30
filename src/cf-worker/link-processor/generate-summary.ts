@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { TagId } from "@/cf-worker/db/branded";
 import { MAX_TAG_NAME_LENGTH } from "@/lib/tags";
 
+import { selectTagVocabulary } from "../ai-prompt-bounds";
 import type { ExtractedContent } from "./content-extractor";
 import { LinkProcessorAi } from "./services";
 
@@ -108,7 +109,8 @@ export const generateSummary = Effect.fn("LinkProcessor.generateSummary")(
 
     const sanitizedContent = sanitizeContent(content);
     const truncatedContent = sanitizedContent.slice(0, 4000);
-    const existingTagsList = existingTags.map((t) => t.name).join(", ");
+    const promptTags = selectTagVocabulary(existingTags);
+    const existingTagsList = promptTags.map((tag) => tag.name).join(", ");
     const domainOption = Option.fromNullishOr(URL.parse(url)).pipe(
       Option.map((u) => u.hostname.replace(/^www\./, ""))
     );
@@ -130,7 +132,8 @@ export const generateSummary = Effect.fn("LinkProcessor.generateSummary")(
       contentLength: truncatedContent.length,
       contentSource,
       domain: Option.getOrNull(domainOption),
-      existingTagsInputCount: existingTags.length,
+      existingTagsInputCount: promptTags.length,
+      existingTagsAvailableCount: existingTags.length,
     });
 
     yield* Effect.logDebug("Generating summary").pipe(
@@ -143,7 +146,7 @@ export const generateSummary = Effect.fn("LinkProcessor.generateSummary")(
     const aiClient = yield* LinkProcessorAi;
 
     const output = yield* aiClient.generateObject({
-      maxOutputTokens: 512,
+      maxOutputTokens: 384,
       schema: summarySchema,
       system: SYSTEM_PROMPT,
       prompt: wrappedContent,
