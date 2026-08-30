@@ -88,7 +88,8 @@ const initializeSyncWithTokenEffect = Effect.fn(
   const me = yield* api.getMe(accessToken).pipe(
     Effect.map(Option.some),
     Effect.catchTag("XUnauthorizedError", (error) =>
-      store.setStatus("needs_reconnect").pipe(
+      store.setReconnectReason("auth").pipe(
+        Effect.andThen(store.setStatus("needs_reconnect")),
         Effect.tap(() =>
           Effect.logWarning("start: getMe unauthorized").pipe(
             Effect.annotateLogs({
@@ -239,14 +240,30 @@ const reconcileCoreEffect = Effect.fn("XBookmarkSyncDO.reconcileCore")(
     const accessToken = yield* repository.getAccessToken(userId, account.id);
     const connected = isConnectedState(state);
     if (connected && state.status === "needs_reconnect") {
-      const api = yield* XApiClient;
-      const credentialValid = yield* api.getMe(accessToken).pipe(
-        Effect.as(true),
-        Effect.catchTag("XUnauthorizedError", () => Effect.succeed(false))
-      );
+      const reason = yield* store.readReconnectReason();
+      // A 402 comes only from the bookmarks endpoint, so getMe cannot observe
+      // it. Recovering on a getMe success would return the account to active
+      // and the next poll would park it again, every cycle. Only an explicit
+      // resume clears this.
+      const recoverable = reason === "auth";
+      const credentialValid =
+        recoverable &&
+        (yield* (yield* XApiClient).getMe(accessToken).pipe(
+          Effect.as(true),
+          Effect.catchTag("XUnauthorizedError", () => Effect.succeed(false))
+        ));
       if (!credentialValid) {
         yield* setControlEffect(state, organizationId, "needs_reconnect");
         yield* alarm.cancel();
+        if (!recoverable) {
+          yield* Effect.logInfo("reconcile: parked on provider access").pipe(
+            Effect.annotateLogs({
+              userId: maskId(userId),
+              organizationId: maskId(organizationId),
+              reason,
+            })
+          );
+        }
         return Option.none<ActiveReconcileContext>();
       }
     }
@@ -322,5 +339,9 @@ export const resumeSyncEffect = Effect.fn("XBookmarkSyncDO.resume")(function* (
     return;
   }
   yield* store.setSyncEnabled(true);
+  // An explicit resume is the user asserting the problem is fixed. Clear a
+  // provider-access park so reconcile gives it one more attempt; if the
+  // provider still refuses, the next poll parks it again.
+  yield* store.setReconnectReason("auth");
   return yield* reconcileSyncEffect(userId, requestedOrgId);
 });

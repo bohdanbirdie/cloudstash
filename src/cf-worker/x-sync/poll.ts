@@ -7,10 +7,14 @@ import type {
   XSyncSideEffectError,
   XSyncStorageError,
 } from "./errors";
+import type { XSyncReconnectReason } from "./reconnect-reason";
 import type { BookmarksPage, XBookmarkTweet } from "./services";
 import { XApiClient } from "./services";
 import { LinkQueueClient } from "./services/link-queue-client";
-import type { XSyncConnectedState } from "./services/x-sync-state-store";
+import type {
+  XSyncConnectedState,
+  XSyncStateStoreShape,
+} from "./services/x-sync-state-store";
 import { XSyncStateStore } from "./services/x-sync-state-store";
 
 const PAGINATION_PAGE_SIZE = 50;
@@ -19,6 +23,21 @@ export type PollOutcome =
   | { kind: "ok"; newCount: number }
   | { kind: "rate_limited"; retryAfterMs: number }
   | { kind: "needs_reconnect" };
+
+/**
+ * Park the account, recording why. The reason is written first so a reader can
+ * never observe `needs_reconnect` alongside a stale reason.
+ */
+const park = (
+  store: XSyncStateStoreShape,
+  reason: XSyncReconnectReason
+): Effect.Effect<PollOutcome, XSyncStorageError> =>
+  store
+    .setReconnectReason(reason)
+    .pipe(
+      Effect.andThen(store.setStatus("needs_reconnect")),
+      Effect.as<PollOutcome>({ kind: "needs_reconnect" })
+    );
 
 const enqueueOrderedEffect: (
   userId: UserId,
@@ -234,15 +253,11 @@ export const pollReconciledEffect = Effect.fn("XBookmarkSyncDO.pollReconciled")(
             retryAfterMs: error.retryAfterMs,
           })
         ),
-        Effect.catchTag("XUnauthorizedError", () =>
-          store
-            .setStatus("needs_reconnect")
-            .pipe(Effect.as<PollOutcome>({ kind: "needs_reconnect" }))
-        ),
+        // Both park the account, but for different reasons. Record which, so
+        // reconcile knows whether its getMe check can actually clear the park.
+        Effect.catchTag("XUnauthorizedError", () => park(store, "auth")),
         Effect.catchTag("XPaymentRequiredError", () =>
-          store
-            .setStatus("needs_reconnect")
-            .pipe(Effect.as<PollOutcome>({ kind: "needs_reconnect" }))
+          park(store, "access_level")
         )
       );
   }

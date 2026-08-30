@@ -35,6 +35,7 @@ const billingLayer = (capabilities: TierCapabilities) => {
       assistantAllowance: notUsed,
       tier: notUsed,
       subscription: notUsed,
+      orgBillingSnapshot: notUsed,
       getOverrides: notUsed,
       setTier: notUsed,
       setOverride: notUsed,

@@ -225,6 +225,7 @@ function DevelopersFixture() {
           name: "Raycast workflow",
           createdAt: new Date("2026-08-20T12:00:00.000Z"),
           lastRequest: new Date("2026-08-26T12:00:00.000Z"),
+          source: null,
         },
       ]}
       onGenerateKey={async () => "cs_storybook_example_key"}

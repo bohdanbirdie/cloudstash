@@ -37,6 +37,16 @@ function makeBillingLayer(overrides: Partial<BillingImpl> = {}) {
         currentPeriodEnd: null,
         billingInterval: null,
       }),
+    orgBillingSnapshot: () =>
+      Effect.succeed({
+        capabilities: capabilitiesFor("free"),
+        subscription: {
+          cancelAtPeriodEnd: false,
+          currentPeriodEnd: null,
+          billingInterval: null,
+        },
+        tier: "free" as const,
+      }),
     getOverrides: () => Effect.succeed({}),
     setTier: () => Effect.void,
     setOverride: () => Effect.void,

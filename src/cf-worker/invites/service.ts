@@ -65,6 +65,24 @@ const requireMemberManagement = (session: Session) =>
     ? Effect.void
     : Effect.fail(new InvitesForbiddenError());
 
+const jsonError = (error: string, status: number) =>
+  Effect.succeed(Response.json({ error }, { status }));
+
+/** Present on every invite handler's error channel. */
+const commonErrors = {
+  DbError: () => jsonError("Internal server error", 500),
+  InvitesUnauthorizedError: () => jsonError("Unauthorized", 401),
+};
+
+/** The three handlers gated behind member management. */
+const adminErrors = {
+  ...commonErrors,
+  InvitesForbiddenError: () => jsonError("Admin access required", 403),
+};
+
+const invitesLayer = (env: Env) =>
+  Layer.provideMerge(InviteStoreLive, AppLayerLive(env));
+
 const handleCreateInviteRequest = Effect.fn(
   "Invites.handleCreateInviteRequest"
 )(function* (request: Request) {
@@ -117,25 +135,11 @@ export const handleCreateInvite = (
 ): Promise<Response> =>
   Effect.runPromise(
     handleCreateInviteRequest(request).pipe(
-      Effect.provide(Layer.provideMerge(InviteStoreLive, AppLayerLive(env))),
+      Effect.provide(invitesLayer(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
-        DbError: () =>
-          Effect.succeed(
-            Response.json({ error: "Internal server error" }, { status: 500 })
-          ),
-        InvalidInviteRequestError: (error) =>
-          Effect.succeed(
-            Response.json({ error: error.reason }, { status: 400 })
-          ),
-        InvitesForbiddenError: () =>
-          Effect.succeed(
-            Response.json({ error: "Admin access required" }, { status: 403 })
-          ),
-        InvitesUnauthorizedError: () =>
-          Effect.succeed(
-            Response.json({ error: "Unauthorized" }, { status: 401 })
-          ),
+        ...adminErrors,
+        InvalidInviteRequestError: (error) => jsonError(error.reason, 400),
       })
     )
   );
@@ -162,22 +166,9 @@ export const handleListInvites = (
 ): Promise<Response> =>
   Effect.runPromise(
     handleListInvitesRequest(request).pipe(
-      Effect.provide(Layer.provideMerge(InviteStoreLive, AppLayerLive(env))),
+      Effect.provide(invitesLayer(env)),
       Effect.map((data) => Response.json(data)),
-      Effect.catchTags({
-        DbError: () =>
-          Effect.succeed(
-            Response.json({ error: "Internal server error" }, { status: 500 })
-          ),
-        InvitesForbiddenError: () =>
-          Effect.succeed(
-            Response.json({ error: "Admin access required" }, { status: 403 })
-          ),
-        InvitesUnauthorizedError: () =>
-          Effect.succeed(
-            Response.json({ error: "Unauthorized" }, { status: 401 })
-          ),
-      })
+      Effect.catchTags(adminErrors)
     )
   );
 
@@ -209,25 +200,11 @@ export const handleDeleteInvite = (
 ): Promise<Response> =>
   Effect.runPromise(
     handleDeleteInviteRequest(request, inviteId).pipe(
-      Effect.provide(Layer.provideMerge(InviteStoreLive, AppLayerLive(env))),
+      Effect.provide(invitesLayer(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
-        DbError: () =>
-          Effect.succeed(
-            Response.json({ error: "Internal server error" }, { status: 500 })
-          ),
-        InvitesForbiddenError: () =>
-          Effect.succeed(
-            Response.json({ error: "Admin access required" }, { status: 403 })
-          ),
-        InviteNotFoundError: () =>
-          Effect.succeed(
-            Response.json({ error: "Invite not found" }, { status: 404 })
-          ),
-        InvitesUnauthorizedError: () =>
-          Effect.succeed(
-            Response.json({ error: "Unauthorized" }, { status: 401 })
-          ),
+        ...adminErrors,
+        InviteNotFoundError: () => jsonError("Invite not found", 404),
       })
     )
   );
@@ -289,24 +266,12 @@ export const handleRedeemInvite = (
 ): Promise<Response> =>
   Effect.runPromise(
     handleRedeemInviteRequest(request, env).pipe(
-      Effect.provide(Layer.provideMerge(InviteStoreLive, AppLayerLive(env))),
+      Effect.provide(invitesLayer(env)),
       Effect.map((data) => Response.json(data)),
       Effect.catchTags({
-        DbError: () =>
-          Effect.succeed(
-            Response.json({ error: "Internal server error" }, { status: 500 })
-          ),
+        ...commonErrors,
         InvalidInviteError: () =>
-          Effect.succeed(
-            Response.json(
-              { error: "Invalid or expired invite code" },
-              { status: 400 }
-            )
-          ),
-        InvitesUnauthorizedError: () =>
-          Effect.succeed(
-            Response.json({ error: "Unauthorized" }, { status: 401 })
-          ),
+          jsonError("Invalid or expired invite code", 400),
       })
     )
   );

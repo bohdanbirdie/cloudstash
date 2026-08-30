@@ -29,10 +29,7 @@ export function RaycastCard({
   onRevokeKey,
 }: RaycastCardProps) {
   const { capabilities } = useOrgFeatures();
-  const raycastKeys = keys.filter(
-    (key) =>
-      key.name === "Raycast Extension" || key.name?.startsWith("Raycast — ")
-  );
+  const raycastKeys = keys.filter((key) => key.source === "raycast");
   const isConnected = raycastKeys.length > 0;
   const requiresUpgrade = !isConnected && !capabilities.integrations;
   const description = (() => {

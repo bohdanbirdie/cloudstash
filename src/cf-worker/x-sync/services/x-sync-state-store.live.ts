@@ -6,6 +6,10 @@ import { OrgId, XTweetId, XUserId, XUsername } from "../../db/branded";
 import { maskId } from "../../log-utils";
 import { XSyncStorageError } from "../errors";
 import { activePollControl, XSyncPollControl } from "../poll-control";
+import {
+  defaultReconnectReason,
+  XSyncReconnectReason,
+} from "../reconnect-reason";
 import { XSyncStateStore } from "./x-sync-state-store";
 import type {
   Status,
@@ -21,6 +25,7 @@ const K_STATUS = "status";
 const K_SYNC_ENABLED = "syncEnabled";
 const K_ORGANIZATION_ID = "organizationId";
 const K_POLL_CONTROL = "pollControl";
+const K_RECONNECT_REASON = "reconnectReason";
 const STATE_KEYS = [
   K_X_USER_ID,
   K_X_USERNAME,
@@ -162,6 +167,28 @@ export const makeXSyncStateStore = (
       yield* Effect.tryPromise({
         try: () => storage.put(K_POLL_CONTROL, control),
         catch: storageError("storage.setPollControl"),
+      });
+    }
+  ),
+
+  readReconnectReason: Effect.fn("XSyncStateStore.readReconnectReason")(
+    function* () {
+      const raw = yield* Effect.tryPromise({
+        try: () => storage.get(K_RECONNECT_REASON),
+        catch: storageError("storage.readReconnectReason"),
+      });
+      return Schema.decodeUnknownOption(XSyncReconnectReason)(raw).pipe(
+        Option.getOrElse(() => defaultReconnectReason)
+      );
+    }
+  ),
+
+  setReconnectReason: Effect.fn("XSyncStateStore.setReconnectReason")(
+    function* (reason) {
+      yield* Effect.annotateCurrentSpan("reconnectReason", reason);
+      yield* Effect.tryPromise({
+        try: () => storage.put(K_RECONNECT_REASON, reason),
+        catch: storageError("storage.setReconnectReason"),
       });
     }
   ),

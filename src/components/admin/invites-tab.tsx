@@ -28,7 +28,7 @@ interface InvitesTabProps {
   isCreating: boolean;
   actionLoading: string | null;
   newInviteCode: string | null;
-  copiedCode: boolean;
+  copiedCode: string | null;
   onCreate: () => void;
   onDelete: (inviteId: string) => void;
   onCopyCode: (code: string) => void;
@@ -62,12 +62,12 @@ export function InvitesTab({
               variant="outline"
               onClick={() => onCopyCode(newInviteCode)}
             >
-              {copiedCode ? (
+              {copiedCode === newInviteCode ? (
                 <CheckIcon className="h-3.5 w-3.5 text-green-600" />
               ) : (
                 <CopyIcon className="h-3.5 w-3.5" />
               )}
-              {copiedCode ? "Copied" : "Copy"}
+              {copiedCode === newInviteCode ? "Copied" : "Copy"}
             </Button>
           </div>
         </div>

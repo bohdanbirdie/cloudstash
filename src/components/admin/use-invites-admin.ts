@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import useSWR from "swr";
 
-import { useFlashFlag } from "@/hooks/use-flash-flag";
+import { useFlashValue } from "@/hooks/use-flash-value";
 import type {
   InviteWithRelations,
   InvitesListResponse,
@@ -22,11 +22,13 @@ export function useInvitesAdmin(enabled = true) {
   const [isCreating, setIsCreating] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [newInviteCode, setNewInviteCode] = useState<string | null>(null);
+  // Holds the code that was copied, so the confirmation can be attached to
+  // the item it belongs to instead of to whatever the banner happens to show.
   const {
-    active: copiedCode,
+    value: copiedCode,
     trigger: flashCopiedCode,
     reset: resetCopiedCode,
-  } = useFlashFlag();
+  } = useFlashValue<string>();
   const [mutationError, setMutationError] = useState<string | null>(null);
 
   const {
@@ -95,7 +97,7 @@ export function useInvitesAdmin(enabled = true) {
   const handleCopyCode = useCallback(
     async (code: string) => {
       await navigator.clipboard.writeText(code);
-      flashCopiedCode();
+      flashCopiedCode(code);
     },
     [flashCopiedCode]
   );

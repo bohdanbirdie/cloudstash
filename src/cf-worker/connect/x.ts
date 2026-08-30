@@ -10,12 +10,12 @@ import { provideResponse } from "../runtime";
 import type { Env } from "../shared";
 import { XSyncSideEffectError } from "../x-sync/errors";
 import { XSyncControl } from "../x-sync/services/x-sync-control";
+import { NoActiveOrgError, SessionLookupError } from "./errors";
 import {
-  ConnectUnauthorizedError,
-  NoActiveOrgError,
-  SessionLookupError,
-} from "./errors";
-import { SessionProvider, getAuthorizedSession } from "./services";
+  getAuthorizedSession,
+  requireAuthorizedSession,
+  SessionProvider,
+} from "./services";
 
 type ActionResult = { ok: true } | { kind: "not_connected" };
 
@@ -34,16 +34,6 @@ const connectedReturnTarget = (request: Request): URL => {
   target.searchParams.set("integrationResult", "x-connected");
   return target;
 };
-
-const requireAuthorizedSession = Effect.fn("XConnect.requireSession")(
-  function* (headers: Headers) {
-    const sessionProvider = yield* SessionProvider;
-    const session = yield* sessionProvider.getSession(headers);
-    if (!session) return yield* new ConnectUnauthorizedError();
-    yield* Effect.annotateCurrentSpan("userId", maskId(session.userId));
-    return session;
-  }
-);
 
 const requireSession = Effect.fnUntraced(function* (headers: Headers) {
   return (yield* requireAuthorizedSession(headers)).userId;

@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { KeyCreatedBanner } from "./key-created-banner";
 import { KeyList } from "./key-list";
 import { UpgradeCta } from "./upgrade-cta";
+import { isIntegrationKey } from "./use-api-keys";
 import type { ApiKey } from "./use-api-keys";
 
 interface DevelopersCardProps {
@@ -39,12 +40,7 @@ export function DevelopersCard({
 
   // Hide first-party integration keys from this list — they're managed
   // by their own integration cards above.
-  const developerKeys = keys.filter(
-    (k) =>
-      k.name !== "Raycast Extension" &&
-      !k.name?.startsWith("Raycast — ") &&
-      k.name !== "Telegram"
-  );
+  const developerKeys = keys.filter((k) => !isIntegrationKey(k));
 
   const handleGenerate = async () => {
     const key = await onGenerateKey(keyName || "API Key");

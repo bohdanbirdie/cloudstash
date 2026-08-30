@@ -11,7 +11,8 @@ const extensionKey = {
   id: "chrome-key",
   lastRequest: null,
   name: "Chrome Extension",
-};
+  source: "chrome-extension",
+} as const;
 
 describe("ExtensionCard", () => {
   afterEach(cleanup);

@@ -3,19 +3,67 @@ import useSWR from "swr";
 
 import { authClient, useAuth } from "@/lib/auth";
 
+/** Tags the server writes into key metadata when it issues a first-party key. */
+export const INTEGRATION_SOURCES = [
+  "chrome-extension",
+  "raycast",
+  "telegram",
+] as const;
+export type IntegrationSource = (typeof INTEGRATION_SOURCES)[number];
+
 export interface ApiKey {
   id: string;
   name: string | null;
   createdAt: Date;
   lastRequest: Date | null;
+  /** null for keys the user generated themselves. */
+  source: IntegrationSource | null;
 }
+
+const isIntegrationSource = (value: unknown): value is IntegrationSource =>
+  typeof value === "string" &&
+  INTEGRATION_SOURCES.includes(value as IntegrationSource);
+
+/**
+ * Keys issued before the server recorded a source carry only a display name,
+ * and Raycast rewrites its own name per device. Fall back to the historical
+ * name shapes so those keys stay attached to their integration card.
+ */
+const sourceFromName = (name: string | null): IntegrationSource | null => {
+  if (name === "Chrome Extension") return "chrome-extension";
+  if (name === "Raycast Extension" || name?.startsWith("Raycast — ")) {
+    return "raycast";
+  }
+  if (name === "Telegram") return "telegram";
+  return null;
+};
+
+export const resolveSource = (key: {
+  name: string | null;
+  metadata?: unknown;
+}): IntegrationSource | null => {
+  const metadata: unknown = key.metadata;
+  if (metadata && typeof metadata === "object" && "source" in metadata) {
+    const source: unknown = (metadata as { source: unknown }).source;
+    if (isIntegrationSource(source)) return source;
+  }
+  return sourceFromName(key.name);
+};
+
+export const isIntegrationKey = (key: ApiKey): boolean => key.source !== null;
 
 async function fetchApiKeys(): Promise<ApiKey[]> {
   const result = await authClient.apiKey.list();
   if (result.error) {
     throw new Error(result.error.message || "Failed to fetch API keys");
   }
-  return result.data?.apiKeys ?? [];
+  return (result.data?.apiKeys ?? []).map((key) => ({
+    createdAt: key.createdAt,
+    id: key.id,
+    lastRequest: key.lastRequest,
+    name: key.name,
+    source: resolveSource(key),
+  }));
 }
 
 export function useApiKeys(enabled = true) {
