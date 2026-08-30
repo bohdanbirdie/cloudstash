@@ -320,6 +320,14 @@ export const reconcileBeforePollEffect = Effect.fn(
   return yield* reconcileCoreEffect(userId, undefined);
 });
 
+export const reconnectSyncEffect = Effect.fn("XBookmarkSyncDO.reconnect")(
+  function* (userId: UserId, requestedOrgId: OrgId | undefined) {
+    const store = yield* XSyncStateStore;
+    yield* store.setReconnectReason("auth");
+    return yield* reconcileSyncEffect(userId, requestedOrgId);
+  }
+);
+
 export const resumeSyncEffect = Effect.fn("XBookmarkSyncDO.resume")(function* (
   userId: UserId,
   requestedOrgId: OrgId | undefined

@@ -40,6 +40,7 @@ const dispatcher = (failure?: Error) => {
   const layer = Layer.succeed(XSyncControl, {
     disconnect: () => Effect.void,
     pause: () => Effect.void,
+    reconnect: () => Effect.void,
     reconcile: (userId, orgId) => {
       requestedUsers.push(userId);
       if (orgId) reconciledOrganizations.push(orgId);

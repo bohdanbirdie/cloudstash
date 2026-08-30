@@ -6,7 +6,10 @@ import { UserId, XTweetId } from "../../db/branded";
 import { OtelTracingLive } from "../../tracing";
 import { XPaymentRequiredError } from "../../x-sync/errors";
 import { pollReconciledEffect } from "../../x-sync/poll";
-import { reconcileSyncEffect } from "../../x-sync/reconcile";
+import {
+  reconcileSyncEffect,
+  reconnectSyncEffect,
+} from "../../x-sync/reconcile";
 import { XSyncStateStore } from "../../x-sync/services/x-sync-state-store";
 import {
   makeAccountLayer,
@@ -85,6 +88,44 @@ describe("x-sync recovery from a payment-required park", () => {
       //    to "active" and arms the alarm, so the loop repeats every poll.
       expect(store.rec.controlStatus).toBe("needs_reconnect");
       expect(alarm.rec.alarmScheduled).toBe(false);
+    }).pipe(Effect.provide(layers));
+  });
+});
+
+describe("x-sync recovery after the user re-authorizes", () => {
+  it.effect("clears an access-level park so reconcile can activate", () => {
+    const store = makeStoreLayer(
+      makeSnapshot({
+        organizationId: ORG_ID,
+        status: "needs_reconnect",
+        watermarkTweetId: XTweetId.make("t1"),
+      })
+    );
+    store.rec.reconnectReason = "access_level";
+    const alarm = makeAlarmLayer();
+    const x = makeXApiLayer([]);
+    const queue = makeQueueLayer();
+
+    const layers = Layer.mergeAll(
+      store.layer,
+      alarm.layer,
+      makeAccountLayer({ organizationId: ORG_ID }).layer,
+      x.layer,
+      queue.layer,
+      OtelTracingLive
+    );
+
+    return Effect.gen(function* () {
+      // Plain reconcile — the polling path — must leave the park alone.
+      yield* reconcileSyncEffect(USER_ID, ORG_ID);
+      expect(store.rec.controlStatus).toBe("needs_reconnect");
+      expect(alarm.rec.alarmScheduled).toBe(false);
+
+      // Completing OAuth is the user asserting the problem is fixed. It is the
+      // only recovery the UI offers for needs_reconnect, so it has to work.
+      yield* reconnectSyncEffect(USER_ID, ORG_ID);
+      expect(store.rec.controlStatus).toBe("active");
+      expect(alarm.rec.alarmScheduled).toBe(true);
     }).pipe(Effect.provide(layers));
   });
 });

@@ -109,7 +109,7 @@ export const xCompleteRequest = Effect.fnUntraced(function* (request: Request) {
   if (!orgId) return yield* new NoActiveOrgError({ userId });
 
   const control = yield* XSyncControl;
-  yield* control.reconcile(userId, orgId);
+  yield* control.reconnect(userId, orgId);
   yield* Effect.logInfo("X connection reconciled").pipe(
     Effect.annotateLogs({
       userId: maskId(userId),

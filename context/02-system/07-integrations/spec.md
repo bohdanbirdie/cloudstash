@@ -148,9 +148,15 @@ watermark. Partial traversal does not advance it, but individual Queue-send
 failures halt the poll. When an older bookmark was already enqueued before a
 later failure, the DO checkpoints that successful prefix so the next poll
 retries the failed bookmark without duplicating or skipping earlier work.
-401/402 require reconnect; 429 honors provider retry; other failures use
-bounded backoff that survives DO eviction. Reconciliation that reactivates a
-paused, suspended, or reconnected actor resets it to fast polling. Periodic
+401/402 both park the actor for reconnect, and the actor records which of the
+two caused it. A 401 is a credential problem the DO can verify itself, so
+periodic reconciliation may clear that park once the credential checks out. A
+402 is a provider access-level refusal that the credential check cannot observe
+— it is raised by the bookmarks endpoint while identity lookups still succeed —
+so only an explicit user reconnect clears it, and reconciliation alone leaves
+the actor parked. 429 honors provider retry; other failures use bounded backoff
+that survives DO eviction. Reconciliation that reactivates a paused, suspended,
+or reconnected actor resets it to fast polling. Periodic
 repair of an otherwise active actor preserves idle cadence, failure backoff,
 watermark, and identity.
 
