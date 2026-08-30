@@ -17,6 +17,7 @@ import type {
 } from "@/lib/plan";
 import {
   mergeCapabilities,
+  PLAN_ORDER,
   requiredTierForBooleanCap,
   TIER_CAPABILITIES,
 } from "@/lib/plan";
@@ -41,6 +42,7 @@ export interface WorkspaceWithOwner {
   creatorEmail: string | null;
   tier: PlanTier;
   tierSource: TierSource;
+  adminTierGrant: PlanTier | null;
   overrides: CapabilityOverrides;
   capabilities: TierCapabilities;
 }
@@ -48,13 +50,42 @@ export interface WorkspaceWithOwner {
 type OrgRow = {
   createdAt: Date;
   tier: PlanTier;
-  tierSource: TierSource;
+  adminTierGrant: PlanTier | null;
+  adminTierGrantedAt: Date | null;
   featureOverrides: CapabilityOverrides | null;
   billingInterval: "month" | "year" | null;
   currentPeriodStart: Date | null;
   currentPeriodEnd: Date | null;
   usageCycleAnchor: Date | null;
 };
+
+const EffectivePlan = Schema.Struct({
+  tier: Schema.Literals(PLAN_ORDER),
+  source: Schema.Literals(["stripe", "admin"]),
+  usageCycleAnchor: Schema.NullOr(Schema.DateValid),
+});
+type EffectivePlan = Schema.Schema.Type<typeof EffectivePlan>;
+
+const tierRank = (tier: PlanTier): number => PLAN_ORDER.indexOf(tier);
+
+const resolveEffectivePlan = (row: OrgRow): EffectivePlan =>
+  Option.fromNullishOr(row.adminTierGrant).pipe(
+    Option.filter((grant) => tierRank(grant) >= tierRank(row.tier)),
+    Option.match({
+      onNone: () =>
+        EffectivePlan.make({
+          tier: row.tier,
+          source: "stripe",
+          usageCycleAnchor: row.usageCycleAnchor,
+        }),
+      onSome: (grant) =>
+        EffectivePlan.make({
+          tier: grant,
+          source: "admin",
+          usageCycleAnchor: row.adminTierGrantedAt ?? row.createdAt,
+        }),
+    })
+  );
 
 const TierCapabilitiesSchema = Schema.Struct({
   aiSummary: Schema.Boolean,
@@ -125,7 +156,8 @@ const make = Effect.gen(function* () {
         columns: {
           createdAt: true,
           tier: true,
-          tierSource: true,
+          adminTierGrant: true,
+          adminTierGrantedAt: true,
           featureOverrides: true,
           billingInterval: true,
           currentPeriodStart: true,
@@ -143,18 +175,21 @@ const make = Effect.gen(function* () {
     /** Tier + admin overrides, merged into the runtime capability surface. */
     capabilities: Effect.fn("Billing.capabilities")(function* (orgId: OrgId) {
       const row = yield* fetchOrgRow(orgId);
+      const plan = resolveEffectivePlan(row);
       yield* Effect.annotateCurrentSpan({
         orgId: maskId(orgId),
-        tier: row.tier,
+        tier: plan.tier,
+        source: plan.source,
       });
       yield* Effect.logDebug("Billing.capabilities resolved").pipe(
         Effect.annotateLogs({
           orgId: maskId(orgId),
-          tier: row.tier,
+          tier: plan.tier,
+          source: plan.source,
           overrideKeys: Object.keys(row.featureOverrides ?? {}),
         })
       );
-      return mergeCapabilities(row.tier, row.featureOverrides);
+      return mergeCapabilities(plan.tier, row.featureOverrides);
     }),
 
     assistantAllowance: Effect.fn("Billing.assistantAllowance")(function* (
@@ -163,46 +198,48 @@ const make = Effect.gen(function* () {
     ) {
       const effectiveNow = now ?? (yield* DateTime.nowAsDate);
       const row = yield* fetchOrgRow(orgId);
-      const capabilities = mergeCapabilities(row.tier, row.featureOverrides);
-      const adminAnchor = Match.value(row.tierSource).pipe(
-        Match.when("admin", () => row.usageCycleAnchor ?? row.createdAt),
-        Match.when("stripe", () => row.usageCycleAnchor),
-        Match.exhaustive
-      );
+      const plan = resolveEffectivePlan(row);
+      const capabilities = mergeCapabilities(plan.tier, row.featureOverrides);
       const usageWindow = Option.fromNullishOr(
         resolveAssistantUsageWindow(
           {
-            source: row.tierSource,
+            source: plan.source,
             billingInterval: row.billingInterval,
             currentPeriodStart: row.currentPeriodStart,
             currentPeriodEnd: row.currentPeriodEnd,
-            usageCycleAnchor: adminAnchor,
+            usageCycleAnchor: plan.usageCycleAnchor,
           },
           effectiveNow
         )
       );
       yield* Effect.annotateCurrentSpan({
         orgId: maskId(orgId),
-        source: row.tierSource,
+        source: plan.source,
         hasUsageWindow: Option.isSome(usageWindow),
       });
       return AssistantAllowance.make({
         capabilities,
-        source: row.tierSource,
+        source: plan.source,
         usageWindow,
       });
     }),
 
     tier: Effect.fn("Billing.tier")(function* (orgId: OrgId) {
       const row = yield* fetchOrgRow(orgId);
+      const plan = resolveEffectivePlan(row);
       yield* Effect.annotateCurrentSpan({
         orgId: maskId(orgId),
-        tier: row.tier,
+        tier: plan.tier,
+        source: plan.source,
       });
       yield* Effect.logDebug("Billing.tier resolved").pipe(
-        Effect.annotateLogs({ orgId: maskId(orgId), tier: row.tier })
+        Effect.annotateLogs({
+          orgId: maskId(orgId),
+          tier: plan.tier,
+          source: plan.source,
+        })
       );
-      return row.tier;
+      return plan.tier;
     }),
 
     subscription: Effect.fn("Billing.subscription")(function* (orgId: OrgId) {
@@ -238,49 +275,53 @@ const make = Effect.gen(function* () {
       return row.featureOverrides ?? {};
     }),
 
-    /** Admin grant. Stamps tierSource="admin"; syncFromStripe leaves it alone. */
+    /** Admin tier floor. Free clears the grant; Stripe state remains untouched. */
     setTier: Effect.fn("Billing.setTier")(function* (
       orgId: OrgId,
       tier: PlanTier
     ) {
-      // Always write even if tier is unchanged: an admin re-setting a
-      // stripe-sourced tier needs `tierSource` flipped to "admin" so the
-      // grant survives subsequent Stripe syncs. A no-op skip would silently
-      // leave tierSource="stripe".
       const existing = yield* fetchOrgRow(orgId);
+      const previousPlan = resolveEffectivePlan(existing);
       yield* Effect.annotateCurrentSpan({
         orgId: maskId(orgId),
-        from: existing.tier,
+        from: previousPlan.tier,
         to: tier,
       });
-      const usageCycleAnchor = Match.value({
+      const grant = Match.value({
         isFree: tier === "free",
-        needsAnchor:
-          existing.tierSource !== "admin" ||
-          existing.tier !== tier ||
-          existing.usageCycleAnchor === null,
+        isUnchanged: existing.adminTierGrant === tier,
       }).pipe(
-        Match.when({ isFree: true }, () => Effect.succeed(null)),
-        Match.when({ needsAnchor: true }, () => DateTime.nowAsDate),
-        Match.orElse(() => Effect.succeed(existing.usageCycleAnchor))
+        Match.when({ isFree: true }, () =>
+          Effect.succeed({ tier: null, grantedAt: null })
+        ),
+        Match.when({ isUnchanged: true }, () =>
+          Effect.succeed({
+            tier,
+            grantedAt: existing.adminTierGrantedAt ?? existing.createdAt,
+          })
+        ),
+        Match.orElse(() =>
+          DateTime.nowAsDate.pipe(
+            Effect.map((grantedAt) => ({ tier, grantedAt }))
+          )
+        )
       );
-      const resolvedUsageCycleAnchor = yield* usageCycleAnchor;
+      const resolvedGrant = yield* grant;
       yield* query(
         db
           .update(schema.organization)
           .set({
-            tier,
-            tierSource: "admin",
-            usageCycleAnchor: resolvedUsageCycleAnchor,
+            adminTierGrant: resolvedGrant.tier,
+            adminTierGrantedAt: resolvedGrant.grantedAt,
           })
           .where(eq(schema.organization.id, orgId))
       );
       yield* Effect.logInfo("Billing.setTier applied").pipe(
         Effect.annotateLogs({
           orgId: maskId(orgId),
-          from: existing.tier,
+          from: previousPlan.tier,
           to: tier,
-          tierSource: "admin",
+          grantCleared: resolvedGrant.tier === null,
         })
       );
     }),
@@ -349,16 +390,27 @@ const make = Effect.gen(function* () {
       yield* Effect.annotateCurrentSpan({ count: orgs.length });
       return orgs.map((org): WorkspaceWithOwner => {
         const overrides = org.featureOverrides ?? {};
-        const tier = org.tier ?? "free";
+        const plan = resolveEffectivePlan({
+          createdAt: org.createdAt,
+          tier: org.tier ?? "free",
+          adminTierGrant: org.adminTierGrant,
+          adminTierGrantedAt: org.adminTierGrantedAt,
+          featureOverrides: org.featureOverrides,
+          billingInterval: org.billingInterval,
+          currentPeriodStart: org.currentPeriodStart,
+          currentPeriodEnd: org.currentPeriodEnd,
+          usageCycleAnchor: org.usageCycleAnchor,
+        });
         return {
           id: OrgIdBrand.make(org.id),
           name: org.name,
           slug: org.slug,
           creatorEmail: org.members[0]?.user?.email ?? null,
-          tier,
-          tierSource: org.tierSource,
+          tier: plan.tier,
+          tierSource: plan.source,
+          adminTierGrant: org.adminTierGrant,
           overrides,
-          capabilities: { ...TIER_CAPABILITIES[tier], ...overrides },
+          capabilities: { ...TIER_CAPABILITIES[plan.tier], ...overrides },
         };
       });
     }),

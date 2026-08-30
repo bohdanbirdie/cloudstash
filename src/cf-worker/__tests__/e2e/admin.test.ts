@@ -51,6 +51,7 @@ describe("admin Endpoints E2E", () => {
           creatorEmail: string | null;
           tier: "free" | "plus" | "pro";
           tierSource: "stripe" | "admin";
+          adminTierGrant: "free" | "plus" | "pro" | null;
           overrides: Record<string, unknown>;
           capabilities: Record<string, unknown>;
         }>;
@@ -187,7 +188,7 @@ describe("admin Endpoints E2E", () => {
       expect(res.status).toBe(404);
     });
 
-    it("sets tier and flips tierSource to admin", async () => {
+    it("stores an admin tier grant without replacing Stripe state", async () => {
       // Fresh user → fresh org, so this test owns its mutations.
       const target = await signupUser(freshEmail("tier-mut"), "Tier Mut");
 
@@ -205,24 +206,35 @@ describe("admin Endpoints E2E", () => {
       expect(setRes.status).toBe(200);
 
       const row = await env.DB.prepare(
-        "SELECT tier, tier_source, usage_cycle_anchor FROM organization WHERE id = ?"
+        "SELECT tier, tier_source, admin_tier_grant, admin_tier_granted_at FROM organization WHERE id = ?"
       )
         .bind(target.orgId)
         .first<{
           tier: string;
           tier_source: string;
-          usage_cycle_anchor: number | null;
+          admin_tier_grant: string | null;
+          admin_tier_granted_at: number | null;
         }>();
-      expect(row?.tier).toBe("pro");
-      expect(row?.tier_source).toBe("admin");
-      expect(row?.usage_cycle_anchor).toEqual(expect.any(Number));
+      expect(row?.tier).toBe("free");
+      expect(row?.tier_source).toBe("stripe");
+      expect(row?.admin_tier_grant).toBe("pro");
+      expect(row?.admin_tier_granted_at).toEqual(expect.any(Number));
+
+      const settingsRes = await SELF.fetch(
+        `http://worker/api/org/${target.orgId}/settings`,
+        { headers: { Cookie: adminUser.cookie } }
+      );
+      expect(settingsRes.status).toBe(200);
+      const settings = (await settingsRes.json()) as {
+        tier: string;
+        capabilities: { chatAgent: boolean };
+      };
+      expect(settings.tier).toBe("pro");
+      expect(settings.capabilities.chatAgent).toBe(true);
     });
 
-    it("admin re-set on same tier still flips tierSource from stripe to admin", async () => {
-      // Simulates the post-Stripe-sync case: an admin grants tier=pro to a
-      // workspace already on pro via Stripe; the override must survive the
-      // next Stripe sync, so tierSource has to move to "admin".
-      const target = await signupUser(freshEmail("same-tier"), "Same Tier");
+    it("does not let a lower admin grant downgrade the Stripe tier", async () => {
+      const target = await signupUser(freshEmail("tier-floor"), "Tier Floor");
       await env.DB.prepare(
         "UPDATE organization SET tier = 'pro', tier_source = 'stripe' WHERE id = ?"
       )
@@ -237,23 +249,76 @@ describe("admin Endpoints E2E", () => {
             Cookie: adminUser.cookie,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ tier: "pro" }),
+          body: JSON.stringify({ tier: "plus" }),
         }
       );
       expect(res.status).toBe(200);
 
       const row = await env.DB.prepare(
-        "SELECT tier, tier_source, usage_cycle_anchor FROM organization WHERE id = ?"
+        "SELECT tier, admin_tier_grant, admin_tier_granted_at FROM organization WHERE id = ?"
       )
         .bind(target.orgId)
         .first<{
           tier: string;
-          tier_source: string;
-          usage_cycle_anchor: number | null;
+          admin_tier_grant: string | null;
+          admin_tier_granted_at: number | null;
         }>();
       expect(row?.tier).toBe("pro");
-      expect(row?.tier_source).toBe("admin");
-      expect(row?.usage_cycle_anchor).toEqual(expect.any(Number));
+      expect(row?.admin_tier_grant).toBe("plus");
+      expect(row?.admin_tier_granted_at).toEqual(expect.any(Number));
+
+      const settingsRes = await SELF.fetch(
+        `http://worker/api/org/${target.orgId}/settings`,
+        { headers: { Cookie: adminUser.cookie } }
+      );
+      const settings = (await settingsRes.json()) as { tier: string };
+      expect(settings.tier).toBe("pro");
+    });
+
+    it("clears an admin grant without downgrading the Stripe tier", async () => {
+      const target = await signupUser(freshEmail("clear-grant"), "Clear Grant");
+      await env.DB.prepare(
+        `UPDATE organization
+         SET tier = 'pro', admin_tier_grant = 'pro', admin_tier_granted_at = ?
+         WHERE id = ?`
+      )
+        .bind(Date.now(), target.orgId)
+        .run();
+
+      const res = await SELF.fetch(
+        `http://worker/api/org/${target.orgId}/tier`,
+        {
+          method: "PUT",
+          headers: {
+            Cookie: adminUser.cookie,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ tier: "free" }),
+        }
+      );
+      expect(res.status).toBe(200);
+
+      const row = await env.DB.prepare(
+        "SELECT tier, admin_tier_grant, admin_tier_granted_at FROM organization WHERE id = ?"
+      )
+        .bind(target.orgId)
+        .first<{
+          tier: string;
+          admin_tier_grant: string | null;
+          admin_tier_granted_at: number | null;
+        }>();
+      expect(row).toEqual({
+        tier: "pro",
+        admin_tier_grant: null,
+        admin_tier_granted_at: null,
+      });
+
+      const settingsRes = await SELF.fetch(
+        `http://worker/api/org/${target.orgId}/settings`,
+        { headers: { Cookie: adminUser.cookie } }
+      );
+      const settings = (await settingsRes.json()) as { tier: string };
+      expect(settings.tier).toBe("pro");
     });
   });
 

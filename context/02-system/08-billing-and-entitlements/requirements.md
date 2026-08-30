@@ -51,8 +51,10 @@ administrator overrides, and usage allowances.
   deterministic idempotency keys.
 - **CS.SYS.BILL-R06 Customer first:** A workspace Stripe customer must exist and
   carry workspace metadata before Checkout is created.
-- **CS.SYS.BILL-R07 Admin grant preservation:** Stripe synchronization must not
-  overwrite a tier whose source is `admin`.
+- **CS.SYS.BILL-R07 Independent admin grants:** Stripe synchronization must
+  always maintain the current subscription projection. A manual admin grant is
+  stored independently and raises the effective tier without hiding,
+  downgrading, or blocking Stripe state.
 - **CS.SYS.BILL-R08 Interval mapping:** Monthly/yearly price IDs map to tier and
   billing interval, and tier changes preserve current interval.
 - **CS.SYS.BILL-R09 Unknown-price safety:** An active unrecognized Stripe price
@@ -67,6 +69,6 @@ administrator overrides, and usage allowances.
 - **CS.SYS.BILL-R12 Pricing reconciliation:** Executable plan prices and Stripe
   prices must have an explicit drift check before release/config changes.
 - **CS.SYS.BILL-R13 Subscription-aligned usage:** Assistant allowance windows
-  must derive from persisted Stripe period/anchor data or an explicit admin
-  grant anchor, and one model run must use one immutable window for preflight
-  and settlement.
+  must derive from persisted Stripe period/anchor data or, when an admin grant
+  supplies the effective paid tier, that grant's anchor. One model run must use
+  one immutable window for preflight and settlement.

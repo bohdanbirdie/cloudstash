@@ -161,13 +161,11 @@ export function WorkspaceCard({
                       "text-muted-foreground/70 hover:text-foreground rounded-sm cursor-help focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/60"
                     )}
                   >
-                    manual
+                    admin grant
                   </button>
                 }
               />
-              <TooltipContent>
-                Set manually — Stripe sync won&apos;t overwrite
-              </TooltipContent>
+              <TooltipContent>Admin-granted plan</TooltipContent>
             </Tooltip>
           )}
         </div>

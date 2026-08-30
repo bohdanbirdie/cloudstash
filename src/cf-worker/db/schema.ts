@@ -58,6 +58,10 @@ export const organization = sqliteTable("organization", {
     .$type<TierSource>()
     .default("stripe")
     .notNull(),
+  adminTierGrant: text("admin_tier_grant").$type<PlanTier>(),
+  adminTierGrantedAt: integer("admin_tier_granted_at", {
+    mode: "timestamp_ms",
+  }),
   stripeCustomerId: text("stripe_customer_id")
     .$type<StripeCustomerId>()
     .unique(),

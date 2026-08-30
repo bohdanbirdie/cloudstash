@@ -137,13 +137,13 @@ describe("Account deletion (end-to-end)", () => {
   it("deletes the user and org across D1 + DOs and reaches workflow=complete", async () => {
     const user = await signupUser("delete-target@test.com", "Delete Target");
     // Mirrors an admin-granted paid tier: entitlement without a Stripe
-    // subscription. Deletion must not infer billing from the visible tier.
+    // subscription. Deletion must not infer billing from the effective tier.
     await env.DB.prepare(
       `UPDATE organization
-       SET tier = 'pro', tier_source = 'admin', stripe_subscription_id = NULL
+       SET admin_tier_grant = 'pro', admin_tier_granted_at = ?, stripe_subscription_id = NULL
        WHERE id = ?`
     )
-      .bind(user.orgId)
+      .bind(Date.now(), user.orgId)
       .run();
     await expectForeignKeysEnforced(user.userId);
     const { clientId: oauthClientId, resourceId } = await seedMcpOAuthRows(

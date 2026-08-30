@@ -17,7 +17,7 @@ const sessionsUrl = (workspaceId: string) =>
 
 const enableChat = (workspaceId: string) =>
   env.DB.prepare(
-    "UPDATE organization SET tier = 'pro', tier_source = 'admin', usage_cycle_anchor = ? WHERE id = ?"
+    "UPDATE organization SET admin_tier_grant = 'pro', admin_tier_granted_at = ? WHERE id = ?"
   )
     .bind(Date.now(), workspaceId)
     .run();

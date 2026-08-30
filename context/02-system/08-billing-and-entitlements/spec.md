@@ -10,20 +10,23 @@ Active.
 ## Authority Model
 
 ```text
-Stripe subscription ─ webhook/success ─► syncFromStripe ─► D1 organization
-                                                              │
-plan.ts tier defaults ─────────────────────────────────────────┤ merge
-admin featureOverrides ────────────────────────────────────────┘
-                                                              ▼
-                                                 runtime capabilities
+Stripe subscription ─ webhook/success ─► synchronized Stripe tier ─┐
+admin tier grant ────────────────────────────────────────────────────┤ max tier
+                                                                    ▼
+plan.ts tier defaults ──────────────────────────────────────── effective tier
+admin featureOverrides ─────────────────────────────────────────────┤ merge
+                                                                    ▼
+                                                       runtime capabilities
 ```
 
 Stripe owns payment/subscription truth. D1 owns operational entitlement truth.
-`Billing.capabilities(orgId)` merges `TIER_CAPABILITIES[tier]` with
-`featureOverrides`; normal request paths do not contact Stripe. After the usage
-cycle projection first ships, an entitled Assistant request with missing cycle
-fields performs one Stripe refresh and persists the result. Later requests use
-D1 only.
+`Billing.capabilities(orgId)` resolves one effective tier as the higher of the
+synchronized Stripe tier and an optional admin grant, then merges
+`TIER_CAPABILITIES[tier]` with `featureOverrides`; normal request paths do not
+contact Stripe. Admin grants are independent of payment state and selecting
+Free removes the grant. After the usage cycle projection first ships, an
+entitled Assistant request with missing cycle fields performs one Stripe refresh
+and persists the result. Later requests use D1 only.
 
 ## Capability Surface
 
@@ -70,8 +73,9 @@ Webhook verification uses the raw request body. A signal resolves customer ID,
 fetches live subscriptions, chooses the applicable subscription, maps its price
 to tier/interval, and updates D1. Writes persist subscription ID/status, item
 period start/end, billing-cycle anchor, cancellation state, and interval. Stripe
-sync returns without changing manual `tierSource: admin` grants. Admin paid-tier
-grants persist their grant time as a separate usage-cycle anchor.
+sync always updates that projection regardless of admin state. Admin paid-tier
+grants persist independently with their grant time and act as a tier floor; they
+never downgrade or block a Stripe subscription.
 
 ## Billing Return Experience
 
@@ -111,6 +115,7 @@ Assistant periods follow the workspace entitlement rather than UTC calendar
 months. Monthly Stripe subscriptions use their exact item period. Annual Stripe
 subscriptions receive monthly subwindows derived from the persisted billing
 anchor and bounded by the active annual period. Admin grants use their grant
-anchor (legacy grants fall back to workspace creation time). UTC recurrence
-clamps end-of-month anchors deterministically. One resolved window is carried
-through preflight and settlement for the complete model run.
+anchor when they supply the effective paid tier (legacy grants fall back to
+workspace creation time). UTC recurrence clamps end-of-month anchors
+deterministically. One resolved window is carried through preflight and
+settlement for the complete model run.
