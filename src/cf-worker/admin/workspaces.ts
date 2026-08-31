@@ -36,7 +36,10 @@ const BOOLEAN_CAPABILITY_KEYS = [
   "weeklyDigest",
 ] as const;
 
-const NUMBER_CAPABILITY_KEYS = ["monthlyAssistantCredits"] as const;
+const NUMBER_CAPABILITY_KEYS = [
+  "monthlyAssistantCredits",
+  "monthlyXBookmarks",
+] as const;
 
 const SetTierBody = Schema.Struct({ tier: PlanTierSchema });
 

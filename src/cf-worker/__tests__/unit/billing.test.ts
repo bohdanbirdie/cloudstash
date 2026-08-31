@@ -30,6 +30,7 @@ function makeBillingLayer(overrides: Partial<BillingImpl> = {}) {
           usageWindow: Option.none(),
         })
       ),
+    monthlyUsageWindow: () => Effect.succeed(Option.none()),
     tier: () => Effect.succeed("free"),
     subscription: () =>
       Effect.succeed({
@@ -102,6 +103,7 @@ describe("capabilitiesFor (pure)", () => {
         mcpServer: false,
         weeklyDigest: false,
         monthlyAssistantCredits: 0,
+        monthlyXBookmarks: 0,
       },
       plus: {
         aiSummary: true,
@@ -113,6 +115,7 @@ describe("capabilitiesFor (pure)", () => {
         mcpServer: false,
         weeklyDigest: true,
         monthlyAssistantCredits: 0,
+        monthlyXBookmarks: 0,
       },
       pro: {
         aiSummary: true,
@@ -124,6 +127,7 @@ describe("capabilitiesFor (pure)", () => {
         mcpServer: true,
         weeklyDigest: true,
         monthlyAssistantCredits: 1_000,
+        monthlyXBookmarks: 300,
       },
     });
   });

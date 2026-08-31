@@ -25,6 +25,17 @@ const makeXSyncAccountRepository = Effect.gen(function* () {
         Effect.catchTag("OrgNotFoundError", () => Effect.succeed(Option.none()))
       );
     }),
+    usageWindow: Effect.fn("XSyncAccountRepository.usageWindow")(function* (
+      organizationId: OrgId
+    ) {
+      return yield* billing
+        .monthlyUsageWindow(organizationId)
+        .pipe(
+          Effect.catchTag("OrgNotFoundError", () =>
+            Effect.succeed(Option.none())
+          )
+        );
+    }),
     findAccount: Effect.fn("XSyncAccountRepository.findAccount")(function* (
       userId: UserId
     ) {

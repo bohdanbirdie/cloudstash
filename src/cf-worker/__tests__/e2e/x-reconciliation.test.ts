@@ -156,8 +156,10 @@ const createLinkedPoller = async (options: {
     )
     .run();
 
-  await env.DB.prepare("UPDATE organization SET tier = 'pro' WHERE id = ?")
-    .bind(user.orgId)
+  await env.DB.prepare(
+    "UPDATE organization SET tier = 'free', admin_tier_grant = 'pro', admin_tier_granted_at = ? WHERE id = ?"
+  )
+    .bind(now, user.orgId)
     .run();
 
   await runInDurableObject(stub, async (_instance, state) => {
@@ -343,7 +345,9 @@ describe("X reconciliation E2E", () => {
       label: "alarm",
     });
 
-    await env.DB.prepare("UPDATE organization SET tier = 'free' WHERE id = ?")
+    await env.DB.prepare(
+      "UPDATE organization SET tier = 'free', admin_tier_grant = NULL, admin_tier_granted_at = NULL WHERE id = ?"
+    )
       .bind(user.orgId)
       .run();
 

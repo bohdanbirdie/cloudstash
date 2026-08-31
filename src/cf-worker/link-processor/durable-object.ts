@@ -84,6 +84,12 @@ import { SourceNotifierLive } from "./services/source-notifier.live";
 import { WorkersAiLive } from "./services/workers-ai.live";
 import { MAX_CONCURRENT_AI, MAX_CONCURRENT_METADATA } from "./types";
 import type { LinkQueueMessage } from "./types";
+import {
+  XBookmarkUsageData,
+  xBookmarkSettlementKey,
+  xBookmarkUsageKey,
+} from "./x-bookmark-usage";
+import type { XBookmarkEnqueueOutcome } from "./x-bookmark-usage";
 
 const logger = logSync("LinkProcessorDO");
 
@@ -145,6 +151,7 @@ export class LinkProcessorDO
   private submittedLinks = new Set<string>();
   private metadataSemaphore = Semaphore.makeUnsafe(MAX_CONCURRENT_METADATA);
   private aiSemaphore = Semaphore.makeUnsafe(MAX_CONCURRENT_AI);
+  private xBookmarkSemaphore = Semaphore.makeUnsafe(1);
   private notifiedLinkIds = new Set<string>();
   private hasRunCleanup = false;
   private totalRowsWritten = 0;
@@ -460,6 +467,67 @@ export class LinkProcessorDO
   async getChatUsage(period: string) {
     if (await this.isRetired()) return undefined;
     return chatUsageStorage(this.ctx.storage, period).getUsage();
+  }
+
+  async enqueueXBookmark(
+    usageWindowId: string,
+    tweetId: string,
+    limit: number,
+    message: LinkQueueMessage
+  ): Promise<XBookmarkEnqueueOutcome> {
+    if (await this.isRetired()) throw new DurableObjectRetiredError();
+    if (!Number.isSafeInteger(limit) || limit < 0) {
+      throw new Error("X bookmark limit must be a non-negative integer");
+    }
+
+    return runEffect(
+      this.xBookmarkSemaphore
+        .withPermits(1)(
+          Effect.gen({ self: this }, function* () {
+            const settlementKey = xBookmarkSettlementKey(
+              usageWindowId,
+              tweetId
+            );
+            const existing = yield* Effect.promise(() =>
+              this.ctx.storage.get<boolean>(settlementKey)
+            );
+            if (existing) return "duplicate" as const;
+
+            const usageKey = xBookmarkUsageKey(usageWindowId);
+            const stored = yield* Effect.promise(() =>
+              this.ctx.storage.get(usageKey)
+            );
+            const usage =
+              Schema.decodeUnknownOption(XBookmarkUsageData)(stored);
+            const count = Option.match(usage, {
+              onNone: () => 0,
+              onSome: (value) => value.count,
+            });
+            if (count >= limit) return "limit_reached" as const;
+
+            yield* Effect.tryPromise(() => this.env.LINK_QUEUE.send(message));
+            yield* Effect.promise(() =>
+              this.ctx.storage.transaction(async (transaction) => {
+                await transaction.put(settlementKey, true);
+                await transaction.put(
+                  usageKey,
+                  XBookmarkUsageData.make({ count: count + 1 })
+                );
+              })
+            );
+            return "enqueued" as const;
+          })
+        )
+        .pipe(Effect.withSpan("LinkProcessorDO.enqueueXBookmark"))
+    );
+  }
+
+  async getXBookmarkUsage(usageWindowId: string) {
+    if (await this.isRetired()) return undefined;
+    const stored = await this.ctx.storage.get(xBookmarkUsageKey(usageWindowId));
+    return Schema.decodeUnknownOption(XBookmarkUsageData)(stored).pipe(
+      Option.getOrUndefined
+    );
   }
 
   private async runWorkspaceLinksRpc<Value, Error>(

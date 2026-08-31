@@ -2,6 +2,8 @@ import { isToolUIPart } from "ai";
 import type { UIMessage } from "ai";
 import { Schema } from "effect";
 
+import { CONTEXT_WINDOW_SIZE } from "./config";
+
 export const COMPACTION_TRIGGER_TOKENS = 24_000;
 export const COMPACTION_TAIL_MESSAGES = 12;
 export const COMPACTION_MAX_OUTPUT_TOKENS = 800;
@@ -57,10 +59,13 @@ export function planChatCompaction(
   summary: ChatContextSummary | undefined
 ): ChatCompactionPlan | undefined {
   const pending = messagesAfterSummary(messages, summary);
-  if (
-    pending.length <= COMPACTION_TAIL_MESSAGES ||
-    estimateContextTokens(summary, pending) <= COMPACTION_TRIGGER_TOKENS
-  ) {
+  if (pending.length <= COMPACTION_TAIL_MESSAGES) {
+    return undefined;
+  }
+  const exceedsMessageWindow = pending.length > CONTEXT_WINDOW_SIZE;
+  const exceedsTokenWindow =
+    estimateContextTokens(summary, pending) > COMPACTION_TRIGGER_TOKENS;
+  if (!exceedsMessageWindow && !exceedsTokenWindow) {
     return undefined;
   }
 

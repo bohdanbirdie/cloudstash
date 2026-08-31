@@ -20,6 +20,8 @@ import type {
   Status,
   XSyncConnectedState,
   XSyncControlState,
+  XSyncReadUsage,
+  XSyncScanState,
   XSyncStateSnapshot,
 } from "../../x-sync/services/x-sync-state-store";
 import { XSyncStateStore } from "../../x-sync/services/x-sync-state-store";
@@ -27,6 +29,11 @@ import { XSyncStateStore } from "../../x-sync/services/x-sync-state-store";
 export const X_USER = XUserId.make("xuser-1");
 export const X_NAME = XUsername.make("alice");
 export const ORG_ID = OrgId.make("org-1");
+export const USAGE_WINDOW = {
+  id: "2026-08-01T00:00:00.000Z",
+  startsAt: "2026-08-01T00:00:00.000Z",
+  resetsAt: "2026-09-01T00:00:00.000Z",
+} as const;
 
 export const makeSnapshot = (
   overrides: Partial<XSyncConnectedState> = {}
@@ -55,6 +62,13 @@ export interface StoreRec {
   setPollControlCalls: XSyncPollControl[];
   reconnectReason: XSyncReconnectReason;
   setReconnectReasonCalls: XSyncReconnectReason[];
+  checkpoints: readonly XTweetId[];
+  setCheckpointsCalls: Array<readonly XTweetId[]>;
+  scan: XSyncScanState | null;
+  setScanCalls: XSyncScanState[];
+  clearScanCalls: number;
+  readUsage: XSyncReadUsage | null;
+  setReadUsageCalls: XSyncReadUsage[];
 }
 
 const pendingSnapshot = (rec: StoreRec): XSyncStateSnapshot | null => {
@@ -101,6 +115,13 @@ export const makeStoreLayer = (initial: XSyncStateSnapshot | null) => {
     setPollControlCalls: [],
     reconnectReason: defaultReconnectReason,
     setReconnectReasonCalls: [],
+    checkpoints: [],
+    setCheckpointsCalls: [],
+    scan: null,
+    setScanCalls: [],
+    clearScanCalls: 0,
+    readUsage: null,
+    setReadUsageCalls: [],
   };
   const layer = Layer.succeed(XSyncStateStore, {
     read: () => Effect.sync(() => currentSnapshot(rec)),
@@ -122,6 +143,29 @@ export const makeStoreLayer = (initial: XSyncStateSnapshot | null) => {
         if (rec.snapshot) {
           rec.snapshot = { ...rec.snapshot, watermarkTweetId: tweetId };
         }
+      }),
+    readCheckpoints: () => Effect.sync(() => rec.checkpoints),
+    setCheckpoints: (tweetIds) =>
+      Effect.sync(() => {
+        rec.checkpoints = [...tweetIds];
+        rec.setCheckpointsCalls.push([...tweetIds]);
+      }),
+    readScan: () => Effect.sync(() => rec.scan),
+    setScan: (scan) =>
+      Effect.sync(() => {
+        rec.scan = scan;
+        rec.setScanCalls.push(scan);
+      }),
+    clearScan: () =>
+      Effect.sync(() => {
+        rec.scan = null;
+        rec.clearScanCalls += 1;
+      }),
+    readReadUsage: () => Effect.sync(() => rec.readUsage),
+    setReadUsage: (usage) =>
+      Effect.sync(() => {
+        rec.readUsage = usage;
+        rec.setReadUsageCalls.push(usage);
       }),
     setStatus: (status) =>
       Effect.sync(() => {
@@ -171,6 +215,9 @@ export const makeStoreLayer = (initial: XSyncStateSnapshot | null) => {
         rec.controlSyncEnabled = null;
         rec.pollControl = activePollControl;
         rec.reconnectReason = defaultReconnectReason;
+        rec.checkpoints = [];
+        rec.scan = null;
+        rec.readUsage = null;
       }),
   });
   return { layer, rec };
@@ -225,6 +272,7 @@ export const makeAccountLayer = (
           xBookmarkSync: options.entitled ?? true,
         });
       }),
+    usageWindow: () => Effect.succeed(Option.some(USAGE_WINDOW)),
   });
   return { layer, rec };
 };
@@ -302,20 +350,30 @@ export const makeXApiLayer = (responses: ScriptedBookmarksResponse[]) => {
 };
 
 export const makeQueueLayer = (
-  options: { readonly failAtCalls?: ReadonlySet<number> } = {}
+  options: {
+    readonly failAtCalls?: ReadonlySet<number>;
+    readonly limitAtCalls?: ReadonlySet<number>;
+    readonly duplicateAtCalls?: ReadonlySet<number>;
+  } = {}
 ) => {
   const calls: LinkQueueMessage[] = [];
+  const settledTweetIds = new Set<string>();
   const layer = Layer.succeed(LinkQueueClient, {
-    send: (message) =>
+    send: (input) =>
       Effect.gen(function* () {
         const callIndex = calls.length;
-        calls.push(message);
+        calls.push(input.message);
         if (options.failAtCalls?.has(callIndex)) {
           return yield* new XSyncSideEffectError({
             op: "LINK_QUEUE.send",
             cause: new Error(`scripted queue failure at call ${callIndex}`),
           });
         }
+        if (options.limitAtCalls?.has(callIndex)) return "limit_reached";
+        if (options.duplicateAtCalls?.has(callIndex)) return "duplicate";
+        if (settledTweetIds.has(input.tweetId)) return "duplicate";
+        settledTweetIds.add(input.tweetId);
+        return "enqueued";
       }),
   });
   return { layer, calls };

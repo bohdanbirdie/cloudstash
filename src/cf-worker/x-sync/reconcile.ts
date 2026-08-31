@@ -68,6 +68,7 @@ export const initializeWatermarkEffect = Effect.fn(
   }
 
   yield* store.setWatermark(newestId);
+  yield* store.setCheckpoints([newestId]);
   yield* Effect.annotateCurrentSpan("watermark", newestId);
   yield* Effect.logInfo("initializeWatermark: pinned").pipe(
     Effect.annotateLogs({
@@ -122,6 +123,7 @@ interface ActiveReconcileContext {
   readonly state: XSyncConnectedState;
   readonly accessToken: string;
   readonly activated: boolean;
+  readonly monthlyBookmarkLimit: number;
 }
 
 const isConnectedState = (
@@ -293,6 +295,7 @@ const reconcileCoreEffect = Effect.fn("XBookmarkSyncDO.reconcileCore")(
       state: activeState,
       accessToken,
       activated,
+      monthlyBookmarkLimit: capabilities.monthlyXBookmarks,
     } satisfies ActiveReconcileContext);
   }
 );

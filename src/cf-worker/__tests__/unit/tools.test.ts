@@ -478,10 +478,25 @@ describe("createTools", () => {
       expect(r.id).toBe(id);
       expect(r.url).toBe("https://search.com");
       expect(r.title).toBe("query term result");
-      expect(r.description).toBe("Found it");
-      expect(r.summary).toBe("Summary here");
+      expect(r.context).toBe("Summary here");
+      expect(r).not.toHaveProperty("description");
+      expect(r).not.toHaveProperty("summary");
       expect(typeof r.score).toBe("number");
       expect(r.score).toBeGreaterThan(0);
+    });
+
+    it("bounds model context and falls back to the description", async () => {
+      seedLink({
+        title: "bounded query result",
+        description: "d".repeat(700),
+      });
+
+      const result = unwrap(
+        await tools.searchLinks.execute!({ query: "bounded" }, stubCtx)
+      );
+
+      expect(result.results[0]?.context).toHaveLength(600);
+      expect(result.results[0]?.context?.endsWith("…")).toBe(true);
     });
   });
 

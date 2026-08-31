@@ -29,10 +29,8 @@ import { DbClient, DbError, query } from "../db/service";
 import { maskId } from "../log-utils";
 import { OrgNotFoundError } from "../org/errors";
 import { CapabilityDisabledError } from "./errors";
-import {
-  AssistantUsageWindow,
-  resolveAssistantUsageWindow,
-} from "./usage-cycle";
+import { AssistantUsageWindow, resolveMonthlyUsageWindow } from "./usage-cycle";
+import type { MonthlyUsageWindow } from "./usage-cycle";
 
 type OrgRow = {
   cancelAtPeriodEnd: boolean;
@@ -88,6 +86,7 @@ const TierCapabilitiesSchema = Schema.Struct({
   mcpServer: Schema.Boolean,
   weeklyDigest: Schema.Boolean,
   monthlyAssistantCredits: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  monthlyXBookmarks: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 });
 
 const CapabilityOverridesSchema = Schema.Struct({
@@ -100,6 +99,9 @@ const CapabilityOverridesSchema = Schema.Struct({
   mcpServer: Schema.optionalKey(Schema.Boolean),
   weeklyDigest: Schema.optionalKey(Schema.Boolean),
   monthlyAssistantCredits: Schema.optionalKey(
+    Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+  ),
+  monthlyXBookmarks: Schema.optionalKey(
     Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
   ),
 });
@@ -138,6 +140,13 @@ interface BillingShape {
     orgId: OrgId,
     now?: Date
   ) => Effect.Effect<AssistantAllowance, DbError | OrgNotFoundError>;
+  readonly monthlyUsageWindow: (
+    orgId: OrgId,
+    now?: Date
+  ) => Effect.Effect<
+    Option.Option<MonthlyUsageWindow>,
+    DbError | OrgNotFoundError
+  >;
   readonly tier: (
     orgId: OrgId
   ) => Effect.Effect<PlanTier, DbError | OrgNotFoundError>;
@@ -205,6 +214,20 @@ const make = Effect.gen(function* () {
     currentPeriodEnd: row.currentPeriodEnd?.toISOString() ?? null,
   });
 
+  const usageWindowFor = (row: OrgRow, plan: EffectivePlan, now: Date) =>
+    Option.fromNullishOr(
+      resolveMonthlyUsageWindow(
+        {
+          source: plan.source,
+          billingInterval: row.billingInterval,
+          currentPeriodStart: row.currentPeriodStart,
+          currentPeriodEnd: row.currentPeriodEnd,
+          usageCycleAnchor: plan.usageCycleAnchor,
+        },
+        now
+      )
+    );
+
   return {
     /** Tier + admin overrides, merged into the runtime capability surface. */
     capabilities: Effect.fn("Billing.capabilities")(function* (orgId: OrgId) {
@@ -234,18 +257,7 @@ const make = Effect.gen(function* () {
       const row = yield* fetchOrgRow(orgId);
       const plan = resolveEffectivePlan(row);
       const capabilities = mergeCapabilities(plan.tier, row.featureOverrides);
-      const usageWindow = Option.fromNullishOr(
-        resolveAssistantUsageWindow(
-          {
-            source: plan.source,
-            billingInterval: row.billingInterval,
-            currentPeriodStart: row.currentPeriodStart,
-            currentPeriodEnd: row.currentPeriodEnd,
-            usageCycleAnchor: plan.usageCycleAnchor,
-          },
-          effectiveNow
-        )
-      );
+      const usageWindow = usageWindowFor(row, plan, effectiveNow);
       yield* Effect.annotateCurrentSpan({
         orgId: maskId(orgId),
         source: plan.source,
@@ -256,6 +268,16 @@ const make = Effect.gen(function* () {
         source: plan.source,
         usageWindow,
       });
+    }),
+
+    monthlyUsageWindow: Effect.fn("Billing.monthlyUsageWindow")(function* (
+      orgId: OrgId,
+      now?: Date
+    ) {
+      const effectiveNow = now ?? (yield* DateTime.nowAsDate);
+      const row = yield* fetchOrgRow(orgId);
+      const plan = resolveEffectivePlan(row);
+      return usageWindowFor(row, plan, effectiveNow);
     }),
 
     tier: Effect.fn("Billing.tier")(function* (orgId: OrgId) {

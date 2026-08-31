@@ -118,18 +118,25 @@ Fields stored in DO SQLite (per user):
 - `status` (`active` | `needs_reconnect` | `paused` | `disconnected`)
 - `syncEnabled` (user toggle)
 - `pollControl` (idle start + bounded transient-failure count)
+- recent checkpoint ring and resumable scan state
+- subscription-window provider-read usage
 
 `lastSyncedAt` lives in DO memory only — surfaced via the `DO.status()` RPC. Persisting it on every poll would have eaten the included writes tier. UI shows "—" briefly until the next adaptive alarm fires (at most five minutes) on cold start. Acceptable.
 
-## The watermark mechanic
+## The checkpoint mechanic
 
-The tweet ID of the most recently bookmarked tweet we've already synced. On each poll:
+The legacy watermark remains the newest completed head, while a bounded ring of
+recent successful tweet IDs provides the traversal boundary. On each poll:
 
 1. Probe newest bookmark (1 result).
-2. If `newestId === watermark` → nothing new, done.
-3. If different → paginate until we find the watermark or hit the 800-cap → enqueue everything newer → advance watermark.
+2. If `newestId` is a recent checkpoint → nothing new, done.
+3. If different → request one result per page until any checkpoint, persisting
+   long walks across alarms.
+4. Admit everything newer oldest-first through the workspace monthly allowance,
+   then advance the head/checkpoint ring.
 
-This is what prevents reprocessing the same bookmarks AND what defines the "from now on" boundary.
+This prevents reprocessing, bounds normal provider reads, and defines the "from
+now on" boundary.
 
 ### Cost-safety: connect does NOT import existing bookmarks
 

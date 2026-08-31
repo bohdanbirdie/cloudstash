@@ -34,7 +34,8 @@ performs one Stripe refresh and persists the result. Later requests use D1 only.
 
 Current boolean capability fields are AI summaries, chat agent, integrations, X
 bookmark sync, X content enrichment, public API, MCP server, and weekly digest;
-chat also has monthly Assistant credits. Free, Plus, and Pro defaults are declared in
+numeric capabilities include monthly Assistant credits and monthly imported X
+bookmarks. Free, Plus, and Pro defaults are declared in
 [`src/lib/plan.ts`](../../../src/lib/plan.ts). A per-workspace override can force
 an individual value. Capability denial maps to HTTP 402 with capability and
 required tier where an HTTP boundary applies.
@@ -45,7 +46,7 @@ Implemented gates include:
 - `mcpServer` — every authenticated MCP exchange before protocol dispatch;
 - `integrations` — Telegram and Raycast pairing plus every subsequent capture;
 - `xBookmarkSync` — OAuth completion, resume, X reconciliation, and
-  alarm-time checks;
+  alarm-time checks, plus workspace-period bookmark admission;
 - `chatAgent` + `monthlyAssistantCredits` — initial agent auth plus a capability
   recheck and settled-spend preflight before every model/tool continuation;
 - `aiSummary`/`xContentEnrichment` — LinkProcessorDO;
@@ -105,16 +106,20 @@ price and feature copy.
 
 Chat checks settled monthly spend in workspace LinkProcessorDO storage, then
 records actual provider-reported cost in an idempotent settlement and monthly
-aggregate. X enrichment reserves one attempt atomically in the workspace's
-LinkProcessorDO storage before any provider work. Provider and generator
+aggregate. X bookmark sync serializes workspace admission in that same owner,
+deduplicates source bookmark IDs within the usage window, sends admitted work
+to the Queue, and records the monthly count. A crash between Queue acceptance
+and the count write can repeat delivery, but common-ingest idempotence prevents
+a duplicate library item. X enrichment reserves one attempt atomically in the
+workspace's LinkProcessorDO storage before any provider work. Provider and generator
 failures remain charged because the external attempt has started. Storage
 failure skips enrichment and falls back to the ordinary summary path. These
 counters are cost controls, not subscription truth. The workspace-owner choice
 and cutover are recorded in
 [decision 0002](./.decisions/0002-own-enrichment-reservations-in-link-processor.md).
 
-Assistant periods follow the workspace entitlement rather than UTC calendar
-months. Monthly Stripe subscriptions use their exact item period. Annual Stripe
+Assistant and imported-X-bookmark periods follow the workspace entitlement
+rather than UTC calendar months. Monthly Stripe subscriptions use their exact item period. Annual Stripe
 subscriptions receive monthly subwindows derived from the persisted billing
 anchor and bounded by the active annual period. Admin grants use their grant
 anchor when they supply the effective paid tier (legacy grants fall back to
