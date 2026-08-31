@@ -1,5 +1,6 @@
 import { makePersistedAdapter } from "@livestore/adapter-web";
 import { queryDb, Schema, StoreRegistry } from "@livestore/livestore";
+import { SchemaTransformation } from "effect";
 import { unstable_batchedUpdates as batchUpdates } from "react-dom";
 
 import LiveStoreSharedWorker from "../../lib/livestore-shared-worker?sharedworker";
@@ -50,4 +51,24 @@ export const recentLinks$ = queryDb(
     schema: recentLinksSchema,
   }),
   { label: "popup:recentLinks" }
+);
+
+const activeLinksCountSchema = Schema.Array(
+  Schema.Struct({ count: Schema.Number })
+).pipe(
+  Schema.decodeTo(
+    Schema.Number,
+    SchemaTransformation.transform({
+      decode: (rows) => rows[0]?.count ?? 0,
+      encode: (count) => [{ count }],
+    })
+  )
+);
+
+export const activeLinksCount$ = queryDb(
+  () => ({
+    query: "SELECT COUNT(*) AS count FROM links WHERE deletedAt IS NULL",
+    schema: activeLinksCountSchema,
+  }),
+  { label: "popup:activeLinksCount" }
 );

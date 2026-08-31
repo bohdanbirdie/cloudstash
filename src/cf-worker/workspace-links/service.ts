@@ -55,6 +55,7 @@ import {
 import type { ApiLink, ApiSearchLink, Cursor } from "../links/api";
 import {
   WorkspaceLinkInvalidInputError,
+  WorkspaceLinkLimitReachedError,
   WorkspaceLinkNotFoundError,
   WorkspaceLinkStoreError,
   WorkspaceLinkSyncError,
@@ -245,6 +246,7 @@ export type CommitWorkspaceLinks = (
 interface WorkspaceLinksOptions {
   readonly sync?: SyncChanges;
   readonly commit?: CommitWorkspaceLinks;
+  readonly maxSavedLinks?: number;
 }
 
 const syncChanges: SyncChanges = (store, target) =>
@@ -584,6 +586,15 @@ export const makeWorkspaceLinks = (
       const existing = yield* query("findLinkByUrl", () =>
         store.query(linkByUrl$(url.href))
       );
+      const maxSavedLinks = options.maxSavedLinks ?? 0;
+      if (!existing && maxSavedLinks > 0) {
+        const activeCount = yield* query("countActiveLinksForSave", () =>
+          store.query(apiLinksCount$("active"))
+        );
+        if (activeCount >= maxSavedLinks) {
+          return yield* new WorkspaceLinkLimitReachedError(maxSavedLinks);
+        }
+      }
       const proposedLinkId = existing
         ? LinkId.make(existing.id)
         : LinkId.make(nanoid());

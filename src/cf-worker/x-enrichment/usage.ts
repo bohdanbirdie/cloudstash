@@ -1,8 +1,8 @@
 import { Context, Data, Effect, Layer } from "effect";
 
+import { UsageMeter, UsageMeterLive } from "../billing/usage-meter";
 import { OrgId } from "../db/branded";
 import { maskId } from "../log-utils";
-import { ENRICHMENT_USAGE_KEY, getCurrentPeriod } from "./types";
 
 export class EnrichmentUsageTransactionError extends Data.TaggedError(
   "EnrichmentUsageTransactionError"
@@ -27,41 +27,60 @@ export class EnrichmentUsage extends Context.Service<
   {
     readonly reserve: (
       storeId: OrgId,
-      cap: number
+      input: {
+        readonly cap: number;
+        readonly settlementId: string;
+        readonly windowId: string;
+      }
     ) => Effect.Effect<EnrichmentReservation, EnrichmentUsageTransactionError>;
   }
 >()("@cloudstash/EnrichmentUsage") {}
 
 export const EnrichmentUsageLive = (bindings: EnrichmentUsageBindings) =>
-  Layer.succeed(EnrichmentUsage, {
-    reserve: Effect.fn("EnrichmentUsage.reserve")(function* (
-      storeId: OrgId,
-      cap: number
-    ) {
-      const period = getCurrentPeriod();
-      yield* Effect.annotateCurrentSpan({
-        storeId: maskId(storeId),
-        period,
+  Layer.effect(
+    EnrichmentUsage,
+    Effect.gen(function* () {
+      const meter = yield* UsageMeter;
+      return EnrichmentUsage.of({
+        reserve: Effect.fn("EnrichmentUsage.reserve")(function* (
+          storeId: OrgId,
+          input: {
+            readonly cap: number;
+            readonly settlementId: string;
+            readonly windowId: string;
+          }
+        ) {
+          const period = input.windowId;
+          yield* Effect.annotateCurrentSpan({
+            storeId: maskId(storeId),
+            period,
+          });
+          const reservation = yield* meter
+            .reserve({
+              limit: input.cap,
+              metric: "xEnrichments",
+              settlementId: input.settlementId,
+              windowId: input.windowId,
+            })
+            .pipe(
+              Effect.mapError(
+                (cause) =>
+                  new EnrichmentUsageTransactionError({
+                    storeId,
+                    period,
+                    cause,
+                  })
+              )
+            );
+          const reserved =
+            reservation.status === "reserved" ||
+            reservation.status === "duplicate";
+          yield* Effect.annotateCurrentSpan({
+            reserved,
+            used: reservation.count,
+          });
+          return { period, reserved, used: reservation.count };
+        }),
       });
-      const key = ENRICHMENT_USAGE_KEY(storeId, period);
-      const reservation = yield* Effect.tryPromise({
-        try: () =>
-          bindings.storage.transaction(async (transaction) => {
-            const used = (await transaction.get<number>(key)) ?? 0;
-            if (used >= cap) {
-              return { period, reserved: false, used } as const;
-            }
-            const next = used + 1;
-            await transaction.put(key, next);
-            return { period, reserved: true, used: next } as const;
-          }),
-        catch: (cause) =>
-          new EnrichmentUsageTransactionError({ storeId, period, cause }),
-      });
-      yield* Effect.annotateCurrentSpan({
-        reserved: reservation.reserved,
-        used: reservation.used,
-      });
-      return reservation;
-    }),
-  });
+    })
+  ).pipe(Layer.provide(UsageMeterLive(bindings.storage)));

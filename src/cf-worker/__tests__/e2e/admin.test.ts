@@ -430,7 +430,7 @@ describe("admin Endpoints E2E", () => {
     // Sweep boolean caps so a regression in the per-key allow-list (e.g.
     // dropping xBookmarkSync from CAPABILITY_KEYS) fails loudly.
     const BOOLEAN_OVERRIDE_CASES = [
-      { key: "aiSummary", tierDefault: false },
+      { key: "aiSummary", tierDefault: true },
       { key: "xBookmarkSync", tierDefault: false },
       { key: "xContentEnrichment", tierDefault: false },
       { key: "publicApi", tierDefault: false },

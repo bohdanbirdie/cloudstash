@@ -1,5 +1,7 @@
 # X (Twitter) content enrichment — Pro feature
 
+Status: completed; allowance accounting was consolidated by [[plan-usage-limits]].
+
 Richer AI summaries for bookmarked tweets. Pro-only, gated by the `xContentEnrichment` capability, hard-capped at 100 enrichments per org per month, gracefully degrades to the basic summarizer on any failure.
 
 ## How it works
@@ -16,33 +18,39 @@ Otherwise the existing basic summarizer runs unchanged. Either branch ends in a 
 LinkProcessor (single pass)
   └─ if xContentEnrichmentEnabled && hasStoreId && isXTweetUrl(url):
         enrichSummary
-          ├─ EnrichmentUsage.current (KV) — bail with BudgetExhausted if ≥ cap
+          ├─ EnrichmentUsage.reserve (LinkProcessorDO) — bail if allowance is exhausted
           ├─ ThreadProvider.fetchContext(url)  ← syndication-only impl
           ├─ EnrichmentGenerator.generate({url, context, existingTags})
           │     OpenRouter generateObject → openai/gpt-5.6-luna-20260709
           │     returns {summary, suggestedTags}
-          └─ EnrichmentUsage.increment (KV)   ← only on success
+          └─ generate with the reserved attempt
         catchTags → all enrichment errors fall back to basic
      else:
         AiSummaryGenerator.generate (existing basic path)
   └─ emit linkSummarized with model = ENRICHMENT_MODEL or AI_MODEL
 ```
 
-The router catches 10 enrichment error tags individually (`EnrichmentBudgetExhausted`, six `ThreadProvider*` variants, `EnrichmentGenerate`, `EnrichmentUsageGet`, `EnrichmentUsagePut`), each logging structured context before delegating to the basic summarizer. The `EnrichmentUsage` counter is only incremented on a successful generation.
+The router catches enrichment failures, logs structured context, and delegates
+to the basic summarizer. Reservations are idempotent per processing attempt and
+remain charged once provider work begins.
 
 ## Components
 
 - **`ThreadProvider`** Effect.Service abstracting tweet-context retrieval. Live impl pulls the bookmarked tweet via `cdn.syndication.twimg.com/tweet-result` with a 10s timeout; returns root text, quoted body, author, conversation id, external URLs. Branded `XTweetId` / `XUsername`. Six tagged error variants for invalid URL / transport / HTTP / response parse / empty / timeout.
 - **`EnrichmentGenerator`** Effect.Service running Vercel AI SDK `generateObject` against the shared `OPENROUTER_MODEL_ID` via OpenRouter. Prompt rules forbid fabrication (every fact in the summary must appear in the input). Returns `{summary, suggestedTags}`.
-- **`EnrichmentUsage`** Effect.Service backed by the `ENRICHMENT_USAGE` KV namespace. Counter keyed `enrichment:{orgId}:{YYYY-MM}` with a 70-day TTL. Split `Get` / `Put` tagged errors so KV failures route distinctly through `catchTags`.
+- **`EnrichmentUsage`** Effect.Service backed by the workspace's
+  `LinkProcessorDO`. It reserves subscription-aligned attempts atomically and
+  idempotently through the shared counted-usage meter.
 - **Image-fallback chain** in the X metadata extractor (`pickImage(data, tweetUrl, lookupOgImage)`): parent media → quoted-tweet media → first non-twitter linked-URL og:image → tweet-page og:image. Decision logic takes the og lookup as an injected function, so tests stub it with `vi.fn` and assert call order without HTMLRewriter.
 
 ## Configuration
 
 - **Capability:** `xContentEnrichment: boolean` on `TierCapabilities` (`free=false, plus=false, pro=true`). Admin override via `BOOLEAN_CAPABILITY_KEYS`.
 - **Model:** `ENRICHMENT_MODEL` aliases the shared `OPENROUTER_MODEL_ID` (`src/cf-worker/openrouter-model.ts`).
-- **Cap:** `MONTHLY_ENRICHMENT_CAP = 100`.
-- **KV binding:** `ENRICHMENT_USAGE` in `wrangler.jsonc`.
+- **Cap:** `monthlyXEnrichments = 100` in the Pro tier defaults. An enriched X
+  summary also consumes one general AI-summary attempt.
+- **Legacy cleanup:** `ENRICHMENT_USAGE` remains transitional deletion state;
+  new reservations do not write to it.
 
 ## Files
 

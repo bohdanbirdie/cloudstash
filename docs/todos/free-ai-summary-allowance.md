@@ -1,5 +1,7 @@
 # Plan a bounded Free AI-summary allowance
 
+Status: completed and superseded by [[plan-usage-limits]].
+
 ## Problem and outcome
 
 Free saved-link count is currently uncapped, while basic AI summaries are not a
@@ -8,7 +10,7 @@ link after exhaustion.
 
 ## Agreed scope and non-goals
 
-- Keep saved-link count unlimited.
+- The accepted matrix instead bounds Free at 100 active links.
 - Define the allowance and period in executable configuration and customer copy,
   then reserve it atomically at the provider boundary.
 - Paid summary behavior remains capability-driven; X enrichment and chat keep

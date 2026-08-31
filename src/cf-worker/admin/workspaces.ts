@@ -37,8 +37,12 @@ const BOOLEAN_CAPABILITY_KEYS = [
 ] as const;
 
 const NUMBER_CAPABILITY_KEYS = [
+  "maxSavedLinks",
+  "monthlyAiSummaries",
   "monthlyAssistantCredits",
+  "monthlyExternalCalls",
   "monthlyXBookmarks",
+  "monthlyXEnrichments",
 ] as const;
 
 const SetTierBody = Schema.Struct({ tier: PlanTierSchema });

@@ -299,13 +299,31 @@ describe("MCP OAuth Worker flow", () => {
   let expiredAssertionCountAfterToken = -1;
   const observedOutboundUrls: string[] = [];
 
+  const setSubscribedPro = async (
+    orgId: string,
+    featureOverrides: Record<string, unknown> = {}
+  ) => {
+    const startsAt = Date.now() - 24 * 60 * 60 * 1_000;
+    await env.DB.prepare(
+      `UPDATE organization
+       SET tier = 'pro', billing_interval = 'month',
+           current_period_start = ?, current_period_end = ?,
+           usage_cycle_anchor = ?, feature_overrides = ?
+       WHERE id = ?`
+    )
+      .bind(
+        startsAt,
+        startsAt + 32 * 24 * 60 * 60 * 1_000,
+        startsAt,
+        JSON.stringify(featureOverrides),
+        orgId
+      )
+      .run();
+  };
+
   beforeAll(async () => {
     user = await signupUser("mcp-oauth@test.com", "MCP OAuth User");
-    await env.DB.prepare(
-      "UPDATE organization SET tier = 'pro', feature_overrides = ? WHERE id = ?"
-    )
-      .bind(JSON.stringify({ aiSummary: false }), user.orgId)
-      .run();
+    await setSubscribedPro(user.orgId, { aiSummary: false });
     await installTestMetadataFetcher(
       env.LINK_PROCESSOR_DO.get(env.LINK_PROCESSOR_DO.idFromName(user.orgId)),
       (url) => observedOutboundUrls.push(url)
@@ -1083,9 +1101,7 @@ describe("MCP OAuth Worker flow", () => {
       "mcp-read-only@test.com",
       "MCP Read Only User"
     );
-    await env.DB.prepare("UPDATE organization SET tier = 'pro' WHERE id = ?")
-      .bind(readOnlyUser.orgId)
-      .run();
+    await setSubscribedPro(readOnlyUser.orgId);
     const readOnlyClient = await registerCurrentMcpJamClient();
     const readOnlyTokens = await authorizeClient(
       readOnlyUser,
@@ -1114,11 +1130,7 @@ describe("MCP OAuth Worker flow", () => {
       "mcp-workspace-routing@test.com",
       "MCP Workspace Routing User"
     );
-    await env.DB.prepare(
-      "UPDATE organization SET tier = 'pro', feature_overrides = ? WHERE id = ?"
-    )
-      .bind(JSON.stringify({ aiSummary: false }), isolatedUser.orgId)
-      .run();
+    await setSubscribedPro(isolatedUser.orgId, { aiSummary: false });
     const otherOrgId = crypto.randomUUID();
     await env.DB.prepare(
       "INSERT INTO organization (id, name, slug, tier) VALUES (?, ?, ?, 'pro')"

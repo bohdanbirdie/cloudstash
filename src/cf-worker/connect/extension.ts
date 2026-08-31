@@ -4,6 +4,7 @@ import { Effect, Layer, Option } from "effect";
 import { bearerApiKey } from "../auth/bearer-api-key";
 import { AppLayerLive, AuthClient } from "../auth/service";
 import { WorkspaceAccess } from "../auth/workspace-access";
+import { Billing } from "../billing/service";
 import { ApiKey, ApiKeyRowId } from "../db/branded";
 import * as schema from "../db/schema";
 import { DbClient, query } from "../db/service";
@@ -74,8 +75,11 @@ export const handleAccountRequest = Effect.fn(
       .from(schema.user)
       .where(eq(schema.user.id, userId))
   ).pipe(Effect.map((rows) => rows[0] ?? null));
+  const billing = yield* Billing;
+  const capabilities = yield* billing.capabilities(orgId);
 
   return {
+    maxSavedLinks: capabilities.maxSavedLinks,
     user: { name: row?.name ?? null, image: row?.image ?? null },
   };
 });

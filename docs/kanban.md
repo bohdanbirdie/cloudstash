@@ -4,11 +4,9 @@ kanban-plugin: board
 
 ## High Priority
 
-- [ ] `BILL-01` [[todos/plan-usage-limits|Define and enforce usage limits for every plan]] — decide explicit per-plan allowances for saved links, AI summaries, Assistant credits, enrichment, and other bounded work; keep configuration, enforcement, and customer-facing usage states consistent.
 - [ ] `REL-07` [[todos/restore-chrome-web-store-listing|Restore the removed Chrome Web Store listing]] — determine why Google removed it, satisfy the publisher requirements, resubmit it, and verify the restored listing describes the actual popup-and-Save flow.
 - [ ] `REL-08` [[todos/welcome-existing-users|Approve pending users and send the launch welcome email]] — approve every eligible pending signup, then notify all existing signed-up users that Cloudstash is available to use.
 - [ ] `CORE-05` [[todos/initial-sync-blocking|Research HTTP bootstrap and preloaded library state]] — benchmark WebSocket vs HTTP event-log replay, BootStatus/timeout UX, and an upstream materialized snapshot at an exact event head.
-- [ ] `CORE-04` [[todos/free-ai-summary-allowance|Plan a bounded Free AI-summary allowance]] — saved-link count remains unlimited; exhaustion preserves the link.
 - [ ] `AI-08` [[todos/link-notes|Notes on links (user-authored, agent-aware)]]
 
 ## Medium Priority
@@ -38,6 +36,9 @@ kanban-plugin: board
 - [ ] `UX-11` ⌘Z undo for reversible events — wire keyboard undo to events that have a clean inverse (link archive/unarchive, tag add/remove, link tagging, status change, delete). Maintain a small client-side undo stack of the last N user-driven mutations; ⌘Z commits the inverse event. Skip events that are not safely invertible (snapshot/summary writes, sync events).
 
 ## Done
+
+- [x] `BILL-01` [[todos/plan-usage-limits|Define and enforce usage limits for every plan]] — shipped one executable Free/Plus/Pro matrix, workspace-owned atomic counters, saved-link capacity, calm exhaustion behavior, and shared Settings usage UI.
+- [x] `CORE-04` [[todos/free-ai-summary-allowance|Plan a bounded Free AI-summary allowance]] — absorbed into `BILL-01`; Free now has 10 monthly summaries and a 100-active-link capacity.
 
 - [x] `AI-15` [[todos/chat-retrieval-cost-telemetry|Measure and reduce chat retrieval cost]] — answer telemetry correlates bounded retrieval signals without logging content; ranked recall remains 20 while the model receives one bounded context field instead of duplicate description and summary text.
 - [x] `AI-14` [[todos/openrouter-prompt-cache-stickiness|Use OpenRouter prompt caching deliberately]] — Assistant and compaction share one stable opaque provider session, detailed usage is requested and logged per generation, and caching remains provider-owned with no application cache or invalidation state.

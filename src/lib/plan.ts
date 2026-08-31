@@ -25,7 +25,8 @@ export const PLANS: Readonly<Record<PlanTier, PlanInfo>> = {
     pricing: null,
     tagline: "The saving core. Yours forever.",
     features: [
-      "Save links from the dashboard",
+      "Save up to 100 links",
+      "10 AI summaries each month",
       "Save from the Chrome extension",
       "Tag, archive, search",
       "Sync across your devices",
@@ -38,7 +39,8 @@ export const PLANS: Readonly<Record<PlanTier, PlanInfo>> = {
     pricing: { monthly: 5, yearly: 50 },
     tagline: "Your saves, ready to skim.",
     features: [
-      "AI summaries for saved links",
+      "Save up to 500 links",
+      "500 AI summaries each month",
       "Save from Telegram and Raycast",
       "Weekly digest of what you read",
       "Public API",
@@ -52,6 +54,7 @@ export const PLANS: Readonly<Record<PlanTier, PlanInfo>> = {
     pricing: { monthly: 12, yearly: 120 },
     tagline: "The full Cloudstash. AI everywhere.",
     features: [
+      "Unlimited saved links",
       "X bookmark sync",
       "Chat with your library",
       "Enriched X summaries",
@@ -104,13 +107,17 @@ export interface TierCapabilities {
   publicApi: boolean;
   mcpServer: boolean;
   weeklyDigest: boolean;
+  maxSavedLinks: number;
+  monthlyAiSummaries: number;
   monthlyAssistantCredits: number;
+  monthlyExternalCalls: number;
   monthlyXBookmarks: number;
+  monthlyXEnrichments: number;
 }
 
 export const TIER_CAPABILITIES: Readonly<Record<PlanTier, TierCapabilities>> = {
   free: {
-    aiSummary: false,
+    aiSummary: true,
     chatAgent: false,
     integrations: false,
     xBookmarkSync: false,
@@ -118,8 +125,12 @@ export const TIER_CAPABILITIES: Readonly<Record<PlanTier, TierCapabilities>> = {
     publicApi: false,
     mcpServer: false,
     weeklyDigest: false,
+    maxSavedLinks: 100,
+    monthlyAiSummaries: 10,
     monthlyAssistantCredits: 0,
+    monthlyExternalCalls: 0,
     monthlyXBookmarks: 0,
+    monthlyXEnrichments: 0,
   },
   plus: {
     aiSummary: true,
@@ -130,8 +141,12 @@ export const TIER_CAPABILITIES: Readonly<Record<PlanTier, TierCapabilities>> = {
     publicApi: true,
     mcpServer: false,
     weeklyDigest: true,
+    maxSavedLinks: 500,
+    monthlyAiSummaries: 500,
     monthlyAssistantCredits: 0,
+    monthlyExternalCalls: 1_000,
     monthlyXBookmarks: 0,
+    monthlyXEnrichments: 0,
   },
   pro: {
     aiSummary: true,
@@ -142,8 +157,14 @@ export const TIER_CAPABILITIES: Readonly<Record<PlanTier, TierCapabilities>> = {
     publicApi: true,
     mcpServer: true,
     weeklyDigest: true,
+    // Zero means product-unlimited. Private abuse controls are operational,
+    // not a customer-visible plan allowance.
+    maxSavedLinks: 0,
+    monthlyAiSummaries: 1_000,
     monthlyAssistantCredits: 1_000,
-    monthlyXBookmarks: 300,
+    monthlyExternalCalls: 10_000,
+    monthlyXBookmarks: 200,
+    monthlyXEnrichments: 100,
   },
 };
 
@@ -166,10 +187,34 @@ export const mergeCapabilities = (
       TIER_CAPABILITIES.pro.monthlyAssistantCredits;
   }
   if (
+    overrides?.aiSummary === true &&
+    overrides.monthlyAiSummaries === undefined
+  ) {
+    merged.monthlyAiSummaries = TIER_CAPABILITIES.free.monthlyAiSummaries;
+  }
+  if (
+    overrides?.publicApi === true &&
+    overrides.monthlyExternalCalls === undefined
+  ) {
+    merged.monthlyExternalCalls = TIER_CAPABILITIES.plus.monthlyExternalCalls;
+  }
+  if (
+    overrides?.mcpServer === true &&
+    overrides.monthlyExternalCalls === undefined
+  ) {
+    merged.monthlyExternalCalls = TIER_CAPABILITIES.pro.monthlyExternalCalls;
+  }
+  if (
     overrides?.xBookmarkSync === true &&
     overrides.monthlyXBookmarks === undefined
   ) {
     merged.monthlyXBookmarks = TIER_CAPABILITIES.pro.monthlyXBookmarks;
+  }
+  if (
+    overrides?.xContentEnrichment === true &&
+    overrides.monthlyXEnrichments === undefined
+  ) {
+    merged.monthlyXEnrichments = TIER_CAPABILITIES.pro.monthlyXEnrichments;
   }
 
   return merged;

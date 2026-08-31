@@ -30,6 +30,14 @@ function makeBillingLayer(overrides: Partial<BillingImpl> = {}) {
           usageWindow: Option.none(),
         })
       ),
+    usageAllowance: () =>
+      Effect.succeed(
+        AssistantAllowance.make({
+          capabilities: capabilitiesFor("free"),
+          source: "stripe",
+          usageWindow: Option.none(),
+        })
+      ),
     monthlyUsageWindow: () => Effect.succeed(Option.none()),
     tier: () => Effect.succeed("free"),
     subscription: () =>
@@ -58,10 +66,10 @@ function makeBillingLayer(overrides: Partial<BillingImpl> = {}) {
 }
 
 describe("capabilitiesFor (pure)", () => {
-  it("returns free caps with chatAgent off, aiSummary off", () => {
+  it("returns free caps with chatAgent off and bounded AI summaries", () => {
     const caps = capabilitiesFor("free");
     expect(caps.chatAgent).toBe(false);
-    expect(caps.aiSummary).toBe(false);
+    expect(caps.aiSummary).toBe(true);
     expect(caps.monthlyAssistantCredits).toBe(0);
   });
 
@@ -94,7 +102,7 @@ describe("capabilitiesFor (pure)", () => {
   it("locks the full tier capability matrix", () => {
     expect(TIER_CAPABILITIES).toEqual({
       free: {
-        aiSummary: false,
+        aiSummary: true,
         chatAgent: false,
         integrations: false,
         xBookmarkSync: false,
@@ -102,8 +110,12 @@ describe("capabilitiesFor (pure)", () => {
         publicApi: false,
         mcpServer: false,
         weeklyDigest: false,
+        maxSavedLinks: 100,
+        monthlyAiSummaries: 10,
         monthlyAssistantCredits: 0,
+        monthlyExternalCalls: 0,
         monthlyXBookmarks: 0,
+        monthlyXEnrichments: 0,
       },
       plus: {
         aiSummary: true,
@@ -114,8 +126,12 @@ describe("capabilitiesFor (pure)", () => {
         publicApi: true,
         mcpServer: false,
         weeklyDigest: true,
+        maxSavedLinks: 500,
+        monthlyAiSummaries: 500,
         monthlyAssistantCredits: 0,
+        monthlyExternalCalls: 1_000,
         monthlyXBookmarks: 0,
+        monthlyXEnrichments: 0,
       },
       pro: {
         aiSummary: true,
@@ -126,8 +142,12 @@ describe("capabilitiesFor (pure)", () => {
         publicApi: true,
         mcpServer: true,
         weeklyDigest: true,
+        maxSavedLinks: 0,
+        monthlyAiSummaries: 1_000,
         monthlyAssistantCredits: 1_000,
-        monthlyXBookmarks: 300,
+        monthlyExternalCalls: 10_000,
+        monthlyXBookmarks: 200,
+        monthlyXEnrichments: 100,
       },
     });
   });

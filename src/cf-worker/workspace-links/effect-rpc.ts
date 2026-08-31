@@ -72,7 +72,12 @@ const WorkspaceLinkBatchUpdateResult = Schema.Struct({
 export class WorkspaceLinksRemoteError extends Schema.TaggedErrorClass<WorkspaceLinksRemoteError>()(
   "WorkspaceLinksRemoteError",
   {
-    code: Schema.Literals(["invalid_input", "not_found", "unavailable"]),
+    code: Schema.Literals([
+      "invalid_input",
+      "limit_reached",
+      "not_found",
+      "unavailable",
+    ]),
     message: Schema.String,
     linkId: Schema.optionalKey(Schema.String),
   }
@@ -133,13 +138,17 @@ export interface WorkspaceLinksRpcRunner {
   ): Effect.Effect<Value, WorkspaceLinksRemoteError>;
 }
 
-export const makeWorkspaceLinksRpcHandlers = (run: WorkspaceLinksRpcRunner) =>
+export const makeWorkspaceLinksRpcHandlers = (
+  run: WorkspaceLinksRpcRunner,
+  runSave: WorkspaceLinksRpcRunner = run
+) =>
   WorkspaceLinksRpcs.toLayer({
     ListLinks: (input) => run((links) => WorkspaceLinksRpc.list(links, input)),
     SearchLinks: (input) =>
       run((links) => WorkspaceLinksRpc.search(links, input)),
     GetLink: (input) => run((links) => WorkspaceLinksRpc.get(links, input)),
-    SaveLink: (input) => run((links) => WorkspaceLinksRpc.save(links, input)),
+    SaveLink: (input) =>
+      runSave((links) => WorkspaceLinksRpc.save(links, input)),
     UpdateLink: (input) =>
       run((links) => WorkspaceLinksRpc.update(links, input)),
     UpdateLinks: (input) =>

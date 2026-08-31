@@ -81,3 +81,69 @@ export const SharedReset: Story = {
     ],
   },
 };
+
+export const FreePlan: Story = {
+  args: {
+    libraryItems: [
+      { id: "links", label: "Saved links", limit: 100, remaining: 73 },
+    ],
+    items: [
+      { id: "summaries", label: "AI summaries", limit: 10, remaining: 6 },
+    ],
+  },
+};
+
+export const PlusPlan: Story = {
+  args: {
+    libraryItems: [
+      { id: "links", label: "Saved links", limit: 500, remaining: 312 },
+    ],
+    items: [
+      {
+        id: "summaries",
+        label: "AI summaries",
+        limit: 500,
+        remaining: 348,
+      },
+      { id: "api", label: "API calls", limit: 1_000, remaining: 921 },
+    ],
+  },
+};
+
+export const ProPlan: Story = {
+  args: {
+    libraryItems: [],
+    items: [
+      {
+        id: "summaries",
+        label: "AI summaries",
+        limit: 1_000,
+        remaining: 842,
+      },
+      {
+        id: "assistant",
+        label: "Cloudstash Assistant",
+        limit: 1_000,
+        remaining: 760,
+      },
+      {
+        id: "api",
+        label: "API and MCP calls",
+        limit: 10_000,
+        remaining: 9_647,
+      },
+      {
+        id: "x-sync",
+        label: "X bookmark sync",
+        limit: 200,
+        remaining: 144,
+      },
+      {
+        id: "x-enrichment",
+        label: "Enriched X summaries",
+        limit: 100,
+        remaining: 61,
+      },
+    ],
+  },
+};

@@ -121,6 +121,45 @@ describe("WorkspaceLinks", () => {
     )
   );
 
+  it.effect(
+    "rejects a new link at capacity but permits duplicates and archived space",
+    () => {
+      const links = makeWorkspaceLinks(store, {
+        maxSavedLinks: 1,
+        sync: async () => true,
+      });
+      return Effect.gen(function* () {
+        const first = yield* links.save({
+          url: "https://example.com/first",
+          source: "api",
+        });
+        const duplicate = yield* links.save({
+          url: "https://example.com/first",
+          source: "mcp",
+        });
+        expect(duplicate.created).toBe(false);
+
+        const denied = yield* Effect.result(
+          links.save({ url: "https://example.com/second", source: "api" })
+        );
+        expect(denied).toMatchObject({
+          _tag: "Failure",
+          failure: { _tag: "WorkspaceLinkLimitReachedError", limit: 1 },
+        });
+
+        yield* links.update({
+          id: first.link.id,
+          changes: { state: "archive" },
+        });
+        const replacement = yield* links.save({
+          url: "https://example.com/second",
+          source: "api",
+        });
+        expect(replacement.created).toBe(true);
+      });
+    }
+  );
+
   it.effect("repairs an interrupted external save when it is retried", () =>
     Effect.gen(function* () {
       let syncCalls = 0;

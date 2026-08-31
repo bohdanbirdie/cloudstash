@@ -24,7 +24,12 @@ import {
   captureSyncTarget,
   whenLeaderSynced,
 } from "../../livestore/when-leader-synced";
-import { Billing } from "../billing/service";
+import { Billing, WorkspaceAllowance } from "../billing/service";
+import {
+  UsageMeter,
+  UsageMeterLive,
+  UsageReservation,
+} from "../billing/usage-meter";
 import {
   CHAT_SESSION_LIMIT,
   CHAT_SESSION_REGISTRY_KEY,
@@ -176,6 +181,7 @@ export class LinkProcessorDO
   private submittedLinks = new Set<string>();
   private metadataSemaphore = Semaphore.makeUnsafe(MAX_CONCURRENT_METADATA);
   private aiSemaphore = Semaphore.makeUnsafe(MAX_CONCURRENT_AI);
+  private saveSemaphore = Semaphore.makeUnsafe(1);
   private lifecycleSemaphore = Semaphore.makeUnsafe(1);
   private notifiedLinkIds = new Set<string>();
   private hasRunCleanup = false;
@@ -496,6 +502,77 @@ export class LinkProcessorDO
     return chatUsageStorage(this.ctx.storage, period).getUsage();
   }
 
+  async reserveExternalCall(usageWindowId: string, limit: number) {
+    if (await this.isRetired()) {
+      return UsageReservation.make({ count: 0, status: "unavailable" });
+    }
+    return runEffect(
+      UsageMeter.pipe(
+        Effect.flatMap((usage) =>
+          usage.reserve({
+            limit,
+            metric: "externalCalls",
+            windowId: usageWindowId,
+          })
+        ),
+        Effect.provide(UsageMeterLive(this.ctx.storage)),
+        Effect.withSpan("LinkProcessorDO.reserveExternalCall")
+      )
+    );
+  }
+
+  async getCountedUsage(usageWindowId: string) {
+    if (await this.isRetired()) return undefined;
+    return runEffect(
+      UsageMeter.pipe(
+        Effect.flatMap((usage) =>
+          Effect.all({
+            aiSummaries: usage.get("aiSummaries", usageWindowId),
+            externalCalls: usage.get("externalCalls", usageWindowId),
+            xEnrichments: usage.get("xEnrichments", usageWindowId),
+          })
+        ),
+        Effect.map((usage) => ({
+          aiSummaries: usage.aiSummaries.count,
+          externalCalls: usage.externalCalls.count,
+          xEnrichments: usage.xEnrichments.count,
+        })),
+        Effect.provide(UsageMeterLive(this.ctx.storage)),
+        Effect.withSpan("LinkProcessorDO.getCountedUsage")
+      )
+    );
+  }
+
+  private reserveAiSummary(
+    usageWindowId: string,
+    limit: number,
+    settlementId: string
+  ) {
+    return UsageMeter.pipe(
+      Effect.flatMap((usage) =>
+        usage.reserve({
+          limit,
+          metric: "aiSummaries",
+          settlementId,
+          windowId: usageWindowId,
+        })
+      ),
+      Effect.matchEffect({
+        onFailure: (error) =>
+          Effect.logError("AI summary allowance unavailable").pipe(
+            Effect.annotateLogs(safeErrorInfo(error.cause)),
+            Effect.as(false)
+          ),
+        onSuccess: (reservation) =>
+          Effect.succeed(
+            reservation.status === "reserved" ||
+              reservation.status === "duplicate"
+          ),
+      }),
+      Effect.provide(UsageMeterLive(this.ctx.storage))
+    );
+  }
+
   async enqueueXBookmark(
     usageWindowId: string,
     tweetId: XTweetId,
@@ -581,7 +658,9 @@ export class LinkProcessorDO
     );
   }
 
-  async getXBookmarkUsage(usageWindowId: string) {
+  async getXBookmarkUsage(
+    usageWindowId: string
+  ): Promise<XBookmarkUsageData | undefined> {
     if (await this.isRetired()) return undefined;
     return runEffect(
       Effect.tryPromise({
@@ -591,7 +670,7 @@ export class LinkProcessorDO
       }).pipe(
         Effect.flatMap((stored) =>
           stored === undefined
-            ? Effect.void
+            ? Effect.sync((): XBookmarkUsageData | undefined => undefined)
             : Schema.decodeUnknownEffect(XBookmarkUsageData)(stored).pipe(
                 Effect.mapError(
                   (cause) =>
@@ -609,27 +688,39 @@ export class LinkProcessorDO
   private async runWorkspaceLinksRpc<Value, Error>(
     operation: (
       links: WorkspaceLinks
-    ) => Effect.Effect<WorkspaceLinksRpcResult<Value>, Error>
+    ) => Effect.Effect<WorkspaceLinksRpcResult<Value>, Error>,
+    enforceSaveLimit = false
   ): Promise<WorkspaceLinksRpcResult<Value>> {
-    if (await this.isRetired()) return workspaceUnavailable();
-    const generation = this.storeGeneration;
+    const execute = async () => {
+      if (await this.isRetired()) return workspaceUnavailable();
+      const generation = this.storeGeneration;
 
-    await this.bindNamedWorkspace();
+      await this.bindNamedWorkspace();
 
-    await this.ensureSubscribed();
-    if (!this.canUseStore(generation)) return workspaceUnavailable();
-    const store = await this.getStore();
-    if (!this.canUseStore(generation)) return workspaceUnavailable();
-    const links = makeWorkspaceLinks(store, {
-      commit: (_operation, storeEvents) =>
-        this.commitFor(
-          store,
-          generation
-        )(...storeEvents).pipe(
-          Effect.mapError(() => new WorkspaceLinkUnavailableError())
-        ),
-    });
-    return runEffect(operation(links));
+      await this.ensureSubscribed();
+      if (!this.canUseStore(generation)) return workspaceUnavailable();
+      const store = await this.getStore();
+      if (!this.canUseStore(generation)) return workspaceUnavailable();
+      const allowance = enforceSaveLimit
+        ? await runEffect(this.allowance())
+        : undefined;
+      const links = makeWorkspaceLinks(store, {
+        commit: (_operation, storeEvents) =>
+          this.commitFor(
+            store,
+            generation
+          )(...storeEvents).pipe(
+            Effect.mapError(() => new WorkspaceLinkUnavailableError())
+          ),
+        maxSavedLinks: allowance?.capabilities.maxSavedLinks,
+      });
+      return runEffect(operation(links));
+    };
+
+    if (!enforceSaveLimit) return execute();
+    return runEffect(
+      this.saveSemaphore.withPermits(1)(Effect.promise(execute))
+    );
   }
 
   private readonly runWorkspaceLinksEffectRpc: WorkspaceLinksRpcRunner = (
@@ -651,10 +742,27 @@ export class LinkProcessorDO
       Effect.flatMap(unwrapWorkspaceLinksRpcResult)
     );
 
+  private readonly runWorkspaceLinksSaveEffectRpc: WorkspaceLinksRpcRunner = (
+    operation
+  ) =>
+    Effect.tryPromise(() => this.runWorkspaceLinksRpc(operation, true)).pipe(
+      Effect.mapError(
+        () =>
+          new WorkspaceLinksRemoteError({
+            code: "unavailable",
+            message: "Library is unavailable",
+          })
+      ),
+      Effect.flatMap(unwrapWorkspaceLinksRpcResult)
+    );
+
   async workspaceLinksRpc(payload: Uint8Array<ArrayBuffer>) {
     return runEffect(
       toDurableObjectHandler(WorkspaceLinksRpcs, {
-        layer: makeWorkspaceLinksRpcHandlers(this.runWorkspaceLinksEffectRpc),
+        layer: makeWorkspaceLinksRpcHandlers(
+          this.runWorkspaceLinksEffectRpc,
+          this.runWorkspaceLinksSaveEffectRpc
+        ),
       })(payload)
     );
   }
@@ -678,8 +786,9 @@ export class LinkProcessorDO
   }
 
   async saveLink(input: SaveLinkRpcInput) {
-    return this.runWorkspaceLinksRpc((links) =>
-      WorkspaceLinksRpc.save(links, input)
+    return this.runWorkspaceLinksRpc(
+      (links) => WorkspaceLinksRpc.save(links, input),
+      true
     );
   }
 
@@ -766,12 +875,15 @@ export class LinkProcessorDO
             (link) => {
               const status = statusMap.get(link.id)?.status;
               const isReprocess = status === "reprocess-requested";
+              const settlementTime =
+                statusMap.get(link.id)?.updatedAt ?? link.createdAt;
               return this.processLinkEffect(
                 store,
                 link,
                 isReprocess,
                 status === "pending",
-                generation
+                generation,
+                `${isReprocess ? "reprocess" : "initial"}:${link.id}:${settlementTime.getTime()}`
               ).pipe(
                 Effect.ensuring(
                   Effect.sync(() => this.submittedLinks.delete(link.id))
@@ -927,12 +1039,49 @@ export class LinkProcessorDO
     );
   }
 
+  private allowance(): Effect.Effect<WorkspaceAllowance> {
+    return Billing.pipe(
+      Effect.flatMap((billing) => billing.usageAllowance(this.storeId!)),
+      Effect.provide(
+        Billing.layer.pipe(Layer.provide(DbClientLive(this.env.DB)))
+      ),
+      Effect.catchTags({
+        DbError: (error) =>
+          Effect.logError("LinkProcessor: usage allowance unavailable").pipe(
+            Effect.annotateLogs({
+              ...safeErrorInfo(error.cause),
+              storeId: maskId(this.storeId ?? ""),
+            }),
+            Effect.as(
+              WorkspaceAllowance.make({
+                capabilities: capabilitiesFor("free"),
+                source: "stripe",
+                usageWindow: Option.none(),
+              })
+            )
+          ),
+        OrgNotFoundError: () =>
+          Effect.logError("LinkProcessor: usage workspace missing").pipe(
+            Effect.annotateLogs({ storeId: maskId(this.storeId ?? "") }),
+            Effect.as(
+              WorkspaceAllowance.make({
+                capabilities: capabilitiesFor("free"),
+                source: "stripe",
+                usageWindow: Option.none(),
+              })
+            )
+          ),
+      })
+    );
+  }
+
   private processLinkEffect(
     store: Store<typeof schema>,
     link: Link,
     isReprocess: boolean,
     startRecorded: boolean,
-    generation: number
+    generation: number,
+    usageSettlementId: string
   ): Effect.Effect<void> {
     return Effect.gen({ self: this }, function* () {
       yield* Effect.logInfo("Processing link").pipe(
@@ -959,7 +1108,9 @@ export class LinkProcessorDO
 
       const rowsBefore = this.totalRowsWritten;
 
-      const capabilities = yield* this.capabilities();
+      const allowance = yield* this.allowance();
+      const capabilities = allowance.capabilities;
+      const usageWindow = Option.getOrUndefined(allowance.usageWindow);
 
       yield* Effect.logDebug("LinkProcessor capabilities").pipe(
         Effect.annotateLogs({
@@ -987,7 +1138,21 @@ export class LinkProcessorDO
 
       yield* processLink({
         aiSummaryEnabled: capabilities.aiSummary,
+        summaryReservation: usageWindow
+          ? this.reserveAiSummary(
+              usageWindow.id,
+              capabilities.monthlyAiSummaries,
+              usageSettlementId
+            )
+          : Effect.succeed(false),
         xContentEnrichmentEnabled: capabilities.xContentEnrichment,
+        xEnrichmentAllowance: usageWindow
+          ? {
+              monthlyLimit: capabilities.monthlyXEnrichments,
+              settlementId: usageSettlementId,
+              usageWindowId: usageWindow.id,
+            }
+          : undefined,
         storeId: this.storeId!,
         link: { id: LinkId.make(link.id), url: link.url },
         skipStartedEvent: true,
@@ -1184,16 +1349,20 @@ export class LinkProcessorDO
       return { status: "dropped-retired" };
     }
     const doLayer = this.buildDoLayer(store, generation);
+    const allowance = await runEffect(this.allowance());
     const result = await runEffect(
-      ingestLink({
-        url: msg.url,
-        storeId: msg.storeId,
-        source: msg.source,
-        sourceMeta: msg.sourceMeta,
-      }).pipe(
-        Effect.provide(doLayer),
-        Effect.catchTag("DurableObjectRetiredError", () =>
-          Effect.succeed({ status: "dropped-retired" as const })
+      this.saveSemaphore.withPermits(1)(
+        ingestLink({
+          maxSavedLinks: allowance.capabilities.maxSavedLinks,
+          url: msg.url,
+          storeId: msg.storeId,
+          source: msg.source,
+          sourceMeta: msg.sourceMeta,
+        }).pipe(
+          Effect.provide(doLayer),
+          Effect.catchTag("DurableObjectRetiredError", () =>
+            Effect.succeed({ status: "dropped-retired" as const })
+          )
         )
       )
     );

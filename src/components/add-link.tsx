@@ -10,13 +10,15 @@ import type { ReactNode } from "react";
 import { toast } from "sonner";
 
 import { Favicon } from "@/components/favicon";
+import { useOrgFeatures } from "@/hooks/use-org-features";
 import { track } from "@/lib/analytics";
 import { parseHttpUrl } from "@/lib/http-url";
 import { displayTitle } from "@/lib/link-display";
 import { formatAgo } from "@/lib/time-ago";
-import { linkById$ } from "@/livestore/queries/links";
+import { allLinksCount$, linkById$ } from "@/livestore/queries/links";
 import { events, schema, tables } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
+import { usePaywall } from "@/stores/paywall-store";
 import { useRightPaneStore } from "@/stores/right-pane-store";
 
 interface AddLinkContextValue {
@@ -93,6 +95,9 @@ async function fetchAndCommitMetadata(
 export function AddLinkProvider({ children }: { children: ReactNode }) {
   const store = useAppStore();
   const openDetail = useRightPaneStore((s) => s.openDetail);
+  const activeLinks = store.useQuery(allLinksCount$);
+  const { capabilities, isFallback, isLoading, tier } = useOrgFeatures();
+  const openPaywall = usePaywall((state) => state.openPaywall);
 
   const addLink = useCallback(
     (urlInput: string) => {
@@ -137,6 +142,27 @@ export function AddLinkProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      const maxSavedLinks = capabilities.maxSavedLinks;
+      if (
+        !isLoading &&
+        !isFallback &&
+        maxSavedLinks > 0 &&
+        activeLinks >= maxSavedLinks
+      ) {
+        toast("Your library is full", {
+          description: `Archive a link or upgrade to save more than ${maxSavedLinks}.`,
+          action: {
+            label: "View plans",
+            onClick: () =>
+              openPaywall({
+                highlightTier: tier === "free" ? "plus" : "pro",
+                reason: "Save more links without clearing your library.",
+              }),
+          },
+        });
+        return;
+      }
+
       const domain = parsed.hostname;
       const linkId = crypto.randomUUID();
       const now = new Date();
@@ -159,7 +185,16 @@ export function AddLinkProvider({ children }: { children: ReactNode }) {
       // the DO is offline. The two metadata commits race; second one wins.
       void fetchAndCommitMetadata(store, linkId, validUrl);
     },
-    [store, openDetail]
+    [
+      activeLinks,
+      capabilities.maxSavedLinks,
+      isFallback,
+      isLoading,
+      openDetail,
+      openPaywall,
+      store,
+      tier,
+    ]
   );
 
   useEffect(() => {

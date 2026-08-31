@@ -11,6 +11,7 @@ import { LinkRepository, SourceNotifier } from "./services";
 const STUCK_TIMEOUT_MS = 5 * 60 * 1000;
 
 interface IngestLinkParams {
+  maxSavedLinks?: number;
   url: string;
   storeId: OrgId;
   source: string;
@@ -50,6 +51,24 @@ export const ingestLink = Effect.fn("LinkProcessor.ingestLink")(function* (
       "Link already saved."
     );
     return { status: "duplicate" as const, linkId: existing.id };
+  }
+
+  const maxSavedLinks = params.maxSavedLinks ?? 0;
+  if (maxSavedLinks > 0) {
+    const activeLinks = yield* repo.queryActiveLinks();
+    if (activeLinks.length >= maxSavedLinks) {
+      yield* Effect.logInfo("Saved-link limit reached").pipe(
+        Effect.annotateLogs({
+          limit: maxSavedLinks,
+          storeId: maskId(params.storeId),
+        })
+      );
+      yield* notifier.reply(
+        { source: params.source, sourceMeta: params.sourceMeta },
+        `Your library is full (${maxSavedLinks} links). Archive a link or upgrade to save another.`
+      );
+      return { status: "limit_reached" as const };
+    }
   }
 
   const linkId = LinkIdBrand.make(nanoid());

@@ -4,6 +4,7 @@ import { APP_URL } from "../config";
 import type { Creds } from "../messages";
 
 const AccountBody = Schema.Struct({
+  maxSavedLinks: Schema.Int,
   user: Schema.optional(
     Schema.Struct({
       name: Schema.NullOr(Schema.String),
@@ -15,6 +16,7 @@ const AccountBody = Schema.Struct({
 export type ExtAccount = {
   readonly name: string | null;
   readonly image: string | null;
+  readonly maxSavedLinks: number;
 };
 
 export type AccountResult =
@@ -52,7 +54,11 @@ export class AccountClient extends Context.Service<
         const decoded = yield* Schema.decodeUnknownEffect(AccountBody)(body);
         return ok(
           decoded.user
-            ? { name: decoded.user.name, image: decoded.user.image ?? null }
+            ? {
+                name: decoded.user.name,
+                image: decoded.user.image ?? null,
+                maxSavedLinks: decoded.maxSavedLinks,
+              }
             : null
         );
       }).pipe(

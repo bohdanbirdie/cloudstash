@@ -7,11 +7,17 @@ import { EnrichmentGenerateError, ThreadProviderEmptyError } from "../errors";
 import { EnrichmentGenerator } from "../generator";
 import { ThreadProvider } from "../services";
 import type { ThreadContext } from "../services";
-import { ENRICHMENT_MODEL, MONTHLY_ENRICHMENT_CAP } from "../types";
+import { ENRICHMENT_MODEL } from "../types";
 import { EnrichmentUsage } from "../usage";
 
 const STORE_ID = OrgId.make("org-fixture-1");
 const URL = "https://x.com/alice/status/1810000000000000001";
+const LIMIT = 100;
+const allowance = {
+  monthlyLimit: LIMIT,
+  settlementId: "settlement-1",
+  usageWindowId: "window-1",
+};
 
 const baseContext: ThreadContext = {
   root: {
@@ -36,10 +42,10 @@ interface CallLog {
 
 const FakeUsageLive = (initialUsed: number, log: CallLog) =>
   Layer.succeed(EnrichmentUsage, {
-    reserve: (_storeId, cap) =>
+    reserve: (_storeId, input) =>
       Effect.sync(() => {
         log.events.push("usage.reserve");
-        return initialUsed >= cap
+        return initialUsed >= input.cap
           ? { reserved: false, used: initialUsed, period: "2026-05" }
           : { reserved: true, used: initialUsed + 1, period: "2026-05" };
       }),
@@ -81,16 +87,19 @@ describe("enrichSummary orchestrator", () => {
   it("returns EnrichmentBudgetExhaustedError at the cap — no fetch / no generate", async () => {
     const log: CallLog = { events: [] };
     const layer = Layer.mergeAll(
-      FakeUsageLive(MONTHLY_ENRICHMENT_CAP, log),
+      FakeUsageLive(LIMIT, log),
       FakeProviderLive(baseContext, log),
       FakeGeneratorLive({ summary: "nope", suggestedTags: [] }, log)
     );
 
     const result = await Effect.runPromise(
       Effect.result(
-        enrichSummary({ storeId: STORE_ID, url: URL, existingTags: [] }).pipe(
-          Effect.provide(layer)
-        )
+        enrichSummary({
+          storeId: STORE_ID,
+          url: URL,
+          existingTags: [],
+          ...allowance,
+        }).pipe(Effect.provide(layer))
       )
     );
 
@@ -99,8 +108,8 @@ describe("enrichSummary orchestrator", () => {
       expect(result.failure._tag).toBe("EnrichmentBudgetExhaustedError");
       expect(result.failure).toMatchObject({
         storeId: STORE_ID,
-        used: MONTHLY_ENRICHMENT_CAP,
-        cap: MONTHLY_ENRICHMENT_CAP,
+        used: LIMIT,
+        cap: LIMIT,
       });
     }
     expect(log.events).toEqual(["usage.reserve"]);
@@ -122,6 +131,7 @@ describe("enrichSummary orchestrator", () => {
         storeId: STORE_ID,
         url: URL,
         existingTags: [{ name: "ai" }],
+        ...allowance,
       }).pipe(Effect.provide(layer))
     );
 
@@ -154,9 +164,12 @@ describe("enrichSummary orchestrator", () => {
 
     const result = await Effect.runPromise(
       Effect.result(
-        enrichSummary({ storeId: STORE_ID, url: URL, existingTags: [] }).pipe(
-          Effect.provide(layer)
-        )
+        enrichSummary({
+          storeId: STORE_ID,
+          url: URL,
+          existingTags: [],
+          ...allowance,
+        }).pipe(Effect.provide(layer))
       )
     );
 
@@ -185,9 +198,12 @@ describe("enrichSummary orchestrator", () => {
 
     const result = await Effect.runPromise(
       Effect.result(
-        enrichSummary({ storeId: STORE_ID, url: URL, existingTags: [] }).pipe(
-          Effect.provide(layer)
-        )
+        enrichSummary({
+          storeId: STORE_ID,
+          url: URL,
+          existingTags: [],
+          ...allowance,
+        }).pipe(Effect.provide(layer))
       )
     );
 

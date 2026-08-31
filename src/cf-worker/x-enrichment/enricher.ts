@@ -5,13 +5,15 @@ import { maskId } from "../log-utils";
 import { EnrichmentBudgetExhaustedError } from "./errors";
 import { EnrichmentGenerator } from "./generator";
 import { ThreadProvider } from "./services";
-import { MONTHLY_ENRICHMENT_CAP } from "./types";
 import { EnrichmentUsage } from "./usage";
 
 export interface EnrichSummaryParams {
   readonly storeId: OrgId;
   readonly url: string;
   readonly existingTags: ReadonlyArray<{ readonly name: string }>;
+  readonly monthlyLimit: number;
+  readonly settlementId: string;
+  readonly usageWindowId: string;
 }
 
 export const enrichSummary = Effect.fn("X.enrichSummary")(function* (
@@ -24,13 +26,17 @@ export const enrichSummary = Effect.fn("X.enrichSummary")(function* (
   });
 
   const usage = yield* EnrichmentUsage;
-  const reservation = yield* usage.reserve(storeId, MONTHLY_ENRICHMENT_CAP);
+  const reservation = yield* usage.reserve(storeId, {
+    cap: params.monthlyLimit,
+    settlementId: params.settlementId,
+    windowId: params.usageWindowId,
+  });
   if (!reservation.reserved) {
     return yield* new EnrichmentBudgetExhaustedError({
       storeId,
       period: reservation.period,
       used: reservation.used,
-      cap: MONTHLY_ENRICHMENT_CAP,
+      cap: params.monthlyLimit,
     });
   }
 

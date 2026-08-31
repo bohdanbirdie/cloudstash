@@ -307,7 +307,7 @@ describe("X reconciliation E2E", () => {
       capabilities: { monthlyXBookmarks: number; xBookmarkSync: boolean };
     };
     expect(settings.capabilities).toMatchObject({
-      monthlyXBookmarks: 300,
+      monthlyXBookmarks: 200,
       xBookmarkSync: true,
     });
 

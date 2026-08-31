@@ -54,11 +54,19 @@ const runWithStorage = <A, E>(
 
 describe("EnrichmentUsage", () => {
   const orgId = OrgId.make("org-1");
+  let settlement = 0;
+  const input = (cap: number) => ({
+    cap,
+    settlementId: `settlement-${settlement++}`,
+    windowId: "window-1",
+  });
 
   it("atomically refuses concurrent reservations beyond the cap", async () => {
     const storage = new FakeStorage();
     const reserve = EnrichmentUsage.pipe(
-      Effect.flatMap((usage) => usage.reserve(orgId, 10))
+      Effect.flatMap((usage) =>
+        Effect.suspend(() => usage.reserve(orgId, input(10)))
+      )
     );
 
     const reservations = await Promise.all(
@@ -74,11 +82,15 @@ describe("EnrichmentUsage", () => {
     const storage = new FakeStorage();
     const first = await runWithStorage(
       storage,
-      EnrichmentUsage.pipe(Effect.flatMap((usage) => usage.reserve(orgId, 100)))
+      EnrichmentUsage.pipe(
+        Effect.flatMap((usage) => usage.reserve(orgId, input(100)))
+      )
     );
     const second = await runWithStorage(
       storage,
-      EnrichmentUsage.pipe(Effect.flatMap((usage) => usage.reserve(orgId, 100)))
+      EnrichmentUsage.pipe(
+        Effect.flatMap((usage) => usage.reserve(orgId, input(100)))
+      )
     );
     expect(first).toMatchObject({ reserved: true, used: 1 });
     expect(second).toMatchObject({ reserved: true, used: 2 });
@@ -91,7 +103,7 @@ describe("EnrichmentUsage", () => {
       storage,
       Effect.result(
         EnrichmentUsage.pipe(
-          Effect.flatMap((usage) => usage.reserve(orgId, 100))
+          Effect.flatMap((usage) => usage.reserve(orgId, input(100)))
         )
       )
     );
