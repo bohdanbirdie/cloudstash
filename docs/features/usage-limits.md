@@ -17,6 +17,9 @@ allowances do not limit how many links a workspace may save.
   the same window from preflight through settlement.
 - Eligible X content enrichment has a separate monthly workspace cap with its
   own atomic reservation accounting.
+- Imported X bookmarks consume the plan-defined monthly workspace allowance.
+  Admission is idempotent across connected members, and overflow remains queued
+  for the next subscription-aligned window rather than being silently skipped.
 - Free currently has `aiSummary: false`. A bounded monthly Free allowance is
   planned but not implemented; see [[../todos/free-ai-summary-allowance]].
 - There is no saved-link count cap for Free or paid workspaces.

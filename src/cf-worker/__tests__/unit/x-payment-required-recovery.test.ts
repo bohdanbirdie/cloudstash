@@ -19,6 +19,7 @@ import {
   makeStoreLayer,
   makeXApiLayer,
   ORG_ID,
+  USAGE_WINDOW,
 } from "../_helpers/x-sync";
 
 const USER_ID = UserId.make("user-402");
@@ -75,7 +76,9 @@ describe("x-sync recovery from a payment-required park", () => {
         USER_ID,
         ORG_ID,
         state,
-        "tok-1"
+        "tok-1",
+        USAGE_WINDOW,
+        300
       );
       expect(outcome).toEqual({ kind: "needs_reconnect" });
       expect(store.rec.controlStatus).toBe("needs_reconnect");

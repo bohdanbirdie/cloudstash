@@ -10,7 +10,11 @@ import {
   defaultReconnectReason,
   XSyncReconnectReason,
 } from "../reconnect-reason";
-import { XSyncStateStore } from "./x-sync-state-store";
+import {
+  XSyncReadUsage,
+  XSyncScanState,
+  XSyncStateStore,
+} from "./x-sync-state-store";
 import type {
   Status,
   XSyncControlState,
@@ -26,6 +30,9 @@ const K_SYNC_ENABLED = "syncEnabled";
 const K_ORGANIZATION_ID = "organizationId";
 const K_POLL_CONTROL = "pollControl";
 const K_RECONNECT_REASON = "reconnectReason";
+const K_CHECKPOINTS = "checkpoints";
+const K_SCAN = "scan";
+const K_READ_USAGE = "readUsage";
 const STATE_KEYS = [
   K_X_USER_ID,
   K_X_USERNAME,
@@ -103,6 +110,69 @@ export const makeXSyncStateStore = (
     yield* Effect.tryPromise({
       try: () => storage.put(K_WATERMARK, tweetId),
       catch: storageError("storage.setWatermark"),
+    });
+  }),
+
+  readCheckpoints: Effect.fn("XSyncStateStore.readCheckpoints")(function* () {
+    const raw = yield* Effect.tryPromise({
+      try: () => storage.get(K_CHECKPOINTS),
+      catch: storageError("storage.readCheckpoints"),
+    });
+    if (raw === undefined) return [];
+    return yield* Schema.decodeUnknownEffect(Schema.Array(XTweetId))(raw).pipe(
+      Effect.mapError(storageError("storage.decodeCheckpoints"))
+    );
+  }),
+
+  setCheckpoints: Effect.fn("XSyncStateStore.setCheckpoints")(
+    function* (tweetIds) {
+      yield* Effect.tryPromise({
+        try: () => storage.put(K_CHECKPOINTS, [...tweetIds]),
+        catch: storageError("storage.setCheckpoints"),
+      });
+    }
+  ),
+
+  readScan: Effect.fn("XSyncStateStore.readScan")(function* () {
+    const raw = yield* Effect.tryPromise({
+      try: () => storage.get(K_SCAN),
+      catch: storageError("storage.readScan"),
+    });
+    if (raw === undefined) return null;
+    return yield* Schema.decodeUnknownEffect(XSyncScanState)(raw).pipe(
+      Effect.mapError(storageError("storage.decodeScan"))
+    );
+  }),
+
+  setScan: Effect.fn("XSyncStateStore.setScan")(function* (scan) {
+    yield* Effect.tryPromise({
+      try: () => storage.put(K_SCAN, scan),
+      catch: storageError("storage.setScan"),
+    });
+  }),
+
+  clearScan: Effect.fn("XSyncStateStore.clearScan")(function* () {
+    yield* Effect.tryPromise({
+      try: () => storage.delete(K_SCAN),
+      catch: storageError("storage.clearScan"),
+    });
+  }),
+
+  readReadUsage: Effect.fn("XSyncStateStore.readReadUsage")(function* () {
+    const raw = yield* Effect.tryPromise({
+      try: () => storage.get(K_READ_USAGE),
+      catch: storageError("storage.readReadUsage"),
+    });
+    if (raw === undefined) return null;
+    return yield* Schema.decodeUnknownEffect(XSyncReadUsage)(raw).pipe(
+      Effect.mapError(storageError("storage.decodeReadUsage"))
+    );
+  }),
+
+  setReadUsage: Effect.fn("XSyncStateStore.setReadUsage")(function* (usage) {
+    yield* Effect.tryPromise({
+      try: () => storage.put(K_READ_USAGE, usage),
+      catch: storageError("storage.setReadUsage"),
     });
   }),
 

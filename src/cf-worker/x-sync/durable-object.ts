@@ -83,7 +83,7 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
       accountLayer,
       XSyncStateStoreLive(this.ctx.storage),
       XSyncAlarm.layer(this.ctx.storage),
-      LinkQueueClientLive(this.env.LINK_QUEUE)
+      LinkQueueClientLive(this.env.LINK_PROCESSOR_DO)
     ).pipe(
       Layer.provideMerge(OtelTracingLive),
       Layer.provideMerge(Logger.layer([XSyncLogger]))
@@ -121,9 +121,18 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
     await this.reconcile();
   }
 
-  async reconcile(orgId?: string): Promise<void> {
+  async reconcile(
+    orgId?: string,
+    wakeForEntitlementChange = false
+  ): Promise<void> {
     const userId = this.userId;
-    return this.runEffect(reconcileSyncEffect(userId, optionalOrgId(orgId)));
+    return this.runEffect(
+      reconcileSyncEffect(
+        userId,
+        optionalOrgId(orgId),
+        wakeForEntitlementChange
+      )
+    );
   }
 
   async pause(): Promise<void> {
@@ -222,11 +231,24 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
     }
 
     const ready = reconciled.value;
+    const repository = yield* XSyncAccountRepository;
+    const usageWindow = yield* repository.usageWindow(ready.organizationId);
+    if (Option.isNone(usageWindow)) {
+      yield* Effect.logWarning("alarm: monthly usage window unavailable").pipe(
+        Effect.annotateLogs({
+          userId: maskId(userId),
+          organizationId: maskId(ready.organizationId),
+        })
+      );
+      return { kind: "error" as const };
+    }
     return yield* pollReconciledEffect(
       userId,
       ready.organizationId,
       ready.state,
-      ready.accessToken
+      ready.accessToken,
+      usageWindow.value,
+      ready.monthlyBookmarkLimit
     );
   });
 
@@ -257,6 +279,22 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
 
       if (outcome.kind === "needs_reconnect") {
         return;
+      }
+
+      if (outcome.kind === "continuing") {
+        return yield* alarm.scheduleAfter(1_000);
+      }
+
+      if (outcome.kind === "monthly_limit") {
+        yield* Effect.logInfo("alarm: monthly X limit reached").pipe(
+          Effect.annotateLogs({
+            userId: maskId(userId),
+            reason: outcome.reason,
+            newCount: outcome.newCount,
+            rescheduleMs: outcome.retryAfterMs,
+          })
+        );
+        return yield* alarm.scheduleAfter(outcome.retryAfterMs);
       }
 
       const now = yield* Clock.currentTimeMillis;

@@ -39,7 +39,11 @@ export const enqueueOrgXReconcile = Effect.fn("XReconcileTriggers.enqueueOrg")(
     );
 
     return yield* send(
-      rows.map(({ userId }) => ({ userId: UserId.make(userId), orgId }))
+      rows.map(({ userId }) => ({
+        userId: UserId.make(userId),
+        orgId,
+        wakeForEntitlementChange: true,
+      }))
     );
   }
 );
@@ -73,6 +77,7 @@ export const enqueueAllXReconciles = Effect.fn("XReconcileTriggers.enqueueAll")(
       .map(({ userId, orgId }) => ({
         userId: UserId.make(userId),
         orgId: OrgId.make(orgId),
+        wakeForEntitlementChange: false,
       }));
 
     return yield* send(messages);

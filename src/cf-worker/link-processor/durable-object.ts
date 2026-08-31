@@ -40,7 +40,7 @@ import type {
   ChatSessionRegistryResult,
 } from "../chat-agent/sessions";
 import { hasSpendAvailableIn, settleSpendIn } from "../chat-agent/usage-core";
-import { LinkId, OrgId } from "../db/branded";
+import { LinkId, OrgId, XTweetId } from "../db/branded";
 import { DbClientLive } from "../db/service";
 import {
   DurableObjectRetiredError,
@@ -73,7 +73,12 @@ import { cancelStaleLinks, ingestLink, notifyResult } from "./do-programs";
 import type { NotifyResultParams } from "./do-programs";
 import { runEffect } from "./logger";
 import { processLink } from "./process-link";
-import { FeatureStore, MetadataFetcher, SourceNotifier } from "./services";
+import {
+  FeatureStore,
+  MetadataFetcher,
+  SourceNotifier,
+  XBookmarkQueue,
+} from "./services";
 import { AiSummaryGeneratorLive } from "./services/ai-summary-generator.live";
 import { ContentExtractorLive } from "./services/content-extractor.live";
 import { FeatureStoreLive } from "./services/feature-store.live";
@@ -84,6 +89,13 @@ import { SourceNotifierLive } from "./services/source-notifier.live";
 import { WorkersAiLive } from "./services/workers-ai.live";
 import { MAX_CONCURRENT_AI, MAX_CONCURRENT_METADATA } from "./types";
 import type { LinkQueueMessage } from "./types";
+import {
+  XBookmarkAdmissionError,
+  XBookmarkUsageData,
+  xBookmarkSettlementKey,
+  xBookmarkUsageKey,
+} from "./x-bookmark-usage";
+import type { XBookmarkEnqueueOutcome } from "./x-bookmark-usage";
 
 const logger = logSync("LinkProcessorDO");
 
@@ -92,6 +104,9 @@ const LEADER_SYNC_TIMEOUT_MS = 10_000;
 
 export const METADATA_FETCHER_TEST_OVERRIDE = Symbol(
   "@cloudstash/link-processor/MetadataFetcherTestOverride"
+);
+export const X_BOOKMARK_QUEUE_TEST_OVERRIDE = Symbol(
+  "@cloudstash/link-processor/XBookmarkQueueTestOverride"
 );
 
 import type { WeeklyDigestRpcResult } from "../weekly-digest/rpc";
@@ -133,6 +148,14 @@ export class LinkProcessorDO
   private subscriptions = new Set<Unsubscribe>();
   private storeGeneration = 0;
   private metadataFetcherOverride: typeof MetadataFetcher.Service | undefined;
+  private xBookmarkQueue = XBookmarkQueue.of({
+    send: (message) =>
+      Effect.tryPromise({
+        try: () => this.env.LINK_QUEUE.send(message),
+        catch: (cause) =>
+          new XBookmarkAdmissionError({ op: "queue.send", cause }),
+      }),
+  });
 
   [METADATA_FETCHER_TEST_OVERRIDE](
     service: typeof MetadataFetcher.Service
@@ -142,9 +165,18 @@ export class LinkProcessorDO
     }
     this.metadataFetcherOverride = service;
   }
+  [X_BOOKMARK_QUEUE_TEST_OVERRIDE](
+    service: typeof XBookmarkQueue.Service
+  ): void {
+    if (this.env.ENABLE_TEST_AUTH !== "true") {
+      throw new Error("X bookmark Queue overrides are disabled");
+    }
+    this.xBookmarkQueue = service;
+  }
   private submittedLinks = new Set<string>();
   private metadataSemaphore = Semaphore.makeUnsafe(MAX_CONCURRENT_METADATA);
   private aiSemaphore = Semaphore.makeUnsafe(MAX_CONCURRENT_AI);
+  private lifecycleSemaphore = Semaphore.makeUnsafe(1);
   private notifiedLinkIds = new Set<string>();
   private hasRunCleanup = false;
   private totalRowsWritten = 0;
@@ -163,19 +195,21 @@ export class LinkProcessorDO
   /** Permanently closes this processor and wipes its storage. */
   async retire(): Promise<void> {
     this.retired = true;
-    const store = this.resetStoreHandles();
     await runEffect(
-      Effect.gen({ self: this }, function* () {
-        yield* Effect.promise(() =>
-          retireDurableObjectStorage(
-            this.ctx.storage,
-            () => store?.shutdownPromise?.() ?? Promise.resolve()
-          )
-        );
-        yield* Effect.logInfo("retire: storage wiped").pipe(
-          Effect.annotateLogs({ storeId: maskId(this.storeId ?? "") })
-        );
-      }).pipe(Effect.withSpan("LinkProcessorDO.retire"))
+      this.lifecycleSemaphore.withPermits(1)(
+        Effect.gen({ self: this }, function* () {
+          const store = yield* Effect.sync(() => this.resetStoreHandles());
+          yield* Effect.promise(() =>
+            retireDurableObjectStorage(
+              this.ctx.storage,
+              () => store?.shutdownPromise?.() ?? Promise.resolve()
+            )
+          );
+          yield* Effect.logInfo("retire: storage wiped").pipe(
+            Effect.annotateLogs({ storeId: maskId(this.storeId ?? "") })
+          );
+        }).pipe(Effect.withSpan("LinkProcessorDO.retire"))
+      )
     );
   }
 
@@ -460,6 +494,116 @@ export class LinkProcessorDO
   async getChatUsage(period: string) {
     if (await this.isRetired()) return undefined;
     return chatUsageStorage(this.ctx.storage, period).getUsage();
+  }
+
+  async enqueueXBookmark(
+    usageWindowId: string,
+    tweetId: XTweetId,
+    limit: number,
+    message: LinkQueueMessage
+  ): Promise<XBookmarkEnqueueOutcome> {
+    if (await this.isRetired()) throw new DurableObjectRetiredError();
+    if (!Number.isSafeInteger(limit) || limit < 0) {
+      throw new Error("X bookmark limit must be a non-negative integer");
+    }
+
+    return runEffect(
+      this.lifecycleSemaphore
+        .withPermits(1)(
+          Effect.gen({ self: this }, function* () {
+            if (this.retired) {
+              return yield* new DurableObjectRetiredError();
+            }
+            const settlementKey = xBookmarkSettlementKey(
+              usageWindowId,
+              tweetId
+            );
+            const existing = yield* Effect.tryPromise({
+              try: () => this.ctx.storage.get<boolean>(settlementKey),
+              catch: (cause) =>
+                new XBookmarkAdmissionError({
+                  op: "storage.readSettlement",
+                  cause,
+                }),
+            });
+            if (existing) return "duplicate" as const;
+
+            const usageKey = xBookmarkUsageKey(usageWindowId);
+            const stored = yield* Effect.tryPromise({
+              try: () => this.ctx.storage.get(usageKey),
+              catch: (cause) =>
+                new XBookmarkAdmissionError({
+                  op: "storage.readUsage",
+                  cause,
+                }),
+            });
+            const count =
+              stored === undefined
+                ? 0
+                : yield* Schema.decodeUnknownEffect(XBookmarkUsageData)(
+                    stored
+                  ).pipe(
+                    Effect.mapError(
+                      (cause) =>
+                        new XBookmarkAdmissionError({
+                          op: "storage.decodeUsage",
+                          cause,
+                        })
+                    ),
+                    Effect.map((usage) => usage.count)
+                  );
+            if (count >= limit) return "limit_reached" as const;
+
+            const queue = yield* XBookmarkQueue;
+            yield* queue.send(message);
+            yield* Effect.tryPromise({
+              try: () =>
+                this.ctx.storage.transaction(async (transaction) => {
+                  await transaction.put(settlementKey, true);
+                  await transaction.put(
+                    usageKey,
+                    XBookmarkUsageData.make({ count: count + 1 })
+                  );
+                }),
+              catch: (cause) =>
+                new XBookmarkAdmissionError({
+                  op: "storage.settleUsage",
+                  cause,
+                }),
+            });
+            return "enqueued" as const;
+          })
+        )
+        .pipe(
+          Effect.provideService(XBookmarkQueue, this.xBookmarkQueue),
+          Effect.withSpan("LinkProcessorDO.enqueueXBookmark")
+        )
+    );
+  }
+
+  async getXBookmarkUsage(usageWindowId: string) {
+    if (await this.isRetired()) return undefined;
+    return runEffect(
+      Effect.tryPromise({
+        try: () => this.ctx.storage.get(xBookmarkUsageKey(usageWindowId)),
+        catch: (cause) =>
+          new XBookmarkAdmissionError({ op: "storage.readUsage", cause }),
+      }).pipe(
+        Effect.flatMap((stored) =>
+          stored === undefined
+            ? Effect.void
+            : Schema.decodeUnknownEffect(XBookmarkUsageData)(stored).pipe(
+                Effect.mapError(
+                  (cause) =>
+                    new XBookmarkAdmissionError({
+                      op: "storage.decodeUsage",
+                      cause,
+                    })
+                )
+              )
+        )
+      )
+    );
   }
 
   private async runWorkspaceLinksRpc<Value, Error>(

@@ -253,7 +253,11 @@ describe("webhookProgram", () => {
       expect(res.status).toBe(200);
       expect(updates[0]?.tier).toBe("free");
       assert.deepStrictEqual(yield* Ref.get(queue.messages), [
-        { userId, orgId: OrgId.make(ORG_UUID) },
+        {
+          userId,
+          orgId: OrgId.make(ORG_UUID),
+          wakeForEntitlementChange: true,
+        },
       ]);
       assert.deepStrictEqual(yield* Ref.get(digest.orgIds), [
         OrgId.make(ORG_UUID),

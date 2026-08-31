@@ -8,7 +8,7 @@ import {
 describe("OpenRouter workload configuration", () => {
   it("sets reasoning effort explicitly for every production workload", () => {
     expect(OPENROUTER_REASONING_EFFORT).toEqual({
-      assistant: "low",
+      assistant: "none",
       compaction: "none",
       weeklyDigest: "none",
       xEnrichment: "none",
@@ -18,7 +18,7 @@ describe("OpenRouter workload configuration", () => {
   it("keeps one opaque provider session stable across chat workloads", () => {
     expect(openRouterChatSettings("do-id", "assistant")).toEqual({
       extraBody: { session_id: "cloudstash-chat:do-id" },
-      reasoning: { effort: "low" },
+      reasoning: { effort: "none" },
       usage: { include: true },
     });
     expect(openRouterChatSettings("do-id", "compaction")).toEqual({

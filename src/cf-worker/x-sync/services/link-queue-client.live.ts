@@ -1,15 +1,23 @@
 /// <reference types="@cloudflare/workers-types" />
 import { Effect, Layer } from "effect";
 
-import type { LinkQueueMessage } from "../../link-processor/types";
+import type { Env } from "../../shared";
 import { sideEffectError } from "../effects-helpers";
 import { LinkQueueClient } from "./link-queue-client";
 
-export const LinkQueueClientLive = (queue: Queue<LinkQueueMessage>) =>
+export const LinkQueueClientLive = (namespace: Env["LINK_PROCESSOR_DO"]) =>
   Layer.succeed(LinkQueueClient, {
-    send: (message) =>
+    send: (input) =>
       Effect.tryPromise({
-        try: () => queue.send(message),
-        catch: sideEffectError("LINK_QUEUE.send"),
-      }).pipe(Effect.withSpan("LinkQueueClient.send")),
+        try: () =>
+          namespace
+            .get(namespace.idFromName(input.organizationId))
+            .enqueueXBookmark(
+              input.usageWindowId,
+              input.tweetId,
+              input.monthlyLimit,
+              input.message
+            ),
+        catch: sideEffectError("LINK_PROCESSOR_DO.enqueueXBookmark"),
+      }).pipe(Effect.withSpan("LinkQueueClient.sendWithinLimit")),
   });

@@ -105,6 +105,7 @@ export interface TierCapabilities {
   mcpServer: boolean;
   weeklyDigest: boolean;
   monthlyAssistantCredits: number;
+  monthlyXBookmarks: number;
 }
 
 export const TIER_CAPABILITIES: Readonly<Record<PlanTier, TierCapabilities>> = {
@@ -118,6 +119,7 @@ export const TIER_CAPABILITIES: Readonly<Record<PlanTier, TierCapabilities>> = {
     mcpServer: false,
     weeklyDigest: false,
     monthlyAssistantCredits: 0,
+    monthlyXBookmarks: 0,
   },
   plus: {
     aiSummary: true,
@@ -129,6 +131,7 @@ export const TIER_CAPABILITIES: Readonly<Record<PlanTier, TierCapabilities>> = {
     mcpServer: false,
     weeklyDigest: true,
     monthlyAssistantCredits: 0,
+    monthlyXBookmarks: 0,
   },
   pro: {
     aiSummary: true,
@@ -140,6 +143,7 @@ export const TIER_CAPABILITIES: Readonly<Record<PlanTier, TierCapabilities>> = {
     mcpServer: true,
     weeklyDigest: true,
     monthlyAssistantCredits: 1_000,
+    monthlyXBookmarks: 300,
   },
 };
 
@@ -151,7 +155,25 @@ export type CapabilityOverrides = Partial<TierCapabilities>;
 export const mergeCapabilities = (
   tier: PlanTier,
   overrides: CapabilityOverrides | null | undefined
-): TierCapabilities => ({ ...TIER_CAPABILITIES[tier], ...overrides });
+): TierCapabilities => {
+  const merged = { ...TIER_CAPABILITIES[tier], ...overrides };
+
+  if (
+    overrides?.chatAgent === true &&
+    overrides.monthlyAssistantCredits === undefined
+  ) {
+    merged.monthlyAssistantCredits =
+      TIER_CAPABILITIES.pro.monthlyAssistantCredits;
+  }
+  if (
+    overrides?.xBookmarkSync === true &&
+    overrides.monthlyXBookmarks === undefined
+  ) {
+    merged.monthlyXBookmarks = TIER_CAPABILITIES.pro.monthlyXBookmarks;
+  }
+
+  return merged;
+};
 
 export type BooleanCapability = {
   [K in keyof TierCapabilities]: TierCapabilities[K] extends boolean

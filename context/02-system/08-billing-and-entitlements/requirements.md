@@ -72,3 +72,7 @@ administrator overrides, and usage allowances.
   must derive from persisted Stripe period/anchor data or, when an admin grant
   supplies the effective paid tier, that grant's anchor. One model run must use
   one immutable window for preflight and settlement.
+- **CS.SYS.BILL-R14 Workspace X allowance:** Imported X bookmarks must consume
+  one subscription-aligned monthly workspace allowance regardless of which
+  member connected the source account. Admission must be idempotent by source
+  bookmark and concurrency-safe at the workspace owner.

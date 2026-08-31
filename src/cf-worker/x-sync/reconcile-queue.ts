@@ -7,6 +7,7 @@ import { XSyncControl } from "./services/x-sync-control";
 export const XReconcileMessage = Schema.Struct({
   userId: UserId,
   orgId: OrgId,
+  wakeForEntitlementChange: Schema.optionalKey(Schema.Boolean),
 });
 export type XReconcileMessage = typeof XReconcileMessage.Type;
 
@@ -79,7 +80,7 @@ const processMessage = Effect.fn("XReconcileQueue.processMessage")(function* (
   });
   const xSync = yield* XSyncControl;
   const reconciled = yield* xSync
-    .reconcile(body.userId, body.orgId)
+    .reconcile(body.userId, body.orgId, body.wakeForEntitlementChange ?? false)
     .pipe(Effect.result);
   if (Result.isFailure(reconciled)) {
     const delaySeconds = retryDelay(message.attempts);

@@ -60,6 +60,8 @@ describe("reconcileSyncEffect", () => {
               alarmScheduled: false,
               ensureWrites: 0,
               ensureDelays: [],
+              scheduleNoLaterWrites: 0,
+              scheduleNoLaterDelays: [],
               cancelWrites: 1,
               scheduleWrites: 0,
               scheduleDelays: [],
@@ -123,6 +125,8 @@ describe("reconcileSyncEffect", () => {
           alarmScheduled: true,
           ensureWrites: 1,
           ensureDelays: [30_000],
+          scheduleNoLaterWrites: 0,
+          scheduleNoLaterDelays: [],
           cancelWrites: 0,
           scheduleWrites: 0,
           scheduleDelays: [],
@@ -153,6 +157,26 @@ describe("reconcileSyncEffect", () => {
       deepStrictEqual(alarm.rec.ensureDelays, [5 * 60_000]);
       deepStrictEqual(store.rec.setPollControlCalls, []);
     }).pipe(Effect.provide(testLayer({ store, alarm })));
+  });
+
+  it.effect("pulls an existing alarm forward for an entitlement change", () => {
+    const store = makeStoreLayer(
+      makeSnapshot({
+        organizationId: ORG_ID,
+        watermarkTweetId: XTweetId.make("watermark-entitlement"),
+      })
+    );
+    const alarm = makeAlarmLayer(true);
+
+    return reconcileSyncEffect(USER_ID, ORG_ID, true).pipe(
+      Effect.provide(testLayer({ store, alarm })),
+      Effect.tap(() =>
+        Effect.sync(() => {
+          deepStrictEqual(alarm.rec.ensureDelays, []);
+          deepStrictEqual(alarm.rec.scheduleNoLaterDelays, [30_000]);
+        })
+      )
+    );
   });
 
   it.effect(

@@ -90,16 +90,17 @@ connection.
 Per [decision 0002](./.decisions/0002-pin-gpt-5-6-luna-for-chat.md), the
 provider is OpenRouter with the pinned `openai/gpt-5.6-luna-20260709` model.
 Chat, weekly digests, and X enrichment share one executable model constant. The
-interactive Assistant uses explicit `low` reasoning; private compaction uses
-`none`. Both use the conversation Durable Object ID as one opaque, stable
+interactive Assistant and private compaction use explicit `none` reasoning.
+Both use the conversation Durable Object ID as one opaque, stable
 OpenRouter session identity, so provider routing and automatic prefix caching
-can remain sticky across turns without application cache state. The model sees a hardened system
-prompt and at most the last 30 uncompacted UI messages. A request is capped at
-five tool steps. Input validation rejects common prompt-injection forms before
-provider execution.
+can remain sticky across turns without application cache state. The model sees
+a hardened system prompt and at most the last 150 uncompacted UI messages. A
+request is capped at five tool steps. Input validation rejects common
+prompt-injection forms before provider execution.
 
-Full visible history remains intact for the UI. When estimated pending context
-crosses the compaction threshold, the chat privately summarizes the old prefix,
+Full visible history remains intact for the UI. When pending context exceeds
+either 150 messages or the estimated 24,000-token threshold, the chat privately
+summarizes the old prefix,
 keeps a recent tail verbatim, stores only the rolling summary and boundary, and
 injects that summary into later model context. Compaction is not rendered as a
 user or assistant message. It uses the same pinned model, usage accounting, and
@@ -109,6 +110,9 @@ and the answer continues with bounded recent context.
 Tools list/search/get/save links, inspect counts, change completion, restore,
 and archive one or many links. Recent-link reads accept saved-date bounds and
 return saved timestamps so a period lookup does not fan out into per-link reads.
+Ranked search preserves its 20-result recall ceiling but gives the model only
+ID, URL, title, score, and one bounded summary-or-description context field.
+`getLink` remains the explicit full-detail path.
 A shared Effect `RpcGroup` defines their schema, success, and typed-error
 contract. Effect RPC runs over Cloudflare native Durable Object RPC and
 delegates every library operation to the workspace-named `LinkProcessorDO`,
@@ -148,11 +152,12 @@ recorded in
 [decision 0006](./.decisions/0006-use-provider-prompt-cache-with-stable-session-routing.md).
 Assistant answer telemetry also records aggregate list/search/get call counts,
 returned item count, and serialized result characters. Character measurement is
-capped per call, and no query or link content is logged. Ranked search continues
-to return at most 20 reduced-shape results until correlated production evidence
-shows that a smaller payload would materially reduce spend without harming
-recall. This measurement-first boundary is recorded in
+capped per call, and no query or link content is logged. A focused synthetic
+comparison preserved retrieval quality while demonstrating materially smaller
+model input for the bounded context shape. This measurement-first boundary is recorded in
 [decision 0007](./.decisions/0007-measure-chat-retrieval-before-reducing-results.md).
+The resulting context/reasoning/payload policy is recorded in
+[decision 0008](./.decisions/0008-reduce-assistant-inference-overhead.md).
 Capability denial and allowance lookup failure stop model and tool work;
 provider rate/credit/tool errors map to concise user-facing messages. Initial
 connection/request hooks also verify the session, current approval, and

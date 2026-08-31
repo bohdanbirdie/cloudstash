@@ -1,26 +1,36 @@
-import { Effect } from "effect";
+import { Clock, Effect } from "effect";
 
+import type { MonthlyUsageWindow } from "../billing/usage-cycle";
 import { OrgId, UserId, XTweetId, XUserId } from "../db/branded";
 import { maskId } from "../log-utils";
-import type {
-  XApiFailure,
-  XSyncSideEffectError,
-  XSyncStorageError,
-} from "./errors";
+import type { XSyncStorageError } from "./errors";
 import type { XSyncReconnectReason } from "./reconnect-reason";
 import type { BookmarksPage, XBookmarkTweet } from "./services";
 import { XApiClient } from "./services";
 import { LinkQueueClient } from "./services/link-queue-client";
 import type {
   XSyncConnectedState,
+  XSyncReadUsage,
+  XSyncScanState,
   XSyncStateStoreShape,
 } from "./services/x-sync-state-store";
 import { XSyncStateStore } from "./services/x-sync-state-store";
 
-const PAGINATION_PAGE_SIZE = 50;
+export const X_CHECKPOINT_RING_SIZE = 16;
+export const X_PROVIDER_REQUESTS_PER_POLL = 25;
+export const X_PROVIDER_READ_BUFFER = 50;
+
+export type MonthlyLimitReason = "provider_reads" | "workspace_admission";
 
 export type PollOutcome =
   | { kind: "ok"; newCount: number }
+  | { kind: "continuing" }
+  | {
+      kind: "monthly_limit";
+      reason: MonthlyLimitReason;
+      newCount: number;
+      retryAfterMs: number;
+    }
   | { kind: "rate_limited"; retryAfterMs: number }
   | { kind: "needs_reconnect" };
 
@@ -35,37 +45,193 @@ const park = (
       Effect.as<PollOutcome>({ kind: "needs_reconnect" })
     );
 
-const enqueueOrderedEffect: (
-  userId: UserId,
-  orgId: OrgId,
-  bookmarks: ReadonlyArray<XBookmarkTweet>,
-  index: number,
-  lastEnqueued: XTweetId | null
-) => Effect.Effect<
-  void,
-  XSyncSideEffectError | XSyncStorageError,
-  LinkQueueClient | XSyncStateStore
-> = Effect.fnUntraced(
-  function* (userId, orgId, bookmarks, index, lastEnqueued) {
-    const bookmark = bookmarks[index];
-    if (!bookmark) return;
+const uniqueTweetIds = (
+  ids: readonly XTweetId[],
+  limit = X_CHECKPOINT_RING_SIZE
+): readonly XTweetId[] => [...new Set(ids)].slice(0, limit);
 
-    const queue = yield* LinkQueueClient;
-    const store = yield* XSyncStateStore;
-    yield* queue
+const checkpointsFor = Effect.fnUntraced(function* (
+  state: XSyncConnectedState
+) {
+  const store = yield* XSyncStateStore;
+  const persisted = yield* store.readCheckpoints();
+  return uniqueTweetIds([
+    ...persisted,
+    ...(state.watermarkTweetId ? [state.watermarkTweetId] : []),
+  ]);
+});
+
+const readUsageFor = Effect.fnUntraced(function* (
+  usageWindow: MonthlyUsageWindow
+) {
+  const store = yield* XSyncStateStore;
+  const persisted = yield* store.readReadUsage();
+  if (persisted?.windowId === usageWindow.id) return persisted;
+  return {
+    windowId: usageWindow.id,
+    billableKeys: [],
+  } satisfies XSyncReadUsage;
+});
+
+const readKey = (tweetId: XTweetId, now: Date): string =>
+  `${now.toISOString().slice(0, 10)}:${tweetId}`;
+
+const recordProviderReads = Effect.fnUntraced(function* (
+  usage: XSyncReadUsage,
+  page: BookmarksPage
+) {
+  const store = yield* XSyncStateStore;
+  const now = yield* Clock.currentTimeMillis;
+  const nextKeys = [
+    ...new Set([
+      ...usage.billableKeys,
+      ...page.data.map((bookmark) => readKey(bookmark.id, new Date(now))),
+    ]),
+  ];
+  if (nextKeys.length === usage.billableKeys.length) return usage;
+  const next = { ...usage, billableKeys: nextKeys } satisfies XSyncReadUsage;
+  yield* store.setReadUsage(next);
+  return next;
+});
+
+const retryAfterReset = Effect.fnUntraced(function* (
+  usageWindow: MonthlyUsageWindow
+) {
+  const now = yield* Clock.currentTimeMillis;
+  return Math.max(1_000, Date.parse(usageWindow.resetsAt) - now + 1_000);
+});
+
+const beforeCheckpoint = (
+  page: BookmarksPage,
+  checkpoints: ReadonlySet<XTweetId>
+): {
+  readonly bookmarks: readonly XBookmarkTweet[];
+  readonly reached: boolean;
+} => {
+  const index = page.data.findIndex((bookmark) => checkpoints.has(bookmark.id));
+  if (index === -1) return { bookmarks: page.data, reached: false };
+  return { bookmarks: page.data.slice(0, index), reached: true };
+};
+
+interface ScanProgress {
+  readonly scan: XSyncScanState;
+  readonly usage: XSyncReadUsage;
+  readonly providerRequests: number;
+  readonly readLimitReached: boolean;
+}
+
+const advanceScan = Effect.fnUntraced(function* (
+  xUserId: XUserId,
+  accessToken: string,
+  checkpoints: ReadonlySet<XTweetId>,
+  initialScan: XSyncScanState,
+  initialUsage: XSyncReadUsage,
+  readLimit: number,
+  requestBudget: number
+) {
+  const api = yield* XApiClient;
+  const store = yield* XSyncStateStore;
+  let scan = initialScan;
+  let usage = initialUsage;
+  let requests = 0;
+
+  while (!scan.complete && requests < requestBudget) {
+    if (!scan.nextToken) {
+      scan = { ...scan, complete: true };
+      break;
+    }
+    if (usage.billableKeys.length >= readLimit) {
+      return {
+        scan,
+        usage,
+        providerRequests: requests,
+        readLimitReached: true,
+      } satisfies ScanProgress;
+    }
+
+    const page = yield* api.getBookmarks({
+      xUserId,
+      accessToken,
+      maxResults: 1,
+      paginationToken: scan.nextToken,
+    });
+    usage = yield* recordProviderReads(usage, page);
+    const pagePrefix = beforeCheckpoint(page, checkpoints);
+    scan = {
+      ...scan,
+      bookmarks: [...scan.bookmarks, ...pagePrefix.bookmarks],
+      nextToken: pagePrefix.reached ? null : (page.nextToken ?? null),
+      complete: pagePrefix.reached || page.nextToken === undefined,
+    };
+    yield* store.setScan(scan);
+    requests += 1;
+  }
+
+  return {
+    scan,
+    usage,
+    providerRequests: requests,
+    readLimitReached: false,
+  } satisfies ScanProgress;
+});
+
+const queueMessage = (organizationId: OrgId, bookmark: XBookmarkTweet) => ({
+  url: `https://x.com/i/status/${bookmark.id}`,
+  storeId: organizationId,
+  source: "x_bookmark",
+  sourceMeta: JSON.stringify({
+    tweetId: bookmark.id,
+    authorId: bookmark.author_id,
+    text: bookmark.text,
+    createdAt: bookmark.created_at,
+  }),
+});
+
+const drainScan = Effect.fn("XBookmarkSyncDO.drainScan")(function* (
+  userId: UserId,
+  organizationId: OrgId,
+  scan: XSyncScanState,
+  previousCheckpoints: readonly XTweetId[],
+  usageWindow: MonthlyUsageWindow,
+  monthlyLimit: number
+) {
+  const store = yield* XSyncStateStore;
+  const queue = yield* LinkQueueClient;
+  const ordered = scan.bookmarks.toReversed();
+  let enqueued = 0;
+  const processedIds: XTweetId[] = [];
+
+  const logResult = (outcome: "completed" | "limit_reached") =>
+    Effect.annotateCurrentSpan({
+      count: enqueued,
+      orgId: maskId(organizationId),
+      outcome,
+    }).pipe(
+      Effect.andThen(
+        Effect.logInfo("enqueueBookmarks").pipe(
+          Effect.annotateLogs({
+            userId: maskId(userId),
+            orgId: maskId(organizationId),
+            count: enqueued,
+            outcome,
+          })
+        )
+      )
+    );
+
+  for (let index = 0; index < ordered.length; index += 1) {
+    const bookmark = ordered[index];
+    if (!bookmark) continue;
+    const outcome = yield* queue
       .send({
-        url: `https://x.com/i/status/${bookmark.id}`,
-        storeId: orgId,
-        source: "x_bookmark",
-        sourceMeta: JSON.stringify({
-          tweetId: bookmark.id,
-          authorId: bookmark.author_id,
-          text: bookmark.text,
-          createdAt: bookmark.created_at,
-        }),
+        organizationId,
+        usageWindowId: usageWindow.id,
+        monthlyLimit,
+        tweetId: bookmark.id,
+        message: queueMessage(organizationId, bookmark),
       })
       .pipe(
-        Effect.tapErrorTag("XSyncSideEffectError", (error) =>
+        Effect.tapError((error) =>
           Effect.logWarning("enqueueBookmarks: queue send failed").pipe(
             Effect.annotateLogs({
               userId: maskId(userId),
@@ -74,147 +240,163 @@ const enqueueOrderedEffect: (
             })
           )
         ),
-        Effect.catchTag("XSyncSideEffectError", (error) => {
-          if (!lastEnqueued) return Effect.fail(error);
-          return store
-            .setWatermark(lastEnqueued)
-            .pipe(Effect.andThen(Effect.fail(error)));
-        })
+        Effect.catchTag("XSyncSideEffectError", (error) =>
+          store
+            .setCheckpoints(
+              uniqueTweetIds([
+                ...processedIds.toReversed(),
+                ...previousCheckpoints,
+              ])
+            )
+            .pipe(Effect.andThen(Effect.fail(error)))
+        )
       );
-    return yield* enqueueOrderedEffect(
-      userId,
-      orgId,
-      bookmarks,
-      index + 1,
-      bookmark.id
-    );
+
+    if (outcome === "limit_reached") {
+      const remaining = ordered.slice(index).toReversed();
+      yield* store.setCheckpoints(
+        uniqueTweetIds([...processedIds.toReversed(), ...previousCheckpoints])
+      );
+      yield* store.setScan({ ...scan, bookmarks: remaining, complete: true });
+      yield* logResult("limit_reached");
+      return {
+        kind: "monthly_limit",
+        reason: "workspace_admission",
+        newCount: enqueued,
+        retryAfterMs: yield* retryAfterReset(usageWindow),
+      } satisfies PollOutcome;
+    }
+    if (outcome === "enqueued") enqueued += 1;
+    processedIds.push(bookmark.id);
   }
-);
 
-const enqueueBookmarksEffect = Effect.fn("XBookmarkSyncDO.enqueueBookmarks")(
-  function* (
-    userId: UserId,
-    orgId: OrgId,
-    bookmarks: ReadonlyArray<XBookmarkTweet>
-  ) {
-    yield* enqueueOrderedEffect(userId, orgId, bookmarks, 0, null);
-    yield* Effect.annotateCurrentSpan("count", bookmarks.length);
-    yield* Effect.annotateCurrentSpan("orgId", maskId(orgId));
-    yield* Effect.logInfo("enqueueBookmarks").pipe(
-      Effect.annotateLogs({
-        userId: maskId(userId),
-        orgId: maskId(orgId),
-        count: bookmarks.length,
-      })
-    );
-  }
-);
+  const checkpoints = uniqueTweetIds([
+    scan.headTweetId,
+    ...scan.bookmarks.map((bookmark) => bookmark.id),
+    ...previousCheckpoints,
+  ]);
+  yield* store.setCheckpoints(checkpoints);
+  yield* store.setWatermark(scan.headTweetId);
+  yield* store.clearScan();
+  yield* logResult("completed");
+  return { kind: "ok", newCount: enqueued } satisfies PollOutcome;
+});
 
-interface BookmarkWalk {
-  readonly bookmarks: ReadonlyArray<XBookmarkTweet>;
-  readonly pagesWalked: number;
-}
-
-const beforeWatermark = (
-  bookmarks: ReadonlyArray<XBookmarkTweet>,
-  watermarkIndex: number
-): ReadonlyArray<XBookmarkTweet> => {
-  if (watermarkIndex < 0) return bookmarks;
-  return bookmarks.slice(0, watermarkIndex);
+const startScan = (
+  probe: BookmarksPage,
+  checkpoints: ReadonlySet<XTweetId>
+): XSyncScanState | null => {
+  const newestId = probe.data[0]?.id;
+  if (!newestId) return null;
+  const prefix = beforeCheckpoint(probe, checkpoints);
+  return {
+    headTweetId: newestId,
+    bookmarks: prefix.bookmarks,
+    nextToken: prefix.reached ? null : (probe.nextToken ?? null),
+    complete: prefix.reached || probe.nextToken === undefined,
+  };
 };
 
-const walkBookmarksEffect: (
-  xUserId: XUserId,
-  accessToken: string,
-  watermarkTweetId: XTweetId,
-  bookmarks: ReadonlyArray<XBookmarkTweet>,
-  paginationToken: string | undefined,
-  pagesWalked: number
-) => Effect.Effect<BookmarkWalk, XApiFailure, XApiClient> = Effect.fnUntraced(
-  function* (
-    xUserId,
-    accessToken,
-    watermarkTweetId,
-    bookmarks,
-    paginationToken,
-    pagesWalked
-  ) {
-    if (
-      !paginationToken ||
-      bookmarks.some((bookmark) => bookmark.id === watermarkTweetId)
-    ) {
-      return { bookmarks, pagesWalked };
-    }
-
-    const api = yield* XApiClient;
-    const page = yield* api.getBookmarks({
-      xUserId,
-      accessToken,
-      maxResults: PAGINATION_PAGE_SIZE,
-      paginationToken,
-    });
-
-    return yield* walkBookmarksEffect(
-      xUserId,
-      accessToken,
-      watermarkTweetId,
-      [...bookmarks, ...page.data],
-      page.nextToken,
-      pagesWalked + 1
-    );
-  }
-);
-
-const processBookmarksEffect = Effect.fnUntraced(function* (
+const pollConnected = Effect.fnUntraced(function* (
   userId: UserId,
   organizationId: OrgId,
   state: XSyncConnectedState,
   accessToken: string,
-  probe: BookmarksPage
+  usageWindow: MonthlyUsageWindow,
+  monthlyLimit: number
 ) {
   const store = yield* XSyncStateStore;
-  const newestId = probe.data[0]?.id;
-  if (!newestId || newestId === state.watermarkTweetId) {
-    return {
-      kind: "ok",
-      newCount: 0,
-    } satisfies PollOutcome;
+  const api = yield* XApiClient;
+  const checkpoints = yield* checkpointsFor(state);
+  const checkpointSet = new Set(checkpoints);
+  let usage = yield* readUsageFor(usageWindow);
+  const readLimit = monthlyLimit + X_PROVIDER_READ_BUFFER;
+  let scan = yield* store.readScan();
+  let providerRequests = 0;
+
+  const finish = (outcome: PollOutcome) => {
+    const telemetry = {
+      outcome: outcome.kind,
+      providerRequests,
+      uniqueProviderReads: usage.billableKeys.length,
+      scanBookmarks: scan?.bookmarks.length ?? 0,
+      scanComplete: scan?.complete ?? true,
+    };
+    const log =
+      providerRequests > 1 ||
+      outcome.kind === "continuing" ||
+      outcome.kind === "monthly_limit"
+        ? Effect.logInfo("poll: provider usage")
+        : Effect.logDebug("poll: provider usage");
+    return Effect.annotateCurrentSpan(telemetry).pipe(
+      Effect.andThen(log.pipe(Effect.annotateLogs(telemetry))),
+      Effect.as(outcome)
+    );
+  };
+
+  if (!scan) {
+    if (usage.billableKeys.length >= readLimit) {
+      return yield* finish({
+        kind: "monthly_limit",
+        reason: "provider_reads",
+        newCount: 0,
+        retryAfterMs: yield* retryAfterReset(usageWindow),
+      });
+    }
+    const probe = yield* api.getBookmarks({
+      xUserId: state.xUserId,
+      accessToken,
+      maxResults: 1,
+    });
+    providerRequests += 1;
+    usage = yield* recordProviderReads(usage, probe);
+    const newestId = probe.data[0]?.id;
+    if (!newestId || checkpointSet.has(newestId)) {
+      return yield* finish({ kind: "ok", newCount: 0 });
+    }
+    if (checkpoints.length === 0) {
+      yield* store.setCheckpoints([newestId]);
+      yield* store.setWatermark(newestId);
+      return yield* finish({ kind: "ok", newCount: 0 });
+    }
+    scan = startScan(probe, checkpointSet);
+    if (!scan) return yield* finish({ kind: "ok", newCount: 0 });
+    yield* store.setScan(scan);
   }
 
-  if (!state.watermarkTweetId) {
-    yield* store.setWatermark(newestId);
-    return {
-      kind: "ok",
-      newCount: 0,
-    } satisfies PollOutcome;
-  }
-
-  const walk = yield* walkBookmarksEffect(
+  const progress = yield* advanceScan(
     state.xUserId,
     accessToken,
-    state.watermarkTweetId,
-    probe.data,
-    probe.nextToken,
-    1
+    checkpointSet,
+    scan,
+    usage,
+    readLimit,
+    X_PROVIDER_REQUESTS_PER_POLL - providerRequests
   );
-  yield* Effect.annotateCurrentSpan("pagesWalked", walk.pagesWalked);
-
-  const watermarkIndex = walk.bookmarks.findIndex(
-    (bookmark) => bookmark.id === state.watermarkTweetId
-  );
-  const newBookmarks = beforeWatermark(walk.bookmarks, watermarkIndex);
-  if (newBookmarks.length > 0) {
-    yield* enqueueBookmarksEffect(
-      userId,
-      organizationId,
-      newBookmarks.toReversed()
-    );
+  providerRequests += progress.providerRequests;
+  usage = progress.usage;
+  scan = progress.scan;
+  yield* store.setScan(progress.scan);
+  if (progress.readLimitReached) {
+    return yield* finish({
+      kind: "monthly_limit",
+      reason: "provider_reads",
+      newCount: 0,
+      retryAfterMs: yield* retryAfterReset(usageWindow),
+    });
   }
-  yield* store.setWatermark(newestId);
-  return {
-    kind: "ok",
-    newCount: newBookmarks.length,
-  } satisfies PollOutcome;
+  if (!progress.scan.complete) {
+    return yield* finish({ kind: "continuing" });
+  }
+  const outcome = yield* drainScan(
+    userId,
+    organizationId,
+    progress.scan,
+    checkpoints,
+    usageWindow,
+    monthlyLimit
+  );
+  return yield* finish(outcome);
 });
 
 export const pollReconciledEffect = Effect.fn("XBookmarkSyncDO.pollReconciled")(
@@ -222,37 +404,30 @@ export const pollReconciledEffect = Effect.fn("XBookmarkSyncDO.pollReconciled")(
     userId: UserId,
     organizationId: OrgId,
     state: XSyncConnectedState,
-    accessToken: string
+    accessToken: string,
+    usageWindow: MonthlyUsageWindow,
+    monthlyLimit: number
   ) {
     yield* Effect.annotateCurrentSpan("userId", maskId(userId));
     const store = yield* XSyncStateStore;
-    const api = yield* XApiClient;
-    return yield* api
-      .getBookmarks({
-        xUserId: state.xUserId,
-        accessToken,
-        maxResults: 1,
-      })
-      .pipe(
-        Effect.flatMap((probe) =>
-          processBookmarksEffect(
-            userId,
-            organizationId,
-            state,
-            accessToken,
-            probe
-          )
-        ),
-        Effect.catchTag("XRateLimitedError", (error) =>
-          Effect.succeed<PollOutcome>({
-            kind: "rate_limited",
-            retryAfterMs: error.retryAfterMs,
-          })
-        ),
-        Effect.catchTag("XUnauthorizedError", () => park(store, "auth")),
-        Effect.catchTag("XPaymentRequiredError", () =>
-          park(store, "access_level")
-        )
-      );
+    return yield* pollConnected(
+      userId,
+      organizationId,
+      state,
+      accessToken,
+      usageWindow,
+      monthlyLimit
+    ).pipe(
+      Effect.catchTag("XRateLimitedError", (error) =>
+        Effect.succeed<PollOutcome>({
+          kind: "rate_limited",
+          retryAfterMs: error.retryAfterMs,
+        })
+      ),
+      Effect.catchTag("XUnauthorizedError", () => park(store, "auth")),
+      Effect.catchTag("XPaymentRequiredError", () =>
+        park(store, "access_level")
+      )
+    );
   }
 );
