@@ -19,7 +19,6 @@ import {
   mergeCapabilities,
   PLAN_ORDER,
   requiredTierForBooleanCap,
-  TIER_CAPABILITIES,
 } from "@/lib/plan";
 
 import type { OrgId } from "../db/branded";
@@ -214,19 +213,40 @@ const make = Effect.gen(function* () {
     currentPeriodEnd: row.currentPeriodEnd?.toISOString() ?? null,
   });
 
-  const usageWindowFor = (row: OrgRow, plan: EffectivePlan, now: Date) =>
-    Option.fromNullishOr(
+  const usageWindowFor = (row: OrgRow, plan: EffectivePlan, now: Date) => {
+    const subscribed = resolveMonthlyUsageWindow(
+      {
+        source: plan.source,
+        billingInterval: row.billingInterval,
+        currentPeriodStart: row.currentPeriodStart,
+        currentPeriodEnd: row.currentPeriodEnd,
+        usageCycleAnchor: plan.usageCycleAnchor,
+      },
+      now
+    );
+    if (subscribed) return Option.some(subscribed);
+
+    const overrides = row.featureOverrides;
+    const hasManualMeter =
+      overrides?.chatAgent === true ||
+      overrides?.xBookmarkSync === true ||
+      (overrides?.monthlyAssistantCredits ?? 0) > 0 ||
+      (overrides?.monthlyXBookmarks ?? 0) > 0;
+    if (!hasManualMeter) return Option.none<MonthlyUsageWindow>();
+
+    return Option.fromNullishOr(
       resolveMonthlyUsageWindow(
         {
-          source: plan.source,
-          billingInterval: row.billingInterval,
-          currentPeriodStart: row.currentPeriodStart,
-          currentPeriodEnd: row.currentPeriodEnd,
-          usageCycleAnchor: plan.usageCycleAnchor,
+          source: "admin",
+          billingInterval: null,
+          currentPeriodStart: null,
+          currentPeriodEnd: null,
+          usageCycleAnchor: row.createdAt,
         },
         now
       )
     );
+  };
 
   return {
     /** Tier + admin overrides, merged into the runtime capability surface. */
@@ -277,7 +297,13 @@ const make = Effect.gen(function* () {
       const effectiveNow = now ?? (yield* DateTime.nowAsDate);
       const row = yield* fetchOrgRow(orgId);
       const plan = resolveEffectivePlan(row);
-      return usageWindowFor(row, plan, effectiveNow);
+      const usageWindow = usageWindowFor(row, plan, effectiveNow);
+      yield* Effect.annotateCurrentSpan({
+        orgId: maskId(orgId),
+        source: plan.source,
+        hasUsageWindow: Option.isSome(usageWindow),
+      });
+      return usageWindow;
     }),
 
     tier: Effect.fn("Billing.tier")(function* (orgId: OrgId) {
@@ -474,7 +500,7 @@ const make = Effect.gen(function* () {
           tierSource: plan.source,
           adminTierGrant: org.adminTierGrant,
           overrides,
-          capabilities: { ...TIER_CAPABILITIES[plan.tier], ...overrides },
+          capabilities: mergeCapabilities(plan.tier, overrides),
         });
       });
     }),

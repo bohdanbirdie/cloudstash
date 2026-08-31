@@ -31,6 +31,22 @@ const makeXSyncAlarm = (storage: DurableObjectStorage) => {
         yield* scheduleAfter(delayMs);
       }
     }),
+    scheduleNoLaterThan: Effect.fn("XSyncAlarm.scheduleNoLaterThan")(function* (
+      delayMs: number
+    ) {
+      const now = yield* Clock.currentTimeMillis;
+      const target = now + delayMs;
+      const existing = yield* Effect.tryPromise({
+        try: () => storage.getAlarm(),
+        catch: sideEffectError("storage.getAlarm"),
+      });
+      if (existing === null || existing > target) {
+        yield* Effect.tryPromise({
+          try: () => storage.setAlarm(target),
+          catch: sideEffectError("storage.setAlarm"),
+        });
+      }
+    }),
     scheduleAfter,
   };
 };

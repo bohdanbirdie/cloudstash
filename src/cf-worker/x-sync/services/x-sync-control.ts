@@ -40,10 +40,11 @@ const makeXSyncControl = (
     }),
     reconcile: Effect.fn("XSyncControl.reconcile")(function* (
       userId: UserId,
-      orgId?: OrgId
+      orgId?: OrgId,
+      wakeForEntitlementChange = false
     ) {
       yield* Effect.tryPromise({
-        try: () => stubFor(userId).reconcile(orgId),
+        try: () => stubFor(userId).reconcile(orgId, wakeForEntitlementChange),
         catch: sideEffectError("DO.reconcile"),
       });
     }),

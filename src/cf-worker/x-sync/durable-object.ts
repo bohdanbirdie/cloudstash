@@ -121,9 +121,18 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
     await this.reconcile();
   }
 
-  async reconcile(orgId?: string): Promise<void> {
+  async reconcile(
+    orgId?: string,
+    wakeForEntitlementChange = false
+  ): Promise<void> {
     const userId = this.userId;
-    return this.runEffect(reconcileSyncEffect(userId, optionalOrgId(orgId)));
+    return this.runEffect(
+      reconcileSyncEffect(
+        userId,
+        optionalOrgId(orgId),
+        wakeForEntitlementChange
+      )
+    );
   }
 
   async pause(): Promise<void> {
@@ -277,9 +286,11 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
       }
 
       if (outcome.kind === "monthly_limit") {
-        yield* Effect.logInfo("alarm: monthly X bookmark limit reached").pipe(
+        yield* Effect.logInfo("alarm: monthly X limit reached").pipe(
           Effect.annotateLogs({
             userId: maskId(userId),
+            reason: outcome.reason,
+            newCount: outcome.newCount,
             rescheduleMs: outcome.retryAfterMs,
           })
         );

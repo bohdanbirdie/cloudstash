@@ -39,11 +39,12 @@ activity, zero D1 polling state, gated to Pro tier.
 │  └──────────────┘                      └──────────┘                      │
 │       │                                                                   │
 │       │ 2. probe max_results=1                                            │
-│       │ 3. if newestId === watermark → done                               │
-│       │ 4. else paginate (max_results=50) until watermark hit             │
-│       │ 5. enqueue new bookmarks oldest-first → LINK_QUEUE                │
-│       │ 6. advance watermark to new newest                                │
-│       │ 7. reschedule alarm                                               │
+│       │ 3. if newestId is a recent checkpoint → done                      │
+│       │ 4. else walk max_results=1 pages to a checkpoint                  │
+│       │ 5. persist and continue after 25 total requests if needed         │
+│       │ 6. admit oldest-first via workspace LinkProcessorDO → Queue       │
+│       │ 7. advance checkpoints + legacy watermark                        │
+│       │ 8. reschedule alarm                                               │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -71,7 +72,10 @@ Documented in the integration guide: "you will get back 800 of your most recent 
 
 ### Pagination bug: don't use `max_results=100`
 
-Long-standing bug (years old, never fixed): at `max_results=100`, `next_token` often disappears after 2-3 pages well before the 800 cap. **Workaround: `max_results=50`** for the pagination walk. We use this in `pollOnceEffect`.
+Long-standing bug (years old, never fixed): at `max_results=100`, `next_token`
+often disappears after 2-3 pages well before the 800 cap. The current sync does
+not depend on the historical `max_results=50` workaround: it requests one item
+per page so provider reads stay proportional to the changed prefix.
 
 ### Rate limit (per user OAuth token)
 
@@ -154,7 +158,10 @@ An earlier prototype lacked this guard and a single connect produced exactly tha
 - `setWatermark` is called once with the newest ID
 - Zero items are enqueued
 
-There is also a **second safety net** in `pollOnceEffect`: if the watermark is null (e.g., `initializeWatermark` failed during signup due to 402/429), the first successful poll pins the watermark and skips enqueuing. Covered by a separate test.
+There is also a **second safety net** in `pollReconciledEffect`: if the watermark
+is null (e.g., `initializeWatermark` failed during signup due to 402/429), the
+first successful poll pins the watermark and skips enqueuing. Covered by a
+separate test.
 
 ## Plan gating (Pro-only)
 
@@ -214,8 +221,13 @@ If a user un-bookmarks on X, we currently leave the link in Cloudstash. The API 
 
 - **DO storage uses the SQLite-backed KV API**. Reads run through guarded `typeof === "string"` checks before applying brand tags — raw casts to branded types are not allowed.
 - **No `lastSyncedAt` persisted**. In-memory only, surfaces via the `status()` RPC. Resets to `null` on cold start (UI shows "—" briefly).
-- **`max_results: 50`** for pagination walks (not 100) due to the X bug.
-- **Mid-walk pagination errors DEFER** (never advance the watermark). If page 2/3/... fails with 401/402/429/5xx after a successful probe, we log the truncation, skip both enqueue and watermark write, and let the next poll re-walk from the same watermark. Without this, an error after page 2 would silently drop pages 3+ forever. Locked in by a dedicated test.
+- **`max_results: 1`** for the probe and every traversal page. One alarm may
+  make at most 25 provider requests including its initial probe; unfinished
+  traversal state is persisted and resumed by a near-term alarm.
+- **Mid-walk pagination errors DEFER** (never advance the watermark). The
+  persisted scan retains the discovered prefix and pagination token, so the
+  next alarm resumes from the failed page instead of re-walking from the head.
+  Locked in by unit and real-alarm eviction tests.
 - **401 / 402 on the probe → mark `needs_reconnect`** and stop alarming. 429
   → reschedule after the response's `retry-after` plus a one-second buffer.
   Generic API errors on the probe → persisted exponential backoff up to 15 min
@@ -223,7 +235,11 @@ If a user un-bookmarks on X, we currently leave the link in Cloudstash. The API 
   failure cleanly).
 - **Post-OAuth hook is trivial** — entitlement check, then start the DO. The DO fetches `/users/me` itself.
 - **Account deletion** — the workflow step calls the DO's `disconnect()`, which wipes DO storage. Runs after the link-processor wipes so any in-flight queue messages drop.
-- **Full Layer-based DI**: `pollOnceEffect` and `initializeWatermarkEffect` take no `env`. All dependencies (X API client, state store, link-queue client, auth client, DB client) come via Layer — `Layer.succeed` mocks drive the tests. The link-queue service wraps the queue binding so payloads are assertable in tests without touching CF bindings.
+- **Full Layer-based DI**: `pollReconciledEffect` and
+  `initializeWatermarkEffect` take no `env`. All dependencies (X API client,
+  state store, link-queue client, auth client, DB client) come via Layer; typed
+  stub Layers drive unit tests. The link-queue service wraps the internal DO RPC
+  so payloads are assertable without replacing global bindings.
 - **Tagged errors** — `XUnauthorizedError` / `XPaymentRequiredError` / `XRateLimitedError` / `XApiError` from the API client; `XSyncStorageError` from DO storage; `XSyncSideEffectError` from CF RPC/queue/alarm bridges; `NoAccessTokenError` from Better Auth fail-through. All `Schema.TaggedError` so `catchTag(s)` and OTel logs stay structured.
 - **OAuth-cancel recovery (UI)** — the status hook clears the connect lock on `visibilitychange` (user returned to the tab) or after a 60s safety timeout, so closing the OAuth popup doesn't permanently disable buttons.
 

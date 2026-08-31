@@ -118,8 +118,9 @@ export const makeXSyncStateStore = (
       try: () => storage.get(K_CHECKPOINTS),
       catch: storageError("storage.readCheckpoints"),
     });
-    return Schema.decodeUnknownOption(Schema.Array(XTweetId))(raw).pipe(
-      Option.getOrElse(() => [])
+    if (raw === undefined) return [];
+    return yield* Schema.decodeUnknownEffect(Schema.Array(XTweetId))(raw).pipe(
+      Effect.mapError(storageError("storage.decodeCheckpoints"))
     );
   }),
 
@@ -137,7 +138,10 @@ export const makeXSyncStateStore = (
       try: () => storage.get(K_SCAN),
       catch: storageError("storage.readScan"),
     });
-    return decodeOrNull(XSyncScanState, raw);
+    if (raw === undefined) return null;
+    return yield* Schema.decodeUnknownEffect(XSyncScanState)(raw).pipe(
+      Effect.mapError(storageError("storage.decodeScan"))
+    );
   }),
 
   setScan: Effect.fn("XSyncStateStore.setScan")(function* (scan) {
@@ -159,7 +163,10 @@ export const makeXSyncStateStore = (
       try: () => storage.get(K_READ_USAGE),
       catch: storageError("storage.readReadUsage"),
     });
-    return decodeOrNull(XSyncReadUsage, raw);
+    if (raw === undefined) return null;
+    return yield* Schema.decodeUnknownEffect(XSyncReadUsage)(raw).pipe(
+      Effect.mapError(storageError("storage.decodeReadUsage"))
+    );
   }),
 
   setReadUsage: Effect.fn("XSyncStateStore.setReadUsage")(function* (usage) {

@@ -20,10 +20,17 @@ export const X_CHECKPOINT_RING_SIZE = 16;
 export const X_PROVIDER_REQUESTS_PER_POLL = 25;
 export const X_PROVIDER_READ_BUFFER = 50;
 
+export type MonthlyLimitReason = "provider_reads" | "workspace_admission";
+
 export type PollOutcome =
   | { kind: "ok"; newCount: number }
   | { kind: "continuing" }
-  | { kind: "monthly_limit"; retryAfterMs: number }
+  | {
+      kind: "monthly_limit";
+      reason: MonthlyLimitReason;
+      newCount: number;
+      retryAfterMs: number;
+    }
   | { kind: "rate_limited"; retryAfterMs: number }
   | { kind: "needs_reconnect" };
 
@@ -109,6 +116,7 @@ const beforeCheckpoint = (
 interface ScanProgress {
   readonly scan: XSyncScanState;
   readonly usage: XSyncReadUsage;
+  readonly providerRequests: number;
   readonly readLimitReached: boolean;
 }
 
@@ -118,7 +126,8 @@ const advanceScan = Effect.fnUntraced(function* (
   checkpoints: ReadonlySet<XTweetId>,
   initialScan: XSyncScanState,
   initialUsage: XSyncReadUsage,
-  readLimit: number
+  readLimit: number,
+  requestBudget: number
 ) {
   const api = yield* XApiClient;
   const store = yield* XSyncStateStore;
@@ -126,7 +135,7 @@ const advanceScan = Effect.fnUntraced(function* (
   let usage = initialUsage;
   let requests = 0;
 
-  while (!scan.complete && requests < X_PROVIDER_REQUESTS_PER_POLL) {
+  while (!scan.complete && requests < requestBudget) {
     if (!scan.nextToken) {
       scan = { ...scan, complete: true };
       break;
@@ -135,6 +144,7 @@ const advanceScan = Effect.fnUntraced(function* (
       return {
         scan,
         usage,
+        providerRequests: requests,
         readLimitReached: true,
       } satisfies ScanProgress;
     }
@@ -157,7 +167,12 @@ const advanceScan = Effect.fnUntraced(function* (
     requests += 1;
   }
 
-  return { scan, usage, readLimitReached: false } satisfies ScanProgress;
+  return {
+    scan,
+    usage,
+    providerRequests: requests,
+    readLimitReached: false,
+  } satisfies ScanProgress;
 });
 
 const queueMessage = (organizationId: OrgId, bookmark: XBookmarkTweet) => ({
@@ -185,6 +200,24 @@ const drainScan = Effect.fn("XBookmarkSyncDO.drainScan")(function* (
   const ordered = scan.bookmarks.toReversed();
   let enqueued = 0;
   const processedIds: XTweetId[] = [];
+
+  const logResult = (outcome: "completed" | "limit_reached") =>
+    Effect.annotateCurrentSpan({
+      count: enqueued,
+      orgId: maskId(organizationId),
+      outcome,
+    }).pipe(
+      Effect.andThen(
+        Effect.logInfo("enqueueBookmarks").pipe(
+          Effect.annotateLogs({
+            userId: maskId(userId),
+            orgId: maskId(organizationId),
+            count: enqueued,
+            outcome,
+          })
+        )
+      )
+    );
 
   for (let index = 0; index < ordered.length; index += 1) {
     const bookmark = ordered[index];
@@ -225,8 +258,11 @@ const drainScan = Effect.fn("XBookmarkSyncDO.drainScan")(function* (
         uniqueTweetIds([...processedIds.toReversed(), ...previousCheckpoints])
       );
       yield* store.setScan({ ...scan, bookmarks: remaining, complete: true });
+      yield* logResult("limit_reached");
       return {
         kind: "monthly_limit",
+        reason: "workspace_admission",
+        newCount: enqueued,
         retryAfterMs: yield* retryAfterReset(usageWindow),
       } satisfies PollOutcome;
     }
@@ -242,17 +278,7 @@ const drainScan = Effect.fn("XBookmarkSyncDO.drainScan")(function* (
   yield* store.setCheckpoints(checkpoints);
   yield* store.setWatermark(scan.headTweetId);
   yield* store.clearScan();
-  yield* Effect.annotateCurrentSpan({
-    count: enqueued,
-    orgId: maskId(organizationId),
-  });
-  yield* Effect.logInfo("enqueueBookmarks").pipe(
-    Effect.annotateLogs({
-      userId: maskId(userId),
-      orgId: maskId(organizationId),
-      count: enqueued,
-    })
-  );
+  yield* logResult("completed");
   return { kind: "ok", newCount: enqueued } satisfies PollOutcome;
 });
 
@@ -286,31 +312,55 @@ const pollConnected = Effect.fnUntraced(function* (
   let usage = yield* readUsageFor(usageWindow);
   const readLimit = monthlyLimit + X_PROVIDER_READ_BUFFER;
   let scan = yield* store.readScan();
+  let providerRequests = 0;
+
+  const finish = (outcome: PollOutcome) => {
+    const telemetry = {
+      outcome: outcome.kind,
+      providerRequests,
+      uniqueProviderReads: usage.billableKeys.length,
+      scanBookmarks: scan?.bookmarks.length ?? 0,
+      scanComplete: scan?.complete ?? true,
+    };
+    const log =
+      providerRequests > 1 ||
+      outcome.kind === "continuing" ||
+      outcome.kind === "monthly_limit"
+        ? Effect.logInfo("poll: provider usage")
+        : Effect.logDebug("poll: provider usage");
+    return Effect.annotateCurrentSpan(telemetry).pipe(
+      Effect.andThen(log.pipe(Effect.annotateLogs(telemetry))),
+      Effect.as(outcome)
+    );
+  };
 
   if (!scan) {
     if (usage.billableKeys.length >= readLimit) {
-      return {
+      return yield* finish({
         kind: "monthly_limit",
+        reason: "provider_reads",
+        newCount: 0,
         retryAfterMs: yield* retryAfterReset(usageWindow),
-      } satisfies PollOutcome;
+      });
     }
     const probe = yield* api.getBookmarks({
       xUserId: state.xUserId,
       accessToken,
       maxResults: 1,
     });
+    providerRequests += 1;
     usage = yield* recordProviderReads(usage, probe);
     const newestId = probe.data[0]?.id;
     if (!newestId || checkpointSet.has(newestId)) {
-      return { kind: "ok", newCount: 0 } satisfies PollOutcome;
+      return yield* finish({ kind: "ok", newCount: 0 });
     }
     if (checkpoints.length === 0) {
       yield* store.setCheckpoints([newestId]);
       yield* store.setWatermark(newestId);
-      return { kind: "ok", newCount: 0 } satisfies PollOutcome;
+      return yield* finish({ kind: "ok", newCount: 0 });
     }
     scan = startScan(probe, checkpointSet);
-    if (!scan) return { kind: "ok", newCount: 0 } satisfies PollOutcome;
+    if (!scan) return yield* finish({ kind: "ok", newCount: 0 });
     yield* store.setScan(scan);
   }
 
@@ -320,19 +370,25 @@ const pollConnected = Effect.fnUntraced(function* (
     checkpointSet,
     scan,
     usage,
-    readLimit
+    readLimit,
+    X_PROVIDER_REQUESTS_PER_POLL - providerRequests
   );
+  providerRequests += progress.providerRequests;
+  usage = progress.usage;
+  scan = progress.scan;
   yield* store.setScan(progress.scan);
   if (progress.readLimitReached) {
-    return {
+    return yield* finish({
       kind: "monthly_limit",
+      reason: "provider_reads",
+      newCount: 0,
       retryAfterMs: yield* retryAfterReset(usageWindow),
-    } satisfies PollOutcome;
+    });
   }
   if (!progress.scan.complete) {
-    return { kind: "continuing" } satisfies PollOutcome;
+    return yield* finish({ kind: "continuing" });
   }
-  return yield* drainScan(
+  const outcome = yield* drainScan(
     userId,
     organizationId,
     progress.scan,
@@ -340,6 +396,7 @@ const pollConnected = Effect.fnUntraced(function* (
     usageWindow,
     monthlyLimit
   );
+  return yield* finish(outcome);
 });
 
 export const pollReconciledEffect = Effect.fn("XBookmarkSyncDO.pollReconciled")(

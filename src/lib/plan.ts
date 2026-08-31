@@ -155,7 +155,25 @@ export type CapabilityOverrides = Partial<TierCapabilities>;
 export const mergeCapabilities = (
   tier: PlanTier,
   overrides: CapabilityOverrides | null | undefined
-): TierCapabilities => ({ ...TIER_CAPABILITIES[tier], ...overrides });
+): TierCapabilities => {
+  const merged = { ...TIER_CAPABILITIES[tier], ...overrides };
+
+  if (
+    overrides?.chatAgent === true &&
+    overrides.monthlyAssistantCredits === undefined
+  ) {
+    merged.monthlyAssistantCredits =
+      TIER_CAPABILITIES.pro.monthlyAssistantCredits;
+  }
+  if (
+    overrides?.xBookmarkSync === true &&
+    overrides.monthlyXBookmarks === undefined
+  ) {
+    merged.monthlyXBookmarks = TIER_CAPABILITIES.pro.monthlyXBookmarks;
+  }
+
+  return merged;
+};
 
 export type BooleanCapability = {
   [K in keyof TierCapabilities]: TierCapabilities[K] extends boolean

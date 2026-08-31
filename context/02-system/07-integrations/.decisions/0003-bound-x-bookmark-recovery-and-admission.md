@@ -42,7 +42,8 @@ and billing guarantees.
 ## Decision
 
 Probe and paginate X bookmarks with `max_results=1` until any of 16 recent
-durable checkpoints is reached. Process at most 25 provider requests per alarm;
+durable checkpoints is reached. Process at most 25 provider requests per alarm,
+including the initial head probe;
 persist the pagination token and discovered bookmark payloads, then resume on a
 near-term alarm when the scan is incomplete. Continue exposing the newest
 successful head as the legacy watermark.
@@ -60,6 +61,11 @@ the local ceiling. On either ceiling, retain unfinished scan state and schedule
 the entitlement reset. Deferred bookmarks consume the next window during
 catch-up; sustained creation above the allowance may remain behind but is never
 silently skipped.
+
+Treat present malformed durable recovery, provider-usage, or workspace
+admission state as a storage failure. Only a genuinely absent value may
+initialize an empty counter or checkpoint, preventing corruption from silently
+resetting a cost control.
 
 ## Consequences
 

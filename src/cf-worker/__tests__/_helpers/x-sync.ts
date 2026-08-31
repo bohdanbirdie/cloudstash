@@ -281,6 +281,8 @@ export interface AlarmRec {
   alarmScheduled: boolean;
   ensureWrites: number;
   ensureDelays: number[];
+  scheduleNoLaterWrites: number;
+  scheduleNoLaterDelays: number[];
   cancelWrites: number;
   scheduleWrites: number;
   scheduleDelays: number[];
@@ -291,6 +293,8 @@ export const makeAlarmLayer = (initiallyScheduled = false) => {
     alarmScheduled: initiallyScheduled,
     ensureWrites: 0,
     ensureDelays: [],
+    scheduleNoLaterWrites: 0,
+    scheduleNoLaterDelays: [],
     cancelWrites: 0,
     scheduleWrites: 0,
     scheduleDelays: [],
@@ -308,6 +312,12 @@ export const makeAlarmLayer = (initiallyScheduled = false) => {
         rec.alarmScheduled = true;
         rec.ensureWrites += 1;
         rec.ensureDelays.push(delay);
+      }),
+    scheduleNoLaterThan: (delay) =>
+      Effect.sync(() => {
+        rec.alarmScheduled = true;
+        rec.scheduleNoLaterWrites += 1;
+        rec.scheduleNoLaterDelays.push(delay);
       }),
     scheduleAfter: (delay) =>
       Effect.sync(() => {

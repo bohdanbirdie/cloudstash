@@ -40,6 +40,11 @@ bookmarks. Free, Plus, and Pro defaults are declared in
 an individual value. Capability denial maps to HTTP 402 with capability and
 required tier where an HTTP boundary applies.
 
+A manual boolean override that enables metered chat or X sync without an
+explicit companion allowance derives the Pro allowance for that feature. This
+keeps an administrative grant operationally equivalent to the corresponding
+paid capability instead of enabling a feature whose allowance remains zero.
+
 Implemented gates include:
 
 - `publicApi` — links read and ingest;
@@ -106,9 +111,12 @@ price and feature copy.
 
 Chat checks settled monthly spend in workspace LinkProcessorDO storage, then
 records actual provider-reported cost in an idempotent settlement and monthly
-aggregate. X bookmark sync serializes workspace admission in that same owner,
+aggregate. X bookmark sync serializes workspace admission and retirement in
+that same owner,
 deduplicates source bookmark IDs within the usage window, sends admitted work
-to the Queue, and records the monthly count. A crash between Queue acceptance
+to the Queue, and records the monthly count. Present malformed durable usage
+state fails closed as a typed storage error; only an absent value initializes a
+new meter. A crash between Queue acceptance
 and the count write can repeat delivery, but common-ingest idempotence prevents
 a duplicate library item. X enrichment reserves one attempt atomically in the
 workspace's LinkProcessorDO storage before any provider work. Provider and generator
@@ -123,6 +131,8 @@ rather than UTC calendar months. Monthly Stripe subscriptions use their exact it
 subscriptions receive monthly subwindows derived from the persisted billing
 anchor and bounded by the active annual period. Admin grants use their grant
 anchor when they supply the effective paid tier (legacy grants fall back to
-workspace creation time). UTC recurrence clamps end-of-month anchors
+workspace creation time). A manual metered-feature or allowance override also
+receives a monthly window anchored to workspace creation when no Stripe or
+admin-tier window exists. UTC recurrence clamps end-of-month anchors
 deterministically. One resolved window is carried through preflight and
 settlement for the complete model run.

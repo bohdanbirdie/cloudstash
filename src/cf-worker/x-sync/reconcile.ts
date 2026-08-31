@@ -301,7 +301,11 @@ const reconcileCoreEffect = Effect.fn("XBookmarkSyncDO.reconcileCore")(
 );
 
 export const reconcileSyncEffect = Effect.fn("XBookmarkSyncDO.reconcile")(
-  function* (userId: UserId, requestedOrgId: OrgId | undefined) {
+  function* (
+    userId: UserId,
+    requestedOrgId: OrgId | undefined,
+    wakeForEntitlementChange = false
+  ) {
     const reconciled = yield* reconcileCoreEffect(userId, requestedOrgId);
     if (Option.isSome(reconciled)) {
       const store = yield* XSyncStateStore;
@@ -312,7 +316,12 @@ export const reconcileSyncEffect = Effect.fn("XBookmarkSyncDO.reconcile")(
         yield* store.setPollControl(control);
       }
       const now = yield* Clock.currentTimeMillis;
-      yield* alarm.ensureAfter(repairedPollDelay(control, now));
+      const repairDelay = repairedPollDelay(control, now);
+      if (wakeForEntitlementChange) {
+        yield* alarm.scheduleNoLaterThan(repairDelay);
+      } else {
+        yield* alarm.ensureAfter(repairDelay);
+      }
     }
   }
 );

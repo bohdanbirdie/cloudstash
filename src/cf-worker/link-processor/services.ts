@@ -14,6 +14,8 @@ import type {
 import type { OgMetadata } from "../metadata/schema";
 import type { ExtractedContent } from "./content-extractor";
 import type { AiCallError } from "./errors";
+import type { LinkQueueMessage } from "./types";
+import type { XBookmarkAdmissionError } from "./x-bookmark-usage";
 
 export type MetadataFetchFailure =
   | MetadataFetchError
@@ -125,6 +127,15 @@ export class FeatureStore extends Context.Service<
     ) => Effect.Effect<TierCapabilities>;
   }
 >()("FeatureStore") {}
+
+export class XBookmarkQueue extends Context.Service<
+  XBookmarkQueue,
+  {
+    readonly send: (
+      message: LinkQueueMessage
+    ) => Effect.Effect<void, XBookmarkAdmissionError>;
+  }
+>()("XBookmarkQueue") {}
 
 export class LinkRepository extends Context.Service<
   LinkRepository,
