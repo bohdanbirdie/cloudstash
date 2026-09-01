@@ -1,3 +1,4 @@
+import type { Store } from "@livestore/livestore";
 import { useQuery, useStore } from "@livestore/react";
 import { events, schema } from "@web/livestore/schema";
 import { Match } from "effect";
@@ -98,8 +99,10 @@ export function SaveAndList({
     storeId: creds.orgId,
     syncPayload: { apiKey: creds.apiKey },
   });
-  const recent = useQuery(recentLinks$, { store });
-  const activeLinksCount = useQuery(activeLinksCount$, { store });
+  // LiveStore beta.99 types the standalone React hook against an erased Store.
+  const queryStore: Store<any> = store;
+  const recent = useQuery(recentLinks$, { store: queryStore });
+  const activeLinksCount = useQuery(activeLinksCount$, { store: queryStore });
   const canSave =
     account === null ||
     account.maxSavedLinks === 0 ||

@@ -16,6 +16,9 @@ import LiveStoreWorker from "../livestore.worker?worker";
 import { schema } from "./schema";
 
 type AppStore = Store<typeof schema>;
+// LiveStore beta.99 types the standalone React hook against an erased Store.
+// The queryable still carries the result type through useQuery.
+type QueryHookStore = Store<any>;
 
 const adapter = makePersistedAdapter({
   sharedWorker: LiveStoreSharedWorker,
@@ -39,7 +42,7 @@ export const useAppStore = () => {
 };
 
 export const useStoreQuery = <TResult>(
-  store: AppStore,
+  store: QueryHookStore,
   queryable: Queryable<TResult>
 ) => useQuery(queryable, { store });
 
