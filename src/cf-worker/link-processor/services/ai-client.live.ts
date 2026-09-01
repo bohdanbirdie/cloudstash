@@ -22,11 +22,10 @@ export const LinkProcessorAiLive = Layer.effect(
             catch: (cause) => new AiCallError({ cause }),
             try: () =>
               generateText({
-                experimental_telemetry: { isEnabled: true },
+                instructions: system,
                 maxOutputTokens,
                 model: workersAI(AI_MODEL),
                 prompt,
-                system,
                 toolChoice: { type: "tool", toolName: TOOL_NAME },
                 tools: {
                   [TOOL_NAME]: tool({

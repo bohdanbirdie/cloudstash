@@ -173,12 +173,11 @@ const makeLive = Effect.gen(function* () {
 
   return make((prompt) =>
     generateObject({
-      experimental_telemetry: { isEnabled: true },
+      instructions: SYSTEM_PROMPT,
       maxOutputTokens: 512,
       model,
       prompt,
       schema: enrichmentOutputSchema,
-      system: SYSTEM_PROMPT,
     })
   );
 });

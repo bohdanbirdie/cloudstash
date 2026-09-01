@@ -16,8 +16,9 @@ cloudstash/                         Bun + Vite+ application
   local/raycast-extension/         ignored external npm checkout
 ```
 
-The root uses Bun 1.3.x, Vite+, TypeScript, Vitest, and Wrangler. Dependency
-versions are exact where compatibility is sensitive. `vendor/livestore` has its
+The root uses Bun 1.3.x, Vite+, TypeScript 7 with Effect TSGO, Vitest, and
+Wrangler. Dependency versions are exact where compatibility is sensitive.
+`vendor/livestore` has its
 own pnpm lock/tooling and is initialized through `scripts/ensure-livestore.sh`.
 The Raycast extension is a separate published repository and shares only HTTP
 contracts.
@@ -75,7 +76,7 @@ record shape, and evidence-link hygiene. Semantic quality remains review work.
 The main workflow checks out submodules and uses frozen Bun and pnpm installs;
 the vendored pnpm content store is cached by its lockfile. Quality,
 unit/typecheck, Worker E2E, and extension/production-build certification run as
-parallel jobs on Node 25. CI runs for pull requests targeting `staging` or
+parallel jobs on Node 26. CI runs for pull requests targeting `staging` or
 `main`, and for pushes to `main`. A push to `staging` is certified by the
 rolling promotion PR's synchronization run rather than a duplicate push run.
 The workflow has no Markdown path ignore, so Intent-only changes trigger CI.

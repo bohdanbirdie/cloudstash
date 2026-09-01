@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { ToolCallOptions } from "ai";
+import type { ToolExecutionOptions } from "ai";
 import { Effect } from "effect";
 import { RpcTest } from "effect/unstable/rpc";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -35,7 +35,7 @@ function unwrap<T>(
 }
 
 /** Tool executes don't use their second arg; satisfy the signature with this. */
-const stubCtx = {} as ToolCallOptions;
+const stubCtx = {} as ToolExecutionOptions<never>;
 
 const makeTestLibrary = (store: TestStore) => {
   const links = makeWorkspaceLinks(store, {

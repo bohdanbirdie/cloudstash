@@ -9,7 +9,7 @@ import { KeyChord } from "@/components/ui/key-chord";
 import { displayTitle } from "@/lib/link-display";
 import { cn } from "@/lib/utils";
 import { linksByIds$ } from "@/livestore/queries/links";
-import { useAppStore } from "@/livestore/store";
+import { useAppStore, useStoreQuery } from "@/livestore/store";
 
 interface LinkDeleteConfirmationProps {
   linkIds: string[];
@@ -53,7 +53,7 @@ export function LinkDeleteConfirmation({
   surface = "card",
 }: LinkDeleteConfirmationProps) {
   const store = useAppStore();
-  const links = store.useQuery(linksByIds$(linkIds));
+  const links = useStoreQuery(store, linksByIds$(linkIds));
 
   const linkMap = new Map(links.map((l) => [l.id, l]));
   const orderedLinks = linkIds.map((id) =>

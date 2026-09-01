@@ -1,4 +1,4 @@
-import type { ToolCallOptions } from "ai";
+import type { ToolExecutionOptions } from "ai";
 import { env, runInDurableObject } from "cloudflare:test";
 import { Effect } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
@@ -11,7 +11,7 @@ import {
   signupUser,
 } from "./helpers";
 
-const stubCtx = {} as ToolCallOptions;
+const stubCtx = {} as ToolExecutionOptions<never>;
 
 type LinkProcessorStub = ReturnType<(typeof env.LINK_PROCESSOR_DO)["get"]>;
 let linkProcessor: LinkProcessorStub | undefined;

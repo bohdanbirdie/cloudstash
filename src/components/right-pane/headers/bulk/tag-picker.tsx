@@ -19,7 +19,7 @@ import { useHotkeyScope } from "@/hooks/use-hotkey-scope";
 import { deriveNewTag, MAX_TAG_NAME_LENGTH } from "@/lib/tags";
 import { allTags$, tagsByLink$ } from "@/livestore/queries/tags";
 import { events } from "@/livestore/schema";
-import { useAppStore } from "@/livestore/store";
+import { useAppStore, useStoreQuery } from "@/livestore/store";
 
 export function BulkTagPicker({
   selectedIds,
@@ -29,8 +29,8 @@ export function BulkTagPicker({
   const store = useAppStore();
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
-  const allTags = store.useQuery(allTags$);
-  const tagsByLinkRows = store.useQuery(tagsByLink$);
+  const allTags = useStoreQuery(store, allTags$);
+  const tagsByLinkRows = useStoreQuery(store, tagsByLink$);
 
   useHotkeyScope("popover", {
     enabled: open,

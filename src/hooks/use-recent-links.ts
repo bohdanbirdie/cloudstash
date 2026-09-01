@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 import { linksByIds$ } from "@/livestore/queries/links";
 import type { LinkWithDetails } from "@/livestore/queries/links";
-import { useAppStore } from "@/livestore/store";
+import { useAppStore, useStoreQuery } from "@/livestore/store";
 import { useRecentLinksStore } from "@/stores/recent-links-store";
 
 export function useRecentLinks(): readonly LinkWithDetails[] {
@@ -10,7 +10,8 @@ export function useRecentLinks(): readonly LinkWithDetails[] {
 
   const linkIds = useMemo(() => links.map((l) => l.id), [links]);
   const linksQuery = useMemo(() => linksByIds$(linkIds), [linkIds]);
-  const linkDetails = useAppStore().useQuery(linksQuery);
+  const store = useAppStore();
+  const linkDetails = useStoreQuery(store, linksQuery);
 
   return useMemo(() => {
     const byId = new Map(linkDetails.map((l) => [l.id, l]));

@@ -13,7 +13,7 @@ import type { StripeCustomerId } from "../db/branded";
 import type { Env } from "../shared";
 import { StripeApiError, WebhookVerificationError } from "./errors";
 
-const API_VERSION = "2026-04-22.dahlia";
+const API_VERSION = "2026-07-29.dahlia";
 
 // `past_due` keeps access through Stripe's dunning retries; only a final
 // canceled/unpaid drops to free.

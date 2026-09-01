@@ -1,6 +1,6 @@
 import { makePersistedAdapter } from "@livestore/adapter-web";
-import type { Store } from "@livestore/livestore";
-import { useStore } from "@livestore/react";
+import type { Queryable, Store } from "@livestore/livestore";
+import { useQuery, useStore } from "@livestore/react";
 import { Effect, Stream } from "effect";
 import { useEffect, useRef } from "react";
 import { unstable_batchedUpdates } from "react-dom";
@@ -16,6 +16,9 @@ import LiveStoreWorker from "../livestore.worker?worker";
 import { schema } from "./schema";
 
 type AppStore = Store<typeof schema>;
+// LiveStore beta.99 types the standalone React hook against an erased Store.
+// The queryable still carries the result type through useQuery.
+type QueryHookStore = Store<any>;
 
 const adapter = makePersistedAdapter({
   sharedWorker: LiveStoreSharedWorker,
@@ -37,6 +40,11 @@ export const useAppStore = () => {
     storeId: auth.orgId,
   });
 };
+
+export const useStoreQuery = <TResult>(
+  store: QueryHookStore,
+  queryable: Queryable<TResult>
+) => useQuery(queryable, { store });
 
 const AUTH_CHECK_COOLDOWN_MS = 5000;
 

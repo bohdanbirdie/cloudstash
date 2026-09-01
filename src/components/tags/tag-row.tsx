@@ -28,10 +28,6 @@ export function TagRow({ tag, count, onRename, onDelete }: TagRowProps) {
     }
   }, [isEditing]);
 
-  useEffect(() => {
-    setEditValue(tag.name);
-  }, [tag.name]);
-
   const handleSave = () => {
     const sanitized = sanitizeTagName(editValue);
     if (isValidTagName(sanitized) && sanitized !== tag.name) {
@@ -72,7 +68,10 @@ export function TagRow({ tag, count, onRename, onDelete }: TagRowProps) {
       ) : (
         <button
           type="button"
-          onClick={() => setIsEditing(true)}
+          onClick={() => {
+            setEditValue(tag.name);
+            setIsEditing(true);
+          }}
           className="flex h-7 flex-1 cursor-pointer items-center gap-1 text-xs font-medium text-foreground"
         >
           #{tag.name}
