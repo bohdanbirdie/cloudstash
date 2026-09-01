@@ -20,7 +20,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "25"
+          node-version: "26"
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -49,7 +49,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "25"
+          node-version: "26"
           cache: pnpm
           cache-dependency-path: vendor/livestore/pnpm-lock.yaml
 
@@ -85,7 +85,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "25"
+          node-version: "26"
           cache: pnpm
           cache-dependency-path: vendor/livestore/pnpm-lock.yaml
 
@@ -123,7 +123,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "25"
+          node-version: "26"
           cache: pnpm
           cache-dependency-path: vendor/livestore/pnpm-lock.yaml
 
