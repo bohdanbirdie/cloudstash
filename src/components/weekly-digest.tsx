@@ -19,7 +19,7 @@ import { useAuth } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import type { WeeklyDigestRow } from "@/livestore/queries/weekly-digest";
 import { weeklyDigests$ } from "@/livestore/queries/weekly-digest";
-import { useAppStore } from "@/livestore/store";
+import { useAppStore, useStoreQuery } from "@/livestore/store";
 
 const announceOutcome = (outcome: DigestTriggerOutcome): void => {
   switch (outcome.status) {
@@ -151,7 +151,7 @@ const HistoryDialog = ({ history }: HistoryDialogProps) => {
 export function WeeklyDigest() {
   const store = useAppStore();
   const auth = useAuth();
-  const digests = store.useQuery(weeklyDigests$);
+  const digests = useStoreQuery(store, weeklyDigests$);
   const latest = digests[0];
   const history = digests.slice(1);
   const canTrigger = hasPermission(auth.role, PERMISSIONS.manageSystem);

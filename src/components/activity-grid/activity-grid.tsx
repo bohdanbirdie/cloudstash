@@ -4,7 +4,7 @@ import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { SharedTooltipProvider } from "@/components/ui/shared-tooltip";
 import { useNavigation } from "@/lib/keyboard";
 import { linkCreatedAts$ } from "@/livestore/queries/links";
-import { useAppStore } from "@/livestore/store";
+import { useAppStore, useStoreQuery } from "@/livestore/store";
 
 import {
   buildCells,
@@ -26,7 +26,7 @@ const DAY_LABEL_COL = WEEKS + 1;
 
 export const ActivityGrid = memo(function ActivityGrid() {
   const store = useAppStore();
-  const rows = store.useQuery(linkCreatedAts$);
+  const rows = useStoreQuery(store, linkCreatedAts$);
 
   const grid = useMemo(() => {
     const cells = buildCells(rows);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 import { generateDitheredDataUrl, PALETTES } from "@/lib/brand/dither";
 import { squirclePath } from "@/lib/brand/squircle";
@@ -7,6 +7,16 @@ import { torusKnotPath } from "@/lib/brand/torus-knot";
 const KNOT_D = torusKnotPath({ R: 22, r: 10, cx: 60, cy: 60 });
 const SQUIRCLE_D = squirclePath(60, 60, 52, 5);
 const MIDNIGHT = PALETTES.find((p) => p.name === "Midnight")!;
+let brandedDitherUrl: string | undefined;
+
+function subscribeToDither() {
+  return () => {};
+}
+
+function getBrandedDitherUrl() {
+  brandedDitherUrl ??= generateDitheredDataUrl(3.5, MIDNIGHT);
+  return brandedDitherUrl;
+}
 
 export function CloudstashLogo({
   className,
@@ -40,10 +50,11 @@ export function CloudstashLogo({
 }
 
 function BrandedLogo({ className }: { className?: string }) {
-  const [ditherUrl, setDitherUrl] = useState("");
-  useEffect(() => {
-    setDitherUrl(generateDitheredDataUrl(3.5, MIDNIGHT));
-  }, []);
+  const ditherUrl = useSyncExternalStore(
+    subscribeToDither,
+    getBrandedDitherUrl,
+    () => ""
+  );
 
   return (
     <svg

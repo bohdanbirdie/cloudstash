@@ -6,6 +6,7 @@ interface SettingsDialogStore {
   open: boolean;
   section: SettingsSection;
   openAt: (section?: SettingsSection) => void;
+  setSection: (section: SettingsSection) => void;
   close: () => void;
   setOpen: (open: boolean) => void;
 }
@@ -14,6 +15,7 @@ export const useSettingsDialog = create<SettingsDialogStore>((set) => ({
   open: false,
   section: "account",
   openAt: (section = "account") => set({ open: true, section }),
+  setSection: (section) => set({ section }),
   close: () => set({ open: false }),
   setOpen: (open) => set({ open }),
 }));

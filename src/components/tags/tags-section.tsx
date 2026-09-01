@@ -16,11 +16,11 @@ import { deriveNewTag, MAX_TAG_NAME_LENGTH, sanitizeTagName } from "@/lib/tags";
 import { allTagsWithCounts$ } from "@/livestore/queries/tags";
 import type { TagWithCount } from "@/livestore/queries/tags";
 import { events } from "@/livestore/schema";
-import { useAppStore } from "@/livestore/store";
+import { useAppStore, useStoreQuery } from "@/livestore/store";
 
 export function TagsSection() {
   const store = useAppStore();
-  const allTagsWithCounts = store.useQuery(allTagsWithCounts$);
+  const allTagsWithCounts = useStoreQuery(store, allTagsWithCounts$);
 
   const handleCreateTag = (newTag: { id: string; name: string }) => {
     const maxSortOrder = Math.max(

@@ -1,5 +1,5 @@
 import { Match } from "effect";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { isKeyboardMode } from "@/lib/input-mode";
 
@@ -26,10 +26,13 @@ export function useRovingTagFocus({
   const tabbableId =
     rovingId && itemIds.includes(rovingId) ? rovingId : defaultTabbable;
 
-  const focusItem = (id: string) =>
-    containerRef.current
-      ?.querySelector<HTMLElement>(`[data-tag-item="${CSS.escape(id)}"]`)
-      ?.focus();
+  const focusItem = useCallback(
+    (id: string) =>
+      containerRef.current
+        ?.querySelector<HTMLElement>(`[data-tag-item="${CSS.escape(id)}"]`)
+        ?.focus(),
+    []
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (!NAV_KEYS.has(e.key)) return;
@@ -83,7 +86,7 @@ export function useRovingTagFocus({
       containerRef.current?.querySelector<HTMLElement>("[data-tag-more]") ??
       containerRef.current?.querySelector<HTMLElement>("[data-tag-item]")
     )?.focus();
-  }, [activeOverflowId]);
+  }, [activeOverflowId, focusItem]);
 
   return { containerRef, tabbableId, handleKeyDown, handleFocus, onApply };
 }

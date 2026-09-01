@@ -1,28 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 import type { DotMatrixPhase } from "@/lib/dotmatrix-core";
 
 export function usePrefersReducedMotion(): boolean {
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-
-  useEffect(() => {
-    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
-
-    const update = () => {
-      setPrefersReducedMotion(query.matches);
-    };
-
-    update();
-    query.addEventListener("change", update);
-
-    return () => {
-      query.removeEventListener("change", update);
-    };
-  }, []);
-
-  return prefersReducedMotion;
+  return useSyncExternalStore(
+    (onChange) => {
+      const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+      query.addEventListener("change", onChange);
+      return () => query.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    () => false
+  );
 }
 
 export interface UseCyclePhaseOptions {
@@ -39,10 +37,7 @@ export function useCyclePhase({
   const [phase, setPhase] = useState(0);
 
   useEffect(() => {
-    if (!active) {
-      setPhase(0);
-      return;
-    }
+    if (!active) return;
 
     const safeSpeed = speed > 0 ? speed : 1;
     const raw = cycleMsBase / safeSpeed;
@@ -60,7 +55,7 @@ export function useCyclePhase({
     return () => cancelAnimationFrame(rafId);
   }, [active, cycleMsBase, speed]);
 
-  return phase;
+  return active ? phase : 0;
 }
 
 interface UseSteppedCycleOptions {
@@ -128,7 +123,6 @@ export function useSteppedCycle({
     if (!active) {
       activeRef.current = false;
       currentStepRef.current = idleStep;
-      setStep(idleStep);
       return;
     }
 
@@ -184,9 +178,14 @@ export function useDotMatrixPhases({
   }, []);
 
   useEffect(() => {
-    hoverGen.current += 1;
-    clearTimers();
-    return clearTimers;
+    if (autoRun || !hoverAnimated) {
+      hoverGen.current += 1;
+      clearTimers();
+    }
+    return () => {
+      hoverGen.current += 1;
+      clearTimers();
+    };
   }, [autoRun, hoverAnimated, clearTimers]);
 
   const onMouseEnter = useCallback(() => {

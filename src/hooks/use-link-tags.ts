@@ -1,11 +1,11 @@
 import { track } from "@/lib/analytics";
 import { tagsForLink$ } from "@/livestore/queries/tags";
 import { events } from "@/livestore/schema";
-import { useAppStore } from "@/livestore/store";
+import { useAppStore, useStoreQuery } from "@/livestore/store";
 
 export function useLinkTags(linkId: string) {
   const store = useAppStore();
-  const tags = store.useQuery(tagsForLink$(linkId));
+  const tags = useStoreQuery(store, tagsForLink$(linkId));
   const tagIds = tags.map((t) => t.id);
 
   const setTagIds = (newTagIds: string[]) => {

@@ -6,7 +6,7 @@ import {
   PuzzleIcon,
   RefreshCwIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { CloudstashLogo } from "@/components/cloudstash-logo";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -40,13 +40,15 @@ async function parseJson<T>(response: Response): Promise<T> {
 function useExtensionConnect() {
   const [phase, setPhase] = useState<Phase>({ tag: "checking" });
   const [announcement, setAnnouncement] = useState("");
-  const [nonce, setNonce] = useState(0);
+  const attemptRef = useRef(0);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  );
 
-  const retry = useCallback(() => setNonce((n) => n + 1), []);
-
-  useEffect(() => {
-    let cancelled = false;
-    let closeTimer: ReturnType<typeof setTimeout> | undefined;
+  const connect = useCallback(async () => {
+    const attempt = ++attemptRef.current;
+    const isCancelled = () => attemptRef.current !== attempt;
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
 
     const mintCredentials = async (): Promise<
       { apiKey: string; orgId: string } | { error: string }
@@ -67,48 +69,53 @@ function useExtensionConnect() {
       return parseJson<{ apiKey: string; orgId: string }>(response);
     };
 
-    const run = async () => {
-      setPhase({ tag: "checking" });
+    const installed = await pingExtension();
+    if (isCancelled()) return;
+    if (!installed) {
+      setPhase({ tag: "not_installed" });
+      return;
+    }
 
-      const installed = await pingExtension();
-      if (cancelled) return;
-      if (!installed) {
-        setPhase({ tag: "not_installed" });
-        return;
-      }
+    const minted = await mintCredentials();
+    if (isCancelled()) return;
+    if ("error" in minted) {
+      setPhase({ tag: "error", message: minted.error });
+      return;
+    }
 
-      const minted = await mintCredentials();
-      if (cancelled) return;
-      if ("error" in minted) {
-        setPhase({ tag: "error", message: minted.error });
-        return;
-      }
+    setPhase({ tag: "connecting" });
+    const ok = await sendCredsToExtension(minted.apiKey, minted.orgId);
+    if (isCancelled()) return;
+    if (!ok) {
+      setPhase({
+        tag: "error",
+        message:
+          "We couldn’t hand off to the extension. Make sure it’s installed, then try again.",
+      });
+      return;
+    }
 
-      setPhase({ tag: "connecting" });
-      const ok = await sendCredsToExtension(minted.apiKey, minted.orgId);
-      if (cancelled) return;
-      if (!ok) {
-        setPhase({
-          tag: "error",
-          message:
-            "We couldn’t hand off to the extension. Make sure it’s installed, then try again.",
-        });
-        return;
-      }
+    setPhase({ tag: "connected" });
+    setAnnouncement("Extension connected");
+    // The background SW opened this window; self-close so it doesn't outlive
+    // the handoff and depend on the SW lifecycle.
+    closeTimerRef.current = setTimeout(() => window.close(), 900);
+  }, []);
 
-      setPhase({ tag: "connected" });
-      setAnnouncement("Extension connected");
-      // The background SW opened this window; self-close so it doesn't outlive
-      // the handoff and depend on the SW lifecycle.
-      closeTimer = setTimeout(() => window.close(), 900);
-    };
+  const retry = useCallback(() => {
+    setAnnouncement("");
+    setPhase({ tag: "checking" });
+    void connect();
+  }, [connect]);
 
-    void run();
+  useEffect(() => {
+    const startTimer = window.setTimeout(() => void connect(), 0);
     return () => {
-      cancelled = true;
-      if (closeTimer) clearTimeout(closeTimer);
+      clearTimeout(startTimer);
+      attemptRef.current += 1;
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     };
-  }, [nonce]);
+  }, [connect]);
 
   return { phase, announcement, retry };
 }

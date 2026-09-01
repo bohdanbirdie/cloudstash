@@ -1,6 +1,6 @@
 import { makePersistedAdapter } from "@livestore/adapter-web";
-import type { Store } from "@livestore/livestore";
-import { useStore } from "@livestore/react";
+import type { Queryable, Store } from "@livestore/livestore";
+import { useQuery, useStore } from "@livestore/react";
 import { Effect, Stream } from "effect";
 import { useEffect, useRef } from "react";
 import { unstable_batchedUpdates } from "react-dom";
@@ -37,6 +37,11 @@ export const useAppStore = () => {
     storeId: auth.orgId,
   });
 };
+
+export const useStoreQuery = <TResult>(
+  store: AppStore,
+  queryable: Queryable<TResult>
+) => useQuery(queryable, { store });
 
 const AUTH_CHECK_COOLDOWN_MS = 5000;
 

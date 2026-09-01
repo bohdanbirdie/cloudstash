@@ -200,16 +200,6 @@ const config: UserConfig = {
       "react/jsx-max-depth": "off",
       "react/no-multi-comp": "off",
       "react/no-unstable-nested-components": "off",
-      // Vite+ 0.3 enables the new Oxlint React Compiler rules by category.
-      // Adopt them separately from this toolchain migration so they can be
-      // evaluated against LiveStore's store-bound hook API and existing
-      // intentional ref/effect patterns.
-      "react/exhaustive-effect-dependencies": "off",
-      "react/hooks": "off",
-      "react/immutability": "off",
-      "react/memo-dependencies": "off",
-      "react/refs": "off",
-      "react/set-state-in-effect": "off",
       "react_perf/jsx-no-jsx-as-prop": "off",
       "react_perf/jsx-no-new-object-as-prop": "off",
       "react_perf/jsx-no-new-array-as-prop": "off",
