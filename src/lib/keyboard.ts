@@ -1,5 +1,5 @@
 import { useCallback, useRef } from "react";
-import type { RefObject } from "react";
+import type { RefCallback } from "react";
 import { useHotkeys, useHotkeysContext } from "react-hotkeys-hook";
 
 export type Scope =
@@ -109,7 +109,7 @@ export function useDismiss(
 export function useNavigation<T extends HTMLElement = HTMLElement>(
   id: NavId,
   handler: (dir: Direction) => void
-): RefObject<T | null> {
+): RefCallback<T | null> {
   return useHotkeys<T>(
     NAV[id].keys,
     (e) => {

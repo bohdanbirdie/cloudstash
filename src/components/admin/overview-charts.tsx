@@ -54,7 +54,9 @@ export function GrowthChart({ data }: { data: ActivityStats["userGrowth"] }) {
         <ChartTooltip
           content={
             <ChartTooltipContent
-              labelFormatter={(value) => formatWeek(String(value))}
+              labelFormatter={(value) =>
+                typeof value === "string" ? formatWeek(value) : ""
+              }
             />
           }
         />

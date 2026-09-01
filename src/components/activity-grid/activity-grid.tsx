@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 
 import { SharedTooltipProvider } from "@/components/ui/shared-tooltip";
 import { useNavigation } from "@/lib/keyboard";
@@ -49,7 +49,8 @@ export const ActivityGrid = memo(function ActivityGrid() {
   const activeIdx =
     cellAtStored && !cellAtStored.isFuture ? storedIdx : lastSelectableIdx;
 
-  const containerRef = useNavigation<HTMLDivElement>("gridNav", (dir) => {
+  const containerElementRef = useRef<HTMLDivElement>(null);
+  const navigationRef = useNavigation<HTMLDivElement>("gridNav", (dir) => {
     const cells = grid.cells;
     const cur = activeIdx;
     let next = cur;
@@ -73,10 +74,17 @@ export const ActivityGrid = memo(function ActivityGrid() {
     }
     if (next < 0 || next >= cells.length || cells[next]?.isFuture) return;
     setStoredIdx(next);
-    containerRef.current
+    containerElementRef.current
       ?.querySelector<HTMLButtonElement>(`[data-cell-idx="${next}"]`)
       ?.focus();
   });
+  const containerRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      containerElementRef.current = node;
+      navigationRef(node);
+    },
+    [navigationRef]
+  );
 
   const handleFocus = useCallback((e: React.FocusEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
