@@ -26,6 +26,7 @@ import {
   VerificationStore,
   connectWorkspaceAccessError,
   getAuthorizedSession,
+  requireAuthorizedSession,
 } from "./services";
 
 const decodeVerificationData = Schema.decodeUnknownEffect(VerificationData);
@@ -39,17 +40,10 @@ const decodeRaycastExchangeBody =
 export const handleConnectRequest = Effect.fn(
   "RaycastConnect.handleConnectRequest"
 )(function* (headers: Headers) {
-  const sessionProvider = yield* SessionProvider;
   const apiKeyStore = yield* ApiKeyStore;
   const verificationStore = yield* VerificationStore;
 
-  const session = yield* sessionProvider
-    .getSession(headers)
-    .pipe(
-      Effect.flatMap((s) =>
-        s ? Effect.succeed(s) : Effect.fail(new ConnectUnauthorizedError())
-      )
-    );
+  const session = yield* requireAuthorizedSession(headers);
 
   const { userId, orgId } = session;
   if (!orgId) {

@@ -17,7 +17,11 @@ import type {
 import type { WorkspaceLinks } from "./service";
 
 export type WorkspaceLinksRpcError = {
-  readonly code: "invalid_input" | "not_found" | "unavailable";
+  readonly code:
+    | "invalid_input"
+    | "limit_reached"
+    | "not_found"
+    | "unavailable";
   readonly message: string;
   readonly linkId?: string;
 };
@@ -27,12 +31,12 @@ export type WorkspaceLinksRpcResult<Value> =
   | { readonly ok: false; readonly error: WorkspaceLinksRpcError };
 
 export type SaveLinkRpcInput = SaveLinkInput & {
-  readonly source: "api" | "mcp";
+  readonly source: "api" | "chat" | "mcp";
 };
 
-const SaveLinkRpcInputSchema = Schema.Struct({
+export const SaveLinkRpcInputSchema = Schema.Struct({
   ...SaveLinkInput.fields,
-  source: Schema.Literals(["api", "mcp"]),
+  source: Schema.Literals(["api", "chat", "mcp"]),
 });
 
 const decode = Effect.fnUntraced(function* <S extends Schema.Top>(
@@ -62,6 +66,11 @@ const domainOutcome = Effect.fnUntraced(function* <Value, Requirements>(
         Effect.succeed({
           ok: false as const,
           error: { code: "invalid_input" as const, message: error.message },
+        }),
+      WorkspaceLinkLimitReachedError: (error) =>
+        Effect.succeed({
+          ok: false as const,
+          error: { code: "limit_reached" as const, message: error.message },
         }),
       WorkspaceLinkNotFoundError: (error) =>
         Effect.succeed({
@@ -137,4 +146,6 @@ export const WorkspaceLinksRpc = {
     invoke(links, UpdateLinksInput, input, (service, value) =>
       service.updateMany(value)
     ),
+
+  stats: (links: WorkspaceLinks) => domainOutcome(links.stats()),
 };

@@ -33,7 +33,8 @@ underlying library operations.
 
 Every capture reaches the same workspace content model. Browser and extension
 clients commit through LiveStore; external request sources enqueue ingestion;
-chat commits through its server-side LiveStore client.
+chat calls the workspace `LinkProcessorDO`, which commits through the existing
+canonical server-side LiveStore client.
 
 ## Link Experience
 
@@ -63,10 +64,13 @@ from explicit tags.
 [`src/lib/plan.ts`](../../src/lib/plan.ts) owns executable plan copy and default
 capability values. Current bundles are:
 
-- **Free:** saving core, Chrome capture, tags, archiving, search, sync, export.
-- **Plus:** Free plus AI summaries, Telegram and Raycast integrations, weekly
-  digest, and public API.
-- **Pro:** Plus plus X bookmark sync/enrichment, chat agent, and MCP.
+- **Free:** up to 100 active links and 10 AI summaries each month, with Chrome
+  capture, tags, archiving, search, sync, and export.
+- **Plus:** up to 500 active links, 500 AI summaries, and 1,000 public API calls
+  each month, plus Telegram, Raycast, and weekly digest.
+- **Pro:** product-unlimited active links, 1,000 AI summaries, 1,000 Assistant
+  credits, 10,000 combined API/MCP calls, 200 X imports, and 100 enriched X
+  summaries each month.
 
 “Weekly digest of what you read” is accepted marketing shorthand for a digest
 selected from recently saved links. A generally larger Pro summary model is

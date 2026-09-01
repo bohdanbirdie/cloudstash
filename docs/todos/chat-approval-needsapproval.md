@@ -1,10 +1,13 @@
 # Migrate chat tool approval to server-side `needsApproval`
 
-`@cloudflare/ai-chat` deprecated the client-side `toolsRequiringConfirmation` option (and the `experimental_automaticToolResolution` / `autoSendAfterAllConfirmationsResolved` / `JSONSchemaType` siblings) in 0.7.x. They still work through the 0.x line but are slated for removal in a future major. The replacement is server-side `needsApproval` on the tool definitions, with the SDK driving a `"waiting-approval"` part state and `addToolApprovalResponse` on the client.
+`@cloudflare/ai-chat` deprecated the client-side `toolsRequiringConfirmation`
+option in 0.7.x. The replacement is server-side `needsApproval` on tool
+definitions, with the SDK driving the `approval-requested` part state and
+`addToolApprovalResponse` on the client.
 
 Surfaced during the 2026-06-07 dependency audit (`@cloudflare/ai-chat` 0.6.2 → 0.7.2). Not urgent — it's deprecation cleanup, not a breakage.
 
-## Current architecture (custom human-in-the-loop)
+## Replaced architecture (custom human-in-the-loop)
 
 Only two tools need confirmation: `deleteLink`, `deleteLinks`.
 
@@ -17,9 +20,11 @@ Only two tools need confirmation: `deleteLink`, `deleteLinks`.
 - `components/ui/tool.tsx` — renders approve/reject buttons by inferring "pending" from an absent output.
 - `__tests__/unit/tool-utils.test.ts` (353 lines) — exhaustively tests the custom pipeline.
 
-## Target (`needsApproval`)
+## Implemented target (`needsApproval`)
 
-Confirmed available in installed `@cloudflare/ai-chat@0.7.2`: AI SDK `tool()` accepts `needsApproval`; the hook exposes `getToolApproval`, a `"waiting-approval"` state, and `addToolApprovalResponse` over a `CF_AGENT_TOOL_APPROVAL` message.
+Confirmed in installed `@cloudflare/ai-chat@0.7.2`: AI SDK `tool()` accepts
+`needsApproval`; the hook exposes `approval-requested` tool parts and
+`addToolApprovalResponse` over a `CF_AGENT_TOOL_APPROVAL` message.
 
 - `tools.ts` — give `deleteLink`/`deleteLinks` an `execute` (fold in the executor logic) + `needsApproval: true`. Delete `createToolExecutors`.
 - `utils.ts` — delete the approval pipeline (most of the file).
@@ -32,14 +37,20 @@ Confirmed available in installed `@cloudflare/ai-chat@0.7.2`: AI SDK `tool()` ac
 
 Net effect: deletes ~150 lines of custom approval plumbing + a 353-line test. Touches ~7 files across server/client/shared/tests.
 
-## ⚠️ Main risk — token budgeting
+## Token-budget continuation
 
-Today the approval continuation re-enters `onChatMessage`, so `reserveTokens` / `recordTokenUsage` run on that second turn. With `needsApproval` the SDK **auto-continues** after approval — must verify that still routes back through `onChatMessage` (and thus the budget reservation) rather than continuing the stream internally and bypassing our metering. If it bypasses, the post-approval model call goes unmetered. Verify this before committing to the approach.
+The installed SDK applies the approval, queues auto-continuation through its
+exclusive turn queue, and calls `onChatMessage(..., { continuation: true })`.
+Therefore the existing capability and settled-spend checks run again before the
+post-approval model turn; continuation does not bypass metering.
 
 ## Verification
 
-- e2e the **approve** and **reject** paths (deny previously returned the literal "User denied access to tool execution"; confirm the SDK's rejection yields equivalent model-visible output).
-- Confirm token usage is recorded on the post-approval continuation.
+- Real-DO E2E proves the approved destructive executor uses the canonical
+  LinkProcessor RPC and changes state.
+- Manual browser verification covers both approve and reject rendering and
+  continuation behavior.
+- Focused unit coverage asserts both destructive tools require server approval.
 
 ## Estimate
 

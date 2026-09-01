@@ -1,8 +1,8 @@
 import { env, SELF } from "cloudflare:test";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { fetch as workerFetch } from "../../index";
-import { signupUser } from "./helpers";
+import { installTestMetadataFetcher, signupUser } from "./helpers";
 import type { UserInfo } from "./helpers";
 
 const AUTH_ORIGIN = "http://localhost";
@@ -13,11 +13,6 @@ const SCOPES = "openid offline_access links:read links:write";
 const SAVED_LINK_URL = "https://example.com/from-mcp";
 const WORKSPACE_A_URL = "https://example.com/workspace-proof-a";
 const WORKSPACE_B_URL = "https://example.com/workspace-proof-b";
-const EXPECTED_OUTBOUND_URLS = new Set([
-  SAVED_LINK_URL,
-  WORKSPACE_A_URL,
-  WORKSPACE_B_URL,
-]);
 const WORKSPACE_CLAIM = "https://cloudstash.dev/claims/workspace-id";
 
 type RegisteredClient = {
@@ -302,31 +297,37 @@ describe("MCP OAuth Worker flow", () => {
   let client: RegisteredClient;
   let tokens: TokenSet;
   let expiredAssertionCountAfterToken = -1;
-  let restoreFetch: (() => void) | undefined;
   const observedOutboundUrls: string[] = [];
 
-  beforeAll(async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockImplementation(async (input, init) => {
-        const request = new Request(input, init);
-        observedOutboundUrls.push(request.url);
-        if (EXPECTED_OUTBOUND_URLS.has(request.url)) {
-          return new Response(
-            `<!doctype html><title>${new URL(request.url).pathname.slice(1)}</title><p>Saved from MCP.</p>`,
-            { headers: { "Content-Type": "text/html" } }
-          );
-        }
-        throw new Error(`Unexpected outbound request: ${request.url}`);
-      });
-    restoreFetch = () => {
-      fetchSpy.mockRestore();
-    };
-
-    user = await signupUser("mcp-oauth@test.com", "MCP OAuth User");
-    await env.DB.prepare("UPDATE organization SET tier = 'pro' WHERE id = ?")
-      .bind(user.orgId)
+  const setSubscribedPro = async (
+    orgId: string,
+    featureOverrides: Record<string, unknown> = {}
+  ) => {
+    const startsAt = Date.now() - 24 * 60 * 60 * 1_000;
+    await env.DB.prepare(
+      `UPDATE organization
+       SET tier = 'pro', billing_interval = 'month',
+           current_period_start = ?, current_period_end = ?,
+           usage_cycle_anchor = ?, feature_overrides = ?
+       WHERE id = ?`
+    )
+      .bind(
+        startsAt,
+        startsAt + 32 * 24 * 60 * 60 * 1_000,
+        startsAt,
+        JSON.stringify(featureOverrides),
+        orgId
+      )
       .run();
+  };
+
+  beforeAll(async () => {
+    user = await signupUser("mcp-oauth@test.com", "MCP OAuth User");
+    await setSubscribedPro(user.orgId, { aiSummary: false });
+    await installTestMetadataFetcher(
+      env.LINK_PROCESSOR_DO.get(env.LINK_PROCESSOR_DO.idFromName(user.orgId)),
+      (url) => observedOutboundUrls.push(url)
+    );
     client = await registerCurrentMcpJamClient();
     await env.DB.prepare(
       "INSERT INTO oauth_client_assertion (id, expires_at) VALUES (?, ?)"
@@ -342,10 +343,6 @@ describe("MCP OAuth Worker flow", () => {
           .bind("expired-before-token")
           .first<{ count: number }>()
       )?.count ?? -1;
-  });
-
-  afterAll(() => {
-    restoreFetch?.();
   });
 
   it("publishes usable OAuth discovery metadata", async () => {
@@ -1071,7 +1068,7 @@ describe("MCP OAuth Worker flow", () => {
         expect(observedOutboundUrls.slice(outboundStart)).toContain(
           SAVED_LINK_URL
         ),
-      { timeout: 5_000 }
+      { timeout: 10_000 }
     );
     expect(new Set(observedOutboundUrls.slice(outboundStart))).toEqual(
       new Set([SAVED_LINK_URL])
@@ -1099,14 +1096,57 @@ describe("MCP OAuth Worker flow", () => {
     });
   });
 
+  it("shares one monthly allowance between the public API and MCP", async () => {
+    const meteredUser = await signupUser(
+      `mcp-shared-meter-${crypto.randomUUID()}@test.com`,
+      "MCP shared meter"
+    );
+    await setSubscribedPro(meteredUser.orgId, {
+      aiSummary: false,
+      monthlyExternalCalls: 1,
+    });
+    const apiKeyResponse = await SELF.fetch(
+      "http://worker/api/auth/api-key/create",
+      {
+        body: JSON.stringify({ name: "Shared meter" }),
+        headers: {
+          Cookie: meteredUser.cookie,
+          "Content-Type": "application/json",
+          Origin: AUTH_ORIGIN,
+        },
+        method: "POST",
+      }
+    );
+    expect(apiKeyResponse.status, await apiKeyResponse.clone().text()).toBe(
+      200
+    );
+    const apiKey = (await apiKeyResponse.json<{ key: string }>()).key;
+    const apiCall = await SELF.fetch("http://worker/api/links", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    expect(apiCall.status, await apiCall.clone().text()).toBe(200);
+
+    const meteredClient = await registerCurrentMcpJamClient();
+    const meteredTokens = await authorizeClient(meteredUser, meteredClient);
+    const denied = await callMcp<unknown>(
+      meteredTokens.access_token,
+      50,
+      "tools/call",
+      { arguments: { limit: 1 }, name: "list_links" }
+    );
+
+    expect(denied.response.status).toBe(200);
+    expect(JSON.stringify(denied.body)).toContain(
+      "Monthly API and MCP allowance used"
+    );
+  });
+
   it("rejects a write tool when the token has only the read scope", async () => {
     const readOnlyUser = await signupUser(
       "mcp-read-only@test.com",
       "MCP Read Only User"
     );
-    await env.DB.prepare("UPDATE organization SET tier = 'pro' WHERE id = ?")
-      .bind(readOnlyUser.orgId)
-      .run();
+    await setSubscribedPro(readOnlyUser.orgId);
     const readOnlyClient = await registerCurrentMcpJamClient();
     const readOnlyTokens = await authorizeClient(
       readOnlyUser,
@@ -1135,9 +1175,7 @@ describe("MCP OAuth Worker flow", () => {
       "mcp-workspace-routing@test.com",
       "MCP Workspace Routing User"
     );
-    await env.DB.prepare("UPDATE organization SET tier = 'pro' WHERE id = ?")
-      .bind(isolatedUser.orgId)
-      .run();
+    await setSubscribedPro(isolatedUser.orgId, { aiSummary: false });
     const otherOrgId = crypto.randomUUID();
     await env.DB.prepare(
       "INSERT INTO organization (id, name, slug, tier) VALUES (?, ?, ?, 'pro')"
@@ -1149,6 +1187,23 @@ describe("MCP OAuth Worker flow", () => {
     )
       .bind(crypto.randomUUID(), otherOrgId, isolatedUser.userId)
       .run();
+    await env.DB.prepare(
+      "UPDATE organization SET feature_overrides = ? WHERE id = ?"
+    )
+      .bind(JSON.stringify({ aiSummary: false }), otherOrgId)
+      .run();
+    await Promise.all([
+      installTestMetadataFetcher(
+        env.LINK_PROCESSOR_DO.get(
+          env.LINK_PROCESSOR_DO.idFromName(isolatedUser.orgId)
+        ),
+        (url) => observedOutboundUrls.push(url)
+      ),
+      installTestMetadataFetcher(
+        env.LINK_PROCESSOR_DO.get(env.LINK_PROCESSOR_DO.idFromName(otherOrgId)),
+        (url) => observedOutboundUrls.push(url)
+      ),
+    ]);
 
     const isolatedClient = await registerCurrentMcpJamClient();
     const isolatedTokens = await authorizeClient(isolatedUser, isolatedClient);

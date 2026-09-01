@@ -21,6 +21,11 @@ import {
   CapabilityDisabledError,
   capabilityDeniedResponse,
 } from "../billing/errors";
+import {
+  ExternalCallAllowanceUnavailableError,
+  ExternalCallLimitReachedError,
+  reserveExternalCall,
+} from "../billing/external-call-meter";
 import { requireCapability } from "../billing/service";
 import type { Billing } from "../billing/service";
 import type { ApiKey, OrgId, UserId } from "../db/branded";
@@ -45,7 +50,7 @@ class LinksApiAccessError extends Data.TaggedError("LinksApiAccessError")<{
 
 class LinksApiRequestError extends Data.TaggedError("LinksApiRequestError")<{
   readonly message: string;
-  readonly status: 400 | 404;
+  readonly status: 400 | 404 | 429;
 }> {}
 
 class LinksApiInternalError extends Data.TaggedError("LinksApiInternalError")<{
@@ -63,10 +68,12 @@ type LinksApiError =
   | LinksApiRequestError
   | LinksApiInternalError
   | LinksApiUnavailableError
+  | ExternalCallAllowanceUnavailableError
+  | ExternalCallLimitReachedError
   | CapabilityDisabledError
   | OrgNotFoundError;
 
-const requestError = (message: string, status: 400 | 404 = 400) =>
+const requestError = (message: string, status: 400 | 404 | 429 = 400) =>
   new LinksApiRequestError({ message, status });
 
 const unauthorized = (): Response =>
@@ -91,6 +98,9 @@ const rpcValue = <Value>(
       new LinksApiUnavailableError({ message: result.error.message })
     );
   }
+  if (result.error.code === "limit_reached") {
+    return Effect.fail(requestError(result.error.message, 429));
+  }
   return Effect.fail(
     requestError(
       result.error.message,
@@ -114,7 +124,7 @@ const callRpc = <Value>(
       }),
   }).pipe(Effect.flatMap(rpcValue));
 
-const authorize = Effect.fnUntraced(function* (apiKey: ApiKey) {
+const authorize = Effect.fnUntraced(function* (apiKey: ApiKey, env: Env) {
   const access = yield* WorkspaceAccess;
   const authorization = yield* access
     .authorizeApiKey(apiKey)
@@ -130,6 +140,24 @@ const authorize = Effect.fnUntraced(function* (apiKey: ApiKey) {
           orgId,
         })
     )
+  );
+  yield* reserveExternalCall(env, authorization.orgId).pipe(
+    Effect.catchTags({
+      DbError: (error) =>
+        new LinksApiInternalError({
+          cause: error.cause,
+          operation: "externalCallAllowance",
+          orgId,
+        }),
+      ExternalCallMeterError: (error) =>
+        new LinksApiInternalError({
+          cause: error.cause,
+          operation: "externalCallReservation",
+          orgId,
+        }),
+      ExternalCallWorkspaceUnavailableError: () =>
+        new LinksApiUnavailableError({ message: "Library is unavailable" }),
+    })
   );
   yield* Effect.annotateCurrentSpan("orgId", orgId);
   return authorization;
@@ -171,6 +199,25 @@ const toResponse = <Value, Requirements extends AppCtx>(
     ),
     Effect.catchTag("LinksApiUnavailableError", (error) =>
       Effect.succeed(Response.json({ error: error.message }, { status: 410 }))
+    ),
+    Effect.catchTag("ExternalCallLimitReachedError", (error) =>
+      Effect.succeed(
+        Response.json(
+          {
+            error: "Monthly API allowance used",
+            resetsAt: error.resetsAt,
+          },
+          { status: 429 }
+        )
+      )
+    ),
+    Effect.catchTag("ExternalCallAllowanceUnavailableError", () =>
+      Effect.succeed(
+        Response.json(
+          { error: "Usage allowance is temporarily unavailable" },
+          { status: 503 }
+        )
+      )
     ),
     Effect.catchTags({
       CapabilityDisabledError: (error) =>
@@ -217,7 +264,7 @@ export const listLinksEffect = (
 ): Effect.Effect<Response, never, AuthClient | Billing | WorkspaceAccess> =>
   toResponse(
     Effect.gen(function* () {
-      const authorization = yield* authorize(apiKey);
+      const authorization = yield* authorize(apiKey, env);
       const url = new URL(request.url);
       const q = url.searchParams.get("q");
       if (q !== null) {
@@ -245,7 +292,7 @@ export const handleGetLink = (
   withApiKey(request, env, "LinksApi.getLink", (apiKey) =>
     toResponse(
       Effect.gen(function* () {
-        const authorization = yield* authorize(apiKey);
+        const authorization = yield* authorize(apiKey, env);
         const input = yield* decode(GetLinkInput, { id });
         return yield* callRpc(authorization.orgId, "getLink", () =>
           stub(env, authorization.orgId).getLink(input)
@@ -266,7 +313,7 @@ const mutation = <Value>(
   withApiKey(request, env, span, (apiKey) =>
     toResponse(
       Effect.gen(function* () {
-        const authorization = yield* authorize(apiKey);
+        const authorization = yield* authorize(apiKey, env);
         return yield* operation(authorization);
       })
     )

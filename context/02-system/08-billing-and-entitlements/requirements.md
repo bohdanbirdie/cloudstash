@@ -3,7 +3,7 @@
 ## Context
 
 Owns pricing tiers, Stripe synchronization, server-enforced capabilities,
-administrator overrides, and usage budgets.
+administrator overrides, and usage allowances.
 
 ## Assumptions
 
@@ -32,6 +32,11 @@ administrator overrides, and usage budgets.
 - **CS.SYS.BILL-T03 Status mapping:** Active, trialing, and past-due
   subscriptions retain the mapped paid tier; cancelled/unpaid/incomplete states
   map to Free according to current policy.
+- **CS.SYS.BILL-T04 Local-first capacity:** Browser saves may be accepted into a
+  local LiveStore client while entitlement state is unavailable. Capacity is
+  checked immediately when known and strictly for server-originated saves, but
+  cross-client convergence may briefly exceed a saved-link limit rather than
+  discard user data.
 
 ## Requirements
 
@@ -41,8 +46,9 @@ administrator overrides, and usage budgets.
 - **CS.SYS.BILL-R02 Request-time gates:** Paid HTTP and stateful operations must
   check capability at the authoritative boundary and return a structured
   required-tier denial.
-- **CS.SYS.BILL-R03 Stripe-free request path:** Normal feature checks must not
-  call Stripe; webhook/success/checkout/portal flows reconcile D1 separately.
+- **CS.SYS.BILL-R03 Stripe-free request path:** Normal feature checks must use
+  D1. An entitled Assistant request may perform one Stripe refresh only when a
+  required billing-cycle projection is missing, then persist it for later reads.
 - **CS.SYS.BILL-R04 Live subscription reconciliation:** Stripe events are a
   signal to fetch current subscriptions; webhook payload fields are not copied
   as authority.
@@ -50,18 +56,32 @@ administrator overrides, and usage budgets.
   deterministic idempotency keys.
 - **CS.SYS.BILL-R06 Customer first:** A workspace Stripe customer must exist and
   carry workspace metadata before Checkout is created.
-- **CS.SYS.BILL-R07 Admin grant preservation:** Stripe synchronization must not
-  overwrite a tier whose source is `admin`.
+- **CS.SYS.BILL-R07 Independent admin grants:** Stripe synchronization must
+  always maintain the current subscription projection. A manual admin grant is
+  stored independently and raises the effective tier without hiding,
+  downgrading, or blocking Stripe state.
 - **CS.SYS.BILL-R08 Interval mapping:** Monthly/yearly price IDs map to tier and
   billing interval, and tier changes preserve current interval.
 - **CS.SYS.BILL-R09 Unknown-price safety:** An active unrecognized Stripe price
   must not silently downgrade or invent a tier; it is logged and preserves the
   current tier pending reconciliation.
-- **CS.SYS.BILL-R10 Budget fail closed:** Cost-bearing chat and enrichment
-  operations must enforce their workspace/period budgets; unavailable chat
-  budget state denies provider execution.
+- **CS.SYS.BILL-R10 Allowance fail closed:** Bounded provider work and external
+  API/MCP operations must enforce their workspace/period allowances at the
+  workspace owner; unavailable allowance state denies cost-bearing execution.
 - **CS.SYS.BILL-R11 Matrix verification:** Tests must lock every default tier
   capability to prevent a shipped path remaining unreachable after a new
   capability is introduced.
 - **CS.SYS.BILL-R12 Pricing reconciliation:** Executable plan prices and Stripe
   prices must have an explicit drift check before release/config changes.
+- **CS.SYS.BILL-R13 Subscription-aligned usage:** Assistant allowance windows
+  must derive from persisted Stripe period/anchor data or, when an admin grant
+  supplies the effective paid tier, that grant's anchor. One model run must use
+  one immutable window for preflight and settlement.
+- **CS.SYS.BILL-R14 Workspace X allowance:** Imported X bookmarks must consume
+  one subscription-aligned monthly workspace allowance regardless of which
+  member connected the source account. Admission must be idempotent by source
+  bookmark and concurrency-safe at the workspace owner.
+- **CS.SYS.BILL-R15 Executable plan matrix:** Saved-link capacity, AI summaries,
+  Assistant credits, external calls, X imports, and X enrichment must have one
+  explicit tier-default matrix. Settings must show relevant public units and a
+  shared reset without exposing provider spend or margin assumptions.

@@ -1,11 +1,14 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer, References } from "effect";
 
+import { capabilitiesFor } from "@/lib/plan";
+
 import { AuthClient } from "../../auth/service";
 import {
   WorkspaceAccess,
   makeWorkspaceAccess,
 } from "../../auth/workspace-access";
+import { Billing } from "../../billing/service";
 import { ApiKey, ApiKeyRowId, OrgId, UserId } from "../../db/branded";
 import { DbClient, DbError } from "../../db/service";
 import { KeyCreationError } from "../errors";
@@ -90,6 +93,12 @@ function runAccount(
     makeDbStub(
       options.userName === undefined ? "Ada Lovelace" : options.userName,
       options.userImage ?? null
+    ),
+    Layer.succeed(
+      Billing,
+      Billing.of({
+        capabilities: () => Effect.succeed(capabilitiesFor("plus")),
+      } as unknown as Billing["Service"])
     )
   );
 
@@ -277,6 +286,7 @@ describe("ExtensionConnect.handleAccountRequest", () => {
       Effect.tap((result) =>
         Effect.sync(() => {
           expect(result).toEqual({
+            maxSavedLinks: 500,
             user: {
               name: "Ada Lovelace",
               image: "https://lh3.googleusercontent.com/a/ada",
@@ -295,6 +305,7 @@ describe("ExtensionConnect.handleAccountRequest", () => {
       Effect.tap((result) =>
         Effect.sync(() => {
           expect(result).toEqual({
+            maxSavedLinks: 500,
             user: { name: null, image: null },
           });
         })

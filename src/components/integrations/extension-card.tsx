@@ -25,7 +25,7 @@ export function ExtensionCard({
   isLoading,
   onRevokeKey,
 }: ExtensionCardProps) {
-  const extensionKeys = keys.filter((key) => key.name === "Chrome Extension");
+  const extensionKeys = keys.filter((key) => key.source === "chrome-extension");
   const isConnected = extensionKeys.length > 0;
   const description = (() => {
     if (isLoading) {

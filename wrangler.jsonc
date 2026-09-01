@@ -181,6 +181,16 @@
         { "tag": "v2", "new_sqlite_classes": ["LinkProcessorDO"] },
         { "tag": "v3", "new_sqlite_classes": ["ChatAgentDO"] },
         { "tag": "v4", "new_sqlite_classes": ["XBookmarkSyncDO"] },
+        // Staging alone already applied v5 from PR #117's branch build. Reverse
+        // that class rename here. Production remains on v4 and never sees it.
+        {
+          "tag": "v5",
+          "renamed_classes": [{ "from": "LinkProcessorDO", "to": "LibraryDO" }],
+        },
+        {
+          "tag": "v6",
+          "renamed_classes": [{ "from": "LibraryDO", "to": "LinkProcessorDO" }],
+        },
       ],
       "workflows": [
         {

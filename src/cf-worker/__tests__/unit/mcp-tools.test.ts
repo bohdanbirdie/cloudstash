@@ -5,6 +5,7 @@ import { expect } from "vitest";
 
 import { normalizeLinkSearchQuery } from "@/lib/link-search";
 import { SearchLinksInput } from "@/lib/links-contract";
+import { MCP_TOOL_SCOPES } from "@/lib/mcp";
 
 import { OrgId, UserId } from "../../db/branded";
 import type { McpAuthorization } from "../../mcp/auth";
@@ -63,6 +64,11 @@ const advertisedTools = () =>
 
 const authorization = (scopes: readonly string[]): McpAuthorization => ({
   clientId: "client-1",
+  externalCallAllowance: {
+    limit: 10_000,
+    resetsAt: "2026-09-01T00:00:00.000Z",
+    usageWindowId: "2026-08",
+  },
   orgId: OrgId.make("org-1"),
   scopes,
   userId: UserId.make("user-1"),
@@ -253,6 +259,7 @@ describe("MCP link tools", () => {
       BETTER_AUTH_URL: "https://cloudstash.test",
       LINK_PROCESSOR_DO: {
         get: () => ({
+          reserveExternalCall: async () => ({ count: 1, status: "reserved" }),
           saveLink: async (input: unknown) => {
             received = input;
             return { ok: true, value: { link: { id: "link-1" } } };
@@ -418,4 +425,56 @@ describe("MCP link tools", () => {
       expect(result).toMatchObject({ isError: true });
     })
   );
+});
+
+// WK-15-A. authorizeToolScope's second argument is just a key of
+// MCP_TOOL_SCOPES, unrelated to the name the surrounding registerTool call
+// uses, so pasting the wrong literal into a tool block compiles and silently
+// grants it the other scope. The table test above checks the map; this drives
+// each registered tool through the real server with only the opposite scope
+// held, so a mismatched guard shows up as a tool that answers instead of
+// refusing.
+const WRONG_SCOPE_CALLS = [
+  { args: {}, name: "list_links", needs: MCP_READ_SCOPE },
+  { args: { query: "effect" }, name: "search_links", needs: MCP_READ_SCOPE },
+  { args: { id: "link-1" }, name: "get_link", needs: MCP_READ_SCOPE },
+  {
+    args: { url: "https://example.com/a" },
+    name: "save_link",
+    needs: MCP_WRITE_SCOPE,
+  },
+  {
+    args: { changes: { state: "completed" }, id: "link-1" },
+    name: "update_link",
+    needs: MCP_WRITE_SCOPE,
+  },
+  {
+    args: { changes: { state: "completed" }, ids: ["link-1"] },
+    name: "update_links",
+    needs: MCP_WRITE_SCOPE,
+  },
+] as const;
+
+describe("MCP tool scope enforcement", () => {
+  it("covers every registered tool", () => {
+    expect(WRONG_SCOPE_CALLS.map((call) => call.name).toSorted()).toEqual(
+      Object.keys(MCP_TOOL_SCOPES).toSorted()
+    );
+  });
+
+  for (const { args, name, needs } of WRONG_SCOPE_CALLS) {
+    const held = needs === MCP_READ_SCOPE ? MCP_WRITE_SCOPE : MCP_READ_SCOPE;
+
+    it(`refuses ${name} when only ${held} is held`, async () => {
+      const result = await withMcpClient(
+        (client) => client.callTool({ name, arguments: args }),
+        { authorization: authorization([held]) }
+      );
+
+      expect(result).toMatchObject({
+        content: [{ text: `Missing required scope: ${needs}` }],
+        isError: true,
+      });
+    });
+  }
 });

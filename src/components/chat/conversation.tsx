@@ -26,11 +26,13 @@ export type ConversationContentProps = ComponentProps<
 
 export function ConversationContent({
   className,
+  scrollClassName,
   ...props
 }: ConversationContentProps) {
   return (
     <StickToBottom.Content
-      className={cn("flex flex-col gap-3 py-2 pr-3 overflow-y-auto", className)}
+      scrollClassName={cn("scroll-fade overflow-y-auto", scrollClassName)}
+      className={cn("flex flex-col gap-2 px-3 py-5", className)}
       {...props}
     />
   );
@@ -60,6 +62,7 @@ export function ConversationScrollButton({
       size="icon-sm"
       type="button"
       variant="outline"
+      aria-label="Scroll to latest message"
       {...props}
     >
       <ArrowDownIcon className="size-3" />

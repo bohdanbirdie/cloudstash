@@ -60,7 +60,8 @@ export async function extractContent(
 export async function fetchAndExtractContent(
   url: string,
   fetcher: typeof fetch = fetch,
-  ownHostname?: string
+  ownHostname?: string,
+  signal: AbortSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
 ): Promise<ExtractedContent | null> {
   const targetSchema = HttpTargetUrl(ownHostname);
   let target: URL;
@@ -70,7 +71,6 @@ export async function fetchAndExtractContent(
     throw new ContentExtractorFailure("scheme-rejected", String(cause));
   }
 
-  const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
   let response: Awaited<ReturnType<typeof fetchBoundedText>>;
   try {
     response = await fetchBoundedText({

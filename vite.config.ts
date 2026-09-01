@@ -222,11 +222,41 @@ const config: UserConfig = {
       "anti-slop/no-hidden-app-layer-outputs": "error",
       "anti-slop/no-capability-recovery-after-span": "error",
       "anti-slop/no-module-mocking": "off",
+      "anti-slop/no-test-spies": "off",
     },
     options: {
       typeAware: true,
     },
     overrides: [
+      {
+        files: ["src/cf-worker/chat-agent/**/*.{ts,tsx,js,jsx}"],
+        rules: {
+          "no-restricted-imports": [
+            "error",
+            {
+              paths: [
+                {
+                  name: "@livestore/adapter-cloudflare",
+                  message:
+                    "ChatAgentDO must use LinkProcessorDO RPC, not own a LiveStore client.",
+                },
+                {
+                  name: "@livestore/livestore",
+                  message:
+                    "ChatAgentDO must use LinkProcessorDO RPC, not own a LiveStore client.",
+                },
+              ],
+              patterns: [
+                {
+                  group: ["@livestore/sync-cf/*", "../../livestore/**"],
+                  message:
+                    "ChatAgentDO must use LinkProcessorDO RPC, not own a LiveStore client.",
+                },
+              ],
+            },
+          ],
+        },
+      },
       {
         files: [
           "**/*.{test,spec}.{ts,tsx,js,jsx}",
@@ -247,6 +277,7 @@ const config: UserConfig = {
         ],
         rules: {
           "anti-slop/no-module-mocking": "error",
+          "anti-slop/no-test-spies": "error",
         },
       },
       {

@@ -1,10 +1,14 @@
-import { Effect, Option } from "effect";
+import { Clock, Effect, Option } from "effect";
 
 import { OrgId, UserId, XUserId, XUsername } from "../db/branded";
 import { maskId } from "../log-utils";
 import { XSyncAccountRepository } from "./account";
 import type { XApiFailure } from "./errors";
-import { POLL_INTERVAL_MS } from "./poll";
+import {
+  activePollControl,
+  pollControlsEqual,
+  repairedPollDelay,
+} from "./poll-control";
 import { XApiClient } from "./services";
 import { XSyncAlarm } from "./services/x-sync-alarm";
 import type {
@@ -64,6 +68,7 @@ export const initializeWatermarkEffect = Effect.fn(
   }
 
   yield* store.setWatermark(newestId);
+  yield* store.setCheckpoints([newestId]);
   yield* Effect.annotateCurrentSpan("watermark", newestId);
   yield* Effect.logInfo("initializeWatermark: pinned").pipe(
     Effect.annotateLogs({
@@ -84,7 +89,8 @@ const initializeSyncWithTokenEffect = Effect.fn(
   const me = yield* api.getMe(accessToken).pipe(
     Effect.map(Option.some),
     Effect.catchTag("XUnauthorizedError", (error) =>
-      store.setStatus("needs_reconnect").pipe(
+      store.setReconnectReason("auth").pipe(
+        Effect.andThen(store.setStatus("needs_reconnect")),
         Effect.tap(() =>
           Effect.logWarning("start: getMe unauthorized").pipe(
             Effect.annotateLogs({
@@ -116,6 +122,8 @@ interface ActiveReconcileContext {
   readonly organizationId: OrgId;
   readonly state: XSyncConnectedState;
   readonly accessToken: string;
+  readonly activated: boolean;
+  readonly monthlyBookmarkLimit: number;
 }
 
 const isConnectedState = (
@@ -234,14 +242,26 @@ const reconcileCoreEffect = Effect.fn("XBookmarkSyncDO.reconcileCore")(
     const accessToken = yield* repository.getAccessToken(userId, account.id);
     const connected = isConnectedState(state);
     if (connected && state.status === "needs_reconnect") {
-      const api = yield* XApiClient;
-      const credentialValid = yield* api.getMe(accessToken).pipe(
-        Effect.as(true),
-        Effect.catchTag("XUnauthorizedError", () => Effect.succeed(false))
-      );
+      const reason = yield* store.readReconnectReason();
+      const recoverable = reason === "auth";
+      const credentialValid =
+        recoverable &&
+        (yield* (yield* XApiClient).getMe(accessToken).pipe(
+          Effect.as(true),
+          Effect.catchTag("XUnauthorizedError", () => Effect.succeed(false))
+        ));
       if (!credentialValid) {
         yield* setControlEffect(state, organizationId, "needs_reconnect");
         yield* alarm.cancel();
+        if (!recoverable) {
+          yield* Effect.logInfo("reconcile: parked on provider access").pipe(
+            Effect.annotateLogs({
+              userId: maskId(userId),
+              organizationId: maskId(organizationId),
+              reason,
+            })
+          );
+        }
         return Option.none<ActiveReconcileContext>();
       }
     }
@@ -260,7 +280,8 @@ const reconcileCoreEffect = Effect.fn("XBookmarkSyncDO.reconcileCore")(
     yield* setControlEffect(state, organizationId, "active");
     const activeState = yield* activeStateEffect(state, organizationId);
 
-    if (!connected || state.status !== "active") {
+    const activated = !connected || state.status !== "active";
+    if (activated) {
       yield* Effect.logInfo("reconcile: active").pipe(
         Effect.annotateLogs({
           userId: maskId(userId),
@@ -273,16 +294,34 @@ const reconcileCoreEffect = Effect.fn("XBookmarkSyncDO.reconcileCore")(
       organizationId,
       state: activeState,
       accessToken,
+      activated,
+      monthlyBookmarkLimit: capabilities.monthlyXBookmarks,
     } satisfies ActiveReconcileContext);
   }
 );
 
 export const reconcileSyncEffect = Effect.fn("XBookmarkSyncDO.reconcile")(
-  function* (userId: UserId, requestedOrgId: OrgId | undefined) {
+  function* (
+    userId: UserId,
+    requestedOrgId: OrgId | undefined,
+    wakeForEntitlementChange = false
+  ) {
     const reconciled = yield* reconcileCoreEffect(userId, requestedOrgId);
     if (Option.isSome(reconciled)) {
+      const store = yield* XSyncStateStore;
       const alarm = yield* XSyncAlarm;
-      yield* alarm.ensureAfter(POLL_INTERVAL_MS);
+      const current = yield* store.readPollControl();
+      const control = reconciled.value.activated ? activePollControl : current;
+      if (!pollControlsEqual(current, control)) {
+        yield* store.setPollControl(control);
+      }
+      const now = yield* Clock.currentTimeMillis;
+      const repairDelay = repairedPollDelay(control, now);
+      if (wakeForEntitlementChange) {
+        yield* alarm.scheduleNoLaterThan(repairDelay);
+      } else {
+        yield* alarm.ensureAfter(repairDelay);
+      }
     }
   }
 );
@@ -292,6 +331,14 @@ export const reconcileBeforePollEffect = Effect.fn(
 )(function* (userId: UserId) {
   return yield* reconcileCoreEffect(userId, undefined);
 });
+
+export const reconnectSyncEffect = Effect.fn("XBookmarkSyncDO.reconnect")(
+  function* (userId: UserId, requestedOrgId: OrgId | undefined) {
+    const store = yield* XSyncStateStore;
+    yield* store.setReconnectReason("auth");
+    return yield* reconcileSyncEffect(userId, requestedOrgId);
+  }
+);
 
 export const resumeSyncEffect = Effect.fn("XBookmarkSyncDO.resume")(function* (
   userId: UserId,
@@ -308,5 +355,6 @@ export const resumeSyncEffect = Effect.fn("XBookmarkSyncDO.resume")(function* (
     return;
   }
   yield* store.setSyncEnabled(true);
+  yield* store.setReconnectReason("auth");
   return yield* reconcileSyncEffect(userId, requestedOrgId);
 });

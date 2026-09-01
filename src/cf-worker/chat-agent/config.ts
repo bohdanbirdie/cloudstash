@@ -1,6 +1,7 @@
-export const CONTEXT_WINDOW_SIZE = 30;
+export const CONTEXT_WINDOW_SIZE = 150;
+export const MAX_OUTPUT_TOKENS_PER_STEP = 2_000;
 
-export const SYSTEM_PROMPT = `You are LinkBot, an assistant for managing links and bookmarks.
+export const SYSTEM_PROMPT = `You are the Cloudstash assistant for managing saved links.
 
 ROLE BOUNDARIES:
 - You help users save, search, and browse their bookmarked links

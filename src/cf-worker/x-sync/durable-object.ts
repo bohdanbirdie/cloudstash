@@ -12,11 +12,20 @@ import { createLogger } from "../logger";
 import type { Env } from "../shared";
 import { OtelTracingLive } from "../tracing";
 import { XSyncAccountRepository } from "./account";
-import { BACKOFF_BASE_MS, BACKOFF_CAP_MS, pollReconciledEffect } from "./poll";
+import { pollReconciledEffect } from "./poll";
 import type { PollOutcome } from "./poll";
+import {
+  healthyPollDelay,
+  pollControlAfterSuccess,
+  pollControlAfterTransientFailure,
+  pollControlsEqual,
+  rateLimitDelay,
+  transientFailureDelay,
+} from "./poll-control";
 import {
   reconcileBeforePollEffect,
   reconcileSyncEffect,
+  reconnectSyncEffect,
   resumeSyncEffect,
 } from "./reconcile";
 import { XApiClient } from "./services";
@@ -28,6 +37,10 @@ import { XSyncStateStore } from "./services/x-sync-state-store";
 import { XSyncStateStoreLive } from "./services/x-sync-state-store.live";
 
 const XSyncLogger = createLogger("XBookmarkSyncDO");
+
+export const X_API_CLIENT_TEST_OVERRIDE = Symbol(
+  "@cloudstash/x-sync/XApiClientTestOverride"
+);
 
 export type { XStatusResponse } from "../../lib/x-sync-status";
 
@@ -41,20 +54,12 @@ type AlarmOutcome =
   | { readonly kind: "error" }
   | PollOutcome;
 
-const pollDelay = (
-  result: Extract<PollOutcome, { kind: "ok" | "rate_limited" }>
-): number => {
-  if (result.kind === "rate_limited") return result.retryAfterMs;
-  return result.rescheduleInMs;
-};
-
 export class XBookmarkSyncDO extends DurableObject<Env> {
-  private retryAttempt = 0;
-
   // In-memory only — survives across alarms within a DO lifecycle, resets
   // to null on cold start. UI displays "—" briefly until the next alarm fires
-  // (≤30s). Persisting this on every poll would burn DO write budget.
+  // (≤5m). Persisting this on every poll would burn DO write budget.
   private lastSyncedAt: number | null = null;
+  private xApiClientLayer: Layer.Layer<XApiClient> = XApiClientLive;
 
   private get userId(): UserId {
     const name = this.ctx.id.name;
@@ -68,24 +73,35 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
 
   private get baseLayer() {
     const accountLayer = XSyncAccountRepository.layer.pipe(
-      Layer.provideMerge(Billing.Default),
+      Layer.provideMerge(Billing.layer),
       Layer.provideMerge(AuthClientLive(this.env)),
       Layer.provideMerge(DbClientLive(this.env.DB))
     );
 
     return Layer.mergeAll(
-      XApiClientLive,
+      this.xApiClientLayer,
       accountLayer,
       XSyncStateStoreLive(this.ctx.storage),
       XSyncAlarm.layer(this.ctx.storage),
-      LinkQueueClientLive(this.env.LINK_QUEUE)
+      LinkQueueClientLive(this.env.LINK_PROCESSOR_DO)
     ).pipe(
       Layer.provideMerge(OtelTracingLive),
       Layer.provideMerge(Logger.layer([XSyncLogger]))
     );
   }
 
-  private readonly runtime = ManagedRuntime.make(this.baseLayer);
+  private runtime = ManagedRuntime.make(this.baseLayer);
+
+  async [X_API_CLIENT_TEST_OVERRIDE](
+    service: typeof XApiClient.Service
+  ): Promise<void> {
+    if (this.env.ENABLE_TEST_AUTH !== "true") {
+      throw new Error("X API client overrides are disabled");
+    }
+    await this.runtime.dispose();
+    this.xApiClientLayer = Layer.succeed(XApiClient, service);
+    this.runtime = ManagedRuntime.make(this.baseLayer);
+  }
 
   private runEffect<A, E>(
     effect: Effect.Effect<
@@ -105,9 +121,18 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
     await this.reconcile();
   }
 
-  async reconcile(orgId?: string): Promise<void> {
+  async reconcile(
+    orgId?: string,
+    wakeForEntitlementChange = false
+  ): Promise<void> {
     const userId = this.userId;
-    return this.runEffect(reconcileSyncEffect(userId, optionalOrgId(orgId)));
+    return this.runEffect(
+      reconcileSyncEffect(
+        userId,
+        optionalOrgId(orgId),
+        wakeForEntitlementChange
+      )
+    );
   }
 
   async pause(): Promise<void> {
@@ -131,8 +156,13 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
     }
   );
 
+  async reconnect(orgId?: string): Promise<void> {
+    await this.runEffect(
+      reconnectSyncEffect(this.userId, optionalOrgId(orgId))
+    );
+  }
+
   async resume(orgId?: string): Promise<void> {
-    this.retryAttempt = 0;
     await this.runEffect(resumeSyncEffect(this.userId, optionalOrgId(orgId)));
   }
 
@@ -201,11 +231,24 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
     }
 
     const ready = reconciled.value;
+    const repository = yield* XSyncAccountRepository;
+    const usageWindow = yield* repository.usageWindow(ready.organizationId);
+    if (Option.isNone(usageWindow)) {
+      yield* Effect.logWarning("alarm: monthly usage window unavailable").pipe(
+        Effect.annotateLogs({
+          userId: maskId(userId),
+          organizationId: maskId(ready.organizationId),
+        })
+      );
+      return { kind: "error" as const };
+    }
     return yield* pollReconciledEffect(
       userId,
       ready.organizationId,
       ready.state,
-      ready.accessToken
+      ready.accessToken,
+      usageWindow.value,
+      ready.monthlyBookmarkLimit
     );
   });
 
@@ -214,20 +257,23 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
     function* (this: XBookmarkSyncDO, userId: UserId, outcome: AlarmOutcome) {
       if (outcome.kind === "halt") return;
 
+      const store = yield* XSyncStateStore;
+      const alarm = yield* XSyncAlarm;
+      const current = yield* store.readPollControl();
+
       if (outcome.kind === "error") {
-        this.retryAttempt += 1;
-        const delay = Math.min(
-          BACKOFF_BASE_MS * 2 ** (this.retryAttempt - 1),
-          BACKOFF_CAP_MS
-        );
+        const next = pollControlAfterTransientFailure(current);
+        if (!pollControlsEqual(current, next)) {
+          yield* store.setPollControl(next);
+        }
+        const delay = transientFailureDelay(next);
         yield* Effect.logWarning("alarm: backing off").pipe(
           Effect.annotateLogs({
             userId: maskId(userId),
-            retryAttempt: this.retryAttempt,
+            transientFailures: next.transientFailures,
             delayMs: delay,
           })
         );
-        const alarm = yield* XSyncAlarm;
         return yield* alarm.scheduleAfter(delay);
       }
 
@@ -235,14 +281,45 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
         return;
       }
 
-      this.retryAttempt = 0;
-      const alarm = yield* XSyncAlarm;
-      this.lastSyncedAt = yield* Clock.currentTimeMillis;
-      const rescheduleMs = pollDelay(outcome);
+      if (outcome.kind === "continuing") {
+        return yield* alarm.scheduleAfter(1_000);
+      }
+
+      if (outcome.kind === "monthly_limit") {
+        yield* Effect.logInfo("alarm: monthly X limit reached").pipe(
+          Effect.annotateLogs({
+            userId: maskId(userId),
+            reason: outcome.reason,
+            newCount: outcome.newCount,
+            rescheduleMs: outcome.retryAfterMs,
+          })
+        );
+        return yield* alarm.scheduleAfter(outcome.retryAfterMs);
+      }
+
+      const now = yield* Clock.currentTimeMillis;
+      if (outcome.kind === "rate_limited") {
+        const rescheduleMs = rateLimitDelay(current, now, outcome.retryAfterMs);
+        yield* Effect.logWarning("alarm: provider rate limited").pipe(
+          Effect.annotateLogs({
+            userId: maskId(userId),
+            rescheduleMs,
+          })
+        );
+        return yield* alarm.scheduleAfter(rescheduleMs);
+      }
+
+      const next = pollControlAfterSuccess(current, outcome.newCount, now);
+      if (!pollControlsEqual(current, next)) {
+        yield* store.setPollControl(next);
+      }
+      this.lastSyncedAt = now;
+      const rescheduleMs = healthyPollDelay(next, now);
       yield* Effect.logDebug("alarm: rescheduled").pipe(
         Effect.annotateLogs({
           userId: maskId(userId),
           outcome: outcome.kind,
+          newCount: outcome.newCount,
           rescheduleMs,
         })
       );
@@ -298,9 +375,7 @@ export class XBookmarkSyncDO extends DurableObject<Env> {
         Effect.annotateCurrentSpan("alarmOutcomeKind", outcome.kind)
       ),
       Effect.flatMap((outcome) => this.resolveAlarmEffect(userId, outcome)),
-      Effect.withSpan("XBookmarkSyncDO.alarm", {
-        attributes: { retryAttempt: this.retryAttempt },
-      })
+      Effect.withSpan("XBookmarkSyncDO.alarm")
     );
   }
 }

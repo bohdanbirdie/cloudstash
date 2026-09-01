@@ -1,41 +1,47 @@
-import { ExternalLink, Trash2 } from "lucide-react";
+import { Match } from "effect";
+import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
+import { useId, useState } from "react";
 
 import { Favicon } from "@/components/favicon";
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
+import { KeyChord } from "@/components/ui/key-chord";
 import { displayTitle } from "@/lib/link-display";
+import { cn } from "@/lib/utils";
 import { linksByIds$ } from "@/livestore/queries/links";
-import type { LinkWithDetails } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
 
 interface LinkDeleteConfirmationProps {
   linkIds: string[];
   onApprove: () => void;
   onReject: () => void;
+  surface?: "card" | "composer";
 }
 
-function LinkPreview({ link }: { link: LinkWithDetails | null }) {
-  if (!link) {
-    return (
-      <div className="text-muted-foreground text-sm italic">Link not found</div>
-    );
-  }
+export interface ArchiveLinkPreview {
+  id: string;
+  title: string;
+  domain: string;
+  favicon: string | null;
+}
 
+function LinkPreview({ link }: { link: ArchiveLinkPreview }) {
   return (
-    <div className="flex items-center gap-3 py-1.5">
+    <div className="flex min-h-7 items-center gap-2 px-2 py-1">
       {link.favicon ? (
-        <Favicon
-          src={link.favicon}
-          className="size-4 rounded-sm flex-shrink-0"
-        />
+        <Favicon src={link.favicon} className="size-3.5 shrink-0 rounded-sm" />
       ) : (
-        <ExternalLink className="size-4 text-muted-foreground flex-shrink-0" />
+        <ExternalLinkIcon
+          aria-hidden="true"
+          className="size-3.5 shrink-0 text-muted-foreground"
+        />
       )}
-      <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium truncate">{displayTitle(link)}</div>
-        <div className="text-xs text-muted-foreground truncate">
-          {link.domain}
-        </div>
-      </div>
+      <span className="min-w-0 flex-1 truncate text-xs/4 font-medium">
+        {link.title}
+      </span>
+      <span className="max-w-[40%] shrink-0 truncate text-[0.6875rem]/3.5 text-muted-foreground">
+        {link.domain}
+      </span>
     </div>
   );
 }
@@ -44,57 +50,162 @@ export function LinkDeleteConfirmation({
   linkIds,
   onApprove,
   onReject,
+  surface = "card",
 }: LinkDeleteConfirmationProps) {
   const store = useAppStore();
   const links = store.useQuery(linksByIds$(linkIds));
 
   const linkMap = new Map(links.map((l) => [l.id, l]));
-  const orderedLinks = linkIds.map((id) => linkMap.get(id) ?? null);
-  const validLinks = links;
-  const isBulk = linkIds.length > 1;
+  const orderedLinks = linkIds.map((id) =>
+    Match.value(linkMap.get(id)).pipe(
+      Match.when(Match.undefined, () => null),
+      Match.orElse((link) => ({
+        id: link.id,
+        title: displayTitle(link),
+        domain: link.domain,
+        favicon: link.favicon,
+      }))
+    )
+  );
 
   return (
-    <div className="border-destructive overflow-hidden rounded-md border">
-      <div className="p-3 space-y-3">
-        <div className="flex items-center gap-2">
-          <Trash2 className="size-4 text-destructive flex-shrink-0" />
-          <span className="font-medium text-sm tabular-nums">
-            {isBulk
-              ? `Move ${validLinks.length} link${validLinks.length !== 1 ? "s" : ""} to archive?`
-              : "Move to archive?"}
+    <LinkDeleteConfirmationView
+      links={orderedLinks}
+      onApprove={onApprove}
+      onReject={onReject}
+      surface={surface}
+    />
+  );
+}
+
+export function LinkDeleteConfirmationView({
+  links,
+  onApprove,
+  onReject,
+  surface = "card",
+  defaultExpanded = false,
+}: {
+  links: readonly (ArchiveLinkPreview | null)[];
+  onApprove: () => void;
+  onReject: () => void;
+  surface?: "card" | "composer";
+  defaultExpanded?: boolean;
+}) {
+  const listId = useId();
+  const [showAll, setShowAll] = useState(defaultExpanded);
+  const availableLinks = links.filter(
+    (link): link is ArchiveLinkPreview => link !== null
+  );
+  const requestedLinkCount = links.length;
+  const availableLinkCount = availableLinks.length;
+  const canExpand = availableLinkCount > 2;
+  const visibleLinks = Match.value(showAll).pipe(
+    Match.when(true, () => availableLinks),
+    Match.orElse(() => availableLinks.slice(0, 2))
+  );
+  const title = Match.value(requestedLinkCount).pipe(
+    Match.when(0, () => "Links no longer available"),
+    Match.when(
+      (count) => count > 1,
+      (count) => `Move ${count} links to archive?`
+    ),
+    Match.orElse(() => "Move to archive?")
+  );
+  const disclosureLabel = Match.value(showAll).pipe(
+    Match.when(true, () => "Show fewer links"),
+    Match.orElse(() => `Review all ${availableLinkCount} links`)
+  );
+  const isComposer = surface === "composer";
+
+  return (
+    <div
+      className={cn("overflow-hidden", {
+        "rounded-lg border border-border/70 bg-background": !isComposer,
+      })}
+    >
+      <div className={cn({ "p-3": !isComposer, "p-2": isComposer })}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="min-w-0 text-sm font-medium tabular-nums">
+            {title}
           </span>
+          <div className="ms-auto flex shrink-0 gap-1.5">
+            <Button
+              type="button"
+              data-approval-action="reject"
+              variant="outline"
+              size="sm"
+              aria-keyshortcuts={isComposer ? "Escape" : undefined}
+              onClick={onReject}
+            >
+              Keep
+              {isComposer && (
+                <Kbd aria-hidden="true" className="ms-1 h-4 min-w-4">
+                  Esc
+                </Kbd>
+              )}
+            </Button>
+            <Button
+              type="button"
+              data-approval-action="approve"
+              size="sm"
+              aria-keyshortcuts={
+                isComposer ? "Meta+Enter Control+Enter" : undefined
+              }
+              onClick={onApprove}
+              disabled={requestedLinkCount === 0}
+            >
+              Archive
+              {isComposer && (
+                <Kbd
+                  aria-hidden="true"
+                  className="ms-1 h-4 min-w-4 bg-primary-foreground/15 text-primary-foreground"
+                >
+                  <KeyChord keys={["cmd", "enter"]} />
+                </Kbd>
+              )}
+            </Button>
+          </div>
         </div>
 
-        <div className="space-y-0.5 max-h-32 overflow-y-auto">
-          {orderedLinks.map((link, i) => (
-            <LinkPreview key={linkIds[i]} link={link} />
-          ))}
-        </div>
-
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1 h-8"
-            onClick={onReject}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            className="flex-1 h-8"
-            onClick={onApprove}
-          >
-            <Trash2 className="size-3 mr-1" />
-            Delete
-            {isBulk ? (
-              <span className="tabular-nums">{` ${validLinks.length}`}</span>
-            ) : (
-              ""
+        {availableLinkCount > 0 && (
+          <div
+            id={listId}
+            className={cn(
+              "mt-1.5 divide-y divide-border/60 overflow-hidden rounded-md bg-muted/40",
+              {
+                "scroll-fade-y max-h-44 overflow-y-auto overscroll-contain":
+                  showAll,
+              }
             )}
+          >
+            {visibleLinks.map((link) => (
+              <LinkPreview key={link.id} link={link} />
+            ))}
+          </div>
+        )}
+
+        {canExpand && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-expanded={showAll}
+            aria-controls={listId}
+            className="mt-1 h-6 w-full justify-between px-2 text-muted-foreground"
+            onClick={() => setShowAll((current) => !current)}
+          >
+            <span>{disclosureLabel}</span>
+            <ChevronDownIcon
+              aria-hidden="true"
+              className={cn(
+                "transition-transform duration-150 motion-reduce:transition-none",
+                {
+                  "rotate-180": showAll,
+                }
+              )}
+            />
           </Button>
-        </div>
+        )}
       </div>
     </div>
   );

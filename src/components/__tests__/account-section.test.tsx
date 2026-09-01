@@ -1,0 +1,61 @@
+// @vitest-environment jsdom
+
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { AccountSectionView } from "@/components/settings/sections/account-section";
+
+afterEach(cleanup);
+
+describe("account usage", () => {
+  it("shows the public Assistant allowance without private accounting details", () => {
+    render(
+      <AccountSectionView
+        usageItems={[
+          {
+            id: "assistant",
+            label: "Cloudstash Assistant",
+            limit: 1_000,
+            remaining: 842,
+          },
+        ]}
+        savedLinks={{
+          id: "savedLinks",
+          label: "Saved links",
+          limit: 500,
+          remaining: 420,
+        }}
+        resetsAt="2026-09-01T00:00:00.000Z"
+        email="alex@example.com"
+        image={null}
+        name="Alex Morgan"
+        onDeleteAccount={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Usage")).toBeTruthy();
+    expect(screen.getByText("Cloudstash Assistant")).toBeTruthy();
+    expect(screen.getByText("Saved links")).toBeTruthy();
+    expect(screen.getByText("842")).toBeTruthy();
+    expect(screen.getByText("of 1,000 left")).toBeTruthy();
+    expect(screen.getByText("Monthly limits reset Sep 1")).toBeTruthy();
+    expect(screen.queryByText(/\$/)).toBeNull();
+  });
+
+  it("keeps the Usage section visible when remote usage is unavailable", () => {
+    render(
+      <AccountSectionView
+        usageError
+        email="alex@example.com"
+        image={null}
+        name="Alex Morgan"
+        onDeleteAccount={() => undefined}
+      />
+    );
+
+    expect(screen.getByText("Usage")).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Usage is temporarily unavailable."
+    );
+  });
+});

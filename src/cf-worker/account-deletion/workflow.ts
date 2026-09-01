@@ -5,7 +5,7 @@ import type { UserId } from "../db/branded";
 import * as schema from "../db/schema";
 import { DbClient, DbError, query } from "../db/service";
 import { SharedPersonalOrgError } from "./prepare";
-import type { AccountDeletionParams } from "./runtime";
+import type { AccountDeletionParams, DeletionRuntimeShape } from "./runtime";
 import { DeletionRuntime, DeletionRuntimeError } from "./runtime";
 
 export const STEP_RETRY = {
@@ -39,59 +39,6 @@ export const waitForIdentityDeletion = Effect.fnUntraced(function* (
   if (existing) {
     return yield* new IdentityDeletionPendingError({ userId: payload.userId });
   }
-});
-
-export const cancelStripeSubscription = Effect.fn(
-  "AccountDeletion.cancelStripeSubscription"
-)(function* (payload: AccountDeletionParams) {
-  if (payload.stripeSubscriptionId === null) return;
-  const runtime = yield* DeletionRuntime;
-  yield* runtime.cancelStripeSubscription(
-    payload.stripeSubscriptionId,
-    payload.orgId
-  );
-});
-
-export const purgeSyncBackend = Effect.fn("AccountDeletion.purgeSyncBackend")(
-  function* (payload: AccountDeletionParams) {
-    const runtime = yield* DeletionRuntime;
-    yield* runtime.purgeSyncBackend(payload.orgId);
-  }
-);
-
-export const wipeLinkProcessor = Effect.fn("AccountDeletion.wipeLinkProcessor")(
-  function* (payload: AccountDeletionParams) {
-    const runtime = yield* DeletionRuntime;
-    yield* runtime.retireLinkProcessor(payload.orgId);
-  }
-);
-
-export const wipeChatAgent = Effect.fn("AccountDeletion.wipeChatAgent")(
-  function* (payload: AccountDeletionParams) {
-    const runtime = yield* DeletionRuntime;
-    yield* runtime.retireChatAgent(payload.orgId);
-  }
-);
-
-export const purgeXBookmarkSync = Effect.fn(
-  "AccountDeletion.purgeXBookmarkSync"
-)(function* (payload: AccountDeletionParams) {
-  const runtime = yield* DeletionRuntime;
-  yield* runtime.purgeXBookmarkSync(payload.userId);
-});
-
-export const purgeTelegram = Effect.fn("AccountDeletion.purgeTelegram")(
-  function* (payload: AccountDeletionParams) {
-    const runtime = yield* DeletionRuntime;
-    yield* runtime.purgeTelegram(payload.userId, payload.orgId);
-  }
-);
-
-export const purgeEnrichmentUsage = Effect.fn(
-  "AccountDeletion.purgeEnrichmentUsage"
-)(function* (payload: AccountDeletionParams) {
-  const runtime = yield* DeletionRuntime;
-  yield* runtime.purgeEnrichmentUsage(payload.orgId);
 });
 
 export const deleteOrgData = Effect.fn("AccountDeletion.deleteOrgData")(
@@ -150,6 +97,16 @@ interface AccountDeletionStepDefinition {
   >;
 }
 
+const runtimeActivity =
+  (
+    activity: (
+      runtime: DeletionRuntimeShape,
+      payload: AccountDeletionParams
+    ) => Effect.Effect<void, DeletionRuntimeError>
+  ): AccountDeletionStepDefinition["activity"] =>
+  (payload) =>
+    Effect.flatMap(DeletionRuntime, (runtime) => activity(runtime, payload));
+
 // This is the production orchestration contract. Keeping it as data makes the
 // exact Cloudflare step order and retry policy directly testable.
 export const ACCOUNT_DELETION_STEPS: readonly AccountDeletionStepDefinition[] =
@@ -162,35 +119,58 @@ export const ACCOUNT_DELETION_STEPS: readonly AccountDeletionStepDefinition[] =
     {
       name: "cancel-stripe-subscription",
       config: STEP_RETRY,
-      activity: cancelStripeSubscription,
+      activity: runtimeActivity((runtime, payload) =>
+        payload.stripeSubscriptionId === null
+          ? Effect.void
+          : runtime.cancelStripeSubscription(
+              payload.stripeSubscriptionId,
+              payload.orgId
+            )
+      ),
     },
-    // Stop the server-side LiveStore clients before deleting their source so
-    // neither can reconnect and recreate the canonical eventlog after purge.
-    {
-      name: "wipe-link-processor",
-      config: STEP_RETRY,
-      activity: wipeLinkProcessor,
-    },
+    // The processor owns the chat registry, so retire its conversations before
+    // wiping that registry and the server-side LiveStore client.
     {
       name: "wipe-chat-agent",
       config: STEP_RETRY,
-      activity: wipeChatAgent,
+      activity: runtimeActivity((runtime, payload) =>
+        runtime.retireChatAgent(payload.orgId)
+      ),
+    },
+    {
+      name: "wipe-link-processor",
+      config: STEP_RETRY,
+      activity: runtimeActivity((runtime, payload) =>
+        runtime.retireLinkProcessor(payload.orgId)
+      ),
     },
     {
       name: "purge-sync-backend",
       config: STEP_RETRY,
-      activity: purgeSyncBackend,
+      activity: runtimeActivity((runtime, payload) =>
+        runtime.purgeSyncBackend(payload.orgId)
+      ),
     },
     {
       name: "purge-x-bookmark-sync",
       config: STEP_RETRY,
-      activity: purgeXBookmarkSync,
+      activity: runtimeActivity((runtime, payload) =>
+        runtime.purgeXBookmarkSync(payload.userId)
+      ),
     },
-    { name: "purge-telegram", config: STEP_RETRY, activity: purgeTelegram },
+    {
+      name: "purge-telegram",
+      config: STEP_RETRY,
+      activity: runtimeActivity((runtime, payload) =>
+        runtime.purgeTelegram(payload.userId, payload.orgId)
+      ),
+    },
     {
       name: "purge-enrichment-usage",
       config: STEP_RETRY,
-      activity: purgeEnrichmentUsage,
+      activity: runtimeActivity((runtime, payload) =>
+        runtime.purgeEnrichmentUsage(payload.orgId)
+      ),
     },
     { name: "delete-org-data", config: STEP_RETRY, activity: deleteOrgData },
   ];

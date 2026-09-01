@@ -231,22 +231,19 @@ describe("fetchAndExtractContent", () => {
   });
 
   it.live("retries typed timeout failures twice", () => {
-    const timeoutSpy = vi
-      .spyOn(AbortSignal, "timeout")
-      .mockReturnValue(AbortSignal.abort());
     const fetcher = vi.fn(() => Promise.reject(new Error("timed out")));
     return Effect.gen(function* () {
-      try {
-        const extractor = yield* ContentExtractor;
+      const extractor = yield* ContentExtractor;
 
-        expect(yield* extractor.extract("https://example.com/page")).toBeNull();
-        expect(fetcher).toHaveBeenCalledTimes(3);
-      } finally {
-        timeoutSpy.mockRestore();
-      }
+      expect(yield* extractor.extract("https://example.com/page")).toBeNull();
+      expect(fetcher).toHaveBeenCalledTimes(3);
     }).pipe(
       Effect.provide(
-        makeContentExtractorLive(fetcher as unknown as typeof fetch)
+        makeContentExtractorLive(
+          fetcher as unknown as typeof fetch,
+          undefined,
+          () => AbortSignal.abort()
+        )
       )
     );
   });
@@ -387,31 +384,25 @@ describe("fetchAndExtractContent", () => {
   });
 
   it.live("retries typed metadata timeout failures twice", () => {
-    const timeoutSpy = vi
-      .spyOn(AbortSignal, "timeout")
-      .mockReturnValue(AbortSignal.abort());
     const fetcher = vi.fn(() => Promise.reject(new Error("timed out")));
     return Effect.gen(function* () {
-      try {
-        const metadataFetcher = yield* MetadataFetcher;
-        const error = yield* Effect.flip(
-          metadataFetcher.fetch("https://example.com/page")
-        );
+      const metadataFetcher = yield* MetadataFetcher;
+      const error = yield* Effect.flip(
+        metadataFetcher.fetch("https://example.com/page")
+      );
 
-        expect(error).toBeInstanceOf(MetadataFetchError);
-        if (error._tag === "MetadataFetchError") {
-          expect(error.reason).toBe("timeout");
-          expect(error.statusCode).toBeUndefined();
-        }
-        expect(fetcher).toHaveBeenCalledTimes(3);
-      } finally {
-        timeoutSpy.mockRestore();
+      expect(error).toBeInstanceOf(MetadataFetchError);
+      if (error._tag === "MetadataFetchError") {
+        expect(error.reason).toBe("timeout");
+        expect(error.statusCode).toBeUndefined();
       }
+      expect(fetcher).toHaveBeenCalledTimes(3);
     }).pipe(
       Effect.provide(
         MetadataFetcherLive(
           "cloudstash.dev",
-          fetcher as unknown as typeof fetch
+          fetcher as unknown as typeof fetch,
+          () => AbortSignal.abort()
         )
       )
     );

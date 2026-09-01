@@ -1,8 +1,8 @@
 import { abortAllDurableObjects, env, SELF } from "cloudflare:test";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { OrgId } from "../../db/branded";
-import { signupUser } from "./helpers";
+import { installTestMetadataFetcher, signupUser } from "./helpers";
 
 const SAVED_URL = "https://example.com/rest-api-link";
 const SECOND_URL = "https://example.net/rest-api-second";
@@ -22,24 +22,13 @@ const json = (apiKey: string) => ({
 describe("Links REST API", () => {
   let apiKey: string;
   let orgId: string;
-  let restoreFetch: (() => void) | undefined;
 
   beforeAll(async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockImplementation(async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url === SAVED_URL || request.url === SECOND_URL) {
-          return new Response(`<!doctype html><title>${request.url}</title>`, {
-            headers: { "Content-Type": "text/html" },
-          });
-        }
-        throw new Error(`Unexpected outbound request: ${request.url}`);
-      });
-    restoreFetch = () => fetchSpy.mockRestore();
-
     const user = await signupUser("links-api@test.com", "Links API User");
     orgId = user.orgId;
+    await installTestMetadataFetcher(
+      env.LINK_PROCESSOR_DO.get(env.LINK_PROCESSOR_DO.idFromName(user.orgId))
+    );
     await env.DB.prepare(
       "UPDATE organization SET feature_overrides = ? WHERE id = ?"
     )
@@ -58,7 +47,7 @@ describe("Links REST API", () => {
     apiKey = (await response.json<{ key: string }>()).key;
   });
 
-  afterAll(() => restoreFetch?.());
+  afterAll(() => abortAllDurableObjects());
 
   it("provides CRUD, pagination, search, and bounded batch updates", async () => {
     const createdResponse = await SELF.fetch("http://worker/api/links", {
@@ -218,6 +207,94 @@ describe("Links REST API", () => {
       method: "POST",
     });
     expect(tooLarge.status).toBe(413);
+  });
+
+  it("serializes concurrent archive restores against the saved-link limit after eviction", async () => {
+    const user = await signupUser(
+      `links-api-capacity-${crypto.randomUUID()}@test.com`,
+      "Links API capacity"
+    );
+    await env.DB.prepare(
+      "UPDATE organization SET feature_overrides = ? WHERE id = ?"
+    )
+      .bind(
+        JSON.stringify({
+          aiSummary: false,
+          maxSavedLinks: 2,
+          publicApi: true,
+        }),
+        user.orgId
+      )
+      .run();
+    const processor = env.LINK_PROCESSOR_DO.get(
+      env.LINK_PROCESSOR_DO.idFromName(user.orgId)
+    );
+    await installTestMetadataFetcher(processor);
+    const keyResponse = await SELF.fetch(
+      "http://worker/api/auth/api-key/create",
+      {
+        body: JSON.stringify({ name: "Capacity regression" }),
+        headers: {
+          Cookie: user.cookie,
+          "Content-Type": "application/json",
+          Origin: "http://localhost",
+        },
+        method: "POST",
+      }
+    );
+    expect(keyResponse.status, await keyResponse.clone().text()).toBe(200);
+    const capacityApiKey = (await keyResponse.json<{ key: string }>()).key;
+    const capacityHeaders = json(capacityApiKey);
+
+    const ids: string[] = [];
+    for (const suffix of ["one", "two"]) {
+      const response = await SELF.fetch("http://worker/api/links", {
+        body: JSON.stringify({
+          url: `https://example.com/capacity-${suffix}-${crypto.randomUUID()}`,
+        }),
+        headers: capacityHeaders,
+        method: "POST",
+      });
+      expect(response.status, await response.clone().text()).toBe(200);
+      const body = (await response.json()) as { link: ApiLink };
+      ids.push(body.link.id);
+      const archive = await SELF.fetch(
+        `http://worker/api/links/${body.link.id}`,
+        {
+          body: JSON.stringify({ state: "archive" }),
+          headers: capacityHeaders,
+          method: "PATCH",
+        }
+      );
+      expect(archive.status, await archive.clone().text()).toBe(200);
+    }
+
+    await env.DB.prepare(
+      "UPDATE organization SET feature_overrides = ? WHERE id = ?"
+    )
+      .bind(
+        JSON.stringify({
+          aiSummary: false,
+          maxSavedLinks: 1,
+          publicApi: true,
+        }),
+        user.orgId
+      )
+      .run();
+    await abortAllDurableObjects();
+
+    const restores = await Promise.all(
+      ids.map((id) =>
+        SELF.fetch(`http://worker/api/links/${id}`, {
+          body: JSON.stringify({ state: "inbox" }),
+          headers: capacityHeaders,
+          method: "PATCH",
+        })
+      )
+    );
+    expect(
+      restores.map(({ status }) => status).toSorted((a, b) => a - b)
+    ).toEqual([200, 429]);
   });
 
   it("permanently fences workspace operations after retirement", async () => {

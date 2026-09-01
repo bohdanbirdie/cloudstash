@@ -36,9 +36,17 @@ const BOOLEAN_CAPABILITY_KEYS = [
   "weeklyDigest",
 ] as const;
 
-const NUMBER_CAPABILITY_KEYS = ["monthlyChatBudgetUsd"] as const;
+const NUMBER_CAPABILITY_KEYS = [
+  "maxSavedLinks",
+  "monthlyAiSummaries",
+  "monthlyAssistantCredits",
+  "monthlyExternalCalls",
+  "monthlyXBookmarks",
+  "monthlyXEnrichments",
+] as const;
 
 const SetTierBody = Schema.Struct({ tier: PlanTierSchema });
+const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 
 const SetOverrideBody = Schema.Union([
   Schema.Struct({
@@ -47,7 +55,7 @@ const SetOverrideBody = Schema.Union([
   }),
   Schema.Struct({
     key: Schema.Literals(NUMBER_CAPABILITY_KEYS),
-    value: Schema.NullOr(Schema.Number),
+    value: Schema.NullOr(NonNegativeInt),
   }),
 ]);
 
@@ -203,7 +211,7 @@ export const handleSetOverride = (
       const body = yield* decodeBody(request, SetOverrideBody);
       const billing = yield* Billing;
       yield* billing.setOverride(orgId, body.key, body.value);
-      if (body.key === "xBookmarkSync") {
+      if (body.key === "xBookmarkSync" || body.key === "monthlyXBookmarks") {
         yield* enqueueOrgXReconcile(orgId);
       }
       if (body.key === "weeklyDigest") {

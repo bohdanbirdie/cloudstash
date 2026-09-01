@@ -147,7 +147,9 @@ export const DeletionRuntimeLayer = (env: Env) =>
           ),
         retireChatAgent: (orgId) =>
           tryDO("retireChatAgent", () =>
-            env.Chat.get(env.Chat.idFromName(orgId)).retire()
+            env.LINK_PROCESSOR_DO.get(
+              env.LINK_PROCESSOR_DO.idFromName(orgId)
+            ).retireChatSessions()
           ).pipe(
             Effect.withSpan("DeletionRuntime.retireChatAgent", {
               attributes: { orgId: maskId(orgId) },

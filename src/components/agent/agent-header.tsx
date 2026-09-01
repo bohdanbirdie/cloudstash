@@ -1,50 +1,54 @@
-import { MessageCircleIcon, XIcon } from "lucide-react";
+import { ArrowLeftIcon } from "lucide-react";
 
-import { UsageIndicator } from "@/components/chat/chat-content/usage-indicator";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 
-import {
-  useAgentChatOptional,
-  useAgentConnection,
-} from "./agent-chat-provider";
-import { AgentHelpHint } from "./agent-help-hint";
+import { useAgentConnection } from "./agent-chat-provider";
+import { useAgentSessionsOptional } from "./agent-sessions-provider";
 
-interface AgentHeaderProps {
-  onClose: () => void;
-}
-
-export function AgentHeader({ onClose }: AgentHeaderProps) {
-  const { isConnected, usage } = useAgentConnection();
-  const chat = useAgentChatOptional();
-  const clearHistory = chat?.clearHistory;
+export function AgentHeader() {
+  const { isConnected } = useAgentConnection();
+  const sessionState = useAgentSessionsOptional();
 
   return (
-    <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-3 lg:h-7 lg:px-2">
-      <div className="flex items-center gap-1.5 lg:gap-1">
-        <MessageCircleIcon className="size-4 text-primary lg:size-3" />
-        <span className="text-sm font-medium lg:text-xs">Assistant</span>
+    <AgentHeaderView
+      isConnected={isConnected}
+      title={sessionState?.selectedSession?.title}
+      onBack={sessionState?.showSessionList}
+    />
+  );
+}
+
+export function AgentHeaderView({
+  isConnected = true,
+  title = "Cloudstash Assistant",
+  onBack,
+}: {
+  isConnected?: boolean;
+  title?: string;
+  onBack?: () => void;
+}) {
+  return (
+    <header className="flex h-8 shrink-0 items-center justify-between border-b border-border px-1.5">
+      <div className="flex min-w-0 items-center gap-0.5">
+        {onBack && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Back to chats"
+            onClick={onBack}
+          >
+            <ArrowLeftIcon />
+          </Button>
+        )}
+        <span className="truncate px-1 text-xs font-medium">{title}</span>
         {!isConnected && (
-          <span className="size-2 animate-pulse rounded-full bg-yellow-500 lg:size-1.5" />
+          <Spinner
+            aria-label="Connecting to assistant"
+            className="size-3 text-muted-foreground"
+          />
         )}
-        {usage && (
-          <div className="ml-1.5 lg:ml-1">
-            <UsageIndicator usage={usage} onClear={clearHistory} />
-          </div>
-        )}
-      </div>
-      <div className="flex items-center gap-1 lg:gap-0.5">
-        <AgentHelpHint />
-        {/* The mobile sheet dismisses via drag / backdrop, so the explicit
-            close button is desktop-only. */}
-        <Button
-          size="icon-xs"
-          variant="ghost"
-          onClick={onClose}
-          aria-label="Close"
-          className="hidden size-5 text-muted-foreground hover:text-foreground lg:inline-flex [&_svg:not([class*='size-'])]:size-3"
-        >
-          <XIcon />
-        </Button>
       </div>
     </header>
   );

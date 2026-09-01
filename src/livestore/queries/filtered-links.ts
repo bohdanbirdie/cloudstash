@@ -1,6 +1,5 @@
 import { queryDb } from "@livestore/livestore";
 
-import { allLinks$ } from "./links";
 import { linksListSchema } from "./schemas";
 
 export type LinkStatus = "inbox" | "completed" | "all" | "archive";
@@ -25,59 +24,6 @@ function effectiveTagMatchClause(placeholders: string): string {
       AND ts.tagId IS NULL AND ts.suggestedName IN (${placeholders})
   `;
 }
-
-export const linksWithTag$ = (tagId: string) =>
-  queryDb(
-    {
-      bindValues: [tagId, tagId, tagId],
-      query: `
-        SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
-               s.title, s.description, s.image, s.favicon
-        FROM links l
-        LEFT JOIN link_snapshots s ON s.id = (
-          SELECT s2.id FROM link_snapshots s2
-          WHERE s2.linkId = l.id ORDER BY s2.fetchedAt DESC LIMIT 1
-        )
-        WHERE l.deletedAt IS NULL
-          AND EXISTS (${effectiveTagMatchClause("?")})
-        ORDER BY l.createdAt DESC
-      `,
-      schema: linksListSchema,
-    },
-    { label: `linksWithTag:${tagId}` }
-  );
-
-export const linksWithAllTags$ = (tagIds: string[]) => {
-  if (tagIds.length === 0) {
-    return allLinks$;
-  }
-
-  const placeholders = tagIds.map(() => "?").join(", ");
-
-  return queryDb(
-    {
-      bindValues: [...tagIds, ...tagIds, ...tagIds, tagIds.length],
-      query: `
-        SELECT l.id, l.url, l.domain, l.status, l.createdAt, l.completedAt, l.deletedAt,
-               s.title, s.description, s.image, s.favicon
-        FROM links l
-        LEFT JOIN link_snapshots s ON s.id = (
-          SELECT s2.id FROM link_snapshots s2
-          WHERE s2.linkId = l.id ORDER BY s2.fetchedAt DESC LIMIT 1
-        )
-        WHERE l.deletedAt IS NULL
-          AND (
-            SELECT COUNT(DISTINCT eff.tagKey) FROM (
-              ${effectiveTagMatchClause(placeholders)}
-            ) eff
-          ) = ?
-        ORDER BY l.createdAt DESC
-      `,
-      schema: linksListSchema,
-    },
-    { label: `linksWithAllTags:${tagIds.length}` }
-  );
-};
 
 function buildTagFilterClause(options: TagFilterOptions): {
   clause: string;

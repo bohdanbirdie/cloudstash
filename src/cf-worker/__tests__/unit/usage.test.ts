@@ -1,72 +1,120 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
-  budgetToTokenLimit,
-  getCurrentPeriod,
+  assistantCreditStatus,
   getUsageKey,
-  MODEL_PRICING,
-  INPUT_OUTPUT_RATIO,
+  getUsageSettlementKey,
+  openRouterCostMicroUsd,
+  openRouterSpend,
+  openRouterUsageTelemetry,
+  parseAiMeterLimit,
+  usdToMicroUsd,
 } from "../../chat-agent/usage";
 
 describe("usage", () => {
-  describe("getCurrentPeriod", () => {
-    it("returns YYYY-MM format", () => {
-      const period = getCurrentPeriod();
-      expect(period).toMatch(/^\d{4}-\d{2}$/);
+  it("uses stable monthly aggregate and settlement keys", () => {
+    const windowId = "2026-02-17T14:30:00.000Z";
+    expect(getUsageKey(windowId)).toBe(`usage:${windowId}`);
+    expect(getUsageSettlementKey(windowId, "turn-1")).toBe(
+      `usage-settlement:${windowId}:turn-1`
+    );
+  });
+
+  it("parses a positive private monthly limit into integer microdollars", () => {
+    expect(parseAiMeterLimit("2.5")).toBe(2_500_000);
+    expect(parseAiMeterLimit("0")).toBeUndefined();
+    expect(parseAiMeterLimit("not-a-number")).toBeUndefined();
+    expect(parseAiMeterLimit(undefined)).toBeUndefined();
+  });
+
+  it("rounds provider cost up to avoid under-accounting", () => {
+    expect(usdToMicroUsd(0.000_001_1)).toBe(2);
+    expect(usdToMicroUsd(-1)).toBeUndefined();
+  });
+
+  it("reads actual OpenRouter cost from provider metadata", () => {
+    expect(
+      openRouterCostMicroUsd({
+        openrouter: {
+          usage: {
+            cost: 0.001_234,
+            promptTokens: 100,
+            completionTokens: 20,
+            totalTokens: 120,
+          },
+        },
+      })
+    ).toBe(1_234);
+    expect(openRouterCostMicroUsd({})).toBeUndefined();
+  });
+
+  it("sums every provider step and marks incomplete accounting", () => {
+    const result = openRouterSpend([
+      { openrouter: { usage: { cost: 0.001 } } },
+      { openrouter: { usage: { cost: 0.002 } } },
+      {},
+    ]);
+    expect(result).toEqual({ complete: false, spentMicroUsd: 3_000 });
+  });
+
+  it("aggregates cache and reasoning telemetry across provider steps", () => {
+    const result = openRouterUsageTelemetry([
+      {
+        providerMetadata: { openrouter: { usage: { cost: 0.001 } } },
+        usage: {
+          inputTokens: 100,
+          inputTokenDetails: {
+            noCacheTokens: 60,
+            cacheReadTokens: 30,
+            cacheWriteTokens: 10,
+          },
+          outputTokens: 25,
+          outputTokenDetails: { textTokens: 20, reasoningTokens: 5 },
+          totalTokens: 125,
+        },
+      },
+      {
+        providerMetadata: { openrouter: { usage: { cost: 0.002 } } },
+        usage: {
+          inputTokens: 80,
+          inputTokenDetails: {
+            noCacheTokens: 80,
+            cacheReadTokens: undefined,
+            cacheWriteTokens: undefined,
+          },
+          outputTokens: 10,
+          outputTokenDetails: {
+            textTokens: 10,
+            reasoningTokens: undefined,
+          },
+          totalTokens: 90,
+        },
+      },
+    ]);
+
+    expect(result).toEqual({
+      cacheReadTokens: 30,
+      cacheWriteTokens: 10,
+      inputTokens: 180,
+      outputTokens: 35,
+      reasoningTokens: 5,
+      spend: { complete: true, spentMicroUsd: 3_000 },
+      stepCount: 2,
     });
   });
 
-  describe("getUsageKey", () => {
-    it("prefixes period with 'usage:'", () => {
-      expect(getUsageKey("2026-02")).toBe("usage:2026-02");
-    });
-  });
-
-  describe("budgetToTokenLimit", () => {
-    it("calculates correct limit for default model", () => {
-      const budget = 0.5; // $0.50
-      const limit = budgetToTokenLimit(budget);
-
-      // Manual calculation:
-      // inputPerToken = 0.30 / 1_000_000 = 0.0000003
-      // outputPerToken = 2.50 / 1_000_000 = 0.0000025
-      // blendedPerToken = (4 * 0.0000003 + 0.0000025) / 5 = 0.00000074
-      // tokenLimit = 0.5 / 0.00000074 = 675675.67... → 675675
-      expect(limit).toBe(675675);
-    });
-
-    it("scales approximately linearly with budget", () => {
-      const limit1 = budgetToTokenLimit(0.5);
-      const limit2 = budgetToTokenLimit(1.0);
-
-      // Allow for rounding differences (Math.floor applied independently)
-      expect(limit2).toBeGreaterThanOrEqual(limit1 * 2 - 1);
-      expect(limit2).toBeLessThanOrEqual(limit1 * 2 + 1);
-    });
-
-    it("returns 0 for zero budget", () => {
-      expect(budgetToTokenLimit(0)).toBe(0);
-    });
-
-    it("falls back to default model for unknown model", () => {
-      const defaultLimit = budgetToTokenLimit(0.5);
-      const unknownLimit = budgetToTokenLimit(0.5, "unknown/model");
-
-      expect(unknownLimit).toBe(defaultLimit);
-    });
-
-    it("uses correct pricing from MODEL_PRICING", () => {
-      const budget = 1.0;
-      const pricing = MODEL_PRICING["google/gemini-2.5-flash"];
-
-      const inputPerToken = pricing.inputPer1M / 1_000_000;
-      const outputPerToken = pricing.outputPer1M / 1_000_000;
-      const blendedPerToken =
-        (INPUT_OUTPUT_RATIO * inputPerToken + outputPerToken) /
-        (INPUT_OUTPUT_RATIO + 1);
-      const expected = Math.floor(budget / blendedPerToken);
-
-      expect(budgetToTokenLimit(budget)).toBe(expected);
+  it("reports public credits without exposing provider cost", () => {
+    expect(
+      assistantCreditStatus(
+        { spentMicroUsd: 250_000 },
+        1_000,
+        1_000_000,
+        "2026-09-17T14:30:00.000Z"
+      )
+    ).toEqual({
+      limit: 1_000,
+      remaining: 750,
+      resetsAt: "2026-09-17T14:30:00.000Z",
     });
   });
 });

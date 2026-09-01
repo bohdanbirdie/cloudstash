@@ -9,7 +9,8 @@ const EXTRACTION_TIMEOUT = "16 seconds";
 
 export const makeContentExtractorLive = (
   fetcher: typeof fetch = fetch,
-  ownHostname?: string
+  ownHostname?: string,
+  signalFactory: () => AbortSignal = () => AbortSignal.timeout(15_000)
 ) =>
   Layer.succeed(ContentExtractor, {
     extract: (url) =>
@@ -30,7 +31,8 @@ export const makeContentExtractorLive = (
             url: domain,
           });
         },
-        try: () => fetchAndExtractContent(url, fetcher, ownHostname),
+        try: () =>
+          fetchAndExtractContent(url, fetcher, ownHostname, signalFactory()),
       }).pipe(
         // The inner bounded fetch owns its 15s abort; this is only a backstop.
         Effect.timeout(EXTRACTION_TIMEOUT),

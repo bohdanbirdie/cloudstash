@@ -1,4 +1,4 @@
-import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
+import { PreviewCard as PreviewCardPrimitive } from "@base-ui/react/preview-card";
 import { useCallback, useState } from "react";
 
 import { Favicon } from "@/components/favicon";
@@ -10,7 +10,7 @@ import { useAppStore } from "@/livestore/store";
 import { useRightPaneStore } from "@/stores/right-pane-store";
 
 const LINK_PILL_CLASS =
-  "inline-flex items-baseline gap-1 rounded-sm border border-border bg-muted px-1.5 py-0.5 text-xs leading-tight font-medium text-foreground no-underline hover:bg-primary hover:border-primary hover:text-primary-foreground transition-colors";
+  "group inline-flex cursor-pointer items-baseline gap-1 rounded-sm border border-border bg-muted px-1.5 py-0.5 text-xs leading-tight font-medium text-foreground no-underline transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground";
 
 const PillContent = ({
   link,
@@ -20,24 +20,25 @@ const PillContent = ({
   displayText: string;
 }) => (
   <>
-    <Favicon src={link.favicon} className="size-3.5 self-center rounded-sm" />
+    <Favicon
+      src={link.favicon}
+      className="size-3.5 self-center rounded-sm transition-colors group-hover:text-primary-foreground"
+    />
     <span className="max-w-[200px] truncate leading-tight">{displayText}</span>
   </>
 );
 
-interface LinkMentionWithTooltipProps {
+interface LinkMentionWithPreviewProps {
   link: LinkWithDetails;
-  href: string;
   displayText: string;
   onOpenDetail: () => void;
 }
 
-function LinkMentionWithTooltip({
+function LinkMentionWithPreview({
   link,
-  href,
   displayText,
   onOpenDetail,
-}: LinkMentionWithTooltipProps) {
+}: LinkMentionWithPreviewProps) {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
 
@@ -47,57 +48,56 @@ function LinkMentionWithTooltip({
   };
 
   return (
-    <TooltipPrimitive.Provider delay={150}>
-      <TooltipPrimitive.Root open={open} onOpenChange={setOpen}>
-        <TooltipPrimitive.Trigger
-          render={(triggerProps) => (
-            <a
-              {...triggerProps}
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => {
-                triggerProps.onClick?.(e);
-                close();
-              }}
-              className={LINK_PILL_CLASS}
-            >
-              <PillContent link={link} displayText={displayText} />
-            </a>
-          )}
-        />
-        <TooltipPrimitive.Portal>
-          <TooltipPrimitive.Positioner
-            side="top"
-            sideOffset={6}
-            className="z-[60]"
-          >
-            <TooltipPrimitive.Popup
-              className="z-50 overflow-hidden max-w-xs bg-background border border-primary shadow-xl animate-in fade-in-0 zoom-in-95 cursor-pointer hover:border-primary/80"
+    <PreviewCardPrimitive.Root open={open} onOpenChange={setOpen}>
+      <PreviewCardPrimitive.Trigger
+        delay={150}
+        closeDelay={100}
+        render={<button type="button" />}
+        aria-label={`Open ${displayText} in your library`}
+        onClick={(event) => {
+          event.preventBaseUIHandler();
+          close();
+          onOpenDetail();
+        }}
+        className={LINK_PILL_CLASS}
+      >
+        <PillContent link={link} displayText={displayText} />
+      </PreviewCardPrimitive.Trigger>
+      <PreviewCardPrimitive.Portal>
+        <PreviewCardPrimitive.Positioner
+          side="top"
+          sideOffset={6}
+          className="z-[60]"
+        >
+          <PreviewCardPrimitive.Popup className="z-50 w-80 max-w-[calc(100vw-1rem)] overflow-hidden rounded-lg border border-border bg-popover ring-1 ring-transparent outline-hidden animate-in fade-in-0 zoom-in-95 transition-[border-color,box-shadow] duration-150 hover:border-primary/60 hover:ring-primary/45">
+            <button
+              type="button"
+              aria-label={`Open ${displayTitle(link)} in your library`}
               onClick={handlePopupClick}
+              className="block w-full cursor-pointer overflow-hidden rounded-[calc(var(--radius-lg)-1px)] text-start outline-hidden transition-colors duration-150 hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             >
               <LinkImage
                 src={link.image}
                 alt={link.title ? displayTitle(link) : ""}
                 iconClassName="h-6 w-6"
               />
-              <div className="p-2">
+              <div className="p-2.5">
                 {link.title && (
-                  <p className="font-medium text-sm text-foreground line-clamp-2">
+                  <p className="line-clamp-2 text-sm font-medium text-foreground">
                     {displayTitle(link)}
                   </p>
                 )}
                 {displayDescription(link) && (
-                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                     {displayDescription(link)}
                   </p>
                 )}
               </div>
-            </TooltipPrimitive.Popup>
-          </TooltipPrimitive.Positioner>
-        </TooltipPrimitive.Portal>
-      </TooltipPrimitive.Root>
-    </TooltipPrimitive.Provider>
+            </button>
+          </PreviewCardPrimitive.Popup>
+        </PreviewCardPrimitive.Positioner>
+      </PreviewCardPrimitive.Portal>
+    </PreviewCardPrimitive.Root>
   );
 }
 
@@ -124,9 +124,8 @@ export function LinkMention({ href, children }: LinkMentionProps) {
 
     if (hasPreview) {
       return (
-        <LinkMentionWithTooltip
+        <LinkMentionWithPreview
           link={link}
-          href={href}
           displayText={displayText}
           onOpenDetail={handleOpenDetail}
         />
@@ -134,14 +133,14 @@ export function LinkMention({ href, children }: LinkMentionProps) {
     }
 
     return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
+      <button
+        type="button"
+        aria-label={`Open ${displayText} in your library`}
+        onClick={handleOpenDetail}
         className={LINK_PILL_CLASS}
       >
         <PillContent link={link} displayText={displayText} />
-      </a>
+      </button>
     );
   }
 

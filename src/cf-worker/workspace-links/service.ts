@@ -55,6 +55,7 @@ import {
 import type { ApiLink, ApiSearchLink, Cursor } from "../links/api";
 import {
   WorkspaceLinkInvalidInputError,
+  WorkspaceLinkLimitReachedError,
   WorkspaceLinkNotFoundError,
   WorkspaceLinkStoreError,
   WorkspaceLinkSyncError,
@@ -98,9 +99,21 @@ type WorkspaceLinkBatchQuery =
       readonly limit: number;
     };
 
-interface WorkspaceLinkSaveResult {
+export interface WorkspaceLinkSaveResult {
   readonly created: boolean;
   readonly link: ApiLink;
+}
+
+export interface WorkspaceLinkStats {
+  readonly inbox: number;
+  readonly completed: number;
+  readonly total: number;
+}
+
+export interface WorkspaceLinkBatchUpdateResult {
+  readonly links: readonly ApiLink[];
+  readonly updated: number;
+  readonly nextCursor: string | null;
 }
 
 const storeFailure = (operation: string) => (cause: unknown) =>
@@ -233,6 +246,7 @@ export type CommitWorkspaceLinks = (
 interface WorkspaceLinksOptions {
   readonly sync?: SyncChanges;
   readonly commit?: CommitWorkspaceLinks;
+  readonly maxSavedLinks?: number;
 }
 
 const syncChanges: SyncChanges = (store, target) =>
@@ -422,6 +436,20 @@ export const makeWorkspaceLinks = (
       store.query(linksByIds$([...ids]))
     );
     if (links.length === 0) return [];
+    const restoresActiveLinks =
+      patch.state === "inbox" || patch.state === "completed";
+    const restoringCount = restoresActiveLinks
+      ? links.filter((link) => link.deletedAt !== null).length
+      : 0;
+    const maxSavedLinks = options.maxSavedLinks ?? 0;
+    if (restoringCount > 0 && maxSavedLinks > 0) {
+      const activeCount = yield* query("countActiveLinksForRestore", () =>
+        store.query(apiLinksCount$("active"))
+      );
+      if (activeCount + restoringCount > maxSavedLinks) {
+        return yield* new WorkspaceLinkLimitReachedError(maxSavedLinks);
+      }
+    }
     const now = yield* DateTime.nowAsDate;
     const tagPatch = patch.tags ? normalizeTagPatch(patch.tags) : undefined;
     const ensured = tagPatch
@@ -553,7 +581,7 @@ export const makeWorkspaceLinks = (
     }),
 
     save: Effect.fn("WorkspaceLinks.save")(function* (
-      input: SaveLinkInput & { readonly source: "api" | "mcp" }
+      input: SaveLinkInput & { readonly source: "api" | "chat" | "mcp" }
     ) {
       const decoded = decodeUrl(input.url);
       const url = yield* Option.match(decoded, {
@@ -572,6 +600,15 @@ export const makeWorkspaceLinks = (
       const existing = yield* query("findLinkByUrl", () =>
         store.query(linkByUrl$(url.href))
       );
+      const maxSavedLinks = options.maxSavedLinks ?? 0;
+      if (!existing && maxSavedLinks > 0) {
+        const activeCount = yield* query("countActiveLinksForSave", () =>
+          store.query(apiLinksCount$("active"))
+        );
+        if (activeCount >= maxSavedLinks) {
+          return yield* new WorkspaceLinkLimitReachedError(maxSavedLinks);
+        }
+      }
       const proposedLinkId = existing
         ? LinkId.make(existing.id)
         : LinkId.make(nanoid());
@@ -683,7 +720,18 @@ export const makeWorkspaceLinks = (
         links,
         updated: links.length,
         nextCursor: selected.nextCursor,
-      };
+      } satisfies WorkspaceLinkBatchUpdateResult;
+    }),
+
+    stats: Effect.fn("WorkspaceLinks.stats")(function* () {
+      const [inbox, completed, total] = yield* Effect.all([
+        query("countInboxLinks", () => store.query(apiLinksCount$("inbox"))),
+        query("countCompletedLinks", () =>
+          store.query(apiLinksCount$("completed"))
+        ),
+        query("countActiveLinks", () => store.query(apiLinksCount$("active"))),
+      ]);
+      return { inbox, completed, total } satisfies WorkspaceLinkStats;
     }),
   };
 };

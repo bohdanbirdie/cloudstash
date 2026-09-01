@@ -1,14 +1,15 @@
 import { describe, expect, it } from "@effect/vitest";
 import { assertInstanceOf } from "@effect/vitest/utils";
-import { Effect, Layer, References } from "effect";
+import { Effect, Layer, Option, References } from "effect";
 
 import {
   capabilitiesFor,
   mergeCapabilities,
+  retainedLinkSafetyCeiling,
   TIER_CAPABILITIES,
 } from "@/lib/plan";
 
-import { Billing } from "../../billing/service";
+import { AssistantAllowance, Billing } from "../../billing/service";
 import {
   ChatFeatureDisabledError,
   checkChatFeatureEnabled,
@@ -22,12 +23,39 @@ type BillingImpl = Billing["Service"];
 function makeBillingLayer(overrides: Partial<BillingImpl> = {}) {
   const defaults: BillingImpl = {
     capabilities: () => Effect.succeed(capabilitiesFor("free")),
+    assistantAllowance: () =>
+      Effect.succeed(
+        AssistantAllowance.make({
+          capabilities: capabilitiesFor("free"),
+          source: "stripe",
+          usageWindow: Option.none(),
+        })
+      ),
+    usageAllowance: () =>
+      Effect.succeed(
+        AssistantAllowance.make({
+          capabilities: capabilitiesFor("free"),
+          source: "stripe",
+          usageWindow: Option.none(),
+        })
+      ),
+    monthlyUsageWindow: () => Effect.succeed(Option.none()),
     tier: () => Effect.succeed("free"),
     subscription: () =>
       Effect.succeed({
         cancelAtPeriodEnd: false,
         currentPeriodEnd: null,
         billingInterval: null,
+      }),
+    orgBillingSnapshot: () =>
+      Effect.succeed({
+        capabilities: capabilitiesFor("free"),
+        subscription: {
+          cancelAtPeriodEnd: false,
+          currentPeriodEnd: null,
+          billingInterval: null,
+        },
+        tier: "free" as const,
       }),
     getOverrides: () => Effect.succeed({}),
     setTier: () => Effect.void,
@@ -39,11 +67,11 @@ function makeBillingLayer(overrides: Partial<BillingImpl> = {}) {
 }
 
 describe("capabilitiesFor (pure)", () => {
-  it("returns free caps with chatAgent off, aiSummary off", () => {
+  it("returns free caps with chatAgent off and bounded AI summaries", () => {
     const caps = capabilitiesFor("free");
     expect(caps.chatAgent).toBe(false);
-    expect(caps.aiSummary).toBe(false);
-    expect(caps.monthlyChatBudgetUsd).toBe(0);
+    expect(caps.aiSummary).toBe(true);
+    expect(caps.monthlyAssistantCredits).toBe(0);
   });
 
   it("returns plus caps with aiSummary on, chatAgent off", () => {
@@ -75,7 +103,7 @@ describe("capabilitiesFor (pure)", () => {
   it("locks the full tier capability matrix", () => {
     expect(TIER_CAPABILITIES).toEqual({
       free: {
-        aiSummary: false,
+        aiSummary: true,
         chatAgent: false,
         integrations: false,
         xBookmarkSync: false,
@@ -83,7 +111,12 @@ describe("capabilitiesFor (pure)", () => {
         publicApi: false,
         mcpServer: false,
         weeklyDigest: false,
-        monthlyChatBudgetUsd: 0,
+        maxSavedLinks: 100,
+        monthlyAiSummaries: 10,
+        monthlyAssistantCredits: 0,
+        monthlyExternalCalls: 0,
+        monthlyXBookmarks: 0,
+        monthlyXEnrichments: 0,
       },
       plus: {
         aiSummary: true,
@@ -94,7 +127,12 @@ describe("capabilitiesFor (pure)", () => {
         publicApi: true,
         mcpServer: false,
         weeklyDigest: true,
-        monthlyChatBudgetUsd: 0,
+        maxSavedLinks: 500,
+        monthlyAiSummaries: 500,
+        monthlyAssistantCredits: 0,
+        monthlyExternalCalls: 1_000,
+        monthlyXBookmarks: 0,
+        monthlyXEnrichments: 0,
       },
       pro: {
         aiSummary: true,
@@ -105,7 +143,12 @@ describe("capabilitiesFor (pure)", () => {
         publicApi: true,
         mcpServer: true,
         weeklyDigest: true,
-        monthlyChatBudgetUsd: 5,
+        maxSavedLinks: 0,
+        monthlyAiSummaries: 1_000,
+        monthlyAssistantCredits: 1_000,
+        monthlyExternalCalls: 10_000,
+        monthlyXBookmarks: 200,
+        monthlyXEnrichments: 100,
       },
     });
   });
@@ -132,9 +175,35 @@ describe("mergeCapabilities", () => {
     expect(merged.aiSummary).toBe(true);
   });
 
-  it("override budget replaces tier budget", () => {
-    const merged = mergeCapabilities("plus", { monthlyChatBudgetUsd: 100 });
-    expect(merged.monthlyChatBudgetUsd).toBe(100);
+  it("override replaces the monthly Assistant credit allowance", () => {
+    const merged = mergeCapabilities("plus", {
+      monthlyAssistantCredits: 100,
+    });
+    expect(merged.monthlyAssistantCredits).toBe(100);
+  });
+
+  it("boolean overrides never lower the tier allowance", () => {
+    expect(
+      mergeCapabilities("plus", { aiSummary: true }).monthlyAiSummaries
+    ).toBe(TIER_CAPABILITIES.plus.monthlyAiSummaries);
+    expect(
+      mergeCapabilities("pro", { aiSummary: true }).monthlyAiSummaries
+    ).toBe(TIER_CAPABILITIES.pro.monthlyAiSummaries);
+    expect(
+      mergeCapabilities("pro", { publicApi: true }).monthlyExternalCalls
+    ).toBe(TIER_CAPABILITIES.pro.monthlyExternalCalls);
+  });
+});
+
+describe("retainedLinkSafetyCeiling", () => {
+  it("keeps archive storage bounded above the active product allowance", () => {
+    expect(retainedLinkSafetyCeiling(capabilitiesFor("free"))).toBe(1_000);
+    expect(retainedLinkSafetyCeiling(capabilitiesFor("plus"))).toBe(5_000);
+    expect(retainedLinkSafetyCeiling(capabilitiesFor("pro"))).toBe(100_000);
+  });
+
+  it("tracks an administrative active-link override", () => {
+    expect(retainedLinkSafetyCeiling({ maxSavedLinks: 250 })).toBe(2_500);
   });
 });
 

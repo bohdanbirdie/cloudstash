@@ -6,11 +6,16 @@ import { MetadataFetcher } from "../services";
 
 export const MetadataFetcherLive = (
   ownHostname: string,
-  fetcher: typeof fetch = fetch
+  fetcher: typeof fetch = fetch,
+  signalFactory: () => AbortSignal = () => AbortSignal.timeout(10_000)
 ) =>
   Layer.succeed(MetadataFetcher, {
     fetch: (url) =>
-      fetchOgMetadata(url, { fetcher, ownHostname }).pipe(
+      fetchOgMetadata(url, {
+        fetcher,
+        ownHostname,
+        signal: signalFactory(),
+      }).pipe(
         Effect.catchTag("MetadataInvalidTargetError", () =>
           Effect.fail(new MetadataFetchError({ reason: "target-rejected" }))
         ),

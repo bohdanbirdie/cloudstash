@@ -1,8 +1,12 @@
 import type { CfTypes } from "@livestore/sync-cf/cf-worker";
 import * as SyncBackend from "@livestore/sync-cf/cf-worker";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
+import { retainedLinkSafetyCeiling } from "@/lib/plan";
+
+import { events } from "../../livestore/schema";
 import { AppLayerLive } from "../auth/service";
+import { Billing } from "../billing/service";
 import { OrgId } from "../db/branded";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
@@ -93,11 +97,33 @@ let liveLongTimers = 0;
     wrappedClearTimeout as typeof globalThis.clearTimeout;
 }
 
-let currentSyncBackend: {
+interface SyncBackendHandle {
   triggerLinkProcessor: (storeId: OrgId) => void;
   getEventlogMax: () => number | null;
   recordActivity: (storeId: OrgId, batch: readonly PushEvent[]) => void;
-} | null = null;
+  validateRetainedLinkPush: (
+    storeId: OrgId,
+    batch: readonly PushEvent[]
+  ) => Promise<void>;
+}
+
+class RetainedLinkSafetyLimitError extends Schema.TaggedErrorClass<RetainedLinkSafetyLimitError>()(
+  "RetainedLinkSafetyLimitError",
+  { limit: Schema.Int, storeId: OrgId }
+) {}
+
+class SyncBackendInstanceUnavailableError extends Schema.TaggedErrorClass<SyncBackendInstanceUnavailableError>()(
+  "SyncBackendInstanceUnavailableError",
+  { storeId: OrgId }
+) {}
+
+// onPush is a static option with no binding to the instance handling it, so
+// resolve the workspace-owned instance through a weak registry. Weak references
+// keep an evicted instance collectable.
+const syncBackendsByStore = new Map<string, WeakRef<SyncBackendHandle>>();
+
+const syncBackendFor = (storeId: string): SyncBackendHandle | null =>
+  syncBackendsByStore.get(storeId)?.deref() ?? null;
 
 // Stuck-LP tripwire: if a push's first parentSeqNum is more than
 // STUCK_GAP_THRESHOLD events behind SB's eventlog max, the client is far
@@ -108,6 +134,12 @@ const STUCK_GAP_THRESHOLD = 100;
 export class SyncBackendDO extends SyncBackend.makeDurableObject({
   onPush: async (message, context) => {
     const storeId = OrgId.make(context.storeId);
+    const owner = syncBackendFor(storeId);
+    if (owner === null) {
+      throw new SyncBackendInstanceUnavailableError({ storeId });
+    }
+    await owner.validateRetainedLinkPush(storeId, message.batch);
+
     logger.info("Push received", {
       storeId: maskId(storeId),
       batchSize: message.batch.length,
@@ -117,21 +149,19 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
 
     const shouldWakeProcessor = message.batch.some(
       (event) =>
-        event.name === "v1.LinkCreated" ||
-        event.name === "v2.LinkCreated" ||
-        event.name === "v1.LinkReprocessRequested"
+        event.name === events.linkCreated.name ||
+        event.name === events.linkCreatedV2.name ||
+        event.name === events.linkReprocessRequested.name
     );
-    if (shouldWakeProcessor && currentSyncBackend) {
-      currentSyncBackend.triggerLinkProcessor(storeId);
+    if (shouldWakeProcessor) {
+      owner.triggerLinkProcessor(storeId);
     }
 
-    if (currentSyncBackend) {
-      currentSyncBackend.recordActivity(storeId, message.batch);
-    }
+    owner.recordActivity(storeId, message.batch);
 
     const firstParent = message.batch[0]?.parentSeqNum;
-    if (firstParent !== undefined && currentSyncBackend) {
-      const sbMax = currentSyncBackend.getEventlogMax();
+    if (firstParent !== undefined) {
+      const sbMax = owner.getEventlogMax();
       if (sbMax !== null && sbMax - firstParent > STUCK_GAP_THRESHOLD) {
         logger.warn("LP push lags SB eventlog — possible stuck client", {
           storeId: maskId(storeId),
@@ -153,28 +183,83 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
     super(ctx, env);
     this._env = env;
     this._ctx = ctx;
-    currentSyncBackend = this;
+    const storeId = ctx.id.name;
+    if (storeId !== undefined) {
+      syncBackendsByStore.set(storeId, new WeakRef(this));
+    }
     logger.info("DO woke up", { doId: ctx.id.toString() });
+  }
+
+  private eventlogTable(): string | undefined {
+    if (this._eventlogTable !== undefined) return this._eventlogTable;
+    const tables = this._ctx.storage.sql
+      .exec(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name GLOB 'eventlog_*'"
+      )
+      .toArray() as Array<{ name: string }>;
+    this._eventlogTable = tables[0]?.name;
+    return this._eventlogTable;
   }
 
   getEventlogMax(): number | null {
     try {
-      if (this._eventlogTable === undefined) {
-        const tables = this._ctx.storage.sql
-          .exec(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name GLOB 'eventlog_*'"
-          )
-          .toArray() as Array<{ name: string }>;
-        this._eventlogTable = tables[0]?.name;
-      }
-      if (this._eventlogTable === undefined) return null;
+      const table = this.eventlogTable();
+      if (table === undefined) return null;
       const row = this._ctx.storage.sql
-        .exec(`SELECT MAX(seqNum) as max FROM "${this._eventlogTable}"`)
+        .exec(`SELECT MAX(seqNum) as max FROM "${table}"`)
         .one() as { max: number | null } | undefined;
       return row?.max ?? null;
     } catch {
       return null;
     }
+  }
+
+  private retainedLinkCount(): number {
+    const table = this.eventlogTable();
+    if (table === undefined) return 0;
+    const row = this._ctx.storage.sql
+      .exec(
+        `SELECT COUNT(*) AS count FROM "${table}" WHERE name IN (?, ?)`,
+        events.linkCreated.name,
+        events.linkCreatedV2.name
+      )
+      .one() as { count: number };
+    return row.count;
+  }
+
+  async validateRetainedLinkPush(
+    storeId: OrgId,
+    batch: readonly PushEvent[]
+  ): Promise<void> {
+    const incoming = batch.filter(
+      (event) =>
+        event.name === events.linkCreated.name ||
+        event.name === events.linkCreatedV2.name
+    ).length;
+    if (incoming === 0) return;
+
+    return Effect.gen({ self: this }, function* () {
+      const billing = yield* Billing;
+      const capabilities = yield* billing.capabilities(storeId);
+      const limit = retainedLinkSafetyCeiling(capabilities);
+      const retained = this.retainedLinkCount();
+      if (retained + incoming <= limit) return;
+
+      return yield* new RetainedLinkSafetyLimitError({ limit, storeId });
+    }).pipe(
+      Effect.tapErrorTag("RetainedLinkSafetyLimitError", (error) =>
+        Effect.logWarning("Retained-link safety limit rejected sync push").pipe(
+          Effect.annotateLogs({
+            incoming,
+            limit: error.limit,
+            storeId: maskId(error.storeId),
+          })
+        )
+      ),
+      Effect.withSpan("SyncBackend.validateRetainedLinkPush"),
+      Effect.provide(AppLayerLive(this._env)),
+      Effect.runPromise
+    );
   }
 
   /** Closes active clients and wipes the canonical eventlog. */

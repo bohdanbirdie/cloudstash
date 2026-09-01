@@ -1,114 +1,176 @@
 import { AIChatAgent } from "@cloudflare/ai-chat";
 import type { OnChatMessageOptions } from "@cloudflare/ai-chat";
-import { createStoreDoPromise } from "@livestore/adapter-cloudflare";
-import type { ClientDoWithRpcCallback } from "@livestore/adapter-cloudflare";
-import { nanoid } from "@livestore/livestore";
-import type { Store } from "@livestore/livestore";
-import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { Connection, ConnectionContext } from "agents";
 import {
   streamText,
+  generateText,
   convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
   stepCountIs,
 } from "ai";
 import type { LanguageModel } from "ai";
-import { Effect, Match } from "effect";
-
-import { normalizeLinkSearchQuery } from "../../lib/link-search";
-import type { LinkStatus } from "../../livestore/queries/filtered-links";
 import {
-  apiLinksCount$,
-  apiLinksPage$,
-  searchLinks$,
-} from "../../livestore/queries/links";
-import type { SearchResult } from "../../livestore/queries/schemas";
-import { pendingTagsByLink$, tagsByLink$ } from "../../livestore/queries/tags";
-import { schema } from "../../livestore/schema";
-import type { StoreEvent } from "../../livestore/schema";
-import { Billing } from "../billing/service";
+  Cause,
+  Effect,
+  Layer,
+  ManagedRuntime,
+  Match,
+  Option,
+  Schedule,
+  Schema,
+} from "effect";
+
+import { resolveAssistantAllowance } from "../billing/assistant-allowance";
+import { StripeClientLive } from "../billing/stripe-client";
+import { AssistantUsageWindow } from "../billing/usage-cycle";
 import { OrgId } from "../db/branded";
 import {
   DurableObjectRetiredError,
   isDurableObjectRetired,
   retireDurableObjectStorage,
 } from "../durable-object-retirement";
-import type { ApiLinksPage } from "../links/api";
-import { encodeLinksPage, mergeTagNamesByLink } from "../links/api";
-import { maskId } from "../log-utils";
+import { maskId, safeErrorInfo } from "../log-utils";
 import { getAppLayer } from "../runtime";
 import type { Env } from "../shared";
 import { OtelTracingLive } from "../tracing";
-import { CONTEXT_WINDOW_SIZE, SYSTEM_PROMPT } from "./config";
+import {
+  COMPACTION_MAX_OUTPUT_TOKENS,
+  COMPACTION_STORAGE_KEY,
+  ChatContextSummary,
+  buildCompactionPrompt,
+  messagesAfterSummary,
+  planChatCompaction,
+  systemPromptWithSummary,
+} from "./compaction";
+import type { ChatCompactionPlan } from "./compaction";
+import {
+  CONTEXT_WINDOW_SIZE,
+  MAX_OUTPUT_TOKENS_PER_STEP,
+  SYSTEM_PROMPT,
+} from "./config";
 import {
   extractRetryTime,
   isCreditLimitError,
   isRateLimitError,
 } from "./errors";
 import { getLastUserMessageText, validateInput } from "./input-validator";
+import { makeChatLibrary } from "./library";
+import { ChatModelProvider, ChatModelProviderLive } from "./model-provider";
 import { writeTextMessage } from "./stream-helpers";
-import { createTools, createToolExecutors } from "./tools";
+import { createChatRetrievalTelemetry, createTools } from "./tools";
+import type { ChatRetrievalTelemetry, ToolEffectRunner } from "./tools";
 import {
-  BUDGET_UNAVAILABLE_MESSAGE,
+  ALLOWANCE_UNAVAILABLE_MESSAGE,
   CHAT_DISABLED_MESSAGE,
-  ESTIMATED_TOKENS_PER_CALL,
   LIMIT_REACHED_MESSAGE,
-  budgetToTokenLimit,
-  getCurrentPeriod,
-  getUsageKey,
+  openRouterUsageTelemetry,
+  parseAiMeterLimit,
 } from "./usage";
-import type { ChatAgentState, UsageData } from "./usage";
-import { reconcileTokenUsageIn, reserveTokensIn } from "./usage-core";
-import type { UsageStorage } from "./usage-core";
-import { hasToolConfirmation, processToolCalls } from "./utils";
+import type { ProviderSpend, ProviderUsageTelemetry } from "./usage";
 
-const RESERVE_OUTCOME = {
+const WORKSPACE_STORAGE_KEY = "chat:workspace-id:v1";
+const LAST_TOUCHED_USER_MESSAGE_KEY = "chat:last-touched-user-message:v1";
+
+export const CHAT_MODEL_PROVIDER_TEST_OVERRIDE = Symbol(
+  "@cloudstash/chat-agent/ChatModelProviderTestOverride"
+);
+
+const ALLOWANCE_OUTCOME = {
+  Allowed: "allowed",
   Disabled: "disabled",
-  Reserved: "reserved",
   LimitReached: "limit_reached",
   Unavailable: "unavailable",
 } as const;
-type ReserveOutcome = (typeof RESERVE_OUTCOME)[keyof typeof RESERVE_OUTCOME];
+const ResolvedChatAllowance = Schema.Struct({
+  enabled: Schema.Boolean,
+  limitMicroUsd: Schema.Number,
+  unavailable: Schema.Boolean,
+  usageWindow: Schema.Option(AssistantUsageWindow),
+});
+type ResolvedChatAllowance = Schema.Schema.Type<typeof ResolvedChatAllowance>;
 
-interface ResolvedChatBudget {
-  readonly budget: number;
-  readonly enabled: boolean;
-  readonly limit: number;
-  readonly unavailable: boolean;
-}
+class ChatUsageRpcError extends Schema.TaggedErrorClass<ChatUsageRpcError>()(
+  "ChatUsageRpcError",
+  {
+    operation: Schema.String,
+    cause: Schema.Defect(),
+  }
+) {}
 
-const resolveChatBudget = Effect.fnUntraced(function* (orgId: OrgId) {
-  const billing = yield* Billing;
-  const resolved = yield* billing.capabilities(orgId).pipe(
-    Effect.map((caps) => ({
-      budget: caps.monthlyChatBudgetUsd,
-      enabled: caps.chatAgent,
+const AllowanceCheck = Schema.Union([
+  Schema.Struct({
+    outcome: Schema.Literal(ALLOWANCE_OUTCOME.Allowed),
+    usageWindow: AssistantUsageWindow,
+  }),
+  Schema.Struct({
+    outcome: Schema.Literals([
+      ALLOWANCE_OUTCOME.Disabled,
+      ALLOWANCE_OUTCOME.LimitReached,
+      ALLOWANCE_OUTCOME.Unavailable,
+    ]),
+  }),
+]);
+type AllowanceCheck = Schema.Schema.Type<typeof AllowanceCheck>;
+
+const resolveChatAllowance = Effect.fnUntraced(function* (
+  orgId: OrgId,
+  limitMicroUsd: number
+) {
+  const resolved = yield* resolveAssistantAllowance(orgId).pipe(
+    Effect.map((allowance) => ({
+      credits: allowance.capabilities.monthlyAssistantCredits,
+      enabled: allowance.capabilities.chatAgent,
+      usageWindow: allowance.usageWindow,
       unavailable: false,
     })),
     Effect.catchTags({
       DbError: (cause) =>
-        Effect.logWarning("Falling back to default budget").pipe(
+        Effect.logWarning("Assistant allowance lookup failed").pipe(
           Effect.annotateLogs({
-            cause: String(cause),
             orgId: maskId(orgId),
+            ...safeErrorInfo(cause.cause),
           }),
-          Effect.as({ budget: 0, enabled: false, unavailable: true })
+          Effect.as({
+            credits: 0,
+            enabled: false,
+            usageWindow: Option.none(),
+            unavailable: true,
+          })
         ),
       OrgNotFoundError: () =>
-        Effect.logWarning("Org missing — using default budget").pipe(
+        Effect.logWarning("Assistant workspace is missing").pipe(
           Effect.annotateLogs({ orgId: maskId(orgId) }),
-          Effect.as({ budget: 0, enabled: false, unavailable: true })
+          Effect.as({
+            credits: 0,
+            enabled: false,
+            usageWindow: Option.none(),
+            unavailable: true,
+          })
+        ),
+      StripeApiError: (cause) =>
+        Effect.logWarning("Assistant Stripe cycle refresh failed").pipe(
+          Effect.annotateLogs({
+            orgId: maskId(orgId),
+            ...safeErrorInfo(cause.cause),
+          }),
+          Effect.as({
+            credits: 0,
+            enabled: false,
+            usageWindow: Option.none(),
+            unavailable: true,
+          })
         ),
     })
   );
-  return {
-    budget: resolved.budget,
-    enabled: resolved.enabled,
-    limit: budgetToTokenLimit(resolved.budget),
-    unavailable: resolved.unavailable,
-  } satisfies ResolvedChatBudget;
+  return ResolvedChatAllowance.make({
+    enabled: resolved.enabled && resolved.credits > 0,
+    limitMicroUsd,
+    unavailable:
+      resolved.unavailable ||
+      (resolved.enabled && Option.isNone(resolved.usageWindow)),
+    usageWindow: resolved.usageWindow,
+  });
 });
 
 type ChatErrorKind = "rate_limit" | "credit_limit" | "tool_failure" | "other";
@@ -137,7 +199,7 @@ function formatError(error: unknown): string {
     ),
     Match.when(
       "credit_limit",
-      () => "I've reached my spending limit. Please try again later."
+      () => "The Assistant is temporarily unavailable. Please try again later."
     ),
     Match.when(
       "tool_failure",
@@ -148,18 +210,52 @@ function formatError(error: unknown): string {
   );
 }
 
-export class ChatAgentDO
-  extends AIChatAgent<Env>
-  implements ClientDoWithRpcCallback
-{
+export class ChatAgentDO extends AIChatAgent<Env> {
   override __DURABLE_OBJECT_BRAND = "chat-agent-do" as never;
-  private storePromise: Promise<Store<typeof schema>> | null = null;
+  override maxPersistedMessages = 500;
   private cachedOrgId: OrgId | undefined;
   private retired = false;
   private storeRevision = 0;
+  private modelRuntime = ManagedRuntime.make(
+    ChatModelProviderLive(this.env.OPENROUTER_API_KEY)
+  );
+
+  async [CHAT_MODEL_PROVIDER_TEST_OVERRIDE](
+    service: typeof ChatModelProvider.Service
+  ): Promise<void> {
+    if (this.env.ENABLE_TEST_AUTH !== "true") {
+      throw new Error("Chat model provider overrides are disabled");
+    }
+    await this.modelRuntime.dispose();
+    this.modelRuntime = ManagedRuntime.make(
+      Layer.succeed(ChatModelProvider, service)
+    );
+  }
 
   private orgId(): OrgId {
-    if (!this.cachedOrgId) this.cachedOrgId = OrgId.make(this.name);
+    if (!this.cachedOrgId) {
+      throw new Error("Chat workspace has not been bound");
+    }
+    return this.cachedOrgId;
+  }
+
+  private async bindWorkspace(request: Request): Promise<OrgId> {
+    const requested = OrgId.make(
+      new URL(request.url).searchParams.get("workspaceId") ?? this.name
+    );
+    const stored = await this.ctx.storage.get<string>(WORKSPACE_STORAGE_KEY);
+    if (stored && stored !== requested) {
+      throw new Error("Chat session belongs to another workspace");
+    }
+    if (!stored) await this.ctx.storage.put(WORKSPACE_STORAGE_KEY, requested);
+    this.cachedOrgId = OrgId.make(stored ?? requested);
+    return this.cachedOrgId;
+  }
+
+  private async ensureWorkspace(): Promise<OrgId> {
+    if (this.cachedOrgId) return this.cachedOrgId;
+    const stored = await this.ctx.storage.get<string>(WORKSPACE_STORAGE_KEY);
+    this.cachedOrgId = OrgId.make(stored ?? this.name);
     return this.cachedOrgId;
   }
 
@@ -177,8 +273,13 @@ export class ChatAgentDO
       connection.close(1001, "Chat retired");
       return;
     }
+    try {
+      await this.bindWorkspace(ctx.request);
+    } catch {
+      connection.close(1008, "Invalid chat workspace");
+      return;
+    }
     await super.onConnect(connection, ctx);
-    void this.broadcastUsage(this.storeRevision);
   }
 
   /** Permanently closes this chat actor and wipes its storage. */
@@ -189,15 +290,11 @@ export class ChatAgentDO
     for (const connection of this.getConnections()) {
       connection.close(1001, "Chat retired");
     }
-    const storePromise = this.storePromise?.catch(() => null);
-    this.storePromise = null;
+    await this.modelRuntime.dispose();
     await Effect.runPromise(
       Effect.gen({ self: this }, function* () {
         yield* Effect.promise(() =>
-          retireDurableObjectStorage(this.ctx.storage, async () => {
-            const store = await storePromise;
-            await store?.shutdownPromise?.();
-          })
+          retireDurableObjectStorage(this.ctx.storage)
         );
         yield* Effect.logInfo("retire: storage wiped").pipe(
           Effect.annotateLogs({ doId: this.ctx.id.toString() })
@@ -207,62 +304,6 @@ export class ChatAgentDO
         Effect.provide(OtelTracingLive)
       )
     );
-  }
-
-  private async getSessionId(
-    storeId: string,
-    generation: number
-  ): Promise<string> {
-    if (!this.isCurrent(generation)) {
-      throw new DurableObjectRetiredError();
-    }
-    const key = "chat-session-id";
-    const stored = await this.ctx.storage.get<string>(key);
-    if (stored) return stored;
-
-    const newSessionId = `chat-${storeId}-${nanoid()}`;
-    if (!this.isCurrent(generation)) {
-      throw new DurableObjectRetiredError();
-    }
-    await this.ctx.storage.put(key, newSessionId);
-    return newSessionId;
-  }
-
-  private getStore(storeId?: string): Promise<Store<typeof schema>> {
-    const generation = this.storeRevision;
-    const existing = this.storePromise;
-    if (existing) return existing;
-
-    const id = storeId ?? this.name;
-    const promise = (async () => {
-      if (await this.isRetired()) throw new DurableObjectRetiredError();
-      const sessionId = await this.getSessionId(id, generation);
-      const store = await createStoreDoPromise({
-        clientId: "chat-agent-do",
-        durableObject: {
-          bindingName: "Chat",
-          ctx: this.ctx,
-          env: this.env,
-        } as never,
-        livePull: true,
-        schema,
-        sessionId,
-        storeId: id,
-        syncBackendStub: this.env.SYNC_BACKEND_DO.get(
-          this.env.SYNC_BACKEND_DO.idFromName(id)
-        ) as never,
-      });
-      if (!this.isCurrent(generation)) {
-        await store.shutdownPromise?.();
-        throw new DurableObjectRetiredError();
-      }
-      return store;
-    })();
-    promise.catch(() => {
-      if (this.storePromise === promise) this.storePromise = null;
-    });
-    this.storePromise = promise;
-    return promise;
   }
 
   private async isRetired(): Promise<boolean> {
@@ -276,140 +317,107 @@ export class ChatAgentDO
     return !this.retired && revision === this.storeRevision;
   }
 
-  private commitFor(
-    store: Store<typeof schema>,
-    revision: number
-  ): (...storeEvents: StoreEvent[]) => void {
-    return (...storeEvents) => {
-      if (!this.isCurrent(revision)) throw new DurableObjectRetiredError();
-      return store.commit(...storeEvents);
-    };
-  }
-
+  /** Compatibility target for SyncBackend subscriptions created by old actors. */
   async syncUpdateRpc(
-    payload: Uint8Array<ArrayBuffer>,
-    storeId: string
-  ): Promise<void> {
-    if (await this.isRetired()) return;
-    const generation = this.storeRevision;
-    await this.getStore(storeId);
-    await this.ctx.blockConcurrencyWhile(async () => {
-      if (!this.isCurrent(generation)) return;
-      await handleSyncUpdateRpc(this.ctx, payload);
-    });
-  }
+    _payload: Uint8Array<ArrayBuffer>,
+    _storeId: string
+  ): Promise<void> {}
 
-  // Read-only keyset page over this org's links, exposed to the public links
-  // API. Reuses the per-org store this DO already hosts for chat.
-  async listLinks(params: {
-    state: LinkStatus;
-    limit: number;
-    cursor: { createdAt: number; id: string } | null;
-  }): Promise<ApiLinksPage> {
-    return Effect.runPromise(
-      Effect.gen({ self: this }, function* () {
-        const store = yield* Effect.promise(() => this.getStore());
-        const rows = store.query(
-          apiLinksPage$({
-            state: params.state,
-            limitPlusOne: params.limit + 1,
-            cursor: params.cursor,
-          })
-        );
-        const tagRows = store.query(tagsByLink$);
-        const pendingTagRows = store.query(pendingTagsByLink$);
-        const total = store.query(apiLinksCount$(params.state));
-        return encodeLinksPage(
-          rows,
-          mergeTagNamesByLink(tagRows, pendingTagRows),
-          total,
-          params.limit
-        );
-      }).pipe(
-        Effect.withSpan("ChatAgentDO.listLinks", {
-          attributes: {
-            orgId: maskId(this.orgId()),
-            state: params.state,
-            limit: params.limit,
-          },
-        }),
-        Effect.provide(getAppLayer(this.env))
-      )
-    );
-  }
-
-  // Bounded ranked search over this org's links for read-only external callers.
-  async searchLinks(params: {
-    query: string;
-  }): Promise<readonly SearchResult[]> {
-    const query = normalizeLinkSearchQuery(params.query);
-    if (query === null) return [];
-
-    return Effect.runPromise(
-      Effect.gen({ self: this }, function* () {
-        const store = yield* Effect.promise(() => this.getStore());
-        return store.query(searchLinks$(query));
-      }).pipe(
-        Effect.withSpan("ChatAgentDO.searchLinks", {
-          attributes: {
-            orgId: maskId(this.orgId()),
-            queryLength: query.length,
-          },
-        }),
-        Effect.provide(getAppLayer(this.env))
-      )
-    );
-  }
-
-  private usageStorage(
-    storage: Pick<DurableObjectStorage, "get" | "put"> = this.ctx.storage
-  ): UsageStorage {
-    const key = getUsageKey(getCurrentPeriod());
+  private libraryStub() {
+    const libraryId = this.env.LINK_PROCESSOR_DO.idFromName(this.orgId());
     return {
-      get: () => storage.get<UsageData>(key),
-      put: (data) => storage.put(key, data),
+      id: libraryId,
+      stub: this.env.LINK_PROCESSOR_DO.get(libraryId),
     };
   }
 
-  private async reserveTokens(
-    estimate: number,
-    generation: number
-  ): Promise<ReserveOutcome> {
+  private async checkAllowance(generation: number): Promise<AllowanceCheck> {
     return Effect.runPromise(
       Effect.gen({ self: this }, function* () {
-        const { enabled, limit, unavailable } = yield* this.resolveBudget();
+        const { enabled, limitMicroUsd, unavailable, usageWindow } =
+          yield* this.resolveAllowance();
         if (unavailable) {
           yield* Effect.annotateCurrentSpan({
-            outcome: RESERVE_OUTCOME.Unavailable,
+            outcome: ALLOWANCE_OUTCOME.Unavailable,
           });
-          return RESERVE_OUTCOME.Unavailable;
+          return AllowanceCheck.make({
+            outcome: ALLOWANCE_OUTCOME.Unavailable,
+          });
         }
         if (!enabled) {
           yield* Effect.annotateCurrentSpan({
-            outcome: RESERVE_OUTCOME.Disabled,
+            outcome: ALLOWANCE_OUTCOME.Disabled,
           });
-          return RESERVE_OUTCOME.Disabled;
+          return AllowanceCheck.make({
+            outcome: ALLOWANCE_OUTCOME.Disabled,
+          });
         }
-        const reserved = yield* Effect.promise(() =>
-          this.ctx.storage.transaction((transaction) =>
-            this.isCurrent(generation)
-              ? reserveTokensIn(this.usageStorage(transaction), estimate, limit)
-              : Promise.resolve(null)
-          )
-        );
-        if (reserved === null) {
+        if (!this.isCurrent(generation)) {
           yield* Effect.logInfo(
-            "Token reservation skipped because the actor retired"
+            "Assistant allowance check skipped because the actor retired"
           );
-          return RESERVE_OUTCOME.Unavailable;
+          return AllowanceCheck.make({
+            outcome: ALLOWANCE_OUTCOME.Unavailable,
+          });
         }
-        const outcome = reserved
-          ? RESERVE_OUTCOME.Reserved
-          : RESERVE_OUTCOME.LimitReached;
-        yield* Effect.annotateCurrentSpan({ estimate, limit, outcome });
-        return outcome;
+        return yield* Option.match(usageWindow, {
+          onNone: () =>
+            Effect.succeed(
+              AllowanceCheck.make({
+                outcome: ALLOWANCE_OUTCOME.Unavailable,
+              })
+            ),
+          onSome: (window) =>
+            Effect.gen({ self: this }, function* () {
+              const { stub } = this.libraryStub();
+              const allowed = yield* Effect.tryPromise({
+                try: () => stub.canSpendChatUsage(window.id, limitMicroUsd),
+                catch: (cause) =>
+                  new ChatUsageRpcError({
+                    operation: "canSpendChatUsage",
+                    cause,
+                  }),
+              }).pipe(
+                Effect.catchTag("ChatUsageRpcError", (error) =>
+                  Effect.logError("Assistant allowance RPC failed").pipe(
+                    Effect.annotateLogs({
+                      operation: error.operation,
+                      orgId: maskId(this.orgId()),
+                      ...safeErrorInfo(error.cause),
+                    }),
+                    Effect.as("unavailable" as const)
+                  )
+                )
+              );
+              if (allowed === "unavailable") {
+                return AllowanceCheck.make({
+                  outcome: ALLOWANCE_OUTCOME.Unavailable,
+                });
+              }
+              const outcome = Match.value(allowed).pipe(
+                Match.when(true, () => ALLOWANCE_OUTCOME.Allowed),
+                Match.when(false, () => ALLOWANCE_OUTCOME.LimitReached),
+                Match.exhaustive
+              );
+              yield* Effect.annotateCurrentSpan({ outcome });
+              return Match.value(allowed).pipe(
+                Match.when(true, () =>
+                  AllowanceCheck.make({
+                    outcome: ALLOWANCE_OUTCOME.Allowed,
+                    usageWindow: window,
+                  })
+                ),
+                Match.when(false, () =>
+                  AllowanceCheck.make({
+                    outcome: ALLOWANCE_OUTCOME.LimitReached,
+                  })
+                ),
+                Match.exhaustive
+              );
+            }),
+        });
       }).pipe(
-        Effect.withSpan("ChatAgentDO.reserveTokens", {
+        Effect.withSpan("ChatAgentDO.checkAllowance", {
           attributes: { orgId: maskId(this.orgId()) },
         }),
         Effect.provide(getAppLayer(this.env))
@@ -417,90 +425,194 @@ export class ChatAgentDO
     );
   }
 
-  private recordTokenUsage(
-    promptTokens: number,
-    completionTokens: number,
-    releaseReservation: number,
+  private recordSpend(
+    usageWindowId: string,
+    settlementId: string,
+    spentMicroUsd: number,
     generation: number
-  ): Effect.Effect<void> {
+  ): Effect.Effect<void, ChatUsageRpcError> {
     return Effect.gen({ self: this }, function* () {
-      const committed = yield* Effect.promise(() =>
-        this.ctx.storage.transaction(async (transaction) => {
-          if (!this.isCurrent(generation)) return false;
-          await reconcileTokenUsageIn(
-            this.usageStorage(transaction),
-            promptTokens,
-            completionTokens,
-            releaseReservation
-          );
-          return true;
+      if (!this.isCurrent(generation)) {
+        yield* Effect.logInfo(
+          "Assistant spend write skipped because the actor retired"
+        );
+        return;
+      }
+      const { stub } = this.libraryStub();
+      const recorded = yield* Effect.tryPromise({
+        try: () =>
+          stub.settleChatSpend(usageWindowId, settlementId, spentMicroUsd),
+        catch: (cause) =>
+          new ChatUsageRpcError({
+            operation: "settleChatSpend",
+            cause,
+          }),
+      }).pipe(
+        Effect.retry({
+          schedule: Schedule.exponential("100 millis").pipe(
+            Schedule.upTo({ times: 4 })
+          ),
         })
       );
-      if (!committed) {
-        yield* Effect.logInfo(
-          "Token usage write skipped because the actor retired"
-        );
-      }
+      yield* Effect.annotateCurrentSpan({
+        recorded,
+        spentMicroUsd,
+        usageWindowId,
+      });
     }).pipe(
-      Effect.withSpan("ChatAgentDO.recordTokenUsage", {
+      Effect.withSpan("ChatAgentDO.recordSpend", {
         attributes: {
-          completionTokens,
           orgId: maskId(this.orgId()),
-          promptTokens,
-          releaseReservation,
         },
       })
     );
   }
 
-  private resolveBudget(): Effect.Effect<ResolvedChatBudget, never, Billing> {
+  private resolveAllowance() {
     const orgId = this.orgId();
-    return resolveChatBudget(orgId).pipe(
-      Effect.withSpan("ChatAgentDO.resolveBudget", {
+    const limitMicroUsd = parseAiMeterLimit(this.env.AI_METER_LIMIT);
+    if (limitMicroUsd === undefined) {
+      return Effect.logError(
+        "Assistant metering configuration is unavailable"
+      ).pipe(
+        Effect.annotateLogs({ orgId: maskId(orgId) }),
+        Effect.as({
+          enabled: false,
+          limitMicroUsd: 0,
+          unavailable: true,
+          usageWindow: Option.none(),
+        } satisfies ResolvedChatAllowance)
+      );
+    }
+    return resolveChatAllowance(orgId, limitMicroUsd).pipe(
+      Effect.provide(StripeClientLive(this.env)),
+      Effect.withSpan("ChatAgentDO.resolveAllowance", {
         attributes: { orgId: maskId(orgId) },
       })
     );
   }
 
-  private getUsage(): Effect.Effect<
-    NonNullable<ChatAgentState["usage"]>,
-    never,
-    Billing
-  > {
-    return Effect.gen({ self: this }, function* () {
-      const period = getCurrentPeriod();
-      const usage = yield* Effect.promise(() =>
-        this.ctx.storage.get<UsageData>(getUsageKey(period))
-      );
-      const used =
-        (usage?.promptTokens ?? 0) +
-        (usage?.completionTokens ?? 0) +
-        (usage?.reservedTokens ?? 0);
+  private async touchCurrentSession(userText: string): Promise<void> {
+    const userMessage = this.messages.findLast(
+      (message) => message.role === "user"
+    );
+    if (!userMessage) return;
+    const lastTouched = await this.ctx.storage.get<string>(
+      LAST_TOUCHED_USER_MESSAGE_KEY
+    );
+    if (lastTouched === userMessage.id) return;
+    const { stub } = this.libraryStub();
+    await stub.touchChatSession(this.name, userText);
+    await this.ctx.storage.put(LAST_TOUCHED_USER_MESSAGE_KEY, userMessage.id);
+  }
 
-      const { budget, limit } = yield* this.resolveBudget();
-      return { used, limit, budget, period };
-    }).pipe(
-      Effect.withSpan("ChatAgentDO.getUsage", {
-        attributes: { orgId: maskId(this.orgId()) },
-      })
+  private logMissingProviderCost(stage: "answer" | "compaction"): void {
+    this.ctx.waitUntil(
+      Effect.logError("OpenRouter response omitted usage cost").pipe(
+        Effect.annotateLogs({
+          orgId: maskId(this.orgId()),
+          stage,
+        }),
+        Effect.provide(getAppLayer(this.env)),
+        Effect.runPromise
+      )
     );
   }
 
-  private broadcastUsage(generation: number): Promise<void> {
-    return this.getUsage().pipe(
-      Effect.tap((usage) =>
-        Effect.sync(() => {
-          if (this.isCurrent(generation)) this.setState({ usage });
-        })
-      ),
-      Effect.tapCause((cause) =>
-        Effect.logError("broadcastUsage failed").pipe(
-          Effect.annotateLogs({ cause: String(cause) })
+  private logProviderUsage(
+    stage: "answer" | "compaction",
+    telemetry: ProviderUsageTelemetry,
+    retrieval?: ChatRetrievalTelemetry
+  ): void {
+    this.ctx.waitUntil(
+      Effect.logInfo("OpenRouter generation usage").pipe(
+        Effect.annotateLogs({
+          orgId: maskId(this.orgId()),
+          stage,
+          stepCount: telemetry.stepCount,
+          inputTokens: telemetry.inputTokens,
+          outputTokens: telemetry.outputTokens,
+          cacheReadTokens: telemetry.cacheReadTokens,
+          cacheWriteTokens: telemetry.cacheWriteTokens,
+          reasoningTokens: telemetry.reasoningTokens,
+          spentMicroUsd: telemetry.spend.spentMicroUsd,
+          costComplete: telemetry.spend.complete,
+          ...(retrieval === undefined
+            ? {}
+            : {
+                retrievalGetCalls: retrieval.getCalls,
+                retrievalListCalls: retrieval.listCalls,
+                retrievalSearchCalls: retrieval.searchCalls,
+                retrievalReturnedItems: retrieval.returnedItems,
+                retrievalSerializedCharacters: retrieval.serializedCharacters,
+                retrievalCappedCalls: retrieval.cappedCalls,
+              }),
+        }),
+        Effect.provide(getAppLayer(this.env)),
+        Effect.runPromise
+      )
+    );
+  }
+
+  private async generateCompaction(
+    model: LanguageModel,
+    plan: ChatCompactionPlan
+  ): Promise<{ summary: ChatContextSummary; spend: ProviderSpend }> {
+    const result = await generateText({
+      model,
+      prompt: buildCompactionPrompt(plan),
+      maxOutputTokens: COMPACTION_MAX_OUTPUT_TOKENS,
+      experimental_telemetry: { isEnabled: true },
+    });
+    const summary = {
+      summary: result.text,
+      throughMessageId: plan.throughMessageId,
+      updatedAt: new Date().toISOString(),
+    } satisfies ChatContextSummary;
+    const telemetry = openRouterUsageTelemetry([
+      { usage: result.usage, providerMetadata: result.providerMetadata },
+    ]);
+    this.logProviderUsage("compaction", telemetry);
+    return {
+      summary,
+      spend: telemetry.spend,
+    };
+  }
+
+  private async loadStoredSummary(): Promise<ChatContextSummary | undefined> {
+    const stored = await this.ctx.storage.get(COMPACTION_STORAGE_KEY);
+    if (stored === undefined) return undefined;
+    try {
+      return await Schema.decodeUnknownPromise(ChatContextSummary)(stored);
+    } catch (error) {
+      this.ctx.waitUntil(
+        Effect.logError("Stored chat compaction summary is invalid").pipe(
+          Effect.annotateLogs({
+            orgId: maskId(this.orgId()),
+            ...safeErrorInfo(error),
+          }),
+          Effect.provide(getAppLayer(this.env)),
+          Effect.runPromise
         )
-      ),
-      Effect.asVoid,
-      Effect.provide(getAppLayer(this.env)),
-      Effect.runPromise
+      );
+      return undefined;
+    }
+  }
+
+  private async persistCompaction(summary: ChatContextSummary): Promise<void> {
+    await Effect.runPromise(
+      Effect.tryPromise({
+        try: () => this.ctx.storage.put(COMPACTION_STORAGE_KEY, summary),
+        catch: (cause) =>
+          new ChatUsageRpcError({ operation: "persistCompaction", cause }),
+      }).pipe(
+        Effect.retry({
+          schedule: Schedule.exponential("50 millis").pipe(
+            Schedule.upTo({ times: 3 })
+          ),
+        }),
+        Effect.provide(getAppLayer(this.env))
+      )
     );
   }
 
@@ -509,48 +621,8 @@ export class ChatAgentDO
     options?: OnChatMessageOptions
   ) {
     if (await this.isRetired()) throw new DurableObjectRetiredError();
+    await this.ensureWorkspace();
     const generation = this.storeRevision;
-    await this.broadcastUsage(generation);
-
-    const reserveOutcome = await this.reserveTokens(
-      ESTIMATED_TOKENS_PER_CALL,
-      generation
-    );
-    if (reserveOutcome !== RESERVE_OUTCOME.Reserved) {
-      const message =
-        reserveOutcome === RESERVE_OUTCOME.Disabled
-          ? CHAT_DISABLED_MESSAGE
-          : reserveOutcome === RESERVE_OUTCOME.Unavailable
-            ? BUDGET_UNAVAILABLE_MESSAGE
-            : LIMIT_REACHED_MESSAGE;
-      const blockedStream = createUIMessageStream({
-        execute: ({ writer }) => {
-          writeTextMessage(writer, message, reserveOutcome);
-        },
-      });
-      return createUIMessageStreamResponse({ stream: blockedStream });
-    }
-
-    const openrouter = createOpenRouter({
-      apiKey: this.env.OPENROUTER_API_KEY,
-    });
-    const model = openrouter("google/gemini-2.5-flash");
-
-    const store = await this.getStore();
-    const commit = this.commitFor(store, generation);
-    const tools = createTools(store, commit);
-    const toolExecutors = createToolExecutors(store, commit);
-
-    const lastMessage = this.messages[this.messages.length - 1];
-    if (hasToolConfirmation(lastMessage)) {
-      return this.handleToolConfirmation(
-        model,
-        tools,
-        toolExecutors,
-        generation,
-        options?.abortSignal
-      );
-    }
 
     const userText = getLastUserMessageText(this.messages);
     if (userText) {
@@ -567,125 +639,192 @@ export class ChatAgentDO
         });
         return createUIMessageStreamResponse({ stream: blockedStream });
       }
+      await this.touchCurrentSession(userText);
     }
 
+    const storedSummary = await this.loadStoredSummary();
+    const compactionPlan = planChatCompaction(this.messages, storedSummary);
+
+    const allowance = await this.checkAllowance(generation);
+    const allowanceOutcome = allowance.outcome;
+    if (allowanceOutcome !== ALLOWANCE_OUTCOME.Allowed) {
+      const message = Match.value(allowanceOutcome).pipe(
+        Match.when(ALLOWANCE_OUTCOME.Disabled, () => CHAT_DISABLED_MESSAGE),
+        Match.when(
+          ALLOWANCE_OUTCOME.Unavailable,
+          () => ALLOWANCE_UNAVAILABLE_MESSAGE
+        ),
+        Match.when(ALLOWANCE_OUTCOME.LimitReached, () => LIMIT_REACHED_MESSAGE),
+        Match.exhaustive
+      );
+      const blockedStream = createUIMessageStream({
+        execute: ({ writer }) => {
+          writeTextMessage(writer, message, allowanceOutcome);
+        },
+      });
+      return createUIMessageStreamResponse({ stream: blockedStream });
+    }
+
+    const providerSessionId = this.ctx.id.toString();
+    const models = await this.modelRuntime.runPromise(
+      Effect.flatMap(ChatModelProvider, (provider) =>
+        provider.models(providerSessionId)
+      )
+    );
+
+    let summary = storedSummary;
+    let compactionSpend: ProviderSpend = {
+      complete: true,
+      spentMicroUsd: 0,
+    };
+    if (compactionPlan) {
+      try {
+        const compacted = await this.generateCompaction(
+          models.compaction,
+          compactionPlan
+        );
+        summary = compacted.summary;
+        compactionSpend = compacted.spend;
+        if (!compacted.spend.complete) {
+          this.logMissingProviderCost("compaction");
+        }
+        try {
+          await this.persistCompaction(compacted.summary);
+        } catch (error) {
+          this.ctx.waitUntil(
+            Effect.logError("Chat context compaction could not be saved").pipe(
+              Effect.annotateLogs({
+                ...safeErrorInfo(error),
+                orgId: maskId(this.orgId()),
+              }),
+              Effect.provide(getAppLayer(this.env)),
+              Effect.runPromise
+            )
+          );
+        }
+      } catch (error) {
+        this.ctx.waitUntil(
+          Effect.logWarning("Chat context compaction failed").pipe(
+            Effect.annotateLogs({
+              ...safeErrorInfo(error),
+              orgId: maskId(this.orgId()),
+            }),
+            Effect.provide(getAppLayer(this.env)),
+            Effect.runPromise
+          )
+        );
+      }
+    }
+
+    const { id: libraryId, stub: libraryStub } = this.libraryStub();
+    const library = makeChatLibrary({
+      callRpc: (payload) =>
+        libraryStub.workspaceLinksRpc(Uint8Array.from(payload)),
+      durableObjectId: libraryId.toString(),
+    });
+    const runToolEffect: ToolEffectRunner = (effect) =>
+      effect.pipe(Effect.provide(getAppLayer(this.env)), Effect.runPromise);
+    const retrievalTelemetry = createChatRetrievalTelemetry();
+    const tools = createTools(library, runToolEffect, retrievalTelemetry);
+
     return this.handleNormalChat(
-      model,
+      models.assistant,
       tools,
       generation,
+      allowance.usageWindow.id,
+      summary,
+      compactionSpend,
+      retrievalTelemetry,
       options?.abortSignal
     );
-  }
-
-  private handleToolConfirmation(
-    model: LanguageModel,
-    tools: ReturnType<typeof createTools>,
-    toolExecutors: ReturnType<typeof createToolExecutors>,
-    generation: number,
-    abortSignal?: AbortSignal
-  ) {
-    const stream = createUIMessageStream({
-      onError: formatError,
-      execute: async ({ writer }) => {
-        const updatedMessages = await processToolCalls(
-          { messages: this.messages, tools },
-          toolExecutors
-        );
-
-        if (!this.isCurrent(generation)) return;
-
-        this.messages = updatedMessages;
-        await this.persistMessages(this.messages);
-
-        const recentMessages = this.messages.slice(-CONTEXT_WINDOW_SIZE);
-        const messages = await convertToModelMessages(recentMessages);
-
-        const result = streamText({
-          model,
-          system: SYSTEM_PROMPT,
-          messages,
-          tools,
-          abortSignal,
-          stopWhen: stepCountIs(5),
-          experimental_telemetry: { isEnabled: true },
-          onFinish: ({ usage }) => {
-            if (!this.isCurrent(generation)) return;
-            // ctx.waitUntil so DO eviction can't drop the usage write.
-            this.ctx.waitUntil(
-              this.recordTokenUsage(
-                usage.inputTokens ?? 0,
-                usage.outputTokens ?? 0,
-                ESTIMATED_TOKENS_PER_CALL,
-                generation
-              ).pipe(
-                Effect.tap(() =>
-                  Effect.promise(() => this.broadcastUsage(generation))
-                ),
-                Effect.tapCause((cause) =>
-                  Effect.logError("recordTokenUsage failed").pipe(
-                    Effect.annotateLogs({ cause: String(cause) })
-                  )
-                ),
-                Effect.provide(getAppLayer(this.env)),
-                Effect.runPromise
-              )
-            );
-          },
-        });
-
-        writer.merge(result.toUIMessageStream());
-      },
-    });
-
-    return createUIMessageStreamResponse({ stream });
   }
 
   private handleNormalChat(
     model: LanguageModel,
     tools: ReturnType<typeof createTools>,
     generation: number,
+    usageWindowId: string,
+    summary: ChatContextSummary | undefined,
+    compactionSpend: ProviderSpend,
+    retrievalTelemetry: ReturnType<typeof createChatRetrievalTelemetry>,
     abortSignal?: AbortSignal
   ) {
+    const settlementId = crypto.randomUUID();
+    let usageSettlementStarted = false;
+    const settleUsage = (spend: ProviderSpend) => {
+      if (usageSettlementStarted || !this.isCurrent(generation)) return;
+      usageSettlementStarted = true;
+      if (!spend.complete) this.logMissingProviderCost("answer");
+      const spentMicroUsd = compactionSpend.spentMicroUsd + spend.spentMicroUsd;
+      if (spentMicroUsd === 0) return;
+      this.ctx.waitUntil(
+        this.recordSpend(
+          usageWindowId,
+          settlementId,
+          spentMicroUsd,
+          generation
+        ).pipe(
+          Effect.tapCause((cause) =>
+            Effect.logError("recordSpend failed").pipe(
+              Effect.annotateLogs({
+                cause: Cause.pretty(cause),
+                orgId: maskId(this.orgId()),
+                settlementId,
+                spentMicroUsd,
+                usageWindowId,
+              })
+            )
+          ),
+          Effect.provide(getAppLayer(this.env)),
+          Effect.runPromise
+        )
+      );
+    };
+    const onError = (error: unknown) => {
+      settleUsage({ complete: false, spentMicroUsd: 0 });
+      this.ctx.waitUntil(
+        Effect.logError("Chat stream failed").pipe(
+          Effect.annotateLogs({
+            ...safeErrorInfo(error),
+            errorKind: classifyError(error),
+            orgId: maskId(this.orgId()),
+          }),
+          Effect.provide(getAppLayer(this.env)),
+          Effect.runPromise
+        )
+      );
+      return formatError(error);
+    };
     const stream = createUIMessageStream({
-      onError: formatError,
+      onError,
       execute: async ({ writer }) => {
-        const recentMessages = this.messages.slice(-CONTEXT_WINDOW_SIZE);
+        const recentMessages = messagesAfterSummary(
+          this.messages,
+          summary
+        ).slice(-CONTEXT_WINDOW_SIZE);
         const messages = await convertToModelMessages(recentMessages);
 
         const result = streamText({
           model,
-          system: SYSTEM_PROMPT,
+          system: systemPromptWithSummary(SYSTEM_PROMPT, summary),
           messages,
           tools,
           abortSignal,
+          maxOutputTokens: MAX_OUTPUT_TOKENS_PER_STEP,
           stopWhen: stepCountIs(5),
           experimental_telemetry: { isEnabled: true },
-          onFinish: ({ usage }) => {
-            if (!this.isCurrent(generation)) return;
-            // ctx.waitUntil so DO eviction can't drop the usage write.
-            this.ctx.waitUntil(
-              this.recordTokenUsage(
-                usage.inputTokens ?? 0,
-                usage.outputTokens ?? 0,
-                ESTIMATED_TOKENS_PER_CALL,
-                generation
-              ).pipe(
-                Effect.tap(() =>
-                  Effect.promise(() => this.broadcastUsage(generation))
-                ),
-                Effect.tapCause((cause) =>
-                  Effect.logError("recordTokenUsage failed").pipe(
-                    Effect.annotateLogs({ cause: String(cause) })
-                  )
-                ),
-                Effect.provide(getAppLayer(this.env)),
-                Effect.runPromise
-              )
+          onFinish: ({ steps }) => {
+            const telemetry = openRouterUsageTelemetry(steps);
+            this.logProviderUsage(
+              "answer",
+              telemetry,
+              retrievalTelemetry.snapshot()
             );
+            settleUsage(telemetry.spend);
           },
         });
 
-        writer.merge(result.toUIMessageStream());
+        writer.merge(result.toUIMessageStream({ onError }));
       },
     });
 

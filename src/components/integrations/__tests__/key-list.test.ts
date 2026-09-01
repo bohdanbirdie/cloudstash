@@ -17,7 +17,8 @@ const key = {
   id: "key-1",
   lastRequest: null,
   name: "Chrome Extension",
-};
+  source: "chrome-extension",
+} as const;
 
 describe("KeyList", () => {
   afterEach(cleanup);

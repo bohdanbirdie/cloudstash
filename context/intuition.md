@@ -26,9 +26,11 @@ membership, sessions, billing, invites, settings, and aggregate activity—not
 the user's library.
 
 A workspace is the alignment boundary. Its organization ID is also its LiveStore
-`storeId` and names the workspace-scoped sync, processing/link-operation, and
-chat Durable Objects. This makes tenancy, synchronization, billing, and
-background processing speak the same identity.
+`storeId` and names the workspace-scoped sync and processing/link-operation
+Durable Objects. Chat conversations have independent actor names but are
+registered under, authorized through, and billed to that same workspace. This
+makes tenancy, synchronization, billing, and background processing speak the
+same identity without giving each chat another materialized library.
 
 ## Read the tree
 

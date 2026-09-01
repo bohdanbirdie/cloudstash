@@ -30,6 +30,14 @@ export class WorkspaceLinkUnavailableError extends Data.TaggedError(
   }
 }
 
+export class WorkspaceLinkLimitReachedError extends Data.TaggedError(
+  "WorkspaceLinkLimitReachedError"
+)<{ readonly limit: number; readonly message: string }> {
+  constructor(limit: number) {
+    super({ limit, message: `Saved-link limit of ${limit} reached` });
+  }
+}
+
 export class WorkspaceLinkStoreError extends Data.TaggedError(
   "WorkspaceLinkStoreError"
 )<{
@@ -67,7 +75,8 @@ export class WorkspaceLinkSyncError extends Data.TaggedError(
 export type WorkspaceLinkDomainError =
   | WorkspaceLinkNotFoundError
   | WorkspaceLinkInvalidInputError
-  | WorkspaceLinkUnavailableError;
+  | WorkspaceLinkUnavailableError
+  | WorkspaceLinkLimitReachedError;
 
 export type WorkspaceLinkInfrastructureError =
   | WorkspaceLinkStoreError

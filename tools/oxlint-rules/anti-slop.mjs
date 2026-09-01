@@ -1,4 +1,5 @@
 const MODULE_MOCK_METHODS = new Set(["doMock", "mock", "unstable_mockModule"]);
+const SPY_METHODS = new Set(["spyOn"]);
 
 const isTypeAssertion = (node) =>
   node.type === "TSAsExpression" || node.type === "TSTypeAssertion";
@@ -289,6 +290,32 @@ const noModuleMocking = {
   },
 };
 
+const isTestSpyCall = (sourceCode, callee) => {
+  if (callee.type !== "MemberExpression") return false;
+  if (!isTestFrameworkObject(sourceCode, callee.object)) return false;
+  const method = memberName(callee);
+  return typeof method === "string" && SPY_METHODS.has(method);
+};
+
+const noTestSpies = {
+  meta: {
+    type: "problem",
+    messages: {
+      spy: "Replace test spies with dependency injection through a real service/layer seam or a faithful test implementation.",
+    },
+  },
+  create(context) {
+    const sourceCode = context.sourceCode ?? context.getSourceCode();
+    return {
+      CallExpression(node) {
+        if (isTestSpyCall(sourceCode, node.callee)) {
+          context.report({ node, messageId: "spy" });
+        }
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "anti-slop" },
   rules: {
@@ -296,5 +323,6 @@ export default {
     "no-hidden-app-layer-outputs": noHiddenAppLayerOutputs,
     "no-capability-recovery-after-span": noCapabilityRecoveryAfterSpan,
     "no-module-mocking": noModuleMocking,
+    "no-test-spies": noTestSpies,
   },
 };

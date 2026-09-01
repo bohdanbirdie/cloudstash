@@ -1,17 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { filteredLinks$ } from "../../queries/filtered-links";
 import {
-  allLinks$,
   allLinksCount$,
   anyLinksCount$,
   apiLinksPage$,
   archiveCount$,
-  archiveLinks$,
   completedCount$,
-  completedLinks$,
   inboxCount$,
-  inboxLinks$,
   linkById$,
   linkByUrl$,
   linksByIds$,
@@ -149,8 +146,10 @@ describe("links queries", () => {
     });
   });
 
-  describe("list queries with snapshot/summary joins", () => {
-    it("inboxLinks$ picks the latest snapshot per link", () => {
+  // These exercise the snapshot join and per-status ordering that
+  // filteredLinks$ performs; it is the only list query the app uses.
+  describe("filteredLinks$ snapshot joins and ordering", () => {
+    it("inbox picks the latest snapshot per link", () => {
       const id = seedLink();
       addSnapshot(id, new Date("2026-01-02T10:00:00Z"), { title: "old title" });
       addSnapshot(id, new Date("2026-01-04T10:00:00Z"), { title: "new title" });
@@ -159,12 +158,12 @@ describe("links queries", () => {
       addSummary(id, new Date("2026-01-02T10:00:00Z"), "old summary");
       addSummary(id, new Date("2026-01-05T10:00:00Z"), "new summary");
 
-      const rows = store.query(inboxLinks$);
+      const rows = store.query(filteredLinks$("inbox", { tagIds: [] }));
       expect(rows).toHaveLength(1);
       expect(rows[0].title).toBe("new title");
     });
 
-    it("inboxLinks$ returns rows sorted by createdAt DESC and excludes non-unread/deleted", () => {
+    it("inbox returns rows sorted by createdAt DESC and excludes non-unread/deleted", () => {
       const a = seedLink({ createdAt: new Date("2026-01-01T10:00:00Z") });
       const b = seedLink({ createdAt: new Date("2026-01-03T10:00:00Z") });
       const c = seedLink({ createdAt: new Date("2026-01-02T10:00:00Z") });
@@ -172,11 +171,11 @@ describe("links queries", () => {
       completeLink(c, new Date("2026-01-05T10:00:00Z"));
       deleteLink(d, new Date("2026-01-05T10:00:00Z"));
 
-      const rows = store.query(inboxLinks$);
+      const rows = store.query(filteredLinks$("inbox", { tagIds: [] }));
       expect(rows.map((r) => r.id)).toEqual([b, a]);
     });
 
-    it("completedLinks$ returns rows sorted by completedAt DESC", () => {
+    it("completed returns rows sorted by completedAt DESC", () => {
       const a = seedLink();
       const b = seedLink();
       const c = seedLink();
@@ -184,22 +183,22 @@ describe("links queries", () => {
       completeLink(b, new Date("2026-01-02T10:00:00Z"));
       completeLink(c, new Date("2026-01-03T10:00:00Z"));
 
-      const rows = store.query(completedLinks$);
+      const rows = store.query(filteredLinks$("completed", { tagIds: [] }));
       expect(rows.map((r) => r.id)).toEqual([a, c, b]);
     });
 
-    it("completedLinks$ excludes deleted links", () => {
+    it("completed excludes deleted links", () => {
       const a = seedLink();
       const b = seedLink();
       completeLink(a, new Date("2026-01-04T10:00:00Z"));
       completeLink(b, new Date("2026-01-02T10:00:00Z"));
       deleteLink(b, new Date("2026-01-05T10:00:00Z"));
 
-      const rows = store.query(completedLinks$);
+      const rows = store.query(filteredLinks$("completed", { tagIds: [] }));
       expect(rows.map((r) => r.id)).toEqual([a]);
     });
 
-    it("allLinks$ returns all non-deleted, sorted by createdAt DESC", () => {
+    it("all returns all non-deleted, sorted by createdAt DESC", () => {
       const a = seedLink({ createdAt: new Date("2026-01-01T10:00:00Z") });
       const b = seedLink({ createdAt: new Date("2026-01-03T10:00:00Z") });
       const c = seedLink({ createdAt: new Date("2026-01-02T10:00:00Z") });
@@ -207,11 +206,11 @@ describe("links queries", () => {
       const d = seedLink({ createdAt: new Date("2026-01-04T10:00:00Z") });
       deleteLink(d, new Date("2026-01-05T10:00:00Z"));
 
-      const rows = store.query(allLinks$);
+      const rows = store.query(filteredLinks$("all", { tagIds: [] }));
       expect(rows.map((r) => r.id)).toEqual([b, c, a]);
     });
 
-    it("archiveLinks$ returns soft-deleted links sorted by deletedAt DESC", () => {
+    it("archive returns soft-deleted links sorted by deletedAt DESC", () => {
       const a = seedLink();
       const b = seedLink();
       const c = seedLink();
@@ -219,7 +218,7 @@ describe("links queries", () => {
       deleteLink(b, new Date("2026-01-05T10:00:00Z"));
       deleteLink(c, new Date("2026-01-04T10:00:00Z"));
 
-      const rows = store.query(archiveLinks$);
+      const rows = store.query(filteredLinks$("archive", { tagIds: [] }));
       expect(rows.map((r) => r.id)).toEqual([b, c, a]);
     });
   });

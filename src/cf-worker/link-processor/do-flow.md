@@ -30,14 +30,14 @@ The trigger (`onPush`) is just an alarm clock. The DO figures out what to do by 
 ┌─────────────────────────────────────────────────────────────────┐
 │                         TRIGGER                                  │
 │                                                                  │
-│   onPush detects v1.LinkCreated → fetch to LinkProcessorDO      │
+│   onPush detects v1.LinkCreated → fetch to LinkProcessorDO            │
 │   (Just wakes up the DO - doesn't pass any data)                │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                     LinkProcessorDO                              │
+│                       LinkProcessorDO                                  │
 │                                                                  │
 │   ┌─────────────────────────────────────────────────────────┐   │
 │   │                    INITIALIZATION                        │   │
@@ -314,7 +314,7 @@ Use `typeof tables.links.Type` to infer row types from LiveStore tables.
 ```
 Browser → WebSocket → handleSyncRequest() → validatePayload(JWT) → SyncBackendDO
                                                                         ↓
-                                                              LinkProcessorDO (internal)
+                                                                LinkProcessorDO (internal)
 ```
 
 ---

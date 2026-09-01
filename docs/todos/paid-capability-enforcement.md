@@ -52,7 +52,7 @@ case, which remains an independent platform limitation in DELTA-042.
 | AI summary                | LinkProcessor-owned current `aiSummary` capability                                          | skip provider work; link still completes                                                  | every processed link                                        |
 | X enrichment              | current `xContentEnrichment` plus atomic monthly reservation in LinkProcessorDO storage     | ordinary summary fallback; no enrichment provider call                                    | every eligible link                                         |
 | Weekly digest             | current `weeklyDigest`                                                                      | manual unavailable result; cancel/omit alarm; no generation                               | manual request, every alarm, and entitlement reconciliation |
-| Chat model/tool turn      | current `chatAgent` plus atomic monthly token reservation in ChatAgentDO storage            | blocked assistant response; no provider/tool work                                         | every turn/continuation                                     |
+| Chat model/tool turn      | current `chatAgent` plus monthly settled-spend preflight in LinkProcessorDO storage         | blocked assistant response; no provider/tool work                                         | every turn/continuation                                     |
 | Established chat identity | initial session checks current approval/membership                                          | current gap: a revoked member's open WebSocket is not connection-aware at `onChatMessage` | tracked in DELTA-042                                        |
 
 ## Dependencies and risks

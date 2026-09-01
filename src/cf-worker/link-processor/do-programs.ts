@@ -5,12 +5,13 @@ import { events } from "../../livestore/schema";
 import { LinkId as LinkIdBrand } from "../db/branded";
 import type { LinkId, OrgId } from "../db/branded";
 import { maskId } from "../log-utils";
+import { TERMINAL_STATUSES } from "./progress-draft";
 import { LinkRepository, SourceNotifier } from "./services";
-import type { Link, Status } from "./services";
 
 const STUCK_TIMEOUT_MS = 5 * 60 * 1000;
 
 interface IngestLinkParams {
+  maxSavedLinks?: number;
   url: string;
   storeId: OrgId;
   source: string;
@@ -50,6 +51,24 @@ export const ingestLink = Effect.fn("LinkProcessor.ingestLink")(function* (
       "Link already saved."
     );
     return { status: "duplicate" as const, linkId: existing.id };
+  }
+
+  const maxSavedLinks = params.maxSavedLinks ?? 0;
+  if (maxSavedLinks > 0) {
+    const activeLinks = yield* repo.queryActiveLinks();
+    if (activeLinks.length >= maxSavedLinks) {
+      yield* Effect.logInfo("Saved-link limit reached").pipe(
+        Effect.annotateLogs({
+          limit: maxSavedLinks,
+          storeId: maskId(params.storeId),
+        })
+      );
+      yield* notifier.reply(
+        { source: params.source, sourceMeta: params.sourceMeta },
+        `Your library is full (${maxSavedLinks} links). Archive a link or upgrade to save another.`
+      );
+      return { status: "limit_reached" as const };
+    }
   }
 
   const linkId = LinkIdBrand.make(nanoid());
@@ -95,12 +114,7 @@ export const cancelStaleLinks = Effect.fn("LinkProcessor.cancelStaleLinks")(
     const staleLinks = links.filter((link) => {
       if (currentlyProcessing.has(link.id)) return false;
       const status = statusMap.get(link.id);
-      if (
-        status?.status === "completed" ||
-        status?.status === "cancelled" ||
-        status?.status === "failed"
-      )
-        return false;
+      if (status && TERMINAL_STATUSES.has(status.status)) return false;
       const updatedAt = status
         ? new Date(status.updatedAt).getTime()
         : new Date(link.createdAt).getTime();
@@ -175,32 +189,3 @@ export const notifyResult = Effect.fn("LinkProcessor.notifyResult")(function* (
     })
   );
 });
-
-interface StuckLinkEvent {
-  linkId: LinkId;
-  stuckMs: number;
-}
-
-export const detectStuckLinks = (
-  pendingLinks: readonly Link[],
-  statuses: readonly Status[],
-  currentlyProcessing: ReadonlySet<string>,
-  now: number
-): StuckLinkEvent[] => {
-  const statusMap = new Map(statuses.map((s) => [s.linkId, s]));
-  const stuck: StuckLinkEvent[] = [];
-
-  for (const link of pendingLinks) {
-    if (currentlyProcessing.has(link.id)) continue;
-
-    const existingStatus = statusMap.get(link.id);
-    if (!existingStatus || existingStatus.status !== "pending") continue;
-
-    const elapsed = now - new Date(existingStatus.updatedAt).getTime();
-    if (elapsed > STUCK_TIMEOUT_MS) {
-      stuck.push({ linkId: LinkIdBrand.make(link.id), stuckMs: elapsed });
-    }
-  }
-
-  return stuck;
-};

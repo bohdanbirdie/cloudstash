@@ -1,5 +1,6 @@
 import { useAgentChat as useSdkAgentChat } from "@cloudflare/ai-chat/react";
 import { useAgent } from "agents/react";
+import { isToolUIPart } from "ai";
 import {
   createContext,
   useCallback,
@@ -10,16 +11,13 @@ import {
 } from "react";
 import type { ReactNode, RefObject } from "react";
 
-import type { ChatAgentState } from "@/cf-worker/chat-agent/usage";
 import { useNarrowViewport } from "@/hooks/use-narrow-viewport";
-import { TOOLS_REQUIRING_CONFIRMATION } from "@/shared/tool-config";
 
-type Agent = ReturnType<typeof useAgent<ChatAgentState>>;
+type Agent = Parameters<typeof useSdkAgentChat>[0]["agent"];
 
 interface AgentConnectionValue {
   agent: Agent;
   isConnected: boolean;
-  usage: ChatAgentState["usage"];
 }
 
 const AgentConnectionContext = createContext<AgentConnectionValue | null>(null);
@@ -35,24 +33,26 @@ export function useAgentConnection(): AgentConnectionValue {
 
 export function AgentConnectionProvider({
   workspaceId,
+  agentName,
   children,
 }: {
   workspaceId: string;
+  agentName: string;
   children: ReactNode;
 }) {
   const [isConnected, setIsConnected] = useState(false);
 
-  const agent = useAgent<ChatAgentState>({
+  const agent = useAgent({
     agent: "chat",
-    name: workspaceId,
+    name: agentName,
+    query: { workspaceId },
     onOpen: () => setIsConnected(true),
     onClose: () => setIsConnected(false),
   });
 
-  const usage = agent.state?.usage;
   const value = useMemo<AgentConnectionValue>(
-    () => ({ agent, isConnected, usage }),
-    [agent, isConnected, usage]
+    () => ({ agent, isConnected }),
+    [agent, isConnected]
   );
 
   return (
@@ -64,14 +64,30 @@ export function AgentConnectionProvider({
 
 type SdkChat = ReturnType<typeof useSdkAgentChat>;
 
+export const hasPendingToolApproval = (
+  messages: SdkChat["messages"]
+): boolean =>
+  messages.some((message) =>
+    message.parts.some(
+      (part) => isToolUIPart(part) && part.state === "approval-requested"
+    )
+  );
+
 interface AgentChatValue {
   messages: SdkChat["messages"];
   status: SdkChat["status"];
+  isBusy: boolean;
   error: SdkChat["error"];
   sendMessage: SdkChat["sendMessage"];
-  clearHistory: SdkChat["clearHistory"];
-  addToolOutput: SdkChat["addToolOutput"];
+  addToolApprovalResponse: SdkChat["addToolApprovalResponse"];
 }
+
+export const isAgentChatBusy = (
+  activity: Pick<SdkChat, "status" | "isStreaming" | "isToolContinuation">
+): boolean =>
+  activity.status === "submitted" ||
+  activity.isStreaming ||
+  activity.isToolContinuation;
 
 const AgentChatContext = createContext<AgentChatValue | null>(null);
 
@@ -92,27 +108,33 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   const chat = useSdkAgentChat({
     agent,
     credentials: "include",
-    toolsRequiringConfirmation: [...TOOLS_REQUIRING_CONFIRMATION],
     autoContinueAfterToolResult: true,
+  });
+  const {
+    messages,
+    status,
+    isStreaming,
+    isToolContinuation,
+    error,
+    sendMessage,
+    addToolApprovalResponse,
+  } = chat;
+  const isBusy = isAgentChatBusy({
+    status,
+    isStreaming,
+    isToolContinuation,
   });
 
   const value = useMemo<AgentChatValue>(
     () => ({
-      messages: chat.messages,
-      status: chat.status,
-      error: chat.error,
-      sendMessage: chat.sendMessage,
-      clearHistory: chat.clearHistory,
-      addToolOutput: chat.addToolOutput,
+      messages,
+      status,
+      isBusy,
+      error,
+      sendMessage,
+      addToolApprovalResponse,
     }),
-    [
-      chat.messages,
-      chat.status,
-      chat.error,
-      chat.sendMessage,
-      chat.clearHistory,
-      chat.addToolOutput,
-    ]
+    [messages, status, isBusy, error, sendMessage, addToolApprovalResponse]
   );
 
   return (
@@ -145,12 +167,14 @@ export function useAgentInput(): AgentInputValue {
 
 export function AgentInputProvider({
   textareaRef,
+  initialDraft = "",
   children,
 }: {
   textareaRef: RefObject<HTMLTextAreaElement | null>;
+  initialDraft?: string;
   children: ReactNode;
 }) {
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(initialDraft);
   const selectionRef = useRef<TextareaSelection>({ start: 0, end: 0 });
 
   const isNarrow = useNarrowViewport();

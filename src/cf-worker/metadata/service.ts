@@ -19,13 +19,8 @@ import {
   MetadataError,
 } from "./errors";
 import { tryExtract } from "./extractors";
-import { MetadataParser } from "./parser";
+import { METADATA_FETCH_HEADERS, parseMetadataHtml } from "./parser";
 import { OgMetadata } from "./schema";
-
-const FETCH_HEADERS = {
-  Accept: "text/html",
-  "User-Agent": "Mozilla/5.0 (compatible; CloudstashBot/1.0)",
-};
 
 export const PREVIEW_FETCH_POLICY = {
   maxBytes: 2_000_000,
@@ -67,6 +62,7 @@ export const fetchOgMetadata = Effect.fnUntraced(function* (
   options: {
     readonly fetcher?: typeof fetch;
     readonly ownHostname?: string;
+    readonly signal?: AbortSignal;
     readonly policy?: {
       readonly maxBytes: number;
       readonly maxRedirects: number;
@@ -80,7 +76,7 @@ export const fetchOgMetadata = Effect.fnUntraced(function* (
   const targetUrl = yield* Schema.decodeUnknownEffect(targetSchema)(
     target
   ).pipe(Effect.mapError(() => new MetadataInvalidTargetError()));
-  const signal = AbortSignal.timeout(policy.timeoutMs);
+  const signal = options.signal ?? AbortSignal.timeout(policy.timeoutMs);
 
   const extracted = yield* tryExtract(targetUrl, {
     fetcher,
@@ -119,7 +115,7 @@ export const fetchOgMetadata = Effect.fnUntraced(function* (
       fetchBoundedText({
         acceptedContentTypes: ["text/html", "application/xhtml+xml"],
         fetcher,
-        headers: FETCH_HEADERS,
+        headers: METADATA_FETCH_HEADERS,
         maxBytes: policy.maxBytes,
         maxRedirects: policy.maxRedirects,
         signal,
@@ -128,25 +124,11 @@ export const fetchOgMetadata = Effect.fnUntraced(function* (
       }),
   });
 
-  const parser = new MetadataParser(page.finalUrl.href);
-  yield* Effect.tryPromise({
+  const result = yield* Effect.tryPromise({
     catch: (cause) =>
       new MetadataParseError({ errorType: safeErrorInfo(cause).errorType }),
-    try: () =>
-      new HTMLRewriter()
-        .on("title", parser)
-        .on("meta", parser)
-        .on("link", parser)
-        .on("script", parser)
-        .transform(
-          new Response(page.body, {
-            headers: { "Content-Type": "text/html; charset=utf-8" },
-          })
-        )
-        .text(),
+    try: () => parseMetadataHtml(page.body, page.finalUrl),
   });
-
-  const result = parser.getResult();
   const ext = extracted?.result;
   return yield* decodeOgMetadata({
     description: ext?.description ?? result.description,

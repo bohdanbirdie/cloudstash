@@ -138,3 +138,27 @@ export class MetadataParser implements HTMLRewriterElementContentHandlers {
     }
   }
 }
+
+export const METADATA_FETCH_HEADERS = {
+  Accept: "text/html",
+  "User-Agent": "Mozilla/5.0 (compatible; CloudstashBot/1.0)",
+};
+
+export const parseMetadataHtml = async (
+  body: BodyInit,
+  finalUrl: URL
+): Promise<MetadataResult> => {
+  const parser = new MetadataParser(finalUrl.href);
+  await new HTMLRewriter()
+    .on("title", parser)
+    .on("meta", parser)
+    .on("link", parser)
+    .on("script", parser)
+    .transform(
+      new Response(body, {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      })
+    )
+    .text();
+  return parser.getResult();
+};

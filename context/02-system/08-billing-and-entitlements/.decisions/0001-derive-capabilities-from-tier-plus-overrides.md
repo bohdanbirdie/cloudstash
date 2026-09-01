@@ -18,7 +18,8 @@ features.
   full matrix must be tested: X enrichment existed but was false in every tier
   and therefore unreachable.
 - Admin overrides support beta access and manual grants without changing global
-  plan defaults; `tierSource` prevents Stripe from clobbering a comp.
+  plan defaults. Their independent tier-floor storage is refined by
+  [decision 0004](./0004-separate-admin-grants-from-stripe-state.md).
 
 ## Options
 
@@ -30,7 +31,7 @@ features.
 
 ## Decision
 
-Use a version-controlled capability matrix as runtime policy. Store only tier,
-tier source, Stripe projection, and sparse overrides in D1. All authoritative
-gates ask `Billing` for merged capabilities. Preserve marketing copy as a
-separate projection and test the entire default matrix.
+Use a version-controlled capability matrix as runtime policy. Store the Stripe
+tier projection, independent admin tier grant, and sparse capability overrides
+in D1. All authoritative gates ask `Billing` for merged capabilities. Preserve
+marketing copy as a separate projection and test the entire default matrix.

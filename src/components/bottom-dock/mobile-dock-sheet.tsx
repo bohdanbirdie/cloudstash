@@ -1,6 +1,6 @@
 import { Command as CommandPrimitive } from "cmdk";
 import { MessageCircleIcon, SearchIcon } from "lucide-react";
-import type { ReactNode, RefObject } from "react";
+import type { ReactNode } from "react";
 import { Drawer } from "vaul";
 
 import { SheetHandle } from "@/components/ui/sheet-handle";
@@ -10,6 +10,7 @@ import type { LinkWithDetails, SearchResult } from "@/livestore/queries/links";
 import type { DockMode } from "@/stores/dock-store";
 
 import { DockContent } from "./dock-content";
+import type { AgentSurfaceState } from "./dock-content";
 
 interface MobileDockSheetProps {
   mode: DockMode;
@@ -19,9 +20,7 @@ interface MobileDockSheetProps {
   searchResults: readonly SearchResult[];
   recentLinks: readonly LinkWithDetails[];
   onSelect: (link: LinkWithDetails | SearchResult) => void;
-  orgId: string | null;
-  agentEverOpened: boolean;
-  agentTextareaRef: RefObject<HTMLTextAreaElement | null>;
+  agentState: AgentSurfaceState;
   onDismiss: () => void;
 }
 
@@ -33,9 +32,7 @@ export function MobileDockSheet({
   searchResults,
   recentLinks,
   onSelect,
-  orgId,
-  agentEverOpened,
-  agentTextareaRef,
+  agentState,
   onDismiss,
 }: MobileDockSheetProps) {
   const isNarrow = useNarrowViewport();
@@ -73,7 +70,7 @@ export function MobileDockSheet({
               active={mode === "agent"}
               onClick={() => setMode("agent")}
               icon={<MessageCircleIcon className="size-4" />}
-              label="Agent"
+              label="Assistant"
             />
           </div>
 
@@ -109,10 +106,7 @@ export function MobileDockSheet({
                 searchResults={searchResults}
                 recentLinks={recentLinks}
                 onSelect={onSelect}
-                orgId={orgId}
-                agentEverOpened={agentEverOpened}
-                agentTextareaRef={agentTextareaRef}
-                onClose={onDismiss}
+                agentState={agentState}
               />
             </div>
           </CommandPrimitive>

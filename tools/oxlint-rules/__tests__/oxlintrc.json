@@ -8,6 +8,7 @@
     "anti-slop/no-chained-type-assertions": "error",
     "anti-slop/no-hidden-app-layer-outputs": "error",
     "anti-slop/no-capability-recovery-after-span": "error",
-    "anti-slop/no-module-mocking": "error"
+    "anti-slop/no-module-mocking": "error",
+    "anti-slop/no-test-spies": "error"
   }
 }

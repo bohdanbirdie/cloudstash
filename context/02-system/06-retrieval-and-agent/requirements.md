@@ -14,12 +14,13 @@ agent's retrieval and mutation tools.
 - **CS.SYS.RET-A02 Agent is a library interface:** Chat adds natural-language
   access to existing workspace operations; it is not an independent source of
   content truth.
-  - Validation: tools commit/query the same LiveStore store.
+  - Validation: tools use the canonical workspace LinkProcessor RPC contract.
 
 ## Constraints
 
 - **CS.SYS.RET-C01 Model context is bounded:** Full chat history may be retained
-  for UI but only a bounded recent window is sent to the model.
+  for UI, but the model receives only a bounded recent window plus a bounded
+  private summary of older context.
 - **CS.SYS.RET-C02 Public API pages are bounded:** Link listing uses validated
   limits and opaque cursor pagination.
 
@@ -27,11 +28,14 @@ agent's retrieval and mutation tools.
 
 - **CS.SYS.RET-T01 LIKE search:** Case-insensitive LIKE and weighted fields are
   accepted instead of FTS5 to avoid a custom SQLite build.
-- **CS.SYS.RET-T02 Shared LinkProcessor client:** REST and MCP reuse the existing
-  workspace-named LinkProcessorDO LiveStore replica; chat remains separate until
-  its planned multi-conversation migration.
-- **CS.SYS.RET-T03 Approximate chat budget:** Token reservations use estimates
-  reconciled after calls; fail-closed budget lookup may temporarily deny chat.
+- **CS.SYS.RET-T02 Shared LinkProcessor client:** REST, MCP, and chat reuse the
+  workspace-named LinkProcessorDO LiveStore replica. Each chat keeps its own
+  message history and private context summary; the LinkProcessor actor owns the
+  lightweight chat registry and library-wide usage ledger.
+- **CS.SYS.RET-T03 Settled Assistant allowance:** Every conversation checks the
+  shared settled-cost aggregate before provider work and appends actual reported
+  cost afterward. Rare overlapping short runs may settle slightly above the
+  limit; fail-closed allowance lookup may temporarily deny chat.
 
 ## Requirements
 
@@ -58,7 +62,11 @@ agent's retrieval and mutation tools.
 - **CS.SYS.RET-R09 Archival confirmation:** Agent tools that archive one or many
   links require human confirmation before execution.
 - **CS.SYS.RET-R10 Guardrails:** Agent input, step count, context window, errors,
-  and monthly budget must be bounded before or during provider execution.
+  and monthly Assistant allowance must be bounded before or during model
+  execution.
+- **CS.SYS.RET-R12 Conversation isolation:** A library may have multiple chat
+  histories. Listing their metadata must not materialize another library client,
+  and loading one conversation must not load the message content of another.
 - **CS.SYS.RET-R11 Citations:** When an agent answer relies on a library link,
   its response/tool result must include the relevant link ID/URL so the client
   can render a grounded record.

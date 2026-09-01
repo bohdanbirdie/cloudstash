@@ -1,5 +1,6 @@
 import { describe, it } from "@effect/vitest";
 import { Effect, Result, Schema } from "effect";
+import { TestClock } from "effect/testing";
 import { expect } from "vitest";
 
 import { UserId, XTweetId, XUserId } from "../../db/branded";
@@ -18,6 +19,7 @@ import {
   makeStoreLayer,
   makeXApiLayer,
   ORG_ID,
+  USAGE_WINDOW,
   X_USER,
 } from "../_helpers/x-sync";
 
@@ -34,13 +36,23 @@ const QueueSourceMeta = Schema.Struct({
   createdAt: Schema.optionalKey(Schema.String),
 });
 
-const poll = Effect.fnUntraced(function* () {
+const poll = Effect.fnUntraced(function* (
+  usageWindow = USAGE_WINDOW,
+  monthlyLimit = 300
+) {
   const store = yield* XSyncStateStore;
   const state = yield* store.read();
   if (!state || !state.xUserId) {
     return yield* Effect.die("test poll requires connected state");
   }
-  return yield* pollReconciledEffect(USER_ID, ORG_ID, state, "access-token");
+  return yield* pollReconciledEffect(
+    USER_ID,
+    ORG_ID,
+    state,
+    "access-token",
+    usageWindow,
+    monthlyLimit
+  );
 });
 
 describe("pollReconciledEffect", () => {
@@ -63,7 +75,6 @@ describe("pollReconciledEffect", () => {
           expect(outcome).toEqual({
             kind: "ok",
             newCount: 0,
-            rescheduleInMs: 30_000,
           });
           expect(queue.calls).toEqual([]);
           expect(x.calls).toHaveLength(1);
@@ -102,7 +113,203 @@ describe("pollReconciledEffect", () => {
   );
 
   it.effect(
-    "paginated new bookmarks: walks pages with max_results=50, slices at watermark, enqueues in reverse order with full payload",
+    "stops at any recent checkpoint when the newest one disappeared",
+    () => {
+      const store = makeStoreLayer(
+        makeSnapshot({ watermarkTweetId: XTweetId.make("missing") })
+      );
+      store.rec.checkpoints = [XTweetId.make("missing"), XTweetId.make("t3")];
+      const x = makeXApiLayer([
+        { kind: "ok", page: { data: [tweet("t5")], nextToken: "p2" } },
+        { kind: "ok", page: { data: [tweet("t4")], nextToken: "p3" } },
+        { kind: "ok", page: { data: [tweet("t3")], nextToken: "older" } },
+      ]);
+      const queue = makeQueueLayer();
+
+      return poll().pipe(
+        Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
+        Effect.tap((outcome) =>
+          Effect.sync(() => {
+            expect(outcome).toEqual({ kind: "ok", newCount: 2 });
+            expect(queue.calls.map((call) => call.url)).toEqual([
+              "https://x.com/i/status/t4",
+              "https://x.com/i/status/t5",
+            ]);
+            expect(x.calls).toHaveLength(3);
+          })
+        )
+      );
+    }
+  );
+
+  it.effect(
+    "persists a bounded traversal and resumes it on the next alarm",
+    () => {
+      const store = makeStoreLayer(
+        makeSnapshot({ watermarkTweetId: XTweetId.make("t1") })
+      );
+      const pages = Array.from({ length: 28 }, (_, index) => {
+        const id = 28 - index;
+        return {
+          kind: "ok" as const,
+          page: {
+            data: [tweet(`t${id}`)],
+            nextToken: id === 1 ? undefined : `p-${id - 1}`,
+          },
+        };
+      });
+      const x = makeXApiLayer(pages);
+      const queue = makeQueueLayer();
+
+      const program = Effect.gen(function* () {
+        expect(yield* poll()).toEqual({ kind: "continuing" });
+        expect(x.calls).toHaveLength(25);
+        expect(queue.calls).toEqual([]);
+        expect(store.rec.scan?.complete).toBe(false);
+
+        expect(yield* poll()).toEqual({ kind: "ok", newCount: 27 });
+        expect(x.calls).toHaveLength(28);
+        expect(queue.calls).toHaveLength(27);
+        expect(store.rec.scan).toBeNull();
+      });
+
+      return program.pipe(
+        Effect.provide(baseLayers(store.layer, x.layer, queue.layer))
+      );
+    }
+  );
+
+  it.effect(
+    "keeps overflow pending and catches it up in the next usage window",
+    () => {
+      const store = makeStoreLayer(
+        makeSnapshot({ watermarkTweetId: XTweetId.make("t1") })
+      );
+      const x = makeXApiLayer([
+        { kind: "ok", page: { data: [tweet("t3")], nextToken: "p2" } },
+        { kind: "ok", page: { data: [tweet("t2")], nextToken: "p1" } },
+        { kind: "ok", page: { data: [tweet("t1")], nextToken: undefined } },
+      ]);
+      const queue = makeQueueLayer({ limitAtCalls: new Set([1]) });
+      const nextWindow = {
+        id: "2026-09-01T00:00:00.000Z",
+        startsAt: "2026-09-01T00:00:00.000Z",
+        resetsAt: "2026-10-01T00:00:00.000Z",
+      } as const;
+
+      const program = Effect.gen(function* () {
+        expect(yield* poll()).toMatchObject({
+          kind: "monthly_limit",
+          reason: "workspace_admission",
+          newCount: 1,
+        });
+        expect(
+          store.rec.scan?.bookmarks.map((bookmark) => bookmark.id)
+        ).toEqual([XTweetId.make("t3")]);
+        expect(store.rec.checkpoints).toContain(XTweetId.make("t2"));
+
+        expect(yield* poll(nextWindow)).toEqual({ kind: "ok", newCount: 1 });
+        expect(store.rec.scan).toBeNull();
+        expect(store.rec.setWatermarkCalls).toEqual([XTweetId.make("t3")]);
+      });
+
+      return program.pipe(
+        Effect.provide(baseLayers(store.layer, x.layer, queue.layer))
+      );
+    }
+  );
+
+  it.effect(
+    "does not call X after the provider-read ceiling is reached",
+    () => {
+      const store = makeStoreLayer(
+        makeSnapshot({ watermarkTweetId: XTweetId.make("t1") })
+      );
+      store.rec.readUsage = {
+        windowId: USAGE_WINDOW.id,
+        billableKeys: Array.from(
+          { length: 350 },
+          (_, index) => `read-${index}`
+        ),
+      };
+      const x = makeXApiLayer([]);
+      const queue = makeQueueLayer();
+
+      return poll().pipe(
+        Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
+        Effect.tap((outcome) =>
+          Effect.sync(() => {
+            expect(outcome).toMatchObject({
+              kind: "monthly_limit",
+              reason: "provider_reads",
+              newCount: 0,
+            });
+            expect(x.calls).toEqual([]);
+            expect(queue.calls).toEqual([]);
+          })
+        )
+      );
+    }
+  );
+
+  it.effect(
+    "deduplicates provider reads by UTC day and resets them with the usage window",
+    () => {
+      const store = makeStoreLayer(
+        makeSnapshot({ watermarkTweetId: XTweetId.make("t1") })
+      );
+      store.rec.checkpoints = [XTweetId.make("t1"), XTweetId.make("t2")];
+      const x = makeXApiLayer([
+        { kind: "ok", page: { data: [tweet("t2")] } },
+        { kind: "ok", page: { data: [tweet("t2")] } },
+        { kind: "ok", page: { data: [tweet("t2")] } },
+        { kind: "ok", page: { data: [tweet("t2")] } },
+      ]);
+      const queue = makeQueueLayer();
+      const nextWindow = {
+        id: "2026-09-01T00:00:00.000Z",
+        startsAt: "2026-09-01T00:00:00.000Z",
+        resetsAt: "2026-10-01T00:00:00.000Z",
+      } as const;
+
+      const program = Effect.gen(function* () {
+        yield* TestClock.setTime(
+          new Date("2026-08-10T12:00:00.000Z").getTime()
+        );
+        yield* poll();
+        yield* poll();
+        expect(store.rec.readUsage?.billableKeys).toEqual([
+          `2026-08-10:${XTweetId.make("t2")}`,
+        ]);
+
+        yield* TestClock.setTime(
+          new Date("2026-08-11T12:00:00.000Z").getTime()
+        );
+        yield* poll();
+        expect(store.rec.readUsage?.billableKeys).toEqual([
+          `2026-08-10:${XTweetId.make("t2")}`,
+          `2026-08-11:${XTweetId.make("t2")}`,
+        ]);
+
+        yield* TestClock.setTime(
+          new Date("2026-09-02T12:00:00.000Z").getTime()
+        );
+        yield* poll(nextWindow);
+        expect(store.rec.readUsage).toEqual({
+          windowId: nextWindow.id,
+          billableKeys: [`2026-09-02:${XTweetId.make("t2")}`],
+        });
+        expect(queue.calls).toEqual([]);
+      });
+
+      return program.pipe(
+        Effect.provide(baseLayers(store.layer, x.layer, queue.layer))
+      );
+    }
+  );
+
+  it.effect(
+    "paginated new bookmarks: walks one resource at a time to the checkpoint and enqueues oldest-first",
     () => {
       const store = makeStoreLayer(
         makeSnapshot({ watermarkTweetId: XTweetId.make("t1") })
@@ -143,7 +350,7 @@ describe("pollReconciledEffect", () => {
             }
             expect(store.rec.setWatermarkCalls).toEqual([XTweetId.make("t5")]);
             expect(x.calls).toHaveLength(2);
-            expect(x.calls[1]?.maxResults).toBe(50);
+            expect(x.calls[1]?.maxResults).toBe(1);
             expect(x.calls[1]?.paginationToken).toBe("page2");
           })
         )
@@ -182,19 +389,25 @@ describe("pollReconciledEffect", () => {
           "https://x.com/i/status/t2",
           "https://x.com/i/status/t3",
         ]);
-        expect(store.rec.setWatermarkCalls).toEqual([XTweetId.make("t2")]);
+        expect(store.rec.setWatermarkCalls).toEqual([]);
+        expect(store.rec.checkpoints).toEqual([
+          XTweetId.make("t2"),
+          XTweetId.make("t1"),
+        ]);
+        expect(store.rec.scan).toMatchObject({
+          headTweetId: XTweetId.make("t3"),
+          complete: true,
+        });
 
         const retried = yield* poll();
         expect(retried).toMatchObject({ kind: "ok", newCount: 1 });
         expect(queue.calls.map((call) => call.url)).toEqual([
           "https://x.com/i/status/t2",
           "https://x.com/i/status/t3",
+          "https://x.com/i/status/t2",
           "https://x.com/i/status/t3",
         ]);
-        expect(store.rec.setWatermarkCalls).toEqual([
-          XTweetId.make("t2"),
-          XTweetId.make("t3"),
-        ]);
+        expect(store.rec.setWatermarkCalls).toEqual([XTweetId.make("t3")]);
       });
 
       return program.pipe(
@@ -261,21 +474,37 @@ describe("pollReconciledEffect", () => {
             retryAfterMs: 60_000,
           }),
         },
+        { kind: "ok", page: { data: [tweet("t1")] } },
       ]);
       const queue = makeQueueLayer();
 
-      return poll().pipe(
-        Effect.provide(baseLayers(store.layer, x.layer, queue.layer)),
-        Effect.tap((outcome) =>
-          Effect.sync(() => {
-            expect(outcome).toEqual({
-              kind: "rate_limited",
-              retryAfterMs: 60_000,
-            });
-            expect(queue.calls).toEqual([]);
-            expect(store.rec.setWatermarkCalls).toEqual([]);
-          })
-        )
+      const program = Effect.gen(function* () {
+        expect(yield* poll()).toEqual({
+          kind: "rate_limited",
+          retryAfterMs: 60_000,
+        });
+        expect(queue.calls).toEqual([]);
+        expect(store.rec.setWatermarkCalls).toEqual([]);
+        expect(store.rec.scan).toMatchObject({
+          headTweetId: XTweetId.make("t10"),
+          bookmarks: [tweet("t10")],
+          nextToken: "p2",
+          complete: false,
+        });
+
+        expect(yield* poll()).toEqual({ kind: "ok", newCount: 1 });
+        expect(x.calls.map((call) => call.paginationToken)).toEqual([
+          undefined,
+          "p2",
+          "p2",
+        ]);
+        expect(queue.calls.map((call) => call.url)).toEqual([
+          "https://x.com/i/status/t10",
+        ]);
+      });
+
+      return program.pipe(
+        Effect.provide(baseLayers(store.layer, x.layer, queue.layer))
       );
     }
   );

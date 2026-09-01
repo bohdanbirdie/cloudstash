@@ -130,3 +130,10 @@ Set these on `cloudstash-staging`, never in Git:
 Staging credentials may reuse a provider project only when that provider
 supports an additional callback cleanly. Signing keys, Stripe mode, Telegram
 webhook ownership, state stores, and Queues must remain isolated.
+
+## Required staging variables
+
+Set `AI_METER_LIMIT` as a plain Worker variable in the Cloudflare dashboard.
+Its value is intentionally environment-owned rather than committed. Deployment
+scripts use Wrangler's `--keep-vars` option so dashboard-managed variables are
+not removed by later deployments.

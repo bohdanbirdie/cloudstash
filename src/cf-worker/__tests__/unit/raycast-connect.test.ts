@@ -65,8 +65,12 @@ function makeBillingLayer(caps: TierCapabilities = capabilitiesFor("plus")) {
     Billing,
     Billing.of({
       capabilities: () => Effect.succeed(caps),
+      assistantAllowance: notImpl,
+      usageAllowance: notImpl,
+      monthlyUsageWindow: notImpl,
       tier: notImpl,
       subscription: notImpl,
+      orgBillingSnapshot: () => Effect.die("orgBillingSnapshot not used"),
       getOverrides: notImpl,
       setTier: notImpl,
       setOverride: notImpl,

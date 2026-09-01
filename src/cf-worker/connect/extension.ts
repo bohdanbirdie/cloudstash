@@ -4,6 +4,7 @@ import { Effect, Layer, Option } from "effect";
 import { bearerApiKey } from "../auth/bearer-api-key";
 import { AppLayerLive, AuthClient } from "../auth/service";
 import { WorkspaceAccess } from "../auth/workspace-access";
+import { Billing } from "../billing/service";
 import { ApiKey, ApiKeyRowId } from "../db/branded";
 import * as schema from "../db/schema";
 import { DbClient, query } from "../db/service";
@@ -20,6 +21,7 @@ import {
   SessionProvider,
   connectWorkspaceAccessError,
   getAuthorizedSession,
+  requireAuthorizedSession,
 } from "./services";
 
 const authorizeExtensionKey = Effect.fn("ExtensionConnect.authorizeKey")(
@@ -36,16 +38,9 @@ const authorizeExtensionKey = Effect.fn("ExtensionConnect.authorizeKey")(
 export const handleConnectRequest = Effect.fn(
   "ExtensionConnect.handleConnectRequest"
 )(function* (headers: Headers) {
-  const sessionProvider = yield* SessionProvider;
   const apiKeyStore = yield* ApiKeyStore;
 
-  const session = yield* sessionProvider
-    .getSession(headers)
-    .pipe(
-      Effect.flatMap((s) =>
-        s ? Effect.succeed(s) : Effect.fail(new ConnectUnauthorizedError())
-      )
-    );
+  const session = yield* requireAuthorizedSession(headers);
 
   const { userId, orgId } = session;
   if (!orgId) {
@@ -80,8 +75,11 @@ export const handleAccountRequest = Effect.fn(
       .from(schema.user)
       .where(eq(schema.user.id, userId))
   ).pipe(Effect.map((rows) => rows[0] ?? null));
+  const billing = yield* Billing;
+  const capabilities = yield* billing.capabilities(orgId);
 
   return {
+    maxSavedLinks: capabilities.maxSavedLinks,
     user: { name: row?.name ?? null, image: row?.image ?? null },
   };
 });

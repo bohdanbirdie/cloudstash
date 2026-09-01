@@ -2,7 +2,6 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 
 import { LoginAnimation } from "@/components/login-animation";
-import { TextEffect } from "@/components/ui/text-effect";
 import { TextShimmer } from "@/components/ui/text-shimmer";
 import { cn } from "@/lib/utils";
 
@@ -43,18 +42,19 @@ function LoadingMessage({ message }: { message: string }) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
     >
-      <TextEffect
-        as="span"
-        preset="fade"
-        speedReveal={1.5}
-        speedSegment={1.5}
-        className={cn("col-start-1 row-start-1 text-muted-foreground", {
-          "opacity-0": effectComplete,
-        })}
-        onAnimationComplete={() => setEffectComplete(true)}
+      <span className="sr-only">{message}</span>
+      <motion.span
+        aria-hidden="true"
+        className="col-start-1 row-start-1 text-muted-foreground"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: effectComplete ? 0 : 1 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+        onAnimationComplete={() => {
+          if (!effectComplete) setEffectComplete(true);
+        }}
       >
         {message}
-      </TextEffect>
+      </motion.span>
       <motion.span
         aria-hidden="true"
         className="col-start-1 row-start-1"

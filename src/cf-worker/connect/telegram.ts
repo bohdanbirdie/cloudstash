@@ -14,7 +14,6 @@ import { TelegramBotApi, TelegramKeyStore } from "../telegram/services";
 import { TelegramBotApiLive } from "../telegram/services/bot-api.live";
 import { TelegramKeyStoreLive } from "../telegram/services/telegram-key-store.live";
 import {
-  ConnectUnauthorizedError,
   InvalidCodeError,
   KeyCreationError,
   MissingCodeError,
@@ -23,6 +22,7 @@ import {
 import {
   ApiKeyStore,
   getAuthorizedSession,
+  requireAuthorizedSession,
   InvalidVerificationPayloadError,
   SessionProvider,
   TelegramConnectStore,
@@ -78,14 +78,7 @@ export const checkRequest = Effect.fn("TelegramConnect.check")(function* (
   headers: Headers,
   code: string | null
 ) {
-  const sessionProvider = yield* SessionProvider;
-  yield* sessionProvider
-    .getSession(headers)
-    .pipe(
-      Effect.flatMap((s) =>
-        s ? Effect.succeed(s) : Effect.fail(new ConnectUnauthorizedError())
-      )
-    );
+  yield* requireAuthorizedSession(headers);
 
   if (!code) return { valid: false as const };
 
@@ -99,23 +92,14 @@ export const confirmRequest = Effect.fn("TelegramConnect.confirm")(function* (
   body: { code?: string }
 ) {
   if (!body.code) return yield* new MissingCodeError();
-
-  const sessionProvider = yield* SessionProvider;
   const apiKeyStore = yield* ApiKeyStore;
   const connectStore = yield* TelegramConnectStore;
   const keyStore = yield* TelegramKeyStore;
   const botApi = yield* TelegramBotApi;
 
-  const session = yield* sessionProvider
-    .getSession(headers)
-    .pipe(
-      Effect.flatMap((s) =>
-        s ? Effect.succeed(s) : Effect.fail(new ConnectUnauthorizedError())
-      )
-    );
+  const session = yield* requireAuthorizedSession(headers);
 
   const { userId, orgId } = session;
-  yield* Effect.annotateCurrentSpan("userId", maskId(userId));
 
   if (!orgId) return yield* new NoActiveOrgError({ userId });
 
@@ -158,18 +142,10 @@ export const confirmRequest = Effect.fn("TelegramConnect.confirm")(function* (
 export const statusRequest = Effect.fn("TelegramConnect.status")(function* (
   headers: Headers
 ) {
-  const sessionProvider = yield* SessionProvider;
   const keyStore = yield* TelegramKeyStore;
   const botApi = yield* TelegramBotApi;
 
-  const session = yield* sessionProvider
-    .getSession(headers)
-    .pipe(
-      Effect.flatMap((s) =>
-        s ? Effect.succeed(s) : Effect.fail(new ConnectUnauthorizedError())
-      )
-    );
-  yield* Effect.annotateCurrentSpan("userId", maskId(session.userId));
+  const session = yield* requireAuthorizedSession(headers);
 
   const chatIds = yield* keyStore.listForUser(session.userId);
   const me = yield* botApi
@@ -188,19 +164,11 @@ export const statusRequest = Effect.fn("TelegramConnect.status")(function* (
 
 export const disconnectRequest = Effect.fn("TelegramConnect.disconnect")(
   function* (headers: Headers) {
-    const sessionProvider = yield* SessionProvider;
     const apiKeyStore = yield* ApiKeyStore;
     const keyStore = yield* TelegramKeyStore;
     const botApi = yield* TelegramBotApi;
 
-    const session = yield* sessionProvider
-      .getSession(headers)
-      .pipe(
-        Effect.flatMap((s) =>
-          s ? Effect.succeed(s) : Effect.fail(new ConnectUnauthorizedError())
-        )
-      );
-    yield* Effect.annotateCurrentSpan("userId", maskId(session.userId));
+    const session = yield* requireAuthorizedSession(headers);
 
     const chatIds = yield* keyStore.listForUser(session.userId);
     yield* Effect.annotateCurrentSpan("chatCount", chatIds.length);

@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import type { ToolCallOptions } from "ai";
+import { Effect } from "effect";
+import { RpcTest } from "effect/unstable/rpc";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -8,15 +10,53 @@ import {
 } from "../../../livestore/__tests__/test-helpers";
 import type { TestStore } from "../../../livestore/__tests__/test-helpers";
 import { events, tables } from "../../../livestore/schema";
-import { createTools, createToolExecutors } from "../../chat-agent/tools";
+import {
+  makeChatLibrary,
+  makeChatLibraryFromClient,
+} from "../../chat-agent/library";
+import {
+  createChatRetrievalTelemetry,
+  createTools,
+} from "../../chat-agent/tools";
+import {
+  makeWorkspaceLinksRpcHandlers,
+  unwrapWorkspaceLinksRpcResult,
+  WorkspaceLinksRemoteError,
+  WorkspaceLinksRpcs,
+} from "../../workspace-links/effect-rpc";
+import type { WorkspaceLinksRpcRunner } from "../../workspace-links/effect-rpc";
+import { makeWorkspaceLinks } from "../../workspace-links/service";
 
 /** Extract direct result from tool execute (not AsyncIterable) */
-function unwrap<T>(result: T | AsyncIterable<T>): T {
-  return result as T;
+function unwrap<T>(
+  result: T | AsyncIterable<T>
+): Exclude<T, { error: string }> {
+  return result as Exclude<T, { error: string }>;
 }
 
 /** Tool executes don't use their second arg; satisfy the signature with this. */
 const stubCtx = {} as ToolCallOptions;
+
+const makeTestLibrary = (store: TestStore) => {
+  const links = makeWorkspaceLinks(store, {
+    sync: () => Promise.resolve(true),
+  });
+  const run: WorkspaceLinksRpcRunner = (operation) =>
+    operation(links).pipe(
+      Effect.mapError(
+        () =>
+          new WorkspaceLinksRemoteError({
+            code: "unavailable",
+            message: "Library is unavailable",
+          })
+      ),
+      Effect.flatMap(unwrapWorkspaceLinksRpcResult)
+    );
+  const makeClient = RpcTest.makeClient(WorkspaceLinksRpcs).pipe(
+    Effect.provide(makeWorkspaceLinksRpcHandlers(run))
+  );
+  return makeChatLibraryFromClient(makeClient);
+};
 
 type SeedLinkOptions = {
   id?: string;
@@ -96,7 +136,7 @@ describe("createTools", () => {
 
   beforeEach(async () => {
     store = await makeTestStore();
-    tools = createTools(store);
+    tools = createTools(makeTestLibrary(store), Effect.runPromise);
   });
 
   afterEach(async () => {
@@ -160,7 +200,41 @@ describe("createTools", () => {
         url: "https://test.com",
         title: "Test Title",
         description: "Test desc",
+        createdAt: "2024-01-01T00:00:00.000Z",
       });
+    });
+
+    it("filters a saved-date range without opening each link", async () => {
+      seedLink({
+        title: "Before range",
+        createdAt: new Date("2026-08-16T23:59:59Z"),
+      });
+      const inRangeId = seedLink({
+        title: "In range",
+        createdAt: new Date("2026-08-20T12:00:00Z"),
+      });
+      seedLink({
+        title: "After range",
+        createdAt: new Date("2026-08-24T00:00:00Z"),
+      });
+
+      const result = unwrap(
+        await tools.listRecentLinks.execute!(
+          {
+            limit: 20,
+            createdAfter: "2026-08-17T00:00:00Z",
+            createdBefore: "2026-08-24T00:00:00Z",
+          },
+          stubCtx
+        )
+      );
+
+      expect(result.links).toEqual([
+        expect.objectContaining({
+          id: inRangeId,
+          createdAt: "2026-08-20T12:00:00.000Z",
+        }),
+      ]);
     });
 
     it("uses domain as title fallback", async () => {
@@ -197,19 +271,47 @@ describe("createTools", () => {
       expect(rows[0].domain).toBe("example.com");
     });
 
-    it("rejects a commit after the actor retires", async () => {
-      const fencedTools = createTools(store, () => {
-        throw new Error("Durable Object is retired");
-      });
-      await expect(
-        fencedTools.saveLink.execute!(
+    it("returns typed library failures from a tool", async () => {
+      const library = makeTestLibrary(store);
+      const fencedTools = createTools(
+        {
+          ...library,
+          save: () =>
+            Effect.fail(
+              new WorkspaceLinksRemoteError({
+                code: "unavailable",
+                message: "Library is unavailable",
+              })
+            ),
+        },
+        Effect.runPromise
+      );
+      expect(
+        await fencedTools.saveLink.execute!(
           { url: "https://late.example.com" },
           stubCtx
         )
-      ).rejects.toThrow("Durable Object is retired");
+      ).toEqual({ error: "Library is unavailable" });
       expect(
         store.query(tables.links.where({ url: "https://late.example.com" }))
       ).toEqual([]);
+    });
+
+    it("translates a rejected native RPC call into an unavailable result", async () => {
+      const unavailableTools = createTools(
+        makeChatLibrary({
+          callRpc: () => Promise.reject(new Error("native DO failed")),
+          durableObjectId: "test-link-processor",
+        }),
+        Effect.runPromise
+      );
+
+      await expect(
+        unavailableTools.saveLink.execute!(
+          { url: "https://unavailable.example.com" },
+          stubCtx
+        )
+      ).resolves.toEqual({ error: "Library is unavailable" });
     });
 
     it("extracts domain without www prefix", async () => {
@@ -239,7 +341,7 @@ describe("createTools", () => {
 
     it("returns error for duplicate URL", async () => {
       const existingId = seedLink({
-        url: "https://example.com",
+        url: "https://example.com/",
       });
 
       const result = await tools.saveLink.execute!(
@@ -254,7 +356,7 @@ describe("createTools", () => {
       });
 
       const rows = store.query(
-        tables.links.where({ url: "https://example.com" })
+        tables.links.where({ url: "https://example.com/" })
       );
       expect(rows).toHaveLength(1);
     });
@@ -279,7 +381,7 @@ describe("createTools", () => {
       // We simulate that race by seeding a row with the same URL between the
       // pre-check and the commit — done here by patching `store.commit` to
       // seed the conflicting row before letting the original commit fire.
-      const url = "https://race.example.com";
+      const url = "https://race.example.com/";
       const existingId = "existing-link-id";
 
       const realCommit = store.commit.bind(store);
@@ -346,6 +448,18 @@ describe("createTools", () => {
       expect(result.results[1].score).toBeGreaterThan(0);
     });
 
+    it("preserves the ranked 20-result search ceiling", async () => {
+      for (let index = 0; index < 30; index++) {
+        seedLink({ title: `shared topic ${index}` });
+      }
+
+      const result = unwrap(
+        await tools.searchLinks.execute!({ query: "shared" }, stubCtx)
+      );
+
+      expect(result.results).toHaveLength(20);
+    });
+
     it("maps result fields correctly", async () => {
       const id = seedLink({
         url: "https://search.com",
@@ -364,10 +478,61 @@ describe("createTools", () => {
       expect(r.id).toBe(id);
       expect(r.url).toBe("https://search.com");
       expect(r.title).toBe("query term result");
-      expect(r.description).toBe("Found it");
-      expect(r.summary).toBe("Summary here");
+      expect(r.context).toBe("Summary here");
+      expect(r).not.toHaveProperty("description");
+      expect(r).not.toHaveProperty("summary");
       expect(typeof r.score).toBe("number");
       expect(r.score).toBeGreaterThan(0);
+    });
+
+    it("bounds model context and falls back to the description", async () => {
+      seedLink({
+        title: "bounded query result",
+        description: "d".repeat(700),
+      });
+
+      const result = unwrap(
+        await tools.searchLinks.execute!({ query: "bounded" }, stubCtx)
+      );
+
+      expect(result.results[0]?.context).toHaveLength(600);
+      expect(result.results[0]?.context?.endsWith("…")).toBe(true);
+    });
+  });
+
+  describe("retrieval telemetry", () => {
+    it("aggregates bounded retrieval shape without changing tool results", async () => {
+      const firstId = seedLink({ title: "observed topic" });
+      seedLink({ title: "another observed topic" });
+      const telemetry = createChatRetrievalTelemetry();
+      const observedTools = createTools(
+        makeTestLibrary(store),
+        Effect.runPromise,
+        telemetry
+      );
+
+      const listed = unwrap(
+        await observedTools.listRecentLinks.execute!({ limit: 2 }, stubCtx)
+      );
+      const searched = unwrap(
+        await observedTools.searchLinks.execute!({ query: "observed" }, stubCtx)
+      );
+      const opened = unwrap(
+        await observedTools.getLink.execute!({ id: firstId }, stubCtx)
+      );
+
+      expect(listed.links).toHaveLength(2);
+      expect(searched.results).toHaveLength(2);
+      expect(opened).toHaveProperty("link.id", firstId);
+      expect(telemetry.snapshot()).toEqual({
+        getCalls: 1,
+        listCalls: 1,
+        searchCalls: 1,
+        returnedItems: 5,
+        serializedCharacters: expect.any(Number),
+        cappedCalls: 0,
+      });
+      expect(telemetry.snapshot().serializedCharacters).toBeGreaterThan(0);
     });
   });
 
@@ -483,6 +648,19 @@ describe("createTools", () => {
       const result = await tools.uncompleteLink.execute!({ id }, stubCtx);
 
       expect(result).toEqual({ error: "Link is already unread" });
+    });
+
+    it("does not restore an archived link", async () => {
+      const deletedAt = new Date("2024-02-01T00:00:00Z");
+      const id = seedLink({ title: "Example Title", deletedAt });
+
+      const result = await tools.uncompleteLink.execute!({ id }, stubCtx);
+
+      expect(result).toEqual({
+        error: "Cannot mark a deleted link as unread",
+      });
+      const row = store.query(tables.links.where({ id }))[0];
+      expect(row.deletedAt).toEqual(deletedAt);
     });
   });
 
@@ -682,9 +860,9 @@ describe("createTools", () => {
   });
 });
 
-describe("createToolExecutors", () => {
+describe("destructive tools", () => {
   let store: TestStore;
-  let executors: ReturnType<typeof createToolExecutors>;
+  let tools: ReturnType<typeof createTools>;
 
   const seedLink = (opts: SeedLinkOptions = {}) => {
     const id = opts.id ?? testId("link");
@@ -722,7 +900,7 @@ describe("createToolExecutors", () => {
 
   beforeEach(async () => {
     store = await makeTestStore();
-    executors = createToolExecutors(store);
+    tools = createTools(makeTestLibrary(store), Effect.runPromise);
   });
 
   afterEach(async () => {
@@ -730,12 +908,16 @@ describe("createToolExecutors", () => {
   });
 
   describe("deleteLink", () => {
+    it("requires server-side approval", () => {
+      expect(tools.deleteLink.needsApproval).toBe(true);
+    });
+
     it("deletes a link successfully", async () => {
       const id = seedLink({ title: "Delete Me" });
 
-      const result = await executors.deleteLink({ id });
+      const result = await tools.deleteLink.execute!({ id }, stubCtx);
 
-      expect(JSON.parse(result)).toEqual({
+      expect(result).toEqual({
         success: true,
         message: 'Moved "Delete Me" to archive',
       });
@@ -749,17 +931,18 @@ describe("createToolExecutors", () => {
         domain: "notitle.com",
       });
 
-      const result = await executors.deleteLink({ id });
+      const result = unwrap(await tools.deleteLink.execute!({ id }, stubCtx));
 
-      expect(JSON.parse(result).message).toBe(
-        'Moved "https://notitle.com" to archive'
-      );
+      expect(result.message).toBe('Moved "https://notitle.com" to archive');
     });
 
     it("returns error when link not found", async () => {
-      const result = await executors.deleteLink({ id: "missing" });
+      const result = await tools.deleteLink.execute!(
+        { id: "missing" },
+        stubCtx
+      );
 
-      expect(JSON.parse(result)).toEqual({ error: "Link not found" });
+      expect(result).toEqual({ error: "Link not found" });
     });
 
     it("returns error when link already in archive", async () => {
@@ -768,20 +951,27 @@ describe("createToolExecutors", () => {
         deletedAt: new Date("2024-02-01T00:00:00Z"),
       });
 
-      const result = await executors.deleteLink({ id });
+      const result = await tools.deleteLink.execute!({ id }, stubCtx);
 
-      expect(JSON.parse(result)).toEqual({ error: "Link already in archive" });
+      expect(result).toEqual({ error: "Link already in archive" });
     });
   });
 
   describe("deleteLinks", () => {
+    it("requires server-side approval", () => {
+      expect(tools.deleteLinks.needsApproval).toBe(true);
+    });
+
     it("deletes multiple links successfully", async () => {
       const id1 = seedLink();
       const id2 = seedLink();
 
-      const result = await executors.deleteLinks({ ids: [id1, id2] });
+      const result = await tools.deleteLinks.execute!(
+        { ids: [id1, id2] },
+        stubCtx
+      );
 
-      expect(JSON.parse(result)).toEqual({
+      expect(result).toEqual({
         success: true,
         deleted: 2,
         errors: [],
@@ -791,11 +981,12 @@ describe("createToolExecutors", () => {
     });
 
     it("tracks not found errors", async () => {
-      const result = await executors.deleteLinks({
-        ids: ["missing-1", "missing-2"],
-      });
+      const result = await tools.deleteLinks.execute!(
+        { ids: ["missing-1", "missing-2"] },
+        stubCtx
+      );
 
-      expect(JSON.parse(result)).toEqual({
+      expect(result).toEqual({
         success: true,
         deleted: 0,
         errors: ["missing-1: not found", "missing-2: not found"],
@@ -807,10 +998,12 @@ describe("createToolExecutors", () => {
         deletedAt: new Date("2024-02-01T00:00:00Z"),
       });
 
-      const result = await executors.deleteLinks({ ids: [id] });
+      const result = unwrap(
+        await tools.deleteLinks.execute!({ ids: [id] }, stubCtx)
+      );
 
-      expect(JSON.parse(result).deleted).toBe(0);
-      expect(JSON.parse(result).errors).toEqual([]);
+      expect(result.deleted).toBe(0);
+      expect(result.errors).toEqual([]);
     });
 
     it("handles mixed success and failure", async () => {
@@ -819,11 +1012,12 @@ describe("createToolExecutors", () => {
         deletedAt: new Date("2024-02-01T00:00:00Z"),
       });
 
-      const result = await executors.deleteLinks({
-        ids: [valid, deleted, "missing"],
-      });
+      const result = await tools.deleteLinks.execute!(
+        { ids: [valid, deleted, "missing"] },
+        stubCtx
+      );
 
-      expect(JSON.parse(result)).toEqual({
+      expect(result).toEqual({
         success: true,
         deleted: 1,
         errors: ["missing: not found"],

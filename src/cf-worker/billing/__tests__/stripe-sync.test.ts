@@ -43,6 +43,8 @@ const sub = (
     id?: string;
     priceId?: string;
     cancelAtPeriodEnd?: boolean;
+    billingCycleAnchor?: number;
+    periodStart?: number;
     periodEnd?: number;
     noItems?: boolean;
     interval?: BillingInterval;
@@ -51,6 +53,7 @@ const sub = (
   ({
     id: opts.id ?? "sub_1",
     status,
+    billing_cycle_anchor: opts.billingCycleAnchor ?? 1_699_000_000,
     cancel_at: opts.cancelAtPeriodEnd
       ? (opts.periodEnd ?? 1_700_000_000)
       : null,
@@ -64,13 +67,14 @@ const sub = (
                 id: opts.priceId ?? "price_pro",
                 recurring: { interval: opts.interval ?? "month" },
               },
+              current_period_start: opts.periodStart ?? 1_699_000_000,
               current_period_end: opts.periodEnd ?? 1_700_000_000,
             },
           ],
     },
   }) as unknown as StripeSdk.Subscription;
 
-type OrgRow = { id: string; tier: PlanTier; tierSource: string };
+type OrgRow = { id: string; tier: PlanTier };
 
 interface SyncDbOptions {
   org?: OrgRow | undefined;
@@ -94,7 +98,7 @@ const syncDb = (opts: SyncDbOptions) =>
     }),
   } as never);
 
-const ORG: OrgRow = { id: ORG_ID, tier: "free", tierSource: "stripe" };
+const ORG: OrgRow = { id: ORG_ID, tier: "free" };
 
 describe("syncFromStripe", () => {
   it.effect("no-ops when no org maps to the customer", () => {
@@ -112,7 +116,7 @@ describe("syncFromStripe", () => {
     );
   });
 
-  it.effect("preserves an admin tier grant without touching Stripe", () => {
+  it.effect("syncs Stripe state without touching the admin grant", () => {
     const updates: Record<string, unknown>[] = [];
     let listed = false;
     return syncFromStripe(CUSTOMER_ID).pipe(
@@ -121,20 +125,21 @@ describe("syncFromStripe", () => {
           stripeStub({
             listSubscriptions: () => {
               listed = true;
-              return Effect.succeed([]);
+              return Effect.succeed([
+                sub("active", { id: "sub_plus", priceId: "price_plus" }),
+              ]);
             },
           }),
-          syncDb({
-            org: { ...ORG, tierSource: "admin" },
-            updates,
-          })
+          syncDb({ org: ORG, updates })
         )
       ),
       quiet,
       Effect.tap(() =>
         Effect.sync(() => {
-          expect(updates).toEqual([]);
-          expect(listed).toBe(false);
+          expect(listed).toBe(true);
+          expect(updates).toHaveLength(1);
+          expect(updates[0]?.tier).toBe("plus");
+          expect(updates[0]).not.toHaveProperty("adminTierGrant");
         })
       )
     );
@@ -142,13 +147,22 @@ describe("syncFromStripe", () => {
 
   it.effect("maps an active subscription to its tier", () => {
     const updates: Record<string, unknown>[] = [];
+    const billingCycleAnchor = 1_768_663_800;
+    const periodStart = 1_768_663_923;
+    const periodEnd = 1_771_342_456;
     return syncFromStripe(CUSTOMER_ID).pipe(
       Effect.provide(
         Layer.mergeAll(
           stripeStub({
             listSubscriptions: () =>
               Effect.succeed([
-                sub("active", { id: "sub_pro", priceId: "price_pro" }),
+                sub("active", {
+                  id: "sub_pro",
+                  priceId: "price_pro",
+                  billingCycleAnchor,
+                  periodStart,
+                  periodEnd,
+                }),
               ]),
           }),
           syncDb({ org: ORG, updates })
@@ -164,8 +178,12 @@ describe("syncFromStripe", () => {
           expect(v.stripeSubscriptionId).toBe("sub_pro");
           expect(v.subscriptionStatus).toBe("active");
           expect(v.cancelAtPeriodEnd).toBe(false);
-          expect(v.currentPeriodEnd).toBeInstanceOf(Date);
+          expect(v.currentPeriodStart).toEqual(new Date(periodStart * 1_000));
+          expect(v.currentPeriodEnd).toEqual(new Date(periodEnd * 1_000));
           expect(v.billingInterval).toBe("month");
+          expect(v.usageCycleAnchor).toEqual(
+            new Date(billingCycleAnchor * 1_000)
+          );
         })
       )
     );
@@ -279,6 +297,9 @@ describe("syncFromStripe", () => {
           expect(updates[0]?.subscriptionStatus).toBe("canceled");
           // No active plan → no interval.
           expect(updates[0]?.billingInterval).toBeNull();
+          expect(updates[0]?.currentPeriodStart).toBeNull();
+          expect(updates[0]?.currentPeriodEnd).toBeNull();
+          expect(updates[0]?.usageCycleAnchor).toBeNull();
         })
       )
     );

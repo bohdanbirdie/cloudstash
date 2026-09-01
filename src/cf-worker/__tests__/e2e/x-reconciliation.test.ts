@@ -2,24 +2,99 @@ import { describe, expect, it } from "@effect/vitest";
 import {
   createExecutionContext,
   createScheduledController,
-  abortAllDurableObjects,
   env,
+  evictDurableObject,
   runInDurableObject,
   runDurableObjectAlarm,
   SELF,
   waitOnExecutionContext,
 } from "cloudflare:test";
+import { Effect, Schema } from "effect";
+import { afterEach } from "vitest";
 
 import { scheduled } from "../../index";
 import type { XBookmarkSyncDO } from "../../x-sync";
+import { X_API_CLIENT_TEST_OVERRIDE } from "../../x-sync/durable-object";
+import type { XApiFailure } from "../../x-sync/errors";
+import { XApiError, XRateLimitedError } from "../../x-sync/errors";
+import type { BookmarksPage as BookmarksPageType } from "../../x-sync/services";
+import { BookmarksPage, XApiClient } from "../../x-sync/services";
 import { makeAdmin, signupUser } from "./helpers";
 
 const WATERMARK = "bookmark-before-reconciliation";
+const MINUTE = 60_000;
+
+interface XResponsePlan {
+  readonly body?: unknown;
+  readonly retryAfterMs?: number;
+  readonly status: number;
+}
+
+let xResponsePlan: XResponsePlan | undefined;
+let xResponseSequence: XResponsePlan[] = [];
+let xRequestCount = 0;
+
+const planBookmarksResponse = (plan: XResponsePlan) => {
+  xResponsePlan = plan;
+  xResponseSequence = [];
+  xRequestCount = 0;
+};
+
+const planBookmarksSequence = (plans: readonly XResponsePlan[]) => {
+  xResponsePlan = undefined;
+  xResponseSequence = [...plans];
+  xRequestCount = 0;
+};
+
+const testXApiClient = XApiClient.of({
+  getMe: () => Effect.die("Unexpected XApiClient.getMe call"),
+  getBookmarks: () =>
+    Effect.suspend((): Effect.Effect<BookmarksPageType, XApiFailure> => {
+      const plan = xResponseSequence.shift() ?? xResponsePlan;
+      if (plan === undefined) {
+        return Effect.die("Unplanned XApiClient.getBookmarks call");
+      }
+      xRequestCount += 1;
+      if (plan.status === 429) {
+        return Effect.fail(
+          new XRateLimitedError({
+            endpoint: "bookmarks",
+            retryAfterMs: plan.retryAfterMs ?? 60_000,
+          })
+        );
+      }
+      if (plan.status < 200 || plan.status >= 300) {
+        return Effect.fail(
+          new XApiError({
+            endpoint: "bookmarks",
+            message: `HTTP ${plan.status}`,
+            status: plan.status,
+          })
+        );
+      }
+      return Schema.decodeUnknownEffect(BookmarksPage)(plan.body ?? {}).pipe(
+        Effect.orDie
+      );
+    }),
+});
+
+const installXProviderService = (
+  stub: DurableObjectStub<XBookmarkSyncDO>
+): Promise<void> =>
+  runInDurableObject(stub, (instance) =>
+    instance[X_API_CLIENT_TEST_OVERRIDE](testXApiClient)
+  );
 
 interface ObservedXState {
   readonly alarm: number | null;
   readonly status: string | undefined;
   readonly syncEnabled: boolean | undefined;
+  readonly watermark: string | undefined;
+}
+
+interface ObservedPollSchedule {
+  readonly alarm: number | null;
+  readonly pollControl: unknown;
   readonly watermark: string | undefined;
 }
 
@@ -35,6 +110,15 @@ const observe = (
       watermark: await storage.get<string>("watermark"),
     };
   });
+
+const observePollSchedule = (
+  stub: DurableObjectStub<XBookmarkSyncDO>
+): Promise<ObservedPollSchedule> =>
+  runInDurableObject(stub, async (_instance, state) => ({
+    alarm: await state.storage.getAlarm(),
+    pollControl: await state.storage.get("pollControl"),
+    watermark: await state.storage.get<string>("watermark"),
+  }));
 
 const waitForState = (
   stub: DurableObjectStub<XBookmarkSyncDO>,
@@ -80,8 +164,10 @@ const createLinkedPoller = async (options: {
     )
     .run();
 
-  await env.DB.prepare("UPDATE organization SET tier = 'pro' WHERE id = ?")
-    .bind(user.orgId)
+  await env.DB.prepare(
+    "UPDATE organization SET tier = 'free', admin_tier_grant = 'pro', admin_tier_granted_at = ? WHERE id = ?"
+  )
+    .bind(now, user.orgId)
     .run();
 
   await runInDurableObject(stub, async (_instance, state) => {
@@ -96,6 +182,7 @@ const createLinkedPoller = async (options: {
     });
     if (options.alarm) await storage.setAlarm(Date.now() + 30_000);
   });
+  await installXProviderService(stub);
 
   return { stub, user };
 };
@@ -113,7 +200,30 @@ const setTier = async (
   expect(response.status).toBe(200);
 };
 
+const setOverride = async (
+  orgId: string,
+  cookie: string,
+  key: "monthlyXBookmarks" | "xBookmarkSync",
+  value: boolean | number | null
+): Promise<void> => {
+  const response = await SELF.fetch(
+    `http://worker/api/org/${orgId}/overrides`,
+    {
+      body: JSON.stringify({ key, value }),
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      method: "PUT",
+    }
+  );
+  expect(response.status).toBe(200);
+};
+
 describe("X reconciliation E2E", () => {
+  afterEach(() => {
+    xResponsePlan = undefined;
+    xResponseSequence = [];
+    xRequestCount = 0;
+  });
+
   it("cleans itself up when delayed reconciliation finds no X account", async () => {
     const { stub, user } = await createLinkedPoller({
       alarm: true,
@@ -123,7 +233,7 @@ describe("X reconciliation E2E", () => {
       .bind(user.userId)
       .run();
     await stub.disconnect();
-    await abortAllDurableObjects();
+    await evictDurableObject(stub);
 
     const fresh = env.X_BOOKMARK_SYNC_DO.get(
       env.X_BOOKMARK_SYNC_DO.idFromName(user.userId)
@@ -146,6 +256,11 @@ describe("X reconciliation E2E", () => {
       label: "entitlement",
     });
     await makeAdmin(user.userId);
+    await env.DB.prepare(
+      "UPDATE organization SET tier = 'free', admin_tier_grant = 'pro', admin_tier_granted_at = ? WHERE id = ?"
+    )
+      .bind(Date.now(), user.orgId)
+      .run();
 
     await setTier(user.orgId, user.cookie, "free");
 
@@ -167,6 +282,66 @@ describe("X reconciliation E2E", () => {
     );
     expect(restored.syncEnabled).toBe(true);
     expect(restored.watermark).toBe(WATERMARK);
+  });
+
+  it("gives a manual X feature override a usable allowance and usage window", async () => {
+    const { stub, user } = await createLinkedPoller({
+      alarm: true,
+      label: "feature-override",
+    });
+    await makeAdmin(user.userId);
+    await setTier(user.orgId, user.cookie, "free");
+    await waitForState(stub, (state) => state.status === "suspended");
+
+    await setOverride(user.orgId, user.cookie, "xBookmarkSync", true);
+    await waitForState(
+      stub,
+      (state) => state.status === "active" && state.alarm !== null
+    );
+
+    const settingsResponse = await SELF.fetch(
+      `http://worker/api/org/${user.orgId}/settings`,
+      { headers: { Cookie: user.cookie } }
+    );
+    const settings = (await settingsResponse.json()) as {
+      capabilities: { monthlyXBookmarks: number; xBookmarkSync: boolean };
+    };
+    expect(settings.capabilities).toMatchObject({
+      monthlyXBookmarks: 200,
+      xBookmarkSync: true,
+    });
+
+    planBookmarksResponse({
+      body: {
+        data: [
+          { author_id: "x-user-e2e", id: WATERMARK, text: "existing bookmark" },
+        ],
+      },
+      status: 200,
+    });
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    expect(xRequestCount).toBe(1);
+  });
+
+  it("wakes a poller when its monthly allowance increases", async () => {
+    const { stub, user } = await createLinkedPoller({
+      alarm: true,
+      label: "allowance-wake",
+    });
+    await makeAdmin(user.userId);
+    const farFuture = Date.now() + 15 * 24 * 60 * MINUTE;
+    await runInDurableObject(stub, async (_instance, state) => {
+      await state.storage.setAlarm(farFuture);
+    });
+
+    const changedAt = Date.now();
+    await setOverride(user.orgId, user.cookie, "monthlyXBookmarks", 400);
+    const awakened = await waitForState(
+      stub,
+      (state) => state.alarm !== null && state.alarm < farFuture
+    );
+    expect(awakened.alarm).toBeGreaterThanOrEqual(changedAt + 30_000);
+    expect(awakened.alarm).toBeLessThanOrEqual(Date.now() + MINUTE);
   });
 
   it("carries the scheduled repair through Queue and restores a missing alarm", async () => {
@@ -194,13 +369,71 @@ describe("X reconciliation E2E", () => {
     expect(repaired.watermark).toBe(WATERMARK);
   });
 
+  it("preserves idle cadence across eviction and missing-alarm repair", async () => {
+    const { stub, user } = await createLinkedPoller({
+      alarm: false,
+      label: "idle-cold-start",
+    });
+    const pollControl = {
+      idleSinceMs: Date.now() - 7 * 60 * 60_000,
+      transientFailures: 0,
+    };
+    await runInDurableObject(stub, async (_instance, state) => {
+      await state.storage.put("pollControl", pollControl);
+    });
+    await evictDurableObject(stub);
+
+    const fresh = env.X_BOOKMARK_SYNC_DO.get(
+      env.X_BOOKMARK_SYNC_DO.idFromName(user.userId)
+    );
+    const scheduledFrom = Date.now();
+    await fresh.reconcile(user.orgId);
+    const observed = await observePollSchedule(fresh);
+
+    expect(observed.pollControl).toEqual(pollControl);
+    expect(observed.watermark).toBe(WATERMARK);
+    expect(observed.alarm).not.toBeNull();
+    expect(observed.alarm!).toBeGreaterThanOrEqual(scheduledFrom + 5 * 60_000);
+    expect(observed.alarm!).toBeLessThanOrEqual(Date.now() + 5 * 60_000);
+  });
+
+  it("preserves transient backoff across eviction and missing-alarm repair", async () => {
+    const { stub, user } = await createLinkedPoller({
+      alarm: false,
+      label: "failure-cold-start",
+    });
+    const pollControl = {
+      idleSinceMs: Date.now() - 7 * 60 * 60_000,
+      transientFailures: 4,
+    };
+    await runInDurableObject(stub, async (_instance, state) => {
+      await state.storage.put("pollControl", pollControl);
+    });
+    await evictDurableObject(stub);
+
+    const fresh = env.X_BOOKMARK_SYNC_DO.get(
+      env.X_BOOKMARK_SYNC_DO.idFromName(user.userId)
+    );
+    const scheduledFrom = Date.now();
+    await fresh.reconcile(user.orgId);
+    const observed = await observePollSchedule(fresh);
+
+    expect(observed.pollControl).toEqual(pollControl);
+    expect(observed.watermark).toBe(WATERMARK);
+    expect(observed.alarm).not.toBeNull();
+    expect(observed.alarm!).toBeGreaterThanOrEqual(scheduledFrom + 8 * 60_000);
+    expect(observed.alarm!).toBeLessThanOrEqual(Date.now() + 8 * 60_000);
+  });
+
   it("rechecks entitlement before an alarm polls X", async () => {
     const { stub, user } = await createLinkedPoller({
       alarm: true,
       label: "alarm",
     });
 
-    await env.DB.prepare("UPDATE organization SET tier = 'free' WHERE id = ?")
+    await env.DB.prepare(
+      "UPDATE organization SET tier = 'free', admin_tier_grant = NULL, admin_tier_granted_at = NULL WHERE id = ?"
+    )
       .bind(user.orgId)
       .run();
 
@@ -211,5 +444,258 @@ describe("X reconciliation E2E", () => {
       syncEnabled: true,
       watermark: WATERMARK,
     });
+  });
+
+  it("runs the real alarm handler and preserves the relaxed idle cadence", async () => {
+    const { stub } = await createLinkedPoller({
+      alarm: true,
+      label: "alarm-idle",
+    });
+    const pollControl = {
+      idleSinceMs: Date.now() - 7 * 60 * MINUTE,
+      transientFailures: 0,
+    };
+    await runInDurableObject(stub, async (_instance, state) => {
+      await state.storage.put("pollControl", pollControl);
+    });
+    planBookmarksResponse({
+      body: {
+        data: [
+          {
+            author_id: "x-user-e2e",
+            id: WATERMARK,
+            text: "existing bookmark",
+          },
+        ],
+      },
+      status: 200,
+    });
+
+    const scheduledFrom = Date.now();
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    const observed = await observePollSchedule(stub);
+
+    expect(xRequestCount).toBe(1);
+    expect(observed.pollControl).toEqual(pollControl);
+    expect(observed.alarm).not.toBeNull();
+    expect(observed.alarm!).toBeGreaterThanOrEqual(scheduledFrom + 5 * MINUTE);
+    expect(observed.alarm!).toBeLessThanOrEqual(Date.now() + 5 * MINUTE);
+  });
+
+  it("persists a bounded scan and resumes it after eviction", async () => {
+    const { stub, user } = await createLinkedPoller({
+      alarm: true,
+      label: "scan-eviction",
+    });
+    const plans: XResponsePlan[] = [
+      ...Array.from({ length: 26 }, (_, index) => {
+        const id = 27 - index;
+        return {
+          body: {
+            data: [
+              {
+                author_id: "x-user-e2e",
+                id: `scan-${id}`,
+                text: `bookmark ${id}`,
+              },
+            ],
+            nextToken: `page-${id - 1}`,
+          },
+          status: 200,
+        };
+      }),
+      {
+        body: {
+          data: [
+            { author_id: "x-user-e2e", id: WATERMARK, text: "checkpoint" },
+          ],
+        },
+        status: 200,
+      },
+    ];
+    planBookmarksSequence(plans);
+
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    expect(xRequestCount).toBe(25);
+    const continuing = await runInDurableObject(
+      stub,
+      async (_instance, state) => ({
+        alarm: await state.storage.getAlarm(),
+        readUsage: await state.storage.get<{ billableKeys: string[] }>(
+          "readUsage"
+        ),
+        scan: await state.storage.get<{ complete: boolean; nextToken: string }>(
+          "scan"
+        ),
+      })
+    );
+    expect(continuing.scan).toMatchObject({
+      complete: false,
+      nextToken: "page-2",
+    });
+    expect(continuing.readUsage?.billableKeys).toHaveLength(25);
+    expect(continuing.alarm).not.toBeNull();
+    expect(continuing.alarm!).toBeLessThanOrEqual(Date.now() + 1_000);
+
+    await evictDurableObject(stub);
+    const fresh = env.X_BOOKMARK_SYNC_DO.get(
+      env.X_BOOKMARK_SYNC_DO.idFromName(user.userId)
+    );
+    await installXProviderService(fresh);
+    expect(await runDurableObjectAlarm(fresh)).toBe(true);
+    expect(xRequestCount).toBe(27);
+    const completed = await runInDurableObject(
+      fresh,
+      async (_instance, state) => ({
+        checkpoints: await state.storage.get<string[]>("checkpoints"),
+        readUsage: await state.storage.get<{ billableKeys: string[] }>(
+          "readUsage"
+        ),
+        scan: await state.storage.get("scan"),
+        watermark: await state.storage.get<string>("watermark"),
+      })
+    );
+    expect(completed.scan).toBeUndefined();
+    expect(completed.watermark).toBe("scan-27");
+    expect(completed.checkpoints?.[0]).toBe("scan-27");
+    expect(completed.readUsage?.billableKeys).toHaveLength(27);
+  });
+
+  it("fails closed when provider-read usage cannot be decoded", async () => {
+    const { stub } = await createLinkedPoller({
+      alarm: true,
+      label: "corrupt-read-meter",
+    });
+    await runInDurableObject(stub, async (_instance, state) => {
+      await state.storage.put("readUsage", {
+        windowId: 12,
+        billableKeys: "invalid",
+      });
+    });
+    planBookmarksResponse({
+      body: {
+        data: [
+          { author_id: "x-user-e2e", id: WATERMARK, text: "existing bookmark" },
+        ],
+      },
+      status: 200,
+    });
+
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    expect(xRequestCount).toBe(0);
+    const observed = await observePollSchedule(stub);
+    expect(observed.pollControl).toEqual({
+      idleSinceMs: null,
+      transientFailures: 1,
+    });
+  });
+
+  it("runs the real alarm handler and persists transient backoff", async () => {
+    const { stub } = await createLinkedPoller({
+      alarm: true,
+      label: "alarm-failure",
+    });
+    planBookmarksResponse({ status: 500 });
+
+    const scheduledFrom = Date.now();
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    const observed = await observePollSchedule(stub);
+
+    expect(xRequestCount).toBe(1);
+    expect(observed.pollControl).toEqual({
+      idleSinceMs: null,
+      transientFailures: 1,
+    });
+    expect(observed.alarm).not.toBeNull();
+    expect(observed.alarm!).toBeGreaterThanOrEqual(scheduledFrom + MINUTE);
+    expect(observed.alarm!).toBeLessThanOrEqual(Date.now() + MINUTE);
+  });
+
+  it("runs the real alarm handler and honors X rate-limit timing", async () => {
+    const { stub } = await createLinkedPoller({
+      alarm: true,
+      label: "alarm-rate-limit",
+    });
+    planBookmarksResponse({
+      retryAfterMs: 45_000,
+      status: 429,
+    });
+
+    const scheduledFrom = Date.now();
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    const observed = await observePollSchedule(stub);
+
+    expect(xRequestCount).toBe(1);
+    expect(observed.pollControl).toBeUndefined();
+    expect(observed.alarm).not.toBeNull();
+    expect(observed.alarm!).toBeGreaterThanOrEqual(scheduledFrom + 46_000);
+    expect(observed.alarm!).toBeLessThanOrEqual(Date.now() + 46_000);
+  });
+
+  it("does not let a rate limit accelerate an idle poller", async () => {
+    const { stub } = await createLinkedPoller({
+      alarm: true,
+      label: "alarm-idle-rate-limit",
+    });
+    const pollControl = {
+      idleSinceMs: Date.now() - 7 * 60 * MINUTE,
+      transientFailures: 0,
+    };
+    await runInDurableObject(stub, async (_instance, state) => {
+      await state.storage.put("pollControl", pollControl);
+    });
+    planBookmarksResponse({
+      retryAfterMs: 45_000,
+      status: 429,
+    });
+
+    const scheduledFrom = Date.now();
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    const observed = await observePollSchedule(stub);
+
+    expect(xRequestCount).toBe(1);
+    expect(observed.pollControl).toEqual(pollControl);
+    expect(observed.alarm).not.toBeNull();
+    expect(observed.alarm!).toBeGreaterThanOrEqual(scheduledFrom + 5 * MINUTE);
+    expect(observed.alarm!).toBeLessThanOrEqual(Date.now() + 5 * MINUTE);
+  });
+
+  it("resets an idle poller after the real alarm finds activity", async () => {
+    const { stub } = await createLinkedPoller({
+      alarm: true,
+      label: "alarm-activity",
+    });
+    await runInDurableObject(stub, async (_instance, state) => {
+      await state.storage.put("pollControl", {
+        idleSinceMs: Date.now() - 7 * 60 * MINUTE,
+        transientFailures: 0,
+      });
+    });
+    planBookmarksResponse({
+      body: {
+        data: [
+          {
+            author_id: "x-user-e2e",
+            id: "new-bookmark-after-idle",
+            text: "new bookmark",
+          },
+        ],
+      },
+      status: 200,
+    });
+
+    const scheduledFrom = Date.now();
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    const observed = await observePollSchedule(stub);
+
+    expect(xRequestCount).toBe(1);
+    expect(observed.pollControl).toEqual({
+      idleSinceMs: null,
+      transientFailures: 0,
+    });
+    expect(observed.watermark).toBe("new-bookmark-after-idle");
+    expect(observed.alarm).not.toBeNull();
+    expect(observed.alarm!).toBeGreaterThanOrEqual(scheduledFrom + 30_000);
+    expect(observed.alarm!).toBeLessThanOrEqual(Date.now() + 30_000);
   });
 });

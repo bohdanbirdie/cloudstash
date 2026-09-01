@@ -5,6 +5,8 @@ import { z } from "zod";
 
 import { MAX_TAG_NAME_LENGTH } from "@/lib/tags";
 
+import { selectTagVocabulary } from "../ai-prompt-bounds";
+import { OPENROUTER_REASONING_EFFORT } from "../openrouter-model";
 import { OpenRouterApiKey } from "../weekly-digest/generator";
 import { EnrichmentGenerateError } from "./errors";
 import type { ThreadContext } from "./services";
@@ -89,10 +91,11 @@ export function composePrompt({
         ]
       : [];
 
+  const promptTags = selectTagVocabulary(existingTags);
   const tagVocab =
-    existingTags.length > 0
+    promptTags.length > 0
       ? [
-          `<existing-tags>${existingTags.map((t) => t.name).join(", ")}</existing-tags>`,
+          `<existing-tags>${promptTags.map((tag) => tag.name).join(", ")}</existing-tags>`,
         ]
       : [];
 
@@ -164,7 +167,9 @@ const make = (complete: GenerateEnrichmentCompletion) => {
 const makeLive = Effect.gen(function* () {
   const apiKey = yield* OpenRouterApiKey;
   const openrouter = createOpenRouter({ apiKey });
-  const model = openrouter(ENRICHMENT_MODEL);
+  const model = openrouter(ENRICHMENT_MODEL, {
+    reasoning: { effort: OPENROUTER_REASONING_EFFORT.xEnrichment },
+  });
 
   return make((prompt) =>
     generateObject({

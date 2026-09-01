@@ -137,13 +137,13 @@ describe("Account deletion (end-to-end)", () => {
   it("deletes the user and org across D1 + DOs and reaches workflow=complete", async () => {
     const user = await signupUser("delete-target@test.com", "Delete Target");
     // Mirrors an admin-granted paid tier: entitlement without a Stripe
-    // subscription. Deletion must not infer billing from the visible tier.
+    // subscription. Deletion must not infer billing from the effective tier.
     await env.DB.prepare(
       `UPDATE organization
-       SET tier = 'pro', tier_source = 'admin', stripe_subscription_id = NULL
+       SET admin_tier_grant = 'pro', admin_tier_granted_at = ?, stripe_subscription_id = NULL
        WHERE id = ?`
     )
-      .bind(user.orgId)
+      .bind(Date.now(), user.orgId)
       .run();
     await expectForeignKeysEnforced(user.userId);
     const { clientId: oauthClientId, resourceId } = await seedMcpOAuthRows(
@@ -156,6 +156,15 @@ describe("Account deletion (end-to-end)", () => {
       env.LINK_PROCESSOR_DO.idFromName(user.orgId)
     );
     const chatAgent = env.Chat.get(env.Chat.idFromName(user.orgId));
+    const createdChat = await linkProcessor.createChatSession();
+    if (!createdChat.ok) throw new Error("Failed to create a second chat");
+    const secondChatSession = createdChat.sessions.find(
+      (session) => session.agentName !== user.orgId
+    );
+    if (!secondChatSession) throw new Error("Second chat was not registered");
+    const secondChatAgent = env.Chat.get(
+      env.Chat.idFromName(secondChatSession.agentName)
+    );
     const xBookmarkSync = env.X_BOOKMARK_SYNC_DO.get(
       env.X_BOOKMARK_SYNC_DO.idFromName(user.userId)
     );
@@ -163,6 +172,7 @@ describe("Account deletion (end-to-end)", () => {
       seedDeletionProbe(syncBackend),
       seedDeletionProbe(linkProcessor),
       seedDeletionProbe(chatAgent),
+      seedDeletionProbe(secondChatAgent),
       seedDeletionProbe(xBookmarkSync),
       env.TELEGRAM_KV.put("telegram:101", "secret-key"),
       env.TELEGRAM_KV.put(
@@ -225,24 +235,26 @@ describe("Account deletion (end-to-end)", () => {
       expect(await count("oauthConsentByUserId", user.userId)).toBe(0);
       expect(await count("oauthRefreshTokenByUserId", user.userId)).toBe(0);
       expect(await count("activityByOrgId", user.orgId)).toBe(0);
-      const [syncState, linkState, chatState, xState] = await Promise.all([
-        readActorState(
-          env.SYNC_BACKEND_DO.get(env.SYNC_BACKEND_DO.idFromName(user.orgId))
-        ),
-        readActorState(
-          env.LINK_PROCESSOR_DO.get(
-            env.LINK_PROCESSOR_DO.idFromName(user.orgId)
-          )
-        ),
-        readActorState(env.Chat.get(env.Chat.idFromName(user.orgId))),
-        readActorState(
-          env.X_BOOKMARK_SYNC_DO.get(
-            env.X_BOOKMARK_SYNC_DO.idFromName(user.userId)
-          )
-        ),
-      ]);
+      const [syncState, linkState, chatState, secondChatState, xState] =
+        await Promise.all([
+          readActorState(
+            env.SYNC_BACKEND_DO.get(env.SYNC_BACKEND_DO.idFromName(user.orgId))
+          ),
+          readActorState(
+            env.LINK_PROCESSOR_DO.get(
+              env.LINK_PROCESSOR_DO.idFromName(user.orgId)
+            )
+          ),
+          readActorState(env.Chat.get(env.Chat.idFromName(user.orgId))),
+          readActorState(secondChatAgent),
+          readActorState(
+            env.X_BOOKMARK_SYNC_DO.get(
+              env.X_BOOKMARK_SYNC_DO.idFromName(user.userId)
+            )
+          ),
+        ]);
       expect(syncState).toEqual({ probe: undefined, retired: undefined });
-      for (const state of [linkState, chatState]) {
+      for (const state of [linkState, chatState, secondChatState]) {
         expect(state).toEqual({ probe: undefined, retired: true });
       }
       const lateChatResponse = await chatAgent.fetch(

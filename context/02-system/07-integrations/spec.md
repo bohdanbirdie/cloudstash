@@ -110,13 +110,21 @@ The X OAuth provider is available only when both `X_CLIENT_ID` and
 provider without disabling Google, session, or MCP authentication.
 
 One `XBookmarkSyncDO` per user owns a bound workspace, provider identity,
-status, watermark, user pause preference, retry state, and a 30-second alarm.
+status, legacy head watermark, recent checkpoint ring, resumable traversal,
+provider-read usage, user pause preference, and persisted polling control. Its
+alarm starts at 30 seconds after connection or observed activity, then relaxes
+through one-, two-, and five-minute intervals as inactivity continues. A new
+bookmark returns the cadence to 30 seconds. Transient failures use a separately
+persisted one-to-fifteen-minute exponential backoff, while provider rate limits
+preserve healthy cadence and honor the provider delay with a small positive
+buffer. Missing or invalid polling control defaults to the fast cadence, so
+existing actors need no migration.
 Its idempotent reconciliation boundary derives effective activity from the
 linked X account, the workspace's current `xBookmarkSync` capability, and the
 independent pause preference. Connect and resume requests validate current
 identity, approval, and membership before reaching the actor; recurring alarms
-do not poll identity tables every 30 seconds. The explicit OAuth return reconciles
-immediately. Stripe/admin entitlement changes enqueue at-least-once X
+do not poll identity tables on every cadence tick. The explicit OAuth return
+reconciles immediately. Stripe/admin entitlement changes enqueue at-least-once X
 reconciliation messages; every alarm
 reconciles before provider I/O; and a daily scan of linked X accounts enqueues
 repair messages for missed delivery. An established workspace binding wins over
@@ -135,18 +143,49 @@ already-paused connection or disconnect it; pausing remains an internal
 administration operation.
 
 On first entitled connect the DO probes one newest bookmark and pins the
-watermark without import. Later polls probe for change, page at 50 items until
-the watermark, enqueue unseen bookmarks oldest-first, then advance the
-watermark. Partial traversal does not advance it, but individual Queue-send
-failures halt the poll. When an older bookmark was already enqueued before a
-later failure, the DO checkpoints that successful prefix so the next poll
-retries the failed bookmark without duplicating or skipping earlier work.
-401/402 require reconnect; 429 honors provider retry;
-other failures use bounded backoff whose attempt counter currently resets on DO
-wake.
+watermark/checkpoint without import. Later polls request one bookmark at a time
+from the newest item until they reach any member of a bounded recent-checkpoint
+ring. This keeps provider reads proportional to the changed prefix and survives
+one disappearing checkpoint. Traversals have a fixed request budget per alarm,
+including the initial head probe;
+long walks persist their pagination token and discovered bookmark payloads,
+then continue on a near-term alarm without advancing the head. Completed walks
+admit unseen bookmarks oldest-first through the workspace `LinkProcessorDO`,
+which enforces the plan's subscription-aligned monthly bookmark allowance
+across every member's X connection before sending to the common Queue. Accepted
+prefixes become durable checkpoints. Queue failures and allowance exhaustion
+retain the unfinished suffix; the latter sleeps until reset and consumes the
+new window while catching up. A workspace that continually creates more than
+its allowance can remain behind rather than silently discarding bookmarks.
+
+The per-user poller also maintains a monthly provider-read safety ceiling above
+the product allowance. It counts a tweet once per UTC day within the usage
+window, so repeated adaptive probes of the same head do not consume the local
+ceiling. Reaching it preserves any traversal and schedules the next usage-window
+reset. The legacy watermark remains for compatible state/status reads, while
+the checkpoint ring owns recovery. Missing durable recovery or provider-usage
+state initializes to its documented empty value; present malformed state fails
+closed as a typed storage error instead of resetting a cost-control counter.
+401/402 both park the actor for reconnect, and the actor records which of the
+two caused it. A 401 is a credential problem the DO can verify itself, so
+periodic reconciliation may clear that park once the credential checks out. A
+402 is a provider access-level refusal that the credential check cannot observe
+— it is raised by the bookmarks endpoint while identity lookups still succeed —
+so only an explicit user reconnect clears it, and reconciliation alone leaves
+the actor parked. 429 honors provider retry; other failures use bounded backoff
+that survives DO eviction. Reconciliation that reactivates a paused, suspended,
+or reconnected actor resets it to fast polling. Entitlement changes that increase
+allowance may pull an existing reset alarm forward so newly available capacity
+is usable promptly. Periodic
+repair of an otherwise active actor preserves idle cadence, failure backoff,
+watermark, and identity.
 
 The official API exposes only roughly the 800 most recent bookmarks and no
 bookmark-created timestamp or server-side incremental filter. Full historical
 sync is not a supported contract. The lifecycle choice and deferred
 transactional-outbox threshold are recorded in
 [decision 0001](./.decisions/0001-reconcile-x-sync-from-signals-and-repair.md).
+The adaptive cadence and eviction-survival policy are recorded in
+[decision 0002](./.decisions/0002-adapt-x-polling-to-account-activity.md).
+The exact bounded traversal and workspace allowance are recorded in
+[decision 0003](./.decisions/0003-bound-x-bookmark-recovery-and-admission.md).

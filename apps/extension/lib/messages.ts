@@ -9,10 +9,7 @@ export const Creds = Schema.Struct({
 });
 export type Creds = typeof Creds.Type;
 
-export const CredsPayload = Schema.Struct({
-  apiKey: Schema.NullOr(ApiKey),
-  orgId: Schema.NullOr(OrgId),
-});
+export const CredsPayload = Schema.NullOr(Creds);
 export type CredsPayload = typeof CredsPayload.Type;
 
 const GetCredsMsg = Schema.Struct({

@@ -1,51 +1,49 @@
 import type { UIMessage } from "@ai-sdk/react";
-import { getToolName, isToolUIPart } from "ai";
+import { isToolUIPart } from "ai";
 
 import { MessageContent } from "@/components/ui/message";
-import { Tool } from "@/components/ui/tool";
+import { isTerminalToolPart, ToolRunSummary } from "@/components/ui/tool";
 import type { ToolPartType } from "@/components/ui/tool";
 import { cn } from "@/lib/utils";
-import { requiresConfirmation } from "@/shared/tool-config";
 
 type ChatMessageProps = {
   message: UIMessage;
-  onApprove: (toolCallId: string, toolName: string) => void;
-  onReject: (toolCallId: string, toolName: string) => void;
+  showToolSummary?: boolean;
 };
 
 export const ChatMessage = ({
   message,
-  onApprove,
-  onReject,
+  showToolSummary = true,
 }: ChatMessageProps) => {
   const isUser = message.role === "user";
   const { textContent, toolParts } = parseMessageParts(message.parts);
+  const terminalParts = toolParts.filter(isTerminalToolPart);
+  const visibleTerminalParts = showToolSummary ? terminalParts : [];
+
+  if (!textContent && visibleTerminalParts.length === 0) {
+    return null;
+  }
 
   return (
     <div className={cn("flex", { "justify-end": isUser })}>
       <div
-        className={cn("flex flex-col gap-1 min-w-0", { "max-w-[85%]": isUser })}
+        className={cn("flex min-w-0 flex-col gap-2", {
+          "max-w-[85%]": isUser,
+          "w-full": !isUser,
+        })}
       >
+        <ToolRunSummary toolParts={visibleTerminalParts} />
         {textContent && (
           <MessageContent
             markdown={!isUser}
             className={cn({
-              "bg-primary text-primary-foreground": isUser,
+              "bg-muted text-foreground": isUser,
               "bg-transparent p-0": !isUser,
             })}
           >
             {textContent}
           </MessageContent>
         )}
-        {toolParts.map((part, i) => (
-          <Tool
-            key={i}
-            toolPart={part}
-            requiresConfirmation={requiresConfirmation(getToolName(part))}
-            onApprove={onApprove}
-            onReject={onReject}
-          />
-        ))}
       </div>
     </div>
   );

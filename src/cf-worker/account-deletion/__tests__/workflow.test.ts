@@ -12,7 +12,6 @@ import {
   IDENTITY_RETRY,
   STEP_RETRY,
   waitForIdentityDeletion,
-  purgeSyncBackend,
 } from "../workflow";
 
 const payload: AccountDeletionParams = {
@@ -88,8 +87,8 @@ describe("account deletion activities", () => {
     expect(ACCOUNT_DELETION_STEPS.map(({ name }) => name)).toEqual([
       "wait-for-identity-deletion",
       "cancel-stripe-subscription",
-      "wipe-link-processor",
       "wipe-chat-agent",
+      "wipe-link-processor",
       "purge-sync-backend",
       "purge-x-bookmark-sync",
       "purge-telegram",
@@ -106,10 +105,17 @@ describe("account deletion activities", () => {
 
   it("keeps a failing Effect activity as a rejected step callback Promise", async () => {
     const calls: RuntimeMethod[] = [];
+    const activity = ACCOUNT_DELETION_STEPS.find(
+      (step) => step.name === "purge-sync-backend"
+    )?.activity;
+
+    expect(activity).toBeDefined();
     const callback = () =>
       Effect.runPromise(
-        purgeSyncBackend(payload).pipe(
-          Effect.provide(runtimeLayer(calls, "purgeSyncBackend"))
+        activity!(payload).pipe(
+          Effect.provide(
+            Layer.merge(runtimeLayer(calls, "purgeSyncBackend"), dbLayer())
+          )
         )
       );
 

@@ -1,18 +1,12 @@
 import { AnimatePresence, motion } from "motion/react";
-import { Suspense, useRef, useState } from "react";
-import type { RefObject } from "react";
+import { useRef, useState } from "react";
 
-import {
-  AgentChatProvider,
-  AgentConnectionProvider,
-  AgentInputProvider,
-} from "@/components/agent/agent-chat-provider";
-import { AgentHeader } from "@/components/agent/agent-header";
+import { AgentHeaderView } from "@/components/agent/agent-header";
 import { InputForm } from "@/components/agent/agent-input";
 import { AgentPanel } from "@/components/agent/agent-panel";
 import { AgentPlaceholderPanel } from "@/components/agent/agent-placeholder-panel";
+import { useAgentSessions } from "@/components/agent/agent-sessions-provider";
 import { AgentSkeleton } from "@/components/agent/agent-skeleton";
-import { useOrgFeatures } from "@/hooks/use-org-features";
 import type { LinkWithDetails, SearchResult } from "@/livestore/queries/links";
 import type { DockMode } from "@/stores/dock-store";
 
@@ -22,6 +16,13 @@ const EASE_OUT = [0.22, 1, 0.36, 1] as const;
 const EASE_IN = [0.4, 0, 1, 1] as const;
 
 type DisplayMode = "search" | "agent";
+export type AgentSurfaceState =
+  | "hidden"
+  | "features-loading"
+  | "promo"
+  | "dormant"
+  | "connecting"
+  | "ready";
 
 interface DockContentProps {
   mode: DockMode;
@@ -29,10 +30,7 @@ interface DockContentProps {
   searchResults: readonly SearchResult[];
   recentLinks: readonly LinkWithDetails[];
   onSelect: (link: LinkWithDetails | SearchResult) => void;
-  orgId: string | null;
-  agentEverOpened: boolean;
-  agentTextareaRef: RefObject<HTMLTextAreaElement | null>;
-  onClose: () => void;
+  agentState: AgentSurfaceState;
 }
 
 // Each shell supplies its own search input + `CommandPrimitive` — cmdk context
@@ -43,10 +41,7 @@ export function DockContent({
   searchResults,
   recentLinks,
   onSelect,
-  orgId,
-  agentEverOpened,
-  agentTextareaRef,
-  onClose,
+  agentState,
 }: DockContentProps) {
   const [displayMode, setDisplayMode] = useState<DisplayMode>(
     mode === "agent" ? "agent" : "search"
@@ -71,8 +66,6 @@ export function DockContent({
 
   const sessionKey = sessionRef.current;
 
-  const { isLoading: isLoadingFeatures, isChatEnabled } = useOrgFeatures();
-
   const searchSlot = (
     <SearchContent
       query={query.trim()}
@@ -92,26 +85,23 @@ export function DockContent({
   );
 
   let content: React.ReactNode;
-  if (!orgId || isLoadingFeatures) {
-    content = renderSwitcher(
-      orgId ? <AgentPlaceholderPanel variant="loading" /> : null
-    );
-  } else if (!isChatEnabled) {
-    content = renderSwitcher(<AgentPlaceholderPanel variant="promo" />);
-  } else if (!agentEverOpened) {
-    content = renderSwitcher(null);
-  } else {
-    content = (
-      <AgentConnectionProvider workspaceId={orgId}>
-        <AgentInputProvider textareaRef={agentTextareaRef}>
-          <Suspense fallback={<SkeletonAgentPanel onClose={onClose} />}>
-            <AgentChatProvider>
-              {renderSwitcher(<AgentPanel onClose={onClose} />)}
-            </AgentChatProvider>
-          </Suspense>
-        </AgentInputProvider>
-      </AgentConnectionProvider>
-    );
+  switch (agentState) {
+    case "hidden":
+    case "dormant":
+      content = renderSwitcher(null);
+      break;
+    case "features-loading":
+      content = renderSwitcher(<AgentPlaceholderPanel variant="loading" />);
+      break;
+    case "promo":
+      content = renderSwitcher(<AgentPlaceholderPanel variant="promo" />);
+      break;
+    case "connecting":
+      content = renderSwitcher(<SkeletonAgentPanel />);
+      break;
+    case "ready":
+      content = renderSwitcher(<AgentPanel />);
+      break;
   }
 
   return <div className="relative h-full overflow-hidden">{content}</div>;
@@ -158,10 +148,15 @@ function ContentSwitcher({
   );
 }
 
-function SkeletonAgentPanel({ onClose }: { onClose: () => void }) {
+function SkeletonAgentPanel() {
+  const { selectedSession, showSessionList } = useAgentSessions();
+
   return (
     <div className="flex h-full flex-col">
-      <AgentHeader onClose={onClose} />
+      <AgentHeaderView
+        title={selectedSession?.title}
+        onBack={showSessionList}
+      />
       <div className="flex flex-1 flex-col gap-3 overflow-hidden p-3">
         <AgentSkeleton />
       </div>

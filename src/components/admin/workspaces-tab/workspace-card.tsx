@@ -53,7 +53,7 @@ export function WorkspaceCard({
   ) => void;
 }) {
   const tierDefaults = TIER_CAPABILITIES[workspace.tier];
-  const budgetOverride = workspace.overrides.monthlyChatBudgetUsd;
+  const creditOverride = workspace.overrides.monthlyAssistantCredits;
   const shortId = shortenId(workspace.id);
   const displayName = workspace.name ? cleanWorkspaceName(workspace.name) : "";
 
@@ -161,13 +161,11 @@ export function WorkspaceCard({
                       "text-muted-foreground/70 hover:text-foreground rounded-sm cursor-help focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/60"
                     )}
                   >
-                    manual
+                    admin grant
                   </button>
                 }
               />
-              <TooltipContent>
-                Set manually — Stripe sync won&apos;t overwrite
-              </TooltipContent>
+              <TooltipContent>Admin-granted plan</TooltipContent>
             </Tooltip>
           )}
         </div>
@@ -197,14 +195,14 @@ export function WorkspaceCard({
 
         <div className="ml-auto">
           <BudgetInput
-            override={budgetOverride}
-            tierDefault={tierDefaults.monthlyChatBudgetUsd}
+            override={creditOverride}
+            tierDefault={tierDefaults.monthlyAssistantCredits}
             disabled={isMutating || !canManage}
             onCommit={(value) =>
-              onSetOverride(workspace.id, "monthlyChatBudgetUsd", value)
+              onSetOverride(workspace.id, "monthlyAssistantCredits", value)
             }
             onClear={() =>
-              onSetOverride(workspace.id, "monthlyChatBudgetUsd", null)
+              onSetOverride(workspace.id, "monthlyAssistantCredits", null)
             }
           />
         </div>

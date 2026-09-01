@@ -1,9 +1,11 @@
 import { describe, it } from "@effect/vitest";
 import { deepStrictEqual, strictEqual } from "@effect/vitest/utils";
 import { Effect, Layer } from "effect";
+import { TestClock } from "effect/testing";
 
 import { OrgId, UserId, XTweetId, XUserId } from "../../db/branded";
 import { XUnauthorizedError } from "../../x-sync/errors";
+import { activePollControl } from "../../x-sync/poll-control";
 import { reconcileSyncEffect } from "../../x-sync/reconcile";
 import { XApiClient } from "../../x-sync/services";
 import {
@@ -57,8 +59,12 @@ describe("reconcileSyncEffect", () => {
             deepStrictEqual(alarm.rec, {
               alarmScheduled: false,
               ensureWrites: 0,
+              ensureDelays: [],
+              scheduleNoLaterWrites: 0,
+              scheduleNoLaterDelays: [],
               cancelWrites: 1,
               scheduleWrites: 0,
+              scheduleDelays: [],
             });
           })
         )
@@ -118,8 +124,12 @@ describe("reconcileSyncEffect", () => {
         deepStrictEqual(alarm.rec, {
           alarmScheduled: true,
           ensureWrites: 1,
+          ensureDelays: [30_000],
+          scheduleNoLaterWrites: 0,
+          scheduleNoLaterDelays: [],
           cancelWrites: 0,
           scheduleWrites: 0,
+          scheduleDelays: [],
         });
         strictEqual(store.rec.snapshot?.watermarkTweetId, "watermark-healthy");
         strictEqual(store.rec.setIdentityCalls, 0);
@@ -127,6 +137,90 @@ describe("reconcileSyncEffect", () => {
       }).pipe(Effect.provide(testLayer({ store, alarm, x })));
     }
   );
+
+  it.effect("preserves idle cadence when repairing a missing alarm", () => {
+    const store = makeStoreLayer(
+      makeSnapshot({
+        organizationId: ORG_ID,
+        watermarkTweetId: XTweetId.make("watermark-idle"),
+      })
+    );
+    store.rec.pollControl = {
+      idleSinceMs: 1,
+      transientFailures: 0,
+    };
+    const alarm = makeAlarmLayer();
+
+    return Effect.gen(function* () {
+      yield* TestClock.adjust("7 hours");
+      yield* reconcileSyncEffect(USER_ID, ORG_ID);
+      deepStrictEqual(alarm.rec.ensureDelays, [5 * 60_000]);
+      deepStrictEqual(store.rec.setPollControlCalls, []);
+    }).pipe(Effect.provide(testLayer({ store, alarm })));
+  });
+
+  it.effect("pulls an existing alarm forward for an entitlement change", () => {
+    const store = makeStoreLayer(
+      makeSnapshot({
+        organizationId: ORG_ID,
+        watermarkTweetId: XTweetId.make("watermark-entitlement"),
+      })
+    );
+    const alarm = makeAlarmLayer(true);
+
+    return reconcileSyncEffect(USER_ID, ORG_ID, true).pipe(
+      Effect.provide(testLayer({ store, alarm })),
+      Effect.tap(() =>
+        Effect.sync(() => {
+          deepStrictEqual(alarm.rec.ensureDelays, []);
+          deepStrictEqual(alarm.rec.scheduleNoLaterDelays, [30_000]);
+        })
+      )
+    );
+  });
+
+  it.effect(
+    "preserves transient backoff when repairing a missing alarm",
+    () => {
+      const store = makeStoreLayer(makeSnapshot({ organizationId: ORG_ID }));
+      store.rec.pollControl = {
+        idleSinceMs: 1,
+        transientFailures: 4,
+      };
+      const alarm = makeAlarmLayer();
+
+      return reconcileSyncEffect(USER_ID, ORG_ID).pipe(
+        Effect.provide(testLayer({ store, alarm })),
+        Effect.tap(() =>
+          Effect.sync(() => {
+            deepStrictEqual(alarm.rec.ensureDelays, [8 * 60_000]);
+            deepStrictEqual(store.rec.setPollControlCalls, []);
+          })
+        )
+      );
+    }
+  );
+
+  it.effect("resets cadence when a suspended connection becomes active", () => {
+    const store = makeStoreLayer(
+      makeSnapshot({ organizationId: ORG_ID, status: "suspended" })
+    );
+    store.rec.pollControl = {
+      idleSinceMs: 1,
+      transientFailures: 4,
+    };
+    const alarm = makeAlarmLayer();
+
+    return reconcileSyncEffect(USER_ID, ORG_ID).pipe(
+      Effect.provide(testLayer({ store, alarm })),
+      Effect.tap(() =>
+        Effect.sync(() => {
+          deepStrictEqual(store.rec.setPollControlCalls, [activePollControl]);
+          deepStrictEqual(alarm.rec.ensureDelays, [30_000]);
+        })
+      )
+    );
+  });
 
   it.effect("does not rebind an established user poller during repair", () => {
     const boundOrgId = OrgId.make("org-already-bound");

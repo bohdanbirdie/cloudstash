@@ -8,6 +8,10 @@ import { OtelTracingLive } from "../../tracing";
 import { XSyncAccountRepository } from "../../x-sync/account";
 import type { XApiFailure } from "../../x-sync/errors";
 import { XSyncSideEffectError } from "../../x-sync/errors";
+import { activePollControl } from "../../x-sync/poll-control";
+import type { XSyncPollControl } from "../../x-sync/poll-control";
+import { defaultReconnectReason } from "../../x-sync/reconnect-reason";
+import type { XSyncReconnectReason } from "../../x-sync/reconnect-reason";
 import type { BookmarksPage } from "../../x-sync/services";
 import { XApiClient } from "../../x-sync/services";
 import { LinkQueueClient } from "../../x-sync/services/link-queue-client";
@@ -16,6 +20,8 @@ import type {
   Status,
   XSyncConnectedState,
   XSyncControlState,
+  XSyncReadUsage,
+  XSyncScanState,
   XSyncStateSnapshot,
 } from "../../x-sync/services/x-sync-state-store";
 import { XSyncStateStore } from "../../x-sync/services/x-sync-state-store";
@@ -23,6 +29,11 @@ import { XSyncStateStore } from "../../x-sync/services/x-sync-state-store";
 export const X_USER = XUserId.make("xuser-1");
 export const X_NAME = XUsername.make("alice");
 export const ORG_ID = OrgId.make("org-1");
+export const USAGE_WINDOW = {
+  id: "2026-08-01T00:00:00.000Z",
+  startsAt: "2026-08-01T00:00:00.000Z",
+  resetsAt: "2026-09-01T00:00:00.000Z",
+} as const;
 
 export const makeSnapshot = (
   overrides: Partial<XSyncConnectedState> = {}
@@ -47,6 +58,17 @@ export interface StoreRec {
   setControlCalls: XSyncControlState[];
   controlStatus: Status | null;
   controlSyncEnabled: boolean | null;
+  pollControl: XSyncPollControl;
+  setPollControlCalls: XSyncPollControl[];
+  reconnectReason: XSyncReconnectReason;
+  setReconnectReasonCalls: XSyncReconnectReason[];
+  checkpoints: readonly XTweetId[];
+  setCheckpointsCalls: Array<readonly XTweetId[]>;
+  scan: XSyncScanState | null;
+  setScanCalls: XSyncScanState[];
+  clearScanCalls: number;
+  readUsage: XSyncReadUsage | null;
+  setReadUsageCalls: XSyncReadUsage[];
 }
 
 const pendingSnapshot = (rec: StoreRec): XSyncStateSnapshot | null => {
@@ -89,6 +111,17 @@ export const makeStoreLayer = (initial: XSyncStateSnapshot | null) => {
     setControlCalls: [],
     controlStatus: initial?.status ?? null,
     controlSyncEnabled: initial?.syncEnabled ?? null,
+    pollControl: activePollControl,
+    setPollControlCalls: [],
+    reconnectReason: defaultReconnectReason,
+    setReconnectReasonCalls: [],
+    checkpoints: [],
+    setCheckpointsCalls: [],
+    scan: null,
+    setScanCalls: [],
+    clearScanCalls: 0,
+    readUsage: null,
+    setReadUsageCalls: [],
   };
   const layer = Layer.succeed(XSyncStateStore, {
     read: () => Effect.sync(() => currentSnapshot(rec)),
@@ -110,6 +143,29 @@ export const makeStoreLayer = (initial: XSyncStateSnapshot | null) => {
         if (rec.snapshot) {
           rec.snapshot = { ...rec.snapshot, watermarkTweetId: tweetId };
         }
+      }),
+    readCheckpoints: () => Effect.sync(() => rec.checkpoints),
+    setCheckpoints: (tweetIds) =>
+      Effect.sync(() => {
+        rec.checkpoints = [...tweetIds];
+        rec.setCheckpointsCalls.push([...tweetIds]);
+      }),
+    readScan: () => Effect.sync(() => rec.scan),
+    setScan: (scan) =>
+      Effect.sync(() => {
+        rec.scan = scan;
+        rec.setScanCalls.push(scan);
+      }),
+    clearScan: () =>
+      Effect.sync(() => {
+        rec.scan = null;
+        rec.clearScanCalls += 1;
+      }),
+    readReadUsage: () => Effect.sync(() => rec.readUsage),
+    setReadUsage: (usage) =>
+      Effect.sync(() => {
+        rec.readUsage = usage;
+        rec.setReadUsageCalls.push(usage);
       }),
     setStatus: (status) =>
       Effect.sync(() => {
@@ -138,6 +194,18 @@ export const makeStoreLayer = (initial: XSyncStateSnapshot | null) => {
           };
         }
       }),
+    readPollControl: () => Effect.sync(() => rec.pollControl),
+    setPollControl: (control) =>
+      Effect.sync(() => {
+        rec.pollControl = control;
+        rec.setPollControlCalls.push(control);
+      }),
+    readReconnectReason: () => Effect.sync(() => rec.reconnectReason),
+    setReconnectReason: (reason) =>
+      Effect.sync(() => {
+        rec.reconnectReason = reason;
+        rec.setReconnectReasonCalls.push(reason);
+      }),
     clear: () =>
       Effect.sync(() => {
         rec.clearCalls += 1;
@@ -145,6 +213,11 @@ export const makeStoreLayer = (initial: XSyncStateSnapshot | null) => {
         rec.organizationId = null;
         rec.controlStatus = null;
         rec.controlSyncEnabled = null;
+        rec.pollControl = activePollControl;
+        rec.reconnectReason = defaultReconnectReason;
+        rec.checkpoints = [];
+        rec.scan = null;
+        rec.readUsage = null;
       }),
   });
   return { layer, rec };
@@ -199,6 +272,7 @@ export const makeAccountLayer = (
           xBookmarkSync: options.entitled ?? true,
         });
       }),
+    usageWindow: () => Effect.succeed(Option.some(USAGE_WINDOW)),
   });
   return { layer, rec };
 };
@@ -206,16 +280,24 @@ export const makeAccountLayer = (
 export interface AlarmRec {
   alarmScheduled: boolean;
   ensureWrites: number;
+  ensureDelays: number[];
+  scheduleNoLaterWrites: number;
+  scheduleNoLaterDelays: number[];
   cancelWrites: number;
   scheduleWrites: number;
+  scheduleDelays: number[];
 }
 
 export const makeAlarmLayer = (initiallyScheduled = false) => {
   const rec: AlarmRec = {
     alarmScheduled: initiallyScheduled,
     ensureWrites: 0,
+    ensureDelays: [],
+    scheduleNoLaterWrites: 0,
+    scheduleNoLaterDelays: [],
     cancelWrites: 0,
     scheduleWrites: 0,
+    scheduleDelays: [],
   };
   const layer = Layer.succeed(XSyncAlarm, {
     cancel: () =>
@@ -224,16 +306,24 @@ export const makeAlarmLayer = (initiallyScheduled = false) => {
         rec.alarmScheduled = false;
         rec.cancelWrites += 1;
       }),
-    ensureAfter: () =>
+    ensureAfter: (delay) =>
       Effect.sync(() => {
         if (rec.alarmScheduled) return;
         rec.alarmScheduled = true;
         rec.ensureWrites += 1;
+        rec.ensureDelays.push(delay);
       }),
-    scheduleAfter: () =>
+    scheduleNoLaterThan: (delay) =>
+      Effect.sync(() => {
+        rec.alarmScheduled = true;
+        rec.scheduleNoLaterWrites += 1;
+        rec.scheduleNoLaterDelays.push(delay);
+      }),
+    scheduleAfter: (delay) =>
       Effect.sync(() => {
         rec.alarmScheduled = true;
         rec.scheduleWrites += 1;
+        rec.scheduleDelays.push(delay);
       }),
   });
   return { layer, rec };
@@ -270,20 +360,30 @@ export const makeXApiLayer = (responses: ScriptedBookmarksResponse[]) => {
 };
 
 export const makeQueueLayer = (
-  options: { readonly failAtCalls?: ReadonlySet<number> } = {}
+  options: {
+    readonly failAtCalls?: ReadonlySet<number>;
+    readonly limitAtCalls?: ReadonlySet<number>;
+    readonly duplicateAtCalls?: ReadonlySet<number>;
+  } = {}
 ) => {
   const calls: LinkQueueMessage[] = [];
+  const settledTweetIds = new Set<string>();
   const layer = Layer.succeed(LinkQueueClient, {
-    send: (message) =>
+    send: (input) =>
       Effect.gen(function* () {
         const callIndex = calls.length;
-        calls.push(message);
+        calls.push(input.message);
         if (options.failAtCalls?.has(callIndex)) {
           return yield* new XSyncSideEffectError({
             op: "LINK_QUEUE.send",
             cause: new Error(`scripted queue failure at call ${callIndex}`),
           });
         }
+        if (options.limitAtCalls?.has(callIndex)) return "limit_reached";
+        if (options.duplicateAtCalls?.has(callIndex)) return "duplicate";
+        if (settledTweetIds.has(input.tweetId)) return "duplicate";
+        settledTweetIds.add(input.tweetId);
+        return "enqueued";
       }),
   });
   return { layer, calls };

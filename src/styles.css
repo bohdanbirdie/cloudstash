@@ -13,6 +13,68 @@
 /* `mouse:` only applies styles when not in keyboard mode. The data attribute is owned by src/lib/input-mode.ts. */
 @custom-variant mouse (&:is(:root:not([data-input-mode="keyboard"]) *));
 
+/* The readable text stays static. Only the masked highlight above it moves,
+   keeping the animation on the compositor instead of repainting the glyphs. */
+.text-shimmer {
+  position: relative;
+  display: inline-block;
+  color: var(--muted-foreground);
+}
+
+.text-shimmer__text {
+  display: inline-block;
+}
+
+.text-shimmer__mask {
+  position: absolute;
+  inset: 0;
+  display: none;
+  overflow: clip;
+  contain: strict;
+  color: transparent;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Firefox does not currently provide a GPU-accelerated text mask, so it keeps
+   the static base text instead of falling back to another repaint-heavy path. */
+@supports (-webkit-mask-clip: text) {
+  .text-shimmer__mask {
+    display: block;
+    mask-image: linear-gradient(white, white);
+    -webkit-mask-clip: text;
+  }
+
+  .text-shimmer__mask::after {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent calc(50% - var(--text-shimmer-spread)),
+      var(--foreground) 50%,
+      transparent calc(50% + var(--text-shimmer-spread))
+    );
+    content: "";
+    pointer-events: none;
+    transform: translateX(-100%);
+    will-change: transform;
+    animation: text-shimmer-transform var(--text-shimmer-duration) linear
+      infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .text-shimmer__mask {
+    display: none;
+  }
+}
+
+@keyframes text-shimmer-transform {
+  to {
+    transform: translateX(100%);
+  }
+}
+
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);

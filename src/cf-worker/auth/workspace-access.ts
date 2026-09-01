@@ -122,7 +122,7 @@ export const matchWorkspaceAccessError = <Result>(
   error: WorkspaceAccessError,
   handlers: {
     readonly unauthorized: (error: WorkspaceAccessUnauthorizedError) => Result;
-    readonly missingScope: () => Result;
+    readonly missingScope: (error: WorkspaceScopeMissingError) => Result;
     readonly forbidden: (error: WorkspaceAccessForbiddenError) => Result;
     readonly backend: (error: WorkspaceAccessBackendError) => Result;
   }

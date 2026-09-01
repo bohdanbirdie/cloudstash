@@ -131,6 +131,7 @@ const makeEnv = (
         idFromName: linkProcessorIdFromName,
         get: vi.fn().mockReturnValue({
           retire: linkProcessorPurge,
+          retireChatSessions: chatPurge,
         }),
       },
       SYNC_BACKEND_DO: {

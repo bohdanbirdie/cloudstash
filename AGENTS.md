@@ -15,6 +15,16 @@ lifecycle rules before changing behavior.
 - `vendor/livestore/context/` is upstream LiveStore's separate Intent corpus and
   is not part of Cloudstash's tree.
 
+# Database migrations
+
+- Never edit a Drizzle-generated migration SQL file. Generated migrations are
+  immutable schema artifacts.
+- Put handwritten backfills or other data changes in a separate migration made
+  with `bun run db:generate:custom -- --name <name>`.
+- Use `bun run db:generate` for schema migrations so the generated SQL is
+  recorded before any handwritten change can be introduced.
+- Run `bun run check:migrations` before committing migration changes.
+
 <!--VITE PLUS START-->
 
 # Using Vite+, the Unified Toolchain for the Web

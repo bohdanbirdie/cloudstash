@@ -1,6 +1,8 @@
 # X Bookmark Sync
 
-Automatically sync new X (Twitter) bookmarks into Cloudstash. Per-user polling via Durable Object, ~30s latency, zero D1 footprint, gated to Pro tier.
+Automatically sync new X (Twitter) bookmarks into Cloudstash. Per-user adaptive
+polling via Durable Object, 30-second to five-minute latency based on recent
+activity, zero D1 polling state, gated to Pro tier.
 
 ## Overview
 
@@ -25,11 +27,11 @@ Automatically sync new X (Twitter) bookmarks into Cloudstash. Per-user polling v
 │  │ X_BOOKMARK_  │ ──── fetches /users/me                                  │
 │  │   SYNC_DO    │ ──── persists identity in DO storage                    │
 │  │ (per user)   │ ──── PINS watermark to current head (no enqueue!)       │
-│  └──────────────┘ ──── arms 30s alarm                                     │
+│  └──────────────┘ ──── arms fast 30s alarm                                │
 └──────────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                         POLLING (every 30s)                               │
+│                    POLLING (adaptive 30s → 5m)                            │
 │                                                                           │
 │  ┌──────────────┐  1. alarm fires      ┌──────────┐                      │
 │  │ X_BOOKMARK_  │ ───────────────────► │ X API v2 │                      │
@@ -37,11 +39,12 @@ Automatically sync new X (Twitter) bookmarks into Cloudstash. Per-user polling v
 │  └──────────────┘                      └──────────┘                      │
 │       │                                                                   │
 │       │ 2. probe max_results=1                                            │
-│       │ 3. if newestId === watermark → done                               │
-│       │ 4. else paginate (max_results=50) until watermark hit             │
-│       │ 5. enqueue new bookmarks oldest-first → LINK_QUEUE                │
-│       │ 6. advance watermark to new newest                                │
-│       │ 7. reschedule alarm                                               │
+│       │ 3. if newestId is a recent checkpoint → done                      │
+│       │ 4. else walk max_results=1 pages to a checkpoint                  │
+│       │ 5. persist and continue after 25 total requests if needed         │
+│       │ 6. admit oldest-first via workspace LinkProcessorDO → Queue       │
+│       │ 7. advance checkpoints + legacy watermark                        │
+│       │ 8. reschedule alarm                                               │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -69,14 +72,19 @@ Documented in the integration guide: "you will get back 800 of your most recent 
 
 ### Pagination bug: don't use `max_results=100`
 
-Long-standing bug (years old, never fixed): at `max_results=100`, `next_token` often disappears after 2-3 pages well before the 800 cap. **Workaround: `max_results=50`** for the pagination walk. We use this in `pollOnceEffect`.
+Long-standing bug (years old, never fixed): at `max_results=100`, `next_token`
+often disappears after 2-3 pages well before the 800 cap. The current sync does
+not depend on the historical `max_results=50` workaround: it requests one item
+per page so provider reads stay proportional to the changed prefix.
 
 ### Rate limit (per user OAuth token)
 
 - 180 GET requests / 15-min window per user
 - 50 POST/DELETE / 15-min per user
 
-A 30s poll cadence = 30 requests/15min/user. Well under the limit.
+The fastest 30s cadence = 30 requests/15min/user. An account idle for six
+hours polls every five minutes = 3 requests/15min/user. Both remain under the
+limit.
 
 ### Pricing (April 20, 2026 change)
 
@@ -86,10 +94,11 @@ A 30s poll cadence = 30 requests/15min/user. Well under the limit.
 
 ### Why Durable Object (vs. cron worker)
 
-- **CF cron minimum is 1 minute** — cannot do 30s polling.
+- **CF cron minimum is 1 minute** — cannot provide the active 30s cadence.
 - Cron + fan-out via Queue rebuilds per-user state in D1 and reasons about it on every tick. DO gives per-user state isolation for free.
 - DO aggressively hibernates — only billed for the ~250ms of active alarm execution.
-- Built-in per-user backoff: `retryAttempt`, `retryAfterMs` from 429s, exponential backoff without coordinating across users.
+- Persisted per-user cadence and failure control survives DO eviction; 429s
+  retain that state and honor the provider delay.
 - Pause/resume/disconnect = direct alarm manipulation on one DO. No need to consult an "active users" table.
 
 ### State storage: DO SQLite (not D1, not KV)
@@ -112,18 +121,26 @@ Fields stored in DO SQLite (per user):
 - `watermarkTweetId` (the sync mechanic)
 - `status` (`active` | `needs_reconnect` | `paused` | `disconnected`)
 - `syncEnabled` (user toggle)
+- `pollControl` (idle start + bounded transient-failure count)
+- recent checkpoint ring and resumable scan state
+- subscription-window provider-read usage
 
-`lastSyncedAt` lives in DO memory only — surfaced via the `DO.status()` RPC. Persisting it on every poll would have eaten the included writes tier. UI shows "—" briefly until next alarm fires (≤30s) on cold start. Acceptable.
+`lastSyncedAt` lives in DO memory only — surfaced via the `DO.status()` RPC. Persisting it on every poll would have eaten the included writes tier. UI shows "—" briefly until the next adaptive alarm fires (at most five minutes) on cold start. Acceptable.
 
-## The watermark mechanic
+## The checkpoint mechanic
 
-The tweet ID of the most recently bookmarked tweet we've already synced. On each poll:
+The legacy watermark remains the newest completed head, while a bounded ring of
+recent successful tweet IDs provides the traversal boundary. On each poll:
 
 1. Probe newest bookmark (1 result).
-2. If `newestId === watermark` → nothing new, done.
-3. If different → paginate until we find the watermark or hit the 800-cap → enqueue everything newer → advance watermark.
+2. If `newestId` is a recent checkpoint → nothing new, done.
+3. If different → request one result per page until any checkpoint, persisting
+   long walks across alarms.
+4. Admit everything newer oldest-first through the workspace monthly allowance,
+   then advance the head/checkpoint ring.
 
-This is what prevents reprocessing the same bookmarks AND what defines the "from now on" boundary.
+This prevents reprocessing, bounds normal provider reads, and defines the "from
+now on" boundary.
 
 ### Cost-safety: connect does NOT import existing bookmarks
 
@@ -141,7 +158,10 @@ An earlier prototype lacked this guard and a single connect produced exactly tha
 - `setWatermark` is called once with the newest ID
 - Zero items are enqueued
 
-There is also a **second safety net** in `pollOnceEffect`: if the watermark is null (e.g., `initializeWatermark` failed during signup due to 402/429), the first successful poll pins the watermark and skips enqueuing. Covered by a separate test.
+There is also a **second safety net** in `pollReconciledEffect`: if the watermark
+is null (e.g., `initializeWatermark` failed during signup due to 402/429), the
+first successful poll pins the watermark and skips enqueuing. Covered by a
+separate test.
 
 ## Plan gating (Pro-only)
 
@@ -193,10 +213,6 @@ Reframed from the original "full historical sync" vision. The 800 cap applies to
 
 **Not feasible via the official API at any tier.** Only browser automation (Playwright) reaches deeper into a user's bookmark history. Brittle, TOS-risky, not viable as a clean paid feature. **Do not build this.**
 
-### Adaptive polling cadence (30s → 120s on idle)
-
-After N consecutive empty polls, back off to 60s, then 120s; snap back to 30s on any new bookmark. Cuts DO duration cost meaningfully. Worth doing once polling volume justifies it.
-
 ### Bookmark-deletion mirroring
 
 If a user un-bookmarks on X, we currently leave the link in Cloudstash. The API exposes only the current bookmark set, not a deletion event. Implementing this would require comparing every poll's full set against our local store — expensive and rarely wanted. Deferred indefinitely.
@@ -205,12 +221,25 @@ If a user un-bookmarks on X, we currently leave the link in Cloudstash. The API 
 
 - **DO storage uses the SQLite-backed KV API**. Reads run through guarded `typeof === "string"` checks before applying brand tags — raw casts to branded types are not allowed.
 - **No `lastSyncedAt` persisted**. In-memory only, surfaces via the `status()` RPC. Resets to `null` on cold start (UI shows "—" briefly).
-- **`max_results: 50`** for pagination walks (not 100) due to the X bug.
-- **Mid-walk pagination errors DEFER** (never advance the watermark). If page 2/3/... fails with 401/402/429/5xx after a successful probe, we log the truncation, skip both enqueue and watermark write, and let the next poll re-walk from the same watermark. Without this, an error after page 2 would silently drop pages 3+ forever. Locked in by a dedicated test.
-- **401 / 402 on the probe → mark `needs_reconnect`** and stop alarming. 429 → reschedule using the response's `retry-after`. Generic API errors on the probe → exponential backoff up to 15 min (handled by the DO, not by the poll effect — the effect surfaces the typed failure cleanly).
+- **`max_results: 1`** for the probe and every traversal page. One alarm may
+  make at most 25 provider requests including its initial probe; unfinished
+  traversal state is persisted and resumed by a near-term alarm.
+- **Mid-walk pagination errors DEFER** (never advance the watermark). The
+  persisted scan retains the discovered prefix and pagination token, so the
+  next alarm resumes from the failed page instead of re-walking from the head.
+  Locked in by unit and real-alarm eviction tests.
+- **401 / 402 on the probe → mark `needs_reconnect`** and stop alarming. 429
+  → reschedule after the response's `retry-after` plus a one-second buffer.
+  Generic API errors on the probe → persisted exponential backoff up to 15 min
+  (handled by the DO, not by the poll effect — the effect surfaces the typed
+  failure cleanly).
 - **Post-OAuth hook is trivial** — entitlement check, then start the DO. The DO fetches `/users/me` itself.
 - **Account deletion** — the workflow step calls the DO's `disconnect()`, which wipes DO storage. Runs after the link-processor wipes so any in-flight queue messages drop.
-- **Full Layer-based DI**: `pollOnceEffect` and `initializeWatermarkEffect` take no `env`. All dependencies (X API client, state store, link-queue client, auth client, DB client) come via Layer — `Layer.succeed` mocks drive the tests. The link-queue service wraps the queue binding so payloads are assertable in tests without touching CF bindings.
+- **Full Layer-based DI**: `pollReconciledEffect` and
+  `initializeWatermarkEffect` take no `env`. All dependencies (X API client,
+  state store, link-queue client, auth client, DB client) come via Layer; typed
+  stub Layers drive unit tests. The link-queue service wraps the internal DO RPC
+  so payloads are assertable without replacing global bindings.
 - **Tagged errors** — `XUnauthorizedError` / `XPaymentRequiredError` / `XRateLimitedError` / `XApiError` from the API client; `XSyncStorageError` from DO storage; `XSyncSideEffectError` from CF RPC/queue/alarm bridges; `NoAccessTokenError` from Better Auth fail-through. All `Schema.TaggedError` so `catchTag(s)` and OTel logs stay structured.
 - **OAuth-cancel recovery (UI)** — the status hook clears the connect lock on `visibilitychange` (user returned to the tab) or after a 60s safety timeout, so closing the OAuth popup doesn't permanently disable buttons.
 

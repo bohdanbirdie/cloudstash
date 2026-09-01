@@ -10,6 +10,7 @@ import {
   matchWorkspaceAccessError,
 } from "../auth/workspace-access";
 import { capabilityDeniedResponse } from "../billing/errors";
+import { reserveExternalCall } from "../billing/external-call-meter";
 import { requireCapability } from "../billing/service";
 import type { OrgId } from "../db/branded";
 import type { LinkQueueMessage } from "../link-processor/types";
@@ -107,6 +108,8 @@ export const handleIngestRequest = Effect.fnUntraced(function* (
 
   yield* requireCapability(orgId, capability);
 
+  if (source === "api") yield* reserveExternalCall(env, orgId);
+
   // Preserve the public API's established attempt-level analytics timing,
   // including malformed request bodies and invalid URLs.
   trackEvent(env.USAGE_ANALYTICS, {
@@ -138,6 +141,24 @@ export const ingestResponse = <Requirements>(
     Effect.catchTags({
       CapabilityDisabledError: (error) =>
         Effect.succeed(capabilityDeniedResponse(error)),
+      ExternalCallLimitReachedError: (error) =>
+        Effect.succeed(
+          Response.json(
+            { error: "Monthly API allowance used", resetsAt: error.resetsAt },
+            { status: 429 }
+          )
+        ),
+      ExternalCallAllowanceUnavailableError: () =>
+        Effect.succeed(
+          Response.json(
+            { error: "Usage allowance is temporarily unavailable" },
+            { status: 503 }
+          )
+        ),
+      ExternalCallWorkspaceUnavailableError: () =>
+        Effect.succeed(
+          Response.json({ error: "Library is unavailable" }, { status: 410 })
+        ),
       IngestInvalidApiKeyError: () =>
         Effect.succeed(
           Response.json({ error: "Invalid API key" }, { status: 401 })
@@ -176,6 +197,11 @@ export const ingestResponse = <Requirements>(
       DbError: (cause) =>
         Effect.logError("Ingest: capability check failed").pipe(
           Effect.annotateLogs(safeErrorInfo(cause)),
+          Effect.as(Response.json({ error: "Internal error" }, { status: 500 }))
+        ),
+      ExternalCallMeterError: (error) =>
+        Effect.logError("Ingest: usage reservation failed").pipe(
+          Effect.annotateLogs(safeErrorInfo(error.cause)),
           Effect.as(Response.json({ error: "Internal error" }, { status: 500 }))
         ),
       IngestAuthBackendError: (error) =>
