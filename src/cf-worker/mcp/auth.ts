@@ -9,6 +9,7 @@ import type { WorkspaceAccessDeniedError } from "../auth/workspace-access";
 import { externalCallAllowance } from "../billing/external-call-meter";
 import { requireCapability } from "../billing/service";
 import { OrgId, UserId } from "../db/branded";
+import type { Env } from "../shared";
 import { MCP_WORKSPACE_CLAIM } from "./config";
 
 const McpAccessTokenClaims = Schema.Struct({
@@ -48,7 +49,8 @@ export class McpWorkspaceAccessDenied extends Data.TaggedError(
 )<{ readonly cause: WorkspaceAccessDeniedError }> {}
 
 export const authorizeMcpClaims = Effect.fnUntraced(function* (
-  claims: JWTPayload
+  claims: JWTPayload,
+  env: Env
 ) {
   const decoded = yield* decodeClaims(claims).pipe(Effect.option);
   if (Option.isNone(decoded)) return yield* new McpInvalidClaimsError();
@@ -88,7 +90,7 @@ export const authorizeMcpClaims = Effect.fnUntraced(function* (
   );
 
   yield* requireCapability(identity.orgId, "mcpServer");
-  const allowance = yield* externalCallAllowance(identity.orgId);
+  const allowance = yield* externalCallAllowance(env, identity.orgId);
 
   return McpAuthorization.make({
     ...identity,

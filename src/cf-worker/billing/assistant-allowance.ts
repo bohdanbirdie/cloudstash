@@ -3,6 +3,7 @@ import { DateTime, Effect, Match, Option } from "effect";
 import type { OrgId } from "../db/branded";
 import { maskId } from "../log-utils";
 import { Billing } from "./service";
+import type { WorkspaceAllowance } from "./service";
 import { getStripeCustomerId, syncFromStripe } from "./stripe-sync";
 
 const hasMonthlyAllowance = (capabilities: {
@@ -18,19 +19,17 @@ const hasMonthlyAllowance = (capabilities: {
   capabilities.monthlyXBookmarks > 0 ||
   capabilities.monthlyXEnrichments > 0;
 
-export const resolveWorkspaceAllowance = Effect.fn(
-  "Billing.resolveWorkspaceAllowance"
-)(function* (orgId: OrgId, now?: Date) {
+export const workspaceAllowanceNeedsStripeRefresh = (
+  allowance: WorkspaceAllowance
+): boolean =>
+  allowance.source === "stripe" &&
+  hasMonthlyAllowance(allowance.capabilities) &&
+  Option.isNone(allowance.usageWindow);
+
+export const refreshWorkspaceAllowance = Effect.fn(
+  "Billing.refreshWorkspaceAllowance"
+)(function* (orgId: OrgId, current: WorkspaceAllowance, effectiveNow: Date) {
   const billing = yield* Billing;
-  const effectiveNow = now ?? (yield* DateTime.nowAsDate);
-  const current = yield* billing.usageAllowance(orgId, effectiveNow);
-  const needsStripeRefresh =
-    current.source === "stripe" &&
-    hasMonthlyAllowance(current.capabilities) &&
-    Option.isNone(current.usageWindow);
-
-  if (!needsStripeRefresh) return current;
-
   const customerId = yield* getStripeCustomerId(orgId);
   return yield* Option.match(customerId, {
     onNone: () =>
@@ -54,6 +53,16 @@ export const resolveWorkspaceAllowance = Effect.fn(
         )
       ),
   });
+});
+
+export const resolveWorkspaceAllowance = Effect.fn(
+  "Billing.resolveWorkspaceAllowance"
+)(function* (orgId: OrgId, now?: Date) {
+  const billing = yield* Billing;
+  const effectiveNow = now ?? (yield* DateTime.nowAsDate);
+  const current = yield* billing.usageAllowance(orgId, effectiveNow);
+  if (!workspaceAllowanceNeedsStripeRefresh(current)) return current;
+  return yield* refreshWorkspaceAllowance(orgId, current, effectiveNow);
 });
 
 /**

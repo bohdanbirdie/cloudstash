@@ -1,9 +1,15 @@
-import { Effect, Match, Option, Schema } from "effect";
+import { DateTime, Effect, Layer, Match, Option, Schema } from "effect";
 
 import { OrgId } from "../db/branded";
-import { maskId } from "../log-utils";
+import { DbClientLive } from "../db/service";
+import { maskId, safeErrorInfo } from "../log-utils";
 import type { Env } from "../shared";
+import {
+  refreshWorkspaceAllowance,
+  workspaceAllowanceNeedsStripeRefresh,
+} from "./assistant-allowance";
 import { Billing } from "./service";
+import { StripeClientLive } from "./stripe-client";
 import { UsageReservation } from "./usage-meter";
 
 export const ExternalCallAllowance = Schema.Struct({
@@ -45,9 +51,36 @@ export class ExternalCallWorkspaceUnavailableError extends Schema.TaggedErrorCla
 ) {}
 
 export const externalCallAllowance = Effect.fn("Billing.externalCallAllowance")(
-  function* (orgId: OrgId) {
+  function* (env: Env, orgId: OrgId) {
     const billing = yield* Billing;
-    const allowance = yield* billing.usageAllowance(orgId);
+    const now = yield* DateTime.nowAsDate;
+    const current = yield* billing.usageAllowance(orgId, now);
+    const allowance = yield* Match.value(
+      workspaceAllowanceNeedsStripeRefresh(current)
+    ).pipe(
+      Match.when(true, () =>
+        refreshWorkspaceAllowance(orgId, current, now).pipe(
+          Effect.catchTag("StripeApiError", (error) =>
+            Effect.logError("External call usage cycle refresh failed").pipe(
+              Effect.annotateLogs({
+                orgId: maskId(orgId),
+                ...safeErrorInfo(error),
+              }),
+              Effect.andThen(
+                Effect.fail(
+                  new ExternalCallAllowanceUnavailableError({ orgId })
+                )
+              )
+            )
+          ),
+          Effect.provide(
+            Layer.merge(DbClientLive(env.DB), StripeClientLive(env))
+          )
+        )
+      ),
+      Match.when(false, () => Effect.succeed(current)),
+      Match.exhaustive
+    );
     return yield* Option.match(allowance.usageWindow, {
       onNone: () =>
         Effect.fail(new ExternalCallAllowanceUnavailableError({ orgId })),
@@ -104,7 +137,7 @@ export const reserveExternalCallForAllowance = Effect.fn(
 
 export const reserveExternalCall = Effect.fn("Billing.reserveExternalCall")(
   function* (env: Env, orgId: OrgId) {
-    const allowance = yield* externalCallAllowance(orgId);
+    const allowance = yield* externalCallAllowance(env, orgId);
     return yield* reserveExternalCallForAllowance(env, orgId, allowance);
   }
 );
