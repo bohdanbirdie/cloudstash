@@ -89,6 +89,12 @@ import {
 import { handleMcpRequest } from "./mcp/server";
 import { metadataRequestToResponse } from "./metadata/service";
 import { requirePermission } from "./middleware/authorize";
+import {
+  addWideEvent,
+  annotateHonoRoute,
+  observeFetch,
+  observeOperation,
+} from "./observability/wide-event";
 import { handleGetMe, handleGetOrg } from "./org";
 import { handleDlqBatch, handleQueueBatch } from "./queue-handler";
 import { runHandler } from "./runtime";
@@ -135,13 +141,15 @@ const enforceRateLimit = async (
   const { success } = await env.SYNC_RATE_LIMITER.limit({ key: ip });
 
   if (!success) {
-    logger.warn("Rate limited", { ip, path: new URL(request.url).pathname });
+    addWideEvent({ rateLimit: { scope: "edge", outcome: "limited" } });
+    logger.warn("Rate limited", { path: new URL(request.url).pathname });
     return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
       headers: { "Content-Type": "application/json", "Retry-After": "60" },
       status: 429,
     });
   }
 
+  addWideEvent({ rateLimit: { scope: "edge", outcome: "passed" } });
   return null;
 };
 
@@ -154,6 +162,8 @@ const checkRateLimit = (
     : Promise.resolve(null);
 
 const app = new Hono<{ Bindings: Env; Variables: HonoVariables }>();
+
+app.use("*", annotateHonoRoute);
 
 app.use(
   "/api/auth/oauth2/register",
@@ -382,6 +392,7 @@ app.post("/api/telegram", (c) => handleTelegramWebhook(c.req.raw, c.env));
 app.get("/api/sync/auth", async (c) => {
   const rawStoreId = c.req.query("storeId");
   if (!rawStoreId) {
+    addWideEvent({ sync: { outcome: "invalid_request" } });
     logger.warn("Sync auth missing storeId");
     return c.json({ error: "Missing storeId" }, 400);
   }
@@ -403,6 +414,10 @@ app.get("/api/sync/auth", async (c) => {
   );
 
   if ("ok" in result) {
+    addWideEvent({
+      auth: { method: "session", outcome: "success" },
+      sync: { outcome: "authorized" },
+    });
     logger.debug("Sync auth success");
     trackEvent(c.env.USAGE_ANALYTICS, {
       userId: result.userId,
@@ -411,6 +426,14 @@ app.get("/api/sync/auth", async (c) => {
     });
     return c.json({ ok: result.ok });
   }
+  addWideEvent({
+    auth: {
+      method: "session",
+      outcome: result.status === 503 ? "unavailable" : "denied",
+      reasonCode: result.code,
+    },
+    sync: { outcome: "auth_rejected" },
+  });
   logger.info("Sync auth failed", { code: result.code, status: result.status });
   return c.json(result, result.status as 401 | 403 | 503);
 });
@@ -423,6 +446,7 @@ const handleSync = async (
   const searchParams = SyncBackend.matchSyncRequest(request);
 
   if (!searchParams) {
+    addWideEvent({ sync: { outcome: "invalid_request" } });
     logger.warn("Invalid sync request");
     return new Response(JSON.stringify({ error: "Invalid sync request" }), {
       headers: { "Content-Type": "application/json" },
@@ -438,10 +462,21 @@ const handleSync = async (
   );
 
   if (authResult instanceof Response) {
+    addWideEvent({
+      auth: {
+        method: "session",
+        outcome: authResult.status === 503 ? "unavailable" : "denied",
+      },
+      sync: { outcome: "auth_rejected" },
+    });
     logger.info("Sync auth rejected", { status: authResult.status });
     return authResult;
   }
 
+  addWideEvent({
+    auth: { method: "session", outcome: "success" },
+    sync: { outcome: "started" },
+  });
   trackEvent(env.USAGE_ANALYTICS, {
     userId: authResult.userId,
     event: "sync",
@@ -451,7 +486,7 @@ const handleSync = async (
   return handleSyncRequest(request, searchParams, ctx, env);
 };
 
-export const fetch = async (
+const fetchUnobserved = async (
   request: CfTypes.Request,
   env: Env,
   ctx: CfTypes.ExecutionContext
@@ -479,38 +514,56 @@ export const fetch = async (
   return app.fetch(request, env, ctx);
 };
 
-export const queue = (batch: MessageBatch, env: Env): Promise<void> => {
-  if (
-    batch.queue === "cloudstash-x-reconcile" ||
-    batch.queue === "cloudstash-staging-x-reconcile"
-  ) {
-    return handleXReconcileBatch(batch, env);
-  }
+export const fetch = observeFetch(fetchUnobserved);
 
-  if (
-    batch.queue === "cloudstash-link-queue" ||
-    batch.queue === "cloudstash-staging-link-queue"
-  ) {
-    return handleQueueBatch(batch, env);
-  }
+export const queue = (batch: MessageBatch, env: Env): Promise<void> =>
+  observeOperation(
+    {
+      event: { name: "queue.batch", trigger: "queue" },
+      component: "worker",
+      queue: { name: batch.queue, batchSize: batch.messages.length },
+    },
+    () => {
+      if (
+        batch.queue === "cloudstash-x-reconcile" ||
+        batch.queue === "cloudstash-staging-x-reconcile"
+      ) {
+        return handleXReconcileBatch(batch, env);
+      }
 
-  if (
-    batch.queue === "cloudstash-link-dlq" ||
-    batch.queue === "cloudstash-staging-link-dlq"
-  ) {
-    return handleDlqBatch(batch, env);
-  }
+      if (
+        batch.queue === "cloudstash-link-queue" ||
+        batch.queue === "cloudstash-staging-link-queue"
+      ) {
+        return handleQueueBatch(batch, env);
+      }
 
-  batch.retryAll();
-  return Promise.resolve();
-};
+      if (
+        batch.queue === "cloudstash-link-dlq" ||
+        batch.queue === "cloudstash-staging-link-dlq"
+      ) {
+        return handleDlqBatch(batch, env);
+      }
+
+      batch.retryAll();
+      return Promise.resolve();
+    }
+  );
 
 export const scheduled = (
   _controller: ScheduledController,
   env: Env,
   ctx: CfTypes.ExecutionContext
 ): void => {
-  ctx.waitUntil(runXReconcileRepair(env));
+  ctx.waitUntil(
+    observeOperation(
+      {
+        event: { name: "x.reconcile.repair", trigger: "scheduled" },
+        component: "worker",
+      },
+      () => runXReconcileRepair(env)
+    )
+  );
 };
 
 export default { fetch, queue, scheduled };

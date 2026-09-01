@@ -56,8 +56,22 @@ Effect spans are not exported through a configured OTLP backend.
 Operational evidence includes Cloudflare invocation logs/traces, structured
 Effect logs, Analytics Engine usage, aggregate D1 activity, DO rows-written
 counters/logs, queue attempt/delay logs, and scripts such as
-`scripts/do-metrics.sh`. Current telemetry is not yet compliant with the
-minimization requirement: several paths log full URLs or stable identifiers
+`scripts/do-metrics.sh`.
+
+**Experimental:** each top-level Worker HTTP, Queue, and scheduled operation
+emits one application wide event. An exact-pinned evlog dependency owns the
+request lifecycle and final emission behind Cloudstash's typed adapter; Hono
+route templates and explicitly selected business dimensions enrich the event.
+The adapter excludes caller-controlled request IDs and raw URLs, IP addresses,
+user agents, stable user/workspace identifiers, secrets, and error text. It
+also applies a final explicit redaction list before emission. Cloudflare Workers
+Logs remains the only event transport and native Cloudflare OTLP export may
+forward those platform logs and traces; Cloudstash does not configure an evlog
+network drain. Effect logs remain correlated diagnostic records rather than
+being copied wholesale into the wide event.
+
+Current telemetry is not yet fully compliant with the minimization requirement:
+several older paths log full URLs or stable identifiers
 ([DELTA-016](../.delta/DELTA-016-telemetry-emits-raw-content-and-identifiers.md)),
 and D1 activity stores link IDs/domain metadata that survive deletion
 ([DELTA-013](../.delta/DELTA-013-activity-analytics-retain-content-after-deletion.md)).

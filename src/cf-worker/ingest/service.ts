@@ -15,6 +15,7 @@ import { requireCapability } from "../billing/service";
 import type { OrgId } from "../db/branded";
 import type { LinkQueueMessage } from "../link-processor/types";
 import { maskId, safeErrorInfo } from "../log-utils";
+import { annotateWideEvent } from "../observability/wide-event";
 import { provideResponse } from "../runtime";
 import type { Env } from "../shared";
 import {
@@ -87,20 +88,49 @@ export const handleIngestRequest = Effect.fnUntraced(function* (
   request: Request,
   env: Env
 ) {
+  yield* annotateWideEvent({ ingest: { requested: 1 } });
   const apiKey = yield* Effect.fromOption(bearerApiKey(request.headers), () =>
     IngestMissingApiKeyError.make({})
+  ).pipe(
+    Effect.tapError(() =>
+      annotateWideEvent({
+        auth: {
+          method: "api_key",
+          outcome: "missing",
+          reasonCode: "api_key_missing",
+        },
+      })
+    )
   );
   const workspaceAccess = yield* WorkspaceAccess;
   const {
     orgId,
     source: keySource,
     userId,
-  } = yield* workspaceAccess
-    .authorizeApiKey(apiKey)
-    .pipe(Effect.mapError(translateWorkspaceAccess));
+  } = yield* workspaceAccess.authorizeApiKey(apiKey).pipe(
+    Effect.mapError(translateWorkspaceAccess),
+    Effect.tapError((error) =>
+      annotateWideEvent({
+        auth: {
+          method: "api_key",
+          outcome:
+            error._tag === "IngestAuthBackendError"
+              ? "unavailable"
+              : error._tag === "IngestAccessDeniedError"
+                ? "denied"
+                : "invalid",
+          reasonCode: error._tag,
+        },
+      })
+    )
+  );
 
   const source: IngestSource = keySource === "raycast" ? "raycast" : "api";
   const capability = source === "raycast" ? "integrations" : "publicApi";
+  yield* annotateWideEvent({
+    auth: { method: "api_key", outcome: "success" },
+    ingest: { source },
+  });
 
   yield* Effect.logDebug("API key verified").pipe(
     Effect.annotateLogs({ orgId: maskId(orgId) })
@@ -123,6 +153,7 @@ export const handleIngestRequest = Effect.fnUntraced(function* (
     Effect.mapError(() => IngestMissingUrlError.make({}))
   );
   yield* enqueueLink(orgId, source, url, env);
+  yield* annotateWideEvent({ ingest: { accepted: 1 } });
 
   return { ok: true, result: { status: "queued" } };
 });

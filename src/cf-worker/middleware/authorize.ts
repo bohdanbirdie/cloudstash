@@ -6,6 +6,7 @@ import { hasPermission } from "@/lib/permissions";
 
 import { AuthClient } from "../auth/service";
 import { logSync } from "../logger";
+import { addWideEvent } from "../observability/wide-event";
 import { getAppLayer } from "../runtime";
 import type { AdminSession, Env } from "../shared";
 
@@ -60,13 +61,28 @@ export const requirePermission = (permission: Permission) =>
 
     if ("error" in result) {
       if (result.error._tag === "UnauthorizedError") {
+        addWideEvent({
+          auth: {
+            method: "session",
+            outcome: "invalid",
+            reasonCode: "session_missing_or_invalid",
+          },
+        });
         logger.debug("Authz - unauthorized");
         return c.json({ error: "Unauthorized" }, 401);
       }
+      addWideEvent({
+        auth: {
+          method: "session",
+          outcome: "denied",
+          reasonCode: "permission_denied",
+        },
+      });
       logger.info("Authz - forbidden (insufficient permission)");
       return c.json({ error: "Admin access required" }, 403);
     }
 
+    addWideEvent({ auth: { method: "session", outcome: "success" } });
     c.set("session", result.session as AdminSession);
     await next();
   });

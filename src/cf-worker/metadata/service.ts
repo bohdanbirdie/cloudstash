@@ -9,6 +9,7 @@ import {
   fetchBoundedText,
   HttpTargetUrl,
 } from "../net/bounded-fetch";
+import { annotateWideEvent } from "../observability/wide-event";
 import {
   MetadataFetchError,
   MetadataInvalidTargetError,
@@ -87,6 +88,12 @@ export const fetchOgMetadata = Effect.fnUntraced(function* (
   });
 
   if (extracted) {
+    yield* annotateWideEvent({
+      metadata: {
+        extractor: extracted.extractor,
+        extractorAuthoritative: extracted.authoritative,
+      },
+    });
     yield* Effect.annotateCurrentSpan({
       extractor: extracted.extractor,
       extractorAuthoritative: extracted.authoritative,
@@ -158,6 +165,9 @@ const handleMetadataRequest = Effect.fnUntraced(function* (
   const authorization = yield* workspaceAccess.authorizeSession(
     request.headers
   );
+  yield* annotateWideEvent({
+    auth: { method: "session", outcome: "success" },
+  });
 
   const rateLimitResult = yield* Effect.tryPromise({
     try: () => rateLimiter.limit({ key: authorization.userId }),
@@ -169,14 +179,23 @@ const handleMetadataRequest = Effect.fnUntraced(function* (
     Effect.mapError((cause) => new MetadataRateLimitBackendError({ cause }))
   );
   if (!rateLimit.success) {
+    yield* annotateWideEvent({
+      rateLimit: { scope: "metadata", outcome: "limited" },
+    });
     return yield* new MetadataRateLimitedError({
       retryAfterSeconds: RATE_LIMIT_RETRY_SECONDS,
     });
   }
+  yield* annotateWideEvent({
+    rateLimit: { scope: "metadata", outcome: "passed" },
+  });
 
   const requestUrl = new URL(request.url);
   const target = requestUrl.searchParams.get("url");
-  if (target === null) return yield* new MetadataMissingUrlError();
+  if (target === null) {
+    yield* annotateWideEvent({ metadata: { outcome: "missing_url" } });
+    return yield* new MetadataMissingUrlError();
+  }
 
   const metadata = yield* fetchOgMetadata(target, {
     fetcher,
@@ -190,12 +209,21 @@ const handleMetadataRequest = Effect.fnUntraced(function* (
       hasTitle: metadata.title !== undefined,
     })
   );
+  yield* annotateWideEvent({
+    metadata: {
+      outcome: "success",
+      hasDescription: metadata.description !== undefined,
+      hasImage: metadata.image !== undefined,
+      hasTitle: metadata.title !== undefined,
+    },
+  });
   return metadata;
 });
 
 export const metadataErrorToResponse = Effect.fnUntraced(function* (
   error: MetadataError
 ) {
+  yield* annotateWideEvent({ metadata: { outcome: error._tag } });
   return yield* Match.typeTags<MetadataError, Effect.Effect<Response>>()({
     MetadataFetchError: (failure) =>
       Effect.logWarning("Metadata preview fetch failed").pipe(
