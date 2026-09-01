@@ -18,12 +18,12 @@ type MiddlewareEnv = {
   };
 };
 
-class UnauthorizedError extends Schema.TaggedError<UnauthorizedError>()(
+class UnauthorizedError extends Schema.TaggedErrorClass<UnauthorizedError>()(
   "UnauthorizedError",
   {}
 ) {}
 
-class ForbiddenError extends Schema.TaggedError<ForbiddenError>()(
+class ForbiddenError extends Schema.TaggedErrorClass<ForbiddenError>()(
   "ForbiddenError",
   {}
 ) {}

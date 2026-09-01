@@ -26,7 +26,7 @@ import { Events, makeSchema, Schema, State } from "@livestore/livestore";
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  */
 
-const EventDate = Schema.DateFromString;
+const EventDate = Schema.DateFromString.check(Schema.isDateValid());
 
 export const tables = {
   linkInteractions: State.SQLite.table({

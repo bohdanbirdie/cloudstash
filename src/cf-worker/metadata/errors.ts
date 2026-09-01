@@ -2,7 +2,7 @@ import { Effect, Schema } from "effect";
 
 import { BoundedFetchReason } from "../net/bounded-fetch";
 
-export class MetadataFetchError extends Schema.TaggedError<MetadataFetchError>()(
+export class MetadataFetchError extends Schema.TaggedErrorClass<MetadataFetchError>()(
   "MetadataFetchError",
   {
     errorType: Schema.optional(Schema.String),
@@ -11,14 +11,14 @@ export class MetadataFetchError extends Schema.TaggedError<MetadataFetchError>()
   }
 ) {}
 
-export class MetadataParseError extends Schema.TaggedError<MetadataParseError>()(
+export class MetadataParseError extends Schema.TaggedErrorClass<MetadataParseError>()(
   "MetadataParseError",
   {
     errorType: Schema.String,
   }
 ) {}
 
-export class MetadataMissingUrlError extends Schema.TaggedError<MetadataMissingUrlError>()(
+export class MetadataMissingUrlError extends Schema.TaggedErrorClass<MetadataMissingUrlError>()(
   "MetadataMissingUrlError",
   {
     message: Schema.String.pipe(
@@ -27,19 +27,19 @@ export class MetadataMissingUrlError extends Schema.TaggedError<MetadataMissingU
   }
 ) {}
 
-export class MetadataInvalidTargetError extends Schema.TaggedError<MetadataInvalidTargetError>()(
+export class MetadataInvalidTargetError extends Schema.TaggedErrorClass<MetadataInvalidTargetError>()(
   "MetadataInvalidTargetError",
   {}
 ) {}
 
-export class MetadataRateLimitedError extends Schema.TaggedError<MetadataRateLimitedError>()(
+export class MetadataRateLimitedError extends Schema.TaggedErrorClass<MetadataRateLimitedError>()(
   "MetadataRateLimitedError",
   {
     retryAfterSeconds: Schema.Number,
   }
 ) {}
 
-export class MetadataRateLimitBackendError extends Schema.TaggedError<MetadataRateLimitBackendError>()(
+export class MetadataRateLimitBackendError extends Schema.TaggedErrorClass<MetadataRateLimitBackendError>()(
   "MetadataRateLimitBackendError",
   {
     cause: Schema.Defect(),

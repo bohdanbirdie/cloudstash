@@ -90,7 +90,7 @@ const ResolvedChatAllowance = Schema.Struct({
 });
 type ResolvedChatAllowance = Schema.Schema.Type<typeof ResolvedChatAllowance>;
 
-class ChatUsageRpcError extends Schema.TaggedError<ChatUsageRpcError>()(
+class ChatUsageRpcError extends Schema.TaggedErrorClass<ChatUsageRpcError>()(
   "ChatUsageRpcError",
   {
     operation: Schema.String,

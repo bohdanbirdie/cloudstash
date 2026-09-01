@@ -14,7 +14,7 @@ import {
 import { XReconcileQueue } from "../x-sync/reconcile-queue";
 import { enqueueOrgXReconcile } from "../x-sync/reconcile-triggers";
 
-class InvalidBodyError extends Schema.TaggedError<InvalidBodyError>()(
+class InvalidBodyError extends Schema.TaggedErrorClass<InvalidBodyError>()(
   "InvalidBodyError",
   {
     cause: Schema.Defect(),

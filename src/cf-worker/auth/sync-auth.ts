@@ -9,7 +9,7 @@ export type SyncAuthErrorCode =
   | "UNAPPROVED"
   | "UNKNOWN";
 
-export class SyncAuthError extends Schema.TaggedError<SyncAuthError>()(
+export class SyncAuthError extends Schema.TaggedErrorClass<SyncAuthError>()(
   "SyncAuthError",
   {
     status: Schema.Number,

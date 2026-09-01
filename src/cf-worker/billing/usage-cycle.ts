@@ -16,9 +16,9 @@ export type AssistantUsageWindow = Schema.Schema.Type<
 export const UsageCycleState = Schema.Struct({
   source: Schema.Literals(["stripe", "admin"]),
   billingInterval: Schema.NullOr(Schema.Literals(["month", "year"])),
-  currentPeriodStart: Schema.NullOr(Schema.Date),
-  currentPeriodEnd: Schema.NullOr(Schema.Date),
-  usageCycleAnchor: Schema.NullOr(Schema.Date),
+  currentPeriodStart: Schema.NullOr(Schema.DateValid),
+  currentPeriodEnd: Schema.NullOr(Schema.DateValid),
+  usageCycleAnchor: Schema.NullOr(Schema.DateValid),
 });
 export type UsageCycleState = Schema.Schema.Type<typeof UsageCycleState>;
 

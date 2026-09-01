@@ -8,7 +8,7 @@ import { maskId } from "../log-utils";
 import { ConnectUnauthorizedError, SessionLookupError } from "./errors";
 import type { KeyCreationError } from "./errors";
 
-export class InvalidVerificationPayloadError extends Schema.TaggedError<InvalidVerificationPayloadError>()(
+export class InvalidVerificationPayloadError extends Schema.TaggedErrorClass<InvalidVerificationPayloadError>()(
   "InvalidVerificationPayloadError",
   {
     identifier: Schema.String,

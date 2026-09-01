@@ -5,7 +5,7 @@ import { PLAN_ORDER } from "@/lib/plan";
 
 import { OrgId } from "../db/branded";
 
-export class CapabilityDisabledError extends Schema.TaggedError<CapabilityDisabledError>()(
+export class CapabilityDisabledError extends Schema.TaggedErrorClass<CapabilityDisabledError>()(
   "CapabilityDisabledError",
   {
     orgId: OrgId,
@@ -28,7 +28,7 @@ export class CapabilityDisabledError extends Schema.TaggedError<CapabilityDisabl
   }
 }
 
-export class StripeApiError extends Schema.TaggedError<StripeApiError>()(
+export class StripeApiError extends Schema.TaggedErrorClass<StripeApiError>()(
   "StripeApiError",
   {
     message: Schema.String,
@@ -38,7 +38,7 @@ export class StripeApiError extends Schema.TaggedError<StripeApiError>()(
   }
 ) {}
 
-export class StripeConfigError extends Schema.TaggedError<StripeConfigError>()(
+export class StripeConfigError extends Schema.TaggedErrorClass<StripeConfigError>()(
   "StripeConfigError",
   {
     message: Schema.String,
@@ -47,7 +47,7 @@ export class StripeConfigError extends Schema.TaggedError<StripeConfigError>()(
   }
 ) {}
 
-export class WebhookVerificationError extends Schema.TaggedError<WebhookVerificationError>()(
+export class WebhookVerificationError extends Schema.TaggedErrorClass<WebhookVerificationError>()(
   "WebhookVerificationError",
   {
     message: Schema.String,

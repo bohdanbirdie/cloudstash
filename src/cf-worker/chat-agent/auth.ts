@@ -4,14 +4,14 @@ import { Billing } from "../billing/service";
 import { OrgId } from "../db/branded";
 import { maskId } from "../log-utils";
 
-export class ChatFeatureDisabledError extends Schema.TaggedError<ChatFeatureDisabledError>()(
+export class ChatFeatureDisabledError extends Schema.TaggedErrorClass<ChatFeatureDisabledError>()(
   "ChatFeatureDisabledError",
   {
     orgId: OrgId,
   }
 ) {}
 
-export class FeatureCheckUnavailableError extends Schema.TaggedError<FeatureCheckUnavailableError>()(
+export class FeatureCheckUnavailableError extends Schema.TaggedErrorClass<FeatureCheckUnavailableError>()(
   "FeatureCheckUnavailableError",
   {
     orgId: OrgId,
@@ -19,14 +19,14 @@ export class FeatureCheckUnavailableError extends Schema.TaggedError<FeatureChec
   }
 ) {}
 
-export class UnknownAgentPartyError extends Schema.TaggedError<UnknownAgentPartyError>()(
+export class UnknownAgentPartyError extends Schema.TaggedErrorClass<UnknownAgentPartyError>()(
   "UnknownAgentPartyError",
   {
     party: Schema.String,
   }
 ) {}
 
-export class UnknownChatSessionError extends Schema.TaggedError<UnknownChatSessionError>()(
+export class UnknownChatSessionError extends Schema.TaggedErrorClass<UnknownChatSessionError>()(
   "UnknownChatSessionError",
   {
     agentName: Schema.String,

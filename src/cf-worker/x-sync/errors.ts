@@ -4,21 +4,21 @@ import { Schema } from "effect";
 // convention in `link-processor/errors.ts`, `invites/errors.ts`, etc., so
 // `Effect.catchTag(s)` calls stay readable across the codebase.
 
-export class XUnauthorizedError extends Schema.TaggedError<XUnauthorizedError>()(
+export class XUnauthorizedError extends Schema.TaggedErrorClass<XUnauthorizedError>()(
   "XUnauthorizedError",
   {
     endpoint: Schema.String,
   }
 ) {}
 
-export class XPaymentRequiredError extends Schema.TaggedError<XPaymentRequiredError>()(
+export class XPaymentRequiredError extends Schema.TaggedErrorClass<XPaymentRequiredError>()(
   "XPaymentRequiredError",
   {
     endpoint: Schema.String,
   }
 ) {}
 
-export class XRateLimitedError extends Schema.TaggedError<XRateLimitedError>()(
+export class XRateLimitedError extends Schema.TaggedErrorClass<XRateLimitedError>()(
   "XRateLimitedError",
   {
     endpoint: Schema.String,
@@ -26,14 +26,17 @@ export class XRateLimitedError extends Schema.TaggedError<XRateLimitedError>()(
   }
 ) {}
 
-export class XApiError extends Schema.TaggedError<XApiError>()("XApiError", {
-  endpoint: Schema.String,
-  status: Schema.Number,
-  message: Schema.String,
-  cause: Schema.optional(Schema.Unknown),
-}) {}
+export class XApiError extends Schema.TaggedErrorClass<XApiError>()(
+  "XApiError",
+  {
+    endpoint: Schema.String,
+    status: Schema.Number,
+    message: Schema.String,
+    cause: Schema.optional(Schema.Unknown),
+  }
+) {}
 
-export class XSyncStorageError extends Schema.TaggedError<XSyncStorageError>()(
+export class XSyncStorageError extends Schema.TaggedErrorClass<XSyncStorageError>()(
   "XSyncStorageError",
   {
     op: Schema.String,
@@ -41,7 +44,7 @@ export class XSyncStorageError extends Schema.TaggedError<XSyncStorageError>()(
   }
 ) {}
 
-export class XSyncSideEffectError extends Schema.TaggedError<XSyncSideEffectError>()(
+export class XSyncSideEffectError extends Schema.TaggedErrorClass<XSyncSideEffectError>()(
   "XSyncSideEffectError",
   {
     op: Schema.String,

@@ -215,7 +215,7 @@ describe("MCP link tools", () => {
       expect(unknownTopLevel).toMatchObject({ isError: true });
       expect(unknownTopLevel.content).toContainEqual(
         expect.objectContaining({
-          text: expect.stringContaining("Expected no excess property"),
+          text: expect.stringContaining("Unexpected key"),
         })
       );
 
@@ -229,7 +229,7 @@ describe("MCP link tools", () => {
       expect(unknownNested).toMatchObject({ isError: true });
       expect(unknownNested.content).toContainEqual(
         expect.objectContaining({
-          text: expect.stringContaining("Expected no excess property"),
+          text: expect.stringContaining("Unexpected key"),
         })
       );
 
@@ -239,9 +239,7 @@ describe("MCP link tools", () => {
       });
       expect(explicitNull).toMatchObject({ isError: true });
       expect(explicitNull.content).toContainEqual(
-        expect.objectContaining({
-          text: expect.stringContaining("Expected number"),
-        })
+        expect.objectContaining({ text: expect.stringContaining("got null") })
       );
 
       const omitted = await client.callTool({

@@ -2,7 +2,7 @@ import { Schema } from "effect";
 
 import type { XTweetId } from "../db/branded";
 
-export class XBookmarkAdmissionError extends Schema.TaggedError<XBookmarkAdmissionError>()(
+export class XBookmarkAdmissionError extends Schema.TaggedErrorClass<XBookmarkAdmissionError>()(
   "XBookmarkAdmissionError",
   {
     op: Schema.String,

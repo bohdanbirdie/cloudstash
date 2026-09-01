@@ -16,12 +16,12 @@ import StripeSdk from "stripe";
 import { PLAN_ORDER, PLANS } from "../src/lib/plan";
 import type { BillingInterval, PlanTier } from "../src/lib/plan";
 
-class MissingApiKey extends Schema.TaggedError<MissingApiKey>()(
+class MissingApiKey extends Schema.TaggedErrorClass<MissingApiKey>()(
   "MissingApiKey",
   {}
 ) {}
 
-class PriceMismatch extends Schema.TaggedError<PriceMismatch>()(
+class PriceMismatch extends Schema.TaggedErrorClass<PriceMismatch>()(
   "PriceMismatch",
   {
     tier: Schema.Literals(PLAN_ORDER),
@@ -30,7 +30,7 @@ class PriceMismatch extends Schema.TaggedError<PriceMismatch>()(
   }
 ) {}
 
-class PricingDrift extends Schema.TaggedError<PricingDrift>()(
+class PricingDrift extends Schema.TaggedErrorClass<PricingDrift>()(
   "PricingDrift",
   {}
 ) {}

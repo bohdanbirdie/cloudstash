@@ -12,7 +12,7 @@ import type {
   RateLimitError,
 } from "./errors";
 
-export class TelegramBotApiError extends Schema.TaggedError<TelegramBotApiError>()(
+export class TelegramBotApiError extends Schema.TaggedErrorClass<TelegramBotApiError>()(
   "TelegramBotApiError",
   {
     op: Schema.Literals(["sendMessage", "getMe"]),

@@ -11,7 +11,7 @@ export const XReconcileMessage = Schema.Struct({
 });
 export type XReconcileMessage = typeof XReconcileMessage.Type;
 
-export class XReconcileQueueError extends Schema.TaggedError<XReconcileQueueError>()(
+export class XReconcileQueueError extends Schema.TaggedErrorClass<XReconcileQueueError>()(
   "XReconcileQueueError",
   {
     message: Schema.String,

@@ -1,13 +1,13 @@
 import { Effect, Schema } from "effect";
 
-export class LinkProcessorInvalidUrlError extends Schema.TaggedError<LinkProcessorInvalidUrlError>()(
+export class LinkProcessorInvalidUrlError extends Schema.TaggedErrorClass<LinkProcessorInvalidUrlError>()(
   "LinkProcessorInvalidUrlError",
   {
     url: Schema.String,
   }
 ) {}
 
-export class AiCallError extends Schema.TaggedError<AiCallError>()(
+export class AiCallError extends Schema.TaggedErrorClass<AiCallError>()(
   "AiCallError",
   {
     message: Schema.String.pipe(
@@ -30,7 +30,7 @@ export const ContentExtractionReason = Schema.Literals([
 ]);
 export type ContentExtractionReason = typeof ContentExtractionReason.Type;
 
-export class ContentExtractionError extends Schema.TaggedError<ContentExtractionError>()(
+export class ContentExtractionError extends Schema.TaggedErrorClass<ContentExtractionError>()(
   "ContentExtractionError",
   {
     message: Schema.String.pipe(

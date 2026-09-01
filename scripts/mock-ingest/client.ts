@@ -11,7 +11,7 @@ const bearer = (apiKey: string): Record<string, string> => ({
   Authorization: `Bearer ${apiKey}`,
 });
 
-export class IngestError extends Schema.TaggedError<IngestError>()(
+export class IngestError extends Schema.TaggedErrorClass<IngestError>()(
   "IngestError",
   {
     url: Schema.String,
@@ -20,10 +20,13 @@ export class IngestError extends Schema.TaggedError<IngestError>()(
   }
 ) {}
 
-export class LinksError extends Schema.TaggedError<LinksError>()("LinksError", {
-  status: Schema.Number, // 0 = network/transport error
-  body: Schema.String,
-}) {}
+export class LinksError extends Schema.TaggedErrorClass<LinksError>()(
+  "LinksError",
+  {
+    status: Schema.Number, // 0 = network/transport error
+    body: Schema.String,
+  }
+) {}
 
 export interface IngestOk {
   url: string;

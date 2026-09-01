@@ -69,7 +69,7 @@ const WorkspaceLinkBatchUpdateResult = Schema.Struct({
   nextCursor: Schema.NullOr(Schema.String),
 });
 
-export class WorkspaceLinksRemoteError extends Schema.TaggedError<WorkspaceLinksRemoteError>()(
+export class WorkspaceLinksRemoteError extends Schema.TaggedErrorClass<WorkspaceLinksRemoteError>()(
   "WorkspaceLinksRemoteError",
   {
     code: Schema.Literals([

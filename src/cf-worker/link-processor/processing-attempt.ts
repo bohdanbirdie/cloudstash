@@ -6,7 +6,7 @@ export const ProcessingAttempt = Schema.Struct({
 });
 export type ProcessingAttempt = typeof ProcessingAttempt.Type;
 
-export class ProcessingAttemptStorageError extends Schema.TaggedError<ProcessingAttemptStorageError>()(
+export class ProcessingAttemptStorageError extends Schema.TaggedErrorClass<ProcessingAttemptStorageError>()(
   "ProcessingAttemptStorageError",
   {
     operation: Schema.Literals(["read-or-create", "read-status", "delete"]),
