@@ -14,8 +14,13 @@ import { useOrgFeatures } from "@/hooks/use-org-features";
 import { track } from "@/lib/analytics";
 import { parseHttpUrl } from "@/lib/http-url";
 import { displayTitle } from "@/lib/link-display";
+import { retainedLinkSafetyCeiling } from "@/lib/plan";
 import { formatAgo } from "@/lib/time-ago";
-import { allLinksCount$, linkById$ } from "@/livestore/queries/links";
+import {
+  allLinksCount$,
+  anyLinksCount$,
+  linkById$,
+} from "@/livestore/queries/links";
 import { events, schema, tables } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
 import { usePaywall } from "@/stores/paywall-store";
@@ -96,7 +101,9 @@ export function AddLinkProvider({ children }: { children: ReactNode }) {
   const store = useAppStore();
   const openDetail = useRightPaneStore((s) => s.openDetail);
   const activeLinks = store.useQuery(allLinksCount$);
+  const retainedLinks = store.useQuery(anyLinksCount$);
   const { capabilities, isFallback, isLoading, tier } = useOrgFeatures();
+  const retainedLinkCeiling = retainedLinkSafetyCeiling(capabilities);
   const openPaywall = usePaywall((state) => state.openPaywall);
 
   const addLink = useCallback(
@@ -163,6 +170,13 @@ export function AddLinkProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      if (!isLoading && !isFallback && retainedLinks >= retainedLinkCeiling) {
+        toast.error("This library has reached its storage safety limit", {
+          description: "Contact support if you need help making more room.",
+        });
+        return;
+      }
+
       const domain = parsed.hostname;
       const linkId = crypto.randomUUID();
       const now = new Date();
@@ -192,6 +206,8 @@ export function AddLinkProvider({ children }: { children: ReactNode }) {
       isLoading,
       openDetail,
       openPaywall,
+      retainedLinkCeiling,
+      retainedLinks,
       store,
       tier,
     ]

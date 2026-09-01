@@ -30,6 +30,8 @@ payload and workspace, records aggregate usage, and routes to the
 workspace-named `SyncBackendDO`. The backend persists accepted event history and
 broadcasts live updates. Its `onPush` hook:
 
+- rejects link-creation batches before persistence when they would cross the
+  workspace's private retained-history safety ceiling;
 - wakes the link processor for link-created/reprocess events;
 - mirrors selected lifecycle facts to aggregate D1 activity asynchronously;
 - logs a warning when a processor push parent is far behind the backend head.

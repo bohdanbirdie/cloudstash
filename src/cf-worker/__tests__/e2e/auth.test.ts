@@ -55,6 +55,81 @@ describe("organization Auth E2E", () => {
     });
   });
 
+  describe("personal workspace boundary", () => {
+    it("rejects session-created organizations", async () => {
+      const res = await SELF.fetch(
+        "http://worker/api/auth/organization/create",
+        {
+          method: "POST",
+          headers: {
+            Cookie: userA.cookie,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: "Allowance reset",
+            slug: `allowance-reset-${crypto.randomUUID()}`,
+          }),
+        }
+      );
+
+      expect(res.status).toBe(403);
+      const memberships = await env.DB.prepare(
+        "SELECT COUNT(*) AS count FROM member WHERE user_id = ?"
+      )
+        .bind(userA.userId)
+        .first<{ count: number }>();
+      expect(memberships?.count).toBe(1);
+    });
+
+    it("rejects deletion of the personal organization", async () => {
+      const res = await SELF.fetch(
+        "http://worker/api/auth/organization/delete",
+        {
+          method: "POST",
+          headers: {
+            Cookie: userA.cookie,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ organizationId: userA.orgId }),
+        }
+      );
+
+      expect(res.status).toBe(403);
+      const organization = await env.DB.prepare(
+        "SELECT id FROM organization WHERE id = ?"
+      )
+        .bind(userA.orgId)
+        .first<{ id: string }>();
+      expect(organization?.id).toBe(userA.orgId);
+    });
+
+    it("rejects invitations that could transfer the personal workspace", async () => {
+      const res = await SELF.fetch(
+        "http://worker/api/auth/organization/invite-member",
+        {
+          method: "POST",
+          headers: {
+            Cookie: userA.cookie,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: `workspace-transfer-${crypto.randomUUID()}@test.com`,
+            role: "member",
+            organizationId: userA.orgId,
+          }),
+        }
+      );
+
+      expect(res.status).toBe(403);
+      const invitations = await env.DB.prepare(
+        "SELECT COUNT(*) AS count FROM invitation WHERE organization_id = ?"
+      )
+        .bind(userA.orgId)
+        .first<{ count: number }>();
+      expect(invitations?.count).toBe(0);
+    });
+  });
+
   describe("/api/org/:id", () => {
     it("returns 401 for unauthenticated request", async () => {
       const res = await SELF.fetch(`http://worker/api/org/${userA.orgId}`);

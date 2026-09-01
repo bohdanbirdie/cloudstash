@@ -57,8 +57,13 @@ paid capability instead of enabling a feature whose allowance remains zero.
 
 Archiving removes a link from active capacity. Pro's product-unlimited saved
 links use a zero sentinel in the executable matrix; private abuse controls are
-operational policy rather than a customer allowance. An X enrichment consumes
-both one AI-summary attempt and one X-enrichment attempt.
+operational policy rather than a customer allowance. Retained active plus
+archived history has a deliberately generous private ceiling derived from the
+active allowance, with a high fixed ceiling for product-unlimited workspaces.
+The browser blocks obvious overages for immediate feedback; SyncBackendDO is the
+authoritative boundary and rejects excess link-creation events before canonical
+persistence. An X enrichment consumes both one AI-summary attempt and one
+X-enrichment attempt.
 
 Implemented gates include:
 

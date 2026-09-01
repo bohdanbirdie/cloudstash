@@ -5,6 +5,7 @@ import { Effect, Layer, Option, References } from "effect";
 import {
   capabilitiesFor,
   mergeCapabilities,
+  retainedLinkSafetyCeiling,
   TIER_CAPABILITIES,
 } from "@/lib/plan";
 
@@ -191,6 +192,18 @@ describe("mergeCapabilities", () => {
     expect(
       mergeCapabilities("pro", { publicApi: true }).monthlyExternalCalls
     ).toBe(TIER_CAPABILITIES.pro.monthlyExternalCalls);
+  });
+});
+
+describe("retainedLinkSafetyCeiling", () => {
+  it("keeps archive storage bounded above the active product allowance", () => {
+    expect(retainedLinkSafetyCeiling(capabilitiesFor("free"))).toBe(1_000);
+    expect(retainedLinkSafetyCeiling(capabilitiesFor("plus"))).toBe(5_000);
+    expect(retainedLinkSafetyCeiling(capabilitiesFor("pro"))).toBe(100_000);
+  });
+
+  it("tracks an administrative active-link override", () => {
+    expect(retainedLinkSafetyCeiling({ maxSavedLinks: 250 })).toBe(2_500);
   });
 });
 

@@ -171,6 +171,22 @@ export const TIER_CAPABILITIES: Readonly<Record<PlanTier, TierCapabilities>> = {
 export const capabilitiesFor = (tier: PlanTier): TierCapabilities =>
   TIER_CAPABILITIES[tier];
 
+const PRODUCT_UNLIMITED_RETAINED_LINK_CEILING = 100_000;
+const RETAINED_LINK_CEILING_MULTIPLIER = 10;
+
+/**
+ * Operational storage guard, deliberately separate from the customer-facing
+ * active-link allowance. Archived links remain useful and do not consume
+ * active capacity, but one workspace cannot grow its retained event history
+ * without bound.
+ */
+export const retainedLinkSafetyCeiling = (
+  capabilities: Pick<TierCapabilities, "maxSavedLinks">
+): number =>
+  capabilities.maxSavedLinks === 0
+    ? PRODUCT_UNLIMITED_RETAINED_LINK_CEILING
+    : capabilities.maxSavedLinks * RETAINED_LINK_CEILING_MULTIPLIER;
+
 export type CapabilityOverrides = Partial<TierCapabilities>;
 
 export const mergeCapabilities = (
