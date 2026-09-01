@@ -107,12 +107,12 @@ interface SyncBackendHandle {
   ) => Promise<void>;
 }
 
-class RetainedLinkSafetyLimitError extends Schema.TaggedErrorClass<RetainedLinkSafetyLimitError>()(
+class RetainedLinkSafetyLimitError extends Schema.TaggedError<RetainedLinkSafetyLimitError>()(
   "RetainedLinkSafetyLimitError",
   { limit: Schema.Int, storeId: OrgId }
 ) {}
 
-class SyncBackendInstanceUnavailableError extends Schema.TaggedErrorClass<SyncBackendInstanceUnavailableError>()(
+class SyncBackendInstanceUnavailableError extends Schema.TaggedError<SyncBackendInstanceUnavailableError>()(
   "SyncBackendInstanceUnavailableError",
   { storeId: OrgId }
 ) {}

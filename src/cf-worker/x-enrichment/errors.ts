@@ -2,7 +2,7 @@ import { Effect, Schema } from "effect";
 
 import { OrgId, XTweetId } from "../db/branded";
 
-export class ThreadProviderInvalidUrlError extends Schema.TaggedErrorClass<ThreadProviderInvalidUrlError>()(
+export class ThreadProviderInvalidUrlError extends Schema.TaggedError<ThreadProviderInvalidUrlError>()(
   "ThreadProviderInvalidUrlError",
   {
     url: Schema.String,
@@ -10,7 +10,7 @@ export class ThreadProviderInvalidUrlError extends Schema.TaggedErrorClass<Threa
   }
 ) {}
 
-export class ThreadProviderTransportError extends Schema.TaggedErrorClass<ThreadProviderTransportError>()(
+export class ThreadProviderTransportError extends Schema.TaggedError<ThreadProviderTransportError>()(
   "ThreadProviderTransportError",
   {
     url: Schema.String,
@@ -18,7 +18,7 @@ export class ThreadProviderTransportError extends Schema.TaggedErrorClass<Thread
   }
 ) {}
 
-export class ThreadProviderHttpError extends Schema.TaggedErrorClass<ThreadProviderHttpError>()(
+export class ThreadProviderHttpError extends Schema.TaggedError<ThreadProviderHttpError>()(
   "ThreadProviderHttpError",
   {
     url: Schema.String,
@@ -27,7 +27,7 @@ export class ThreadProviderHttpError extends Schema.TaggedErrorClass<ThreadProvi
   }
 ) {}
 
-export class ThreadProviderResponseError extends Schema.TaggedErrorClass<ThreadProviderResponseError>()(
+export class ThreadProviderResponseError extends Schema.TaggedError<ThreadProviderResponseError>()(
   "ThreadProviderResponseError",
   {
     url: Schema.String,
@@ -36,7 +36,7 @@ export class ThreadProviderResponseError extends Schema.TaggedErrorClass<ThreadP
   }
 ) {}
 
-export class ThreadProviderEmptyError extends Schema.TaggedErrorClass<ThreadProviderEmptyError>()(
+export class ThreadProviderEmptyError extends Schema.TaggedError<ThreadProviderEmptyError>()(
   "ThreadProviderEmptyError",
   {
     url: Schema.String,
@@ -44,7 +44,7 @@ export class ThreadProviderEmptyError extends Schema.TaggedErrorClass<ThreadProv
   }
 ) {}
 
-export class ThreadProviderTimeoutError extends Schema.TaggedErrorClass<ThreadProviderTimeoutError>()(
+export class ThreadProviderTimeoutError extends Schema.TaggedError<ThreadProviderTimeoutError>()(
   "ThreadProviderTimeoutError",
   {
     url: Schema.String,
@@ -60,7 +60,7 @@ export type AnyThreadProviderError =
   | ThreadProviderEmptyError
   | ThreadProviderTimeoutError;
 
-export class EnrichmentBudgetExhaustedError extends Schema.TaggedErrorClass<EnrichmentBudgetExhaustedError>()(
+export class EnrichmentBudgetExhaustedError extends Schema.TaggedError<EnrichmentBudgetExhaustedError>()(
   "EnrichmentBudgetExhaustedError",
   {
     storeId: OrgId,
@@ -70,7 +70,7 @@ export class EnrichmentBudgetExhaustedError extends Schema.TaggedErrorClass<Enri
   }
 ) {}
 
-export class EnrichmentGenerateError extends Schema.TaggedErrorClass<EnrichmentGenerateError>()(
+export class EnrichmentGenerateError extends Schema.TaggedError<EnrichmentGenerateError>()(
   "EnrichmentGenerateError",
   {
     message: Schema.String.pipe(

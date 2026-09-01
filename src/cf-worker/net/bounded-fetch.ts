@@ -11,7 +11,7 @@ export const BoundedFetchReason = Schema.Literals([
 ]);
 export type BoundedFetchReason = typeof BoundedFetchReason.Type;
 
-export class BoundedFetchFailure extends Schema.TaggedErrorClass<BoundedFetchFailure>()(
+export class BoundedFetchFailure extends Schema.TaggedError<BoundedFetchFailure>()(
   "BoundedFetchFailure",
   {
     cause: Schema.optional(Schema.Defect()),

@@ -9,12 +9,12 @@ import { maskId, safeErrorInfo } from "../log-utils";
 import { AppSettings } from "../settings/service";
 import type { XBookmarkSyncDO } from "../x-sync";
 
-export class CreateOrganizationError extends Schema.TaggedErrorClass<CreateOrganizationError>()(
+export class CreateOrganizationError extends Schema.TaggedError<CreateOrganizationError>()(
   "CreateOrganizationError",
   { cause: Schema.Defect() }
 ) {}
 
-export class XBookmarkSyncStartError extends Schema.TaggedErrorClass<XBookmarkSyncStartError>()(
+export class XBookmarkSyncStartError extends Schema.TaggedError<XBookmarkSyncStartError>()(
   "XBookmarkSyncStartError",
   { cause: Schema.Defect() }
 ) {}

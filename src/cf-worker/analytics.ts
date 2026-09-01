@@ -1,7 +1,7 @@
 import { Effect, Schema } from "effect";
 import { HttpBody, HttpClient, HttpClientRequest } from "effect/unstable/http";
 
-export class AnalyticsQueryError extends Schema.TaggedErrorClass<AnalyticsQueryError>()(
+export class AnalyticsQueryError extends Schema.TaggedError<AnalyticsQueryError>()(
   "AnalyticsQueryError",
   {
     message: Schema.String,

@@ -41,7 +41,7 @@ const authorize = Effect.fn("ChatSessions.authorize")(function* (
   return allowance;
 });
 
-class ChatSessionsRpcError extends Schema.TaggedErrorClass<ChatSessionsRpcError>()(
+class ChatSessionsRpcError extends Schema.TaggedError<ChatSessionsRpcError>()(
   "ChatSessionsRpcError",
   {
     operation: Schema.String,

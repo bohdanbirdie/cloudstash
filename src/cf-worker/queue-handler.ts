@@ -32,7 +32,7 @@ const LinkQueueMessageSchema = Schema.Struct({
   sourceMeta: Schema.NullOr(Schema.String),
 });
 
-export class QueueProcessError extends Schema.TaggedErrorClass<QueueProcessError>()(
+export class QueueProcessError extends Schema.TaggedError<QueueProcessError>()(
   "QueueProcessError",
   {
     message: Schema.String.pipe(
@@ -46,7 +46,7 @@ export class QueueProcessError extends Schema.TaggedErrorClass<QueueProcessError
   }
 ) {}
 
-export class QueueDecodeError extends Schema.TaggedErrorClass<QueueDecodeError>()(
+export class QueueDecodeError extends Schema.TaggedError<QueueDecodeError>()(
   "QueueDecodeError",
   {
     message: Schema.String.pipe(

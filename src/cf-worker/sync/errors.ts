@@ -2,7 +2,7 @@ import { Schema } from "effect";
 
 import { OrgId } from "../db/branded";
 
-export class MissingSessionCookieError extends Schema.TaggedErrorClass<MissingSessionCookieError>()(
+export class MissingSessionCookieError extends Schema.TaggedError<MissingSessionCookieError>()(
   "MissingSessionCookieError",
   {}
 ) {
@@ -11,7 +11,7 @@ export class MissingSessionCookieError extends Schema.TaggedErrorClass<MissingSe
   }
 }
 
-export class InvalidSessionError extends Schema.TaggedErrorClass<InvalidSessionError>()(
+export class InvalidSessionError extends Schema.TaggedError<InvalidSessionError>()(
   "InvalidSessionError",
   {}
 ) {
@@ -20,7 +20,7 @@ export class InvalidSessionError extends Schema.TaggedErrorClass<InvalidSessionE
   }
 }
 
-export class OrgAccessDeniedError extends Schema.TaggedErrorClass<OrgAccessDeniedError>()(
+export class OrgAccessDeniedError extends Schema.TaggedError<OrgAccessDeniedError>()(
   "OrgAccessDeniedError",
   {
     sessionOrgId: Schema.NullOr(OrgId),
@@ -32,7 +32,7 @@ export class OrgAccessDeniedError extends Schema.TaggedErrorClass<OrgAccessDenie
   }
 }
 
-export class AuthBackendError extends Schema.TaggedErrorClass<AuthBackendError>()(
+export class AuthBackendError extends Schema.TaggedError<AuthBackendError>()(
   "AuthBackendError",
   { cause: Schema.Defect() }
 ) {
@@ -41,7 +41,7 @@ export class AuthBackendError extends Schema.TaggedErrorClass<AuthBackendError>(
   }
 }
 
-export class MissingApiKeyReferenceError extends Schema.TaggedErrorClass<MissingApiKeyReferenceError>()(
+export class MissingApiKeyReferenceError extends Schema.TaggedError<MissingApiKeyReferenceError>()(
   "MissingApiKeyReferenceError",
   {}
 ) {
@@ -50,7 +50,7 @@ export class MissingApiKeyReferenceError extends Schema.TaggedErrorClass<Missing
   }
 }
 
-export class ForbiddenExtensionOriginError extends Schema.TaggedErrorClass<ForbiddenExtensionOriginError>()(
+export class ForbiddenExtensionOriginError extends Schema.TaggedError<ForbiddenExtensionOriginError>()(
   "ForbiddenExtensionOriginError",
   { origin: Schema.String }
 ) {

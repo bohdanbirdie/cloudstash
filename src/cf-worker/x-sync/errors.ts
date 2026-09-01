@@ -4,21 +4,21 @@ import { Schema } from "effect";
 // convention in `link-processor/errors.ts`, `invites/errors.ts`, etc., so
 // `Effect.catchTag(s)` calls stay readable across the codebase.
 
-export class XUnauthorizedError extends Schema.TaggedErrorClass<XUnauthorizedError>()(
+export class XUnauthorizedError extends Schema.TaggedError<XUnauthorizedError>()(
   "XUnauthorizedError",
   {
     endpoint: Schema.String,
   }
 ) {}
 
-export class XPaymentRequiredError extends Schema.TaggedErrorClass<XPaymentRequiredError>()(
+export class XPaymentRequiredError extends Schema.TaggedError<XPaymentRequiredError>()(
   "XPaymentRequiredError",
   {
     endpoint: Schema.String,
   }
 ) {}
 
-export class XRateLimitedError extends Schema.TaggedErrorClass<XRateLimitedError>()(
+export class XRateLimitedError extends Schema.TaggedError<XRateLimitedError>()(
   "XRateLimitedError",
   {
     endpoint: Schema.String,
@@ -26,17 +26,14 @@ export class XRateLimitedError extends Schema.TaggedErrorClass<XRateLimitedError
   }
 ) {}
 
-export class XApiError extends Schema.TaggedErrorClass<XApiError>()(
-  "XApiError",
-  {
-    endpoint: Schema.String,
-    status: Schema.Number,
-    message: Schema.String,
-    cause: Schema.optional(Schema.Unknown),
-  }
-) {}
+export class XApiError extends Schema.TaggedError<XApiError>()("XApiError", {
+  endpoint: Schema.String,
+  status: Schema.Number,
+  message: Schema.String,
+  cause: Schema.optional(Schema.Unknown),
+}) {}
 
-export class XSyncStorageError extends Schema.TaggedErrorClass<XSyncStorageError>()(
+export class XSyncStorageError extends Schema.TaggedError<XSyncStorageError>()(
   "XSyncStorageError",
   {
     op: Schema.String,
@@ -44,7 +41,7 @@ export class XSyncStorageError extends Schema.TaggedErrorClass<XSyncStorageError
   }
 ) {}
 
-export class XSyncSideEffectError extends Schema.TaggedErrorClass<XSyncSideEffectError>()(
+export class XSyncSideEffectError extends Schema.TaggedError<XSyncSideEffectError>()(
   "XSyncSideEffectError",
   {
     op: Schema.String,

@@ -9,26 +9,26 @@ import { DbError, query } from "../db/service";
 import { maskId } from "../log-utils";
 import { decodeApiKeyMetadata } from "../sync/auth-payload";
 
-export class WorkspaceCredentialInvalidError extends Schema.TaggedErrorClass<WorkspaceCredentialInvalidError>()(
+export class WorkspaceCredentialInvalidError extends Schema.TaggedError<WorkspaceCredentialInvalidError>()(
   "WorkspaceCredentialInvalidError",
   {
     credential: Schema.Literals(["session", "apiKey"]),
   }
 ) {}
 
-export class WorkspaceScopeMissingError extends Schema.TaggedErrorClass<WorkspaceScopeMissingError>()(
+export class WorkspaceScopeMissingError extends Schema.TaggedError<WorkspaceScopeMissingError>()(
   "WorkspaceScopeMissingError",
   {
     credential: Schema.Literals(["session", "apiKey"]),
   }
 ) {}
 
-export class WorkspaceApiKeyReferenceMissingError extends Schema.TaggedErrorClass<WorkspaceApiKeyReferenceMissingError>()(
+export class WorkspaceApiKeyReferenceMissingError extends Schema.TaggedError<WorkspaceApiKeyReferenceMissingError>()(
   "WorkspaceApiKeyReferenceMissingError",
   {}
 ) {}
 
-export class WorkspaceScopeMismatchError extends Schema.TaggedErrorClass<WorkspaceScopeMismatchError>()(
+export class WorkspaceScopeMismatchError extends Schema.TaggedError<WorkspaceScopeMismatchError>()(
   "WorkspaceScopeMismatchError",
   {
     authorizedOrgId: OrgId,
@@ -36,14 +36,14 @@ export class WorkspaceScopeMismatchError extends Schema.TaggedErrorClass<Workspa
   }
 ) {}
 
-export class WorkspaceUserUnapprovedError extends Schema.TaggedErrorClass<WorkspaceUserUnapprovedError>()(
+export class WorkspaceUserUnapprovedError extends Schema.TaggedError<WorkspaceUserUnapprovedError>()(
   "WorkspaceUserUnapprovedError",
   {
     userId: UserId,
   }
 ) {}
 
-export class WorkspaceMembershipRevokedError extends Schema.TaggedErrorClass<WorkspaceMembershipRevokedError>()(
+export class WorkspaceMembershipRevokedError extends Schema.TaggedError<WorkspaceMembershipRevokedError>()(
   "WorkspaceMembershipRevokedError",
   {
     orgId: OrgId,
@@ -51,7 +51,7 @@ export class WorkspaceMembershipRevokedError extends Schema.TaggedErrorClass<Wor
   }
 ) {}
 
-export class WorkspaceAccessBackendError extends Schema.TaggedErrorClass<WorkspaceAccessBackendError>()(
+export class WorkspaceAccessBackendError extends Schema.TaggedError<WorkspaceAccessBackendError>()(
   "WorkspaceAccessBackendError",
   {
     operation: Schema.Literals([
