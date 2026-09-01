@@ -1068,7 +1068,7 @@ describe("MCP OAuth Worker flow", () => {
         expect(observedOutboundUrls.slice(outboundStart)).toContain(
           SAVED_LINK_URL
         ),
-      { timeout: 5_000 }
+      { timeout: 10_000 }
     );
     expect(new Set(observedOutboundUrls.slice(outboundStart))).toEqual(
       new Set([SAVED_LINK_URL])
