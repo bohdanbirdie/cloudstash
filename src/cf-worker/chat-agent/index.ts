@@ -7,7 +7,7 @@ import {
   convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
-  stepCountIs,
+  isStepCount,
 } from "ai";
 import type { LanguageModel } from "ai";
 import {
@@ -562,7 +562,6 @@ export class ChatAgentDO extends AIChatAgent<Env> {
       model,
       prompt: buildCompactionPrompt(plan),
       maxOutputTokens: COMPACTION_MAX_OUTPUT_TOKENS,
-      experimental_telemetry: { isEnabled: true },
     });
     const summary = {
       summary: result.text,
@@ -570,7 +569,10 @@ export class ChatAgentDO extends AIChatAgent<Env> {
       updatedAt: new Date().toISOString(),
     } satisfies ChatContextSummary;
     const telemetry = openRouterUsageTelemetry([
-      { usage: result.usage, providerMetadata: result.providerMetadata },
+      {
+        usage: result.usage,
+        providerMetadata: result.finalStep.providerMetadata,
+      },
     ]);
     this.logProviderUsage("compaction", telemetry);
     return {
@@ -806,14 +808,13 @@ export class ChatAgentDO extends AIChatAgent<Env> {
 
         const result = streamText({
           model,
-          system: systemPromptWithSummary(SYSTEM_PROMPT, summary),
+          instructions: systemPromptWithSummary(SYSTEM_PROMPT, summary),
           messages,
           tools,
           abortSignal,
           maxOutputTokens: MAX_OUTPUT_TOKENS_PER_STEP,
-          stopWhen: stepCountIs(5),
-          experimental_telemetry: { isEnabled: true },
-          onFinish: ({ steps }) => {
+          stopWhen: isStepCount(5),
+          onEnd: ({ steps }) => {
             const telemetry = openRouterUsageTelemetry(steps);
             this.logProviderUsage(
               "answer",

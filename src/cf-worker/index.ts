@@ -1,7 +1,9 @@
 /// <reference types="@cloudflare/workers-types" />
+import { OpenTelemetry } from "@ai-sdk/otel";
 import "@livestore/adapter-cloudflare/polyfill";
 import type { CfTypes } from "@livestore/sync-cf/cf-worker";
 import { routeAgentRequest } from "agents";
+import { registerTelemetry } from "ai";
 import { Effect } from "effect";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -103,6 +105,8 @@ export { LinkProcessorDO } from "./link-processor";
 export { ChatAgentDO } from "./chat-agent";
 export { XBookmarkSyncDO } from "./x-sync";
 export { AccountDeletionWorkflow } from "./workflows/account-deletion";
+
+registerTelemetry(new OpenTelemetry());
 
 const logger = logSync("API");
 
