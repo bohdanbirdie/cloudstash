@@ -100,12 +100,12 @@
     "clsx": "2.1.1",
     "cmdk": "1.1.1",
     "culori": "4.0.2",
-    "defuddle": "0.18.1",
+    "defuddle": "0.19.3",
     "drizzle-orm": "0.45.2",
     "effect": "4.0.0-beta.99",
     "entities": "8.0.0",
     "grammy": "1.43.0",
-    "hono": "4.12.21",
+    "hono": "4.13.4",
     "input-otp": "1.5.0",
     "jose": "6.2.3",
     "lexical": "0.45.0",
@@ -180,7 +180,7 @@
   "overrides": {
     "@cloudflare/workers-types": "5.20260821.1",
     "@xmldom/xmldom": "0.8.13",
-    "hono": "4.12.21",
+    "hono": "4.13.4",
     "kysely": "0.28.17",
     "vite": "npm:@voidzero-dev/vite-plus-core@0.2.9",
     "vitest": "4.1.10"
