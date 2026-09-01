@@ -120,6 +120,16 @@ const CapabilityOverridesSchema = Schema.Struct({
     Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
   ),
 });
+const NullableCapabilityOverridesSchema = Schema.NullOr(
+  CapabilityOverridesSchema
+);
+
+const decodeFeatureOverrides = (
+  value: unknown
+): Effect.Effect<CapabilityOverrides | null, DbError> =>
+  Schema.decodeUnknownEffect(NullableCapabilityOverridesSchema)(value).pipe(
+    Effect.mapError((cause) => new DbError({ cause }))
+  );
 
 export const WorkspaceWithOwner = Schema.Struct({
   id: OrgIdBrand,
@@ -209,27 +219,30 @@ const make = Effect.gen(function* () {
   const fetchOrgRow = (
     orgId: OrgId
   ): Effect.Effect<OrgRow, DbError | OrgNotFoundError> =>
-    query(
-      db.query.organization.findFirst({
-        where: eq(schema.organization.id, orgId),
-        columns: {
-          cancelAtPeriodEnd: true,
-          createdAt: true,
-          tier: true,
-          adminTierGrant: true,
-          adminTierGrantedAt: true,
-          featureOverrides: true,
-          billingInterval: true,
-          currentPeriodStart: true,
-          currentPeriodEnd: true,
-          usageCycleAnchor: true,
-        },
-      })
-    ).pipe(
-      Effect.flatMap((row) =>
-        row ? Effect.succeed(row) : OrgNotFoundError.make({ orgId })
-      )
-    );
+    Effect.gen(function* () {
+      const row = yield* query(
+        db.query.organization.findFirst({
+          where: eq(schema.organization.id, orgId),
+          columns: {
+            cancelAtPeriodEnd: true,
+            createdAt: true,
+            tier: true,
+            adminTierGrant: true,
+            adminTierGrantedAt: true,
+            featureOverrides: true,
+            billingInterval: true,
+            currentPeriodStart: true,
+            currentPeriodEnd: true,
+            usageCycleAnchor: true,
+          },
+        })
+      );
+      if (!row) return yield* OrgNotFoundError.make({ orgId });
+      const featureOverrides = yield* decodeFeatureOverrides(
+        row.featureOverrides
+      );
+      return { ...row, featureOverrides };
+    });
 
   const toSubscription = (row: OrgRow): Subscription => ({
     billingInterval: row.billingInterval ?? null,
@@ -541,32 +554,36 @@ const make = Effect.gen(function* () {
         })
       );
       yield* Effect.annotateCurrentSpan({ count: orgs.length });
-      return orgs.map((org) => {
-        const overrides = org.featureOverrides ?? {};
-        const plan = resolveEffectivePlan({
-          cancelAtPeriodEnd: org.cancelAtPeriodEnd,
-          createdAt: org.createdAt,
-          tier: org.tier ?? "free",
-          adminTierGrant: org.adminTierGrant,
-          adminTierGrantedAt: org.adminTierGrantedAt,
-          featureOverrides: org.featureOverrides,
-          billingInterval: org.billingInterval,
-          currentPeriodStart: org.currentPeriodStart,
-          currentPeriodEnd: org.currentPeriodEnd,
-          usageCycleAnchor: org.usageCycleAnchor,
-        });
-        return WorkspaceWithOwner.make({
-          id: OrgIdBrand.make(org.id),
-          name: org.name,
-          slug: org.slug,
-          creatorEmail: org.members[0]?.user?.email ?? null,
-          tier: plan.tier,
-          tierSource: plan.source,
-          adminTierGrant: org.adminTierGrant,
-          overrides,
-          capabilities: mergeCapabilities(plan.tier, overrides),
-        });
-      });
+      return yield* Effect.forEach(orgs, (org) =>
+        decodeFeatureOverrides(org.featureOverrides).pipe(
+          Effect.map((decodedOverrides) => {
+            const overrides = decodedOverrides ?? {};
+            const plan = resolveEffectivePlan({
+              cancelAtPeriodEnd: org.cancelAtPeriodEnd,
+              createdAt: org.createdAt,
+              tier: org.tier ?? "free",
+              adminTierGrant: org.adminTierGrant,
+              adminTierGrantedAt: org.adminTierGrantedAt,
+              featureOverrides: decodedOverrides,
+              billingInterval: org.billingInterval,
+              currentPeriodStart: org.currentPeriodStart,
+              currentPeriodEnd: org.currentPeriodEnd,
+              usageCycleAnchor: org.usageCycleAnchor,
+            });
+            return WorkspaceWithOwner.make({
+              id: OrgIdBrand.make(org.id),
+              name: org.name,
+              slug: org.slug,
+              creatorEmail: org.members[0]?.user?.email ?? null,
+              tier: plan.tier,
+              tierSource: plan.source,
+              adminTierGrant: org.adminTierGrant,
+              overrides,
+              capabilities: mergeCapabilities(plan.tier, overrides),
+            });
+          })
+        )
+      );
     }),
   } satisfies BillingShape;
 });

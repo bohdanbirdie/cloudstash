@@ -6,7 +6,10 @@ import { capabilitiesFor } from "@/lib/plan";
 
 import { OrgId, StripeCustomerId } from "../../db/branded";
 import { DbClient } from "../../db/service";
-import { resolveAssistantAllowance } from "../assistant-allowance";
+import {
+  resolveAssistantAllowance,
+  resolveWorkspaceAllowance,
+} from "../assistant-allowance";
 import { AssistantAllowance, Billing } from "../service";
 import { StripeClient } from "../stripe-client";
 import type { StripeClientShape } from "../stripe-client";
@@ -30,6 +33,27 @@ describe("resolveAssistantAllowance", () => {
 
     const billing = Layer.succeed(Billing, {
       assistantAllowance: (_orgId: OrgId, now?: Date) =>
+        Effect.sync(() => {
+          const update = updates.at(-1);
+          const usageWindow = update
+            ? resolveAssistantUsageWindow(
+                {
+                  source: "stripe",
+                  billingInterval: update.billingInterval as "month" | "year",
+                  currentPeriodStart: update.currentPeriodStart as Date,
+                  currentPeriodEnd: update.currentPeriodEnd as Date,
+                  usageCycleAnchor: update.usageCycleAnchor as Date,
+                },
+                now ?? new Date("2026-08-29T12:00:00.000Z")
+              )
+            : undefined;
+          return AssistantAllowance.make({
+            capabilities: capabilitiesFor("pro"),
+            source: "stripe",
+            usageWindow: Option.fromNullishOr(usageWindow),
+          });
+        }),
+      usageAllowance: (_orgId: OrgId, now?: Date) =>
         Effect.sync(() => {
           const update = updates.at(-1);
           const usageWindow = update
@@ -109,7 +133,7 @@ describe("resolveAssistantAllowance", () => {
 
     return Effect.gen(function* () {
       const now = new Date("2026-08-29T12:00:00.000Z");
-      const first = yield* resolveAssistantAllowance(ORG_ID, now);
+      const first = yield* resolveWorkspaceAllowance(ORG_ID, now);
       const second = yield* resolveAssistantAllowance(ORG_ID, now);
       expect(Option.getOrNull(first.usageWindow)).toEqual(WINDOW);
       expect(Option.getOrNull(second.usageWindow)).toEqual(WINDOW);

@@ -104,6 +104,9 @@ export function SaveAndList({
     account === null ||
     account.maxSavedLinks === 0 ||
     activeLinksCount < account.maxSavedLinks;
+  const limitMessage = canSave
+    ? null
+    : "Your library is full. Archive a link or upgrade in Cloudstash.";
   const { save, reset, saved, materialized, error, setError } = useSaveLink(
     store.commit,
     recent,
@@ -180,7 +183,7 @@ export function SaveAndList({
                 </div>
               </div>
 
-              <ErrorLine message={error} />
+              <ErrorLine message={error ?? limitMessage} />
 
               {Match.value({ saved, tabAlreadySaved }).pipe(
                 Match.when({ saved: true }, () => (
@@ -238,7 +241,7 @@ export function SaveAndList({
                 placeholder="Paste a link to save"
                 className="font-strict-mono text-xs/relaxed"
               />
-              <ErrorLine message={error} />
+              <ErrorLine message={error ?? limitMessage} />
               <Button
                 type="submit"
                 size="default"

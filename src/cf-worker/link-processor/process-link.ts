@@ -130,11 +130,11 @@ export const processLink = ({
       yield* Effect.logWarning("Metadata fetched but empty");
     }
 
-    const summaryReserved = yield* Effect.gen(function* () {
-      if (!aiSummaryEnabled) return false;
-      if (summaryReservation === undefined) return true;
-      return yield* summaryReservation;
-    });
+    let summaryReserved = false;
+    if (aiSummaryEnabled) {
+      summaryReserved =
+        summaryReservation === undefined ? true : yield* summaryReservation;
+    }
 
     if (summaryReserved) {
       const existingTags = yield* linkStore.queryTags();

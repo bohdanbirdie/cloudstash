@@ -32,7 +32,11 @@ export class UsageMeterStorageError extends Schema.TaggedErrorClass<UsageMeterSt
     windowId: Schema.String,
     cause: Schema.Defect(),
   }
-) {}
+) {
+  override get message(): string {
+    return `Usage meter ${this.operation} failed for ${this.metric}`;
+  }
+}
 
 const usageKey = (metric: UsageMetric, windowId: string) =>
   `counted-usage:${metric}:${windowId}`;
@@ -56,23 +60,29 @@ const decodeStored = (
     )
   );
 
-export class UsageMeter extends Context.Service<
-  UsageMeter,
-  {
-    readonly reserve: (input: {
-      readonly limit: number;
-      readonly metric: UsageMetric;
-      readonly settlementId?: string;
-      readonly windowId: string;
-    }) => Effect.Effect<UsageReservation, UsageMeterStorageError>;
-    readonly get: (
-      metric: UsageMetric,
-      windowId: string
-    ) => Effect.Effect<CountedUsage, UsageMeterStorageError>;
-  }
->()("@cloudstash/UsageMeter") {}
+export interface UsageMeterShape {
+  readonly reserve: (input: {
+    readonly initialCount?: number;
+    readonly limit: number;
+    readonly metric: UsageMetric;
+    readonly settlementId?: string;
+    readonly windowId: string;
+  }) => Effect.Effect<UsageReservation, UsageMeterStorageError>;
+  readonly get: (
+    metric: UsageMetric,
+    windowId: string
+  ) => Effect.Effect<CountedUsage, UsageMeterStorageError>;
+}
 
-export const UsageMeterLive = (
+export class UsageMeter extends Context.Service<UsageMeter, UsageMeterShape>()(
+  "@cloudstash/UsageMeter"
+) {
+  static layer(storage: DurableObjectStorage): Layer.Layer<UsageMeter> {
+    return makeUsageMeterLayer(storage);
+  }
+}
+
+const makeUsageMeterLayer = (
   storage: DurableObjectStorage
 ): Layer.Layer<UsageMeter> => {
   const get = Effect.fn("UsageMeter.get")(function* (
@@ -105,27 +115,38 @@ export const UsageMeterLive = (
   });
 
   const reserve = Effect.fn("UsageMeter.reserve")(function* (input: {
+    readonly initialCount?: number;
     readonly limit: number;
     readonly metric: UsageMetric;
     readonly settlementId?: string;
     readonly windowId: string;
   }) {
-    const { limit, metric, settlementId, windowId } = input;
-    if (!Number.isSafeInteger(limit) || limit < 0) {
+    const { initialCount = 0, limit, metric, settlementId, windowId } = input;
+    if (
+      !Number.isSafeInteger(limit) ||
+      limit < 0 ||
+      !Number.isSafeInteger(initialCount) ||
+      initialCount < 0
+    ) {
       return yield* new UsageMeterStorageError({
         metric,
         operation: "validate-limit",
         windowId,
-        cause: new Error("Usage limit must be a non-negative safe integer"),
+        cause: new Error(
+          "Usage limit and initial count must be non-negative safe integers"
+        ),
       });
     }
 
-    return yield* Effect.tryPromise({
+    const reservation = yield* Effect.tryPromise({
       try: () =>
         storage.transaction(async (transaction) => {
           const key = usageKey(metric, windowId);
           const stored = await transaction.get(key);
-          let current = emptyUsage();
+          let current = CountedUsage.make({
+            count: initialCount,
+            settlements: [],
+          });
           if (stored !== undefined) {
             current = await decodeStored(stored, metric, windowId);
           }
@@ -168,6 +189,13 @@ export const UsageMeterLive = (
         });
       },
     });
+    yield* Effect.annotateCurrentSpan({
+      "usage.count": reservation.count,
+      "usage.limit": limit,
+      "usage.metric": metric,
+      "usage.status": reservation.status,
+    });
+    return reservation;
   });
 
   return Layer.succeed(UsageMeter, UsageMeter.of({ get, reserve }));

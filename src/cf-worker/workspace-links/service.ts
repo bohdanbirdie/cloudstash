@@ -436,6 +436,20 @@ export const makeWorkspaceLinks = (
       store.query(linksByIds$([...ids]))
     );
     if (links.length === 0) return [];
+    const restoresActiveLinks =
+      patch.state === "inbox" || patch.state === "completed";
+    const restoringCount = restoresActiveLinks
+      ? links.filter((link) => link.deletedAt !== null).length
+      : 0;
+    const maxSavedLinks = options.maxSavedLinks ?? 0;
+    if (restoringCount > 0 && maxSavedLinks > 0) {
+      const activeCount = yield* query("countActiveLinksForRestore", () =>
+        store.query(apiLinksCount$("active"))
+      );
+      if (activeCount + restoringCount > maxSavedLinks) {
+        return yield* new WorkspaceLinkLimitReachedError(maxSavedLinks);
+      }
+    }
     const now = yield* DateTime.nowAsDate;
     const tagPatch = patch.tags ? normalizeTagPatch(patch.tags) : undefined;
     const ensured = tagPatch

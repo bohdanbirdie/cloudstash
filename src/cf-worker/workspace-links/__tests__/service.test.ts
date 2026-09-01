@@ -156,9 +156,56 @@ describe("WorkspaceLinks", () => {
           source: "api",
         });
         expect(replacement.created).toBe(true);
+
+        const restoreDenied = yield* Effect.result(
+          links.update({
+            id: first.link.id,
+            changes: { state: "inbox" },
+          })
+        );
+        expect(restoreDenied).toMatchObject({
+          _tag: "Failure",
+          failure: { _tag: "WorkspaceLinkLimitReachedError", limit: 1 },
+        });
       });
     }
   );
+
+  it.effect("rejects a batch restore that exceeds capacity", () => {
+    const links = makeWorkspaceLinks(store, {
+      maxSavedLinks: 2,
+      sync: async () => true,
+    });
+    return Effect.gen(function* () {
+      const first = yield* links.save({
+        url: "https://example.com/batch-first",
+        source: "api",
+      });
+      const second = yield* links.save({
+        url: "https://example.com/batch-second",
+        source: "api",
+      });
+      yield* links.updateMany({
+        ids: [first.link.id, second.link.id],
+        changes: { state: "archive" },
+      });
+      yield* links.save({
+        url: "https://example.com/batch-replacement",
+        source: "api",
+      });
+
+      const denied = yield* Effect.result(
+        links.updateMany({
+          ids: [first.link.id, second.link.id],
+          changes: { state: "completed" },
+        })
+      );
+      expect(denied).toMatchObject({
+        _tag: "Failure",
+        failure: { _tag: "WorkspaceLinkLimitReachedError", limit: 2 },
+      });
+    });
+  });
 
   it.effect("repairs an interrupted external save when it is retried", () =>
     Effect.gen(function* () {

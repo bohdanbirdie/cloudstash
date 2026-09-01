@@ -41,4 +41,21 @@ describe("account usage", () => {
     expect(screen.getByText("Monthly limits reset Sep 1")).toBeTruthy();
     expect(screen.queryByText(/\$/)).toBeNull();
   });
+
+  it("keeps the Usage section visible when remote usage is unavailable", () => {
+    render(
+      <AccountSectionView
+        usageError
+        email="alex@example.com"
+        image={null}
+        name="Alex Morgan"
+        onDeleteAccount={() => undefined}
+      />
+    );
+
+    expect(screen.getByText("Usage")).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Usage is temporarily unavailable."
+    );
+  });
 });

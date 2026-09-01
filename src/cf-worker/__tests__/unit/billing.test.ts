@@ -180,6 +180,18 @@ describe("mergeCapabilities", () => {
     });
     expect(merged.monthlyAssistantCredits).toBe(100);
   });
+
+  it("boolean overrides never lower the tier allowance", () => {
+    expect(
+      mergeCapabilities("plus", { aiSummary: true }).monthlyAiSummaries
+    ).toBe(TIER_CAPABILITIES.plus.monthlyAiSummaries);
+    expect(
+      mergeCapabilities("pro", { aiSummary: true }).monthlyAiSummaries
+    ).toBe(TIER_CAPABILITIES.pro.monthlyAiSummaries);
+    expect(
+      mergeCapabilities("pro", { publicApi: true }).monthlyExternalCalls
+    ).toBe(TIER_CAPABILITIES.pro.monthlyExternalCalls);
+  });
 });
 
 describe("checkChatFeatureEnabled (Billing-backed)", () => {

@@ -135,4 +135,25 @@ describe("Billing.orgBillingSnapshot", () => {
       granted
     );
   });
+
+  it.effect(
+    "fails closed when persisted capability overrides are malformed",
+    () => {
+      const rec = { reads: 0 };
+      const malformed = {
+        ...ORG_ROW,
+        featureOverrides: { chatAgent: "false" },
+      };
+
+      return withBilling(
+        Effect.gen(function* () {
+          const billing = yield* Billing;
+          const error = yield* Effect.flip(billing.orgBillingSnapshot(ORG_ID));
+          expect(error).toMatchObject({ _tag: "DbError" });
+        }),
+        rec,
+        malformed
+      );
+    }
+  );
 });

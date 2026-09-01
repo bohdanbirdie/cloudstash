@@ -118,7 +118,7 @@ export function AccountSectionView({
           </div>
         </div>
 
-        {(usageItems || savedLinks || usageLoading) && (
+        {(usageItems || savedLinks || usageLoading || usageError) && (
           <section className="flex flex-col gap-3">
             <SectionEyebrow>Usage</SectionEyebrow>
             {usageLoading ? (

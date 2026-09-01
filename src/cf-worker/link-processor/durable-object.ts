@@ -25,11 +25,7 @@ import {
   whenLeaderSynced,
 } from "../../livestore/when-leader-synced";
 import { Billing, WorkspaceAllowance } from "../billing/service";
-import {
-  UsageMeter,
-  UsageMeterLive,
-  UsageReservation,
-} from "../billing/usage-meter";
+import { UsageMeter, UsageReservation } from "../billing/usage-meter";
 import {
   CHAT_SESSION_LIMIT,
   CHAT_SESSION_REGISTRY_KEY,
@@ -73,11 +69,16 @@ import { makeWorkspaceLinks } from "../workspace-links/service";
 import type { WorkspaceLinks } from "../workspace-links/service";
 import { EnrichmentGenerator } from "../x-enrichment/generator";
 import { ThreadProviderNoopLive } from "../x-enrichment/services/thread-provider-noop.live";
-import { EnrichmentUsageLive } from "../x-enrichment/usage";
+import { EnrichmentUsage } from "../x-enrichment/usage";
 import { cancelStaleLinks, ingestLink, notifyResult } from "./do-programs";
 import type { NotifyResultParams } from "./do-programs";
 import { runEffect } from "./logger";
 import { processLink } from "./process-link";
+import {
+  getOrCreateProcessingAttempt,
+  ProcessingAttemptStorageError,
+  processingAttemptKey,
+} from "./processing-attempt";
 import {
   FeatureStore,
   MetadataFetcher,
@@ -106,6 +107,27 @@ const logger = logSync("LinkProcessorDO");
 
 const MAX_NOTIFIED_LINK_IDS = 500;
 const LEADER_SYNC_TIMEOUT_MS = 10_000;
+const clearProcessingAttemptIfTerminal = Effect.fnUntraced(function* (
+  storage: DurableObjectStorage,
+  store: Store<typeof schema>,
+  linkId: string
+) {
+  const status = yield* Effect.try({
+    try: () =>
+      store.query(tables.linkProcessingStatus.where({ linkId }))[0]?.status,
+    catch: (cause) =>
+      new ProcessingAttemptStorageError({
+        operation: "read-status",
+        cause,
+      }),
+  });
+  if (status === "pending" || status === "reprocess-requested") return;
+  yield* Effect.tryPromise({
+    try: () => storage.delete(processingAttemptKey(linkId)),
+    catch: (cause) =>
+      new ProcessingAttemptStorageError({ operation: "delete", cause }),
+  });
+});
 
 export const METADATA_FETCHER_TEST_OVERRIDE = Symbol(
   "@cloudstash/link-processor/MetadataFetcherTestOverride"
@@ -515,7 +537,7 @@ export class LinkProcessorDO
             windowId: usageWindowId,
           })
         ),
-        Effect.provide(UsageMeterLive(this.ctx.storage)),
+        Effect.provide(UsageMeter.layer(this.ctx.storage)),
         Effect.withSpan("LinkProcessorDO.reserveExternalCall")
       )
     );
@@ -537,7 +559,7 @@ export class LinkProcessorDO
           externalCalls: usage.externalCalls.count,
           xEnrichments: usage.xEnrichments.count,
         })),
-        Effect.provide(UsageMeterLive(this.ctx.storage)),
+        Effect.provide(UsageMeter.layer(this.ctx.storage)),
         Effect.withSpan("LinkProcessorDO.getCountedUsage")
       )
     );
@@ -560,7 +582,12 @@ export class LinkProcessorDO
       Effect.matchEffect({
         onFailure: (error) =>
           Effect.logError("AI summary allowance unavailable").pipe(
-            Effect.annotateLogs(safeErrorInfo(error.cause)),
+            Effect.annotateLogs({
+              metric: error.metric,
+              operation: error.operation,
+              windowId: maskId(error.windowId),
+              ...safeErrorInfo(error.cause),
+            }),
             Effect.as(false)
           ),
         onSuccess: (reservation) =>
@@ -569,7 +596,7 @@ export class LinkProcessorDO
               reservation.status === "duplicate"
           ),
       }),
-      Effect.provide(UsageMeterLive(this.ctx.storage))
+      Effect.provide(UsageMeter.layer(this.ctx.storage))
     );
   }
 
@@ -746,6 +773,11 @@ export class LinkProcessorDO
     operation
   ) =>
     Effect.tryPromise(() => this.runWorkspaceLinksRpc(operation, true)).pipe(
+      Effect.tapError((error) =>
+        Effect.logError("Workspace links save RPC failed").pipe(
+          Effect.annotateLogs(safeErrorInfo(error.cause))
+        )
+      ),
       Effect.mapError(
         () =>
           new WorkspaceLinksRemoteError({
@@ -793,14 +825,16 @@ export class LinkProcessorDO
   }
 
   async updateLink(input: UpdateLinkInput) {
-    return this.runWorkspaceLinksRpc((links) =>
-      WorkspaceLinksRpc.update(links, input)
+    return this.runWorkspaceLinksRpc(
+      (links) => WorkspaceLinksRpc.update(links, input),
+      input.changes.state === "inbox" || input.changes.state === "completed"
     );
   }
 
   async updateLinks(input: UpdateLinksInput) {
-    return this.runWorkspaceLinksRpc((links) =>
-      WorkspaceLinksRpc.updateMany(links, input)
+    return this.runWorkspaceLinksRpc(
+      (links) => WorkspaceLinksRpc.updateMany(links, input),
+      input.changes.state === "inbox" || input.changes.state === "completed"
     );
   }
 
@@ -875,16 +909,40 @@ export class LinkProcessorDO
             (link) => {
               const status = statusMap.get(link.id)?.status;
               const isReprocess = status === "reprocess-requested";
-              const settlementTime =
-                statusMap.get(link.id)?.updatedAt ?? link.createdAt;
-              return this.processLinkEffect(
-                store,
-                link,
-                isReprocess,
-                status === "pending",
-                generation,
-                `${isReprocess ? "reprocess" : "initial"}:${link.id}:${settlementTime.getTime()}`
+              return getOrCreateProcessingAttempt(
+                this.ctx.storage,
+                link.id,
+                isReprocess
               ).pipe(
+                Effect.flatMap((attempt) =>
+                  this.processLinkEffect(
+                    store,
+                    link,
+                    attempt.isReprocess,
+                    status === "pending",
+                    generation,
+                    attempt.id
+                  ).pipe(
+                    Effect.tap(() =>
+                      clearProcessingAttemptIfTerminal(
+                        this.ctx.storage,
+                        store,
+                        link.id
+                      ).pipe(
+                        Effect.catchCause((cause) =>
+                          Effect.logWarning(
+                            "Processing attempt cleanup failed"
+                          ).pipe(
+                            Effect.annotateLogs({
+                              linkId: link.id,
+                              ...safeErrorInfo(cause),
+                            })
+                          )
+                        )
+                      )
+                    )
+                  )
+                ),
                 Effect.ensuring(
                   Effect.sync(() => this.submittedLinks.delete(link.id))
                 )
@@ -1110,7 +1168,24 @@ export class LinkProcessorDO
 
       const allowance = yield* this.allowance();
       const capabilities = allowance.capabilities;
-      const usageWindow = Option.getOrUndefined(allowance.usageWindow);
+      const metering = Option.match(allowance.usageWindow, {
+        onNone: () => ({
+          summaryReservation: Effect.succeed(false),
+          xEnrichmentAllowance: undefined,
+        }),
+        onSome: (usageWindow) => ({
+          summaryReservation: this.reserveAiSummary(
+            usageWindow.id,
+            capabilities.monthlyAiSummaries,
+            usageSettlementId
+          ),
+          xEnrichmentAllowance: {
+            monthlyLimit: capabilities.monthlyXEnrichments,
+            settlementId: usageSettlementId,
+            usageWindowId: usageWindow.id,
+          },
+        }),
+      });
 
       yield* Effect.logDebug("LinkProcessor capabilities").pipe(
         Effect.annotateLogs({
@@ -1130,7 +1205,7 @@ export class LinkProcessorDO
         LinkEventStoreLive(store, this.commitFor(store, generation)),
         ThreadProviderNoopLive,
         EnrichmentGenerator.Default,
-        EnrichmentUsageLive({ storage: this.ctx.storage })
+        EnrichmentUsage.layer({ storage: this.ctx.storage })
       ).pipe(
         Layer.provide(WorkersAiLive(this.env.AI)),
         Layer.provide(OpenRouterApiKeyLive(this.env.OPENROUTER_API_KEY))
@@ -1138,21 +1213,9 @@ export class LinkProcessorDO
 
       yield* processLink({
         aiSummaryEnabled: capabilities.aiSummary,
-        summaryReservation: usageWindow
-          ? this.reserveAiSummary(
-              usageWindow.id,
-              capabilities.monthlyAiSummaries,
-              usageSettlementId
-            )
-          : Effect.succeed(false),
+        summaryReservation: metering.summaryReservation,
         xContentEnrichmentEnabled: capabilities.xContentEnrichment,
-        xEnrichmentAllowance: usageWindow
-          ? {
-              monthlyLimit: capabilities.monthlyXEnrichments,
-              settlementId: usageSettlementId,
-              usageWindowId: usageWindow.id,
-            }
-          : undefined,
+        xEnrichmentAllowance: metering.xEnrichmentAllowance,
         storeId: this.storeId!,
         link: { id: LinkId.make(link.id), url: link.url },
         skipStartedEvent: true,

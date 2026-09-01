@@ -1,8 +1,10 @@
-import { Effect, Option, Schema } from "effect";
+import { Effect, Match, Option, Schema } from "effect";
 
 import { OrgId } from "../db/branded";
+import { maskId } from "../log-utils";
 import type { Env } from "../shared";
 import { Billing } from "./service";
+import { UsageReservation } from "./usage-meter";
 
 export const ExternalCallAllowance = Schema.Struct({
   limit: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
@@ -31,7 +33,11 @@ export class ExternalCallMeterError extends Schema.TaggedErrorClass<ExternalCall
     orgId: OrgId,
     cause: Schema.Defect(),
   }
-) {}
+) {
+  override get message(): string {
+    return "External call usage reservation failed";
+  }
+}
 
 export class ExternalCallWorkspaceUnavailableError extends Schema.TaggedErrorClass<ExternalCallWorkspaceUnavailableError>()(
   "ExternalCallWorkspaceUnavailableError",
@@ -67,18 +73,33 @@ export const reserveExternalCallForAllowance = Effect.fn(
     try: () =>
       processor.reserveExternalCall(allowance.usageWindowId, allowance.limit),
     catch: (cause) => new ExternalCallMeterError({ orgId, cause }),
+  }).pipe(
+    Effect.flatMap(Schema.decodeUnknownEffect(UsageReservation)),
+    Effect.mapError((cause) => new ExternalCallMeterError({ orgId, cause }))
+  );
+  yield* Effect.annotateCurrentSpan({
+    orgId: maskId(orgId),
+    "usage.count": reservation.count,
+    "usage.limit": allowance.limit,
+    "usage.status": reservation.status,
   });
-  if (reservation.status === "unavailable") {
-    return yield* new ExternalCallWorkspaceUnavailableError({ orgId });
-  }
-  if (reservation.status === "limit_reached") {
-    return yield* new ExternalCallLimitReachedError({
-      limit: allowance.limit,
-      orgId,
-      resetsAt: allowance.resetsAt,
-    });
-  }
-  return allowance;
+  return yield* Match.value(reservation.status).pipe(
+    Match.when("unavailable", () =>
+      Effect.fail(new ExternalCallWorkspaceUnavailableError({ orgId }))
+    ),
+    Match.when("limit_reached", () =>
+      Effect.fail(
+        new ExternalCallLimitReachedError({
+          limit: allowance.limit,
+          orgId,
+          resetsAt: allowance.resetsAt,
+        })
+      )
+    ),
+    Match.when("reserved", () => Effect.succeed(allowance)),
+    Match.when("duplicate", () => Effect.succeed(allowance)),
+    Match.exhaustive
+  );
 });
 
 export const reserveExternalCall = Effect.fn("Billing.reserveExternalCall")(

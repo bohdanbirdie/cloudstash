@@ -1,6 +1,6 @@
-import { Context, Data, Effect, Layer } from "effect";
+import { Context, Data, DateTime, Effect, Layer, Schema } from "effect";
 
-import { UsageMeter, UsageMeterLive } from "../billing/usage-meter";
+import { UsageMeter } from "../billing/usage-meter";
 import { OrgId } from "../db/branded";
 import { maskId } from "../log-utils";
 
@@ -22,21 +22,29 @@ export interface EnrichmentReservation {
   readonly used: number;
 }
 
+export interface EnrichmentUsageShape {
+  readonly reserve: (
+    storeId: OrgId,
+    input: {
+      readonly cap: number;
+      readonly settlementId: string;
+      readonly windowId: string;
+    }
+  ) => Effect.Effect<EnrichmentReservation, EnrichmentUsageTransactionError>;
+}
+
+const LegacyUsageCount = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
+
 export class EnrichmentUsage extends Context.Service<
   EnrichmentUsage,
-  {
-    readonly reserve: (
-      storeId: OrgId,
-      input: {
-        readonly cap: number;
-        readonly settlementId: string;
-        readonly windowId: string;
-      }
-    ) => Effect.Effect<EnrichmentReservation, EnrichmentUsageTransactionError>;
+  EnrichmentUsageShape
+>()("@cloudstash/EnrichmentUsage") {
+  static layer(bindings: EnrichmentUsageBindings) {
+    return makeEnrichmentUsageLayer(bindings);
   }
->()("@cloudstash/EnrichmentUsage") {}
+}
 
-export const EnrichmentUsageLive = (bindings: EnrichmentUsageBindings) =>
+const makeEnrichmentUsageLayer = (bindings: EnrichmentUsageBindings) =>
   Layer.effect(
     EnrichmentUsage,
     Effect.gen(function* () {
@@ -51,12 +59,40 @@ export const EnrichmentUsageLive = (bindings: EnrichmentUsageBindings) =>
           }
         ) {
           const period = input.windowId;
+          const now = yield* DateTime.nowAsDate;
+          const legacyPeriod = now.toISOString().slice(0, 7);
+          const legacyStored = yield* Effect.tryPromise({
+            try: () =>
+              bindings.storage.get(`enrichment:${storeId}:${legacyPeriod}`),
+            catch: (cause) =>
+              new EnrichmentUsageTransactionError({
+                storeId,
+                period,
+                cause,
+              }),
+          });
+          let initialCount = 0;
+          if (legacyStored !== undefined) {
+            initialCount = yield* Schema.decodeUnknownEffect(LegacyUsageCount)(
+              legacyStored
+            ).pipe(
+              Effect.mapError(
+                (cause) =>
+                  new EnrichmentUsageTransactionError({
+                    storeId,
+                    period,
+                    cause,
+                  })
+              )
+            );
+          }
           yield* Effect.annotateCurrentSpan({
             storeId: maskId(storeId),
             period,
           });
           const reservation = yield* meter
             .reserve({
+              initialCount,
               limit: input.cap,
               metric: "xEnrichments",
               settlementId: input.settlementId,
@@ -83,4 +119,4 @@ export const EnrichmentUsageLive = (bindings: EnrichmentUsageBindings) =>
         }),
       });
     })
-  ).pipe(Layer.provide(UsageMeterLive(bindings.storage)));
+  ).pipe(Layer.provide(UsageMeter.layer(bindings.storage)));

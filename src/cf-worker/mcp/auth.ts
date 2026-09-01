@@ -1,7 +1,10 @@
 import { Data, Effect, Option, Schema } from "effect";
 import type { JWTPayload } from "jose";
 
-import { WorkspaceAccess } from "../auth/workspace-access";
+import {
+  WorkspaceAccess,
+  matchWorkspaceAccessError,
+} from "../auth/workspace-access";
 import type { WorkspaceAccessDeniedError } from "../auth/workspace-access";
 import { externalCallAllowance } from "../billing/external-call-meter";
 import { requireCapability } from "../billing/service";
@@ -71,15 +74,18 @@ export const authorizeMcpClaims = Effect.fnUntraced(function* (
   } satisfies Omit<McpAuthorization, "externalCallAllowance">;
 
   const workspaceAccess = yield* WorkspaceAccess;
-  yield* workspaceAccess
-    .authorizeIdentity(identity)
-    .pipe(
-      Effect.mapError((error) =>
-        error._tag === "WorkspaceAccessBackendError"
-          ? new McpAuthorizationBackendError({ cause: error.cause })
-          : new McpWorkspaceAccessDenied({ cause: error })
-      )
-    );
+  yield* workspaceAccess.authorizeIdentity(identity).pipe(
+    Effect.mapError((error) =>
+      matchWorkspaceAccessError<
+        McpAuthorizationBackendError | McpWorkspaceAccessDenied
+      >(error, {
+        unauthorized: (cause) => new McpWorkspaceAccessDenied({ cause }),
+        missingScope: (cause) => new McpWorkspaceAccessDenied({ cause }),
+        forbidden: (cause) => new McpWorkspaceAccessDenied({ cause }),
+        backend: ({ cause }) => new McpAuthorizationBackendError({ cause }),
+      })
+    )
+  );
 
   yield* requireCapability(identity.orgId, "mcpServer");
   const allowance = yield* externalCallAllowance(identity.orgId);

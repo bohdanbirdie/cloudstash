@@ -1096,6 +1096,51 @@ describe("MCP OAuth Worker flow", () => {
     });
   });
 
+  it("shares one monthly allowance between the public API and MCP", async () => {
+    const meteredUser = await signupUser(
+      `mcp-shared-meter-${crypto.randomUUID()}@test.com`,
+      "MCP shared meter"
+    );
+    await setSubscribedPro(meteredUser.orgId, {
+      aiSummary: false,
+      monthlyExternalCalls: 1,
+    });
+    const apiKeyResponse = await SELF.fetch(
+      "http://worker/api/auth/api-key/create",
+      {
+        body: JSON.stringify({ name: "Shared meter" }),
+        headers: {
+          Cookie: meteredUser.cookie,
+          "Content-Type": "application/json",
+          Origin: AUTH_ORIGIN,
+        },
+        method: "POST",
+      }
+    );
+    expect(apiKeyResponse.status, await apiKeyResponse.clone().text()).toBe(
+      200
+    );
+    const apiKey = (await apiKeyResponse.json<{ key: string }>()).key;
+    const apiCall = await SELF.fetch("http://worker/api/links", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    expect(apiCall.status, await apiCall.clone().text()).toBe(200);
+
+    const meteredClient = await registerCurrentMcpJamClient();
+    const meteredTokens = await authorizeClient(meteredUser, meteredClient);
+    const denied = await callMcp<unknown>(
+      meteredTokens.access_token,
+      50,
+      "tools/call",
+      { arguments: { limit: 1 }, name: "list_links" }
+    );
+
+    expect(denied.response.status).toBe(200);
+    expect(JSON.stringify(denied.body)).toContain(
+      "Monthly API and MCP allowance used"
+    );
+  });
+
   it("rejects a write tool when the token has only the read scope", async () => {
     const readOnlyUser = await signupUser(
       "mcp-read-only@test.com",

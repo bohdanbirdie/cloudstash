@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect";
+import { Effect, Match, Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/unstable/rpc";
 
 import {
@@ -140,18 +140,30 @@ export interface WorkspaceLinksRpcRunner {
 
 export const makeWorkspaceLinksRpcHandlers = (
   run: WorkspaceLinksRpcRunner,
-  runSave: WorkspaceLinksRpcRunner = run
-) =>
-  WorkspaceLinksRpcs.toLayer({
+  runCapacityMutation: WorkspaceLinksRpcRunner = run
+) => {
+  const updateRunner = (state: typeof LinkMutableState.Type | undefined) =>
+    Match.value(state).pipe(
+      Match.when("inbox", () => runCapacityMutation),
+      Match.when("completed", () => runCapacityMutation),
+      Match.orElse(() => run)
+    );
+
+  return WorkspaceLinksRpcs.toLayer({
     ListLinks: (input) => run((links) => WorkspaceLinksRpc.list(links, input)),
     SearchLinks: (input) =>
       run((links) => WorkspaceLinksRpc.search(links, input)),
     GetLink: (input) => run((links) => WorkspaceLinksRpc.get(links, input)),
     SaveLink: (input) =>
-      runSave((links) => WorkspaceLinksRpc.save(links, input)),
+      runCapacityMutation((links) => WorkspaceLinksRpc.save(links, input)),
     UpdateLink: (input) =>
-      run((links) => WorkspaceLinksRpc.update(links, input)),
+      updateRunner(input.changes.state)((links) =>
+        WorkspaceLinksRpc.update(links, input)
+      ),
     UpdateLinks: (input) =>
-      run((links) => WorkspaceLinksRpc.updateMany(links, input)),
+      updateRunner(input.changes.state)((links) =>
+        WorkspaceLinksRpc.updateMany(links, input)
+      ),
     GetLinkStats: () => run((links) => WorkspaceLinksRpc.stats(links)),
   });
+};

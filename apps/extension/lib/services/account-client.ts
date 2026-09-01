@@ -4,7 +4,7 @@ import { APP_URL } from "../config";
 import type { Creds } from "../messages";
 
 const AccountBody = Schema.Struct({
-  maxSavedLinks: Schema.Int,
+  maxSavedLinks: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   user: Schema.optional(
     Schema.Struct({
       name: Schema.NullOr(Schema.String),

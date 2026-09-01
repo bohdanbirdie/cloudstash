@@ -183,38 +183,55 @@ export const mergeCapabilities = (
     overrides?.chatAgent === true &&
     overrides.monthlyAssistantCredits === undefined
   ) {
-    merged.monthlyAssistantCredits =
-      TIER_CAPABILITIES.pro.monthlyAssistantCredits;
+    merged.monthlyAssistantCredits = Math.max(
+      merged.monthlyAssistantCredits,
+      TIER_CAPABILITIES.pro.monthlyAssistantCredits
+    );
   }
   if (
     overrides?.aiSummary === true &&
     overrides.monthlyAiSummaries === undefined
   ) {
-    merged.monthlyAiSummaries = TIER_CAPABILITIES.free.monthlyAiSummaries;
+    merged.monthlyAiSummaries = Math.max(
+      merged.monthlyAiSummaries,
+      TIER_CAPABILITIES.free.monthlyAiSummaries
+    );
   }
   if (
     overrides?.publicApi === true &&
     overrides.monthlyExternalCalls === undefined
   ) {
-    merged.monthlyExternalCalls = TIER_CAPABILITIES.plus.monthlyExternalCalls;
+    merged.monthlyExternalCalls = Math.max(
+      merged.monthlyExternalCalls,
+      TIER_CAPABILITIES.plus.monthlyExternalCalls
+    );
   }
   if (
     overrides?.mcpServer === true &&
     overrides.monthlyExternalCalls === undefined
   ) {
-    merged.monthlyExternalCalls = TIER_CAPABILITIES.pro.monthlyExternalCalls;
+    merged.monthlyExternalCalls = Math.max(
+      merged.monthlyExternalCalls,
+      TIER_CAPABILITIES.pro.monthlyExternalCalls
+    );
   }
   if (
     overrides?.xBookmarkSync === true &&
     overrides.monthlyXBookmarks === undefined
   ) {
-    merged.monthlyXBookmarks = TIER_CAPABILITIES.pro.monthlyXBookmarks;
+    merged.monthlyXBookmarks = Math.max(
+      merged.monthlyXBookmarks,
+      TIER_CAPABILITIES.pro.monthlyXBookmarks
+    );
   }
   if (
     overrides?.xContentEnrichment === true &&
     overrides.monthlyXEnrichments === undefined
   ) {
-    merged.monthlyXEnrichments = TIER_CAPABILITIES.pro.monthlyXEnrichments;
+    merged.monthlyXEnrichments = Math.max(
+      merged.monthlyXEnrichments,
+      TIER_CAPABILITIES.pro.monthlyXEnrichments
+    );
   }
 
   return merged;
