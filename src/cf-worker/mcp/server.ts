@@ -62,7 +62,7 @@ const handleVerifiedRequestEffect = Effect.fnUntraced(function* (
   claims: JWTPayload,
   env: Env
 ) {
-  const authorization = yield* authorizeMcpClaims(claims);
+  const authorization = yield* authorizeMcpClaims(claims, env);
 
   yield* Effect.annotateCurrentSpan("orgId", maskId(authorization.orgId));
   yield* Effect.annotateCurrentSpan("clientId", maskId(authorization.clientId));

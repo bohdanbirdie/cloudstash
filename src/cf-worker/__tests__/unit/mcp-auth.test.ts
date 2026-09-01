@@ -37,7 +37,7 @@ describe("MCP authorization backend failures", () => {
   it.effect(
     "preserves workspace backend failures as retryable auth errors",
     () =>
-      authorizeMcpClaims(claims).pipe(
+      authorizeMcpClaims(claims, {} as never).pipe(
         Effect.provide(
           Layer.mergeAll(
             accessLayer(() =>
@@ -61,7 +61,7 @@ describe("MCP authorization backend failures", () => {
   );
 
   it.effect("preserves billing database failures for the 503 boundary", () =>
-    authorizeMcpClaims(claims).pipe(
+    authorizeMcpClaims(claims, {} as never).pipe(
       Effect.provide(
         Layer.mergeAll(
           accessLayer((authorization) => Effect.succeed(authorization)),

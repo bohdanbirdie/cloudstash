@@ -21,7 +21,13 @@ const unboundedSemaphore = Semaphore.makeUnsafe(Number.MAX_SAFE_INTEGER);
 
 interface ProcessLinkParams {
   aiSummaryEnabled?: boolean;
+  summaryReservation?: Effect.Effect<boolean>;
   xContentEnrichmentEnabled?: boolean;
+  xEnrichmentAllowance?: {
+    readonly monthlyLimit: number;
+    readonly settlementId: string;
+    readonly usageWindowId: string;
+  };
   storeId?: OrgId;
   link: { id: LinkId; url: string };
   skipStartedEvent?: boolean;
@@ -39,7 +45,9 @@ interface RecordFailureParams {
 
 export const processLink = ({
   aiSummaryEnabled = false,
+  summaryReservation,
   xContentEnrichmentEnabled = false,
+  xEnrichmentAllowance,
   storeId,
   link,
   skipStartedEvent = false,
@@ -122,7 +130,13 @@ export const processLink = ({
       yield* Effect.logWarning("Metadata fetched but empty");
     }
 
+    let summaryReserved = false;
     if (aiSummaryEnabled) {
+      summaryReserved =
+        summaryReservation === undefined ? true : yield* summaryReservation;
+    }
+
+    if (summaryReserved) {
       const existingTags = yield* linkStore.queryTags();
 
       const summarizeBasic = Effect.gen(function* () {
@@ -150,6 +164,7 @@ export const processLink = ({
 
       const canEnrich =
         xContentEnrichmentEnabled &&
+        xEnrichmentAllowance !== undefined &&
         storeId !== undefined &&
         isXTweetUrl(link.url);
 
@@ -163,7 +178,12 @@ export const processLink = ({
         );
 
       const summarize = canEnrich
-        ? enrichSummary({ storeId, url: link.url, existingTags }).pipe(
+        ? enrichSummary({
+            storeId,
+            url: link.url,
+            existingTags,
+            ...xEnrichmentAllowance,
+          }).pipe(
             Effect.map((enriched) => ({
               summary: enriched.summary as string | null,
               suggestedTags: enriched.suggestedTags,
@@ -288,7 +308,12 @@ export const processLink = ({
         );
       }
     } else {
-      yield* Effect.logDebug("AI summaries disabled, skipping");
+      yield* Effect.logDebug("AI summary skipped").pipe(
+        Effect.annotateLogs({
+          capabilityEnabled: aiSummaryEnabled,
+          hasUsageWindow: summaryReservation !== undefined,
+        })
+      );
     }
 
     yield* linkStore.commit(

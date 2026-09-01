@@ -34,8 +34,9 @@ performs one Stripe refresh and persists the result. Later requests use D1 only.
 
 Current boolean capability fields are AI summaries, chat agent, integrations, X
 bookmark sync, X content enrichment, public API, MCP server, and weekly digest;
-numeric capabilities include monthly Assistant credits and monthly imported X
-bookmarks. Free, Plus, and Pro defaults are declared in
+numeric capabilities include active saved links and monthly AI summaries,
+Assistant credits, external calls, imported X bookmarks, and enriched X
+summaries. Free, Plus, and Pro defaults are declared in
 [`src/lib/plan.ts`](../../../src/lib/plan.ts). A per-workspace override can force
 an individual value. Capability denial maps to HTTP 402 with capability and
 required tier where an HTTP boundary applies.
@@ -44,6 +45,25 @@ A manual boolean override that enables metered chat or X sync without an
 explicit companion allowance derives the Pro allowance for that feature. This
 keeps an administrative grant operationally equivalent to the corresponding
 paid capability instead of enabling a feature whose allowance remains zero.
+
+| Public allowance / month | Free |      Plus |               Pro |
+| ------------------------ | ---: | --------: | ----------------: |
+| Active saved links       |  100 |       500 | Product-unlimited |
+| AI summaries             |   10 |       500 |             1,000 |
+| Assistant credits        |    0 |         0 |             1,000 |
+| Public API + MCP calls   |    0 | 1,000 API |   10,000 combined |
+| Imported X bookmarks     |    0 |         0 |               200 |
+| Enriched X summaries     |    0 |         0 |               100 |
+
+Archiving removes a link from active capacity. Pro's product-unlimited saved
+links use a zero sentinel in the executable matrix; private abuse controls are
+operational policy rather than a customer allowance. Retained active plus
+archived history has a deliberately generous private ceiling derived from the
+active allowance, with a high fixed ceiling for product-unlimited workspaces.
+The browser blocks obvious overages for immediate feedback; SyncBackendDO is the
+authoritative boundary and rejects excess link-creation events before canonical
+persistence. An X enrichment consumes both one AI-summary attempt and one
+X-enrichment attempt.
 
 Implemented gates include:
 
@@ -112,21 +132,28 @@ price and feature copy.
 Chat checks settled monthly spend in workspace LinkProcessorDO storage, then
 records actual provider-reported cost in an idempotent settlement and monthly
 aggregate. X bookmark sync serializes workspace admission and retirement in
-that same owner,
-deduplicates source bookmark IDs within the usage window, sends admitted work
-to the Queue, and records the monthly count. Present malformed durable usage
-state fails closed as a typed storage error; only an absent value initializes a
-new meter. A crash between Queue acceptance
-and the count write can repeat delivery, but common-ingest idempotence prevents
-a duplicate library item. X enrichment reserves one attempt atomically in the
-workspace's LinkProcessorDO storage before any provider work. Provider and generator
-failures remain charged because the external attempt has started. Storage
-failure skips enrichment and falls back to the ordinary summary path. These
+that same owner, deduplicates source bookmark IDs within the usage window,
+sends admitted work to the Queue, and records the monthly count. Present
+malformed durable usage state fails closed as a typed storage error; only an
+absent value initializes a new meter. A crash between Queue acceptance and the
+count write can repeat delivery, but common-ingest idempotence prevents a
+duplicate library item.
+
+X enrichment and basic AI summaries reserve idempotent attempts atomically in
+the workspace's LinkProcessorDO storage before provider work. REST and MCP
+reserve from one combined external-call counter at the same owner. Provider and
+generator failures remain charged because the external attempt has started.
+Storage failure skips optional AI work without losing accepted metadata or link
+state. Server-originated saves serialize duplicate detection, active-count
+admission, and commit in LinkProcessorDO. Web and extension clients check their
+local active count immediately; when entitlement state is unavailable they
+retain local-first acceptance, so cross-client convergence can temporarily
+exceed a cap but never silently discard a saved link. These
 counters are cost controls, not subscription truth. The workspace-owner choice
 and cutover are recorded in
 [decision 0002](./.decisions/0002-own-enrichment-reservations-in-link-processor.md).
 
-Assistant and imported-X-bookmark periods follow the workspace entitlement
+All monthly allowance periods follow the workspace entitlement
 rather than UTC calendar months. Monthly Stripe subscriptions use their exact item period. Annual Stripe
 subscriptions receive monthly subwindows derived from the persisted billing
 anchor and bounded by the active annual period. Admin grants use their grant

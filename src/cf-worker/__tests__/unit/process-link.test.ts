@@ -32,10 +32,7 @@ import { EnrichmentGenerator } from "../../x-enrichment/generator";
 import type { EnrichmentOutput } from "../../x-enrichment/generator";
 import { ThreadProvider } from "../../x-enrichment/services";
 import type { ThreadContext } from "../../x-enrichment/services";
-import {
-  ENRICHMENT_MODEL,
-  MONTHLY_ENRICHMENT_CAP,
-} from "../../x-enrichment/types";
+import { ENRICHMENT_MODEL } from "../../x-enrichment/types";
 import {
   EnrichmentUsage,
   EnrichmentUsageTransactionError,
@@ -61,6 +58,13 @@ const enrichmentStubs = Layer.mergeAll(
       Effect.die(new Error("unexpected EnrichmentUsage.reserve call in test")),
   })
 );
+
+const ENRICHMENT_LIMIT = 100;
+const xEnrichmentAllowance = {
+  monthlyLimit: ENRICHMENT_LIMIT,
+  settlementId: "settlement-1",
+  usageWindowId: "window-1",
+};
 
 const testLink = { id: LinkId.make("link-1"), url: "https://example.com" };
 
@@ -234,6 +238,39 @@ describe("processLink", () => {
         })
       )
     )
+  );
+
+  it.effect(
+    "keeps metadata and completes when the summary allowance is used",
+    () =>
+      processLink({
+        link: testLink,
+        aiSummaryEnabled: true,
+        summaryReservation: Effect.succeed(false),
+      }).pipe(
+        Effect.provide(
+          buildTestLayers({
+            metadata: mockMetadata,
+            aiResult: { summary: "must not be written", suggestedTags: [] },
+          })
+        ),
+        silentLogger,
+        Effect.tap(() =>
+          Effect.sync(() => {
+            expect(
+              store.query(tables.linkSnapshots.where({ linkId: testLink.id }))
+            ).toHaveLength(1);
+            expect(
+              store.query(tables.linkSummaries.where({ linkId: testLink.id }))
+            ).toHaveLength(0);
+            expect(
+              store.query(
+                tables.linkProcessingStatus.where({ linkId: testLink.id })
+              )[0].status
+            ).toBe("completed");
+          })
+        )
+      )
   );
 
   it.effect("completes without summary when AI returns null", () =>
@@ -740,9 +777,9 @@ const enrichmentLayer = (opts: EnrichmentLayerOpts = {}) => {
       })
     ),
     Layer.succeed(EnrichmentUsage, {
-      reserve: (_storeId, cap) => {
+      reserve: (_storeId, input) => {
         if (opts.usageError) return Effect.fail(opts.usageError);
-        if (usedRef.value >= cap) {
+        if (usedRef.value >= input.cap) {
           return Effect.succeed({
             reserved: false,
             used: usedRef.value,
@@ -769,6 +806,7 @@ describe("processLink enrichment router", () => {
         link: xLink,
         aiSummaryEnabled: true,
         xContentEnrichmentEnabled: true,
+        xEnrichmentAllowance,
         storeId: STORE_ID,
       }).pipe(
         Effect.provide(
@@ -817,6 +855,7 @@ describe("processLink enrichment router", () => {
         link: xLink,
         aiSummaryEnabled: true,
         xContentEnrichmentEnabled: true,
+        xEnrichmentAllowance,
         storeId: STORE_ID,
       }).pipe(
         Effect.provide(
@@ -860,7 +899,7 @@ describe("processLink enrichment router", () => {
               reserve: () =>
                 Effect.succeed({
                   reserved: false,
-                  used: MONTHLY_ENRICHMENT_CAP,
+                  used: ENRICHMENT_LIMIT,
                   period: "2026-05",
                 }),
             })
@@ -889,6 +928,7 @@ describe("processLink enrichment router", () => {
         link: xLink,
         aiSummaryEnabled: true,
         xContentEnrichmentEnabled: true,
+        xEnrichmentAllowance,
         storeId: STORE_ID,
       }).pipe(
         Effect.provide(
@@ -948,6 +988,7 @@ describe("processLink enrichment router", () => {
         link: xLink,
         aiSummaryEnabled: true,
         xContentEnrichmentEnabled: true,
+        xEnrichmentAllowance,
         storeId: STORE_ID,
       }).pipe(
         Effect.provide(
@@ -1005,6 +1046,7 @@ describe("processLink enrichment router", () => {
         link: xLink,
         aiSummaryEnabled: true,
         xContentEnrichmentEnabled: true,
+        xEnrichmentAllowance,
         storeId: STORE_ID,
       }).pipe(
         Effect.provide(
@@ -1062,6 +1104,7 @@ describe("processLink enrichment router", () => {
         link: xLink,
         aiSummaryEnabled: true,
         xContentEnrichmentEnabled: true,
+        xEnrichmentAllowance,
         storeId: STORE_ID,
       }).pipe(
         Effect.provide(
@@ -1116,6 +1159,7 @@ describe("processLink enrichment router", () => {
       link: testLink,
       aiSummaryEnabled: true,
       xContentEnrichmentEnabled: true,
+      xEnrichmentAllowance,
       storeId: STORE_ID,
     }).pipe(
       Effect.provide(
@@ -1155,6 +1199,7 @@ describe("processLink enrichment router", () => {
       link: xLink,
       aiSummaryEnabled: true,
       xContentEnrichmentEnabled: true,
+      xEnrichmentAllowance,
       // storeId omitted
     }).pipe(
       Effect.provide(

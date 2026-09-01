@@ -19,9 +19,9 @@ deltas.
 ## Current capability shape
 
 The runtime matrix includes AI summaries, chat agent, integrations, X bookmark
-sync/content enrichment, public API, MCP server, weekly digest, monthly
-Assistant credits, and monthly imported X bookmarks. Exact tier values belong
-only in `src/lib/plan.ts`.
+sync/content enrichment, public API, MCP server, weekly digest, active saved
+links, and monthly summary, Assistant, external-call, X-import, and X-enrichment
+allowances. Exact tier values belong only in `src/lib/plan.ts`.
 
 Authoritative handlers return a structured capability denial when the current
 workspace lacks a feature. Some ongoing stateful paths still need operation-time
@@ -46,7 +46,7 @@ maintainer-controlled launch action in [[../todos/human-launch-operations]].
 ## Usage allowances
 
 Chat checks and settles actual monthly provider cost against the workspace's
-Assistant credits. Imported X bookmarks use a subscription-aligned workspace
-counter, and X enrichment keeps its separate attempt reservation contract. Free
-saved-link count is unlimited; a bounded monthly Free summary
-allowance remains planning work. See [[usage-limits]].
+Assistant credits. Imported X bookmarks, basic summaries, enrichment, and
+combined API/MCP calls use subscription-aligned workspace counters. Free and
+Plus active-link capacity is bounded; Pro is product-unlimited. See
+[[usage-limits]].

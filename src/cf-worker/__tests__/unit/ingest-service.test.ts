@@ -1,8 +1,8 @@
 import { it, describe } from "@effect/vitest";
-import { Effect, Layer, References } from "effect";
+import { Effect, Layer, Option, References } from "effect";
 import { expect, vi } from "vitest";
 
-import type { TierCapabilities } from "@/lib/plan";
+import { capabilitiesFor } from "@/lib/plan";
 
 import { AuthClient } from "../../auth/service";
 import {
@@ -10,6 +10,7 @@ import {
   makeWorkspaceAccess,
 } from "../../auth/workspace-access";
 import { Billing } from "../../billing/service";
+import { OrgId } from "../../db/branded";
 import { DbError } from "../../db/service";
 import { handleIngestRequest, ingestResponse } from "../../ingest/service";
 import { OrgNotFoundError } from "../../org/errors";
@@ -40,6 +41,15 @@ function createEnv(overrides: { queueSendError?: Error } = {}) {
     GOOGLE_CLIENT_ID: "test",
     GOOGLE_CLIENT_SECRET: "test",
     LINK_QUEUE: { send: queueSend },
+    LINK_PROCESSOR_DO: {
+      idFromName: () => "do-id",
+      get: () => ({
+        reserveExternalCall: async () => ({
+          count: 1,
+          status: "reserved",
+        }),
+      }),
+    },
     USAGE_ANALYTICS: { writeDataPoint: vi.fn() },
     _queueSend: queueSend,
   };
@@ -72,6 +82,18 @@ function makeBillingLayer(
 ): Layer.Layer<Billing> {
   return Layer.succeed(Billing, {
     capabilities,
+    usageAllowance: () =>
+      capabilities(OrgId.make("org-1")).pipe(
+        Effect.map((resolved) => ({
+          capabilities: resolved,
+          source: "stripe" as const,
+          usageWindow: Option.some({
+            id: "window-1",
+            resetsAt: "2026-09-01T00:00:00.000Z",
+            startsAt: "2026-08-01T00:00:00.000Z",
+          }),
+        }))
+      ),
   } as unknown as Billing["Service"]);
 }
 
@@ -80,7 +102,7 @@ const capsLayer = (
   integrations = publicApi
 ): Layer.Layer<Billing> =>
   makeBillingLayer(() =>
-    Effect.succeed({ integrations, publicApi } as TierCapabilities)
+    Effect.succeed({ ...capabilitiesFor("plus"), integrations, publicApi })
   );
 
 const plusBillingLayer = capsLayer(true);

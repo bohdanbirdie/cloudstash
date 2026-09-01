@@ -1,8 +1,8 @@
 import { describe, it } from "@effect/vitest";
-import { Effect, Layer, References } from "effect";
+import { Effect, Layer, Option, References } from "effect";
 import { expect, vi } from "vitest";
 
-import type { TierCapabilities } from "@/lib/plan";
+import { capabilitiesFor } from "@/lib/plan";
 
 import { AuthClient } from "../../auth/service";
 import {
@@ -10,7 +10,7 @@ import {
   makeWorkspaceAccess,
 } from "../../auth/workspace-access";
 import { Billing } from "../../billing/service";
-import { ApiKey } from "../../db/branded";
+import { ApiKey, OrgId } from "../../db/branded";
 import { DbError } from "../../db/service";
 import { OrgNotFoundError } from "../../org/errors";
 import { handleListLinks, listLinksEffect } from "../handler";
@@ -32,7 +32,14 @@ const createEnv = (
   return {
     LINK_PROCESSOR_DO: {
       idFromName: vi.fn().mockReturnValue("do-id"),
-      get: vi.fn().mockReturnValue({ listLinks, searchLinks }),
+      get: vi.fn().mockReturnValue({
+        listLinks,
+        searchLinks,
+        reserveExternalCall: async () => ({
+          count: 1,
+          status: "reserved",
+        }),
+      }),
     },
     listLinks,
     searchLinks,
@@ -64,10 +71,24 @@ const makeBillingLayer = (
 ): Layer.Layer<Billing> =>
   Layer.succeed(Billing, {
     capabilities,
+    usageAllowance: () =>
+      capabilities(OrgId.make("org-1")).pipe(
+        Effect.map((resolved) => ({
+          capabilities: resolved,
+          source: "stripe" as const,
+          usageWindow: Option.some({
+            id: "window-1",
+            resetsAt: "2026-09-01T00:00:00.000Z",
+            startsAt: "2026-08-01T00:00:00.000Z",
+          }),
+        }))
+      ),
   } as unknown as Billing["Service"]);
 
 const capabilities = (publicApi: boolean): Layer.Layer<Billing> =>
-  makeBillingLayer(() => Effect.succeed({ publicApi } as TierCapabilities));
+  makeBillingLayer(() =>
+    Effect.succeed({ ...capabilitiesFor("plus"), publicApi })
+  );
 
 const validKey = {
   valid: true,

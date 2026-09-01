@@ -1,7 +1,6 @@
 import { useState } from "react";
 import useSWR from "swr";
 
-import type { AssistantCreditStatus } from "@/cf-worker/chat-agent/usage";
 import { SectionEyebrow } from "@/components/right-pane/detail-view/section-eyebrow";
 import { DeleteAccountDialog } from "@/components/settings/delete-account-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -10,10 +9,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { UsageLimits } from "@/components/usage/usage-limits";
 import { useOrgFeatures } from "@/hooks/use-org-features";
 import { useAuth } from "@/lib/auth";
-import {
-  chatSessionsEndpoint,
-  fetchChatSessions,
-} from "@/lib/chat-sessions-api";
+import { fetchWorkspaceUsage, usageEndpoint } from "@/lib/usage-api";
+import type { UsageItem } from "@/lib/usage-api";
+import { allLinksCount$ } from "@/livestore/queries/links";
+import { useAppStore } from "@/livestore/store";
 
 function getInitial(name: string | null, email: string | null) {
   const source = name?.trim() || email?.trim() || "";
@@ -22,13 +21,13 @@ function getInitial(name: string | null, email: string | null) {
 
 export function AccountSection() {
   const auth = useAuth();
-  const { isChatEnabled, isLoading: isLoadingFeatures } = useOrgFeatures();
+  const { capabilities, isLoading: isLoadingFeatures } = useOrgFeatures();
+  const activeLinks = useAppStore().useQuery(allLinksCount$);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const usageUrl =
-    isChatEnabled && auth.orgId ? chatSessionsEndpoint(auth.orgId) : null;
-  const { data: chatData, error: chatError } = useSWR(
+  const usageUrl = auth.orgId ? usageEndpoint(auth.orgId) : null;
+  const { data: usageData, error: usageError } = useSWR(
     usageUrl,
-    fetchChatSessions,
+    fetchWorkspaceUsage,
     { dedupingInterval: 30_000 }
   );
 
@@ -38,11 +37,24 @@ export function AccountSection() {
         email={auth.email}
         image={auth.image}
         name={auth.name}
-        assistantCredits={chatData?.assistantCredits}
-        assistantCreditsError={chatError instanceof Error}
-        showAssistantCredits={isChatEnabled}
+        usageItems={usageData?.items}
+        usageError={usageError instanceof Error}
+        savedLinks={
+          capabilities.maxSavedLinks > 0
+            ? {
+                id: "savedLinks",
+                label: "Saved links",
+                limit: capabilities.maxSavedLinks,
+                remaining: Math.max(
+                  0,
+                  capabilities.maxSavedLinks - activeLinks
+                ),
+              }
+            : undefined
+        }
+        resetsAt={usageData?.resetsAt}
         usageLoading={
-          isLoadingFeatures || (usageUrl !== null && !chatData && !chatError)
+          isLoadingFeatures || (usageUrl !== null && !usageData && !usageError)
         }
         onDeleteAccount={() => setDeleteOpen(true)}
       />
@@ -56,9 +68,15 @@ interface AccountSectionViewProps {
   email: string | null;
   image: string | null;
   name: string | null;
-  assistantCredits?: AssistantCreditStatus;
-  assistantCreditsError?: boolean;
-  showAssistantCredits?: boolean;
+  usageItems?: readonly UsageItem[];
+  usageError?: boolean;
+  savedLinks?: {
+    readonly id: string;
+    readonly label: string;
+    readonly limit: number;
+    readonly remaining: number;
+  };
+  resetsAt?: string;
   usageLoading?: boolean;
   onDeleteAccount: () => void;
 }
@@ -67,9 +85,10 @@ export function AccountSectionView({
   email,
   image,
   name,
-  assistantCredits,
-  assistantCreditsError = false,
-  showAssistantCredits = false,
+  usageItems,
+  usageError = false,
+  savedLinks,
+  resetsAt,
   usageLoading = false,
   onDeleteAccount,
 }: AccountSectionViewProps) {
@@ -99,7 +118,7 @@ export function AccountSectionView({
           </div>
         </div>
 
-        {(showAssistantCredits || usageLoading) && (
+        {(usageItems || savedLinks || usageLoading || usageError) && (
           <section className="flex flex-col gap-3">
             <SectionEyebrow>Usage</SectionEyebrow>
             {usageLoading ? (
@@ -110,24 +129,18 @@ export function AccountSectionView({
                 </div>
                 <Skeleton className="h-1 w-full" />
               </div>
-            ) : assistantCredits ? (
+            ) : usageItems && resetsAt ? (
               <div className="-mx-3">
                 <UsageLimits
-                  items={[
-                    {
-                      id: "assistant",
-                      label: "Cloudstash Assistant",
-                      limit: assistantCredits.limit,
-                      remaining: assistantCredits.remaining,
-                    },
-                  ]}
-                  resetsAt={assistantCredits.resetsAt}
+                  items={usageItems}
+                  libraryItems={savedLinks ? [savedLinks] : []}
+                  resetsAt={resetsAt}
                 />
               </div>
             ) : (
               <p
                 className="text-xs text-muted-foreground"
-                role={assistantCreditsError ? "alert" : undefined}
+                role={usageError ? "alert" : undefined}
               >
                 Usage is temporarily unavailable.
               </p>

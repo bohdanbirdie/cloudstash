@@ -13,6 +13,7 @@ import {
 import { MCP_TOOL_SCOPES } from "@/lib/mcp";
 
 import { trackEvent } from "../analytics";
+import { reserveExternalCallForAllowance } from "../billing/external-call-meter";
 import { maskId, safeErrorInfo } from "../log-utils";
 import type { Env } from "../shared";
 import { OtelTracingLive } from "../tracing";
@@ -161,6 +162,7 @@ const workspace = (env: Env, authorization: McpAuthorization) =>
   );
 
 const run = <Value>(
+  env: Env,
   authorization: McpAuthorization,
   operation: string,
   failureMessage: string,
@@ -170,8 +172,21 @@ const run = <Value>(
   return runMcpToolHandler(
     operation,
     failureMessage,
-    Effect.tryPromise(call).pipe(
+    reserveExternalCallForAllowance(
+      env,
+      authorization.orgId,
+      authorization.externalCallAllowance
+    ).pipe(
+      Effect.andThen(Effect.tryPromise(call)),
       Effect.map(workspaceResult),
+      Effect.catchTag("ExternalCallLimitReachedError", () =>
+        Effect.succeed(
+          toolError("Monthly API and MCP allowance used. Try again next month.")
+        )
+      ),
+      Effect.catchTag("ExternalCallWorkspaceUnavailableError", () =>
+        Effect.succeed(toolError("Cloudstash library is unavailable."))
+      ),
       Effect.withSpan(operation, {
         attributes: { orgId },
       })
@@ -216,6 +231,7 @@ export const makeMcpServer = (
       const scope = authorizeToolScope(authorization, "list_links");
       if (!scope.ok) return scope.result;
       return run(
+        env,
         scope.authorization,
         "MCP.listLinks",
         "Cloudstash could not list links",
@@ -237,6 +253,7 @@ export const makeMcpServer = (
       const scope = authorizeToolScope(authorization, "search_links");
       if (!scope.ok) return scope.result;
       return run(
+        env,
         scope.authorization,
         "MCP.searchLinks",
         "Cloudstash could not search links",
@@ -258,6 +275,7 @@ export const makeMcpServer = (
       const scope = authorizeToolScope(authorization, "get_link");
       if (!scope.ok) return scope.result;
       return run(
+        env,
         scope.authorization,
         "MCP.getLink",
         "Cloudstash could not get this link",
@@ -279,6 +297,7 @@ export const makeMcpServer = (
       const scope = authorizeToolScope(authorization, "save_link");
       if (!scope.ok) return scope.result;
       const result = await run(
+        env,
         scope.authorization,
         "MCP.saveLink",
         "Cloudstash could not save this link",
@@ -317,6 +336,7 @@ export const makeMcpServer = (
       const scope = authorizeToolScope(authorization, "update_link");
       if (!scope.ok) return scope.result;
       return run(
+        env,
         scope.authorization,
         "MCP.updateLink",
         "Cloudstash could not update this link",
@@ -342,6 +362,7 @@ export const makeMcpServer = (
       const scope = authorizeToolScope(authorization, "update_links");
       if (!scope.ok) return scope.result;
       return run(
+        env,
         scope.authorization,
         "MCP.updateLinks",
         "Cloudstash could not update these links",

@@ -36,6 +36,7 @@ import { handleBillingCheckout } from "./billing/routes/checkout";
 import { handleBillingPortal } from "./billing/routes/portal";
 import { handleStripeSuccess } from "./billing/routes/success";
 import { handleStripeWebhook } from "./billing/routes/webhook";
+import { handleWorkspaceUsage } from "./billing/usage-handler";
 import { agentHooks } from "./chat-agent/hooks";
 import {
   handleCreateChatSession,
@@ -284,6 +285,7 @@ app.delete("/api/invites/:id", (c) =>
 app.post("/api/invites/redeem", (c) => handleRedeemInvite(c.req.raw, c.env));
 
 app.get("/api/chat/sessions", (c) => handleListChatSessions(c.req.raw, c.env));
+app.get("/api/usage", (c) => handleWorkspaceUsage(c.req.raw, c.env));
 app.post("/api/chat/sessions", (c) =>
   handleCreateChatSession(c.req.raw, c.env)
 );

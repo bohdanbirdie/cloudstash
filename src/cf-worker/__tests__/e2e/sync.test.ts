@@ -1,5 +1,9 @@
-import { env, SELF } from "cloudflare:test";
+import { env, runInDurableObject, SELF } from "cloudflare:test";
 import { describe, it, expect, beforeAll } from "vitest";
+
+import { events } from "../../../livestore/schema";
+import { OrgId } from "../../db/branded";
+import type { SyncBackendDO } from "../../sync";
 
 /**
  * E2E tests for LiveStore sync connection auth rejection.
@@ -162,6 +166,38 @@ describe("sync Connection Auth E2E", () => {
       // or potentially a different success status depending on how SELF handles WebSocket
       // The key is it should NOT be 400
       expect(res.status).not.toBe(400);
+    });
+  });
+
+  describe("retained-link safety boundary", () => {
+    it("accepts ordinary local-first batches and rejects abusive growth", async () => {
+      const user = await signupUser(
+        `sync-retained-${crypto.randomUUID()}@test.com`,
+        "Sync retained"
+      );
+      await env.DB.prepare(
+        "UPDATE organization SET feature_overrides = ? WHERE id = ?"
+      )
+        .bind(JSON.stringify({ maxSavedLinks: 1 }), user.orgId)
+        .run();
+      const stub = env.SYNC_BACKEND_DO.get(
+        env.SYNC_BACKEND_DO.idFromName(user.orgId)
+      );
+      const orgId = OrgId.make(user.orgId);
+      const created = (count: number) =>
+        Array.from({ length: count }, (_, index) => ({
+          name: events.linkCreatedV2.name,
+          args: { id: `link-${index}` },
+        }));
+
+      await runInDurableObject(stub, (instance: SyncBackendDO) =>
+        instance.validateRetainedLinkPush(orgId, created(10))
+      );
+      await expect(
+        runInDurableObject(stub, (instance: SyncBackendDO) =>
+          instance.validateRetainedLinkPush(orgId, created(11))
+        )
+      ).rejects.toMatchObject({ _tag: "RetainedLinkSafetyLimitError" });
     });
   });
 

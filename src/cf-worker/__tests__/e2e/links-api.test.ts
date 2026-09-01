@@ -209,6 +209,94 @@ describe("Links REST API", () => {
     expect(tooLarge.status).toBe(413);
   });
 
+  it("serializes concurrent archive restores against the saved-link limit after eviction", async () => {
+    const user = await signupUser(
+      `links-api-capacity-${crypto.randomUUID()}@test.com`,
+      "Links API capacity"
+    );
+    await env.DB.prepare(
+      "UPDATE organization SET feature_overrides = ? WHERE id = ?"
+    )
+      .bind(
+        JSON.stringify({
+          aiSummary: false,
+          maxSavedLinks: 2,
+          publicApi: true,
+        }),
+        user.orgId
+      )
+      .run();
+    const processor = env.LINK_PROCESSOR_DO.get(
+      env.LINK_PROCESSOR_DO.idFromName(user.orgId)
+    );
+    await installTestMetadataFetcher(processor);
+    const keyResponse = await SELF.fetch(
+      "http://worker/api/auth/api-key/create",
+      {
+        body: JSON.stringify({ name: "Capacity regression" }),
+        headers: {
+          Cookie: user.cookie,
+          "Content-Type": "application/json",
+          Origin: "http://localhost",
+        },
+        method: "POST",
+      }
+    );
+    expect(keyResponse.status, await keyResponse.clone().text()).toBe(200);
+    const capacityApiKey = (await keyResponse.json<{ key: string }>()).key;
+    const capacityHeaders = json(capacityApiKey);
+
+    const ids: string[] = [];
+    for (const suffix of ["one", "two"]) {
+      const response = await SELF.fetch("http://worker/api/links", {
+        body: JSON.stringify({
+          url: `https://example.com/capacity-${suffix}-${crypto.randomUUID()}`,
+        }),
+        headers: capacityHeaders,
+        method: "POST",
+      });
+      expect(response.status, await response.clone().text()).toBe(200);
+      const body = (await response.json()) as { link: ApiLink };
+      ids.push(body.link.id);
+      const archive = await SELF.fetch(
+        `http://worker/api/links/${body.link.id}`,
+        {
+          body: JSON.stringify({ state: "archive" }),
+          headers: capacityHeaders,
+          method: "PATCH",
+        }
+      );
+      expect(archive.status, await archive.clone().text()).toBe(200);
+    }
+
+    await env.DB.prepare(
+      "UPDATE organization SET feature_overrides = ? WHERE id = ?"
+    )
+      .bind(
+        JSON.stringify({
+          aiSummary: false,
+          maxSavedLinks: 1,
+          publicApi: true,
+        }),
+        user.orgId
+      )
+      .run();
+    await abortAllDurableObjects();
+
+    const restores = await Promise.all(
+      ids.map((id) =>
+        SELF.fetch(`http://worker/api/links/${id}`, {
+          body: JSON.stringify({ state: "inbox" }),
+          headers: capacityHeaders,
+          method: "PATCH",
+        })
+      )
+    );
+    expect(
+      restores.map(({ status }) => status).toSorted((a, b) => a - b)
+    ).toEqual([200, 429]);
+  });
+
   it("permanently fences workspace operations after retirement", async () => {
     const workspace = env.LINK_PROCESSOR_DO.get(
       env.LINK_PROCESSOR_DO.idFromName(orgId)

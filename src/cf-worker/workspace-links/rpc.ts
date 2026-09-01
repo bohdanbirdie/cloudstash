@@ -17,7 +17,11 @@ import type {
 import type { WorkspaceLinks } from "./service";
 
 export type WorkspaceLinksRpcError = {
-  readonly code: "invalid_input" | "not_found" | "unavailable";
+  readonly code:
+    | "invalid_input"
+    | "limit_reached"
+    | "not_found"
+    | "unavailable";
   readonly message: string;
   readonly linkId?: string;
 };
@@ -62,6 +66,11 @@ const domainOutcome = Effect.fnUntraced(function* <Value, Requirements>(
         Effect.succeed({
           ok: false as const,
           error: { code: "invalid_input" as const, message: error.message },
+        }),
+      WorkspaceLinkLimitReachedError: (error) =>
+        Effect.succeed({
+          ok: false as const,
+          error: { code: "limit_reached" as const, message: error.message },
         }),
       WorkspaceLinkNotFoundError: (error) =>
         Effect.succeed({
