@@ -8,13 +8,9 @@ import {
   fanStrokeViewbox,
 } from "@/lib/brand/fan";
 import { squirclePath } from "@/lib/brand/squircle";
+import { TILE_FILL_TOP, TILE_INK, tileDepth } from "@/lib/brand/tile";
 
 const SQUIRCLE_D = squirclePath(60, 60, 52, 5);
-const TILE_BG_TOP = "#ffffff";
-const TILE_BG_BOTTOM = "#fafafa";
-const TILE_EDGE_TOP = "#efeff2";
-const TILE_EDGE_BOTTOM = "#e3e3e8";
-const TILE_INK = "#18181b";
 
 // `size` is the intended render size in CSS px; it sets the stroke weight.
 export function CloudstashLogo({
@@ -73,6 +69,7 @@ function BrandedLogo({
   const baseId = useId().replace(/:/g, "");
   const fillId = `${baseId}-fill`;
   const edgeId = `${baseId}-edge`;
+  const depth = tileDepth(size);
   return (
     <svg
       viewBox="0 0 120 120"
@@ -82,20 +79,20 @@ function BrandedLogo({
     >
       <defs>
         <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={TILE_BG_TOP} />
-          <stop offset="0.6" stopColor={TILE_BG_TOP} />
-          <stop offset="1" stopColor={TILE_BG_BOTTOM} />
+          <stop offset="0" stopColor={TILE_FILL_TOP} />
+          <stop offset="0.6" stopColor={TILE_FILL_TOP} />
+          <stop offset="1" stopColor={depth.fillBottom} />
         </linearGradient>
         <linearGradient id={edgeId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={TILE_EDGE_TOP} />
-          <stop offset="1" stopColor={TILE_EDGE_BOTTOM} />
+          <stop offset="0" stopColor={depth.edgeTop} />
+          <stop offset="1" stopColor={depth.edgeBottom} />
         </linearGradient>
       </defs>
       <path
         d={SQUIRCLE_D}
         fill={`url(#${fillId})`}
         stroke={`url(#${edgeId})`}
-        strokeWidth={2}
+        strokeWidth={depth.rimViewbox}
       />
       <g
         transform={`translate(60 ${60 + FAN_TILE_DY}) scale(0.62) translate(-60 -60)`}

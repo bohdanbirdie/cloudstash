@@ -15,12 +15,8 @@ import {
 } from "../src/lib/brand/fan";
 import { CWS_ICON_ARTWORK_RATIO } from "../src/lib/brand/icon-specs";
 import { squirclePath } from "../src/lib/brand/squircle";
+import { TILE_FILL_TOP, TILE_INK, tileDepth } from "../src/lib/brand/tile";
 
-const INK = "#18181b";
-const TILE_BG_TOP = "#ffffff";
-const TILE_BG_BOTTOM = "#fafafa";
-const TILE_EDGE_TOP = "#efeff2";
-const TILE_EDGE_BOTTOM = "#e3e3e8";
 const ICON_INSET = 0.62;
 
 type Clip = "squircle" | "square";
@@ -31,7 +27,9 @@ const CLIP_PATHS: Record<Clip, string> = {
 };
 
 function tileSvg(clip: Clip, usagePx: number, canvasScale = 1): string {
-  const markPx = usagePx * canvasScale * ICON_INSET;
+  const tilePx = usagePx * canvasScale;
+  const depth = tileDepth(tilePx);
+  const markPx = tilePx * ICON_INSET;
   const rays = fanSegments(FAN)
     .map(
       (s) =>
@@ -42,18 +40,18 @@ function tileSvg(clip: Clip, usagePx: number, canvasScale = 1): string {
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">`,
     `<defs>`,
     `<linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">`,
-    `<stop offset="0" stop-color="${TILE_BG_TOP}"/>`,
-    `<stop offset="0.6" stop-color="${TILE_BG_TOP}"/>`,
-    `<stop offset="1" stop-color="${TILE_BG_BOTTOM}"/>`,
+    `<stop offset="0" stop-color="${TILE_FILL_TOP}"/>`,
+    `<stop offset="0.6" stop-color="${TILE_FILL_TOP}"/>`,
+    `<stop offset="1" stop-color="${depth.fillBottom}"/>`,
     `</linearGradient>`,
     `<linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">`,
-    `<stop offset="0" stop-color="${TILE_EDGE_TOP}"/>`,
-    `<stop offset="1" stop-color="${TILE_EDGE_BOTTOM}"/>`,
+    `<stop offset="0" stop-color="${depth.edgeTop}"/>`,
+    `<stop offset="1" stop-color="${depth.edgeBottom}"/>`,
     `</linearGradient>`,
     `</defs>`,
     `<g transform="translate(60 60) scale(${canvasScale}) translate(-60 -60)">`,
-    `<path d="${CLIP_PATHS[clip]}" fill="url(#fill)" stroke="url(#edge)" stroke-width="1"/>`,
-    `<g transform="translate(60 ${60 + FAN_TILE_DY}) scale(${ICON_INSET}) translate(-60 -60)" stroke="${INK}" stroke-width="${fanStrokeViewbox(markPx)}" stroke-linecap="round">`,
+    `<path d="${CLIP_PATHS[clip]}" fill="url(#fill)" stroke="url(#edge)" stroke-width="${depth.rimViewbox}"/>`,
+    `<g transform="translate(60 ${60 + FAN_TILE_DY}) scale(${ICON_INSET}) translate(-60 -60)" stroke="${TILE_INK}" stroke-width="${fanStrokeViewbox(markPx)}" stroke-linecap="round">`,
     rays,
     `</g>`,
     `</g>`,
