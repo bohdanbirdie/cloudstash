@@ -13,6 +13,7 @@ import {
   fanSegments,
   fanStrokeViewbox,
 } from "../src/lib/brand/fan";
+import { CWS_ICON_ARTWORK_RATIO } from "../src/lib/brand/icon-specs";
 import { squirclePath } from "../src/lib/brand/squircle";
 
 const INK = "#18181b";
@@ -29,8 +30,8 @@ const CLIP_PATHS: Record<Clip, string> = {
   square: "M 0,0 H 120 V 120 H 0 Z",
 };
 
-function tileSvg(clip: Clip, usagePx: number): string {
-  const markPx = usagePx * ICON_INSET;
+function tileSvg(clip: Clip, usagePx: number, canvasScale = 1): string {
+  const markPx = usagePx * canvasScale * ICON_INSET;
   const rays = fanSegments(FAN)
     .map(
       (s) =>
@@ -50,9 +51,11 @@ function tileSvg(clip: Clip, usagePx: number): string {
     `<stop offset="1" stop-color="${TILE_EDGE_BOTTOM}"/>`,
     `</linearGradient>`,
     `</defs>`,
+    `<g transform="translate(60 60) scale(${canvasScale}) translate(-60 -60)">`,
     `<path d="${CLIP_PATHS[clip]}" fill="url(#fill)" stroke="url(#edge)" stroke-width="1"/>`,
     `<g transform="translate(60 ${60 + FAN_TILE_DY}) scale(${ICON_INSET}) translate(-60 -60)" stroke="${INK}" stroke-width="${fanStrokeViewbox(markPx)}" stroke-linecap="round">`,
     rays,
+    `</g>`,
     `</g>`,
     `</svg>`,
   ].join("");
@@ -116,7 +119,10 @@ const extensionIconDir = join(
   "icon"
 );
 for (const size of [16, 32, 48, 128]) {
-  const png = renderPng(tileSvg("squircle", size), size);
+  const png = renderPng(
+    tileSvg("squircle", size, CWS_ICON_ARTWORK_RATIO),
+    size
+  );
   await writeFile(join(extensionIconDir, `${size}.png`), png);
   console.log(`extension icon/${size}.png — ${png.length} bytes`);
 }

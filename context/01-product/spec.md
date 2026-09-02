@@ -109,6 +109,9 @@ wordmark) used identically on the app top bar, landing, footer, and login.
 Loading and login surfaces animate the mark with the Unfold/Trace loop on
 the app's shared motion curve. The spec constants live in
 `src/lib/brand/fan.ts` (mirrored in the extension), and `bun run
-brand:export` regenerates all raster brand assets from them. The prior
+brand:export` regenerates all raster brand assets from them. Exported icons
+follow each target platform's published canvas spec — for example the Chrome
+Web Store's 96×96-artwork-in-128×128 rule — with the ratios recorded in
+`src/lib/brand/icon-specs.ts`. The prior
 torus-knot mark and dithered backgrounds are fully retired. Rationale:
 [.decisions/0002-adopt-fan-brand-mark.md](./.decisions/0002-adopt-fan-brand-mark.md).
