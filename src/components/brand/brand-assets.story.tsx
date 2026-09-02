@@ -9,6 +9,10 @@ import {
   fanStrokePx,
   fanStrokeViewbox,
 } from "@/lib/brand/fan";
+import {
+  CWS_ICON_ARTWORK_RATIO,
+  MACOS_ICON_ARTWORK_RATIO,
+} from "@/lib/brand/icon-specs";
 import { squirclePath } from "@/lib/brand/squircle";
 
 const PRODUCTION = { name: "paper", ink: "#18181b" };
@@ -44,18 +48,20 @@ function FanTile({
   clip,
   usagePx,
   inset = ICON_INSET,
+  canvasScale = 1,
   svgRef,
 }: {
   variant: FlatVariant;
   clip: ClipType;
   usagePx: number;
   inset?: number;
+  canvasScale?: number;
   svgRef?: React.Ref<SVGSVGElement>;
 }) {
   const baseId = useId().replace(/:/g, "");
   const fillId = `${baseId}-fill`;
   const edgeId = `${baseId}-edge`;
-  const markPx = usagePx * inset;
+  const markPx = usagePx * canvasScale * inset;
   return (
     <svg
       ref={svgRef}
@@ -75,27 +81,31 @@ function FanTile({
           <stop offset="1" stopColor={TILE_EDGE_BOTTOM} />
         </linearGradient>
       </defs>
-      <path
-        d={CLIP_PATHS[clip]}
-        fill={`url(#${fillId})`}
-        stroke={`url(#${edgeId})`}
-        strokeWidth={1}
-      />
       <g
-        transform={`translate(60 ${60 + FAN_TILE_DY}) scale(${inset}) translate(-60 -60)`}
-        stroke={variant.ink}
-        strokeWidth={fanStrokeViewbox(markPx)}
-        strokeLinecap="round"
+        transform={`translate(60 60) scale(${canvasScale}) translate(-60 -60)`}
       >
-        {fanSegments(FAN).map((s, i) => (
-          <line
-            key={i}
-            x1={s.x1.toFixed(2)}
-            y1={s.y1.toFixed(2)}
-            x2={s.x2.toFixed(2)}
-            y2={s.y2.toFixed(2)}
-          />
-        ))}
+        <path
+          d={CLIP_PATHS[clip]}
+          fill={`url(#${fillId})`}
+          stroke={`url(#${edgeId})`}
+          strokeWidth={1}
+        />
+        <g
+          transform={`translate(60 ${60 + FAN_TILE_DY}) scale(${inset}) translate(-60 -60)`}
+          stroke={variant.ink}
+          strokeWidth={fanStrokeViewbox(markPx)}
+          strokeLinecap="round"
+        >
+          {fanSegments(FAN).map((s, i) => (
+            <line
+              key={i}
+              x1={s.x1.toFixed(2)}
+              y1={s.y1.toFixed(2)}
+              x2={s.x2.toFixed(2)}
+              y2={s.y2.toFixed(2)}
+            />
+          ))}
+        </g>
       </g>
     </svg>
   );
@@ -108,6 +118,7 @@ const ROW_ASSETS = [
     clip: "squircle",
     exportSize: 1024,
     usagePx: 128,
+    canvasScale: MACOS_ICON_ARTWORK_RATIO,
   },
   {
     label: "Favicon",
@@ -175,6 +186,7 @@ function BrandAssets() {
               clip="squircle"
               exportSize={size}
               usagePx={size}
+              canvasScale={CWS_ICON_ARTWORK_RATIO}
               filename={`${size}.png`}
             />
           ))}
@@ -235,6 +247,7 @@ function ExportCard({
   exportSize,
   usagePx,
   inset = ICON_INSET,
+  canvasScale = 1,
   filename,
 }: {
   label: string;
@@ -244,6 +257,7 @@ function ExportCard({
   exportSize: number;
   usagePx: number;
   inset?: number;
+  canvasScale?: number;
   filename?: string;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -266,6 +280,7 @@ function ExportCard({
           clip={clip}
           usagePx={usagePx}
           inset={inset}
+          canvasScale={canvasScale}
           svgRef={svgRef}
         />
       </div>
