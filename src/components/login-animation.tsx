@@ -10,10 +10,6 @@ import {
 import { fanLoopFrame } from "@/lib/brand/fan-motion";
 import { cn } from "@/lib/utils";
 
-// The idle loop chains Unfold and Trace: the fan blooms from a single
-// vertical line pair by pair, rests open, the rays leave through their own
-// tips and redraw from the center, then the fan folds shut and repeats.
-// Used by the login page and the app loading screens.
 export function LoginAnimation({
   variant = "dark",
   className,

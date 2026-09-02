@@ -1,12 +1,6 @@
-// Regenerates the Fan brand PNGs in public/ from the spec in
-// src/lib/brand/fan.ts — the same geometry, tile depth, and stroke rule the
-// app and the "Brand/Generated assets" story render. Run with:
-//
-//   bun run brand:export
-//
-// The OG card (cloudstash-og.png) is NOT generated here: it renders text,
-// which needs the document's loaded fonts — export it from the
-// "Brand/Open Graph" story instead.
+// Regenerates the Fan brand PNGs (bun run brand:export). cloudstash-og.png
+// is excluded: it renders text, which needs the browser's loaded fonts —
+// export it from the "Brand/Open Graph" story instead.
 
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -35,9 +29,6 @@ const CLIP_PATHS: Record<Clip, string> = {
   square: "M 0,0 H 120 V 120 H 0 Z",
 };
 
-// Mirrors the story's FanTile: gradient fill held white through the top
-// 60%, top-lit edge rim, mark lifted to its stroke centroid, stroke keyed
-// to the size the asset is displayed at (usagePx).
 function tileSvg(clip: Clip, usagePx: number): string {
   const markPx = usagePx * ICON_INSET;
   const rays = fanSegments(FAN)
@@ -72,9 +63,8 @@ function renderPng(svg: string, sizePx: number): Buffer {
   return Buffer.from(resvg.render().asPng());
 }
 
-// exportSize is the file's pixel size; usagePx keys the stroke rule to the
-// size platforms display the asset at. logo512 keys at 192 so the two
-// manifest icons are scaled twins.
+// usagePx keys the stroke rule to the size platforms display the asset at;
+// logo512 keys at 192 so the two manifest icons are scaled twins.
 const ASSETS: {
   file: string;
   clip: Clip;
@@ -83,14 +73,15 @@ const ASSETS: {
 }[] = [
   { file: "favicon-16x16.png", clip: "squircle", exportSize: 16, usagePx: 16 },
   { file: "favicon-32x32.png", clip: "squircle", exportSize: 32, usagePx: 32 },
+  // Apple touch icons must be opaque and full-bleed; iOS applies the mask.
   {
     file: "apple-touch-icon.png",
     clip: "square",
     exportSize: 180,
     usagePx: 180,
   },
-  { file: "logo192.png", clip: "square", exportSize: 192, usagePx: 192 },
-  { file: "logo512.png", clip: "square", exportSize: 512, usagePx: 192 },
+  { file: "logo192.png", clip: "squircle", exportSize: 192, usagePx: 192 },
+  { file: "logo512.png", clip: "squircle", exportSize: 512, usagePx: 192 },
 ];
 
 const publicDir = join(import.meta.dirname, "..", "public");
@@ -111,14 +102,11 @@ for (const asset of ASSETS) {
   console.log(`${asset.file} — ${asset.exportSize}px, ${png.length} bytes`);
 }
 
-// favicon.ico has always been the 32px PNG bytes under the .ico name
-// (browsers accept PNG-payload favicons); keep that scheme.
+// favicon.ico is the 32px PNG bytes under the .ico name, as it always was.
 const ico = renderPng(tileSvg("squircle", 32), 32);
 await writeFile(join(publicDir, "favicon.ico"), ico);
 console.log(`favicon.ico — 32px, ${ico.length} bytes`);
 
-// Chrome extension icons render at exactly their final size, so the stroke
-// rule keys off each size directly.
 const extensionIconDir = join(
   import.meta.dirname,
   "..",

@@ -22,10 +22,6 @@ const TAGLINE_QUIET = "Saved links, ";
 const TAGLINE_LOUD = "made useful.";
 const FONT = "'Noto Sans Variable', sans-serif";
 
-// A centered stack — fan, lowercase wordmark, one tagline — mirroring the
-// Chrome Web Store banner family. Restraint carries the card: paper and
-// ink only. The stack is centered on the fan's visual bounding box, not
-// the full 120-unit canvas.
 const HERO = {
   fanDia: 320,
   fanStroke: 1.6,
@@ -53,8 +49,8 @@ function heroLayout() {
   };
 }
 
-// The stroke is tuned for the ~50% downscale OG cards are shown at, not the
-// brand stroke rule. The mark stays one flat color, per its own spec.
+// HERO.fanStroke is tuned for the ~50% downscale OG cards are shown at,
+// not the brand stroke rule.
 function drawHeroFan(ctx: CanvasRenderingContext2D, centerY: number) {
   const factor = HERO.fanDia / 120;
   ctx.strokeStyle = COLORS.foreground;
@@ -84,8 +80,6 @@ function drawWordmark(ctx: CanvasRenderingContext2D, baseline: number) {
   ctx.letterSpacing = "0px";
 }
 
-// The tagline whispers and emphasizes with weight, not color: the quiet
-// half in muted 400, the point of the sentence in ink 500.
 function drawTagline(ctx: CanvasRenderingContext2D, baseline: number) {
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
@@ -141,9 +135,8 @@ function downloadDataUrl(dataUrl: string) {
   anchor.click();
 }
 
-// Dev-only: POSTs the PNG to the Storybook dev server's brand-asset sink
-// (see .storybook/main.ts), which writes public/cloudstash-og.png inside
-// the VM — browser downloads would land on the host instead.
+// Dev-only sink (.storybook/main.ts): browser downloads land on the host,
+// this writes public/cloudstash-og.png inside the VM.
 async function writeToPublic(dataUrl: string): Promise<boolean> {
   const blob = await (await fetch(dataUrl)).blob();
   const response = await fetch("/__brand/save-og", {

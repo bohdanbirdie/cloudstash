@@ -11,25 +11,16 @@ import {
 } from "@/lib/brand/fan";
 import { squirclePath } from "@/lib/brand/squircle";
 
-// White ground, ink lines — the flat brand scheme. Staging keeps the same
-// scheme with ember lines so the two environments read apart at a glance.
 const PRODUCTION = { name: "paper", ink: "#18181b" };
 const STAGING = { name: "staging", ink: "#c2410c" };
 type FlatVariant = typeof PRODUCTION;
 
-// Depth is two stacked cues, both whispers (matches CloudstashLogo's
-// branded variant): the fill stays pure white through the top half and only
-// shades in the last stretch, and the rim is lit from above — lighter at
-// top, denser at bottom. No overall gray wash.
 const TILE_BG_TOP = "#ffffff";
 const TILE_BG_BOTTOM = "#fafafa";
 const TILE_EDGE_TOP = "#efeff2";
 const TILE_EDGE_BOTTOM = "#e3e3e8";
 const TILE_EDGE = "#e4e4e7";
 
-// The mark occupies 62% of an icon tile (matches CloudstashLogo's branded
-// variant); MCP-style list icons use a smaller glyph, per how
-// Linear/Notion/Cloudflare size theirs.
 const ICON_INSET = 0.62;
 const MCP_INSET = 0.55;
 
@@ -46,11 +37,8 @@ const CLIP_PATHS: Record<ClipType, string> = {
   square: "M 0,0 H 120 V 120 H 0 Z",
 };
 
-// No weight slider: thickness always comes from the brand stroke rule,
-// keyed to the device-pixel size the asset is displayed at (usagePx).
-// Previews render at exactly that size, so each card shows the icon the way
-// its platform shows it, and the large export carries the same geometry —
-// after the platform downscales it, it matches the preview.
+// usagePx is the device-pixel size the platform shows the asset at; the
+// preview renders at exactly that size and the export shares its geometry.
 function FanTile({
   variant,
   clip,
@@ -353,9 +341,6 @@ function ExportButton({
   );
 }
 
-// Exports rasterize the preview's own SVG, so the file is exactly what the
-// card shows. Canvas only exists inside this save path (and the text
-// banners below) — previews are plain SVG.
 async function exportSvgAsPng(
   svgEl: SVGSVGElement,
   exportSize: number,
@@ -422,9 +407,6 @@ const BANNER_SUBTITLE = "Save links. Read later.";
 const BANNER_MUTED = "#71717a";
 const BANNER_FONT = "'Noto Sans Variable', sans-serif";
 
-// Banner layout in banner-space px: a centered vertical stack — fan, the
-// app's lowercase wordmark, then a muted subtitle — sized off the banner
-// height so all three Chrome Web Store aspect ratios compose alike.
 function bannerLayout(w: number, h: number) {
   const fanDia = 0.36 * h;
   const fanVisH = (64 / 120) * fanDia;
@@ -446,8 +428,6 @@ function bannerLayout(w: number, h: number) {
   };
 }
 
-// The banner preview is plain SVG — inline <text> uses the document's
-// loaded fonts, so what you see is real type.
 function BannerArt({
   w,
   h,
@@ -530,9 +510,8 @@ function drawFanToCtx(
   }
 }
 
-// The save path re-draws the same layout on canvas — rasterizing SVG text
-// through an <img> loses document fonts, so text must go through fillText.
-// Renders supersampled; callers downscale to the exact size.
+// Canvas, not SVG rasterization: SVG text through an <img> loses document
+// fonts. Renders supersampled; callers downscale to the exact size.
 function renderBannerSuper(w: number, h: number): HTMLCanvasElement {
   const S = Math.max(2, Math.ceil(2400 / Math.max(w, h)));
   const canvas = document.createElement("canvas");

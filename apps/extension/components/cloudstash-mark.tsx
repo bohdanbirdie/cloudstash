@@ -1,7 +1,5 @@
 import { FAN_VIEWBOX, fanSegments, fanStrokeViewbox } from "../lib/fan";
 
-// `size` is the intended render size in CSS px; it sets the stroke weight
-// per the brand stroke rule.
 export function CloudstashMark({
   className,
   size = 24,
