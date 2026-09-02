@@ -116,3 +116,19 @@ for (const asset of ASSETS) {
 const ico = renderPng(tileSvg("squircle", 32), 32);
 await writeFile(join(publicDir, "favicon.ico"), ico);
 console.log(`favicon.ico — 32px, ${ico.length} bytes`);
+
+// Chrome extension icons render at exactly their final size, so the stroke
+// rule keys off each size directly.
+const extensionIconDir = join(
+  import.meta.dirname,
+  "..",
+  "apps",
+  "extension",
+  "public",
+  "icon"
+);
+for (const size of [16, 32, 48, 128]) {
+  const png = renderPng(tileSvg("squircle", size), size);
+  await writeFile(join(extensionIconDir, `${size}.png`), png);
+  console.log(`extension icon/${size}.png — ${png.length} bytes`);
+}
