@@ -138,7 +138,7 @@ function TelegramMockup({ delay = 0 }: { delay?: number }) {
         className="mt-3 flex items-start gap-1.5"
       >
         <span className="grid size-6 shrink-0 overflow-hidden rounded-full">
-          <CloudstashLogo className="size-full" variant="branded" />
+          <CloudstashLogo className="size-full" variant="branded" size={24} />
         </span>
         <div className="max-w-[220px] rounded-2xl rounded-tl-md bg-muted px-3 py-2 text-[12px] leading-snug text-foreground">
           {TELEGRAM_SUMMARY.map((tok, i) => {
@@ -198,7 +198,11 @@ function RaycastMockup({ delay = 0 }: { delay?: number }) {
           transition={{ duration: 1.0, ease: EASE_OUT, delay: delay + 0.35 }}
           className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px]"
         >
-          <CloudstashLogo className="size-4 rounded-sm" variant="branded" />
+          <CloudstashLogo
+            className="size-4 rounded-sm"
+            variant="branded"
+            size={16}
+          />
           <span className="flex-1 truncate">Save current tab</span>
           <span className="flex items-center gap-0.5 font-mono text-[10px] text-white/55">
             <kbd className="rounded-[3px] border border-white/15 bg-white/10 px-1 py-0.5">
@@ -301,7 +305,11 @@ function XBookmarksMockup({ delay = 0 }: { delay?: number }) {
         transition={{ duration: 0.35, ease: EASE_OUT, delay: delay + 0.65 }}
         className="flex items-center gap-1.5 border-t border-white/10 bg-white/[0.04] px-3.5 py-2 text-[10.5px] text-white/75"
       >
-        <CloudstashLogo className="size-3 rounded-[2px]" variant="branded" />
+        <CloudstashLogo
+          className="size-3 rounded-[2px]"
+          variant="branded"
+          size={12}
+        />
         <span>Saved to Cloudstash</span>
       </motion.div>
     </motion.div>
@@ -402,6 +410,7 @@ function ChromeMockup({ delay = 0 }: { delay?: number }) {
           <CloudstashLogo
             className="size-3.5 rounded-[3px]"
             variant="branded"
+            size={14}
           />
           <span className="text-[11.5px] font-semibold tracking-tight">
             cloudstash
