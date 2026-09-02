@@ -15,7 +15,7 @@ function BrandLink() {
       title="Open Cloudstash"
       className="group flex items-center gap-2 rounded-sm text-foreground/90 outline-none transition-colors duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
     >
-      <CloudstashMark className="size-4" />
+      <CloudstashMark className="size-4" size={16} />
       <span className="text-xs font-medium tracking-tight">cloudstash</span>
       <ArrowUpRight
         className="size-3 text-muted-foreground opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"

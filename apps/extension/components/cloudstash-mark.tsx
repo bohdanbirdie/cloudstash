@@ -1,23 +1,34 @@
-import { torusKnotPath } from "../lib/torus-knot";
+import { FAN_VIEWBOX, fanSegments, fanStrokeViewbox } from "../lib/fan";
 
-const KNOT_D = torusKnotPath({ R: 22, r: 10, cx: 60, cy: 60 });
-
-export function CloudstashMark({ className }: { className?: string }) {
+export function CloudstashMark({
+  className,
+  size = 24,
+}: {
+  className?: string;
+  size?: number;
+}) {
   return (
     <svg
-      viewBox="22 22 76 76"
+      viewBox={FAN_VIEWBOX}
       fill="none"
       className={className}
+      style={{ overflow: "visible" }}
       aria-hidden="true"
     >
-      <g transform="rotate(45 60 60)">
-        <path
-          d={KNOT_D}
-          stroke="currentColor"
-          strokeWidth={4.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+      <g
+        stroke="currentColor"
+        strokeWidth={fanStrokeViewbox(size)}
+        strokeLinecap="round"
+      >
+        {fanSegments().map((s, i) => (
+          <line
+            key={i}
+            x1={s.x1.toFixed(2)}
+            y1={s.y1.toFixed(2)}
+            x2={s.x2.toFixed(2)}
+            y2={s.y2.toFixed(2)}
+          />
+        ))}
       </g>
     </svg>
   );

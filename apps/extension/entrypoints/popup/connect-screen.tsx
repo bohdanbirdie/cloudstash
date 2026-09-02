@@ -18,7 +18,7 @@ export function ConnectScreen() {
       <Header />
       <div className="flex flex-1 flex-col justify-center gap-5 px-6 py-8 text-center">
         <div className="flex flex-col items-center gap-3">
-          <CloudstashMark className="size-7 text-foreground" />
+          <CloudstashMark className="size-7 text-foreground" size={28} />
           <div className="space-y-1.5">
             <h1 className="text-sm font-semibold tracking-tight">
               Connect to Cloudstash

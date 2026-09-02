@@ -1,8 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect, useState } from "react";
 
-import { PALETTES, paintDitherToContext } from "@/lib/brand/dither";
-import { torusKnotPoint } from "@/lib/brand/torus-knot";
+import { FAN, fanSegments } from "@/lib/brand/fan";
+
+// This story stays on canvas: it renders text, and rasterizing SVG text
+// through an <img> loses the document's loaded fonts.
 
 const OG_WIDTH = 1200;
 const OG_HEIGHT = 630;
@@ -10,113 +12,91 @@ const SCALE = 2;
 const PREVIEW_WIDTHS = [600, 420, 280] as const;
 const COLORS = {
   background: "#ffffff",
+  paperBottom: "#fafafa",
   foreground: "#18181b",
   muted: "#71717a",
-  primary: "#e83b00",
 } as const;
-const MIDNIGHT = PALETTES.find((palette) => palette.name === "Midnight")!;
 
-const HEADLINE = ["Saved links,", "made useful."] as const;
-const BODY = "Save from anywhere. Find it when you need it.";
+const WORDMARK = "cloudstash";
+const TAGLINE_QUIET = "Saved links, ";
+const TAGLINE_LOUD = "made useful.";
+const FONT = "'Noto Sans Variable', sans-serif";
 
-function roundedRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number
-) {
-  ctx.beginPath();
-  ctx.roundRect(x, y, width, height, radius);
+const HERO = {
+  fanDia: 320,
+  fanStroke: 1.6,
+  gapWordmark: 36,
+  wordmarkSize: 76,
+  gapTagline: 34,
+  taglineSize: 31,
+};
+
+function heroLayout() {
+  const fanVisH = (64 / 120) * HERO.fanDia;
+  const blockH =
+    fanVisH +
+    HERO.gapWordmark +
+    HERO.wordmarkSize +
+    HERO.gapTagline +
+    HERO.taglineSize;
+  const top = (OG_HEIGHT - blockH) / 2;
+  const wordmarkBaseline =
+    top + fanVisH + HERO.gapWordmark + HERO.wordmarkSize * 0.78;
+  return {
+    fanCenterY: top + fanVisH / 2,
+    wordmarkBaseline,
+    taglineBaseline: wordmarkBaseline + HERO.gapTagline + HERO.taglineSize,
+  };
 }
 
-function drawDotField(ctx: CanvasRenderingContext2D) {
-  ctx.fillStyle = "rgba(232, 59, 0, 0.0576)";
-  for (let y = 13; y < OG_HEIGHT; y += 24) {
-    for (let x = 13; x < OG_WIDTH; x += 24) {
-      ctx.beginPath();
-      ctx.arc(x, y, 2.7, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-}
-
-function drawKnot(
-  ctx: CanvasRenderingContext2D,
-  centerX: number,
-  centerY: number,
-  diameter: number
-) {
-  const knotScale = diameter / 2 / 32;
-  ctx.save();
-  ctx.translate(centerX, centerY);
-  ctx.rotate(Math.PI / 4);
-  ctx.translate(-centerX, -centerY);
-  ctx.beginPath();
-  for (let index = 0; index <= 500; index++) {
-    const point = torusKnotPoint(index / 500, {
-      R: 22 * knotScale,
-      r: 10 * knotScale,
-      cx: centerX,
-      cy: centerY,
-    });
-    if (index === 0) ctx.moveTo(point.x, point.y);
-    else ctx.lineTo(point.x, point.y);
-  }
-  ctx.closePath();
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 4.5 * knotScale;
+// HERO.fanStroke is tuned for the ~50% downscale OG cards are shown at,
+// not the brand stroke rule.
+function drawHeroFan(ctx: CanvasRenderingContext2D, centerY: number) {
+  const factor = HERO.fanDia / 120;
+  ctx.strokeStyle = COLORS.foreground;
+  ctx.lineWidth = HERO.fanStroke;
   ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.stroke();
-  ctx.restore();
+  fanSegments(FAN).forEach((s) => {
+    ctx.beginPath();
+    ctx.moveTo(
+      OG_WIDTH / 2 + (s.x1 - 60) * factor,
+      centerY + (s.y1 - 60) * factor
+    );
+    ctx.lineTo(
+      OG_WIDTH / 2 + (s.x2 - 60) * factor,
+      centerY + (s.y2 - 60) * factor
+    );
+    ctx.stroke();
+  });
 }
 
-function drawBrand(ctx: CanvasRenderingContext2D) {
-  const x = 72;
-  const y = 60;
-  const iconSize = 64;
-  const texture = document.createElement("canvas");
-  texture.width = 256;
-  texture.height = 256;
-  paintDitherToContext(
-    texture.getContext("2d")!,
-    texture.width,
-    texture.height,
-    3.5,
-    MIDNIGHT
-  );
-
-  ctx.save();
-  roundedRect(ctx, x, y, iconSize, iconSize, 14);
-  ctx.clip();
-  ctx.drawImage(texture, x, y, iconSize, iconSize);
-  ctx.restore();
-  drawKnot(ctx, x + iconSize / 2, y + iconSize / 2, 40);
-
-  ctx.fillStyle = COLORS.foreground;
-  ctx.font = "650 35px 'Noto Sans Variable', sans-serif";
-  ctx.textBaseline = "middle";
-  ctx.fillText("cloudstash", x + 86, y + iconSize / 2 + 1);
-}
-
-function drawFunnel(ctx: CanvasRenderingContext2D) {
+function drawWordmark(ctx: CanvasRenderingContext2D, baseline: number) {
+  ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
-  ctx.letterSpacing = "-3px";
-  ctx.font = "700 96px 'Noto Sans Variable', sans-serif";
   ctx.fillStyle = COLORS.foreground;
-  ctx.fillText(HEADLINE[0], 72, 286);
-  ctx.fillStyle = COLORS.primary;
-  ctx.fillText(HEADLINE[1], 72, 392);
+  ctx.letterSpacing = `${(-0.015 * HERO.wordmarkSize).toFixed(2)}px`;
+  ctx.font = `650 ${HERO.wordmarkSize}px ${FONT}`;
+  ctx.fillText(WORDMARK, OG_WIDTH / 2, baseline);
   ctx.letterSpacing = "0px";
+}
+
+function drawTagline(ctx: CanvasRenderingContext2D, baseline: number) {
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  const quietFont = `400 ${HERO.taglineSize}px ${FONT}`;
+  const loudFont = `500 ${HERO.taglineSize}px ${FONT}`;
+  ctx.font = quietFont;
+  const quietW = ctx.measureText(TAGLINE_QUIET).width;
+  ctx.font = loudFont;
+  const loudW = ctx.measureText(TAGLINE_LOUD).width;
+  const startX = (OG_WIDTH - quietW - loudW) / 2;
 
   ctx.fillStyle = COLORS.muted;
-  ctx.font = "400 32px 'Noto Sans Variable', sans-serif";
-  ctx.fillText(BODY, 76, 478);
-
-  ctx.fillStyle = COLORS.primary;
-  ctx.fillRect(76, 548, 88, 4);
+  ctx.font = quietFont;
+  ctx.fillText(TAGLINE_QUIET, startX, baseline);
+  ctx.fillStyle = COLORS.foreground;
+  ctx.font = loudFont;
+  ctx.fillText(TAGLINE_LOUD, startX + quietW, baseline);
 }
 
 function renderOpenGraphCanvas(): HTMLCanvasElement {
@@ -126,11 +106,17 @@ function renderOpenGraphCanvas(): HTMLCanvasElement {
   const ctx = supersampled.getContext("2d")!;
   ctx.scale(SCALE, SCALE);
 
-  ctx.fillStyle = COLORS.background;
+  const paper = ctx.createLinearGradient(0, 0, 0, OG_HEIGHT);
+  paper.addColorStop(0, COLORS.background);
+  paper.addColorStop(0.6, COLORS.background);
+  paper.addColorStop(1, COLORS.paperBottom);
+  ctx.fillStyle = paper;
   ctx.fillRect(0, 0, OG_WIDTH, OG_HEIGHT);
-  drawDotField(ctx);
-  drawBrand(ctx);
-  drawFunnel(ctx);
+
+  const layout = heroLayout();
+  drawHeroFan(ctx, layout.fanCenterY);
+  drawWordmark(ctx, layout.wordmarkBaseline);
+  drawTagline(ctx, layout.taglineBaseline);
 
   const output = document.createElement("canvas");
   output.width = OG_WIDTH;
@@ -149,8 +135,22 @@ function downloadDataUrl(dataUrl: string) {
   anchor.click();
 }
 
+// Dev-only sink (.storybook/main.ts): browser downloads land on the host,
+// this writes public/cloudstash-og.png inside the VM.
+async function writeToPublic(dataUrl: string): Promise<boolean> {
+  const blob = await (await fetch(dataUrl)).blob();
+  const response = await fetch("/__brand/save-og", {
+    method: "POST",
+    body: blob,
+  });
+  return response.ok;
+}
+
 function OpenGraphReview() {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [writeStatus, setWriteStatus] = useState<"idle" | "saved" | "failed">(
+    "idle"
+  );
 
   useEffect(() => {
     let active = true;
@@ -169,14 +169,34 @@ function OpenGraphReview() {
           <h2 className="text-sm font-semibold text-foreground">
             Current promise
           </h2>
-          <button
-            type="button"
-            disabled={!dataUrl}
-            onClick={() => dataUrl && downloadDataUrl(dataUrl)}
-            className="rounded-md border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Save PNG
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-muted-foreground">
+              {writeStatus === "saved" && "Written to public/cloudstash-og.png"}
+              {writeStatus === "failed" &&
+                "Write failed — is this the dev server?"}
+            </span>
+            <button
+              type="button"
+              disabled={!dataUrl}
+              onClick={() => {
+                if (!dataUrl) return;
+                void writeToPublic(dataUrl).then((ok) =>
+                  setWriteStatus(ok ? "saved" : "failed")
+                );
+              }}
+              className="rounded-md border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Write to public/
+            </button>
+            <button
+              type="button"
+              disabled={!dataUrl}
+              onClick={() => dataUrl && downloadDataUrl(dataUrl)}
+              className="rounded-md border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Save PNG
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-end gap-6">
@@ -186,7 +206,7 @@ function OpenGraphReview() {
                 <img
                   src={dataUrl}
                   alt={`Cloudstash Open Graph preview at ${width}px wide`}
-                  className="h-auto rounded-md ring-1 ring-black/10"
+                  className="h-auto rounded-md outline outline-1 -outline-offset-1 outline-black/10"
                   style={{ width }}
                 />
               ) : (

@@ -120,7 +120,7 @@ function OAuthConsentPage() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <div className="flex flex-col items-center gap-2 text-center">
-            <CloudstashLogo className="size-12" variant="branded" />
+            <CloudstashLogo className="size-12" variant="branded" size={48} />
             <CardTitle className="text-base">Connect to Cloudstash</CardTitle>
             <CardDescription>
               {clientName ?? "An MCP client"} wants to connect to your
