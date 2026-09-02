@@ -1,6 +1,4 @@
-// The Fan — Cloudstash's logo mark, mirrored from src/lib/brand/fan.ts in
-// the main app (the extension stays self-contained, no cross-app imports).
-// Nine hairline rays fanned 150° from a low pivot; one flat color.
+// Mirror of src/lib/brand/fan.ts — the extension stays self-contained.
 
 export const FAN = {
   rays: 9,
@@ -34,14 +32,11 @@ export function fanSegments(): FanSegment[] {
   });
 }
 
-// The stroke rule: 0.7 CSS px at 96px and above; below that the stroke
-// scales down sublinearly so small renders stay visibly finer.
 export function fanStrokePx(sizePx: number): number {
   if (sizePx >= 96) return 0.7;
   return 0.7 * (sizePx / 96) ** 0.35;
 }
 
-// The rule in viewBox units for a 120-unit canvas rendered at sizePx.
 export function fanStrokeViewbox(sizePx: number): number {
   return (fanStrokePx(sizePx) * 120) / sizePx;
 }

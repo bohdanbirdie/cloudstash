@@ -4,11 +4,8 @@ import { join } from "node:path";
 import type { StorybookConfig } from "@storybook/react-vite";
 import type { Plugin } from "vite";
 
-// Dev-only endpoint. Storybook runs inside the dev VM, so browser "Save
-// PNG" downloads land on the host where the repo can't reach them. The
-// Open Graph story POSTs its rendered PNG here instead, and the file is
-// written straight into public/. configureServer only runs for the dev
-// server; static Storybook builds are unaffected.
+// Dev-only: browser downloads land on the host (Storybook runs in a VM),
+// so the Open Graph story POSTs its PNG here to write public/ directly.
 const brandAssetSink: Plugin = {
   name: "cloudstash-brand-asset-sink",
   configureServer(server) {

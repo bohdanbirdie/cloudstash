@@ -10,17 +10,13 @@ import {
 import { squirclePath } from "@/lib/brand/squircle";
 
 const SQUIRCLE_D = squirclePath(60, 60, 52, 5);
-// Depth is two stacked cues, both whispers: the fill stays pure white
-// through the top half and only shades in the last stretch, and the rim is
-// lit from above (lighter at top, denser at bottom). No overall gray wash.
 const TILE_BG_TOP = "#ffffff";
 const TILE_BG_BOTTOM = "#fafafa";
 const TILE_EDGE_TOP = "#efeff2";
 const TILE_EDGE_BOTTOM = "#e3e3e8";
 const TILE_INK = "#18181b";
 
-// `size` is the intended render size in CSS px. It picks the cut (5 rays
-// under 40px, 9 above) and the stroke weight per the brand stroke rule.
+// `size` is the intended render size in CSS px; it sets the stroke weight.
 export function CloudstashLogo({
   className,
   variant = "plain",

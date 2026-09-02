@@ -71,9 +71,8 @@ export function LoginSurface({
     <main className="grid min-h-svh place-items-center bg-muted/30 p-5 md:p-10">
       <div className="grid w-full max-w-3xl overflow-hidden rounded-lg bg-card ring-1 ring-foreground/10 md:min-h-[28rem] md:grid-cols-[1.15fr_0.85fr]">
         <section className="relative flex flex-col justify-center p-7 pt-16 md:p-10">
-          {/* Plain anchor, not a router Link: LoginSurface also renders in
-              a router-less Storybook story. Absolutely positioned so it
-              never shifts the centered content. */}
+          {/* Plain anchor: LoginSurface also renders in a router-less
+              Storybook story. */}
           <a
             href="/"
             aria-label="Back to the landing page"
