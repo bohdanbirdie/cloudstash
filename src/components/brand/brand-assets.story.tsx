@@ -1,218 +1,291 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useId, useRef } from "react";
 
+import { LoginAnimation } from "@/components/login-animation";
 import {
-  generateDitheredDataUrl,
-  PALETTES,
-  renderLogoToCanvas,
-  STAGING_PALETTE,
-} from "@/lib/brand/dither";
-import type { DitherPalette } from "@/lib/brand/dither";
+  FAN,
+  FAN_TILE_DY,
+  fanSegments,
+  fanStrokePx,
+  fanStrokeViewbox,
+} from "@/lib/brand/fan";
 import { squirclePath } from "@/lib/brand/squircle";
-import { torusKnotPath, torusKnotPoint } from "@/lib/brand/torus-knot";
-import type { TorusKnotConfig } from "@/lib/brand/torus-knot";
 
-const ANIMATED_CONFIG: TorusKnotConfig = { R: 16, r: 8, cx: 50, cy: 50 };
-const LOGO_CONFIG: TorusKnotConfig = { R: 22, r: 10, cx: 60, cy: 60 };
-const SQUIRCLE_D = squirclePath(60, 60, 52, 5);
-const LOGO_KNOT_D = torusKnotPath(LOGO_CONFIG);
-const STATIC_D = torusKnotPath({ ...ANIMATED_CONFIG, R: 17 });
+// White ground, ink lines — the flat brand scheme. Staging keeps the same
+// scheme with ember lines so the two environments read apart at a glance.
+const PRODUCTION = { name: "paper", ink: "#18181b" };
+const STAGING = { name: "staging", ink: "#c2410c" };
+type FlatVariant = typeof PRODUCTION;
 
-const MIDNIGHT = PALETTES.find((p) => p.name === "Midnight")!;
+// Depth is two stacked cues, both whispers (matches CloudstashLogo's
+// branded variant): the fill stays pure white through the top half and only
+// shades in the last stretch, and the rim is lit from above — lighter at
+// top, denser at bottom. No overall gray wash.
+const TILE_BG_TOP = "#ffffff";
+const TILE_BG_BOTTOM = "#fafafa";
+const TILE_EDGE_TOP = "#efeff2";
+const TILE_EDGE_BOTTOM = "#e3e3e8";
+const TILE_EDGE = "#e4e4e7";
 
-const BAYER8 = [
-  [0, 32, 8, 40, 2, 34, 10, 42],
-  [48, 16, 56, 24, 50, 18, 58, 26],
-  [12, 44, 4, 36, 14, 46, 6, 38],
-  [60, 28, 52, 20, 62, 30, 54, 22],
-  [3, 35, 11, 43, 1, 33, 9, 41],
-  [51, 19, 59, 27, 49, 17, 57, 25],
-  [15, 47, 7, 39, 13, 45, 5, 37],
-  [63, 31, 55, 23, 61, 29, 53, 21],
-];
+// The mark occupies 62% of an icon tile (matches CloudstashLogo's branded
+// variant); MCP-style list icons use a smaller glyph, per how
+// Linear/Notion/Cloudflare size theirs.
+const ICON_INSET = 0.62;
+const MCP_INSET = 0.55;
 
-// Paints the diagonal-gradient Bayer dither (the brand's signature texture)
-// across the whole canvas. Shared by the OG and Chrome Web Store renderers.
-function fillDither(
-  ctx: CanvasRenderingContext2D,
-  W: number,
-  H: number,
-  cellSize: number,
-  palette: DitherPalette = MIDNIGHT
-) {
-  const scaledCell = cellSize * (Math.max(W, H) / 256);
-  const imgData = ctx.createImageData(W, H);
-  const dd = imgData.data;
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const t = (x + y) / (W + H - 2);
-      const bx = Math.floor(x / scaledCell) % 8;
-      const by = Math.floor(y / scaledCell) % 8;
-      const threshold = (BAYER8[by][bx] + 0.5) / 64;
-      const c = t > threshold ? palette.b : palette.a;
-      const i = (y * W + x) * 4;
-      dd[i] = c.r;
-      dd[i + 1] = c.g;
-      dd[i + 2] = c.b;
-      dd[i + 3] = 255;
-    }
-  }
-  ctx.putImageData(imgData, 0, 0);
+type ClipType = "squircle" | "circle" | "raycast" | "square";
+
+function roundedRectPath(r: number): string {
+  return `M ${r},0 H ${120 - r} Q 120,0 120,${r} V ${120 - r} Q 120,120 ${120 - r},120 H ${r} Q 0,120 0,${120 - r} V ${r} Q 0,0 ${r},0 Z`;
 }
 
-function BrandAssets() {
-  const [cellSize, setCellSize] = useState(3.5);
-  const [cwsCellSize, setCwsCellSize] = useState(1.25);
-  const [iconStroke, setIconStroke] = useState(3.25);
+const CLIP_PATHS: Record<ClipType, string> = {
+  squircle: squirclePath(60, 60, 60, 5),
+  circle: "M 60,0 A 60,60 0 1,1 59.99,0 Z",
+  raycast: roundedRectPath(120 * 0.22),
+  square: "M 0,0 H 120 V 120 H 0 Z",
+};
 
+// No weight slider: thickness always comes from the brand stroke rule,
+// keyed to the device-pixel size the asset is displayed at (usagePx).
+// Previews render at exactly that size, so each card shows the icon the way
+// its platform shows it, and the large export carries the same geometry —
+// after the platform downscales it, it matches the preview.
+function FanTile({
+  variant,
+  clip,
+  usagePx,
+  inset = ICON_INSET,
+  svgRef,
+}: {
+  variant: FlatVariant;
+  clip: ClipType;
+  usagePx: number;
+  inset?: number;
+  svgRef?: React.Ref<SVGSVGElement>;
+}) {
+  const baseId = useId().replace(/:/g, "");
+  const fillId = `${baseId}-fill`;
+  const edgeId = `${baseId}-edge`;
+  const markPx = usagePx * inset;
+  return (
+    <svg
+      ref={svgRef}
+      viewBox="0 0 120 120"
+      width={usagePx}
+      height={usagePx}
+      fill="none"
+    >
+      <defs>
+        <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={TILE_BG_TOP} />
+          <stop offset="0.6" stopColor={TILE_BG_TOP} />
+          <stop offset="1" stopColor={TILE_BG_BOTTOM} />
+        </linearGradient>
+        <linearGradient id={edgeId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={TILE_EDGE_TOP} />
+          <stop offset="1" stopColor={TILE_EDGE_BOTTOM} />
+        </linearGradient>
+      </defs>
+      <path
+        d={CLIP_PATHS[clip]}
+        fill={`url(#${fillId})`}
+        stroke={`url(#${edgeId})`}
+        strokeWidth={1}
+      />
+      <g
+        transform={`translate(60 ${60 + FAN_TILE_DY}) scale(${inset}) translate(-60 -60)`}
+        stroke={variant.ink}
+        strokeWidth={fanStrokeViewbox(markPx)}
+        strokeLinecap="round"
+      >
+        {fanSegments(FAN).map((s, i) => (
+          <line
+            key={i}
+            x1={s.x1.toFixed(2)}
+            y1={s.y1.toFixed(2)}
+            x2={s.x2.toFixed(2)}
+            y2={s.y2.toFixed(2)}
+          />
+        ))}
+      </g>
+    </svg>
+  );
+}
+
+const ROW_ASSETS = [
+  {
+    label: "App icon",
+    note: "Dock · 64pt @2x",
+    clip: "squircle",
+    exportSize: 1024,
+    usagePx: 128,
+  },
+  {
+    label: "Favicon",
+    note: "Tab · 16pt @2x",
+    clip: "squircle",
+    exportSize: 512,
+    usagePx: 32,
+  },
+  {
+    label: "Raycast",
+    note: "Command list · 24pt @2x",
+    clip: "raycast",
+    exportSize: 512,
+    usagePx: 48,
+  },
+  {
+    label: "Telegram",
+    note: "Avatar · 40pt @2x",
+    clip: "circle",
+    exportSize: 512,
+    usagePx: 80,
+  },
+  {
+    label: "Square",
+    note: "PWA · 192px",
+    clip: "square",
+    exportSize: 1024,
+    usagePx: 192,
+  },
+] as const;
+
+function BrandAssets() {
   return (
     <div className="space-y-16 p-10">
       <section>
-        <SectionLabel>Torus Knot (3,4)</SectionLabel>
+        <SectionLabel>The Fan</SectionLabel>
         <div className="flex items-center justify-center gap-16">
-          <AnimatedVariant />
+          <div className="flex flex-col items-center gap-4">
+            <LoginAnimation className="size-56" size={224} />
+            <Label>Unfold</Label>
+          </div>
           <StaticVariant />
         </div>
       </section>
 
       <section>
-        <SectionLabel>Color Variants</SectionLabel>
-        <div className="flex flex-wrap items-start justify-center gap-10">
-          {PALETTES.map((palette) => (
-            <LogoVariant
-              key={palette.name}
-              palette={palette}
-              cellSize={cellSize}
-            />
-          ))}
-        </div>
-        <CellSizeSlider value={cellSize} onChange={setCellSize} />
+        <SectionLabel>Production — paper &amp; ink</SectionLabel>
+        <ExportRow variant={PRODUCTION} />
       </section>
 
       <section>
-        <SectionLabel>Production — Midnight</SectionLabel>
-        <div className="flex flex-wrap items-start justify-center gap-10">
-          <ExportVariant
-            label="Squircle (1024)"
-            cellSize={cellSize}
-            size={1024}
-            clipType="squircle"
-            palette={MIDNIGHT}
-          />
-          <ExportVariant
-            label="Favicon (512)"
-            cellSize={cellSize}
-            size={512}
-            clipType="squircle"
-            palette={MIDNIGHT}
-          />
-          <ExportVariant
-            label="Raycast (512)"
-            cellSize={cellSize}
-            size={512}
-            clipType="raycast"
-            palette={MIDNIGHT}
-          />
-          <ExportVariant
-            label="Telegram (512)"
-            cellSize={cellSize}
-            size={512}
-            clipType="circle"
-            palette={MIDNIGHT}
-          />
-          <ExportVariant
-            label="Square (1024)"
-            cellSize={cellSize}
-            size={1024}
-            clipType="square"
-            palette={MIDNIGHT}
-          />
-        </div>
-        <CellSizeSlider value={cellSize} onChange={setCellSize} />
-      </section>
-
-      <section>
-        <SectionLabel>Staging — Ember</SectionLabel>
-        <div className="flex flex-wrap items-start justify-center gap-10">
-          <ExportVariant
-            label="Squircle (1024)"
-            cellSize={cellSize}
-            size={1024}
-            clipType="squircle"
-            palette={STAGING_PALETTE}
-          />
-          <ExportVariant
-            label="Favicon (512)"
-            cellSize={cellSize}
-            size={512}
-            clipType="squircle"
-            palette={STAGING_PALETTE}
-          />
-          <ExportVariant
-            label="Raycast (512)"
-            cellSize={cellSize}
-            size={512}
-            clipType="raycast"
-            palette={STAGING_PALETTE}
-          />
-          <ExportVariant
-            label="Telegram (512)"
-            cellSize={cellSize}
-            size={512}
-            clipType="circle"
-            palette={STAGING_PALETTE}
-          />
-          <ExportVariant
-            label="Square (1024)"
-            cellSize={cellSize}
-            size={1024}
-            clipType="square"
-            palette={STAGING_PALETTE}
-          />
-        </div>
-        <CellSizeSlider value={cellSize} onChange={setCellSize} />
+        <SectionLabel>Staging — ember lines</SectionLabel>
+        <ExportRow variant={STAGING} />
       </section>
 
       <section>
         <SectionLabel>Extension Icons</SectionLabel>
         <div className="flex flex-wrap items-start justify-center gap-10">
-          <IconExport cellSize={cellSize} knotStroke={iconStroke} />
+          {ICON_SIZES.map((size) => (
+            <ExportCard
+              key={size}
+              label={`${size}px`}
+              note="Exported at final size"
+              variant={PRODUCTION}
+              clip="squircle"
+              exportSize={size}
+              usagePx={size}
+              filename={`${size}.png`}
+            />
+          ))}
         </div>
-        <CellSizeSlider
-          value={iconStroke}
-          onChange={setIconStroke}
-          label="Knot Weight"
-        />
+      </section>
+
+      <section>
+        <SectionLabel>MCP Icon</SectionLabel>
+        <div className="flex flex-wrap items-start justify-center gap-10">
+          <ExportCard
+            label="MCP (512)"
+            note="Connector list · 32pt @2x"
+            variant={PRODUCTION}
+            clip="raycast"
+            exportSize={512}
+            usagePx={64}
+            inset={MCP_INSET}
+            filename="cloudstash-mcp-512.png"
+          />
+        </div>
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          Rounded square with a smaller glyph, matching how Linear, Notion, and
+          Cloudflare render theirs in MCP lists.
+        </p>
       </section>
 
       <section>
         <SectionLabel>Chrome Web Store</SectionLabel>
         <div className="flex flex-wrap items-start justify-center gap-10">
-          <BannerExport
-            w={440}
-            h={280}
-            label="Small Tile (440×280)"
-            cellSize={cwsCellSize}
-          />
-          <BannerExport
-            w={1400}
-            h={560}
-            label="Marquee (1400×560)"
-            cellSize={cwsCellSize}
-          />
+          <BannerExport w={440} h={280} label="Small Tile (440×280)" />
+          <BannerExport w={1400} h={560} label="Marquee (1400×560)" />
           <BannerExport
             w={1280}
             h={800}
             label="Promo / Screenshot (1280×800)"
-            cellSize={cwsCellSize}
           />
         </div>
-        <CellSizeSlider
-          value={cwsCellSize}
-          onChange={setCwsCellSize}
-          label="CWS Cell Size"
-        />
       </section>
+    </div>
+  );
+}
+
+function ExportRow({ variant }: { variant: FlatVariant }) {
+  return (
+    <div className="flex flex-wrap items-start justify-center gap-10">
+      {ROW_ASSETS.map((asset) => (
+        <ExportCard key={asset.label} variant={variant} {...asset} />
+      ))}
+    </div>
+  );
+}
+
+function ExportCard({
+  label,
+  note,
+  variant,
+  clip,
+  exportSize,
+  usagePx,
+  inset = ICON_INSET,
+  filename,
+}: {
+  label: string;
+  note: string;
+  variant: FlatVariant;
+  clip: ClipType;
+  exportSize: number;
+  usagePx: number;
+  inset?: number;
+  filename?: string;
+}) {
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  const handleExport = useCallback(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    void exportSvgAsPng(
+      svg,
+      exportSize,
+      filename ?? `cloudstash-${variant.name}-${clip}-${exportSize}.png`
+    );
+  }, [variant, clip, exportSize, filename]);
+
+  return (
+    <div className="flex w-44 flex-col items-center gap-3">
+      <div className="flex h-48 items-center justify-center">
+        <FanTile
+          variant={variant}
+          clip={clip}
+          usagePx={usagePx}
+          inset={inset}
+          svgRef={svgRef}
+        />
+      </div>
+      <Label>{label}</Label>
+      <span className="text-center text-[11px] text-muted-foreground/70">
+        {note}
+      </span>
+      <ExportButton onClick={handleExport} label={label} />
     </div>
   );
 }
@@ -225,465 +298,30 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function CellSizeSlider({
-  value,
-  onChange,
-  label = "Cell Size",
-}: {
-  value: number;
-  onChange: (v: number) => void;
-  label?: string;
-}) {
-  return (
-    <div className="mt-6 flex items-center justify-center gap-3">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <input
-        type="range"
-        aria-label={label}
-        min={1}
-        max={5}
-        step={0.25}
-        value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-48"
-      />
-      <span className="text-xs tabular-nums text-muted-foreground">
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function AnimatedVariant() {
-  const groupRef = useRef<SVGGElement>(null);
-  const pathRef = useRef<SVGPathElement>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
-
-  useEffect(() => {
-    const group = groupRef.current!;
-    const path = pathRef.current!;
-    if (!group || !path) return;
-
-    const NS = "http://www.w3.org/2000/svg";
-    const PARTICLE_COUNT = 82;
-    const TRAIL_SPAN = 0.24;
-    const DURATION_MS = 6200;
-    const PULSE_MS = 5200;
-    const R_BASE = 16;
-    const R_BREATH = 2;
-
-    const circles: SVGCircleElement[] = [];
-    for (let i = 0; i < PARTICLE_COUNT; i++) {
-      const c = document.createElementNS(NS, "circle");
-      c.setAttribute("fill", "currentColor");
-      group.appendChild(c);
-      circles.push(c);
-    }
-
-    const startedAt = performance.now();
-    let raf: number;
-
-    function tick(now: number) {
-      const time = now - startedAt;
-      const progress = (time % DURATION_MS) / DURATION_MS;
-      const pulseP = (time % PULSE_MS) / PULSE_MS;
-      const s = 0.52 + ((Math.sin(pulseP * Math.PI * 2 + 0.55) + 1) / 2) * 0.48;
-      const R = R_BASE + s * R_BREATH;
-      const rotation = -((time % 34000) / 34000) * 360;
-
-      group.setAttribute("transform", `rotate(${rotation} 50 50)`);
-
-      let d = "";
-      for (let i = 0; i <= 480; i++) {
-        const pt = torusKnotPoint(i / 480, { ...ANIMATED_CONFIG, R });
-        d += `${i === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)} `;
-      }
-      path.setAttribute("d", d + "Z");
-
-      for (let idx = 0; idx < circles.length; idx++) {
-        const tailOffset = idx / (PARTICLE_COUNT - 1);
-        const p = (((progress - tailOffset * TRAIL_SPAN) % 1) + 1) % 1;
-        const pt = torusKnotPoint(p, { ...ANIMATED_CONFIG, R });
-        const fade = (1 - tailOffset) ** 0.56;
-
-        circles[idx].setAttribute("cx", pt.x.toFixed(2));
-        circles[idx].setAttribute("cy", pt.y.toFixed(2));
-        circles[idx].setAttribute("r", (0.9 + fade * 2.7).toFixed(2));
-        circles[idx].setAttribute("opacity", (0.04 + fade * 0.96).toFixed(3));
-      }
-
-      raf = requestAnimationFrame(tick);
-    }
-
-    raf = requestAnimationFrame(tick);
-    return () => {
-      cancelAnimationFrame(raf);
-      for (const c of circles) c.remove();
-    };
-  }, []);
-
-  return (
-    <div className="flex flex-col items-center gap-4">
-      <svg
-        ref={svgRef}
-        viewBox="0 0 100 100"
-        width={220}
-        height={220}
-        fill="none"
-        className="overflow-visible"
-      >
-        <g ref={groupRef}>
-          <path
-            ref={pathRef}
-            stroke="currentColor"
-            strokeWidth={4.3}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity={0.08}
-          />
-        </g>
-      </svg>
-      <Label>Animated</Label>
-    </div>
-  );
-}
-
 function StaticVariant() {
   return (
     <div className="flex flex-col items-center gap-4">
       <svg
-        viewBox="0 0 100 100"
+        viewBox="0 0 120 120"
         width={220}
         height={220}
         fill="none"
         className="overflow-visible"
+        stroke="currentColor"
+        strokeWidth={fanStrokeViewbox(220)}
+        strokeLinecap="round"
       >
-        <g transform="rotate(45 50 50)">
-          <path
-            d={STATIC_D}
-            stroke="currentColor"
-            strokeWidth={3.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity={0.9}
+        {fanSegments(FAN).map((s, i) => (
+          <line
+            key={i}
+            x1={s.x1.toFixed(2)}
+            y1={s.y1.toFixed(2)}
+            x2={s.x2.toFixed(2)}
+            y2={s.y2.toFixed(2)}
           />
-        </g>
+        ))}
       </svg>
       <Label>Shape</Label>
-    </div>
-  );
-}
-
-function LogoVariant({
-  palette,
-  cellSize,
-}: {
-  palette: DitherPalette;
-  cellSize: number;
-}) {
-  const slug = palette.name.replace(/\s+/g, "-");
-  const ditherUrl = useMemo(
-    () => generateDitheredDataUrl(cellSize, palette),
-    [cellSize, palette]
-  );
-
-  const handleExport = useCallback(() => {
-    const canvas = renderLogoToCanvas(
-      palette,
-      cellSize,
-      SQUIRCLE_D,
-      LOGO_KNOT_D,
-      1024
-    );
-    downloadCanvas(canvas, `cloudstash-${slug}.png`);
-  }, [palette, cellSize, slug]);
-
-  return (
-    <div className="flex flex-col items-center gap-3">
-      <svg
-        viewBox="0 0 120 120"
-        width={180}
-        height={180}
-        fill="none"
-        style={{ imageRendering: "pixelated" }}
-      >
-        <defs>
-          <clipPath id={`sq-${slug}`}>
-            <path d={SQUIRCLE_D} />
-          </clipPath>
-          <radialGradient id={`hl-${slug}`} cx="0.5" cy="0.05" r="0.8">
-            <stop offset="0%" stopColor="white" stopOpacity={0.18} />
-            <stop offset="50%" stopColor="white" stopOpacity={0.05} />
-            <stop offset="100%" stopColor="black" stopOpacity={0} />
-          </radialGradient>
-          <linearGradient id={`sh-${slug}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="black" stopOpacity={0} />
-            <stop offset="70%" stopColor="black" stopOpacity={0} />
-            <stop offset="100%" stopColor="black" stopOpacity={0.22} />
-          </linearGradient>
-        </defs>
-        <g clipPath={`url(#sq-${slug})`}>
-          <image href={ditherUrl} x={8} y={8} width={104} height={104} />
-          <rect
-            x={8}
-            y={8}
-            width={104}
-            height={104}
-            fill={`url(#hl-${slug})`}
-          />
-          <rect
-            x={8}
-            y={8}
-            width={104}
-            height={104}
-            fill={`url(#sh-${slug})`}
-          />
-        </g>
-        <g transform="rotate(45 60 60)">
-          <path
-            d={LOGO_KNOT_D}
-            stroke="#ffffff"
-            strokeWidth={4}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </g>
-      </svg>
-      <Label>{palette.name}</Label>
-      <ExportButton onClick={handleExport} label={palette.name} />
-    </div>
-  );
-}
-
-type ClipType = "squircle" | "circle" | "raycast" | "square";
-
-function clipPathForType(type: ClipType, size: number): Path2D {
-  if (type === "square") {
-    const p = new Path2D();
-    p.rect(0, 0, size, size);
-    return p;
-  }
-  if (type === "circle") {
-    const p = new Path2D();
-    p.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
-    return p;
-  }
-  if (type === "raycast") {
-    const r = size * 0.22;
-    const p = new Path2D();
-    p.roundRect(0, 0, size, size, r);
-    return p;
-  }
-  const scale = size / 120;
-  const svgD = squirclePath(60, 60, 52, 5);
-  const p2 = new Path2D();
-  const raw = new Path2D(svgD);
-  const m = new DOMMatrix().scale(scale, scale);
-  p2.addPath(raw, m);
-  return p2;
-}
-
-function svgClipForType(type: ClipType): string {
-  if (type === "square") {
-    return "M 8,8 H 112 V 112 H 8 Z";
-  }
-  if (type === "circle") {
-    return "M 60,8 A 52,52 0 1,1 59.99,8 Z";
-  }
-  if (type === "raycast") {
-    const r = 120 * 0.22 * (52 / 60);
-    const x = 8,
-      y = 8,
-      w = 104,
-      h = 104;
-    return `M ${x + r},${y} H ${x + w - r} Q ${x + w},${y} ${x + w},${y + r} V ${y + h - r} Q ${x + w},${y + h} ${x + w - r},${y + h} H ${x + r} Q ${x},${y + h} ${x},${y + h - r} V ${y + r} Q ${x},${y} ${x + r},${y} Z`;
-  }
-  return SQUIRCLE_D;
-}
-
-function renderExportCanvas(
-  cellSize: number,
-  clipType: ClipType,
-  exportSize: number,
-  palette: DitherPalette = MIDNIGHT,
-  knotStroke = 4
-): HTMLCanvasElement {
-  const canvas = document.createElement("canvas");
-  canvas.width = exportSize;
-  canvas.height = exportSize;
-  const ctx = canvas.getContext("2d")!;
-  const scale = exportSize / 120;
-
-  const ditherCanvas = document.createElement("canvas");
-  ditherCanvas.width = exportSize;
-  ditherCanvas.height = exportSize;
-  const dCtx = ditherCanvas.getContext("2d")!;
-  const imgData = dCtx.createImageData(exportSize, exportSize);
-  const dd = imgData.data;
-  const scaledCell = cellSize * (exportSize / 256);
-  for (let y = 0; y < exportSize; y++) {
-    for (let x = 0; x < exportSize; x++) {
-      const t = (x + y) / (exportSize * 2 - 2);
-      const bx = Math.floor(x / scaledCell) % 8;
-      const by = Math.floor(y / scaledCell) % 8;
-      const threshold = (BAYER8[by][bx] + 0.5) / 64;
-      const c = t > threshold ? palette.b : palette.a;
-      const i = (y * exportSize + x) * 4;
-      dd[i] = c.r;
-      dd[i + 1] = c.g;
-      dd[i + 2] = c.b;
-      dd[i + 3] = 255;
-    }
-  }
-  dCtx.putImageData(imgData, 0, 0);
-
-  ctx.save();
-  ctx.clip(clipPathForType(clipType, exportSize));
-  ctx.drawImage(ditherCanvas, 0, 0);
-
-  const hlGrad = ctx.createRadialGradient(
-    exportSize * 0.5,
-    exportSize * 0.05,
-    0,
-    exportSize * 0.5,
-    exportSize * 0.05,
-    exportSize * 0.8
-  );
-  hlGrad.addColorStop(0, "rgba(255, 255, 255, 0.18)");
-  hlGrad.addColorStop(0.5, "rgba(255, 255, 255, 0.05)");
-  hlGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
-  ctx.fillStyle = hlGrad;
-  ctx.fillRect(0, 0, exportSize, exportSize);
-
-  const shGrad = ctx.createLinearGradient(0, 0, 0, exportSize);
-  shGrad.addColorStop(0, "rgba(0, 0, 0, 0)");
-  shGrad.addColorStop(0.7, "rgba(0, 0, 0, 0)");
-  shGrad.addColorStop(1, "rgba(0, 0, 0, 0.22)");
-  ctx.fillStyle = shGrad;
-  ctx.fillRect(0, 0, exportSize, exportSize);
-
-  const edgeGrad = ctx.createLinearGradient(0, 0, 0, exportSize);
-  edgeGrad.addColorStop(0, "rgba(255, 255, 255, 0.12)");
-  edgeGrad.addColorStop(0.03, "rgba(255, 255, 255, 0)");
-  edgeGrad.addColorStop(0.97, "rgba(0, 0, 0, 0)");
-  edgeGrad.addColorStop(1, "rgba(0, 0, 0, 0.15)");
-  ctx.fillStyle = edgeGrad;
-  ctx.fillRect(0, 0, exportSize, exportSize);
-
-  ctx.restore();
-
-  ctx.save();
-  ctx.translate(exportSize / 2, exportSize / 2);
-  ctx.rotate((45 * Math.PI) / 180);
-  ctx.translate(-exportSize / 2, -exportSize / 2);
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = knotStroke * scale;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-
-  const knotConfig: TorusKnotConfig = {
-    R: 22,
-    r: 10,
-    cx: 60 * scale,
-    cy: 60 * scale,
-  };
-  ctx.beginPath();
-  for (let i = 0; i <= 500; i++) {
-    const pt = torusKnotPoint(i / 500, {
-      ...knotConfig,
-      R: knotConfig.R * scale,
-      r: knotConfig.r * scale,
-    });
-    if (i === 0) ctx.moveTo(pt.x, pt.y);
-    else ctx.lineTo(pt.x, pt.y);
-  }
-  ctx.closePath();
-  ctx.stroke();
-  ctx.restore();
-
-  return canvas;
-}
-
-function ExportVariant({
-  label,
-  cellSize,
-  size,
-  clipType,
-  palette = MIDNIGHT,
-}: {
-  label: string;
-  cellSize: number;
-  size: number;
-  clipType: ClipType;
-  palette?: DitherPalette;
-}) {
-  const slug = palette.name.replace(/\s+/g, "-").toLowerCase();
-  const ditherUrl = useMemo(
-    () => generateDitheredDataUrl(cellSize, palette),
-    [cellSize, palette]
-  );
-  const svgClip = useMemo(() => svgClipForType(clipType), [clipType]);
-  const labelSlug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  const clipId = `export-${slug}-${clipType}-${labelSlug}`;
-
-  const handleExport = useCallback(() => {
-    const canvas = renderExportCanvas(cellSize, clipType, size, palette);
-    downloadCanvas(canvas, `cloudstash-${slug}-${clipType}-${size}.png`);
-  }, [cellSize, clipType, size, palette, slug]);
-
-  return (
-    <div className="flex flex-col items-center gap-3">
-      <svg
-        viewBox="0 0 120 120"
-        width={180}
-        height={180}
-        fill="none"
-        style={{ imageRendering: "pixelated" }}
-      >
-        <defs>
-          <clipPath id={clipId}>
-            <path d={svgClip} />
-          </clipPath>
-          <radialGradient id={`hl-${clipId}`} cx="0.5" cy="0.05" r="0.8">
-            <stop offset="0%" stopColor="white" stopOpacity={0.18} />
-            <stop offset="50%" stopColor="white" stopOpacity={0.05} />
-            <stop offset="100%" stopColor="black" stopOpacity={0} />
-          </radialGradient>
-          <linearGradient id={`sh-${clipId}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="black" stopOpacity={0} />
-            <stop offset="70%" stopColor="black" stopOpacity={0} />
-            <stop offset="100%" stopColor="black" stopOpacity={0.22} />
-          </linearGradient>
-        </defs>
-        <g clipPath={`url(#${clipId})`}>
-          <image href={ditherUrl} x={8} y={8} width={104} height={104} />
-          <rect
-            x={8}
-            y={8}
-            width={104}
-            height={104}
-            fill={`url(#hl-${clipId})`}
-          />
-          <rect
-            x={8}
-            y={8}
-            width={104}
-            height={104}
-            fill={`url(#sh-${clipId})`}
-          />
-        </g>
-        <g transform="rotate(45 60 60)">
-          <path
-            d={LOGO_KNOT_D}
-            stroke="#ffffff"
-            strokeWidth={4}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </g>
-      </svg>
-      <Label>{label}</Label>
-      <ExportButton onClick={handleExport} label={label} />
     </div>
   );
 }
@@ -715,6 +353,47 @@ function ExportButton({
   );
 }
 
+// Exports rasterize the preview's own SVG, so the file is exactly what the
+// card shows. Canvas only exists inside this save path (and the text
+// banners below) — previews are plain SVG.
+async function exportSvgAsPng(
+  svgEl: SVGSVGElement,
+  exportSize: number,
+  filename: string
+) {
+  const clone = svgEl.cloneNode(true) as SVGSVGElement;
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  clone.setAttribute("width", String(exportSize));
+  clone.setAttribute("height", String(exportSize));
+  const blob = new Blob([new XMLSerializer().serializeToString(clone)], {
+    type: "image/svg+xml",
+  });
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = await loadImage(url);
+    const raster = exportSize < 256 ? 4 : 1;
+    let canvas = document.createElement("canvas");
+    canvas.width = exportSize * raster;
+    canvas.height = exportSize * raster;
+    canvas
+      .getContext("2d")!
+      .drawImage(img, 0, 0, exportSize * raster, exportSize * raster);
+    if (raster > 1) canvas = scaleCanvasTo(canvas, exportSize, exportSize);
+    downloadCanvas(canvas, filename);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.addEventListener("load", () => resolve(img), { once: true });
+    img.addEventListener("error", reject, { once: true });
+    img.src = src;
+  });
+}
+
 function downloadCanvas(canvas: HTMLCanvasElement, filename: string) {
   const a = document.createElement("a");
   a.href = canvas.toDataURL("image/png");
@@ -722,98 +401,6 @@ function downloadCanvas(canvas: HTMLCanvasElement, filename: string) {
   a.click();
 }
 
-const BANNER_SUBTITLE = "Save links. Read later.";
-
-// A wordmark-on-dither banner that auto-fits the knot + text block to any
-// aspect ratio, so the same composition reads correctly at every Chrome Web
-// Store tile size. Renders to a high-resolution supersampled canvas; callers
-// downscale to the exact target size. Supersampling is adaptive so even the
-// small 440×280 tile renders from a ~2400px internal canvas — keeping the
-// vector text and knot crisp at any output size.
-function renderBannerSuper(
-  w: number,
-  h: number,
-  cellSize: number
-): HTMLCanvasElement {
-  const S = Math.max(2, Math.ceil(2400 / Math.max(w, h)));
-  const W = w * S;
-  const H = h * S;
-
-  const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext("2d")!;
-  fillDither(ctx, W, H, cellSize);
-
-  const fontFamily = "'JetBrains Mono Variable', monospace";
-  let knotDia = 0.476 * H;
-  let gap = 0.12 * H;
-  let titleSize = 0.154 * H;
-  let subtitleSize = 0.0635 * H;
-
-  const measureText = () => {
-    ctx.font = `700 ${titleSize}px ${fontFamily}`;
-    const tW = ctx.measureText("Cloudstash").width;
-    ctx.font = `400 ${subtitleSize}px ${fontFamily}`;
-    const sW = ctx.measureText(BANNER_SUBTITLE).width;
-    return Math.max(tW, sW);
-  };
-
-  let textW = measureText();
-  let totalW = knotDia + gap + textW;
-  const availW = W * 0.88;
-  if (totalW > availW) {
-    const fit = availW / totalW;
-    knotDia *= fit;
-    gap *= fit;
-    titleSize *= fit;
-    subtitleSize *= fit;
-    textW = measureText();
-    totalW = knotDia + gap + textW;
-  }
-
-  const startX = (W - totalW) / 2;
-  const knotCx = startX + knotDia / 2;
-  const knotCy = H / 2;
-  const knotScale = knotDia / 2 / 32;
-
-  ctx.save();
-  ctx.translate(knotCx, knotCy);
-  ctx.rotate((45 * Math.PI) / 180);
-  ctx.translate(-knotCx, -knotCy);
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = Math.max(1, 4 * knotScale);
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.beginPath();
-  for (let i = 0; i <= 500; i++) {
-    const pt = torusKnotPoint(i / 500, {
-      R: 22 * knotScale,
-      r: 10 * knotScale,
-      cx: knotCx,
-      cy: knotCy,
-    });
-    if (i === 0) ctx.moveTo(pt.x, pt.y);
-    else ctx.lineTo(pt.x, pt.y);
-  }
-  ctx.closePath();
-  ctx.stroke();
-  ctx.restore();
-
-  const textX = startX + knotDia + gap;
-  const gapV = titleSize * 0.35;
-  const blockH = titleSize + gapV + subtitleSize;
-  ctx.fillStyle = "#ffffff";
-  ctx.textBaseline = "middle";
-  ctx.font = `700 ${titleSize}px ${fontFamily}`;
-  ctx.fillText("Cloudstash", textX, H / 2 - blockH / 2 + titleSize / 2);
-  ctx.font = `400 ${subtitleSize}px ${fontFamily}`;
-  ctx.fillText(BANNER_SUBTITLE, textX, H / 2 + blockH / 2 - subtitleSize / 2);
-
-  return canvas;
-}
-
-// High-quality downscale of the supersampled banner to an exact w×h canvas.
 function scaleCanvasTo(
   src: HTMLCanvasElement,
   w: number,
@@ -829,144 +416,180 @@ function scaleCanvasTo(
   return out;
 }
 
-function renderBannerCanvas(
-  w: number,
-  h: number,
-  cellSize: number
-): HTMLCanvasElement {
-  return scaleCanvasTo(renderBannerSuper(w, h, cellSize), w, h);
+const ICON_SIZES = [128, 48, 32, 16];
+
+const BANNER_SUBTITLE = "Save links. Read later.";
+const BANNER_MUTED = "#71717a";
+const BANNER_FONT = "'Noto Sans Variable', sans-serif";
+
+// Banner layout in banner-space px: a centered vertical stack — fan, the
+// app's lowercase wordmark, then a muted subtitle — sized off the banner
+// height so all three Chrome Web Store aspect ratios compose alike.
+function bannerLayout(w: number, h: number) {
+  const fanDia = 0.36 * h;
+  const fanVisH = (64 / 120) * fanDia;
+  const wordmarkSize = 0.13 * h;
+  const subtitleSize = 0.052 * h;
+  const gapFan = 0.085 * h;
+  const gapSub = 0.075 * h;
+  const blockH = fanVisH + gapFan + wordmarkSize + gapSub + subtitleSize;
+  const top = (h - blockH) / 2;
+  const wordmarkBaseline = top + fanVisH + gapFan + wordmarkSize * 0.78;
+  return {
+    fanDia,
+    centerX: w / 2,
+    fanCenterY: top + fanVisH / 2,
+    wordmarkSize,
+    wordmarkBaseline,
+    subtitleSize,
+    subtitleBaseline: wordmarkBaseline + gapSub + subtitleSize,
+  };
+}
+
+// The banner preview is plain SVG — inline <text> uses the document's
+// loaded fonts, so what you see is real type.
+function BannerArt({
+  w,
+  h,
+  previewW,
+}: {
+  w: number;
+  h: number;
+  previewW: number;
+}) {
+  const L = bannerLayout(w, h);
+  const factor = L.fanDia / 120;
+  return (
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      width={previewW}
+      height={Math.round((h / w) * previewW)}
+      style={{ borderRadius: 8, border: `1px solid ${TILE_EDGE}` }}
+    >
+      <rect width={w} height={h} fill={TILE_BG_TOP} />
+      <g
+        stroke={PRODUCTION.ink}
+        strokeWidth={fanStrokePx(L.fanDia)}
+        strokeLinecap="round"
+        fill="none"
+      >
+        {fanSegments(FAN).map((s, i) => (
+          <line
+            key={i}
+            x1={(L.centerX + (s.x1 - 60) * factor).toFixed(2)}
+            y1={(L.fanCenterY + (s.y1 - 60) * factor).toFixed(2)}
+            x2={(L.centerX + (s.x2 - 60) * factor).toFixed(2)}
+            y2={(L.fanCenterY + (s.y2 - 60) * factor).toFixed(2)}
+          />
+        ))}
+      </g>
+      <text
+        x={L.centerX}
+        y={L.wordmarkBaseline}
+        textAnchor="middle"
+        fill={PRODUCTION.ink}
+        fontFamily={BANNER_FONT}
+        fontWeight={650}
+        fontSize={L.wordmarkSize}
+        letterSpacing="-0.01em"
+      >
+        cloudstash
+      </text>
+      <text
+        x={L.centerX}
+        y={L.subtitleBaseline}
+        textAnchor="middle"
+        fill={BANNER_MUTED}
+        fontFamily={BANNER_FONT}
+        fontWeight={400}
+        fontSize={L.subtitleSize}
+      >
+        {BANNER_SUBTITLE}
+      </text>
+    </svg>
+  );
+}
+
+function drawFanToCtx(
+  ctx: CanvasRenderingContext2D,
+  centerX: number,
+  centerY: number,
+  markDiameter: number,
+  strokePx: number,
+  ink: string
+) {
+  const factor = markDiameter / 120;
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = strokePx;
+  ctx.lineCap = "round";
+  for (const s of fanSegments(FAN)) {
+    ctx.beginPath();
+    ctx.moveTo(centerX + (s.x1 - 60) * factor, centerY + (s.y1 - 60) * factor);
+    ctx.lineTo(centerX + (s.x2 - 60) * factor, centerY + (s.y2 - 60) * factor);
+    ctx.stroke();
+  }
+}
+
+// The save path re-draws the same layout on canvas — rasterizing SVG text
+// through an <img> loses document fonts, so text must go through fillText.
+// Renders supersampled; callers downscale to the exact size.
+function renderBannerSuper(w: number, h: number): HTMLCanvasElement {
+  const S = Math.max(2, Math.ceil(2400 / Math.max(w, h)));
+  const canvas = document.createElement("canvas");
+  canvas.width = w * S;
+  canvas.height = h * S;
+  const ctx = canvas.getContext("2d")!;
+  ctx.scale(S, S);
+  ctx.fillStyle = TILE_BG_TOP;
+  ctx.fillRect(0, 0, w, h);
+
+  const L = bannerLayout(w, h);
+  drawFanToCtx(
+    ctx,
+    L.centerX,
+    L.fanCenterY,
+    L.fanDia,
+    fanStrokePx(L.fanDia),
+    PRODUCTION.ink
+  );
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = PRODUCTION.ink;
+  ctx.letterSpacing = `${(-0.01 * L.wordmarkSize).toFixed(2)}px`;
+  ctx.font = `650 ${L.wordmarkSize}px ${BANNER_FONT}`;
+  ctx.fillText("cloudstash", L.centerX, L.wordmarkBaseline);
+  ctx.letterSpacing = "0px";
+  ctx.fillStyle = BANNER_MUTED;
+  ctx.font = `400 ${L.subtitleSize}px ${BANNER_FONT}`;
+  ctx.fillText(BANNER_SUBTITLE, L.centerX, L.subtitleBaseline);
+
+  return canvas;
 }
 
 function BannerExport({
   w,
   h,
   label,
-  cellSize,
 }: {
   w: number;
   h: number;
   label: string;
-  cellSize: number;
 }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const previewW = 360;
-  const previewH = Math.round((h / w) * previewW);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    void document.fonts.ready.then(() => {
-      // Draw into a 2× backing store and scale the high-res supersampled
-      // render down with smoothing, so the on-screen preview stays sharp.
-      const backingW = previewW * 2;
-      const backingH = previewH * 2;
-      canvas.width = backingW;
-      canvas.height = backingH;
-      const ctx = canvas.getContext("2d")!;
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-      ctx.drawImage(
-        renderBannerSuper(w, h, cellSize),
-        0,
-        0,
-        backingW,
-        backingH
-      );
-    });
-  }, [w, h, cellSize, previewH]);
-
   const handleExport = useCallback(() => {
     void document.fonts.ready.then(() => {
       downloadCanvas(
-        renderBannerCanvas(w, h, cellSize),
+        scaleCanvasTo(renderBannerSuper(w, h), w, h),
         `cloudstash-cws-${w}x${h}.png`
       );
     });
-  }, [w, h, cellSize]);
+  }, [w, h]);
 
   return (
     <div className="flex flex-col items-center gap-3">
-      <canvas
-        ref={canvasRef}
-        style={{
-          width: previewW,
-          height: previewH,
-          borderRadius: 8,
-        }}
-      />
+      <BannerArt w={w} h={h} previewW={360} />
       <Label>{label}</Label>
       <ExportButton onClick={handleExport} label={label} />
-    </div>
-  );
-}
-
-const ICON_SIZES = [128, 48, 32, 16];
-
-// The Midnight squircle extension icon, with an adjustable knot weight. Each
-// size renders at 512 then downscales with smoothing, so even 16px stays clean.
-function IconExport({
-  cellSize,
-  knotStroke,
-}: {
-  cellSize: number;
-  knotStroke: number;
-}) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const src = renderExportCanvas(
-      cellSize,
-      "squircle",
-      256,
-      MIDNIGHT,
-      knotStroke
-    );
-    canvas.width = 256;
-    canvas.height = 256;
-    canvas.getContext("2d")!.drawImage(src, 0, 0);
-  }, [cellSize, knotStroke]);
-
-  const exportSize = useCallback(
-    (size: number) => {
-      const src = renderExportCanvas(
-        cellSize,
-        "squircle",
-        512,
-        MIDNIGHT,
-        knotStroke
-      );
-      downloadCanvas(scaleCanvasTo(src, size, size), `${size}.png`);
-    },
-    [cellSize, knotStroke]
-  );
-
-  return (
-    <div className="flex flex-col items-center gap-3">
-      <canvas
-        ref={canvasRef}
-        style={{
-          width: 128,
-          height: 128,
-          borderRadius: 24,
-          imageRendering: "pixelated",
-        }}
-      />
-      <Label>Extension Icon</Label>
-      <div className="flex gap-2">
-        {ICON_SIZES.map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => exportSize(s)}
-            aria-label={`Save ${s}px icon PNG`}
-            className="rounded-md border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
-          >
-            {s}px
-          </button>
-        ))}
-      </div>
     </div>
   );
 }

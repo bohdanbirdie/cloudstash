@@ -132,7 +132,7 @@ function ConnectExtensionPage() {
     <div className="flex min-h-svh flex-col items-center justify-center bg-background p-6">
       <div className="flex w-full max-w-sm flex-col gap-8">
         <div className="flex flex-col items-center gap-3">
-          <CloudstashLogo className="size-10 text-foreground" />
+          <CloudstashLogo className="size-10 text-foreground" size={40} />
           <div className="flex flex-col items-center gap-1 text-center">
             <h1 className="text-xl font-semibold tracking-tight">
               Connect the browser extension
