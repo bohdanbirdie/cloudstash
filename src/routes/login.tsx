@@ -2,7 +2,7 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useEffect } from "react";
 import type { ReactNode } from "react";
 
-import { CloudstashLogo } from "@/components/cloudstash-logo";
+import { BrandLockup } from "@/components/brand-lockup";
 import { SITE_URL } from "@/components/landing/seo-data";
 import { LoginAnimation } from "@/components/login-animation";
 import { Button } from "@/components/ui/button";
@@ -70,11 +70,18 @@ export function LoginSurface({
   return (
     <main className="grid min-h-svh place-items-center bg-muted/30 p-5 md:p-10">
       <div className="grid w-full max-w-3xl overflow-hidden rounded-lg bg-card ring-1 ring-foreground/10 md:min-h-[28rem] md:grid-cols-[1.15fr_0.85fr]">
-        <section className="flex flex-col justify-center p-7 md:p-10">
+        <section className="relative flex flex-col justify-center p-7 pt-16 md:p-10">
+          {/* Plain anchor, not a router Link: LoginSurface also renders in
+              a router-less Storybook story. Absolutely positioned so it
+              never shifts the centered content. */}
+          <a
+            href="/"
+            aria-label="Back to the landing page"
+            className="absolute top-4 start-4 inline-flex items-center rounded-md px-2.5 py-1.5 transition-colors hover:bg-muted/60"
+          >
+            <BrandLockup />
+          </a>
           <div className="w-full max-w-xs self-center">
-            <div className="md:hidden">
-              <BrandLockup className="mb-7" />
-            </div>
             <header className="text-start">
               <h1 className="text-xl font-semibold tracking-tight text-balance">
                 {heading}
@@ -91,13 +98,12 @@ export function LoginSurface({
         </section>
         <aside
           aria-hidden="true"
-          className="relative hidden overflow-hidden bg-primary p-8 text-primary-foreground md:flex md:flex-col md:justify-between"
+          className="relative hidden overflow-hidden bg-primary p-8 text-primary-foreground md:flex md:flex-col md:justify-end"
         >
           <div className="landing-dot-field landing-dot-field-inverse pointer-events-none absolute inset-0" />
-          <BrandLockup className="relative" tone="inverse" />
           <LoginAnimation
             variant="light"
-            className="absolute top-1/2 start-1/2 size-44 -translate-1/2"
+            className="absolute top-1/2 start-1/2 size-44 -translate-x-1/2 -translate-y-[calc(50%+10px)]"
           />
           <p className="relative max-w-48 text-sm/relaxed font-medium text-pretty">
             Saved links, ready when you need them.
@@ -105,26 +111,6 @@ export function LoginSurface({
         </aside>
       </div>
     </main>
-  );
-}
-
-function BrandLockup({
-  className = "",
-  tone = "default",
-}: {
-  className?: string;
-  tone?: "default" | "inverse";
-}) {
-  return (
-    <div className={cn("flex items-center gap-2", className)}>
-      <CloudstashLogo
-        className={cn("size-6", {
-          "text-primary-foreground": tone === "inverse",
-          "text-primary": tone !== "inverse",
-        })}
-      />
-      <span className="text-sm font-semibold tracking-tight">cloudstash</span>
-    </div>
   );
 }
 

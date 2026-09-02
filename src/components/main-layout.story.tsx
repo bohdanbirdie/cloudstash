@@ -10,13 +10,14 @@ import {
 import { AgentTrigger } from "@/components/bottom-dock/agent-trigger";
 import { BottomDockSurface } from "@/components/bottom-dock/bottom-dock";
 import { SearchTrigger } from "@/components/bottom-dock/search-trigger";
+import { BrandLockup } from "@/components/brand-lockup";
 import { CategoryNavSurface } from "@/components/category-nav";
 import { LinkList } from "@/components/link-list/link-list";
 import { LinkPreviewImage } from "@/components/link-preview-image";
 import { LoadingState } from "@/components/loading-screen";
 import { MastheadSurface } from "@/components/masthead";
 import { DetailSummary } from "@/components/right-pane/detail-view/ai-summary";
-import { CloudstashBrand, TopBarSurface } from "@/components/top-bar";
+import { TopBarSurface } from "@/components/top-bar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -114,9 +115,7 @@ function HeaderFixture({
     <TopBarSurface
       leading={
         <>
-          <span className="group flex items-center gap-2.5">
-            <CloudstashBrand />
-          </span>
+          <BrandLockup wordmarkClassName="hidden text-foreground lg:inline" />
           <CategoryNavSurface pathname="/inbox" interactive={false} />
         </>
       }

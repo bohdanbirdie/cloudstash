@@ -8,8 +8,8 @@ import type { ReactNode } from "react";
 import { AccountMenu } from "@/components/account-menu";
 import { useAddLink } from "@/components/add-link";
 import { UPGRADE_ICON } from "@/components/billing/plan-icon";
+import { BrandLockup } from "@/components/brand-lockup";
 import { CategoryNav } from "@/components/category-nav";
-import { CloudstashLogo } from "@/components/cloudstash-logo";
 import { SyncStatusIndicator } from "@/components/sync-status-indicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,26 +58,15 @@ export function TopBarSurface({
   );
 }
 
-export function CloudstashBrand() {
-  return (
-    <>
-      <CloudstashLogo className="size-5 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-safe:group-hover:rotate-[20deg]" />
-      <span className="hidden text-[13px] font-medium tracking-[-0.005em] text-foreground lg:inline">
-        cloudstash
-      </span>
-    </>
-  );
-}
-
 function TopBarLeading() {
   return (
     <>
       <Link
         to="/inbox"
         aria-label="Cloudstash inbox"
-        className="group flex items-center gap-2.5 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
+        className="flex rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
       >
-        <CloudstashBrand />
+        <BrandLockup wordmarkClassName="hidden text-foreground lg:inline" />
       </Link>
       <CategoryNav />
     </>
