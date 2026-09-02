@@ -12,7 +12,7 @@ import { useAuth } from "@/lib/auth";
 import { fetchWorkspaceUsage, usageEndpoint } from "@/lib/usage-api";
 import type { UsageItem } from "@/lib/usage-api";
 import { allLinksCount$ } from "@/livestore/queries/links";
-import { useAppStore } from "@/livestore/store";
+import { useAppStore, useStoreQuery } from "@/livestore/store";
 
 function getInitial(name: string | null, email: string | null) {
   const source = name?.trim() || email?.trim() || "";
@@ -22,7 +22,8 @@ function getInitial(name: string | null, email: string | null) {
 export function AccountSection() {
   const auth = useAuth();
   const { capabilities, isLoading: isLoadingFeatures } = useOrgFeatures();
-  const activeLinks = useAppStore().useQuery(allLinksCount$);
+  const store = useAppStore();
+  const activeLinks = useStoreQuery(store, allLinksCount$);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const usageUrl = auth.orgId ? usageEndpoint(auth.orgId) : null;
   const { data: usageData, error: usageError } = useSWR(

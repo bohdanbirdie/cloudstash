@@ -43,14 +43,16 @@ export function App() {
 
   const revoked = accountResult?.tag === "unauthorized";
   useEffect(() => {
-    if (revoked) persist(null);
+    if (revoked) {
+      runPopup(Effect.flatMap(CredsStorage, (service) => service.set(null)));
+    }
   }, [revoked]);
 
   if (credsState.status === "loading") {
     return <LoadingShell>One moment</LoadingShell>;
   }
 
-  if (!creds) return <ConnectScreen />;
+  if (!creds || revoked) return <ConnectScreen />;
 
   const tab =
     tabState.status === "ok" && tabState.value._tag === "Some"

@@ -1,4 +1,5 @@
-import { useStore } from "@livestore/react";
+import type { Store } from "@livestore/livestore";
+import { useQuery, useStore } from "@livestore/react";
 import { events, schema } from "@web/livestore/schema";
 import { Match } from "effect";
 import { CheckCircle2 } from "lucide-react";
@@ -98,8 +99,10 @@ export function SaveAndList({
     storeId: creds.orgId,
     syncPayload: { apiKey: creds.apiKey },
   });
-  const recent = store.useQuery(recentLinks$);
-  const activeLinksCount = store.useQuery(activeLinksCount$);
+  // LiveStore beta.99 types the standalone React hook against an erased Store.
+  const queryStore: Store<any> = store;
+  const recent = useQuery(recentLinks$, { store: queryStore });
+  const activeLinksCount = useQuery(activeLinksCount$, { store: queryStore });
   const canSave =
     account === null ||
     account.maxSavedLinks === 0 ||

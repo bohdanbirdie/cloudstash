@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-import { CloudstashLogo } from "@/components/cloudstash-logo";
+import { BrandLockup } from "@/components/brand-lockup";
 import { SectionEyebrow } from "@/components/right-pane/detail-view/section-eyebrow";
 import { cn } from "@/lib/utils";
 
@@ -51,12 +51,7 @@ export function Footer() {
         )}
       >
         <div>
-          <div className="flex items-center gap-2.5">
-            <CloudstashLogo className="size-5 rounded-sm" variant="branded" />
-            <span className="text-[13px] font-medium tracking-[-0.005em]">
-              cloudstash
-            </span>
-          </div>
+          <BrandLockup variant="branded" />
           <p className="mt-3 max-w-[34ch] text-pretty text-xs leading-relaxed text-muted-foreground">
             Your saved links, ready when you need them.
           </p>

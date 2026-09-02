@@ -1,88 +1,103 @@
-import { useEffect, useState } from "react";
+import { useId } from "react";
 
-import { generateDitheredDataUrl, PALETTES } from "@/lib/brand/dither";
+import {
+  FAN,
+  FAN_TILE_DY,
+  FAN_VIEWBOX,
+  fanSegments,
+  fanStrokeViewbox,
+} from "@/lib/brand/fan";
 import { squirclePath } from "@/lib/brand/squircle";
-import { torusKnotPath } from "@/lib/brand/torus-knot";
+import { TILE_FILL_TOP, TILE_INK, tileDepth } from "@/lib/brand/tile";
 
-const KNOT_D = torusKnotPath({ R: 22, r: 10, cx: 60, cy: 60 });
 const SQUIRCLE_D = squirclePath(60, 60, 52, 5);
-const MIDNIGHT = PALETTES.find((p) => p.name === "Midnight")!;
 
+// `size` is the intended render size in CSS px; it sets the stroke weight.
 export function CloudstashLogo({
   className,
   variant = "plain",
+  size = 24,
 }: {
   className?: string;
   variant?: "plain" | "branded";
+  size?: number;
 }) {
   if (variant === "branded") {
-    return <BrandedLogo className={className} />;
+    return <BrandedLogo className={className} size={size} />;
   }
 
   return (
     <svg
-      viewBox="22 22 76 76"
+      viewBox={FAN_VIEWBOX}
       fill="none"
       className={className}
+      style={{ overflow: "visible" }}
       aria-hidden="true"
     >
-      <g transform="rotate(45 60 60)">
-        <path
-          d={KNOT_D}
-          stroke="currentColor"
-          strokeWidth={4.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </g>
+      <FanMark size={size} stroke="currentColor" />
     </svg>
   );
 }
 
-function BrandedLogo({ className }: { className?: string }) {
-  const [ditherUrl, setDitherUrl] = useState("");
-  useEffect(() => {
-    setDitherUrl(generateDitheredDataUrl(3.5, MIDNIGHT));
-  }, []);
+function FanMark({ size, stroke }: { size: number; stroke: string }) {
+  return (
+    <g
+      stroke={stroke}
+      strokeWidth={fanStrokeViewbox(size)}
+      strokeLinecap="round"
+    >
+      {fanSegments(FAN).map((s, i) => (
+        <line
+          key={i}
+          x1={s.x1.toFixed(2)}
+          y1={s.y1.toFixed(2)}
+          x2={s.x2.toFixed(2)}
+          y2={s.y2.toFixed(2)}
+        />
+      ))}
+    </g>
+  );
+}
 
+function BrandedLogo({
+  className,
+  size,
+}: {
+  className?: string;
+  size: number;
+}) {
+  const baseId = useId().replace(/:/g, "");
+  const fillId = `${baseId}-fill`;
+  const edgeId = `${baseId}-edge`;
+  const depth = tileDepth(size);
   return (
     <svg
       viewBox="0 0 120 120"
       fill="none"
       className={className}
-      style={{ imageRendering: "pixelated" }}
       aria-hidden="true"
     >
       <defs>
-        <clipPath id="sidebar-sq">
-          <path d={SQUIRCLE_D} />
-        </clipPath>
-        <radialGradient id="sidebar-hl" cx="0.5" cy="0.05" r="0.8">
-          <stop offset="0%" stopColor="white" stopOpacity={0.18} />
-          <stop offset="50%" stopColor="white" stopOpacity={0.05} />
-          <stop offset="100%" stopColor="black" stopOpacity={0} />
-        </radialGradient>
-        <linearGradient id="sidebar-sh" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="black" stopOpacity={0} />
-          <stop offset="70%" stopColor="black" stopOpacity={0} />
-          <stop offset="100%" stopColor="black" stopOpacity={0.22} />
+        <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={TILE_FILL_TOP} />
+          <stop offset="0.6" stopColor={TILE_FILL_TOP} />
+          <stop offset="1" stopColor={depth.fillBottom} />
+        </linearGradient>
+        <linearGradient id={edgeId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={depth.edgeTop} />
+          <stop offset="1" stopColor={depth.edgeBottom} />
         </linearGradient>
       </defs>
-      <g clipPath="url(#sidebar-sq)">
-        {ditherUrl && (
-          <image href={ditherUrl} x={8} y={8} width={104} height={104} />
-        )}
-        <rect x={8} y={8} width={104} height={104} fill="url(#sidebar-hl)" />
-        <rect x={8} y={8} width={104} height={104} fill="url(#sidebar-sh)" />
-      </g>
-      <g transform="rotate(45 60 60)">
-        <path
-          d={KNOT_D}
-          stroke="#ffffff"
-          strokeWidth={5.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+      <path
+        d={SQUIRCLE_D}
+        fill={`url(#${fillId})`}
+        stroke={`url(#${edgeId})`}
+        strokeWidth={depth.rimViewbox}
+      />
+      <g
+        transform={`translate(60 ${60 + FAN_TILE_DY}) scale(0.62) translate(-60 -60)`}
+      >
+        <FanMark size={size * 0.62} stroke={TILE_INK} />
       </g>
     </svg>
   );

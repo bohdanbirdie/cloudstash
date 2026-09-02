@@ -1,5 +1,5 @@
 import { GlobeIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -9,15 +9,11 @@ interface FaviconProps {
 }
 
 export function Favicon({ src, className }: FaviconProps) {
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    setFailed(false);
-  }, [src]);
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
 
   if (!src) return null;
 
-  if (failed) {
+  if (failedSrc === src) {
     return (
       <GlobeIcon
         aria-hidden="true"
@@ -35,7 +31,7 @@ export function Favicon({ src, className }: FaviconProps) {
       alt=""
       loading="lazy"
       decoding="async"
-      onError={() => setFailed(true)}
+      onError={() => setFailedSrc(src)}
       className={className}
     />
   );

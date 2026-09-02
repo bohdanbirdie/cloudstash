@@ -1,5 +1,5 @@
-import { useCallback, useRef } from "react";
-import type { RefObject } from "react";
+import { useCallback } from "react";
+import type { RefCallback } from "react";
 import { useHotkeys, useHotkeysContext } from "react-hotkeys-hook";
 
 export type Scope =
@@ -75,14 +75,11 @@ export function useCommand(
 ): void {
   const { keys, scope } = COMMANDS[id];
   const { activeScopes } = useHotkeysContext();
-  const activeScopesRef = useRef(activeScopes);
-  activeScopesRef.current = activeScopes;
 
   const ignoreEventWhen = useCallback(
     (e: KeyboardEvent) =>
-      isTypingEvent(e) ||
-      (scope === "global" && isModalActive(activeScopesRef.current)),
-    [scope]
+      isTypingEvent(e) || (scope === "global" && isModalActive(activeScopes)),
+    [scope, activeScopes]
   );
 
   useHotkeys(keys, handler, {
@@ -109,7 +106,7 @@ export function useDismiss(
 export function useNavigation<T extends HTMLElement = HTMLElement>(
   id: NavId,
   handler: (dir: Direction) => void
-): RefObject<T | null> {
+): RefCallback<T | null> {
   return useHotkeys<T>(
     NAV[id].keys,
     (e) => {
@@ -127,18 +124,14 @@ export function useGlobalNavigation(
   handler: (dir: Direction) => void,
   skipWhen?: (e: KeyboardEvent) => boolean
 ): void {
-  const skipWhenRef = useRef(skipWhen);
-  skipWhenRef.current = skipWhen;
   const { activeScopes } = useHotkeysContext();
-  const activeScopesRef = useRef(activeScopes);
-  activeScopesRef.current = activeScopes;
 
   const ignoreEventWhen = useCallback(
     (e: KeyboardEvent) =>
-      isModalActive(activeScopesRef.current) ||
+      isModalActive(activeScopes) ||
       isContentEditableTarget(e) ||
-      (skipWhenRef.current?.(e) ?? false),
-    []
+      (skipWhen?.(e) ?? false),
+    [activeScopes, skipWhen]
   );
 
   useHotkeys(

@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
-import { CloudstashLogo } from "@/components/cloudstash-logo";
+import { BrandLockup } from "@/components/brand-lockup";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -41,12 +41,9 @@ export function TopBar() {
       >
         <Link
           to="/"
-          className="group flex items-center gap-2.5 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="flex rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
-          <CloudstashLogo className="size-5 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-safe:group-hover:rotate-[20deg]" />
-          <span className="text-[13px] font-medium tracking-[-0.005em]">
-            cloudstash
-          </span>
+          <BrandLockup />
         </Link>
         <nav className="flex items-center gap-1">
           <span className="hidden items-center gap-0.5 md:inline-flex">

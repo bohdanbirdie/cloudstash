@@ -51,7 +51,10 @@ export function LinkPreviewImage({
       >
         <div className="absolute inset-0 bg-muted" />
         <div className="absolute inset-0 flex items-center justify-center">
-          <CloudstashLogo className="size-1/3 max-h-20 max-w-20 text-zinc-300 dark:text-zinc-600" />
+          <CloudstashLogo
+            className="size-1/3 max-h-20 max-w-20 text-zinc-300 dark:text-zinc-600"
+            size={80}
+          />
         </div>
       </div>
       <img

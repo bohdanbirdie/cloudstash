@@ -19,14 +19,14 @@ import { displayTitle } from "@/lib/link-display";
 import { cn } from "@/lib/utils";
 import { linkById$ } from "@/livestore/queries/links";
 import type { LinkWithDetails } from "@/livestore/queries/schemas";
-import { useAppStore } from "@/livestore/store";
+import { useAppStore, useStoreQuery } from "@/livestore/store";
 import { useRightPaneStore } from "@/stores/right-pane-store";
 import { useInSelectionMode } from "@/stores/selection-store";
 
 export function PerLinkHeader({ linkId }: { linkId: string }) {
   const store = useAppStore();
   const linkQuery = useMemo(() => linkById$(linkId), [linkId]);
-  const link = store.useQuery(linkQuery);
+  const link = useStoreQuery(store, linkQuery);
 
   if (!link) return null;
   return <Loaded link={link} />;

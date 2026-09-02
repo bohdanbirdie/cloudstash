@@ -6,7 +6,7 @@ import {
   UserIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 
 import { IntegrationsSection } from "@/components/integrations/integrations-section";
@@ -73,21 +73,14 @@ export function SettingsDialog() {
   const open = useSettingsDialog((s) => s.open);
   const section = useSettingsDialog((s) => s.section);
   const setOpen = useSettingsDialog((s) => s.setOpen);
-
-  const [active, setActive] = useState<SettingsSection>(section);
-
-  // Sync local active state when the store directs us to a section (e.g. a
-  // paywall promo deep-links to "plan" while the dialog is already open).
-  useEffect(() => {
-    if (open) setActive(section);
-  }, [open, section]);
+  const setSection = useSettingsDialog((s) => s.setSection);
 
   return (
     <SettingsDialogSurface
       open={open}
       onOpenChange={setOpen}
-      activeSection={active}
-      onActiveSectionChange={setActive}
+      activeSection={section}
+      onActiveSectionChange={setSection}
       sections={SECTIONS}
     />
   );
@@ -104,28 +97,29 @@ export function SettingsDialogSurface({
     () => new Set([activeSection])
   );
 
-  // Reset visited tracking when the dialog closes so we don't keep stale
-  // sections mounted across separate opens.
-  useEffect(() => {
-    if (!open) setVisited(new Set());
-  }, [open]);
-
   const effective = sections.some((item) => item.id === activeSection)
     ? activeSection
     : sections[0]?.id;
 
-  // Track every visited section so it stays mounted (hidden) on rail nav —
-  // preserves things like the freshly-generated API key in Integrations and
-  // the Tags search input.
-  useEffect(() => {
-    if (!open || !effective) return;
-    setVisited((prev) =>
-      prev.has(effective) ? prev : new Set([...prev, effective])
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) setVisited(new Set());
+    onOpenChange(nextOpen);
+  };
+
+  const handleSectionChange = (nextSection: SettingsSection) => {
+    setVisited(
+      (previous) =>
+        new Set(
+          effective
+            ? [...previous, effective, nextSection]
+            : [...previous, nextSection]
+        )
     );
-  }, [open, effective]);
+    onActiveSectionChange(nextSection);
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <ResponsiveDialogContent className="sm:max-w-3xl sm:h-[min(620px,85vh)] gap-0 overflow-hidden p-0">
         <DialogHeader className="sr-only">
           <DialogTitle>Settings</DialogTitle>
@@ -148,7 +142,7 @@ export function SettingsDialogSurface({
                 <button
                   key={id}
                   type="button"
-                  onClick={() => onActiveSectionChange(id)}
+                  onClick={() => handleSectionChange(id)}
                   aria-current={isActive ? "page" : undefined}
                   aria-label={label}
                   className={cn(
@@ -180,7 +174,7 @@ export function SettingsDialogSurface({
 
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {sections.map(({ id, content }) => {
-              if (!visited.has(id)) return null;
+              if (!visited.has(id) && id !== effective) return null;
               const isActive = id === effective;
               return (
                 <div

@@ -6,7 +6,7 @@ import {
   TerminalIcon,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { IconSwap } from "@/components/right-pane/headers/icon-swap";
 import {
@@ -56,13 +56,10 @@ function CopyLabel({
   copiedLabel: string;
 }) {
   const text = active ? copiedLabel : label;
-  const sizerRef = useRef<HTMLSpanElement>(null);
   const [width, setWidth] = useState<number>();
-
-  useLayoutEffect(() => {
-    const el = sizerRef.current;
-    if (el) setWidth(el.getBoundingClientRect().width);
-  }, [text]);
+  const measure = useCallback((element: HTMLSpanElement | null) => {
+    if (element) setWidth(element.getBoundingClientRect().width);
+  }, []);
 
   return (
     <motion.span
@@ -70,7 +67,11 @@ function CopyLabel({
       animate={width === undefined ? {} : { width }}
       transition={{ type: "spring", duration: 0.3, bounce: 0 }}
     >
-      <span ref={sizerRef} className="inline-block whitespace-nowrap opacity-0">
+      <span
+        key={text}
+        ref={measure}
+        className="inline-block whitespace-nowrap opacity-0"
+      >
         {text}
       </span>
       <AnimatePresence initial={false}>
