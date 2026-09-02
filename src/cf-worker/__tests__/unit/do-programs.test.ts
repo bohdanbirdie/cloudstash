@@ -178,6 +178,35 @@ describe("ingestLink", () => {
     );
   });
 
+  it.effect(
+    "preserves a queued save and explains when the library is full",
+    () => {
+      seedLink({ id: "existing-1", url: "https://example.com/first" });
+      const notifier = createTestNotifier();
+      const testLayer = Layer.mergeAll(repoLayer(), notifier.layer);
+
+      return ingestLink({
+        maxSavedLinks: 1,
+        url: "https://example.com/second",
+        storeId: OrgId.make("org-1"),
+        source: "telegram",
+        sourceMeta: null,
+      }).pipe(
+        Effect.provide(testLayer),
+        silentLogger,
+        Effect.tap((result) =>
+          Effect.sync(() => {
+            expect(result.status).toBe("limit_reached");
+            expect(
+              store.query(tables.links.where({ deletedAt: null }))
+            ).toHaveLength(1);
+            expect(notifier.replies[0]?.text).toContain("library is full");
+          })
+        )
+      );
+    }
+  );
+
   it.effect("returns invalid_url for bad URLs", () => {
     const notifier = createTestNotifier();
     const testLayer = Layer.mergeAll(repoLayer(), notifier.layer);

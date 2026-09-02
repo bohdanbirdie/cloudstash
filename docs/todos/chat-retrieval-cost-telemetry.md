@@ -10,8 +10,8 @@ are a material cost source.
 - Observe search/list/get tool-call counts, bounded returned character volume,
   and provider-reported spend without logging private link content.
 - Keep the current ranked maximum of 20 reduced-shape search results.
-- Reconsider result count or metadata truncation only if production evidence
-  shows material repeated input cost.
+- Preserve the 20-result recall ceiling while evaluating whether one bounded
+  context field can replace duplicate description and summary text.
 
 ## Decisions already made
 
@@ -29,5 +29,7 @@ are a material cost source.
 - Character measurement is capped at 100,000 per retrieval call and records how
   often the cap was reached.
 - Queries and link content are never logged.
-- Search remains ranked and capped at 20 results. Changing that envelope now
-  would trade recall for savings that have not been demonstrated.
+- Search remains ranked and capped at 20 results. A focused synthetic comparison
+  retained sampled retrieval quality with ID, URL, title, score, and one bounded
+  summary-or-description context field, so the model payload now uses that
+  shape without reducing recall.

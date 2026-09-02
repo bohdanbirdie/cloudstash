@@ -24,7 +24,8 @@ import {
   captureSyncTarget,
   whenLeaderSynced,
 } from "../../livestore/when-leader-synced";
-import { Billing } from "../billing/service";
+import { Billing, WorkspaceAllowance } from "../billing/service";
+import { UsageMeter, UsageReservation } from "../billing/usage-meter";
 import {
   CHAT_SESSION_LIMIT,
   CHAT_SESSION_REGISTRY_KEY,
@@ -40,7 +41,7 @@ import type {
   ChatSessionRegistryResult,
 } from "../chat-agent/sessions";
 import { hasSpendAvailableIn, settleSpendIn } from "../chat-agent/usage-core";
-import { LinkId, OrgId } from "../db/branded";
+import { LinkId, OrgId, XTweetId } from "../db/branded";
 import { DbClientLive } from "../db/service";
 import {
   DurableObjectRetiredError,
@@ -68,12 +69,22 @@ import { makeWorkspaceLinks } from "../workspace-links/service";
 import type { WorkspaceLinks } from "../workspace-links/service";
 import { EnrichmentGenerator } from "../x-enrichment/generator";
 import { ThreadProviderNoopLive } from "../x-enrichment/services/thread-provider-noop.live";
-import { EnrichmentUsageLive } from "../x-enrichment/usage";
+import { EnrichmentUsage } from "../x-enrichment/usage";
 import { cancelStaleLinks, ingestLink, notifyResult } from "./do-programs";
 import type { NotifyResultParams } from "./do-programs";
 import { runEffect } from "./logger";
 import { processLink } from "./process-link";
-import { FeatureStore, MetadataFetcher, SourceNotifier } from "./services";
+import {
+  getOrCreateProcessingAttempt,
+  ProcessingAttemptStorageError,
+  processingAttemptKey,
+} from "./processing-attempt";
+import {
+  FeatureStore,
+  MetadataFetcher,
+  SourceNotifier,
+  XBookmarkQueue,
+} from "./services";
 import { AiSummaryGeneratorLive } from "./services/ai-summary-generator.live";
 import { ContentExtractorLive } from "./services/content-extractor.live";
 import { FeatureStoreLive } from "./services/feature-store.live";
@@ -84,14 +95,45 @@ import { SourceNotifierLive } from "./services/source-notifier.live";
 import { WorkersAiLive } from "./services/workers-ai.live";
 import { MAX_CONCURRENT_AI, MAX_CONCURRENT_METADATA } from "./types";
 import type { LinkQueueMessage } from "./types";
+import {
+  XBookmarkAdmissionError,
+  XBookmarkUsageData,
+  xBookmarkSettlementKey,
+  xBookmarkUsageKey,
+} from "./x-bookmark-usage";
+import type { XBookmarkEnqueueOutcome } from "./x-bookmark-usage";
 
 const logger = logSync("LinkProcessorDO");
 
 const MAX_NOTIFIED_LINK_IDS = 500;
 const LEADER_SYNC_TIMEOUT_MS = 10_000;
+const clearProcessingAttemptIfTerminal = Effect.fnUntraced(function* (
+  storage: DurableObjectStorage,
+  store: Store<typeof schema>,
+  linkId: string
+) {
+  const status = yield* Effect.try({
+    try: () =>
+      store.query(tables.linkProcessingStatus.where({ linkId }))[0]?.status,
+    catch: (cause) =>
+      new ProcessingAttemptStorageError({
+        operation: "read-status",
+        cause,
+      }),
+  });
+  if (status === "pending" || status === "reprocess-requested") return;
+  yield* Effect.tryPromise({
+    try: () => storage.delete(processingAttemptKey(linkId)),
+    catch: (cause) =>
+      new ProcessingAttemptStorageError({ operation: "delete", cause }),
+  });
+});
 
 export const METADATA_FETCHER_TEST_OVERRIDE = Symbol(
   "@cloudstash/link-processor/MetadataFetcherTestOverride"
+);
+export const X_BOOKMARK_QUEUE_TEST_OVERRIDE = Symbol(
+  "@cloudstash/link-processor/XBookmarkQueueTestOverride"
 );
 
 import type { WeeklyDigestRpcResult } from "../weekly-digest/rpc";
@@ -133,6 +175,14 @@ export class LinkProcessorDO
   private subscriptions = new Set<Unsubscribe>();
   private storeGeneration = 0;
   private metadataFetcherOverride: typeof MetadataFetcher.Service | undefined;
+  private xBookmarkQueue = XBookmarkQueue.of({
+    send: (message) =>
+      Effect.tryPromise({
+        try: () => this.env.LINK_QUEUE.send(message),
+        catch: (cause) =>
+          new XBookmarkAdmissionError({ op: "queue.send", cause }),
+      }),
+  });
 
   [METADATA_FETCHER_TEST_OVERRIDE](
     service: typeof MetadataFetcher.Service
@@ -142,9 +192,19 @@ export class LinkProcessorDO
     }
     this.metadataFetcherOverride = service;
   }
+  [X_BOOKMARK_QUEUE_TEST_OVERRIDE](
+    service: typeof XBookmarkQueue.Service
+  ): void {
+    if (this.env.ENABLE_TEST_AUTH !== "true") {
+      throw new Error("X bookmark Queue overrides are disabled");
+    }
+    this.xBookmarkQueue = service;
+  }
   private submittedLinks = new Set<string>();
   private metadataSemaphore = Semaphore.makeUnsafe(MAX_CONCURRENT_METADATA);
   private aiSemaphore = Semaphore.makeUnsafe(MAX_CONCURRENT_AI);
+  private saveSemaphore = Semaphore.makeUnsafe(1);
+  private lifecycleSemaphore = Semaphore.makeUnsafe(1);
   private notifiedLinkIds = new Set<string>();
   private hasRunCleanup = false;
   private totalRowsWritten = 0;
@@ -163,19 +223,21 @@ export class LinkProcessorDO
   /** Permanently closes this processor and wipes its storage. */
   async retire(): Promise<void> {
     this.retired = true;
-    const store = this.resetStoreHandles();
     await runEffect(
-      Effect.gen({ self: this }, function* () {
-        yield* Effect.promise(() =>
-          retireDurableObjectStorage(
-            this.ctx.storage,
-            () => store?.shutdownPromise?.() ?? Promise.resolve()
-          )
-        );
-        yield* Effect.logInfo("retire: storage wiped").pipe(
-          Effect.annotateLogs({ storeId: maskId(this.storeId ?? "") })
-        );
-      }).pipe(Effect.withSpan("LinkProcessorDO.retire"))
+      this.lifecycleSemaphore.withPermits(1)(
+        Effect.gen({ self: this }, function* () {
+          const store = yield* Effect.sync(() => this.resetStoreHandles());
+          yield* Effect.promise(() =>
+            retireDurableObjectStorage(
+              this.ctx.storage,
+              () => store?.shutdownPromise?.() ?? Promise.resolve()
+            )
+          );
+          yield* Effect.logInfo("retire: storage wiped").pipe(
+            Effect.annotateLogs({ storeId: maskId(this.storeId ?? "") })
+          );
+        }).pipe(Effect.withSpan("LinkProcessorDO.retire"))
+      )
     );
   }
 
@@ -462,30 +524,230 @@ export class LinkProcessorDO
     return chatUsageStorage(this.ctx.storage, period).getUsage();
   }
 
+  async reserveExternalCall(usageWindowId: string, limit: number) {
+    if (await this.isRetired()) {
+      return UsageReservation.make({ count: 0, status: "unavailable" });
+    }
+    return runEffect(
+      UsageMeter.pipe(
+        Effect.flatMap((usage) =>
+          usage.reserve({
+            limit,
+            metric: "externalCalls",
+            windowId: usageWindowId,
+          })
+        ),
+        Effect.provide(UsageMeter.layer(this.ctx.storage)),
+        Effect.withSpan("LinkProcessorDO.reserveExternalCall")
+      )
+    );
+  }
+
+  async getCountedUsage(usageWindowId: string) {
+    if (await this.isRetired()) return undefined;
+    return runEffect(
+      UsageMeter.pipe(
+        Effect.flatMap((usage) =>
+          Effect.all({
+            aiSummaries: usage.get("aiSummaries", usageWindowId),
+            externalCalls: usage.get("externalCalls", usageWindowId),
+            xEnrichments: usage.get("xEnrichments", usageWindowId),
+          })
+        ),
+        Effect.map((usage) => ({
+          aiSummaries: usage.aiSummaries.count,
+          externalCalls: usage.externalCalls.count,
+          xEnrichments: usage.xEnrichments.count,
+        })),
+        Effect.provide(UsageMeter.layer(this.ctx.storage)),
+        Effect.withSpan("LinkProcessorDO.getCountedUsage")
+      )
+    );
+  }
+
+  private reserveAiSummary(
+    usageWindowId: string,
+    limit: number,
+    settlementId: string
+  ) {
+    return UsageMeter.pipe(
+      Effect.flatMap((usage) =>
+        usage.reserve({
+          limit,
+          metric: "aiSummaries",
+          settlementId,
+          windowId: usageWindowId,
+        })
+      ),
+      Effect.matchEffect({
+        onFailure: (error) =>
+          Effect.logError("AI summary allowance unavailable").pipe(
+            Effect.annotateLogs({
+              metric: error.metric,
+              operation: error.operation,
+              windowId: maskId(error.windowId),
+              ...safeErrorInfo(error.cause),
+            }),
+            Effect.as(false)
+          ),
+        onSuccess: (reservation) =>
+          Effect.succeed(
+            reservation.status === "reserved" ||
+              reservation.status === "duplicate"
+          ),
+      }),
+      Effect.provide(UsageMeter.layer(this.ctx.storage))
+    );
+  }
+
+  async enqueueXBookmark(
+    usageWindowId: string,
+    tweetId: XTweetId,
+    limit: number,
+    message: LinkQueueMessage
+  ): Promise<XBookmarkEnqueueOutcome> {
+    if (await this.isRetired()) throw new DurableObjectRetiredError();
+    if (!Number.isSafeInteger(limit) || limit < 0) {
+      throw new Error("X bookmark limit must be a non-negative integer");
+    }
+
+    return runEffect(
+      this.lifecycleSemaphore
+        .withPermits(1)(
+          Effect.gen({ self: this }, function* () {
+            if (this.retired) {
+              return yield* new DurableObjectRetiredError();
+            }
+            const settlementKey = xBookmarkSettlementKey(
+              usageWindowId,
+              tweetId
+            );
+            const existing = yield* Effect.tryPromise({
+              try: () => this.ctx.storage.get<boolean>(settlementKey),
+              catch: (cause) =>
+                new XBookmarkAdmissionError({
+                  op: "storage.readSettlement",
+                  cause,
+                }),
+            });
+            if (existing) return "duplicate" as const;
+
+            const usageKey = xBookmarkUsageKey(usageWindowId);
+            const stored = yield* Effect.tryPromise({
+              try: () => this.ctx.storage.get(usageKey),
+              catch: (cause) =>
+                new XBookmarkAdmissionError({
+                  op: "storage.readUsage",
+                  cause,
+                }),
+            });
+            const count =
+              stored === undefined
+                ? 0
+                : yield* Schema.decodeUnknownEffect(XBookmarkUsageData)(
+                    stored
+                  ).pipe(
+                    Effect.mapError(
+                      (cause) =>
+                        new XBookmarkAdmissionError({
+                          op: "storage.decodeUsage",
+                          cause,
+                        })
+                    ),
+                    Effect.map((usage) => usage.count)
+                  );
+            if (count >= limit) return "limit_reached" as const;
+
+            const queue = yield* XBookmarkQueue;
+            yield* queue.send(message);
+            yield* Effect.tryPromise({
+              try: () =>
+                this.ctx.storage.transaction(async (transaction) => {
+                  await transaction.put(settlementKey, true);
+                  await transaction.put(
+                    usageKey,
+                    XBookmarkUsageData.make({ count: count + 1 })
+                  );
+                }),
+              catch: (cause) =>
+                new XBookmarkAdmissionError({
+                  op: "storage.settleUsage",
+                  cause,
+                }),
+            });
+            return "enqueued" as const;
+          })
+        )
+        .pipe(
+          Effect.provideService(XBookmarkQueue, this.xBookmarkQueue),
+          Effect.withSpan("LinkProcessorDO.enqueueXBookmark")
+        )
+    );
+  }
+
+  async getXBookmarkUsage(
+    usageWindowId: string
+  ): Promise<XBookmarkUsageData | undefined> {
+    if (await this.isRetired()) return undefined;
+    return runEffect(
+      Effect.tryPromise({
+        try: () => this.ctx.storage.get(xBookmarkUsageKey(usageWindowId)),
+        catch: (cause) =>
+          new XBookmarkAdmissionError({ op: "storage.readUsage", cause }),
+      }).pipe(
+        Effect.flatMap((stored) =>
+          stored === undefined
+            ? Effect.sync((): XBookmarkUsageData | undefined => undefined)
+            : Schema.decodeUnknownEffect(XBookmarkUsageData)(stored).pipe(
+                Effect.mapError(
+                  (cause) =>
+                    new XBookmarkAdmissionError({
+                      op: "storage.decodeUsage",
+                      cause,
+                    })
+                )
+              )
+        )
+      )
+    );
+  }
+
   private async runWorkspaceLinksRpc<Value, Error>(
     operation: (
       links: WorkspaceLinks
-    ) => Effect.Effect<WorkspaceLinksRpcResult<Value>, Error>
+    ) => Effect.Effect<WorkspaceLinksRpcResult<Value>, Error>,
+    enforceSaveLimit = false
   ): Promise<WorkspaceLinksRpcResult<Value>> {
-    if (await this.isRetired()) return workspaceUnavailable();
-    const generation = this.storeGeneration;
+    const execute = async () => {
+      if (await this.isRetired()) return workspaceUnavailable();
+      const generation = this.storeGeneration;
 
-    await this.bindNamedWorkspace();
+      await this.bindNamedWorkspace();
 
-    await this.ensureSubscribed();
-    if (!this.canUseStore(generation)) return workspaceUnavailable();
-    const store = await this.getStore();
-    if (!this.canUseStore(generation)) return workspaceUnavailable();
-    const links = makeWorkspaceLinks(store, {
-      commit: (_operation, storeEvents) =>
-        this.commitFor(
-          store,
-          generation
-        )(...storeEvents).pipe(
-          Effect.mapError(() => new WorkspaceLinkUnavailableError())
-        ),
-    });
-    return runEffect(operation(links));
+      await this.ensureSubscribed();
+      if (!this.canUseStore(generation)) return workspaceUnavailable();
+      const store = await this.getStore();
+      if (!this.canUseStore(generation)) return workspaceUnavailable();
+      const allowance = enforceSaveLimit
+        ? await runEffect(this.allowance())
+        : undefined;
+      const links = makeWorkspaceLinks(store, {
+        commit: (_operation, storeEvents) =>
+          this.commitFor(
+            store,
+            generation
+          )(...storeEvents).pipe(
+            Effect.mapError(() => new WorkspaceLinkUnavailableError())
+          ),
+        maxSavedLinks: allowance?.capabilities.maxSavedLinks,
+      });
+      return runEffect(operation(links));
+    };
+
+    if (!enforceSaveLimit) return execute();
+    return runEffect(
+      this.saveSemaphore.withPermits(1)(Effect.promise(execute))
+    );
   }
 
   private readonly runWorkspaceLinksEffectRpc: WorkspaceLinksRpcRunner = (
@@ -507,10 +769,32 @@ export class LinkProcessorDO
       Effect.flatMap(unwrapWorkspaceLinksRpcResult)
     );
 
+  private readonly runWorkspaceLinksSaveEffectRpc: WorkspaceLinksRpcRunner = (
+    operation
+  ) =>
+    Effect.tryPromise(() => this.runWorkspaceLinksRpc(operation, true)).pipe(
+      Effect.tapError((error) =>
+        Effect.logError("Workspace links save RPC failed").pipe(
+          Effect.annotateLogs(safeErrorInfo(error.cause))
+        )
+      ),
+      Effect.mapError(
+        () =>
+          new WorkspaceLinksRemoteError({
+            code: "unavailable",
+            message: "Library is unavailable",
+          })
+      ),
+      Effect.flatMap(unwrapWorkspaceLinksRpcResult)
+    );
+
   async workspaceLinksRpc(payload: Uint8Array<ArrayBuffer>) {
     return runEffect(
       toDurableObjectHandler(WorkspaceLinksRpcs, {
-        layer: makeWorkspaceLinksRpcHandlers(this.runWorkspaceLinksEffectRpc),
+        layer: makeWorkspaceLinksRpcHandlers(
+          this.runWorkspaceLinksEffectRpc,
+          this.runWorkspaceLinksSaveEffectRpc
+        ),
       })(payload)
     );
   }
@@ -534,20 +818,23 @@ export class LinkProcessorDO
   }
 
   async saveLink(input: SaveLinkRpcInput) {
-    return this.runWorkspaceLinksRpc((links) =>
-      WorkspaceLinksRpc.save(links, input)
+    return this.runWorkspaceLinksRpc(
+      (links) => WorkspaceLinksRpc.save(links, input),
+      true
     );
   }
 
   async updateLink(input: UpdateLinkInput) {
-    return this.runWorkspaceLinksRpc((links) =>
-      WorkspaceLinksRpc.update(links, input)
+    return this.runWorkspaceLinksRpc(
+      (links) => WorkspaceLinksRpc.update(links, input),
+      input.changes.state === "inbox" || input.changes.state === "completed"
     );
   }
 
   async updateLinks(input: UpdateLinksInput) {
-    return this.runWorkspaceLinksRpc((links) =>
-      WorkspaceLinksRpc.updateMany(links, input)
+    return this.runWorkspaceLinksRpc(
+      (links) => WorkspaceLinksRpc.updateMany(links, input),
+      input.changes.state === "inbox" || input.changes.state === "completed"
     );
   }
 
@@ -622,13 +909,40 @@ export class LinkProcessorDO
             (link) => {
               const status = statusMap.get(link.id)?.status;
               const isReprocess = status === "reprocess-requested";
-              return this.processLinkEffect(
-                store,
-                link,
-                isReprocess,
-                status === "pending",
-                generation
+              return getOrCreateProcessingAttempt(
+                this.ctx.storage,
+                link.id,
+                isReprocess
               ).pipe(
+                Effect.flatMap((attempt) =>
+                  this.processLinkEffect(
+                    store,
+                    link,
+                    attempt.isReprocess,
+                    status === "pending",
+                    generation,
+                    attempt.id
+                  ).pipe(
+                    Effect.tap(() =>
+                      clearProcessingAttemptIfTerminal(
+                        this.ctx.storage,
+                        store,
+                        link.id
+                      ).pipe(
+                        Effect.catchCause((cause) =>
+                          Effect.logWarning(
+                            "Processing attempt cleanup failed"
+                          ).pipe(
+                            Effect.annotateLogs({
+                              linkId: link.id,
+                              ...safeErrorInfo(cause),
+                            })
+                          )
+                        )
+                      )
+                    )
+                  )
+                ),
                 Effect.ensuring(
                   Effect.sync(() => this.submittedLinks.delete(link.id))
                 )
@@ -783,12 +1097,49 @@ export class LinkProcessorDO
     );
   }
 
+  private allowance(): Effect.Effect<WorkspaceAllowance> {
+    return Billing.pipe(
+      Effect.flatMap((billing) => billing.usageAllowance(this.storeId!)),
+      Effect.provide(
+        Billing.layer.pipe(Layer.provide(DbClientLive(this.env.DB)))
+      ),
+      Effect.catchTags({
+        DbError: (error) =>
+          Effect.logError("LinkProcessor: usage allowance unavailable").pipe(
+            Effect.annotateLogs({
+              ...safeErrorInfo(error.cause),
+              storeId: maskId(this.storeId ?? ""),
+            }),
+            Effect.as(
+              WorkspaceAllowance.make({
+                capabilities: capabilitiesFor("free"),
+                source: "stripe",
+                usageWindow: Option.none(),
+              })
+            )
+          ),
+        OrgNotFoundError: () =>
+          Effect.logError("LinkProcessor: usage workspace missing").pipe(
+            Effect.annotateLogs({ storeId: maskId(this.storeId ?? "") }),
+            Effect.as(
+              WorkspaceAllowance.make({
+                capabilities: capabilitiesFor("free"),
+                source: "stripe",
+                usageWindow: Option.none(),
+              })
+            )
+          ),
+      })
+    );
+  }
+
   private processLinkEffect(
     store: Store<typeof schema>,
     link: Link,
     isReprocess: boolean,
     startRecorded: boolean,
-    generation: number
+    generation: number,
+    usageSettlementId: string
   ): Effect.Effect<void> {
     return Effect.gen({ self: this }, function* () {
       yield* Effect.logInfo("Processing link").pipe(
@@ -815,7 +1166,26 @@ export class LinkProcessorDO
 
       const rowsBefore = this.totalRowsWritten;
 
-      const capabilities = yield* this.capabilities();
+      const allowance = yield* this.allowance();
+      const capabilities = allowance.capabilities;
+      const metering = Option.match(allowance.usageWindow, {
+        onNone: () => ({
+          summaryReservation: Effect.succeed(false),
+          xEnrichmentAllowance: undefined,
+        }),
+        onSome: (usageWindow) => ({
+          summaryReservation: this.reserveAiSummary(
+            usageWindow.id,
+            capabilities.monthlyAiSummaries,
+            usageSettlementId
+          ),
+          xEnrichmentAllowance: {
+            monthlyLimit: capabilities.monthlyXEnrichments,
+            settlementId: usageSettlementId,
+            usageWindowId: usageWindow.id,
+          },
+        }),
+      });
 
       yield* Effect.logDebug("LinkProcessor capabilities").pipe(
         Effect.annotateLogs({
@@ -835,7 +1205,7 @@ export class LinkProcessorDO
         LinkEventStoreLive(store, this.commitFor(store, generation)),
         ThreadProviderNoopLive,
         EnrichmentGenerator.Default,
-        EnrichmentUsageLive({ storage: this.ctx.storage })
+        EnrichmentUsage.layer({ storage: this.ctx.storage })
       ).pipe(
         Layer.provide(WorkersAiLive(this.env.AI)),
         Layer.provide(OpenRouterApiKeyLive(this.env.OPENROUTER_API_KEY))
@@ -843,7 +1213,9 @@ export class LinkProcessorDO
 
       yield* processLink({
         aiSummaryEnabled: capabilities.aiSummary,
+        summaryReservation: metering.summaryReservation,
         xContentEnrichmentEnabled: capabilities.xContentEnrichment,
+        xEnrichmentAllowance: metering.xEnrichmentAllowance,
         storeId: this.storeId!,
         link: { id: LinkId.make(link.id), url: link.url },
         skipStartedEvent: true,
@@ -1040,16 +1412,20 @@ export class LinkProcessorDO
       return { status: "dropped-retired" };
     }
     const doLayer = this.buildDoLayer(store, generation);
+    const allowance = await runEffect(this.allowance());
     const result = await runEffect(
-      ingestLink({
-        url: msg.url,
-        storeId: msg.storeId,
-        source: msg.source,
-        sourceMeta: msg.sourceMeta,
-      }).pipe(
-        Effect.provide(doLayer),
-        Effect.catchTag("DurableObjectRetiredError", () =>
-          Effect.succeed({ status: "dropped-retired" as const })
+      this.saveSemaphore.withPermits(1)(
+        ingestLink({
+          maxSavedLinks: allowance.capabilities.maxSavedLinks,
+          url: msg.url,
+          storeId: msg.storeId,
+          source: msg.source,
+          sourceMeta: msg.sourceMeta,
+        }).pipe(
+          Effect.provide(doLayer),
+          Effect.catchTag("DurableObjectRetiredError", () =>
+            Effect.succeed({ status: "dropped-retired" as const })
+          )
         )
       )
     );

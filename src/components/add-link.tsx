@@ -10,13 +10,20 @@ import type { ReactNode } from "react";
 import { toast } from "sonner";
 
 import { Favicon } from "@/components/favicon";
+import { useOrgFeatures } from "@/hooks/use-org-features";
 import { track } from "@/lib/analytics";
 import { parseHttpUrl } from "@/lib/http-url";
 import { displayTitle } from "@/lib/link-display";
+import { retainedLinkSafetyCeiling } from "@/lib/plan";
 import { formatAgo } from "@/lib/time-ago";
-import { linkById$ } from "@/livestore/queries/links";
+import {
+  allLinksCount$,
+  anyLinksCount$,
+  linkById$,
+} from "@/livestore/queries/links";
 import { events, schema, tables } from "@/livestore/schema";
-import { useAppStore } from "@/livestore/store";
+import { useAppStore, useStoreQuery } from "@/livestore/store";
+import { usePaywall } from "@/stores/paywall-store";
 import { useRightPaneStore } from "@/stores/right-pane-store";
 
 interface AddLinkContextValue {
@@ -93,6 +100,11 @@ async function fetchAndCommitMetadata(
 export function AddLinkProvider({ children }: { children: ReactNode }) {
   const store = useAppStore();
   const openDetail = useRightPaneStore((s) => s.openDetail);
+  const activeLinks = useStoreQuery(store, allLinksCount$);
+  const retainedLinks = useStoreQuery(store, anyLinksCount$);
+  const { capabilities, isFallback, isLoading, tier } = useOrgFeatures();
+  const retainedLinkCeiling = retainedLinkSafetyCeiling(capabilities);
+  const openPaywall = usePaywall((state) => state.openPaywall);
 
   const addLink = useCallback(
     (urlInput: string) => {
@@ -137,6 +149,34 @@ export function AddLinkProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      const maxSavedLinks = capabilities.maxSavedLinks;
+      if (
+        !isLoading &&
+        !isFallback &&
+        maxSavedLinks > 0 &&
+        activeLinks >= maxSavedLinks
+      ) {
+        toast("Your library is full", {
+          description: `Archive a link or upgrade to save more than ${maxSavedLinks}.`,
+          action: {
+            label: "View plans",
+            onClick: () =>
+              openPaywall({
+                highlightTier: tier === "free" ? "plus" : "pro",
+                reason: "Save more links without clearing your library.",
+              }),
+          },
+        });
+        return;
+      }
+
+      if (!isLoading && !isFallback && retainedLinks >= retainedLinkCeiling) {
+        toast.error("This library has reached its storage safety limit", {
+          description: "Contact support if you need help making more room.",
+        });
+        return;
+      }
+
       const domain = parsed.hostname;
       const linkId = crypto.randomUUID();
       const now = new Date();
@@ -159,7 +199,18 @@ export function AddLinkProvider({ children }: { children: ReactNode }) {
       // the DO is offline. The two metadata commits race; second one wins.
       void fetchAndCommitMetadata(store, linkId, validUrl);
     },
-    [store, openDetail]
+    [
+      activeLinks,
+      capabilities.maxSavedLinks,
+      isFallback,
+      isLoading,
+      openDetail,
+      openPaywall,
+      retainedLinkCeiling,
+      retainedLinks,
+      store,
+      tier,
+    ]
   );
 
   useEffect(() => {

@@ -7,6 +7,7 @@ import { WorkspaceLinksRemoteError } from "../workspace-links/effect-rpc";
 import type { ChatLibrary } from "./library";
 
 const MAX_TOOL_LINKS = 20;
+const MAX_SEARCH_CONTEXT_CHARACTERS = 600;
 const MAX_RETRIEVAL_TELEMETRY_CHARACTERS_PER_CALL = 100_000;
 
 type RetrievalToolKind = "get" | "list" | "search";
@@ -131,6 +132,12 @@ const limitTo = (value: number, fallback: number) =>
   Math.min(value || fallback, MAX_TOOL_LINKS);
 type ChatLink = Effect.Success<ReturnType<ChatLibrary["get"]>>;
 const titleOf = (link: ChatLink) => link.title || link.url;
+const boundedSearchContext = (link: ChatLink): string | null => {
+  const context = link.summary || link.description;
+  if (!context) return null;
+  if (context.length <= MAX_SEARCH_CONTEXT_CHARACTERS) return context;
+  return `${context.slice(0, MAX_SEARCH_CONTEXT_CHARACTERS - 1)}…`;
+};
 
 export interface ToolEffectRunner {
   <Value, Error>(effect: Effect.Effect<Value, Error>): Promise<Value>;
@@ -234,8 +241,7 @@ const searchLinks = Effect.fn("ChatTools.searchLinks")(function* (
       id: link.id,
       url: link.url,
       title: link.title || link.domain,
-      description: link.description,
-      summary: link.summary,
+      context: boundedSearchContext(link),
       score: link.score,
     })),
   };

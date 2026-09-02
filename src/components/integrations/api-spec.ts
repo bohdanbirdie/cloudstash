@@ -179,7 +179,10 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
       { status: 401, when: "Missing or invalid API key." },
       { status: 402, when: "Plan without Public API (free)." },
       { status: 404, when: "Library not found." },
+      { status: 410, when: "Library is no longer available." },
+      { status: 429, when: "Monthly API allowance used." },
       { status: 500, when: "Internal error." },
+      { status: 503, when: "Usage allowance is temporarily unavailable." },
     ],
   },
   {
@@ -212,8 +215,14 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
       { status: 400, when: "Invalid URL, tags, or request fields." },
       { status: 401, when: "Missing or invalid API key." },
       { status: 402, when: "Plan without Public API (free)." },
+      { status: 410, when: "Library is no longer available." },
       { status: 413, when: "Request body exceeds 64 KiB." },
+      {
+        status: 429,
+        when: "Monthly API allowance used or saved-link limit reached.",
+      },
       { status: 500, when: "Internal error." },
+      { status: 503, when: "Usage allowance is temporarily unavailable." },
     ],
   },
   {
@@ -235,7 +244,10 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
       { status: 401, when: "Missing or invalid API key." },
       { status: 402, when: "Plan without Public API (free)." },
       { status: 404, when: "Link or library not found." },
+      { status: 410, when: "Library is no longer available." },
+      { status: 429, when: "Monthly API allowance used." },
       { status: 500, when: "Internal error." },
+      { status: 503, when: "Usage allowance is temporarily unavailable." },
     ],
   },
   {
@@ -270,8 +282,14 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
       { status: 401, when: "Missing or invalid API key." },
       { status: 402, when: "Plan without Public API (free)." },
       { status: 404, when: "Link or library not found." },
+      { status: 410, when: "Library is no longer available." },
       { status: 413, when: "Request body exceeds 64 KiB." },
+      {
+        status: 429,
+        when: "Monthly API allowance used or saved-link limit reached.",
+      },
       { status: 500, when: "Internal error." },
+      { status: 503, when: "Usage allowance is temporarily unavailable." },
     ],
   },
   {
@@ -314,8 +332,14 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
       { status: 400, when: "Invalid selector, cursor, limit, or changes." },
       { status: 401, when: "Missing or invalid API key." },
       { status: 402, when: "Plan without Public API (free)." },
+      { status: 410, when: "Library is no longer available." },
       { status: 413, when: "Request body exceeds 64 KiB." },
+      {
+        status: 429,
+        when: "Monthly API allowance used or saved-link limit reached.",
+      },
       { status: 500, when: "Internal error." },
+      { status: 503, when: "Usage allowance is temporarily unavailable." },
     ],
   },
   {
@@ -341,7 +365,10 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
       { status: 401, when: "Missing or invalid API key." },
       { status: 402, when: "Plan without Public API (free)." },
       { status: 404, when: "Library not found." },
+      { status: 410, when: "Library is no longer available." },
+      { status: 429, when: "Monthly API allowance used." },
       { status: 500, when: "Internal error." },
+      { status: 503, when: "Usage allowance is temporarily unavailable." },
     ],
   },
 ];

@@ -1,5 +1,7 @@
 # Define and enforce usage limits for every plan
 
+Status: completed by `BILL-01`.
+
 ## Goal
 
 Create one explicit plan-by-plan limits matrix, then make executable plan

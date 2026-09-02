@@ -47,6 +47,8 @@ const billingStub = (caps: TierCapabilities = capabilitiesFor("plus")) => {
     Billing.of({
       capabilities: () => Effect.succeed(caps),
       assistantAllowance: notImpl,
+      usageAllowance: notImpl,
+      monthlyUsageWindow: notImpl,
       tier: notImpl,
       subscription: notImpl,
       orgBillingSnapshot: () => Effect.die("orgBillingSnapshot not used"),

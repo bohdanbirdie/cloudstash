@@ -2,7 +2,7 @@
 export const OPENROUTER_MODEL_ID = "openai/gpt-5.6-luna-20260709";
 
 export const OPENROUTER_REASONING_EFFORT = {
-  assistant: "low",
+  assistant: "none",
   compaction: "none",
   weeklyDigest: "none",
   xEnrichment: "none",

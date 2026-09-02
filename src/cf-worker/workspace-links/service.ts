@@ -55,6 +55,7 @@ import {
 import type { ApiLink, ApiSearchLink, Cursor } from "../links/api";
 import {
   WorkspaceLinkInvalidInputError,
+  WorkspaceLinkLimitReachedError,
   WorkspaceLinkNotFoundError,
   WorkspaceLinkStoreError,
   WorkspaceLinkSyncError,
@@ -245,6 +246,7 @@ export type CommitWorkspaceLinks = (
 interface WorkspaceLinksOptions {
   readonly sync?: SyncChanges;
   readonly commit?: CommitWorkspaceLinks;
+  readonly maxSavedLinks?: number;
 }
 
 const syncChanges: SyncChanges = (store, target) =>
@@ -434,6 +436,20 @@ export const makeWorkspaceLinks = (
       store.query(linksByIds$([...ids]))
     );
     if (links.length === 0) return [];
+    const restoresActiveLinks =
+      patch.state === "inbox" || patch.state === "completed";
+    const restoringCount = restoresActiveLinks
+      ? links.filter((link) => link.deletedAt !== null).length
+      : 0;
+    const maxSavedLinks = options.maxSavedLinks ?? 0;
+    if (restoringCount > 0 && maxSavedLinks > 0) {
+      const activeCount = yield* query("countActiveLinksForRestore", () =>
+        store.query(apiLinksCount$("active"))
+      );
+      if (activeCount + restoringCount > maxSavedLinks) {
+        return yield* new WorkspaceLinkLimitReachedError(maxSavedLinks);
+      }
+    }
     const now = yield* DateTime.nowAsDate;
     const tagPatch = patch.tags ? normalizeTagPatch(patch.tags) : undefined;
     const ensured = tagPatch
@@ -584,6 +600,15 @@ export const makeWorkspaceLinks = (
       const existing = yield* query("findLinkByUrl", () =>
         store.query(linkByUrl$(url.href))
       );
+      const maxSavedLinks = options.maxSavedLinks ?? 0;
+      if (!existing && maxSavedLinks > 0) {
+        const activeCount = yield* query("countActiveLinksForSave", () =>
+          store.query(apiLinksCount$("active"))
+        );
+        if (activeCount >= maxSavedLinks) {
+          return yield* new WorkspaceLinkLimitReachedError(maxSavedLinks);
+        }
+      }
       const proposedLinkId = existing
         ? LinkId.make(existing.id)
         : LinkId.make(nanoid());

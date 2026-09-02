@@ -1,7 +1,9 @@
 /// <reference types="@cloudflare/workers-types" />
+import { OpenTelemetry } from "@ai-sdk/otel";
 import "@livestore/adapter-cloudflare/polyfill";
 import type { CfTypes } from "@livestore/sync-cf/cf-worker";
 import { routeAgentRequest } from "agents";
+import { registerTelemetry } from "ai";
 import { Effect } from "effect";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -36,6 +38,7 @@ import { handleBillingCheckout } from "./billing/routes/checkout";
 import { handleBillingPortal } from "./billing/routes/portal";
 import { handleStripeSuccess } from "./billing/routes/success";
 import { handleStripeWebhook } from "./billing/routes/webhook";
+import { handleWorkspaceUsage } from "./billing/usage-handler";
 import { agentHooks } from "./chat-agent/hooks";
 import {
   handleCreateChatSession,
@@ -102,6 +105,8 @@ export { LinkProcessorDO } from "./link-processor";
 export { ChatAgentDO } from "./chat-agent";
 export { XBookmarkSyncDO } from "./x-sync";
 export { AccountDeletionWorkflow } from "./workflows/account-deletion";
+
+registerTelemetry(new OpenTelemetry());
 
 const logger = logSync("API");
 
@@ -284,6 +289,7 @@ app.delete("/api/invites/:id", (c) =>
 app.post("/api/invites/redeem", (c) => handleRedeemInvite(c.req.raw, c.env));
 
 app.get("/api/chat/sessions", (c) => handleListChatSessions(c.req.raw, c.env));
+app.get("/api/usage", (c) => handleWorkspaceUsage(c.req.raw, c.env));
 app.post("/api/chat/sessions", (c) =>
   handleCreateChatSession(c.req.raw, c.env)
 );

@@ -6,6 +6,7 @@ import { OrgId, XTweetId, XUserId, XUsername } from "../../db/branded";
 import type { XSyncStorageError } from "../errors";
 import type { XSyncPollControl } from "../poll-control";
 import type { XSyncReconnectReason } from "../reconnect-reason";
+import { XBookmarkTweet } from "../services";
 
 const XSyncStateFields = {
   organizationId: Schema.NullOr(OrgId),
@@ -46,6 +47,20 @@ export const XSyncIdentity = Schema.Struct({
 });
 export type XSyncIdentity = typeof XSyncIdentity.Type;
 
+export const XSyncScanState = Schema.Struct({
+  headTweetId: XTweetId,
+  nextToken: Schema.NullOr(Schema.String),
+  bookmarks: Schema.Array(XBookmarkTweet),
+  complete: Schema.Boolean,
+});
+export type XSyncScanState = typeof XSyncScanState.Type;
+
+export const XSyncReadUsage = Schema.Struct({
+  windowId: Schema.String,
+  billableKeys: Schema.Array(Schema.String),
+});
+export type XSyncReadUsage = typeof XSyncReadUsage.Type;
+
 export interface XSyncStateStoreShape {
   readonly read: () => Effect.Effect<
     XSyncStateSnapshot | null,
@@ -56,6 +71,28 @@ export interface XSyncStateStoreShape {
   ) => Effect.Effect<void, XSyncStorageError>;
   readonly setWatermark: (
     tweetId: XTweetId
+  ) => Effect.Effect<void, XSyncStorageError>;
+  readonly readCheckpoints: () => Effect.Effect<
+    readonly XTweetId[],
+    XSyncStorageError
+  >;
+  readonly setCheckpoints: (
+    tweetIds: readonly XTweetId[]
+  ) => Effect.Effect<void, XSyncStorageError>;
+  readonly readScan: () => Effect.Effect<
+    XSyncScanState | null,
+    XSyncStorageError
+  >;
+  readonly setScan: (
+    scan: XSyncScanState
+  ) => Effect.Effect<void, XSyncStorageError>;
+  readonly clearScan: () => Effect.Effect<void, XSyncStorageError>;
+  readonly readReadUsage: () => Effect.Effect<
+    XSyncReadUsage | null,
+    XSyncStorageError
+  >;
+  readonly setReadUsage: (
+    usage: XSyncReadUsage
   ) => Effect.Effect<void, XSyncStorageError>;
   readonly setStatus: (
     status: Status

@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect";
+import { Effect, Match, Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/unstable/rpc";
 
 import {
@@ -72,7 +72,12 @@ const WorkspaceLinkBatchUpdateResult = Schema.Struct({
 export class WorkspaceLinksRemoteError extends Schema.TaggedErrorClass<WorkspaceLinksRemoteError>()(
   "WorkspaceLinksRemoteError",
   {
-    code: Schema.Literals(["invalid_input", "not_found", "unavailable"]),
+    code: Schema.Literals([
+      "invalid_input",
+      "limit_reached",
+      "not_found",
+      "unavailable",
+    ]),
     message: Schema.String,
     linkId: Schema.optionalKey(Schema.String),
   }
@@ -133,16 +138,32 @@ export interface WorkspaceLinksRpcRunner {
   ): Effect.Effect<Value, WorkspaceLinksRemoteError>;
 }
 
-export const makeWorkspaceLinksRpcHandlers = (run: WorkspaceLinksRpcRunner) =>
-  WorkspaceLinksRpcs.toLayer({
+export const makeWorkspaceLinksRpcHandlers = (
+  run: WorkspaceLinksRpcRunner,
+  runCapacityMutation: WorkspaceLinksRpcRunner = run
+) => {
+  const updateRunner = (state: typeof LinkMutableState.Type | undefined) =>
+    Match.value(state).pipe(
+      Match.when("inbox", () => runCapacityMutation),
+      Match.when("completed", () => runCapacityMutation),
+      Match.orElse(() => run)
+    );
+
+  return WorkspaceLinksRpcs.toLayer({
     ListLinks: (input) => run((links) => WorkspaceLinksRpc.list(links, input)),
     SearchLinks: (input) =>
       run((links) => WorkspaceLinksRpc.search(links, input)),
     GetLink: (input) => run((links) => WorkspaceLinksRpc.get(links, input)),
-    SaveLink: (input) => run((links) => WorkspaceLinksRpc.save(links, input)),
+    SaveLink: (input) =>
+      runCapacityMutation((links) => WorkspaceLinksRpc.save(links, input)),
     UpdateLink: (input) =>
-      run((links) => WorkspaceLinksRpc.update(links, input)),
+      updateRunner(input.changes.state)((links) =>
+        WorkspaceLinksRpc.update(links, input)
+      ),
     UpdateLinks: (input) =>
-      run((links) => WorkspaceLinksRpc.updateMany(links, input)),
+      updateRunner(input.changes.state)((links) =>
+        WorkspaceLinksRpc.updateMany(links, input)
+      ),
     GetLinkStats: () => run((links) => WorkspaceLinksRpc.stats(links)),
   });
+};

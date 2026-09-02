@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 import { AgentHeaderView } from "@/components/agent/agent-header";
 import { InputForm } from "@/components/agent/agent-input";
@@ -43,28 +43,23 @@ export function DockContent({
   onSelect,
   agentState,
 }: DockContentProps) {
-  const [displayMode, setDisplayMode] = useState<DisplayMode>(
-    mode === "agent" ? "agent" : "search"
-  );
-  const prevModeRef = useRef<DockMode>(mode);
-  const sessionRef = useRef(0);
+  const [display, setDisplay] = useState(() => ({
+    mode,
+    displayMode: (mode === "agent" ? "agent" : "search") as DisplayMode,
+    sessionKey: 0,
+  }));
 
-  let nextDisplayMode = displayMode;
-
-  if (mode !== prevModeRef.current) {
-    if (mode === "search" || mode === "agent") {
-      nextDisplayMode = mode;
-      if (mode !== displayMode) {
-        setDisplayMode(mode);
-      }
-      if (prevModeRef.current === "closed") {
-        sessionRef.current++;
-      }
-    }
-    prevModeRef.current = mode;
+  if (mode !== display.mode) {
+    const isVisible = mode === "search" || mode === "agent";
+    setDisplay({
+      mode,
+      displayMode: isVisible ? mode : display.displayMode,
+      sessionKey:
+        isVisible && display.mode === "closed"
+          ? display.sessionKey + 1
+          : display.sessionKey,
+    });
   }
-
-  const sessionKey = sessionRef.current;
 
   const searchSlot = (
     <SearchContent
@@ -77,8 +72,8 @@ export function DockContent({
 
   const renderSwitcher = (agentSlot: React.ReactNode) => (
     <ContentSwitcher
-      key={sessionKey}
-      displayMode={nextDisplayMode}
+      key={display.sessionKey}
+      displayMode={display.displayMode}
       searchSlot={searchSlot}
       agentSlot={agentSlot}
     />

@@ -1,9 +1,9 @@
-import { createContext, useContext, useMemo, useRef } from "react";
+import { createContext, useContext, useMemo } from "react";
 import type { ReactNode } from "react";
 
 import type { Tag, TagByLinkRow } from "@/livestore/queries/tags";
 import { pendingTagsByLink$, tagsByLink$ } from "@/livestore/queries/tags";
-import { useAppStore } from "@/livestore/store";
+import { useAppStore, useStoreQuery } from "@/livestore/store";
 
 export interface ListData {
   tagsByLink: Map<string, readonly Tag[]>;
@@ -15,10 +15,8 @@ const ListDataContext = createContext<ListData>({
 
 function useTagsByLink(): Map<string, readonly Tag[]> {
   const store = useAppStore();
-  const rows = store.useQuery(tagsByLink$);
-  const pendingRows = store.useQuery(pendingTagsByLink$);
-  const cacheRef = useRef<Map<string, readonly Tag[]>>(new Map());
-
+  const rows = useStoreQuery(store, tagsByLink$);
+  const pendingRows = useStoreQuery(store, pendingTagsByLink$);
   return useMemo(() => {
     const grouped = new Map<string, Tag[]>();
     const pushRow = (row: TagByLinkRow) => {
@@ -38,35 +36,7 @@ function useTagsByLink(): Map<string, readonly Tag[]> {
     for (const row of rows) pushRow(row);
     for (const row of pendingRows) pushRow(row);
 
-    const next = new Map<string, readonly Tag[]>();
-    for (const [linkId, arr] of grouped) {
-      const prev = cacheRef.current.get(linkId);
-      if (prev && prev.length === arr.length) {
-        let same = true;
-        for (let i = 0; i < arr.length; i++) {
-          const p = prev[i];
-          const n = arr[i];
-          if (
-            !p ||
-            !n ||
-            p.id !== n.id ||
-            p.name !== n.name ||
-            p.sortOrder !== n.sortOrder ||
-            p.deletedAt !== n.deletedAt
-          ) {
-            same = false;
-            break;
-          }
-        }
-        if (same) {
-          next.set(linkId, prev);
-          continue;
-        }
-      }
-      next.set(linkId, arr);
-    }
-    cacheRef.current = next;
-    return next;
+    return grouped;
   }, [rows, pendingRows]);
 }
 

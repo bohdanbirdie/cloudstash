@@ -129,8 +129,15 @@ export const createAuth = (env: Env, db: Database) => {
       jwt(),
       mcpPlugin(env),
       organization({
-        allowUserToCreateOrganization: true,
+        // Cloudstash provisions exactly one personal workspace server-side.
+        // Keep Better Auth's organization API from minting fresh workspaces
+        // (and therefore fresh workspace-scoped allowances) for a session.
+        allowUserToCreateOrganization: false,
         creatorRole: "owner",
+        disableOrganizationDeletion: true,
+        invitationLimit: 0,
+        membershipLimit: 1,
+        organizationLimit: 1,
         schema: {
           organization: {
             additionalFields: {

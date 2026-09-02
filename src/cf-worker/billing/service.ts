@@ -19,7 +19,6 @@ import {
   mergeCapabilities,
   PLAN_ORDER,
   requiredTierForBooleanCap,
-  TIER_CAPABILITIES,
 } from "@/lib/plan";
 
 import type { OrgId } from "../db/branded";
@@ -29,10 +28,8 @@ import { DbClient, DbError, query } from "../db/service";
 import { maskId } from "../log-utils";
 import { OrgNotFoundError } from "../org/errors";
 import { CapabilityDisabledError } from "./errors";
-import {
-  AssistantUsageWindow,
-  resolveAssistantUsageWindow,
-} from "./usage-cycle";
+import { AssistantUsageWindow, resolveMonthlyUsageWindow } from "./usage-cycle";
+import type { MonthlyUsageWindow } from "./usage-cycle";
 
 type OrgRow = {
   cancelAtPeriodEnd: boolean;
@@ -87,7 +84,12 @@ const TierCapabilitiesSchema = Schema.Struct({
   publicApi: Schema.Boolean,
   mcpServer: Schema.Boolean,
   weeklyDigest: Schema.Boolean,
+  maxSavedLinks: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  monthlyAiSummaries: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   monthlyAssistantCredits: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  monthlyExternalCalls: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  monthlyXBookmarks: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  monthlyXEnrichments: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 });
 
 const CapabilityOverridesSchema = Schema.Struct({
@@ -99,10 +101,35 @@ const CapabilityOverridesSchema = Schema.Struct({
   publicApi: Schema.optionalKey(Schema.Boolean),
   mcpServer: Schema.optionalKey(Schema.Boolean),
   weeklyDigest: Schema.optionalKey(Schema.Boolean),
+  maxSavedLinks: Schema.optionalKey(
+    Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+  ),
+  monthlyAiSummaries: Schema.optionalKey(
+    Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+  ),
   monthlyAssistantCredits: Schema.optionalKey(
     Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
   ),
+  monthlyExternalCalls: Schema.optionalKey(
+    Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+  ),
+  monthlyXBookmarks: Schema.optionalKey(
+    Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+  ),
+  monthlyXEnrichments: Schema.optionalKey(
+    Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+  ),
 });
+const NullableCapabilityOverridesSchema = Schema.NullOr(
+  CapabilityOverridesSchema
+);
+
+const decodeFeatureOverrides = (
+  value: unknown
+): Effect.Effect<CapabilityOverrides | null, DbError> =>
+  Schema.decodeUnknownEffect(NullableCapabilityOverridesSchema)(value).pipe(
+    Effect.mapError((cause) => new DbError({ cause }))
+  );
 
 export const WorkspaceWithOwner = Schema.Struct({
   id: OrgIdBrand,
@@ -117,11 +144,15 @@ export const WorkspaceWithOwner = Schema.Struct({
 });
 export type WorkspaceWithOwner = typeof WorkspaceWithOwner.Type;
 
-export const AssistantAllowance = Schema.Struct({
+export const WorkspaceAllowance = Schema.Struct({
   capabilities: TierCapabilitiesSchema,
   source: TierSourceSchema,
   usageWindow: Schema.Option(AssistantUsageWindow),
 });
+export type WorkspaceAllowance = Schema.Schema.Type<typeof WorkspaceAllowance>;
+
+/** @deprecated Prefer the workload-neutral workspace allowance name. */
+export const AssistantAllowance = WorkspaceAllowance;
 export type AssistantAllowance = Schema.Schema.Type<typeof AssistantAllowance>;
 
 interface Subscription {
@@ -138,6 +169,17 @@ interface BillingShape {
     orgId: OrgId,
     now?: Date
   ) => Effect.Effect<AssistantAllowance, DbError | OrgNotFoundError>;
+  readonly usageAllowance: (
+    orgId: OrgId,
+    now?: Date
+  ) => Effect.Effect<WorkspaceAllowance, DbError | OrgNotFoundError>;
+  readonly monthlyUsageWindow: (
+    orgId: OrgId,
+    now?: Date
+  ) => Effect.Effect<
+    Option.Option<MonthlyUsageWindow>,
+    DbError | OrgNotFoundError
+  >;
   readonly tier: (
     orgId: OrgId
   ) => Effect.Effect<PlanTier, DbError | OrgNotFoundError>;
@@ -177,33 +219,90 @@ const make = Effect.gen(function* () {
   const fetchOrgRow = (
     orgId: OrgId
   ): Effect.Effect<OrgRow, DbError | OrgNotFoundError> =>
-    query(
-      db.query.organization.findFirst({
-        where: eq(schema.organization.id, orgId),
-        columns: {
-          cancelAtPeriodEnd: true,
-          createdAt: true,
-          tier: true,
-          adminTierGrant: true,
-          adminTierGrantedAt: true,
-          featureOverrides: true,
-          billingInterval: true,
-          currentPeriodStart: true,
-          currentPeriodEnd: true,
-          usageCycleAnchor: true,
-        },
-      })
-    ).pipe(
-      Effect.flatMap((row) =>
-        row ? Effect.succeed(row) : OrgNotFoundError.make({ orgId })
-      )
-    );
+    Effect.gen(function* () {
+      const row = yield* query(
+        db.query.organization.findFirst({
+          where: eq(schema.organization.id, orgId),
+          columns: {
+            cancelAtPeriodEnd: true,
+            createdAt: true,
+            tier: true,
+            adminTierGrant: true,
+            adminTierGrantedAt: true,
+            featureOverrides: true,
+            billingInterval: true,
+            currentPeriodStart: true,
+            currentPeriodEnd: true,
+            usageCycleAnchor: true,
+          },
+        })
+      );
+      if (!row) return yield* OrgNotFoundError.make({ orgId });
+      const featureOverrides = yield* decodeFeatureOverrides(
+        row.featureOverrides
+      );
+      return { ...row, featureOverrides };
+    });
 
   const toSubscription = (row: OrgRow): Subscription => ({
     billingInterval: row.billingInterval ?? null,
     cancelAtPeriodEnd: row.cancelAtPeriodEnd,
     currentPeriodEnd: row.currentPeriodEnd?.toISOString() ?? null,
   });
+
+  const hasManualMeter = (overrides: CapabilityOverrides | null) => {
+    if (!overrides) return false;
+    const enabled = [
+      overrides.chatAgent,
+      overrides.xBookmarkSync,
+      overrides.aiSummary,
+      overrides.publicApi,
+      overrides.mcpServer,
+      overrides.xContentEnrichment,
+    ].some((value) => value === true);
+    const metered = [
+      overrides.monthlyAiSummaries,
+      overrides.monthlyAssistantCredits,
+      overrides.monthlyExternalCalls,
+      overrides.monthlyXBookmarks,
+      overrides.monthlyXEnrichments,
+    ].some((value) => (value ?? 0) > 0);
+    return enabled || metered;
+  };
+
+  const workspaceMonthlyWindow = (row: OrgRow, now: Date) =>
+    Option.fromNullishOr(
+      resolveMonthlyUsageWindow(
+        {
+          source: "admin",
+          billingInterval: null,
+          currentPeriodStart: null,
+          currentPeriodEnd: null,
+          usageCycleAnchor: row.createdAt,
+        },
+        now
+      )
+    );
+
+  const usageWindowFor = (row: OrgRow, plan: EffectivePlan, now: Date) => {
+    const subscribed = resolveMonthlyUsageWindow(
+      {
+        source: plan.source,
+        billingInterval: row.billingInterval,
+        currentPeriodStart: row.currentPeriodStart,
+        currentPeriodEnd: row.currentPeriodEnd,
+        usageCycleAnchor: plan.usageCycleAnchor,
+      },
+      now
+    );
+    if (subscribed) return Option.some(subscribed);
+
+    if (plan.tier === "free") return workspaceMonthlyWindow(row, now);
+    if (!hasManualMeter(row.featureOverrides)) {
+      return Option.none<MonthlyUsageWindow>();
+    }
+    return workspaceMonthlyWindow(row, now);
+  };
 
   return {
     /** Tier + admin overrides, merged into the runtime capability surface. */
@@ -234,28 +333,54 @@ const make = Effect.gen(function* () {
       const row = yield* fetchOrgRow(orgId);
       const plan = resolveEffectivePlan(row);
       const capabilities = mergeCapabilities(plan.tier, row.featureOverrides);
-      const usageWindow = Option.fromNullishOr(
-        resolveAssistantUsageWindow(
-          {
-            source: plan.source,
-            billingInterval: row.billingInterval,
-            currentPeriodStart: row.currentPeriodStart,
-            currentPeriodEnd: row.currentPeriodEnd,
-            usageCycleAnchor: plan.usageCycleAnchor,
-          },
-          effectiveNow
-        )
-      );
+      const usageWindow = usageWindowFor(row, plan, effectiveNow);
       yield* Effect.annotateCurrentSpan({
         orgId: maskId(orgId),
         source: plan.source,
         hasUsageWindow: Option.isSome(usageWindow),
       });
-      return AssistantAllowance.make({
+      return WorkspaceAllowance.make({
         capabilities,
         source: plan.source,
         usageWindow,
       });
+    }),
+
+    usageAllowance: Effect.fn("Billing.usageAllowance")(function* (
+      orgId: OrgId,
+      now?: Date
+    ) {
+      const effectiveNow = now ?? (yield* DateTime.nowAsDate);
+      const row = yield* fetchOrgRow(orgId);
+      const plan = resolveEffectivePlan(row);
+      const capabilities = mergeCapabilities(plan.tier, row.featureOverrides);
+      const usageWindow = usageWindowFor(row, plan, effectiveNow);
+      yield* Effect.annotateCurrentSpan({
+        orgId: maskId(orgId),
+        source: plan.source,
+        hasUsageWindow: Option.isSome(usageWindow),
+      });
+      return WorkspaceAllowance.make({
+        capabilities,
+        source: plan.source,
+        usageWindow,
+      });
+    }),
+
+    monthlyUsageWindow: Effect.fn("Billing.monthlyUsageWindow")(function* (
+      orgId: OrgId,
+      now?: Date
+    ) {
+      const effectiveNow = now ?? (yield* DateTime.nowAsDate);
+      const row = yield* fetchOrgRow(orgId);
+      const plan = resolveEffectivePlan(row);
+      const usageWindow = usageWindowFor(row, plan, effectiveNow);
+      yield* Effect.annotateCurrentSpan({
+        orgId: maskId(orgId),
+        source: plan.source,
+        hasUsageWindow: Option.isSome(usageWindow),
+      });
+      return usageWindow;
     }),
 
     tier: Effect.fn("Billing.tier")(function* (orgId: OrgId) {
@@ -429,32 +554,36 @@ const make = Effect.gen(function* () {
         })
       );
       yield* Effect.annotateCurrentSpan({ count: orgs.length });
-      return orgs.map((org) => {
-        const overrides = org.featureOverrides ?? {};
-        const plan = resolveEffectivePlan({
-          cancelAtPeriodEnd: org.cancelAtPeriodEnd,
-          createdAt: org.createdAt,
-          tier: org.tier ?? "free",
-          adminTierGrant: org.adminTierGrant,
-          adminTierGrantedAt: org.adminTierGrantedAt,
-          featureOverrides: org.featureOverrides,
-          billingInterval: org.billingInterval,
-          currentPeriodStart: org.currentPeriodStart,
-          currentPeriodEnd: org.currentPeriodEnd,
-          usageCycleAnchor: org.usageCycleAnchor,
-        });
-        return WorkspaceWithOwner.make({
-          id: OrgIdBrand.make(org.id),
-          name: org.name,
-          slug: org.slug,
-          creatorEmail: org.members[0]?.user?.email ?? null,
-          tier: plan.tier,
-          tierSource: plan.source,
-          adminTierGrant: org.adminTierGrant,
-          overrides,
-          capabilities: { ...TIER_CAPABILITIES[plan.tier], ...overrides },
-        });
-      });
+      return yield* Effect.forEach(orgs, (org) =>
+        decodeFeatureOverrides(org.featureOverrides).pipe(
+          Effect.map((decodedOverrides) => {
+            const overrides = decodedOverrides ?? {};
+            const plan = resolveEffectivePlan({
+              cancelAtPeriodEnd: org.cancelAtPeriodEnd,
+              createdAt: org.createdAt,
+              tier: org.tier ?? "free",
+              adminTierGrant: org.adminTierGrant,
+              adminTierGrantedAt: org.adminTierGrantedAt,
+              featureOverrides: decodedOverrides,
+              billingInterval: org.billingInterval,
+              currentPeriodStart: org.currentPeriodStart,
+              currentPeriodEnd: org.currentPeriodEnd,
+              usageCycleAnchor: org.usageCycleAnchor,
+            });
+            return WorkspaceWithOwner.make({
+              id: OrgIdBrand.make(org.id),
+              name: org.name,
+              slug: org.slug,
+              creatorEmail: org.members[0]?.user?.email ?? null,
+              tier: plan.tier,
+              tierSource: plan.source,
+              adminTierGrant: org.adminTierGrant,
+              overrides,
+              capabilities: mergeCapabilities(plan.tier, overrides),
+            });
+          })
+        )
+      );
     }),
   } satisfies BillingShape;
 });

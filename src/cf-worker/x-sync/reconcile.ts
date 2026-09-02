@@ -68,6 +68,7 @@ export const initializeWatermarkEffect = Effect.fn(
   }
 
   yield* store.setWatermark(newestId);
+  yield* store.setCheckpoints([newestId]);
   yield* Effect.annotateCurrentSpan("watermark", newestId);
   yield* Effect.logInfo("initializeWatermark: pinned").pipe(
     Effect.annotateLogs({
@@ -122,6 +123,7 @@ interface ActiveReconcileContext {
   readonly state: XSyncConnectedState;
   readonly accessToken: string;
   readonly activated: boolean;
+  readonly monthlyBookmarkLimit: number;
 }
 
 const isConnectedState = (
@@ -293,12 +295,17 @@ const reconcileCoreEffect = Effect.fn("XBookmarkSyncDO.reconcileCore")(
       state: activeState,
       accessToken,
       activated,
+      monthlyBookmarkLimit: capabilities.monthlyXBookmarks,
     } satisfies ActiveReconcileContext);
   }
 );
 
 export const reconcileSyncEffect = Effect.fn("XBookmarkSyncDO.reconcile")(
-  function* (userId: UserId, requestedOrgId: OrgId | undefined) {
+  function* (
+    userId: UserId,
+    requestedOrgId: OrgId | undefined,
+    wakeForEntitlementChange = false
+  ) {
     const reconciled = yield* reconcileCoreEffect(userId, requestedOrgId);
     if (Option.isSome(reconciled)) {
       const store = yield* XSyncStateStore;
@@ -309,7 +316,12 @@ export const reconcileSyncEffect = Effect.fn("XBookmarkSyncDO.reconcile")(
         yield* store.setPollControl(control);
       }
       const now = yield* Clock.currentTimeMillis;
-      yield* alarm.ensureAfter(repairedPollDelay(control, now));
+      const repairDelay = repairedPollDelay(control, now);
+      if (wakeForEntitlementChange) {
+        yield* alarm.scheduleNoLaterThan(repairDelay);
+      } else {
+        yield* alarm.ensureAfter(repairDelay);
+      }
     }
   }
 );

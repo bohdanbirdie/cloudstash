@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { ToolCallOptions } from "ai";
+import type { ToolExecutionOptions } from "ai";
 import { Effect } from "effect";
 import { RpcTest } from "effect/unstable/rpc";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -35,7 +35,7 @@ function unwrap<T>(
 }
 
 /** Tool executes don't use their second arg; satisfy the signature with this. */
-const stubCtx = {} as ToolCallOptions;
+const stubCtx = {} as ToolExecutionOptions<never>;
 
 const makeTestLibrary = (store: TestStore) => {
   const links = makeWorkspaceLinks(store, {
@@ -478,10 +478,25 @@ describe("createTools", () => {
       expect(r.id).toBe(id);
       expect(r.url).toBe("https://search.com");
       expect(r.title).toBe("query term result");
-      expect(r.description).toBe("Found it");
-      expect(r.summary).toBe("Summary here");
+      expect(r.context).toBe("Summary here");
+      expect(r).not.toHaveProperty("description");
+      expect(r).not.toHaveProperty("summary");
       expect(typeof r.score).toBe("number");
       expect(r.score).toBeGreaterThan(0);
+    });
+
+    it("bounds model context and falls back to the description", async () => {
+      seedLink({
+        title: "bounded query result",
+        description: "d".repeat(700),
+      });
+
+      const result = unwrap(
+        await tools.searchLinks.execute!({ query: "bounded" }, stubCtx)
+      );
+
+      expect(result.results[0]?.context).toHaveLength(600);
+      expect(result.results[0]?.context?.endsWith("…")).toBe(true);
     });
   });
 

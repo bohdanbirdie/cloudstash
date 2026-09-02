@@ -1,4 +1,5 @@
-import { useStore } from "@livestore/react";
+import type { Store } from "@livestore/livestore";
+import { useQuery, useStore } from "@livestore/react";
 import { events, schema } from "@web/livestore/schema";
 import { Match } from "effect";
 import { CheckCircle2 } from "lucide-react";
@@ -14,7 +15,7 @@ import type { ActiveTab } from "../../lib/services/tabs";
 import { DisconnectOverlay } from "./disconnect-overlay";
 import { Header } from "./header";
 import { Favicon, RecentLinks } from "./recent-links";
-import { adapter, recentLinks$ } from "./store";
+import { activeLinksCount$, adapter, recentLinks$ } from "./store";
 import { ErrorLine, KeyboardHint, SectionLabel, TextToggle } from "./ui";
 
 function parseHttpUrl(input: string): URL | null {
@@ -38,7 +39,8 @@ function SavedLabel() {
 
 function useSaveLink(
   commit: (event: ReturnType<typeof events.linkCreatedV2>) => void,
-  recent: readonly { id: string }[]
+  recent: readonly { id: string }[],
+  canSave: boolean
 ) {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +53,12 @@ function useSaveLink(
   }, [materialized]);
 
   const save = (parsed: URL) => {
+    if (!canSave) {
+      setError(
+        "Your library is full. Archive a link or upgrade in Cloudstash."
+      );
+      return;
+    }
     const id = crypto.randomUUID();
     commit(
       events.linkCreatedV2({
@@ -91,10 +99,21 @@ export function SaveAndList({
     storeId: creds.orgId,
     syncPayload: { apiKey: creds.apiKey },
   });
-  const recent = store.useQuery(recentLinks$);
+  // LiveStore beta.99 types the standalone React hook against an erased Store.
+  const queryStore: Store<any> = store;
+  const recent = useQuery(recentLinks$, { store: queryStore });
+  const activeLinksCount = useQuery(activeLinksCount$, { store: queryStore });
+  const canSave =
+    account === null ||
+    account.maxSavedLinks === 0 ||
+    activeLinksCount < account.maxSavedLinks;
+  const limitMessage = canSave
+    ? null
+    : "Your library is full. Archive a link or upgrade in Cloudstash.";
   const { save, reset, saved, materialized, error, setError } = useSaveLink(
     store.commit,
-    recent
+    recent,
+    canSave
   );
 
   const parsedTab = tab ? parseHttpUrl(tab.url) : null;
@@ -167,7 +186,7 @@ export function SaveAndList({
                 </div>
               </div>
 
-              <ErrorLine message={error} />
+              <ErrorLine message={error ?? limitMessage} />
 
               {Match.value({ saved, tabAlreadySaved }).pipe(
                 Match.when({ saved: true }, () => (
@@ -182,7 +201,12 @@ export function SaveAndList({
                   </Button>
                 )),
                 Match.orElse(() => (
-                  <Button autoFocus onClick={saveTab} className="w-full">
+                  <Button
+                    autoFocus
+                    onClick={saveTab}
+                    disabled={!canSave}
+                    className="w-full"
+                  >
                     Save this page
                   </Button>
                 ))
@@ -220,11 +244,11 @@ export function SaveAndList({
                 placeholder="Paste a link to save"
                 className="font-strict-mono text-xs/relaxed"
               />
-              <ErrorLine message={error} />
+              <ErrorLine message={error ?? limitMessage} />
               <Button
                 type="submit"
                 size="default"
-                disabled={saved || !url.trim() || inputAlreadySaved}
+                disabled={saved || !url.trim() || inputAlreadySaved || !canSave}
                 className="w-full"
               >
                 {Match.value({ saved, inputAlreadySaved }).pipe(

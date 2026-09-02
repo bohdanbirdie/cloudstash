@@ -60,11 +60,16 @@ for a Cloudstash user and workspace.
 - **CS.SYS.INT-R08 X no historical surprise:** Initial X connect sets the
   watermark without enqueuing existing bookmarks; null-watermark recovery must
   do the same.
-- **CS.SYS.INT-R09 X safe pagination:** Polling must stop at the watermark,
-  enqueue oldest-first, and advance the watermark only after complete traversal
-  and successful enqueue of every newly observed bookmark.
+- **CS.SYS.INT-R09 X safe pagination:** Polling must stop at a recent durable
+  checkpoint, enqueue oldest-first, and advance the head checkpoint only after
+  complete traversal and successful admission of every newly observed
+  bookmark.
 - **CS.SYS.INT-R10 Source feedback:** Source-specific progress and confirmation
   must be idempotent and must not become the durability source of truth.
 - **CS.SYS.INT-R11 Availability truth:** Store listings, landing tiles, and plan
   bullets must not claim an integration is shipped before a usable realization
   exists. `refines: CS.PROD-R10`
+- **CS.SYS.INT-R12 X bounded recovery:** X traversal, monthly imported-bookmark
+  admission, and provider reads must have durable workspace/period bounds.
+  Work deferred at a bound must remain recoverable after the next allowance
+  reset rather than being silently skipped.

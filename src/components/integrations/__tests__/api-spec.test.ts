@@ -80,3 +80,15 @@ describe("buildAgentSpec", () => {
     );
   });
 });
+
+describe("public API documentation", () => {
+  it("documents retirement, allowance, and metering failures for every endpoint", () => {
+    for (const endpoint of API_ENDPOINTS) {
+      const statuses = endpoint.errors.map(({ status }) => status);
+      expect(statuses, endpoint.id).toEqual(
+        expect.arrayContaining([410, 429, 503])
+      );
+      expect(statuses, endpoint.id).toEqual(statuses.toSorted((a, b) => a - b));
+    }
+  });
+});

@@ -34,6 +34,27 @@ describe("chat context compaction", () => {
     expect(plan.recentMessages[0]?.id).toBe("message-8");
   });
 
+  it("compacts many short messages after the 150-message window", () => {
+    const messages = Array.from({ length: 151 }, (_, index) =>
+      message(`message-${index}`, "short context")
+    );
+    const plan = planChatCompaction(messages, undefined);
+
+    expect(plan).toBeDefined();
+    expect(plan?.recentMessages).toHaveLength(COMPACTION_TAIL_MESSAGES);
+    expect(plan?.messagesToSummarize).toHaveLength(
+      151 - COMPACTION_TAIL_MESSAGES
+    );
+  });
+
+  it("does not compact 150 short messages", () => {
+    const messages = Array.from({ length: 150 }, (_, index) =>
+      message(`message-${index}`, "short context")
+    );
+
+    expect(planChatCompaction(messages, undefined)).toBeUndefined();
+  });
+
   it("uses a stored summary only as private model context", () => {
     const messages = [
       message("old", "old request"),

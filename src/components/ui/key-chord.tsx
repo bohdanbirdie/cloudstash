@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useSyncExternalStore } from "react";
 
 const MAC_GLYPH: Record<string, string> = {
   cmd: "⌘",
@@ -30,11 +30,11 @@ function detectIsMac() {
 }
 
 export function useIsMac() {
-  const [isMac, setIsMac] = useState(true);
-  useEffect(() => {
-    setIsMac(detectIsMac());
-  }, []);
-  return isMac;
+  return useSyncExternalStore(subscribeToPlatform, detectIsMac, () => true);
+}
+
+function subscribeToPlatform() {
+  return () => {};
 }
 
 export function KeyChord({ keys }: { keys: readonly string[] }) {

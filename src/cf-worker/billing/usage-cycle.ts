@@ -1,10 +1,14 @@
 import { DateTime, Match, Schema } from "effect";
 
-export const AssistantUsageWindow = Schema.Struct({
+export const MonthlyUsageWindow = Schema.Struct({
   id: Schema.String,
   startsAt: Schema.String,
   resetsAt: Schema.String,
 });
+export type MonthlyUsageWindow = Schema.Schema.Type<typeof MonthlyUsageWindow>;
+
+/** @deprecated Use the workload-neutral monthly usage-window name. */
+export const AssistantUsageWindow = MonthlyUsageWindow;
 export type AssistantUsageWindow = Schema.Schema.Type<
   typeof AssistantUsageWindow
 >;
@@ -93,7 +97,7 @@ const stripeWindow = (
   };
 };
 
-export function resolveAssistantUsageWindow(
+export function resolveMonthlyUsageWindow(
   state: UsageCycleState,
   now: Date
 ): AssistantUsageWindow | undefined {
@@ -106,3 +110,5 @@ export function resolveAssistantUsageWindow(
     Match.exhaustive
   );
 }
+
+export const resolveAssistantUsageWindow = resolveMonthlyUsageWindow;

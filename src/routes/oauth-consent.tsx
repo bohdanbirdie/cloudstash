@@ -51,22 +51,17 @@ function OAuthConsentPage() {
   >("loading");
   const [error, setError] = useState<string | null>(null);
 
+  const requestError = !workspace.ok
+    ? workspace.error
+    : !clientId ||
+        requestedScopes.length === 0 ||
+        requestedScopes.some((scope) => !ALLOWED_SCOPES.has(scope))
+      ? "This authorization request is missing required information."
+      : null;
+
   useEffect(() => {
     let active = true;
-    if (!workspace.ok) {
-      setError(workspace.error);
-      setStatus("error");
-      return;
-    }
-    if (
-      !clientId ||
-      requestedScopes.length === 0 ||
-      requestedScopes.some((scope) => !ALLOWED_SCOPES.has(scope))
-    ) {
-      setError("This authorization request is missing required information.");
-      setStatus("error");
-      return;
-    }
+    if (requestError) return;
 
     const loadClient = Effect.tryPromise(() =>
       authClient.oauth2.publicClient({ query: { client_id: clientId } })
@@ -90,7 +85,10 @@ function OAuthConsentPage() {
     return () => {
       active = false;
     };
-  }, [clientId, requestedScopes, workspace]);
+  }, [clientId, requestError]);
+
+  const displayStatus = requestError ? "error" : status;
+  const displayError = requestError ?? error;
 
   const submitConsent = async (accept: boolean) => {
     setStatus("submitting");
@@ -132,7 +130,7 @@ function OAuthConsentPage() {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {status === "loading" ? (
+          {displayStatus === "loading" ? (
             <div
               className="text-muted-foreground flex items-center justify-center gap-2 py-4"
               role="status"
@@ -162,7 +160,7 @@ function OAuthConsentPage() {
             </div>
           ) : null}
 
-          {status === "ready" || status === "submitting" ? (
+          {displayStatus === "ready" || displayStatus === "submitting" ? (
             <div className="border-border bg-muted/40 rounded-md border p-3 text-xs leading-relaxed">
               <p className="font-medium">Unverified client</p>
               <p className="text-muted-foreground mt-1">
@@ -181,32 +179,32 @@ function OAuthConsentPage() {
             </div>
           ) : null}
 
-          {status !== "loading" && !error ? (
+          {displayStatus !== "loading" && !displayError ? (
             <p className="text-muted-foreground text-xs">
               Disconnect later from {clientName ?? "your MCP client"}.
             </p>
           ) : null}
 
-          {error ? (
+          {displayError ? (
             <p className="text-destructive text-center" role="alert">
-              {error}
+              {displayError}
             </p>
           ) : null}
         </CardContent>
 
         <CardFooter className="grid grid-cols-2 gap-2">
           <Button
-            disabled={status !== "ready"}
+            disabled={displayStatus !== "ready"}
             onClick={() => void submitConsent(false)}
             variant="outline"
           >
             Cancel
           </Button>
           <Button
-            disabled={status !== "ready"}
+            disabled={displayStatus !== "ready"}
             onClick={() => void submitConsent(true)}
           >
-            {status === "submitting" ? (
+            {displayStatus === "submitting" ? (
               <>
                 <Loader2Icon
                   aria-hidden

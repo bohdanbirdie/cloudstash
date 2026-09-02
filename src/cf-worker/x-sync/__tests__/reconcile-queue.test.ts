@@ -37,13 +37,15 @@ const createMessage = (value: unknown, attempts = 1) => {
 const dispatcher = (failure?: Error) => {
   const requestedUsers: string[] = [];
   const reconciledOrganizations: string[] = [];
+  const wakeRequests: boolean[] = [];
   const layer = Layer.succeed(XSyncControl, {
     disconnect: () => Effect.void,
     pause: () => Effect.void,
     reconnect: () => Effect.void,
-    reconcile: (userId, orgId) => {
+    reconcile: (userId, orgId, wakeForEntitlementChange) => {
       requestedUsers.push(userId);
       if (orgId) reconciledOrganizations.push(orgId);
+      wakeRequests.push(wakeForEntitlementChange ?? false);
       if (failure) {
         return Effect.fail(
           new XSyncSideEffectError({
@@ -63,7 +65,7 @@ const dispatcher = (failure?: Error) => {
       }),
   });
 
-  return { requestedUsers, reconciledOrganizations, layer };
+  return { requestedUsers, reconciledOrganizations, wakeRequests, layer };
 };
 
 const run = (
@@ -98,8 +100,12 @@ describe("X reconciliation Queue", () => {
   });
 
   it.effect("retries transient DO failures with bounded backoff", () => {
-    const first = createMessage(body, 1);
-    const sixth = createMessage(body, 6);
+    const wakeBody: XReconcileMessage = {
+      ...body,
+      wakeForEntitlementChange: true,
+    };
+    const first = createMessage(wakeBody, 1);
+    const sixth = createMessage(wakeBody, 6);
     const control = dispatcher(new Error("DO unavailable"));
 
     return run([first, sixth], control.layer).pipe(
@@ -111,6 +117,7 @@ describe("X reconciliation Queue", () => {
           assert.strictEqual(sixth.acknowledgements.count, 0);
           assert.strictEqual(control.requestedUsers.length, 2);
           assert.strictEqual(control.reconciledOrganizations.length, 2);
+          assert.deepStrictEqual(control.wakeRequests, [true, true]);
         })
       )
     );

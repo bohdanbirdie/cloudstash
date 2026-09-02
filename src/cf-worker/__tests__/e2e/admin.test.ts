@@ -430,7 +430,7 @@ describe("admin Endpoints E2E", () => {
     // Sweep boolean caps so a regression in the per-key allow-list (e.g.
     // dropping xBookmarkSync from CAPABILITY_KEYS) fails loudly.
     const BOOLEAN_OVERRIDE_CASES = [
-      { key: "aiSummary", tierDefault: false },
+      { key: "aiSummary", tierDefault: true },
       { key: "xBookmarkSync", tierDefault: false },
       { key: "xContentEnrichment", tierDefault: false },
       { key: "publicApi", tierDefault: false },
@@ -532,6 +532,28 @@ describe("admin Endpoints E2E", () => {
       );
       expect(res.status).toBe(400);
     });
+
+    for (const value of [-1, 1.5]) {
+      it(`rejects the invalid numeric allowance ${value}`, async () => {
+        const target = await signupUser(
+          freshEmail(`override-invalid-${String(value).replace(".", "-")}`),
+          "Invalid Allowance"
+        );
+
+        const res = await SELF.fetch(
+          `http://worker/api/org/${target.orgId}/overrides`,
+          {
+            method: "PUT",
+            headers: {
+              Cookie: adminUser.cookie,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ key: "monthlyXBookmarks", value }),
+          }
+        );
+        expect(res.status).toBe(400);
+      });
+    }
 
     it("listWithOwners merges per-org overrides into capabilities", async () => {
       // Verifies the merge contract surfaced through the admin listing:

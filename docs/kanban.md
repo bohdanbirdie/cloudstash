@@ -4,11 +4,9 @@ kanban-plugin: board
 
 ## High Priority
 
-- [ ] `BILL-01` [[todos/plan-usage-limits|Define and enforce usage limits for every plan]] — decide explicit per-plan allowances for saved links, AI summaries, Assistant credits, enrichment, and other bounded work; keep configuration, enforcement, and customer-facing usage states consistent.
 - [ ] `REL-07` [[todos/restore-chrome-web-store-listing|Restore the removed Chrome Web Store listing]] — determine why Google removed it, satisfy the publisher requirements, resubmit it, and verify the restored listing describes the actual popup-and-Save flow.
 - [ ] `REL-08` [[todos/welcome-existing-users|Approve pending users and send the launch welcome email]] — approve every eligible pending signup, then notify all existing signed-up users that Cloudstash is available to use.
 - [ ] `CORE-05` [[todos/initial-sync-blocking|Research HTTP bootstrap and preloaded library state]] — benchmark WebSocket vs HTTP event-log replay, BootStatus/timeout UX, and an upstream materialized snapshot at an exact event head.
-- [ ] `CORE-04` [[todos/free-ai-summary-allowance|Plan a bounded Free AI-summary allowance]] — saved-link count remains unlimited; exhaustion preserves the link.
 - [ ] `AI-08` [[todos/link-notes|Notes on links (user-authored, agent-aware)]]
 
 ## Medium Priority
@@ -39,9 +37,14 @@ kanban-plugin: board
 
 ## Done
 
-- [x] `AI-15` [[todos/chat-retrieval-cost-telemetry|Measure chat retrieval cost before changing search]] — answer telemetry now correlates bounded aggregate retrieval call, item, and payload signals with provider spend without logging link content; ranked search remains at 20 until production evidence justifies a change.
+- [x] `BILL-01` [[todos/plan-usage-limits|Define and enforce usage limits for every plan]] — shipped one executable Free/Plus/Pro matrix, workspace-owned atomic counters, saved-link capacity, calm exhaustion behavior, and shared Settings usage UI.
+- [x] `CORE-04` [[todos/free-ai-summary-allowance|Plan a bounded Free AI-summary allowance]] — absorbed into `BILL-01`; Free now has 10 monthly summaries and a 100-active-link capacity.
+
+- [x] `AI-15` [[todos/chat-retrieval-cost-telemetry|Measure and reduce chat retrieval cost]] — answer telemetry correlates bounded retrieval signals without logging content; ranked recall remains 20 while the model receives one bounded context field instead of duplicate description and summary text.
 - [x] `AI-14` [[todos/openrouter-prompt-cache-stickiness|Use OpenRouter prompt caching deliberately]] — Assistant and compaction share one stable opaque provider session, detailed usage is requested and logged per generation, and caching remains provider-owned with no application cache or invalidation state.
-- [x] `AI-13` [[todos/explicit-ai-reasoning-effort|Set reasoning effort intentionally per AI workload]] — workload-shaped local evals retained correct tool selection and output quality with Assistant at `low` and digest, X enrichment, and compaction at `none`; every production OpenRouter call now sets effort explicitly.
+- [x] `AI-13` [[todos/explicit-ai-reasoning-effort|Set reasoning effort intentionally per AI workload]] — workload-shaped local evals retained correct tool selection and output quality with `none` reasoning for Assistant, digest, X enrichment, and compaction; every production OpenRouter call sets effort explicitly.
+- [x] `INT-06` [[todos/cost-bound-x-sync|Cost-bound exact X bookmark recovery]] — one-resource traversal stops at recent checkpoints, persists long scans, enforces workspace-period bookmark admission, and retains overflow for reset catch-up.
+- [x] `AI-16` [[todos/assistant-cost-envelope|Reduce Assistant inference overhead]] — `none` reasoning, a 150-message/24k-token compaction envelope, and compact 20-result retrieval payloads preserve tested quality while reducing model input.
 - [x] `AI-12` [[todos/bounded-ai-prompts|Bound AI prompt and output envelopes]] — tag vocabularies are stable at 100 entries, digests sample at most 100 links across the week inside a fixed character budget, and evaluated 384-token ceilings keep summaries and digests bounded without truncating representative output.
 - [x] `SYS-11` [[todos/adaptive-x-bookmark-polling|Make X bookmark polling adaptive and cold-start resilient]] — active accounts poll in 30 seconds, sustained idle relaxes through one, two, and five minutes, provider limits never accelerate cadence, transient backoff and idle control survive eviction, and repair preserves cadence and watermark.
 - [x] `AI-11` [[todos/chat-token-budget|Make Assistant credits the primary chat usage guardrail]] — one atomic library ledger now meters every conversation and continuation from provider-reported cost, including private context compaction, with a calm shared credits surface.

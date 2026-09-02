@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { isInActivityGrid } from "@/components/activity-grid/owns-arrows";
 import { isInDock } from "@/components/bottom-dock/owns-arrows";
@@ -56,27 +56,25 @@ export function LinkList({
   const trackLinkOpen = useTrackLinkOpen();
   const { tagsByLink } = useListData();
 
-  const linksRef = useRef(links);
-  linksRef.current = links;
-  const activeLinkIdRef = useRef(activeLinkId);
-  activeLinkIdRef.current = activeLinkId;
   const anchorRef = useRef<string | null>(null);
 
   const allIds = useMemo(() => links.map((l) => l.id), [links]);
-
-  const seenRef = useRef<{ key: string | undefined; ids: Set<string> } | null>(
-    null
-  );
-  const newIds = useMemo(() => {
-    const seen = seenRef.current;
-    if (!seen || seen.key !== listKey) return new Set<string>();
-    const result = new Set<string>();
-    for (const id of allIds) if (!seen.ids.has(id)) result.add(id);
-    return result;
-  }, [allIds, listKey]);
-  useEffect(() => {
-    seenRef.current = { key: listKey, ids: new Set(allIds) };
-  }, [allIds, listKey]);
+  const [listTracking, setListTracking] = useState(() => ({
+    allIds,
+    listKey,
+    newIds: new Set<string>(),
+  }));
+  if (listTracking.allIds !== allIds || listTracking.listKey !== listKey) {
+    const newIds = new Set<string>();
+    if (listTracking.listKey === listKey) {
+      const previousIds = new Set(listTracking.allIds);
+      for (const id of allIds) {
+        if (!previousIds.has(id)) newIds.add(id);
+      }
+    }
+    setListTracking({ allIds, listKey, newIds });
+  }
+  const newIds = listTracking.newIds;
 
   const ids = useSelectionStore((s) => s.ids);
   const anchor = useSelectionStore((s) => s.anchor);
@@ -131,6 +129,24 @@ export function LinkList({
 
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const moveByKey = useCallback(
+    (delta: number | "home" | "end") => {
+      const cursor = activeLinkId ?? anchorRef.current;
+      const targetIdx = computeTargetIndex(links, cursor, delta);
+      const target = links[targetIdx];
+      if (!target) return;
+
+      focusRowById(containerRef.current, target.id);
+      anchorRef.current = target.id;
+
+      if (activeLinkId && target.id !== activeLinkId) {
+        trackLinkOpen(target.id);
+        openDetail(target.id);
+      }
+    },
+    [activeLinkId, links, openDetail, trackLinkOpen]
+  );
+
   useGlobalNavigation(
     "listNav",
     (dir) => {
@@ -145,33 +161,17 @@ export function LinkList({
   useCommand("vimDown", () => moveByKey(1));
   useCommand("vimUp", () => moveByKey(-1));
 
-  function moveByKey(delta: number | "home" | "end") {
-    const items = linksRef.current;
-    const cursor = activeLinkIdRef.current ?? anchorRef.current;
-    const targetIdx = computeTargetIndex(items, cursor, delta);
-    const target = items[targetIdx];
-    if (!target) return;
-
-    focusRowById(containerRef.current, target.id);
-    anchorRef.current = target.id;
-
-    if (activeLinkIdRef.current && target.id !== activeLinkIdRef.current) {
-      trackLinkOpen(target.id);
-      openDetail(target.id);
-    }
-  }
-
   const handleRowClick = useCallback(
     (e: React.MouseEvent) => {
       const id = (e.currentTarget as HTMLElement).dataset.id;
       if (!id) return;
 
-      const items = linksRef.current;
+      const items = links;
       if (items.findIndex((l) => l.id === id) === -1) return;
 
       const mod = modifierFromEvent(e);
       const itemIds = items.map((l) => l.id);
-      const activeId = activeLinkIdRef.current;
+      const activeId = activeLinkId;
 
       useSelectionStore.getState().click(id, mod, itemIds, activeId);
 
@@ -181,7 +181,7 @@ export function LinkList({
         toggleDetail(id);
       }
     },
-    [trackLinkOpen, toggleDetail]
+    [activeLinkId, links, trackLinkOpen, toggleDetail]
   );
 
   const handleCheckboxClick = useCallback((id: string) => {
@@ -195,12 +195,12 @@ export function LinkList({
       const id = row.dataset.id;
       if (!id) return;
       useSelectionStore.getState().setHovered(id);
-      if (!activeLinkIdRef.current) anchorRef.current = id;
+      if (!activeLinkId) anchorRef.current = id;
       if (containerRef.current) {
         clearKeyboardFocusFromOtherRow(containerRef.current, row);
       }
     },
-    [containerRef]
+    [activeLinkId]
   );
 
   const handleListMouseLeave = useCallback(() => {

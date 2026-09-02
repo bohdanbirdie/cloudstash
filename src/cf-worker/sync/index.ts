@@ -1,8 +1,12 @@
 import type { CfTypes } from "@livestore/sync-cf/cf-worker";
 import * as SyncBackend from "@livestore/sync-cf/cf-worker";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
+import { retainedLinkSafetyCeiling } from "@/lib/plan";
+
+import { events } from "../../livestore/schema";
 import { AppLayerLive } from "../auth/service";
+import { Billing } from "../billing/service";
 import { OrgId } from "../db/branded";
 import { maskId, safeErrorInfo } from "../log-utils";
 import { logSync } from "../logger";
@@ -97,14 +101,25 @@ interface SyncBackendHandle {
   triggerLinkProcessor: (storeId: OrgId) => void;
   getEventlogMax: () => number | null;
   recordActivity: (storeId: OrgId, batch: readonly PushEvent[]) => void;
+  validateRetainedLinkPush: (
+    storeId: OrgId,
+    batch: readonly PushEvent[]
+  ) => Promise<void>;
 }
 
+class RetainedLinkSafetyLimitError extends Schema.TaggedErrorClass<RetainedLinkSafetyLimitError>()(
+  "RetainedLinkSafetyLimitError",
+  { limit: Schema.Int, storeId: OrgId }
+) {}
+
+class SyncBackendInstanceUnavailableError extends Schema.TaggedErrorClass<SyncBackendInstanceUnavailableError>()(
+  "SyncBackendInstanceUnavailableError",
+  { storeId: OrgId }
+) {}
+
 // onPush is a static option with no binding to the instance handling it, so
-// the only route back to "self" is module state. Instances of one class share
-// an isolate, so a single reference would be whichever was constructed last —
-// fine for the env-only helpers, wrong for anything reading instance storage.
-// Weak references keep an evicted instance collectable.
-let anySyncBackend: SyncBackendHandle | null = null;
+// resolve the workspace-owned instance through a weak registry. Weak references
+// keep an evicted instance collectable.
 const syncBackendsByStore = new Map<string, WeakRef<SyncBackendHandle>>();
 
 const syncBackendFor = (storeId: string): SyncBackendHandle | null =>
@@ -119,6 +134,12 @@ const STUCK_GAP_THRESHOLD = 100;
 export class SyncBackendDO extends SyncBackend.makeDurableObject({
   onPush: async (message, context) => {
     const storeId = OrgId.make(context.storeId);
+    const owner = syncBackendFor(storeId);
+    if (owner === null) {
+      throw new SyncBackendInstanceUnavailableError({ storeId });
+    }
+    await owner.validateRetainedLinkPush(storeId, message.batch);
+
     logger.info("Push received", {
       storeId: maskId(storeId),
       batchSize: message.batch.length,
@@ -128,27 +149,18 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
 
     const shouldWakeProcessor = message.batch.some(
       (event) =>
-        event.name === "v1.LinkCreated" ||
-        event.name === "v2.LinkCreated" ||
-        event.name === "v1.LinkReprocessRequested"
+        event.name === events.linkCreated.name ||
+        event.name === events.linkCreatedV2.name ||
+        event.name === events.linkReprocessRequested.name
     );
-    // onPush runs inside the instance owning storeId, so this resolves to it.
-    // anySyncBackend only covers the case where the registry lost the entry;
-    // the helpers below take storeId explicitly and reach only for env.
-    const backend = syncBackendFor(storeId) ?? anySyncBackend;
-    if (shouldWakeProcessor && backend) {
-      backend.triggerLinkProcessor(storeId);
+    if (shouldWakeProcessor) {
+      owner.triggerLinkProcessor(storeId);
     }
 
-    if (backend) {
-      backend.recordActivity(storeId, message.batch);
-    }
+    owner.recordActivity(storeId, message.batch);
 
     const firstParent = message.batch[0]?.parentSeqNum;
-    // getEventlogMax reads instance storage, so only the owning instance can
-    // answer it — anySyncBackend would report another tenant's head.
-    const owner = syncBackendFor(storeId);
-    if (firstParent !== undefined && owner) {
+    if (firstParent !== undefined) {
       const sbMax = owner.getEventlogMax();
       if (sbMax !== null && sbMax - firstParent > STUCK_GAP_THRESHOLD) {
         logger.warn("LP push lags SB eventlog — possible stuck client", {
@@ -171,7 +183,6 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
     super(ctx, env);
     this._env = env;
     this._ctx = ctx;
-    anySyncBackend = this;
     const storeId = ctx.id.name;
     if (storeId !== undefined) {
       syncBackendsByStore.set(storeId, new WeakRef(this));
@@ -179,24 +190,76 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
     logger.info("DO woke up", { doId: ctx.id.toString() });
   }
 
+  private eventlogTable(): string | undefined {
+    if (this._eventlogTable !== undefined) return this._eventlogTable;
+    const tables = this._ctx.storage.sql
+      .exec(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name GLOB 'eventlog_*'"
+      )
+      .toArray() as Array<{ name: string }>;
+    this._eventlogTable = tables[0]?.name;
+    return this._eventlogTable;
+  }
+
   getEventlogMax(): number | null {
     try {
-      if (this._eventlogTable === undefined) {
-        const tables = this._ctx.storage.sql
-          .exec(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name GLOB 'eventlog_*'"
-          )
-          .toArray() as Array<{ name: string }>;
-        this._eventlogTable = tables[0]?.name;
-      }
-      if (this._eventlogTable === undefined) return null;
+      const table = this.eventlogTable();
+      if (table === undefined) return null;
       const row = this._ctx.storage.sql
-        .exec(`SELECT MAX(seqNum) as max FROM "${this._eventlogTable}"`)
+        .exec(`SELECT MAX(seqNum) as max FROM "${table}"`)
         .one() as { max: number | null } | undefined;
       return row?.max ?? null;
     } catch {
       return null;
     }
+  }
+
+  private retainedLinkCount(): number {
+    const table = this.eventlogTable();
+    if (table === undefined) return 0;
+    const row = this._ctx.storage.sql
+      .exec(
+        `SELECT COUNT(*) AS count FROM "${table}" WHERE name IN (?, ?)`,
+        events.linkCreated.name,
+        events.linkCreatedV2.name
+      )
+      .one() as { count: number };
+    return row.count;
+  }
+
+  async validateRetainedLinkPush(
+    storeId: OrgId,
+    batch: readonly PushEvent[]
+  ): Promise<void> {
+    const incoming = batch.filter(
+      (event) =>
+        event.name === events.linkCreated.name ||
+        event.name === events.linkCreatedV2.name
+    ).length;
+    if (incoming === 0) return;
+
+    return Effect.gen({ self: this }, function* () {
+      const billing = yield* Billing;
+      const capabilities = yield* billing.capabilities(storeId);
+      const limit = retainedLinkSafetyCeiling(capabilities);
+      const retained = this.retainedLinkCount();
+      if (retained + incoming <= limit) return;
+
+      return yield* new RetainedLinkSafetyLimitError({ limit, storeId });
+    }).pipe(
+      Effect.tapErrorTag("RetainedLinkSafetyLimitError", (error) =>
+        Effect.logWarning("Retained-link safety limit rejected sync push").pipe(
+          Effect.annotateLogs({
+            incoming,
+            limit: error.limit,
+            storeId: maskId(error.storeId),
+          })
+        )
+      ),
+      Effect.withSpan("SyncBackend.validateRetainedLinkPush"),
+      Effect.provide(AppLayerLive(this._env)),
+      Effect.runPromise
+    );
   }
 
   /** Closes active clients and wipes the canonical eventlog. */

@@ -64,6 +64,11 @@ const advertisedTools = () =>
 
 const authorization = (scopes: readonly string[]): McpAuthorization => ({
   clientId: "client-1",
+  externalCallAllowance: {
+    limit: 10_000,
+    resetsAt: "2026-09-01T00:00:00.000Z",
+    usageWindowId: "2026-08",
+  },
   orgId: OrgId.make("org-1"),
   scopes,
   userId: UserId.make("user-1"),
@@ -254,6 +259,7 @@ describe("MCP link tools", () => {
       BETTER_AUTH_URL: "https://cloudstash.test",
       LINK_PROCESSOR_DO: {
         get: () => ({
+          reserveExternalCall: async () => ({ count: 1, status: "reserved" }),
           saveLink: async (input: unknown) => {
             received = input;
             return { ok: true, value: { link: { id: "link-1" } } };

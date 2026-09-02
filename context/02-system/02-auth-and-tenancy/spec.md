@@ -18,6 +18,11 @@ Better Auth persists identity, sessions, API keys, OAuth provider state, and
 signing keys in D1. Accounts are keyed by issuer plus account ID. On session
 creation, the hook resolves an existing active
 organization or creates a personal organization and sets it on the session.
+That server-managed personal organization is the account's only workspace.
+Authenticated Better Auth session APIs cannot create additional organizations
+or delete, invite members into, or transfer ownership of the personal
+organization; permanent removal remains the dedicated account-deletion
+workflow.
 Unapproved users stop before mounting the LiveStore application.
 
 Application entry therefore has three states, not two: awaiting approval,

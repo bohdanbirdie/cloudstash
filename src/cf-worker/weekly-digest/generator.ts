@@ -123,11 +123,10 @@ const make = Effect.gen(function* () {
       }),
       try: () =>
         generateText({
-          experimental_telemetry: { isEnabled: true },
+          instructions: SYSTEM_PROMPT,
           maxOutputTokens: DIGEST_MAX_OUTPUT_TOKENS,
           model,
           prompt: userPrompt,
-          system: SYSTEM_PROMPT,
         }),
     });
 

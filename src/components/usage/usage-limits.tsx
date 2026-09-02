@@ -50,15 +50,24 @@ function UsageLimitRow({ item }: { item: UsageLimitItem }) {
 
 export function UsageLimits({
   items,
+  libraryItems = [],
   resetsAt,
 }: {
   items: readonly UsageLimitItem[];
+  libraryItems?: readonly UsageLimitItem[];
   resetsAt: string;
 }) {
   const resetDate = resetDateFormatter.format(new Date(resetsAt));
 
   return (
     <div className="space-y-3 rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground">
+      {libraryItems.length > 0 && (
+        <div className="space-y-3">
+          {libraryItems.map((item) => (
+            <UsageLimitRow item={item} key={item.id} />
+          ))}
+        </div>
+      )}
       <div className="space-y-3">
         {items.map((item) => (
           <UsageLimitRow item={item} key={item.id} />

@@ -32,6 +32,11 @@ administrator overrides, and usage allowances.
 - **CS.SYS.BILL-T03 Status mapping:** Active, trialing, and past-due
   subscriptions retain the mapped paid tier; cancelled/unpaid/incomplete states
   map to Free according to current policy.
+- **CS.SYS.BILL-T04 Local-first capacity:** Browser saves may be accepted into a
+  local LiveStore client while entitlement state is unavailable. Capacity is
+  checked immediately when known and strictly for server-originated saves, but
+  cross-client convergence may briefly exceed a saved-link limit rather than
+  discard user data.
 
 ## Requirements
 
@@ -60,9 +65,9 @@ administrator overrides, and usage allowances.
 - **CS.SYS.BILL-R09 Unknown-price safety:** An active unrecognized Stripe price
   must not silently downgrade or invent a tier; it is logged and preserves the
   current tier pending reconciliation.
-- **CS.SYS.BILL-R10 Allowance fail closed:** Bounded chat and enrichment
-  operations must enforce their workspace/period allowances; unavailable chat
-  allowance state denies model execution.
+- **CS.SYS.BILL-R10 Allowance fail closed:** Bounded provider work and external
+  API/MCP operations must enforce their workspace/period allowances at the
+  workspace owner; unavailable allowance state denies cost-bearing execution.
 - **CS.SYS.BILL-R11 Matrix verification:** Tests must lock every default tier
   capability to prevent a shipped path remaining unreachable after a new
   capability is introduced.
@@ -72,3 +77,11 @@ administrator overrides, and usage allowances.
   must derive from persisted Stripe period/anchor data or, when an admin grant
   supplies the effective paid tier, that grant's anchor. One model run must use
   one immutable window for preflight and settlement.
+- **CS.SYS.BILL-R14 Workspace X allowance:** Imported X bookmarks must consume
+  one subscription-aligned monthly workspace allowance regardless of which
+  member connected the source account. Admission must be idempotent by source
+  bookmark and concurrency-safe at the workspace owner.
+- **CS.SYS.BILL-R15 Executable plan matrix:** Saved-link capacity, AI summaries,
+  Assistant credits, external calls, X imports, and X enrichment must have one
+  explicit tier-default matrix. Settings must show relevant public units and a
+  shared reset without exposing provider spend or margin assumptions.

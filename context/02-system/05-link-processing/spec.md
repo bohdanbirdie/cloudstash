@@ -70,8 +70,13 @@ sorted deterministically and capped at 100 entries. The output is a
 two-to-three-sentence summary, up to two names from existing tags, and at most
 one new tag.
 
+Before AI work, LinkProcessorDO reserves one idempotent summary attempt in the
+workspace's subscription-aligned monthly counter. Exhaustion or unavailable
+accounting preserves metadata and completes processing without a summary.
+
 X tweet links in entitled Pro workspaces first attempt the X enrichment path,
-which has a per-workspace monthly KV cap and may use OpenRouter/Gemini. Every
+which has a separate per-workspace monthly Durable Object counter and uses the
+shared OpenRouter model. Every
 typed enrichment/provider/usage failure falls back to the basic Workers AI
 summary. X enrichment uses the same bounded 100-entry tag vocabulary, explicit
 `none` reasoning, and its existing output safety envelope. Basic AI call timeout
