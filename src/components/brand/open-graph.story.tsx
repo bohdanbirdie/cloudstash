@@ -141,8 +141,23 @@ function downloadDataUrl(dataUrl: string) {
   anchor.click();
 }
 
+// Dev-only: POSTs the PNG to the Storybook dev server's brand-asset sink
+// (see .storybook/main.ts), which writes public/cloudstash-og.png inside
+// the VM — browser downloads would land on the host instead.
+async function writeToPublic(dataUrl: string): Promise<boolean> {
+  const blob = await (await fetch(dataUrl)).blob();
+  const response = await fetch("/__brand/save-og", {
+    method: "POST",
+    body: blob,
+  });
+  return response.ok;
+}
+
 function OpenGraphReview() {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [writeStatus, setWriteStatus] = useState<"idle" | "saved" | "failed">(
+    "idle"
+  );
 
   useEffect(() => {
     let active = true;
@@ -161,14 +176,34 @@ function OpenGraphReview() {
           <h2 className="text-sm font-semibold text-foreground">
             Current promise
           </h2>
-          <button
-            type="button"
-            disabled={!dataUrl}
-            onClick={() => dataUrl && downloadDataUrl(dataUrl)}
-            className="rounded-md border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Save PNG
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-muted-foreground">
+              {writeStatus === "saved" && "Written to public/cloudstash-og.png"}
+              {writeStatus === "failed" &&
+                "Write failed — is this the dev server?"}
+            </span>
+            <button
+              type="button"
+              disabled={!dataUrl}
+              onClick={() => {
+                if (!dataUrl) return;
+                void writeToPublic(dataUrl).then((ok) =>
+                  setWriteStatus(ok ? "saved" : "failed")
+                );
+              }}
+              className="rounded-md border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Write to public/
+            </button>
+            <button
+              type="button"
+              disabled={!dataUrl}
+              onClick={() => dataUrl && downloadDataUrl(dataUrl)}
+              className="rounded-md border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Save PNG
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-end gap-6">
