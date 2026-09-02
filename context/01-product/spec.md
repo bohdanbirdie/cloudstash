@@ -107,7 +107,10 @@ tiles center the mark on its stroke centroid rather than its bounding box.
 The logo-plus-name lockup is a single shared treatment (20px mark, lowercase
 wordmark) used identically on the app top bar, landing, footer, and login.
 Loading and login surfaces animate the mark with the Unfold/Trace loop on
-the app's shared motion curve. The spec constants live in
+the app's shared motion curve. Branded tiles carry a quiet top-lit depth: a white-to-near-white fill
+gradient and a hairline rim. Below 96px the gradient deepens and the rim
+keeps at least one device pixel, so small tiles read with the same depth;
+this rule lives in `src/lib/brand/tile.ts`. The spec constants live in
 `src/lib/brand/fan.ts` (mirrored in the extension), and `bun run
 brand:export` regenerates all raster brand assets from them. Exported icons
 follow each target platform's published canvas spec — for example the Chrome

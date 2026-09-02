@@ -14,15 +14,12 @@ import {
   MACOS_ICON_ARTWORK_RATIO,
 } from "@/lib/brand/icon-specs";
 import { squirclePath } from "@/lib/brand/squircle";
+import { TILE_FILL_TOP, TILE_INK, tileDepth } from "@/lib/brand/tile";
 
-const PRODUCTION = { name: "paper", ink: "#18181b" };
+const PRODUCTION = { name: "paper", ink: TILE_INK };
 const STAGING = { name: "staging", ink: "#c2410c" };
 type FlatVariant = typeof PRODUCTION;
 
-const TILE_BG_TOP = "#ffffff";
-const TILE_BG_BOTTOM = "#fafafa";
-const TILE_EDGE_TOP = "#efeff2";
-const TILE_EDGE_BOTTOM = "#e3e3e8";
 const TILE_EDGE = "#e4e4e7";
 
 const ICON_INSET = 0.62;
@@ -61,7 +58,9 @@ function FanTile({
   const baseId = useId().replace(/:/g, "");
   const fillId = `${baseId}-fill`;
   const edgeId = `${baseId}-edge`;
-  const markPx = usagePx * canvasScale * inset;
+  const tilePx = usagePx * canvasScale;
+  const depth = tileDepth(tilePx);
+  const markPx = tilePx * inset;
   return (
     <svg
       ref={svgRef}
@@ -72,13 +71,13 @@ function FanTile({
     >
       <defs>
         <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={TILE_BG_TOP} />
-          <stop offset="0.6" stopColor={TILE_BG_TOP} />
-          <stop offset="1" stopColor={TILE_BG_BOTTOM} />
+          <stop offset="0" stopColor={TILE_FILL_TOP} />
+          <stop offset="0.6" stopColor={TILE_FILL_TOP} />
+          <stop offset="1" stopColor={depth.fillBottom} />
         </linearGradient>
         <linearGradient id={edgeId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={TILE_EDGE_TOP} />
-          <stop offset="1" stopColor={TILE_EDGE_BOTTOM} />
+          <stop offset="0" stopColor={depth.edgeTop} />
+          <stop offset="1" stopColor={depth.edgeBottom} />
         </linearGradient>
       </defs>
       <g
@@ -88,7 +87,7 @@ function FanTile({
           d={CLIP_PATHS[clip]}
           fill={`url(#${fillId})`}
           stroke={`url(#${edgeId})`}
-          strokeWidth={1}
+          strokeWidth={depth.rimViewbox}
         />
         <g
           transform={`translate(60 ${60 + FAN_TILE_DY}) scale(${inset}) translate(-60 -60)`}
@@ -461,7 +460,7 @@ function BannerArt({
       height={Math.round((h / w) * previewW)}
       style={{ borderRadius: 8, border: `1px solid ${TILE_EDGE}` }}
     >
-      <rect width={w} height={h} fill={TILE_BG_TOP} />
+      <rect width={w} height={h} fill={TILE_FILL_TOP} />
       <g
         stroke={PRODUCTION.ink}
         strokeWidth={fanStrokePx(L.fanDia)}
@@ -534,7 +533,7 @@ function renderBannerSuper(w: number, h: number): HTMLCanvasElement {
   canvas.height = h * S;
   const ctx = canvas.getContext("2d")!;
   ctx.scale(S, S);
-  ctx.fillStyle = TILE_BG_TOP;
+  ctx.fillStyle = TILE_FILL_TOP;
   ctx.fillRect(0, 0, w, h);
 
   const L = bannerLayout(w, h);
