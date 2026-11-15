@@ -1,6 +1,6 @@
 import { describe, it } from "@effect/vitest";
 import { Effect } from "effect";
-import { FetchHttpClient } from "effect/unstable/http";
+import { FetchHttpClient } from "effect/http";
 import { expect, vi } from "vitest";
 
 import {

@@ -7,7 +7,7 @@ import { runHandler } from "../runtime";
 import type { Env } from "../shared";
 import { WeeklyDigestRpcResult } from "../weekly-digest/rpc";
 
-class DigestRpcError extends Schema.TaggedErrorClass<DigestRpcError>()(
+class DigestRpcError extends Schema.TaggedError<DigestRpcError>()(
   "DigestRpcError",
   {
     message: Schema.String,
@@ -15,7 +15,7 @@ class DigestRpcError extends Schema.TaggedErrorClass<DigestRpcError>()(
   }
 ) {}
 
-class DigestRpcDecodeError extends Schema.TaggedErrorClass<DigestRpcDecodeError>()(
+class DigestRpcDecodeError extends Schema.TaggedError<DigestRpcDecodeError>()(
   "DigestRpcDecodeError",
   {
     message: Schema.String,
@@ -23,12 +23,12 @@ class DigestRpcDecodeError extends Schema.TaggedErrorClass<DigestRpcDecodeError>
   }
 ) {}
 
-class TriggerDigestUnauthorized extends Schema.TaggedErrorClass<TriggerDigestUnauthorized>()(
+class TriggerDigestUnauthorized extends Schema.TaggedError<TriggerDigestUnauthorized>()(
   "TriggerDigestUnauthorized",
   {}
 ) {}
 
-class TriggerDigestMissingOrg extends Schema.TaggedErrorClass<TriggerDigestMissingOrg>()(
+class TriggerDigestMissingOrg extends Schema.TaggedError<TriggerDigestMissingOrg>()(
   "TriggerDigestMissingOrg",
   {}
 ) {}

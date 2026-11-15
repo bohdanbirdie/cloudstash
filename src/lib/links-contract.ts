@@ -59,7 +59,7 @@ const SearchLimit = Schema.Number.check(
 );
 
 const ISO_INSTANT =
-  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|[+-](\d{2}):(\d{2}))$/;
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|[+-](\d{2}):(\d{2}))$/u;
 
 export const isoInstantToEpochMillis = (value: string): number | null => {
   const match = ISO_INSTANT.exec(value);

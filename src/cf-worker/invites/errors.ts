@@ -2,29 +2,29 @@ import { Schema } from "effect";
 
 import { InviteId } from "../db/branded";
 
-export class InvitesUnauthorizedError extends Schema.TaggedErrorClass<InvitesUnauthorizedError>()(
+export class InvitesUnauthorizedError extends Schema.TaggedError<InvitesUnauthorizedError>()(
   "InvitesUnauthorizedError",
   {}
 ) {}
 
-export class InvitesForbiddenError extends Schema.TaggedErrorClass<InvitesForbiddenError>()(
+export class InvitesForbiddenError extends Schema.TaggedError<InvitesForbiddenError>()(
   "InvitesForbiddenError",
   {}
 ) {}
 
-export class InvalidInviteError extends Schema.TaggedErrorClass<InvalidInviteError>()(
+export class InvalidInviteError extends Schema.TaggedError<InvalidInviteError>()(
   "InvalidInviteError",
   {}
 ) {}
 
-export class InviteNotFoundError extends Schema.TaggedErrorClass<InviteNotFoundError>()(
+export class InviteNotFoundError extends Schema.TaggedError<InviteNotFoundError>()(
   "InviteNotFoundError",
   {
     inviteId: InviteId,
   }
 ) {}
 
-export class InvalidInviteRequestError extends Schema.TaggedErrorClass<InvalidInviteRequestError>()(
+export class InvalidInviteRequestError extends Schema.TaggedError<InvalidInviteRequestError>()(
   "InvalidInviteRequestError",
   {
     reason: Schema.String,

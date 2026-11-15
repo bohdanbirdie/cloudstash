@@ -1,6 +1,6 @@
 import { Effect, Schema } from "effect";
 
-export class TelegramMissingApiKeyError extends Schema.TaggedErrorClass<TelegramMissingApiKeyError>()(
+export class TelegramMissingApiKeyError extends Schema.TaggedError<TelegramMissingApiKeyError>()(
   "TelegramMissingApiKeyError",
   {
     message: Schema.String.pipe(
@@ -9,7 +9,7 @@ export class TelegramMissingApiKeyError extends Schema.TaggedErrorClass<Telegram
   }
 ) {}
 
-export class TelegramInvalidApiKeyError extends Schema.TaggedErrorClass<TelegramInvalidApiKeyError>()(
+export class TelegramInvalidApiKeyError extends Schema.TaggedError<TelegramInvalidApiKeyError>()(
   "TelegramInvalidApiKeyError",
   {
     message: Schema.String.pipe(
@@ -20,7 +20,7 @@ export class TelegramInvalidApiKeyError extends Schema.TaggedErrorClass<Telegram
   }
 ) {}
 
-export class TelegramMissingOrgIdError extends Schema.TaggedErrorClass<TelegramMissingOrgIdError>()(
+export class TelegramMissingOrgIdError extends Schema.TaggedError<TelegramMissingOrgIdError>()(
   "TelegramMissingOrgIdError",
   {
     message: Schema.String.pipe(
@@ -29,7 +29,7 @@ export class TelegramMissingOrgIdError extends Schema.TaggedErrorClass<TelegramM
   }
 ) {}
 
-export class NotConnectedError extends Schema.TaggedErrorClass<NotConnectedError>()(
+export class NotConnectedError extends Schema.TaggedError<NotConnectedError>()(
   "NotConnectedError",
   {
     message: Schema.String.pipe(
@@ -40,7 +40,7 @@ export class NotConnectedError extends Schema.TaggedErrorClass<NotConnectedError
   }
 ) {}
 
-export class RateLimitError extends Schema.TaggedErrorClass<RateLimitError>()(
+export class RateLimitError extends Schema.TaggedError<RateLimitError>()(
   "RateLimitError",
   {
     message: Schema.String.pipe(
@@ -49,7 +49,7 @@ export class RateLimitError extends Schema.TaggedErrorClass<RateLimitError>()(
   }
 ) {}
 
-export class TelegramAuthUnavailableError extends Schema.TaggedErrorClass<TelegramAuthUnavailableError>()(
+export class TelegramAuthUnavailableError extends Schema.TaggedError<TelegramAuthUnavailableError>()(
   "TelegramAuthUnavailableError",
   {
     cause: Schema.Defect(),
@@ -63,7 +63,7 @@ export class TelegramAuthUnavailableError extends Schema.TaggedErrorClass<Telegr
   }
 ) {}
 
-export class TelegramQueueSendError extends Schema.TaggedErrorClass<TelegramQueueSendError>()(
+export class TelegramQueueSendError extends Schema.TaggedError<TelegramQueueSendError>()(
   "TelegramQueueSendError",
   {
     cause: Schema.Unknown,

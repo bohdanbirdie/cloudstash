@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/server";
-import { Cause, Effect, Schema } from "effect";
+import { Cause, Effect, Schema, SchemaIssue } from "effect";
 
 import { HttpUrlFromString } from "@/lib/http-url";
 import {
@@ -104,10 +104,25 @@ const flattenEffectConstraints = (value: unknown): unknown => {
     if (
       isRecord(branch) &&
       Object.keys(branch).every(
-        (key) => EFFECT_CONSTRAINT_KEYWORDS.has(key) && !(key in schema)
+        (key) =>
+          EFFECT_CONSTRAINT_KEYWORDS.has(key) &&
+          (!(key in schema) ||
+            (typeof schema[key] === "number" &&
+              typeof branch[key] === "number" &&
+              /^(exclusiveMaximum|exclusiveMinimum|maxItems|maxLength|maxProperties|maximum|minItems|minLength|minProperties|minimum)$/.test(
+                key
+              )))
       )
     ) {
-      Object.assign(schema, branch);
+      for (const [key, constraint] of Object.entries(branch)) {
+        const existing = schema[key];
+        schema[key] =
+          typeof existing === "number" && typeof constraint === "number"
+            ? key.toLowerCase().includes("max")
+              ? Math.min(existing, constraint)
+              : Math.max(existing, constraint)
+            : constraint;
+      }
     } else {
       remaining.push(branch);
     }
@@ -124,7 +139,13 @@ const toMcpSchema = <S extends Schema.ConstraintDecoder<unknown>>(
   const isolated = Schema.make<S>(schema.ast);
   const standard = Schema.toStandardJSONSchemaV1(
     Schema.toStandardSchemaV1(isolated, {
-      parseOptions: { onExcessProperty: "error" },
+      leafHook: (issue) => {
+        if (issue._tag === "UnexpectedKey") return "Unexpected key";
+        const { input, ...redacted } = issue;
+        const message = SchemaIssue.defaultLeafHook(redacted);
+        return input === null ? `${message}, got null` : message;
+      },
+      parseOptions: { onExcessProperty: "error", reportInput: true },
     })
   );
   const jsonSchema = standard["~standard"].jsonSchema;

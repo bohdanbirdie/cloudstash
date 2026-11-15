@@ -1,7 +1,7 @@
 import type { GenericOAuthConfig } from "better-auth/plugins/generic-oauth";
 import { genericOAuth } from "better-auth/plugins/generic-oauth";
 import { Clock, Data, Effect, Layer, Schema } from "effect";
-import { FetchHttpClient, HttpClient } from "effect/unstable/http";
+import { FetchHttpClient, HttpClient } from "effect/http";
 
 import type { Env } from "../shared";
 import { OtelTracingLive } from "../tracing";

@@ -69,6 +69,9 @@ call may retry. Creating concurrent stores over the same DO SQLite is forbidden;
 [PR #30](https://github.com/bohdanbirdie/cloudstash/pull/30) records the
 corruption this caused.
 
+The Cloudflare adapter receives `getSyncBackendStub`, which obtains a fresh
+workspace-named backend stub for reconnects rather than retaining a failed stub.
+
 `ChatAgentDO.syncUpdateRpc` is only a temporary no-op compatibility endpoint for
 subscriptions persisted before the chat replica was removed. It never decodes
 the payload or boots a store. New chat actors do not subscribe; `AI-10` owns a

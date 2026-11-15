@@ -24,7 +24,7 @@ export const UsageReservation = Schema.Struct({
 });
 export type UsageReservation = typeof UsageReservation.Type;
 
-export class UsageMeterStorageError extends Schema.TaggedErrorClass<UsageMeterStorageError>()(
+export class UsageMeterStorageError extends Schema.TaggedError<UsageMeterStorageError>()(
   "UsageMeterStorageError",
   {
     metric: UsageMetric,

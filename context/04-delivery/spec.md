@@ -43,6 +43,18 @@ submodule SHA for types, WASM, exceptions, and `LIVESTORE_PUBLISHED=1` A/B mode.
 Submodule and snapshot move atomically. The rationale is recorded in
 [decision 0001](./.decisions/0001-vendor-upstream-livestore-source.md).
 
+The current pin is snapshot `e2a52cf14883bb032fd52a62b698a1dad04457ec`,
+paired with the Effect `4.0.3` cohort in both the web app and extension.
+Snapshot upgrades select a fully published package cohort, not a partially
+published upstream revision or a newer Effect version outside that cohort.
+This upgrade crosses LiveStore's switch from Effect AST hashes to canonical
+state fingerprints. The first open rebuilds materialized state once from the
+retained event log, including server-side clients in Durable Objects; deployment
+must account for the associated row-write usage. It is not a D1 migration or an
+event-log reset. See the
+[upstream release notes](../../vendor/livestore/CHANGELOG.md) and
+[upgrade decision](./.decisions/0003-adopt-published-livestore-effect-cohort.md).
+
 ## Build
 
 `bun run build` ensures the submodule, runs `vp build`, verifies the bundle, and
@@ -56,7 +68,8 @@ fails the deploy build rather than dropping out of it silently. Local dev and CI
 test jobs keep the full workspace install, because tests need the other packages.
 `__LIVESTORE_BUILD__` embeds `vendored@<sha>` or explicit `published` mode.
 Bundle certification checks revision marker count, no known Effect v3 version
-string, the msgpack runtime/no-native-extraction path, one distinct React
+string, the SchemaBinary RPC runtime and absence of the legacy msgpack runtime
+and native extraction binding, one distinct React
 version string, and Wrangler raw/compressed upload budgets. CI boots the
 generated minified Worker for a D1/auth/SyncBackendDO handshake. These are
 targeted regression indicators, not proof that no same-version duplicate
