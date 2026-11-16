@@ -6,7 +6,6 @@ import {
   readFileSync,
   rmSync,
 } from "node:fs";
-import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,17 +28,6 @@ const check = (label: string, ok: boolean, detail: string) => {
 
 const countOccurrences = (haystack: string, needle: string): number =>
   haystack.split(needle).length - 1;
-
-const requireFromEffect = createRequire(
-  createRequire(import.meta.url).resolve("effect")
-);
-const msgpackrEntry = requireFromEffect.resolve("msgpackr");
-const msgpackrSourcePath = path.resolve(
-  path.dirname(msgpackrEntry),
-  "..",
-  "unpack.js"
-);
-const msgpackrSource = readFileSync(msgpackrSourcePath, "utf8");
 
 if (!existsSync(workerBundlePath)) {
   console.error(
@@ -80,16 +68,18 @@ check(
 );
 
 check(
-  "msgpackr runtime present",
-  countOccurrences(worker, "Source must be a Uint8Array or Buffer") >= 1,
-  `stable runtime marker x${countOccurrences(worker, "Source must be a Uint8Array or Buffer")}, expected >=1`
+  "SchemaBinary RPC runtime present",
+  countOccurrences(
+    worker,
+    "SchemaBinary RPC serialization did not produce bytes"
+  ) >= 1,
+  `RPC serialization marker x${countOccurrences(worker, "SchemaBinary RPC serialization did not produce bytes")}, expected >=1`
 );
 
 check(
-  "msgpackr Workers CSP fallback source",
-  msgpackrSource.includes("inlineObjectReadThreshold = Infinity") &&
-    msgpackrSource.includes("in CF workers, the new Function call could begin"),
-  path.relative(root, msgpackrSourcePath)
+  "no legacy msgpackr runtime",
+  countOccurrences(worker, "Source must be a Uint8Array or Buffer") === 0,
+  `legacy runtime marker x${countOccurrences(worker, "Source must be a Uint8Array or Buffer")}, expected x0`
 );
 
 check(

@@ -9,7 +9,7 @@ interface AiSdkErrorShape {
 const isObject = (e: unknown): e is AiSdkErrorShape =>
   e !== null && typeof e === "object";
 
-export class WeeklyDigestGenerateError extends Schema.TaggedErrorClass<WeeklyDigestGenerateError>()(
+export class WeeklyDigestGenerateError extends Schema.TaggedError<WeeklyDigestGenerateError>()(
   "WeeklyDigestGenerateError",
   {
     message: Schema.String,
@@ -44,7 +44,7 @@ export const weeklyDigestGenerateErrorFromAiSdk =
     });
   };
 
-export class DigestLinkSourceError extends Schema.TaggedErrorClass<DigestLinkSourceError>()(
+export class DigestLinkSourceError extends Schema.TaggedError<DigestLinkSourceError>()(
   "DigestLinkSourceError",
   {
     message: Schema.String,
@@ -62,7 +62,7 @@ export const digestLinkSourceErrorFromUnknown = (
     operation: "collect",
   });
 
-export class DigestEventSinkError extends Schema.TaggedErrorClass<DigestEventSinkError>()(
+export class DigestEventSinkError extends Schema.TaggedError<DigestEventSinkError>()(
   "DigestEventSinkError",
   {
     message: Schema.String,

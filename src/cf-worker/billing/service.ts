@@ -50,7 +50,7 @@ const TierSourceSchema = Schema.Literals(["stripe", "admin"]);
 const EffectivePlan = Schema.Struct({
   tier: PlanTierSchema,
   source: TierSourceSchema,
-  usageCycleAnchor: Schema.NullOr(Schema.DateValid),
+  usageCycleAnchor: Schema.NullOr(Schema.Date),
 });
 type EffectivePlan = Schema.Schema.Type<typeof EffectivePlan>;
 

@@ -16,12 +16,12 @@ import StripeSdk from "stripe";
 import { PLAN_ORDER, PLANS } from "../src/lib/plan";
 import type { BillingInterval, PlanTier } from "../src/lib/plan";
 
-class MissingApiKey extends Schema.TaggedErrorClass<MissingApiKey>()(
+class MissingApiKey extends Schema.TaggedError<MissingApiKey>()(
   "MissingApiKey",
   {}
 ) {}
 
-class PriceMismatch extends Schema.TaggedErrorClass<PriceMismatch>()(
+class PriceMismatch extends Schema.TaggedError<PriceMismatch>()(
   "PriceMismatch",
   {
     tier: Schema.Literals(PLAN_ORDER),
@@ -30,7 +30,7 @@ class PriceMismatch extends Schema.TaggedErrorClass<PriceMismatch>()(
   }
 ) {}
 
-class PricingDrift extends Schema.TaggedErrorClass<PricingDrift>()(
+class PricingDrift extends Schema.TaggedError<PricingDrift>()(
   "PricingDrift",
   {}
 ) {}
@@ -90,7 +90,7 @@ const ConfigLive = ConfigProvider.layer(
 
 const checkPrice = (stripe: StripeSdk, check: Check) =>
   Effect.gen(function* () {
-    const priceId = yield* Config.string(check.envKey).pipe(
+    const priceId = yield* Config.String(check.envKey).pipe(
       Effect.catchTag("ConfigError", () => Effect.succeed(""))
     );
     if (priceId === "") {
@@ -132,7 +132,7 @@ const checkPrice = (stripe: StripeSdk, check: Check) =>
   });
 
 const program = Effect.gen(function* () {
-  const apiKey = yield* Config.redacted("STRIPE_API_KEY").pipe(
+  const apiKey = yield* Config.Redacted("STRIPE_API_KEY").pipe(
     Effect.catchTag("ConfigError", () =>
       Effect.gen(function* () {
         yield* Console.error(

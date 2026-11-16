@@ -9,7 +9,7 @@ import {
 import { OrgId, UserId } from "../../db/branded";
 import type { Env } from "../../shared";
 
-export class InvalidBodyError extends Schema.TaggedErrorClass<InvalidBodyError>()(
+export class InvalidBodyError extends Schema.TaggedError<InvalidBodyError>()(
   "InvalidBodyError",
   { cause: Schema.Defect() }
 ) {}
