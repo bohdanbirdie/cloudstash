@@ -43,10 +43,14 @@ submodule SHA for types, WASM, exceptions, and `LIVESTORE_PUBLISHED=1` A/B mode.
 Submodule and snapshot move atomically. The rationale is recorded in
 [decision 0001](./.decisions/0001-vendor-upstream-livestore-source.md).
 
-The current pin is snapshot `e2a52cf14883bb032fd52a62b698a1dad04457ec`,
-paired with the Effect `4.0.3` cohort in both the web app and extension.
+The current pin is snapshot `4bedac6261d75bf3bde1ada2bdf5bdc21e850bea`,
+paired with the Effect `4.1.4` cohort in both the web app and extension.
 Snapshot upgrades select a fully published package cohort, not a partially
 published upstream revision or a newer Effect version outside that cohort.
+The general seven-day release-age gate remains enabled. The exact-pinned
+Effect cohort and matching LiveStore package closure are excluded in
+`bunfig.toml` so an intentional snapshot upgrade can install freshly published
+packages; unrelated dependencies remain subject to the age gate.
 This upgrade crosses LiveStore's switch from Effect AST hashes to canonical
 state fingerprints. The first open rebuilds materialized state once from the
 retained event log, including server-side clients in Durable Objects; deployment

@@ -6,13 +6,15 @@ Status: accepted
 
 The requested dependency upgrade crosses Effect's beta-to-stable API changes
 and LiveStore's state-fingerprint and internal binary RPC changes. Upstream
-PR 1727 is merged but its snapshot publication is incomplete. The maintainer
-chose the last available snapshot instead of repairing upstream publishing.
+PR 1727 initially merged with an incomplete snapshot publication, so the
+maintainer first chose the last available snapshot. After upstream PR 1728
+repaired publication and the full cohort became available, the maintainer
+requested the newer snapshot and matching Effect version in the same PR.
 
 ## Evidence and Argument
 
 - [The dependency manifest](../../../package.json) and matching submodule pin
-  select snapshot `e2a52cf14883bb032fd52a62b698a1dad04457ec` with Effect `4.0.3`,
+  select snapshot `4bedac6261d75bf3bde1ada2bdf5bdc21e850bea` with Effect `4.1.4`,
   matching the published LiveStore peer-dependency cohort.
 - [Upstream release notes](../../../vendor/livestore/CHANGELOG.md) document
   the intentional one-time state rebuild after adopting canonical fingerprints.
@@ -35,7 +37,7 @@ chose the last available snapshot instead of repairing upstream publishing.
 ## Decision
 
 Pin all LiveStore packages and vendored source to the fully published snapshot,
-and pin the shared Effect cohort to `4.0.3` in the application and extension.
+and pin the shared Effect cohort to `4.1.4` in the application and extension.
 Preserve application event contracts and MCP validation behavior while adapting
 to stable APIs. Call out the one-time rebuild and row-write cost for deployment
 review; this dependency change does not authorize a production deployment.
