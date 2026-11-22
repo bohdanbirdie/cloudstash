@@ -39,7 +39,9 @@ export type AppRole = keyof typeof roles;
 export const DEFAULT_ROLE = "user" satisfies AppRole;
 
 export type Permission = {
-  [Resource in keyof typeof statement]?: readonly (typeof statement)[Resource][number][];
+  [
+    Resource in keyof typeof statement
+  ]?: readonly (typeof statement)[Resource][number][];
 };
 
 export const PERMISSIONS = {

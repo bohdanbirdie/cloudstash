@@ -44,7 +44,7 @@ vendored fork source. No more "dev uses the clone, prod ships the snapshot" gap.
 - **On by default.** `tools/livestore-local.ts` aliases every `@livestore/*`
   import to the submodule source for `vp dev`, `vp build`, `test:unit`, and
   `test:e2e` — **no env var**. Off-switch: `LIVESTORE_PUBLISHED=1` (or `bun run
-dev:published`) forces the published snapshot (A/B "is the bug mine or
+  dev:published`) forces the published snapshot (A/B "is the bug mine or
   livestore's?"). Scratch experiments: `git checkout` a branch inside
   `vendor/livestore` — the alias reads that working tree.
 - **Published pin retained:** every `@livestore/*` in `package.json` stays at

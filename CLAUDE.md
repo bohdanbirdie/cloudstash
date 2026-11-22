@@ -112,7 +112,7 @@ cloudstash uses the **published upstream snapshot** of LiveStore: every `@livest
 
 **IMPORTANT:** Always consult effect-solutions before writing Effect code.
 
-**Caveat:** the app is on effect **v4** (`4.0.0-beta.99`) and some effect-solutions guides predate it — cross-check any pattern against the v4 API before using it (`local/readonly-llm-lookup/effect` is a v4-era reference; the migration's binding idiom decisions live in `docs/todos/effect-v4-migration-progress.md`).
+**Caveat:** the app is on effect **v4** and some effect-solutions guides predate it — cross-check any pattern against the v4 API before using it (`local/readonly-llm-lookup/effect` is a v4-era reference; the migration's binding idiom decisions live in `docs/todos/effect-v4-migration-progress.md`).
 
 1. Run `effect-solutions list` to see available guides
 2. Run `effect-solutions show <topic>...` for relevant patterns (supports multiple topics)

@@ -34,7 +34,12 @@ if (!existsSync(workerBundlePath)) {
   process.exit(1);
 }
 
-const worker = readFileSync(workerBundlePath, "utf8");
+const workerDir = path.dirname(workerBundlePath);
+const worker = readdirSync(workerDir, { recursive: true })
+  .map(String)
+  .filter((file) => file.endsWith(".js"))
+  .map((file) => readFileSync(path.join(workerDir, file), "utf8"))
+  .join("\n");
 check(
   "no effect v3 in worker bundle",
   countOccurrences(worker, "3.21.2") === 0,

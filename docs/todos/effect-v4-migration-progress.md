@@ -63,7 +63,7 @@ unit 1292/1292, e2e 52/3-skip).
    verification held only for UNCHANGED package.json entries — E1's five
    new `apps/extension` `@livestore/*` pins re-resolve on a cold cache,
    so the first E2 CI run failed all three checks at `bun install
---frozen-lockfile` (locally masked by the warm bun cache; reproduced
+   --frozen-lockfile` (locally masked by the warm bun cache; reproduced
    with `BUN_INSTALL_CACHE_DIR=<fresh>`). Fixed as decision #1 always
    anticipated: `minimumReleaseAgeExcludes` in `bunfig.toml` listing the
    8 first-party `@livestore/*` pins (same SHA as the vendored
@@ -338,7 +338,7 @@ cliffs removed — see the 2026-08-10 Decisions + Found issues).
      `.gitmodules` url → livestorejs, branch → main; `git submodule sync` run.
    - Vendor install: pnpm **11.8.0** (local pnpm resolves upstream's
      `packageManager` pin), `pnpm install --frozen-lockfile --store-dir
-~/.pnpm-store-cloudstash-vendor`. First run aborted purging the fork-era
+     ~/.pnpm-store-cloudstash-vendor`. First run aborted purging the fork-era
      node_modules (`ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`); clean success
      with `CI=true` (pnpm's documented remedy): 2600 packages, 11.7s, lockfile
      passes supply-chain policies. Engine warnings only (examples want node
@@ -400,7 +400,7 @@ cliffs removed — see the 2026-08-10 Decisions + Found issues).
      `missingEffectContext` + 2 `missingLayerContext` errors; 118
      `outdatedApi` + 14 other warnings. See Found issues.
    - TODO markers (`/* TODO(effect-v4-codemod): manual migration required for
-<rule-id> */`): **22 across 13 files** — rule-ids:
+     <rule-id> */`): **22 across 13 files** — rule-ids:
      `schema-optionalWith-manual` ×14, `effect-service-manual` ×5,
      `schema-transform-manual` ×3. Files: telegram/errors.ts (5),
      metadata/errors.ts (3), link-processor/errors.ts (3), queue-handler.ts
@@ -499,8 +499,8 @@ cliffs removed — see the 2026-08-10 Decisions + Found issues).
      `Schema.Defect()`; `Schema.Literal(...arr)` → `Schema.Literals(arr)`;
      16 error classes across 8 cluster files migrated (RG-corrected count). (4) Effect.Service
      pattern set: hoisted `const make` + `Context.Service<Self,
-Effect.Success<typeof make>>` + `static readonly Default =
-Layer.effect(Self, make)` — preserves the `.Default` contract so the 4
+     Effect.Success<typeof make>>` + `static readonly Default =
+     Layer.effect(Self, make)` — preserves the `.Default` contract so the 4
      consuming files (3 in other clusters) need zero changes; settings +
      billing migrated, markers removed; activity-stats/repo NOT blocking C2,
      left for C6. (5) `Schema.brand` ×17: **no change needed** — beta.99
@@ -530,7 +530,7 @@ Layer.effect(Self, make)` — preserves the `.Default` contract so the 4
      (`DeletionRuntimeError`) poison `auth/index.ts:247` (the 5th residual).
      Both are mechanical `TaggedErrorClass` renames of the pattern set here —
      land them with C6 (or as a 2-file pre-C6 unblock). RG note: `connect/
-errors.ts:21,38` additionally need `Schema.Defect` → `Schema.Defect()`.
+     errors.ts:21,38` additionally need `Schema.Defect` → `Schema.Defect()`.
      **Resolved: landed as the C8a boundary pre-fix (step 5), C2 at true
      zero.**
      **RG-cluster verdict (2026-08-09, fable): ACCEPT, zero blockers.** Both
@@ -550,7 +550,7 @@ errors.ts:21,38` additionally need `Schema.Defect` → `Schema.Defect()`.
        **Executed (2026-08-09):**
    - **Boundary pre-fix rode this unit (C2 → true zero):** `connect/errors.ts`
      (6 classes → `TaggedErrorClass`, `Defect()` ×2), `account-deletion/
-prepare.ts`, `account-deletion/runtime.ts` (+ its `Defect()` at :31, same
+     prepare.ts`, `account-deletion/runtime.ts` (+ its `Defect()` at :31, same
      mechanical pattern). `check:effect` 272→260 on the pre-fix alone; zero
      diagnostics anchored in any C2 or boundary file afterward.
    - **Harness core:** `@effect/vitest@4.0.0-beta.99` source read end-to-end —
@@ -569,8 +569,8 @@ prepare.ts`, `account-deletion/runtime.ts` (+ its `Defect()` at :31, same
      `Result.isFailure/isSuccess`, `.left/.right`→`.failure/.success` (99
      accessor sites, all verified Either-typed before the rewrite),
      `Logger.withMinimumLogLevel(LogLevel.X)`→`provideService(References.
-MinimumLogLevel, "X")` (11 files, levels preserved), `Effect.
-makeSemaphore`→`Semaphore.make` ×8 + `unsafeMakeSemaphore`→
+     MinimumLogLevel, "X")` (11 files, levels preserved), `Effect.
+     makeSemaphore`→`Semaphore.make` ×8 + `unsafeMakeSemaphore`→
      `Semaphore.makeUnsafe` ×2, `Effect.yieldNow()`→`Effect.yieldNow` ×1.
      Exhaustive token audit: all 58 distinct `Module.member` tokens used
      across test files exist in beta.99. Zero assertion values, mock
@@ -658,7 +658,7 @@ makeSemaphore`→`Semaphore.make` ×8 + `unsafeMakeSemaphore`→
      TEXT; plus a field-by-field decode of the first prod `v2.LinkCreated`.
    - **Mechanical rest:** `Schema.transform` ×2 →
      `from.pipe(Schema.decodeTo(to, SchemaTransformation.transform({decode,
-encode})))` (queries/schemas.ts `linkByIdSchema`, queries/links.ts
+     encode})))` (queries/schemas.ts `linkByIdSchema`, queries/links.ts
      `archiveCountSchema` — the latter also absorbs the removed
      `Schema.headOrElse` as `rows[0]?.count ?? 0`; semantics probe-verified).
      top-bar.tsx `Schema.URL` → `Schema.URLFromString` (v4 `Schema.URL` =
@@ -686,7 +686,7 @@ encode})))` (queries/schemas.ts `linkByIdSchema`, queries/links.ts
      `3242c4e`, see Found issues.
      **Executed C5+C4 (2026-08-09, combined unit):**
    - **Scope:** `sync/{errors,index,validate-payload,record-activity,
-auth-payload,activity}.ts` + `link-processor/**` + `metadata/**` +
+     auth-payload,activity}.ts` + `link-processor/**` + `metadata/**` +
      colocated tests. 11 files changed (+133/−127); tests needed ZERO edits
      (C8a had already migrated their API forms).
    - **Adapter-API drift (fork `36dd15dac` → upstream `2e4bcfc68`), the
@@ -700,7 +700,7 @@ auth-payload,activity}.ts` + `link-processor/**` + `metadata/**` +
      hibernation-woken) client DO can reload its store BEFORE delivery.
      Migrated `LinkProcessorDO.syncUpdateRpc` to the upstream-documented
      minimal pattern (vendor example `cloudflare-todomvc/src/
-live-store-client-do.ts`): set `this.storeId` from the RPC arg, always
+     live-store-client-do.ts`): set `this.storeId` from the RPC arg, always
      `ensureSubscribed()`, then `handleSyncUpdateRpc(this.ctx, payload)`.
      **New-behavior wiring, not a rename:** the old code read the persisted
      `storeId` from DO storage and SKIPPED store wake when absent; the
@@ -806,14 +806,14 @@ live-store-client-do.ts`): set `this.storeId` from the RPC arg, always
      TODO markers now **1** (RG-corrected: `admin/activity-stats/repo.ts:10`, a C6 file — the residual-sweep step keys off this count).
    - **Mechanical:** `Effect.gen(this,…)` → `gen({self:this})` ×10 (x-sync
      DO ×6, chat-agent DO ×4); `Logger.replace(Logger.defaultLogger,
-XSyncLogger)` → `Logger.layer([XSyncLogger])` (C2/C4 pattern; x-sync
+     XSyncLogger)` → `Logger.layer([XSyncLogger])` (C2/C4 pattern; x-sync
      `baseLayer` per-call rebuild otherwise UNTOUCHED per the C2 parity
      decision); `Effect.zipRight` → `andThen` ×1 (telegram-key-store);
      `Effect.zipLeft(e)` → `Effect.tap(() => e)` ×2 in queue-handler — the
      retry()/ack() side-effect ordering + error propagation + return value
      all preserved (tap = run after success, discard result, propagate
      failure — v3 zipLeft-identical here); `Effect.timeoutFail({duration,
-onTimeout})` → `Effect.timeoutOrElse({duration, orElse})` with the
+     onTimeout})` → `Effect.timeoutOrElse({duration, orElse})` with the
      failing TaggedErrorClass instance as the orElse effect
      (thread-provider-noop — v3-identical: source interrupted, custom error
      failure); `Schema.Schema.Type<typeof X>` → `typeof X.Type` ×3
@@ -843,12 +843,12 @@ onTimeout})` → `Effect.timeoutOrElse({duration, orElse})` with the
      `Schema.TaggedError` in C6 files — `connect/services.ts` (kills
      connect ×3, raycast-connect, ingest-service, invites/
      create-invite-body, and C7's own colocated `telegram/__tests__/
-resolve-public-url.test.ts` via telegram/connect-prompt → connect/
+     resolve-public-url.test.ts` via telegram/connect-prompt → connect/
      telegram) and `account-deletion/workflow.ts:51` (kills its own
      suite). ② stripe-sync 9 reds: `Option.fromNullable`/`flatMapNullable`
      in billing/stripe-sync.ts (pre-categorized C6, unchanged). ③
      api-key-gate 6 + hooks 3 reds: v3 `new Billing({…})`/`new
-AppSettings({…})` stubs in the TEST files — under v4 the constructed
+     AppSettings({…})` stubs in the TEST files — under v4 the constructed
      instance carries no shape, methods are undefined; includes ONE
      assertion-looking failure (`Effect.exit smoke` expecting success)
      that is downstream of the same broken stub, NOT a v4 behavior change
@@ -899,13 +899,13 @@ AppSettings({…})` stubs in the TEST files — under v4 the constructed
      trigger-digest `catchTag("ParseError")` → `catchTag("SchemaError")`
      (v4 decode failure tag — the stale tag compiled as dead code, decode
      failures would have skipped the 502 mapping); `Effect.Effect.Success/
-Error` → `Effect.Success/Error` (ingest + invites services);
+     Error` → `Effect.Success/Error` (ingest + invites services);
      `Schema.Schema<A, I>` → `Schema.Codec<A, I>` (decodeBody ×2 in
      workspaces + billing/routes/shared — v4 `Schema` takes 1 type param).
    - **Test stubs:** v3 `new Billing({…})`/`new AppSettings({…})` →
      `.of()` in 5 files (api-key-gate, hooks, connect/telegram.test,
      connect/x.test, raycast-connect) — the api-key-gate `Effect.exit
-smoke` pseudo-assertion failure resolved with the stub as predicted.
+     smoke` pseudo-assertion failure resolved with the stub as predicted.
    - **Nothing-needed findings:** `connect/x.ts`, `connect/telegram.ts`
      (beyond filterMap), `index.ts` worker entry, ingest/service +
      invites/service handler bodies, billing routes — all already v4-clean
@@ -999,8 +999,8 @@ smoke` pseudo-assertion failure resolved with the stub as predicted.
      Decisions entries. Receipts: `bun run build` → all 5 asserts pass,
      `quoted "vendored@2e4bcfc68" x1`, prerender OK after.
      `LIVESTORE_PUBLISHED=1 vp build` + `LIVESTORE_PUBLISHED=1 bun
-scripts/verify-bundle.ts` (the closest published invocation — `bun run
-build` also works with the env since every chained script inherits it)
+     scripts/verify-bundle.ts` (the closest published invocation — `bun run
+     build` also works with the env since every chained script inherits it)
      → marker flips to `quoted "published" x1`, `vendored@` x0, all asserts
      pass — validating the marker itself in both directions.
    - [[architecture/livestore-fork-integration]] truth-up (surgical):
@@ -1355,10 +1355,10 @@ effect 3.21.2, `@effect/rpc` patch restored) redeploys the fork build.
   passes through unchanged, so mock semantics are untouched. Applied in 5
   test sites (process-link ×3 via one replace, process-link-concurrency,
   enricher, runner ×2, billing.test ×1); the remaining v3 `new Billing`/`new
-AppSettings` sites live in C6/C8-boundary test files (see Found issues).
+  AppSettings` sites live in C6/C8-boundary test files (see Found issues).
 - 2026-08-09 — **C7 mechanical patterns:** `Effect.timeoutFail({duration,
-onTimeout: () => err})` → `Effect.timeoutOrElse({duration, orElse: () =>
-err})` (TaggedErrorClass instances are yieldable failing Effects, so the
+  onTimeout: () => err})` → `Effect.timeoutOrElse({duration, orElse: () =>
+  err})` (TaggedErrorClass instances are yieldable failing Effects, so the
   orElse form fails with the same error; source still interrupted on
   timeout); `Effect.zipLeft(e)` → `Effect.tap(() => e)` (run-after-success +
   discard-result + propagate-failure, v3-identical; v4 tap takes function
@@ -1372,7 +1372,7 @@ err})` (TaggedErrorClass instances are yieldable failing Effects, so the
   invisible to check:effect, only running code catches it.
 - 2026-08-09 — **C6 CF Workflows bridge (Hotspot 6):** `Effect.runtime<R>()`
   - `Runtime.runPromise(rt)(body)` → `const services = yield*
-Effect.context<R>()` + `Effect.runPromiseWith(services)(body)`. Beta.99
+    Effect.context<R>()` + `Effect.runPromiseWith(services)(body)`. Beta.99
     removed the v3 `Runtime` value runtime (the v4 `Runtime` module is runMain
     plumbing); `runPromiseWith(context)` is the interop that carries captured
     services, and it is the vendored source's own bridge idiom
@@ -1442,7 +1442,7 @@ _(running list — every surprise found during migration gets a line here)_
   - tags fine, post-hibernation cold-DO recovery worked, one
     ServerAheadError rebase recovered per protocol. Three observations:
   1. **1k+ `Schema hash mismatch for event definition
-v1.LinkProcessingFailed` WARNs at first boot.** Mechanism
+     v1.LinkProcessingFailed` WARNs at first boot.** Mechanism
      (source-verified): eventlog rows are stamped at commit time with
      `Schema.hash(eventDef.schema)` (`materialize-event.ts`); effect v4's
      `Schema.hash` differs from v3's, and the v4 table-schema hashes also
@@ -1518,7 +1518,7 @@ v1.LinkProcessingFailed` WARNs at first boot.** Mechanism
   `tapErrorCause` (7), the effect-only `Effect.Service` shape (5, warned as
   `effect-service-manual`), `zipRight`/`zipLeft` (5), `timeoutFail` (1),
   `Effect.runtime` (1). Its pattern matrix covers `Schema.decode*Either →
-decode*Result` only — plain `Either.*`→`Result.*` (109 hits, C8) is NOT
+  decode*Result` only — plain `Either.*`→`Result.*` (109 hits, C8) is NOT
   covered; stays hand-work.
 - 2026-08-09 (C8a) — **matrix row 1 reproduced in unit tests before the C3
   sweep exists:** every store-backed test (68 tests / 11 files) fails with
@@ -1549,7 +1549,7 @@ decode*Result` only — plain `Either.*`→`Result.*` (109 hits, C8) is NOT
   suites.
 - 2026-08-09 (C8a) — vitest dedupes identical module-eval errors across
   suites: 19 import-dead suites printed ONE shared `Schema.TaggedError is not
-a function` block whose stack goes through `telegram/services.ts` (first
+  a function` block whose stack goes through `telegram/services.ts` (first
   v3 module evaluated) — per-suite blocker attribution needs the module
   graph, not the error text.
 - 2026-08-09 (stage 2) — codemod CLI's `--dry-run` prints counts only (no
@@ -1580,7 +1580,7 @@ a function` block whose stack goes through `telegram/services.ts` (first
   mentions surviving in Effect.ts are stale doc comments only),
   `Effect.tapCause` same cause-callback shape as v3 `tapErrorCause`,
   `forkChild` options `{ startImmediately?: boolean; uninterruptible?:
-boolean | "inherit" }` — exactly the literals vendor `c5e06a96a` uses.
+  boolean | "inherit" }` — exactly the literals vendor `c5e06a96a` uses.
 - 2026-08-09 (RG review of the corrections unit) — the restored `storeId!` at
   `link-processor/durable-object.ts:420` trips oxlint
   `no-unnecessary-type-assertion` (a TRANSIENT: `this` inside
@@ -1641,7 +1641,7 @@ boolean | "inherit" }` — exactly the literals vendor `c5e06a96a` uses.
   global otel provider, which stays unregistered (exporter still disabled).
   When re-enabling OTLP later, the split `layerTracer`/`layerGlobalProvider`
   (or vendor's `OtelLiveDummy` style: `Layer.succeed(OtelTracer.OtelTracer,
-tracer)` + `layerWithoutOtelTracer`) is the v4-native seam.
+  tracer)` + `layerWithoutOtelTracer`) is the v4-native seam.
 - 2026-08-09 (C2, repo pattern) — **WeakMap layer caches (`appLayerCache`,
   `billingLayerCache`): KEEP, reclassified harmless.** Source-verified in BOTH
   versions: v3 3.21.2 `provideSomeLayer` → `buildWithScope` → fresh

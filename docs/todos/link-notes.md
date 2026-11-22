@@ -81,7 +81,7 @@ before `<DetailSummary>`).
   `id/url/title/description`) and `searchLinks`.
 - **New write tool `addNote`** (mirror `saveLink`): zod schema `{ linkId, note }`, resolve the
   store, validate the link exists, `store.commit(events.linkNoteSet({ linkId, note,
-updatedAt: new Date() }))`, re-query to handle races, return success/failure. Agent writes
+  updatedAt: new Date() }))`, re-query to handle races, return success/failure. Agent writes
   markdown directly.
 
 ## Surface area
