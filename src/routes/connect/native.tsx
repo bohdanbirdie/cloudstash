@@ -1,14 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CheckIcon, Loader2Icon, TriangleAlertIcon } from "lucide-react";
+import {
+  ArrowUpRightIcon,
+  CheckIcon,
+  Loader2Icon,
+  TriangleAlertIcon,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { authClient, loadAuth } from "@/lib/auth";
-import {
-  isAllowedNativeRedirectUri,
-  isNativeCodeChallenge,
-} from "@/lib/native-redirect";
+import type { AuthState } from "@/lib/auth";
+import { isNativeSignInToken, nativeSignInLink } from "@/lib/native-sign-in";
 import { cn } from "@/lib/utils";
 import { AuthSplitCard, LoginSurface } from "@/routes/login";
 
@@ -62,10 +66,12 @@ function StatusCard({
       >
         <Icon
           aria-hidden="true"
-          className={cn("size-5", { "animate-spin": tone === "progress" })}
+          className={cn("size-5", {
+            "motion-safe:animate-spin": tone === "progress",
+          })}
         />
       </div>
-      <header className="mt-5 text-start" aria-live="polite">
+      <header className="mt-5 text-start" role="status">
         <h1 className="text-xl font-semibold tracking-tight text-balance">
           {title}
         </h1>
@@ -74,110 +80,93 @@ function StatusCard({
         </p>
       </header>
       {detail}
-      {action && <div className="mt-6">{action}</div>}
+      {action && <div className="mt-6 grid gap-2">{action}</div>}
     </AuthSplitCard>
   );
 }
 
-function AccountChip({ email, name }: { email: string; name: string | null }) {
+function AccountChip({ auth }: { auth: AuthState }) {
+  const label = auth.name ?? auth.email;
   return (
     <div className="mt-5 flex items-center gap-3 rounded-md bg-muted/50 px-3 py-2.5 ring-1 ring-foreground/10">
-      <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground uppercase">
-        {(name ?? email).slice(0, 1)}
-      </div>
+      <Avatar>
+        {auth.image && <AvatarImage alt="" src={auth.image} />}
+        <AvatarFallback>{label.slice(0, 1).toUpperCase()}</AvatarFallback>
+      </Avatar>
       <div className="min-w-0 text-start">
-        {name && <p className="truncate text-sm font-medium">{name}</p>}
-        <p className="truncate text-xs text-muted-foreground">{email}</p>
+        {auth.name && (
+          <p className="truncate text-sm font-medium" title={auth.name}>
+            {auth.name}
+          </p>
+        )}
+        <p
+          className="truncate text-xs text-muted-foreground"
+          title={auth.email}
+        >
+          {auth.email}
+        </p>
       </div>
     </div>
   );
 }
 
+type Handoff =
+  | { status: "preparing" }
+  | { status: "ready"; link: string }
+  | { status: "error"; message: string };
+
 function ConnectNativePage() {
   const auth = Route.useRouteContext({ select: (ctx) => ctx.auth });
-  const [status, setStatus] = useState<"idle" | "connecting" | "error">("idle");
-  const [error, setError] = useState<string | null>(null);
+  const [handoff, setHandoff] = useState<Handoff>({ status: "preparing" });
   const started = useRef(false);
 
   const searchParams = new URLSearchParams(window.location.search);
   const state = searchParams.get("state");
-  const redirectUri = searchParams.get("redirect_uri");
   const codeChallenge = searchParams.get("code_challenge");
   const request =
-    state &&
-    isAllowedNativeRedirectUri(redirectUri) &&
-    isNativeCodeChallenge(codeChallenge)
-      ? { codeChallenge, redirectUri, state }
+    isNativeSignInToken(state) && isNativeSignInToken(codeChallenge)
+      ? { codeChallenge, state }
       : null;
 
-  const connect = async () => {
+  const prepare = async () => {
     if (!request) return;
-    setStatus("connecting");
-    setError(null);
+    setHandoff({ status: "preparing" });
     try {
       const response = await fetch("/api/connect/native", {
         body: JSON.stringify({ codeChallenge: request.codeChallenge }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
-      if (!response.ok) {
-        const data: { error?: string } = await response.json();
-        throw new Error(data.error || "Sign-in failed");
+      const data: { code?: string; error?: string } = await response.json();
+      if (!response.ok || !data.code) {
+        throw new Error(data.error ?? `HTTP ${response.status}`);
       }
-      const { code }: { code: string } = await response.json();
-      const callbackUrl = new URL(request.redirectUri);
-      callbackUrl.searchParams.set("code", code);
-      callbackUrl.searchParams.set("state", request.state);
-      // The app finishes sign-in and sends the browser back here to show the
-      // result.
-      window.location.href = callbackUrl.toString();
+      const link = nativeSignInLink(data.code, request.state);
+      setHandoff({ link, status: "ready" });
+      // Opening the app's link is what brings Cloudstash for Mac forward.
+      window.location.href = link;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-      setStatus("error");
+      setHandoff({
+        message: err instanceof Error ? err.message : String(err),
+        status: "error",
+      });
     }
   };
 
-  // A signed-in browser finishes the app's sign-in on its own, with no
-  // confirmation step.
   const ready = !!request && !!auth?.isAuthenticated;
 
   useEffect(() => {
     if (!ready || started.current) return;
     started.current = true;
-    void connect();
+    void prepare();
   });
-
-  if (searchParams.has("connected")) {
-    return (
-      <StatusCard
-        tone="success"
-        title="You're signed in"
-        body="Cloudstash for Mac has your library. You can close this tab and switch back to the app."
-        detail={
-          auth?.isAuthenticated && (
-            <AccountChip email={auth.email} name={auth.name} />
-          )
-        }
-      />
-    );
-  }
-
-  if (searchParams.has("failed")) {
-    return (
-      <StatusCard
-        tone="problem"
-        title="Sign-in didn't finish"
-        body="Cloudstash for Mac couldn't complete sign-in. Switch back to the app and click Sign in to try again."
-      />
-    );
-  }
 
   if (!request) {
     return (
       <StatusCard
         tone="problem"
-        title="Open this from the app"
-        body="This page signs in Cloudstash for Mac. Start from Sign in in the app."
+        title="Start from the app"
+        body="This page finishes signing in to Cloudstash for Mac. Open the app and choose Sign in."
       />
     );
   }
@@ -204,34 +193,60 @@ function ConnectNativePage() {
         tone="problem"
         title="Your account is awaiting approval"
         body="You can sign in to Cloudstash for Mac once your account is approved."
+        detail={<AccountChip auth={auth} />}
       />
     ) : (
       <StatusCard
         tone="problem"
         title="Your library isn't ready"
-        body="Sign out of Cloudstash on the web, sign in again, then retry from the app."
+        body="Sign out of Cloudstash on the web and sign in again, then choose Sign in in the app."
+        detail={<AccountChip auth={auth} />}
       />
     );
   }
 
-  return status === "error" ? (
+  if (handoff.status === "error") {
+    return (
+      <StatusCard
+        tone="problem"
+        title="Couldn't finish signing in"
+        body={`Cloudstash couldn't prepare the app's sign-in (${handoff.message}). Try again, or choose Sign in in the app to start over.`}
+        detail={<AccountChip auth={auth} />}
+        action={
+          <Button className="w-full" onClick={prepare} size="lg">
+            Try again
+          </Button>
+        }
+      />
+    );
+  }
+
+  if (handoff.status === "preparing") {
+    return (
+      <StatusCard
+        tone="progress"
+        title="Signing in to Cloudstash for Mac"
+        body="Preparing your sign-in. This takes a moment."
+        detail={<AccountChip auth={auth} />}
+      />
+    );
+  }
+
+  return (
     <StatusCard
-      tone="problem"
-      title="Sign-in didn't finish"
-      body={error ?? "Something went wrong."}
-      detail={<AccountChip email={auth.email} name={auth.name} />}
+      tone="success"
+      title="Opening Cloudstash for Mac"
+      body="If your browser asks, choose Open. The app signs you in, and you can close this tab."
+      detail={<AccountChip auth={auth} />}
       action={
-        <Button className="w-full" onClick={connect}>
-          Try again
-        </Button>
+        <a
+          className={buttonVariants({ className: "w-full", size: "lg" })}
+          href={handoff.link}
+        >
+          Open Cloudstash for Mac
+          <ArrowUpRightIcon aria-hidden="true" data-icon="inline-end" />
+        </a>
       }
-    />
-  ) : (
-    <StatusCard
-      tone="progress"
-      title="Signing in to Cloudstash for Mac"
-      body="Handing your session to the app. This takes a moment."
-      detail={<AccountChip email={auth.email} name={auth.name} />}
     />
   );
 }

@@ -9,27 +9,34 @@ So far it does one thing: sign in through the browser and show who is signed in.
 
 ```sh
 cd apps/native
-cargo run                                         # against https://cloudstash.dev
-CLOUDSTASH_URL=http://127.0.0.1:3000 cargo run    # against a local dev server
-cargo test                                        # the sign-in flow against a stand-in server
+scripts/run.sh                                        # against https://cloudstash.dev
+CLOUDSTASH_URL=http://127.0.0.1:3000 scripts/run.sh   # against a local dev server
+cargo test                                            # the sign-in flow against a stand-in server
 ```
 
-Build output stays in `apps/native/target/` (gitignored). Use the dev profile only, so there is
-one set of artifacts; `cargo clean` removes it.
+`scripts/run.sh` builds the app, wraps it in `target/Cloudstash.app`, registers the
+`cloudstash://` scheme with Launch Services, and opens it. A bare `cargo run` works for the UI
+but can't receive the sign-in link. Every build output stays in `apps/native/target/`
+(gitignored); `cargo clean` removes it, bundle included.
 
 ## How sign-in works
 
-The app pairs the same way the Raycast and Chrome extensions do: the signed-in web app mints an
-API key for it.
+The usual desktop pattern: the browser signs in, then hands the app a one-time code through a
+deep link.
 
-1. The app listens on `http://127.0.0.1:53127/callback` and opens `/connect/native` in the
-   system browser with a random `state` and a PKCE challenge.
-2. The page signs the person in with Google if needed, then asks the server for a one-time code
-   bound to the challenge and sends the browser to the loopback address with it.
-3. The app exchanges the code and its PKCE verifier at `/api/connect/native/exchange` for an API
-   key, and sends the browser back to `/connect/native` to show the result.
-4. The key goes into the system keychain (service `dev.cloudstash.native`). On the next launch
-   the app checks it against `/api/connect/native/account`. Signing out revokes it.
+1. The app saves a random `state` and a PKCE verifier to
+   `~/Library/Application Support/dev.cloudstash.native/pending-sign-in.json` (mode `0600`) and
+   opens `/connect/native?state=…&code_challenge=…` in the default browser.
+2. The page shows the normal Google sign-in if the browser has no session. Once signed in, it asks
+   `POST /api/connect/native` for a one-time code bound to the challenge and opens
+   `cloudstash://auth/callback?code=…&state=…`.
+3. macOS brings the app forward, or launches it. The app accepts the link only for the sign-in it
+   started (matching `state`, under ten minutes old, used once) and redeems the code with its
+   verifier at `POST /api/connect/native/exchange` for its own API key.
+4. The key goes into the system keychain (service `dev.cloudstash.native`). On launch the app
+   checks it against `GET /api/connect/native/account`. Signing out revokes it.
+
+Only one build can own `cloudstash://` at a time: the most recently registered bundle wins.
 
 ## Headless snapshots
 

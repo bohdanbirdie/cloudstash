@@ -1,11 +1,12 @@
-//! Sign-in through the browser. The app opens Cloudstash's `/connect/native` page with a
-//! PKCE challenge, the signed-in page sends a one-time code to a loopback listener (RFC 8252),
-//! and the app exchanges the code and its verifier for its own API key, kept in the keychain.
+//! Sign-in through the browser with a `cloudstash://` deep link, the usual desktop pattern.
+//!
+//! The app opens Cloudstash's `/connect/native` page with a random `state` and a PKCE challenge,
+//! and remembers both in a pending file so a link can complete sign-in even after a relaunch.
+//! The signed-in page opens `cloudstash://auth/callback?code=…&state=…`, macOS hands the link to the
+//! app, and the app exchanges the code and its verifier for its own API key, kept in the keychain.
 
-use std::io::{BufRead, BufReader, Write};
-use std::net::{TcpListener, TcpStream};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, Instant};
+use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -14,8 +15,9 @@ use sha2::{Digest, Sha256};
 use url::Url;
 
 pub const DEFAULT_BASE: &str = "https://cloudstash.dev";
-pub const DEFAULT_PORT: u16 = 53127;
-const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(300);
+pub const SCHEME: &str = "cloudstash";
+/// A pending sign-in older than this is ignored, matching the page's patience.
+const PENDING_TTL_SECS: u64 = 10 * 60;
 const KEYCHAIN_SERVICE: &str = "dev.cloudstash.native";
 
 struct HttpError {
@@ -94,24 +96,39 @@ pub struct Account {
     pub library_id: String,
 }
 
+/// What a deep link means for this app.
+#[derive(Debug, PartialEq)]
+pub enum Link {
+    /// The sign-in this app started: exchange the code.
+    SignIn { code: String, verifier: String },
+    /// Not ours, stale, or already used: ignore it.
+    Ignored,
+}
+
 pub struct Auth {
     /// Origin of the Cloudstash deployment, without a trailing slash.
     pub base: String,
-    pub port: u16,
+    /// Holds the pending sign-in between opening the browser and receiving the link.
+    pub state_dir: PathBuf,
     pub store: Box<dyn KeyStore>,
 }
 
 impl Auth {
-    pub fn from_env() -> Auth {
+    pub fn from_env() -> Result<Auth, String> {
         let base = std::env::var("CLOUDSTASH_URL").unwrap_or_else(|_| DEFAULT_BASE.to_owned());
         let base = base.trim_end_matches('/').to_owned();
-        Auth {
+        let home = std::env::var("HOME").map_err(|_| "HOME is not set".to_owned())?;
+        Ok(Auth {
             store: Box::new(Keychain {
                 account: base.clone(),
             }),
             base,
-            port: DEFAULT_PORT,
-        }
+            state_dir: PathBuf::from(home).join("Library/Application Support/dev.cloudstash.native"),
+        })
+    }
+
+    fn pending_file(&self) -> PathBuf {
+        self.state_dir.join("pending-sign-in.json")
     }
 
     fn account(&self, api_key: &str) -> Result<Account, HttpError> {
@@ -135,35 +152,65 @@ impl Auth {
         }
     }
 
-    /// Runs the browser sign-in. `open` receives the page to show; `cancel` stops the wait.
-    pub fn sign_in(&self, open: impl FnOnce(&str), cancel: &AtomicBool) -> Result<Account, String> {
-        // Bind before opening the browser so the redirect always has somewhere to land.
-        let listener = TcpListener::bind(("127.0.0.1", self.port)).map_err(|e| {
-            format!("cannot listen on 127.0.0.1:{} for the sign-in redirect: {e}", self.port)
-        })?;
+    /// Starts a sign-in: remembers a fresh state and verifier and returns the page to open.
+    pub fn begin_sign_in(&self) -> Result<String, String> {
         let verifier = random_token()?;
         let state = random_token()?;
         let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
-        let redirect_uri = format!("http://127.0.0.1:{}/callback", self.port);
+        write_private(
+            &self.pending_file(),
+            &json!({ "state": state, "verifier": verifier, "created": now() }).to_string(),
+        )?;
         let page = Url::parse_with_params(
             &format!("{}/connect/native", self.base),
-            [
-                ("state", state.as_str()),
-                ("redirect_uri", redirect_uri.as_str()),
-                ("code_challenge", challenge.as_str()),
-            ],
+            [("state", state.as_str()), ("code_challenge", challenge.as_str())],
         )
         .map_err(|e| e.to_string())?;
-        open(page.as_str());
-        let (browser, code) = wait_for_code(&listener, &state, cancel)?;
-        let result = self.exchange(&code, &verifier);
-        // The browser waits on the loopback request, so it lands on the page for the real outcome.
-        let outcome = if result.is_ok() { "connected" } else { "failed" };
-        redirect(&browser, &format!("{}/connect/native?{outcome}=1", self.base));
-        result
+        Ok(page.into())
     }
 
-    fn exchange(&self, code: &str, verifier: &str) -> Result<Account, String> {
+    /// Forgets a sign-in in progress, so its link is ignored if it still arrives.
+    pub fn cancel_sign_in(&self) {
+        let _ = std::fs::remove_file(self.pending_file());
+    }
+
+    /// Matches a deep link against the pending sign-in, consuming it when it matches.
+    pub fn accept_link(&self, link: &str) -> Link {
+        let Ok(url) = Url::parse(link) else {
+            return Link::Ignored;
+        };
+        if url.scheme() != SCHEME || url.host_str() != Some("auth") || url.path() != "/callback" {
+            return Link::Ignored;
+        }
+        let param = |name: &str| {
+            url.query_pairs()
+                .find(|(key, _)| key == name)
+                .map(|(_, value)| value.into_owned())
+        };
+        let pending = std::fs::read_to_string(self.pending_file())
+            .ok()
+            .and_then(|text| serde_json::from_str::<Value>(&text).ok());
+        let Some(pending) = pending else {
+            return Link::Ignored;
+        };
+        let fresh = pending["created"]
+            .as_u64()
+            .is_some_and(|created| now().saturating_sub(created) < PENDING_TTL_SECS);
+        let (Some(state), Some(verifier), Some(code)) =
+            (pending["state"].as_str(), pending["verifier"].as_str(), param("code"))
+        else {
+            return Link::Ignored;
+        };
+        if !fresh || param("state").as_deref() != Some(state) {
+            return Link::Ignored;
+        }
+        let verifier = verifier.to_owned();
+        self.cancel_sign_in();
+        Link::SignIn { code, verifier }
+    }
+
+    /// Exchanges a code from the deep link for this app's key.
+    pub fn complete_sign_in(&self, code: &str, verifier: &str) -> Result<Account, String> {
         let url = format!("{}/api/connect/native/exchange", self.base);
         let body = http_json(ureq::post(&url).send_json(json!({
             "code": code,
@@ -211,11 +258,17 @@ impl Auth {
         .map(|_| ())
         .map_err(|e| {
             format!(
-                "Signed out on this Mac, but the server did not revoke the session: {}",
+                "Signed out on this Mac, but Cloudstash didn't revoke the session: {}",
                 e.message
             )
         })
     }
+}
+
+fn now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
 }
 
 fn random_token() -> Result<String, String> {
@@ -224,77 +277,31 @@ fn random_token() -> Result<String, String> {
     Ok(URL_SAFE_NO_PAD.encode(bytes))
 }
 
+/// Writes a file only this user can read: it holds the PKCE verifier.
+fn write_private(path: &PathBuf, contents: &str) -> Result<(), String> {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(path)
+        .and_then(|mut file| file.write_all(contents.as_bytes()))
+        .map_err(|e| format!("cannot save the sign-in in progress: {e}"))
+}
+
 /// Names this Mac in the list of connected apps on the web.
 fn device_name() -> String {
-    std::process::Command::new("hostname")
+    std::process::Command::new("scutil")
+        .args(["--get", "ComputerName"])
         .output()
         .ok()
         .and_then(|output| String::from_utf8(output.stdout).ok())
-        .map(|name| name.trim().trim_end_matches(".local").to_owned())
+        .map(|name| name.trim().to_owned())
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| "Mac".to_owned())
-}
-
-/// Waits for the browser's redirect and returns its connection, still open, with the code.
-fn wait_for_code(
-    listener: &TcpListener,
-    state: &str,
-    cancel: &AtomicBool,
-) -> Result<(TcpStream, String), String> {
-    listener.set_nonblocking(true).map_err(|e| e.to_string())?;
-    let deadline = Instant::now() + SIGN_IN_TIMEOUT;
-    loop {
-        if cancel.load(Ordering::Relaxed) {
-            return Err("Sign-in cancelled.".to_owned());
-        }
-        if Instant::now() > deadline {
-            return Err("Sign-in timed out waiting for the browser.".to_owned());
-        }
-        match listener.accept() {
-            Ok((stream, _)) => {
-                if let Some(code) = read_code(&stream, state) {
-                    return Ok((stream, code));
-                }
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                std::thread::sleep(Duration::from_millis(100));
-            }
-            Err(e) => return Err(e.to_string()),
-        }
-    }
-}
-
-/// Reads one loopback request. Anything but this sign-in's redirect is answered and ignored.
-fn read_code(stream: &TcpStream, state: &str) -> Option<String> {
-    stream.set_nonblocking(false).ok()?;
-    stream.set_read_timeout(Some(Duration::from_secs(5))).ok()?;
-    let mut request_line = String::new();
-    BufReader::new(stream).read_line(&mut request_line).ok()?;
-    let target = request_line.split_whitespace().nth(1)?;
-    let url = Url::parse(&format!("http://127.0.0.1{target}")).ok()?;
-    let param = |name: &str| {
-        url.query_pairs()
-            .find(|(key, _)| key == name)
-            .map(|(_, value)| value.into_owned())
-    };
-    if url.path() == "/callback"
-        && param("state").as_deref() == Some(state)
-        && let Some(code) = param("code")
-    {
-        return Some(code);
-    }
-    respond(stream, "400 Bad Request", "", "This sign-in link is not valid.");
-    None
-}
-
-fn redirect(stream: &TcpStream, location: &str) {
-    respond(stream, "302 Found", &format!("Location: {location}\r\n"), "Returning to Cloudstash.");
-}
-
-fn respond(mut stream: &TcpStream, status: &str, headers: &str, message: &str) {
-    let _ = write!(
-        stream,
-        "HTTP/1.1 {status}\r\n{headers}Content-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{message}",
-        message.len()
-    );
 }

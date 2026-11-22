@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { Effect, Option, Schema } from "effect";
 
-import { isNativeCodeChallenge } from "@/lib/native-redirect";
+import { isNativeSignInToken } from "@/lib/native-sign-in";
 
 import { bearerApiKey } from "../auth/bearer-api-key";
 import { WorkspaceAccess } from "../auth/workspace-access";
@@ -56,8 +56,8 @@ const challengeOf = (codeVerifier: string) =>
   });
 
 // Cookie-authed mint: the signed-in web page calls this with the app's PKCE
-// challenge and hands the resulting one-time code to the app's loopback
-// listener. The key itself never passes through the browser.
+// challenge and hands the resulting one-time code to the app in a
+// cloudstash:// link. The key itself never passes through the browser.
 export const handleConnectRequest = Effect.fn(
   "NativeConnect.handleConnectRequest"
 )(function* (headers: Headers, body: typeof NativeConnectBody.Type) {
@@ -69,7 +69,7 @@ export const handleConnectRequest = Effect.fn(
     return yield* new NoActiveOrgError({ userId });
   }
   const codeChallenge = body.codeChallenge ?? null;
-  if (!isNativeCodeChallenge(codeChallenge)) {
+  if (!isNativeSignInToken(codeChallenge)) {
     return yield* new MissingCodeError();
   }
 

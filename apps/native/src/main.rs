@@ -1,18 +1,17 @@
 //! Cloudstash for Mac, prototype: sign in through the browser and show who is signed in.
 //!
 //! ```text
-//! cargo run                                         # against https://cloudstash.dev
-//! CLOUDSTASH_URL=http://127.0.0.1:3000 cargo run    # against a local dev server
+//! scripts/run.sh                                    # against https://cloudstash.dev
+//! CLOUDSTASH_URL=http://127.0.0.1:3000 scripts/run.sh   # against a local dev server
 //! ```
 
 mod auth;
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 
-use auth::{Account, Auth};
+use auth::{Account, Auth, Link};
 use rune::tok::{self, Theme, radius, space, type_};
-use rune::{App, AppHandle, AppSpec, Cx, El, col, row, text};
+use rune::{App, AppHandle, AppSpec, Cx, El, Tx, col, row, text};
 
 const APP_TITLE: &str = "Cloudstash";
 
@@ -21,8 +20,10 @@ enum Phase {
     #[default]
     Restoring,
     SignedOut,
-    /// The browser is open; the flag cancels the wait for its redirect.
-    WaitingForBrowser(Arc<AtomicBool>),
+    /// The browser is open; the sign-in finishes when its deep link arrives.
+    WaitingForBrowser,
+    /// The link arrived and the code is being exchanged.
+    Finishing,
     SignedIn(Account),
 }
 
@@ -31,6 +32,8 @@ struct State {
     phase: Phase,
     notice: Option<String>,
     backend: Option<Backend>,
+    /// A link that arrived before the backend was ready, as when it launched the app.
+    early_link: Option<String>,
 }
 
 #[derive(Clone)]
@@ -64,25 +67,42 @@ fn open_browser(url: &str) {
 }
 
 fn start_sign_in(s: &mut State) {
-    let Some(backend) = s.backend.clone() else {
+    let Some(backend) = &s.backend else {
         return;
     };
-    let cancel = Arc::new(AtomicBool::new(false));
     s.notice = None;
-    s.phase = Phase::WaitingForBrowser(cancel.clone());
-    std::thread::spawn(move || {
-        let result = backend.auth.sign_in(open_browser, &cancel);
-        if result.is_ok() {
-            backend.ui.open();
+    match backend.auth.begin_sign_in() {
+        Ok(page) => {
+            s.phase = Phase::WaitingForBrowser;
+            open_browser(&page);
         }
-        backend.show(result.map(Some));
-    });
+        Err(e) => s.notice = Some(e),
+    }
 }
 
 fn cancel_sign_in(s: &mut State) {
-    if let Phase::WaitingForBrowser(cancel) = &s.phase {
-        cancel.store(true, Ordering::Relaxed);
+    if let Some(backend) = &s.backend {
+        backend.auth.cancel_sign_in();
     }
+    s.phase = Phase::SignedOut;
+}
+
+/// Receives `cloudstash://` links from macOS, including the one that launched the app.
+fn open_url(s: &mut State, link: &str, _: &mut Tx) {
+    let Some(backend) = s.backend.clone() else {
+        s.early_link = Some(link.to_owned());
+        return;
+    };
+    let Link::SignIn { code, verifier } = backend.auth.accept_link(link) else {
+        return;
+    };
+    s.notice = None;
+    s.phase = Phase::Finishing;
+    backend.ui.open();
+    std::thread::spawn(move || {
+        let result = backend.auth.complete_sign_in(&code, &verifier);
+        backend.show(result.map(Some));
+    });
 }
 
 fn sign_out(s: &mut State) {
@@ -118,9 +138,10 @@ fn view(s: &State, cx: &mut Cx<State>) -> El {
         Phase::SignedOut => window
             .child(secondary("Sign in with your Cloudstash account.", t))
             .child(row().child(button("sign-in", "Sign in", t).on_press(start_sign_in))),
-        Phase::WaitingForBrowser(_) => window
-            .child(secondary("Finish signing in in your browser.", t))
+        Phase::WaitingForBrowser => window
+            .child(secondary("Finish signing in in your browser. Cloudstash opens again when you're done.", t))
             .child(row().child(button("cancel", "Cancel", t).on_press(cancel_sign_in))),
+        Phase::Finishing => window.child(secondary("Signing in…", t)),
         Phase::SignedIn(account) => {
             let mut card = col()
                 .key("account")
@@ -176,7 +197,7 @@ fn main() {
     let app = App::new(AppSpec::<State> {
         scenes: &[
             ("signed-out", |s| s.phase = Phase::SignedOut),
-            ("waiting", |s| s.phase = Phase::WaitingForBrowser(Arc::default())),
+            ("waiting", |s| s.phase = Phase::WaitingForBrowser),
             ("signed-in", |s| {
                 s.phase = Phase::SignedIn(Account {
                     name: Some("Ada Example".to_owned()),
@@ -186,13 +207,26 @@ fn main() {
             }),
         ],
         ..AppSpec::new(APP_TITLE, (520.0, 420.0), State::default, view)
-    });
+    })
+    .on_open_url(open_url);
+    let auth = match Auth::from_env() {
+        Ok(auth) => Arc::new(auth),
+        Err(e) => {
+            eprintln!("{e}");
+            std::process::exit(2);
+        }
+    };
     let backend = Backend {
-        auth: Arc::new(Auth::from_env()),
+        auth,
         ui: app.handle(),
     };
     let stored = backend.clone();
-    backend.ui.update(move |s, _| s.backend = Some(stored));
+    backend.ui.update(move |s, tx| {
+        s.backend = Some(stored);
+        if let Some(link) = s.early_link.take() {
+            open_url(s, &link, tx);
+        }
+    });
     // Headless snapshots render a named scene and must not touch the keychain or network.
     if !std::env::args().any(|arg| arg == "--snap" || arg == "--tree") {
         std::thread::spawn(move || backend.show(backend.auth.restore()));
