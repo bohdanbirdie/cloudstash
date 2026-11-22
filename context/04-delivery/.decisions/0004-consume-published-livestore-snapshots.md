@@ -38,3 +38,10 @@ production builds resolve LiveStore from the pinned published snapshot. Keep
 source only; it is never imported, installed, or required by builds or CI. Work on
 a LiveStore fix happens in an upstream checkout outside this repository and
 reaches Cloudstash through a snapshot bump.
+
+The maintainer requested this change and, on 2026-11-22, approved the resulting
+changes to the protected delivery guarantees: the former submodule-checkout
+constraint, published-exceptions tradeoff, universal-alias requirement, and
+build-fail-closed requirement are removed, and CS.DEL-R07 no longer records
+or verifies a LiveStore revision marker in build output. The pinned snapshot
+version in the manifests is the LiveStore revision record.
