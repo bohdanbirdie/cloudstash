@@ -58,4 +58,4 @@ The mechanism changed; the decision stands. Staging is now the `staging` stage
 of the Alchemy stack instead of a Wrangler `env.staging` block, and it reuses
 the `cloudstash-staging` resources. The branch flow and the merge-commit
 promotion are unchanged. See
-[decision 0005](../../04-delivery/.decisions/0005-manage-infrastructure-with-alchemy.md).
+[decision 0006](../../04-delivery/.decisions/0006-manage-infrastructure-with-alchemy.md).
