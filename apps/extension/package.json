@@ -10,7 +10,7 @@
     "build": "wxt build",
     "build:local": "WXT_APP_URL=http://127.0.0.1:3000 wxt build",
     "zip": "wxt zip",
-    "compile": "tsc --noEmit",
+    "compile": "effect-tsgo tsrs@7.1.0-beta.tsrs3 --noEmit --project tsconfig.json",
     "test": "bun test",
     "postinstall": "wxt prepare"
   },

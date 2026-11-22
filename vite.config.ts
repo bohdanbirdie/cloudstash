@@ -45,7 +45,7 @@ const baseConfig: UserConfig = {
     },
   },
   staged: {
-    "*": "vp check --fix",
+    "*": "effect-tsgo --tsrs-lint=7.1.0-beta.tsrs3 vp check --fix",
   },
   fmt: {
     printWidth: 80,

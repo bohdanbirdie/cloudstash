@@ -37,9 +37,18 @@ limit. The baseline choice is recorded in
 
 ## Effect Anti-Pattern Baseline
 
-The Effect language service runs in strict mode in the quality lane. In addition
+The Effect-patched TSRS compiler checks TypeScript and Effect in one pass in the
+quality lane through `bun run typecheck`; `bun run check:effect` is an alias for
+that combined check. Effect warnings and errors fail the command, while
+suggestions remain advisory, matching the former diagnostics CLI's strict mode.
+The duplicate-package exception for `@livestore/utils` lives in `tsconfig.json`
+alongside the rule configuration. The new `unstableApiUsage` diagnostic is not
+part of the enforced baseline: Cloudstash intentionally consumes the pinned
+Effect HTTP/RPC, telemetry, and test APIs. See the
+[compiler decision](../../04-delivery/.decisions/0005-use-effect-patched-tsrs.md).
+In addition
 to its default correctness diagnostics, the project promotes selected
-diagnostics to warnings, which strict mode treats as failures: reusable
+diagnostics to warnings, which the compiler treats as failures: reusable
 Effect-returning functions must use `Effect.fn` or `Effect.fnUntraced`, Effect
 generators must not use JavaScript `try/catch`, nested bare `Effect.gen` blocks
 must become meaningful operations, and Effect code must use Effect scheduling
@@ -99,6 +108,9 @@ function, module, or global mocks.
 Provider-heavy AI is stubbed where the target contract permits. Timing-dependent
 pipeline settlement without a hermetic stub is not accepted as sync durability
 evidence.
+Instance-local metadata fetcher overrides in MCP E2E tests are installed at the
+save operation, not during suite bootstrap: an idle Durable Object can be
+recreated during intervening OAuth tests and lose the in-memory override.
 
 ## Known Coverage Limits
 
