@@ -38,10 +38,23 @@ deep link.
 
 Only one build can own `cloudstash://` at a time: the most recently registered bundle wins.
 
+## Look
+
+The window is the web's sign-in card (`AuthSplitCard` with `StatusCard` from
+`src/routes/connect/native.tsx`) at its mobile width, ported one-to-one:
+
+- Colours: `src/theme.rs` holds the `src/styles.css` tokens in their original OKLCH, light and dark.
+- Type: `fonts/` are `@fontsource-variable/noto-sans` 5.2.10's `wght` subsets converted to TTF
+  (OFL, `fonts/OFL.txt`), drawn without font smoothing as the web's `antialiased` does.
+- Icons: `src/icons.rs` holds lucide's paths and the Cloudstash knot.
+- Spacing: Tailwind's values in points (`p-7` is 28, `mt-5` 20, `h-8` 32).
+
+Change the web first, then mirror it here.
+
 ## Headless snapshots
 
 Debug builds render a scene without opening a window, the keychain, or the network:
 
 ```sh
-target/debug/cloudstash-native --snap out.png --scene signed-in   # signed-out, waiting, signed-in
+target/debug/cloudstash-native --snap out.png --scene signed-in   # signed-out, error, waiting, finishing, signed-in
 ```
