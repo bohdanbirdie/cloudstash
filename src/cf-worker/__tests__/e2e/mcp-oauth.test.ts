@@ -324,10 +324,6 @@ describe("MCP OAuth Worker flow", () => {
   beforeAll(async () => {
     user = await signupUser("mcp-oauth@test.com", "MCP OAuth User");
     await setSubscribedPro(user.orgId, { aiSummary: false });
-    await installTestMetadataFetcher(
-      env.LINK_PROCESSOR_DO.get(env.LINK_PROCESSOR_DO.idFromName(user.orgId)),
-      (url) => observedOutboundUrls.push(url)
-    );
     client = await registerCurrentMcpJamClient();
     await env.DB.prepare(
       "INSERT INTO oauth_client_assertion (id, expires_at) VALUES (?, ?)"
@@ -901,6 +897,10 @@ describe("MCP OAuth Worker flow", () => {
       JSON.parse(searched.body.result?.content[0]?.text ?? "null")
     ).toEqual([]);
 
+    await installTestMetadataFetcher(
+      env.LINK_PROCESSOR_DO.get(env.LINK_PROCESSOR_DO.idFromName(user.orgId)),
+      (url) => observedOutboundUrls.push(url)
+    );
     const saved = await callMcp<{ content: { text: string }[] }>(
       tokens.access_token,
       4,

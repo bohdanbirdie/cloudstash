@@ -108,6 +108,9 @@ function, module, or global mocks.
 Provider-heavy AI is stubbed where the target contract permits. Timing-dependent
 pipeline settlement without a hermetic stub is not accepted as sync durability
 evidence.
+Instance-local metadata fetcher overrides in MCP E2E tests are installed at the
+save operation, not during suite bootstrap: an idle Durable Object can be
+recreated during intervening OAuth tests and lose the in-memory override.
 
 ## Known Coverage Limits
 
