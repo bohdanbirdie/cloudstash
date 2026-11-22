@@ -22,7 +22,7 @@ artifact-first certification and CI coverage before remote mutation.
 migrations, and the [deploy workflow](../../.github/workflows/deploy.yml) runs
 `bun run build` and `alchemy deploy --stage prod` on pushes to `main`. It does
 not rerun [PR checks](../../.github/workflows/pr-checks.yml), and the bundle
-smoke test runs only locally. [`check:pricing`](../../package.json) remains outside CI and
+smoke test runs only in PR checks and locally. [`check:pricing`](../../package.json) remains outside CI and
 release.
 
 ## Direction

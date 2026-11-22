@@ -82,17 +82,27 @@ try {
   const storeId = body.session?.activeOrganizationId;
   if (!storeId) throw new Error("Session did not contain an active workspace");
 
-  const syncPath = `/sync?${new URLSearchParams({ storeId, transport: "ws" })}`;
-  const upgrade = await mf.dispatchFetch(`${origin}${syncPath}`, {
-    headers: { Cookie: cookie, Origin: origin, Upgrade: "websocket" },
+  const syncUrl = new URL("/sync", await mf.ready);
+  syncUrl.protocol = "ws:";
+  syncUrl.search = new URLSearchParams({ storeId, transport: "ws" }).toString();
+  await new Promise<void>((resolve, reject) => {
+    const socket = new WebSocket(syncUrl, {
+      headers: { Cookie: cookie, Origin: origin },
+    });
+    const timer = setTimeout(() => {
+      socket.close();
+      reject(new Error("WebSocket upgrade timed out after 15s"));
+    }, 15_000);
+    socket.addEventListener("open", () => {
+      clearTimeout(timer);
+      socket.close();
+      resolve();
+    });
+    socket.addEventListener("error", () => {
+      clearTimeout(timer);
+      reject(new Error("WebSocket upgrade was rejected"));
+    });
   });
-  if (upgrade.status !== 101 || !upgrade.webSocket) {
-    throw new Error(
-      `Expected WebSocket 101, got ${upgrade.status}: ${await upgrade.text()}`
-    );
-  }
-  upgrade.webSocket.accept();
-  upgrade.webSocket.close();
   console.log(
     "ok  minified Worker smoke (D1 signup + authenticated SyncBackendDO WebSocket upgrade)"
   );
