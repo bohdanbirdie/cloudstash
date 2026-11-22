@@ -18,6 +18,15 @@ cloudstash/                         Bun + Vite+ application
 
 The root uses Bun 1.3.x, Vite+, TypeScript, Vitest, and Alchemy. Dependency
 versions are exact where compatibility is sensitive.
+The root and extension typechecks use the Effect-patched TSRS build shipped by
+`@effect/tsgo`, with both wrapper and compiler version pinned. TypeScript and
+Effect diagnostics share one root compiler pass in the quality job; the unit
+job does not repeat it. The JavaScript `@effect/language-service` package and
+its TypeScript patch remain for editors using TypeScript 6, not for CI checks.
+See [decision 0005](./.decisions/0005-use-effect-patched-tsrs.md).
+Vite+ checks, fixes, and staged checks also run through the wrapper with
+`--tsrs-lint=7.1.0-beta.tsrs3`, replacing Oxlint's Go type-aware backend with
+Effect-patched TSRS while retaining the existing lint rules and JS plugins.
 The Raycast extension is a separate published repository and shares only HTTP
 contracts.
 
@@ -80,7 +89,7 @@ required node pairs, structure, links, IDs/refinements, statuses, companion
 record shape, and evidence-link hygiene. Semantic quality remains review work.
 
 The main workflow uses a frozen Bun install. Quality,
-unit/typecheck, Worker E2E, and extension/production-build certification run as
+unit, Worker E2E, and extension/production-build certification run as
 parallel jobs on Node 25. CI runs for pull requests targeting `staging` or
 `main`, and for pushes to `main`. A push to `staging` is certified by the
 rolling promotion PR's synchronization run rather than a duplicate push run.

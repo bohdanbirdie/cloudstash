@@ -32,6 +32,9 @@
     "plugins": [
       {
         "name": "@effect/language-service",
+        "allowedDuplicatedPackages": ["@livestore/utils"],
+        "ignoreEffectWarningsInTscExitCode": false,
+        "ignoreEffectSuggestionsInTscExitCode": true,
         "diagnosticSeverity": {
           "anyUnknownInErrorContext": "warning",
           "effectFnOpportunity": "warning",
@@ -39,7 +42,8 @@
           "globalTimersInEffect": "warning",
           "nestedEffectGenYield": "warning",
           "tryCatchInEffectGen": "warning",
-          "unsafeEffectTypeAssertion": "warning"
+          "unsafeEffectTypeAssertion": "warning",
+          "unstableApiUsage": "off"
         }
       }
     ],
