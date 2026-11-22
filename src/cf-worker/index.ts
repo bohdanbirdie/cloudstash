@@ -106,8 +106,6 @@ export { AccountDeletionWorkflow } from "./workflows/account-deletion";
 
 const logger = logSync("API");
 
-logger.debug("livestore build", { build: __LIVESTORE_BUILD__ });
-
 const RATE_LIMITED_PREFIXES = [
   "/sync",
   "/api/sync/",

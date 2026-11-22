@@ -12,13 +12,11 @@ Active.
 ```text
 cloudstash/                         Bun + Vite+ application
   apps/extension/                  WXT Chrome extension (Bun workspace)
-  vendor/livestore/                pinned upstream git submodule (pnpm)
   local/raycast-extension/         ignored external npm checkout
 ```
 
 The root uses Bun 1.3.x, Vite+, TypeScript, Vitest, and Wrangler. Dependency
-versions are exact where compatibility is sensitive. `vendor/livestore` has its
-own pnpm lock/tooling and is initialized through `scripts/ensure-livestore.sh`.
+versions are exact where compatibility is sensitive.
 The Raycast extension is a separate published repository and shares only HTTP
 contracts.
 
@@ -28,20 +26,15 @@ the ignored `.dev.vars` with mode `0600`; failed resolution preserves the
 previous local file and no plaintext backup is retained. Normal development
 starts do not contact 1Password.
 
-## LiveStore Source Linking
+## LiveStore Version
 
-[`tools/livestore-local.ts`](../../tools/livestore-local.ts) reads each vendored
-package export map and creates exact Vite aliases to upstream `src` files.
-Default dev, unit, E2E, and production builds use those aliases. Exceptions:
-
-- `wa-sqlite` and `sqlite-wasm` use the published prebuilt layout;
-- platform-conditional exports resolve from the published package;
-- `effect`, React, React DOM, and WASM packages are deduped across boundaries.
-
-Published `@livestore/*` packages remain installed at the snapshot matching the
-submodule SHA for types, WASM, exceptions, and `LIVESTORE_PUBLISHED=1` A/B mode.
-Submodule and snapshot move atomically. The rationale is recorded in
-[decision 0001](./.decisions/0001-vendor-upstream-livestore-source.md).
+Every `@livestore/*` dependency in the application and extension pins the same
+published upstream snapshot, `0.0.0-snapshot-<upstream-commit-sha>`. Upstream
+publishes one snapshot for each commit on `main`. Dev, tests, and production
+builds all resolve LiveStore from these installed packages; there is no
+vendored source or Vite alias. The rationale is recorded in
+[decision 0004](./.decisions/0004-consume-published-livestore-snapshots.md),
+which supersedes [decision 0001](./.decisions/0001-vendor-upstream-livestore-source.md).
 
 The current pin is snapshot `4bedac6261d75bf3bde1ada2bdf5bdc21e850bea`,
 paired with the Effect `4.1.4` cohort in both the web app and extension.
@@ -56,28 +49,21 @@ state fingerprints. The first open rebuilds materialized state once from the
 retained event log, including server-side clients in Durable Objects; deployment
 must account for the associated row-write usage. It is not a D1 migration or an
 event-log reset. See the
-[upstream release notes](../../vendor/livestore/CHANGELOG.md) and
+[upstream release notes](https://github.com/livestorejs/livestore/blob/4bedac6261d75bf3bde1ada2bdf5bdc21e850bea/CHANGELOG.md) and
 [upgrade decision](./.decisions/0003-adopt-published-livestore-effect-cohort.md).
 
 ## Build
 
-`bun run build` ensures the submodule, runs `vp build`, verifies the bundle, and
-prerenders public pages. The Cloudflare Worker environment is Oxc-minified while
-client build defaults remain independent. Vite fails default builds without vendored source.
-Deploy builds (`build:prod`, `build:staging`) install less of the vendored
-workspace than local and CI builds: the submodule checkout is shallow, and the
-pnpm install covers only the `@livestore/*` packages the app imports plus their
-dependencies. The package set is derived from source, so an unlisted import
-fails the deploy build rather than dropping out of it silently. Local dev and CI
-test jobs keep the full workspace install, because tests need the other packages.
-`__LIVESTORE_BUILD__` embeds `vendored@<sha>` or explicit `published` mode.
-Bundle certification checks revision marker count, no known Effect v3 version
+`bun run build` runs `vp build`, verifies the bundle, and prerenders public
+pages. The Cloudflare Worker environment is Oxc-minified while client build
+defaults remain independent.
+Bundle certification checks no known Effect v3 version
 string, the SchemaBinary RPC runtime and absence of the legacy msgpack runtime
 and native extraction binding, one distinct React
 version string, and Wrangler raw/compressed upload budgets. CI boots the
 generated minified Worker for a D1/auth/SyncBackendDO handshake. These are
 targeted regression indicators, not proof that no same-version duplicate
-runtime or published LiveStore code exists.
+runtime exists.
 
 Cloudflare Assets serves static output with Worker-first exceptions. The Vite
 Cloudflare output writes deploy configuration so Wrangler ships the built bundle
@@ -89,8 +75,7 @@ rather than re-bundling root source against published dependencies.
 required node pairs, structure, links, IDs/refinements, statuses, companion
 record shape, and evidence-link hygiene. Semantic quality remains review work.
 
-The main workflow checks out submodules and uses frozen Bun and pnpm installs;
-the vendored pnpm content store is cached by its lockfile. Quality,
+The main workflow uses a frozen Bun install. Quality,
 unit/typecheck, Worker E2E, and extension/production-build certification run as
 parallel jobs on Node 25. CI runs for pull requests targeting `staging` or
 `main`, and for pushes to `main`. A push to `staging` is certified by the

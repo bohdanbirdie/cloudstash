@@ -5,13 +5,7 @@ import { fileURLToPath } from "node:url";
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
-import {
-  livestoreBuildDefine,
-  livestoreLocalResolve,
-} from "./tools/livestore-local.ts";
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const livestoreLocal = livestoreLocalResolve();
 
 // Load migrations in Node.js context
 const migrationsDir = path.resolve(__dirname, "drizzle/migrations");
@@ -75,10 +69,8 @@ export default defineConfig({
       },
     }),
   ],
-  define: livestoreBuildDefine(),
   resolve: {
     tsconfigPaths: true,
-    dedupe: livestoreLocal.dedupe,
     alias: [
       // Stub mailparser to avoid Workers-incompatible dependencies in tests
       {
@@ -119,8 +111,6 @@ export default defineConfig({
           "src/cf-worker/__tests__/stubs/defuddle-node.ts"
         ),
       },
-      // When LIVESTORE_LOCAL=1, redirect @livestore/* to local clone source
-      ...livestoreLocal.alias,
     ],
   },
   ssr: {
@@ -140,7 +130,7 @@ export default defineConfig({
   },
   test: {
     include: ["src/cf-worker/__tests__/e2e/**/*.test.ts"],
-    exclude: ["**/node_modules/**", "**/local/**", "**/vendor/**"],
+    exclude: ["**/node_modules/**", "**/local/**"],
     // CI runners are noticeably slower than local at warming miniflare —
     // workflow + DO tests that finish in <500ms here time out at 5s on CI.
     testTimeout: 30_000,

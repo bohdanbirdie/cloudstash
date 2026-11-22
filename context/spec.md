@@ -78,8 +78,6 @@ Per [decision 0001](./.decisions/0001-adopt-single-intent-layer.md):
    procedure and point to this layer rather than duplicating it.
 7. Landing and legal pages are deployed product surfaces. They must agree with
    product requirements, but their copy is not the source of those requirements.
-8. `vendor/livestore/context/` belongs to the upstream LiveStore submodule and
-   is outside the Cloudstash Intent corpus.
 
 Known migration drift is tracked in
 [DELTA-001](./.delta/DELTA-001-legacy-documentation-authority.md).

@@ -1,5 +1,10 @@
 # Livestore fork integration — strategy, status & roadmap
 
+> **Historical (2026-11-22).** The `vendor/livestore` submodule and the source
+> alias described here were removed. Cloudstash now consumes the published
+> per-commit LiveStore snapshot. See `context/04-delivery/spec.md` and decision
+> `context/04-delivery/.decisions/0004-consume-published-livestore-snapshots.md`.
+
 Canonical entry point for "cloudstash vendors livestore source." A fresh agent
 should be able to read this top-to-bottom and carry the work forward without
 prior context. Deep mechanism detail lives in

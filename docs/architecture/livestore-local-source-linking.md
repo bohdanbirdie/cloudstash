@@ -1,5 +1,10 @@
 # Livestore local source linking
 
+> **Historical (2026-11-22).** The `vendor/livestore` submodule and the source
+> alias described here were removed. Cloudstash now consumes the published
+> per-commit LiveStore snapshot. See `context/04-delivery/spec.md` and decision
+> `context/04-delivery/.decisions/0004-consume-published-livestore-snapshots.md`.
+
 How cloudstash resolves `@livestore/*` to the vendored fork's TypeScript source
 (no published snapshot, no hand-written bun patch) — the in-depth mechanism.
 

@@ -15,8 +15,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: true
 
       - uses: actions/setup-node@v7
         with:
@@ -40,18 +38,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: true
-
-      - uses: pnpm/action-setup@v6
-        with:
-          version: 11.8.0
 
       - uses: actions/setup-node@v7
         with:
           node-version: "25"
-          cache: pnpm
-          cache-dependency-path: vendor/livestore/pnpm-lock.yaml
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -64,9 +54,6 @@ jobs:
           restore-keys: bun-${{ runner.os }}-
 
       - run: bun install --frozen-lockfile
-
-      - run: pnpm install --frozen-lockfile
-        working-directory: vendor/livestore
 
       - run: bun run typecheck
 
@@ -76,18 +63,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: true
-
-      - uses: pnpm/action-setup@v6
-        with:
-          version: 11.8.0
 
       - uses: actions/setup-node@v7
         with:
           node-version: "25"
-          cache: pnpm
-          cache-dependency-path: vendor/livestore/pnpm-lock.yaml
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -100,9 +79,6 @@ jobs:
           restore-keys: bun-${{ runner.os }}-
 
       - run: bun install --frozen-lockfile
-
-      - run: pnpm install --frozen-lockfile
-        working-directory: vendor/livestore
 
       - run: bun run test:e2e
         env:
@@ -114,18 +90,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: true
-
-      - uses: pnpm/action-setup@v6
-        with:
-          version: 11.8.0
 
       - uses: actions/setup-node@v7
         with:
           node-version: "25"
-          cache: pnpm
-          cache-dependency-path: vendor/livestore/pnpm-lock.yaml
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -138,9 +106,6 @@ jobs:
           restore-keys: bun-${{ runner.os }}-
 
       - run: bun install --frozen-lockfile
-
-      - run: pnpm install --frozen-lockfile
-        working-directory: vendor/livestore
 
       # Extension app (apps/extension) — own tsconfig + bun:test runner.
       # wxt prepare generates .wxt/ types that apps/extension/tsconfig extends.

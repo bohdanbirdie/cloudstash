@@ -12,8 +12,6 @@ lifecycle rules before changing behavior.
 - `vision.md` and `requirements.md` are protected; confirm goal or guarantee
   changes with the maintainer.
 - Run `bun run check:intent` after editing `context/`.
-- `vendor/livestore/context/` is upstream LiveStore's separate Intent corpus and
-  is not part of Cloudstash's tree.
 
 # Database migrations
 

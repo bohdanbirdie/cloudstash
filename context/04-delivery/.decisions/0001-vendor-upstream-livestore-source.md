@@ -1,6 +1,6 @@
 # Vendor pinned upstream LiveStore source for every build mode
 
-Status: accepted
+Status: superseded by 0004-consume-published-livestore-snapshots
 
 ## Context
 

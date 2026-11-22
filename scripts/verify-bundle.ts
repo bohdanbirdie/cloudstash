@@ -10,8 +10,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { livestoreBuildValue } from "../tools/livestore-local.ts";
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const workerBundlePath = path.join(root, "dist/cloudstash/index.js");
@@ -37,30 +35,6 @@ if (!existsSync(workerBundlePath)) {
 }
 
 const worker = readFileSync(workerBundlePath, "utf8");
-const expectedMarker = livestoreBuildValue();
-const markerLiteralCount = (
-  worker.match(
-    new RegExp(
-      `["'\`]${expectedMarker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["'\`]`,
-      "g"
-    )
-  ) ?? []
-).length;
-
-check(
-  "livestore build marker",
-  markerLiteralCount === 1,
-  `quoted "${expectedMarker}" x${markerLiteralCount}, expected x1`
-);
-
-if (expectedMarker === "published") {
-  check(
-    "no vendored marker in published build",
-    countOccurrences(worker, "vendored@") === 0,
-    `"vendored@" x${countOccurrences(worker, "vendored@")}, expected x0`
-  );
-}
-
 check(
   "no effect v3 in worker bundle",
   countOccurrences(worker, "3.21.2") === 0,
