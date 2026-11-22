@@ -380,8 +380,8 @@ Next LinkCreated → cycle repeats
 The DO must implement `ClientDoWithRpcCallback` and properly handle incoming sync updates:
 
 ```typescript
-import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
 import { type ClientDoWithRpcCallback } from "@livestore/adapter-cloudflare";
+import { handleSyncUpdateRpc } from "@livestore/sync-cf/client";
 
 export class LinkProcessorDO
   extends DurableObject<Env>
