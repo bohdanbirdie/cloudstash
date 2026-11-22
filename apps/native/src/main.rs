@@ -6,14 +6,18 @@
 //! ```
 
 mod auth;
+mod theme;
 
 use std::sync::Arc;
 
 use auth::{Account, Auth, Link};
-use rune::tok::{self, Theme, radius, space, type_};
-use rune::{App, AppHandle, AppSpec, Cx, El, Tx, col, row, text};
+use rune::tok::{radius, space, type_};
+use rune::{App, AppHandle, AppSpec, Color, Cx, El, Tx, col, row, text};
+use theme::Palette;
 
 const APP_TITLE: &str = "Cloudstash";
+/// The web's `--radius` (0.625rem), which cards use as `rounded-lg`.
+const CARD_RADIUS: f32 = 10.0;
 
 #[derive(Default)]
 enum Phase {
@@ -119,28 +123,31 @@ fn sign_out(s: &mut State) {
 }
 
 fn view(s: &State, cx: &mut Cx<State>) -> El {
-    let t = tok::theme(cx.system_dark());
+    let t = theme::palette(cx.system_dark());
     let mut window = col()
         .key("window")
         .w_full()
         .h_full()
         .padding(space::S6)
         .gap(space::S3)
-        .fill(t.bg)
+        .fill(t.background)
         .child(
             text(APP_TITLE)
                 .key("title")
                 .font(rune::TextStyle::new(28.0, 700.0))
-                .color(t.text),
+                .color(t.foreground),
         );
     window = match &s.phase {
         Phase::Restoring => window.child(secondary("Checking for a saved session…", t)),
         Phase::SignedOut => window
             .child(secondary("Sign in with your Cloudstash account.", t))
-            .child(row().child(button("sign-in", "Sign in", t).on_press(start_sign_in))),
+            .child(row().child(primary_button("sign-in", "Sign in", t).on_press(start_sign_in))),
         Phase::WaitingForBrowser => window
-            .child(secondary("Finish signing in in your browser. Cloudstash opens again when you're done.", t))
-            .child(row().child(button("cancel", "Cancel", t).on_press(cancel_sign_in))),
+            .child(secondary(
+                "Finish signing in in your browser. Cloudstash opens again when you're done.",
+                t,
+            ))
+            .child(row().child(outline_button("cancel", "Cancel", t).on_press(cancel_sign_in))),
         Phase::Finishing => window.child(secondary("Signing in…", t)),
         Phase::SignedIn(account) => {
             let mut card = col()
@@ -148,19 +155,27 @@ fn view(s: &State, cx: &mut Cx<State>) -> El {
                 .w_full()
                 .padding(space::S3)
                 .gap(space::S1)
-                .radius(radius::MD)
+                .radius(CARD_RADIUS)
                 .fill(t.card)
-                .border(1.0, t.card_border)
+                .border(1.0, t.card_ring)
                 .child(secondary("Signed in as", t));
             if let Some(name) = &account.name {
-                card = card.child(text(name.clone()).font(type_::BODY).color(t.text));
+                card = card.child(
+                    text(name.clone())
+                        .font(type_::BODY)
+                        .color(t.card_foreground),
+                );
             }
             card = card
-                .child(text(account.email.clone()).font(type_::BODY).color(t.text))
+                .child(
+                    text(account.email.clone())
+                        .font(type_::BODY)
+                        .color(t.card_foreground),
+                )
                 .child(secondary(format!("Library {}", account.library_id), t));
             window
                 .child(card)
-                .child(row().child(button("sign-out", "Sign out", t).on_press(sign_out)))
+                .child(row().child(outline_button("sign-out", "Sign out", t).on_press(sign_out)))
         }
     };
     if let Some(notice) = &s.notice {
@@ -168,17 +183,27 @@ fn view(s: &State, cx: &mut Cx<State>) -> El {
             text(notice.clone())
                 .key("notice")
                 .font(type_::LABEL)
-                .color(rune::oklch(0.65, 0.2, 25.0)),
+                .color(t.destructive),
         );
     }
     window
 }
 
-fn secondary(label: impl Into<String>, t: Theme) -> El {
-    text(label.into()).font(type_::LABEL).color(t.text_secondary)
+fn secondary(label: impl Into<String>, t: Palette) -> El {
+    text(label.into())
+        .font(type_::LABEL)
+        .color(t.muted_foreground)
 }
 
-fn button(key: &'static str, label: &'static str, t: Theme) -> El {
+fn primary_button(key: &'static str, label: &'static str, t: Palette) -> El {
+    button(key, label, t.primary, t.primary, t.primary_foreground)
+}
+
+fn outline_button(key: &'static str, label: &'static str, t: Palette) -> El {
+    button(key, label, t.outline_fill, t.border, t.foreground)
+}
+
+fn button(key: &'static str, label: &'static str, fill: Color, border: Color, ink: Color) -> El {
     row()
         .key(key)
         .role("button")
@@ -188,9 +213,9 @@ fn button(key: &'static str, label: &'static str, t: Theme) -> El {
         .px(space::S3)
         .center()
         .radius(radius::MD)
-        .fill(t.card)
-        .border(1.0, t.card_border)
-        .child(text(label).font(type_::LABEL).color(t.text))
+        .fill(fill)
+        .border(1.0, border)
+        .child(text(label).font(type_::LABEL).color(ink))
 }
 
 fn main() {
