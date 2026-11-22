@@ -61,7 +61,7 @@ vendored fork source. No more "dev uses the clone, prod ships the snapshot" gap.
 - **Production build guard:** `vite.config.ts` throws on `vp build` if the
   submodule source is absent and `LIVESTORE_PUBLISHED` isn't set — a missing
   `git submodule update --init` can't silently ship the unpatched snapshot.
-- **CI:** `.github/workflows/ci.yml` checks out with `submodules: true` and runs
+- **CI:** `.github/workflows/pr-checks.yml` checks out with `submodules: true` and runs
   `pnpm install --frozen-lockfile` in `vendor/livestore` (pnpm 11.8.0) before the
   test job.
 - **Setup:** `bun run livestore:install` (also run by `bun run sync`, and by
