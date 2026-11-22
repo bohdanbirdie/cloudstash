@@ -51,3 +51,11 @@ changes only after the current staging revision has soaked and been verified.
 Retain ordinary CI on both branches and add more staging slots only if isolated
 parallel verification becomes necessary. Exact cross-Worker artifact promotion
 would require a separate CI artifact handoff.
+
+## Update 2026-11-22
+
+The mechanism changed; the decision stands. Staging is now the `staging` stage
+of the Alchemy stack instead of a Wrangler `env.staging` block, and it reuses
+the `cloudstash-staging` resources. The branch flow and the merge-commit
+promotion are unchanged. See
+[decision 0005](../../04-delivery/.decisions/0005-manage-infrastructure-with-alchemy.md).

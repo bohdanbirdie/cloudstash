@@ -1,6 +1,6 @@
 import type { WorkerEnv } from "../alchemy.run";
 import {
-  PRODUCTION_NAMES,
+  DEPLOYED_STAGES,
   QUEUE_SETTINGS,
   RATE_LIMITS,
   WORKER_COMPATIBILITY,
@@ -8,6 +8,8 @@ import {
   WORKER_FIRST_PATHS,
   WORKER_VARS,
 } from "../worker.config";
+
+const PRODUCTION_NAMES = DEPLOYED_STAGES.prod;
 
 const QUEUE_NAMES = {
   linkQueue: PRODUCTION_NAMES.linkQueue,
@@ -20,15 +22,10 @@ const consumer = (
   deadLetterQueue?: string
 ) => ({ maxBatchSize: batchSize, maxRetries, deadLetterQueue });
 
-const ratelimit = ({
-  namespaceId,
-  limit,
-  period,
-}: {
-  namespaceId: number;
-  limit: number;
-  period: number;
-}) => ({ namespace_id: String(namespaceId), simple: { limit, period } });
+const ratelimit = (name: keyof typeof RATE_LIMITS) => ({
+  namespace_id: String(PRODUCTION_NAMES.rateLimitNamespaceIds[name]),
+  simple: RATE_LIMITS[name],
+});
 
 export const localWorkerOptions = (assetsDirectory: string) => ({
   name: PRODUCTION_NAMES.worker,
@@ -75,8 +72,8 @@ export const localWorkerOptions = (assetsDirectory: string) => ({
     [QUEUE_NAMES.xReconcile]: consumer(QUEUE_SETTINGS.xReconcile),
   },
   ratelimits: {
-    SYNC_RATE_LIMITER: ratelimit(RATE_LIMITS.SYNC_RATE_LIMITER),
-    METADATA_RATE_LIMITER: ratelimit(RATE_LIMITS.METADATA_RATE_LIMITER),
+    SYNC_RATE_LIMITER: ratelimit("SYNC_RATE_LIMITER"),
+    METADATA_RATE_LIMITER: ratelimit("METADATA_RATE_LIMITER"),
   },
   bindings: {
     ...WORKER_VARS,

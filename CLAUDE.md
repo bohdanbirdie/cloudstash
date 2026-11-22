@@ -24,11 +24,11 @@ bun run build        # Build app + Worker into dist/ and verify the bundle
 All Cloudflare infrastructure is declared in `alchemy.run.ts` (Alchemy v2). There is no `wrangler.jsonc`.
 
 - Bindings are declared once on the Worker's `env`; the `Env` type is inferred from it (`src/cf-worker/worker-env.d.ts`).
-- Local secrets live in `.env` (`bun run env:sync` from `.env.example`). Non-prod stages read `.env`; `prod` reads only the process environment (CI secrets).
+- Local secrets live in `.env` (`bun run env:sync` from `.env.example`). Local stages read `.env`; the deployed stages (`prod`, `staging`) read only the process environment (CI secrets).
 - Shared Worker constants (entry, compatibility, vars, rate limits, queue settings) live in `worker.config.ts`. Local test runtimes (e2e, bundle smoke) build Miniflare options from them in `tools/local-worker.ts`; keep its bindings in step with `alchemy.run.ts`.
-- `prod` is the only deployed stage (`--stage prod`). It uses Alchemy's Cloudflare state store; other stages use local state in `.alchemy/`.
+- Deployed stages are listed in `DEPLOYED_STAGES` (`worker.config.ts`): `prod` deploys on every merge to `main`, `staging` deploys on every merge to the `staging` branch and by hand from any branch ("Deploy staging" workflow). Feature PRs target `staging` (the default branch); a `staging` → `main` PR, merged with a merge commit, releases to production. Both use Alchemy's Cloudflare state store; other stages use local state in `.alchemy/`. Only `prod` resources are protected from deletion.
 
-**NEVER run remote commands** (deploys, plans against `prod`, remote migrations, secrets, state bootstrap):
+**NEVER run remote commands** (deploys, plans against `prod` or `staging`, remote migrations, secrets, state bootstrap):
 
 ```bash
 bun dev               # OK - everything local

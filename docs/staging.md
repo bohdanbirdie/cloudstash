@@ -1,10 +1,29 @@
 # Staging environment
 
-Staging is retired. The old staging Worker (`cloudstash-staging`) was defined as
-a Wrangler `env.staging` block, and that block was removed when infrastructure
-moved to Alchemy (`alchemy.run.ts`). Staging will come back as an Alchemy stage
-of the same stack.
+Staging is the `staging` stage of the Alchemy stack (`alchemy.run.ts`), served
+on `https://staging.cloudstash.dev`. It reuses the resources of the former
+Wrangler staging environment, listed under `staging` in `DEPLOYED_STAGES`
+(`worker.config.ts`): the `cloudstash-staging` Worker, D1 database, KV
+namespaces, queues, Workflow, Analytics Engine dataset, and rate-limit
+namespaces. Do not delete them.
 
-The `staging` branch, the rolling `staging` to `main` promotion PR, and the old
-`cloudstash-staging` Worker and its resources in Cloudflare still exist. Delete
-the Cloudflare resources by hand when the new staging stage replaces them.
+## Flow
+
+1. Feature pull requests target the `staging` branch (the default branch).
+2. Each merge into `staging` runs **Deploy staging**, which deploys the stage
+   with secrets from the GitHub `staging` environment.
+3. A `staging` → `main` pull request releases to production. Merge it with a
+   merge commit, never a squash, so the two branches keep a shared history.
+4. A fix merged straight into `main` must be merged back into `staging`.
+
+**Deploy staging** can also be started by hand from any branch, with `plan` or
+`deploy`. Staging resources are not protected, so a plan may replace or delete
+them.
+
+## Differences from production
+
+- Separate data: its own D1 database, KV namespaces, queues, and Durable Object
+  namespaces.
+- Its own `BETTER_AUTH_SECRET` and Telegram bot. One Telegram bot can serve
+  only one webhook, so staging must not use the production bot.
+- Stripe runs in test mode.
