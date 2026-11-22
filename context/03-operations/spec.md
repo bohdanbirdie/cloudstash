@@ -22,10 +22,11 @@ Active.
 | Rate limiter     | `SYNC_RATE_LIMITER`                                                  | selected auth/MCP/sync/invite abuse protection                     |
 | Analytics Engine | `USAGE_ANALYTICS`                                                    | low-overhead usage events                                          |
 
-These bindings are declared once in `alchemy.run.ts`. The repository no longer
-defines a staging environment: the Wrangler `staging` environment was removed
-with the move to Alchemy, and staging is to be rebuilt as an Alchemy stage. This
-gap is tracked in
+These bindings are declared once in `alchemy.run.ts`, for two deployed stages:
+`prod` and `staging`. Staging runs on `staging.cloudstash.dev` with its own
+stateful resources, the ones the former Wrangler staging environment created;
+see [`docs/staging.md`](../../docs/staging.md). A recorded staging rehearsal
+and the operational runbooks are still missing; see
 [DELTA-031](../.delta/DELTA-031-staging-and-operational-runbooks-are-not-realized.md).
 
 Built-in Cloudflare logs and invocation traces are enabled with full head
