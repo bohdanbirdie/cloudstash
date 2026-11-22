@@ -9,7 +9,7 @@ provenance, builds, migrations, CI, and release paths.
 
 - **CS.DEL-A01 One deployable web Worker:** The web app, API, queue consumer, and
   stateful classes currently ship from one Cloudflare Worker build.
-  - Validation: [`wrangler.jsonc`](../../wrangler.jsonc) and Vite output.
+  - Validation: [`alchemy.run.ts`](../../alchemy.run.ts) and Vite output.
 - **CS.DEL-A02 LiveStore may need unreleased fixes:** Cloudstash may need an
   upstream LiveStore revision before a stable npm release exists. Upstream
   publishes a snapshot package for each commit on `main`, so such a revision is

@@ -1,9 +1,7 @@
-import { eq } from "drizzle-orm";
 import { Data, Effect, Layer, Schema } from "effect";
 
 import { OrgId, StripeSubscriptionId, UserId } from "../db/branded";
 import type { WorkflowInstanceId } from "../db/branded";
-import * as schema from "../db/schema";
 import { DbClient, DbClientLive, DbError, query } from "../db/service";
 import { maskId } from "../log-utils";
 import type { Env } from "../shared";
@@ -38,7 +36,7 @@ const findPersonalOrgIdForUser = Effect.fn(
 
   const org = yield* query(
     db.query.organization.findFirst({
-      where: eq(schema.organization.slug, slug),
+      where: { slug: slug },
     })
   );
   if (!org) return yield* new MissingActiveOrgError({ userId });
@@ -46,7 +44,7 @@ const findPersonalOrgIdForUser = Effect.fn(
   const memberships = yield* query(
     db.query.member.findMany({
       columns: { role: true, userId: true },
-      where: eq(schema.member.organizationId, org.id),
+      where: { organizationId: org.id },
     })
   );
   const membership = memberships.find(

@@ -39,7 +39,7 @@ export const AuthClientLive = (env: Env) =>
         findUser: (userId: UserId) =>
           query(
             db.query.user.findFirst({
-              where: eq(schema.user.id, userId),
+              where: { id: userId },
             })
           ).pipe(Effect.map((r) => r ?? null)),
 
@@ -54,7 +54,7 @@ export const AuthClientLive = (env: Env) =>
         listApprovedUsers: () =>
           query(
             db.query.user.findMany({
-              where: eq(schema.user.approved, true),
+              where: { approved: true },
             })
           ),
       };

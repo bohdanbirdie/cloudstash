@@ -25,7 +25,7 @@ const HOST_PERMISSIONS = IS_LOCAL_BUILD
 // in manifest") and assigns the published extension its own ID. So `key` is
 // injected only for local builds (below) and omitted from store builds. The
 // CWS-assigned (published) ID is bdommhffamndfanbpnikgmpjncpcobia — already
-// wired into the worker EXTENSION_ID_ALLOWLIST (wrangler.jsonc) and the web
+// wired into the worker EXTENSION_ID_ALLOWLIST (worker.config.ts) and the web
 // app's prod default (src/lib/extension-connect.ts).
 const DEV_EXTENSION_KEY =
   "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtEVUr7MrQOO/WqAV6eBMrR8E7y+pPh/Iu1cG5cs/ebMFdT31GYEEVRz8iaqHxTZMOL8IloAgorLcbSz1S2JaDbZZCvD3I4I51K0dxp4I6WwNI2ER+OMiDnVkdkEwjUNwlQRqHHJV/o2ualZXYEjZTsDlcknynSAMfEOlLlTErFuUhwbVE0iEtmD/h59PYeYoa3OZE7EgNbRPTkibnujB5cK5m4Qap21s292mEpBnLHi1ujuLOF02Tj/6UE3rnZc5BwHOK+Xt/SenSXXC5yN4vRIBulb6HXwkpNyeHcm6d0XvGwk9HYJZHW8DJ0AeTESl/E+yAoWgyHKTjRGTuKiARQIDAQAB";

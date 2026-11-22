@@ -1,9 +1,9 @@
 #!/bin/bash
 # Query Cloudflare GraphQL Analytics for Durable Object metrics.
-# Requires CF_ACCOUNT_ID and CF_ANALYTICS_TOKEN env vars (or set in .dev.vars).
+# Requires CF_ACCOUNT_ID and CF_ANALYTICS_TOKEN env vars (or set in .env).
 #
 # Usage:
-#   source .dev.vars && ./scripts/do-metrics.sh
+#   source .env && ./scripts/do-metrics.sh
 #   CF_ACCOUNT_ID=xxx CF_ANALYTICS_TOKEN=yyy ./scripts/do-metrics.sh
 
 set -euo pipefail

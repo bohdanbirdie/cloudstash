@@ -1,4 +1,3 @@
-import { and, eq } from "drizzle-orm";
 import { Context, Effect, Layer, Option } from "effect";
 
 import { AuthClient } from "../auth/service";
@@ -43,10 +42,7 @@ const makeXSyncAccountRepository = Effect.gen(function* () {
       const account = yield* query(
         db.query.account.findFirst({
           columns: { id: true },
-          where: and(
-            eq(schema.account.userId, userId),
-            eq(schema.account.providerId, "x")
-          ),
+          where: { userId, providerId: "x" },
         })
       );
       if (!account) return null;
@@ -66,7 +62,7 @@ const makeXSyncAccountRepository = Effect.gen(function* () {
         yield* Effect.annotateCurrentSpan("userId", maskId(userId));
         const member = yield* query(
           db.query.member.findFirst({
-            where: eq(schema.member.userId, userId),
+            where: { userId: userId },
           })
         );
         if (!member) return null;

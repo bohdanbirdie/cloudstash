@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
   sqliteTable,
   text,
@@ -17,77 +17,88 @@ import type { StripeCustomerId, StripeSubscriptionId } from "./branded";
 
 export type TierSource = "stripe" | "admin";
 
-export const user = sqliteTable("user", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  emailVerified: integer("email_verified", { mode: "boolean" })
-    .default(false)
-    .notNull(),
-  image: text("image"),
-  // Admin plugin fields
-  role: text("role").default("user"),
-  banned: integer("banned", { mode: "boolean" }).default(false),
-  banReason: text("ban_reason"),
-  banExpires: integer("ban_expires", { mode: "timestamp_ms" }),
-  // Approval field (via additionalFields)
-  approved: integer("approved", { mode: "boolean" }).default(false),
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
-    .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-    .notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
-    .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-    .$onUpdate(() => new Date())
-    .notNull(),
-});
+export const user = sqliteTable(
+  "user",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    emailVerified: integer("email_verified", { mode: "boolean" })
+      .default(false)
+      .notNull(),
+    image: text("image"),
+    // Admin plugin fields
+    role: text("role").default("user"),
+    banned: integer("banned", { mode: "boolean" }).default(false),
+    banReason: text("ban_reason"),
+    banExpires: integer("ban_expires", { mode: "timestamp_ms" }),
+    // Approval field (via additionalFields)
+    approved: integer("approved", { mode: "boolean" }).default(false),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [uniqueIndex("user_email_unique").on(table.email)]
+);
 
-export const organization = sqliteTable("organization", {
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
-    .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-    .notNull(),
-  id: text("id").primaryKey(),
-  logo: text("logo"),
-  metadata: text("metadata"),
-  name: text("name").notNull(),
-  slug: text("slug").unique(),
-  featureOverrides: text("feature_overrides", { mode: "json" })
-    .$type<CapabilityOverrides>()
-    .default({}),
-  tier: text("tier").$type<PlanTier>().default("free").notNull(),
-  tierSource: text("tier_source")
-    .$type<TierSource>()
-    .default("stripe")
-    .notNull(),
-  adminTierGrant: text("admin_tier_grant").$type<PlanTier>(),
-  adminTierGrantedAt: integer("admin_tier_granted_at", {
-    mode: "timestamp_ms",
-  }),
-  stripeCustomerId: text("stripe_customer_id")
-    .$type<StripeCustomerId>()
-    .unique(),
-  stripeSubscriptionId: text(
-    "stripe_subscription_id"
-  ).$type<StripeSubscriptionId>(),
-  subscriptionStatus: text("subscription_status"),
-  currentPeriodStart: integer("current_period_start", {
-    mode: "timestamp_ms",
-  }),
-  currentPeriodEnd: integer("current_period_end", { mode: "timestamp_ms" }),
-  cancelAtPeriodEnd: integer("cancel_at_period_end", { mode: "boolean" })
-    .default(false)
-    .notNull(),
-  billingInterval: text("billing_interval").$type<BillingInterval>(),
-  // Stripe's billing_cycle_anchor for paid subscriptions; the grant timestamp
-  // for admin-sourced tiers. Assistant usage derives monthly windows from it.
-  usageCycleAnchor: integer("usage_cycle_anchor", { mode: "timestamp_ms" }),
-});
+export const organization = sqliteTable(
+  "organization",
+  {
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    id: text("id").primaryKey(),
+    logo: text("logo"),
+    metadata: text("metadata"),
+    name: text("name").notNull(),
+    slug: text("slug"),
+    featureOverrides: text("feature_overrides", { mode: "json" })
+      .$type<CapabilityOverrides>()
+      .default({}),
+    tier: text("tier").$type<PlanTier>().default("free").notNull(),
+    tierSource: text("tier_source")
+      .$type<TierSource>()
+      .default("stripe")
+      .notNull(),
+    adminTierGrant: text("admin_tier_grant").$type<PlanTier>(),
+    adminTierGrantedAt: integer("admin_tier_granted_at", {
+      mode: "timestamp_ms",
+    }),
+    stripeCustomerId: text("stripe_customer_id").$type<StripeCustomerId>(),
+    stripeSubscriptionId: text(
+      "stripe_subscription_id"
+    ).$type<StripeSubscriptionId>(),
+    subscriptionStatus: text("subscription_status"),
+    currentPeriodStart: integer("current_period_start", {
+      mode: "timestamp_ms",
+    }),
+    currentPeriodEnd: integer("current_period_end", { mode: "timestamp_ms" }),
+    cancelAtPeriodEnd: integer("cancel_at_period_end", { mode: "boolean" })
+      .default(false)
+      .notNull(),
+    billingInterval: text("billing_interval").$type<BillingInterval>(),
+    // Stripe's billing_cycle_anchor for paid subscriptions; the grant timestamp
+    // for admin-sourced tiers. Assistant usage derives monthly windows from it.
+    usageCycleAnchor: integer("usage_cycle_anchor", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    uniqueIndex("organization_slug_unique").on(table.slug),
+    uniqueIndex("organization_stripe_customer_id_unique").on(
+      table.stripeCustomerId
+    ),
+  ]
+);
 
 export const session = sqliteTable(
   "session",
   {
     id: text("id").primaryKey(),
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
-    token: text("token").notNull().unique(),
+    token: text("token").notNull(),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
       .notNull(),
@@ -106,7 +117,10 @@ export const session = sqliteTable(
     // Admin plugin field (for impersonation)
     impersonatedBy: text("impersonated_by"),
   },
-  (table) => [index("session_userId_idx").on(table.userId)]
+  (table) => [
+    index("session_userId_idx").on(table.userId),
+    uniqueIndex("session_token_unique").on(table.token),
+  ]
 );
 
 export const account = sqliteTable(
@@ -263,7 +277,7 @@ export const oauthClient = sqliteTable(
   "oauth_client",
   {
     id: text("id").primaryKey(),
-    clientId: text("client_id").notNull().unique(),
+    clientId: text("client_id").notNull(),
     clientSecret: text("client_secret"),
     clientDiscoveryId: text("client_discovery_id"),
     disabled: integer("disabled", { mode: "boolean" }).default(false),
@@ -316,30 +330,44 @@ export const oauthClient = sqliteTable(
       Record<string, unknown>
     >(),
   },
-  (table) => [index("oauth_client_user_id_idx").on(table.userId)]
+  (table) => [
+    index("oauth_client_user_id_idx").on(table.userId),
+    uniqueIndex("oauth_client_client_id_unique").on(table.clientId),
+  ]
 );
 
-export const oauthResource = sqliteTable("oauth_resource", {
-  id: text("id").primaryKey(),
-  identifier: text("identifier").notNull().unique(),
-  name: text("name").notNull(),
-  accessTokenTtl: integer("access_token_ttl"),
-  refreshTokenTtl: integer("refresh_token_ttl"),
-  signingAlgorithm: text("signing_algorithm"),
-  signingKeyId: text("signing_key_id"),
-  allowedScopes: text("allowed_scopes", { mode: "json" }).$type<string[]>(),
-  customClaims: text("custom_claims", { mode: "json" }).$type<
-    Record<string, unknown>
-  >(),
-  dpopBoundAccessTokensRequired: integer("dpop_bound_access_tokens_required", {
-    mode: "boolean",
-  }).default(false),
-  disabled: integer("disabled", { mode: "boolean" }).default(false),
-  createdAt: integer("created_at", { mode: "timestamp_ms" }),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" }),
-  policyVersion: integer("policy_version").default(1),
-  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
-});
+export const oauthResource = sqliteTable(
+  "oauth_resource",
+  {
+    id: text("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    name: text("name").notNull(),
+    accessTokenTtl: integer("access_token_ttl"),
+    refreshTokenTtl: integer("refresh_token_ttl"),
+    signingAlgorithm: text("signing_algorithm"),
+    signingKeyId: text("signing_key_id"),
+    allowedScopes: text("allowed_scopes", { mode: "json" }).$type<string[]>(),
+    customClaims: text("custom_claims", { mode: "json" }).$type<
+      Record<string, unknown>
+    >(),
+    dpopBoundAccessTokensRequired: integer(
+      "dpop_bound_access_tokens_required",
+      {
+        mode: "boolean",
+      }
+    ).default(false),
+    disabled: integer("disabled", { mode: "boolean" }).default(false),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }),
+    policyVersion: integer("policy_version").default(1),
+    metadata: text("metadata", { mode: "json" }).$type<
+      Record<string, unknown>
+    >(),
+  },
+  (table) => [
+    uniqueIndex("oauth_resource_identifier_unique").on(table.identifier),
+  ]
+);
 
 export const oauthClientResource = sqliteTable(
   "oauth_client_resource",
@@ -370,7 +398,7 @@ export const oauthRefreshToken = sqliteTable(
   "oauth_refresh_token",
   {
     id: text("id").primaryKey(),
-    token: text("token").notNull().unique(),
+    token: text("token").notNull(),
     clientId: text("client_id")
       .notNull()
       .references(() => oauthClient.clientId),
@@ -401,6 +429,7 @@ export const oauthRefreshToken = sqliteTable(
     scopes: text("scopes", { mode: "json" }).$type<string[]>().notNull(),
   },
   (table) => [
+    uniqueIndex("oauth_refresh_token_token_unique").on(table.token),
     index("oauth_refresh_token_client_id_idx").on(table.clientId),
     index("oauth_refresh_token_session_id_idx").on(table.sessionId),
     index("oauth_refresh_token_user_id_idx").on(table.userId),
@@ -414,7 +443,7 @@ export const oauthAccessToken = sqliteTable(
   "oauth_access_token",
   {
     id: text("id").primaryKey(),
-    token: text("token").notNull().unique(),
+    token: text("token").notNull(),
     clientId: text("client_id")
       .notNull()
       .references(() => oauthClient.clientId),
@@ -440,6 +469,7 @@ export const oauthAccessToken = sqliteTable(
     scopes: text("scopes", { mode: "json" }).$type<string[]>().notNull(),
   },
   (table) => [
+    uniqueIndex("oauth_access_token_token_unique").on(table.token),
     index("oauth_access_token_client_id_idx").on(table.clientId),
     index("oauth_access_token_session_id_idx").on(table.sessionId),
     index("oauth_access_token_user_id_idx").on(table.userId),
@@ -483,7 +513,7 @@ export const oauthClientAssertion = sqliteTable("oauth_client_assertion", {
 export const invite = sqliteTable(
   "invite",
   {
-    code: text("code").notNull().unique(),
+    code: text("code").notNull(),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
       .notNull(),
@@ -497,7 +527,10 @@ export const invite = sqliteTable(
       onDelete: "set null",
     }),
   },
-  (table) => [index("invite_code_idx").on(table.code)]
+  (table) => [
+    uniqueIndex("invite_code_unique").on(table.code),
+    index("invite_code_idx").on(table.code),
+  ]
 );
 
 export const appSettings = sqliteTable("app_settings", {
@@ -553,73 +586,3 @@ export const activityEvents = sqliteTable(
     uniqueIndex("activity_dedupe_idx").on(table.dedupeKey),
   ]
 );
-
-export const userRelations = relations(user, ({ many, one }) => ({
-  accounts: many(account),
-  createdInvites: many(invite, { relationName: "createdInvites" }),
-  members: many(member),
-  sessions: many(session),
-  usedInvite: one(invite, {
-    fields: [user.id],
-    references: [invite.usedByUserId],
-    relationName: "usedInvite",
-  }),
-}));
-
-export const sessionRelations = relations(session, ({ one }) => ({
-  activeOrganization: one(organization, {
-    fields: [session.activeOrganizationId],
-    references: [organization.id],
-  }),
-  user: one(user, {
-    fields: [session.userId],
-    references: [user.id],
-  }),
-}));
-
-export const accountRelations = relations(account, ({ one }) => ({
-  user: one(user, {
-    fields: [account.userId],
-    references: [user.id],
-  }),
-}));
-
-export const organizationRelations = relations(organization, ({ many }) => ({
-  invitations: many(invitation),
-  members: many(member),
-}));
-
-export const memberRelations = relations(member, ({ one }) => ({
-  organization: one(organization, {
-    fields: [member.organizationId],
-    references: [organization.id],
-  }),
-  user: one(user, {
-    fields: [member.userId],
-    references: [user.id],
-  }),
-}));
-
-export const invitationRelations = relations(invitation, ({ one }) => ({
-  inviter: one(user, {
-    fields: [invitation.inviterId],
-    references: [user.id],
-  }),
-  organization: one(organization, {
-    fields: [invitation.organizationId],
-    references: [organization.id],
-  }),
-}));
-
-export const inviteRelations = relations(invite, ({ one }) => ({
-  createdBy: one(user, {
-    fields: [invite.createdByUserId],
-    references: [user.id],
-    relationName: "createdInvites",
-  }),
-  usedBy: one(user, {
-    fields: [invite.usedByUserId],
-    references: [user.id],
-    relationName: "usedInvite",
-  }),
-}));

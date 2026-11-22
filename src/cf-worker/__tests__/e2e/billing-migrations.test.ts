@@ -5,8 +5,8 @@ import { Schema } from "effect";
 import { signupUser } from "./helpers";
 
 const TestMigration = Schema.Struct({
-  tag: Schema.String,
-  sql: Schema.String,
+  name: Schema.String,
+  sql: Schema.Array(Schema.String),
 });
 const TestMigrations = Schema.Array(TestMigration);
 
@@ -14,14 +14,11 @@ const migrationStatements = (tag: string): readonly string[] => {
   const migrations = Schema.decodeUnknownSync(TestMigrations)(
     JSON.parse(env.TEST_MIGRATIONS)
   );
-  const migration = migrations.find((candidate) => candidate.tag === tag);
+  const migration = migrations.find((candidate) => candidate.name === tag);
   if (!migration) {
     throw new Error(`Missing test migration: ${tag}`);
   }
-  return migration.sql
-    .split("--> statement-breakpoint")
-    .map((statement) => statement.trim())
-    .filter(Boolean);
+  return migration.sql.map((statement) => statement.trim()).filter(Boolean);
 };
 
 describe("billing migrations E2E", () => {
@@ -45,7 +42,7 @@ describe("billing migrations E2E", () => {
       .run();
 
     for (const statement of migrationStatements(
-      "0020_backfill_admin_tier_grants"
+      "20260830123837_backfill_admin_tier_grants"
     )) {
       await env.DB.prepare(statement).run();
     }

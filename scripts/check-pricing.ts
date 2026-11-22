@@ -65,7 +65,7 @@ const readDevVars = (): Map<string, string> => {
   const map = new Map<string, string>();
   let contents: string;
   try {
-    contents = readFileSync(".dev.vars", "utf8");
+    contents = readFileSync(".env", "utf8");
   } catch {
     return map;
   }
@@ -136,7 +136,7 @@ const program = Effect.gen(function* () {
     Effect.catchTag("ConfigError", () =>
       Effect.gen(function* () {
         yield* Console.error(
-          "STRIPE_API_KEY not set (.dev.vars or env); cannot check."
+          "STRIPE_API_KEY not set (.env or env); cannot check."
         );
         return yield* new MissingApiKey({});
       })

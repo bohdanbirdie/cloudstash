@@ -10,7 +10,7 @@ own each major mechanism.
 - **CS.SYS-A01 Cloudflare execution:** The web/API Worker, Durable Objects,
   Queues, Workflows, D1, KV, Analytics Engine, and Workers AI remain available
   platform primitives.
-  - Validation: [`wrangler.jsonc`](../../wrangler.jsonc) and deployed incident
+  - Validation: [`alchemy.run.ts`](../../alchemy.run.ts) and deployed incident
     evidence.
 - **CS.SYS-A02 LiveStore foundation:** Workspace content uses a LiveStore
   eventlog and derived SQLite state across browser and server-side clients.

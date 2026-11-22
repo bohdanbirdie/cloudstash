@@ -31,7 +31,7 @@ const logger = logSync("Auth");
 // loopback IP literal `127.0.0.1` (RFC 8252). For local dev this means
 // BETTER_AUTH_URL must be set to `http://127.0.0.1:3000` (not `localhost`),
 // and the browser must hit the app via `127.0.0.1` so the session cookie
-// is set on the same origin the X callback lands on. See .dev.vars.example.
+// is set on the same origin the X callback lands on. See .env.example.
 
 export const createAuth = (env: Env, db: Database) => {
   const auth = betterAuth({

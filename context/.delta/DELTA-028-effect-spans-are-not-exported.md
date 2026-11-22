@@ -17,7 +17,7 @@ queryable telemetry for critical failures.
 
 [`tracing.ts`](../../src/cf-worker/tracing.ts) documents and installs the no-op
 global tracer. `AppLayerLive` does not configure an external span exporter,
-while `wrangler.jsonc` enables Cloudflare's built-in logs/traces.
+while `alchemy.run.ts` enables Cloudflare's built-in logs/traces.
 
 ## Direction
 

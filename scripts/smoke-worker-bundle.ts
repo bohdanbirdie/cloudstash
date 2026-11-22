@@ -1,178 +1,61 @@
-import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { createServer, request } from "node:http";
+import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { readMigrationFiles } from "drizzle-orm/migrator";
+import { convertV4MiniflareOptions, Miniflare } from "miniflare";
+
+import { localWorkerOptions } from "../tools/local-worker";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
-const wrangler = path.join(root, "node_modules/.bin/wrangler");
-const workerConfig = path.join(root, "dist/cloudstash/wrangler.json");
+const migrationsDir = path.join(root, "drizzle/migrations");
+const origin = "http://127.0.0.1:8787";
 
-const delay = (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
-
-const availablePort = (): Promise<number> =>
-  new Promise((resolve, reject) => {
-    const server = createServer();
-    server.on("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      if (address === null || typeof address === "string") {
-        server.close();
-        reject(new Error("Could not allocate a local port"));
-        return;
-      }
-      server.close((error) => {
-        if (error) reject(error);
-        else resolve(address.port);
-      });
-    });
-  });
-
-const websocketUpgrade = (
-  port: number,
-  pathname: string,
-  cookie: string,
-  origin: string
-): Promise<void> =>
-  new Promise((resolve, reject) => {
-    const req = request({
-      headers: {
-        Connection: "Upgrade",
-        Cookie: cookie,
-        Origin: origin,
-        "Sec-WebSocket-Key": Buffer.from(crypto.randomUUID()).toString(
-          "base64"
-        ),
-        "Sec-WebSocket-Version": "13",
-        Upgrade: "websocket",
-      },
-      host: "127.0.0.1",
-      method: "GET",
-      path: pathname,
-      port,
-    });
-
-    req.setTimeout(15_000, () => {
-      req.destroy(new Error("WebSocket upgrade timed out"));
-    });
-    req.on("upgrade", (response, socket) => {
-      socket.destroy();
-      if (response.statusCode === 101) resolve();
-      else
-        reject(new Error(`Expected WebSocket 101, got ${response.statusCode}`));
-    });
-    req.on("response", (response) => {
-      const chunks: Buffer[] = [];
-      response.on("data", (chunk: Buffer) => chunks.push(chunk));
-      response.on("end", () => {
-        reject(
-          new Error(
-            `Expected WebSocket upgrade, got ${response.statusCode}: ${Buffer.concat(chunks).toString("utf8")}`
-          )
-        );
-      });
-    });
-    req.on("error", reject);
-    req.end();
-  });
+const workerDir = path.join(root, "dist/ssr");
+const workerFiles = readdirSync(workerDir, { recursive: true })
+  .map(String)
+  .filter((file) => file.endsWith(".js") || file.endsWith(".wasm"))
+  .toSorted((a, b) => (a === "index.js" ? -1 : b === "index.js" ? 1 : 0));
+const workerModules = workerFiles.map((file) => ({
+  type: file.endsWith(".wasm")
+    ? ("CompiledWasm" as const)
+    : ("ESModule" as const),
+  path: path.join(workerDir, file),
+}));
 
 const tempRoot = mkdtempSync(path.join(tmpdir(), "cloudstash-bundle-smoke-"));
-const persistDir = path.join(tempRoot, "state");
-const envFile = path.join(tempRoot, "smoke.env");
-let dev: ReturnType<typeof spawn> | undefined;
+const mf = new Miniflare(
+  convertV4MiniflareOptions({
+    ...localWorkerOptions(path.join(root, "dist/client")),
+    modules: workerModules,
+    modulesRoot: workerDir,
+    defaultPersistRoot: tempRoot,
+    bindings: {
+      ...localWorkerOptions("").bindings,
+      BETTER_AUTH_SECRET: "test-secret-for-bundle-smoke-32chars",
+      BETTER_AUTH_URL: origin,
+      ENABLE_TEST_AUTH: "true",
+      GOOGLE_CLIENT_ID: "test-google-client-id",
+      GOOGLE_CLIENT_SECRET: "test-google-client-secret",
+      RESEND_API_KEY: "re_test_dummy",
+    },
+  })
+);
 
 try {
-  const port = await availablePort();
-  const inspectorPort = await availablePort();
-  const origin = `http://127.0.0.1:${port}`;
-  writeFileSync(
-    envFile,
-    [
-      "BETTER_AUTH_SECRET=test-secret-for-bundle-smoke-32chars",
-      `BETTER_AUTH_URL=${origin}`,
-      "ENABLE_TEST_AUTH=true",
-      "GOOGLE_CLIENT_ID=test-google-client-id",
-      "GOOGLE_CLIENT_SECRET=test-google-client-secret",
-      "RESEND_API_KEY=re_test_dummy",
-      "EMAIL_FROM=test@example.com",
-      "",
-    ].join("\n")
-  );
-
-  const migration = spawnSync(
-    wrangler,
-    [
-      "d1",
-      "migrations",
-      "apply",
-      "DB",
-      "--local",
-      "--config",
-      workerConfig,
-      "--persist-to",
-      persistDir,
-    ],
-    {
-      cwd: root,
-      encoding: "utf8",
-      env: { ...process.env, CI: "true" },
-    }
-  );
-  if (migration.status !== 0) {
-    throw new Error(
-      `D1 migration failed:\n${migration.stdout}\n${migration.stderr}`
-    );
+  const db = await mf.getD1Database("DB");
+  for (const { sql } of readMigrationFiles({
+    migrationsFolder: migrationsDir,
+  })) {
+    const statements = sql
+      .map((statement) => statement.trim())
+      .filter((statement) => statement.length > 0);
+    await db.batch(statements.map((statement) => db.prepare(statement)));
   }
 
-  const logs: string[] = [];
-  dev = spawn(
-    wrangler,
-    [
-      "dev",
-      "--local",
-      "--config",
-      workerConfig,
-      "--persist-to",
-      persistDir,
-      "--env-file",
-      envFile,
-      "--ip",
-      "127.0.0.1",
-      "--port",
-      String(port),
-      "--inspector-port",
-      String(inspectorPort),
-      "--log-level",
-      "warn",
-    ],
-    { cwd: root, env: { ...process.env, CI: "true" } }
-  );
-  const collect = (chunk: Buffer): void => {
-    logs.push(chunk.toString("utf8"));
-    if (logs.length > 200) logs.shift();
-  };
-  dev.stdout?.on("data", collect);
-  dev.stderr?.on("data", collect);
-
-  let ready = false;
-  for (let attempt = 0; attempt < 120; attempt++) {
-    if (dev.exitCode !== null) break;
-    try {
-      await fetch(`${origin}/api/auth/me`);
-      ready = true;
-      break;
-    } catch {
-      await delay(250);
-    }
-  }
-  if (!ready) {
-    throw new Error(`Worker did not start:\n${logs.join("")}`);
-  }
-
-  const signup = await fetch(`${origin}/api/auth/sign-up/email`, {
+  const signup = await mf.dispatchFetch(`${origin}/api/auth/sign-up/email`, {
     body: JSON.stringify({
       email: `bundle-smoke-${crypto.randomUUID()}@test.com`,
       name: "Bundle Smoke",
@@ -187,7 +70,7 @@ try {
   const cookie = signup.headers.get("set-cookie")?.split(";", 1)[0];
   if (!cookie) throw new Error("Signup did not return a session cookie");
 
-  const me = await fetch(`${origin}/api/auth/me`, {
+  const me = await mf.dispatchFetch(`${origin}/api/auth/me`, {
     headers: { Cookie: cookie },
   });
   if (!me.ok) {
@@ -200,18 +83,20 @@ try {
   if (!storeId) throw new Error("Session did not contain an active workspace");
 
   const syncPath = `/sync?${new URLSearchParams({ storeId, transport: "ws" })}`;
-  await websocketUpgrade(port, syncPath, cookie, origin);
+  const upgrade = await mf.dispatchFetch(`${origin}${syncPath}`, {
+    headers: { Cookie: cookie, Origin: origin, Upgrade: "websocket" },
+  });
+  if (upgrade.status !== 101 || !upgrade.webSocket) {
+    throw new Error(
+      `Expected WebSocket 101, got ${upgrade.status}: ${await upgrade.text()}`
+    );
+  }
+  upgrade.webSocket.accept();
+  upgrade.webSocket.close();
   console.log(
     "ok  minified Worker smoke (D1 signup + authenticated SyncBackendDO WebSocket upgrade)"
   );
 } finally {
-  if (dev && dev.exitCode === null) {
-    dev.kill("SIGTERM");
-    await Promise.race([
-      new Promise<void>((resolve) => dev?.once("exit", () => resolve())),
-      delay(5_000),
-    ]);
-    if (dev.exitCode === null) dev.kill("SIGKILL");
-  }
+  await mf.dispose();
   rmSync(tempRoot, { force: true, recursive: true });
 }

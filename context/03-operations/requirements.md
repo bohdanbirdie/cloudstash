@@ -35,7 +35,7 @@ response, and deletion/recovery operation.
 
 - **CS.OPS-R01 Declarative resources:** Bindings, migrations, queue consumers,
   variables, compatibility flags, and observability are declared in
-  `wrangler.jsonc` and generated types are kept current.
+  `alchemy.run.ts`, and the Worker's `Env` type is inferred from it.
 - **CS.OPS-R02 Hibernation:** Idle SyncBackendDO WebSockets must hibernate and
   remain live after wake. `refines: CS.SYS.SYNC-R06`
 - **CS.OPS-R03 Quota-aware migrations:** LiveStore schema/runtime changes that

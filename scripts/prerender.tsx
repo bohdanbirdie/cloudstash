@@ -153,10 +153,8 @@ function buildHeadHtml(heads: ReadonlyArray<HeadResult>): string {
 
 async function main(): Promise<void> {
   // Minimal Vite server for SSR module loading. We deliberately skip the
-  // project's vite.config.ts (cloudflare plugin, tailwind, react-router-plugin)
-  // because none of those are needed to compile the marketing route modules
-  // for SSR, and the cloudflare plugin tries to open a wrangler remote
-  // connection at startup which fails in this Node-only context.
+  // project's vite.config.ts because none of its plugins are needed to compile
+  // the marketing route modules for SSR.
   // Force production mode so route-level guards like `META_PIXEL_HEAD_SCRIPTS`
   // (gated on `import.meta.env.PROD`) emit their tracking scripts into the
   // prerendered HTML. `createServer` defaults to a dev server, which resolves

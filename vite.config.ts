@@ -1,22 +1,46 @@
-import { cloudflare } from "@cloudflare/vite-plugin";
+import { spawnSync } from "node:child_process";
+
+import cloudflare from "@alchemy.run/cloudflare-runtime/vite";
 import { livestoreDevtoolsPlugin } from "@livestore/devtools-vite";
 import tailwindcss from "@tailwindcss/vite";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig, lazyPlugins } from "vite-plus";
-import type { UserConfig } from "vite-plus";
+import type { Plugin, UserConfig } from "vite-plus";
 
-// Storybook shares this config for browser components, but it does not serve
-// the Worker. Starting that runtime here would contend with the app's fixed
-// inspector port and connect remote bindings unnecessarily.
-const isStorybook = process.env.CLOUDSTASH_STORYBOOK === "1";
+import {
+  WORKER_COMPATIBILITY,
+  WORKER_EFFECTIVE_COMPATIBILITY_FLAGS,
+  WORKER_MAIN,
+} from "./worker.config";
 
-const config: UserConfig = {
+const needsStandaloneWorkerBuild = (command: string) =>
+  command === "build" &&
+  process.env.ALCHEMY_CLOUDFLARE_VITE_INJECTED !== "1" &&
+  process.env.STORYBOOK !== "true";
+
+const prerenderMarketingPages = (): Plugin => ({
+  name: "cloudstash:prerender",
+  apply: "build",
+  buildApp: {
+    order: "post",
+    async handler() {
+      const result = spawnSync("bun", ["scripts/prerender.tsx"], {
+        stdio: "inherit",
+      });
+      if (result.status !== 0) {
+        throw new Error("Prerendering the marketing pages failed");
+      }
+    },
+  },
+});
+
+const baseConfig: UserConfig = {
   environments: {
     // Cloudflare's Worker environment is server/SSR-like, so Vite leaves it
     // unminified by default. Keep client defaults independent and explicitly
     // minify only the deployable Worker to preserve Free-plan upload headroom.
-    cloudstash: {
+    ssr: {
       build: { minify: "oxc" },
     },
   },
@@ -290,11 +314,11 @@ const config: UserConfig = {
     exclude: ["@livestore/wa-sqlite"],
   },
   plugins: lazyPlugins(() => [
-    ...(isStorybook ? [] : cloudflare({ inspectorPort: 9230 })),
     TanStackRouterVite(),
     tailwindcss(),
     viteReact(),
     livestoreDevtoolsPlugin({ schemaPath: "./src/livestore/schema.ts" }),
+    prerenderMarketingPages(),
   ]),
   server: {
     allowedHosts: [".trycloudflare.com"],
@@ -306,4 +330,18 @@ const config: UserConfig = {
   },
 };
 
-export default defineConfig(config);
+export default defineConfig(({ command }) =>
+  needsStandaloneWorkerBuild(command)
+    ? {
+        ...baseConfig,
+        plugins: [
+          cloudflare({
+            main: WORKER_MAIN,
+            compatibilityDate: WORKER_COMPATIBILITY.date,
+            compatibilityFlags: WORKER_EFFECTIVE_COMPATIBILITY_FLAGS,
+          }),
+          baseConfig.plugins,
+        ],
+      }
+    : baseConfig
+);

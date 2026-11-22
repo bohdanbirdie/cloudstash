@@ -1,21 +1,48 @@
-import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
+import { readMigrationFiles } from "drizzle-orm/migrator";
 import { defineConfig } from "vitest/config";
+
+import { localWorkerOptions } from "./tools/local-worker";
+import type { CallerSuppliedBindings } from "./tools/local-worker";
+import { WORKER_COMPATIBILITY, WORKER_MAIN } from "./worker.config";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Load migrations in Node.js context
-const migrationsDir = path.resolve(__dirname, "drizzle/migrations");
-const journal = JSON.parse(
-  fs.readFileSync(path.join(migrationsDir, "meta/_journal.json"), "utf8")
-);
-const migrations = journal.entries.map((entry: { tag: string }) => ({
-  sql: fs.readFileSync(path.join(migrationsDir, `${entry.tag}.sql`), "utf8"),
-  tag: entry.tag,
-}));
+const migrations = readMigrationFiles({
+  migrationsFolder: path.resolve(__dirname, "drizzle/migrations"),
+}).map(({ name, sql }) => ({ name, sql }));
+
+const localWorker = localWorkerOptions("./dist/client");
+
+const testBindings = {
+  // Synthetic test-only private limit; production values stay in secrets.
+  AI_METER_LIMIT: "1",
+  BETTER_AUTH_SECRET: "test-secret-for-jwt-signing-32chars",
+  BETTER_AUTH_URL: "http://localhost",
+  GOOGLE_CLIENT_ID: "test-google-client-id",
+  GOOGLE_CLIENT_SECRET: "test-google-client-secret",
+  X_CLIENT_ID: "test-x-client-id",
+  X_CLIENT_SECRET: "test-x-client-secret",
+  ENABLE_TEST_AUTH: "true",
+  RESEND_API_KEY: "re_test_dummy",
+  // Provider tests intercept the outbound request, but the SDK validates
+  // its key before calling fetch. Keep CI independent from real secrets.
+  OPENROUTER_API_KEY: "test-openrouter-api-key",
+  STRIPE_API_KEY: "sk_test_delete",
+  STRIPE_PRICE_PLUS: "price_plus",
+  STRIPE_PRICE_PLUS_YEARLY: "price_plus_yearly",
+  STRIPE_PRICE_PRO: "price_pro",
+  STRIPE_PRICE_PRO_YEARLY: "price_pro_yearly",
+  CF_ACCOUNT_ID: "",
+  CF_ANALYTICS_TOKEN: "",
+  PUBLIC_URL: "",
+  STRIPE_WEBHOOK_SECRET: "",
+  TELEGRAM_BOT_TOKEN: "",
+  TELEGRAM_WEBHOOK_SECRET: "",
+} satisfies CallerSuppliedBindings;
 
 /**
  * E2E test configuration using the Cloudflare Vitest plugin.
@@ -24,36 +51,26 @@ const migrations = journal.entries.map((entry: { tag: string }) => ({
 export default defineConfig({
   plugins: [
     cloudflareTest({
+      main: WORKER_MAIN,
       remoteBindings: false,
-      wrangler: { configPath: "./wrangler.jsonc" },
       miniflare: {
+        ...localWorker,
+        // The vitest pool cannot load its own modules under new_module_registry.
+        compatibilityFlags: WORKER_COMPATIBILITY.flags,
+        modulesRules: [
+          { type: "CompiledWasm", include: ["**/*.wasm"], fallthrough: true },
+        ],
         queueConsumers: {
+          ...localWorker.queueConsumers,
           "cloudstash-x-reconcile": {
-            maxBatchSize: 10,
+            ...localWorker.queueConsumers["cloudstash-x-reconcile"],
             maxBatchTimeout: 0.05,
-            maxRetries: 5,
           },
         },
         bindings: {
-          // Synthetic test-only private limit; production values stay in secrets.
-          AI_METER_LIMIT: "1",
-          BETTER_AUTH_SECRET: "test-secret-for-jwt-signing-32chars",
-          BETTER_AUTH_URL: "http://localhost",
-          GOOGLE_CLIENT_ID: "test-google-client-id",
-          GOOGLE_CLIENT_SECRET: "test-google-client-secret",
-          X_CLIENT_ID: "test-x-client-id",
-          X_CLIENT_SECRET: "test-x-client-secret",
-          ENABLE_TEST_AUTH: "true",
-          RESEND_API_KEY: "re_test_dummy",
+          ...localWorker.bindings,
+          ...testBindings,
           EMAIL_FROM: "test@example.com",
-          // Provider tests intercept the outbound request, but the SDK validates
-          // its key before calling fetch. Keep CI independent from real secrets.
-          OPENROUTER_API_KEY: "test-openrouter-api-key",
-          STRIPE_API_KEY: "sk_test_delete",
-          STRIPE_PRICE_PLUS: "price_plus",
-          STRIPE_PRICE_PLUS_YEARLY: "price_plus_yearly",
-          STRIPE_PRICE_PRO: "price_pro",
-          STRIPE_PRICE_PRO_YEARLY: "price_pro_yearly",
           TEST_MIGRATIONS: JSON.stringify(migrations),
         },
         ratelimits: {

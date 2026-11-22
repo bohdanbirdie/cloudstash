@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 
 import { spawn } from "bun";
 
-// Read .dev.vars
-const devVars = readFileSync(".dev.vars", "utf8");
+// Read .env
+const devVars = readFileSync(".env", "utf8");
 const vars: Record<string, string> = {};
 for (const line of devVars.split("\n")) {
   if (line && !line.startsWith("#")) {
@@ -17,7 +17,7 @@ const secret = vars.TELEGRAM_WEBHOOK_SECRET;
 
 if (!token || !secret) {
   console.error(
-    "Missing TELEGRAM_BOT_TOKEN or TELEGRAM_WEBHOOK_SECRET in .dev.vars"
+    "Missing TELEGRAM_BOT_TOKEN or TELEGRAM_WEBHOOK_SECRET in .env"
   );
   process.exit(1);
 }

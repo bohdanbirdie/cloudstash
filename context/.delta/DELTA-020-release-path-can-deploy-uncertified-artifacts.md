@@ -4,13 +4,12 @@ Status: open
 
 ## Divergence
 
-`build:prod` mutates remote D1 before proving the build and `deploy` does not
-build or certify. Depending on ignored local state, Wrangler may deploy stale
-generated output or raw root source. CI now builds, checks the declared Worker
-upload budget, and smoke-tests generated output, but authenticated pricing
-checks remain outside the release boundary. The staging path now builds and
-certifies first and rejects a production-shaped artifact before remote mutation;
-the default production path still has the original ordering gap.
+The production deploy now runs through Alchemy. Alchemy applies D1 migrations
+before it builds the Worker, so the deploy workflow first runs the build, the
+bundle certification (`verify-bundle.ts`), and the bundle smoke test, and
+deploys only if they pass; a failed build no longer mutates remote D1. The
+deploy does not wait for the rest of CI on the same commit, and authenticated
+pricing checks remain outside the release boundary.
 
 ## Intent
 
@@ -19,14 +18,12 @@ artifact-first certification and CI coverage before remote mutation.
 
 ## Implementation
 
-[`package.json`](../../package.json) defines `build:prod` as remote migration
-before Vite build and `deploy` as remote migration followed by `wrangler deploy`.
-[CI](../../.github/workflows/ci.yml) now runs `bun run build`, but
-[`check:pricing`](../../package.json) remains outside CI and release. Generated
-deploy redirects/output are ignored local artifacts. The staging scripts and
-[`verify-staging-artifact.ts`](../../scripts/verify-staging-artifact.ts) provide
-the target artifact-first shape without yet changing production release
-authority.
+[`alchemy.run.ts`](../../alchemy.run.ts) declares the Vite build and D1
+migrations, and the [deploy workflow](../../.github/workflows/deploy.yml) runs
+`bun run deploy` on pushes to `main` independently of
+[CI](../../.github/workflows/ci.yml), which runs `bun run build` and the bundle
+smoke test. [`check:pricing`](../../package.json) remains outside CI and
+release.
 
 ## Direction
 

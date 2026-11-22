@@ -18,14 +18,7 @@ export interface HonoVariables {
   session: AdminSession;
 }
 
-// Bindings/secrets are generated into `Cloudflare.Env` by `bun run cf-typegen`.
-// This interface only adds what typegen can't express:
 export interface Env extends Cloudflare.Env {
-  // Vars not declared in wrangler.jsonc / .dev.vars, so absent from typegen.
-  AI_METER_LIMIT?: string;
-  ENABLE_TEST_AUTH?: string;
-  PUBLIC_URL?: string;
-  // Typegen emits an untyped `Queue`; narrow to the message type.
   LINK_QUEUE: Queue<LinkQueueMessage>;
   X_RECONCILE_QUEUE: Queue<XReconcileMessage>;
 }

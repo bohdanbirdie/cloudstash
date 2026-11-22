@@ -222,7 +222,7 @@ const make = Effect.gen(function* () {
     Effect.gen(function* () {
       const row = yield* query(
         db.query.organization.findFirst({
-          where: eq(schema.organization.id, orgId),
+          where: { id: orgId },
           columns: {
             cancelAtPeriodEnd: true,
             createdAt: true,
@@ -534,7 +534,7 @@ const make = Effect.gen(function* () {
       yield* Effect.annotateCurrentSpan({ orgId: maskId(orgId) });
       const row = yield* query(
         db.query.organization.findFirst({
-          where: eq(schema.organization.id, orgId),
+          where: { id: orgId },
           columns: { id: true },
         })
       );
@@ -546,7 +546,7 @@ const make = Effect.gen(function* () {
         db.query.organization.findMany({
           with: {
             members: {
-              where: eq(schema.member.role, "owner"),
+              where: { role: "owner" },
               with: { user: { columns: { email: true } } },
               limit: 1,
             },

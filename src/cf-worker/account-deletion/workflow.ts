@@ -33,7 +33,7 @@ export const waitForIdentityDeletion = Effect.fnUntraced(function* (
   const existing = yield* query(
     db.query.user.findFirst({
       columns: { id: true },
-      where: eq(schema.user.id, payload.userId),
+      where: { id: payload.userId },
     })
   );
   if (existing) {
@@ -70,7 +70,7 @@ export const deleteOrgData = Effect.fn("AccountDeletion.deleteOrgData")(
     const survivingOrg = yield* query(
       db.query.organization.findFirst({
         columns: { id: true },
-        where: eq(schema.organization.id, payload.orgId),
+        where: { id: payload.orgId },
       })
     );
     if (survivingOrg) {

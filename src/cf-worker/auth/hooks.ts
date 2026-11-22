@@ -75,7 +75,7 @@ const repairOrCreateMembership = Effect.fn("Auth.repairOrCreateMembership")(
 
     const existingOrg = yield* query(
       db.query.organization.findFirst({
-        where: eq(schema.organization.slug, slug),
+        where: { slug: slug },
       })
     );
 
@@ -98,7 +98,7 @@ const repairOrCreateMembership = Effect.fn("Auth.repairOrCreateMembership")(
     }
 
     const user = yield* query(
-      db.query.user.findFirst({ where: eq(schema.user.id, userId) })
+      db.query.user.findFirst({ where: { id: userId } })
     );
     const orgName = user?.name ? `${user.name}'s Workspace` : "My Workspace";
     const org = yield* Effect.tryPromise({
@@ -118,9 +118,7 @@ export const resolveActiveOrg = Effect.fn("Auth.resolveActiveOrg")(function* (
   const db = yield* DbClient;
   const userId = UserId.make(session.userId);
   const findMembership = () =>
-    query(
-      db.query.member.findFirst({ where: eq(schema.member.userId, userId) })
-    );
+    query(db.query.member.findFirst({ where: { userId: userId } }));
 
   const existing = yield* findMembership();
   if (existing) return existing.organizationId;

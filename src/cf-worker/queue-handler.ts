@@ -6,12 +6,6 @@ import type { LinkQueueMessage } from "./link-processor/types";
 import { safeErrorInfo } from "./log-utils";
 import type { Env } from "./shared";
 
-/**
- * Queue consumer config — must match wrangler.jsonc queues.consumers:
- *   cloudstash-link-queue: max_batch_size 5, max_concurrency 1, max_retries 5,
- *     dead_letter_queue "cloudstash-link-dlq"
- *   cloudstash-link-dlq: max_batch_size 5, max_concurrency 1, max_retries 100
- */
 const BATCH_CONCURRENCY = 5;
 
 const mainQueueRetryDelay = (attempts: number): number =>

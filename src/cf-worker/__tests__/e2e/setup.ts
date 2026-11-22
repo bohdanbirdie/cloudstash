@@ -3,12 +3,12 @@ import { beforeAll } from "vitest";
 
 beforeAll(async () => {
   const db = env.DB;
-  const migrations: { tag: string; sql: string }[] = JSON.parse(
+  const migrations: { name: string; sql: string[] }[] = JSON.parse(
     env.TEST_MIGRATIONS
   );
 
   for (const { sql } of migrations) {
-    for (const statement of sql.split("--> statement-breakpoint")) {
+    for (const statement of sql) {
       const trimmed = statement.trim();
       if (trimmed) {
         await db.prepare(trimmed).run();
