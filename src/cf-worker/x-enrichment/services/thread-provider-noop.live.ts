@@ -1,5 +1,5 @@
 import { Duration, Effect, Layer, Schema } from "effect";
-import { FetchHttpClient, HttpClient } from "effect/unstable/http";
+import { FetchHttpClient, HttpClient } from "effect/http";
 
 import { XTweetId, XUsername } from "../../db/branded";
 import {

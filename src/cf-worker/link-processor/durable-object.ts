@@ -307,9 +307,10 @@ export class LinkProcessorDO
       schema,
       sessionId,
       storeId,
-      syncBackendStub: this.env.SYNC_BACKEND_DO.get(
-        this.env.SYNC_BACKEND_DO.idFromName(storeId)
-      ) as never,
+      getSyncBackendStub: () =>
+        this.env.SYNC_BACKEND_DO.get(
+          this.env.SYNC_BACKEND_DO.idFromName(storeId)
+        ) as never,
     });
 
     if (!this.canUseStore(generation)) {

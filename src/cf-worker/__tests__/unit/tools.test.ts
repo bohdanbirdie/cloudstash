@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { ToolCallOptions } from "ai";
 import { Effect } from "effect";
-import { RpcTest } from "effect/unstable/rpc";
+import { RpcTest } from "effect/rpc";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {

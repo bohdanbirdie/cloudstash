@@ -2,19 +2,19 @@ import { Schema } from "effect";
 
 import { OrgId, UserId } from "../db/branded";
 
-export class OrgUnauthorizedError extends Schema.TaggedErrorClass<OrgUnauthorizedError>()(
+export class OrgUnauthorizedError extends Schema.TaggedError<OrgUnauthorizedError>()(
   "OrgUnauthorizedError",
   {}
 ) {}
 
-export class OrgNotFoundError extends Schema.TaggedErrorClass<OrgNotFoundError>()(
+export class OrgNotFoundError extends Schema.TaggedError<OrgNotFoundError>()(
   "OrgNotFoundError",
   {
     orgId: OrgId,
   }
 ) {}
 
-export class AccessDeniedError extends Schema.TaggedErrorClass<AccessDeniedError>()(
+export class AccessDeniedError extends Schema.TaggedError<AccessDeniedError>()(
   "AccessDeniedError",
   {
     orgId: OrgId,
@@ -22,7 +22,7 @@ export class AccessDeniedError extends Schema.TaggedErrorClass<AccessDeniedError
   }
 ) {}
 
-export class OrgUpstreamError extends Schema.TaggedErrorClass<OrgUpstreamError>()(
+export class OrgUpstreamError extends Schema.TaggedError<OrgUpstreamError>()(
   "OrgUpstreamError",
   {
     orgId: OrgId,

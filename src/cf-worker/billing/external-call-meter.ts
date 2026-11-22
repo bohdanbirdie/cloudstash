@@ -19,12 +19,12 @@ export const ExternalCallAllowance = Schema.Struct({
 });
 export type ExternalCallAllowance = typeof ExternalCallAllowance.Type;
 
-export class ExternalCallAllowanceUnavailableError extends Schema.TaggedErrorClass<ExternalCallAllowanceUnavailableError>()(
+export class ExternalCallAllowanceUnavailableError extends Schema.TaggedError<ExternalCallAllowanceUnavailableError>()(
   "ExternalCallAllowanceUnavailableError",
   { orgId: OrgId }
 ) {}
 
-export class ExternalCallLimitReachedError extends Schema.TaggedErrorClass<ExternalCallLimitReachedError>()(
+export class ExternalCallLimitReachedError extends Schema.TaggedError<ExternalCallLimitReachedError>()(
   "ExternalCallLimitReachedError",
   {
     limit: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
@@ -33,7 +33,7 @@ export class ExternalCallLimitReachedError extends Schema.TaggedErrorClass<Exter
   }
 ) {}
 
-export class ExternalCallMeterError extends Schema.TaggedErrorClass<ExternalCallMeterError>()(
+export class ExternalCallMeterError extends Schema.TaggedError<ExternalCallMeterError>()(
   "ExternalCallMeterError",
   {
     orgId: OrgId,
@@ -45,7 +45,7 @@ export class ExternalCallMeterError extends Schema.TaggedErrorClass<ExternalCall
   }
 }
 
-export class ExternalCallWorkspaceUnavailableError extends Schema.TaggedErrorClass<ExternalCallWorkspaceUnavailableError>()(
+export class ExternalCallWorkspaceUnavailableError extends Schema.TaggedError<ExternalCallWorkspaceUnavailableError>()(
   "ExternalCallWorkspaceUnavailableError",
   { orgId: OrgId }
 ) {}

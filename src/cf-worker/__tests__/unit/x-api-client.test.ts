@@ -1,7 +1,7 @@
 import { describe, it } from "@effect/vitest";
 import { assertInstanceOf } from "@effect/vitest/utils";
 import { Effect, Result } from "effect";
-import { FetchHttpClient } from "effect/unstable/http";
+import { FetchHttpClient } from "effect/http";
 import { expect } from "vitest";
 
 import { XUserId } from "../../db/branded";

@@ -1,7 +1,7 @@
 import { layerProtocolDurableObject } from "@livestore/common-cf";
 import { Cause, Effect } from "effect";
 import type { Scope } from "effect";
-import { RpcClient, RpcClientError } from "effect/unstable/rpc";
+import { RpcClient, RpcClientError } from "effect/rpc";
 
 import type {
   GetLinkInput,

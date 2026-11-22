@@ -12,7 +12,7 @@ import type { Env } from "../shared";
 import { resolveWorkspaceAllowance } from "./assistant-allowance";
 import { StripeClientLive } from "./stripe-client";
 
-class UsageRpcError extends Schema.TaggedErrorClass<UsageRpcError>()(
+class UsageRpcError extends Schema.TaggedError<UsageRpcError>()(
   "UsageRpcError",
   { cause: Schema.Defect() }
 ) {}

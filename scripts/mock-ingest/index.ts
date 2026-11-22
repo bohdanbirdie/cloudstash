@@ -113,7 +113,7 @@ const program = Effect.gen(function* () {
     );
     origin = echo.origin;
   } else {
-    origin = yield* Config.string("CLOUDSTASH_ORIGIN").pipe(
+    origin = yield* Config.String("CLOUDSTASH_ORIGIN").pipe(
       Config.withDefault(DEFAULT_ORIGIN)
     );
   }

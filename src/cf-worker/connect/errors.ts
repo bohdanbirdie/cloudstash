@@ -2,19 +2,19 @@ import { Schema } from "effect";
 
 import { UserId } from "../db/branded";
 
-export class ConnectUnauthorizedError extends Schema.TaggedErrorClass<ConnectUnauthorizedError>()(
+export class ConnectUnauthorizedError extends Schema.TaggedError<ConnectUnauthorizedError>()(
   "ConnectUnauthorizedError",
   {}
 ) {}
 
-export class NoActiveOrgError extends Schema.TaggedErrorClass<NoActiveOrgError>()(
+export class NoActiveOrgError extends Schema.TaggedError<NoActiveOrgError>()(
   "NoActiveOrgError",
   {
     userId: UserId,
   }
 ) {}
 
-export class KeyCreationError extends Schema.TaggedErrorClass<KeyCreationError>()(
+export class KeyCreationError extends Schema.TaggedError<KeyCreationError>()(
   "KeyCreationError",
   {
     reason: Schema.Literals(["auth_backend", "missing_key", "missing_id"]),
@@ -22,17 +22,17 @@ export class KeyCreationError extends Schema.TaggedErrorClass<KeyCreationError>(
   }
 ) {}
 
-export class MissingCodeError extends Schema.TaggedErrorClass<MissingCodeError>()(
+export class MissingCodeError extends Schema.TaggedError<MissingCodeError>()(
   "MissingCodeError",
   {}
 ) {}
 
-export class InvalidCodeError extends Schema.TaggedErrorClass<InvalidCodeError>()(
+export class InvalidCodeError extends Schema.TaggedError<InvalidCodeError>()(
   "InvalidCodeError",
   {}
 ) {}
 
-export class SessionLookupError extends Schema.TaggedErrorClass<SessionLookupError>()(
+export class SessionLookupError extends Schema.TaggedError<SessionLookupError>()(
   "SessionLookupError",
   {
     cause: Schema.Defect(),
