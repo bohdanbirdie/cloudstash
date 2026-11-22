@@ -4,29 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig, lazyPlugins } from "vite-plus";
-import type { Plugin, UserConfig } from "vite-plus";
-
-import {
-  LIVESTORE_LOCAL,
-  LIVESTORE_PUBLISHED,
-  livestoreBuildDefine,
-  livestoreLocalResolve,
-} from "./tools/livestore-local.ts";
-
-// Redirect @livestore/* to the vendored upstream source (default) and fail a
-// production build if the submodule isn't checked out. See
-// docs/architecture/livestore-fork-integration.md.
-const livestoreLocalPlugin: Plugin = {
-  name: "livestore-local",
-  config: (_config, { command }) => {
-    if (command === "build" && !LIVESTORE_PUBLISHED && !LIVESTORE_LOCAL) {
-      throw new Error(
-        "[livestore] vendored livestore (vendor/livestore) not found — run `git submodule update --init` then `cd vendor/livestore && pnpm install`, or set LIVESTORE_PUBLISHED=1 to build the published snapshot on purpose."
-      );
-    }
-    return { resolve: livestoreLocalResolve() };
-  },
-};
+import type { UserConfig } from "vite-plus";
 
 // Storybook shares this config for browser components, but it does not serve
 // the Worker. Starting that runtime here would contend with the app's fixed
@@ -34,7 +12,6 @@ const livestoreLocalPlugin: Plugin = {
 const isStorybook = process.env.CLOUDSTASH_STORYBOOK === "1";
 
 const config: UserConfig = {
-  define: livestoreBuildDefine(),
   environments: {
     // Cloudflare's Worker environment is server/SSR-like, so Vite leaves it
     // unminified by default. Keep client defaults independent and explicitly
@@ -311,7 +288,6 @@ const config: UserConfig = {
     tailwindcss(),
     viteReact(),
     livestoreDevtoolsPlugin({ schemaPath: "./src/livestore/schema.ts" }),
-    livestoreLocalPlugin,
   ]),
   server: {
     allowedHosts: [".trycloudflare.com"],

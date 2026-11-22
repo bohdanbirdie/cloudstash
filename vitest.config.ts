@@ -1,18 +1,11 @@
 import { defineConfig } from "vitest/config";
 
-import {
-  livestoreBuildDefine,
-  livestoreLocalResolve,
-} from "./tools/livestore-local.ts";
-
 /**
  * Unit test configuration using standard Vitest.
  * Fast tests that don't require the Workers runtime.
  */
 export default defineConfig({
-  define: livestoreBuildDefine(),
   resolve: {
-    ...livestoreLocalResolve(),
     tsconfigPaths: true,
   },
   test: {

@@ -36,7 +36,7 @@ with OPFS, a SharedWorker, and a dedicated leader worker, but its connection
 monitor observes only network connectivity rather than pending-event progress.
 [`sync-status-store.ts`](../../src/stores/sync-status-store.ts) initializes the
 visible status as connected. The vendored
-[`persisted-adapter.ts`](../../vendor/livestore/packages/@livestore/adapter-web/src/web-worker/client-session/persisted-adapter.ts)
+[`persisted-adapter.ts`](https://github.com/livestorejs/livestore/blob/4bedac6261d75bf3bde1ada2bdf5bdc21e850bea/packages/@livestore/adapter-web/src/web-worker/client-session/persisted-adapter.ts)
 routes every tab through a named SharedWorker and an elected tab's dedicated
 leader worker. Current verification does not rehearse a deployment while a
 second tab retains that older leader runtime.

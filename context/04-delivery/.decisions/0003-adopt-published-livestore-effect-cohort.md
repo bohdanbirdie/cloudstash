@@ -16,7 +16,7 @@ requested the newer snapshot and matching Effect version in the same PR.
 - [The dependency manifest](../../../package.json) and matching submodule pin
   select snapshot `4bedac6261d75bf3bde1ada2bdf5bdc21e850bea` with Effect `4.1.4`,
   matching the published LiveStore peer-dependency cohort.
-- [Upstream release notes](../../../vendor/livestore/CHANGELOG.md) document
+- [Upstream release notes](https://github.com/livestorejs/livestore/blob/4bedac6261d75bf3bde1ada2bdf5bdc21e850bea/CHANGELOG.md) document
   the intentional one-time state rebuild after adopting canonical fingerprints.
   Event-log history remains the replay source; server-side replay incurs
   Durable Object row-write usage.

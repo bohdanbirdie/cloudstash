@@ -49,8 +49,6 @@ bun run deploy             # FORBIDDEN
 - `local/raycast-extension/` — Raycast extension (npm, separate repo)
 - `local/readonly-llm-lookup/` — Reference implementations for external libraries (Effect, Livestore, etc.)
 
-Livestore source is the committed `vendor/livestore` submodule (not a `local/` clone) — see [Livestore Source (vendored upstream)](#livestore-source-vendored-upstream) below.
-
 ## Intent Layer (`context/`)
 
 `context/` is the only always-current durable source for Cloudstash's product
@@ -88,24 +86,15 @@ the tree, artifact ownership, ID scheme, precedence, and lifecycle.
 - **DO eviction IS reproducible locally, deterministically. This has been proven — do not claim otherwise.** `abortAllDurableObjects()` from `cloudflare:test` (the `@cloudflare/vitest-plugin` runtime, which runs locally) tears down a DO's in-memory isolate while preserving its persisted SQLite — exactly the production idle-eviction that kills un-awaited background fibers. Proven by the incarnation-probe test in `src/cf-worker/__tests__/e2e/server-ingest-stranding.test.ts`: a random in-memory id stamped via `runInDurableObject` changes across the abort.
 - Use `abortAllDurableObjects()` + `runInDurableObject` to test eviction-sensitive behavior. Acquire a **fresh** stub after the abort — stubs created before it are poisoned. To assert a write survived eviction, read the persisted source of truth from a fresh stub (e.g. `SYNC_BACKEND_DO` → `getEventlogMax()`), not through the evicted client DO.
 
-## Livestore Source (vendored upstream)
+## Livestore Version (published snapshot)
 
-cloudstash vendors **upstream livestore** (`livestorejs/livestore` `main`, pinned SHA — the former fork is fully merged upstream) as a **committed git submodule** at `vendor/livestore`. A Vite alias redirects every `@livestore/*` import to that source for dev, tests, **and production builds** — so what you test locally is exactly what ships (local == prod). Strategy/roadmap: `docs/architecture/livestore-fork-integration.md`; mechanism deep-dive: `docs/architecture/livestore-local-source-linking.md`.
+cloudstash uses the **published upstream snapshot** of LiveStore: every `@livestore/*` package in `package.json` and `apps/extension/package.json` is pinned to the same `0.0.0-snapshot-<upstream-commit-sha>` version. Upstream publishes a snapshot for each commit on `livestorejs/livestore` `main`. There is no Vite alias.
 
-```bash
-bun run livestore:install   # git submodule update --init + pnpm install in vendor/livestore
-# (also run by `bun run sync`). Then just:
-bun dev                     # uses vendor/livestore source by default
-bun run test:unit
-bun run test:e2e
-```
+`vendor/livestore` is a git submodule at the same upstream commit, kept **only as a read-only source reference** (read it to understand LiveStore internals). Nothing imports it. **Never run `pnpm install` in it** — it must not have `node_modules`. Fetch it with `git submodule update --init vendor/livestore`.
 
-- **On by default** — no env var needed. `wa-sqlite`/`sqlite-wasm` always stay on the published snapshot (their prebuilt wasm only loads from that layout).
-- **Off-switch:** `LIVESTORE_PUBLISHED=1 bun run dev` (or `bun run dev:published`) forces the published snapshot — A/B "is the bug mine or livestore's?". For scratch experiments, just `git checkout` a branch inside `vendor/livestore`; it's the working tree the alias reads.
-- **No build step.** Livestore's package `exports` point at `src/*.ts`; Vite transpiles on the fly. Edit `vendor/livestore/packages/@livestore/<pkg>/src/...` and reload. typecheck (`tsgo`) still resolves types from the published packages in `package.json` — keep those deps.
-- **Mechanics** live in `tools/livestore-local.ts`. It dedupes `effect` to a single copy and excludes the wasm packages — don't change that without reading the doc.
-- **Run livestore's own tests** in the submodule with pnpm: `pnpm --filter @livestore/common-cf test`.
-- **Bump the submodule:** land changes upstream (or use a scratch branch inside `vendor/livestore` for experiments), point the submodule at the new upstream SHA, then `git add vendor/livestore` in cloudstash to record it — that commit is what builds and deploys. Re-pin the published `@livestore/*` snapshot in `package.json` to the SAME SHA (typecheck resolves types from it). Re-`pnpm install` and re-validate after any bump. If the bump changes a DO SQLite schema, `bun run clean:local-state` locally and bump `PERSISTENCE_FORMAT_VERSION` for deployed DOs.
+- **Bump:** change every `@livestore/*` pin (app and extension) to the new snapshot SHA in one commit, then `bun install`, and move the `vendor/livestore` submodule to the same SHA. Keep all pins on the same SHA. A new `@livestore/*` package also needs an entry in `bunfig.toml` `minimumReleaseAgeExcludes`, because snapshots are always younger than the 7-day gate.
+- **Validate after a bump:** `bun run check`, `bun run typecheck`, `bun run test:unit`, `bun run test:e2e`, `bun run build`, `bun run test:bundle`. If the bump changes a DO SQLite schema, run `bun run clean:local-state` locally and bump `PERSISTENCE_FORMAT_VERSION` for deployed DOs.
+- **Working on a LiveStore fix:** clone upstream outside this repo, land the fix upstream, then bump to the published snapshot of that commit.
 
 ## Conventions
 
@@ -123,7 +112,7 @@ bun run test:e2e
 
 **IMPORTANT:** Always consult effect-solutions before writing Effect code.
 
-**Caveat:** the app is on effect **v4** (`4.0.0-beta.99`) and some effect-solutions guides predate it — cross-check any pattern against the v4 API before using it (`vendor/livestore` and `local/readonly-llm-lookup/effect` are v4-era references; the migration's binding idiom decisions live in `docs/todos/effect-v4-migration-progress.md`).
+**Caveat:** the app is on effect **v4** (`4.0.0-beta.99`) and some effect-solutions guides predate it — cross-check any pattern against the v4 API before using it (`local/readonly-llm-lookup/effect` is a v4-era reference; the migration's binding idiom decisions live in `docs/todos/effect-v4-migration-progress.md`).
 
 1. Run `effect-solutions list` to see available guides
 2. Run `effect-solutions show <topic>...` for relevant patterns (supports multiple topics)

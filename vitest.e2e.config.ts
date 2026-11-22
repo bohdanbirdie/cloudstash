@@ -5,13 +5,7 @@ import { fileURLToPath } from "node:url";
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
-import {
-  livestoreBuildDefine,
-  livestoreLocalResolve,
-} from "./tools/livestore-local.ts";
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const livestoreLocal = livestoreLocalResolve();
 
 // Load migrations in Node.js context
 const migrationsDir = path.resolve(__dirname, "drizzle/migrations");
@@ -75,10 +69,8 @@ export default defineConfig({
       },
     }),
   ],
-  define: livestoreBuildDefine(),
   resolve: {
     tsconfigPaths: true,
-    dedupe: livestoreLocal.dedupe,
     alias: [
       // Stub mailparser to avoid Workers-incompatible dependencies in tests
       {
@@ -119,8 +111,6 @@ export default defineConfig({
           "src/cf-worker/__tests__/stubs/defuddle-node.ts"
         ),
       },
-      // When LIVESTORE_LOCAL=1, redirect @livestore/* to local clone source
-      ...livestoreLocal.alias,
     ],
   },
   ssr: {

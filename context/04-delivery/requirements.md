@@ -11,26 +11,23 @@ provenance, builds, migrations, CI, and release paths.
   stateful classes currently ship from one Cloudflare Worker build.
   - Validation: [`wrangler.jsonc`](../../wrangler.jsonc) and Vite output.
 - **CS.DEL-A02 LiveStore may need unreleased fixes:** Cloudstash may need an
-  upstream LiveStore revision before a stable npm release exists.
+  upstream LiveStore revision before a stable npm release exists. Upstream
+  publishes a snapshot package for each commit on `main`, so such a revision is
+  consumable once it lands upstream.
   - Validation: hibernation/recovery contribution history.
 
 ## Constraints
 
-- **CS.DEL-C01 Toolchain split:** Cloudstash root uses Bun/Vite+; vendored
-  LiveStore uses pnpm; the external Raycast repository uses npm.
+- **CS.DEL-C01 Toolchain split:** Cloudstash root uses Bun/Vite+; the external
+  Raycast repository uses npm.
 - **CS.DEL-C02 Cloudflare migrations:** D1 and Durable Object class migrations
   must be applied in a deploy-compatible order.
-- **CS.DEL-C03 Submodule checkout:** Default development/test/production builds
-  require the pinned `vendor/livestore` submodule and its dependencies.
 
 ## Acceptable Tradeoffs
 
-- **CS.DEL-T01 Source vendoring:** Building upstream TypeScript source increases
-  build surface and setup cost in exchange for local/production identity and
-  immediate upstream fixes.
-- **CS.DEL-T02 Published exceptions:** LiveStore WASM packages and
-  platform-conditional exports remain on the matching published snapshot where
-  static source aliasing is unsafe.
+- **CS.DEL-T01 Upstream-first fixes:** A LiveStore fix must land upstream and be
+  published as a snapshot before Cloudstash consumes it, in exchange for no
+  vendored source, second package manager, or alias tooling.
 - **CS.DEL-T03 Exact moving-edge pins:** Effect beta and LiveStore snapshot
   versions are exact and updated atomically rather than floated.
 
@@ -38,22 +35,16 @@ provenance, builds, migrations, CI, and release paths.
 
 - **CS.DEL-R01 Unified root toolchain:** Development/build/check/package commands
   use Bun and Vite+ as declared in `package.json` and `vite.config.ts`.
-- **CS.DEL-R02 Reproducible install:** Root and vendored lockfiles are honored in
-  CI; dependency resolution observes the configured minimum release age.
-- **CS.DEL-R03 Pinned upstream source:** `vendor/livestore` is a committed
-  upstream submodule SHA, not an untracked local clone.
-- **CS.DEL-R04 Source/snapshot parity:** Published `@livestore/*` pins and
-  Effect version must match the vendored revision used for runtime source and
-  type resolution. `refines: CS.SYS.SYNC-R10`
-- **CS.DEL-R05 Universal alias:** Dev, unit, E2E, and production Vite builds use
-  the same source alias by default; published mode is an explicit A/B hatch.
-- **CS.DEL-R06 Build fail closed:** A default production build must fail if the
-  submodule is absent rather than silently shipping another LiveStore revision.
-- **CS.DEL-R07 Bundle certification:** Build output must record and verify its
-  LiveStore revision, critical runtime identity/CSP assertions, and compressed
+- **CS.DEL-R02 Reproducible install:** The root lockfile is honored in CI; dependency resolution observes the configured minimum release age.
+- **CS.DEL-R03 Pinned upstream snapshot:** Every `@livestore/*` dependency in the
+  application and extension pins the same exact published upstream snapshot
+  version.
+- **CS.DEL-R04 Snapshot/Effect parity:** The pinned Effect version must match
+  the peer-dependency cohort of the pinned LiveStore snapshot. `refines: CS.SYS.SYNC-R10`
+- **CS.DEL-R07 Bundle certification:** Build output must verify critical
+  runtime identity/CSP assertions and compressed
   size against the declared deployment plan.
-- **CS.DEL-R08 Submodule-aware CI:** CI checks out submodules, installs the
-  vendored workspace, and runs Intent, quality, type, unit, E2E, extension, and
+- **CS.DEL-R08 Complete CI:** CI runs Intent, quality, type, unit, E2E, extension, and
   production build-certification checks without swallowing failures.
 - **CS.DEL-R09 Reviewed migrations:** Generated D1 SQL is reviewed for unrelated
   table rebuild/cascade effects before application.
