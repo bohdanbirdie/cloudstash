@@ -11,13 +11,12 @@ mod theme;
 use std::sync::Arc;
 
 use auth::{Account, Auth, Link};
-use rune::tok::{radius, space, type_};
-use rune::{App, AppHandle, AppSpec, Color, Cx, El, Tx, col, row, text};
+use rune::{App, AppHandle, AppSpec, Color, Cx, El, TextStyle, Tx, col, row, text};
 use theme::Palette;
 
 const APP_TITLE: &str = "Cloudstash";
-/// The web's `--radius` (0.625rem), which cards use as `rounded-lg`.
-const CARD_RADIUS: f32 = 10.0;
+/// Tailwind's `text-xs/relaxed`.
+const TEXT_XS_RELAXED: TextStyle = TextStyle::new(12.0, 400.0).lh(19.5);
 
 #[derive(Default)]
 enum Phase {
@@ -124,75 +123,63 @@ fn sign_out(s: &mut State) {
 
 fn view(s: &State, cx: &mut Cx<State>) -> El {
     let t = theme::palette(cx.system_dark());
-    let mut window = col()
-        .key("window")
-        .w_full()
-        .h_full()
-        .padding(space::S6)
-        .gap(space::S3)
-        .fill(t.background)
-        .child(
-            text(APP_TITLE)
-                .key("title")
-                .font(rune::TextStyle::new(28.0, 700.0))
-                .color(t.foreground),
-        );
-    window = match &s.phase {
-        Phase::Restoring => window.child(secondary("Checking for a saved session…", t)),
-        Phase::SignedOut => window
-            .child(secondary("Sign in with your Cloudstash account.", t))
-            .child(row().child(primary_button("sign-in", "Sign in", t).on_press(start_sign_in))),
-        Phase::WaitingForBrowser => window
-            .child(secondary(
-                "Finish signing in in your browser. Cloudstash opens again when you're done.",
-                t,
-            ))
-            .child(row().child(outline_button("cancel", "Cancel", t).on_press(cancel_sign_in))),
-        Phase::Finishing => window.child(secondary("Signing in…", t)),
-        Phase::SignedIn(account) => {
-            let mut card = col()
-                .key("account")
-                .w_full()
-                .padding(space::S3)
-                .gap(space::S1)
-                .radius(CARD_RADIUS)
-                .fill(t.card)
-                .border(1.0, t.card_ring)
-                .child(secondary("Signed in as", t));
-            if let Some(name) = &account.name {
-                card = card.child(
-                    text(name.clone())
-                        .font(type_::BODY)
-                        .color(t.card_foreground),
-                );
-            }
-            card = card
-                .child(
-                    text(account.email.clone())
-                        .font(type_::BODY)
-                        .color(t.card_foreground),
-                )
-                .child(secondary(format!("Library {}", account.library_id), t));
-            window
-                .child(card)
-                .child(row().child(outline_button("sign-out", "Sign out", t).on_press(sign_out)))
-        }
+    let body = |label: String| text(label).font(TEXT_XS_RELAXED).color(t.muted_foreground).wrap().mt(8.0);
+    let mut content = col().key("content").w_full().max_w(320.0).child(
+        text(APP_TITLE)
+            .key("title")
+            .font(TextStyle::new(20.0, 600.0).lh(28.0).tracking(-0.5))
+            .color(t.foreground),
+    );
+    content = match &s.phase {
+        Phase::Restoring => content.child(body("Checking for a saved session…".into())),
+        Phase::SignedOut => content
+            .child(body("Sign in with your Cloudstash account.".into()))
+            .child(primary_button("sign-in", "Sign in", t).on_press(start_sign_in)),
+        Phase::WaitingForBrowser => content
+            .child(body("Finish signing in in your browser. Cloudstash opens again when you're done.".into()))
+            .child(outline_button("cancel", "Cancel", t).on_press(cancel_sign_in)),
+        Phase::Finishing => content.child(body("Signing in…".into())),
+        Phase::SignedIn(account) => content
+            .child(body(format!("Library {}", account.library_id)))
+            .child(account_chip(account, t))
+            .child(outline_button("sign-out", "Sign out", t).on_press(sign_out)),
     };
     if let Some(notice) = &s.notice {
-        window = window.child(
-            text(notice.clone())
-                .key("notice")
-                .font(type_::LABEL)
-                .color(t.destructive),
-        );
+        content = content.child(text(notice.clone()).key("notice").font(TEXT_XS_RELAXED).color(t.destructive).wrap().mt(20.0));
     }
-    window
+    col().key("window").w_full().h_full().padding(28.0).fill(t.background).child(content)
 }
 
-fn secondary(label: impl Into<String>, t: Palette) -> El {
-    text(label.into())
-        .font(type_::LABEL)
-        .color(t.muted_foreground)
+fn account_chip(account: &Account, t: Palette) -> El {
+    let label = account.name.as_deref().unwrap_or(&account.email);
+    let initial: String = label.chars().take(1).flat_map(char::to_uppercase).collect();
+    let mut lines = col().key("account-lines");
+    if let Some(name) = &account.name {
+        lines = lines.child(text(name.clone()).font(TextStyle::new(14.0, 500.0).lh(20.0)).color(t.foreground).truncate());
+    }
+    lines = lines.child(text(account.email.clone()).font(TextStyle::new(12.0, 400.0).lh(16.0)).color(t.muted_foreground).truncate());
+    row()
+        .key("account")
+        .w_full()
+        .mt(20.0)
+        .items_center()
+        .gap(12.0)
+        .px(12.0)
+        .py(10.0)
+        .radius(8.0)
+        .fill(t.muted_half)
+        .border(1.0, t.ring_foreground)
+        .child(
+            row()
+                .key("avatar")
+                .size(32.0, 32.0)
+                .center()
+                .radius(16.0)
+                .fill(t.muted)
+                .border(1.0, t.border)
+                .child(text(initial).font(TextStyle::new(14.0, 400.0).lh(20.0)).color(t.muted_foreground)),
+        )
+        .child(lines)
 }
 
 fn primary_button(key: &'static str, label: &'static str, t: Palette) -> El {
@@ -209,13 +196,15 @@ fn button(key: &'static str, label: &'static str, fill: Color, border: Color, in
         .role("button")
         .label(label)
         .focusable(true)
+        .w_full()
         .h(32.0)
-        .px(space::S3)
+        .mt(24.0)
+        .px(10.0)
         .center()
-        .radius(radius::MD)
+        .radius(8.0)
         .fill(fill)
         .border(1.0, border)
-        .child(text(label).font(type_::LABEL).color(ink))
+        .child(text(label).font(TextStyle::new(12.0, 500.0).lh(19.5)).color(ink))
 }
 
 fn main() {
