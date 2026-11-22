@@ -117,6 +117,13 @@ operations only to `admin`, not `viewer`.
   sends it to the installed extension; minting requires current workspace
   access, and the locally stored key is revalidated when used and can be
   remotely revoked.
+- **Native app (prototype):** the app opens `/connect/native` with a random
+  state and a PKCE challenge. A signed-in browser mints a `native`-sourced
+  key without a confirmation step and opens a `cloudstash://auth/callback`
+  deep link carrying a one-time code; the app accepts only the link for the
+  sign-in it started and redeems the code with its verifier. Mint and exchange
+  both revalidate current workspace access, the key never passes through the
+  browser, and it is not plan-gated.
 - **Telegram:** a connection code associates chat identity with a user/workspace
   API key stored through KV mappings. Stored and newly supplied keys use the
   shared workspace decision.
