@@ -28,8 +28,8 @@ export const WORKER_VARS = {
 };
 
 export const RATE_LIMITS = {
-  SYNC_RATE_LIMITER: { namespaceId: 1001, limit: 30, period: 60 },
-  METADATA_RATE_LIMITER: { namespaceId: 1002, limit: 60, period: 60 },
+  SYNC_RATE_LIMITER: { limit: 30, period: 60 },
+  METADATA_RATE_LIMITER: { limit: 60, period: 60 },
 } as const;
 
 export const QUEUE_SETTINGS = {
@@ -38,15 +38,42 @@ export const QUEUE_SETTINGS = {
   xReconcile: { batchSize: 10, maxConcurrency: 1, maxRetries: 5 },
 } as const;
 
-export const PRODUCTION_NAMES = {
-  worker: "cloudstash",
-  domain: "cloudstash.dev",
-  d1: "cloudstash",
-  telegramKv: "production-TELEGRAM_KV",
-  enrichmentUsageKv: "ENRICHMENT_USAGE",
-  linkQueue: "cloudstash-link-queue",
-  linkDlq: "cloudstash-link-dlq",
-  xReconcileQueue: "cloudstash-x-reconcile",
-  usageDataset: "cloudstash_usage",
-  accountDeletionWorkflow: "account-deletion",
+export const DEPLOYED_STAGES = {
+  prod: {
+    worker: "cloudstash",
+    domain: "cloudstash.dev",
+    d1: "cloudstash",
+    telegramKv: "production-TELEGRAM_KV",
+    enrichmentUsageKv: "ENRICHMENT_USAGE",
+    linkQueue: "cloudstash-link-queue",
+    linkDlq: "cloudstash-link-dlq",
+    xReconcileQueue: "cloudstash-x-reconcile",
+    usageDataset: "cloudstash_usage",
+    accountDeletionWorkflow: "account-deletion",
+    rateLimitNamespaceIds: {
+      SYNC_RATE_LIMITER: 1001,
+      METADATA_RATE_LIMITER: 1002,
+    },
+  },
+  staging: {
+    worker: "cloudstash-staging",
+    domain: "staging.cloudstash.dev",
+    d1: "cloudstash-staging",
+    telegramKv: "cloudstash-staging-telegram-kv",
+    enrichmentUsageKv: "cloudstash-staging-enrichment-usage",
+    linkQueue: "cloudstash-staging-link-queue",
+    linkDlq: "cloudstash-staging-link-dlq",
+    xReconcileQueue: "cloudstash-staging-x-reconcile",
+    usageDataset: "cloudstash_usage_staging",
+    accountDeletionWorkflow: "account-deletion-staging",
+    rateLimitNamespaceIds: {
+      SYNC_RATE_LIMITER: 2001,
+      METADATA_RATE_LIMITER: 2002,
+    },
+  },
 } as const;
+
+export type DeployedStage = keyof typeof DEPLOYED_STAGES;
+
+export const isDeployedStage = (stage: string): stage is DeployedStage =>
+  Object.hasOwn(DEPLOYED_STAGES, stage);

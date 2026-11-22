@@ -1,0 +1,33 @@
+name: Deploy staging
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Plan only, or deploy
+        type: choice
+        options: [plan, deploy]
+        default: deploy
+      adopt:
+        description: Adopt existing Cloudflare resources (first deploy only)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/deploy-stage.yml
+    with:
+      stage: staging
+      environment: staging
+      action: ${{ inputs.action || 'deploy' }}
+      adopt: ${{ inputs.adopt || false }}
+    secrets: inherit

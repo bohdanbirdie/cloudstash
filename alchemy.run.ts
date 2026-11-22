@@ -14,7 +14,8 @@ import type {
   XBookmarkSyncDO,
 } from "./src/cf-worker/index";
 import {
-  PRODUCTION_NAMES,
+  DEPLOYED_STAGES,
+  isDeployedStage,
   QUEUE_SETTINGS,
   RATE_LIMITS,
   WORKER_COMPATIBILITY,
@@ -33,46 +34,53 @@ const optionalString = (name: string) =>
 
 export const App = Effect.gen(function* () {
   const { stage } = yield* Alchemy.Stack;
-  const production = stage === PRODUCTION_STAGE;
-  const protect = Alchemy.RemovalPolicy.protect(production);
-  const cfAccountId = production
+  const names = isDeployedStage(stage) ? DEPLOYED_STAGES[stage] : undefined;
+  const protect = Alchemy.RemovalPolicy.protect(stage === PRODUCTION_STAGE);
+  const cfAccountId = names
     ? (yield* Cloudflare.CloudflareEnvironment.current).accountId
     : optionalString("CF_ACCOUNT_ID");
+  const rateLimit = (binding: keyof typeof RATE_LIMITS) =>
+    Cloudflare.RateLimit(binding, {
+      namespaceId: (names ?? DEPLOYED_STAGES.prod).rateLimitNamespaceIds[
+        binding
+      ],
+      simple: RATE_LIMITS[binding],
+    });
 
   const secret = (name: string) =>
-    production
+    names
       ? requiredSecret(name)
       : Config.Redacted(name).pipe(Config.withDefault(Redacted.make("")));
 
   const db = yield* Cloudflare.D1.Database("DB", {
-    name: production ? PRODUCTION_NAMES.d1 : undefined,
+    name: names?.d1,
     migrations: "./drizzle/migrations",
   }).pipe(protect);
 
   const telegramKv = yield* Cloudflare.KV.Namespace("TelegramKV", {
-    title: production ? PRODUCTION_NAMES.telegramKv : undefined,
+    title: names?.telegramKv,
   }).pipe(protect);
 
   const enrichmentUsage = yield* Cloudflare.KV.Namespace("EnrichmentUsage", {
-    title: production ? PRODUCTION_NAMES.enrichmentUsageKv : undefined,
+    title: names?.enrichmentUsageKv,
   }).pipe(protect);
 
   const linkQueue = yield* Cloudflare.Queues.Queue("LinkQueue", {
-    name: production ? PRODUCTION_NAMES.linkQueue : undefined,
+    name: names?.linkQueue,
   }).pipe(protect);
 
   const linkDlq = yield* Cloudflare.Queues.Queue("LinkDlq", {
-    name: production ? PRODUCTION_NAMES.linkDlq : undefined,
+    name: names?.linkDlq,
   }).pipe(protect);
 
   const xReconcileQueue = yield* Cloudflare.Queues.Queue("XReconcileQueue", {
-    name: production ? PRODUCTION_NAMES.xReconcileQueue : undefined,
+    name: names?.xReconcileQueue,
   }).pipe(protect);
 
   const worker = yield* Cloudflare.Website.Vite("Worker", {
-    name: production ? PRODUCTION_NAMES.worker : undefined,
+    name: names?.worker,
     main: WORKER_MAIN,
-    domain: production ? PRODUCTION_NAMES.domain : undefined,
+    domain: names?.domain,
     workersDev: { enabled: true, previewsEnabled: true },
     compatibility: WORKER_COMPATIBILITY,
     crons: ["17 4 * * *"],
@@ -98,24 +106,10 @@ export const App = Effect.gen(function* () {
       X_RECONCILE_QUEUE_NAME: xReconcileQueue.queueName,
       AI: Cloudflare.Workers.AI(),
       USAGE_ANALYTICS: Cloudflare.AnalyticsEngine.Dataset("UsageAnalytics", {
-        dataset: production
-          ? PRODUCTION_NAMES.usageDataset
-          : `cloudstash_usage_${stage}`,
+        dataset: names?.usageDataset ?? `cloudstash_usage_${stage}`,
       }),
-      SYNC_RATE_LIMITER: Cloudflare.RateLimit("SYNC_RATE_LIMITER", {
-        namespaceId: RATE_LIMITS.SYNC_RATE_LIMITER.namespaceId,
-        simple: {
-          limit: RATE_LIMITS.SYNC_RATE_LIMITER.limit,
-          period: RATE_LIMITS.SYNC_RATE_LIMITER.period,
-        },
-      }),
-      METADATA_RATE_LIMITER: Cloudflare.RateLimit("METADATA_RATE_LIMITER", {
-        namespaceId: RATE_LIMITS.METADATA_RATE_LIMITER.namespaceId,
-        simple: {
-          limit: RATE_LIMITS.METADATA_RATE_LIMITER.limit,
-          period: RATE_LIMITS.METADATA_RATE_LIMITER.period,
-        },
-      }),
+      SYNC_RATE_LIMITER: rateLimit("SYNC_RATE_LIMITER"),
+      METADATA_RATE_LIMITER: rateLimit("METADATA_RATE_LIMITER"),
       SYNC_BACKEND_DO: Cloudflare.DurableObject<SyncBackendDO>(
         "SyncBackendDO",
         {
@@ -141,14 +135,12 @@ export const App = Effect.gen(function* () {
         Parameters<AccountDeletionWorkflow["run"]>[0]["payload"]
       >("AccountDeletion", {
         className: "AccountDeletionWorkflow",
-        workflowName: production
-          ? PRODUCTION_NAMES.accountDeletionWorkflow
-          : undefined,
+        workflowName: names?.accountDeletionWorkflow,
       }),
-      BETTER_AUTH_URL: production
-        ? "https://cloudstash.dev"
+      BETTER_AUTH_URL: names
+        ? `https://${names.domain}`
         : Config.String("BETTER_AUTH_URL"),
-      ...(production
+      ...(names
         ? {}
         : {
             AI_METER_LIMIT: optionalString("AI_METER_LIMIT"),
@@ -205,11 +197,11 @@ export default Alchemy.Stack(
     providers: Cloudflare.providers(),
     state: Layer.unwrap(
       Effect.map(Alchemy.Stage, (stage) =>
-        stage === PRODUCTION_STAGE ? Cloudflare.state() : Alchemy.localState()
+        isDeployedStage(stage) ? Cloudflare.state() : Alchemy.localState()
       )
     ),
     secrets: ({ stage }) =>
-      stage === PRODUCTION_STAGE
+      isDeployedStage(stage)
         ? Alchemy.Secrets.ProcessEnv()
         : [Alchemy.Secrets.DotEnv(), Alchemy.Secrets.ProcessEnv()],
   },

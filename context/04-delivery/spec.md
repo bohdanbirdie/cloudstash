@@ -90,8 +90,8 @@ record shape, and evidence-link hygiene. Semantic quality remains review work.
 
 The PR checks workflow uses a frozen Bun install. Quality, unit, Worker E2E,
 and extension/production-build certification run as parallel jobs on Node 25,
-for pull requests targeting `main` only. Merges to `main` are not re-certified;
-the separate production deploy workflow starts on each push to `main`.
+for pull requests targeting `staging` or `main`. Merges are not re-certified;
+the deploy workflows start on each push to `staging` and `main`.
 The workflow has no Markdown path ignore, so Intent-only changes trigger CI.
 Pricing reconciliation remains outside the CI release evidence; see
 [DELTA-020](../.delta/DELTA-020-release-path-can-deploy-uncertified-artifacts.md).
@@ -116,7 +116,12 @@ Production is the `prod` stage. `bun run deploy` deploys it with the shared
 Cloudflare state store; the GitHub Actions deploy workflow runs it on pushes to
 `main` with secrets from the `production` environment. Production resources
 are protected: a plan that would delete or replace one fails before applying.
-Staging and preview stages are not yet defined on this stack.
+Staging is the `staging` stage, on `staging.cloudstash.dev` with its own
+resources. Feature pull requests target the `staging` branch, and each merge
+into it deploys the stage with secrets from the `staging` environment; the
+maintainer can also deploy any branch to it by hand. A `staging` → `main` pull
+request, merged with a merge commit, releases to production. Its resources are not protected. Preview stages are
+not defined.
 
 Remote migration/deploy/secret operations are maintainer-controlled. Agent and
 ordinary local commands stop at local migrations, checks, builds, and explicit
