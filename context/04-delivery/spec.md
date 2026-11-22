@@ -12,6 +12,7 @@ Active.
 ```text
 cloudstash/                         Bun + Vite+ application
   apps/extension/                  WXT Chrome extension (Bun workspace)
+  apps/native/                     experimental Rune macOS app (standalone Cargo workspace)
   vendor/livestore/                read-only upstream reference submodule
   local/raycast-extension/         ignored external npm checkout
 ```
@@ -29,6 +30,12 @@ Vite+ checks, fixes, and staged checks also run through the wrapper with
 Effect-patched TSRS while retaining the existing lint rules and JS plugins.
 The Raycast extension is a separate published repository and shares only HTTP
 contracts.
+
+`apps/native/` is an experimental native client. It is its own Cargo workspace
+with its own lockfile and gitignored `target/`, pinned to a prerelease Rune
+revision; nothing in the Bun workspace builds or imports it, and CI does not
+build it. It shares only HTTP contracts with the worker: the native pairing
+flow in [auth-and-tenancy](../02-system/02-auth-and-tenancy/spec.md#pairing-flows).
 
 Local provider configuration is represented by committed 1Password references
 in `.env.example`. `bun run env:sync` explicitly and atomically materializes
