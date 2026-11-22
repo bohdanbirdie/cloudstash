@@ -1,0 +1,41 @@
+# Standalone Cargo workspace: the native app keeps its dependencies, lockfile,
+# and build output (apps/native/target) to itself.
+[workspace]
+
+[package]
+name = "cloudstash-native"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[dependencies]
+base64 = "0.22"
+getrandom = "0.2"
+keyring = { version = "3", features = ["apple-native"] }
+# rune is pre-release: pinned to a commit.
+rune = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+ureq = { version = "2", features = ["json"] }
+url = "2"
+
+# rune vendors patched crates; a dependency's [patch] does not reach us, so repeat it.
+[patch.crates-io]
+wgpu-hal = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
+winit = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
+sctk-adwaita = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
+parley_engine = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
+accesskit_windows = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
+accesskit_macos = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
+
+# Keep target/ small: no debug info for dependencies, line tables only for the app.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
+[lints.rust]
+unsafe_code = "forbid"
