@@ -1,16 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CheckCircleIcon, Loader2Icon, MonitorIcon } from "lucide-react";
+import { CheckIcon, Loader2Icon, TriangleAlertIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { authClient, loadAuth } from "@/lib/auth";
 import {
   isAllowedNativeRedirectUri,
   isNativeCodeChallenge,
 } from "@/lib/native-redirect";
-import { LoginSurface } from "@/routes/login";
+import { cn } from "@/lib/utils";
+import { AuthSplitCard, LoginSurface } from "@/routes/login";
 
 export const Route = createFileRoute("/connect/native")({
   beforeLoad: async () => ({ auth: await loadAuth() }),
@@ -23,29 +23,73 @@ export const Route = createFileRoute("/connect/native")({
   component: ConnectNativePage,
 });
 
-function Shell({ children }: { children: ReactNode }) {
+type Tone = "progress" | "success" | "problem";
+
+const TONE_ICON = {
+  problem: TriangleAlertIcon,
+  progress: Loader2Icon,
+  success: CheckIcon,
+} as const;
+
+function StatusCard({
+  action,
+  body,
+  detail,
+  title,
+  tone,
+}: {
+  action?: ReactNode;
+  body: ReactNode;
+  detail?: ReactNode;
+  title: string;
+  tone: Tone;
+}) {
+  const Icon = TONE_ICON[tone];
   return (
-    <main className="flex min-h-svh flex-col items-center justify-center bg-muted/30 p-6">
-      <Card className="w-full max-w-sm">
-        <CardContent className="flex flex-col items-center gap-4 p-6 text-center">
-          <div className="flex size-12 items-center justify-center rounded-full bg-muted">
-            <MonitorIcon aria-hidden="true" className="size-6" />
-          </div>
-          {children}
-        </CardContent>
-      </Card>
-    </main>
+    <AuthSplitCard>
+      <div
+        className={cn(
+          "flex size-10 items-center justify-center rounded-full ring-1",
+          {
+            "bg-destructive/10 text-destructive ring-destructive/20":
+              tone === "problem",
+            "bg-muted text-muted-foreground ring-foreground/10":
+              tone === "progress",
+            "bg-primary text-primary-foreground ring-primary":
+              tone === "success",
+          }
+        )}
+      >
+        <Icon
+          aria-hidden="true"
+          className={cn("size-5", { "animate-spin": tone === "progress" })}
+        />
+      </div>
+      <header className="mt-5 text-start" aria-live="polite">
+        <h1 className="text-xl font-semibold tracking-tight text-balance">
+          {title}
+        </h1>
+        <p className="mt-2 text-xs/relaxed text-muted-foreground text-pretty">
+          {body}
+        </p>
+      </header>
+      {detail}
+      {action && <div className="mt-6">{action}</div>}
+    </AuthSplitCard>
   );
 }
 
-function Message({ title, body }: { title: string; body: string }) {
+function AccountChip({ email, name }: { email: string; name: string | null }) {
   return (
-    <Shell>
-      <div className="space-y-1">
-        <h1 className="text-lg font-semibold text-balance">{title}</h1>
-        <p className="text-sm text-muted-foreground text-pretty">{body}</p>
+    <div className="mt-5 flex items-center gap-3 rounded-md bg-muted/50 px-3 py-2.5 ring-1 ring-foreground/10">
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground uppercase">
+        {(name ?? email).slice(0, 1)}
       </div>
-    </Shell>
+      <div className="min-w-0 text-start">
+        {name && <p className="truncate text-sm font-medium">{name}</p>}
+        <p className="truncate text-xs text-muted-foreground">{email}</p>
+      </div>
+    </div>
   );
 }
 
@@ -105,37 +149,35 @@ function ConnectNativePage() {
 
   if (searchParams.has("connected")) {
     return (
-      <Shell>
-        <div className="space-y-1">
-          <h1 className="flex items-center justify-center gap-2 text-lg font-semibold">
-            <CheckCircleIcon
-              aria-hidden="true"
-              className="size-5 text-green-500"
-            />
-            You're signed in
-          </h1>
-          <p className="text-sm text-muted-foreground text-pretty">
-            You can close this tab and return to Cloudstash for Mac.
-          </p>
-        </div>
-      </Shell>
+      <StatusCard
+        tone="success"
+        title="You're signed in"
+        body="Cloudstash for Mac has your library. You can close this tab and switch back to the app."
+        detail={
+          auth?.isAuthenticated && (
+            <AccountChip email={auth.email} name={auth.name} />
+          )
+        }
+      />
     );
   }
 
   if (searchParams.has("failed")) {
     return (
-      <Message
+      <StatusCard
+        tone="problem"
         title="Sign-in didn't finish"
-        body="Return to Cloudstash for Mac and try again."
+        body="Cloudstash for Mac couldn't complete sign-in. Switch back to the app and click Sign in to try again."
       />
     );
   }
 
   if (!request) {
     return (
-      <Message
-        title="Sign in to Cloudstash for Mac"
-        body="Open this page from the Cloudstash app to sign in."
+      <StatusCard
+        tone="problem"
+        title="Open this from the app"
+        body="This page signs in Cloudstash for Mac. Start from Sign in in the app."
       />
     );
   }
@@ -158,45 +200,38 @@ function ConnectNativePage() {
 
   if (!auth.isAuthenticated) {
     return auth.status === "unapproved" ? (
-      <Message
+      <StatusCard
+        tone="problem"
         title="Your account is awaiting approval"
         body="You can sign in to Cloudstash for Mac once your account is approved."
       />
     ) : (
-      <Message
+      <StatusCard
+        tone="problem"
         title="Your library isn't ready"
         body="Sign out of Cloudstash on the web, sign in again, then retry from the app."
       />
     );
   }
 
-  return (
-    <Shell>
-      <div className="space-y-1">
-        <h1 className="text-lg font-semibold text-balance">
-          Sign in to Cloudstash for Mac
-        </h1>
-        <p className="text-sm text-muted-foreground text-pretty">
-          {status === "error"
-            ? "Sign-in didn't finish."
-            : `Signing in as ${auth.email}…`}
-        </p>
-      </div>
-      {status === "error" ? (
+  return status === "error" ? (
+    <StatusCard
+      tone="problem"
+      title="Sign-in didn't finish"
+      body={error ?? "Something went wrong."}
+      detail={<AccountChip email={auth.email} name={auth.name} />}
+      action={
         <Button className="w-full" onClick={connect}>
           Try again
         </Button>
-      ) : (
-        <Loader2Icon
-          aria-hidden="true"
-          className="size-5 animate-spin text-muted-foreground"
-        />
-      )}
-      {error && (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      )}
-    </Shell>
+      }
+    />
+  ) : (
+    <StatusCard
+      tone="progress"
+      title="Signing in to Cloudstash for Mac"
+      body="Handing your session to the app. This takes a moment."
+      detail={<AccountChip email={auth.email} name={auth.name} />}
+    />
   );
 }
