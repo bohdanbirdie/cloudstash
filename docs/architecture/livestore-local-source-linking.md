@@ -1,7 +1,7 @@
 # Livestore local source linking
 
-> **Historical (2026-11-22).** The `vendor/livestore` submodule and the source
-> alias described here were removed. Cloudstash now consumes the published
+> **Historical (2026-11-22).** The source alias and vendored install described
+> here were removed; `vendor/livestore` remains only as a read-only reference. Cloudstash now consumes the published
 > per-commit LiveStore snapshot. See `context/04-delivery/spec.md` and decision
 > `context/04-delivery/.decisions/0004-consume-published-livestore-snapshots.md`.
 

@@ -18,7 +18,12 @@ export default defineConfig({
       "src/stores/__tests__/**/*.test.ts",
       "tools/**/__tests__/**/*.test.ts",
     ],
-    exclude: ["**/node_modules/**", "**/local/**", "**/__tests__/e2e/**"],
+    exclude: [
+      "**/node_modules/**",
+      "**/local/**",
+      "**/vendor/**",
+      "**/__tests__/e2e/**",
+    ],
     coverage: {
       include: ["src/cf-worker/**"],
       exclude: ["src/cf-worker/__tests__/**"],

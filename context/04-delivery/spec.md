@@ -12,6 +12,7 @@ Active.
 ```text
 cloudstash/                         Bun + Vite+ application
   apps/extension/                  WXT Chrome extension (Bun workspace)
+  vendor/livestore/                read-only upstream reference submodule
   local/raycast-extension/         ignored external npm checkout
 ```
 
@@ -31,8 +32,10 @@ starts do not contact 1Password.
 Every `@livestore/*` dependency in the application and extension pins the same
 published upstream snapshot, `0.0.0-snapshot-<upstream-commit-sha>`. Upstream
 publishes one snapshot for each commit on `main`. Dev, tests, and production
-builds all resolve LiveStore from these installed packages; there is no
-vendored source or Vite alias. The rationale is recorded in
+builds all resolve LiveStore from these installed packages; there is no Vite
+alias. `vendor/livestore` is a submodule at the same upstream commit, kept only
+as a source reference: nothing imports it, nothing installs its dependencies,
+and builds and CI do not check it out. The rationale is recorded in
 [decision 0004](./.decisions/0004-consume-published-livestore-snapshots.md),
 which supersedes [decision 0001](./.decisions/0001-vendor-upstream-livestore-source.md).
 

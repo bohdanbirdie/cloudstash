@@ -64,6 +64,8 @@ the tree, artifact ownership, ID scheme, precedence, and lifecycle.
 - `vision.md` and `requirements.md` are protected. Confirm with the maintainer
   before changing goals, constraints, tradeoffs, or guarantees.
 - Run `bun run check:intent` after editing the corpus.
+- `vendor/livestore/context/` is upstream LiveStore's own Intent tree and is
+  outside the Cloudstash corpus.
 
 ## Documentation
 
@@ -86,9 +88,11 @@ the tree, artifact ownership, ID scheme, precedence, and lifecycle.
 
 ## Livestore Version (published snapshot)
 
-cloudstash uses the **published upstream snapshot** of LiveStore: every `@livestore/*` package in `package.json` and `apps/extension/package.json` is pinned to the same `0.0.0-snapshot-<upstream-commit-sha>` version. Upstream publishes a snapshot for each commit on `livestorejs/livestore` `main`. There is no local copy of the LiveStore source and no Vite alias.
+cloudstash uses the **published upstream snapshot** of LiveStore: every `@livestore/*` package in `package.json` and `apps/extension/package.json` is pinned to the same `0.0.0-snapshot-<upstream-commit-sha>` version. Upstream publishes a snapshot for each commit on `livestorejs/livestore` `main`. There is no Vite alias.
 
-- **Bump:** change every `@livestore/*` pin (app and extension) to the new snapshot SHA in one commit, then `bun install`. Keep all pins on the same SHA. A new `@livestore/*` package also needs an entry in `bunfig.toml` `minimumReleaseAgeExcludes`, because snapshots are always younger than the 7-day gate.
+`vendor/livestore` is a git submodule at the same upstream commit, kept **only as a read-only source reference** (read it to understand LiveStore internals). Nothing imports it. **Never run `pnpm install` in it** — it must not have `node_modules`. Fetch it with `git submodule update --init vendor/livestore`.
+
+- **Bump:** change every `@livestore/*` pin (app and extension) to the new snapshot SHA in one commit, then `bun install`, and move the `vendor/livestore` submodule to the same SHA. Keep all pins on the same SHA. A new `@livestore/*` package also needs an entry in `bunfig.toml` `minimumReleaseAgeExcludes`, because snapshots are always younger than the 7-day gate.
 - **Validate after a bump:** `bun run check`, `bun run typecheck`, `bun run test:unit`, `bun run test:e2e`, `bun run build`, `bun run test:bundle`. If the bump changes a DO SQLite schema, run `bun run clean:local-state` locally and bump `PERSISTENCE_FORMAT_VERSION` for deployed DOs.
 - **Working on a LiveStore fix:** clone upstream outside this repo, land the fix upstream, then bump to the published snapshot of that commit.
 

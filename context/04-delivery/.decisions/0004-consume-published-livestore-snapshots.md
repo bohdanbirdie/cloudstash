@@ -32,7 +32,9 @@ after a submodule bump added a dependency.
 
 ## Decision
 
-Remove the `vendor/livestore` submodule and source alias. Dev, tests, and
-production builds resolve LiveStore from the pinned published snapshot. Work on
+Remove the source alias and the vendored dependency install. Dev, tests, and
+production builds resolve LiveStore from the pinned published snapshot. Keep
+`vendor/livestore` as a submodule at the pinned commit for reading upstream
+source only; it is never imported, installed, or required by builds or CI. Work on
 a LiveStore fix happens in an upstream checkout outside this repository and
 reaches Cloudstash through a snapshot bump.

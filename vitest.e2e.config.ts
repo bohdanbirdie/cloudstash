@@ -130,7 +130,7 @@ export default defineConfig({
   },
   test: {
     include: ["src/cf-worker/__tests__/e2e/**/*.test.ts"],
-    exclude: ["**/node_modules/**", "**/local/**"],
+    exclude: ["**/node_modules/**", "**/local/**", "**/vendor/**"],
     // CI runners are noticeably slower than local at warming miniflare —
     // workflow + DO tests that finish in <500ms here time out at 5s on CI.
     testTimeout: 30_000,

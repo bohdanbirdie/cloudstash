@@ -45,6 +45,7 @@ const config: UserConfig = {
     ignorePatterns: [
       "dist",
       "node_modules",
+      "vendor",
       "**/*.d.ts",
       "**/*.gen.ts",
       "src/routeTree.gen.ts",
@@ -83,6 +84,7 @@ const config: UserConfig = {
     },
     ignorePatterns: [
       "readonly-llm-lookup",
+      "vendor",
       "**/*.gen.ts",
       "apps/**/.wxt/**",
       "apps/**/.output/**",
