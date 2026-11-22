@@ -20,9 +20,9 @@ artifact-first certification and CI coverage before remote mutation.
 
 [`alchemy.run.ts`](../../alchemy.run.ts) declares the Vite build and D1
 migrations, and the [deploy workflow](../../.github/workflows/deploy.yml) runs
-`bun run deploy` on pushes to `main` independently of
-[CI](../../.github/workflows/ci.yml), which runs `bun run build` and the bundle
-smoke test. [`check:pricing`](../../package.json) remains outside CI and
+`bun run build` and `alchemy deploy --stage prod` on pushes to `main`. It does
+not rerun [PR checks](../../.github/workflows/pr-checks.yml), and the bundle
+smoke test runs only locally. [`check:pricing`](../../package.json) remains outside CI and
 release.
 
 ## Direction
