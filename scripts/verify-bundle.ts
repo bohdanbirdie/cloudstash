@@ -1,19 +1,11 @@
-import { spawnSync } from "node:child_process";
-import {
-  existsSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { gzipSync } from "node:zlib";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
-const workerBundlePath = path.join(root, "dist/cloudstash/index.js");
-const workerConfigPath = path.join(root, "dist/cloudstash/wrangler.json");
+const workerBundlePath = path.join(root, "dist/ssr/index.js");
 const clientAssetsDir = path.join(root, "dist/client/assets");
 const maxWorkerGzipKiB = 2_700;
 const maxWorkerRawKiB = 64 * 1_024;
@@ -29,7 +21,7 @@ const countOccurrences = (haystack: string, needle: string): number =>
 
 if (!existsSync(workerBundlePath)) {
   console.error(
-    `verify-bundle: missing ${workerBundlePath} — run vp build first`
+    `verify-bundle: missing ${workerBundlePath} — run bun run build first`
   );
   process.exit(1);
 }
@@ -86,62 +78,25 @@ check(
   `react-major version strings: [${[...distinctReactVersions].join(", ")}], expected exactly [${reactVersion}]`
 );
 
-const unitToKiB = (value: number, unit: string): number => {
-  if (unit === "B") return value / 1_024;
-  if (unit === "KiB") return value;
-  if (unit === "MiB") return value * 1_024;
-  throw new Error(`Unsupported Wrangler size unit: ${unit}`);
-};
-
-const dryRunDir = mkdtempSync(path.join(tmpdir(), "cloudstash-upload-"));
-try {
-  const wrangler = spawnSync(
-    path.join(root, "node_modules/.bin/wrangler"),
-    [
-      "deploy",
-      "--dry-run",
-      "--config",
-      workerConfigPath,
-      "--outdir",
-      dryRunDir,
-    ],
-    { cwd: root, encoding: "utf8" }
-  );
-  const output = `${wrangler.stdout ?? ""}\n${wrangler.stderr ?? ""}`;
-  check(
-    "Wrangler upload dry run",
-    wrangler.status === 0,
-    wrangler.status === 0
-      ? "completed"
-      : `exit ${wrangler.status ?? "unknown"}: ${output.trim()}`
-  );
-
-  const upload = output.match(
-    /Total Upload:\s+([\d.]+)\s+(B|KiB|MiB)\s+\/\s+gzip:\s+([\d.]+)\s+(B|KiB|MiB)/
-  );
-  if (upload) {
-    const rawKiB = unitToKiB(Number(upload[1]), upload[2]);
-    const gzipKiB = unitToKiB(Number(upload[3]), upload[4]);
-    check(
-      "Worker raw upload budget",
-      rawKiB <= maxWorkerRawKiB,
-      `${rawKiB.toFixed(2)} KiB <= ${maxWorkerRawKiB} KiB`
-    );
-    check(
-      "Worker gzip upload budget",
-      gzipKiB <= maxWorkerGzipKiB,
-      `${gzipKiB.toFixed(2)} KiB <= ${maxWorkerGzipKiB} KiB`
-    );
-  } else {
-    check(
-      "Wrangler upload size report",
-      false,
-      `missing Total Upload line: ${output.trim()}`
-    );
-  }
-} finally {
-  rmSync(dryRunDir, { force: true, recursive: true });
-}
+const workerBytes = readdirSync(workerDir, { recursive: true })
+  .map(String)
+  .filter((file) => file.endsWith(".js") || file.endsWith(".wasm"))
+  .map((file) => readFileSync(path.join(workerDir, file)));
+const rawKiB =
+  workerBytes.reduce((total, bytes) => total + bytes.length, 0) / 1_024;
+const gzipKiB =
+  workerBytes.reduce((total, bytes) => total + gzipSync(bytes).length, 0) /
+  1_024;
+check(
+  "Worker raw upload budget",
+  rawKiB <= maxWorkerRawKiB,
+  `${rawKiB.toFixed(2)} KiB <= ${maxWorkerRawKiB} KiB`
+);
+check(
+  "Worker gzip upload budget",
+  gzipKiB <= maxWorkerGzipKiB,
+  `${gzipKiB.toFixed(2)} KiB <= ${maxWorkerGzipKiB} KiB`
+);
 
 if (failures.length > 0) {
   console.error(`verify-bundle: ${failures.length} assertion(s) failed`);

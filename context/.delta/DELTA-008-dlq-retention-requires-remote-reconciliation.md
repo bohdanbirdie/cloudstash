@@ -5,8 +5,8 @@ Status: open
 ## Divergence
 
 The committed DLQ retry schedule is designed for roughly fourteen days, but
-`wrangler.jsonc` cannot declare queue message retention and the production plan/
-remote setting are unknown. Cloudflare currently fixes Workers Free retention at
+`alchemy.run.ts` does not declare queue message retention (`messageRetentionPeriod`)
+because the production plan and remote setting are unknown. Cloudflare currently fixes Workers Free retention at
 24 hours and permits Paid retention up to fourteen days, so the intended retry
 phase is conditional rather than established current behavior.
 

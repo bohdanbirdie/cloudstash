@@ -7,18 +7,13 @@ storybook-static
 count.txt
 .env
 .env.submit
-.dev.vars
-.dev.vars.tmp.*
+.env.tmp.*
 .nitro
 .tanstack
-.wrangler
 .output
 .vinxi
 .wxt
 todos.json
-
-# Localflare generated files
-.localflare/
 
 # Motel local telemetry store
 .motel-data/
@@ -45,3 +40,6 @@ docs/.obsidian/plugins/**/data.json
 
 # Chrome extension signing key (private; public key is committed in wxt.config.ts)
 apps/extension/.keys/
+.alchemy
+.dev.vars
+.wrangler

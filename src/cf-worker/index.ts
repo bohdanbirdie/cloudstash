@@ -474,24 +474,15 @@ export const fetch = async (
 };
 
 export const queue = (batch: MessageBatch, env: Env): Promise<void> => {
-  if (
-    batch.queue === "cloudstash-x-reconcile" ||
-    batch.queue === "cloudstash-staging-x-reconcile"
-  ) {
+  if (batch.queue === env.X_RECONCILE_QUEUE_NAME) {
     return handleXReconcileBatch(batch, env);
   }
 
-  if (
-    batch.queue === "cloudstash-link-queue" ||
-    batch.queue === "cloudstash-staging-link-queue"
-  ) {
+  if (batch.queue === env.LINK_QUEUE_NAME) {
     return handleQueueBatch(batch, env);
   }
 
-  if (
-    batch.queue === "cloudstash-link-dlq" ||
-    batch.queue === "cloudstash-staging-link-dlq"
-  ) {
+  if (batch.queue === env.LINK_DLQ_NAME) {
     return handleDlqBatch(batch, env);
   }
 

@@ -1,10 +1,8 @@
-import { and, eq } from "drizzle-orm";
 import { Context, Effect, Match, Option, Schema } from "effect";
 
 import type { Auth } from ".";
 import type { Database } from "../db";
 import { ApiKey, OrgId, UserId } from "../db/branded";
-import * as dbSchema from "../db/schema";
 import { DbError, query } from "../db/service";
 import { maskId } from "../log-utils";
 import { decodeApiKeyMetadata } from "../sync/auth-payload";
@@ -232,7 +230,7 @@ const make = (auth: Auth, db: Database) => {
     const user = yield* query(
       db.query.user.findFirst({
         columns: { approved: true },
-        where: eq(dbSchema.user.id, resolved.userId),
+        where: { id: resolved.userId },
       })
     ).pipe(remapDbError("lookupUser"));
     yield* Effect.fromOption(
@@ -245,10 +243,10 @@ const make = (auth: Auth, db: Database) => {
     const membership = yield* query(
       db.query.member.findFirst({
         columns: { id: true },
-        where: and(
-          eq(dbSchema.member.userId, resolved.userId),
-          eq(dbSchema.member.organizationId, resolved.orgId)
-        ),
+        where: {
+          userId: resolved.userId,
+          organizationId: resolved.orgId,
+        },
       })
     ).pipe(remapDbError("lookupMembership"));
     yield* Effect.fromOption(

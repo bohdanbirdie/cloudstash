@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 
 import type { InviteId, UserId } from "../db/branded";
@@ -49,7 +49,7 @@ export const InviteStoreLive = Layer.effect(
       list: () =>
         query(
           db.query.invite.findMany({
-            orderBy: [desc(schema.invite.createdAt)],
+            orderBy: { createdAt: "desc" },
             with: {
               createdBy: { columns: { email: true, id: true, name: true } },
               usedBy: { columns: { email: true, id: true, name: true } },
@@ -60,21 +60,21 @@ export const InviteStoreLive = Layer.effect(
       findById: (id) =>
         query(
           db.query.invite.findFirst({
-            where: eq(schema.invite.id, id),
+            where: { id: id },
           })
         ).pipe(Effect.map((r) => r ?? null)),
 
       findValidByCode: (code) =>
         query(
           db.query.invite.findFirst({
-            where: and(
-              eq(schema.invite.code, code.toUpperCase()),
-              isNull(schema.invite.usedAt),
-              or(
-                isNull(schema.invite.expiresAt),
-                gt(schema.invite.expiresAt, new Date())
-              )
-            ),
+            where: {
+              code: code.toUpperCase(),
+              usedAt: { isNull: true },
+              OR: [
+                { expiresAt: { isNull: true } },
+                { expiresAt: { gt: new Date() } },
+              ],
+            },
           })
         ).pipe(Effect.map((r) => r ?? null)),
 

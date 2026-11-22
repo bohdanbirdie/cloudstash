@@ -1,4 +1,3 @@
-import { eq } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 
 import * as schema from "../db/schema";
@@ -18,7 +17,7 @@ const make = Effect.gen(function* () {
     signupGateEnabled: Effect.fn("AppSettings.signupGateEnabled")(function* () {
       const row = yield* query(
         db.query.appSettings.findFirst({
-          where: eq(schema.appSettings.key, SIGNUP_GATE_KEY),
+          where: { key: SIGNUP_GATE_KEY },
         })
       );
       return parseGateEnabled(row?.value);

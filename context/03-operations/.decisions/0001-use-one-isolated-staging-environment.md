@@ -14,7 +14,7 @@ that implement Durable Objects.
 
 ## Evidence and Argument
 
-- [`wrangler.jsonc`](../../../wrangler.jsonc) exports four Durable Object classes
+- [`wrangler.jsonc`](https://github.com/bohdanbirdie/cloudstash/blob/733d016/wrangler.jsonc) exports four Durable Object classes
   and binds D1, KV, Queues, a Workflow, Analytics Engine, and Workers AI.
 - [Cloudflare's preview URL limitations](https://developers.cloudflare.com/workers/versions-and-deployments/preview-urls/#limitations)
   exclude Workers implementing Durable Objects.

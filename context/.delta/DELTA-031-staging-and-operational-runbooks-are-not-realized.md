@@ -5,11 +5,10 @@ Status: open
 ## Divergence
 
 Operations requires a remotely proven staging path and queryable tripwires with
-recovery direction. The repository now defines the isolated environment, branch
-policy, artifact-first scripts, and bootstrap procedure, but the remote Worker,
-resources, secrets, domain, GitHub branch trigger, and smoke evidence remain
-maintainer-controlled and unverified. The saved-query/runbook set is also still
-incomplete.
+recovery direction. The repository has no staging environment: the Wrangler
+`staging` environment was removed with the move to Alchemy, and a staging stage
+is not yet declared. The `staging` branch policy and promotion workflow remain.
+The saved-query/runbook set is also still incomplete.
 
 ## Intent
 
@@ -18,11 +17,9 @@ deployed evidence and owned recovery procedures.
 
 ## Implementation
 
-[`wrangler.jsonc`](../../wrangler.jsonc) defines `env.staging` with isolated
-stateful resources. [`package.json`](../../package.json) provides staging build,
-artifact verification, migration, and deployment commands, and
-[`docs/staging.md`](../../docs/staging.md) owns the maintainer bootstrap and
-branch procedure. `scripts/do-metrics.sh` still covers only part of the required
+[`alchemy.run.ts`](../../alchemy.run.ts) declares only the production stage
+and local development. [`docs/staging.md`](../../docs/staging.md) records that
+staging is retired until it is rebuilt as an Alchemy stage. `scripts/do-metrics.sh` still covers only part of the required
 DLQ, sync, WebSocket, quota, and deletion signals and is not a portable
 fail-closed runbook.
 

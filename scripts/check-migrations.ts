@@ -1,18 +1,19 @@
-import { createHash } from "node:crypto";
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 
+import { readMigrationFiles } from "drizzle-orm/migrator";
 import { Schema } from "effect";
 
 const migrationsDirectory = new URL("../drizzle/migrations/", import.meta.url);
 const checksumsFile = new URL(
-  "../drizzle/migrations/meta/generated-migration-checksums.json",
+  "../drizzle/migration-checksums.json",
   import.meta.url
 );
 const customMigrationMarker = "-- Custom SQL migration file";
 
 // This predates the custom-migration rule and cannot be changed now that it has
 // shipped. New handwritten data migrations must carry Drizzle's custom marker.
-const legacyDataMigrations = new Set(["0016_lively_victor_mancha.sql"]);
+const legacyDataMigrations = new Set(["20260826195054_lively_victor_mancha"]);
 
 const containsHandwrittenDataMutation = (sql: string) => {
   const mutatesExistingRows = /^\s*(?:delete\s+from|replace\s+into|update)\b/im;
@@ -20,9 +21,6 @@ const containsHandwrittenDataMutation = (sql: string) => {
 
   return mutatesExistingRows.test(sql) || insertsApplicationRows.test(sql);
 };
-
-const checksum = (sql: string) =>
-  createHash("sha256").update(sql).digest("hex");
 
 const MigrationChecksums = Schema.Record(Schema.String, Schema.String);
 type MigrationChecksums = typeof MigrationChecksums.Type;
@@ -40,21 +38,19 @@ const readRecordedChecksums = async (): Promise<MigrationChecksums> => {
   }
 };
 
-const migrationNames = (await readdir(migrationsDirectory))
-  .filter((name) => name.endsWith(".sql"))
-  .toSorted();
+const migrations = readMigrationFiles({
+  migrationsFolder: fileURLToPath(migrationsDirectory),
+});
 
 const recordedChecksums = await readRecordedChecksums();
 const currentChecksums: Record<string, string> = {};
 const violations: string[] = [];
 
-for (const name of migrationNames) {
-  const sql = await readFile(new URL(name, migrationsDirectory), "utf8");
-  const isCustomMigration = sql.trimStart().startsWith(customMigrationMarker);
+for (const { name, hash, sql: statements } of migrations) {
+  const sql = statements.join("\n");
+  if (sql.trimStart().startsWith(customMigrationMarker)) continue;
 
-  if (isCustomMigration) continue;
-
-  currentChecksums[name] = checksum(sql);
+  currentChecksums[name] = hash;
   if (!legacyDataMigrations.has(name) && containsHandwrittenDataMutation(sql)) {
     violations.push(name);
   }

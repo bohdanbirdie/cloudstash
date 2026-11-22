@@ -1,11 +1,5 @@
 {
-  "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    "worker-configuration.d.ts",
-    "prettier.config.js",
-    "vite.config.js"
-  ],
+  "include": ["**/*.ts", "**/*.tsx", "prettier.config.js", "vite.config.js"],
   "exclude": [
     "local",
     "vendor",

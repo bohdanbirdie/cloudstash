@@ -64,7 +64,7 @@ At consumption the payload is decoded with Effect Schema. A malformed payload is
 non-transient: log and acknowledge. A valid message addresses
 `LinkProcessorDO.idFromName(storeId)` and calls `ingestAndProcess`.
 
-Current retry policy, mirrored between code comments and `wrangler.jsonc`:
+Current retry policy, mirrored between code and the Queue consumers in `alchemy.run.ts`:
 
 | Queue                   | Attempts/delay                                                      | Outcome                               |
 | ----------------------- | ------------------------------------------------------------------- | ------------------------------------- |

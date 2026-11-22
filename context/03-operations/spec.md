@@ -22,12 +22,10 @@ Active.
 | Rate limiter     | `SYNC_RATE_LIMITER`                                                  | selected auth/MCP/sync/invite abuse protection                     |
 | Analytics Engine | `USAGE_ANALYTICS`                                                    | low-overhead usage events                                          |
 
-The repository also declares an isolated `staging` Wrangler environment. It
-targets the `cloudstash-staging` Worker and repeats all non-inherited bindings
-with staging-only D1, KV, Queue, Workflow, Durable Object, rate-limit, and
-Analytics Engine identities. Provider credentials remain separate deployment
-secrets. Remote provisioning, domain attachment, and GitHub branch connection
-remain externally controlled and are tracked in
+These bindings are declared once in `alchemy.run.ts`. The repository no longer
+defines a staging environment: the Wrangler `staging` environment was removed
+with the move to Alchemy, and staging is to be rebuilt as an Alchemy stage. This
+gap is tracked in
 [DELTA-031](../.delta/DELTA-031-staging-and-operational-runbooks-are-not-realized.md).
 
 Built-in Cloudflare logs and invocation traces are enabled with full head
@@ -75,7 +73,7 @@ The August 2026 Effect v4 cutover exceeded the cap through two full
 rematerializations despite normal per-event VFS behavior.
 
 The Cloudflare Worker environment is Oxc-minified independently of client
-assets. Build certification runs a Wrangler upload dry-run and rejects a
+assets. Build certification measures the built Worker files and rejects a
 compressed Worker larger than 2,700 KiB, leaving safety margin below the
 Workers Free upload boundary. CI also boots the generated Worker locally and
 proves D1 signup plus an authenticated WebSocket handoff to SyncBackendDO.

@@ -7,23 +7,33 @@ Link saving app with AI-powered summaries. Full-stack TypeScript on Cloudflare W
 Use **bun** (not npm) for all commands.
 
 ```bash
-bun dev              # Vite+ dev server (port 3000)
-bun run dev:infra    # Auth emulator, tunnel, dashboard, raycast (separate terminal)
+bun dev              # alchemy dev: local workerd + Vite (port 3000), applies D1 migrations
+bun run dev:infra    # Tunnel and Raycast (separate terminal)
 bun test             # Run all tests
 bun run test:unit    # Unit tests only
 bun run typecheck    # Type checking
 bun run check        # Lint + format (Vite+) + Effect diagnostics
 bun run fix          # Fix lint issues
+bun run build        # Build app + Worker into dist/ and verify the bundle
 ```
 
 **Linting:** Uses oxlint and oxfmt via Vite+ (NOT eslint). Don't use eslint-disable comments.
 
-**NEVER run remote wrangler commands** (migrations, deployments, secrets, etc.). Local only:
+## Infrastructure (Alchemy)
+
+All Cloudflare infrastructure is declared in `alchemy.run.ts` (Alchemy v2). There is no `wrangler.jsonc`.
+
+- Bindings are declared once on the Worker's `env`; the `Env` type is inferred from it (`src/cf-worker/worker-env.d.ts`).
+- Local secrets live in `.env` (`bun run env:sync` from `.env.example`). Non-prod stages read `.env`; `prod` reads only the process environment (CI secrets).
+- Shared Worker constants (entry, compatibility, vars, rate limits, queue settings) live in `worker.config.ts`. Local test runtimes (e2e, bundle smoke) build Miniflare options from them in `tools/local-worker.ts`; keep its bindings in step with `alchemy.run.ts`.
+- `prod` is the only deployed stage (`--stage prod`). It uses Alchemy's Cloudflare state store; other stages use local state in `.alchemy/`.
+
+**NEVER run remote commands** (deploys, plans against `prod`, remote migrations, secrets, state bootstrap):
 
 ```bash
-bun run db:migrate:local   # OK - local migrations
-bun run db:migrate:remote  # FORBIDDEN
-bun run deploy             # FORBIDDEN
+bun dev               # OK - everything local
+bun run deploy        # FORBIDDEN
+bun run plan          # FORBIDDEN (reads production state)
 ```
 
 ## Stack
@@ -100,7 +110,7 @@ cloudstash uses the **published upstream snapshot** of LiveStore: every `@livest
 
 - Path alias: `@/*` maps to `src/*`
 - Routes in `src/routes/_authed/` require authentication
-- Database migrations: `bun run db:generate` then `bun run db:migrate:local`. **Review generated SQL before committing** — a table rebuild (`__new_<table>`/`DROP TABLE`) for an unrelated change means snapshot drift and can cascade-delete child rows. See `drizzle/migrations/MANUAL_SNAPSHOT_FIXES.md` (records a hand-edit to `0010_snapshot.json` and why).
+- Database migrations: `bun run db:generate`; `bun dev` (and every deploy) applies them. Drizzle v1 writes one folder per migration in `drizzle/migrations/` (`migration.sql` + `snapshot.json`), which Alchemy reads directly. Declare unique columns as `uniqueIndex(...)`, not `.unique()`: the existing tables use unique indexes, and `.unique()` would make drizzle-kit rebuild them. **Review generated SQL before committing** — a table rebuild (`__new_<table>`/`DROP TABLE`) for an unrelated change means snapshot drift and can cascade-delete child rows. See `drizzle/MANUAL_SNAPSHOT_FIXES.md` (records a hand-edit to `0010_snapshot.json` and why).
 - Avoid code comments unless absolutely necessary for complex logic
 - No barrel files (index.ts re-exports) - import directly from source files
 - **Patches:** When patching packages with pre-built dist files, patch `dist/*.js` directly (not just `src/*.ts`). Runtime imports from dist, not source.

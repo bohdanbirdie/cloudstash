@@ -28,11 +28,11 @@ export const getOrCreateStripeCustomer = Effect.fn(
 
   const org = yield* query(
     db.query.organization.findFirst({
-      where: eq(schema.organization.id, orgId),
+      where: { id: orgId },
       columns: { id: true, name: true, stripeCustomerId: true },
       with: {
         members: {
-          where: eq(schema.member.role, "owner"),
+          where: { role: "owner" },
           with: { user: { columns: { email: true } } },
           limit: 1,
         },
@@ -79,7 +79,7 @@ export const getStripeCustomerId = Effect.fn("Billing.getStripeCustomerId")(
     yield* Effect.annotateCurrentSpan({ orgId: maskId(orgId) });
     const org = yield* query(
       db.query.organization.findFirst({
-        where: eq(schema.organization.id, orgId),
+        where: { id: orgId },
         columns: { stripeCustomerId: true },
       })
     );
@@ -95,7 +95,7 @@ export const syncFromStripe = Effect.fn("Billing.syncFromStripe")(function* (
 
   const org = yield* query(
     db.query.organization.findFirst({
-      where: eq(schema.organization.stripeCustomerId, customerId),
+      where: { stripeCustomerId: customerId },
       columns: { id: true, tier: true },
     })
   );

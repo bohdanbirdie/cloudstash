@@ -28,13 +28,10 @@ Save and organize links with AI-powered summaries. Full-stack TypeScript on Clou
 # Install dependencies
 bun install
 
-# Refresh the ignored .dev.vars from 1Password
+# Refresh the ignored .env from 1Password
 bun run env:sync
 
-# Run database migrations
-bun run db:migrate:local
-
-# Start dev server
+# Start dev server (applies D1 migrations locally)
 bun dev
 ```
 
@@ -66,24 +63,21 @@ and local OAuth/MCP clients on that same origin.
 | `CF_ANALYTICS_TOKEN`      | Cloudflare analytics token (for DO metrics)                                                 |
 
 **Local:** Store values in the `Cloudstash` 1Password vault. References live in
-`.dev.vars.example`; run `bun run env:sync` on demand after changing a value to
-atomically refresh the ignored, mode-`0600` `.dev.vars` file. Normal dev starts
+`.env.example`; run `bun run env:sync` on demand after changing a value to
+atomically refresh the ignored, mode-`0600` `.env` file. Normal dev starts
 use the last synced file and do not contact 1Password.
-**Production:** Set via `bunx wrangler secret put VARIABLE_NAME`.
+**Production:** Set as secrets in the GitHub `production` environment; the
+deploy workflow passes them to Alchemy.
 
 ## First Admin Setup
 
 After the first user signs up, bootstrap admin access:
 
-```sql
--- Via Cloudflare Dashboard > D1 > Console, or:
--- Local
-wrangler d1 execute DB --local --command \
-  "UPDATE user SET approved = 1, role = 'admin' WHERE email = 'your@email.com'"
+Run this in the Cloudflare dashboard (D1 > `cloudstash` > Console), or locally
+in `bun run db:studio`:
 
--- Production
-wrangler d1 execute DB --remote --command \
-  "UPDATE user SET approved = 1, role = 'admin' WHERE email = 'your@email.com'"
+```sql
+UPDATE user SET approved = 1, role = 'admin' WHERE email = 'your@email.com';
 ```
 
 After this, the admin can approve other users through the UI.
@@ -146,20 +140,16 @@ bun run fix          # Auto-fix lint issues
 ### Database
 
 ```bash
-bun run db:generate      # Generate new migration
-bun run db:migrate:local # Apply migrations locally
+bun run db:generate      # Generate a new migration (bun dev applies it)
+bun run db:studio        # Browse the local database
 ```
 
 ### Deployment
 
-```bash
-bun run deploy           # Production deploy (migrations + worker)
-bun run deploy:staging   # Build, certify, migrate, and deploy staging
-```
-
-Staging is an isolated Cloudflare Worker deployed from the `staging` branch.
-See [`docs/staging.md`](docs/staging.md) for bootstrap and GitHub integration
-settings.
+Infrastructure is declared in `alchemy.run.ts` (Alchemy). GitHub Actions
+deploys production on every push to `main` (`.github/workflows/deploy.yml`).
+There is no staging environment at the moment; see
+[`docs/staging.md`](docs/staging.md).
 
 ## Diagrams
 
@@ -212,7 +202,7 @@ src/
 2. Create a feature branch (`git checkout -b feature/my-feature`)
 3. Make your changes
 4. Run checks: `bun run check && bun run typecheck && bun test`
-5. Submit a pull request against the `staging` branch
+5. Submit a pull request against `main`
 
 Uses `bun` (not npm) and `oxlint`/`oxfmt` via Vite+ (not eslint).
 

@@ -17,7 +17,7 @@
     "**/.turbo",
     "**/.next",
     "**/coverage",
-    "**/.wrangler"
+    "**/.alchemy"
   ],
   "languages": {
     "JavaScript": {
