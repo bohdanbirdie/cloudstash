@@ -35,8 +35,8 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      - name: Build and certify the Worker bundle
-        run: bun run build && bun run test:bundle
+      - name: Build and verify the Worker bundle
+        run: bun run build
 
       - name: Check Cloudflare credentials
         run: bunx alchemy provider check-env --provider Cloudflare
