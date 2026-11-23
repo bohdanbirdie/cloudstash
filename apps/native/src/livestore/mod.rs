@@ -3,3 +3,6 @@
 
 pub mod library;
 pub mod schema;
+
+#[cfg(test)]
+mod contract;

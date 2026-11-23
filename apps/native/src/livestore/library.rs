@@ -103,7 +103,7 @@ fn one_line(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-const LINKS_SQL: &str = "SELECT l.id, l.url, l.status, l.createdAt, l.completedAt, l.deletedAt, s.title, s.image, s.favicon,
+pub(super) const LINKS_SQL: &str = "SELECT l.id, l.url, l.status, l.createdAt, l.completedAt, l.deletedAt, s.title, s.image, s.favicon,
     s.description,
     (SELECT m.summary FROM link_summaries m WHERE m.linkId = l.id ORDER BY m.summarizedAt DESC LIMIT 1) AS summary,
     (SELECT group_concat(t.name, char(31)) FROM link_tags lt JOIN tags t ON t.id = lt.tagId

@@ -31,6 +31,22 @@ toolbar instead of leaving the library loading.
 tail -f ~/Library/Logs/Cloudstash/cloudstash.log
 ```
 
+## The LiveStore contract with the web app
+
+`src/livestore/contract.rs` checks this app's schema against the web's through
+`src/livestore/__tests__/fixtures/native-contract.json`, which the web's tests generate from
+`src/livestore/schema.ts`: every native table must have the web's columns, and replaying the
+contract's events through the native materializers must write the web's rows, step by step.
+Events this app doesn't handle must change none of its tables. It also runs the links query on
+the replayed library.
+
+```sh
+bun run contract:livestore:update   # at the repo root, after changing the web schema
+cargo test contract                 # here
+```
+
+CI runs both when a pull request touches `src/livestore/` or `apps/native/src/livestore/`.
+
 ## How sign-in works
 
 The usual desktop pattern: the browser signs in, then hands the app a one-time code through a

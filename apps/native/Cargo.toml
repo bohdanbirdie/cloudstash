@@ -87,3 +87,7 @@ opt-level = 2
 
 [lints.rust]
 unsafe_code = "forbid"
+
+[dev-dependencies]
+# The contract test (src/livestore/contract.rs) replays events into an in-memory database.
+livestore-core = { git = "https://github.com/livestorejs/livestore-contrib", rev = "dc0aa0d079fe195cf20802b7cd1ff5982f20b102" }

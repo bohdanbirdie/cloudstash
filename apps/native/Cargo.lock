@@ -640,6 +640,7 @@ dependencies = [
  "image",
  "keyring",
  "livestore",
+ "livestore-core",
  "livestore-schema",
  "livestore-sqlite",
  "livestore-sync",
