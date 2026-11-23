@@ -55,6 +55,9 @@ pub struct LinkItem {
     pub url: String,
     /// The URL's host without `www.`, shown under the title.
     pub domain: String,
+    /// The newest snapshot's preview picture and favicon.
+    pub image: Option<String>,
+    pub favicon: Option<String>,
     pub status: String,
     pub created_at: i64,
     pub completed_at: Option<i64>,
@@ -77,6 +80,8 @@ impl LinkItem {
             title,
             url: url.to_owned(),
             domain: host.strip_prefix("www.").unwrap_or(host).to_owned(),
+            image: text("image").filter(|u| u.starts_with("http")).map(decode_entities),
+            favicon: text("favicon").filter(|u| u.starts_with("http")).map(decode_entities),
             status: text("status").unwrap_or_default().to_owned(),
             created_at: millis("createdAt").unwrap_or_default(),
             completed_at: millis("completedAt"),
@@ -85,7 +90,7 @@ impl LinkItem {
     }
 }
 
-const LINKS_SQL: &str = "SELECT l.id, l.url, l.status, l.createdAt, l.completedAt, l.deletedAt, s.title
+const LINKS_SQL: &str = "SELECT l.id, l.url, l.status, l.createdAt, l.completedAt, l.deletedAt, s.title, s.image, s.favicon
   FROM links l
   LEFT JOIN link_snapshots s ON s.id = (
     SELECT s2.id FROM link_snapshots s2 WHERE s2.linkId = l.id ORDER BY s2.fetchedAt DESC LIMIT 1
@@ -131,9 +136,8 @@ pub fn start(
 ) -> Library {
     let (stop, stopped) = oneshot::channel();
     std::thread::spawn(move || {
-        let result = tokio::runtime::Runtime::new()
-            .map_err(|e| e.to_string())
-            .and_then(|rt| rt.block_on(serve(&config, stopped, on_links, &on_status)));
+        let result =
+            tokio::runtime::Runtime::new().map_err(|e| e.to_string()).and_then(|rt| rt.block_on(serve(&config, stopped, on_links, &on_status)));
         if let Err(e) = result {
             on_status(Err(e));
         }
@@ -176,9 +180,7 @@ async fn serve(
 
 async fn open(config: &Config) -> Result<Store, String> {
     std::fs::create_dir_all(&config.dir).map_err(|e| e.to_string())?;
-    let url = format!("{}/sync", config.base.trim_end_matches('/'))
-        .replacen("https://", "wss://", 1)
-        .replacen("http://", "ws://", 1);
+    let url = format!("{}/sync", config.base.trim_end_matches('/')).replacen("https://", "wss://", 1).replacen("http://", "ws://", 1);
     let (payload, folder) = (json!({ "apiKey": config.api_key }), config.dir.clone());
     let adapter = InMemoryAdapter {
         client_id: client_id(&config.dir).map_err(|e| e.to_string())?,
@@ -187,16 +189,11 @@ async fn open(config: &Config) -> Result<Store, String> {
             builder
                 .sync_payload(payload.clone())
                 .storage(Storage::Folder(folder.clone()))
-                .sync(SyncOptions {
-                    backend: Some(make_ws_sync(&url, ClientOptions::default())),
-                    ..SyncOptions::default()
-                })
+                .sync(SyncOptions { backend: Some(make_ws_sync(&url, ClientOptions::default())), ..SyncOptions::default() })
         })),
         ..InMemoryAdapter::default()
     };
-    create_store(StoreOptions::new(super::schema::schema(), adapter.build(), &config.library_id))
-        .await
-        .map_err(|e| e.to_string())
+    create_store(StoreOptions::new(super::schema::schema(), adapter.build(), &config.library_id)).await.map_err(|e| e.to_string())
 }
 
 /// Stable per library folder, like the client id the web keeps in storage.
@@ -214,14 +211,7 @@ fn random_id() -> String {
     let (a, b) = (RandomState::new().hash_one(0u8), RandomState::new().hash_one(1u8));
     let b = (b & 0x3fff_ffff_ffff_ffff) | 0x8000_0000_0000_0000;
     let a = (a & 0xffff_ffff_ffff_0fff) | 0x4000;
-    format!(
-        "{:08x}-{:04x}-{:04x}-{:04x}-{:012x}",
-        a >> 32,
-        (a >> 16) & 0xffff,
-        a & 0xffff,
-        b >> 48,
-        b & 0xffff_ffff_ffff
-    )
+    format!("{:08x}-{:04x}-{:04x}-{:04x}-{:012x}", a >> 32, (a >> 16) & 0xffff, a & 0xffff, b >> 48, b & 0xffff_ffff_ffff)
 }
 
 /// The entities page titles carry, as the web's `decodeHtmlEntities` resolves them.
@@ -274,6 +264,8 @@ mod tests {
             title: id.to_owned(),
             url: String::new(),
             domain: String::new(),
+            image: None,
+            favicon: None,
             status: status.to_owned(),
             created_at: created,
             completed_at: completed,
@@ -301,8 +293,7 @@ mod tests {
     #[test]
     fn titles_fall_back_and_decode_like_display_title() {
         let row = |title: Value, url: &str| -> Row {
-            serde_json::from_value(json!({"id": "a", "url": url, "status": "unread", "createdAt": 1, "title": title}))
-                .expect("row")
+            serde_json::from_value(json!({"id": "a", "url": url, "status": "unread", "createdAt": 1, "title": title})).expect("row")
         };
         let title = |r: Row| LinkItem::from_row(&r).expect("link").title;
         let domain = |r: Row| LinkItem::from_row(&r).expect("link").domain;

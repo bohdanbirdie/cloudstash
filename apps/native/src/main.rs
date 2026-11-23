@@ -8,7 +8,9 @@
 //! ```
 
 mod auth;
+mod fps;
 mod icons;
+mod images;
 mod livestore;
 mod shell;
 mod shell_kit;
@@ -104,14 +106,15 @@ impl Backend {
         let api_key = self.auth.api_key()?.ok_or("The saved session is missing its key.")?;
         let server: String = self.auth.base.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect();
         let (on_links, on_status) = (self.ui.clone(), self.ui.clone());
+        let dir = self.auth.state_dir.join("libraries").join(server).join(&account.library_id);
+        let _ = std::fs::remove_dir_all(dir.join("http-cache"));
+        images::open(dir.join("images"), &shell::IMAGE_SIZES);
         Ok(library::start(
-            library::Config {
-                base: self.auth.base.clone(),
-                library_id: account.library_id.clone(),
-                api_key,
-                dir: self.auth.state_dir.join("libraries").join(server).join(&account.library_id),
+            library::Config { base: self.auth.base.clone(), library_id: account.library_id.clone(), api_key, dir },
+            move |links| {
+                images::prefetch(shell::wanted_images(&links));
+                on_links.update(move |s, _| s.links = links)
             },
-            move |links| on_links.update(move |s, _| s.links = links),
             move |status| {
                 on_status.update(move |s, _| {
                     s.sync = match status {
@@ -127,11 +130,7 @@ impl Backend {
 }
 
 fn open_browser(url: &str) {
-    let opener = if cfg!(target_os = "macos") {
-        "open"
-    } else {
-        "xdg-open"
-    };
+    let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
     if let Err(e) = std::process::Command::new(opener).arg(url).spawn() {
         eprintln!("could not open the browser ({e}); open this URL to sign in:\n{url}");
     }
@@ -176,12 +175,30 @@ fn open_url(s: &mut State, link: &str, _: &mut Tx) {
     });
 }
 
+/// The dev meter's readings: downloads running and waiting in view, then the pictures' cache on
+/// disk and how much of the background fill is done; clicking the cache empties it.
+fn devtools_probes() {
+    fps::probe(|| {
+        let s = images::stats();
+        if s.waiting == 0 { format!("{} req", s.downloading) } else { format!("{} req +{}", s.downloading, s.waiting) }
+    });
+    fps::probe_pressable(
+        || {
+            let s = images::stats();
+            let mb = s.disk_bytes as f64 / 1_048_576.0;
+            if s.filled < s.to_fill { format!("{mb:.1} MB · {}/{}", s.filled, s.to_fill) } else { format!("{mb:.1} MB") }
+        },
+        images::reset,
+    );
+}
+
 fn sign_out(s: &mut State) {
     let Some(backend) = s.backend.clone() else {
         return;
     };
     s.notice = None;
     s.phase = Phase::SignedOut;
+    images::close();
     if let Some(library) = s.library.take() {
         library.close_and_forget();
     }
@@ -197,34 +214,16 @@ fn sign_out(s: &mut State) {
 fn view(s: &State, cx: &mut Cx<State>) -> El {
     let t = theme::palette(cx.system_dark());
     let content = match (&s.phase, &s.notice) {
-        (Phase::SignedOut, Some(notice)) => status(
-            Tone::Problem,
-            "Couldn't finish signing in",
-            notice.clone(),
-            t,
-        )
-        .child(primary_button("sign-in", "Try again", t).on_press(start_sign_in)),
+        (Phase::SignedOut, Some(notice)) => status(Tone::Problem, "Couldn't finish signing in", notice.clone(), t)
+            .child(primary_button("sign-in", "Try again", t).on_press(start_sign_in)),
         (Phase::SignedOut, None) => header("Sign in to Cloudstash", "Access your saved links from anywhere.".into(), t)
             .child(primary_button("sign-in", "Sign in", t).on_press(start_sign_in)),
-        (Phase::Restoring, _) => status(
-            Tone::Progress,
-            "Opening Cloudstash for Mac",
-            "Checking for a saved session. This takes a moment.".into(),
-            t,
-        ),
-        (Phase::WaitingForBrowser, _) => status(
-            Tone::Progress,
-            "Finish signing in in your browser",
-            "Cloudstash opens again when you're done.".into(),
-            t,
-        )
-        .child(outline_button("cancel", "Cancel", t).on_press(cancel_sign_in)),
-        (Phase::Finishing, _) => status(
-            Tone::Progress,
-            "Signing in to Cloudstash for Mac",
-            "Preparing your sign-in. This takes a moment.".into(),
-            t,
-        ),
+        (Phase::Restoring, _) => status(Tone::Progress, "Opening Cloudstash for Mac", "Checking for a saved session. This takes a moment.".into(), t),
+        (Phase::WaitingForBrowser, _) => {
+            status(Tone::Progress, "Finish signing in in your browser", "Cloudstash opens again when you're done.".into(), t)
+                .child(outline_button("cancel", "Cancel", t).on_press(cancel_sign_in))
+        }
+        (Phase::Finishing, _) => status(Tone::Progress, "Signing in to Cloudstash for Mac", "Preparing your sign-in. This takes a moment.".into(), t),
         (Phase::SignedIn(account), _) => return shell::view(s, account, cx),
     };
     col()
@@ -235,14 +234,7 @@ fn view(s: &State, cx: &mut Cx<State>) -> El {
         .center()
         .fill(t.card)
         .window_drag()
-        .child(
-            col()
-                .key("content")
-                .w_full()
-                .max_w(320.0)
-                .child(brand_lockup(t))
-                .child(content),
-        )
+        .child(col().key("content").w_full().max_w(320.0).child(brand_lockup(t)).child(content))
 }
 
 enum Tone {
@@ -257,32 +249,15 @@ fn brand_lockup(t: Palette) -> El {
         .gap(8.0)
         .mb(28.0)
         .child(icon(&icons::LOGO, 24.0).color(t.primary))
-        .child(
-            text("cloudstash")
-                .font(TextStyle::new(14.0, 600.0).lh(20.0).tracking(-0.35))
-                .color(t.card_foreground),
-        )
+        .child(text("cloudstash").font(TextStyle::new(14.0, 600.0).lh(20.0).tracking(-0.35)).color(t.card_foreground))
 }
 
 fn header(title: &'static str, body: String, t: Palette) -> El {
     col()
         .key("header")
         .w_full()
-        .child(
-            text(title)
-                .key("title")
-                .font(TextStyle::new(20.0, 600.0).lh(28.0).tracking(-0.5))
-                .color(t.card_foreground)
-                .wrap(),
-        )
-        .child(
-            text(body)
-                .key("body")
-                .font(TextStyle::new(12.0, 400.0).lh(19.5))
-                .color(t.muted_foreground)
-                .wrap()
-                .mt(8.0),
-        )
+        .child(text(title).key("title").font(TextStyle::new(20.0, 600.0).lh(28.0).tracking(-0.5)).color(t.card_foreground).wrap())
+        .child(text(body).key("body").font(TextStyle::new(12.0, 400.0).lh(19.5)).color(t.muted_foreground).wrap().mt(8.0))
 }
 
 fn status(tone: Tone, title: &'static str, body: String, t: Palette) -> El {
@@ -297,25 +272,12 @@ fn status(tone: Tone, title: &'static str, body: String, t: Palette) -> El {
     col()
         .key("status")
         .w_full()
-        .child(
-            row()
-                .key("status-icon")
-                .size(40.0, 40.0)
-                .center()
-                .radius(20.0)
-                .fill(fill)
-                .box_shadow(ring_1(ring))
-                .child(glyph),
-        )
+        .child(row().key("status-icon").size(40.0, 40.0).center().radius(20.0).fill(fill).box_shadow(ring_1(ring)).child(glyph))
         .child(header(title, body, t).mt(20.0))
 }
 
 fn ring_1(color: Color) -> Shadow {
-    Shadow {
-        spread: 1.0,
-        color,
-        ..Shadow::default()
-    }
+    Shadow { spread: 1.0, color, ..Shadow::default() }
 }
 
 fn primary_button(key: &'static str, label: &'static str, t: Palette) -> El {
@@ -327,35 +289,14 @@ fn outline_button(key: &'static str, label: &'static str, t: Palette) -> El {
 }
 
 fn button(key: &'static str, label: &'static str, fill: Color, border: Color, ink: Color) -> El {
-    row()
-        .key(key)
-        .role("button")
-        .label(label)
-        .focusable(true)
-        .w_full()
-        .h(32.0)
-        .mt(24.0)
-        .padding(1.0)
-        .radius(8.0)
-        .border(1.0, border)
-        .child(
-            row()
-                .w_full()
-                .h_full()
-                .px(9.0)
-                .center()
-                .radius(7.0)
-                .fill(fill)
-                .child(text(label).font(TextStyle::new(12.0, 500.0).lh(19.5)).color(ink)),
-        )
+    row().key(key).role("button").label(label).focusable(true).w_full().h(32.0).mt(24.0).padding(1.0).radius(8.0).border(1.0, border).child(
+        row().w_full().h_full().px(9.0).center().radius(7.0).fill(fill).child(text(label).font(TextStyle::new(12.0, 500.0).lh(19.5)).color(ink)),
+    )
 }
 
 fn signed_in_scene(s: &mut State, tab: Tab) {
-    s.phase = Phase::SignedIn(Account {
-        name: Some("Ada Example".to_owned()),
-        email: "ada@example.com".to_owned(),
-        library_id: "org_example".to_owned(),
-    });
+    s.phase =
+        Phase::SignedIn(Account { name: Some("Ada Example".to_owned()), email: "ada@example.com".to_owned(), library_id: "org_example".to_owned() });
     s.sync = Sync::Online;
     s.tab = tab;
     let link = |id: &str, title: &str, status: &str, created_at: i64, completed_at: Option<i64>| LinkItem {
@@ -363,6 +304,8 @@ fn signed_in_scene(s: &mut State, tab: Tab) {
         title: title.to_owned(),
         url: format!("https://example.com/{id}"),
         domain: "example.com".to_owned(),
+        image: None,
+        favicon: None,
         status: status.to_owned(),
         created_at,
         completed_at,
@@ -420,6 +363,11 @@ fn main() {
     })
     .chrome(Chrome { full_size_content: true, traffic_lights: Some((21.0, 21.0)), drag_regions: true })
     .font_smoothing(FontSmoothing::Off)
+    .on_frame_encoded({
+        devtools_probes();
+        let mut tracker = fps::Tracker::default();
+        move |frame| tracker.frame(frame)
+    })
     .on_open_url(open_url);
     let auth = match Auth::from_env() {
         Ok(auth) => Arc::new(auth),
@@ -430,7 +378,14 @@ fn main() {
     };
     let backend = Backend {
         auth,
-        ui: app.handle(),
+        ui: {
+            let ui = app.handle();
+            fps::on_relayout({
+                let ui = ui.clone();
+                move || ui.update(|_, _| {})
+            });
+            ui
+        },
     };
     let stored = backend.clone();
     backend.ui.update(move |s, tx| {
