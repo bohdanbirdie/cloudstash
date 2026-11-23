@@ -117,7 +117,18 @@ export const validatePayload = Effect.fn("Sync.validatePayload")(
     }
 
     if (!cookie) {
-      return yield* deny("missing cookie", new MissingSessionCookieError());
+      const nativeApiKey = origin
+        ? Option.none()
+        : decodeExtensionPayload(payload);
+      if (Option.isNone(nativeApiKey)) {
+        return yield* deny("missing cookie", new MissingSessionCookieError());
+      }
+      const access = yield* WorkspaceAccess;
+      return yield* access
+        .authorizeApiKey(nativeApiKey.value.apiKey, storeId)
+        .pipe(
+          Effect.mapError((error) => translateWorkspaceAccess(error, storeId))
+        );
     }
 
     const access = yield* WorkspaceAccess;

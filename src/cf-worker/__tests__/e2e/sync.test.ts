@@ -169,6 +169,73 @@ describe("sync Connection Auth E2E", () => {
     });
   });
 
+  describe("native app API key", () => {
+    const nativeKey = async (user: UserInfo): Promise<string> => {
+      const codeVerifier = `native-sync-verifier-${crypto.randomUUID()}`;
+      const digest = await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(codeVerifier)
+      );
+      const codeChallenge = btoa(String.fromCharCode(...new Uint8Array(digest)))
+        .replaceAll("+", "-")
+        .replaceAll("/", "_")
+        .replace(/=+$/, "");
+      const connect = await SELF.fetch("http://worker/api/connect/native", {
+        body: JSON.stringify({ codeChallenge }),
+        headers: { "Content-Type": "application/json", Cookie: user.cookie },
+        method: "POST",
+      });
+      expect(connect.status).toBe(200);
+      const { code } = (await connect.json()) as { code: string };
+      const exchange = await SELF.fetch(
+        "http://worker/api/connect/native/exchange",
+        {
+          body: JSON.stringify({ code, codeVerifier }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        }
+      );
+      expect(exchange.status).toBe(200);
+      return ((await exchange.json()) as { apiKey: string }).apiKey;
+    };
+    const withKey = (storeId: string, apiKey: string, path = "/sync") => {
+      const params = new URLSearchParams({
+        payload: JSON.stringify({ apiKey }),
+        storeId,
+        transport: "ws",
+      });
+      return `http://worker${path}?${params.toString()}`;
+    };
+
+    it("upgrades a cookie-less, origin-less socket that carries the key", async () => {
+      const apiKey = await nativeKey(userA);
+      for (const path of ["/sync", "/sync/"]) {
+        const res = await SELF.fetch(withKey(userA.orgId, apiKey, path), {
+          headers: { Upgrade: "websocket" },
+        });
+        expect(res.status).toBe(101);
+        res.webSocket?.accept();
+        res.webSocket?.close();
+      }
+    });
+
+    it("rejects the key for another library", async () => {
+      const apiKey = await nativeKey(userA);
+      const res = await SELF.fetch(withKey(userB.orgId, apiKey), {
+        headers: { Upgrade: "websocket" },
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it("ignores the key when a web origin sends it", async () => {
+      const apiKey = await nativeKey(userA);
+      const res = await SELF.fetch(withKey(userA.orgId, apiKey), {
+        headers: { Origin: "https://cloudstash.dev", Upgrade: "websocket" },
+      });
+      expect(res.status).toBe(401);
+    });
+  });
+
   describe("retained-link safety boundary", () => {
     it("accepts ordinary local-first batches and rejects abusive growth", async () => {
       const user = await signupUser(

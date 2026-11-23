@@ -1,4 +1,6 @@
-//! Cloudstash for Mac, prototype: sign in through the browser and show who is signed in.
+//! Cloudstash for Mac, prototype: sign in through the browser, then sync the library with LiveStore
+//! and show it in the "Inset" shell: a sidebar with the inbox, done, archive and all links,
+//! beside a content card listing the chosen state's links (`shell.rs`).
 //!
 //! ```text
 //! scripts/run.sh                                    # against https://cloudstash.dev
@@ -7,12 +9,18 @@
 
 mod auth;
 mod icons;
+mod library;
+mod schema;
+mod shell;
+mod shell_kit;
 mod theme;
 
 use std::sync::Arc;
 
 use auth::{Account, Auth, Link};
-use rune::{App, AppHandle, AppSpec, Color, Cx, El, FontSmoothing, LoopSpec, Shadow, TextStyle, Tx, col, icon, row, text};
+use library::{Library, LinkItem, Tab};
+use rune::{App, AppHandle, AppSpec, Chrome, Color, Cx, El, FontSmoothing, LoopSpec, Shadow, TextStyle, Tx, col, icon, row, text};
+use shell_kit::PaneState;
 use theme::Palette;
 
 const APP_TITLE: &str = "Cloudstash";
@@ -32,13 +40,36 @@ enum Phase {
     SignedIn(Account),
 }
 
+/// The library's connection to the sync backend.
+#[derive(Default, Clone, PartialEq)]
+pub(crate) enum Sync {
+    #[default]
+    Connecting,
+    Online,
+    Offline,
+    Failed(String),
+}
+
 #[derive(Default)]
-struct State {
+pub(crate) struct State {
     phase: Phase,
     notice: Option<String>,
+    library: Option<Library>,
+    links: Vec<LinkItem>,
+    tab: Tab,
+    sync: Sync,
     backend: Option<Backend>,
     /// A link that arrived before the backend was ready, as when it launched the app.
     early_link: Option<String>,
+    sidebar: PaneState,
+    /// The hardcoded space picked in the sidebar, shown in place of the tab.
+    space: Option<usize>,
+    kind: shell::Kind,
+    mode: shell::Mode,
+}
+
+fn new_state() -> State {
+    State { sidebar: shell::sidebar_state(), ..State::default() }
 }
 
 #[derive(Clone)]
@@ -49,14 +80,50 @@ struct Backend {
 
 impl Backend {
     fn show(&self, result: Result<Option<Account>, String>) {
+        let backend = self.clone();
         self.ui.update(move |s, _| match result {
-            Ok(Some(account)) => s.phase = Phase::SignedIn(account),
+            Ok(Some(account)) => {
+                s.sync = Sync::Connecting;
+                match backend.open_library(&account) {
+                    Ok(library) => s.library = Some(library),
+                    Err(e) => s.sync = Sync::Failed(e),
+                }
+                s.phase = Phase::SignedIn(account);
+            }
             Ok(None) => s.phase = Phase::SignedOut,
             Err(e) => {
                 s.phase = Phase::SignedOut;
                 s.notice = Some(e);
             }
         });
+    }
+}
+
+impl Backend {
+    /// Starts syncing the signed-in library into its own folder, one per server and library.
+    fn open_library(&self, account: &Account) -> Result<Library, String> {
+        let api_key = self.auth.api_key()?.ok_or("The saved session is missing its key.")?;
+        let server: String = self.auth.base.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect();
+        let (on_links, on_status) = (self.ui.clone(), self.ui.clone());
+        Ok(library::start(
+            library::Config {
+                base: self.auth.base.clone(),
+                library_id: account.library_id.clone(),
+                api_key,
+                dir: self.auth.state_dir.join("libraries").join(server).join(&account.library_id),
+            },
+            move |links| on_links.update(move |s, _| s.links = links),
+            move |status| {
+                on_status.update(move |s, _| {
+                    s.sync = match status {
+                        Ok(true) => Sync::Online,
+                        Ok(false) if s.sync == Sync::Connecting => Sync::Connecting,
+                        Ok(false) => Sync::Offline,
+                        Err(e) => Sync::Failed(e),
+                    }
+                });
+            },
+        ))
     }
 }
 
@@ -116,6 +183,11 @@ fn sign_out(s: &mut State) {
     };
     s.notice = None;
     s.phase = Phase::SignedOut;
+    if let Some(library) = s.library.take() {
+        library.close_and_forget();
+    }
+    s.links.clear();
+    s.tab = Tab::default();
     std::thread::spawn(move || {
         if let Err(e) = backend.auth.sign_out() {
             backend.ui.update(move |s, _| s.notice = Some(e));
@@ -154,13 +226,7 @@ fn view(s: &State, cx: &mut Cx<State>) -> El {
             "Preparing your sign-in. This takes a moment.".into(),
             t,
         ),
-        (Phase::SignedIn(account), notice) => {
-            let body = notice.clone().unwrap_or_else(|| format!("Library {}", account.library_id));
-            let tone = if notice.is_some() { Tone::Problem } else { Tone::Success };
-            status(tone, "Signed in to Cloudstash", body, t)
-                .child(account_chip(account, t))
-                .child(outline_button("sign-out", "Sign out", t).on_press(sign_out))
-        }
+        (Phase::SignedIn(account), _) => return shell::view(s, account, cx),
     };
     col()
         .key("window")
@@ -169,6 +235,7 @@ fn view(s: &State, cx: &mut Cx<State>) -> El {
         .padding(28.0)
         .center()
         .fill(t.card)
+        .window_drag()
         .child(
             col()
                 .key("content")
@@ -182,7 +249,6 @@ fn view(s: &State, cx: &mut Cx<State>) -> El {
 enum Tone {
     Problem,
     Progress,
-    Success,
 }
 
 fn brand_lockup(t: Palette) -> El {
@@ -224,7 +290,6 @@ fn status(tone: Tone, title: &'static str, body: String, t: Palette) -> El {
     let (fill, ink, ring, glyph) = match tone {
         Tone::Problem => (t.destructive_10, t.destructive, t.destructive_20, &icons::TRIANGLE_ALERT),
         Tone::Progress => (t.muted, t.muted_foreground, t.foreground_10, &icons::LOADER_CIRCLE),
-        Tone::Success => (t.primary, t.primary_foreground, t.primary, &icons::CHECK),
     };
     let mut glyph = icon(glyph, 20.0).color(ink);
     if matches!(tone, Tone::Progress) {
@@ -244,52 +309,6 @@ fn status(tone: Tone, title: &'static str, body: String, t: Palette) -> El {
                 .child(glyph),
         )
         .child(header(title, body, t).mt(20.0))
-}
-
-fn account_chip(account: &Account, t: Palette) -> El {
-    let label = account.name.as_deref().unwrap_or(&account.email);
-    let initial: String = label.chars().take(1).flat_map(char::to_uppercase).collect();
-    let mut lines = col().key("account-lines").min_w(0.0);
-    if let Some(name) = &account.name {
-        lines = lines.child(
-            text(name.clone())
-                .font(TextStyle::new(14.0, 500.0).lh(20.0))
-                .color(t.card_foreground)
-                .truncate(),
-        );
-    }
-    lines = lines.child(
-        text(account.email.clone())
-            .font(TextStyle::new(12.0, 400.0).lh(16.0))
-            .color(t.muted_foreground)
-            .truncate(),
-    );
-    row()
-        .key("account")
-        .w_full()
-        .mt(20.0)
-        .items_center()
-        .gap(12.0)
-        .px(12.0)
-        .py(10.0)
-        .radius(8.0)
-        .fill(t.muted_50)
-        .box_shadow(ring_1(t.foreground_10))
-        .child(
-            row()
-                .key("avatar")
-                .size(32.0, 32.0)
-                .center()
-                .radius(16.0)
-                .fill(t.muted)
-                .border(1.0, t.border)
-                .child(
-                    text(initial)
-                        .font(TextStyle::new(14.0, 400.0).lh(20.0))
-                        .color(t.muted_foreground),
-                ),
-        )
-        .child(lines)
 }
 
 fn ring_1(color: Color) -> Shadow {
@@ -332,6 +351,33 @@ fn button(key: &'static str, label: &'static str, fill: Color, border: Color, in
         )
 }
 
+fn signed_in_scene(s: &mut State, tab: Tab) {
+    s.phase = Phase::SignedIn(Account {
+        name: Some("Ada Example".to_owned()),
+        email: "ada@example.com".to_owned(),
+        library_id: "org_example".to_owned(),
+    });
+    s.sync = Sync::Online;
+    s.tab = tab;
+    let link = |id: &str, title: &str, status: &str, created_at: i64, completed_at: Option<i64>| LinkItem {
+        id: id.to_owned(),
+        title: title.to_owned(),
+        url: format!("https://example.com/{id}"),
+        domain: "example.com".to_owned(),
+        status: status.to_owned(),
+        created_at,
+        completed_at,
+        deleted_at: None,
+    };
+    s.links = vec![
+        link("a", "How we built a local-first sync engine", "unread", 5, None),
+        link("b", "The Rust Programming Language", "unread", 4, None),
+        link("c", "https://example.com/an-untitled-page", "unread", 3, None),
+        link("d", "Designing calm interfaces", "completed", 2, Some(9)),
+        link("e", "OKLCH in CSS: why we moved from RGB and HSL", "completed", 1, Some(8)),
+    ];
+}
+
 fn main() {
     let app = App::new(AppSpec::<State> {
         scenes: &[
@@ -342,12 +388,20 @@ fn main() {
             }),
             ("waiting", |s| s.phase = Phase::WaitingForBrowser),
             ("finishing", |s| s.phase = Phase::Finishing),
-            ("signed-in", |s| {
-                s.phase = Phase::SignedIn(Account {
-                    name: Some("Ada Example".to_owned()),
-                    email: "ada@example.com".to_owned(),
-                    library_id: "org_example".to_owned(),
-                });
+            ("signed-in", |s| signed_in_scene(s, Tab::Inbox)),
+            ("completed", |s| signed_in_scene(s, Tab::Completed)),
+            ("collapsed", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.sidebar.set_open(false);
+            }),
+            ("peek", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.sidebar.set_open(false);
+                s.sidebar.peek();
+            }),
+            ("offline", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.sync = Sync::Offline;
             }),
         ],
         fonts: &[
@@ -361,8 +415,11 @@ fn main() {
             include_bytes!("../fonts/noto-sans-devanagari.ttf"),
         ],
         families: (NOTO_SANS, NOTO_SANS),
-        ..AppSpec::new(APP_TITLE, (520.0, 420.0), State::default, view)
+        min_size: Some((900.0, 560.0)),
+        on_key: Some(shell::on_key),
+        ..AppSpec::new(APP_TITLE, (1180.0, 760.0), new_state, view)
     })
+    .chrome(Chrome { full_size_content: true, traffic_lights: Some((21.0, 21.0)), drag_regions: true })
     .font_smoothing(FontSmoothing::Off)
     .on_open_url(open_url);
     let auth = match Auth::from_env() {

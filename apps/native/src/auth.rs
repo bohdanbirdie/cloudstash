@@ -244,6 +244,11 @@ impl Auth {
     }
 
     /// Removes the stored key, then revokes it on the server.
+    /// The stored API key, which also authorizes library sync.
+    pub fn api_key(&self) -> Result<Option<String>, String> {
+        self.store.load()
+    }
+
     pub fn sign_out(&self) -> Result<(), String> {
         let Some(api_key) = self.store.load()? else {
             return Ok(());

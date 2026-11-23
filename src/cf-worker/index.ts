@@ -480,7 +480,7 @@ export const fetch = async (
   });
   if (agentResponse) return agentResponse;
 
-  if (url.pathname === "/sync") {
+  if (url.pathname === "/sync" || url.pathname === "/sync/") {
     return handleSync(request, env, ctx);
   }
 
