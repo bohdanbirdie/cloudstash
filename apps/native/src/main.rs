@@ -12,6 +12,7 @@ mod fps;
 mod icons;
 mod images;
 mod livestore;
+mod search;
 mod shell;
 mod shell_kit;
 mod theme;
@@ -67,6 +68,8 @@ pub(crate) struct State {
     space: Option<usize>,
     kind: shell::Kind,
     mode: shell::Mode,
+    /// The command palette, while it's open.
+    palette: Option<shell::Palette>,
 }
 
 fn new_state() -> State {
@@ -323,6 +326,49 @@ fn signed_in_scene(s: &mut State, tab: Tab) {
     ];
 }
 
+/// Worst-case links after Emil Kowalski's break-ui catalog, shaped like the library's: an X
+/// post's title with line breaks and emoji, a bare URL as the title, a one-letter title, markup
+/// that must stay literal, a long host, and enough links to scroll. English only for now.
+fn worst_case_scene(s: &mut State, tab: Tab) {
+    signed_in_scene(s, tab);
+    let link = |id: String, title: &str, url: &str, status: &str, created_at: i64| LinkItem {
+        id,
+        title: title.to_owned(),
+        url: url.to_owned(),
+        domain: url::Url::parse(url).ok().and_then(|u| u.host_str().map(|h| h.trim_start_matches("www.").to_owned())).unwrap_or_default(),
+        image: None,
+        favicon: None,
+        description: None,
+        summary: None,
+        tags: Vec::new(),
+        status: status.to_owned(),
+        created_at,
+        completed_at: None,
+        deleted_at: None,
+    };
+    let worst = [
+        (
+            "Edo: Infinite canvas with Baroque-era artworks (because it's really cool)\n\nArticle on @codrops + codebase below👇",
+            "https://x.com/edo/status/1",
+        ),
+        (
+            "https://example.com/workspaces/acme/projects/q3-launch/docs/9f8e7d6c5b4a?tab=comments&filter=unresolved",
+            "https://example.com/workspaces/acme/projects/q3-launch/docs/9f8e7d6c5b4a?tab=comments&filter=unresolved",
+        ),
+        ("J", "https://j.example.org/"),
+        ("<script>alert(1)</script> &amp; **bold** in a saved title", "https://example.org/escaping"),
+        ("Release notes", "https://sub.department.region.northwind-industries-holdings.example.com/releases"),
+    ];
+    let mut links: Vec<LinkItem> = worst.iter().enumerate().map(|(i, (t, u))| link(format!("w{i}"), t, u, "unread", 1_000 - i as i64)).collect();
+    links.extend((0..40).map(|i| {
+        link(format!("f{i}"), &format!("Canvas rendering notes, part {}", i + 1), &format!("https://example.com/canvas/{i}"), "unread", 500 - i)
+    }));
+    links[3].tags = vec!["security".to_owned()];
+    links[4].summary = Some("What changed in the sync engine this quarter: faster cold starts, and CRDT compaction that keeps the event log small on long-lived libraries.".to_owned());
+    links[5].description = Some("Field notes on drawing thousands of cards on a GPU canvas without dropping frames.".to_owned());
+    s.links = links;
+}
+
 fn main() {
     let app = App::new(AppSpec::<State> {
         scenes: &[
@@ -347,6 +393,35 @@ fn main() {
             ("offline", |s| {
                 signed_in_scene(s, Tab::Inbox);
                 s.sync = Sync::Offline;
+            }),
+            ("palette", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                shell::toggle_palette(s);
+            }),
+            ("signed-in-worst", |s| worst_case_scene(s, Tab::Inbox)),
+            ("palette-worst", |s| {
+                worst_case_scene(s, Tab::Inbox);
+                s.palette = Some(shell::Palette::showing("e", 0));
+            }),
+            ("palette-search", |s| {
+                worst_case_scene(s, Tab::Inbox);
+                s.palette = Some(shell::Palette::showing("canvas", 1));
+            }),
+            ("palette-evidence", |s| {
+                worst_case_scene(s, Tab::Inbox);
+                s.palette = Some(shell::Palette::showing("compaction", 0));
+            }),
+            ("palette-fuzzy", |s| {
+                worst_case_scene(s, Tab::Inbox);
+                s.palette = Some(shell::Palette::showing("cnvs rend gpu", 0));
+            }),
+            ("palette-tag", |s| {
+                worst_case_scene(s, Tab::Inbox);
+                s.palette = Some(shell::Palette::showing("secur", 0));
+            }),
+            ("palette-empty", |s| {
+                worst_case_scene(s, Tab::Inbox);
+                s.palette = Some(shell::Palette::showing("kubernetes operator", 0));
             }),
         ],
         fonts: &[

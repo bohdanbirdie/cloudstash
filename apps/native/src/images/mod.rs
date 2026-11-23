@@ -180,6 +180,12 @@ pub fn picture(req: &Request) -> Pixels {
     pixels
 }
 
+/// Whether `req` is known not to load, so the view can draw something in its place. A failure
+/// shows on the view's next build.
+pub fn failed(req: &Request) -> bool {
+    inner().store.as_ref().is_some_and(|s| s.failed(req))
+}
+
 /// The pictures on screen now: they go first, and what was waiting for rows scrolled past goes
 /// behind the background fill.
 pub fn visible(reqs: Vec<Request>) {

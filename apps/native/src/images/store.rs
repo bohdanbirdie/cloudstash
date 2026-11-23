@@ -68,6 +68,10 @@ impl Store {
         self.files.contains_key(&name) || self.failed.contains(&name)
     }
 
+    pub fn failed(&self, req: &Request) -> bool {
+        self.failed.contains(&name(req))
+    }
+
     /// Where a new copy of `req` goes, without its extension.
     pub fn target(&self, req: &Request) -> PathBuf {
         self.dir.join(name(req))

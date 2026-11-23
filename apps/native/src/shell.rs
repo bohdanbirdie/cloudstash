@@ -15,9 +15,12 @@ use rune_kit::{Kit, ScrollBar, ScrollBarStyle};
 use crate::auth::Account;
 use crate::fps;
 use crate::images::{self, Lane, Request};
+
+mod palette;
 use crate::livestore::library::{LinkItem, Tab};
 use crate::shell_kit::{PaneState, SidebarPeek, SidebarToggle, SplitView, Toolbar, is_sidebar_toggle};
 use crate::{Phase, State, Sync};
+pub use palette::{Palette, toggle as toggle_palette};
 
 const SIDEBAR_W: f32 = 248.0;
 const SIDEBAR_MIN: f32 = 200.0;
@@ -94,6 +97,8 @@ static GRID: Icon = glyph!(
 );
 static FEED: Icon = glyph!("cs-feed", r#"<rect x="3.5" y="2.5" width="9" height="6" rx="1.2"/><path d="M3.5 11h9M3.5 13.5h6"/>"#);
 static SIGN_OUT: Icon = glyph!("cs-sign-out", r#"<path d="M6 13.5H3.5a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1H6"/><path d="m10 11 3-3-3-3M13 8H6"/>"#);
+static RESET: Icon = glyph!("cs-reset", r#"<path d="M3 8a5 5 0 1 0 1.5-3.5"/><path d="M3 2.5v3h3"/>"#);
+static RETURN: Icon = glyph!("cs-return", r#"<path d="M12.5 3.5v4a2 2 0 0 1-2 2h-7"/><path d="m6 6.5-3 3 3 3"/>"#);
 static SEARCH: Icon = glyph!("cs-search", r#"<circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/>"#);
 
 /// The HTML prototype's tokens.
@@ -254,7 +259,8 @@ fn sidebar(s: &State, account: &Account, l: &Look) -> El {
         .cursor(Cursor::Pointer)
         .child(icon(&SEARCH, 16.0).color(l.fg2))
         .child(text("Search").font(font(13.5, 400.0)).color(l.fg2).grow(1.0))
-        .child(kbd("⌘K", l));
+        .child(kbd("⌘K", l))
+        .on_press(palette::toggle);
     let mut list = col().key("nav").w_full().gap(1.0).child(search).child(el().h(6.0));
     for (tab, label, glyph) in STATES {
         let on = s.space.is_none() && s.tab == tab;
@@ -378,6 +384,11 @@ fn link_row(link: &LinkItem, l: &Look) -> El {
         .on_press(move |_: &mut State| crate::open_browser(&url))
 }
 
+/// A title on one line: an X post's title keeps the post's line breaks.
+fn one_line(s: &str) -> String {
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 /// The links the content panel shows: the chosen state's, or none for a space (spaces have no
 /// links yet).
 fn shown(s: &State) -> Vec<&LinkItem> {
@@ -471,14 +482,12 @@ fn card(link: &LinkItem, now: i64, l: &Look) -> El {
     let mut picture = el().w_full().aspect_ratio(16.0 / 11.0).radius(10.0).clip_rounded(10.0).fill(l.tile);
     picture = match &link.image {
         Some(url) => picture.pixels_fit(&images::picture(&Request::new(url, PICTURE, Lane::Picture)), SurfaceFit::Fill),
-        None => {
-            picture.padding(14.0).child(text(link.title.chars().take(220).collect::<String>()).font(font(13.0, 400.0).lh(18.85)).color(l.fg2).wrap())
-        }
+        None => picture
+            .padding(14.0)
+            .child(text(one_line(&link.title)).font(font(13.0, 400.0).lh(18.85)).color(l.fg2).w_full().wrap_anywhere().max_lines(6)),
     };
-    let favicon = match &link.favicon {
-        Some(url) => {
-            el().size(14.0, 14.0).radius(4.0).fill(l.tile).pixels_fit(&images::picture(&Request::new(url, FAVICON, Lane::Icon)), SurfaceFit::Fill)
-        }
+    let favicon = match link.favicon.as_deref().map(|url| Request::new(url, FAVICON, Lane::Icon)).filter(|r| !images::failed(r)) {
+        Some(req) => el().size(14.0, 14.0).radius(4.0).fill(l.tile).pixels_fit(&images::picture(&req), SurfaceFit::Fill),
         None => {
             let initial: String = link.domain.chars().take(1).flat_map(char::to_uppercase).collect();
             row().size(14.0, 14.0).center().radius(4.0).fill(l.tile).child(text(initial).font(font(8.0, 600.0)).color(l.fg2))
@@ -494,7 +503,7 @@ fn card(link: &LinkItem, now: i64, l: &Look) -> El {
         .gap(8.0)
         .cursor(Cursor::Pointer)
         .child(picture.child(ring))
-        .child(text(link.title.clone()).font(font(13.5, 500.0).lh(18.2)).color(l.fg).wrap().max_lines(2))
+        .child(text(link.title.clone()).font(font(13.5, 500.0).lh(18.2)).color(l.fg).wrap_anywhere().max_lines(2))
         .child(
             row()
                 .w_full()
@@ -559,14 +568,18 @@ fn page(s: &State, cx: &mut Cx<State>, dark: bool, l: &Look) -> El {
             }
         })
         .child(col().key("page").w_full().pl(PAGE_PAD_LEFT).pr(PAGE_PAD_RIGHT).pt(16.0).pb(80.0).child(body));
-    let bar = ScrollBarStyle::scroll_view(kit(dark)).width(6.0).hover_width(10.0).thumb(l.fg3.alpha(0.5)).thumb_hover(l.fg3.alpha(0.85));
     col()
         .key("viewport-area")
         .w_full()
         .h_full()
         .min_h(0.0)
         .child(el().key("divider").w_full().h(1.0).fill(l.line2).live_opacity(&divider))
-        .child(viewport.key("viewport").scroll_bar_styled(bar))
+        .child(viewport.key("viewport").scroll_bar_styled(scroll_bar(l)))
+}
+
+/// The app's scroll bar: thin, widening and darkening under the pointer.
+fn scroll_bar(l: &Look) -> ScrollBarStyle {
+    ScrollBarStyle::scroll_view(kit(l.dark)).width(6.0).hover_width(10.0).thumb(l.fg3.alpha(0.5)).thumb_hover(l.fg3.alpha(0.85))
 }
 
 pub fn view(s: &State, account: &Account, cx: &mut Cx<State>) -> El {
@@ -581,18 +594,25 @@ pub fn view(s: &State, account: &Account, cx: &mut Cx<State>) -> El {
         .toolbar_in_panel()
         .titlebar_inset(cx.titlebar_inset())
         .build(kit(dark));
+    let palette = palette::layers(s, &l);
     el().key("window")
         .w_full()
         .h_full()
         .child(shell)
+        .children(palette)
         .child(fps::meter::<State>(l.fg2, l.panel, l.line2).pin(None, None, Some(20.0), Some(20.0)).paint_order(100))
 }
 
-/// ⌘B toggles the sidebar, like the reference apps, and so do rune-kit's ⇧⌘B and ⌃⌘S. ⌥⌘R
+/// ⌘K opens and closes the command palette. ⌘B toggles the sidebar, like the reference apps,
+/// and so do rune-kit's ⇧⌘B and ⌃⌘S. ⌥⌘R
 /// throws away the saved pictures and loads them again, for experiments.
 pub fn on_key(s: &mut State, e: &KeyEvent, _: &mut Tx) -> bool {
     if !matches!(s.phase, Phase::SignedIn(_)) {
         return false;
+    }
+    if e.is_command('k') && !e.mods.shift && !e.mods.alt {
+        palette::toggle(s);
+        return true;
     }
     if e.is_command('r') && e.mods.alt && !e.mods.shift {
         images::reset();
