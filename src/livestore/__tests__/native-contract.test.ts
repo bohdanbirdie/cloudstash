@@ -186,7 +186,11 @@ const build = async () => {
     const steps = [...scenario, ...goldens()].map(([name, args]) => {
       const d = def(name);
       const wire = Schema.encodeUnknownSync(d.schema)(args);
-      store.commit((d as (a: unknown) => never)(args));
+      store.commit(
+        (d as unknown as (a: unknown) => Parameters<TestStore["commit"]>[0])(
+          args
+        )
+      );
       const changes: Record<string, unknown> = {};
       for (const t of stateTables) {
         const now = rows(store, t);
