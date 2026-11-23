@@ -12,13 +12,19 @@ publish = false
 [dependencies]
 base64 = "0.22"
 getrandom = "0.2"
-# Decodes and shrinks the spaces prototype's pictures (rune uses the same crate).
+# Decodes and shrinks the link cards' pictures and the resize cursor (rune uses the same crate).
 image = { version = "0.25", default-features = false, features = [
   "jpeg",
   "png",
   "gif",
+  "ico",
   "webp",
   "tiff",
+] }
+# Downloads the link cards' pictures (src/images).
+reqwest = { version = "0.13", default-features = false, features = [
+  "native-tls",
+  "http2",
 ] }
 keyring = { version = "3", features = ["apple-native"] }
 # LiveStore's Rust client (livestore-contrib, experimental): pinned to a commit.
@@ -70,8 +76,8 @@ objc2-app-kit = { version = "0.3", default-features = false, features = [
 [profile.dev]
 debug = "line-tables-only"
 
-# Optimised dependencies: unoptimised, Rune can't pan 400 tiles smoothly and the image
-# decoders take a minute over the spaces prototype's pictures.
+# Optimised dependencies: unoptimised, Rune scrolls the card grid slowly and the image decoders
+# take seconds per picture.
 [profile.dev.package."*"]
 debug = false
 opt-level = 2
