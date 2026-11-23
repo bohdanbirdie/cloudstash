@@ -28,25 +28,16 @@ struct HttpError {
 
 fn http_json(result: Result<ureq::Response, ureq::Error>) -> Result<Value, HttpError> {
     match result {
-        Ok(response) => response.into_json().map_err(|e| HttpError {
-            status: None,
-            message: format!("unreadable response: {e}"),
-        }),
+        Ok(response) => response.into_json().map_err(|e| HttpError { status: None, message: format!("unreadable response: {e}") }),
         Err(ureq::Error::Status(status, response)) => {
             let detail = response
                 .into_json::<Value>()
                 .ok()
                 .and_then(|v| v["error"].as_str().map(str::to_owned))
                 .unwrap_or_else(|| "request failed".to_owned());
-            Err(HttpError {
-                status: Some(status),
-                message: format!("{detail} (HTTP {status})"),
-            })
+            Err(HttpError { status: Some(status), message: format!("{detail} (HTTP {status})") })
         }
-        Err(e) => Err(HttpError {
-            status: None,
-            message: e.to_string(),
-        }),
+        Err(e) => Err(HttpError { status: None, message: e.to_string() }),
     }
 }
 
@@ -76,9 +67,7 @@ impl KeyStore for Keychain {
     }
 
     fn save(&self, api_key: &str) -> Result<(), String> {
-        self.entry()?
-            .set_password(api_key)
-            .map_err(|e| format!("keychain: {e}"))
+        self.entry()?.set_password(api_key).map_err(|e| format!("keychain: {e}"))
     }
 
     fn clear(&self) -> Result<(), String> {
@@ -119,9 +108,7 @@ impl Auth {
         let base = base.trim_end_matches('/').to_owned();
         let home = std::env::var("HOME").map_err(|_| "HOME is not set".to_owned())?;
         Ok(Auth {
-            store: Box::new(Keychain {
-                account: base.clone(),
-            }),
+            store: Box::new(Keychain { account: base.clone() }),
             base,
             state_dir: PathBuf::from(home).join("Library/Application Support/dev.cloudstash.native"),
         })
@@ -133,22 +120,11 @@ impl Auth {
 
     fn account(&self, api_key: &str) -> Result<Account, HttpError> {
         let url = format!("{}/api/connect/native/account", self.base);
-        let body = http_json(
-            ureq::get(&url)
-                .set("Authorization", &format!("Bearer {api_key}"))
-                .call(),
-        )?;
+        let body = http_json(ureq::get(&url).set("Authorization", &format!("Bearer {api_key}")).call())?;
         let field = |value: &Value| value.as_str().map(str::to_owned);
         match (field(&body["user"]["email"]), field(&body["orgId"])) {
-            (Some(email), Some(library_id)) => Ok(Account {
-                name: field(&body["user"]["name"]),
-                email,
-                library_id,
-            }),
-            _ => Err(HttpError {
-                status: None,
-                message: "the account response was incomplete".to_owned(),
-            }),
+            (Some(email), Some(library_id)) => Ok(Account { name: field(&body["user"]["name"]), email, library_id }),
+            _ => Err(HttpError { status: None, message: "the account response was incomplete".to_owned() }),
         }
     }
 
@@ -157,15 +133,10 @@ impl Auth {
         let verifier = random_token()?;
         let state = random_token()?;
         let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
-        write_private(
-            &self.pending_file(),
-            &json!({ "state": state, "verifier": verifier, "created": now() }).to_string(),
-        )?;
-        let page = Url::parse_with_params(
-            &format!("{}/connect/native", self.base),
-            [("state", state.as_str()), ("code_challenge", challenge.as_str())],
-        )
-        .map_err(|e| e.to_string())?;
+        write_private(&self.pending_file(), &json!({ "state": state, "verifier": verifier, "created": now() }).to_string())?;
+        let page =
+            Url::parse_with_params(&format!("{}/connect/native", self.base), [("state", state.as_str()), ("code_challenge", challenge.as_str())])
+                .map_err(|e| e.to_string())?;
         Ok(page.into())
     }
 
@@ -182,23 +153,13 @@ impl Auth {
         if url.scheme() != SCHEME || url.host_str() != Some("auth") || url.path() != "/callback" {
             return Link::Ignored;
         }
-        let param = |name: &str| {
-            url.query_pairs()
-                .find(|(key, _)| key == name)
-                .map(|(_, value)| value.into_owned())
-        };
-        let pending = std::fs::read_to_string(self.pending_file())
-            .ok()
-            .and_then(|text| serde_json::from_str::<Value>(&text).ok());
+        let param = |name: &str| url.query_pairs().find(|(key, _)| key == name).map(|(_, value)| value.into_owned());
+        let pending = std::fs::read_to_string(self.pending_file()).ok().and_then(|text| serde_json::from_str::<Value>(&text).ok());
         let Some(pending) = pending else {
             return Link::Ignored;
         };
-        let fresh = pending["created"]
-            .as_u64()
-            .is_some_and(|created| now().saturating_sub(created) < PENDING_TTL_SECS);
-        let (Some(state), Some(verifier), Some(code)) =
-            (pending["state"].as_str(), pending["verifier"].as_str(), param("code"))
-        else {
+        let fresh = pending["created"].as_u64().is_some_and(|created| now().saturating_sub(created) < PENDING_TTL_SECS);
+        let (Some(state), Some(verifier), Some(code)) = (pending["state"].as_str(), pending["verifier"].as_str(), param("code")) else {
             return Link::Ignored;
         };
         if !fresh || param("state").as_deref() != Some(state) {
@@ -218,9 +179,7 @@ impl Auth {
             "deviceName": device_name(),
         })))
         .map_err(|e| e.message)?;
-        let api_key = body["apiKey"]
-            .as_str()
-            .ok_or("the sign-in response had no key")?;
+        let api_key = body["apiKey"].as_str().ok_or("the sign-in response had no key")?;
         self.store.save(api_key)?;
         self.account(api_key).map_err(|e| e.message)
     }
@@ -233,9 +192,7 @@ impl Auth {
         };
         match self.account(&api_key) {
             Ok(account) => Ok(Some(account)),
-            Err(HttpError {
-                status: Some(401), ..
-            }) => {
+            Err(HttpError { status: Some(401), .. }) => {
                 self.store.clear()?;
                 Ok(None)
             }
@@ -255,25 +212,14 @@ impl Auth {
         };
         self.store.clear()?;
         let url = format!("{}/api/connect/native", self.base);
-        http_json(
-            ureq::delete(&url)
-                .set("Authorization", &format!("Bearer {api_key}"))
-                .call(),
-        )
-        .map(|_| ())
-        .map_err(|e| {
-            format!(
-                "Signed out on this Mac, but Cloudstash didn't revoke the session: {}",
-                e.message
-            )
-        })
+        http_json(ureq::delete(&url).set("Authorization", &format!("Bearer {api_key}")).call())
+            .map(|_| ())
+            .map_err(|e| format!("Signed out on this Mac, but Cloudstash didn't revoke the session: {}", e.message))
     }
 }
 
 fn now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs())
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs())
 }
 
 fn random_token() -> Result<String, String> {

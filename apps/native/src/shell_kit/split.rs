@@ -4,7 +4,7 @@
 use std::rc::Rc;
 use std::time::Duration;
 
-use rune::{Anim, Color, Curve, Cursor, Drag, Easing, El, Phase, Spring, Transition, Tx, col, el, row};
+use rune::{Anim, Color, Cursor, Curve, Drag, Easing, El, Phase, Spring, Transition, Tx, col, el, row};
 
 use super::pane::{PaneMotion, PaneState, Peek, SidebarPeek};
 use super::toolbar::{TOOLBAR_HEIGHT, Toolbar};
@@ -278,11 +278,8 @@ impl SplitView {
             let hover = p.hover.take();
             if let Some(tg) = p.toggle.take().filter(|_| toggle) {
                 let label = if open { "Hide sidebar" } else { "Show sidebar" };
-                let mut button = IconButton::new(&super::SIDEBAR)
-                    .variant(IconButtonVariant::GhostMuted)
-                    .control_size(t.size)
-                    .label(label)
-                    .help(label);
+                let mut button =
+                    IconButton::new(&super::SIDEBAR).variant(IconButtonVariant::GhostMuted).control_size(t.size).label(label).help(label);
                 if let Some(sc) = t.shortcut {
                     button = button.shortcut(sc);
                 }
@@ -334,7 +331,9 @@ impl SplitView {
                 .window_drag()
                 .child(el().key("sidebar-titlebar-clear").w((clear - self.padding[0]).max(0.0)).motion(spring).a11y_hidden());
             if toggle && t.in_header {
-                band = band.child(el().key("sidebar-spacer").grow(1.0).a11y_hidden()).child(el().key("sidebar-toggle-slot").w(side).ml(8.0).a11y_hidden());
+                band = band
+                    .child(el().key("sidebar-spacer").grow(1.0).a11y_hidden())
+                    .child(el().key("sidebar-toggle-slot").w(side).ml(8.0).a11y_hidden());
             }
             let content = Contents { pad: self.padding, slide: peek.is_some(), peek, band: Some(band), frame: self.frame };
             dock(&d, "sidebar-pane", p, true, content, &mut zones)
@@ -342,7 +341,13 @@ impl SplitView {
         let toolbar = self
             .toolbar
             .unwrap_or_default()
-            .padding(if sidebar_open { 12.0 } else if self.in_panel { (past_toggle - self.frame).max(12.0) } else { past_toggle })
+            .padding(if sidebar_open {
+                12.0
+            } else if self.in_panel {
+                (past_toggle - self.frame).max(12.0)
+            } else {
+                past_toggle
+            })
             .build(k)
             .motion(spring);
         let (toolbar, above) = if self.in_panel { (Some(toolbar), None) } else { (None, Some(toolbar)) };
@@ -411,14 +416,7 @@ pub struct Page {
 
 impl Page {
     pub fn new(main: El) -> Page {
-        Page {
-            main,
-            toolbar: Toolbar::new(),
-            inset: 0.0,
-            toggle: SidebarToggle::new(),
-            frame: 8.0,
-            in_panel: false,
-        }
+        Page { main, toolbar: Toolbar::new(), inset: 0.0, toggle: SidebarToggle::new(), frame: 8.0, in_panel: false }
     }
     /// A centred title in the toolbar band.
     pub fn title(mut self, t: impl Into<String>) -> Self {
@@ -523,8 +521,7 @@ fn pane<S: 'static>(state: PaneState, access: fn(&mut S) -> &mut PaneState, cont
             p.set_width(p.width() + steps as f32 * GRIP_STEP);
         })
     });
-    let toggle: Option<Apply> =
-        toggle.then(|| Box::new(move |e: El| e.on_press(move |s: &mut S| access(s).press_toggle())) as Apply);
+    let toggle: Option<Apply> = toggle.then(|| Box::new(move |e: El| e.on_press(move |s: &mut S| access(s).press_toggle())) as Apply);
     // A drag whose release is lost (the grip unmounted, a modal took the pointer) ends on blur
     // or once the pointer moves where the drag doesn't hear it. Blur also ends a peek.
     let clear = (state.is_resizing() || state.is_peeking()).then(|| {
@@ -616,19 +613,9 @@ fn dock(d: &Dock, key: &str, p: Pane, leading: bool, content: Contents, edge: &m
     // A peek's card sits at the window's inset, its contents a little inside it.
     let card = matches!(phase, Peek::Shown | Peek::Left);
     let pad = if card { [content.frame + CARD_PAD, CARD_PAD] } else { content.pad };
-    let mut body = col()
-        .key("pane-content")
-        .w(w)
-        .h_full()
-        .pl(pad[0])
-        .pr(pad[1])
-        .opacity(opacity)
-        .opacity_motion(fade);
-    body = if content.slide {
-        body.pin(None, Some(0.0), Some(0.0), Some(0.0)).motion(spring)
-    } else {
-        body.pin(Some(0.0), Some(0.0), None, Some(0.0))
-    };
+    let mut body = col().key("pane-content").w(w).h_full().pl(pad[0]).pr(pad[1]).opacity(opacity).opacity_motion(fade);
+    body =
+        if content.slide { body.pin(None, Some(0.0), Some(0.0), Some(0.0)).motion(spring) } else { body.pin(Some(0.0), Some(0.0), None, Some(0.0)) };
     if let Some(pk) = content.peek {
         let peek_spring: Anim = pk.spring.unwrap_or(k.motion.control).into();
         // Peeking, the contents sit at the window's edge: a whole width past the closed slot.
@@ -661,11 +648,9 @@ fn dock(d: &Dock, key: &str, p: Pane, leading: bool, content: Contents, edge: &m
     if floating {
         body = body.raise();
     }
-    let body = body
-        .children(content.band)
-        .child(col().key("pane-body").w_full().grow(1.0).min_h(0.0).child(p.content.w_full().h_full()));
-    let mut slot = el().key(key).role("region").label(if leading { "Sidebar" } else { "Inspector" })
-        .w(s.shown_width()).h_full().motion(spring).child(body);
+    let body = body.children(content.band).child(col().key("pane-body").w_full().grow(1.0).min_h(0.0).child(p.content.w_full().h_full()));
+    let mut slot =
+        el().key(key).role("region").label(if leading { "Sidebar" } else { "Inspector" }).w(s.shown_width()).h_full().motion(spring).child(body);
     if !floating {
         slot = slot.clip_soft(0.0);
     }
@@ -700,7 +685,8 @@ fn dock(d: &Dock, key: &str, p: Pane, leading: bool, content: Contents, edge: &m
             .transition(Transition::none());
         // A sidebar's edge is the middle of the gutter between its contents and the content card.
         let edge_x = s.shown_width() - content.pad[1] / 2.0;
-        grip = if leading { grip.pin(Some(edge_x - GRIP / 2.0), Some(0.0), None, Some(0.0)) } else { grip.pin(Some(0.0), Some(0.0), None, Some(0.0)) };
+        grip =
+            if leading { grip.pin(Some(edge_x - GRIP / 2.0), Some(0.0), None, Some(0.0)) } else { grip.pin(Some(0.0), Some(0.0), None, Some(0.0)) };
         if floating {
             grip = grip.raise();
         }

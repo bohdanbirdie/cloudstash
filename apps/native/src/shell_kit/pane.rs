@@ -89,7 +89,19 @@ impl PaneState {
 
     /// An open pane `width` points wide, which double-clicking its edge also returns to.
     pub fn new(width: f32) -> PaneState {
-        let mut p = PaneState { width, dock: Dock::Open { from_peek: false }, min: Self::MIN, max: Self::MAX, grip: Grip::Idle, asked: [width; 2], pull: 0.0, drag_collapsed: false, stretch: 0.0, edge_hovered: false, toggle_quiet: false };
+        let mut p = PaneState {
+            width,
+            dock: Dock::Open { from_peek: false },
+            min: Self::MIN,
+            max: Self::MAX,
+            grip: Grip::Idle,
+            asked: [width; 2],
+            pull: 0.0,
+            drag_collapsed: false,
+            stretch: 0.0,
+            edge_hovered: false,
+            toggle_quiet: false,
+        };
         p.clamp();
         p
     }

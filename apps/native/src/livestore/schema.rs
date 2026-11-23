@@ -6,9 +6,7 @@ use std::sync::{Arc, LazyLock};
 
 use livestore_schema::event_def::DateFromString;
 use livestore_schema::query_builder::{Filter, OnConflict, QueryBuilderError, SqlQuery};
-use livestore_schema::{
-    Column, Event, MaterializeError, Schema, SqlStatement, Table, UnknownEventHandling,
-};
+use livestore_schema::{Column, Event, MaterializeError, Schema, SqlStatement, Table, UnknownEventHandling};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -150,25 +148,13 @@ pub fn schema() -> Arc<Schema> {
                 .as_sql())
         })
         .materialize::<LinkUncompleted, _>(move |a, _| {
-            sql(links
-                .query()
-                .update([("completedAt", json!(null)), ("status", json!("unread"))])
-                .where_all([("id", json!(a.id).into())])
-                .as_sql())
+            sql(links.query().update([("completedAt", json!(null)), ("status", json!("unread"))]).where_all([("id", json!(a.id).into())]).as_sql())
         })
         .materialize::<LinkDeleted, _>(move |a, _| {
-            sql(links
-                .query()
-                .update([("deletedAt", json!(a.deleted_at))])
-                .where_all([("id", json!(a.id).into())])
-                .as_sql())
+            sql(links.query().update([("deletedAt", json!(a.deleted_at))]).where_all([("id", json!(a.id).into())]).as_sql())
         })
         .materialize::<LinkRestored, _>(move |a, _| {
-            sql(links
-                .query()
-                .update([("deletedAt", json!(null))])
-                .where_all([("id", json!(a.id).into())])
-                .as_sql())
+            sql(links.query().update([("deletedAt", json!(null))]).where_all([("id", json!(a.id).into())]).as_sql())
         })
         .materialize::<LinkMetadataFetched, _>(move |a, _| {
             sql(snapshots
@@ -189,7 +175,5 @@ pub fn schema() -> Arc<Schema> {
 }
 
 fn sql(query: Result<SqlQuery, QueryBuilderError>) -> Result<SqlStatement, MaterializeError> {
-    query
-        .map(SqlStatement::from)
-        .map_err(|e| MaterializeError::Other(e.to_string()))
+    query.map(SqlStatement::from).map_err(|e| MaterializeError::Other(e.to_string()))
 }

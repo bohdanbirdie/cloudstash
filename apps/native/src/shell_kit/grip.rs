@@ -68,7 +68,9 @@ impl<T> Grip<T> {
     /// The pointer moved to `at`, as an `on_pointer_move` sees it. Returns what the grip held
     /// when this shows its release was lost.
     pub(crate) fn pointer(&mut self, at: [f32; 2]) -> Option<T> {
-        let Grip::Held { heard, unheard, .. } = self else { return None };
+        let Grip::Held { heard, unheard, .. } = self else {
+            return None;
+        };
         if *heard == Some(at) {
             return None;
         }

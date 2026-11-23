@@ -8,11 +8,7 @@ macro_rules! lucide {
         Icon {
             name: $name,
             view: 24.0,
-            body: concat!(
-                r#"<g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">"#,
-                $paths,
-                "</g>"
-            ),
+            body: concat!(r#"<g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">"#, $paths, "</g>"),
         }
     };
 }

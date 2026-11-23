@@ -63,8 +63,7 @@ impl Toolbar {
     pub fn build(self, k: &Kit) -> El {
         let c = &k.c;
         let pl = self.pad.unwrap_or(PAD);
-        let mut band =
-            row().key("toolbar").role("toolbar").w_full().h(TOOLBAR_HEIGHT).pl(pl).pr(PAD).gap(8.0).center_y().window_drag();
+        let mut band = row().key("toolbar").role("toolbar").w_full().h(TOOLBAR_HEIGHT).pl(pl).pr(PAD).gap(8.0).center_y().window_drag();
         if let Some(t) = &self.title {
             band = band.label(t.clone());
         }
@@ -76,9 +75,7 @@ impl Toolbar {
         if let Some(center) = center {
             // Across the whole band and centred in it, so the sides can differ in width. First,
             // so the side slots draw and take presses above it.
-            band = band.child(
-                row().key("center").pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0)).center().px(96.0).child(center),
-            );
+            band = band.child(row().key("center").pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0)).center().px(96.0).child(center));
         }
         band = band
             // The leading slot gives way first, so a long title truncates instead of pushing the
