@@ -13,7 +13,13 @@ publish = false
 base64 = "0.22"
 getrandom = "0.2"
 # Decodes and shrinks the spaces prototype's pictures (rune uses the same crate).
-image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp", "tiff"] }
+image = { version = "0.25", default-features = false, features = [
+  "jpeg",
+  "png",
+  "gif",
+  "webp",
+  "tiff",
+] }
 keyring = { version = "3", features = ["apple-native"] }
 # LiveStore's Rust client (livestore-contrib, experimental): pinned to a commit.
 livestore = { git = "https://github.com/livestorejs/livestore-contrib", rev = "dc0aa0d079fe195cf20802b7cd1ff5982f20b102" }
@@ -28,7 +34,12 @@ rune-kit = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b6
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
-tokio = { version = "1.47", features = ["rt-multi-thread", "time", "sync", "macros"] }
+tokio = { version = "1.47", features = [
+  "rt-multi-thread",
+  "time",
+  "sync",
+  "macros",
+] }
 # The sync client's WebSocket has no TLS of its own; this turns it on for wss://.
 tokio-tungstenite = { version = "0.30", features = ["native-tls"] }
 ureq = { version = "2", features = ["json"] }
@@ -45,7 +56,15 @@ accesskit_macos = { git = "https://github.com/anomalyco/rune", rev = "86b903de7f
 
 # The shell prototype's trackpad taps and left-only resize cursor (src/shell_kit/mac.rs).
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSBitmapImageRep", "NSCursor", "NSDirection", "NSHapticFeedback", "NSImage", "NSImageRep"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+  "std",
+  "NSBitmapImageRep",
+  "NSCursor",
+  "NSDirection",
+  "NSHapticFeedback",
+  "NSImage",
+  "NSImageRep",
+] }
 
 # Keep target/ small: no debug info for dependencies, line tables only for the app.
 [profile.dev]
