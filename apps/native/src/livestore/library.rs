@@ -58,6 +58,11 @@ pub struct LinkItem {
     /// The newest snapshot's preview picture and favicon.
     pub image: Option<String>,
     pub favicon: Option<String>,
+    /// The newest snapshot's description and the newest summary on one line, for search.
+    pub description: Option<String>,
+    pub summary: Option<String>,
+    /// The names of its tags, for search.
+    pub tags: Vec<String>,
     pub status: String,
     pub created_at: i64,
     pub completed_at: Option<i64>,
@@ -82,6 +87,9 @@ impl LinkItem {
             domain: host.strip_prefix("www.").unwrap_or(host).to_owned(),
             image: text("image").filter(|u| u.starts_with("http")).map(decode_entities),
             favicon: text("favicon").filter(|u| u.starts_with("http")).map(decode_entities),
+            description: text("description").map(|d| one_line(&decode_entities(d))).filter(|d| !d.is_empty()),
+            summary: text("summary").map(one_line).filter(|d| !d.is_empty()),
+            tags: text("tags").map(|t| t.split('\u{1f}').filter(|t| !t.is_empty()).map(str::to_owned).collect()).unwrap_or_default(),
             status: text("status").unwrap_or_default().to_owned(),
             created_at: millis("createdAt").unwrap_or_default(),
             completed_at: millis("completedAt"),
@@ -90,7 +98,16 @@ impl LinkItem {
     }
 }
 
-const LINKS_SQL: &str = "SELECT l.id, l.url, l.status, l.createdAt, l.completedAt, l.deletedAt, s.title, s.image, s.favicon
+/// Text on one line, whitespace runs collapsed.
+fn one_line(s: &str) -> String {
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+const LINKS_SQL: &str = "SELECT l.id, l.url, l.status, l.createdAt, l.completedAt, l.deletedAt, s.title, s.image, s.favicon,
+    s.description,
+    (SELECT m.summary FROM link_summaries m WHERE m.linkId = l.id ORDER BY m.summarizedAt DESC LIMIT 1) AS summary,
+    (SELECT group_concat(t.name, char(31)) FROM link_tags lt JOIN tags t ON t.id = lt.tagId
+      WHERE lt.linkId = l.id AND t.deletedAt IS NULL) AS tags
   FROM links l
   LEFT JOIN link_snapshots s ON s.id = (
     SELECT s2.id FROM link_snapshots s2 WHERE s2.linkId = l.id ORDER BY s2.fetchedAt DESC LIMIT 1
@@ -153,7 +170,7 @@ async fn serve(
 ) -> Result<(), String> {
     let store = open(config).await?;
     let subscription = store.subscribe(
-        &query_db(QueryInput::sql(LINKS_SQL)),
+        &query_db(QueryInput::sql(LINKS_SQL).queried_tables(&["links", "link_snapshots", "link_summaries", "link_tags", "tags"])),
         move |rows| on_links(rows.iter().filter_map(LinkItem::from_row).collect()),
         &SubscribeOptions::default(),
     );
@@ -266,6 +283,9 @@ mod tests {
             domain: String::new(),
             image: None,
             favicon: None,
+            description: None,
+            summary: None,
+            tags: Vec::new(),
             status: status.to_owned(),
             created_at: created,
             completed_at: completed,

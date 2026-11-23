@@ -1,5 +1,5 @@
-//! The part of the web app's `src/livestore/schema.ts` this app reads: links and their metadata
-//! snapshots, with the same tables, event names, and materializers. Every other event in the
+//! The part of the web app's `src/livestore/schema.ts` this app reads: links, their metadata
+//! snapshots and summaries, and tags, with the same tables, event names, and materializers. Every other event in the
 //! eventlog is skipped, so the app syncs the whole library but only materializes what it shows.
 
 use std::sync::{Arc, LazyLock};
@@ -73,6 +73,74 @@ pub struct LinkMetadataFetched {
     pub title: Option<String>,
 }
 
+#[derive(Event, Serialize, Deserialize, Clone, Debug)]
+#[event(name = "v1.LinkSummarized")]
+#[serde(rename_all = "camelCase")]
+pub struct LinkSummarized {
+    pub id: String,
+    pub link_id: String,
+    pub model: String,
+    pub summarized_at: DateFromString,
+    pub summary: String,
+}
+
+#[derive(Event, Serialize, Deserialize, Clone, Debug)]
+#[event(name = "v1.TagCreated")]
+#[serde(rename_all = "camelCase")]
+pub struct TagCreated {
+    pub created_at: DateFromString,
+    pub id: String,
+    pub name: String,
+    pub sort_order: f64,
+}
+
+#[derive(Event, Serialize, Deserialize, Clone, Debug)]
+#[event(name = "v1.TagDeleted")]
+#[serde(rename_all = "camelCase")]
+pub struct TagDeleted {
+    pub deleted_at: DateFromString,
+    pub id: String,
+}
+
+#[derive(Event, Serialize, Deserialize, Clone, Debug)]
+#[event(name = "v1.TagRenamed")]
+pub struct TagRenamed {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Event, Serialize, Deserialize, Clone, Debug)]
+#[event(name = "v1.TagReordered")]
+#[serde(rename_all = "camelCase")]
+pub struct TagReordered {
+    pub id: String,
+    pub sort_order: f64,
+}
+
+#[derive(Event, Serialize, Deserialize, Clone, Debug)]
+#[event(name = "v1.LinkTagged")]
+#[serde(rename_all = "camelCase")]
+pub struct LinkTagged {
+    pub created_at: DateFromString,
+    pub id: String,
+    pub link_id: String,
+    pub tag_id: String,
+}
+
+#[derive(Event, Serialize, Deserialize, Clone, Debug)]
+#[event(name = "v1.LinkUntagged")]
+pub struct LinkUntagged {
+    pub id: String,
+}
+
+#[derive(Event, Serialize, Deserialize, Clone, Debug)]
+#[event(name = "v2.LinkUntagged")]
+#[serde(rename_all = "camelCase")]
+pub struct LinkUntaggedV2 {
+    pub link_id: String,
+    pub tag_id: String,
+}
+
 pub static LINKS: LazyLock<Table> = LazyLock::new(|| {
     Table::new("links")
         .column(Column::text("id").primary_key())
@@ -103,12 +171,45 @@ pub static LINK_SNAPSHOTS: LazyLock<Table> = LazyLock::new(|| {
         .index("idx_link_snapshots_link_fetched", &["linkId", "fetchedAt"])
 });
 
+pub static LINK_SUMMARIES: LazyLock<Table> = LazyLock::new(|| {
+    Table::new("link_summaries")
+        .column(Column::text("id").primary_key())
+        .column(Column::text("linkId").default(""))
+        .column(Column::text("summary").default(""))
+        .column(Column::text("model").default(""))
+        .column(Column::datetime_millis("summarizedAt"))
+        .index("idx_link_summaries_link_summarized", &["linkId", "summarizedAt"])
+});
+
+pub static TAGS: LazyLock<Table> = LazyLock::new(|| {
+    Table::new("tags")
+        .column(Column::text("id").primary_key())
+        .column(Column::text("name").default(""))
+        .column(Column::integer("sortOrder").default(0))
+        .column(Column::datetime_millis("createdAt"))
+        .column(Column::datetime_millis("deletedAt").nullable())
+});
+
+pub static LINK_TAGS: LazyLock<Table> = LazyLock::new(|| {
+    Table::new("link_tags")
+        .column(Column::text("id").primary_key())
+        .column(Column::text("linkId").default(""))
+        .column(Column::text("tagId").default(""))
+        .column(Column::datetime_millis("createdAt"))
+        .index("idx_link_tags_link", &["linkId"])
+        .index("idx_link_tags_tag", &["tagId"])
+        .unique_index("idx_link_tags_unique", &["linkId", "tagId"])
+});
+
 #[must_use]
 pub fn schema() -> Arc<Schema> {
-    let (links, snapshots) = (&*LINKS, &*LINK_SNAPSHOTS);
+    let (links, snapshots, summaries, tags, link_tags) = (&*LINKS, &*LINK_SNAPSHOTS, &*LINK_SUMMARIES, &*TAGS, &*LINK_TAGS);
     Schema::builder()
         .table(links.clone())
         .table(snapshots.clone())
+        .table(summaries.clone())
+        .table(tags.clone())
+        .table(link_tags.clone())
         .unknown_event_handling(UnknownEventHandling::Ignore)
         .materialize::<LinkCreated, _>(move |a, _| {
             sql(links
@@ -170,6 +271,55 @@ pub fn schema() -> Arc<Schema> {
                 ])
                 .on_conflict(&["id"], OnConflict::Ignore)
                 .as_sql())
+        })
+        .materialize::<LinkSummarized, _>(move |a, _| {
+            sql(summaries
+                .query()
+                .insert([
+                    ("id", json!(a.id)),
+                    ("linkId", json!(a.link_id)),
+                    ("model", json!(a.model)),
+                    ("summarizedAt", json!(a.summarized_at)),
+                    ("summary", json!(a.summary)),
+                ])
+                .on_conflict(&["id"], OnConflict::Ignore)
+                .as_sql())
+        })
+        .materialize::<TagCreated, _>(move |a, _| {
+            sql(tags
+                .query()
+                .insert([
+                    ("createdAt", json!(a.created_at)),
+                    ("deletedAt", json!(null)),
+                    ("id", json!(a.id)),
+                    ("name", json!(a.name)),
+                    ("sortOrder", json!(a.sort_order as i64)),
+                ])
+                .on_conflict(&["id"], OnConflict::Ignore)
+                .as_sql())
+        })
+        .materialize::<TagDeleted, _>(move |a, _| {
+            Ok(vec![
+                sql(tags.query().update([("deletedAt", json!(a.deleted_at))]).where_all([("id", json!(a.id).into())]).as_sql())?,
+                sql(link_tags.query().delete().where_all([("tagId", json!(a.id).into())]).as_sql())?,
+            ])
+        })
+        .materialize::<TagRenamed, _>(move |a, _| {
+            sql(tags.query().update([("name", json!(a.name))]).where_all([("id", json!(a.id).into())]).as_sql())
+        })
+        .materialize::<TagReordered, _>(move |a, _| {
+            sql(tags.query().update([("sortOrder", json!(a.sort_order as i64))]).where_all([("id", json!(a.id).into())]).as_sql())
+        })
+        .materialize::<LinkTagged, _>(move |a, _| {
+            sql(link_tags
+                .query()
+                .insert([("createdAt", json!(a.created_at)), ("id", json!(a.id)), ("linkId", json!(a.link_id)), ("tagId", json!(a.tag_id))])
+                .on_conflict(&["linkId", "tagId"], OnConflict::Ignore)
+                .as_sql())
+        })
+        .materialize::<LinkUntagged, _>(move |a, _| sql(link_tags.query().delete().where_all([("id", json!(a.id).into())]).as_sql()))
+        .materialize::<LinkUntaggedV2, _>(move |a, _| {
+            sql(link_tags.query().delete().where_all([("linkId", json!(a.link_id).into()), ("tagId", json!(a.tag_id).into())]).as_sql())
         })
         .build()
 }
