@@ -35,7 +35,9 @@ contracts.
 with its own lockfile and gitignored `target/`, pinned to a prerelease Rune
 revision; nothing in the Bun workspace builds or imports it, and CI does not
 build it. It shares only HTTP contracts with the worker: the native pairing
-flow in [auth-and-tenancy](../02-system/02-auth-and-tenancy/spec.md#pairing-flows).
+flow in [auth-and-tenancy](../02-system/02-auth-and-tenancy/spec.md#pairing-flows)
+and API-key LiveStore sync. Card pictures are kept as small local copies in each
+library's folder and deleted with it on sign-out.
 
 Local provider configuration is represented by committed 1Password references
 in `.env.example`. `bun run env:sync` explicitly and atomically materializes
