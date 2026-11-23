@@ -194,7 +194,7 @@ async fn open(config: &Config) -> Result<Store, String> {
         })),
         ..InMemoryAdapter::default()
     };
-    create_store(StoreOptions::new(crate::schema::schema(), adapter.build(), &config.library_id))
+    create_store(StoreOptions::new(super::schema::schema(), adapter.build(), &config.library_id))
         .await
         .map_err(|e| e.to_string())
 }

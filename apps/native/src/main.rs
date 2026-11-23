@@ -9,8 +9,7 @@
 
 mod auth;
 mod icons;
-mod library;
-mod schema;
+mod livestore;
 mod shell;
 mod shell_kit;
 mod theme;
@@ -18,7 +17,7 @@ mod theme;
 use std::sync::Arc;
 
 use auth::{Account, Auth, Link};
-use library::{Library, LinkItem, Tab};
+use livestore::library::{self, Library, LinkItem, Tab};
 use rune::{App, AppHandle, AppSpec, Chrome, Color, Cx, El, FontSmoothing, LoopSpec, Shadow, TextStyle, Tx, col, icon, row, text};
 use shell_kit::PaneState;
 use theme::Palette;

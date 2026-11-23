@@ -8,7 +8,7 @@ use rune::{Color, Cursor, Shadow, Cx, El, Icon, Key, KeyEvent, ScrollSpec, TextS
 use rune_kit::Kit;
 
 use crate::auth::Account;
-use crate::library::{LinkItem, Tab};
+use crate::livestore::library::{LinkItem, Tab};
 use crate::shell_kit::{PaneState, SidebarPeek, SidebarToggle, SplitView, Toolbar, is_sidebar_toggle};
 use crate::{Phase, State, Sync};
 
