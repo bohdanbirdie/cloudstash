@@ -12,6 +12,7 @@ mod fps;
 mod icons;
 mod images;
 mod livestore;
+mod log;
 mod search;
 mod shell;
 mod shell_kit;
@@ -136,6 +137,7 @@ fn open_browser(url: &str) {
     let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
     if let Err(e) = std::process::Command::new(opener).arg(url).spawn() {
         eprintln!("could not open the browser ({e}); open this URL to sign in:\n{url}");
+        tracing::warn!("could not open the browser: {e}");
     }
 }
 
@@ -370,6 +372,7 @@ fn worst_case_scene(s: &mut State, tab: Tab) {
 }
 
 fn main() {
+    log::start();
     let app = App::new(AppSpec::<State> {
         scenes: &[
             ("signed-out", |s| s.phase = Phase::SignedOut),
@@ -451,6 +454,7 @@ fn main() {
         Ok(auth) => Arc::new(auth),
         Err(e) => {
             eprintln!("{e}");
+            tracing::error!("{e}");
             std::process::exit(2);
         }
     };

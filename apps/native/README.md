@@ -19,6 +19,18 @@ cargo test                                            # the sign-in flow against
 but can't receive the sign-in link. Every build output stays in `apps/native/target/`
 (gitignored); `cargo clean` removes it, bundle included.
 
+## Logs
+
+The app writes warnings, errors and every panic (with its thread and backtrace) to
+`~/Library/Logs/Cloudstash/cloudstash.log`, which Console.app lists under Log Reports. When
+`scripts/run.sh` opens the app, anything it prints goes there too. Past 5 MB the file moves to
+`cloudstash.old.log` at the next launch. A crash on the sync thread also shows as an error in the
+toolbar instead of leaving the library loading.
+
+```sh
+tail -f ~/Library/Logs/Cloudstash/cloudstash.log
+```
+
 ## How sign-in works
 
 The usual desktop pattern: the browser signs in, then hands the app a one-time code through a

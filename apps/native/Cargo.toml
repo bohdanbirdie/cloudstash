@@ -51,6 +51,8 @@ tokio-tungstenite = { version = "0.30", features = ["native-tls"] }
 ureq = { version = "2", features = ["json"] }
 url = "2"
 nucleo-matcher = "0.3.1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "registry", "std"] }
 
 # rune vendors patched crates; a dependency's [patch] does not reach us, so repeat it.
 [patch.crates-io]

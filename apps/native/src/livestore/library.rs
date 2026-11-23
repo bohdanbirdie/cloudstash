@@ -145,20 +145,26 @@ pub struct Config {
 }
 
 /// Starts syncing on its own thread. `on_links` gets every link after each change and
-/// `on_status` the connection state (or an error that stopped the store).
+/// `on_status` the connection state (or an error that stopped the store, a panic included).
 pub fn start(
     config: Config,
     on_links: impl Fn(Vec<LinkItem>) + Send + Sync + 'static,
     on_status: impl Fn(Result<bool, String>) + Send + Sync + 'static,
 ) -> Library {
     let (stop, stopped) = oneshot::channel();
-    std::thread::spawn(move || {
-        let result =
-            tokio::runtime::Runtime::new().map_err(|e| e.to_string()).and_then(|rt| rt.block_on(serve(&config, stopped, on_links, &on_status)));
-        if let Err(e) = result {
-            on_status(Err(e));
-        }
-    });
+    std::thread::Builder::new()
+        .name("sync".to_owned())
+        .spawn(move || {
+            let run = std::panic::AssertUnwindSafe(|| {
+                tokio::runtime::Runtime::new().map_err(|e| e.to_string()).and_then(|rt| rt.block_on(serve(&config, stopped, on_links, &on_status)))
+            });
+            let result = std::panic::catch_unwind(run).unwrap_or_else(|_| Err("Sync crashed; the log has the details".to_owned()));
+            if let Err(e) = result {
+                tracing::error!("sync stopped: {e}");
+                on_status(Err(e));
+            }
+        })
+        .expect("sync thread");
     Library { stop: Some(stop) }
 }
 

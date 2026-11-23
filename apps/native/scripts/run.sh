@@ -58,4 +58,8 @@ codesign --force --sign "${identity:--}" "$app" >/dev/null
 # Quit a running copy so the new build takes the links.
 pkill -x cloudstash-native 2>/dev/null || true
 while pgrep -x cloudstash-native >/dev/null; do sleep 0.2; done
-open "$app"
+# The app logs to ~/Library/Logs/Cloudstash/cloudstash.log; what it and its libraries print
+# (rune's warnings among them) goes there too.
+log="$HOME/Library/Logs/Cloudstash/cloudstash.log"
+mkdir -p "$(dirname "$log")"
+open --stdout "$log" --stderr "$log" "$app"
