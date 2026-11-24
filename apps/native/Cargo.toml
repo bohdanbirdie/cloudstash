@@ -69,7 +69,8 @@ parley_engine = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef
 accesskit_windows = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
 accesskit_macos = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
 
-# The shell prototype's trackpad taps and left-only resize cursor (src/shell_kit/mac.rs).
+# The shell prototype's trackpad taps and left-only resize cursor (src/shell_kit/mac.rs), and the
+# theme (src/appearance.rs).
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-app-kit = { version = "0.3", default-features = false, features = [
   "std",
@@ -79,7 +80,17 @@ objc2-app-kit = { version = "0.3", default-features = false, features = [
   "NSHapticFeedback",
   "NSImage",
   "NSImageRep",
+  "NSAppearance",
+  "NSApplication",
+  "NSResponder",
 ] }
+# The menu bar icon (src/menu_bar.rs); rune has none.
+tray-icon = { version = "0.26", default-features = false }
+# The theme (src/appearance.rs).
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString"] }
+# Open at login (src/login_item.rs): SMAppService, without unsafe code of ours.
+smappservice-rs = "0.1"
 
 # Keep target/ small: no debug info for dependencies, line tables only for the app.
 [profile.dev]

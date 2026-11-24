@@ -7,14 +7,18 @@
 //! CLOUDSTASH_URL=http://127.0.0.1:3000 scripts/run.sh   # against a local dev server
 //! ```
 
+mod appearance;
 mod auth;
 mod fps;
 mod icons;
 mod images;
 mod livestore;
 mod log;
+mod login_item;
+mod menu_bar;
 mod nav;
 mod search;
+mod settings;
 mod shell;
 mod shell_kit;
 mod theme;
@@ -24,7 +28,7 @@ use std::sync::Arc;
 
 use auth::{Account, Auth, Link};
 use livestore::library::{self, Library, LinkItem, Tab};
-use rune::{App, AppHandle, AppSpec, Chrome, Color, Cx, El, FontSmoothing, LoopSpec, Shadow, TextStyle, Tx, col, icon, row, text};
+use rune::{App, AppHandle, AppSpec, Chrome, Color, Cx, El, FontSmoothing, LoopSpec, MenuItem, Shadow, TextStyle, Tx, col, icon, row, text};
 use shell_kit::PaneState;
 use theme::Palette;
 
@@ -32,6 +36,17 @@ const APP_TITLE: &str = "Cloudstash";
 /// `@fontsource-variable/noto-sans` 5.2.10's subsets, one family each, listed so each
 /// character falls back to its subset as the web's `unicode-range` faces do.
 const NOTO_SANS: &str = "Noto Sans Latin, Noto Sans Latin Ext, Noto Sans Cyrillic, Noto Sans Cyrillic Ext, Noto Sans Greek, Noto Sans Greek Ext, Noto Sans Vietnamese, Noto Sans Devanagari";
+
+const FONTS: &[&[u8]] = &[
+    include_bytes!("../fonts/noto-sans-latin.ttf"),
+    include_bytes!("../fonts/noto-sans-latin-ext.ttf"),
+    include_bytes!("../fonts/noto-sans-cyrillic.ttf"),
+    include_bytes!("../fonts/noto-sans-cyrillic-ext.ttf"),
+    include_bytes!("../fonts/noto-sans-greek.ttf"),
+    include_bytes!("../fonts/noto-sans-greek-ext.ttf"),
+    include_bytes!("../fonts/noto-sans-vietnamese.ttf"),
+    include_bytes!("../fonts/noto-sans-devanagari.ttf"),
+];
 
 #[derive(Default)]
 enum Phase {
@@ -74,6 +89,12 @@ pub(crate) struct State {
     /// The command palette, while it's open.
     palette: Option<shell::Palette>,
     memory: ui_state::Memory,
+    settings: Option<settings::Link>,
+    theme: appearance::Theme,
+    /// No Dock icon; only while the menu bar icon shows, so the app can always be found.
+    hide_dock: bool,
+    menu_bar: bool,
+    tray: Option<tray_icon::TrayIcon>,
 }
 
 /// Headless snapshots render a named scene and must not touch the keychain, the network or the
@@ -246,6 +267,7 @@ fn sign_out(s: &mut State) {
     let Some(backend) = s.backend.clone() else {
         return;
     };
+    settings::close(s);
     s.notice = None;
     s.phase = Phase::SignedOut;
     images::close();
@@ -423,7 +445,7 @@ fn main() {
     log::start();
     let size = if headless() { None } else { rune_mac::saved_size(ui_state::WINDOW) };
     let size = size.unwrap_or((1180.0, 760.0));
-    let app = App::new(AppSpec::<State> {
+    let mut app = App::new(AppSpec::<State> {
         scenes: &[
             ("signed-out", |s| s.phase = Phase::SignedOut),
             ("error", |s| {
@@ -477,16 +499,7 @@ fn main() {
                 s.palette = Some(shell::Palette::showing("kubernetes operator", 0));
             }),
         ],
-        fonts: &[
-            include_bytes!("../fonts/noto-sans-latin.ttf"),
-            include_bytes!("../fonts/noto-sans-latin-ext.ttf"),
-            include_bytes!("../fonts/noto-sans-cyrillic.ttf"),
-            include_bytes!("../fonts/noto-sans-cyrillic-ext.ttf"),
-            include_bytes!("../fonts/noto-sans-greek.ttf"),
-            include_bytes!("../fonts/noto-sans-greek-ext.ttf"),
-            include_bytes!("../fonts/noto-sans-vietnamese.ttf"),
-            include_bytes!("../fonts/noto-sans-devanagari.ttf"),
-        ],
+        fonts: FONTS,
         families: (NOTO_SANS, NOTO_SANS),
         min_size: Some((900.0, 560.0)),
         on_key: Some(shell::on_key),
@@ -502,7 +515,9 @@ fn main() {
     })
     .on_modifiers(shell::on_modifiers)
     .on_quit(|s, _| ui_state::flush(s))
-    .on_open_url(open_url);
+    .on_open_url(open_url)
+    .menu_item(MenuItem::new("Settings…", |s: &mut State, _| settings::open(s)).key_equivalent("cmd+comma".parse().expect("a valid shortcut")));
+    let (settings_ui, settings_window) = app.window(settings::window(FONTS, NOTO_SANS));
     let auth = match Auth::from_env() {
         Ok(auth) => Arc::new(auth),
         Err(e) => {
@@ -523,8 +538,10 @@ fn main() {
         },
     };
     let stored = backend.clone();
+    let link = settings::link(settings_ui, settings_window, backend.ui.clone());
     backend.ui.update(move |s, tx| {
         s.backend = Some(stored);
+        s.settings = Some(link);
         if let Some(link) = s.early_link.take() {
             open_url(s, &link, tx);
         }

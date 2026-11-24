@@ -49,6 +49,15 @@ same path. Between launches AppKit keeps the window's position and size, and
 the sidebar's state and width. Each value is checked as it loads and an
 unknown one falls back to its default, so no saved state can strand the app;
 the file is replaced atomically, and sign-out forgets the page and filter.
+Settings is a window of its own (⌘, or Cloudstash ▸ Settings…) with General
+(the account, Sign Out behind a confirmation, the theme, Open at login, and
+the Dock and menu bar icons), Updates (shown only, until the updater lands)
+and About. Open at login registers the app as a macOS login item; macOS keeps
+it, so Settings reads it back each time it opens. The theme sets the application's appearance, so both
+windows follow it. The app can hide its Dock icon only while its menu bar icon
+(the logo; a click brings the window forward) shows, so it can always be
+found; `ui.json` keeps the theme and both icons across sign-out and restores a
+Dock icon if neither was saved on.
 
 Local provider configuration is represented by committed 1Password references
 in `.env.example`. `bun run env:sync` explicitly and atomically materializes
