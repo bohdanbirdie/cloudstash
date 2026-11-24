@@ -172,7 +172,6 @@ pub fn picture(req: &Request) -> Pixels {
     let pixels = Pixels::new();
     g.memory.insert(req.clone(), (pixels.clone(), now));
     g.memory_bytes += decoded_bytes(req);
-    g.trim();
     if let Some(path) = g.store.as_ref().and_then(|s| s.path(req)) {
         let (target, permits) = (pixels.clone(), disk());
         runtime().spawn(async move {
@@ -188,6 +187,7 @@ pub fn picture(req: &Request) -> Pixels {
         g.want(req, Rank::Near);
         g.pump();
     }
+    g.trim();
     pixels
 }
 
@@ -213,6 +213,7 @@ pub fn visible(reqs: Vec<Request>) {
     }
     g.shown = reqs.into_iter().collect();
     g.pump();
+    g.trim();
 }
 
 /// Everything worth having ahead of time, in the order to fetch it; replaces the last list.
@@ -248,11 +249,16 @@ fn decoded_bytes(req: &Request) -> u64 {
 }
 
 impl Inner {
-    /// Drops the least recently asked-for pictures not on screen until memory fits.
+    /// Drops the least recently asked-for pictures until memory fits, never one on screen or
+    /// still downloading, since a download fills the pixels it finds here.
     fn trim(&mut self) {
         while self.memory_bytes > MEMORY {
-            let Some(old) =
-                self.memory.iter().filter(|(req, _)| !self.shown.contains(*req)).min_by_key(|(_, (_, used))| *used).map(|(req, _)| req.clone())
+            let Some(old) = self
+                .memory
+                .iter()
+                .filter(|(req, _)| !self.shown.contains(*req) && !self.queue.contains_key(*req) && !self.running.contains_key(*req))
+                .min_by_key(|(_, (_, used))| *used)
+                .map(|(req, _)| req.clone())
             else {
                 return;
             };
