@@ -4,8 +4,8 @@ Status: accepted
 
 ## Context
 
-Deployed LiveStore events are append-only (`CS.SYS.DATA-R05`), and the event
-contract gate fails a pull request that removes, renames, or reshapes one. A
+Deployed LiveStore events are append-only (`CS.SYS.DATA-R05`), and the LiveStore
+contract fails a pull request that removes, renames, or reshapes one. A
 deliberate break, such as a planned Effect or LiveStore upgrade that changes a
 wire encoding, still needs a way through. Most pull requests are written by
 agents, which work under the maintainer's account or the Capy GitHub App and
@@ -50,7 +50,7 @@ give, and it must not survive a later push.
 
 A detected break runs the `Approve breaking LiveStore change` job, which uses
 the `livestore-breaking-change` Environment with the maintainer as required
-reviewer. The required `LiveStore event gate` job passes a break only when that
+reviewer. The required `LiveStore contract` job passes a break only when that
 job succeeded and the run's approval history records a user's approval for the
 Environment. Prevent self-review stays off, because the maintainer is usually
 the one who triggered the run. Anyone holding the maintainer's own credentials

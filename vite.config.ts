@@ -76,7 +76,7 @@ const baseConfig: UserConfig = {
       "coverage",
       "readonly-llm-lookup",
       "tools/oxlint-rules/__tests__/fixtures/**",
-      "src/livestore/contract/manifest.json",
+      "tools/livestore-contract/**/*.json",
     ],
   },
   lint: {

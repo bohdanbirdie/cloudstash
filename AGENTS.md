@@ -15,27 +15,29 @@ lifecycle rules before changing behavior.
 - `vendor/livestore/context/` is upstream LiveStore's separate Intent corpus and
   is not part of Cloudstash's tree.
 
-# LiveStore events (`src/livestore/schema.ts`)
+# LiveStore contract (`src/livestore/schema.ts`)
 
-Deployed events are append-only (`CS.SYS.DATA-R05`); the contract is in
-`context/02-system/01-data/spec.md` § Event Evolution.
+Deployed events are saved forever, so they are append-only (`CS.SYS.DATA-R05`).
+How the check works: `tools/livestore-contract/README.md`.
 
-- Never change, rename, or delete a deployed event or any of its fields, and
-  never change its scope. Add a new version instead (`v1.TagRenamed` →
-  `v2.TagRenamed`) and keep the old event and its materializer.
-- Never hand-edit generated contract files (`src/livestore/contract/manifest.json`)
-  or the wire goldens (`src/livestore/__tests__/fixtures/event-wire-goldens.json`).
-- After changing the schema, run `bun run contract`. It regenerates the
-  manifest and compares events with `origin/staging` (run
-  `git fetch origin staging` first).
+- Never change, rename, or delete a deployed event or any of its fields, never
+  change its scope, and never change what its materializer writes. Add a new
+  version instead (`v1.TagRenamed` → `v2.TagRenamed`) and keep the old event
+  and its materializer.
+- Every new event gets a step in a scenario in
+  `tools/livestore-contract/scenarios/`. Write `event` and `args`; never
+  hand-edit `expect` or `schema.json`.
+- After changing the schema or a materializer, run `bun run contract` (after
+  `git fetch origin staging`) and commit what it rewrites. After changing
+  `apps/native/src/livestore/`, also run `cargo test livestore::contract` in
+  `apps/native`.
 - Keep materializers pure: no clock, randomness, or id generation; every input
   comes from the event payload.
-- Never edit `.github/workflows/livestore-event-gate.yml`,
-  `scripts/livestore-event-contract.ts`, `src/livestore/contract/*.ts`, or
-  `tools/oxlint-rules/livestore.mjs` to make a check pass.
-- A contract failure, or a gate waiting on the `livestore-breaking-change`
-  approval, means stop and ask the maintainer. Do not regenerate files or work
-  around it.
+- Never edit `.github/workflows/livestore-contract.yml`, the tool in
+  `tools/livestore-contract/`, or `tools/oxlint-rules/livestore.mjs` to make a
+  check pass.
+- A contract failure, or a check waiting on the `livestore-breaking-change`
+  approval, means stop and ask the maintainer. Do not work around it.
 
 # Database migrations
 
@@ -46,18 +48,6 @@ Deployed events are append-only (`CS.SYS.DATA-R05`); the contract is in
 - Use `bun run db:generate` for schema migrations so the generated SQL is
   recorded before any handwritten change can be introduced.
 - Run `bun run check:migrations` before committing migration changes.
-
-# LiveStore contract (web ↔ native)
-
-- `src/livestore/__tests__/fixtures/native-contract.json` records the web schema's
-  tables and what its materializers write for a run of events; `apps/native`
-  replays it and must write the same rows.
-- After changing `src/livestore/schema.ts` (or anything it materializes), run
-  `bun run contract:livestore:update`, then `cargo test contract` in
-  `apps/native`.
-- After changing `apps/native/src/livestore/`, run `cargo test contract` in
-  `apps/native`.
-- Never hand-edit the contract file.
 
 <!--VITE PLUS START-->
 

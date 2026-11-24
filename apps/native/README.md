@@ -33,19 +33,19 @@ tail -f ~/Library/Logs/Cloudstash/cloudstash.log
 
 ## The LiveStore contract with the web app
 
-`src/livestore/contract.rs` checks this app's schema against the web's through
-`src/livestore/__tests__/fixtures/native-contract.json`, which the web's tests generate from
-`src/livestore/schema.ts`: every native table must have the web's columns, and replaying the
-contract's events through the native materializers must write the web's rows, step by step.
-Events this app doesn't handle must change none of its tables. It also runs the links query on
-the replayed library.
+`src/livestore/contract.rs` checks this app against the web's
+[`tools/livestore-contract`](../../tools/livestore-contract/README.md): every native table must
+have the columns `schema.json` lists, and replaying each scenario in `scenarios/` through the
+native materializers must write the rows the scenario expects, step by step. Events this app
+doesn't handle must change none of its tables. It also runs the links query on the replayed
+library.
 
 ```sh
-bun run contract:livestore:update   # at the repo root, after changing the web schema
-cargo test contract                 # here
+bun run contract                # at the repo root, after changing the web schema
+cargo test livestore::contract  # here
 ```
 
-CI runs both when a pull request touches `src/livestore/` or `apps/native/src/livestore/`.
+CI runs both in `.github/workflows/livestore-contract.yml`.
 
 ## How sign-in works
 

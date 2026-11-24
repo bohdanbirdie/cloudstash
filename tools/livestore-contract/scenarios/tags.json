@@ -1,0 +1,253 @@
+{
+  "about": "Create, rename and reorder tags, tag and untag a link (both untag versions), tag twice, then delete a tag, which also removes it from links.",
+  "steps": [
+    {
+      "event": "v2.LinkCreated",
+      "args": {
+        "createdAt": "2026-01-01T09:30:00.000Z",
+        "domain": "example.com",
+        "id": "link-a",
+        "source": "app",
+        "sourceMeta": null,
+        "url": "https://example.com/a"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-a",
+            "url": "https://example.com/a",
+            "domain": "example.com",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1767259800000,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagCreated",
+      "args": {
+        "createdAt": "2026-01-02T09:30:00.000Z",
+        "id": "tag-design",
+        "name": "design",
+        "sortOrder": 1
+      },
+      "expect": {
+        "tags": [
+          {
+            "id": "tag-design",
+            "name": "design",
+            "sortOrder": 1,
+            "createdAt": 1767346200000,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagCreated",
+      "args": {
+        "createdAt": "2026-01-03T09:30:00.000Z",
+        "id": "tag-rust",
+        "name": "rust",
+        "sortOrder": 2
+      },
+      "expect": {
+        "tags": [
+          {
+            "id": "tag-design",
+            "name": "design",
+            "sortOrder": 1,
+            "createdAt": 1767346200000,
+            "deletedAt": null
+          },
+          {
+            "id": "tag-rust",
+            "name": "rust",
+            "sortOrder": 2,
+            "createdAt": 1767432600000,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagRenamed",
+      "args": {
+        "id": "tag-rust",
+        "name": "systems"
+      },
+      "expect": {
+        "tags": [
+          {
+            "id": "tag-design",
+            "name": "design",
+            "sortOrder": 1,
+            "createdAt": 1767346200000,
+            "deletedAt": null
+          },
+          {
+            "id": "tag-rust",
+            "name": "systems",
+            "sortOrder": 2,
+            "createdAt": 1767432600000,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagReordered",
+      "args": {
+        "id": "tag-rust",
+        "sortOrder": 0
+      },
+      "expect": {
+        "tags": [
+          {
+            "id": "tag-design",
+            "name": "design",
+            "sortOrder": 1,
+            "createdAt": 1767346200000,
+            "deletedAt": null
+          },
+          {
+            "id": "tag-rust",
+            "name": "systems",
+            "sortOrder": 0,
+            "createdAt": 1767432600000,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkTagged",
+      "args": {
+        "createdAt": "2026-01-04T09:30:00.000Z",
+        "id": "lt-1",
+        "linkId": "link-a",
+        "tagId": "tag-design"
+      },
+      "expect": {
+        "link_tags": [
+          {
+            "id": "lt-1",
+            "linkId": "link-a",
+            "tagId": "tag-design",
+            "createdAt": 1767519000000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkTagged",
+      "args": {
+        "createdAt": "2026-01-05T09:30:00.000Z",
+        "id": "lt-2",
+        "linkId": "link-a",
+        "tagId": "tag-rust"
+      },
+      "expect": {
+        "link_tags": [
+          {
+            "id": "lt-1",
+            "linkId": "link-a",
+            "tagId": "tag-design",
+            "createdAt": 1767519000000
+          },
+          {
+            "id": "lt-2",
+            "linkId": "link-a",
+            "tagId": "tag-rust",
+            "createdAt": 1767605400000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkTagged",
+      "args": {
+        "createdAt": "2026-01-06T09:30:00.000Z",
+        "id": "lt-dup",
+        "linkId": "link-a",
+        "tagId": "tag-design"
+      },
+      "expect": {}
+    },
+    {
+      "event": "v1.LinkUntagged",
+      "args": {
+        "id": "lt-1"
+      },
+      "expect": {
+        "link_tags": [
+          {
+            "id": "lt-2",
+            "linkId": "link-a",
+            "tagId": "tag-rust",
+            "createdAt": 1767605400000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v2.LinkUntagged",
+      "args": {
+        "linkId": "link-a",
+        "tagId": "tag-rust"
+      },
+      "expect": {
+        "link_tags": []
+      }
+    },
+    {
+      "event": "v1.LinkTagged",
+      "args": {
+        "createdAt": "2026-01-07T09:30:00.000Z",
+        "id": "lt-3",
+        "linkId": "link-a",
+        "tagId": "tag-design"
+      },
+      "expect": {
+        "link_tags": [
+          {
+            "id": "lt-3",
+            "linkId": "link-a",
+            "tagId": "tag-design",
+            "createdAt": 1767778200000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagDeleted",
+      "args": {
+        "deletedAt": "2026-01-08T09:30:00.000Z",
+        "id": "tag-design"
+      },
+      "expect": {
+        "link_tags": [],
+        "tags": [
+          {
+            "id": "tag-design",
+            "name": "design",
+            "sortOrder": 1,
+            "createdAt": 1767346200000,
+            "deletedAt": 1767864600000
+          },
+          {
+            "id": "tag-rust",
+            "name": "systems",
+            "sortOrder": 0,
+            "createdAt": 1767432600000,
+            "deletedAt": null
+          }
+        ]
+      }
+    }
+  ]
+}

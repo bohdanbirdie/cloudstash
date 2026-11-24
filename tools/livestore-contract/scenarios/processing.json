@@ -1,0 +1,227 @@
+{
+  "about": "Background processing of saved links: start, fail, reprocess, complete, notify the source; a second link is cancelled.",
+  "steps": [
+    {
+      "event": "v2.LinkCreated",
+      "args": {
+        "createdAt": "2026-01-01T09:30:00.000Z",
+        "domain": "example.com",
+        "id": "link-a",
+        "source": "app",
+        "sourceMeta": null,
+        "url": "https://example.com/a"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-a",
+            "url": "https://example.com/a",
+            "domain": "example.com",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1767259800000,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkProcessingStarted",
+      "args": {
+        "linkId": "link-a",
+        "updatedAt": "2026-01-02T09:30:00.000Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "link-a",
+            "status": "pending",
+            "error": null,
+            "notified": 0,
+            "updatedAt": 1767346200000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkProcessingFailed",
+      "args": {
+        "error": "MetadataFetchError: timeout after 10s",
+        "linkId": "link-a",
+        "updatedAt": "2026-01-03T09:30:00.000Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "link-a",
+            "status": "failed",
+            "error": "MetadataFetchError: timeout after 10s",
+            "notified": 0,
+            "updatedAt": 1767432600000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkReprocessRequested",
+      "args": {
+        "linkId": "link-a",
+        "requestedAt": "2026-01-04T09:30:00.000Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "link-a",
+            "status": "reprocess-requested",
+            "error": null,
+            "notified": 0,
+            "updatedAt": 1767519000000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkProcessingStarted",
+      "args": {
+        "linkId": "link-a",
+        "updatedAt": "2026-01-05T09:30:00.000Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "link-a",
+            "status": "pending",
+            "error": null,
+            "notified": 0,
+            "updatedAt": 1767605400000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkProcessingCompleted",
+      "args": {
+        "linkId": "link-a",
+        "updatedAt": "2026-01-06T09:30:00.000Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "link-a",
+            "status": "completed",
+            "error": null,
+            "notified": 0,
+            "updatedAt": 1767691800000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkSourceNotified",
+      "args": {
+        "linkId": "link-a",
+        "notifiedAt": "2026-01-07T09:30:00.000Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "link-a",
+            "status": "completed",
+            "error": null,
+            "notified": 1,
+            "updatedAt": 1767691800000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v2.LinkCreated",
+      "args": {
+        "createdAt": "2026-01-01T09:30:00.000Z",
+        "domain": "example.com",
+        "id": "link-b",
+        "source": "app",
+        "sourceMeta": null,
+        "url": "https://example.com/b"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-a",
+            "url": "https://example.com/a",
+            "domain": "example.com",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1767259800000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "link-b",
+            "url": "https://example.com/b",
+            "domain": "example.com",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1767259800000,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkProcessingStarted",
+      "args": {
+        "linkId": "link-b",
+        "updatedAt": "2026-01-08T09:30:00.000Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "link-a",
+            "status": "completed",
+            "error": null,
+            "notified": 1,
+            "updatedAt": 1767691800000
+          },
+          {
+            "linkId": "link-b",
+            "status": "pending",
+            "error": null,
+            "notified": 0,
+            "updatedAt": 1767864600000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkProcessingCancelled",
+      "args": {
+        "linkId": "link-b",
+        "updatedAt": "2026-01-09T09:30:00.000Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "link-a",
+            "status": "completed",
+            "error": null,
+            "notified": 1,
+            "updatedAt": 1767691800000
+          },
+          {
+            "linkId": "link-b",
+            "status": "cancelled",
+            "error": null,
+            "notified": 0,
+            "updatedAt": 1767951000000
+          }
+        ]
+      }
+    }
+  ]
+}
