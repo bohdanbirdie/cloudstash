@@ -95,7 +95,10 @@ impl Backend {
                 }
                 s.phase = Phase::SignedIn(account);
             }
-            Ok(None) => s.phase = Phase::SignedOut,
+            Ok(None) => {
+                s.phase = Phase::SignedOut;
+                std::thread::spawn(move || backend.forget_libraries());
+            }
             Err(e) => {
                 s.phase = Phase::SignedOut;
                 s.notice = Some(e);
@@ -105,13 +108,25 @@ impl Backend {
 }
 
 impl Backend {
+    /// This server's local libraries, one folder each.
+    fn libraries(&self) -> std::path::PathBuf {
+        let server: String = self.auth.base.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect();
+        self.auth.state_dir.join("libraries").join(server)
+    }
+
+    /// Deletes this server's local libraries, as once signed out: nothing is kept without a session.
+    fn forget_libraries(&self) {
+        match std::fs::remove_dir_all(self.libraries()) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => tracing::error!("could not delete the local library: {e}"),
+            _ => {}
+        }
+    }
+
     /// Starts syncing the signed-in library into its own folder, one per server and library.
     fn open_library(&self, account: &Account) -> Result<Library, String> {
         let api_key = self.auth.api_key()?.ok_or("The saved session is missing its key.")?;
-        let server: String = self.auth.base.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect();
         let (on_links, on_status) = (self.ui.clone(), self.ui.clone());
-        let dir = self.auth.state_dir.join("libraries").join(server).join(&account.library_id);
-        let _ = std::fs::remove_dir_all(dir.join("http-cache"));
+        let dir = self.libraries().join(&account.library_id);
         images::open(dir.join("images"), &shell::IMAGE_SIZES);
         Ok(library::start(
             library::Config { base: self.auth.base.clone(), library_id: account.library_id.clone(), api_key, dir },
@@ -130,6 +145,15 @@ impl Backend {
                 });
             },
         ))
+    }
+}
+
+/// Opens a saved link in the browser. Only web addresses: anyone in the library can save a link,
+/// and macOS would open a `file:` or app link as readily.
+fn open_link(link: &str) {
+    match url::Url::parse(link) {
+        Ok(url) if matches!(url.scheme(), "http" | "https") => open_browser(url.as_str()),
+        _ => tracing::warn!("not opening a saved link that isn't a web address"),
     }
 }
 
@@ -204,12 +228,14 @@ fn sign_out(s: &mut State) {
     s.notice = None;
     s.phase = Phase::SignedOut;
     images::close();
-    if let Some(library) = s.library.take() {
-        library.close_and_forget();
-    }
+    let library = s.library.take();
     s.links.clear();
     s.tab = Tab::default();
     std::thread::spawn(move || {
+        if let Some(library) = library {
+            library.close();
+        }
+        backend.forget_libraries();
         if let Err(e) = backend.auth.sign_out() {
             backend.ui.update(move |s, _| s.notice = Some(e));
         }

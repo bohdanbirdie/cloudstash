@@ -164,7 +164,7 @@ fn point(s: &mut State, i: usize, at: PointerEvent, tx: &mut Tx) {
 fn activate(s: &mut State, item: &Item) {
     s.palette = None;
     match item {
-        Item::Link(hit) => crate::open_browser(&hit.link.url),
+        Item::Link(hit) => crate::open_link(&hit.link.url),
         Item::Command(c, _) => (c.run)(s),
     }
 }

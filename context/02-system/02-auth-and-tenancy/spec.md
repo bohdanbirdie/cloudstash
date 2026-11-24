@@ -70,8 +70,9 @@ allowed `chrome-extension://` origin. The shared payload validator resolves the
 key's server-stamped workspace and referenced user, checks their current access,
 and fails closed for missing reference, invalid key, revoked access, or
 disallowed extension ID. The native app sends the same API-key payload with
-neither cookie nor `Origin` and gets the same key decision; a request that
-carries an `Origin` still needs a cookie or an allowed extension origin.
+neither cookie nor `Origin` and gets the same key decision, and only a
+`native`-sourced key passes that path; a request that carries an `Origin`
+still needs a cookie or an allowed extension origin.
 
 Public API, Telegram, and Raycast credentials are Better Auth API keys carrying
 server-selected workspace metadata. Browser key creation overwrites client

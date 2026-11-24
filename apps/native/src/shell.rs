@@ -381,7 +381,7 @@ fn link_row(link: &LinkItem, l: &Look) -> El {
                 .child(text(link.title.clone()).font(font(13.5, 400.0).lh(19.0)).color(l.fg).truncate())
                 .child(text(link.domain.clone()).font(font(12.0, 400.0).lh(16.0)).color(l.fg3).truncate()),
         )
-        .on_press(move |_: &mut State| crate::open_browser(&url))
+        .on_press(move |_: &mut State| crate::open_link(&url))
 }
 
 /// A title on one line: an X post's title keeps the post's line breaks.
@@ -513,7 +513,7 @@ fn card(link: &LinkItem, now: i64, l: &Look) -> El {
                 .child(text(link.domain.clone()).font(font(12.0, 400.0)).color(l.fg3).truncate().grow(1.0).min_w(0.0))
                 .child(text(ago(link.created_at, now)).font(font(12.0, 400.0)).color(l.fg3)),
         )
-        .on_press(move |_: &mut State| crate::open_browser(&url))
+        .on_press(move |_: &mut State| crate::open_link(&url))
 }
 
 /// The prototype's grid: cards in as many 230 pt+ columns as fit, built a row at a time as they

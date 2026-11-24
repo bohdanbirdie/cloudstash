@@ -380,6 +380,32 @@ describe("validatePayload — native client API key path", () => {
     )
   );
 
+  it.effect("rejects a key minted for another client", () =>
+    validatePayload({ apiKey: "lb_k" }, CTX_NO_AUTH).pipe(
+      Effect.result,
+      Effect.provide(
+        makeAuthLayer({
+          verifyApiKey: () =>
+            Promise.resolve({
+              valid: true,
+              key: {
+                referenceId: "user-7",
+                metadata: { orgId: STORE, source: "api" },
+              },
+            }),
+        })
+      ),
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure._tag).toBe("InvalidSessionError");
+          }
+        })
+      )
+    )
+  );
+
   it.effect("a web origin never reaches the API key check", () =>
     validatePayload(
       { apiKey: "lb_k" },

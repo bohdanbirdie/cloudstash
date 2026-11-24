@@ -7,7 +7,10 @@ use std::hash::BuildHasher;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use livestore::{InMemoryAdapter, QueryInput, Store, StoreOptions, SubscribeOptions, create_store, query_db};
+use livestore::{
+    InMemoryAdapter, QueryInput, ShutdownDeferred, Store, StoreOptions, SubscribeOptions, await_shutdown, create_store, make_shutdown_deferred,
+    query_db,
+};
 use livestore_sqlite::Row;
 use livestore_sync::{Storage, SyncOptions};
 use livestore_sync_cf::make_ws_sync;
@@ -115,14 +118,18 @@ pub(super) const LINKS_SQL: &str = "SELECT l.id, l.url, l.status, l.createdAt, l
 
 /// A running sync; dropping it stops the store and keeps the local copy.
 pub struct Library {
-    stop: Option<oneshot::Sender<bool>>,
+    stop: Option<oneshot::Sender<()>>,
+    thread: Option<std::thread::JoinHandle<()>>,
 }
 
 impl Library {
-    /// Stops the store and deletes the local copy, as on sign-out.
-    pub fn close_and_forget(mut self) {
+    /// Stops the store and waits until it has closed its files, so they can be deleted.
+    pub fn close(mut self) {
         if let Some(stop) = self.stop.take() {
-            let _ = stop.send(true);
+            let _ = stop.send(());
+        }
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
         }
     }
 }
@@ -130,7 +137,7 @@ impl Library {
 impl Drop for Library {
     fn drop(&mut self) {
         if let Some(stop) = self.stop.take() {
-            let _ = stop.send(false);
+            let _ = stop.send(());
         }
     }
 }
@@ -152,7 +159,7 @@ pub fn start(
     on_status: impl Fn(Result<bool, String>) + Send + Sync + 'static,
 ) -> Library {
     let (stop, stopped) = oneshot::channel();
-    std::thread::Builder::new()
+    let thread = std::thread::Builder::new()
         .name("sync".to_owned())
         .spawn(move || {
             let run = std::panic::AssertUnwindSafe(|| {
@@ -165,16 +172,17 @@ pub fn start(
             }
         })
         .expect("sync thread");
-    Library { stop: Some(stop) }
+    Library { stop: Some(stop), thread: Some(thread) }
 }
 
 async fn serve(
     config: &Config,
-    mut stopped: oneshot::Receiver<bool>,
+    mut stopped: oneshot::Receiver<()>,
     on_links: impl Fn(Vec<LinkItem>) + Send + Sync + 'static,
     on_status: &(impl Fn(Result<bool, String>) + Send + Sync),
 ) -> Result<(), String> {
-    let store = open(config).await?;
+    let shutdown = make_shutdown_deferred();
+    let store = open(config, &shutdown).await?;
     let subscription = store.subscribe(
         &query_db(QueryInput::sql(LINKS_SQL).queried_tables(&["links", "link_snapshots", "link_summaries", "link_tags", "tags"])),
         move |rows| on_links(rows.iter().filter_map(LinkItem::from_row).collect()),
@@ -182,26 +190,29 @@ async fn serve(
     );
     let mut online = store.network_status();
     on_status(Ok(*online.borrow()));
-    let forget = loop {
+    loop {
         tokio::select! {
-            forget = &mut stopped => break forget.unwrap_or(false),
+            _ = &mut stopped => break,
+            exit = await_shutdown(&shutdown) => {
+                return Err(match exit {
+                    Ok(()) => "Sync stopped".to_owned(),
+                    Err(e) => format!("Sync stopped: {e}"),
+                });
+            }
             changed = online.changed() => {
                 if changed.is_err() {
-                    break false;
+                    return Err("Sync stopped".to_owned());
                 }
                 on_status(Ok(*online.borrow()));
             }
         }
-    };
+    }
     drop(subscription);
     store.shutdown(None).await;
-    if forget {
-        std::fs::remove_dir_all(&config.dir).map_err(|e| e.to_string())?;
-    }
     Ok(())
 }
 
-async fn open(config: &Config) -> Result<Store, String> {
+async fn open(config: &Config, shutdown: &ShutdownDeferred) -> Result<Store, String> {
     std::fs::create_dir_all(&config.dir).map_err(|e| e.to_string())?;
     let url = format!("{}/sync", config.base.trim_end_matches('/')).replacen("https://", "wss://", 1).replacen("http://", "ws://", 1);
     let (payload, folder) = (json!({ "apiKey": config.api_key }), config.dir.clone());
@@ -216,7 +227,9 @@ async fn open(config: &Config) -> Result<Store, String> {
         })),
         ..InMemoryAdapter::default()
     };
-    create_store(StoreOptions::new(super::schema::schema(), adapter.build(), &config.library_id)).await.map_err(|e| e.to_string())
+    let mut options = StoreOptions::new(super::schema::schema(), adapter.build(), &config.library_id);
+    options.shutdown_deferred = Some(Arc::clone(shutdown));
+    create_store(options).await.map_err(|e| e.to_string())
 }
 
 /// Stable per library folder, like the client id the web keeps in storage.

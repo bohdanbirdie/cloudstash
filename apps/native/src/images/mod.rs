@@ -15,6 +15,7 @@ mod store;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::time::{Duration, Instant};
 
 use rune::Pixels;
 use tokio::runtime::Runtime;
@@ -31,6 +32,9 @@ const BACKGROUND: usize = 2;
 const DISK: usize = 4;
 /// Pictures kept decoded in memory after they scroll away.
 const KEEP: usize = 120;
+
+/// How long a download that might work later (offline, timed out) waits before it's tried again.
+const RETRY: Duration = Duration::from_secs(60);
 
 /// Which slots a download takes: favicons have their own few, so they never hold up pictures.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -95,6 +99,8 @@ struct Inner {
     running: HashMap<Request, (Rank, String)>,
     fill: Vec<Request>,
     seq: u64,
+    /// Downloads that might work later, and when to try them again.
+    retry: HashMap<Request, Instant>,
 }
 
 fn inner() -> MutexGuard<'static, Inner> {
@@ -135,6 +141,7 @@ pub fn reset() {
     g.epoch += 1;
     g.running.clear();
     g.queue.clear();
+    g.retry.clear();
     if let Some(store) = &mut g.store {
         store.clear();
     }
@@ -233,7 +240,9 @@ pub fn stats() -> Stats {
 impl Inner {
     /// Neither saved, nor known to fail, nor downloading.
     fn missing(&self, req: &Request) -> bool {
-        self.store.as_ref().is_some_and(|s| !s.done(req)) && !self.running.contains_key(req)
+        self.store.as_ref().is_some_and(|s| !s.done(req))
+            && !self.running.contains_key(req)
+            && !self.retry.get(req).is_some_and(|at| Instant::now() < *at)
     }
 
     fn want(&mut self, req: &Request, rank: Rank) {
@@ -264,34 +273,39 @@ impl Inner {
             let (epoch, client) = (self.epoch, fetch::client());
             runtime().spawn(async move {
                 let made = match fetch::get(&client, &req.url).await {
-                    Some(bytes) => {
+                    Ok(bytes) => {
                         let size = req.size;
                         tokio::task::spawn_blocking(move || codec::make(&bytes, size).filter(|m| inner().epoch == epoch && m.save(&path)))
                             .await
                             .ok()
                             .flatten()
+                            .ok_or(fetch::Miss::Gone)
                     }
-                    None => None,
+                    Err(miss) => Err(miss),
                 };
                 inner().finish(&req, epoch, made);
             });
         }
     }
 
-    fn finish(&mut self, req: &Request, epoch: u64, made: Option<codec::Made>) {
+    fn finish(&mut self, req: &Request, epoch: u64, made: Result<codec::Made, fetch::Miss>) {
         if epoch != self.epoch {
             return;
         }
         self.running.remove(req);
         if let Some(store) = &mut self.store {
             match made {
-                Some(m) => {
+                Ok(m) => {
                     store.saved(req, m.ext, m.file_len);
+                    self.retry.remove(req);
                     if let Some(pixels) = self.memory.get(req) {
                         pixels.set(m.width, m.height, m.rgba);
                     }
                 }
-                None => store.fail(req),
+                Err(fetch::Miss::Gone) => store.fail(req),
+                Err(fetch::Miss::Later) => {
+                    self.retry.insert(req.clone(), Instant::now() + RETRY);
+                }
             }
         }
         self.pump();
