@@ -31,22 +31,6 @@ toolbar instead of leaving the library loading.
 tail -f ~/Library/Logs/Cloudstash/cloudstash.log
 ```
 
-## Pictures and memory
-
-Card pictures and site icons are downloaded once, shrunk to the size they're drawn (800×550 and
-28×28 pixels) and saved as small JPEG or PNG files in the library's `images` folder. Loading one
-back takes about 1 ms (measured over 745 saved pictures, debug and release alike, since
-dependencies are optimized in debug builds), so the app keeps only a small decoded set in memory:
-at most 80 MB, least recently drawn dropped first, never a picture on screen. A card picture is
-about 1.7 MB decoded, so that's roughly 45 of them; a fast scroll reloads the rest from disk
-without visible loading. `MEMORY` in `src/images/mod.rs` sets the limit.
-
-Expect around 420 MB for the whole app once it settles. Each picture on screen is held three
-times: in that cache, in Rune's own CPU image atlas (4 MB pages), and on the GPU, and Rune offers
-no way to drop its copy. macOS's allocator also keeps a good share of freed memory. For the first
-minute or two after launch, graphics memory is a few hundred MB higher, then falls back on its
-own. `footprint $(pgrep -x cloudstash-native)` shows the breakdown.
-
 ## The LiveStore contract with the web app
 
 `src/livestore/contract.rs` checks this app's schema against the web's through

@@ -39,7 +39,8 @@ the worker: the native pairing
 flow in [auth-and-tenancy](../02-system/02-auth-and-tenancy/spec.md#pairing-flows)
 and API-key LiveStore sync. Card pictures are kept as small local copies in each
 library's folder and deleted with it on sign-out, or at the next launch that
-finds no session. Saved links open in the browser only when they are web
+finds no session; at most 80 MB of them are kept decoded in memory, per
+[decision 0006](./.decisions/0006-bound-native-picture-memory.md). Saved links open in the browser only when they are web
 addresses.
 
 Local provider configuration is represented by committed 1Password references
