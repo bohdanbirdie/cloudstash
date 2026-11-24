@@ -56,6 +56,9 @@ enum Phase {
     #[default]
     Restoring,
     SignedOut,
+    /// Signing out: the key and this Mac's copy of the library go before signing in again can
+    /// start, so cleaning up can't reach the next session's.
+    SigningOut,
     /// The browser is open; the sign-in finishes when its deep link arrives.
     WaitingForBrowser,
     /// The link arrived and the code is being exchanged.
@@ -284,18 +287,21 @@ fn sign_out(s: &mut State) {
     };
     settings::close(s);
     s.notice = None;
-    s.phase = Phase::SignedOut;
+    s.phase = Phase::SigningOut;
     images::close();
     let library = s.library.take();
     s.links.clear();
     s.place = nav::Place::default();
     s.kind = shell::Kind::default();
     std::thread::spawn(move || {
+        let key = backend.auth.take_key();
         if let Some(library) = library {
             library.close();
         }
         backend.forget_libraries();
-        if let Err(e) = backend.auth.sign_out() {
+        backend.ui.update(|s, _| s.phase = Phase::SignedOut);
+        let revoked = key.and_then(|key| key.map_or(Ok(()), |key| backend.auth.revoke(&key)));
+        if let Err(e) = revoked {
             backend.ui.update(move |s, _| s.notice = Some(e));
         }
     });
@@ -311,6 +317,7 @@ fn view(s: &State, cx: &mut Cx<State>) -> El {
             .child(primary_button("sign-in", "Try again", t).on_press(start_sign_in)),
         (Phase::SignedOut, None) => header("Sign in to Cloudstash", "Access your saved links from anywhere.".into(), t)
             .child(primary_button("sign-in", "Sign in", t).on_press(start_sign_in)),
+        (Phase::SigningOut, _) => status(Tone::Progress, "Signing out", "Removing this Mac's copy of your library.".into(), t),
         (Phase::Restoring, _) => status(Tone::Progress, "Opening Cloudstash for Mac", "Checking for a saved session. This takes a moment.".into(), t),
         (Phase::WaitingForBrowser, _) => {
             status(Tone::Progress, "Finish signing in in your browser", "Cloudstash opens again when you're done.".into(), t)

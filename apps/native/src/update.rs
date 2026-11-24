@@ -99,14 +99,20 @@ pub enum Status {
     Failed,
 }
 
-/// What the updater's thread is asked to do: check on its schedule while `auto`, and once
-/// right away when `check`.
+/// What the updater's thread is asked to do, and what it has: it checks on its schedule,
+/// downloading what's out while `auto`; checks and downloads right away when `check`; and once
+/// the download is ready, installs it at once when `install` (the must-update screen's button).
+/// One lock covers `install` and `staged`, so a press while downloading and a download finishing
+/// at the same moment install once: whichever comes second sees the other.
 struct Control {
     auto: bool,
     check: bool,
+    install: bool,
+    /// A downloaded, checked app, waiting to be swapped in.
+    staged: Option<PathBuf>,
 }
 
-static CONTROL: Mutex<Control> = Mutex::new(Control { auto: true, check: false });
+static CONTROL: Mutex<Control> = Mutex::new(Control { auto: true, check: false, install: false, staged: None });
 static WAKE: Condvar = Condvar::new();
 
 impl Update {
@@ -129,9 +135,6 @@ struct Feed {
     minimum: Option<String>,
 }
 
-/// A downloaded, checked app, waiting to be swapped in.
-static STAGED: Mutex<Option<PathBuf>> = Mutex::new(None);
-
 /// Starts the updater: it checks now and then on its schedule while automatic updates are on,
 /// and whenever [`check_now`] asks.
 pub fn start(s: &mut State) {
@@ -146,7 +149,14 @@ pub fn start(s: &mut State) {
     std::thread::spawn(move || {
         let cache = cache_dir();
         let _ = std::fs::remove_dir_all(&cache);
-        let status = |status: Status| ui.update(move |s, _| set_status(s, status));
+        let status = |status: Status| {
+            ui.update(move |s, _| {
+                if let (Status::Downloading(_, percent), Update::Required(Some(_))) = (&status, s.update) {
+                    s.update = Update::Required(Some(*percent));
+                }
+                set_status(s, status);
+            })
+        };
         let mut due = SystemTime::now();
         loop {
             let asked = wait_until(due);
@@ -157,30 +167,43 @@ pub fn start(s: &mut State) {
                     tracing::warn!("{VERSION} is older than the oldest version allowed, {:?}", feed.minimum);
                     ui.update(too_old);
                 }
-                if !asked && !CONTROL.lock().unwrap().auto {
+                let wanted = CONTROL.lock().map(|c| c.auto || c.install).unwrap();
+                if !asked && !wanted {
                     return Ok(Status::Available(feed.version));
                 }
                 status(Status::Downloading(feed.version.clone(), 0));
                 let app = download(&feed, &cache, &bundle, |percent| status(Status::Downloading(feed.version.clone(), percent)))?;
                 tracing::info!("update ready: {}", app.display());
-                *STAGED.lock().unwrap() = Some(app);
+                CONTROL.lock().unwrap().staged = Some(app);
                 Ok(Status::Ready(feed.version))
             })();
+            let install_now = {
+                let mut control = CONTROL.lock().unwrap();
+                control.check &= !control.install;
+                std::mem::take(&mut control.install)
+            };
             match found {
                 Ok(Status::Ready(version)) => {
-                    return ui.update(|s, tx| {
+                    ui.update(|s, tx| {
                         tx.animated();
                         set_status(s, Status::Ready(version));
                         if s.update == Update::None {
                             s.update = Update::Ready;
                         }
                     });
+                    if install_now {
+                        install_staged(&ui, Update::Required(None));
+                    }
+                    return;
                 }
                 Ok(found) => status(found),
                 Err(e) => {
                     tracing::warn!("update check failed: {e}");
                     status(Status::Failed);
                 }
+            }
+            if install_now {
+                ui.update(|s, _| s.update = Update::Required(None));
             }
             due = SystemTime::now() + CHECK_EVERY;
         }
@@ -247,20 +270,23 @@ pub fn restart(s: &mut State) {
     if let Some(fake) = fake() {
         return restart_fake(ui, fake);
     }
-    std::thread::spawn(move || {
-        let staged = STAGED.lock().unwrap().clone();
-        match staged.ok_or_else(|| "no update is downloaded".to_owned()).and_then(|app| install(&app)) {
-            Ok(()) => ui.relaunch(),
-            Err(e) => {
-                tracing::warn!("installing the update failed: {e}");
-                ui.update(|s, _| s.update = Update::Failed);
-            }
-        }
-    });
+    std::thread::spawn(move || install_staged(&ui, Update::Failed));
 }
 
-/// The must-update screen's button: downloads the update (unless it's here already), swaps it
-/// in and restarts.
+/// Swaps the downloaded update in and restarts, or shows `failed`.
+fn install_staged(ui: &AppHandle<State>, failed: Update) {
+    let staged = CONTROL.lock().unwrap().staged.clone();
+    match staged.ok_or_else(|| "no update is downloaded".to_owned()).and_then(|app| install(&app)) {
+        Ok(()) => ui.relaunch(),
+        Err(e) => {
+            tracing::warn!("installing the update failed: {e}");
+            ui.update(move |s, _| s.update = failed);
+        }
+    }
+}
+
+/// The must-update screen's button: installs the downloaded update and restarts, or has the
+/// updater download it (joining a download already under way) and install it once it's ready.
 pub fn update_now(s: &mut State) {
     let Some(ui) = s.backend.as_ref().map(|b| b.ui.clone()) else { return };
     if fake().is_none() && updatable().is_none() {
@@ -270,29 +296,16 @@ pub fn update_now(s: &mut State) {
     if fake().is_some() {
         return update_now_fake(ui);
     }
-    std::thread::spawn(move || {
-        let progress = |percent: u8| ui.update(move |s, _| s.update = Update::Required(Some(percent)));
-        let result = (|| {
-            let bundle = updatable().ok_or("this copy can't update itself")?;
-            let staged = STAGED.lock().unwrap().clone();
-            let app = match staged {
-                Some(app) => app,
-                None => {
-                    let feed = newer()?.ok_or("no newer version is published")?;
-                    download(&feed, &cache_dir(), &bundle, progress)?
-                }
-            };
-            progress(100);
-            install(&app)
-        })();
-        match result {
-            Ok(()) => ui.relaunch(),
-            Err(e) => {
-                tracing::warn!("updating failed: {e}");
-                ui.update(|s, _| s.update = Update::Required(None));
-            }
-        }
-    });
+    let mut control = CONTROL.lock().unwrap();
+    if control.staged.is_some() {
+        drop(control);
+        s.update = Update::Required(Some(100));
+        std::thread::spawn(move || install_staged(&ui, Update::Required(None)));
+        return;
+    }
+    control.install = true;
+    control.check = true;
+    WAKE.notify_all();
 }
 
 /// The app bundle this process runs from, when it's a release that can replace itself there.

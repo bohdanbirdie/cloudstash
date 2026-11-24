@@ -206,12 +206,18 @@ impl Auth {
         self.store.load()
     }
 
-    /// Removes the stored key, then revokes it on the server.
-    pub fn sign_out(&self) -> Result<(), String> {
-        let Some(api_key) = self.store.load()? else {
-            return Ok(());
-        };
-        self.store.clear()?;
+    /// Removes the stored key and gives it back, so signing out revokes this session's key even
+    /// if a new sign-in saves another before the revoke runs.
+    pub fn take_key(&self) -> Result<Option<String>, String> {
+        let api_key = self.store.load()?;
+        if api_key.is_some() {
+            self.store.clear()?;
+        }
+        Ok(api_key)
+    }
+
+    /// Revokes a key [`Auth::take_key`] removed.
+    pub fn revoke(&self, api_key: &str) -> Result<(), String> {
         let url = format!("{}/api/connect/native", self.base);
         http_json(ureq::delete(&url).set("Authorization", &format!("Bearer {api_key}")).call())
             .map(|_| ())
