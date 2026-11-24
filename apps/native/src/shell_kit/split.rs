@@ -156,6 +156,7 @@ pub struct SplitView {
     motion: PaneMotion,
     peek: Option<SidebarPeek>,
     reduced: bool,
+    floater: Option<El>,
 }
 
 impl SplitView {
@@ -174,6 +175,7 @@ impl SplitView {
             motion: PaneMotion::new(),
             peek: None,
             reduced: false,
+            floater: None,
         }
     }
     /// The leading pane. `access` finds its state in the app's; the grip and the toggle button
@@ -236,6 +238,16 @@ impl SplitView {
     /// Lets the closed sidebar peek over the content.
     pub fn sidebar_peek(mut self, p: SidebarPeek) -> Self {
         self.peek = Some(p);
+        self
+    }
+    /// Something opened from the sidebar that floats over the window, such as a menu anchored to
+    /// one of its rows. Give it `El::modal` so a press anywhere outside it dismisses it, and hold
+    /// a peek while it's open ([`PaneState::hold_peek`], then [`PaneState::release_peek`]). It
+    /// comes after the sidebar and the content but before the peek's hold, so the modal leaves
+    /// that hold live: the sidebar goes on seeing the pointer, and a release knows whether the
+    /// pointer is over it.
+    pub fn sidebar_floater(mut self, floater: Option<El>) -> Self {
+        self.floater = floater;
         self
     }
     /// Pass [`Cx::is_reduced_motion`]: fades replace the slides of the panes' contents and of
@@ -390,10 +402,10 @@ impl SplitView {
                 .opacity_motion(Curve::tween(SCRIM_FADE, Easing::EASE_OUT))
                 .a11y_hidden()
         });
-        let mut root = el().key("shell").w_full().h_full().fill(c.bg_deep).child(split.child(main)).children(scrim).children(zones);
-        if let Some(o) = overlay {
-            root = root.child(o);
-        }
+        let mut root = el().key("shell").w_full().h_full().fill(c.bg_deep).child(split.child(main)).children(scrim).children(overlay);
+        // A floater's modal reaches what comes after it: the peek's hold, so the sidebar's hover
+        // stays live under it, and nothing it would let a press through to.
+        root = root.children(self.floater).children(zones);
         for clear in clears {
             root = clear(root);
         }
@@ -529,7 +541,7 @@ fn pane<S: 'static>(state: PaneState, access: fn(&mut S) -> &mut PaneState, cont
             e.on_window_focus(move |s: &mut S, focused, _| {
                 if !focused {
                     access(s).lose_grip();
-                    access(s).end_peek();
+                    access(s).blur_peek();
                 }
             })
             .on_pointer_move(move |s: &mut S, p| access(s).pointer_grip([p.x, p.y]))
@@ -541,7 +553,8 @@ fn pane<S: 'static>(state: PaneState, access: fn(&mut S) -> &mut PaneState, cont
                 (Zone::Toggle, true) => access(s).rest_on_toggle(),
                 (Zone::Toggle, false) => access(s).leave_toggle(),
                 (Zone::Edge, true) => access(s).peek(),
-                (Zone::Hold, false) => access(s).end_peek(),
+                (Zone::Hold, true) => access(s).enter_hold(),
+                (Zone::Hold, false) => access(s).leave_hold(),
                 _ => {}
             })
         }) as Hover

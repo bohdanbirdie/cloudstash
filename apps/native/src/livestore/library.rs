@@ -6,11 +6,13 @@ use std::collections::hash_map::RandomState;
 use std::hash::BuildHasher;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use livestore::{
     InMemoryAdapter, QueryInput, ShutdownDeferred, Store, StoreOptions, SubscribeOptions, await_shutdown, create_store, make_shutdown_deferred,
     query_db,
 };
+use livestore_schema::{UnknownEventContext, UnknownEventHandling};
 use livestore_sqlite::Row;
 use livestore_sync::{Storage, SyncOptions};
 use livestore_sync_cf::make_ws_sync;
@@ -151,19 +153,31 @@ pub struct Config {
     pub dir: PathBuf,
 }
 
+/// This build's version, as the library folder records it.
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+/// The file naming the app version that last opened a library folder.
+const OPENED_BY: &str = "app-version";
+/// The file naming the app version that met data too new for it in this folder.
+const TOO_OLD: &str = "too-old";
+
 /// Starts syncing on its own thread. `on_links` gets every link after each change and
 /// `on_status` the connection state (or an error that stopped the store, a panic included).
+/// `on_too_old` hears, once, that the library holds data only a newer version can apply.
 pub fn start(
     config: Config,
     on_links: impl Fn(Vec<LinkItem>) + Send + Sync + 'static,
     on_status: impl Fn(Result<bool, String>) + Send + Sync + 'static,
+    on_too_old: impl Fn() + Send + Sync + 'static,
 ) -> Library {
+    let on_too_old: Arc<dyn Fn() + Send + Sync> = Arc::new(on_too_old);
     let (stop, stopped) = oneshot::channel();
     let thread = std::thread::Builder::new()
         .name("sync".to_owned())
         .spawn(move || {
             let run = std::panic::AssertUnwindSafe(|| {
-                tokio::runtime::Runtime::new().map_err(|e| e.to_string()).and_then(|rt| rt.block_on(serve(&config, stopped, on_links, &on_status)))
+                tokio::runtime::Runtime::new()
+                    .map_err(|e| e.to_string())
+                    .and_then(|rt| rt.block_on(serve(&config, stopped, on_links, &on_status, on_too_old)))
             });
             let result = std::panic::catch_unwind(run).unwrap_or_else(|_| Err("Sync crashed; the log has the details".to_owned()));
             if let Err(e) = result {
@@ -180,9 +194,10 @@ async fn serve(
     mut stopped: oneshot::Receiver<()>,
     on_links: impl Fn(Vec<LinkItem>) + Send + Sync + 'static,
     on_status: &(impl Fn(Result<bool, String>) + Send + Sync),
+    on_too_old: Arc<dyn Fn() + Send + Sync>,
 ) -> Result<(), String> {
     let shutdown = make_shutdown_deferred();
-    let store = open(config, &shutdown).await?;
+    let store = open(config, &shutdown, on_too_old).await?;
     let subscription = store.subscribe(
         &query_db(QueryInput::sql(LINKS_SQL).queried_tables(&["links", "link_snapshots", "link_summaries", "link_tags", "tags"])),
         move |rows| on_links(rows.iter().filter_map(LinkItem::from_row).collect()),
@@ -212,8 +227,28 @@ async fn serve(
     Ok(())
 }
 
-async fn open(config: &Config, shutdown: &ShutdownDeferred) -> Result<Store, String> {
+async fn open(config: &Config, shutdown: &ShutdownDeferred, on_too_old: Arc<dyn Fn() + Send + Sync>) -> Result<Store, String> {
     std::fs::create_dir_all(&config.dir).map_err(|e| e.to_string())?;
+    let too_old = Arc::new(AtomicBool::new(false));
+    if version_changed(&config.dir).map_err(|e| e.to_string())? {
+        tracing::info!("first open by {VERSION}: the library's state is rebuilt from its eventlog");
+    } else if config.dir.join(TOO_OLD).exists() {
+        too_old.store(true, Ordering::Relaxed);
+        on_too_old();
+    }
+    let unknown = UnknownEventHandling::Callback(Arc::new({
+        let dir = config.dir.clone();
+        move |event: &UnknownEventContext| {
+            if !super::schema::is_newer_version(&event.event_name) || too_old.swap(true, Ordering::Relaxed) {
+                return;
+            }
+            tracing::warn!("{} is newer than this version understands", event.event_name);
+            if let Err(e) = std::fs::write(dir.join(TOO_OLD), VERSION) {
+                tracing::warn!("could not remember that this version is too old: {e}");
+            }
+            on_too_old();
+        }
+    }));
     let url = format!("{}/sync", config.base.trim_end_matches('/')).replacen("https://", "wss://", 1).replacen("http://", "ws://", 1);
     let (payload, folder) = (json!({ "apiKey": config.api_key }), config.dir.clone());
     let adapter = InMemoryAdapter {
@@ -227,9 +262,28 @@ async fn open(config: &Config, shutdown: &ShutdownDeferred) -> Result<Store, Str
         })),
         ..InMemoryAdapter::default()
     };
-    let mut options = StoreOptions::new(super::schema::schema(), adapter.build(), &config.library_id);
+    let mut options = StoreOptions::new(super::schema::with_unknown(unknown), adapter.build(), &config.library_id);
     options.shutdown_deferred = Some(Arc::clone(shutdown));
     create_store(options).await.map_err(|e| e.to_string())
+}
+
+/// Records this version as the folder's, and whether another one opened it before. When one
+/// did, the state files go and boot replays the eventlog into a new one, so whatever an older
+/// version skipped gets applied, and what it noted as too new for it is forgotten.
+fn version_changed(dir: &Path) -> std::io::Result<bool> {
+    let file = dir.join(OPENED_BY);
+    if std::fs::read_to_string(&file).is_ok_and(|v| v.trim() == VERSION) {
+        return Ok(false);
+    }
+    for entry in std::fs::read_dir(dir)? {
+        let path = entry?.path();
+        let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        if (name.starts_with("state") && name.contains(".db")) || name == TOO_OLD {
+            std::fs::remove_file(&path)?;
+        }
+    }
+    std::fs::write(&file, VERSION)?;
+    Ok(true)
 }
 
 /// Stable per library folder, like the client id the web keeps in storage.
@@ -293,6 +347,25 @@ fn decode_entities(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn another_version_opening_the_folder_drops_its_state_and_keeps_its_eventlog() {
+        let dir = std::env::temp_dir().join(format!("cloudstash-version-{}", random_id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        for file in ["state123.db", "state123.db-wal", "eventlog.db", "client-id", TOO_OLD] {
+            std::fs::write(dir.join(file), "").unwrap();
+        }
+        std::fs::write(dir.join(OPENED_BY), "0.0.1").unwrap();
+        assert!(version_changed(&dir).unwrap());
+        let mut left: Vec<String> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        left.sort();
+        assert_eq!(left, ["app-version", "client-id", "eventlog.db"]);
+        assert_eq!(std::fs::read_to_string(dir.join(OPENED_BY)).unwrap(), VERSION);
+        std::fs::write(dir.join("state123.db"), "").unwrap();
+        assert!(!version_changed(&dir).unwrap(), "the same version again");
+        assert!(dir.join("state123.db").exists());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     fn link(id: &str, status: &str, created: i64, completed: Option<i64>, deleted: Option<i64>) -> LinkItem {
         LinkItem {
