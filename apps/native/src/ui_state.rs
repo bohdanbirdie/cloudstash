@@ -34,6 +34,7 @@ pub struct Saved {
     theme: Option<String>,
     dock_icon: Option<bool>,
     menu_bar: Option<bool>,
+    auto_update: Option<bool>,
     sidebar_open: Option<bool>,
     sidebar_width: Option<f32>,
 }
@@ -47,6 +48,7 @@ impl Saved {
             theme: name(&THEMES.map(|(theme, id, _)| (theme, id)), s.theme),
             dock_icon: Some(!s.hide_dock),
             menu_bar: Some(s.menu_bar),
+            auto_update: Some(!s.manual_updates),
             sidebar_open: Some(s.sidebar.is_open()),
             sidebar_width: Some(s.sidebar.width()),
         }
@@ -59,6 +61,7 @@ impl Saved {
         s.theme = value(&THEMES.map(|(theme, id, _)| (theme, id)), &self.theme).unwrap_or_default();
         s.menu_bar = self.menu_bar.unwrap_or(false);
         s.hide_dock = self.dock_icon == Some(false) && s.menu_bar;
+        s.manual_updates = self.auto_update == Some(false);
         s.sidebar = match self.sidebar_width {
             Some(width) => shell::sidebar_state().with_width(width),
             None => shell::sidebar_state(),

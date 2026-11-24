@@ -3,7 +3,8 @@
 #
 #   Cloudstash-<version>.dmg   the first install: drag the app to Applications
 #   Cloudstash-<version>.zip   the update the app downloads (src/update.rs)
-#   latest.json                the feed the app reads: version, the zip's address and signature
+#   latest.json                the feed the app reads: version, the zip's address and signature,
+#                              and the oldest version allowed to run (Cargo.toml's minimum-version)
 #
 # The app runs on Apple Silicon and Intel, is signed with a Developer ID and hardened runtime,
 # and is notarized and stapled, as is the disk image. .github/workflows/native-release.yml runs
@@ -20,6 +21,8 @@ cd "$(dirname "$0")/.."
 : "${SIGN_IDENTITY:?}" "${NOTARY_KEY_PATH:?}" "${NOTARY_KEY_ID:?}" "${NOTARY_ISSUER:?}" "${UPDATE_KEY_PATH:?}" "${DOWNLOAD_URL:?}"
 openssl="${OPENSSL:-$(brew --prefix openssl@3)/bin/openssl}"
 version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
+minimum="$(sed -n 's/^minimum-version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
+: "${minimum:?Cargo.toml has no minimum-version}"
 
 cargo build --locked --release --target aarch64-apple-darwin
 cargo build --locked --release --target x86_64-apple-darwin
@@ -60,6 +63,7 @@ cat > "$out/latest.json" <<JSON
   "version": "${version}",
   "url": "${DOWNLOAD_URL}/${zip}",
   "signature": "${signature}",
+  "minimum": "${minimum}",
   "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 JSON

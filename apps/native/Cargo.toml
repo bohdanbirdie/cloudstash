@@ -9,6 +9,11 @@ edition = "2024"
 rust-version = "1.99"
 publish = false
 
+[package.metadata.cloudstash]
+# The oldest version that may still run. Releases put it in their feed, and older apps show the
+# must-update screen (src/update.rs). Raise it with the version when older apps would break.
+minimum-version = "0.1.0"
+
 [dependencies]
 base64 = "0.22"
 # Checks updates' signatures (src/update.rs).

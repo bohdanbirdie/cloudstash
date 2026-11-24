@@ -201,8 +201,32 @@ pub static LINK_TAGS: LazyLock<Table> = LazyLock::new(|| {
         .unique_index("idx_link_tags_unique", &["linkId", "tagId"])
 });
 
+/// The schema, skipping events it doesn't know.
 #[must_use]
 pub fn schema() -> Arc<Schema> {
+    with_unknown(UnknownEventHandling::Ignore)
+}
+
+/// Whether `name`, an event this app doesn't know, is a newer version of one it keeps
+/// (`v3.LinkCreated` beside `v1` and `v2`): data this version can't apply, so its library would
+/// go stale. Events of names it doesn't keep at all are the web's own and stay skipped.
+#[must_use]
+pub fn is_newer_version(name: &str) -> bool {
+    static KEPT: LazyLock<Vec<(u32, String)>> =
+        LazyLock::new(|| schema().events().iter().filter_map(|e| versioned(&e.name)).map(|(v, n)| (v, n.to_owned())).collect());
+    let Some((version, base)) = versioned(name) else { return false };
+    KEPT.iter().filter(|(_, kept)| kept == base).map(|(v, _)| *v).max().is_some_and(|newest| version > newest)
+}
+
+/// `v2.LinkCreated` as `(2, "LinkCreated")`.
+fn versioned(name: &str) -> Option<(u32, &str)> {
+    let (version, base) = name.strip_prefix('v')?.split_once('.')?;
+    Some((version.parse().ok()?, base))
+}
+
+/// The schema, handling events it doesn't know as `unknown` says.
+#[must_use]
+pub fn with_unknown(unknown: UnknownEventHandling) -> Arc<Schema> {
     let (links, snapshots, summaries, tags, link_tags) = (&*LINKS, &*LINK_SNAPSHOTS, &*LINK_SUMMARIES, &*TAGS, &*LINK_TAGS);
     Schema::builder()
         .table(links.clone())
@@ -210,7 +234,7 @@ pub fn schema() -> Arc<Schema> {
         .table(summaries.clone())
         .table(tags.clone())
         .table(link_tags.clone())
-        .unknown_event_handling(UnknownEventHandling::Ignore)
+        .unknown_event_handling(unknown)
         .materialize::<LinkCreated, _>(move |a, _| {
             sql(links
                 .query()
@@ -326,4 +350,20 @@ pub fn schema() -> Arc<Schema> {
 
 fn sql(query: Result<SqlQuery, QueryBuilderError>) -> Result<SqlStatement, MaterializeError> {
     query.map(SqlStatement::from).map_err(|e| MaterializeError::Other(e.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_a_newer_version_of_a_kept_event_is_too_new() {
+        assert!(is_newer_version("v3.LinkCreated"));
+        assert!(is_newer_version("v2.TagRenamed"));
+        assert!(!is_newer_version("v2.LinkCreated"), "a version this app keeps");
+        assert!(!is_newer_version("v1.LinkInteracted"), "an event the app doesn't keep");
+        assert!(!is_newer_version("v2.LinkInteracted"), "a newer version of an event the app doesn't keep");
+        assert!(!is_newer_version("LinkCreated"));
+        assert!(!is_newer_version("vx.LinkCreated"));
+    }
 }

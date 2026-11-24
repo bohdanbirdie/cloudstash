@@ -1,13 +1,18 @@
 //! Updates. A release is a GitHub Release of this repository (`scripts/release.sh`, run by
 //! `.github/workflows/native-release.yml`) with a feed, `latest.json`, naming its version, the
 //! zipped app and an Ed25519 signature of that zip. The app reads the newest release's feed on
-//! launch and every few hours; a newer version downloads in the background into the caches
-//! folder, and the sidebar offers to restart once it's checked:
+//! launch and every few hours, unless automatic updates are off in Settings, and whenever
+//! Settings' Check for Updates asks; a newer version downloads in the background into the caches
+//! folder, and the sidebar offers to restart (asking first) once it's checked:
 //!
 //! 1. the zip's signature verifies with [`PUBLIC_KEY`], whose private half only the release
 //!    workflow holds;
 //! 2. the app inside is Cloudstash at the feed's version, and macOS confirms it's signed by
 //!    [`TEAM_ID`]'s Developer ID certificate, sealed and unaltered.
+//!
+//! A version can also be too old to run: the feed's `minimum` is newer, or the library met a newer
+//! version of an event this app applies (`livestore::schema::is_newer_version`). Then the whole
+//! window asks to update ([`too_old`]).
 //!
 //! Restarting swaps the new app in where this one is (one rename each way, rolled back if the
 //! second fails) and launches it. A copy that can't be swapped in place (run from the disk image,
@@ -18,7 +23,7 @@
 //! (`scripts/run.sh` passes it on):
 //!
 //! - `ready`: three seconds after launch a "Restart to update" row appears above the account;
-//!   clicking it restarts the app.
+//!   clicking it asks, then restarts the app.
 //! - `failed`: the same, but the first restart fails and the row asks to try again.
 //! - `required`: this version is too old, so the whole window asks to update, signed in or out.
 //!
@@ -27,12 +32,12 @@
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use std::sync::{Condvar, Mutex};
+use std::time::{Duration, SystemTime};
 
 use base64::Engine;
-use rune::AppHandle;
+use rune::{AppHandle, Tx};
 use serde::Deserialize;
 
 use crate::State;
@@ -44,6 +49,9 @@ const FEED: &str = "https://github.com/bohdanbirdie/cloudstash/releases/latest/d
 /// The Ed25519 public key release zips are signed with, as base64 of its 32 bytes. Its private
 /// half is the release workflow's `NATIVE_UPDATE_KEY` secret.
 const PUBLIC_KEY: &str = "6iwO3zA/UKsnfXXM2OwrzXnjyUznrKjWvhQyRUURoQw=";
+/// Where a copy that can't replace itself (a development build, one run from the disk image)
+/// sends someone to get the new version by hand.
+const DOWNLOAD_PAGE: &str = "https://github.com/bohdanbirdie/cloudstash/releases/latest";
 /// The Apple team whose Developer ID signs releases.
 const TEAM_ID: &str = "E6JHWE4P5L";
 const BUNDLE_ID: &str = "dev.cloudstash.native";
@@ -51,6 +59,9 @@ const BUNDLE_ID: &str = "dev.cloudstash.native";
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// How long the app waits between checks while nothing is ready.
 const CHECK_EVERY: Duration = Duration::from_secs(4 * 60 * 60);
+/// The longest the updater sleeps before looking at the clock again. A sleeping Mac stops the
+/// timer a wait uses, so a long wait alone would put a check off by every night the lid was shut.
+const NAP: Duration = Duration::from_secs(10 * 60);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum Update {
@@ -68,6 +79,36 @@ pub enum Update {
     Required(Option<u8>),
 }
 
+/// What the updater is doing, as Settings shows it.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub enum Status {
+    /// This copy doesn't update itself: a development build, or one that can't be replaced
+    /// where it is.
+    #[default]
+    Off,
+    /// The last check found nothing newer, or none has finished yet.
+    UpToDate,
+    /// Automatic updates are off and this version is out; Check for Updates downloads it.
+    Available(String),
+    Checking,
+    /// Downloading this version, this many percent so far.
+    Downloading(String, u8),
+    /// This version is downloaded and checked, waiting for a restart.
+    Ready(String),
+    /// The last check or download failed; the next one tries again.
+    Failed,
+}
+
+/// What the updater's thread is asked to do: check on its schedule while `auto`, and once
+/// right away when `check`.
+struct Control {
+    auto: bool,
+    check: bool,
+}
+
+static CONTROL: Mutex<Control> = Mutex::new(Control { auto: true, check: false });
+static WAKE: Condvar = Condvar::new();
+
 impl Update {
     /// Whether the sidebar shows its update row.
     pub fn in_sidebar(self) -> bool {
@@ -82,40 +123,121 @@ struct Feed {
     url: String,
     /// Base64 of the Ed25519 signature of the zip at `url`.
     signature: String,
+    /// The oldest version that may still run (Cargo.toml's `minimum-version`); older ones show
+    /// the must-update screen.
+    #[serde(default)]
+    minimum: Option<String>,
 }
 
 /// A downloaded, checked app, waiting to be swapped in.
 static STAGED: Mutex<Option<PathBuf>> = Mutex::new(None);
 
-/// Starts checking for updates in the background.
-pub fn start(ui: AppHandle<State>) {
+/// Starts the updater: it checks now and then on its schedule while automatic updates are on,
+/// and whenever [`check_now`] asks.
+pub fn start(s: &mut State) {
     tracing::info!("Cloudstash {VERSION}");
+    let Some(ui) = s.backend.as_ref().map(|b| b.ui.clone()) else { return };
     if let Some(fake) = fake() {
-        return start_fake(ui, fake);
+        return start_fake(s, ui, fake);
     }
     let Some(bundle) = updatable() else { return };
+    CONTROL.lock().unwrap().auto = !s.manual_updates;
+    set_status(s, Status::UpToDate);
     std::thread::spawn(move || {
         let cache = cache_dir();
         let _ = std::fs::remove_dir_all(&cache);
+        let status = |status: Status| ui.update(move |s, _| set_status(s, status));
+        let mut due = SystemTime::now();
         loop {
-            match newer().and_then(|feed| feed.map(|f| download(&f, &cache, &bundle, |_| {})).transpose()) {
-                Ok(Some(app)) => {
-                    tracing::info!("update ready: {}", app.display());
-                    *STAGED.lock().unwrap() = Some(app);
-                    ui.update(|s, tx| {
+            let asked = wait_until(due);
+            status(Status::Checking);
+            let found = (|| -> Result<Status, String> {
+                let Some(feed) = newer()? else { return Ok(Status::UpToDate) };
+                if feed.minimum.as_deref().map(|minimum| is_newer(minimum, VERSION)).transpose()?.unwrap_or(false) {
+                    tracing::warn!("{VERSION} is older than the oldest version allowed, {:?}", feed.minimum);
+                    ui.update(too_old);
+                }
+                if !asked && !CONTROL.lock().unwrap().auto {
+                    return Ok(Status::Available(feed.version));
+                }
+                status(Status::Downloading(feed.version.clone(), 0));
+                let app = download(&feed, &cache, &bundle, |percent| status(Status::Downloading(feed.version.clone(), percent)))?;
+                tracing::info!("update ready: {}", app.display());
+                *STAGED.lock().unwrap() = Some(app);
+                Ok(Status::Ready(feed.version))
+            })();
+            match found {
+                Ok(Status::Ready(version)) => {
+                    return ui.update(|s, tx| {
                         tx.animated();
+                        set_status(s, Status::Ready(version));
                         if s.update == Update::None {
                             s.update = Update::Ready;
                         }
                     });
-                    return;
                 }
-                Ok(None) => tracing::debug!("up to date at {VERSION}"),
-                Err(e) => tracing::warn!("update check failed: {e}"),
+                Ok(found) => status(found),
+                Err(e) => {
+                    tracing::warn!("update check failed: {e}");
+                    status(Status::Failed);
+                }
             }
-            std::thread::sleep(CHECK_EVERY);
+            due = SystemTime::now() + CHECK_EVERY;
         }
     });
+}
+
+/// Blocks the updater's thread until a check is asked for, which it returns true for, or `due`
+/// passes. Scheduled checks run with automatic updates off too, only to learn whether this
+/// version is still allowed and what's out.
+fn wait_until(due: SystemTime) -> bool {
+    let mut control = CONTROL.lock().unwrap();
+    loop {
+        if std::mem::take(&mut control.check) {
+            return true;
+        }
+        let left = due.duration_since(SystemTime::now()).unwrap_or_default();
+        if left.is_zero() {
+            return false;
+        }
+        control = WAKE.wait_timeout(control, left.min(NAP)).unwrap().0;
+    }
+}
+
+/// Settings' Check for Updates: checks right away, unless a check is running, an update is
+/// already waiting, or this copy doesn't update itself.
+pub fn check_now(s: &mut State) {
+    if !matches!(s.updater, Status::UpToDate | Status::Available(_) | Status::Failed) {
+        return;
+    }
+    if fake().is_some() {
+        return set_status(s, Status::UpToDate);
+    }
+    CONTROL.lock().unwrap().check = true;
+    WAKE.notify_all();
+}
+
+/// Settings' Automatic updates switch. Turning it on downloads what's already out.
+pub fn set_auto(s: &mut State, on: bool) {
+    s.manual_updates = !on;
+    CONTROL.lock().unwrap().auto = on;
+    if on && matches!(s.updater, Status::Available(_)) {
+        check_now(s);
+    }
+}
+
+/// This version can't go on: the library holds data only a newer one applies, or the feed says
+/// it's older than the oldest allowed. The whole window asks to update.
+pub fn too_old(s: &mut State, tx: &mut Tx) {
+    if !matches!(s.update, Update::Required(_)) {
+        tx.animated();
+        s.update = Update::Required(None);
+    }
+}
+
+fn set_status(s: &mut State, status: Status) {
+    s.updater = status;
+    crate::settings::show_updater(s);
 }
 
 /// The sidebar row: swaps the downloaded update in and restarts.
@@ -141,6 +263,9 @@ pub fn restart(s: &mut State) {
 /// in and restarts.
 pub fn update_now(s: &mut State) {
     let Some(ui) = s.backend.as_ref().map(|b| b.ui.clone()) else { return };
+    if fake().is_none() && updatable().is_none() {
+        return crate::open_browser(DOWNLOAD_PAGE);
+    }
     s.update = Update::Required(Some(0));
     if fake().is_some() {
         return update_now_fake(ui);
@@ -350,14 +475,22 @@ fn fake() -> Option<Fake> {
 /// Whether the pretend failure has happened, so the retry works.
 static FAILED_ONCE: AtomicBool = AtomicBool::new(false);
 
-fn start_fake(ui: AppHandle<State>, fake: Fake) {
+fn start_fake(s: &mut State, ui: AppHandle<State>, fake: Fake) {
+    set_status(s, Status::UpToDate);
     std::thread::spawn(move || {
         if fake != Fake::Required {
             std::thread::sleep(Duration::from_secs(3));
         }
         ui.update(move |s, tx| {
             tx.animated();
-            s.update = if fake == Fake::Required { Update::Required(None) } else { Update::Ready };
+            if fake == Fake::Required {
+                s.update = Update::Required(None);
+                return;
+            }
+            let mut next = semver::Version::parse(VERSION).expect("Cargo.toml's version is semver");
+            next.patch += 1;
+            set_status(s, Status::Ready(next.to_string()));
+            s.update = Update::Ready;
         });
     });
 }

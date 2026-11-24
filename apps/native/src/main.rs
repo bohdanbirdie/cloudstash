@@ -99,6 +99,11 @@ pub(crate) struct State {
     menu_bar: bool,
     tray: Option<tray_icon::TrayIcon>,
     update: update::Update,
+    updater: update::Status,
+    /// Automatic updates are off in Settings: the updater checks only when asked.
+    manual_updates: bool,
+    /// The dialog that asks before restarting into a downloaded update is open.
+    confirm_update: bool,
     /// The account's menu, under its name, is open.
     account_menu: bool,
 }
@@ -191,6 +196,10 @@ impl Backend {
                         Err(e) => Sync::Failed(e),
                     }
                 });
+            },
+            {
+                let ui = self.ui.clone();
+                move || ui.update(update::too_old)
             },
         ))
     }
@@ -611,6 +620,11 @@ fn main() {
                 signed_in_scene(s, Tab::Inbox);
                 s.update = update::Update::Installing;
             }),
+            ("update-confirm", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.update = update::Update::Ready;
+                s.confirm_update = true;
+            }),
             ("update-failed", |s| {
                 signed_in_scene(s, Tab::Inbox);
                 s.update = update::Update::Failed;
@@ -689,9 +703,11 @@ fn main() {
         if let Some(link) = s.early_link.take() {
             open_url(s, &link, tx);
         }
+        if !headless() {
+            update::start(s);
+        }
     });
     if !headless() {
-        update::start(backend.ui.clone());
         std::thread::spawn(move || backend.show(backend.auth.restore()));
     }
     app.run();

@@ -2,7 +2,7 @@
 //! beside the chosen page, its settings in rounded groups. It's a window of its own with its own
 //! state; the main window hands it the account when it opens, and its Sign Out runs in the main
 //! window, and so do its Theme, Dock icon and menu bar icon switches. Open at login goes to
-//! macOS's Login Items. The Updates page only changes what's shown for now.
+//! macOS's Login Items. The Updates page shows and steers the main window's updater.
 
 use rune::{
     Align, AppHandle, AppSpec, Chrome, Color, Cx, El, FontSmoothing, Icon, PopupMenu, Shadow, TextStyle, Tx, WindowHandle, WindowOptions, WindowSpec,
@@ -57,6 +57,7 @@ pub struct Settings {
     theme: Theme,
     login: Login,
     auto_update: bool,
+    updater: crate::update::Status,
     dock_icon: bool,
     menu_bar: bool,
     /// The sign-out sheet is showing.
@@ -114,7 +115,10 @@ pub fn open(s: &mut State) {
         return;
     };
     let (account, server, theme, dock_icon, menu_bar) = (account.clone(), backend.auth.base.clone(), s.theme, !s.hide_dock, s.menu_bar);
+    let (auto_update, updater) = (!s.manual_updates, s.updater.clone());
     link.ui.update(move |s, _| {
+        s.auto_update = auto_update;
+        s.updater = updater;
         s.account = Some(account);
         s.server = server;
         s.theme = theme;
@@ -138,6 +142,14 @@ pub fn set_dock_icon(s: &State, visible: bool) -> bool {
         link.ui.focus();
     }
     true
+}
+
+/// Hands the updater's progress to Settings.
+pub fn show_updater(s: &State) {
+    if let Some(link) = &s.settings {
+        let updater = s.updater.clone();
+        link.ui.update(move |s, _| s.updater = updater);
+    }
 }
 
 /// Closes Settings, as signing out does.
@@ -460,20 +472,54 @@ fn show_icons(s: &Settings) {
     }
 }
 
-/// Shown only for now: the updater is being built separately.
+/// The updater's switch and its state, with the one thing to do next: check, or restart into
+/// what's downloaded.
 fn updates(s: &Settings, l: &Look) -> El {
+    use crate::update::Status;
     let version = format!("Version {}", env!("CARGO_PKG_VERSION"));
+    let main = |f: fn(&mut State)| {
+        move |s: &mut Settings| {
+            if let Some(main) = &s.main {
+                main.update(move |s, _| f(s));
+            }
+        }
+    };
+    let check = button("check", "Check for Updates", l.fg, l);
+    let waiting = button("check", "Check for Updates", l.fg3, l).focusable(false);
+    let (detail, control) = match &s.updater {
+        Status::Off => ("This copy doesn't update itself.".to_owned(), waiting),
+        Status::UpToDate => ("You're up to date.".to_owned(), check.on_press(main(crate::update::check_now))),
+        Status::Available(next) => (format!("Version {next} is out."), button("check", "Download", l.fg, l).on_press(main(crate::update::check_now))),
+        Status::Checking => ("Checking for updates…".to_owned(), waiting),
+        Status::Downloading(next, percent) => (format!("Downloading version {next}… {percent}%"), waiting),
+        Status::Ready(next) => {
+            (format!("Version {next} is ready."), button("restart", "Restart to Update", l.fg, l).on_press(main(crate::update::restart)))
+        }
+        Status::Failed => ("Couldn't check for updates. Try again later.".to_owned(), check.on_press(main(crate::update::check_now))),
+    };
     col().w_full().child(group(
         "Cloudstash for Mac",
         vec![
             setting(
                 "auto-update",
                 "Automatic updates",
-                Some("Download and install updates in the background."),
-                switch(s.auto_update, "Automatic updates", |s| s.auto_update = !s.auto_update, l),
+                Some("Download updates in the background. You choose when to restart."),
+                locked_switch(
+                    s.auto_update,
+                    s.updater == Status::Off,
+                    "Automatic updates",
+                    |s| {
+                        s.auto_update = !s.auto_update;
+                        let on = s.auto_update;
+                        if let Some(main) = &s.main {
+                            main.update(move |s, _| crate::update::set_auto(s, on));
+                        }
+                    },
+                    l,
+                ),
                 l,
             ),
-            setting("version", &version, Some("You're up to date."), button("check", "Check for Updates", l.fg, l), l),
+            setting("version", &version, Some(&detail), control, l),
         ],
         l,
     ))

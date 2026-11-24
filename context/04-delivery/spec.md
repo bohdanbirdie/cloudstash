@@ -167,17 +167,34 @@ update. When `main` gets a version with no `native-v<version>` tag,
 signs it with the maintainer's Developer ID and hardened runtime, notarizes and
 staples it and its disk image, and publishes them as the repository's latest
 GitHub Release with an update zip and `latest.json` (version, zip address,
-Ed25519 signature). The signing certificate, notary key and update key are
+Ed25519 signature, and `minimum-version` from `Cargo.toml`'s
+`[package.metadata.cloudstash]`). The signing certificate, notary key and update key are
 secrets of the `native-release` environment, which only `main` may use; the
 update key's public half is in `src/update.rs`.
 
 Installed apps read the latest release's `latest.json` at launch and every
-four hours and download a newer version in the background. An update is
-offered only after its zip's signature verifies, its bundle id and version
-match, and `codesign` confirms the maintainer team's Developer ID; restarting
-swaps it in place with two renames, rolled back on failure. A copy that can't
-be replaced in place (translocated, read-only) doesn't check. Per
+four hours and download a newer version in the background; with Settings'
+Automatic updates off they only download when Check for Updates asks. An
+update is offered only after its zip's signature verifies, its bundle id and
+version match, and `codesign` confirms the maintainer team's Developer ID. The
+sidebar's update row asks before restarting; restarting swaps the app in place
+with two renames, rolled back on failure. A copy that can't be replaced in place
+(translocated, read-only) doesn't check. Per
 [decision 0007](./.decisions/0007-update-the-native-app-from-github-releases.md).
+
+A version too old to run shows a whole-window must-update screen, signed in or
+out, when either:
+
+- the feed's `minimum` is newer than it (the maintainer raises
+  `minimum-version` with the version when older apps would break), or
+- its library receives a newer version of an event it materializes (`v3.X`
+  beside its `v1.X` and `v2.X`). Events it doesn't materialize at all stay
+  skipped, so web-only events never block it. The finding is kept in the
+  library folder, so restarting the same version blocks again.
+
+A library folder opened by a different app version drops its state database
+first, and boot replays the eventlog, so events an older version skipped are
+applied after updating.
 
 ## Extension Delivery
 

@@ -7,8 +7,8 @@ use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rune::{
-    Color, Cursor, Cx, El, GrowthSpec, Icon, Key, KeyEvent, Live, LoopSpec, Mods, ScrollFade, ScrollSpec, Shadow, Side, SurfaceFit, TextStyle,
-    Transition, Tx, Vec2, col, el, icon, oklch, oklcha, row, text,
+    Color, Cursor, Cx, El, GrowthSpec, Icon, Key, KeyEvent, Live, LoopSpec, Mods, ScrollFade, ScrollSpec, Shadow, Side, Spring, SpringPair,
+    SurfaceFit, TextStyle, Transition, Tx, Vec2, col, el, icon, oklch, oklcha, row, text,
 };
 use rune_kit::{Kit, ScrollBar, ScrollBarStyle};
 
@@ -399,9 +399,9 @@ fn account_menu(s: &State, l: &Look) -> Option<El> {
     )
 }
 
-/// A downloaded update, above the account: one click restarts into it. A small dot where the
-/// other rows have an icon, blue, or amber once restarting has failed; a spinner while it
-/// restarts.
+/// A downloaded update, above the account: a click asks before restarting into it. A small dot
+/// where the other rows have an icon, blue, or amber once restarting has failed; a spinner while
+/// it restarts.
 fn update_row(update: Update, l: &Look) -> El {
     let dot = |c: Color| el().size(6.0, 6.0).radius(3.0).fill(c).box_shadow(Shadow { spread: 3.0, color: c.alpha(0.18), ..Shadow::default() });
     let (label, slot) = match update {
@@ -425,7 +425,79 @@ fn update_row(update: Update, l: &Look) -> El {
         .radius(8.0)
         .child(row().size(16.0, 16.0).center().child(slot))
         .child(text(label).font(font(13.5, 400.0)).color(if installing { l.fg3 } else { l.fg2 }).wrap().grow(1.0).min_w(0.0));
-    if installing { r } else { r.hover(l.hover).cursor(Cursor::Pointer).on_press(update::restart) }
+    if installing { r } else { r.hover(l.hover).cursor(Cursor::Pointer).on_press(|s: &mut State| s.confirm_update = true) }
+}
+
+/// The update dialog's springs: a quick open, a quicker close.
+const DIALOG: SpringPair = SpringPair::new(Spring::new(0.12, 0.0), Spring::new(0.08, 0.0));
+
+/// Asks before restarting into the downloaded update, since restarting closes the window. Return
+/// restarts; Escape, a click outside or Later keeps working on this version.
+fn update_dialog(s: &State, l: &Look) -> Vec<El> {
+    if !s.confirm_update || !s.update.in_sidebar() {
+        return Vec::new();
+    }
+    let button = |key: &'static str, label: &'static str, fill: Color, ink: Color| {
+        row()
+            .key(key)
+            .role("button")
+            .label(label)
+            .focusable(true)
+            .grow(1.0)
+            .h(30.0)
+            .center()
+            .radius(8.0)
+            .fill(fill)
+            .press_scale(0.97)
+            .cursor(Cursor::Pointer)
+            .child(text(label).font(font(13.0, 500.0)).color(ink))
+    };
+    let card = col()
+        .key("update-dialog")
+        .role("alertdialog")
+        .label("Restart to update?")
+        .w(320.0)
+        .padding(20.0)
+        .radius(14.0)
+        .fill(l.panel)
+        .child(text("Restart to update?").font(font(15.0, 600.0)).color(l.fg))
+        .child(
+            text("A new version of Cloudstash is ready. The app closes and opens again on it, which takes a few seconds.")
+                .font(font(13.0, 400.0).lh(19.0))
+                .color(l.fg2)
+                .wrap()
+                .mt(6.0),
+        )
+        .child(
+            row()
+                .w_full()
+                .gap(8.0)
+                .mt(18.0)
+                .child(button("update-later", "Later", l.active, l.fg).hover(l.line2).on_press(|s: &mut State| s.confirm_update = false))
+                .child(button("update-restart", "Restart", l.accent, oklch(1.0, 0.0, 0.0)).default_button().on_press(|s: &mut State| {
+                    s.confirm_update = false;
+                    update::restart(s);
+                })),
+        );
+    let card = palette::lifted(card, l).modal(true, |s: &mut State| s.confirm_update = false);
+    vec![
+        el().key("update-scrim")
+            .absolute(0.0, 0.0)
+            .w_full()
+            .h_full()
+            .backdrop_blur(4.0)
+            .fill(oklcha(0.0, 0.0, 0.0, if l.dark { 0.45 } else { 0.18 }))
+            .transition(Transition::opacity().springs(DIALOG))
+            .a11y_hidden(),
+        col()
+            .key("update-layer")
+            .absolute(0.0, 0.0)
+            .w_full()
+            .h_full()
+            .center()
+            .transition(Transition::asymmetric(Transition::scale_anchor(0.96, Vec2::new(0.5, 0.5)), Transition::opacity()).springs(DIALOG))
+            .child(card),
+    ]
 }
 
 fn toolbar(s: &State, l: &Look) -> Toolbar {
@@ -721,6 +793,7 @@ pub fn view(s: &State, account: &Account, cx: &mut Cx<State>) -> El {
         .h_full()
         .child(shell)
         .children(palette)
+        .children(update_dialog(s, &l))
         .child(fps::meter::<State>(l.fg2, l.panel, l.line2).pin(None, None, Some(20.0), Some(20.0)).paint_order(100))
 }
 
