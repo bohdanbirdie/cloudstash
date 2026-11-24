@@ -35,6 +35,7 @@
     "check:intent": "vitest run tools/intent/__tests__/intent.test.ts",
     "check:migrations": "bun scripts/check-migrations.ts",
     "check:pricing": "bun scripts/check-pricing.ts",
+    "contract": "bun scripts/livestore-event-contract.ts",
     "fix": "effect-tsgo --tsrs-lint=7.1.0-beta.tsrs3 vp check --fix",
     "prepare": "effect-language-service patch",
     "clean:local-state": "rm -rf .alchemy/local",

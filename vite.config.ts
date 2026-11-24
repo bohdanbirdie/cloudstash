@@ -76,6 +76,7 @@ const baseConfig: UserConfig = {
       "coverage",
       "readonly-llm-lookup",
       "tools/oxlint-rules/__tests__/fixtures/**",
+      "src/livestore/contract/manifest.json",
     ],
   },
   lint: {
@@ -83,6 +84,7 @@ const baseConfig: UserConfig = {
       "./tools/oxlint-rules/tailwind-cn.mjs",
       "./tools/oxlint-rules/motion.mjs",
       "./tools/oxlint-rules/anti-slop.mjs",
+      "./tools/oxlint-rules/livestore.mjs",
     ],
     plugins: [
       "eslint",
@@ -263,6 +265,12 @@ const baseConfig: UserConfig = {
               ],
             },
           ],
+        },
+      },
+      {
+        files: ["src/livestore/schema.ts"],
+        rules: {
+          "livestore/pure-materializers": "error",
         },
       },
       {

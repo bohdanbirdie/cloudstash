@@ -1,0 +1,135 @@
+name: LiveStore event gate
+
+# Deployed LiveStore events are append-only (CS.SYS.DATA-R05). This workflow
+# compares the pull request's events with the base branch's committed manifest
+# and goldens, read from git so the pull request cannot edit its own oracle.
+# A detected break needs a person's approval on the livestore-breaking-change
+# Environment. "LiveStore event gate" is the check to mark as required.
+
+on:
+  pull_request:
+    branches: [staging, main]
+
+concurrency:
+  group: livestore-event-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  contract:
+    name: Event contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      breaking: ${{ steps.contract.outputs.breaking }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The pull_request checkout is GitHub's merge commit; its first
+          # parent is the base branch commit the merge was built on.
+          fetch-depth: 2
+
+      - name: Find the base commit and changed paths
+        id: changes
+        run: |
+          git rev-parse --verify --quiet HEAD^2 >/dev/null || {
+            echo "::error::Expected the pull request merge commit; HEAD has no second parent."
+            exit 1
+          }
+          base_commit="$(git rev-parse HEAD^1)"
+          echo "base_commit=$base_commit" >> "$GITHUB_OUTPUT"
+          changed="$(git diff --name-only "$base_commit" HEAD)"
+
+          tooling="$(printf '%s\n' "$changed" | grep -E '^(\.github/workflows/livestore-event-gate\.yml|scripts/livestore-event-contract\.ts|src/livestore/contract/[^/]+\.ts|tools/oxlint-rules/livestore\.mjs|src/livestore/__tests__/fixtures/event-wire-goldens\.json)$' || true)"
+          if [ -n "$tooling" ]; then
+            {
+              echo "## ⚠️ This pull request edits the LiveStore contract tooling or goldens"
+              echo ""
+              echo "A pull request runs its own copy of this workflow, so review these files before trusting the result:"
+              echo ""
+              printf '%s\n' "$tooling" | sed 's/^/- `/; s/$/`/'
+              echo ""
+            } >> "$GITHUB_STEP_SUMMARY"
+            printf '%s\n' "$tooling" | while read -r file; do
+              echo "::warning file=$file::This pull request edits LiveStore contract tooling or goldens; review it before trusting the event gate."
+            done
+          fi
+
+          if printf '%s\n' "$changed" | grep -qE '^(src/livestore/|scripts/livestore-event-contract\.ts$|tools/oxlint-rules/livestore\.mjs$|\.github/workflows/livestore-event-gate\.yml$|package\.json$|bun\.lock$)'; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+            echo "No LiveStore paths changed; the event contract was not run." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - if: steps.changes.outputs.relevant == 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.5
+
+      - if: steps.changes.outputs.relevant == 'true'
+        uses: actions/cache@v6
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - if: steps.changes.outputs.relevant == 'true'
+        run: bun install --frozen-lockfile
+
+      - if: steps.changes.outputs.relevant == 'true'
+        id: contract
+        run: bun --bun run contract
+        env:
+          CONTRACT_BASE_REF: ${{ steps.changes.outputs.base_commit }}
+
+  approve-breaking-change:
+    name: Approve breaking LiveStore change
+    needs: contract
+    if: needs.contract.outputs.breaking == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: livestore-breaking-change
+    steps:
+      - run: echo "A required reviewer approved this breaking LiveStore change for this run."
+
+  gate:
+    name: LiveStore event gate
+    needs: [contract, approve-breaking-change]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          CONTRACT_RESULT: ${{ needs.contract.result }}
+          BREAKING: ${{ needs.contract.outputs.breaking }}
+          APPROVAL_RESULT: ${{ needs.approve-breaking-change.result }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$CONTRACT_RESULT" != "success" ]; then
+            echo "::error::The event contract job did not pass ($CONTRACT_RESULT)."
+            exit 1
+          fi
+          if [ "$BREAKING" != "true" ]; then
+            echo "No breaking changes to deployed LiveStore events."
+            exit 0
+          fi
+          if [ "$APPROVAL_RESULT" != "success" ]; then
+            echo "::error::This pull request breaks a deployed LiveStore event and was not approved ($APPROVAL_RESULT)."
+            exit 1
+          fi
+          # Fail closed: an Environment without required reviewers runs the
+          # approval job at once, so require a person's recorded approval.
+          approvals="$(curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/approvals")"
+          approvers="$(printf '%s' "$approvals" | jq -r '[.[] | select(.state == "approved" and .user.type == "User" and any(.environments[]; .name == "livestore-breaking-change")) | .user.login] | unique | join(", ")')"
+          if [ -z "$approvers" ]; then
+            echo "::error::The breaking change has no recorded approval from a required reviewer. Configure required reviewers on the livestore-breaking-change Environment and re-run."
+            exit 1
+          fi
+          echo "Breaking LiveStore change approved by $approvers." | tee -a "$GITHUB_STEP_SUMMARY"

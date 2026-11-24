@@ -70,6 +70,10 @@ semantics. This avoids mocks that can pass while real SQL/materialization fails.
 
 Wire-format tests retain prior-runtime golden eventlog rows so the Effect v4 and
 LiveStore source change cannot silently alter deployed history serialization.
+The event contract gate replays the base branch's copy of those goldens and
+compares a generated event manifest with the base branch's, so a pull request
+cannot pass by editing them; see the
+[data spec](../01-data/spec.md#event-contract-gate).
 
 ## Test Seams and Type Evidence
 

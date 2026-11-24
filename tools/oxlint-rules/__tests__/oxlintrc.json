@@ -1,7 +1,12 @@
 {
   "plugins": [],
   "categories": { "correctness": "off" },
-  "jsPlugins": ["../tailwind-cn.mjs", "../motion.mjs", "../anti-slop.mjs"],
+  "jsPlugins": [
+    "../tailwind-cn.mjs",
+    "../motion.mjs",
+    "../anti-slop.mjs",
+    "../livestore.mjs"
+  ],
   "rules": {
     "tailwind-cn/enforce-cn": "error",
     "motion/no-use-reduced-motion": "error",
@@ -9,6 +14,7 @@
     "anti-slop/no-hidden-app-layer-outputs": "error",
     "anti-slop/no-capability-recovery-after-span": "error",
     "anti-slop/no-module-mocking": "error",
-    "anti-slop/no-test-spies": "error"
+    "anti-slop/no-test-spies": "error",
+    "livestore/pure-materializers": "error"
   }
 }
