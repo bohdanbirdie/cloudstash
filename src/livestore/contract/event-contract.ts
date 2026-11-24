@@ -94,7 +94,7 @@ const decodedFields = (eventSchema: Schema.Top): JsonObject => {
     Schema.decodeUnknownSync(Representation)(json);
   const fields =
     representation.propertySignatures === undefined
-      ? { "": json.representation }
+      ? { "": json }
       : Object.fromEntries(
           representation.propertySignatures.map(({ name, type }) => [
             name.value,
