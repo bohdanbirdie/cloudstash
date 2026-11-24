@@ -12,7 +12,7 @@ mod codec;
 mod fetch;
 mod store;
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant};
@@ -30,8 +30,9 @@ const ICONS: usize = 2;
 const BACKGROUND: usize = 2;
 /// Small copies read from disk and decoded at once.
 const DISK: usize = 4;
-/// Pictures kept decoded in memory after they scroll away.
-const KEEP: usize = 120;
+/// Bytes of decoded pictures kept in memory; past it the least recently drawn go first, never
+/// one on screen.
+const MEMORY: u64 = 150 * 1024 * 1024;
 
 /// How long a download that might work later (offline, timed out) waits before it's tried again.
 const RETRY: Duration = Duration::from_secs(60);
@@ -93,8 +94,12 @@ struct Inner {
     /// Bumped by `close`, so downloads already running drop their results.
     epoch: u64,
     store: Option<Store>,
-    memory: HashMap<Request, Pixels>,
-    recent: VecDeque<Request>,
+    /// Decoded pictures, each with when it was last asked for.
+    memory: HashMap<Request, (Pixels, u64)>,
+    memory_bytes: u64,
+    uses: u64,
+    /// The pictures on screen, kept in memory whatever their age.
+    shown: HashSet<Request>,
     queue: HashMap<Request, Job>,
     running: HashMap<Request, (Rank, String)>,
     fill: Vec<Request>,
@@ -147,7 +152,7 @@ pub fn reset() {
     }
     let shown: Vec<Request> = g.memory.keys().cloned().collect();
     for req in &shown {
-        g.memory[req].set(0, 0, Vec::new());
+        g.memory[req].0.set(0, 0, Vec::new());
         g.want(req, Rank::Near);
     }
     let fill = std::mem::take(&mut g.fill);
@@ -158,17 +163,16 @@ pub fn reset() {
 /// The picture for `req`, empty until it loads, and left empty if it can't be.
 pub fn picture(req: &Request) -> Pixels {
     let mut g = inner();
-    if let Some(pixels) = g.memory.get(req) {
+    g.uses += 1;
+    let now = g.uses;
+    if let Some((pixels, used)) = g.memory.get_mut(req) {
+        *used = now;
         return pixels.clone();
     }
     let pixels = Pixels::new();
-    g.memory.insert(req.clone(), pixels.clone());
-    g.recent.push_back(req.clone());
-    if g.recent.len() > KEEP
-        && let Some(old) = g.recent.pop_front()
-    {
-        g.memory.remove(&old);
-    }
+    g.memory.insert(req.clone(), (pixels.clone(), now));
+    g.memory_bytes += decoded_bytes(req);
+    g.trim();
     if let Some(path) = g.store.as_ref().and_then(|s| s.path(req)) {
         let (target, permits) = (pixels.clone(), disk());
         runtime().spawn(async move {
@@ -207,6 +211,7 @@ pub fn visible(reqs: Vec<Request>) {
     for req in &reqs {
         g.want(req, Rank::Visible);
     }
+    g.shown = reqs.into_iter().collect();
     g.pump();
 }
 
@@ -237,7 +242,25 @@ pub fn stats() -> Stats {
     }
 }
 
+/// What a picture takes in memory decoded, at most: it's never drawn bigger than its size.
+fn decoded_bytes(req: &Request) -> u64 {
+    u64::from(req.size.0) * u64::from(req.size.1) * 4
+}
+
 impl Inner {
+    /// Drops the least recently asked-for pictures not on screen until memory fits.
+    fn trim(&mut self) {
+        while self.memory_bytes > MEMORY {
+            let Some(old) =
+                self.memory.iter().filter(|(req, _)| !self.shown.contains(*req)).min_by_key(|(_, (_, used))| *used).map(|(req, _)| req.clone())
+            else {
+                return;
+            };
+            self.memory.remove(&old);
+            self.memory_bytes -= decoded_bytes(&old);
+        }
+    }
+
     /// Neither saved, nor known to fail, nor downloading.
     fn missing(&self, req: &Request) -> bool {
         self.store.as_ref().is_some_and(|s| !s.done(req))
@@ -298,7 +321,7 @@ impl Inner {
                 Ok(m) => {
                     store.saved(req, m.ext, m.file_len);
                     self.retry.remove(req);
-                    if let Some(pixels) = self.memory.get(req) {
+                    if let Some((pixels, _)) = self.memory.get(req) {
                         pixels.set(m.width, m.height, m.rgba);
                     }
                 }
