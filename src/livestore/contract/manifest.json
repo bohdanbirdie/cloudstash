@@ -19,20 +19,22 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "completedAt": {
-            "type": "string"
+        "completedAt": {
+          "_tag": "Declaration",
+          "annotations": {
+            "expected": "a valid Date"
           },
-          "id": {
-            "type": "string"
-          }
+          "checks": [],
+          "representation": {
+            "id": "effect/schema/Date",
+            "payload": null
+          },
+          "typeParameters": []
         },
-        "required": [
-          "completedAt",
-          "id"
-        ],
-        "type": "object"
+        "id": {
+          "_tag": "String",
+          "checks": []
+        }
       },
       "scope": "synced"
     },
@@ -62,28 +64,30 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "createdAt": {
-            "type": "string"
+        "createdAt": {
+          "_tag": "Declaration",
+          "annotations": {
+            "expected": "a valid Date"
           },
-          "domain": {
-            "type": "string"
+          "checks": [],
+          "representation": {
+            "id": "effect/schema/Date",
+            "payload": null
           },
-          "id": {
-            "type": "string"
-          },
-          "url": {
-            "type": "string"
-          }
+          "typeParameters": []
         },
-        "required": [
-          "createdAt",
-          "domain",
-          "id",
-          "url"
-        ],
-        "type": "object"
+        "domain": {
+          "_tag": "String",
+          "checks": []
+        },
+        "id": {
+          "_tag": "String",
+          "checks": []
+        },
+        "url": {
+          "_tag": "String",
+          "checks": []
+        }
       },
       "scope": "synced"
     },
@@ -105,20 +109,22 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "deletedAt": {
-            "type": "string"
+        "deletedAt": {
+          "_tag": "Declaration",
+          "annotations": {
+            "expected": "a valid Date"
           },
-          "id": {
-            "type": "string"
-          }
+          "checks": [],
+          "representation": {
+            "id": "effect/schema/Date",
+            "payload": null
+          },
+          "typeParameters": []
         },
-        "required": [
-          "deletedAt",
-          "id"
-        ],
-        "type": "object"
+        "id": {
+          "_tag": "String",
+          "checks": []
+        }
       },
       "scope": "synced"
     },
@@ -148,28 +154,30 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "linkId": {
-            "type": "string"
-          },
-          "occurredAt": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string"
-          }
+        "id": {
+          "_tag": "String",
+          "checks": []
         },
-        "required": [
-          "id",
-          "linkId",
-          "occurredAt",
-          "type"
-        ],
-        "type": "object"
+        "linkId": {
+          "_tag": "String",
+          "checks": []
+        },
+        "occurredAt": {
+          "_tag": "Declaration",
+          "annotations": {
+            "expected": "a valid Date"
+          },
+          "checks": [],
+          "representation": {
+            "id": "effect/schema/Date",
+            "payload": null
+          },
+          "typeParameters": []
+        },
+        "type": {
+          "_tag": "String",
+          "checks": []
+        }
       },
       "scope": "synced"
     },
@@ -239,68 +247,82 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "favicon": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "fetchedAt": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "image": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "linkId": {
-            "type": "string"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
+        "description": {
+          "_tag": "Union",
+          "checks": [],
+          "types": [
+            {
+              "_tag": "String",
+              "checks": []
+            },
+            {
+              "_tag": "Null",
+              "checks": []
+            }
+          ]
         },
-        "required": [
-          "description",
-          "favicon",
-          "fetchedAt",
-          "id",
-          "image",
-          "linkId",
-          "title"
-        ],
-        "type": "object"
+        "favicon": {
+          "_tag": "Union",
+          "checks": [],
+          "types": [
+            {
+              "_tag": "String",
+              "checks": []
+            },
+            {
+              "_tag": "Null",
+              "checks": []
+            }
+          ]
+        },
+        "fetchedAt": {
+          "_tag": "Declaration",
+          "annotations": {
+            "expected": "a valid Date"
+          },
+          "checks": [],
+          "representation": {
+            "id": "effect/schema/Date",
+            "payload": null
+          },
+          "typeParameters": []
+        },
+        "id": {
+          "_tag": "String",
+          "checks": []
+        },
+        "image": {
+          "_tag": "Union",
+          "checks": [],
+          "types": [
+            {
+              "_tag": "String",
+              "checks": []
+            },
+            {
+              "_tag": "Null",
+              "checks": []
+            }
+          ]
+        },
+        "linkId": {
+          "_tag": "String",
+          "checks": []
+        },
+        "title": {
+          "_tag": "Union",
+          "checks": [],
+          "types": [
+            {
+              "_tag": "String",
+              "checks": []
+            },
+            {
+              "_tag": "Null",
+              "checks": []
+            }
+          ]
+        }
       },
       "scope": "synced"
     },
@@ -322,20 +344,22 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "linkId": {
-            "type": "string"
-          },
-          "updatedAt": {
-            "type": "string"
-          }
+        "linkId": {
+          "_tag": "String",
+          "checks": []
         },
-        "required": [
-          "linkId",
-          "updatedAt"
-        ],
-        "type": "object"
+        "updatedAt": {
+          "_tag": "Declaration",
+          "annotations": {
+            "expected": "a valid Date"
+          },
+          "checks": [],
+          "representation": {
+            "id": "effect/schema/Date",
+            "payload": null
+          },
+          "typeParameters": []
+        }
       },
       "scope": "synced"
     },
@@ -357,20 +381,22 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "linkId": {
-            "type": "string"
-          },
-          "updatedAt": {
-            "type": "string"
-          }
+        "linkId": {
+          "_tag": "String",
+          "checks": []
         },
-        "required": [
-          "linkId",
-          "updatedAt"
-        ],
-        "type": "object"
+        "updatedAt": {
+          "_tag": "Declaration",
+          "annotations": {
+            "expected": "a valid Date"
+          },
+          "checks": [],
+          "representation": {
+            "id": "effect/schema/Date",
+            "payload": null
+          },
+          "typeParameters": []
+        }
       },
       "scope": "synced"
     },
@@ -396,24 +422,26 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "error": {
-            "type": "string"
-          },
-          "linkId": {
-            "type": "string"
-          },
-          "updatedAt": {
-            "type": "string"
-          }
+        "error": {
+          "_tag": "String",
+          "checks": []
         },
-        "required": [
-          "error",
-          "linkId",
-          "updatedAt"
-        ],
-        "type": "object"
+        "linkId": {
+          "_tag": "String",
+          "checks": []
+        },
+        "updatedAt": {
+          "_tag": "Declaration",
+          "annotations": {
+            "expected": "a valid Date"
+          },
+          "checks": [],
+          "representation": {
+            "id": "effect/schema/Date",
+            "payload": null
+          },
+          "typeParameters": []
+        }
       },
       "scope": "synced"
     },
@@ -435,20 +463,22 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "linkId": {
-            "type": "string"
-          },
-          "updatedAt": {
-            "type": "string"
-          }
+        "linkId": {
+          "_tag": "String",
+          "checks": []
         },
-        "required": [
-          "linkId",
-          "updatedAt"
-        ],
-        "type": "object"
+        "updatedAt": {
+          "_tag": "Declaration",
+          "annotations": {
+            "expected": "a valid Date"
+          },
+          "checks": [],
+          "representation": {
+            "id": "effect/schema/Date",
+            "payload": null
+          },
+          "typeParameters": []
+        }
       },
       "scope": "synced"
     },
@@ -470,20 +500,22 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "linkId": {
-            "type": "string"
-          },
-          "requestedAt": {
-            "type": "string"
-          }
+        "linkId": {
+          "_tag": "String",
+          "checks": []
         },
-        "required": [
-          "linkId",
-          "requestedAt"
-        ],
-        "type": "object"
+        "requestedAt": {
+          "_tag": "Declaration",
+          "annotations": {
+            "expected": "a valid Date"
+          },
+          "checks": [],
+          "representation": {
+            "id": "effect/schema/Date",
+            "payload": null
+          },
+          "typeParameters": []
+        }
       },
       "scope": "synced"
     },
@@ -501,16 +533,10 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id"
-        ],
-        "type": "object"
+        "id": {
+          "_tag": "String",
+          "checks": []
+        }
       },
       "scope": "synced"
     },
@@ -532,20 +558,22 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "linkId": {
-            "type": "string"
-          },
-          "notifiedAt": {
-            "type": "string"
-          }
+        "linkId": {
+          "_tag": "String",
+          "checks": []
         },
-        "required": [
-          "linkId",
-          "notifiedAt"
-        ],
-        "type": "object"
+        "notifiedAt": {
+          "_tag": "Declaration",
+          "annotations": {
+            "expected": "a valid Date"
+          },
+          "checks": [],
+          "representation": {
+            "id": "effect/schema/Date",
+            "payload": null
+          },
+          "typeParameters": []
+        }
       },
       "scope": "synced"
     },
@@ -579,32 +607,34 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "linkId": {
-            "type": "string"
-          },
-          "model": {
-            "type": "string"
-          },
-          "summarizedAt": {
-            "type": "string"
-          },
-          "summary": {
-            "type": "string"
-          }
+        "id": {
+          "_tag": "String",
+          "checks": []
         },
-        "required": [
-          "id",
-          "linkId",
-          "model",
-          "summarizedAt",
-          "summary"
-        ],
-        "type": "object"
+        "linkId": {
+          "_tag": "String",
+          "checks": []
+        },
+        "model": {
+          "_tag": "String",
+          "checks": []
+        },
+        "summarizedAt": {
+          "_tag": "Declaration",
+          "annotations": {
+            "expected": "a valid Date"
+          },
+          "checks": [],
+          "representation": {
+            "id": "effect/schema/Date",
+            "payload": null
+          },
+          "typeParameters": []
+        },
+        "summary": {
+          "_tag": "String",
+          "checks": []
+        }
       },
       "scope": "synced"
     },
@@ -634,28 +664,30 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "createdAt": {
-            "type": "string"
+        "createdAt": {
+          "_tag": "Declaration",
+          "annotations": {
+            "expected": "a valid Date"
           },
-          "id": {
-            "type": "string"
+          "checks": [],
+          "representation": {
+            "id": "effect/schema/Date",
+            "payload": null
           },
-          "linkId": {
-            "type": "string"
-          },
-          "tagId": {
-            "type": "string"
-          }
+          "typeParameters": []
         },
-        "required": [
-          "createdAt",
-          "id",
-          "linkId",
-          "tagId"
-        ],
-        "type": "object"
+        "id": {
+          "_tag": "String",
+          "checks": []
+        },
+        "linkId": {
+          "_tag": "String",
+          "checks": []
+        },
+        "tagId": {
+          "_tag": "String",
+          "checks": []
+        }
       },
       "scope": "synced"
     },
@@ -673,16 +705,10 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id"
-        ],
-        "type": "object"
+        "id": {
+          "_tag": "String",
+          "checks": []
+        }
       },
       "scope": "synced"
     },
@@ -700,16 +726,10 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id"
-        ],
-        "type": "object"
+        "id": {
+          "_tag": "String",
+          "checks": []
+        }
       },
       "scope": "synced"
     },
@@ -751,40 +771,30 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "createdAt": {
-            "type": "string"
+        "createdAt": {
+          "_tag": "Declaration",
+          "annotations": {
+            "expected": "a valid Date"
           },
-          "id": {
-            "type": "string"
+          "checks": [],
+          "representation": {
+            "id": "effect/schema/Date",
+            "payload": null
           },
-          "name": {
-            "type": "string"
-          },
-          "sortOrder": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "enum": [
-                  "Infinity",
-                  "-Infinity",
-                  "NaN"
-                ],
-                "type": "string"
-              }
-            ]
-          }
+          "typeParameters": []
         },
-        "required": [
-          "createdAt",
-          "id",
-          "name",
-          "sortOrder"
-        ],
-        "type": "object"
+        "id": {
+          "_tag": "String",
+          "checks": []
+        },
+        "name": {
+          "_tag": "String",
+          "checks": []
+        },
+        "sortOrder": {
+          "_tag": "Number",
+          "checks": []
+        }
       },
       "scope": "synced"
     },
@@ -806,20 +816,22 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "deletedAt": {
-            "type": "string"
+        "deletedAt": {
+          "_tag": "Declaration",
+          "annotations": {
+            "expected": "a valid Date"
           },
-          "id": {
-            "type": "string"
-          }
+          "checks": [],
+          "representation": {
+            "id": "effect/schema/Date",
+            "payload": null
+          },
+          "typeParameters": []
         },
-        "required": [
-          "deletedAt",
-          "id"
-        ],
-        "type": "object"
+        "id": {
+          "_tag": "String",
+          "checks": []
+        }
       },
       "scope": "synced"
     },
@@ -841,20 +853,14 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          }
+        "id": {
+          "_tag": "String",
+          "checks": []
         },
-        "required": [
-          "id",
-          "name"
-        ],
-        "type": "object"
+        "name": {
+          "_tag": "String",
+          "checks": []
+        }
       },
       "scope": "synced"
     },
@@ -888,32 +894,14 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "sortOrder": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "enum": [
-                  "Infinity",
-                  "-Infinity",
-                  "NaN"
-                ],
-                "type": "string"
-              }
-            ]
-          }
+        "id": {
+          "_tag": "String",
+          "checks": []
         },
-        "required": [
-          "id",
-          "sortOrder"
-        ],
-        "type": "object"
+        "sortOrder": {
+          "_tag": "Number",
+          "checks": []
+        }
       },
       "scope": "synced"
     },
@@ -958,43 +946,48 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "linkId": {
-            "type": "string"
-          },
-          "model": {
-            "type": "string"
-          },
-          "suggestedAt": {
-            "type": "string"
-          },
-          "suggestedName": {
-            "type": "string"
-          },
-          "tagId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
+        "id": {
+          "_tag": "String",
+          "checks": []
         },
-        "required": [
-          "id",
-          "linkId",
-          "model",
-          "suggestedAt",
-          "suggestedName",
-          "tagId"
-        ],
-        "type": "object"
+        "linkId": {
+          "_tag": "String",
+          "checks": []
+        },
+        "model": {
+          "_tag": "String",
+          "checks": []
+        },
+        "suggestedAt": {
+          "_tag": "Declaration",
+          "annotations": {
+            "expected": "a valid Date"
+          },
+          "checks": [],
+          "representation": {
+            "id": "effect/schema/Date",
+            "payload": null
+          },
+          "typeParameters": []
+        },
+        "suggestedName": {
+          "_tag": "String",
+          "checks": []
+        },
+        "tagId": {
+          "_tag": "Union",
+          "checks": [],
+          "types": [
+            {
+              "_tag": "String",
+              "checks": []
+            },
+            {
+              "_tag": "Null",
+              "checks": []
+            }
+          ]
+        }
       },
       "scope": "synced"
     },
@@ -1012,16 +1005,10 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id"
-        ],
-        "type": "object"
+        "id": {
+          "_tag": "String",
+          "checks": []
+        }
       },
       "scope": "synced"
     },
@@ -1039,16 +1026,10 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id"
-        ],
-        "type": "object"
+        "id": {
+          "_tag": "String",
+          "checks": []
+        }
       },
       "scope": "synced"
     },
@@ -1078,28 +1059,30 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "contentMd": {
-            "type": "string"
-          },
-          "generatedAt": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "period": {
-            "type": "string"
-          }
+        "contentMd": {
+          "_tag": "String",
+          "checks": []
         },
-        "required": [
-          "contentMd",
-          "generatedAt",
-          "id",
-          "period"
-        ],
-        "type": "object"
+        "generatedAt": {
+          "_tag": "Declaration",
+          "annotations": {
+            "expected": "a valid Date"
+          },
+          "checks": [],
+          "representation": {
+            "id": "effect/schema/Date",
+            "payload": null
+          },
+          "typeParameters": []
+        },
+        "id": {
+          "_tag": "String",
+          "checks": []
+        },
+        "period": {
+          "_tag": "String",
+          "checks": []
+        }
       },
       "scope": "synced"
     },
@@ -1144,43 +1127,48 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "createdAt": {
-            "type": "string"
+        "createdAt": {
+          "_tag": "Declaration",
+          "annotations": {
+            "expected": "a valid Date"
           },
-          "domain": {
-            "type": "string"
+          "checks": [],
+          "representation": {
+            "id": "effect/schema/Date",
+            "payload": null
           },
-          "id": {
-            "type": "string"
-          },
-          "source": {
-            "type": "string"
-          },
-          "sourceMeta": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "url": {
-            "type": "string"
-          }
+          "typeParameters": []
         },
-        "required": [
-          "createdAt",
-          "domain",
-          "id",
-          "source",
-          "sourceMeta",
-          "url"
-        ],
-        "type": "object"
+        "domain": {
+          "_tag": "String",
+          "checks": []
+        },
+        "id": {
+          "_tag": "String",
+          "checks": []
+        },
+        "source": {
+          "_tag": "String",
+          "checks": []
+        },
+        "sourceMeta": {
+          "_tag": "Union",
+          "checks": [],
+          "types": [
+            {
+              "_tag": "String",
+              "checks": []
+            },
+            {
+              "_tag": "Null",
+              "checks": []
+            }
+          ]
+        },
+        "url": {
+          "_tag": "String",
+          "checks": []
+        }
       },
       "scope": "synced"
     },
@@ -1202,20 +1190,14 @@
         "type": "object"
       },
       "decoded": {
-        "additionalProperties": true,
-        "properties": {
-          "linkId": {
-            "type": "string"
-          },
-          "tagId": {
-            "type": "string"
-          }
+        "linkId": {
+          "_tag": "String",
+          "checks": []
         },
-        "required": [
-          "linkId",
-          "tagId"
-        ],
-        "type": "object"
+        "tagId": {
+          "_tag": "String",
+          "checks": []
+        }
       },
       "scope": "synced"
     }

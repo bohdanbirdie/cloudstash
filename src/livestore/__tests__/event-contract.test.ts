@@ -142,26 +142,15 @@ describe("compareManifests", () => {
   it("fails a field that keeps its wire shape but decodes differently", () => {
     const linkCreated = base.events["v2.LinkCreated"];
     if (linkCreated === undefined) throw new Error("v2.LinkCreated is missing");
-    const decodedFields = Schema.decodeUnknownSync(
-      Schema.Struct({
-        properties: Schema.Record(Schema.String, Schema.Unknown),
-      })
-    )(linkCreated.decoded).properties;
     const head = withEvents({
       ...base.events,
       "v2.LinkCreated": {
         ...linkCreated,
-        decoded: {
-          ...linkCreated.decoded,
-          properties: {
-            ...decodedFields,
-            source: { type: "string", enum: ["app", "raycast"] },
-          },
-        },
+        decoded: { ...linkCreated.decoded, source: { _tag: "Literal" } },
       },
     });
     expect(compareManifests(base, head).breaks).toEqual([
-      'v2.LinkCreated: field `source` keeps its wire shape but decodes differently, from {"type":"string"} to {"enum":["app","raycast"],"type":"string"}, so old events may no longer decode',
+      'v2.LinkCreated: field `source` keeps its wire shape but decodes differently, from {"_tag":"String","checks":[]} to {"_tag":"Literal"}, so old events may no longer decode',
     ]);
   });
 

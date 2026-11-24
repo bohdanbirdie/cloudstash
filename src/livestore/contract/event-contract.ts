@@ -1,4 +1,4 @@
-import { Cause, Exit, Option, Schema } from "effect";
+import { Cause, Exit, Option, Schema, SchemaRepresentation } from "effect";
 
 import { schema, tables } from "../schema";
 
@@ -72,9 +72,46 @@ const jsonSchemaOf = (side: Schema.Top) => {
     : { ...args, $defs: document.definitions };
 };
 
+const Representation = Schema.Struct({
+  representation: Schema.Struct({
+    propertySignatures: Schema.optionalKey(
+      Schema.Array(
+        Schema.Struct({
+          name: Schema.Struct({ value: Schema.String }),
+          type: Schema.Unknown,
+        })
+      )
+    ),
+  }),
+  references: JsonObject,
+});
+
+const decodedFields = (eventSchema: Schema.Top): JsonObject => {
+  const json = SchemaRepresentation.toJson(
+    SchemaRepresentation.toRepresentation(Schema.toType(eventSchema).ast)
+  );
+  const { representation, references } =
+    Schema.decodeUnknownSync(Representation)(json);
+  const fields =
+    representation.propertySignatures === undefined
+      ? { "": json.representation }
+      : Object.fromEntries(
+          representation.propertySignatures.map(({ name, type }) => [
+            name.value,
+            type,
+          ])
+        );
+  return Object.keys(references).length === 0
+    ? fields
+    : { ...fields, $references: references };
+};
+
 const SqlDefault = Schema.Struct({ sql: Schema.String });
 
-const columnDefault = (columnSchema: Schema.Top, value: unknown) => {
+const columnDefault = (
+  columnSchema: Schema.ConstraintEncoder<unknown>,
+  value: unknown
+) => {
   if (typeof value === "function") return { thunk: true };
   if (Schema.is(SqlDefault)(value)) return { sql: value.sql };
   return Schema.encodeUnknownSync(columnSchema)(value);
@@ -89,7 +126,7 @@ export const buildManifest = (): Manifest => ({
       {
         scope: def.options.clientOnly ? "clientOnly" : "synced",
         args: jsonSchemaOf(Schema.toEncoded(def.schema)),
-        decoded: jsonSchemaOf(Schema.toType(def.schema)),
+        decoded: decodedFields(def.schema),
       },
     ])
   ),
@@ -189,15 +226,15 @@ const decodedChanges = (
   base: Manifest["events"][string],
   head: Manifest["events"][string]
 ) => {
-  const fields = (args: JsonObject) =>
+  const fields = (args: JsonObject): JsonObject =>
     Option.match(Schema.decodeUnknownOption(ObjectArgs)(args), {
       onNone: () => ({ "": args }),
       onSome: (object) => object.properties,
     });
   const baseEncoded = fields(base.args);
   const headEncoded = fields(head.args);
-  const baseDecoded = fields(base.decoded);
-  const headDecoded = fields(head.decoded);
+  const baseDecoded = base.decoded;
+  const headDecoded = head.decoded;
   return Object.keys(baseDecoded)
     .toSorted(byCodeUnit)
     .filter(
@@ -208,7 +245,7 @@ const decodedChanges = (
         canonicalJson(baseDecoded[field]) !== canonicalJson(headDecoded[field])
     )
     .map((field) =>
-      field === ""
+      field === "" || field === "$references"
         ? `${event}: its arguments decode to a different type`
         : `${event}: field \`${field}\` keeps its wire shape but decodes differently, from ${canonicalJson(baseDecoded[field])} to ${canonicalJson(headDecoded[field])}, so old events may no longer decode`
     );
