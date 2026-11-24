@@ -9,6 +9,9 @@ export default defineConfig({
     tsconfigPaths: true,
   },
   test: {
+    deps: {
+      interopDefault: false,
+    },
     include: [
       "src/cf-worker/**/__tests__/**/*.test.ts",
       "src/components/**/__tests__/**/*.test.ts",
