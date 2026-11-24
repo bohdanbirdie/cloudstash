@@ -36,6 +36,11 @@ pub struct PaneState {
     /// Closed by its toggle with the pointer still on it: resting there doesn't peek until the
     /// pointer has left the toggle once.
     toggle_quiet: bool,
+    /// Something opened from the pane floats over the window (a menu): a peek stays while it's
+    /// open, even once the pointer leaves the pane or the window loses focus.
+    held: bool,
+    /// The pointer is over the peek's hold: the peeking sidebar and the margin around it.
+    in_hold: bool,
 }
 
 /// Where a pull past the minimum taps the trackpad, closer together the harder it pulls.
@@ -100,6 +105,8 @@ impl PaneState {
             drag_collapsed: false,
             stretch: 0.0,
             edge_hovered: false,
+            held: false,
+            in_hold: false,
             toggle_quiet: false,
         };
         p.clamp();
@@ -227,6 +234,35 @@ impl PaneState {
     pub fn end_peek(&mut self) {
         if self.is_peeking() {
             self.dock = Dock::Closed(ClosedPeek::Left);
+            self.in_hold = false;
+        }
+    }
+    /// Keeps a peek showing while something opened from the pane floats over the window, such as
+    /// a menu: leaving the pane or the window losing focus doesn't end it meanwhile.
+    pub fn hold_peek(&mut self) {
+        self.held = true;
+    }
+    /// Lets go of a held peek. It stays while the pointer is over the pane, as after a click in it
+    /// or on the menu, and slides away when the pointer is elsewhere, as after a click outside.
+    pub fn release_peek(&mut self) {
+        self.held = false;
+        if !self.in_hold {
+            self.end_peek();
+        }
+    }
+    /// The pointer entered the peek's hold.
+    pub(super) fn enter_hold(&mut self) {
+        self.in_hold = true;
+    }
+    /// The pointer left the peek's hold: the peek ends, unless it's held.
+    pub(super) fn leave_hold(&mut self) {
+        self.in_hold = false;
+        self.blur_peek();
+    }
+    /// The window lost focus: the peek ends, unless it's held.
+    pub(super) fn blur_peek(&mut self) {
+        if !self.held {
+            self.end_peek();
         }
     }
     /// Shows the closed sidebar as a peek, over the content.
@@ -567,6 +603,27 @@ mod tests {
         p.leave_toggle();
         p.rest_on_toggle();
         assert!(p.is_peeking());
+    }
+
+    #[test]
+    fn a_held_peek_ends_on_release_only_with_the_pointer_away() {
+        let mut p = PaneState::new(240.0);
+        p.set_open(false);
+        p.peek();
+        p.enter_hold();
+        p.hold_peek();
+        p.blur_peek();
+        assert!(p.is_peeking(), "a menu open from the pane keeps it through a blur");
+        p.release_peek();
+        assert!(p.is_peeking(), "a click in the pane or its menu keeps it");
+        p.hold_peek();
+        p.leave_hold();
+        assert!(p.is_peeking(), "and through the pointer leaving");
+        p.release_peek();
+        assert!(!p.is_peeking(), "a click away from it ends it");
+        p.peek();
+        p.blur_peek();
+        assert!(!p.is_peeking(), "unheld, a blur ends it");
     }
 
     #[test]

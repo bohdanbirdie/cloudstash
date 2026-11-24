@@ -36,6 +36,7 @@ The native shell's sidebar (`src/shell.rs`, on the rune-kit fork in `src/shell_k
 - A light backdrop dims the window behind it, Linear-style: 6% black in light mode and 30% in dark. It fades in over 0.2 s.
 - The card is drawn only during a peek, so a normal collapse doesn't flash grey.
 - After you close the sidebar with the toggle, hovering the toggle doesn't peek it until the pointer has left the toggle once.
+- While a menu opened from the peeking sidebar is open (the account menu), the peek stays, even when the pointer leaves it or the window loses focus. Closing the menu keeps the peek when the pointer is over the sidebar or the menu (picking an item, clicking the sidebar), as Linear does, and ends it when the click was elsewhere. The menu goes in `SplitView::sidebar_floater` as a modal: placed after the content and before the peek's hold, its modal swallows every press outside it while the hold keeps tracking the pointer, so the sidebar itself knows on release whether the pointer is over it. Escape follows the same rule.
 
 ## Header and layout
 
