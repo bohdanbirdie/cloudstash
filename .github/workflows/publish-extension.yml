@@ -14,21 +14,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "25"
-
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.5
 
       - run: bun install --frozen-lockfile
 
-      - run: bun --cwd apps/extension run postinstall
+      - run: bun --bun --cwd apps/extension run postinstall
 
       - name: Build and zip
         working-directory: apps/extension
-        run: bun run zip
+        run: bun --bun run zip
 
       - name: Upload zip artifact
         uses: actions/upload-artifact@v4
@@ -47,7 +43,7 @@ jobs:
             exit 1
           fi
           echo "Submitting $ZIP"
-          bunx wxt submit --chrome-api-version v2 --chrome-zip "$ZIP"
+          bunx --bun wxt submit --chrome-api-version v2 --chrome-zip "$ZIP"
         env:
           CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
           CHROME_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
