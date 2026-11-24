@@ -56,17 +56,9 @@ export const Route = createFileRoute("/login")({
   component: LoginPage,
 });
 
-export function LoginSurface({
-  heading = "Sign in to Cloudstash",
-  onContinue,
-  privacyLink,
-  termsLink,
-}: {
-  heading?: string;
-  onContinue: () => void;
-  privacyLink: ReactNode;
-  termsLink: ReactNode;
-}) {
+// The two-panel card every sign-in surface shares: content on the left, the
+// brand panel on the right.
+export function AuthSplitCard({ children }: { children: ReactNode }) {
   return (
     <main className="grid min-h-svh place-items-center bg-muted/30 p-5 md:p-10">
       <div className="grid w-full max-w-3xl overflow-hidden rounded-lg bg-card ring-1 ring-foreground/10 md:min-h-[28rem] md:grid-cols-[1.15fr_0.85fr]">
@@ -75,18 +67,7 @@ export function LoginSurface({
             <div className="md:hidden">
               <BrandLockup className="mb-7" />
             </div>
-            <header className="text-start">
-              <h1 className="text-xl font-semibold tracking-tight text-balance">
-                {heading}
-              </h1>
-              <p className="mt-2 text-xs/relaxed text-muted-foreground text-pretty">
-                Access your saved links from anywhere.
-              </p>
-            </header>
-            <GoogleButton className="mt-6" onClick={onContinue} />
-            <p className="mt-5 text-start text-[0.6875rem]/relaxed text-muted-foreground [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary">
-              By continuing, you agree to our {termsLink} and {privacyLink}.
-            </p>
+            {children}
           </div>
         </section>
         <aside
@@ -105,6 +86,35 @@ export function LoginSurface({
         </aside>
       </div>
     </main>
+  );
+}
+
+export function LoginSurface({
+  heading = "Sign in to Cloudstash",
+  onContinue,
+  privacyLink,
+  termsLink,
+}: {
+  heading?: string;
+  onContinue: () => void;
+  privacyLink: ReactNode;
+  termsLink: ReactNode;
+}) {
+  return (
+    <AuthSplitCard>
+      <header className="text-start">
+        <h1 className="text-xl font-semibold tracking-tight text-balance">
+          {heading}
+        </h1>
+        <p className="mt-2 text-xs/relaxed text-muted-foreground text-pretty">
+          Access your saved links from anywhere.
+        </p>
+      </header>
+      <GoogleButton className="mt-6" onClick={onContinue} />
+      <p className="mt-5 text-start text-[0.6875rem]/relaxed text-muted-foreground [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary">
+        By continuing, you agree to our {termsLink} and {privacyLink}.
+      </p>
+    </AuthSplitCard>
   );
 }
 

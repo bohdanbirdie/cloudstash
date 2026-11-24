@@ -1,0 +1,441 @@
+{
+  "about": "Save links, add metadata and a summary, open, complete, archive and restore them. Includes the old v1.LinkCreated and a duplicate URL, which is ignored.",
+  "steps": [
+    {
+      "event": "v2.LinkCreated",
+      "args": {
+        "createdAt": "2026-01-01T09:30:00.000Z",
+        "domain": "example.com",
+        "id": "link-a",
+        "source": "app",
+        "sourceMeta": null,
+        "url": "https://example.com/a"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-a",
+            "url": "https://example.com/a",
+            "domain": "example.com",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1767259800000,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v2.LinkCreated",
+      "args": {
+        "createdAt": "2026-01-04T09:30:03.103Z",
+        "domain": "example.com",
+        "id": "link-r",
+        "source": "raycast",
+        "sourceMeta": "{\"deeplink\":\"raycast://x\"}",
+        "url": "https://example.com/r"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-a",
+            "url": "https://example.com/a",
+            "domain": "example.com",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1767259800000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "link-r",
+            "url": "https://example.com/r",
+            "domain": "example.com",
+            "status": "unread",
+            "source": "raycast",
+            "sourceMeta": "{\"deeplink\":\"raycast://x\"}",
+            "createdAt": 1767519003103,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkCreated",
+      "args": {
+        "createdAt": "2026-01-02T09:30:00.000Z",
+        "domain": "example.org",
+        "id": "link-b",
+        "url": "https://example.org/b"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-a",
+            "url": "https://example.com/a",
+            "domain": "example.com",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1767259800000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "link-b",
+            "url": "https://example.org/b",
+            "domain": "example.org",
+            "status": "unread",
+            "source": null,
+            "sourceMeta": null,
+            "createdAt": 1767346200000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "link-r",
+            "url": "https://example.com/r",
+            "domain": "example.com",
+            "status": "unread",
+            "source": "raycast",
+            "sourceMeta": "{\"deeplink\":\"raycast://x\"}",
+            "createdAt": 1767519003103,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkCreated",
+      "args": {
+        "createdAt": "2026-01-03T09:30:00.000Z",
+        "domain": "example.com",
+        "id": "link-dup",
+        "url": "https://example.com/a"
+      },
+      "expect": {}
+    },
+    {
+      "event": "v1.LinkMetadataFetched",
+      "args": {
+        "description": "A \"quoted\" description — with unicode ✓ and emoji 🎯",
+        "favicon": "https://example.com/favicon.ico",
+        "fetchedAt": "2026-01-04T09:30:00.000Z",
+        "id": "snap-a",
+        "image": "https://example.com/a.png",
+        "linkId": "link-a",
+        "title": "Canvas notes"
+      },
+      "expect": {
+        "link_snapshots": [
+          {
+            "id": "snap-a",
+            "linkId": "link-a",
+            "title": "Canvas notes",
+            "description": "A \"quoted\" description — with unicode ✓ and emoji 🎯",
+            "image": "https://example.com/a.png",
+            "favicon": "https://example.com/favicon.ico",
+            "fetchedAt": 1767519000000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkMetadataFetched",
+      "args": {
+        "description": null,
+        "favicon": null,
+        "fetchedAt": "2026-01-05T09:30:00.000Z",
+        "id": "snap-b",
+        "image": null,
+        "linkId": "link-b",
+        "title": null
+      },
+      "expect": {
+        "link_snapshots": [
+          {
+            "id": "snap-a",
+            "linkId": "link-a",
+            "title": "Canvas notes",
+            "description": "A \"quoted\" description — with unicode ✓ and emoji 🎯",
+            "image": "https://example.com/a.png",
+            "favicon": "https://example.com/favicon.ico",
+            "fetchedAt": 1767519000000
+          },
+          {
+            "id": "snap-b",
+            "linkId": "link-b",
+            "title": null,
+            "description": null,
+            "image": null,
+            "favicon": null,
+            "fetchedAt": 1767605400000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkSummarized",
+      "args": {
+        "id": "sum-a",
+        "linkId": "link-a",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "summarizedAt": "2026-01-06T09:30:00.000Z",
+        "summary": "A summary.\nOn two lines."
+      },
+      "expect": {
+        "link_summaries": [
+          {
+            "id": "sum-a",
+            "linkId": "link-a",
+            "summary": "A summary.\nOn two lines.",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "summarizedAt": 1767691800000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkInteracted",
+      "args": {
+        "id": "open-a",
+        "linkId": "link-a",
+        "occurredAt": "2026-01-07T09:30:00.000Z",
+        "type": "open"
+      },
+      "expect": {
+        "link_interactions": [
+          {
+            "id": "open-a",
+            "linkId": "link-a",
+            "type": "open",
+            "occurredAt": 1767778200000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkCompleted",
+      "args": {
+        "completedAt": "2026-01-08T09:30:00.000Z",
+        "id": "link-a"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-a",
+            "url": "https://example.com/a",
+            "domain": "example.com",
+            "status": "completed",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1767259800000,
+            "completedAt": 1767864600000,
+            "deletedAt": null
+          },
+          {
+            "id": "link-b",
+            "url": "https://example.org/b",
+            "domain": "example.org",
+            "status": "unread",
+            "source": null,
+            "sourceMeta": null,
+            "createdAt": 1767346200000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "link-r",
+            "url": "https://example.com/r",
+            "domain": "example.com",
+            "status": "unread",
+            "source": "raycast",
+            "sourceMeta": "{\"deeplink\":\"raycast://x\"}",
+            "createdAt": 1767519003103,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkUncompleted",
+      "args": {
+        "id": "link-a"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-a",
+            "url": "https://example.com/a",
+            "domain": "example.com",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1767259800000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "link-b",
+            "url": "https://example.org/b",
+            "domain": "example.org",
+            "status": "unread",
+            "source": null,
+            "sourceMeta": null,
+            "createdAt": 1767346200000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "link-r",
+            "url": "https://example.com/r",
+            "domain": "example.com",
+            "status": "unread",
+            "source": "raycast",
+            "sourceMeta": "{\"deeplink\":\"raycast://x\"}",
+            "createdAt": 1767519003103,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkCompleted",
+      "args": {
+        "completedAt": "2026-01-09T09:30:00.000Z",
+        "id": "link-b"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-a",
+            "url": "https://example.com/a",
+            "domain": "example.com",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1767259800000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "link-b",
+            "url": "https://example.org/b",
+            "domain": "example.org",
+            "status": "completed",
+            "source": null,
+            "sourceMeta": null,
+            "createdAt": 1767346200000,
+            "completedAt": 1767951000000,
+            "deletedAt": null
+          },
+          {
+            "id": "link-r",
+            "url": "https://example.com/r",
+            "domain": "example.com",
+            "status": "unread",
+            "source": "raycast",
+            "sourceMeta": "{\"deeplink\":\"raycast://x\"}",
+            "createdAt": 1767519003103,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkDeleted",
+      "args": {
+        "deletedAt": "2026-01-10T09:30:00.000Z",
+        "id": "link-b"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-a",
+            "url": "https://example.com/a",
+            "domain": "example.com",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1767259800000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "link-b",
+            "url": "https://example.org/b",
+            "domain": "example.org",
+            "status": "completed",
+            "source": null,
+            "sourceMeta": null,
+            "createdAt": 1767346200000,
+            "completedAt": 1767951000000,
+            "deletedAt": 1768037400000
+          },
+          {
+            "id": "link-r",
+            "url": "https://example.com/r",
+            "domain": "example.com",
+            "status": "unread",
+            "source": "raycast",
+            "sourceMeta": "{\"deeplink\":\"raycast://x\"}",
+            "createdAt": 1767519003103,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkRestored",
+      "args": {
+        "id": "link-b"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-a",
+            "url": "https://example.com/a",
+            "domain": "example.com",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1767259800000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "link-b",
+            "url": "https://example.org/b",
+            "domain": "example.org",
+            "status": "completed",
+            "source": null,
+            "sourceMeta": null,
+            "createdAt": 1767346200000,
+            "completedAt": 1767951000000,
+            "deletedAt": null
+          },
+          {
+            "id": "link-r",
+            "url": "https://example.com/r",
+            "domain": "example.com",
+            "status": "unread",
+            "source": "raycast",
+            "sourceMeta": "{\"deeplink\":\"raycast://x\"}",
+            "createdAt": 1767519003103,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    }
+  ]
+}

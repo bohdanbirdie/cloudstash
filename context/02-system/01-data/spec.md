@@ -64,6 +64,64 @@ changes. Insert materializers use `.onConflict(..., "ignore")` where the same
 event may be re-applied during rebase. See
 [PR #55](https://github.com/bohdanbirdie/cloudstash/pull/55).
 
+### LiveStore contract
+
+`tools/livestore-contract` (run it with `bun run contract`, which also rewrites
+the generated files to commit) checks that deployed events keep loading and keep doing the same thing:
+
+- **Scenarios** (`scenarios/*.json`) are readable stories of events with their
+  wire args. `bun run contract` records, after each step, every table the step
+  changed with all its rows. Every event must appear in a scenario, and a
+  scenario must give the same tables when played twice.
+- **The schema snapshot** (`schema.json`) is generated: every event's name,
+  scope, and field shapes (as encoded on the wire and as decoded), plus every
+  table's columns, defaults, and indexes.
+
+The check reads both from the base branch with `git show`, never from the
+pull request, and fails when this code:
+
+- plays a base scenario differently: an event or its args no longer decode,
+  re-encode differently, or a step writes different rows;
+- removes or renames a base event, changes its scope, removes a field, adds a
+  required field, turns a field optional or required, or changes a field's
+  encoded or decoded type. New events and new optional fields pass.
+
+A failure in a scenario of the pull request's own means its code or args need
+fixing. A break against the base means a deployed event changed: restore it and
+add a new version (`v1.X` → `v2.X`), or, when the break is deliberate, ask the
+maintainer.
+
+Table changes are reported but not gated, because they rebuild every replica,
+including each `LinkProcessorDO`. When the base has no snapshot yet, nothing is
+compared and the run says so; once it has one, deleting the files in a pull
+request does not skip the check.
+
+`apps/native` replays the same scenarios through its materializers and must
+write the same rows in the tables it keeps. The
+[`LiveStore contract`](../../../.github/workflows/livestore-contract.yml)
+workflow runs both on pull requests into `staging` and `main`, using the merge
+commit's first parent as the base, and re-runs when a pull request's base
+changes. A detected break passes only after a required reviewer approves the
+`livestore-breaking-change` Environment for that run, per
+[decision 0002](./.decisions/0002-approve-breaking-event-changes-through-an-environment.md);
+the scenario design is [decision 0003](./.decisions/0003-check-events-with-scenarios-from-the-base-branch.md).
+
+The `livestore/pure-materializers` lint rule rejects `Date.now`, `Date()`,
+argument-less `new Date()`, `Math.random`, `crypto.randomUUID`, and `nanoid()`
+inside the materializers in `schema.ts` (`CS.SYS.DATA-R03`).
+
+Known limits:
+
+- a pull request runs its own copy of the workflow and tool, so the workflow
+  flags edits to them (and to `package.json` and `bunfig.toml`) for review
+  rather than preventing them;
+- the baseline is what is committed on the base branch, which this check keeps
+  fresh; a schema change merged without it would leave a stale baseline;
+- a scenario only proves the values it uses: a schema that newly rejects a value
+  no scenario contains is caught only through the snapshot;
+- a break approved on `staging` is approved again on the `main` promotion pull
+  request.
+
 ## Query Projection
 
 Latest snapshot/summary queries select the newest timestamped child record.

@@ -107,7 +107,7 @@ export const handleExchangeRequest = Effect.fn(
   return { apiKey: key };
 });
 
-const makeLiveLayer = (env: Env) =>
+export const makeLiveLayer = (env: Env) =>
   Layer.mergeAll(
     Layer.effect(
       SessionProvider,

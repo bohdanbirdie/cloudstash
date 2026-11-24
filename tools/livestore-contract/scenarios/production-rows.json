@@ -1,0 +1,189 @@
+{
+  "about": "Real eventlog rows written by production (Effect v3, June 2026), one earliest row per event type, replayed in their original order. Their args are byte-for-byte what is stored on the server.",
+  "steps": [
+    {
+      "event": "v2.LinkCreated",
+      "args": {
+        "createdAt": "2026-06-24T12:45:27.136Z",
+        "domain": "www.typeonce.dev",
+        "id": "941ff392-4dd3-4e02-bb2c-a1d4bc4c6428",
+        "source": "app",
+        "sourceMeta": null,
+        "url": "https://www.typeonce.dev/course/effect-beginners-complete-getting-started"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "941ff392-4dd3-4e02-bb2c-a1d4bc4c6428",
+            "url": "https://www.typeonce.dev/course/effect-beginners-complete-getting-started",
+            "domain": "www.typeonce.dev",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1782305127136,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkProcessingStarted",
+      "args": {
+        "linkId": "941ff392-4dd3-4e02-bb2c-a1d4bc4c6428",
+        "updatedAt": "2026-06-24T12:45:27.421Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "941ff392-4dd3-4e02-bb2c-a1d4bc4c6428",
+            "status": "pending",
+            "error": null,
+            "notified": 0,
+            "updatedAt": 1782305127421
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkMetadataFetched",
+      "args": {
+        "description": "Build production and type-safe Typescript apps with Effect. In this course we go from no knowledge of effect to implementing an API request with Runtime, Layer, Config, and more.",
+        "favicon": "https://www.typeonce.dev/icon.png?icon.0ew7~7uhfeojo.png",
+        "fetchedAt": "2026-06-24T12:45:27.478Z",
+        "id": "66857827-6573-4adb-b3d9-9edc5355f9b7",
+        "image": "https://www.typeonce.dev/static/images/course/effect-beginners-complete-getting-started.webp",
+        "linkId": "941ff392-4dd3-4e02-bb2c-a1d4bc4c6428",
+        "title": "Effect: Beginners Complete Getting Started"
+      },
+      "expect": {
+        "link_snapshots": [
+          {
+            "id": "66857827-6573-4adb-b3d9-9edc5355f9b7",
+            "linkId": "941ff392-4dd3-4e02-bb2c-a1d4bc4c6428",
+            "title": "Effect: Beginners Complete Getting Started",
+            "description": "Build production and type-safe Typescript apps with Effect. In this course we go from no knowledge of effect to implementing an API request with Runtime, Layer, Config, and more.",
+            "image": "https://www.typeonce.dev/static/images/course/effect-beginners-complete-getting-started.webp",
+            "favicon": "https://www.typeonce.dev/icon.png?icon.0ew7~7uhfeojo.png",
+            "fetchedAt": 1782305127478
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkSummarized",
+      "args": {
+        "id": "Ry53gg_YCEwrNV_kh2Dt4",
+        "linkId": "941ff392-4dd3-4e02-bb2c-a1d4bc4c6428",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "summarizedAt": "2026-06-24T12:45:35.046Z",
+        "summary": "The effect library provides a standard library for TypeScript, enabling the building of type-safe production applications. It offers features such as error handling, configuration, mocking, and testing. A course is available to guide learners from zero knowledge to building their first API with effect."
+      },
+      "expect": {
+        "link_summaries": [
+          {
+            "id": "Ry53gg_YCEwrNV_kh2Dt4",
+            "linkId": "941ff392-4dd3-4e02-bb2c-a1d4bc4c6428",
+            "summary": "The effect library provides a standard library for TypeScript, enabling the building of type-safe production applications. It offers features such as error handling, configuration, mocking, and testing. A course is available to guide learners from zero knowledge to building their first API with effect.",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "summarizedAt": 1782305135046
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagSuggested",
+      "args": {
+        "id": "Mt3QrMFBkvGAOLzgR5T6v",
+        "linkId": "941ff392-4dd3-4e02-bb2c-a1d4bc4c6428",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "suggestedAt": "2026-06-24T12:45:35.052Z",
+        "suggestedName": "typescript",
+        "tagId": null
+      },
+      "expect": {
+        "tag_suggestions": [
+          {
+            "id": "Mt3QrMFBkvGAOLzgR5T6v",
+            "linkId": "941ff392-4dd3-4e02-bb2c-a1d4bc4c6428",
+            "tagId": null,
+            "suggestedName": "typescript",
+            "status": "pending",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1782305135052
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkProcessingCompleted",
+      "args": {
+        "linkId": "941ff392-4dd3-4e02-bb2c-a1d4bc4c6428",
+        "updatedAt": "2026-06-24T12:45:35.057Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "941ff392-4dd3-4e02-bb2c-a1d4bc4c6428",
+            "status": "completed",
+            "error": null,
+            "notified": 0,
+            "updatedAt": 1782305135057
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkProcessingFailed",
+      "args": {
+        "error": "AiCallError",
+        "linkId": "f514a6d1-7a04-4a8f-83d7-49a8f7af654a",
+        "updatedAt": "2026-06-24T12:46:09.293Z"
+      },
+      "expect": {}
+    },
+    {
+      "event": "v1.LinkSourceNotified",
+      "args": {
+        "linkId": "mND3qIBCqeMHWuL3wA99D",
+        "notifiedAt": "2026-06-24T12:57:04.096Z"
+      },
+      "expect": {}
+    },
+    {
+      "event": "v1.WeeklyDigestGenerated",
+      "args": {
+        "contentMd": "Your week was dominated by deep dives into TypeScript architecture, specifically through the lens of functional programming and state management. You explored how to build robust, type-safe backends in https://www.typeonce.dev/course/effect-beginners-complete-getting-started and investigated the complex interaction between infrastructure and code in https://github.com/livestorejs/livestore/issues/1328. Between these technical system challenges, you also found time to appreciate the visual design patterns emerging in modern UI development.",
+        "generatedAt": "2026-06-24T13:52:10.754Z",
+        "id": "-X7wFffEJ1dHXvrABUp2X",
+        "period": "2026-W26"
+      },
+      "expect": {
+        "weekly_digests": [
+          {
+            "id": "-X7wFffEJ1dHXvrABUp2X",
+            "period": "2026-W26",
+            "contentMd": "Your week was dominated by deep dives into TypeScript architecture, specifically through the lens of functional programming and state management. You explored how to build robust, type-safe backends in https://www.typeonce.dev/course/effect-beginners-complete-getting-started and investigated the complex interaction between infrastructure and code in https://github.com/livestorejs/livestore/issues/1328. Between these technical system challenges, you also found time to appreciate the visual design patterns emerging in modern UI development.",
+            "generatedAt": 1782309130754
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkReprocessRequested",
+      "args": {
+        "linkId": "rg6KM9qEZKp-vrba8wSz1",
+        "requestedAt": "2026-06-24T14:23:37.420Z"
+      },
+      "expect": {}
+    },
+    {
+      "event": "v1.LinkDeleted",
+      "args": {
+        "deletedAt": "2026-06-24T15:03:38.728Z",
+        "id": "-0o-ARV0mOoPpfx6c5qKQ"
+      },
+      "expect": {}
+    }
+  ]
+}

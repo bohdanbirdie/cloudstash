@@ -69,7 +69,10 @@ Chrome extension clients authenticate with a paired Better Auth API key and an
 allowed `chrome-extension://` origin. The shared payload validator resolves the
 key's server-stamped workspace and referenced user, checks their current access,
 and fails closed for missing reference, invalid key, revoked access, or
-disallowed extension ID.
+disallowed extension ID. The native app sends the same API-key payload with
+neither cookie nor `Origin` and gets the same key decision, and only a
+`native`-sourced key passes that path; a request that carries an `Origin`
+still needs a cookie or an allowed extension origin.
 
 Public API, Telegram, and Raycast credentials are Better Auth API keys carrying
 server-selected workspace metadata. Browser key creation overwrites client
@@ -117,6 +120,13 @@ operations only to `admin`, not `viewer`.
   sends it to the installed extension; minting requires current workspace
   access, and the locally stored key is revalidated when used and can be
   remotely revoked.
+- **Native app (prototype):** the app opens `/connect/native` with a random
+  state and a PKCE challenge. A signed-in browser mints a `native`-sourced
+  key without a confirmation step and opens a `cloudstash://auth/callback`
+  deep link carrying a one-time code; the app accepts only the link for the
+  sign-in it started and redeems the code with its verifier. Mint and exchange
+  both revalidate current workspace access, the key never passes through the
+  browser, and it is not plan-gated.
 - **Telegram:** a connection code associates chat identity with a user/workspace
   API key stored through KV mappings. Stored and newly supplied keys use the
   shared workspace decision.

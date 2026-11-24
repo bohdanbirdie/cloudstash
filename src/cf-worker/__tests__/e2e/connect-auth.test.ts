@@ -25,6 +25,13 @@ const ROUTES: Route[] = [
   { method: "POST", path: "/api/connect/extension" },
   { method: "DELETE", path: "/api/connect/extension" },
   { method: "GET", path: "/api/connect/extension/account" },
+  {
+    body: JSON.stringify({ codeChallenge: "A".repeat(43) }),
+    method: "POST",
+    path: "/api/connect/native",
+  },
+  { method: "GET", path: "/api/connect/native/account" },
+  { method: "DELETE", path: "/api/connect/native" },
   { method: "GET", path: "/api/connect/telegram/check?code=ABC123" },
   {
     body: JSON.stringify({ code: "ABC123" }),

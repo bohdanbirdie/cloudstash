@@ -1,0 +1,24 @@
+{
+  "about": "A weekly digest is generated for a period.",
+  "steps": [
+    {
+      "event": "v1.WeeklyDigestGenerated",
+      "args": {
+        "contentMd": "# Week 5\n\nYou saved 12 links about \"state management\" — mostly https://example.com/x.",
+        "generatedAt": "2026-01-30T09:30:00.000Z",
+        "id": "digest-2026-w05",
+        "period": "2026-W05"
+      },
+      "expect": {
+        "weekly_digests": [
+          {
+            "id": "digest-2026-w05",
+            "period": "2026-W05",
+            "contentMd": "# Week 5\n\nYou saved 12 links about \"state management\" — mostly https://example.com/x.",
+            "generatedAt": 1769765400000
+          }
+        ]
+      }
+    }
+  ]
+}

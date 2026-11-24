@@ -48,6 +48,11 @@ import {
   handleExtensionConnect,
   handleExtensionDisconnect,
 } from "./connect/extension";
+import {
+  handleNativeAccount,
+  handleNativeConnect,
+  handleNativeExchange,
+} from "./connect/native";
 import { handleRaycastConnect, handleRaycastExchange } from "./connect/raycast";
 import {
   handleTelegramCheck,
@@ -111,6 +116,7 @@ const RATE_LIMITED_PREFIXES = [
   "/api/sync/",
   "/api/auth/",
   "/api/invites/redeem",
+  "/api/connect/native/exchange",
 ];
 
 const isRateLimited = (pathname: string): boolean =>
@@ -345,6 +351,18 @@ app.get("/api/connect/extension/account", (c) =>
   handleExtensionAccount(c.req.raw, c.env)
 );
 
+app.post("/api/connect/native", (c) => handleNativeConnect(c.req.raw, c.env));
+app.post("/api/connect/native/exchange", (c) =>
+  handleNativeExchange(c.req.raw, c.env)
+);
+app.get("/api/connect/native/account", (c) =>
+  handleNativeAccount(c.req.raw, c.env)
+);
+// Signing out of the app revokes its key the same way the extension does.
+app.delete("/api/connect/native", (c) =>
+  handleExtensionDisconnect(c.req.raw, c.env)
+);
+
 app.get("/api/connect/telegram/check", (c) =>
   handleTelegramCheck(c.req.raw, c.env)
 );
@@ -462,7 +480,7 @@ export const fetch = async (
   });
   if (agentResponse) return agentResponse;
 
-  if (url.pathname === "/sync") {
+  if (url.pathname === "/sync" || url.pathname === "/sync/") {
     return handleSync(request, env, ctx);
   }
 

@@ -1,21 +1,27 @@
-import { describe, expect, it } from "vitest";
+import { BunServices } from "@effect/platform-bun";
+import { expect, layer } from "@effect/vitest";
+import { Effect } from "effect";
 
-import { fixture, violationsOf } from "./run-oxlint";
+import { violationsOf } from "./run-oxlint";
 
-describe("tailwind-cn/enforce-cn", () => {
-  it("rejects direct className construction and conditional cn arguments", () => {
-    const diagnostics = violationsOf(fixture("enforce-cn.tsx"), "enforce-cn");
+layer(BunServices.layer)("tailwind-cn/enforce-cn", (it) => {
+  it.effect(
+    "rejects direct className construction and conditional cn arguments",
+    () =>
+      Effect.gen(function* () {
+        const diagnostics = yield* violationsOf("enforce-cn.tsx", "enforce-cn");
 
-    expect(diagnostics).toHaveLength(9);
-    expect(
-      diagnostics.filter((diagnostic) =>
-        diagnostic.message.startsWith("Pass class values")
-      )
-    ).toHaveLength(4);
-    expect(
-      diagnostics.filter((diagnostic) =>
-        diagnostic.message.startsWith("Use cn() object syntax")
-      )
-    ).toHaveLength(5);
-  });
+        expect(diagnostics).toHaveLength(9);
+        expect(
+          diagnostics.filter((diagnostic) =>
+            diagnostic.message.startsWith("Pass class values")
+          )
+        ).toHaveLength(4);
+        expect(
+          diagnostics.filter((diagnostic) =>
+            diagnostic.message.startsWith("Use cn() object syntax")
+          )
+        ).toHaveLength(5);
+      })
+  );
 });

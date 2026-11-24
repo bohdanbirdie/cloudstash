@@ -1,0 +1,295 @@
+{
+  "about": "The app's accept flow. Accepting a suggestion for an existing tag tags the link; accepting one for a new tag first creates the tag, whose id is its name as a slug. A third suggestion stays pending.",
+  "steps": [
+    {
+      "event": "v2.LinkCreated",
+      "args": {
+        "createdAt": "2026-03-03T09:00:00.000Z",
+        "domain": "www.inkandswitch.com",
+        "id": "link-1",
+        "source": "app",
+        "sourceMeta": null,
+        "url": "https://www.inkandswitch.com/local-first/"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-1",
+            "url": "https://www.inkandswitch.com/local-first/",
+            "domain": "www.inkandswitch.com",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772528400000,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagCreated",
+      "args": {
+        "createdAt": "2026-02-01T09:00:00.000Z",
+        "id": "typescript",
+        "name": "typescript",
+        "sortOrder": 1
+      },
+      "expect": {
+        "tags": [
+          {
+            "id": "typescript",
+            "name": "typescript",
+            "sortOrder": 1,
+            "createdAt": 1769936400000,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagSuggested",
+      "args": {
+        "id": "sug-1",
+        "linkId": "link-1",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "suggestedAt": "2026-03-03T09:00:05.000Z",
+        "suggestedName": "typescript",
+        "tagId": "typescript"
+      },
+      "expect": {
+        "tag_suggestions": [
+          {
+            "id": "sug-1",
+            "linkId": "link-1",
+            "tagId": "typescript",
+            "suggestedName": "typescript",
+            "status": "pending",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1772528405000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagSuggested",
+      "args": {
+        "id": "sug-2",
+        "linkId": "link-1",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "suggestedAt": "2026-03-03T09:00:05.000Z",
+        "suggestedName": "Local-first",
+        "tagId": null
+      },
+      "expect": {
+        "tag_suggestions": [
+          {
+            "id": "sug-1",
+            "linkId": "link-1",
+            "tagId": "typescript",
+            "suggestedName": "typescript",
+            "status": "pending",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1772528405000
+          },
+          {
+            "id": "sug-2",
+            "linkId": "link-1",
+            "tagId": null,
+            "suggestedName": "Local-first",
+            "status": "pending",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1772528405000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagSuggested",
+      "args": {
+        "id": "sug-3",
+        "linkId": "link-1",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "suggestedAt": "2026-03-03T09:00:05.000Z",
+        "suggestedName": "databases",
+        "tagId": null
+      },
+      "expect": {
+        "tag_suggestions": [
+          {
+            "id": "sug-1",
+            "linkId": "link-1",
+            "tagId": "typescript",
+            "suggestedName": "typescript",
+            "status": "pending",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1772528405000
+          },
+          {
+            "id": "sug-2",
+            "linkId": "link-1",
+            "tagId": null,
+            "suggestedName": "Local-first",
+            "status": "pending",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1772528405000
+          },
+          {
+            "id": "sug-3",
+            "linkId": "link-1",
+            "tagId": null,
+            "suggestedName": "databases",
+            "status": "pending",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1772528405000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkTagged",
+      "args": {
+        "createdAt": "2026-03-03T09:10:00.000Z",
+        "id": "link-1-typescript",
+        "linkId": "link-1",
+        "tagId": "typescript"
+      },
+      "expect": {
+        "link_tags": [
+          {
+            "id": "link-1-typescript",
+            "linkId": "link-1",
+            "tagId": "typescript",
+            "createdAt": 1772529000000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagSuggestionAccepted",
+      "args": {
+        "id": "sug-1"
+      },
+      "expect": {
+        "tag_suggestions": [
+          {
+            "id": "sug-1",
+            "linkId": "link-1",
+            "tagId": "typescript",
+            "suggestedName": "typescript",
+            "status": "accepted",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1772528405000
+          },
+          {
+            "id": "sug-2",
+            "linkId": "link-1",
+            "tagId": null,
+            "suggestedName": "Local-first",
+            "status": "pending",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1772528405000
+          },
+          {
+            "id": "sug-3",
+            "linkId": "link-1",
+            "tagId": null,
+            "suggestedName": "databases",
+            "status": "pending",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1772528405000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagCreated",
+      "args": {
+        "createdAt": "2026-03-03T09:11:00.000Z",
+        "id": "local-first",
+        "name": "Local-first",
+        "sortOrder": 2
+      },
+      "expect": {
+        "tags": [
+          {
+            "id": "local-first",
+            "name": "Local-first",
+            "sortOrder": 2,
+            "createdAt": 1772529060000,
+            "deletedAt": null
+          },
+          {
+            "id": "typescript",
+            "name": "typescript",
+            "sortOrder": 1,
+            "createdAt": 1769936400000,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkTagged",
+      "args": {
+        "createdAt": "2026-03-03T09:11:00.000Z",
+        "id": "link-1-local-first",
+        "linkId": "link-1",
+        "tagId": "local-first"
+      },
+      "expect": {
+        "link_tags": [
+          {
+            "id": "link-1-local-first",
+            "linkId": "link-1",
+            "tagId": "local-first",
+            "createdAt": 1772529060000
+          },
+          {
+            "id": "link-1-typescript",
+            "linkId": "link-1",
+            "tagId": "typescript",
+            "createdAt": 1772529000000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagSuggestionAccepted",
+      "args": {
+        "id": "sug-2"
+      },
+      "expect": {
+        "tag_suggestions": [
+          {
+            "id": "sug-1",
+            "linkId": "link-1",
+            "tagId": "typescript",
+            "suggestedName": "typescript",
+            "status": "accepted",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1772528405000
+          },
+          {
+            "id": "sug-2",
+            "linkId": "link-1",
+            "tagId": null,
+            "suggestedName": "Local-first",
+            "status": "accepted",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1772528405000
+          },
+          {
+            "id": "sug-3",
+            "linkId": "link-1",
+            "tagId": null,
+            "suggestedName": "databases",
+            "status": "pending",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1772528405000
+          }
+        ]
+      }
+    }
+  ]
+}

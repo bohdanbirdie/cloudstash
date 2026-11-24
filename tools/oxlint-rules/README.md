@@ -77,4 +77,23 @@ interfaces. The rule is adapted from `dmmulroy/anti-slop`.
 **Skipped by design:** a same-named import from any other module, and the
 `MotionConfig` / `motion` imports themselves.
 
-Behavior fixtures and tests for both rules live in `__tests__/`.
+## `livestore/pure-materializers`
+
+Forbids `Date.now`, `Date()`, argument-less `new Date()`, `Math.random`,
+`crypto.randomUUID` (also through `globalThis`), and `nanoid()` inside a
+`materializers(...)` or `defineMaterializer(...)` call. Materializers run again
+on every replay and on every replica, so these values differ between clients
+(`CS.SYS.DATA-R03`); put them in the event payload instead. Enabled for
+`src/livestore/schema.ts` only.
+
+```ts
+// rejected
+"v1.LinkRestored": ({ id }) =>
+  tables.links.update({ restoredAt: new Date() }).where({ id }),
+
+// accepted: the time travels with the event
+"v1.LinkRestored": ({ id, restoredAt }) =>
+  tables.links.update({ restoredAt }).where({ id }),
+```
+
+Behavior fixtures and tests for the rules live in `__tests__/`.

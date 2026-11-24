@@ -35,6 +35,7 @@
     "check:intent": "vitest run tools/intent/__tests__/intent.test.ts",
     "check:migrations": "bun scripts/check-migrations.ts",
     "check:pricing": "bun scripts/check-pricing.ts",
+    "contract": "bun tools/livestore-contract/main.ts",
     "fix": "effect-tsgo --tsrs-lint=7.1.0-beta.tsrs3 vp check --fix",
     "prepare": "effect-language-service patch",
     "clean:local-state": "rm -rf .alchemy/local",
@@ -177,7 +178,7 @@
     "vite": "npm:@voidzero-dev/vite-plus-core@1.6.0",
     "vitest": "4.1.10"
   },
-  "packageManager": "bun@1.3.14",
+  "packageManager": "bun@1.4.5",
   "trustedDependencies": [
     "esbuild",
     "workerd",

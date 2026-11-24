@@ -1,0 +1,101 @@
+name: Native release
+
+# Releasing the Mac app is bumping apps/native/Cargo.toml's version. When main gets a version
+# with no native-v<version> tag yet, this builds, signs and notarizes the app and publishes it
+# as the repository's latest GitHub Release under that tag; installed apps read its latest.json
+# to update themselves (apps/native/src/update.rs). Any other change to Cargo.toml finds the
+# tag already there and stops.
+on:
+  push:
+    branches: [main]
+    paths: [apps/native/Cargo.toml]
+  workflow_dispatch:
+
+concurrency:
+  group: native-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    environment: native-release
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: apps/native
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Find the version, and whether it's released
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
+          echo "tag=native-v$version" >> "$GITHUB_OUTPUT"
+          if gh release view "native-v$version" >/dev/null 2>&1 || git ls-remote --exit-code --tags origin "refs/tags/native-v$version" >/dev/null; then
+            echo "native-v$version is already released."
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.version.outputs.new == 'true'
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        if: steps.version.outputs.new == 'true'
+        with:
+          workspaces: apps/native
+
+      - if: steps.version.outputs.new == 'true'
+        run: cargo test --locked
+
+      - name: Import the signing certificate and keys
+        if: steps.version.outputs.new == 'true'
+        env:
+          DEVELOPER_ID_P12: ${{ secrets.NATIVE_DEVELOPER_ID_P12 }}
+          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.NATIVE_DEVELOPER_ID_P12_PASSWORD }}
+          NOTARY_KEY: ${{ secrets.NATIVE_NOTARY_KEY }}
+          UPDATE_KEY: ${{ secrets.NATIVE_UPDATE_KEY }}
+        run: |
+          keychain="$RUNNER_TEMP/release.keychain-db"
+          password="$(openssl rand -hex 16)"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          printf '%s' "$DEVELOPER_ID_P12" | base64 --decode > "$RUNNER_TEMP/developer-id.p12"
+          security import "$RUNNER_TEMP/developer-id.p12" -k "$keychain" -P "$DEVELOPER_ID_P12_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/developer-id.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          umask 077
+          printf '%s' "$NOTARY_KEY" > "$RUNNER_TEMP/notary.p8"
+          printf '%s' "$UPDATE_KEY" > "$RUNNER_TEMP/update.pem"
+
+      - name: Build, sign and notarize
+        if: steps.version.outputs.new == 'true'
+        env:
+          SIGN_IDENTITY: ${{ vars.NATIVE_SIGN_IDENTITY }}
+          NOTARY_KEY_ID: ${{ secrets.NATIVE_NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NATIVE_NOTARY_ISSUER }}
+          DOWNLOAD_URL: https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}
+        run: NOTARY_KEY_PATH="$RUNNER_TEMP/notary.p8" UPDATE_KEY_PATH="$RUNNER_TEMP/update.pem" scripts/release.sh
+
+      - name: Publish the release
+        if: steps.version.outputs.new == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: gh release create "$TAG" target/release/out/* --target "$GITHUB_SHA" --title "Cloudstash for Mac ${TAG#native-v}" --generate-notes --latest
+
+      - name: Remove the keys
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/release.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/notary.p8" "$RUNNER_TEMP/update.pem"
