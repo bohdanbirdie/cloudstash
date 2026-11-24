@@ -1,0 +1,600 @@
+{
+  "about": "Everyday cleanup: tag two links, complete three at once and archive two. Then, as the API does, move an archived link back to completed (only a restore, since it is already completed), swap its tag, and move another link back to the inbox. Finally delete a tag that is still on a link.",
+  "steps": [
+    {
+      "event": "v2.LinkCreated",
+      "args": {
+        "createdAt": "2026-03-05T09:00:00.000Z",
+        "domain": "overreacted.io",
+        "id": "link-1",
+        "source": "app",
+        "sourceMeta": null,
+        "url": "https://overreacted.io/a-complete-guide-to-useeffect/"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-1",
+            "url": "https://overreacted.io/a-complete-guide-to-useeffect/",
+            "domain": "overreacted.io",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701200000,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v2.LinkCreated",
+      "args": {
+        "createdAt": "2026-03-05T09:01:00.000Z",
+        "domain": "martinfowler.com",
+        "id": "link-2",
+        "source": "app",
+        "sourceMeta": null,
+        "url": "https://martinfowler.com/articles/patterns-of-distributed-systems/"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-1",
+            "url": "https://overreacted.io/a-complete-guide-to-useeffect/",
+            "domain": "overreacted.io",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701200000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "link-2",
+            "url": "https://martinfowler.com/articles/patterns-of-distributed-systems/",
+            "domain": "martinfowler.com",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701260000,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v2.LinkCreated",
+      "args": {
+        "createdAt": "2026-03-05T09:02:00.000Z",
+        "domain": "jvns.ca",
+        "id": "link-3",
+        "source": "app",
+        "sourceMeta": null,
+        "url": "https://jvns.ca/blog/2024/02/16/popular-git-config-options/"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-1",
+            "url": "https://overreacted.io/a-complete-guide-to-useeffect/",
+            "domain": "overreacted.io",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701200000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "link-2",
+            "url": "https://martinfowler.com/articles/patterns-of-distributed-systems/",
+            "domain": "martinfowler.com",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701260000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "link-3",
+            "url": "https://jvns.ca/blog/2024/02/16/popular-git-config-options/",
+            "domain": "jvns.ca",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701320000,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagCreated",
+      "args": {
+        "createdAt": "2026-02-01T09:00:00.000Z",
+        "id": "reading",
+        "name": "reading",
+        "sortOrder": 1
+      },
+      "expect": {
+        "tags": [
+          {
+            "id": "reading",
+            "name": "reading",
+            "sortOrder": 1,
+            "createdAt": 1769936400000,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagCreated",
+      "args": {
+        "createdAt": "2026-02-01T09:01:00.000Z",
+        "id": "later",
+        "name": "later",
+        "sortOrder": 2
+      },
+      "expect": {
+        "tags": [
+          {
+            "id": "later",
+            "name": "later",
+            "sortOrder": 2,
+            "createdAt": 1769936460000,
+            "deletedAt": null
+          },
+          {
+            "id": "reading",
+            "name": "reading",
+            "sortOrder": 1,
+            "createdAt": 1769936400000,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkTagged",
+      "args": {
+        "createdAt": "2026-03-05T10:00:00.000Z",
+        "id": "link-1-reading",
+        "linkId": "link-1",
+        "tagId": "reading"
+      },
+      "expect": {
+        "link_tags": [
+          {
+            "id": "link-1-reading",
+            "linkId": "link-1",
+            "tagId": "reading",
+            "createdAt": 1772704800000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkTagged",
+      "args": {
+        "createdAt": "2026-03-05T10:00:00.000Z",
+        "id": "link-2-reading",
+        "linkId": "link-2",
+        "tagId": "reading"
+      },
+      "expect": {
+        "link_tags": [
+          {
+            "id": "link-1-reading",
+            "linkId": "link-1",
+            "tagId": "reading",
+            "createdAt": 1772704800000
+          },
+          {
+            "id": "link-2-reading",
+            "linkId": "link-2",
+            "tagId": "reading",
+            "createdAt": 1772704800000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkCompleted",
+      "args": {
+        "completedAt": "2026-03-06T18:00:00.000Z",
+        "id": "link-1"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-1",
+            "url": "https://overreacted.io/a-complete-guide-to-useeffect/",
+            "domain": "overreacted.io",
+            "status": "completed",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701200000,
+            "completedAt": 1772820000000,
+            "deletedAt": null
+          },
+          {
+            "id": "link-2",
+            "url": "https://martinfowler.com/articles/patterns-of-distributed-systems/",
+            "domain": "martinfowler.com",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701260000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "link-3",
+            "url": "https://jvns.ca/blog/2024/02/16/popular-git-config-options/",
+            "domain": "jvns.ca",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701320000,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkCompleted",
+      "args": {
+        "completedAt": "2026-03-06T18:00:00.000Z",
+        "id": "link-2"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-1",
+            "url": "https://overreacted.io/a-complete-guide-to-useeffect/",
+            "domain": "overreacted.io",
+            "status": "completed",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701200000,
+            "completedAt": 1772820000000,
+            "deletedAt": null
+          },
+          {
+            "id": "link-2",
+            "url": "https://martinfowler.com/articles/patterns-of-distributed-systems/",
+            "domain": "martinfowler.com",
+            "status": "completed",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701260000,
+            "completedAt": 1772820000000,
+            "deletedAt": null
+          },
+          {
+            "id": "link-3",
+            "url": "https://jvns.ca/blog/2024/02/16/popular-git-config-options/",
+            "domain": "jvns.ca",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701320000,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkCompleted",
+      "args": {
+        "completedAt": "2026-03-06T18:00:00.000Z",
+        "id": "link-3"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-1",
+            "url": "https://overreacted.io/a-complete-guide-to-useeffect/",
+            "domain": "overreacted.io",
+            "status": "completed",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701200000,
+            "completedAt": 1772820000000,
+            "deletedAt": null
+          },
+          {
+            "id": "link-2",
+            "url": "https://martinfowler.com/articles/patterns-of-distributed-systems/",
+            "domain": "martinfowler.com",
+            "status": "completed",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701260000,
+            "completedAt": 1772820000000,
+            "deletedAt": null
+          },
+          {
+            "id": "link-3",
+            "url": "https://jvns.ca/blog/2024/02/16/popular-git-config-options/",
+            "domain": "jvns.ca",
+            "status": "completed",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701320000,
+            "completedAt": 1772820000000,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkDeleted",
+      "args": {
+        "deletedAt": "2026-03-06T18:05:00.000Z",
+        "id": "link-2"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-1",
+            "url": "https://overreacted.io/a-complete-guide-to-useeffect/",
+            "domain": "overreacted.io",
+            "status": "completed",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701200000,
+            "completedAt": 1772820000000,
+            "deletedAt": null
+          },
+          {
+            "id": "link-2",
+            "url": "https://martinfowler.com/articles/patterns-of-distributed-systems/",
+            "domain": "martinfowler.com",
+            "status": "completed",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701260000,
+            "completedAt": 1772820000000,
+            "deletedAt": 1772820300000
+          },
+          {
+            "id": "link-3",
+            "url": "https://jvns.ca/blog/2024/02/16/popular-git-config-options/",
+            "domain": "jvns.ca",
+            "status": "completed",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701320000,
+            "completedAt": 1772820000000,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkDeleted",
+      "args": {
+        "deletedAt": "2026-03-06T18:05:00.000Z",
+        "id": "link-3"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-1",
+            "url": "https://overreacted.io/a-complete-guide-to-useeffect/",
+            "domain": "overreacted.io",
+            "status": "completed",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701200000,
+            "completedAt": 1772820000000,
+            "deletedAt": null
+          },
+          {
+            "id": "link-2",
+            "url": "https://martinfowler.com/articles/patterns-of-distributed-systems/",
+            "domain": "martinfowler.com",
+            "status": "completed",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701260000,
+            "completedAt": 1772820000000,
+            "deletedAt": 1772820300000
+          },
+          {
+            "id": "link-3",
+            "url": "https://jvns.ca/blog/2024/02/16/popular-git-config-options/",
+            "domain": "jvns.ca",
+            "status": "completed",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701320000,
+            "completedAt": 1772820000000,
+            "deletedAt": 1772820300000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkRestored",
+      "args": {
+        "id": "link-2"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-1",
+            "url": "https://overreacted.io/a-complete-guide-to-useeffect/",
+            "domain": "overreacted.io",
+            "status": "completed",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701200000,
+            "completedAt": 1772820000000,
+            "deletedAt": null
+          },
+          {
+            "id": "link-2",
+            "url": "https://martinfowler.com/articles/patterns-of-distributed-systems/",
+            "domain": "martinfowler.com",
+            "status": "completed",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701260000,
+            "completedAt": 1772820000000,
+            "deletedAt": null
+          },
+          {
+            "id": "link-3",
+            "url": "https://jvns.ca/blog/2024/02/16/popular-git-config-options/",
+            "domain": "jvns.ca",
+            "status": "completed",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701320000,
+            "completedAt": 1772820000000,
+            "deletedAt": 1772820300000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkTagged",
+      "args": {
+        "createdAt": "2026-03-07T08:00:00.000Z",
+        "id": "link-2-later",
+        "linkId": "link-2",
+        "tagId": "later"
+      },
+      "expect": {
+        "link_tags": [
+          {
+            "id": "link-1-reading",
+            "linkId": "link-1",
+            "tagId": "reading",
+            "createdAt": 1772704800000
+          },
+          {
+            "id": "link-2-later",
+            "linkId": "link-2",
+            "tagId": "later",
+            "createdAt": 1772870400000
+          },
+          {
+            "id": "link-2-reading",
+            "linkId": "link-2",
+            "tagId": "reading",
+            "createdAt": 1772704800000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v2.LinkUntagged",
+      "args": {
+        "linkId": "link-2",
+        "tagId": "reading"
+      },
+      "expect": {
+        "link_tags": [
+          {
+            "id": "link-1-reading",
+            "linkId": "link-1",
+            "tagId": "reading",
+            "createdAt": 1772704800000
+          },
+          {
+            "id": "link-2-later",
+            "linkId": "link-2",
+            "tagId": "later",
+            "createdAt": 1772870400000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkUncompleted",
+      "args": {
+        "id": "link-1"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-1",
+            "url": "https://overreacted.io/a-complete-guide-to-useeffect/",
+            "domain": "overreacted.io",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701200000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "link-2",
+            "url": "https://martinfowler.com/articles/patterns-of-distributed-systems/",
+            "domain": "martinfowler.com",
+            "status": "completed",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701260000,
+            "completedAt": 1772820000000,
+            "deletedAt": null
+          },
+          {
+            "id": "link-3",
+            "url": "https://jvns.ca/blog/2024/02/16/popular-git-config-options/",
+            "domain": "jvns.ca",
+            "status": "completed",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772701320000,
+            "completedAt": 1772820000000,
+            "deletedAt": 1772820300000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagDeleted",
+      "args": {
+        "deletedAt": "2026-03-08T12:00:00.000Z",
+        "id": "reading"
+      },
+      "expect": {
+        "link_tags": [
+          {
+            "id": "link-2-later",
+            "linkId": "link-2",
+            "tagId": "later",
+            "createdAt": 1772870400000
+          }
+        ],
+        "tags": [
+          {
+            "id": "later",
+            "name": "later",
+            "sortOrder": 2,
+            "createdAt": 1769936460000,
+            "deletedAt": null
+          },
+          {
+            "id": "reading",
+            "name": "reading",
+            "sortOrder": 1,
+            "createdAt": 1769936400000,
+            "deletedAt": 1772971200000
+          }
+        ]
+      }
+    }
+  ]
+}

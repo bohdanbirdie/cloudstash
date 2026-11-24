@@ -30,6 +30,11 @@ payload and workspace, records aggregate usage, and routes to the
 workspace-named `SyncBackendDO`. The backend persists accepted event history and
 broadcasts live updates. Its `onPush` hook:
 
+- rejects a batch before persistence when it holds an unknown or client-only
+  event, or args that do not decode with the shared schema
+  ([`validate-events.ts`](../../../src/cf-worker/sync/validate-events.ts)), so
+  one faulty client cannot put an event every replica fails to replay; the
+  Worker must therefore deploy a new event before any client commits it;
 - rejects link-creation batches before persistence when they would cross the
   workspace's private retained-history safety ceiling;
 - wakes the link processor for link-created/reprocess events;
@@ -80,8 +85,10 @@ supported cleanup path for the legacy registrations.
 ## Verification
 
 The sync-arrival Worker E2E suite reads `getEventlogMax()` from fresh backend
-stubs after single, concurrent, queue-batch, and forced-eviction flows. Event
-wire-format goldens protect serialization across LiveStore/Effect revisions.
+stubs after single, concurrent, queue-batch, and forced-eviction flows. The
+[LiveStore contract](../01-data/spec.md#livestore-contract) replays recorded
+production eventlog rows so serialization holds across LiveStore/Effect
+revisions, and `validate-events.test.ts` covers push validation.
 Bundle verification records a vendored revision marker and targeted runtime
 indicators, but does not yet prove complete module provenance; see
 [DELTA-038](../../.delta/DELTA-038-bundle-certification-is-indicative-not-provenance-proof.md).

@@ -1,0 +1,341 @@
+{
+  "about": "An admin reprocesses a finished link: it goes back to pending, gets fresh metadata, a second summary and a new suggestion next to the old ones, and finishes again. Reprocessing it once more fails.",
+  "steps": [
+    {
+      "event": "v2.LinkCreated",
+      "args": {
+        "createdAt": "2026-03-04T09:00:00.000Z",
+        "domain": "blog.cloudflare.com",
+        "id": "link-1",
+        "source": "app",
+        "sourceMeta": null,
+        "url": "https://blog.cloudflare.com/sqlite-in-durable-objects/"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-1",
+            "url": "https://blog.cloudflare.com/sqlite-in-durable-objects/",
+            "domain": "blog.cloudflare.com",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1772614800000,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkProcessingStarted",
+      "args": {
+        "linkId": "link-1",
+        "updatedAt": "2026-03-04T09:00:01.000Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "link-1",
+            "status": "pending",
+            "error": null,
+            "notified": 0,
+            "updatedAt": 1772614801000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkMetadataFetched",
+      "args": {
+        "description": "Durable Objects now have SQLite storage.",
+        "favicon": "https://blog.cloudflare.com/favicon.ico",
+        "fetchedAt": "2026-03-04T09:00:02.000Z",
+        "id": "snap-1",
+        "image": "https://blog.cloudflare.com/og/sqlite.png",
+        "linkId": "link-1",
+        "title": "Zero-latency SQLite storage in every Durable Object"
+      },
+      "expect": {
+        "link_snapshots": [
+          {
+            "id": "snap-1",
+            "linkId": "link-1",
+            "title": "Zero-latency SQLite storage in every Durable Object",
+            "description": "Durable Objects now have SQLite storage.",
+            "image": "https://blog.cloudflare.com/og/sqlite.png",
+            "favicon": "https://blog.cloudflare.com/favicon.ico",
+            "fetchedAt": 1772614802000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkSummarized",
+      "args": {
+        "id": "sum-1",
+        "linkId": "link-1",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "summarizedAt": "2026-03-04T09:00:04.000Z",
+        "summary": "Durable Objects get embedded SQLite."
+      },
+      "expect": {
+        "link_summaries": [
+          {
+            "id": "sum-1",
+            "linkId": "link-1",
+            "summary": "Durable Objects get embedded SQLite.",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "summarizedAt": 1772614804000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagSuggested",
+      "args": {
+        "id": "sug-1",
+        "linkId": "link-1",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "suggestedAt": "2026-03-04T09:00:04.000Z",
+        "suggestedName": "cloudflare",
+        "tagId": null
+      },
+      "expect": {
+        "tag_suggestions": [
+          {
+            "id": "sug-1",
+            "linkId": "link-1",
+            "tagId": null,
+            "suggestedName": "cloudflare",
+            "status": "pending",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1772614804000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkProcessingCompleted",
+      "args": {
+        "linkId": "link-1",
+        "updatedAt": "2026-03-04T09:00:05.000Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "link-1",
+            "status": "completed",
+            "error": null,
+            "notified": 0,
+            "updatedAt": 1772614805000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkReprocessRequested",
+      "args": {
+        "linkId": "link-1",
+        "requestedAt": "2026-03-10T14:00:00.000Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "link-1",
+            "status": "reprocess-requested",
+            "error": null,
+            "notified": 0,
+            "updatedAt": 1773151200000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkProcessingStarted",
+      "args": {
+        "linkId": "link-1",
+        "updatedAt": "2026-03-10T14:00:01.000Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "link-1",
+            "status": "pending",
+            "error": null,
+            "notified": 0,
+            "updatedAt": 1773151201000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkMetadataFetched",
+      "args": {
+        "description": "Durable Objects now have SQLite storage, with point-in-time recovery.",
+        "favicon": "https://blog.cloudflare.com/favicon.ico",
+        "fetchedAt": "2026-03-10T14:00:02.000Z",
+        "id": "snap-2",
+        "image": "https://blog.cloudflare.com/og/sqlite.png",
+        "linkId": "link-1",
+        "title": "Zero-latency SQLite storage in every Durable Object"
+      },
+      "expect": {
+        "link_snapshots": [
+          {
+            "id": "snap-1",
+            "linkId": "link-1",
+            "title": "Zero-latency SQLite storage in every Durable Object",
+            "description": "Durable Objects now have SQLite storage.",
+            "image": "https://blog.cloudflare.com/og/sqlite.png",
+            "favicon": "https://blog.cloudflare.com/favicon.ico",
+            "fetchedAt": 1772614802000
+          },
+          {
+            "id": "snap-2",
+            "linkId": "link-1",
+            "title": "Zero-latency SQLite storage in every Durable Object",
+            "description": "Durable Objects now have SQLite storage, with point-in-time recovery.",
+            "image": "https://blog.cloudflare.com/og/sqlite.png",
+            "favicon": "https://blog.cloudflare.com/favicon.ico",
+            "fetchedAt": 1773151202000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkSummarized",
+      "args": {
+        "id": "sum-2",
+        "linkId": "link-1",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "summarizedAt": "2026-03-10T14:00:04.000Z",
+        "summary": "Durable Objects get embedded SQLite with point-in-time recovery."
+      },
+      "expect": {
+        "link_summaries": [
+          {
+            "id": "sum-1",
+            "linkId": "link-1",
+            "summary": "Durable Objects get embedded SQLite.",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "summarizedAt": 1772614804000
+          },
+          {
+            "id": "sum-2",
+            "linkId": "link-1",
+            "summary": "Durable Objects get embedded SQLite with point-in-time recovery.",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "summarizedAt": 1773151204000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagSuggested",
+      "args": {
+        "id": "sug-2",
+        "linkId": "link-1",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "suggestedAt": "2026-03-10T14:00:04.000Z",
+        "suggestedName": "sqlite",
+        "tagId": null
+      },
+      "expect": {
+        "tag_suggestions": [
+          {
+            "id": "sug-1",
+            "linkId": "link-1",
+            "tagId": null,
+            "suggestedName": "cloudflare",
+            "status": "pending",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1772614804000
+          },
+          {
+            "id": "sug-2",
+            "linkId": "link-1",
+            "tagId": null,
+            "suggestedName": "sqlite",
+            "status": "pending",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1773151204000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkProcessingCompleted",
+      "args": {
+        "linkId": "link-1",
+        "updatedAt": "2026-03-10T14:00:05.000Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "link-1",
+            "status": "completed",
+            "error": null,
+            "notified": 0,
+            "updatedAt": 1773151205000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkReprocessRequested",
+      "args": {
+        "linkId": "link-1",
+        "requestedAt": "2026-03-11T08:00:00.000Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "link-1",
+            "status": "reprocess-requested",
+            "error": null,
+            "notified": 0,
+            "updatedAt": 1773216000000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkProcessingStarted",
+      "args": {
+        "linkId": "link-1",
+        "updatedAt": "2026-03-11T08:00:01.000Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "link-1",
+            "status": "pending",
+            "error": null,
+            "notified": 0,
+            "updatedAt": 1773216001000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkProcessingFailed",
+      "args": {
+        "error": "AiSummaryError: model timed out",
+        "linkId": "link-1",
+        "updatedAt": "2026-03-11T08:00:31.000Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "link-1",
+            "status": "failed",
+            "error": "AiSummaryError: model timed out",
+            "notified": 0,
+            "updatedAt": 1773216031000
+          }
+        ]
+      }
+    }
+  ]
+}

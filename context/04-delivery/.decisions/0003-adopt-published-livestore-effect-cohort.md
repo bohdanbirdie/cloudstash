@@ -20,7 +20,8 @@ requested the newer snapshot and matching Effect version in the same PR.
   the intentional one-time state rebuild after adopting canonical fingerprints.
   Event-log history remains the replay source; server-side replay incurs
   Durable Object row-write usage.
-- [Event wire-format tests](../../../src/livestore/__tests__/event-wire-format.test.ts)
+- Event wire-format tests (now the
+  [production-rows scenario](../../../tools/livestore-contract/scenarios/production-rows.json))
   protect existing encoded event payloads, while Worker E2E tests cover server
   sync, live pull, and canonical library RPC.
 - [Bundle certification](../../../scripts/verify-bundle.ts) now checks the

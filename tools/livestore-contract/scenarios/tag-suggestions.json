@@ -1,0 +1,164 @@
+{
+  "about": "AI suggests an existing tag and a new tag for a link; one suggestion is accepted, the other dismissed.",
+  "steps": [
+    {
+      "event": "v2.LinkCreated",
+      "args": {
+        "createdAt": "2026-01-01T09:30:00.000Z",
+        "domain": "example.com",
+        "id": "link-a",
+        "source": "app",
+        "sourceMeta": null,
+        "url": "https://example.com/a"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "link-a",
+            "url": "https://example.com/a",
+            "domain": "example.com",
+            "status": "unread",
+            "source": "app",
+            "sourceMeta": null,
+            "createdAt": 1767259800000,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagCreated",
+      "args": {
+        "createdAt": "2026-01-02T09:30:00.000Z",
+        "id": "tag-ts",
+        "name": "typescript",
+        "sortOrder": 1
+      },
+      "expect": {
+        "tags": [
+          {
+            "id": "tag-ts",
+            "name": "typescript",
+            "sortOrder": 1,
+            "createdAt": 1767346200000,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagSuggested",
+      "args": {
+        "id": "sug-1",
+        "linkId": "link-a",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "suggestedAt": "2026-01-03T09:30:00.000Z",
+        "suggestedName": "typescript",
+        "tagId": "tag-ts"
+      },
+      "expect": {
+        "tag_suggestions": [
+          {
+            "id": "sug-1",
+            "linkId": "link-a",
+            "tagId": "tag-ts",
+            "suggestedName": "typescript",
+            "status": "pending",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1767432600000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagSuggested",
+      "args": {
+        "id": "sug-2",
+        "linkId": "link-a",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "suggestedAt": "2026-01-03T09:31:00.000Z",
+        "suggestedName": "reading-list",
+        "tagId": null
+      },
+      "expect": {
+        "tag_suggestions": [
+          {
+            "id": "sug-1",
+            "linkId": "link-a",
+            "tagId": "tag-ts",
+            "suggestedName": "typescript",
+            "status": "pending",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1767432600000
+          },
+          {
+            "id": "sug-2",
+            "linkId": "link-a",
+            "tagId": null,
+            "suggestedName": "reading-list",
+            "status": "pending",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1767432660000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagSuggestionAccepted",
+      "args": {
+        "id": "sug-1"
+      },
+      "expect": {
+        "tag_suggestions": [
+          {
+            "id": "sug-1",
+            "linkId": "link-a",
+            "tagId": "tag-ts",
+            "suggestedName": "typescript",
+            "status": "accepted",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1767432600000
+          },
+          {
+            "id": "sug-2",
+            "linkId": "link-a",
+            "tagId": null,
+            "suggestedName": "reading-list",
+            "status": "pending",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1767432660000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.TagSuggestionDismissed",
+      "args": {
+        "id": "sug-2"
+      },
+      "expect": {
+        "tag_suggestions": [
+          {
+            "id": "sug-1",
+            "linkId": "link-a",
+            "tagId": "tag-ts",
+            "suggestedName": "typescript",
+            "status": "accepted",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1767432600000
+          },
+          {
+            "id": "sug-2",
+            "linkId": "link-a",
+            "tagId": null,
+            "suggestedName": "reading-list",
+            "status": "dismissed",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "suggestedAt": 1767432660000
+          }
+        ]
+      }
+    }
+  ]
+}

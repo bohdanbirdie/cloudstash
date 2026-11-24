@@ -14,6 +14,7 @@ import type { Env } from "../shared";
 import { OtelTracingLive } from "../tracing";
 import type { PushEvent } from "./activity";
 import { recordActivity } from "./record-activity";
+import { validatePushedEvents } from "./validate-events";
 
 export { runSyncAuth, validatePayload } from "./validate-payload";
 
@@ -138,6 +139,18 @@ export class SyncBackendDO extends SyncBackend.makeDurableObject({
     if (owner === null) {
       throw new SyncBackendInstanceUnavailableError({ storeId });
     }
+    await validatePushedEvents(message.batch).pipe(
+      Effect.tapErrorTag("InvalidPushedEventError", (error) =>
+        Effect.logWarning("Rejected sync push with an unreadable event").pipe(
+          Effect.annotateLogs({
+            event: error.event,
+            reason: error.reason,
+            storeId: maskId(storeId),
+          })
+        )
+      ),
+      Effect.runPromise
+    );
     await owner.validateRetainedLinkPush(storeId, message.batch);
 
     logger.info("Push received", {
