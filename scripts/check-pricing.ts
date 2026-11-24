@@ -1,5 +1,4 @@
-import { readFileSync } from "node:fs";
-
+import { BunServices } from "@effect/platform-bun";
 import {
   Cause,
   Config,
@@ -8,6 +7,8 @@ import {
   Effect,
   Result,
   Exit,
+  FileSystem,
+  Layer,
   Redacted,
   Schema,
 } from "effect";
@@ -61,14 +62,8 @@ const checks: readonly Check[] = PLAN_ORDER.flatMap((tier): Check[] => {
   ];
 });
 
-const readDevVars = (): Map<string, string> => {
+const parseDevVars = (contents: string): Map<string, string> => {
   const map = new Map<string, string>();
-  let contents: string;
-  try {
-    contents = readFileSync(".env", "utf8");
-  } catch {
-    return map;
-  }
   for (const line of contents.split("\n")) {
     if (line && !line.startsWith("#")) {
       const [key, ...rest] = line.split("=");
@@ -78,15 +73,22 @@ const readDevVars = (): Map<string, string> => {
   return map;
 };
 
-const devVars = readDevVars();
-const ConfigLive = ConfigProvider.layer(
-  ConfigProvider.make((path) => {
-    const value = devVars.get(path.join("_"));
-    return Effect.succeed(
-      value === undefined ? undefined : ConfigProvider.makeValue(value)
+const ConfigLive = Layer.unwrap(
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const devVars = parseDevVars(
+      yield* fs.readFileString(".env").pipe(Effect.orElseSucceed(() => ""))
     );
-  }).pipe(ConfigProvider.orElse(ConfigProvider.fromEnv()))
-);
+    return ConfigProvider.layer(
+      ConfigProvider.make((path) => {
+        const value = devVars.get(path.join("_"));
+        return Effect.succeed(
+          value === undefined ? undefined : ConfigProvider.makeValue(value)
+        );
+      }).pipe(ConfigProvider.orElse(ConfigProvider.fromEnv()))
+    );
+  })
+).pipe(Layer.provide(BunServices.layer));
 
 const checkPrice = (stripe: StripeSdk, check: Check) =>
   Effect.gen(function* () {

@@ -1,97 +1,119 @@
-import { readFileSync } from "node:fs";
+import { BunRuntime, BunServices } from "@effect/platform-bun";
+import {
+  Console,
+  Data,
+  Effect,
+  FileSystem,
+  Ref,
+  Runtime,
+  Stream,
+} from "effect";
+import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
-import { spawn } from "bun";
-
-// Read .env
-const devVars = readFileSync(".env", "utf8");
-const vars: Record<string, string> = {};
-for (const line of devVars.split("\n")) {
-  if (line && !line.startsWith("#")) {
-    const [key, ...rest] = line.split("=");
-    vars[key.trim()] = rest.join("=").trim();
-  }
+class MissingTelegramSecrets extends Data.TaggedError(
+  "MissingTelegramSecrets"
+) {
+  readonly [Runtime.errorReported] = false;
 }
 
-const token = vars.TELEGRAM_BOT_TOKEN;
-const secret = vars.TELEGRAM_WEBHOOK_SECRET;
+class WebhookRegistrationError extends Data.TaggedError(
+  "WebhookRegistrationError"
+)<{ readonly cause: unknown }> {}
 
-if (!token || !secret) {
-  console.error(
-    "Missing TELEGRAM_BOT_TOKEN or TELEGRAM_WEBHOOK_SECRET in .env"
+const program = Effect.gen(function* () {
+  const fs = yield* FileSystem.FileSystem;
+  const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+
+  const vars: Record<string, string> = {};
+  for (const line of (yield* fs.readFileString(".env")).split("\n")) {
+    if (line && !line.startsWith("#")) {
+      const [key, ...rest] = line.split("=");
+      vars[key.trim()] = rest.join("=").trim();
+    }
+  }
+
+  const token = vars.TELEGRAM_BOT_TOKEN;
+  const secret = vars.TELEGRAM_WEBHOOK_SECRET;
+
+  if (!token || !secret) {
+    yield* Console.error(
+      "Missing TELEGRAM_BOT_TOKEN or TELEGRAM_WEBHOOK_SECRET in .env"
+    );
+    return yield* new MissingTelegramSecrets();
+  }
+
+  const proc = yield* spawner.spawn(
+    ChildProcess.make(
+      "bunx",
+      ["cloudflared", "tunnel", "--url", "http://localhost:3000"],
+      { stderr: "pipe", stdout: "pipe" }
+    )
   );
-  process.exit(1);
-}
 
-const proc = spawn(
-  ["bunx", "cloudflared", "tunnel", "--url", "http://localhost:3000"],
-  {
-    stderr: "pipe",
-    stdout: "pipe",
-  }
-);
+  const registered = yield* Ref.make(false);
 
-let registered = false;
+  const registerWebhook = Effect.fn("registerWebhook")(function* (
+    tunnelUrl: string
+  ) {
+    if (yield* Ref.getAndSet(registered, true)) return;
 
-async function registerWebhook(tunnelUrl: string) {
-  if (registered) {
-    return;
-  }
-  registered = true;
+    yield* Console.log(`\n==> Tunnel: ${tunnelUrl}`);
+    yield* Console.log("==> Waiting 5s for DNS propagation...");
+    yield* Effect.sleep("5 seconds");
 
-  console.log(`\n==> Tunnel: ${tunnelUrl}`);
-  console.log("==> Waiting 5s for DNS propagation...");
-  await Bun.sleep(5000);
+    yield* Console.log("==> Registering webhook...");
+    const result = yield* Effect.tryPromise({
+      try: async () => {
+        const response = await fetch(
+          `https://api.telegram.org/bot${token}/setWebhook`,
+          {
+            body: JSON.stringify({
+              secret_token: secret,
+              url: `${tunnelUrl}/api/telegram`,
+            }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST",
+          }
+        );
+        return response.json();
+      },
+      catch: (cause) => new WebhookRegistrationError({ cause }),
+    });
+    yield* Console.log("==> Result:", JSON.stringify(result));
+    yield* Console.log("");
+  });
 
-  console.log("==> Registering webhook...");
-  const response = await fetch(
-    `https://api.telegram.org/bot${token}/setWebhook`,
-    {
-      body: JSON.stringify({
-        secret_token: secret,
-        url: `${tunnelUrl}/api/telegram`,
+  const processStream = (stream: typeof proc.stdout) =>
+    stream.pipe(
+      Stream.decodeText(),
+      Stream.runForEach((text) => {
+        const match = text.match(/https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/);
+        if (match) {
+          return registerWebhook(match[0]).pipe(
+            Effect.catchTag("WebhookRegistrationError", (error) =>
+              Console.error("Webhook registration failed:", error.cause)
+            ),
+            Effect.forkScoped,
+            Effect.asVoid
+          );
+        }
+        if (text.includes("ERR") || text.includes("error")) {
+          return Effect.sync(() => process.stderr.write(text));
+        }
+        return Effect.void;
       }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    }
-  );
+      Effect.catchTag("PlatformError", (error) =>
+        Console.error("Stream processing failed:", error)
+      ),
+      Effect.forkScoped
+    );
 
-  const result = await response.json();
-  console.log("==> Result:", JSON.stringify(result));
-  console.log("");
-}
+  yield* processStream(proc.stderr);
+  yield* processStream(proc.stdout);
 
-async function processStream(stream: ReadableStream<Uint8Array>) {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
+  yield* proc.exitCode;
+});
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
-    }
-
-    const text = decoder.decode(value);
-
-    const match = text.match(/https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/);
-    if (match) {
-      void registerWebhook(match[0]).catch((error) => {
-        console.error("Webhook registration failed:", error);
-      });
-    } else if (text.includes("ERR") || text.includes("error")) {
-      process.stderr.write(text);
-    }
-  }
-}
-
-if (proc.stderr) {
-  void processStream(proc.stderr).catch((error) => {
-    console.error("Stream processing failed:", error);
-  });
-}
-if (proc.stdout) {
-  void processStream(proc.stdout).catch((error) => {
-    console.error("Stream processing failed:", error);
-  });
-}
-
-await proc.exited;
+BunRuntime.runMain(
+  program.pipe(Effect.scoped, Effect.provide(BunServices.layer))
+);
