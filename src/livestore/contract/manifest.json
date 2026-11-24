@@ -18,10 +18,50 @@
         ],
         "type": "object"
       },
+      "decoded": {
+        "additionalProperties": true,
+        "properties": {
+          "completedAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "completedAt",
+          "id"
+        ],
+        "type": "object"
+      },
       "scope": "synced"
     },
     "v1.LinkCreated": {
       "args": {
+        "additionalProperties": true,
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "createdAt",
+          "domain",
+          "id",
+          "url"
+        ],
+        "type": "object"
+      },
+      "decoded": {
         "additionalProperties": true,
         "properties": {
           "createdAt": {
@@ -64,10 +104,50 @@
         ],
         "type": "object"
       },
+      "decoded": {
+        "additionalProperties": true,
+        "properties": {
+          "deletedAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "deletedAt",
+          "id"
+        ],
+        "type": "object"
+      },
       "scope": "synced"
     },
     "v1.LinkInteracted": {
       "args": {
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "linkId": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "linkId",
+          "occurredAt",
+          "type"
+        ],
+        "type": "object"
+      },
+      "decoded": {
         "additionalProperties": true,
         "properties": {
           "id": {
@@ -158,6 +238,70 @@
         ],
         "type": "object"
       },
+      "decoded": {
+        "additionalProperties": true,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "favicon": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fetchedAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "linkId": {
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "description",
+          "favicon",
+          "fetchedAt",
+          "id",
+          "image",
+          "linkId",
+          "title"
+        ],
+        "type": "object"
+      },
       "scope": "synced"
     },
     "v1.LinkProcessingCancelled": {
@@ -177,10 +321,42 @@
         ],
         "type": "object"
       },
+      "decoded": {
+        "additionalProperties": true,
+        "properties": {
+          "linkId": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "linkId",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
       "scope": "synced"
     },
     "v1.LinkProcessingCompleted": {
       "args": {
+        "additionalProperties": true,
+        "properties": {
+          "linkId": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "linkId",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "decoded": {
         "additionalProperties": true,
         "properties": {
           "linkId": {
@@ -219,10 +395,46 @@
         ],
         "type": "object"
       },
+      "decoded": {
+        "additionalProperties": true,
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "linkId": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error",
+          "linkId",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
       "scope": "synced"
     },
     "v1.LinkProcessingStarted": {
       "args": {
+        "additionalProperties": true,
+        "properties": {
+          "linkId": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "linkId",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "decoded": {
         "additionalProperties": true,
         "properties": {
           "linkId": {
@@ -257,10 +469,38 @@
         ],
         "type": "object"
       },
+      "decoded": {
+        "additionalProperties": true,
+        "properties": {
+          "linkId": {
+            "type": "string"
+          },
+          "requestedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "linkId",
+          "requestedAt"
+        ],
+        "type": "object"
+      },
       "scope": "synced"
     },
     "v1.LinkRestored": {
       "args": {
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "decoded": {
         "additionalProperties": true,
         "properties": {
           "id": {
@@ -291,10 +531,54 @@
         ],
         "type": "object"
       },
+      "decoded": {
+        "additionalProperties": true,
+        "properties": {
+          "linkId": {
+            "type": "string"
+          },
+          "notifiedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "linkId",
+          "notifiedAt"
+        ],
+        "type": "object"
+      },
       "scope": "synced"
     },
     "v1.LinkSummarized": {
       "args": {
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "linkId": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "summarizedAt": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "linkId",
+          "model",
+          "summarizedAt",
+          "summary"
+        ],
+        "type": "object"
+      },
+      "decoded": {
         "additionalProperties": true,
         "properties": {
           "id": {
@@ -349,10 +633,46 @@
         ],
         "type": "object"
       },
+      "decoded": {
+        "additionalProperties": true,
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "linkId": {
+            "type": "string"
+          },
+          "tagId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "createdAt",
+          "id",
+          "linkId",
+          "tagId"
+        ],
+        "type": "object"
+      },
       "scope": "synced"
     },
     "v1.LinkUncompleted": {
       "args": {
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "decoded": {
         "additionalProperties": true,
         "properties": {
           "id": {
@@ -379,10 +699,58 @@
         ],
         "type": "object"
       },
+      "decoded": {
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
       "scope": "synced"
     },
     "v1.TagCreated": {
       "args": {
+        "additionalProperties": true,
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "enum": [
+                  "Infinity",
+                  "-Infinity",
+                  "NaN"
+                ],
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "required": [
+          "createdAt",
+          "id",
+          "name",
+          "sortOrder"
+        ],
+        "type": "object"
+      },
+      "decoded": {
         "additionalProperties": true,
         "properties": {
           "createdAt": {
@@ -437,6 +805,22 @@
         ],
         "type": "object"
       },
+      "decoded": {
+        "additionalProperties": true,
+        "properties": {
+          "deletedAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "deletedAt",
+          "id"
+        ],
+        "type": "object"
+      },
       "scope": "synced"
     },
     "v1.TagRenamed": {
@@ -456,10 +840,54 @@
         ],
         "type": "object"
       },
+      "decoded": {
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
       "scope": "synced"
     },
     "v1.TagReordered": {
       "args": {
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "enum": [
+                  "Infinity",
+                  "-Infinity",
+                  "NaN"
+                ],
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "sortOrder"
+        ],
+        "type": "object"
+      },
+      "decoded": {
         "additionalProperties": true,
         "properties": {
           "id": {
@@ -529,10 +957,61 @@
         ],
         "type": "object"
       },
+      "decoded": {
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "linkId": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "suggestedAt": {
+            "type": "string"
+          },
+          "suggestedName": {
+            "type": "string"
+          },
+          "tagId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "linkId",
+          "model",
+          "suggestedAt",
+          "suggestedName",
+          "tagId"
+        ],
+        "type": "object"
+      },
       "scope": "synced"
     },
     "v1.TagSuggestionAccepted": {
       "args": {
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "decoded": {
         "additionalProperties": true,
         "properties": {
           "id": {
@@ -559,10 +1038,46 @@
         ],
         "type": "object"
       },
+      "decoded": {
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
       "scope": "synced"
     },
     "v1.WeeklyDigestGenerated": {
       "args": {
+        "additionalProperties": true,
+        "properties": {
+          "contentMd": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "contentMd",
+          "generatedAt",
+          "id",
+          "period"
+        ],
+        "type": "object"
+      },
+      "decoded": {
         "additionalProperties": true,
         "properties": {
           "contentMd": {
@@ -628,10 +1143,65 @@
         ],
         "type": "object"
       },
+      "decoded": {
+        "additionalProperties": true,
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "sourceMeta": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "createdAt",
+          "domain",
+          "id",
+          "source",
+          "sourceMeta",
+          "url"
+        ],
+        "type": "object"
+      },
       "scope": "synced"
     },
     "v2.LinkUntagged": {
       "args": {
+        "additionalProperties": true,
+        "properties": {
+          "linkId": {
+            "type": "string"
+          },
+          "tagId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "linkId",
+          "tagId"
+        ],
+        "type": "object"
+      },
+      "decoded": {
         "additionalProperties": true,
         "properties": {
           "linkId": {

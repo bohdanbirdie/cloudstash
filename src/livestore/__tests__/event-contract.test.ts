@@ -139,6 +139,32 @@ describe("compareManifests", () => {
     ]);
   });
 
+  it("fails a field that keeps its wire shape but decodes differently", () => {
+    const linkCreated = base.events["v2.LinkCreated"];
+    if (linkCreated === undefined) throw new Error("v2.LinkCreated is missing");
+    const decodedFields = Schema.decodeUnknownSync(
+      Schema.Struct({
+        properties: Schema.Record(Schema.String, Schema.Unknown),
+      })
+    )(linkCreated.decoded).properties;
+    const head = withEvents({
+      ...base.events,
+      "v2.LinkCreated": {
+        ...linkCreated,
+        decoded: {
+          ...linkCreated.decoded,
+          properties: {
+            ...decodedFields,
+            source: { type: "string", enum: ["app", "raycast"] },
+          },
+        },
+      },
+    });
+    expect(compareManifests(base, head).breaks).toEqual([
+      'v2.LinkCreated: field `source` keeps its wire shape but decodes differently, from {"type":"string"} to {"enum":["app","raycast"],"type":"string"}, so old events may no longer decode',
+    ]);
+  });
+
   it("fails a required field that became optional", () => {
     const head = withTagRenamedArgs({ ...tagRenamed.args, required: ["id"] });
     expect(compareManifests(base, head).breaks).toEqual([
@@ -205,7 +231,7 @@ describe("replayGoldens", () => {
     });
     expect(failures).toHaveLength(3);
     expect(failures[0]).toBe(
-      'v1.TagRenamed golden (edited) re-encodes differently: {"id":"tag-1","name":"Reading"} instead of {"name":"Reading","id":"tag-1"}'
+      'v1.TagRenamed golden (edited) re-encodes differently: {"id":"tag-1","name":"Reading"} instead of {"name":"Reading","id":"tag-1"}. Keep field order, and give new defaulted fields encodingStrategy "omit"'
     );
     expect(failures[1]).toBe(
       "v1.TagGone golden (removed): no event named v1.TagGone"

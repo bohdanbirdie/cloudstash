@@ -70,7 +70,7 @@ event may be re-applied during rebase. See
 is generated from the schema by `bun run contract`
 ([`scripts/livestore-event-contract.ts`](../../../scripts/livestore-event-contract.ts)):
 every event's name, scope (`synced` or `clientOnly`), and the JSON Schema of
-its encoded arguments, plus every table's columns, defaults, and indexes. Keys
+its arguments both as encoded on the wire and as decoded, plus every table's columns, defaults, and indexes. Keys
 are sorted, so the bytes are identical on every run, and the command fails when
 the committed copy is stale.
 
@@ -80,7 +80,7 @@ goldens with `git show` and compares them with the pull request's code:
 
 - a base event that is removed or renamed, changes scope, loses a field, gains a
   required field, turns a required field optional or the reverse, or changes a
-  field's encoded type (including a tightened check) is a break;
+  field's encoded or decoded type (including a tightened check) is a break;
 - new events and new optional fields pass;
 - every base golden must decode and re-encode byte for byte;
 - table changes are reported but not gated, because they rebuild every replica,
@@ -90,8 +90,9 @@ When the base branch has no manifest yet, shapes are not compared and the run
 says so; once the manifest is on the base, a pull request that deletes its own
 copy is still compared against the base's. The
 [`LiveStore event gate`](../../../.github/workflows/livestore-event-gate.yml)
-workflow runs this on pull requests into `staging` and `main`, using the
-merge commit's first parent as the base. A detected break passes only after a
+workflow runs this on pull requests into `staging` and `main`, including when
+a pull request's base branch is changed, using the merge commit's first parent
+as the base. A detected break passes only after a
 required reviewer approves the `livestore-breaking-change` Environment for that
 run, per [decision 0002](./.decisions/0002-approve-breaking-event-changes-through-an-environment.md);
 a new push starts a new run and needs a new approval.
@@ -100,10 +101,21 @@ The `livestore/pure-materializers` lint rule rejects `Date.now`, `Date()`,
 argument-less `new Date()`, `Math.random`, `crypto.randomUUID`, and `nanoid()`
 inside the materializers in `schema.ts` (`CS.SYS.DATA-R03`).
 
-Known limits: a pull request runs its own copy of the workflow and tooling, so
-the workflow flags edits to them for review rather than preventing them. The
-JSON Schema renders `Schema.optional(X)` and an optional `Schema.NullOr(X)` the
-same way. Materializer behaviour of deployed events is not compared.
+Known limits:
+
+- a pull request runs its own copy of the workflow and tooling, so the workflow
+  flags edits to them (and to `package.json` and `bunfig.toml`) for review
+  rather than preventing them;
+- the baseline is the base branch's committed manifest, which the gate keeps
+  fresh on every pull request; a schema change merged without the gate would
+  leave a stale baseline;
+- JSON Schema cannot tell some schemas apart: `Schema.optional(X)` and an
+  optional `Schema.NullOr(X)` render alike, as do two declarations that both
+  decode a string to a `Date`;
+- events added after the goldens have no golden to replay, so their wire bytes
+  are checked only through the manifest;
+- materializer behaviour of deployed events is not compared, and a break
+  approved on `staging` is approved again on the `main` promotion pull request.
 
 ## Query Projection
 

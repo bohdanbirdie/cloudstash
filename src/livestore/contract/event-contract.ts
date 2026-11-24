@@ -12,6 +12,7 @@ type JsonObject = typeof JsonObject.Type;
 const EventEntry = Schema.Struct({
   scope: Schema.Literals(["synced", "clientOnly"]),
   args: JsonObject,
+  decoded: JsonObject,
 });
 
 export const Manifest = Schema.Struct({
@@ -63,12 +64,20 @@ export const encodeManifest = (manifest: Manifest) =>
 
 const decodeJsonObject = Schema.decodeUnknownSync(JsonObject);
 
-const encodedArgs = (eventSchema: Schema.Top) => {
-  const document = Schema.toJsonSchemaDocument(Schema.toEncoded(eventSchema));
+const jsonSchemaOf = (side: Schema.Top) => {
+  const document = Schema.toJsonSchemaDocument(side);
   const args = decodeJsonObject(document.schema);
   return Object.keys(document.definitions).length === 0
     ? args
     : { ...args, $defs: document.definitions };
+};
+
+const SqlDefault = Schema.Struct({ sql: Schema.String });
+
+const columnDefault = (columnSchema: Schema.Top, value: unknown) => {
+  if (typeof value === "function") return { thunk: true };
+  if (Schema.is(SqlDefault)(value)) return { sql: value.sql };
+  return Schema.encodeUnknownSync(columnSchema)(value);
 };
 
 export const buildManifest = (): Manifest => ({
@@ -79,7 +88,8 @@ export const buildManifest = (): Manifest => ({
       def.name,
       {
         scope: def.options.clientOnly ? "clientOnly" : "synced",
-        args: encodedArgs(def.schema),
+        args: jsonSchemaOf(Schema.toEncoded(def.schema)),
+        decoded: jsonSchemaOf(Schema.toType(def.schema)),
       },
     ])
   ),
@@ -94,9 +104,7 @@ export const buildManifest = (): Manifest => ({
           primaryKey: column.primaryKey ?? false,
           autoIncrement: column.autoIncrement ?? false,
           ...(Option.isSome(column.default) && {
-            default: Schema.encodeUnknownSync(column.schema)(
-              column.default.value
-            ),
+            default: columnDefault(column.schema, column.default.value),
           }),
         })),
         indexes: (sqliteDef.indexes ?? []).map((index) => ({
@@ -176,6 +184,36 @@ const fieldChanges = (event: string, base: JsonObject, head: JsonObject) => {
   return { breaks, added };
 };
 
+const decodedChanges = (
+  event: string,
+  base: Manifest["events"][string],
+  head: Manifest["events"][string]
+) => {
+  const fields = (args: JsonObject) =>
+    Option.match(Schema.decodeUnknownOption(ObjectArgs)(args), {
+      onNone: () => ({ "": args }),
+      onSome: (object) => object.properties,
+    });
+  const baseEncoded = fields(base.args);
+  const headEncoded = fields(head.args);
+  const baseDecoded = fields(base.decoded);
+  const headDecoded = fields(head.decoded);
+  return Object.keys(baseDecoded)
+    .toSorted(byCodeUnit)
+    .filter(
+      (field) =>
+        Object.hasOwn(headDecoded, field) &&
+        canonicalJson(baseEncoded[field]) ===
+          canonicalJson(headEncoded[field]) &&
+        canonicalJson(baseDecoded[field]) !== canonicalJson(headDecoded[field])
+    )
+    .map((field) =>
+      field === ""
+        ? `${event}: its arguments decode to a different type`
+        : `${event}: field \`${field}\` keeps its wire shape but decodes differently, from ${canonicalJson(baseDecoded[field])} to ${canonicalJson(headDecoded[field])}, so old events may no longer decode`
+    );
+};
+
 export interface ContractReport {
   readonly breaks: ReadonlyArray<string>;
   readonly notes: ReadonlyArray<string>;
@@ -183,8 +221,8 @@ export interface ContractReport {
 
 /**
  * Compare the base branch's manifest with this code's. Deployed events are
- * append-only: a base event must keep its name, scope and every field's
- * encoded shape. New events and new optional fields pass.
+ * append-only: a base event must keep its name, scope, and every field's
+ * encoded and decoded shape. New events and new optional fields pass.
  */
 export const compareManifests = (
   base: Manifest,
@@ -218,7 +256,10 @@ export const compareManifests = (
       );
     }
     const changes = fieldChanges(name, baseEvent.args, headEvent.args);
-    breaks.push(...changes.breaks);
+    breaks.push(
+      ...changes.breaks,
+      ...decodedChanges(name, baseEvent, headEvent)
+    );
     for (const field of changes.added) {
       notes.push(`${name}: new optional field \`${field}\``);
     }
@@ -282,6 +323,8 @@ export const replayGoldens = (goldens: Goldens): ReadonlyArray<string> => {
     const reEncoded = JSON.stringify(encoded.value);
     return reEncoded === wire
       ? []
-      : [`${label} re-encodes differently: ${reEncoded} instead of ${wire}`];
+      : [
+          `${label} re-encodes differently: ${reEncoded} instead of ${wire}. Keep field order, and give new defaulted fields encodingStrategy "omit"`,
+        ];
   });
 };
