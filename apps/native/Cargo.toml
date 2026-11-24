@@ -88,7 +88,10 @@ objc2-app-kit = { version = "0.3", default-features = false, features = [
 tray-icon = { version = "0.26", default-features = false }
 # The theme (src/appearance.rs).
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString"] }
+objc2-foundation = { version = "0.3", default-features = false, features = [
+  "std",
+  "NSString",
+] }
 # Open at login (src/login_item.rs): SMAppService, without unsafe code of ours.
 smappservice-rs = "0.1"
 
