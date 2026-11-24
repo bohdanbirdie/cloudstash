@@ -13,7 +13,7 @@ use rune::{
     el, icon, oklcha, rich, row, text, text_input,
 };
 
-use super::{ALL, ARCHIVE, DONE, FAVICON, FEED, GRID, INBOX, Look, Mode, RESET, RETURN, SEARCH, SIGN_OUT, font, scroll_bar};
+use super::{ALL, ARCHIVE, DONE, FAVICON, FEED, GRID, INBOX, Look, Mode, RESET, RETURN, SEARCH, SIGN_OUT, font, scroll_bar, solid};
 use rune_kit::ScrollBar;
 
 use crate::State;
@@ -276,7 +276,7 @@ fn hint(label: &str, keys: &[&str], l: &Look) -> El {
 }
 
 /// The panel's lift: a hairline ring, then a soft drop in light mode.
-fn lifted(e: El, l: &Look) -> El {
+pub(super) fn lifted(e: El, l: &Look) -> El {
     let ring = if l.dark { oklcha(1.0, 0.0, 0.0, 0.12) } else { oklcha(0.0, 0.0, 0.0, 0.08) };
     let e = e.box_shadow(Shadow { spread: 1.0, color: ring, ..Shadow::default() });
     let (near, far): (Color, Color) =
@@ -294,7 +294,7 @@ pub fn layers(s: &State, l: &Look) -> Vec<El> {
     let Some(p) = &s.palette else { return Vec::new() };
     let found = entries(s, &p.query.text);
     let sel = p.selected(found.len());
-    let line = || el().w_full().h(1.0).fill(l.line);
+    let line = || el().w_full().h(1.0).fill(solid(l.line, l.panel));
 
     let field = text_input(&p.query, font(15.0, 400.0))
         .key("palette-query")

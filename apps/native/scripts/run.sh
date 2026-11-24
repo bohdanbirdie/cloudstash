@@ -4,6 +4,7 @@
 #
 #   scripts/run.sh                                        # against https://cloudstash.dev
 #   CLOUDSTASH_URL=http://127.0.0.1:3000 scripts/run.sh   # against a local dev server
+#   CLOUDSTASH_FAKE_UPDATE=ready scripts/run.sh           # a pretend update: ready, failed or required (src/update.rs)
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -15,10 +16,15 @@ mkdir -p "$app/Contents/MacOS"
 cp target/debug/cloudstash-native "$app/Contents/MacOS/"
 
 # Apps started by Launch Services, as a deep link starts them, get no shell
-# environment, so the server address travels in the bundle.
+# environment, so the server address and the pretend update travel in the bundle.
 environment=""
-if [[ -n "${CLOUDSTASH_URL:-}" ]]; then
-  environment="<key>LSEnvironment</key><dict><key>CLOUDSTASH_URL</key><string>${CLOUDSTASH_URL}</string></dict>"
+for name in CLOUDSTASH_URL CLOUDSTASH_FAKE_UPDATE; do
+  if [[ -n "${!name:-}" ]]; then
+    environment+="<key>${name}</key><string>${!name}</string>"
+  fi
+done
+if [[ -n "$environment" ]]; then
+  environment="<key>LSEnvironment</key><dict>${environment}</dict>"
 fi
 
 cat > "$app/Contents/Info.plist" <<PLIST
