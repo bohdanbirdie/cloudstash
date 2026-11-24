@@ -168,7 +168,8 @@ signs it with the maintainer's Developer ID and hardened runtime, notarizes and
 staples it and its disk image, and publishes them as the repository's latest
 GitHub Release with an update zip and `latest.json` (version, zip address,
 Ed25519 signature). The signing certificate, notary key and update key are
-repository secrets; the update key's public half is in `src/update.rs`.
+secrets of the `native-release` environment, which only `main` may use; the
+update key's public half is in `src/update.rs`.
 
 Installed apps read the latest release's `latest.json` at launch and every
 four hours and download a newer version in the background. An update is

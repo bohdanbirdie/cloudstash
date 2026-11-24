@@ -21,6 +21,7 @@ permissions:
 jobs:
   release:
     runs-on: macos-latest
+    environment: native-release
     timeout-minutes: 90
     defaults:
       run:
