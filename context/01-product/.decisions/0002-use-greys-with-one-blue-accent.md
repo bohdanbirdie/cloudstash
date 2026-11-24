@@ -30,8 +30,8 @@ which already used a blue.
 
 | Option                               | Tradeoff                                                                                             |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| Keep orange as the primary           | Distinctive, but close to red and amber, so it competes with destructive and warning states.          |
-| No accent, greys only                | Calmest, but the main action and destructive action lose their difference from secondary buttons.     |
+| Keep orange as the primary           | Distinctive, but close to red and amber, so it competes with destructive and warning states.         |
+| No accent, greys only                | Calmest, but the main action and destructive action lose their difference from secondary buttons.    |
 | Pure greys with one rare blue accent | Common hue, but unambiguous next to status colours, native on the Mac, and readable with white text. |
 
 ## Decision
