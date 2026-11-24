@@ -1,11 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { BunServices } from "@effect/platform-bun";
+import { expect, layer } from "@effect/vitest";
+import { Effect } from "effect";
 
-import { fixture, violationsOf } from "./run-oxlint";
+import { violationsOf } from "./run-oxlint";
 
-describe("anti-slop/no-module-mocking", () => {
-  it("flags framework module mocks without flagging unrelated or shadowed methods", () => {
-    expect(
-      violationsOf(fixture("no-module-mocking.ts"), "no-module-mocking")
-    ).toHaveLength(4);
-  });
+layer(BunServices.layer)("anti-slop/no-module-mocking", (it) => {
+  it.effect(
+    "flags framework module mocks without flagging unrelated or shadowed methods",
+    () =>
+      Effect.gen(function* () {
+        expect(
+          yield* violationsOf("no-module-mocking.ts", "no-module-mocking")
+        ).toHaveLength(4);
+      })
+  );
 });

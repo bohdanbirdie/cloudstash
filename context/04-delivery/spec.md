@@ -17,7 +17,7 @@ cloudstash/                         Bun + Vite+ application
   local/raycast-extension/         ignored external npm checkout
 ```
 
-The root uses Bun 1.3.x, Vite+, TypeScript, Vitest, and Alchemy. Dependency
+The root uses Bun 1.4.x, Vite+, TypeScript, Vitest, and Alchemy. Dependency
 versions are exact where compatibility is sensitive.
 The root and extension typechecks use the Effect-patched TSRS build shipped by
 `@effect/tsgo`, with both wrapper and compiler version pinned. TypeScript and
@@ -96,8 +96,9 @@ required node pairs, structure, links, IDs/refinements, statuses, companion
 record shape, and evidence-link hygiene. Semantic quality remains review work.
 
 The PR checks workflow uses a frozen Bun install. Quality, unit, Worker E2E,
-and extension/production-build certification run as parallel jobs on Node 25,
-for pull requests targeting `staging` or `main`. Every workflow job has a
+and extension/production-build certification run as parallel jobs on Bun
+(`bun --bun run`, no Node setup), for pull requests targeting `staging` or
+`main`; see [decision 0006](./.decisions/0006-run-ci-and-repo-scripts-on-bun.md). Every workflow job has a
 timeout, so a hung step fails the run instead of holding it open. Merges are not re-certified;
 the deploy workflows start on each push to `staging` and `main`.
 The workflow has no Markdown path ignore, so Intent-only changes trigger CI.

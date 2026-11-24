@@ -1,6 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
-
+import { BunRuntime, BunServices } from "@effect/platform-bun";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -9,16 +7,22 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
+import { Console, Data, Effect, FileSystem, Path, Runtime } from "effect";
 import { renderToString } from "react-dom/server";
 import { createServer } from "vite";
 
 import { PRERENDERED_PATHS as PATHS } from "../src/lib/prerendered-paths";
-import type { PrerenderedPath as Path } from "../src/lib/prerendered-paths";
+import type { PrerenderedPath as RoutePath } from "../src/lib/prerendered-paths";
+
+class PrerenderError extends Data.TaggedError("PrerenderError")<{
+  readonly message: string;
+  readonly cause?: unknown;
+}> {}
 
 // Marketing routes only. We load them directly via Vite SSR so the full
 // `routeTree.gen.ts` (which pulls in _authed → livestore → browser-only
 // imports) never enters the SSR module graph.
-const ROUTE_MODULES: Record<Path, string> = {
+const ROUTE_MODULES: Record<RoutePath, string> = {
   "/": "/src/routes/index.tsx",
   "/privacy": "/src/routes/privacy.tsx",
   "/terms": "/src/routes/terms.tsx",
@@ -28,7 +32,7 @@ const ROUTE_MODULES: Record<Path, string> = {
 const ROOT_MODULE = "/src/routes/__root.tsx";
 const HEAD_MARKER = "<!--prerender:head-->";
 
-function outputPath(path: Path): string {
+function outputPath(path: RoutePath): string {
   return path === "/"
     ? "dist/client/__landing.html"
     : `dist/client${path}/index.html`;
@@ -151,7 +155,15 @@ function buildHeadHtml(heads: ReadonlyArray<HeadResult>): string {
   ].join("\n    ");
 }
 
-async function main(): Promise<void> {
+const program = Effect.gen(function* () {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const attempt = <A,>(message: string, run: () => Promise<A>) =>
+    Effect.tryPromise({
+      try: run,
+      catch: (cause) => new PrerenderError({ message, cause }),
+    });
+
   // Minimal Vite server for SSR module loading. We deliberately skip the
   // project's vite.config.ts because none of its plugins are needed to compile
   // the marketing route modules for SSR.
@@ -161,92 +173,102 @@ async function main(): Promise<void> {
   // `import.meta.env.PROD` to `false`; setting NODE_ENV before instantiation
   // tips Vite's config into production.
   process.env.NODE_ENV = "production";
-  const vite = await createServer({
-    configFile: false,
-    mode: "production",
-    server: { middlewareMode: true },
-    appType: "custom",
-    resolve: { tsconfigPaths: true },
-    define: {
-      "import.meta.env.PROD": "true",
-      "import.meta.env.DEV": "false",
-      "import.meta.env.MODE": '"production"',
-    },
-  });
-
-  try {
-    const shell = await readFile("dist/client/index.html", "utf-8");
-    if (!shell.includes(HEAD_MARKER)) {
-      throw new Error(`shell HTML missing ${HEAD_MARKER} marker`);
-    }
-
-    const rootModule = await vite.ssrLoadModule(ROOT_MODULE);
-    const rootHeadFn: ((ctx: unknown) => HeadResult) | undefined =
-      rootModule.Route.options.head;
-
-    const routeModules = await Promise.all(
-      PATHS.map((p) => vite.ssrLoadModule(ROUTE_MODULES[p]))
-    );
-
-    // Fresh marketing-only tree. We can't reuse the source routes' file-route
-    // wiring (each is already attached to its own __root__, so the router
-    // rejects duplicates), so we lift just the bits we need — component and
-    // head — onto fresh `createRoute()` entries.
-    const rootRoute = createRootRoute({ component: () => <Outlet /> });
-    const children = PATHS.map((path, i) =>
-      createRoute({
-        getParentRoute: () => rootRoute,
-        path,
-        component: routeModules[i].Route.options.component,
+  const vite = yield* Effect.acquireRelease(
+    attempt("Could not start the Vite SSR server", () =>
+      createServer({
+        configFile: false,
+        mode: "production",
+        server: { middlewareMode: true },
+        appType: "custom",
+        resolve: { tsconfigPaths: true },
+        define: {
+          "import.meta.env.PROD": "true",
+          "import.meta.env.DEV": "false",
+          "import.meta.env.MODE": '"production"',
+        },
       })
-    );
-    const routeTree = rootRoute.addChildren(children);
+    ),
+    (server) => Effect.promise(() => server.close())
+  );
 
-    for (let i = 0; i < PATHS.length; i++) {
-      const path = PATHS[i];
-      const router = createRouter({
-        routeTree,
-        history: createMemoryHistory({ initialEntries: [path] }),
-        // Mirror the runtime router so <Match> emits TSR's inline scroll
-        // restoration script into the prerendered HTML — it runs in <body>
-        // before hydration and restores the saved scroll synchronously,
-        // preventing the paint-at-top-then-jump on refresh.
-        scrollRestoration: true,
-      });
-      await router.load();
-      const html = renderToString(<RouterProvider router={router} />);
-
-      const routeHeadFn: ((ctx: unknown) => HeadResult) | undefined =
-        routeModules[i].Route.options.head;
-      const heads: HeadResult[] = [];
-      if (rootHeadFn) heads.push(rootHeadFn({}));
-      if (routeHeadFn) heads.push(routeHeadFn({}));
-      const headHtml = buildHeadHtml(heads);
-
-      const out = outputPath(path);
-      await mkdir(dirname(out), { recursive: true });
-      await writeFile(
-        out,
-        shell
-          .replace(HEAD_MARKER, headHtml)
-          .replace('<div id="root"></div>', `<div id="root">${html}</div>`)
-      );
-      console.log(`prerendered ${path} -> ${out}`);
-    }
-
-    await writeFile("dist/client/index.html", shell.replace(HEAD_MARKER, ""));
-    console.log("wrote empty SPA shell -> dist/client/index.html");
-  } finally {
-    await vite.close();
+  const shell = yield* fs.readFileString("dist/client/index.html");
+  if (!shell.includes(HEAD_MARKER)) {
+    return yield* new PrerenderError({
+      message: `shell HTML missing ${HEAD_MARKER} marker`,
+    });
   }
-}
+
+  const rootModule = yield* attempt("Could not load the root route", () =>
+    vite.ssrLoadModule(ROOT_MODULE)
+  );
+  const rootHeadFn: ((ctx: unknown) => HeadResult) | undefined =
+    rootModule.Route.options.head;
+
+  const routeModules = yield* attempt(
+    "Could not load the marketing routes",
+    () => Promise.all(PATHS.map((p) => vite.ssrLoadModule(ROUTE_MODULES[p])))
+  );
+
+  // Fresh marketing-only tree. We can't reuse the source routes' file-route
+  // wiring (each is already attached to its own __root__, so the router
+  // rejects duplicates), so we lift just the bits we need — component and
+  // head — onto fresh `createRoute()` entries.
+  const rootRoute = createRootRoute({ component: () => <Outlet /> });
+  const children = PATHS.map((routePath, i) =>
+    createRoute({
+      getParentRoute: () => rootRoute,
+      path: routePath,
+      component: routeModules[i].Route.options.component,
+    })
+  );
+  const routeTree = rootRoute.addChildren(children);
+
+  for (let i = 0; i < PATHS.length; i++) {
+    const routePath = PATHS[i];
+    const router = createRouter({
+      routeTree,
+      history: createMemoryHistory({ initialEntries: [routePath] }),
+      // Mirror the runtime router so <Match> emits TSR's inline scroll
+      // restoration script into the prerendered HTML — it runs in <body>
+      // before hydration and restores the saved scroll synchronously,
+      // preventing the paint-at-top-then-jump on refresh.
+      scrollRestoration: true,
+    });
+    yield* attempt(`Could not load ${routePath}`, () => router.load());
+    const html = renderToString(<RouterProvider router={router} />);
+
+    const routeHeadFn: ((ctx: unknown) => HeadResult) | undefined =
+      routeModules[i].Route.options.head;
+    const heads: HeadResult[] = [];
+    if (rootHeadFn) heads.push(rootHeadFn({}));
+    if (routeHeadFn) heads.push(routeHeadFn({}));
+    const headHtml = buildHeadHtml(heads);
+
+    const out = outputPath(routePath);
+    yield* fs.makeDirectory(path.dirname(out), { recursive: true });
+    yield* fs.writeFileString(
+      out,
+      shell
+        .replace(HEAD_MARKER, headHtml)
+        .replace('<div id="root"></div>', `<div id="root">${html}</div>`)
+    );
+    yield* Console.log(`prerendered ${routePath} -> ${out}`);
+  }
+
+  yield* fs.writeFileString(
+    "dist/client/index.html",
+    shell.replace(HEAD_MARKER, "")
+  );
+  yield* Console.log("wrote empty SPA shell -> dist/client/index.html");
+});
 
 // Explicit exit on success — Vite occasionally leaves miniflare /
 // workerd handles open in the SSR server even after `vite.close()`,
 // and the build has hung in CI before (see commit 704b131).
-main()
-  .then(() => process.exit(0))
-  .catch((err) => {
-    console.error(err);
-    process.exit(1);
-  });
+BunRuntime.runMain(
+  program.pipe(Effect.scoped, Effect.provide(BunServices.layer)),
+  {
+    teardown: (exit) =>
+      Runtime.defaultTeardown(exit, (code) => process.exit(code)),
+  }
+);
