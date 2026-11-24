@@ -124,6 +124,13 @@ pub fn poll(s: &mut State, now: f64, tx: &mut Tx) {
         s.memory.applied = Some(s.theme);
     }
     if let Some(backend) = &s.backend {
+        if s.menu_bar != s.tray.is_some() {
+            s.tray = if s.menu_bar { menu_bar::show(backend.ui.clone()) } else { None };
+            if s.tray.is_none() {
+                s.menu_bar = false;
+                s.hide_dock = false;
+            }
+        }
         if s.memory.docked != Some(s.hide_dock) {
             if !crate::settings::set_dock_icon(s, !s.hide_dock) {
                 backend.ui.set_dock_icon(!s.hide_dock);
@@ -132,9 +139,6 @@ pub fn poll(s: &mut State, now: f64, tx: &mut Tx) {
                 }
             }
             s.memory.docked = Some(s.hide_dock);
-        }
-        if s.menu_bar != s.tray.is_some() {
-            s.tray = if s.menu_bar { menu_bar::show(backend.ui.clone()) } else { None };
         }
     }
     let current = Saved::of(s);
