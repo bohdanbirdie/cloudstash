@@ -59,6 +59,7 @@ jobs:
       - name: Import the signing certificate and keys
         if: steps.version.outputs.new == 'true'
         env:
+          SIGN_IDENTITY: ${{ vars.NATIVE_SIGN_IDENTITY }}
           DEVELOPER_ID_P12: ${{ secrets.NATIVE_DEVELOPER_ID_P12 }}
           DEVELOPER_ID_P12_PASSWORD: ${{ secrets.NATIVE_DEVELOPER_ID_P12_PASSWORD }}
           NOTARY_KEY: ${{ secrets.NATIVE_NOTARY_KEY }}
@@ -72,8 +73,18 @@ jobs:
           printf '%s' "$DEVELOPER_ID_P12" | base64 --decode > "$RUNNER_TEMP/developer-id.p12"
           security import "$RUNNER_TEMP/developer-id.p12" -k "$keychain" -P "$DEVELOPER_ID_P12_PASSWORD" -T /usr/bin/codesign
           rm "$RUNNER_TEMP/developer-id.p12"
+          # The runner doesn't trust a Developer ID certificate without Apple's intermediate that
+          # issued it: the original one (until 2027) or G2.
+          for ca in assets/apple/DeveloperIDCA.cer assets/apple/DeveloperIDG2CA.cer; do
+            security import "$ca" -k "$keychain"
+          done
           security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" >/dev/null
           security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          if ! security find-identity -v -p codesigning "$keychain" | grep -qF "$SIGN_IDENTITY"; then
+            security find-identity -p codesigning "$keychain"
+            echo "::error::No usable signing identity named $SIGN_IDENTITY. The .p12 needs the certificate with its private key."
+            exit 1
+          fi
           umask 077
           printf '%s' "$NOTARY_KEY" > "$RUNNER_TEMP/notary.p8"
           printf '%s' "$UPDATE_KEY" > "$RUNNER_TEMP/update.pem"
