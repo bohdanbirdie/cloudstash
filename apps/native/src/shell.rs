@@ -4,17 +4,18 @@
 
 use std::borrow::Cow;
 use std::sync::OnceLock;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rune::{
-    Color, Cursor, Cx, El, GrowthSpec, Icon, Key, KeyEvent, Live, ScrollFade, ScrollSpec, Shadow, SurfaceFit, TextStyle, Tx, col, el, icon, oklch,
-    oklcha, row, text,
+    Color, Cursor, Cx, El, GrowthSpec, Icon, Key, KeyEvent, Live, Mods, ScrollFade, ScrollSpec, Shadow, SurfaceFit, TextStyle, Tx, col, el, icon,
+    oklch, oklcha, row, text,
 };
 use rune_kit::{Kit, ScrollBar, ScrollBarStyle};
 
 use crate::auth::Account;
 use crate::fps;
 use crate::images::{self, Lane, Request};
+use crate::nav::{self, Place};
 
 mod palette;
 use crate::livestore::library::{LinkItem, Tab};
@@ -31,7 +32,7 @@ const STATES: [(Tab, &str, &Icon); 4] =
     [(Tab::Inbox, "Inbox", &INBOX), (Tab::Completed, "Done", &DONE), (Tab::Archive, "Archive", &ARCHIVE), (Tab::All, "All links", &ALL)];
 
 /// The kinds of link the header filters by. Not wired to the library yet.
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum Kind {
     #[default]
     All,
@@ -43,7 +44,7 @@ pub enum Kind {
 const KINDS: [(Kind, &str); 4] = [(Kind::All, "All"), (Kind::Posts, "Posts"), (Kind::Articles, "Articles"), (Kind::Videos, "Videos")];
 
 /// How the content panel lays links out. Not wired to the list yet.
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum Mode {
     #[default]
     Grid,
@@ -67,6 +68,11 @@ const SPACES: [Space; 6] = [
     Space { id: "canvas", name: "Canvas UI", hue: 190.0, draft: false },
     Space { id: "mac", name: "Mac apps", hue: 145.0, draft: true },
 ];
+
+/// The id of the space called `id`, if there is one.
+pub fn space(id: &str) -> Option<&'static str> {
+    SPACES.iter().find(|space| space.id == id).map(|space| space.id)
+}
 
 pub fn sidebar_state() -> PaneState {
     PaneState::new(SIDEBAR_W).range(SIDEBAR_MIN, SIDEBAR_MAX)
@@ -262,17 +268,14 @@ fn sidebar(s: &State, account: &Account, l: &Look) -> El {
         .child(kbd("⌘K", l))
         .on_press(palette::toggle);
     let mut list = col().key("nav").w_full().gap(1.0).child(search).child(el().h(6.0));
-    for (tab, label, glyph) in STATES {
-        let on = s.space.is_none() && s.tab == tab;
+    for (i, (tab, label, glyph)) in STATES.into_iter().enumerate() {
+        let on = s.place == Place::Tab(tab);
         let lead = icon(glyph, 16.0).color(if on { l.fg } else { l.fg2 });
-        let n = tab.links(&s.links).len();
-        list = list.child(nav_row(format!("nav-{label}"), label, on, lead, count(n, l), l).on_press(move |s: &mut State| {
-            s.tab = tab;
-            s.space = None;
-        }));
+        let tail = if s.hints == Hints::Shown { kbd(&format!("⌘{}", i + 1), l) } else { count(tab.links(&s.links).len(), l) };
+        list = list.child(nav_row(format!("nav-{label}"), label, on, lead, tail, l).on_press(move |s: &mut State| nav::go(s, Place::Tab(tab))));
     }
     list = list.child(text("Spaces").font(font(12.0, 400.0)).color(l.fg3).px(8.0).pt(16.0).pb(4.0));
-    for (i, space) in SPACES.iter().enumerate() {
+    for space in &SPACES {
         let lead = row().size(16.0, 16.0).center().child(swatch(space, 10.0, l));
         let tail = if space.draft {
             row()
@@ -285,8 +288,9 @@ fn sidebar(s: &State, account: &Account, l: &Look) -> El {
         } else {
             el()
         };
-        let row = nav_row(format!("space-{}", space.id), space.name, s.space == Some(i), lead, tail, l);
-        list = list.child(row.on_press(move |s: &mut State| s.space = Some(i)));
+        let (id, on) = (space.id, s.place == Place::Space(space.id));
+        let row = nav_row(format!("space-{id}"), space.name, on, lead, tail, l);
+        list = list.child(row.on_press(move |s: &mut State| nav::go(s, Place::Space(id))));
     }
     let name = account.name.as_deref().and_then(|n| n.split_whitespace().next()).unwrap_or(&account.email);
     let initial: String = name.chars().take(1).flat_map(char::to_uppercase).collect();
@@ -315,18 +319,21 @@ fn sidebar(s: &State, account: &Account, l: &Look) -> El {
 }
 
 fn toolbar(s: &State, l: &Look) -> Toolbar {
-    let title = match s.space.map(|i| &SPACES[i]) {
-        Some(space) => row()
-            .key("crumb")
-            .gap(8.0)
-            .center_y()
-            .pl(4.0)
-            .child(text("Spaces").font(font(13.5, 400.0)).color(l.fg3))
-            .child(icon(&CHEVRON, 12.0).color(l.fg3))
-            .child(swatch(space, 10.0, l))
-            .child(text(space.name).font(font(13.5, 500.0)).color(l.fg)),
-        None => {
-            let name = STATES.iter().find(|(tab, ..)| *tab == s.tab).map_or("", |(_, name, _)| name);
+    let title = match s.place {
+        Place::Space(id) => match SPACES.iter().find(|space| space.id == id) {
+            Some(space) => row()
+                .key("crumb")
+                .gap(8.0)
+                .center_y()
+                .pl(4.0)
+                .child(text("Spaces").font(font(13.5, 400.0)).color(l.fg3))
+                .child(icon(&CHEVRON, 12.0).color(l.fg3))
+                .child(swatch(space, 10.0, l))
+                .child(text(space.name).font(font(13.5, 500.0)).color(l.fg)),
+            None => row().key("crumb"),
+        },
+        Place::Tab(tab) => {
+            let name = STATES.iter().find(|(t, ..)| *t == tab).map_or("", |(_, name, _)| name);
             row().key("crumb").pl(4.0).child(text(name).font(font(13.5, 500.0)).color(l.fg))
         }
     };
@@ -392,7 +399,10 @@ fn one_line(s: &str) -> String {
 /// The links the content panel shows: the chosen state's, or none for a space (spaces have no
 /// links yet).
 fn shown(s: &State) -> Vec<&LinkItem> {
-    if s.space.is_some() { Vec::new() } else { s.tab.links(&s.links) }
+    match s.place {
+        Place::Tab(tab) => tab.links(&s.links),
+        Place::Space(_) => Vec::new(),
+    }
 }
 
 /// The plain list the feed toggle shows until the feed is built.
@@ -546,7 +556,7 @@ fn grid(s: &State, columns: usize, dark: bool) -> El {
 
 fn page(s: &State, cx: &mut Cx<State>, dark: bool, l: &Look) -> El {
     let body = if shown(s).is_empty() {
-        let empty = if s.space.is_some() || s.sync == Sync::Online { "Nothing here yet." } else { "Loading your library…" };
+        let empty = if matches!(s.place, Place::Space(_)) || s.sync == Sync::Online { "Nothing here yet." } else { "Loading your library…" };
         text(empty).key("empty").font(font(13.0, 400.0)).color(l.fg3)
     } else if s.mode == Mode::Grid {
         grid(s, cx.layout_with("viewport", |r| columns(r[2])).unwrap_or(3), dark)
@@ -603,12 +613,69 @@ pub fn view(s: &State, account: &Account, cx: &mut Cx<State>) -> El {
         .child(fps::meter::<State>(l.fg2, l.panel, l.line2).pin(None, None, Some(20.0), Some(20.0)).paint_order(100))
 }
 
-/// ⌘K opens and closes the command palette. ⌘B toggles the sidebar, like the reference apps,
-/// and so do rune-kit's ⇧⌘B and ⌃⌘S. ⌥⌘R
+/// How long ⌘ is held alone before the sidebar shows its shortcuts, as Grok and Raycast do.
+const HINT_DELAY: f64 = 0.6;
+
+/// The sidebar's shortcut hints: hidden, waiting for ⌘ to be held until a time, or shown.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum Hints {
+    #[default]
+    Hidden,
+    Until(f64),
+    Shown,
+}
+
+impl Hints {
+    /// ⌘ went down alone (or another modifier joined it, or it went up) at `now`.
+    fn held(self, alone: bool, now: f64) -> Hints {
+        match (alone, self) {
+            (false, _) => Hints::Hidden,
+            (true, Hints::Hidden) => Hints::Until(now + HINT_DELAY),
+            (true, held) => held,
+        }
+    }
+
+    fn at(self, now: f64) -> Hints {
+        match self {
+            Hints::Until(due) if now >= due => Hints::Shown,
+            hints => hints,
+        }
+    }
+}
+
+/// Starts or ends holding ⌘ alone; leaving the window lets go of every modifier.
+pub fn on_modifiers(s: &mut State, mods: Mods, tx: &mut Tx) {
+    let alone = mods.cmd && !mods.shift && !mods.alt && !mods.ctrl;
+    s.hints = s.hints.held(alone, tx.clock());
+    if matches!(s.hints, Hints::Until(_)) {
+        tx.wake_after(Duration::from_secs_f64(HINT_DELAY));
+    }
+}
+
+/// Shows the hints once ⌘ has been held long enough.
+pub fn poll_hints(s: &mut State, now: f64) -> bool {
+    let hints = s.hints.at(now);
+    std::mem::replace(&mut s.hints, hints) != hints
+}
+
+/// The place ⌘1 to ⌘4 go to: the library's states in sidebar order.
+pub fn shortcut(e: &KeyEvent) -> Option<Place> {
+    if e.mods.shift || e.mods.alt {
+        return None;
+    }
+    STATES.iter().zip(['1', '2', '3', '4']).find(|(_, n)| e.is_command(*n)).map(|((tab, ..), _)| Place::Tab(*tab))
+}
+
+/// ⌘K opens and closes the command palette, and ⌘1 to ⌘4 go to the library's states. ⌘B toggles
+/// the sidebar, like the reference apps, and so do rune-kit's ⇧⌘B and ⌃⌘S. ⌥⌘R
 /// throws away the saved pictures and loads them again, for experiments.
 pub fn on_key(s: &mut State, e: &KeyEvent, _: &mut Tx) -> bool {
     if !matches!(s.phase, Phase::SignedIn(_)) {
         return false;
+    }
+    if let Some(place) = shortcut(e) {
+        nav::go(s, place);
+        return true;
     }
     if e.is_command('k') && !e.mods.shift && !e.mods.alt {
         palette::toggle(s);
@@ -655,6 +722,26 @@ mod tests {
         assert_eq!(ago(now - 14 * DAY, now), "2w");
         assert_eq!(ago(0, now), "Jan 1");
         assert_eq!(month_day(19_783), (3, 1));
+    }
+
+    #[test]
+    fn command_and_a_number_goes_to_that_state_in_sidebar_order() {
+        let cmd = |c: char, shift: bool| KeyEvent { key: Key::Command(c), mods: rune::Mods { cmd: true, shift, ..rune::Mods::default() } };
+        assert_eq!(shortcut(&cmd('1', false)), Some(Place::Tab(Tab::Inbox)));
+        assert_eq!(shortcut(&cmd('2', false)), Some(Place::Tab(Tab::Completed)));
+        assert_eq!(shortcut(&cmd('3', false)), Some(Place::Tab(Tab::Archive)));
+        assert_eq!(shortcut(&cmd('4', false)), Some(Place::Tab(Tab::All)));
+        assert_eq!(shortcut(&cmd('5', false)), None);
+        assert_eq!(shortcut(&cmd('1', true)), None);
+    }
+
+    #[test]
+    fn holding_command_alone_shows_the_hints_after_a_moment() {
+        let held = Hints::Hidden.held(true, 1.0);
+        assert_eq!(held.at(1.0 + HINT_DELAY / 2.0), held);
+        assert_eq!(held.at(1.0 + HINT_DELAY), Hints::Shown);
+        assert_eq!(held.held(true, 5.0), held, "a repeat report doesn't restart the wait");
+        assert_eq!(Hints::Shown.held(false, 2.0), Hints::Hidden, "letting go or adding shift hides them");
     }
 
     #[test]

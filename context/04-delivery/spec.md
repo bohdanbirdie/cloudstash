@@ -41,7 +41,23 @@ and API-key LiveStore sync. Card pictures are kept as small local copies in each
 library's folder and deleted with it on sign-out, or at the next launch that
 finds no session; at most 80 MB of them are kept decoded in memory, per
 [decision 0006](./.decisions/0006-bound-native-picture-memory.md). Saved links open in the browser only when they are web
-addresses.
+addresses. The window's page is one `Place` value (a library state or a space
+by id), changed only through `nav::go`, so every navigation (sidebar, palette,
+⌘1 to ⌘4 for the states in sidebar order, later menus and links) takes the
+same path. Between launches AppKit keeps the window's position and size, and
+`ui.json` in the app's folder keeps the page, grid or feed, the kind filter and
+the sidebar's state and width. Each value is checked as it loads and an
+unknown one falls back to its default, so no saved state can strand the app;
+the file is replaced atomically, and sign-out forgets the page and filter.
+Settings is a window of its own (⌘, or Cloudstash ▸ Settings…) with General
+(the account, Sign Out behind a confirmation, the theme, Open at login, and
+the Dock and menu bar icons), Updates (shown only, until the updater lands)
+and About. Open at login registers the app as a macOS login item; macOS keeps
+it, so Settings reads it back each time it opens. The theme sets the application's appearance, so both
+windows follow it. The app can hide its Dock icon only while its menu bar icon
+(the logo; a click brings the window forward) shows, so it can always be
+found; `ui.json` keeps the theme and both icons across sign-out and restores a
+Dock icon if neither was saved on.
 
 Local provider configuration is represented by committed 1Password references
 in `.env.example`. `bun run env:sync` explicitly and atomically materializes

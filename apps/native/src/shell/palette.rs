@@ -19,6 +19,7 @@ use rune_kit::ScrollBar;
 use crate::State;
 use crate::images::{self, Lane, Request};
 use crate::livestore::library::{LinkItem, Tab};
+use crate::nav::{Place, go};
 use crate::search::{self, Evidence, Field, Hit};
 
 /// Links shown for a query at most; typing narrows them.
@@ -80,21 +81,16 @@ struct Entry {
     item: Item,
 }
 
-fn go(s: &mut State, tab: Tab) {
-    s.space = None;
-    s.tab = tab;
-}
-
 fn commands(s: &State) -> [(&'static str, Command); 7] {
     let mode = match s.mode {
         Mode::Grid => Command { name: "Show as feed", glyph: &FEED, run: |s| s.mode = Mode::Feed },
         Mode::Feed => Command { name: "Show as grid", glyph: &GRID, run: |s| s.mode = Mode::Grid },
     };
     [
-        ("Go to", Command { name: "Inbox", glyph: &INBOX, run: |s| go(s, Tab::Inbox) }),
-        ("Go to", Command { name: "Done", glyph: &DONE, run: |s| go(s, Tab::Completed) }),
-        ("Go to", Command { name: "Archive", glyph: &ARCHIVE, run: |s| go(s, Tab::Archive) }),
-        ("Go to", Command { name: "All links", glyph: &ALL, run: |s| go(s, Tab::All) }),
+        ("Go to", Command { name: "Inbox", glyph: &INBOX, run: |s| go(s, Place::Tab(Tab::Inbox)) }),
+        ("Go to", Command { name: "Done", glyph: &DONE, run: |s| go(s, Place::Tab(Tab::Completed)) }),
+        ("Go to", Command { name: "Archive", glyph: &ARCHIVE, run: |s| go(s, Place::Tab(Tab::Archive)) }),
+        ("Go to", Command { name: "All links", glyph: &ALL, run: |s| go(s, Place::Tab(Tab::All)) }),
         ("Actions", mode),
         ("Actions", Command { name: "Clear picture cache", glyph: &RESET, run: |_| images::reset() }),
         ("Actions", Command { name: "Sign out", glyph: &SIGN_OUT, run: crate::sign_out }),

@@ -7,22 +7,28 @@
 //! CLOUDSTASH_URL=http://127.0.0.1:3000 scripts/run.sh   # against a local dev server
 //! ```
 
+mod appearance;
 mod auth;
 mod fps;
 mod icons;
 mod images;
 mod livestore;
 mod log;
+mod login_item;
+mod menu_bar;
+mod nav;
 mod search;
+mod settings;
 mod shell;
 mod shell_kit;
 mod theme;
+mod ui_state;
 
 use std::sync::Arc;
 
 use auth::{Account, Auth, Link};
 use livestore::library::{self, Library, LinkItem, Tab};
-use rune::{App, AppHandle, AppSpec, Chrome, Color, Cx, El, FontSmoothing, LoopSpec, Shadow, TextStyle, Tx, col, icon, row, text};
+use rune::{App, AppHandle, AppSpec, Chrome, Color, Cx, El, FontSmoothing, LoopSpec, MenuItem, Shadow, TextStyle, Tx, col, icon, row, text};
 use shell_kit::PaneState;
 use theme::Palette;
 
@@ -30,6 +36,17 @@ const APP_TITLE: &str = "Cloudstash";
 /// `@fontsource-variable/noto-sans` 5.2.10's subsets, one family each, listed so each
 /// character falls back to its subset as the web's `unicode-range` faces do.
 const NOTO_SANS: &str = "Noto Sans Latin, Noto Sans Latin Ext, Noto Sans Cyrillic, Noto Sans Cyrillic Ext, Noto Sans Greek, Noto Sans Greek Ext, Noto Sans Vietnamese, Noto Sans Devanagari";
+
+const FONTS: &[&[u8]] = &[
+    include_bytes!("../fonts/noto-sans-latin.ttf"),
+    include_bytes!("../fonts/noto-sans-latin-ext.ttf"),
+    include_bytes!("../fonts/noto-sans-cyrillic.ttf"),
+    include_bytes!("../fonts/noto-sans-cyrillic-ext.ttf"),
+    include_bytes!("../fonts/noto-sans-greek.ttf"),
+    include_bytes!("../fonts/noto-sans-greek-ext.ttf"),
+    include_bytes!("../fonts/noto-sans-vietnamese.ttf"),
+    include_bytes!("../fonts/noto-sans-devanagari.ttf"),
+];
 
 #[derive(Default)]
 enum Phase {
@@ -59,22 +76,47 @@ pub(crate) struct State {
     notice: Option<String>,
     library: Option<Library>,
     links: Vec<LinkItem>,
-    tab: Tab,
+    place: nav::Place,
     sync: Sync,
     backend: Option<Backend>,
     /// A link that arrived before the backend was ready, as when it launched the app.
     early_link: Option<String>,
     sidebar: PaneState,
-    /// The hardcoded space picked in the sidebar, shown in place of the tab.
-    space: Option<usize>,
     kind: shell::Kind,
     mode: shell::Mode,
+    /// Whether ⌘ is held alone, and since when, for the sidebar's shortcut hints.
+    hints: shell::Hints,
     /// The command palette, while it's open.
     palette: Option<shell::Palette>,
+    memory: ui_state::Memory,
+    settings: Option<settings::Link>,
+    theme: appearance::Theme,
+    /// No Dock icon; only while the menu bar icon shows, so the app can always be found.
+    hide_dock: bool,
+    menu_bar: bool,
+    tray: Option<tray_icon::TrayIcon>,
+}
+
+/// Headless snapshots render a named scene and must not touch the keychain, the network or the
+/// saved window.
+fn headless() -> bool {
+    std::env::args().any(|arg| arg == "--snap" || arg == "--tree")
 }
 
 fn new_state() -> State {
-    State { sidebar: shell::sidebar_state(), ..State::default() }
+    let mut s = State { sidebar: shell::sidebar_state(), ..State::default() };
+    if !headless() {
+        match auth::state_dir() {
+            Ok(dir) => ui_state::restore(&mut s, dir.join("ui.json")),
+            Err(e) => tracing::warn!("{e}"),
+        }
+    }
+    s
+}
+
+fn poll(s: &mut State, now: f64, tx: &mut Tx) -> bool {
+    ui_state::poll(s, now, tx);
+    shell::poll_hints(s, now)
 }
 
 #[derive(Clone)]
@@ -225,12 +267,14 @@ fn sign_out(s: &mut State) {
     let Some(backend) = s.backend.clone() else {
         return;
     };
+    settings::close(s);
     s.notice = None;
     s.phase = Phase::SignedOut;
     images::close();
     let library = s.library.take();
     s.links.clear();
-    s.tab = Tab::default();
+    s.place = nav::Place::default();
+    s.kind = shell::Kind::default();
     std::thread::spawn(move || {
         if let Some(library) = library {
             library.close();
@@ -329,7 +373,7 @@ fn signed_in_scene(s: &mut State, tab: Tab) {
     s.phase =
         Phase::SignedIn(Account { name: Some("Ada Example".to_owned()), email: "ada@example.com".to_owned(), library_id: "org_example".to_owned() });
     s.sync = Sync::Online;
-    s.tab = tab;
+    s.place = nav::Place::Tab(tab);
     let link = |id: &str, title: &str, status: &str, created_at: i64, completed_at: Option<i64>| LinkItem {
         id: id.to_owned(),
         title: title.to_owned(),
@@ -399,7 +443,9 @@ fn worst_case_scene(s: &mut State, tab: Tab) {
 
 fn main() {
     log::start();
-    let app = App::new(AppSpec::<State> {
+    let size = if headless() { None } else { rune_mac::saved_size(ui_state::WINDOW) };
+    let size = size.unwrap_or((1180.0, 760.0));
+    let mut app = App::new(AppSpec::<State> {
         scenes: &[
             ("signed-out", |s| s.phase = Phase::SignedOut),
             ("error", |s| {
@@ -453,20 +499,12 @@ fn main() {
                 s.palette = Some(shell::Palette::showing("kubernetes operator", 0));
             }),
         ],
-        fonts: &[
-            include_bytes!("../fonts/noto-sans-latin.ttf"),
-            include_bytes!("../fonts/noto-sans-latin-ext.ttf"),
-            include_bytes!("../fonts/noto-sans-cyrillic.ttf"),
-            include_bytes!("../fonts/noto-sans-cyrillic-ext.ttf"),
-            include_bytes!("../fonts/noto-sans-greek.ttf"),
-            include_bytes!("../fonts/noto-sans-greek-ext.ttf"),
-            include_bytes!("../fonts/noto-sans-vietnamese.ttf"),
-            include_bytes!("../fonts/noto-sans-devanagari.ttf"),
-        ],
+        fonts: FONTS,
         families: (NOTO_SANS, NOTO_SANS),
         min_size: Some((900.0, 560.0)),
         on_key: Some(shell::on_key),
-        ..AppSpec::new(APP_TITLE, (1180.0, 760.0), new_state, view)
+        poll: Some(poll),
+        ..AppSpec::new(APP_TITLE, size, new_state, view)
     })
     .chrome(Chrome { full_size_content: true, traffic_lights: Some((21.0, 21.0)), drag_regions: true })
     .font_smoothing(FontSmoothing::Off)
@@ -475,7 +513,11 @@ fn main() {
         let mut tracker = fps::Tracker::default();
         move |frame| tracker.frame(frame)
     })
-    .on_open_url(open_url);
+    .on_modifiers(shell::on_modifiers)
+    .on_quit(|s, _| ui_state::flush(s))
+    .on_open_url(open_url)
+    .menu_item(MenuItem::new("Settings…", |s: &mut State, _| settings::open(s)).key_equivalent("cmd+comma".parse().expect("a valid shortcut")));
+    let (settings_ui, settings_window) = app.window(settings::window(FONTS, NOTO_SANS));
     let auth = match Auth::from_env() {
         Ok(auth) => Arc::new(auth),
         Err(e) => {
@@ -496,14 +538,15 @@ fn main() {
         },
     };
     let stored = backend.clone();
+    let link = settings::link(settings_ui, settings_window, backend.ui.clone());
     backend.ui.update(move |s, tx| {
         s.backend = Some(stored);
+        s.settings = Some(link);
         if let Some(link) = s.early_link.take() {
             open_url(s, &link, tx);
         }
     });
-    // Headless snapshots render a named scene and must not touch the keychain or network.
-    if !std::env::args().any(|arg| arg == "--snap" || arg == "--tree") {
+    if !headless() {
         std::thread::spawn(move || backend.show(backend.auth.restore()));
     }
     app.run();
