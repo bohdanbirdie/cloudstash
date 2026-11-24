@@ -159,6 +159,25 @@ Remote migration/deploy/secret operations are maintainer-controlled. Agent and
 ordinary local commands stop at local migrations, checks, builds, and explicit
 review artifacts unless the maintainer separately authorizes a remote action.
 
+## Native App Delivery
+
+The Mac app's version is `apps/native/Cargo.toml`'s; debug builds don't
+update. When `main` gets a version with no `native-v<version>` tag,
+`native-release.yml` builds a universal app (`apps/native/scripts/release.sh`),
+signs it with the maintainer's Developer ID and hardened runtime, notarizes and
+staples it and its disk image, and publishes them as the repository's latest
+GitHub Release with an update zip and `latest.json` (version, zip address,
+Ed25519 signature). The signing certificate, notary key and update key are
+repository secrets; the update key's public half is in `src/update.rs`.
+
+Installed apps read the latest release's `latest.json` at launch and every
+four hours and download a newer version in the background. An update is
+offered only after its zip's signature verifies, its bundle id and version
+match, and `codesign` confirms the maintainer team's Developer ID; restarting
+swaps it in place with two renames, rolled back on failure. A copy that can't
+be replaced in place (translocated, read-only) doesn't check. Per
+[decision 0007](./.decisions/0007-update-the-native-app-from-github-releases.md).
+
 ## Extension Delivery
 
 The Chrome extension builds and zips from `apps/extension`; a manual GitHub
