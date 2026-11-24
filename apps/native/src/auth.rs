@@ -94,6 +94,12 @@ pub enum Link {
     Ignored,
 }
 
+/// The app's own folder: the pending sign-in, the libraries and the saved window.
+pub fn state_dir() -> Result<PathBuf, String> {
+    let home = std::env::var("HOME").map_err(|_| "HOME is not set".to_owned())?;
+    Ok(PathBuf::from(home).join("Library/Application Support/dev.cloudstash.native"))
+}
+
 pub struct Auth {
     /// Origin of the Cloudstash deployment, without a trailing slash.
     pub base: String,
@@ -106,12 +112,7 @@ impl Auth {
     pub fn from_env() -> Result<Auth, String> {
         let base = std::env::var("CLOUDSTASH_URL").unwrap_or_else(|_| DEFAULT_BASE.to_owned());
         let base = base.trim_end_matches('/').to_owned();
-        let home = std::env::var("HOME").map_err(|_| "HOME is not set".to_owned())?;
-        Ok(Auth {
-            store: Box::new(Keychain { account: base.clone() }),
-            base,
-            state_dir: PathBuf::from(home).join("Library/Application Support/dev.cloudstash.native"),
-        })
+        Ok(Auth { store: Box::new(Keychain { account: base.clone() }), base, state_dir: state_dir()? })
     }
 
     fn pending_file(&self) -> PathBuf {
