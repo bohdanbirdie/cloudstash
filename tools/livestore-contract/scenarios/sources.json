@@ -1,0 +1,564 @@
+{
+  "about": "Links saved from each channel the app has: Telegram, an X bookmark, the Chrome extension, the API, MCP, the in-app chat and the Mac app. The Telegram link is processed and the bot replies; the X bookmark only gets a title and an icon; one page has a Ukrainian title with an emoji. Sending a URL that is already saved, from another channel, is ignored.",
+  "steps": [
+    {
+      "event": "v2.LinkCreated",
+      "args": {
+        "createdAt": "2026-03-02T08:15:00.000Z",
+        "domain": "livestore.dev",
+        "id": "tg-1",
+        "source": "telegram",
+        "sourceMeta": "{\"chatId\":123456789,\"messageId\":42}",
+        "url": "https://livestore.dev/docs/"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "tg-1",
+            "url": "https://livestore.dev/docs/",
+            "domain": "livestore.dev",
+            "status": "unread",
+            "source": "telegram",
+            "sourceMeta": "{\"chatId\":123456789,\"messageId\":42}",
+            "createdAt": 1772439300000,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkProcessingStarted",
+      "args": {
+        "linkId": "tg-1",
+        "updatedAt": "2026-03-02T08:15:01.000Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "tg-1",
+            "status": "pending",
+            "error": null,
+            "notified": 0,
+            "updatedAt": 1772439301000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkMetadataFetched",
+      "args": {
+        "description": "Посібник з локальних даних, синхронізації та подій.",
+        "favicon": "https://livestore.dev/favicon.svg",
+        "fetchedAt": "2026-03-02T08:15:02.000Z",
+        "id": "snap-tg-1",
+        "image": "https://livestore.dev/og.png",
+        "linkId": "tg-1",
+        "title": "Як працює LiveStore — повний гайд 🚀"
+      },
+      "expect": {
+        "link_snapshots": [
+          {
+            "id": "snap-tg-1",
+            "linkId": "tg-1",
+            "title": "Як працює LiveStore — повний гайд 🚀",
+            "description": "Посібник з локальних даних, синхронізації та подій.",
+            "image": "https://livestore.dev/og.png",
+            "favicon": "https://livestore.dev/favicon.svg",
+            "fetchedAt": 1772439302000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkSummarized",
+      "args": {
+        "id": "sum-tg-1",
+        "linkId": "tg-1",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "summarizedAt": "2026-03-02T08:15:05.000Z",
+        "summary": "A guide to LiveStore: local SQLite state rebuilt from a synced event log."
+      },
+      "expect": {
+        "link_summaries": [
+          {
+            "id": "sum-tg-1",
+            "linkId": "tg-1",
+            "summary": "A guide to LiveStore: local SQLite state rebuilt from a synced event log.",
+            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "summarizedAt": 1772439305000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkProcessingCompleted",
+      "args": {
+        "linkId": "tg-1",
+        "updatedAt": "2026-03-02T08:15:06.000Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "tg-1",
+            "status": "completed",
+            "error": null,
+            "notified": 0,
+            "updatedAt": 1772439306000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkSourceNotified",
+      "args": {
+        "linkId": "tg-1",
+        "notifiedAt": "2026-03-02T08:15:07.000Z"
+      },
+      "expect": {
+        "link_processing_status": [
+          {
+            "linkId": "tg-1",
+            "status": "completed",
+            "error": null,
+            "notified": 1,
+            "updatedAt": 1772439306000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v2.LinkCreated",
+      "args": {
+        "createdAt": "2026-03-02T09:00:00.000Z",
+        "domain": "x.com",
+        "id": "x-1",
+        "source": "x_bookmark",
+        "sourceMeta": "{\"tweetId\":\"1897000000000000001\",\"authorId\":\"44196397\",\"text\":\"Local-first apps are back. Thread 🧵\",\"createdAt\":\"2026-03-01T19:00:00.000Z\"}",
+        "url": "https://x.com/i/status/1897000000000000001"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "tg-1",
+            "url": "https://livestore.dev/docs/",
+            "domain": "livestore.dev",
+            "status": "unread",
+            "source": "telegram",
+            "sourceMeta": "{\"chatId\":123456789,\"messageId\":42}",
+            "createdAt": 1772439300000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "x-1",
+            "url": "https://x.com/i/status/1897000000000000001",
+            "domain": "x.com",
+            "status": "unread",
+            "source": "x_bookmark",
+            "sourceMeta": "{\"tweetId\":\"1897000000000000001\",\"authorId\":\"44196397\",\"text\":\"Local-first apps are back. Thread 🧵\",\"createdAt\":\"2026-03-01T19:00:00.000Z\"}",
+            "createdAt": 1772442000000,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v1.LinkMetadataFetched",
+      "args": {
+        "description": null,
+        "favicon": "https://abs.twimg.com/favicons/twitter.3.ico",
+        "fetchedAt": "2026-03-02T09:00:02.000Z",
+        "id": "snap-x-1",
+        "image": null,
+        "linkId": "x-1",
+        "title": "Post on X"
+      },
+      "expect": {
+        "link_snapshots": [
+          {
+            "id": "snap-tg-1",
+            "linkId": "tg-1",
+            "title": "Як працює LiveStore — повний гайд 🚀",
+            "description": "Посібник з локальних даних, синхронізації та подій.",
+            "image": "https://livestore.dev/og.png",
+            "favicon": "https://livestore.dev/favicon.svg",
+            "fetchedAt": 1772439302000
+          },
+          {
+            "id": "snap-x-1",
+            "linkId": "x-1",
+            "title": "Post on X",
+            "description": null,
+            "image": null,
+            "favicon": "https://abs.twimg.com/favicons/twitter.3.ico",
+            "fetchedAt": 1772442002000
+          }
+        ]
+      }
+    },
+    {
+      "event": "v2.LinkCreated",
+      "args": {
+        "createdAt": "2026-03-02T10:00:00.000Z",
+        "domain": "effect.website",
+        "id": "ext-1",
+        "source": "chrome-extension",
+        "sourceMeta": null,
+        "url": "https://effect.website/docs/schema/introduction/"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "ext-1",
+            "url": "https://effect.website/docs/schema/introduction/",
+            "domain": "effect.website",
+            "status": "unread",
+            "source": "chrome-extension",
+            "sourceMeta": null,
+            "createdAt": 1772445600000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "tg-1",
+            "url": "https://livestore.dev/docs/",
+            "domain": "livestore.dev",
+            "status": "unread",
+            "source": "telegram",
+            "sourceMeta": "{\"chatId\":123456789,\"messageId\":42}",
+            "createdAt": 1772439300000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "x-1",
+            "url": "https://x.com/i/status/1897000000000000001",
+            "domain": "x.com",
+            "status": "unread",
+            "source": "x_bookmark",
+            "sourceMeta": "{\"tweetId\":\"1897000000000000001\",\"authorId\":\"44196397\",\"text\":\"Local-first apps are back. Thread 🧵\",\"createdAt\":\"2026-03-01T19:00:00.000Z\"}",
+            "createdAt": 1772442000000,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v2.LinkCreated",
+      "args": {
+        "createdAt": "2026-03-02T10:05:00.000Z",
+        "domain": "developers.cloudflare.com",
+        "id": "api-1",
+        "source": "api",
+        "sourceMeta": null,
+        "url": "https://developers.cloudflare.com/durable-objects/"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "api-1",
+            "url": "https://developers.cloudflare.com/durable-objects/",
+            "domain": "developers.cloudflare.com",
+            "status": "unread",
+            "source": "api",
+            "sourceMeta": null,
+            "createdAt": 1772445900000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "ext-1",
+            "url": "https://effect.website/docs/schema/introduction/",
+            "domain": "effect.website",
+            "status": "unread",
+            "source": "chrome-extension",
+            "sourceMeta": null,
+            "createdAt": 1772445600000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "tg-1",
+            "url": "https://livestore.dev/docs/",
+            "domain": "livestore.dev",
+            "status": "unread",
+            "source": "telegram",
+            "sourceMeta": "{\"chatId\":123456789,\"messageId\":42}",
+            "createdAt": 1772439300000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "x-1",
+            "url": "https://x.com/i/status/1897000000000000001",
+            "domain": "x.com",
+            "status": "unread",
+            "source": "x_bookmark",
+            "sourceMeta": "{\"tweetId\":\"1897000000000000001\",\"authorId\":\"44196397\",\"text\":\"Local-first apps are back. Thread 🧵\",\"createdAt\":\"2026-03-01T19:00:00.000Z\"}",
+            "createdAt": 1772442000000,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v2.LinkCreated",
+      "args": {
+        "createdAt": "2026-03-02T10:10:00.000Z",
+        "domain": "modelcontextprotocol.io",
+        "id": "mcp-1",
+        "source": "mcp",
+        "sourceMeta": null,
+        "url": "https://modelcontextprotocol.io/introduction"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "api-1",
+            "url": "https://developers.cloudflare.com/durable-objects/",
+            "domain": "developers.cloudflare.com",
+            "status": "unread",
+            "source": "api",
+            "sourceMeta": null,
+            "createdAt": 1772445900000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "ext-1",
+            "url": "https://effect.website/docs/schema/introduction/",
+            "domain": "effect.website",
+            "status": "unread",
+            "source": "chrome-extension",
+            "sourceMeta": null,
+            "createdAt": 1772445600000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "mcp-1",
+            "url": "https://modelcontextprotocol.io/introduction",
+            "domain": "modelcontextprotocol.io",
+            "status": "unread",
+            "source": "mcp",
+            "sourceMeta": null,
+            "createdAt": 1772446200000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "tg-1",
+            "url": "https://livestore.dev/docs/",
+            "domain": "livestore.dev",
+            "status": "unread",
+            "source": "telegram",
+            "sourceMeta": "{\"chatId\":123456789,\"messageId\":42}",
+            "createdAt": 1772439300000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "x-1",
+            "url": "https://x.com/i/status/1897000000000000001",
+            "domain": "x.com",
+            "status": "unread",
+            "source": "x_bookmark",
+            "sourceMeta": "{\"tweetId\":\"1897000000000000001\",\"authorId\":\"44196397\",\"text\":\"Local-first apps are back. Thread 🧵\",\"createdAt\":\"2026-03-01T19:00:00.000Z\"}",
+            "createdAt": 1772442000000,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v2.LinkCreated",
+      "args": {
+        "createdAt": "2026-03-02T10:15:00.000Z",
+        "domain": "www.sqlite.org",
+        "id": "chat-1",
+        "source": "chat",
+        "sourceMeta": null,
+        "url": "https://www.sqlite.org/lang_upsert.html"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "api-1",
+            "url": "https://developers.cloudflare.com/durable-objects/",
+            "domain": "developers.cloudflare.com",
+            "status": "unread",
+            "source": "api",
+            "sourceMeta": null,
+            "createdAt": 1772445900000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "chat-1",
+            "url": "https://www.sqlite.org/lang_upsert.html",
+            "domain": "www.sqlite.org",
+            "status": "unread",
+            "source": "chat",
+            "sourceMeta": null,
+            "createdAt": 1772446500000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "ext-1",
+            "url": "https://effect.website/docs/schema/introduction/",
+            "domain": "effect.website",
+            "status": "unread",
+            "source": "chrome-extension",
+            "sourceMeta": null,
+            "createdAt": 1772445600000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "mcp-1",
+            "url": "https://modelcontextprotocol.io/introduction",
+            "domain": "modelcontextprotocol.io",
+            "status": "unread",
+            "source": "mcp",
+            "sourceMeta": null,
+            "createdAt": 1772446200000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "tg-1",
+            "url": "https://livestore.dev/docs/",
+            "domain": "livestore.dev",
+            "status": "unread",
+            "source": "telegram",
+            "sourceMeta": "{\"chatId\":123456789,\"messageId\":42}",
+            "createdAt": 1772439300000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "x-1",
+            "url": "https://x.com/i/status/1897000000000000001",
+            "domain": "x.com",
+            "status": "unread",
+            "source": "x_bookmark",
+            "sourceMeta": "{\"tweetId\":\"1897000000000000001\",\"authorId\":\"44196397\",\"text\":\"Local-first apps are back. Thread 🧵\",\"createdAt\":\"2026-03-01T19:00:00.000Z\"}",
+            "createdAt": 1772442000000,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v2.LinkCreated",
+      "args": {
+        "createdAt": "2026-03-02T10:20:00.000Z",
+        "domain": "doc.rust-lang.org",
+        "id": "native-1",
+        "source": "native",
+        "sourceMeta": null,
+        "url": "https://doc.rust-lang.org/book/"
+      },
+      "expect": {
+        "links": [
+          {
+            "id": "api-1",
+            "url": "https://developers.cloudflare.com/durable-objects/",
+            "domain": "developers.cloudflare.com",
+            "status": "unread",
+            "source": "api",
+            "sourceMeta": null,
+            "createdAt": 1772445900000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "chat-1",
+            "url": "https://www.sqlite.org/lang_upsert.html",
+            "domain": "www.sqlite.org",
+            "status": "unread",
+            "source": "chat",
+            "sourceMeta": null,
+            "createdAt": 1772446500000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "ext-1",
+            "url": "https://effect.website/docs/schema/introduction/",
+            "domain": "effect.website",
+            "status": "unread",
+            "source": "chrome-extension",
+            "sourceMeta": null,
+            "createdAt": 1772445600000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "mcp-1",
+            "url": "https://modelcontextprotocol.io/introduction",
+            "domain": "modelcontextprotocol.io",
+            "status": "unread",
+            "source": "mcp",
+            "sourceMeta": null,
+            "createdAt": 1772446200000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "native-1",
+            "url": "https://doc.rust-lang.org/book/",
+            "domain": "doc.rust-lang.org",
+            "status": "unread",
+            "source": "native",
+            "sourceMeta": null,
+            "createdAt": 1772446800000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "tg-1",
+            "url": "https://livestore.dev/docs/",
+            "domain": "livestore.dev",
+            "status": "unread",
+            "source": "telegram",
+            "sourceMeta": "{\"chatId\":123456789,\"messageId\":42}",
+            "createdAt": 1772439300000,
+            "completedAt": null,
+            "deletedAt": null
+          },
+          {
+            "id": "x-1",
+            "url": "https://x.com/i/status/1897000000000000001",
+            "domain": "x.com",
+            "status": "unread",
+            "source": "x_bookmark",
+            "sourceMeta": "{\"tweetId\":\"1897000000000000001\",\"authorId\":\"44196397\",\"text\":\"Local-first apps are back. Thread 🧵\",\"createdAt\":\"2026-03-01T19:00:00.000Z\"}",
+            "createdAt": 1772442000000,
+            "completedAt": null,
+            "deletedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "event": "v2.LinkCreated",
+      "args": {
+        "createdAt": "2026-03-02T11:00:00.000Z",
+        "domain": "effect.website",
+        "id": "tg-2",
+        "source": "telegram",
+        "sourceMeta": "{\"chatId\":123456789,\"messageId\":57}",
+        "url": "https://effect.website/docs/schema/introduction/"
+      },
+      "expect": {}
+    }
+  ]
+}
