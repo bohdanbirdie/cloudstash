@@ -323,7 +323,7 @@ fn brand_lockup(t: Palette) -> El {
         .items_center()
         .gap(8.0)
         .mb(28.0)
-        .child(icon(&icons::LOGO, 24.0).color(t.primary))
+        .child(icon(&icons::LOGO, 24.0).color(t.card_foreground))
         .child(text("cloudstash").font(TextStyle::new(14.0, 600.0).lh(20.0).tracking(-0.35)).color(t.card_foreground))
 }
 
