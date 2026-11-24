@@ -32,7 +32,7 @@ const BACKGROUND: usize = 2;
 const DISK: usize = 4;
 /// Bytes of decoded pictures kept in memory; past it the least recently drawn go first, never
 /// one on screen.
-const MEMORY: u64 = 150 * 1024 * 1024;
+const MEMORY: u64 = 80 * 1024 * 1024;
 
 /// How long a download that might work later (offline, timed out) waits before it's tried again.
 const RETRY: Duration = Duration::from_secs(60);
