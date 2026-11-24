@@ -1,6 +1,6 @@
 //! Checks the native schema against the web's through the LiveStore contract in
-//! `tools/livestore-contract` (see its README): every native table has the
-//! columns `schema.json` lists, and replaying each scenario through the native
+//! `tools/livestore-contract` (see "LiveStore contract" in the data spec): every
+//! native table has the columns `schema.json` lists, and replaying each scenario through the native
 //! materializers writes, step by step, the rows the scenario expects in the tables
 //! this app keeps. Events the app doesn't keep must change none of them. The web
 //! side records the scenarios with `bun run contract` at the repo root.
@@ -121,8 +121,12 @@ fn native_materializers_write_what_the_scenarios_expect() {
                 }
             }
             for table in &kept {
-                let rows: Vec<Value> =
-                    db.query(&format!("SELECT * FROM \"{table}\" ORDER BY {}", order(table))).expect("select").into_iter().map(Value::Object).collect();
+                let rows: Vec<Value> = db
+                    .query(&format!("SELECT * FROM \"{table}\" ORDER BY {}", order(table)))
+                    .expect("select")
+                    .into_iter()
+                    .map(Value::Object)
+                    .collect();
                 assert_eq!(
                     Value::Array(rows),
                     expected[table.as_str()],

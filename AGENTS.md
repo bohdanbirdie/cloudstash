@@ -18,7 +18,7 @@ lifecycle rules before changing behavior.
 # LiveStore contract (`src/livestore/schema.ts`)
 
 Deployed events are saved forever, so they are append-only (`CS.SYS.DATA-R05`).
-How the check works: `tools/livestore-contract/README.md`.
+How the check works: `context/02-system/01-data/spec.md` § LiveStore contract.
 
 - Never change, rename, or delete a deployed event or any of its fields, never
   change its scope, and never change what its materializer writes. Add a new

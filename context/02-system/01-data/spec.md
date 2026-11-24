@@ -66,8 +66,8 @@ event may be re-applied during rebase. See
 
 ### LiveStore contract
 
-[`tools/livestore-contract`](../../../tools/livestore-contract/README.md)
-checks that deployed events keep loading and keep doing the same thing:
+`tools/livestore-contract` (run it with `bun run contract`, which also rewrites
+the generated files to commit) checks that deployed events keep loading and keep doing the same thing:
 
 - **Scenarios** (`scenarios/*.json`) are readable stories of events with their
   wire args. `bun run contract` records, after each step, every table the step
@@ -85,6 +85,11 @@ pull request, and fails when this code:
 - removes or renames a base event, changes its scope, removes a field, adds a
   required field, turns a field optional or required, or changes a field's
   encoded or decoded type. New events and new optional fields pass.
+
+A failure in a scenario of the pull request's own means its code or args need
+fixing. A break against the base means a deployed event changed: restore it and
+add a new version (`v1.X` → `v2.X`), or, when the break is deliberate, ask the
+maintainer.
 
 Table changes are reported but not gated, because they rebuild every replica,
 including each `LinkProcessorDO`. When the base has no snapshot yet, nothing is

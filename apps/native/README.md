@@ -34,7 +34,7 @@ tail -f ~/Library/Logs/Cloudstash/cloudstash.log
 ## The LiveStore contract with the web app
 
 `src/livestore/contract.rs` checks this app against the web's
-[`tools/livestore-contract`](../../tools/livestore-contract/README.md): every native table must
+[LiveStore contract](../../context/02-system/01-data/spec.md#livestore-contract): every native table must
 have the columns `schema.json` lists, and replaying each scenario in `scenarios/` through the
 native materializers must write the rows the scenario expects, step by step. Events this app
 doesn't handle must change none of its tables. It also runs the links query on the replayed
