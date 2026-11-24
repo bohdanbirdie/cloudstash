@@ -25,6 +25,18 @@ lifecycle rules before changing behavior.
   recorded before any handwritten change can be introduced.
 - Run `bun run check:migrations` before committing migration changes.
 
+# LiveStore contract (web ↔ native)
+
+- `src/livestore/__tests__/fixtures/native-contract.json` records the web schema's
+  tables and what its materializers write for a run of events; `apps/native`
+  replays it and must write the same rows.
+- After changing `src/livestore/schema.ts` (or anything it materializes), run
+  `bun run contract:livestore:update`, then `cargo test contract` in
+  `apps/native`.
+- After changing `apps/native/src/livestore/`, run `cargo test contract` in
+  `apps/native`.
+- Never hand-edit the contract file.
+
 <!--VITE PLUS START-->
 
 # Using Vite+, the Unified Toolchain for the Web

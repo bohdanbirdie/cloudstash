@@ -12,14 +12,51 @@ publish = false
 [dependencies]
 base64 = "0.22"
 getrandom = "0.2"
+# Decodes and shrinks the link cards' pictures and the resize cursor (rune uses the same crate).
+image = { version = "0.25", default-features = false, features = [
+  "jpeg",
+  "png",
+  "gif",
+  "ico",
+  "webp",
+  "tiff",
+] }
+# Downloads the link cards' pictures (src/images).
+reqwest = { version = "0.13", default-features = false, features = [
+  "native-tls",
+  "http2",
+] }
 keyring = { version = "3", features = ["apple-native"] }
+# LiveStore's Rust client (livestore-contrib, experimental): pinned to a commit.
+livestore = { git = "https://github.com/livestorejs/livestore-contrib", rev = "dc0aa0d079fe195cf20802b7cd1ff5982f20b102" }
+livestore-schema = { git = "https://github.com/livestorejs/livestore-contrib", rev = "dc0aa0d079fe195cf20802b7cd1ff5982f20b102" }
+livestore-sqlite = { git = "https://github.com/livestorejs/livestore-contrib", rev = "dc0aa0d079fe195cf20802b7cd1ff5982f20b102" }
+livestore-sync = { git = "https://github.com/livestorejs/livestore-contrib", rev = "dc0aa0d079fe195cf20802b7cd1ff5982f20b102" }
+livestore-sync-cf = { git = "https://github.com/livestorejs/livestore-contrib", rev = "dc0aa0d079fe195cf20802b7cd1ff5982f20b102" }
 # rune is pre-release: pinned to a commit.
 rune = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
+# rune's component kit, for the shell prototype's resizable, collapsible sidebar (SplitView).
+rune-kit = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+tokio = { version = "1.47", features = [
+  "rt-multi-thread",
+  "time",
+  "sync",
+  "macros",
+] }
+# The sync client's WebSocket has no TLS of its own; this turns it on for wss://.
+tokio-tungstenite = { version = "0.30", features = ["native-tls"] }
 ureq = { version = "2", features = ["json"] }
 url = "2"
+nucleo-matcher = "0.3.1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = [
+  "fmt",
+  "registry",
+  "std",
+] }
 
 # rune vendors patched crates; a dependency's [patch] does not reach us, so repeat it.
 [patch.crates-io]
@@ -30,12 +67,31 @@ parley_engine = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef
 accesskit_windows = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
 accesskit_macos = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
 
+# The shell prototype's trackpad taps and left-only resize cursor (src/shell_kit/mac.rs).
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+  "std",
+  "NSBitmapImageRep",
+  "NSCursor",
+  "NSDirection",
+  "NSHapticFeedback",
+  "NSImage",
+  "NSImageRep",
+] }
+
 # Keep target/ small: no debug info for dependencies, line tables only for the app.
 [profile.dev]
 debug = "line-tables-only"
 
+# Optimised dependencies: unoptimised, Rune scrolls the card grid slowly and the image decoders
+# take seconds per picture.
 [profile.dev.package."*"]
 debug = false
+opt-level = 2
 
 [lints.rust]
 unsafe_code = "forbid"
+
+[dev-dependencies]
+# The contract test (src/livestore/contract.rs) replays events into an in-memory database.
+livestore-core = { git = "https://github.com/livestorejs/livestore-contrib", rev = "dc0aa0d079fe195cf20802b7cd1ff5982f20b102" }

@@ -1,0 +1,59 @@
+name: LiveStore contract
+
+# The web and native apps must read and write the same LiveStore data. Runs only when either
+# side's LiveStore code, or the contract between them, changes.
+on:
+  pull_request:
+    branches: [staging, main]
+    paths:
+      - "src/livestore/**"
+      - "apps/native/src/livestore/**"
+      - "apps/native/Cargo.toml"
+      - "apps/native/Cargo.lock"
+      - ".github/workflows/livestore-contract.yml"
+
+concurrency:
+  group: livestore-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "25"
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun run contract:livestore
+
+  native:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/native
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/native
+
+      - run: cargo test --locked contract

@@ -47,9 +47,19 @@ cat > "$app/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-codesign --force --sign - "$app" >/dev/null
+# The keychain trusts the app by its code signature. An ad-hoc signature changes with every
+# build, so macOS would ask for the login password on each launch; a certificate keeps it
+# stable, and one "Always Allow" lasts. CLOUDSTASH_SIGN_IDENTITY overrides the pick; with no
+# Apple Development certificate the bundle falls back to ad-hoc.
+identity="${CLOUDSTASH_SIGN_IDENTITY:-$(security find-identity -v -p codesigning | sed -n 's/.*"\(Apple Development: [^"]*\)".*/\1/p' | head -1)}"
+codesign --force --sign "${identity:--}" "$app" >/dev/null
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$app"
 
 # Quit a running copy so the new build takes the links.
 pkill -x cloudstash-native 2>/dev/null || true
-open "$app"
+while pgrep -x cloudstash-native >/dev/null; do sleep 0.2; done
+# The app logs to ~/Library/Logs/Cloudstash/cloudstash.log; what it and its libraries print
+# (rune's warnings among them) goes there too.
+log="$HOME/Library/Logs/Cloudstash/cloudstash.log"
+mkdir -p "$(dirname "$log")"
+open --stdout "$log" --stderr "$log" "$app"

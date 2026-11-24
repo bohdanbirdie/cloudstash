@@ -117,7 +117,25 @@ export const validatePayload = Effect.fn("Sync.validatePayload")(
     }
 
     if (!cookie) {
-      return yield* deny("missing cookie", new MissingSessionCookieError());
+      const nativeApiKey = origin
+        ? Option.none()
+        : decodeExtensionPayload(payload);
+      if (Option.isNone(nativeApiKey)) {
+        return yield* deny("missing cookie", new MissingSessionCookieError());
+      }
+      const access = yield* WorkspaceAccess;
+      const authorized = yield* access
+        .authorizeApiKey(nativeApiKey.value.apiKey, storeId)
+        .pipe(
+          Effect.mapError((error) => translateWorkspaceAccess(error, storeId))
+        );
+      if (authorized.source !== "native") {
+        return yield* deny(
+          `api key is not a native app key: ${authorized.source ?? "none"}`,
+          new InvalidSessionError()
+        );
+      }
+      return authorized;
     }
 
     const access = yield* WorkspaceAccess;

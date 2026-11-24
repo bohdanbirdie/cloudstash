@@ -329,6 +329,106 @@ describe("validatePayload — extension origin allowlist", () => {
   );
 });
 
+describe("validatePayload — native client API key path", () => {
+  const verifyFor = (orgId: string) =>
+    makeAuthLayer({
+      verifyApiKey: () =>
+        Promise.resolve({
+          valid: true,
+          key: { referenceId: "user-7", metadata: { orgId, source: "native" } },
+        }),
+    });
+
+  it.effect("no cookie and no origin authorizes the payload API key", () =>
+    validatePayload({ apiKey: "lb_k" }, CTX_NO_AUTH).pipe(
+      Effect.provide(verifyFor(STORE)),
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(result.userId).toBe("user-7");
+        })
+      )
+    )
+  );
+
+  it.effect("rejects a key for another library", () =>
+    validatePayload({ apiKey: "lb_k" }, CTX_NO_AUTH).pipe(
+      Effect.result,
+      Effect.provide(verifyFor("wrong-org")),
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure._tag).toBe("OrgAccessDeniedError");
+          }
+        })
+      )
+    )
+  );
+
+  it.effect("rejects an invalid key", () =>
+    validatePayload({ apiKey: "lb_k" }, CTX_NO_AUTH).pipe(
+      Effect.result,
+      Effect.provide(makeAuthLayer({})),
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure._tag).toBe("InvalidSessionError");
+          }
+        })
+      )
+    )
+  );
+
+  it.effect("rejects a key minted for another client", () =>
+    validatePayload({ apiKey: "lb_k" }, CTX_NO_AUTH).pipe(
+      Effect.result,
+      Effect.provide(
+        makeAuthLayer({
+          verifyApiKey: () =>
+            Promise.resolve({
+              valid: true,
+              key: {
+                referenceId: "user-7",
+                metadata: { orgId: STORE, source: "api" },
+              },
+            }),
+        })
+      ),
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure._tag).toBe("InvalidSessionError");
+          }
+        })
+      )
+    )
+  );
+
+  it.effect("a web origin never reaches the API key check", () =>
+    validatePayload(
+      { apiKey: "lb_k" },
+      {
+        storeId: STORE,
+        headers: headersWith({ origin: "https://cloudstash.dev" }),
+        allowedExtensionIds: NO_ALLOWLIST,
+      }
+    ).pipe(
+      Effect.result,
+      Effect.provide(verifyFor(STORE)),
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result)) {
+            expect(result.failure._tag).toBe("MissingSessionCookieError");
+          }
+        })
+      )
+    )
+  );
+});
+
 describe("parseExtensionAllowlist", () => {
   it("empty string yields empty set", () => {
     expect(parseExtensionAllowlist("").size).toBe(0);

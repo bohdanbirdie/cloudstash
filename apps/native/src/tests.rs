@@ -75,13 +75,8 @@ fn serve(listener: TcpListener, server: Arc<Mutex<Server>>) {
                     (400, json!({ "error": "Invalid or expired code" }))
                 }
             }
-            (_, "/api/connect/native" | "/api/connect/native/account") if !authorized || server.revoked => {
-                (401, json!({ "error": "Unauthorized" }))
-            }
-            ("GET", "/api/connect/native/account") => (
-                200,
-                json!({ "orgId": "org_1", "user": { "email": "ada@example.com", "name": "Ada" } }),
-            ),
+            (_, "/api/connect/native" | "/api/connect/native/account") if !authorized || server.revoked => (401, json!({ "error": "Unauthorized" })),
+            ("GET", "/api/connect/native/account") => (200, json!({ "orgId": "org_1", "user": { "email": "ada@example.com", "name": "Ada" } })),
             ("DELETE", "/api/connect/native") => {
                 server.revoked = true;
                 (200, json!({ "ok": true }))
@@ -119,11 +114,7 @@ fn fixture(name: &str) -> Fixture {
     let state_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("target/test-state/{name}"));
     let _ = std::fs::remove_dir_all(&state_dir);
     let store = Arc::new(MemoryStore::default());
-    Fixture {
-        auth: Auth { base, state_dir, store: Box::new(store.clone()) },
-        server,
-        store,
-    }
+    Fixture { auth: Auth { base, state_dir, store: Box::new(store.clone()) }, server, store }
 }
 
 /// Plays the signed-in web page: registers the page's challenge with the server and returns the
@@ -133,9 +124,7 @@ fn web_page(f: &Fixture, page: &str, code: &str) -> String {
     assert_eq!(page.path(), "/connect/native");
     let param = |name: &str| page.query_pairs().find(|(key, _)| key == name).unwrap().1.into_owned();
     f.server.lock().unwrap().challenge = Some(param("code_challenge"));
-    Url::parse_with_params("cloudstash://auth/callback", [("code", code), ("state", &param("state"))])
-        .unwrap()
-        .into()
+    Url::parse_with_params("cloudstash://auth/callback", [("code", code), ("state", &param("state"))]).unwrap().into()
 }
 
 fn sign_in(f: &Fixture) -> Result<Account, String> {
@@ -150,11 +139,7 @@ fn sign_in(f: &Fixture) -> Result<Account, String> {
 #[test]
 fn signs_in_restores_and_signs_out() {
     let f = fixture("happy");
-    let expected = Account {
-        name: Some("Ada".to_owned()),
-        email: "ada@example.com".to_owned(),
-        library_id: "org_1".to_owned(),
-    };
+    let expected = Account { name: Some("Ada".to_owned()), email: "ada@example.com".to_owned(), library_id: "org_1".to_owned() };
     assert_eq!(sign_in(&f).unwrap(), expected);
     assert_eq!(f.store.load().unwrap().as_deref(), Some(API_KEY));
 
@@ -182,12 +167,7 @@ fn links_that_are_not_this_sign_in_are_ignored() {
     let page = f.auth.begin_sign_in().unwrap();
     let link = web_page(&f, &page, "code_1");
     let forged = Url::parse_with_params("cloudstash://auth/callback", [("code", "code_1"), ("state", "forged")]).unwrap();
-    for other in [
-        forged.as_str(),
-        "cloudstash://elsewhere/callback?code=code_1",
-        "https://auth/callback?code=code_1",
-        "not a link",
-    ] {
+    for other in [forged.as_str(), "cloudstash://elsewhere/callback?code=code_1", "https://auth/callback?code=code_1", "not a link"] {
         assert_eq!(f.auth.accept_link(other), Link::Ignored, "{other}");
     }
     // The genuine link still works after the others were ignored.
