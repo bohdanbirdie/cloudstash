@@ -25,7 +25,7 @@ Effect RPC instead of opening another sync client.
 
 ## Sync Backend
 
-`/sync` is Worker-first. The Worker parses the LiveStore request, authorizes its
+`/sync` (also `/sync/`, which the native client requests) is Worker-first. The Worker parses the LiveStore request, authorizes its
 payload and workspace, records aggregate usage, and routes to the
 workspace-named `SyncBackendDO`. The backend persists accepted event history and
 broadcasts live updates. Its `onPush` hook:

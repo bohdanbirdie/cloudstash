@@ -1,0 +1,668 @@
+//! The signed-in window: the "Inset" layout from the HTML prototype. A sidebar with search, the
+//! library's states and the account, beside a rounded content card that lists the chosen
+//! state's links. The sidebar resizes, collapses and peeks (`shell_kit/SIDEBAR.md`).
+
+use std::borrow::Cow;
+use std::sync::OnceLock;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use rune::{
+    Color, Cursor, Cx, El, GrowthSpec, Icon, Key, KeyEvent, Live, ScrollFade, ScrollSpec, Shadow, SurfaceFit, TextStyle, Tx, col, el, icon, oklch,
+    oklcha, row, text,
+};
+use rune_kit::{Kit, ScrollBar, ScrollBarStyle};
+
+use crate::auth::Account;
+use crate::fps;
+use crate::images::{self, Lane, Request};
+
+mod palette;
+use crate::livestore::library::{LinkItem, Tab};
+use crate::shell_kit::{PaneState, SidebarPeek, SidebarToggle, SplitView, Toolbar, is_sidebar_toggle};
+use crate::{Phase, State, Sync};
+pub use palette::{Palette, toggle as toggle_palette};
+
+const SIDEBAR_W: f32 = 248.0;
+const SIDEBAR_MIN: f32 = 200.0;
+const SIDEBAR_MAX: f32 = 320.0;
+
+/// The library's states, in sidebar order.
+const STATES: [(Tab, &str, &Icon); 4] =
+    [(Tab::Inbox, "Inbox", &INBOX), (Tab::Completed, "Done", &DONE), (Tab::Archive, "Archive", &ARCHIVE), (Tab::All, "All links", &ALL)];
+
+/// The kinds of link the header filters by. Not wired to the library yet.
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub enum Kind {
+    #[default]
+    All,
+    Posts,
+    Articles,
+    Videos,
+}
+
+const KINDS: [(Kind, &str); 4] = [(Kind::All, "All"), (Kind::Posts, "Posts"), (Kind::Articles, "Articles"), (Kind::Videos, "Videos")];
+
+/// How the content panel lays links out. Not wired to the list yet.
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub enum Mode {
+    #[default]
+    Grid,
+    Feed,
+}
+
+/// A space in the sidebar. Hardcoded until the library has spaces.
+struct Space {
+    id: &'static str,
+    name: &'static str,
+    hue: f32,
+    /// Suggested but not yet accepted: a dashed swatch and a "New" badge.
+    draft: bool,
+}
+
+const SPACES: [Space; 6] = [
+    Space { id: "agents", name: "Agents", hue: 268.0, draft: false },
+    Space { id: "design", name: "Design", hue: 330.0, draft: false },
+    Space { id: "cf", name: "Edge platforms", hue: 30.0, draft: false },
+    Space { id: "effect", name: "TypeScript", hue: 230.0, draft: false },
+    Space { id: "canvas", name: "Canvas UI", hue: 190.0, draft: false },
+    Space { id: "mac", name: "Mac apps", hue: 145.0, draft: true },
+];
+
+pub fn sidebar_state() -> PaneState {
+    PaneState::new(SIDEBAR_W).range(SIDEBAR_MIN, SIDEBAR_MAX)
+}
+
+macro_rules! glyph {
+    ($name:literal, $paths:literal) => {
+        Icon {
+            name: $name,
+            view: 16.0,
+            body: concat!(
+                r#"<g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">"#,
+                $paths,
+                "</g>"
+            ),
+        }
+    };
+}
+
+static INBOX: Icon = glyph!("cs-inbox", r#"<path d="M2.5 9.5 4 3.5h8l1.5 6v3h-11v-3Z"/><path d="M2.5 9.5H6l.5 1.5h3l.5-1.5h3.5"/>"#);
+static DONE: Icon = glyph!("cs-done", r#"<circle cx="8" cy="8" r="5.5"/><path d="m5.5 8 1.8 1.8L10.5 6.5"/>"#);
+static ARCHIVE: Icon = glyph!("cs-archive", r#"<rect x="2.5" y="3" width="11" height="3" rx="1"/><path d="M3.5 6v6.5h9V6M6.5 8.5h3"/>"#);
+static ALL: Icon = glyph!("cs-all", r#"<path d="M3 5.5 8 3l5 2.5L8 8 3 5.5Z"/><path d="m3 8.5 5 2.5 5-2.5M3 11l5 2.5 5-2.5"/>"#);
+static CHEVRON: Icon = glyph!("cs-chevron", r#"<path d="m6 4 4 4-4 4"/>"#);
+static GRID: Icon = glyph!(
+    "cs-grid",
+    r#"<rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1.2"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1.2"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1.2"/><rect x="9" y="9" width="4.5" height="4.5" rx="1.2"/>"#
+);
+static FEED: Icon = glyph!("cs-feed", r#"<rect x="3.5" y="2.5" width="9" height="6" rx="1.2"/><path d="M3.5 11h9M3.5 13.5h6"/>"#);
+static SIGN_OUT: Icon = glyph!("cs-sign-out", r#"<path d="M6 13.5H3.5a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1H6"/><path d="m10 11 3-3-3-3M13 8H6"/>"#);
+static RESET: Icon = glyph!("cs-reset", r#"<path d="M3 8a5 5 0 1 0 1.5-3.5"/><path d="M3 2.5v3h3"/>"#);
+static RETURN: Icon = glyph!("cs-return", r#"<path d="M12.5 3.5v4a2 2 0 0 1-2 2h-7"/><path d="m6 6.5-3 3 3 3"/>"#);
+static SEARCH: Icon = glyph!("cs-search", r#"<circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/>"#);
+
+/// The HTML prototype's tokens.
+struct Look {
+    side: Color,
+    panel: Color,
+    fg: Color,
+    fg2: Color,
+    fg3: Color,
+    hover: Color,
+    active: Color,
+    line: Color,
+    line2: Color,
+    /// The sidebar's edge while it's dragged.
+    accent: Color,
+    /// Dims the window behind the peeking sidebar.
+    scrim: Color,
+    /// The lightness of a space's swatch.
+    swatch_l: f32,
+    /// Behind a card's picture while it loads, and behind a card without one.
+    tile: Color,
+    /// The hairline inside a card's picture.
+    ring: Color,
+    dark: bool,
+}
+
+fn look(dark: bool) -> Look {
+    if dark {
+        Look {
+            side: oklch(0.15, 0.0, 0.0),
+            panel: oklch(0.205, 0.0, 0.0),
+            fg: oklch(0.94, 0.002, 90.0),
+            fg2: oklch(0.72, 0.004, 90.0),
+            fg3: oklch(0.53, 0.004, 90.0),
+            hover: oklcha(1.0, 0.0, 0.0, 0.045),
+            active: oklcha(1.0, 0.0, 0.0, 0.08),
+            line: oklcha(1.0, 0.0, 0.0, 0.06),
+            line2: oklcha(1.0, 0.0, 0.0, 0.1),
+            accent: oklch(0.7, 0.15, 262.0),
+            scrim: oklcha(0.0, 0.0, 0.0, 0.3),
+            swatch_l: 0.72,
+            tile: oklch(0.235, 0.002, 106.0),
+            ring: oklcha(1.0, 0.0, 0.0, 0.08),
+            dark: true,
+        }
+    } else {
+        Look {
+            side: oklch(0.965, 0.002, 106.0),
+            panel: oklch(1.0, 0.0, 0.0),
+            fg: oklch(0.22, 0.002, 106.0),
+            fg2: oklch(0.47, 0.005, 90.0),
+            fg3: oklch(0.66, 0.006, 90.0),
+            hover: oklcha(0.0, 0.0, 0.0, 0.04),
+            active: oklcha(0.0, 0.0, 0.0, 0.065),
+            line: oklcha(0.0, 0.0, 0.0, 0.07),
+            line2: oklcha(0.0, 0.0, 0.0, 0.1),
+            accent: oklch(0.6, 0.17, 262.0),
+            scrim: oklcha(0.0, 0.0, 0.0, 0.06),
+            swatch_l: 0.62,
+            tile: oklch(0.965, 0.002, 106.0),
+            ring: oklcha(0.0, 0.0, 0.0, 0.08),
+            dark: false,
+        }
+    }
+}
+
+/// rune-kit's neutral kit with the prototype's window, panel and panel-edge colours, built once
+/// per appearance.
+fn kit(dark: bool) -> &'static Kit {
+    static LIGHT: OnceLock<Kit> = OnceLock::new();
+    static DARK: OnceLock<Kit> = OnceLock::new();
+    (if dark { &DARK } else { &LIGHT }).get_or_init(|| {
+        let l = look(dark);
+        let mut k = Kit::neutral(dark);
+        k.c.bg_deep = l.side;
+        k.c.border_focus = l.accent;
+        k.c.bg_base = l.panel;
+        k.c.border_muted = l.line;
+        k
+    })
+}
+
+fn font(size: f32, weight: f32) -> TextStyle {
+    TextStyle::new(size, weight)
+}
+
+fn count(n: usize, l: &Look) -> El {
+    text(n.to_string()).font(font(12.0, 400.0).features("'tnum' 1")).color(l.fg3)
+}
+
+fn elevated(e: El, l: &Look) -> El {
+    let ring = if l.dark { oklcha(1.0, 0.0, 0.0, 0.07) } else { oklcha(0.0, 0.0, 0.0, 0.06) };
+    let e = e.box_shadow(Shadow { spread: 1.0, color: ring, ..Shadow::default() });
+    if l.dark {
+        return e;
+    }
+    e.box_shadow(Shadow { y: 1.0, blur: 2.0, color: oklcha(0.0, 0.0, 0.0, 0.04), ..Shadow::default() }).box_shadow(Shadow {
+        y: 4.0,
+        blur: 12.0,
+        color: oklcha(0.0, 0.0, 0.0, 0.04),
+        ..Shadow::default()
+    })
+}
+
+type Press = Box<dyn Fn(&mut State)>;
+
+/// A segmented control: the selected segment is a raised chip.
+fn segment(key: &str, items: Vec<(El, bool, Press)>, l: &Look) -> El {
+    items.into_iter().fold(row().key(key.to_owned()).role("tablist").padding(2.0).gap(2.0).radius(8.0).fill(l.hover), |seg, (child, on, press)| {
+        let b = row().h(26.0).center().radius(6.0).cursor(Cursor::Pointer).role("tab").child(child).on_press(move |s: &mut State| press(s));
+        seg.child(if on { elevated(b.fill(l.panel), l) } else { b })
+    })
+}
+
+fn swatch(space: &Space, size: f32, l: &Look) -> El {
+    let mark = el().size(size, size).radius(size * 0.3);
+    let color = oklch(l.swatch_l, 0.15, space.hue);
+    if space.draft { mark.border(1.5, color).border_dash(2.5, 1.5) } else { mark.fill(color) }
+}
+
+fn kbd(label: &str, l: &Look) -> El {
+    row().h(18.0).px(5.0).center().radius(4.0).border(1.0, l.line2).child(text(label).font(font(11.0, 400.0)).color(l.fg3))
+}
+
+/// A sidebar row: the selected one is filled, the others light up under the pointer.
+fn nav_row(key: String, label: &str, on: bool, lead: El, tail: El, l: &Look) -> El {
+    let r = row()
+        .key(key)
+        .role("button")
+        .label(label)
+        .focusable(true)
+        .w_full()
+        .h(30.0)
+        .px(8.0)
+        .gap(9.0)
+        .center_y()
+        .radius(8.0)
+        .cursor(Cursor::Pointer)
+        .child(lead)
+        .child(text(label).font(font(13.5, 400.0)).color(if on { l.fg } else { l.fg2 }).truncate().grow(1.0))
+        .child(tail);
+    if on { r.fill(l.active) } else { r.hover(l.hover) }
+}
+
+fn sidebar(s: &State, account: &Account, l: &Look) -> El {
+    let search = row()
+        .key("search")
+        .role("button")
+        .label("Search")
+        .focusable(true)
+        .w_full()
+        .h(32.0)
+        .px(8.0)
+        .gap(8.0)
+        .center_y()
+        .radius(8.0)
+        .hover(l.hover)
+        .cursor(Cursor::Pointer)
+        .child(icon(&SEARCH, 16.0).color(l.fg2))
+        .child(text("Search").font(font(13.5, 400.0)).color(l.fg2).grow(1.0))
+        .child(kbd("⌘K", l))
+        .on_press(palette::toggle);
+    let mut list = col().key("nav").w_full().gap(1.0).child(search).child(el().h(6.0));
+    for (tab, label, glyph) in STATES {
+        let on = s.space.is_none() && s.tab == tab;
+        let lead = icon(glyph, 16.0).color(if on { l.fg } else { l.fg2 });
+        let n = tab.links(&s.links).len();
+        list = list.child(nav_row(format!("nav-{label}"), label, on, lead, count(n, l), l).on_press(move |s: &mut State| {
+            s.tab = tab;
+            s.space = None;
+        }));
+    }
+    list = list.child(text("Spaces").font(font(12.0, 400.0)).color(l.fg3).px(8.0).pt(16.0).pb(4.0));
+    for (i, space) in SPACES.iter().enumerate() {
+        let lead = row().size(16.0, 16.0).center().child(swatch(space, 10.0, l));
+        let tail = if space.draft {
+            row()
+                .h(17.0)
+                .px(6.0)
+                .center()
+                .radius(99.0)
+                .fill(oklcha(l.swatch_l, 0.15, space.hue, 0.12))
+                .child(text("New").font(font(10.5, 500.0)).color(oklch(l.swatch_l, 0.15, space.hue)))
+        } else {
+            el()
+        };
+        let row = nav_row(format!("space-{}", space.id), space.name, s.space == Some(i), lead, tail, l);
+        list = list.child(row.on_press(move |s: &mut State| s.space = Some(i)));
+    }
+    let name = account.name.as_deref().and_then(|n| n.split_whitespace().next()).unwrap_or(&account.email);
+    let initial: String = name.chars().take(1).flat_map(char::to_uppercase).collect();
+    let sign_out = row()
+        .key("sign-out")
+        .role("button")
+        .label("Sign out")
+        .focusable(true)
+        .size(28.0, 28.0)
+        .center()
+        .radius(6.0)
+        .hover(l.hover)
+        .cursor(Cursor::Pointer)
+        .child(icon(&SIGN_OUT, 16.0).color(l.fg2))
+        .on_press(crate::sign_out);
+    let user = row()
+        .key("user")
+        .w_full()
+        .padding(8.0)
+        .gap(10.0)
+        .center_y()
+        .child(row().size(28.0, 28.0).center().radius(14.0).fill(l.active).child(text(initial).font(font(12.5, 500.0)).color(l.fg2)))
+        .child(text(name.to_owned()).font(font(13.0, 500.0)).color(l.fg).truncate().grow(1.0).min_w(0.0))
+        .child(sign_out);
+    col().key("sidebar").w_full().h_full().pb(12.0).child(list).child(el().grow(1.0).w_full().window_drag()).child(user)
+}
+
+fn toolbar(s: &State, l: &Look) -> Toolbar {
+    let title = match s.space.map(|i| &SPACES[i]) {
+        Some(space) => row()
+            .key("crumb")
+            .gap(8.0)
+            .center_y()
+            .pl(4.0)
+            .child(text("Spaces").font(font(13.5, 400.0)).color(l.fg3))
+            .child(icon(&CHEVRON, 12.0).color(l.fg3))
+            .child(swatch(space, 10.0, l))
+            .child(text(space.name).font(font(13.5, 500.0)).color(l.fg)),
+        None => {
+            let name = STATES.iter().find(|(tab, ..)| *tab == s.tab).map_or("", |(_, name, _)| name);
+            row().key("crumb").pl(4.0).child(text(name).font(font(13.5, 500.0)).color(l.fg))
+        }
+    };
+    let sync = match &s.sync {
+        Sync::Online => None,
+        Sync::Connecting => Some("Connecting…".to_owned()),
+        Sync::Offline => Some("Offline".to_owned()),
+        Sync::Failed(e) => Some(e.clone()),
+    };
+    let kinds = KINDS
+        .iter()
+        .map(|&(kind, label)| {
+            let on = s.kind == kind;
+            let label = text(label).font(font(12.5, 400.0)).color(if on { l.fg } else { l.fg2 }).px(10.0);
+            (label, on, Box::new(move |s: &mut State| s.kind = kind) as Press)
+        })
+        .collect();
+    let modes = [(Mode::Grid, &GRID), (Mode::Feed, &FEED)]
+        .into_iter()
+        .map(|(mode, glyph)| {
+            let on = s.mode == mode;
+            let glyph = row().w(30.0).center().child(icon(glyph, 15.0).color(if on { l.fg } else { l.fg3 }));
+            (glyph, on, Box::new(move |s: &mut State| s.mode = mode) as Press)
+        })
+        .collect();
+    let mut toolbar = Toolbar::new().leading(title);
+    if let Some(sync) = sync {
+        toolbar = toolbar.trailing(text(sync).key("sync").font(font(12.0, 400.0)).color(l.fg3).truncate().mr(8.0));
+    }
+    toolbar.trailing(segment("kinds", kinds, l)).trailing(segment("modes", modes, l).ml(4.0))
+}
+
+/// One link: its title over its domain. Pressing it opens the link in the browser.
+fn link_row(link: &LinkItem, l: &Look) -> El {
+    let url = link.url.clone();
+    row()
+        .key(link.id.clone())
+        .role("link")
+        .label(link.title.clone())
+        .focusable(true)
+        .w_full()
+        .px(10.0)
+        .py(8.0)
+        .radius(8.0)
+        .hover(l.hover)
+        .cursor(Cursor::Pointer)
+        .child(
+            col()
+                .grow(1.0)
+                .min_w(0.0)
+                .gap(2.0)
+                .child(text(link.title.clone()).font(font(13.5, 400.0).lh(19.0)).color(l.fg).truncate())
+                .child(text(link.domain.clone()).font(font(12.0, 400.0).lh(16.0)).color(l.fg3).truncate()),
+        )
+        .on_press(move |_: &mut State| crate::open_link(&url))
+}
+
+/// A title on one line: an X post's title keeps the post's line breaks.
+fn one_line(s: &str) -> String {
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// The links the content panel shows: the chosen state's, or none for a space (spaces have no
+/// links yet).
+fn shown(s: &State) -> Vec<&LinkItem> {
+    if s.space.is_some() { Vec::new() } else { s.tab.links(&s.links) }
+}
+
+/// The plain list the feed toggle shows until the feed is built.
+fn list(s: &State, l: &Look) -> El {
+    shown(s).into_iter().fold(col().key("links").w_full().px(8.0).pb(8.0), |list, link| list.child(link_row(link, l)))
+}
+
+const CARD_MIN: f32 = 230.0;
+const CARD_GAP: f32 = 16.0;
+const ROW_GAP: f32 = 20.0;
+/// The grid's edges line up with the toolbar: its left with the title, its right with the
+/// toolbar's buttons, and the scroll bar's thumb runs in the right gutter.
+const PAGE_PAD_LEFT: f32 = 16.0;
+const PAGE_PAD_RIGHT: f32 = 28.0;
+/// A card picture's pixel size: 16:11, sharp at 2× up to 400 pt wide. A favicon's, at 2×.
+const PICTURE: (u32, u32) = (800, 550);
+const FAVICON: (u32, u32) = (28, 28);
+pub const IMAGE_SIZES: [(u32, u32); 2] = [PICTURE, FAVICON];
+
+/// The pictures a card draws.
+fn card_images(link: &LinkItem) -> impl Iterator<Item = Request> + '_ {
+    let picture = link.image.as_deref().map(|url| Request::new(url, PICTURE, Lane::Picture));
+    let favicon = link.favicon.as_deref().map(|url| Request::new(url, FAVICON, Lane::Icon));
+    picture.into_iter().chain(favicon)
+}
+
+/// Every card's pictures, newest link first, for the background fill.
+pub fn wanted_images(links: &[LinkItem]) -> Vec<Request> {
+    let mut newest: Vec<&LinkItem> = links.iter().filter(|l| l.deleted_at.is_none()).collect();
+    newest.sort_by_key(|l| std::cmp::Reverse(l.created_at));
+    newest.into_iter().flat_map(card_images).collect()
+}
+
+/// Only the bottom fades, over 20 pt at a strength that follows what's still below and gone at
+/// the end. The top has no fade: a hairline under the toolbar fades in over the first
+/// `DIVIDER_RAMP` points scrolled.
+const FADE: f32 = 20.0;
+const DIVIDER_RAMP: f32 = 24.0;
+
+/// The divider's opacity once the grid is scrolled `offset` points.
+fn divider_opacity(offset: f32) -> f32 {
+    (offset / DIVIDER_RAMP).clamp(0.0, 1.0)
+}
+
+/// How many cards fit across `width` (CSS `repeat(auto-fill, minmax(230px, 1fr))`).
+fn columns(width: f32) -> usize {
+    (((width - PAGE_PAD_LEFT - PAGE_PAD_RIGHT + CARD_GAP) / (CARD_MIN + CARD_GAP)).floor() as usize).max(1)
+}
+
+fn now_ms() -> i64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as i64)
+}
+
+/// When a link was saved, as the prototype says it: Today, Yesterday, 3d, 2w, then Mar 4.
+fn ago(created_ms: i64, now_ms: i64) -> String {
+    const DAY: i64 = 86_400_000;
+    let days = now_ms.div_euclid(DAY) - created_ms.div_euclid(DAY);
+    match days {
+        ..=0 => "Today".to_owned(),
+        1 => "Yesterday".to_owned(),
+        2..=6 => format!("{days}d"),
+        7..=30 => format!("{}w", (days as f32 / 7.0).round()),
+        _ => {
+            let (month, day) = month_day(created_ms.div_euclid(DAY));
+            const MONTHS: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            format!("{} {day}", MONTHS[month - 1])
+        }
+    }
+}
+
+/// The month (1–12) and day of a day count since 1970-01-01 (Howard Hinnant's civil_from_days).
+fn month_day(days: i64) -> (usize, i64) {
+    let z = days + 719_468;
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    (month as usize, day)
+}
+
+/// A link card: its picture (or its title, when it has none), the title, then where it's from
+/// and when it was saved. Pressing it opens the link in the browser.
+fn card(link: &LinkItem, now: i64, l: &Look) -> El {
+    let ring = el().pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0)).radius(10.0).border(1.0, l.ring);
+    let mut picture = el().w_full().aspect_ratio(16.0 / 11.0).radius(10.0).clip_rounded(10.0).fill(l.tile);
+    picture = match &link.image {
+        Some(url) => picture.pixels_fit(&images::picture(&Request::new(url, PICTURE, Lane::Picture)), SurfaceFit::Fill),
+        None => picture
+            .padding(14.0)
+            .child(text(one_line(&link.title)).font(font(13.0, 400.0).lh(18.85)).color(l.fg2).w_full().wrap_anywhere().max_lines(6)),
+    };
+    let favicon = match link.favicon.as_deref().map(|url| Request::new(url, FAVICON, Lane::Icon)).filter(|r| !images::failed(r)) {
+        Some(req) => el().size(14.0, 14.0).radius(4.0).fill(l.tile).pixels_fit(&images::picture(&req), SurfaceFit::Fill),
+        None => {
+            let initial: String = link.domain.chars().take(1).flat_map(char::to_uppercase).collect();
+            row().size(14.0, 14.0).center().radius(4.0).fill(l.tile).child(text(initial).font(font(8.0, 600.0)).color(l.fg2))
+        }
+    };
+    let url = link.url.clone();
+    col()
+        .key(link.id.clone())
+        .role("link")
+        .label(link.title.clone())
+        .focusable(true)
+        .min_w(0.0)
+        .gap(8.0)
+        .cursor(Cursor::Pointer)
+        .child(picture.child(ring))
+        .child(text(link.title.clone()).font(font(13.5, 500.0).lh(18.2)).color(l.fg).wrap_anywhere().max_lines(2))
+        .child(
+            row()
+                .w_full()
+                .gap(6.0)
+                .center_y()
+                .child(favicon)
+                .child(text(link.domain.clone()).font(font(12.0, 400.0)).color(l.fg3).truncate().grow(1.0).min_w(0.0))
+                .child(text(ago(link.created_at, now)).font(font(12.0, 400.0)).color(l.fg3)),
+        )
+        .on_press(move |_: &mut State| crate::open_link(&url))
+}
+
+/// The prototype's grid: cards in as many 230 pt+ columns as fit, built a row at a time as they
+/// scroll into view, so only those cards fetch their pictures.
+fn grid(s: &State, columns: usize, dark: bool) -> El {
+    let rows = shown(s).len().div_ceil(columns);
+    col()
+        .key("grid")
+        .w_full()
+        .growth(GrowthSpec::default())
+        .on_visible_rows(move |s: &mut State, rows: std::ops::Range<usize>| {
+            images::visible(shown(s).into_iter().skip(rows.start * columns).take(rows.len() * columns).flat_map(card_images).collect());
+            false
+        })
+        .virtual_rows(
+            rows,
+            260.0,
+            |_: &State, i| Cow::Owned(format!("row-{i}")),
+            move |s: &State, i| {
+                let l = look(dark);
+                let now = now_ms();
+                shown(s)
+                    .iter()
+                    .skip(i * columns)
+                    .take(columns)
+                    .fold(row().w_full().equal_columns(columns).gap(CARD_GAP).pb(ROW_GAP), |r, link| r.child(card(link, now, &l)))
+            },
+        )
+}
+
+fn page(s: &State, cx: &mut Cx<State>, dark: bool, l: &Look) -> El {
+    let body = if shown(s).is_empty() {
+        let empty = if s.space.is_some() || s.sync == Sync::Online { "Nothing here yet." } else { "Loading your library…" };
+        text(empty).key("empty").font(font(13.0, 400.0)).color(l.fg3)
+    } else if s.mode == Mode::Grid {
+        grid(s, cx.layout_with("viewport", |r| columns(r[2])).unwrap_or(3), dark)
+    } else {
+        list(s, l)
+    };
+    let divider = Live::new(0.0);
+    let viewport = col()
+        .w_full()
+        .grow(1.0)
+        .min_h(0.0)
+        .scroll(ScrollSpec { stick_bottom: false })
+        .scroll_fade(ScrollFade::strength(FADE).end_only())
+        .scroll_margin(FADE)
+        .on_scroll_offset({
+            let divider = divider.clone();
+            move |at| {
+                divider.set(divider_opacity(at.offset[1]));
+            }
+        })
+        .child(col().key("page").w_full().pl(PAGE_PAD_LEFT).pr(PAGE_PAD_RIGHT).pt(16.0).pb(80.0).child(body));
+    col()
+        .key("viewport-area")
+        .w_full()
+        .h_full()
+        .min_h(0.0)
+        .child(el().key("divider").w_full().h(1.0).fill(l.line2).live_opacity(&divider))
+        .child(viewport.key("viewport").scroll_bar_styled(scroll_bar(l)))
+}
+
+/// The app's scroll bar: thin, widening and darkening under the pointer.
+fn scroll_bar(l: &Look) -> ScrollBarStyle {
+    ScrollBarStyle::scroll_view(kit(l.dark)).width(6.0).hover_width(10.0).thumb(l.fg3.alpha(0.5)).thumb_hover(l.fg3.alpha(0.85))
+}
+
+pub fn view(s: &State, account: &Account, cx: &mut Cx<State>) -> El {
+    let dark = cx.system_dark();
+    let l = look(dark);
+    let shell = SplitView::new(page(s, cx, dark, &l))
+        .sidebar::<State>(&s.sidebar, |s| &mut s.sidebar, sidebar(s, account, &l))
+        .sidebar_padding(8.0, 8.0)
+        .sidebar_toggle(SidebarToggle::new().shortcut("⌘B"))
+        .sidebar_peek(SidebarPeek::new().scrim(l.scrim))
+        .toolbar(toolbar(s, &l))
+        .toolbar_in_panel()
+        .titlebar_inset(cx.titlebar_inset())
+        .build(kit(dark));
+    let palette = palette::layers(s, &l);
+    el().key("window")
+        .w_full()
+        .h_full()
+        .child(shell)
+        .children(palette)
+        .child(fps::meter::<State>(l.fg2, l.panel, l.line2).pin(None, None, Some(20.0), Some(20.0)).paint_order(100))
+}
+
+/// ⌘K opens and closes the command palette. ⌘B toggles the sidebar, like the reference apps,
+/// and so do rune-kit's ⇧⌘B and ⌃⌘S. ⌥⌘R
+/// throws away the saved pictures and loads them again, for experiments.
+pub fn on_key(s: &mut State, e: &KeyEvent, _: &mut Tx) -> bool {
+    if !matches!(s.phase, Phase::SignedIn(_)) {
+        return false;
+    }
+    if e.is_command('k') && !e.mods.shift && !e.mods.alt {
+        palette::toggle(s);
+        return true;
+    }
+    if e.is_command('r') && e.mods.alt && !e.mods.shift {
+        images::reset();
+        return true;
+    }
+    let cmd_b = e.is_command('b') && !e.mods.shift && !e.mods.alt;
+    if !(cmd_b || is_sidebar_toggle(e)) || e.key == Key::Escape {
+        return false;
+    }
+    s.sidebar.toggle();
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cards_fill_columns_of_at_least_230_points() {
+        assert_eq!(columns(300.0), 1);
+        let pad = PAGE_PAD_LEFT + PAGE_PAD_RIGHT;
+        assert_eq!(columns(pad + 2.0 * CARD_MIN + CARD_GAP), 2);
+        assert_eq!(columns(pad + 2.0 * CARD_MIN + CARD_GAP - 1.0), 1);
+    }
+
+    #[test]
+    fn the_divider_fades_in_over_the_first_points_scrolled() {
+        assert_eq!(divider_opacity(0.0), 0.0);
+        assert_eq!(divider_opacity(DIVIDER_RAMP / 2.0), 0.5);
+        assert_eq!(divider_opacity(400.0), 1.0);
+    }
+
+    #[test]
+    fn ages_read_like_the_prototype() {
+        const DAY: i64 = 86_400_000;
+        let now = 20_000 * DAY + 5;
+        assert_eq!(ago(now, now), "Today");
+        assert_eq!(ago(now - DAY, now), "Yesterday");
+        assert_eq!(ago(now - 3 * DAY, now), "3d");
+        assert_eq!(ago(now - 14 * DAY, now), "2w");
+        assert_eq!(ago(0, now), "Jan 1");
+        assert_eq!(month_day(19_783), (3, 1));
+    }
+
+    #[test]
+    fn sidebar_width_is_capped_and_a_narrow_drag_collapses_it() {
+        let mut p = sidebar_state();
+        p.drag_to(900.0);
+        assert_eq!(p.width(), SIDEBAR_MAX);
+        p.drag_to(SIDEBAR_MIN * 0.4);
+        assert!(!p.is_open());
+    }
+}

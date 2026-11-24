@@ -1,5 +1,5 @@
 //! The web app's colour tokens from `src/styles.css` (`:root` and `.dark`), in their original OKLCH.
-//! `_10`, `_20` and `_50` are Tailwind opacity modifiers (`bg-muted/50`, `ring-foreground/10`).
+//! `_10` and `_20` are Tailwind opacity modifiers (`ring-foreground/10`).
 
 use rune::{Color, oklch, oklcha};
 
@@ -11,7 +11,6 @@ pub struct Palette {
     pub primary: Color,
     pub primary_foreground: Color,
     pub muted: Color,
-    pub muted_50: Color,
     pub muted_foreground: Color,
     pub destructive: Color,
     pub destructive_10: Color,
@@ -30,7 +29,6 @@ pub fn palette(dark: bool) -> Palette {
             primary: oklch(0.55, 0.18, 38.0),
             primary_foreground: oklch(0.98, 0.016, 73.684),
             muted: oklch(0.274, 0.006, 286.033),
-            muted_50: oklcha(0.274, 0.006, 286.033, 0.5),
             muted_foreground: oklch(0.705, 0.015, 286.067),
             destructive: oklch(0.704, 0.191, 22.216),
             destructive_10: oklcha(0.704, 0.191, 22.216, 0.1),
@@ -46,7 +44,6 @@ pub fn palette(dark: bool) -> Palette {
             primary: oklch(0.61, 0.22, 39.0),
             primary_foreground: oklch(0.98, 0.016, 73.684),
             muted: oklch(0.967, 0.001, 286.375),
-            muted_50: oklcha(0.967, 0.001, 286.375, 0.5),
             muted_foreground: oklch(0.552, 0.016, 285.938),
             destructive: oklch(0.577, 0.245, 27.325),
             destructive_10: oklcha(0.577, 0.245, 27.325, 0.1),

@@ -36,6 +36,8 @@
     "check:migrations": "bun scripts/check-migrations.ts",
     "check:pricing": "bun scripts/check-pricing.ts",
     "contract": "bun scripts/livestore-event-contract.ts",
+    "contract:livestore": "vitest run src/livestore/__tests__/native-contract.test.ts",
+    "contract:livestore:update": "UPDATE_NATIVE_CONTRACT=1 vitest run src/livestore/__tests__/native-contract.test.ts",
     "fix": "effect-tsgo --tsrs-lint=7.1.0-beta.tsrs3 vp check --fix",
     "prepare": "effect-language-service patch",
     "clean:local-state": "rm -rf .alchemy/local",
