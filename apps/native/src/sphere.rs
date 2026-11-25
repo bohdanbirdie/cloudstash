@@ -429,6 +429,10 @@ impl Motion {
             let pull = if hurried.is_some() { PULL * 3.0 } else { PULL * smooth(0.0, RAMP, flown) };
             let (mut farthest, mut landed) = (0.0_f32, 0.0);
             for c in &mut u.cards {
+                // Its card may have moved since: the window resized, or the page scrolled.
+                if let Some(home) = i.homes[c.slot] {
+                    c.home = home;
+                }
                 if !riding {
                     let to = [c.home[0] + c.home[2] / 2.0, c.home[1] + c.home[3] / 2.0];
                     for _ in 0..4 {
@@ -529,15 +533,12 @@ pub fn scrolled(offset: f32, by_hand: bool) {
         return;
     }
     i.hurry.get_or_insert(i.t);
-    for home in i.homes.iter_mut().flatten() {
-        home[1] -= by;
-    }
-    if let Some(u) = &mut i.unwrap {
+    // The grid reports each card's new place itself (`card_at`); a picture already flying moves with the page.
+    if let Some(u) = &mut i.unwrap
+        && u.let_go
+    {
         for c in &mut u.cards {
-            c.home[1] -= by;
-            if u.let_go {
-                c.at[1] -= by;
-            }
+            c.at[1] -= by;
         }
     }
 }

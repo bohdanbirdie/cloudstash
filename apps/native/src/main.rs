@@ -149,8 +149,11 @@ impl Backend {
             Ok(Some(account)) => {
                 s.sync = Sync::Connecting;
                 s.loaded = false;
-                s.intro = true;
-                sphere::begin();
+                // The logo opens into the library after a sign-in, not each time the app starts.
+                s.intro = matches!(s.phase, Phase::Finishing | Phase::WaitingForBrowser);
+                if s.intro {
+                    sphere::begin();
+                }
                 match backend.open_library(&account) {
                     Ok(library) => s.library = Some(library),
                     Err(e) => s.sync = Sync::Failed(e),
@@ -345,6 +348,9 @@ fn view(s: &State, cx: &mut Cx<State>) -> El {
                 (el().w_full().h_full().fill(t.card).window_drag(), Vec::new())
             };
             return el().key("root").w_full().h_full().child(under).child(sphere::opening::<State>(t.card_foreground, t.card, s.loaded, pictures));
+        }
+        (Phase::SignedIn(_), _) if !s.loaded && !matches!(s.sync, Sync::Failed(_)) => {
+            progress("Opening your library", "Getting your latest links.".into(), t)
         }
         (Phase::SignedIn(account), _) => return shell::view(s, account, cx),
     };
