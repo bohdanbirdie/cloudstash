@@ -789,6 +789,7 @@ fn page(s: &State, cx: &mut Cx<State>, dark: bool, l: &Look) -> El {
             let divider = divider.clone();
             move |at| {
                 divider.set(divider_opacity(at.offset[1]));
+                crate::sphere::scrolled(at.offset[1]);
             }
         })
         .child(col().key("page").w_full().pl(PAGE_PAD_LEFT).pr(PAGE_PAD_RIGHT).pt(16.0).pb(80.0).child(body));

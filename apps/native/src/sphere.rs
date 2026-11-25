@@ -291,6 +291,10 @@ struct Intro {
     /// When the library's links arrived.
     loaded: Option<f32>,
     unwrap: Option<Unwrap>,
+    /// How far the grid is scrolled, once it has said.
+    scroll: Option<f32>,
+    /// When the person began to scroll: from then the opening hurries to its end.
+    hurry: Option<f32>,
 }
 
 impl Intro {
@@ -361,7 +365,14 @@ impl Motion {
             (self.look, self.pitch) = ([0.0; 2], 0.0);
             i.unwrap = Some(i.unwrap(self.yaw, self.speed, centre));
         }
+        if i.hurry.is_some()
+            && let Some(u) = &mut i.unwrap
+        {
+            // No more riding round: the ball lets go now.
+            u.at = u.at.min(i.t - RIDE);
+        }
         let since = i.unwrap.as_ref().map_or(-1.0, |u| i.t - u.at);
+        let hurried = i.hurry.map(|at| i.t - at);
         let (riding, flown) = (since < RIDE, (since - RIDE).max(0.0));
         match &i.unwrap {
             Some(u) => {
@@ -415,7 +426,7 @@ impl Motion {
                 }
             }
             // Let go, each picture keeps its speed and a soft spring that comes on gently pulls it to its card.
-            let pull = PULL * smooth(0.0, RAMP, flown);
+            let pull = if hurried.is_some() { PULL * 3.0 } else { PULL * smooth(0.0, RAMP, flown) };
             let (mut farthest, mut landed) = (0.0_f32, 0.0);
             for c in &mut u.cards {
                 if !riding {
@@ -441,6 +452,10 @@ impl Motion {
             if !riding {
                 cover = if u.cards.is_empty() { fade } else { 1.0 - smooth(0.2, 0.9, landed / u.cards.len() as f32) };
                 done = flown > 0.8 && (farthest < 0.5 || flown > 4.0);
+                if let Some(hurried) = hurried {
+                    cover = cover.min(1.0 - smooth(0.0, 0.2, hurried));
+                    done = farthest < 0.5 || hurried > 0.4;
+                }
             }
         }
         stage().cover.set(cover);
@@ -475,7 +490,8 @@ pub fn on_opened(f: impl Fn() + Send + Sync + 'static) {
 pub fn begin() {
     let mut m = motion().lock().expect("the logo's motion");
     let from = (m.rect[2] > 0.0).then(|| [m.rect[0] + m.rect[2] / 2.0, m.rect[1] + m.rect[3] / 2.0, m.size * 56.0 / 120.0]);
-    m.intro = Some(Intro { t: 0.0, from, window: [0.0; 2], ids: Vec::new(), homes: Vec::new(), loaded: None, unwrap: None });
+    m.intro =
+        Some(Intro { t: 0.0, from, window: [0.0; 2], ids: Vec::new(), homes: Vec::new(), loaded: None, unwrap: None, scroll: None, hurry: None });
     m.drag = None;
     settle();
     stage().cover.set(1.0);
@@ -500,6 +516,29 @@ pub fn card_at(id: &str, rect: [f32; 4]) {
         && let Some(slot) = i.ids.iter().position(|known| known == id)
     {
         i.homes[slot] = Some(rect);
+    }
+}
+
+/// The grid says how far down it is scrolled. A scroll during the opening carries the flying pictures and
+/// their cards along with the page, and hurries the opening to its end.
+pub fn scrolled(offset: f32) {
+    let mut m = motion().lock().expect("the logo's motion");
+    let Some(i) = &mut m.intro else { return };
+    let by = offset - i.scroll.replace(offset).unwrap_or(offset);
+    if by == 0.0 {
+        return;
+    }
+    i.hurry.get_or_insert(i.t);
+    for home in i.homes.iter_mut().flatten() {
+        home[1] -= by;
+    }
+    if let Some(u) = &mut i.unwrap {
+        for c in &mut u.cards {
+            c.home[1] -= by;
+            if u.let_go {
+                c.at[1] -= by;
+            }
+        }
     }
 }
 
