@@ -476,7 +476,7 @@ fn progress(title: &'static str, body: String, t: Palette) -> El {
 }
 
 fn scene(title: &'static str, body: String, busy: bool, t: Palette) -> El {
-    col().key("welcome").w_full().items_center().child(sphere::live::<State>(72.0, t.card_foreground, busy)).child(header(title, body, t).mt(24.0))
+    col().key("welcome").w_full().items_center().child(sphere::live::<State>(96.0, t.card_foreground, busy)).child(header(title, body, t).mt(24.0))
 }
 
 /// Something went wrong: a warning badge takes the logo's place.

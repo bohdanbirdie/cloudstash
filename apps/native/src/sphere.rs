@@ -13,8 +13,10 @@ const TURN: f32 = 2.399_96;
 const TILT: f32 = 0.5;
 const LIGHT: [f32; 3] = [-0.42, -0.62, 0.66];
 /// Radians a second: at rest, and while something is under way.
-const IDLE: f32 = 0.22;
+const IDLE: f32 = 0.45;
 const BUSY: f32 = 1.3;
+/// It never turns slower than this on its own: a crawl makes the dots shimmer.
+const SLOWEST: f32 = 0.3;
 
 /// Dot `i`'s place on a ball of radius 1 turned by `yaw` and tipped by `tilt`: x right, y down, z toward the viewer.
 fn place(i: usize, yaw: f32, tilt: f32) -> [f32; 3] {
@@ -124,9 +126,20 @@ pub fn frame(f: &FrameEncoded) {
         });
         let speed = if m.busy { BUSY } else { IDLE };
         m.speed += (speed - m.speed) * ease(1.4);
+        // Let go while turning backwards, it slows, then picks up forwards without crawling through a stop.
+        if m.speed.abs() < SLOWEST {
+            m.speed = SLOWEST;
+        }
         m.yaw += m.speed * dt;
         m.pitch *= 1.0 - ease(1.2);
         m.look = [m.look[0] + (want[0] - m.look[0]) * ease(7.0), m.look[1] + (want[1] - m.look[1]) * ease(7.0)];
+        // The last of an ease is a crawl too: land once it is within a hair.
+        if (want[0] - m.look[0]).hypot(want[1] - m.look[1]) < 0.004 {
+            m.look = want;
+        }
+        if m.pitch.abs() < 0.004 {
+            m.pitch = 0.0;
+        }
     }
     m.turned = m.yaw;
     m.paint();
@@ -175,6 +188,8 @@ pub fn live<S: 'static>(size: f32, ink: Color, busy: bool) -> El {
                 .live_opacity(&dot.alpha),
         )
     });
+    // The dots glide between pixels; snapped to whole ones they shimmer at slow speeds.
+    let ball = ball.pixel_snap(false);
     // The looping speck keeps frames coming, as a spinner would.
     ball.child(el().size(1.0, 1.0).looping(LoopSpec::rotation(1.0)))
         .cursor(Cursor::Grab)
