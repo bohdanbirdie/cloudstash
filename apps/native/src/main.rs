@@ -23,12 +23,15 @@ mod shell;
 mod shell_kit;
 mod theme;
 mod ui_state;
+mod update;
 
 use std::sync::Arc;
 
 use auth::{Account, Auth, Link};
 use livestore::library::{self, Library, LinkItem, Tab};
-use rune::{App, AppHandle, AppSpec, Chrome, Color, Cx, El, FontSmoothing, LoopSpec, MenuItem, Shadow, TextStyle, Tx, col, icon, row, text};
+use rune::{
+    Align, App, AppHandle, AppSpec, Chrome, Color, Cx, El, FontSmoothing, LoopSpec, MenuItem, Shadow, TextStyle, Tx, col, el, icon, row, text,
+};
 use shell_kit::PaneState;
 use theme::Palette;
 
@@ -53,6 +56,9 @@ enum Phase {
     #[default]
     Restoring,
     SignedOut,
+    /// Signing out: the key and this Mac's copy of the library go before signing in again can
+    /// start, so cleaning up can't reach the next session's.
+    SigningOut,
     /// The browser is open; the sign-in finishes when its deep link arrives.
     WaitingForBrowser,
     /// The link arrived and the code is being exchanged.
@@ -95,6 +101,14 @@ pub(crate) struct State {
     hide_dock: bool,
     menu_bar: bool,
     tray: Option<tray_icon::TrayIcon>,
+    update: update::Update,
+    updater: update::Status,
+    /// Automatic updates are off in Settings: the updater checks only when asked.
+    manual_updates: bool,
+    /// The dialog that asks before restarting into a downloaded update is open.
+    confirm_update: bool,
+    /// The account's menu, under its name, is open.
+    account_menu: bool,
 }
 
 /// Headless snapshots render a named scene and must not touch the keychain, the network or the
@@ -186,6 +200,10 @@ impl Backend {
                     }
                 });
             },
+            {
+                let ui = self.ui.clone();
+                move || ui.update(update::too_old)
+            },
         ))
     }
 }
@@ -269,18 +287,21 @@ fn sign_out(s: &mut State) {
     };
     settings::close(s);
     s.notice = None;
-    s.phase = Phase::SignedOut;
+    s.phase = Phase::SigningOut;
     images::close();
     let library = s.library.take();
     s.links.clear();
     s.place = nav::Place::default();
     s.kind = shell::Kind::default();
     std::thread::spawn(move || {
+        let key = backend.auth.take_key();
         if let Some(library) = library {
             library.close();
         }
         backend.forget_libraries();
-        if let Err(e) = backend.auth.sign_out() {
+        backend.ui.update(|s, _| s.phase = Phase::SignedOut);
+        let revoked = key.and_then(|key| key.map_or(Ok(()), |key| backend.auth.revoke(&key)));
+        if let Err(e) = revoked {
             backend.ui.update(move |s, _| s.notice = Some(e));
         }
     });
@@ -288,11 +309,15 @@ fn sign_out(s: &mut State) {
 
 fn view(s: &State, cx: &mut Cx<State>) -> El {
     let t = theme::palette(cx.system_dark());
+    if let update::Update::Required(progress) = s.update {
+        return screen(col().key("content").w_full().max_w(320.0).items_center().child(brand_lockup(t)).child(must_update(s, progress, t)), t);
+    }
     let content = match (&s.phase, &s.notice) {
         (Phase::SignedOut, Some(notice)) => status(Tone::Problem, "Couldn't finish signing in", notice.clone(), t)
             .child(primary_button("sign-in", "Try again", t).on_press(start_sign_in)),
         (Phase::SignedOut, None) => header("Sign in to Cloudstash", "Access your saved links from anywhere.".into(), t)
             .child(primary_button("sign-in", "Sign in", t).on_press(start_sign_in)),
+        (Phase::SigningOut, _) => status(Tone::Progress, "Signing out", "Removing this Mac's copy of your library.".into(), t),
         (Phase::Restoring, _) => status(Tone::Progress, "Opening Cloudstash for Mac", "Checking for a saved session. This takes a moment.".into(), t),
         (Phase::WaitingForBrowser, _) => {
             status(Tone::Progress, "Finish signing in in your browser", "Cloudstash opens again when you're done.".into(), t)
@@ -301,15 +326,115 @@ fn view(s: &State, cx: &mut Cx<State>) -> El {
         (Phase::Finishing, _) => status(Tone::Progress, "Signing in to Cloudstash for Mac", "Preparing your sign-in. This takes a moment.".into(), t),
         (Phase::SignedIn(account), _) => return shell::view(s, account, cx),
     };
-    col()
-        .key("window")
+    screen(col().key("content").w_full().max_w(320.0).child(brand_lockup(t)).child(content), t)
+}
+
+/// A whole-window screen, as signing in shows: `content` in the middle of the card.
+fn screen(content: El, t: Palette) -> El {
+    col().key("window").w_full().h_full().padding(28.0).center().fill(t.card).window_drag().child(content)
+}
+
+/// This version is too old to use, signed in or out: the window only offers the update, and
+/// signing out.
+fn must_update(s: &State, progress: Option<u8>, t: Palette) -> El {
+    let signed_in = matches!(s.phase, Phase::SignedIn(_));
+    let body = if signed_in {
+        "This version can’t sync your library anymore. The update takes a few seconds and your library is right where you left it."
+    } else {
+        "This version is too old to sign in. The update takes a few seconds."
+    };
+    let label = match progress {
+        None => "Update and restart".to_owned(),
+        Some(p) if p < 100 => format!("Downloading… {p}%"),
+        Some(_) => "Restarting…".to_owned(),
+    };
+    let done = f32::from(progress.unwrap_or(0)) / 100.0;
+    let mut button = row()
+        .key("update")
+        .role("button")
+        .label(label.clone())
+        .focusable(progress.is_none())
         .w_full()
-        .h_full()
-        .padding(28.0)
-        .center()
-        .fill(t.card)
-        .window_drag()
-        .child(col().key("content").w_full().max_w(320.0).child(brand_lockup(t)).child(content))
+        .h(32.0)
+        .mt(24.0)
+        .padding(1.0)
+        .radius(8.0)
+        .border(1.0, t.card)
+        .press_scale(0.96)
+        .child(
+            row()
+                .w_full()
+                .h_full()
+                .center()
+                .radius(7.0)
+                .clip_rounded(7.0)
+                .fill(t.primary)
+                .child(el().pin(Some(0.0), Some(0.0), None, Some(0.0)).w_frac(done).fill(t.primary_foreground.alpha(0.18)))
+                .child(text(label).font(TextStyle::new(12.0, 500.0).lh(19.5).features("'tnum' 1")).color(t.primary_foreground)),
+        );
+    if progress.is_none() {
+        button = button.on_press(update::update_now);
+    }
+    let mut screen = col()
+        .key("must-update")
+        .w_full()
+        .items_center()
+        .child(
+            row()
+                .key("status-icon")
+                .size(48.0, 48.0)
+                .center()
+                .radius(24.0)
+                .fill(t.muted)
+                .box_shadow(ring_1(t.foreground_10))
+                .child(icon(&icons::ARROW_UP, 20.0).color(t.card_foreground)),
+        )
+        .child(
+            text("Update Cloudstash to continue")
+                .key("title")
+                .font(TextStyle::new(20.0, 600.0).lh(28.0).tracking(-0.5))
+                .color(t.card_foreground)
+                .align(Align::Center)
+                .wrap()
+                .mt(20.0),
+        )
+        .child(
+            text(body)
+                .key("body")
+                .font(TextStyle::new(12.0, 400.0).lh(19.5))
+                .color(t.muted_foreground)
+                .align(Align::Center)
+                .wrap()
+                .max_w(280.0)
+                .mt(8.0),
+        )
+        .child(button);
+    if signed_in && progress.is_none() {
+        screen = screen.child(
+            row()
+                .key("sign-out")
+                .role("button")
+                .label("Sign out")
+                .focusable(true)
+                .h(28.0)
+                .px(10.0)
+                .mt(12.0)
+                .center()
+                .radius(7.0)
+                .hover(t.muted)
+                .press_scale(0.96)
+                .child(text("Sign out").font(TextStyle::new(12.0, 500.0).lh(19.5)).color(t.muted_foreground))
+                .on_press(sign_out),
+        );
+    }
+    screen.child(
+        text(format!("Version {}", env!("CARGO_PKG_VERSION")))
+            .key("version")
+            .font(TextStyle::new(11.5, 400.0).features("'tnum' 1"))
+            .color(t.muted_foreground)
+            .opacity(0.8)
+            .mt(28.0),
+    )
 }
 
 enum Tone {
@@ -494,6 +619,46 @@ fn main() {
                 worst_case_scene(s, Tab::Inbox);
                 s.palette = Some(shell::Palette::showing("secur", 0));
             }),
+            ("update-ready", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.update = update::Update::Ready;
+            }),
+            ("update-installing", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.update = update::Update::Installing;
+            }),
+            ("update-confirm", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.update = update::Update::Ready;
+                s.confirm_update = true;
+            }),
+            ("update-failed", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.update = update::Update::Failed;
+            }),
+            ("account-menu", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.account_menu = true;
+            }),
+            ("account-menu-peek", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.sidebar.set_open(false);
+                s.sidebar.peek();
+                s.sidebar.hold_peek();
+                s.account_menu = true;
+            }),
+            ("must-update", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.update = update::Update::Required(None);
+            }),
+            ("must-update-downloading", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.update = update::Update::Required(Some(60));
+            }),
+            ("must-update-signed-out", |s| {
+                s.phase = Phase::SignedOut;
+                s.update = update::Update::Required(None);
+            }),
             ("palette-empty", |s| {
                 worst_case_scene(s, Tab::Inbox);
                 s.palette = Some(shell::Palette::showing("kubernetes operator", 0));
@@ -544,6 +709,9 @@ fn main() {
         s.settings = Some(link);
         if let Some(link) = s.early_link.take() {
             open_url(s, &link, tx);
+        }
+        if !headless() {
+            update::start(s);
         }
     });
     if !headless() {

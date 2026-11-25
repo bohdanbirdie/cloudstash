@@ -1,4 +1,4 @@
-//! The web's icons: lucide's LoaderCircle, TriangleAlert and Settings (lucide-react 1.34.0, 24-unit
+//! The web's icons: lucide's LoaderCircle, TriangleAlert, Settings and ArrowUp (lucide-react 1.34.0, 24-unit
 //! grid, 2-unit round strokes) and `CloudstashLogo`'s plain knot (viewBox 22 22 76 76).
 
 use rune::Icon;
@@ -14,6 +14,7 @@ macro_rules! lucide {
 }
 
 pub static LOADER_CIRCLE: Icon = lucide!("lucide-loader-circle", r#"<path d="M21 12a9 9 0 1 1-6.219-8.56"/>"#);
+pub static ARROW_UP: Icon = lucide!("lucide-arrow-up", r#"<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>"#);
 pub static TRIANGLE_ALERT: Icon = lucide!(
     "lucide-triangle-alert",
     r#"<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>"#

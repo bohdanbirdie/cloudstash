@@ -146,9 +146,11 @@ fn signs_in_restores_and_signs_out() {
     // A relaunch resumes from the stored key.
     assert_eq!(f.auth.restore().unwrap(), Some(expected));
 
-    f.auth.sign_out().unwrap();
-    assert!(f.server.lock().unwrap().revoked);
+    let key = f.auth.take_key().unwrap().expect("the stored key");
     assert_eq!(f.store.load().unwrap(), None);
+    assert_eq!(f.auth.take_key().unwrap(), None, "taken once");
+    f.auth.revoke(&key).unwrap();
+    assert!(f.server.lock().unwrap().revoked);
     assert_eq!(f.auth.restore().unwrap(), None);
 }
 
