@@ -698,7 +698,13 @@ fn card(link: &LinkItem, now: i64, l: &Look) -> El {
         .min_w(0.0)
         .gap(8.0)
         .cursor(Cursor::Pointer)
-        .child(picture.child(ring))
+        .child(picture.child(ring).live_opacity(crate::sphere::reveal()).on_layout_tx({
+            let id = link.id.clone();
+            move |_: &mut State, rect, tx| {
+                crate::sphere::card_at(&id, rect);
+                tx.live_only();
+            }
+        }))
         .child(text(link.title.clone()).font(font(13.5, 500.0).lh(18.2)).color(l.fg).wrap_anywhere().max_lines(2))
         .child(
             row()
@@ -710,6 +716,28 @@ fn card(link: &LinkItem, now: i64, l: &Look) -> El {
                 .child(text(ago(link.created_at, now)).font(font(12.0, 400.0)).color(l.fg3)),
         )
         .on_press(move |_: &mut State| crate::open_link(&url))
+}
+
+/// A copy of each of the first cards' pictures, for the opening to fly in (`sphere::opening`).
+pub fn opening_pictures(s: &State, dark: bool) -> Vec<(String, El)> {
+    if s.mode != Mode::Grid {
+        return Vec::new();
+    }
+    let l = look(dark);
+    shown(s)
+        .into_iter()
+        .take(60)
+        .map(|link| {
+            let tile = el().fill(l.tile);
+            (
+                link.id.clone(),
+                match &link.image {
+                    Some(url) => tile.pixels_fit(&images::picture(&Request::new(url, PICTURE, Lane::Picture)), SurfaceFit::Fill),
+                    None => tile,
+                },
+            )
+        })
+        .collect()
 }
 
 /// The prototype's grid: cards in as many 230 pt+ columns as fit, built a row at a time as they

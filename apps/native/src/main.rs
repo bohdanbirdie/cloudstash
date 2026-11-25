@@ -83,6 +83,8 @@ pub(crate) struct State {
     links: Vec<LinkItem>,
     /// The library has opened and given its links, caught up with the server or done waiting for it.
     loaded: bool,
+    /// The logo is opening into the library (`sphere::opening`).
+    intro: bool,
     place: nav::Place,
     sync: Sync,
     backend: Option<Backend>,
@@ -147,6 +149,8 @@ impl Backend {
             Ok(Some(account)) => {
                 s.sync = Sync::Connecting;
                 s.loaded = false;
+                s.intro = true;
+                sphere::begin();
                 match backend.open_library(&account) {
                     Ok(library) => s.library = Some(library),
                     Err(e) => s.sync = Sync::Failed(e),
@@ -315,6 +319,10 @@ fn sign_out(s: &mut State) {
 fn view(s: &State, cx: &mut Cx<State>) -> El {
     sphere::hide();
     let t = theme::palette(cx.system_dark());
+    let opening = s.intro && matches!(s.phase, Phase::SignedIn(_)) && !matches!(s.sync, Sync::Failed(_));
+    if !opening {
+        sphere::cancel();
+    }
     if let update::Update::Required(progress) = s.update {
         return screen(col().key("content").w_full().max_w(280.0).items_center().child(must_update(s, progress, t)), t);
     }
@@ -329,8 +337,14 @@ fn view(s: &State, cx: &mut Cx<State>) -> El {
         (Phase::WaitingForBrowser, _) => progress("Finish signing in in your browser", "Cloudstash opens again when you're done.".into(), t)
             .child(outline_button("cancel", "Cancel", t).on_press(cancel_sign_in)),
         (Phase::Finishing, _) => progress("Signing in to Cloudstash for Mac", "Preparing your sign-in. This takes a moment.".into(), t),
-        (Phase::SignedIn(_), _) if !s.loaded && !matches!(s.sync, Sync::Failed(_)) => {
-            progress("Opening your library", "Getting your latest links.".into(), t)
+        (Phase::SignedIn(account), _) if opening => {
+            // The library, once it has its links, under the logo that opens into it.
+            let (under, pictures) = if s.loaded {
+                (shell::view(s, account, cx), shell::opening_pictures(s, cx.system_dark()))
+            } else {
+                (el().w_full().h_full().fill(t.card).window_drag(), Vec::new())
+            };
+            return el().key("root").w_full().h_full().child(under).child(sphere::opening::<State>(t.card_foreground, t.card, s.loaded, pictures));
         }
         (Phase::SignedIn(account), _) => return shell::view(s, account, cx),
     };
@@ -613,7 +627,8 @@ fn main() {
             ("finishing", |s| s.phase = Phase::Finishing),
             ("opening", |s| {
                 signed_in_scene(s, Tab::Inbox);
-                s.loaded = false;
+                s.intro = true;
+                sphere::begin();
             }),
             ("signed-in", |s| signed_in_scene(s, Tab::Inbox)),
             ("completed", |s| signed_in_scene(s, Tab::Completed)),
@@ -714,7 +729,7 @@ fn main() {
         let mut tracker = fps::Tracker::default();
         move |frame| {
             tracker.frame(frame);
-            sphere::frame(frame);
+            sphere::frame(frame, headless().then_some(1.0 / 60.0));
         }
     })
     .on_modifiers(shell::on_modifiers)
@@ -734,6 +749,10 @@ fn main() {
         auth,
         ui: {
             let ui = app.handle();
+            sphere::on_opened({
+                let ui = ui.clone();
+                move || ui.update(|s, _| s.intro = false)
+            });
             fps::on_relayout({
                 let ui = ui.clone();
                 move || ui.update(|_, _| {})
