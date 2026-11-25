@@ -71,7 +71,10 @@ signature="$("$openssl" pkeyutl -sign -inkey "$UPDATE_KEY_PATH" -rawin -in "$out
 
 dmg="Cloudstash-${version}.dmg"
 ln -s /Applications "$out/disk/Applications"
-hdiutil create -volname Cloudstash -srcfolder "$out/disk" -format UDZO -ov "$out/$dmg"
+# hdiutil's own estimate of the image size runs short for an APFS image and fails with "No space
+# left on device"; size it from the folder with room to spare (the compressed image stays small).
+size_mb=$(($(du -sm "$out/disk" | cut -f1) * 3 / 2 + 20))
+hdiutil create -volname Cloudstash -srcfolder "$out/disk" -fs HFS+ -size "${size_mb}m" -format UDZO -ov "$out/$dmg"
 codesign --force --timestamp --sign "$SIGN_IDENTITY" "$out/$dmg"
 notarize "$out/$dmg"
 xcrun stapler staple "$out/$dmg"
