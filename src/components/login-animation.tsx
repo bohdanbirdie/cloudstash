@@ -97,8 +97,9 @@ export function LoginAnimation({
       } else {
         // It leans toward a pointer within about two and a half of its radii, less the farther off.
         let want = [0, 0];
-        if (m.pointer) {
-          const { x, y, radius } = ball();
+        const { x, y, radius } = ball();
+        // Hidden (a narrow window drops this half of the page), it has no size to measure against.
+        if (m.pointer && radius > 0) {
           const [dx, dy] = [m.pointer[0] - x, m.pointer[1] - y];
           const far = Math.min(
             1,
