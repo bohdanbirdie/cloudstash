@@ -81,6 +81,8 @@ pub(crate) struct State {
     notice: Option<String>,
     library: Option<Library>,
     links: Vec<LinkItem>,
+    /// The library has opened and given its links, caught up with the server or done waiting for it.
+    loaded: bool,
     place: nav::Place,
     sync: Sync,
     backend: Option<Backend>,
@@ -144,6 +146,7 @@ impl Backend {
         self.ui.update(move |s, _| match result {
             Ok(Some(account)) => {
                 s.sync = Sync::Connecting;
+                s.loaded = false;
                 match backend.open_library(&account) {
                     Ok(library) => s.library = Some(library),
                     Err(e) => s.sync = Sync::Failed(e),
@@ -187,7 +190,10 @@ impl Backend {
             library::Config { base: self.auth.base.clone(), library_id: account.library_id.clone(), api_key, dir },
             move |links| {
                 images::prefetch(shell::wanted_images(&links));
-                on_links.update(move |s, _| s.links = links)
+                on_links.update(move |s, _| {
+                    s.links = links;
+                    s.loaded = true;
+                })
             },
             move |status| {
                 on_status.update(move |s, _| {
@@ -323,6 +329,9 @@ fn view(s: &State, cx: &mut Cx<State>) -> El {
         (Phase::WaitingForBrowser, _) => progress("Finish signing in in your browser", "Cloudstash opens again when you're done.".into(), t)
             .child(outline_button("cancel", "Cancel", t).on_press(cancel_sign_in)),
         (Phase::Finishing, _) => progress("Signing in to Cloudstash for Mac", "Preparing your sign-in. This takes a moment.".into(), t),
+        (Phase::SignedIn(_), _) if !s.loaded && !matches!(s.sync, Sync::Failed(_)) => {
+            progress("Opening your library", "Getting your latest links.".into(), t)
+        }
         (Phase::SignedIn(account), _) => return shell::view(s, account, cx),
     };
     screen(col().key("content").w_full().max_w(320.0).child(content), t)
@@ -520,6 +529,7 @@ fn signed_in_scene(s: &mut State, tab: Tab) {
     s.phase =
         Phase::SignedIn(Account { name: Some("Ada Example".to_owned()), email: "ada@example.com".to_owned(), library_id: "org_example".to_owned() });
     s.sync = Sync::Online;
+    s.loaded = true;
     s.place = nav::Place::Tab(tab);
     let link = |id: &str, title: &str, status: &str, created_at: i64, completed_at: Option<i64>| LinkItem {
         id: id.to_owned(),
@@ -601,6 +611,10 @@ fn main() {
             }),
             ("waiting", |s| s.phase = Phase::WaitingForBrowser),
             ("finishing", |s| s.phase = Phase::Finishing),
+            ("opening", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.loaded = false;
+            }),
             ("signed-in", |s| signed_in_scene(s, Tab::Inbox)),
             ("completed", |s| signed_in_scene(s, Tab::Completed)),
             ("collapsed", |s| {
