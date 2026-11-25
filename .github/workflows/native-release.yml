@@ -10,12 +10,10 @@ on:
   push:
     branches: [main]
     paths:
-      [
-        apps/native/Cargo.toml,
-        apps/native/scripts/release.sh,
-        apps/native/scripts/bundle.sh,
-        .github/workflows/native-release.yml,
-      ]
+      - apps/native/Cargo.toml
+      - apps/native/scripts/release.sh
+      - apps/native/scripts/bundle.sh
+      - .github/workflows/native-release.yml
   workflow_dispatch:
 
 concurrency:
