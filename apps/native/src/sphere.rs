@@ -520,12 +520,12 @@ pub fn card_at(id: &str, rect: [f32; 4]) {
 }
 
 /// The grid says how far down it is scrolled. A scroll during the opening carries the flying pictures and
-/// their cards along with the page, and hurries the opening to its end.
-pub fn scrolled(offset: f32) {
+/// their cards along with the page, and when a hand did it (not the page settling), hurries the opening to its end.
+pub fn scrolled(offset: f32, by_hand: bool) {
     let mut m = motion().lock().expect("the logo's motion");
     let Some(i) = &mut m.intro else { return };
     let by = offset - i.scroll.replace(offset).unwrap_or(offset);
-    if by == 0.0 {
+    if by == 0.0 || !by_hand {
         return;
     }
     i.hurry.get_or_insert(i.t);

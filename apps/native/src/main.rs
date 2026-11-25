@@ -630,6 +630,12 @@ fn main() {
                 s.intro = true;
                 sphere::begin();
             }),
+            ("opening-wide", |s| {
+                worst_case_scene(s, Tab::Inbox);
+                s.sidebar.set_open(false);
+                s.intro = true;
+                sphere::begin();
+            }),
             ("signed-in", |s| signed_in_scene(s, Tab::Inbox)),
             ("completed", |s| signed_in_scene(s, Tab::Completed)),
             ("collapsed", |s| {
