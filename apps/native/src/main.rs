@@ -197,7 +197,11 @@ impl Backend {
             library::Config { base: self.auth.base.clone(), library_id: account.library_id.clone(), api_key, dir },
             move |links| {
                 images::prefetch(shell::wanted_images(&links));
-                on_links.update(move |s, _| {
+                on_links.update(move |s, tx| {
+                    if !s.loaded {
+                        // A library just opened starts at its top, wherever the last one was left.
+                        tx.scroll_to_y("viewport", 0.0);
+                    }
                     s.links = links;
                     s.loaded = true;
                 })
@@ -352,7 +356,8 @@ fn view(s: &State, cx: &mut Cx<State>) -> El {
         (Phase::SignedIn(_), _) if !s.loaded && !matches!(s.sync, Sync::Failed(_)) => {
             progress("Opening your library", "Getting your latest links.".into(), t)
         }
-        (Phase::SignedIn(account), _) => return shell::view(s, account, cx),
+        // Under the same root as while the logo opened, so the grid keeps its place when the opening ends.
+        (Phase::SignedIn(account), _) => return el().key("root").w_full().h_full().child(shell::view(s, account, cx)),
     };
     screen(col().key("content").w_full().max_w(320.0).child(content), t)
 }
