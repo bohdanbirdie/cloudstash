@@ -310,23 +310,22 @@ fn sign_out(s: &mut State) {
 fn view(s: &State, cx: &mut Cx<State>) -> El {
     let t = theme::palette(cx.system_dark());
     if let update::Update::Required(progress) = s.update {
-        return screen(col().key("content").w_full().max_w(320.0).items_center().child(brand_lockup(t)).child(must_update(s, progress, t)), t);
+        return screen(col().key("content").w_full().max_w(280.0).items_center().child(must_update(s, progress, t)), t);
     }
     let content = match (&s.phase, &s.notice) {
-        (Phase::SignedOut, Some(notice)) => status(Tone::Problem, "Couldn't finish signing in", notice.clone(), t)
-            .child(primary_button("sign-in", "Try again", t).on_press(start_sign_in)),
-        (Phase::SignedOut, None) => header("Sign in to Cloudstash", "Access your saved links from anywhere.".into(), t)
-            .child(primary_button("sign-in", "Sign in", t).on_press(start_sign_in)),
-        (Phase::SigningOut, _) => status(Tone::Progress, "Signing out", "Removing this Mac's copy of your library.".into(), t),
-        (Phase::Restoring, _) => status(Tone::Progress, "Opening Cloudstash for Mac", "Checking for a saved session. This takes a moment.".into(), t),
-        (Phase::WaitingForBrowser, _) => {
-            status(Tone::Progress, "Finish signing in in your browser", "Cloudstash opens again when you're done.".into(), t)
-                .child(outline_button("cancel", "Cancel", t).on_press(cancel_sign_in))
+        (Phase::SignedOut, Some(notice)) => {
+            problem("Couldn't finish signing in", notice.clone(), t).child(primary_button("sign-in", "Try again", t).on_press(start_sign_in))
         }
-        (Phase::Finishing, _) => status(Tone::Progress, "Signing in to Cloudstash for Mac", "Preparing your sign-in. This takes a moment.".into(), t),
+        (Phase::SignedOut, None) => welcome("Sign in to Cloudstash", "Access your saved links from anywhere.".into(), t)
+            .child(primary_button("sign-in", "Sign in", t).on_press(start_sign_in)),
+        (Phase::SigningOut, _) => progress("Signing out", "Removing this Mac's copy of your library.".into(), t),
+        (Phase::Restoring, _) => progress("Opening Cloudstash for Mac", "Checking for a saved session. This takes a moment.".into(), t),
+        (Phase::WaitingForBrowser, _) => progress("Finish signing in in your browser", "Cloudstash opens again when you're done.".into(), t)
+            .child(outline_button("cancel", "Cancel", t).on_press(cancel_sign_in)),
+        (Phase::Finishing, _) => progress("Signing in to Cloudstash for Mac", "Preparing your sign-in. This takes a moment.".into(), t),
         (Phase::SignedIn(account), _) => return shell::view(s, account, cx),
     };
-    screen(col().key("content").w_full().max_w(320.0).child(brand_lockup(t)).child(content), t)
+    screen(col().key("content").w_full().max_w(280.0).child(content), t)
 }
 
 /// A whole-window screen, as signing in shows: `content` in the middle of the card.
@@ -437,42 +436,49 @@ fn must_update(s: &State, progress: Option<u8>, t: Palette) -> El {
     )
 }
 
-enum Tone {
-    Problem,
-    Progress,
-}
-
-fn brand_lockup(t: Palette) -> El {
-    row()
-        .key("brand")
+/// The logo above a title and a line of text, all centred: what the sign-in screens share.
+fn welcome(title: &'static str, body: String, t: Palette) -> El {
+    col()
+        .key("welcome")
+        .w_full()
         .items_center()
-        .gap(8.0)
-        .mb(28.0)
-        .child(icon(&icons::LOGO, 24.0).color(t.card_foreground))
-        .child(text("cloudstash").font(TextStyle::new(14.0, 600.0).lh(20.0).tracking(-0.35)).color(t.card_foreground))
+        .child(row().key("brand").child(icon(&icons::LOGO, 64.0).color(t.card_foreground)))
+        .child(header(title, body, t).mt(24.0))
 }
 
 fn header(title: &'static str, body: String, t: Palette) -> El {
     col()
         .key("header")
         .w_full()
-        .child(text(title).key("title").font(TextStyle::new(20.0, 600.0).lh(28.0).tracking(-0.5)).color(t.card_foreground).wrap())
-        .child(text(body).key("body").font(TextStyle::new(12.0, 400.0).lh(19.5)).color(t.muted_foreground).wrap().mt(8.0))
+        .items_center()
+        .child(
+            text(title).key("title").font(TextStyle::new(20.0, 600.0).lh(28.0).tracking(-0.5)).color(t.card_foreground).align(Align::Center).wrap(),
+        )
+        .child(text(body).key("body").font(TextStyle::new(12.0, 400.0).lh(19.5)).color(t.muted_foreground).align(Align::Center).wrap().mt(8.0))
 }
 
-fn status(tone: Tone, title: &'static str, body: String, t: Palette) -> El {
-    let (fill, ink, ring, glyph) = match tone {
-        Tone::Problem => (t.destructive_10, t.destructive, t.destructive_20, &icons::TRIANGLE_ALERT),
-        Tone::Progress => (t.muted, t.muted_foreground, t.foreground_10, &icons::LOADER_CIRCLE),
-    };
-    let mut glyph = icon(glyph, 20.0).color(ink);
-    if matches!(tone, Tone::Progress) {
-        glyph = glyph.looping(LoopSpec::rotation(1.0));
-    }
+/// Something is under way: the welcome with a spinner under it.
+fn progress(title: &'static str, body: String, t: Palette) -> El {
+    welcome(title, body, t)
+        .child(row().key("status-icon").mt(24.0).child(icon(&icons::LOADER_CIRCLE, 18.0).color(t.muted_foreground).looping(LoopSpec::rotation(1.0))))
+}
+
+/// Something went wrong: a warning badge takes the logo's place.
+fn problem(title: &'static str, body: String, t: Palette) -> El {
     col()
         .key("status")
         .w_full()
-        .child(row().key("status-icon").size(40.0, 40.0).center().radius(20.0).fill(fill).box_shadow(ring_1(ring)).child(glyph))
+        .items_center()
+        .child(
+            row()
+                .key("status-icon")
+                .size(48.0, 48.0)
+                .center()
+                .radius(24.0)
+                .fill(t.destructive_10)
+                .box_shadow(ring_1(t.destructive_20))
+                .child(icon(&icons::TRIANGLE_ALERT, 20.0).color(t.destructive)),
+        )
         .child(header(title, body, t).mt(20.0))
 }
 

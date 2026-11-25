@@ -35,11 +35,12 @@ over several rounds of mocks and picked this one "for now", on the black tile.
 
 ## Decision
 
-The logo is a ball of dots, lit from the top left, resting in a round well. The
-app icon puts it on a black tile in Apple's Mac icon shape (an 824 tile on a
-1024 canvas). Small one-colour uses, such as the menu bar and the sign-in
-screen, draw the well as a ring with fewer, bigger dots in the foreground grey.
-Black and white only; the blue accent is not used in the logo.
+The logo is a ball of dots, lit from the top left. On the Mac app icon it rests
+in a round well on a black tile in Apple's Mac icon shape (an 824 tile on a
+1024 canvas); the tile and the well belong to the icon, not to the logo.
+Everywhere else the ball stands alone in the foreground grey, with no ring or
+frame around it. The menu bar draws it with fewer, bigger dots so it survives
+18 points. Black and white only; the blue accent is not used in the logo.
 
 `apps/native/scripts/brand.py` draws every version. The SVGs it writes to
 `apps/native/assets/brand/` are the originals; `AppIcon.icns` and

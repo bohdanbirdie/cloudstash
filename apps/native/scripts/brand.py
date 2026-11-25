@@ -4,7 +4,7 @@
   python3 scripts/brand.py            # rewrite the SVGs
   python3 scripts/brand.py --raster   # also rebuild AppIcon.icns and menu-bar-icon.png (needs Google Chrome)
 
-The logo is a ball of dots resting in a round well, on a black Mac icon tile. The SVGs in
+The logo is a ball of dots. The Mac app icon rests it in a round well on a black tile. The SVGs in
 assets/brand/ are the originals; the .icns and .png are made from them and never edited by hand.
 """
 import math, os, subprocess, sys, tempfile
@@ -72,9 +72,9 @@ def tile(shadow):
     )
 
 
-def mark(ring, n, base):
-    """The logo in one colour for small sizes: the well as a ring, fewer and bigger dots."""
-    return '<circle cx="60" cy="60" r="%s" fill="none" stroke="currentColor" stroke-width="%s" opacity=".55"/>' % (f(57 - ring / 2), f(ring)) + sphere(60, 60, 38, n, base, "currentColor", 0.22)
+def mark(n, base, floor):
+    """The logo on its own, in one colour: the ball without the tile and the well."""
+    return sphere(60, 60, 56, n, base, "currentColor", floor)
 
 
 svg = lambda size, view, body: '<svg xmlns="http://www.w3.org/2000/svg" width="%s" height="%s" viewBox="%s">%s</svg>\n' % (size, size, view, body)
@@ -82,11 +82,12 @@ svg = lambda size, view, body: '<svg xmlns="http://www.w3.org/2000/svg" width="%
 FILES = {
     # The originals.
     "app-icon.svg": svg(1024, "0 0 1024 1024", tile(True)),
-    "logo-mark.svg": svg(120, "0 0 120 120", mark(5, 64, 5.6)),
-    "menu-bar-icon.svg": svg(18, "0 0 120 120", mark(7, 40, 7.4)),
+    # The same ball as the app icon's. The menu bar's has fewer, bigger dots so it survives 18 points.
+    "logo-mark.svg": svg(120, "0 0 120 120", mark(150, 5.83, 0.1)),
+    "menu-bar-icon.svg": svg(18, "0 0 120 120", mark(44, 10.5, 0.3)),
     # What the app draws (src/icons.rs): the same drawings without the <svg> wrapper, which rune's icons leave out.
     # The tile has no shadow and is cropped to its 824 square.
-    "logo-mark.body.svg": mark(5, 64, 5.6) + "\n",
+    "logo-mark.body.svg": mark(150, 5.83, 0.1) + "\n",
     "logo-tile.body.svg": '<g transform="translate(-100 -100)">' + tile(False) + "</g>\n",
 }
 
