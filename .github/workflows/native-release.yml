@@ -4,12 +4,16 @@ name: Native release
 # with no native-v<version> tag yet, this builds, signs and notarizes the app and publishes it
 # as the repository's latest GitHub Release under that tag; installed apps read its latest.json
 # to update themselves (apps/native/src/update.rs). Any other change to Cargo.toml finds the
-# tag already there and stops. A change to this workflow runs it too, so a fixed release step
-# retries a version whose release failed.
+# tag already there and stops. A change to this workflow or the release scripts runs it too, so
+# a fixed release step retries a version whose release failed.
 on:
   push:
     branches: [main]
-    paths: [apps/native/Cargo.toml, .github/workflows/native-release.yml]
+    paths:
+      - apps/native/Cargo.toml
+      - apps/native/scripts/release.sh
+      - apps/native/scripts/bundle.sh
+      - .github/workflows/native-release.yml
   workflow_dispatch:
 
 concurrency:

@@ -38,7 +38,25 @@ codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$app"
 codesign --verify --deep --strict "$app"
 
 notarize() {
-  xcrun notarytool submit "$1" --key "$NOTARY_KEY_PATH" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --wait
+  local auth=(--key "$NOTARY_KEY_PATH" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER")
+  local errors result id status details
+  errors="$(mktemp)"
+  result="$(xcrun notarytool submit "$1" "${auth[@]}" --wait --output-format json 2>"$errors")" || true
+  details="$result"$'\n'"$(cat "$errors")"
+  rm -f "$errors"
+  echo "$details"
+  id="$(plutil -extract id raw - <<<"$result" 2>/dev/null)" || id=""
+  status="$(plutil -extract status raw - <<<"$result" 2>/dev/null)" || status=""
+  [ "$status" = Accepted ] && return
+  # Apple's log says why it refused; the run's page shows it as an error without opening the log.
+  if [ -n "$id" ]; then
+    details="$(xcrun notarytool log "$id" "${auth[@]}" 2>&1)" || true
+    echo "$details"
+  fi
+  if [ -n "${GITHUB_ACTIONS:-}" ]; then
+    echo "::error title=Notarization ${status:-failed}::$(printf '%s' "$details" | tr '\n' ' ' | cut -c1-4000)"
+  fi
+  exit 1
 }
 
 # Notarize the app, then staple the ticket so it opens without asking Apple when offline.
