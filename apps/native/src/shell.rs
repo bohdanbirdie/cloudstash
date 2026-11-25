@@ -124,12 +124,13 @@ struct Look {
     active: Color,
     line: Color,
     line2: Color,
-    /// The sidebar's edge while it's dragged.
+    /// The sidebar's edge while it's dragged, and the dot beside a waiting update.
     accent: Color,
+    /// A filled main button, under a white label.
+    primary: Color,
+    warning: Color,
     /// Dims the window behind the peeking sidebar.
     scrim: Color,
-    /// The lightness of a space's swatch.
-    swatch_l: f32,
     /// Behind a card's picture while it loads, and behind a card without one.
     tile: Color,
     /// The hairline inside a card's picture.
@@ -138,39 +139,42 @@ struct Look {
 }
 
 fn look(dark: bool) -> Look {
+    let t = crate::theme::palette(dark);
     if dark {
         Look {
             side: oklch(0.15, 0.0, 0.0),
             panel: oklch(0.205, 0.0, 0.0),
-            fg: oklch(0.94, 0.002, 90.0),
-            fg2: oklch(0.72, 0.004, 90.0),
-            fg3: oklch(0.53, 0.004, 90.0),
+            fg: oklch(0.94, 0.0, 0.0),
+            fg2: oklch(0.72, 0.0, 0.0),
+            fg3: oklch(0.53, 0.0, 0.0),
             hover: oklcha(1.0, 0.0, 0.0, 0.045),
             active: oklcha(1.0, 0.0, 0.0, 0.08),
             line: oklcha(1.0, 0.0, 0.0, 0.06),
             line2: oklcha(1.0, 0.0, 0.0, 0.1),
-            accent: oklch(0.7, 0.15, 262.0),
+            accent: t.accent_text,
+            primary: t.primary,
+            warning: t.warning,
             scrim: oklcha(0.0, 0.0, 0.0, 0.3),
-            swatch_l: 0.72,
-            tile: oklch(0.235, 0.002, 106.0),
+            tile: oklch(0.235, 0.0, 0.0),
             ring: oklcha(1.0, 0.0, 0.0, 0.08),
             dark: true,
         }
     } else {
         Look {
-            side: oklch(0.965, 0.002, 106.0),
+            side: oklch(0.965, 0.0, 0.0),
             panel: oklch(1.0, 0.0, 0.0),
-            fg: oklch(0.22, 0.002, 106.0),
-            fg2: oklch(0.47, 0.005, 90.0),
-            fg3: oklch(0.66, 0.006, 90.0),
+            fg: oklch(0.22, 0.0, 0.0),
+            fg2: oklch(0.47, 0.0, 0.0),
+            fg3: oklch(0.66, 0.0, 0.0),
             hover: oklcha(0.0, 0.0, 0.0, 0.04),
             active: oklcha(0.0, 0.0, 0.0, 0.065),
             line: oklcha(0.0, 0.0, 0.0, 0.07),
             line2: oklcha(0.0, 0.0, 0.0, 0.1),
-            accent: oklch(0.6, 0.17, 262.0),
+            accent: t.accent_text,
+            primary: t.primary,
+            warning: t.warning,
             scrim: oklcha(0.0, 0.0, 0.0, 0.06),
-            swatch_l: 0.62,
-            tile: oklch(0.965, 0.002, 106.0),
+            tile: oklch(0.965, 0.0, 0.0),
             ring: oklcha(0.0, 0.0, 0.0, 0.08),
             dark: false,
         }
@@ -236,7 +240,7 @@ fn segment(key: &str, items: Vec<(El, bool, Press)>, l: &Look) -> El {
 
 fn swatch(space: &Space, size: f32, l: &Look) -> El {
     let mark = el().size(size, size).radius(size * 0.3);
-    let color = oklch(l.swatch_l, 0.15, space.hue);
+    let color = crate::theme::space(l.dark, space.hue);
     if space.draft { mark.border(1.5, color).border_dash(2.5, 1.5) } else { mark.fill(color) }
 }
 
@@ -299,8 +303,8 @@ fn sidebar(s: &State, account: &Account, l: &Look) -> El {
                 .px(6.0)
                 .center()
                 .radius(99.0)
-                .fill(oklcha(l.swatch_l, 0.15, space.hue, 0.12))
-                .child(text("New").font(font(10.5, 500.0)).color(oklch(l.swatch_l, 0.15, space.hue)))
+                .fill(Color { a: 0.12, ..crate::theme::space(l.dark, space.hue) })
+                .child(text("New").font(font(10.5, 500.0)).color(crate::theme::space(l.dark, space.hue)))
         } else {
             el()
         };
@@ -406,7 +410,7 @@ fn update_row(update: Update, l: &Look) -> El {
     let dot = |c: Color| el().size(6.0, 6.0).radius(3.0).fill(c).box_shadow(Shadow { spread: 3.0, color: c.alpha(0.18), ..Shadow::default() });
     let (label, slot) = match update {
         Update::Installing => ("Restart to update", icon(&LOADER_CIRCLE, 14.0).color(l.fg3).looping(LoopSpec::rotation(1.0))),
-        Update::Failed => ("Couldn’t update. Try again", dot(oklch(0.7, 0.15, 60.0))),
+        Update::Failed => ("Couldn’t update. Try again", dot(l.warning)),
         _ => ("Restart to update", dot(l.accent)),
     };
     let installing = update == Update::Installing;
@@ -474,7 +478,7 @@ fn update_dialog(s: &State, l: &Look) -> Vec<El> {
                 .gap(8.0)
                 .mt(18.0)
                 .child(button("update-later", "Later", l.active, l.fg).hover(l.line2).on_press(|s: &mut State| s.confirm_update = false))
-                .child(button("update-restart", "Restart", l.accent, oklch(1.0, 0.0, 0.0)).default_button().on_press(|s: &mut State| {
+                .child(button("update-restart", "Restart", l.primary, oklch(1.0, 0.0, 0.0)).default_button().on_press(|s: &mut State| {
                     s.confirm_update = false;
                     update::restart(s);
                 })),
@@ -694,7 +698,13 @@ fn card(link: &LinkItem, now: i64, l: &Look) -> El {
         .min_w(0.0)
         .gap(8.0)
         .cursor(Cursor::Pointer)
-        .child(picture.child(ring))
+        .child(picture.child(ring).live_opacity(crate::sphere::reveal()).on_layout_tx({
+            let id = link.id.clone();
+            move |_: &mut State, rect, tx| {
+                crate::sphere::card_at(&id, rect);
+                tx.live_only();
+            }
+        }))
         .child(text(link.title.clone()).font(font(13.5, 500.0).lh(18.2)).color(l.fg).wrap_anywhere().max_lines(2))
         .child(
             row()
@@ -706,6 +716,28 @@ fn card(link: &LinkItem, now: i64, l: &Look) -> El {
                 .child(text(ago(link.created_at, now)).font(font(12.0, 400.0)).color(l.fg3)),
         )
         .on_press(move |_: &mut State| crate::open_link(&url))
+}
+
+/// A copy of each of the first cards' pictures, for the opening to fly in (`sphere::opening`).
+pub fn opening_pictures(s: &State, dark: bool) -> Vec<(String, El)> {
+    if s.mode != Mode::Grid {
+        return Vec::new();
+    }
+    let l = look(dark);
+    shown(s)
+        .into_iter()
+        .take(60)
+        .map(|link| {
+            let tile = el().fill(l.tile);
+            (
+                link.id.clone(),
+                match &link.image {
+                    Some(url) => tile.pixels_fit(&images::picture(&Request::new(url, PICTURE, Lane::Picture)), SurfaceFit::Fill),
+                    None => tile,
+                },
+            )
+        })
+        .collect()
 }
 
 /// The prototype's grid: cards in as many 230 pt+ columns as fit, built a row at a time as they
@@ -757,6 +789,7 @@ fn page(s: &State, cx: &mut Cx<State>, dark: bool, l: &Look) -> El {
             let divider = divider.clone();
             move |at| {
                 divider.set(divider_opacity(at.offset[1]));
+                crate::sphere::scrolled(at.offset[1], rune::scroll_watch_state().0);
             }
         })
         .child(col().key("page").w_full().pl(PAGE_PAD_LEFT).pr(PAGE_PAD_RIGHT).pt(16.0).pb(80.0).child(body));

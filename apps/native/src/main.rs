@@ -21,6 +21,7 @@ mod search;
 mod settings;
 mod shell;
 mod shell_kit;
+mod sphere;
 mod theme;
 mod ui_state;
 mod update;
@@ -29,9 +30,7 @@ use std::sync::Arc;
 
 use auth::{Account, Auth, Link};
 use livestore::library::{self, Library, LinkItem, Tab};
-use rune::{
-    Align, App, AppHandle, AppSpec, Chrome, Color, Cx, El, FontSmoothing, LoopSpec, MenuItem, Shadow, TextStyle, Tx, col, el, icon, row, text,
-};
+use rune::{Align, App, AppHandle, AppSpec, Chrome, Color, Cx, El, FontSmoothing, MenuItem, Shadow, TextStyle, Tx, col, el, icon, row, text};
 use shell_kit::PaneState;
 use theme::Palette;
 
@@ -82,6 +81,10 @@ pub(crate) struct State {
     notice: Option<String>,
     library: Option<Library>,
     links: Vec<LinkItem>,
+    /// The library has opened and given its links, caught up with the server or done waiting for it.
+    loaded: bool,
+    /// The logo is opening into the library (`sphere::opening`).
+    intro: bool,
     place: nav::Place,
     sync: Sync,
     backend: Option<Backend>,
@@ -145,6 +148,12 @@ impl Backend {
         self.ui.update(move |s, _| match result {
             Ok(Some(account)) => {
                 s.sync = Sync::Connecting;
+                s.loaded = false;
+                // The logo opens into the library after a sign-in, not each time the app starts.
+                s.intro = matches!(s.phase, Phase::Finishing | Phase::WaitingForBrowser);
+                if s.intro {
+                    sphere::begin();
+                }
                 match backend.open_library(&account) {
                     Ok(library) => s.library = Some(library),
                     Err(e) => s.sync = Sync::Failed(e),
@@ -188,7 +197,14 @@ impl Backend {
             library::Config { base: self.auth.base.clone(), library_id: account.library_id.clone(), api_key, dir },
             move |links| {
                 images::prefetch(shell::wanted_images(&links));
-                on_links.update(move |s, _| s.links = links)
+                on_links.update(move |s, tx| {
+                    if !s.loaded {
+                        // A library just opened starts at its top, wherever the last one was left.
+                        tx.scroll_to_y("viewport", 0.0);
+                    }
+                    s.links = links;
+                    s.loaded = true;
+                })
             },
             move |status| {
                 on_status.update(move |s, _| {
@@ -308,30 +324,65 @@ fn sign_out(s: &mut State) {
 }
 
 fn view(s: &State, cx: &mut Cx<State>) -> El {
+    sphere::hide();
     let t = theme::palette(cx.system_dark());
+    let opening = s.intro && matches!(s.phase, Phase::SignedIn(_)) && !matches!(s.sync, Sync::Failed(_));
+    if !opening {
+        sphere::cancel();
+    }
     if let update::Update::Required(progress) = s.update {
-        return screen(col().key("content").w_full().max_w(320.0).items_center().child(brand_lockup(t)).child(must_update(s, progress, t)), t);
+        return screen(col().key("content").w_full().max_w(280.0).items_center().child(must_update(s, progress, t)), t);
     }
     let content = match (&s.phase, &s.notice) {
-        (Phase::SignedOut, Some(notice)) => status(Tone::Problem, "Couldn't finish signing in", notice.clone(), t)
-            .child(primary_button("sign-in", "Try again", t).on_press(start_sign_in)),
-        (Phase::SignedOut, None) => header("Sign in to Cloudstash", "Access your saved links from anywhere.".into(), t)
-            .child(primary_button("sign-in", "Sign in", t).on_press(start_sign_in)),
-        (Phase::SigningOut, _) => status(Tone::Progress, "Signing out", "Removing this Mac's copy of your library.".into(), t),
-        (Phase::Restoring, _) => status(Tone::Progress, "Opening Cloudstash for Mac", "Checking for a saved session. This takes a moment.".into(), t),
-        (Phase::WaitingForBrowser, _) => {
-            status(Tone::Progress, "Finish signing in in your browser", "Cloudstash opens again when you're done.".into(), t)
-                .child(outline_button("cancel", "Cancel", t).on_press(cancel_sign_in))
+        (Phase::SignedOut, Some(notice)) => {
+            problem("Couldn't finish signing in", notice.clone(), t).child(primary_button("sign-in", "Try again", t).on_press(start_sign_in))
         }
-        (Phase::Finishing, _) => status(Tone::Progress, "Signing in to Cloudstash for Mac", "Preparing your sign-in. This takes a moment.".into(), t),
-        (Phase::SignedIn(account), _) => return shell::view(s, account, cx),
+        (Phase::SignedOut, None) => welcome("Sign in to Cloudstash", "Access your saved links from anywhere.".into(), t)
+            .child(primary_button("sign-in", "Sign in", t).on_press(start_sign_in)),
+        (Phase::SigningOut, _) => progress("Signing out", "Removing this Mac's copy of your library.".into(), t),
+        (Phase::Restoring, _) => progress("Opening Cloudstash for Mac", "Checking for a saved session. This takes a moment.".into(), t),
+        (Phase::WaitingForBrowser, _) => progress("Finish signing in in your browser", "Cloudstash opens again when you're done.".into(), t)
+            .child(outline_button("cancel", "Cancel", t).on_press(cancel_sign_in)),
+        (Phase::Finishing, _) => progress("Signing in to Cloudstash for Mac", "Preparing your sign-in. This takes a moment.".into(), t),
+        (Phase::SignedIn(account), _) if opening => {
+            // The library, once it has its links, under the logo that opens into it.
+            let (under, pictures) = if s.loaded {
+                (shell::view(s, account, cx), shell::opening_pictures(s, cx.system_dark()))
+            } else {
+                (el().w_full().h_full().fill(t.card).window_drag(), Vec::new())
+            };
+            return el().key("root").w_full().h_full().child(under).child(sphere::opening::<State>(t.card_foreground, t.card, s.loaded, pictures));
+        }
+        (Phase::SignedIn(_), _) if !s.loaded && !matches!(s.sync, Sync::Failed(_)) => {
+            progress("Opening your library", "Getting your latest links.".into(), t)
+        }
+        // Under the same root as while the logo opened, so the grid keeps its place when the opening ends.
+        (Phase::SignedIn(account), _) => return el().key("root").w_full().h_full().child(shell::view(s, account, cx)),
     };
-    screen(col().key("content").w_full().max_w(320.0).child(brand_lockup(t)).child(content), t)
+    screen(col().key("content").w_full().max_w(320.0).child(content), t)
 }
 
 /// A whole-window screen, as signing in shows: `content` in the middle of the card.
 fn screen(content: El, t: Palette) -> El {
-    col().key("window").w_full().h_full().padding(28.0).center().fill(t.card).window_drag().child(content)
+    col()
+        .key("window")
+        .w_full()
+        .h_full()
+        .padding(28.0)
+        .center()
+        .fill(t.card)
+        .window_drag()
+        .on_pointer_move_local(|_: &mut State, p, tx| {
+            sphere::pointer(Some([p.window_x, p.window_y]));
+            tx.live_only();
+        })
+        .on_hover_change(|_: &mut State, inside, tx| {
+            if !inside {
+                sphere::pointer(None);
+            }
+            tx.live_only();
+        })
+        .child(content)
 }
 
 /// This version is too old to use, signed in or out: the window only offers the update, and
@@ -437,42 +488,47 @@ fn must_update(s: &State, progress: Option<u8>, t: Palette) -> El {
     )
 }
 
-enum Tone {
-    Problem,
-    Progress,
-}
-
-fn brand_lockup(t: Palette) -> El {
-    row()
-        .key("brand")
-        .items_center()
-        .gap(8.0)
-        .mb(28.0)
-        .child(icon(&icons::LOGO, 24.0).color(t.primary))
-        .child(text("cloudstash").font(TextStyle::new(14.0, 600.0).lh(20.0).tracking(-0.35)).color(t.card_foreground))
+/// The logo above a title and a line of text, all centred: what the sign-in screens share.
+fn welcome(title: &'static str, body: String, t: Palette) -> El {
+    scene(title, body, false, t)
 }
 
 fn header(title: &'static str, body: String, t: Palette) -> El {
     col()
         .key("header")
         .w_full()
-        .child(text(title).key("title").font(TextStyle::new(20.0, 600.0).lh(28.0).tracking(-0.5)).color(t.card_foreground).wrap())
-        .child(text(body).key("body").font(TextStyle::new(12.0, 400.0).lh(19.5)).color(t.muted_foreground).wrap().mt(8.0))
+        .items_center()
+        .child(
+            text(title).key("title").font(TextStyle::new(20.0, 600.0).lh(28.0).tracking(-0.5)).color(t.card_foreground).align(Align::Center).wrap(),
+        )
+        .child(text(body).key("body").font(TextStyle::new(12.0, 400.0).lh(19.5)).color(t.muted_foreground).align(Align::Center).wrap().mt(8.0))
 }
 
-fn status(tone: Tone, title: &'static str, body: String, t: Palette) -> El {
-    let (fill, ink, ring, glyph) = match tone {
-        Tone::Problem => (t.destructive_10, t.destructive, t.destructive_20, &icons::TRIANGLE_ALERT),
-        Tone::Progress => (t.muted, t.muted_foreground, t.foreground_10, &icons::LOADER_CIRCLE),
-    };
-    let mut glyph = icon(glyph, 20.0).color(ink);
-    if matches!(tone, Tone::Progress) {
-        glyph = glyph.looping(LoopSpec::rotation(1.0));
-    }
+/// Something is under way: the welcome with the logo turning faster.
+fn progress(title: &'static str, body: String, t: Palette) -> El {
+    scene(title, body, true, t)
+}
+
+fn scene(title: &'static str, body: String, busy: bool, t: Palette) -> El {
+    col().key("welcome").w_full().items_center().child(sphere::live::<State>(96.0, t.card_foreground, busy)).child(header(title, body, t).mt(24.0))
+}
+
+/// Something went wrong: a warning badge takes the logo's place.
+fn problem(title: &'static str, body: String, t: Palette) -> El {
     col()
         .key("status")
         .w_full()
-        .child(row().key("status-icon").size(40.0, 40.0).center().radius(20.0).fill(fill).box_shadow(ring_1(ring)).child(glyph))
+        .items_center()
+        .child(
+            row()
+                .key("status-icon")
+                .size(48.0, 48.0)
+                .center()
+                .radius(24.0)
+                .fill(t.destructive_10)
+                .box_shadow(ring_1(t.destructive_20))
+                .child(icon(&icons::TRIANGLE_ALERT, 20.0).color(t.destructive)),
+        )
         .child(header(title, body, t).mt(20.0))
 }
 
@@ -498,6 +554,7 @@ fn signed_in_scene(s: &mut State, tab: Tab) {
     s.phase =
         Phase::SignedIn(Account { name: Some("Ada Example".to_owned()), email: "ada@example.com".to_owned(), library_id: "org_example".to_owned() });
     s.sync = Sync::Online;
+    s.loaded = true;
     s.place = nav::Place::Tab(tab);
     let link = |id: &str, title: &str, status: &str, created_at: i64, completed_at: Option<i64>| LinkItem {
         id: id.to_owned(),
@@ -579,6 +636,17 @@ fn main() {
             }),
             ("waiting", |s| s.phase = Phase::WaitingForBrowser),
             ("finishing", |s| s.phase = Phase::Finishing),
+            ("opening", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.intro = true;
+                sphere::begin();
+            }),
+            ("opening-wide", |s| {
+                worst_case_scene(s, Tab::Inbox);
+                s.sidebar.set_open(false);
+                s.intro = true;
+                sphere::begin();
+            }),
             ("signed-in", |s| signed_in_scene(s, Tab::Inbox)),
             ("completed", |s| signed_in_scene(s, Tab::Completed)),
             ("collapsed", |s| {
@@ -676,7 +744,10 @@ fn main() {
     .on_frame_encoded({
         devtools_probes();
         let mut tracker = fps::Tracker::default();
-        move |frame| tracker.frame(frame)
+        move |frame| {
+            tracker.frame(frame);
+            sphere::frame(frame, headless().then_some(1.0 / 60.0));
+        }
     })
     .on_modifiers(shell::on_modifiers)
     .on_quit(|s, _| ui_state::flush(s))
@@ -695,6 +766,10 @@ fn main() {
         auth,
         ui: {
             let ui = app.handle();
+            sphere::on_opened({
+                let ui = ui.clone();
+                move || ui.update(|s, _| s.intro = false)
+            });
             fps::on_relayout({
                 let ui = ui.clone();
                 move || ui.update(|_, _| {})

@@ -24,10 +24,10 @@ use tokio::sync::Semaphore;
 use store::Store;
 
 /// Downloads at once, and of those per site, favicons and background fill.
-const TOTAL: usize = 8;
-const PER_HOST: usize = 4;
+const TOTAL: usize = 12;
+const PER_HOST: usize = 6;
 const ICONS: usize = 2;
-const BACKGROUND: usize = 2;
+const BACKGROUND: usize = 4;
 /// Small copies read from disk and decoded at once.
 const DISK: usize = 4;
 /// Bytes of decoded pictures kept in memory; past it the least recently drawn go first, never
@@ -393,9 +393,9 @@ mod tests {
         running.insert(req("https://b.com/x", Lane::Picture), (Rank::Near, "b.com".to_owned()));
         queue.remove(&req("https://b.com/x", Lane::Picture));
         queue.insert(req("https://b.com/y", Lane::Picture), Job { rank: Rank::Near, order: 6 });
-        running.insert(req("https://b.com/z", Lane::Picture), (Rank::Near, "b.com".to_owned()));
-        running.insert(req("https://b.com/w", Lane::Picture), (Rank::Near, "b.com".to_owned()));
-        running.insert(req("https://b.com/v", Lane::Picture), (Rank::Near, "b.com".to_owned()));
+        for i in 1..PER_HOST {
+            running.insert(req(&format!("https://b.com/r{i}"), Lane::Picture), (Rank::Near, "b.com".to_owned()));
+        }
         assert_eq!(pick(&queue, &running), None, "b.com is at its limit and the fill waits for it");
     }
 

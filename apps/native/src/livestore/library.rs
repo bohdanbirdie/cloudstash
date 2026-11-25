@@ -14,7 +14,7 @@ use livestore::{
 };
 use livestore_schema::{UnknownEventContext, UnknownEventHandling};
 use livestore_sqlite::Row;
-use livestore_sync::{Storage, SyncOptions};
+use livestore_sync::{InitialSyncOptions, Storage, SyncOptions};
 use livestore_sync_cf::make_ws_sync;
 use livestore_sync_cf::transport::ClientOptions;
 use serde_json::{Value, json};
@@ -153,6 +153,10 @@ pub struct Config {
     pub dir: PathBuf,
 }
 
+/// How long opening waits for the server to say there is nothing more to fetch. After it, or offline,
+/// the library opens with what this Mac has and catches up in the background. The web waits 5 seconds.
+const CATCH_UP: std::time::Duration = std::time::Duration::from_secs(10);
+
 /// This build's version, as the library folder records it.
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The file naming the app version that last opened a library folder.
@@ -160,7 +164,8 @@ const OPENED_BY: &str = "app-version";
 /// The file naming the app version that met data too new for it in this folder.
 const TOO_OLD: &str = "too-old";
 
-/// Starts syncing on its own thread. `on_links` gets every link after each change and
+/// Starts syncing on its own thread. `on_links` first hears once the library has caught up with the
+/// server ([`CATCH_UP`]), then gets every link after each change, and
 /// `on_status` the connection state (or an error that stopped the store, a panic included).
 /// `on_too_old` hears, once, that the library holds data only a newer version can apply.
 pub fn start(
@@ -197,7 +202,9 @@ async fn serve(
     on_too_old: Arc<dyn Fn() + Send + Sync>,
 ) -> Result<(), String> {
     let shutdown = make_shutdown_deferred();
+    let began = std::time::Instant::now();
     let store = open(config, &shutdown, on_too_old).await?;
+    tracing::info!("the library opened after {} ms", began.elapsed().as_millis());
     let subscription = store.subscribe(
         &query_db(QueryInput::sql(LINKS_SQL).queried_tables(&["links", "link_snapshots", "link_summaries", "link_tags", "tags"])),
         move |rows| on_links(rows.iter().filter_map(LinkItem::from_row).collect()),
@@ -255,10 +262,11 @@ async fn open(config: &Config, shutdown: &ShutdownDeferred, on_too_old: Arc<dyn 
         client_id: client_id(&config.dir).map_err(|e| e.to_string())?,
         session_id: random_id(),
         leader_builder: Some(Arc::new(move |builder| {
-            builder
-                .sync_payload(payload.clone())
-                .storage(Storage::Folder(folder.clone()))
-                .sync(SyncOptions { backend: Some(make_ws_sync(&url, ClientOptions::default())), ..SyncOptions::default() })
+            builder.sync_payload(payload.clone()).storage(Storage::Folder(folder.clone())).sync(SyncOptions {
+                backend: Some(make_ws_sync(&url, ClientOptions::default())),
+                initial_sync: InitialSyncOptions::Blocking { timeout: CATCH_UP },
+                ..SyncOptions::default()
+            })
         })),
         ..InMemoryAdapter::default()
     };
