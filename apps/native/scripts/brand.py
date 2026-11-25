@@ -4,8 +4,8 @@
   python3 scripts/brand.py            # rewrite the SVGs
   python3 scripts/brand.py --raster   # also rebuild AppIcon.icns and menu-bar-icon.png (needs Google Chrome)
 
-The logo is a ball of dots. The Mac app icon rests it in a round well on a black tile. The SVGs in
-assets/brand/ are the originals; the .icns and .png are made from them and never edited by hand.
+The logo is a ball of dots. The Mac app icon rests it in a round well on a black tile. Inside the app, src/sphere.rs draws the
+same shapes itself. The SVGs in assets/brand/ are the originals; the .icns and .png are made from them and never edited by hand.
 """
 import math, os, subprocess, sys, tempfile
 
@@ -85,10 +85,6 @@ FILES = {
     # The same ball as the app icon's. The menu bar's has fewer, bigger dots so it survives 18 points.
     "logo-mark.svg": svg(120, "0 0 120 120", mark(150, 5.83, 0.1)),
     "menu-bar-icon.svg": svg(18, "0 0 120 120", mark(44, 10.5, 0.3)),
-    # What the app draws (src/icons.rs): the same drawings without the <svg> wrapper, which rune's icons leave out.
-    # The tile has no shadow and is cropped to its 824 square.
-    "logo-mark.body.svg": mark(150, 5.83, 0.1) + "\n",
-    "logo-tile.body.svg": '<g transform="translate(-100 -100)">' + tile(False) + "</g>\n",
 }
 
 

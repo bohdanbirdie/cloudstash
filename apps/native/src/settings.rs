@@ -540,7 +540,7 @@ fn about(s: &Settings, l: &Look) -> El {
                 .items_center()
                 .pt(24.0)
                 .gap(6.0)
-                .child(icon(&icons::LOGO_TILE, 64.0))
+                .child(crate::sphere::tile(64.0))
                 .child(text("Cloudstash for Mac").font(font(15.0, 600.0)).color(l.fg).mt(6.0))
                 .child(text(format!("Version {}", env!("CARGO_PKG_VERSION"))).font(font(12.0, 400.0)).color(l.fg3)),
         )
@@ -571,7 +571,7 @@ fn sheet(s: &Settings, l: &Look) -> Vec<El> {
         .fill(l.content)
         .box_shadow(ring(l.line))
         .box_shadow(Shadow { y: 12.0, blur: 40.0, color: oklcha(0.0, 0.0, 0.0, l.lift), ..Shadow::default() })
-        .child(icon(&icons::LOGO_TILE, 52.0))
+        .child(crate::sphere::tile(52.0))
         .child(text("Sign out of Cloudstash?").font(font(13.0, 600.0)).color(l.fg).mt(10.0))
         .child(
             text("Your links stay in your account. This Mac's copy is removed and syncs again when you sign back in.")

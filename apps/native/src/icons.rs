@@ -1,5 +1,5 @@
 //! The web's icons: lucide's LoaderCircle, TriangleAlert, Settings and ArrowUp (lucide-react 1.34.0, 24-unit
-//! grid, 2-unit round strokes) and Cloudstash's logo.
+//! grid, 2-unit round strokes) The logo is drawn by src/sphere.rs.
 
 use rune::Icon;
 
@@ -24,9 +24,3 @@ pub static SETTINGS: Icon = lucide!(
     "lucide-settings",
     r#"<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>"#
 );
-
-/// The logo on its own, in one colour: the ball of dots. Made by scripts/brand.py.
-pub static LOGO: Icon = Icon { name: "cloudstash-logo", view: 120.0, body: include_str!("../assets/brand/logo-mark.body.svg") };
-
-/// The app icon's tile in its own colours, as the Dock shows it. Made by scripts/brand.py.
-pub static LOGO_TILE: Icon = Icon { name: "cloudstash-logo-tile", view: 824.0, body: include_str!("../assets/brand/logo-tile.body.svg") };

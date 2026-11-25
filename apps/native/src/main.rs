@@ -21,6 +21,7 @@ mod search;
 mod settings;
 mod shell;
 mod shell_kit;
+mod sphere;
 mod theme;
 mod ui_state;
 mod update;
@@ -29,9 +30,7 @@ use std::sync::Arc;
 
 use auth::{Account, Auth, Link};
 use livestore::library::{self, Library, LinkItem, Tab};
-use rune::{
-    Align, App, AppHandle, AppSpec, Chrome, Color, Cx, El, FontSmoothing, LoopSpec, MenuItem, Shadow, TextStyle, Tx, col, el, icon, row, text,
-};
+use rune::{Align, App, AppHandle, AppSpec, Chrome, Color, Cx, El, FontSmoothing, MenuItem, Shadow, TextStyle, Tx, col, el, icon, row, text};
 use shell_kit::PaneState;
 use theme::Palette;
 
@@ -308,6 +307,7 @@ fn sign_out(s: &mut State) {
 }
 
 fn view(s: &State, cx: &mut Cx<State>) -> El {
+    sphere::hide();
     let t = theme::palette(cx.system_dark());
     if let update::Update::Required(progress) = s.update {
         return screen(col().key("content").w_full().max_w(280.0).items_center().child(must_update(s, progress, t)), t);
@@ -325,12 +325,30 @@ fn view(s: &State, cx: &mut Cx<State>) -> El {
         (Phase::Finishing, _) => progress("Signing in to Cloudstash for Mac", "Preparing your sign-in. This takes a moment.".into(), t),
         (Phase::SignedIn(account), _) => return shell::view(s, account, cx),
     };
-    screen(col().key("content").w_full().max_w(280.0).child(content), t)
+    screen(col().key("content").w_full().max_w(320.0).child(content), t)
 }
 
 /// A whole-window screen, as signing in shows: `content` in the middle of the card.
 fn screen(content: El, t: Palette) -> El {
-    col().key("window").w_full().h_full().padding(28.0).center().fill(t.card).window_drag().child(content)
+    col()
+        .key("window")
+        .w_full()
+        .h_full()
+        .padding(28.0)
+        .center()
+        .fill(t.card)
+        .window_drag()
+        .on_pointer_move_local(|_: &mut State, p, tx| {
+            sphere::pointer(Some([p.window_x, p.window_y]));
+            tx.live_only();
+        })
+        .on_hover_change(|_: &mut State, inside, tx| {
+            if !inside {
+                sphere::pointer(None);
+            }
+            tx.live_only();
+        })
+        .child(content)
 }
 
 /// This version is too old to use, signed in or out: the window only offers the update, and
@@ -438,12 +456,7 @@ fn must_update(s: &State, progress: Option<u8>, t: Palette) -> El {
 
 /// The logo above a title and a line of text, all centred: what the sign-in screens share.
 fn welcome(title: &'static str, body: String, t: Palette) -> El {
-    col()
-        .key("welcome")
-        .w_full()
-        .items_center()
-        .child(row().key("brand").child(icon(&icons::LOGO, 64.0).color(t.card_foreground)))
-        .child(header(title, body, t).mt(24.0))
+    scene(title, body, false, t)
 }
 
 fn header(title: &'static str, body: String, t: Palette) -> El {
@@ -457,10 +470,13 @@ fn header(title: &'static str, body: String, t: Palette) -> El {
         .child(text(body).key("body").font(TextStyle::new(12.0, 400.0).lh(19.5)).color(t.muted_foreground).align(Align::Center).wrap().mt(8.0))
 }
 
-/// Something is under way: the welcome with a spinner under it.
+/// Something is under way: the welcome with the logo turning faster.
 fn progress(title: &'static str, body: String, t: Palette) -> El {
-    welcome(title, body, t)
-        .child(row().key("status-icon").mt(24.0).child(icon(&icons::LOADER_CIRCLE, 18.0).color(t.muted_foreground).looping(LoopSpec::rotation(1.0))))
+    scene(title, body, true, t)
+}
+
+fn scene(title: &'static str, body: String, busy: bool, t: Palette) -> El {
+    col().key("welcome").w_full().items_center().child(sphere::live::<State>(72.0, t.card_foreground, busy)).child(header(title, body, t).mt(24.0))
 }
 
 /// Something went wrong: a warning badge takes the logo's place.
@@ -682,7 +698,10 @@ fn main() {
     .on_frame_encoded({
         devtools_probes();
         let mut tracker = fps::Tracker::default();
-        move |frame| tracker.frame(frame)
+        move |frame| {
+            tracker.frame(frame);
+            sphere::frame(frame);
+        }
     })
     .on_modifiers(shell::on_modifiers)
     .on_quit(|s, _| ui_state::flush(s))
