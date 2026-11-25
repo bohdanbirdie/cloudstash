@@ -1,11 +1,11 @@
 //! The logo, drawn by the app: a ball of dots lit from the top left. [`live`] is the ball alone,
-//! turning slowly, following the pointer and swelling under it; [`tile`] is the app icon, the ball at
+//! turning slowly, leaning toward a pointer that comes near, and turned by hand with a drag; [`tile`] is the app icon, the ball at
 //! rest in a round well on a black tile. scripts/brand.py draws the same shapes for the icon files.
 
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
-use rune::{Color, El, FrameEncoded, Live, LoopSpec, Shadow, Tx, el, oklch, oklcha};
+use rune::{Color, Cursor, Drag, El, FrameEncoded, Live, LoopSpec, Phase, Shadow, Tx, el, oklch, oklcha};
 
 const DOTS: usize = 150;
 /// The golden angle, which spreads the dots evenly.
@@ -47,8 +47,12 @@ struct Motion {
     speed: f32,
     /// How far the ball has turned toward the pointer, sideways and up or down.
     look: [f32; 2],
-    /// 1 while the pointer is over the ball.
-    hover: f32,
+    /// How far a drag has tipped the ball; it rights itself afterwards.
+    pitch: f32,
+    /// The pointer's travel at the last step of a drag, while one is on.
+    drag: Option<[f32; 2]>,
+    /// The turn at the last frame, to measure a drag's speed.
+    turned: f32,
     size: f32,
     busy: bool,
     shown: bool,
@@ -65,7 +69,9 @@ fn motion() -> &'static Mutex<Motion> {
             yaw: 0.0,
             speed: IDLE,
             look: [0.0; 2],
-            hover: 0.0,
+            pitch: 0.0,
+            drag: None,
+            turned: 0.0,
             size: 64.0,
             busy: false,
             shown: false,
@@ -78,18 +84,15 @@ fn motion() -> &'static Mutex<Motion> {
 impl Motion {
     fn paint(&self) {
         let (half, radius, base) = (self.size / 2.0, self.size * 56.0 / 120.0, self.size * 5.83 / 120.0);
-        // The pointer from the ball's centre, in the ball's own points.
-        let pointer = self.pointer.map(|[x, y]| [x - self.rect[0] - self.rect[2] / 2.0, y - self.rect[1] - self.rect[3] / 2.0]);
         for (i, dot) in dots().iter().enumerate() {
-            let at = place(i, self.yaw - self.look[0], TILT - self.look[1]);
+            let at = place(i, self.yaw - self.look[0], TILT - self.look[1] - self.pitch);
             let (light, near) = lit(at);
             let (x, y) = (radius * at[0], radius * at[1]);
-            let swell = pointer.map_or(0.0, |[px, py]| self.hover * (-((x - px).powi(2) + (y - py).powi(2)) / (0.4 * radius).powi(2)).exp());
-            let r = base * near * (1.0 + 0.5 * swell);
+            let r = base * near;
             // Dots fade in as they come round the edge instead of popping.
             let front = ((at[2] - 0.02) / 0.23).clamp(0.0, 1.0);
             dot.rect.set([half + x - r, half + y - r, 2.0 * r, 2.0 * r]);
-            dot.alpha.set(front * front * (3.0 - 2.0 * front) * (light + 0.6 * swell).min(1.0));
+            dot.alpha.set(front * front * (3.0 - 2.0 * front) * light);
         }
     }
 }
@@ -104,21 +107,50 @@ pub fn frame(f: &FrameEncoded) {
     let dt = m.last.map_or(0.0, |last| f.at().duration_since(last).as_secs_f32()).min(0.05);
     m.last = Some(f.at());
     let ease = |rate: f32| (rate * dt).min(1.0);
-    let centre = [m.rect[0] + m.rect[2] / 2.0, m.rect[1] + m.rect[3] / 2.0];
-    let away = m.pointer.map(|[x, y]| [x - centre[0], y - centre[1]]);
-    let over = away.is_some_and(|[x, y]| x.hypot(y) < m.size * 0.6);
-    let want = away.map_or([0.0; 2], |[x, y]| [(x / 260.0).clamp(-1.0, 1.0) * 0.9, (y / 260.0).clamp(-1.0, 1.0) * 0.55]);
-    let speed = if m.busy { BUSY } else { IDLE };
-    m.speed += (speed - m.speed) * ease(2.5);
-    m.yaw = (m.yaw + m.speed * dt) % std::f32::consts::TAU;
-    m.look = [m.look[0] + (want[0] - m.look[0]) * ease(7.0), m.look[1] + (want[1] - m.look[1]) * ease(7.0)];
-    m.hover += (f32::from(u8::from(over)) - m.hover) * ease(9.0);
+    if m.drag.is_some() {
+        // The hand turns it; remember how fast, so it keeps going when let go.
+        if dt > 0.0 {
+            m.speed += ((m.yaw - m.turned) / dt - m.speed) * 0.35;
+        }
+        m.look = [m.look[0] * (1.0 - ease(7.0)), m.look[1] * (1.0 - ease(7.0))];
+    } else {
+        // It leans toward a pointer within about two and a half of its radii, less the farther off.
+        let radius = m.size * 56.0 / 120.0;
+        let want = m.pointer.map_or([0.0; 2], |[px, py]| {
+            let (x, y) = (px - m.rect[0] - m.rect[2] / 2.0, py - m.rect[1] - m.rect[3] / 2.0);
+            let far = ((x.hypot(y) / radius - 1.25) / 1.5).clamp(0.0, 1.0);
+            let pull = 1.0 - far * far * (3.0 - 2.0 * far);
+            [x / (2.75 * radius) * 0.8 * pull, y / (2.75 * radius) * 0.5 * pull]
+        });
+        let speed = if m.busy { BUSY } else { IDLE };
+        m.speed += (speed - m.speed) * ease(1.4);
+        m.yaw += m.speed * dt;
+        m.pitch *= 1.0 - ease(1.2);
+        m.look = [m.look[0] + (want[0] - m.look[0]) * ease(7.0), m.look[1] + (want[1] - m.look[1]) * ease(7.0)];
+    }
+    m.turned = m.yaw;
     m.paint();
 }
 
 /// Where the pointer is in the window, or `None` once it has left.
 pub fn pointer(at: Option<[f32; 2]>) {
     motion().lock().expect("the logo's motion").pointer = at;
+}
+
+/// A drag on the ball turns it: sideways about its axis, up and down by tipping it.
+fn drag(d: &Drag) {
+    let mut m = motion().lock().expect("the logo's motion");
+    let radius = m.size * 56.0 / 120.0;
+    match (d.phase, m.drag) {
+        (Phase::Down, _) => m.drag = Some([0.0; 2]),
+        (Phase::Move, Some([x, y])) => {
+            m.yaw -= (d.dx - x) / radius;
+            m.pitch = (m.pitch + (d.dy - y) / radius).clamp(-1.2, 1.2);
+            m.drag = Some([d.dx, d.dy]);
+            m.paint();
+        }
+        _ => m.drag = None,
+    }
 }
 
 /// Call before building a view, so the ball rests while no screen shows it.
@@ -144,10 +176,16 @@ pub fn live<S: 'static>(size: f32, ink: Color, busy: bool) -> El {
         )
     });
     // The looping speck keeps frames coming, as a spinner would.
-    ball.child(el().size(1.0, 1.0).looping(LoopSpec::rotation(1.0))).on_layout_tx(|_: &mut S, rect, tx: &mut Tx| {
-        motion().lock().expect("the logo's motion").rect = rect;
-        tx.live_only();
-    })
+    ball.child(el().size(1.0, 1.0).looping(LoopSpec::rotation(1.0)))
+        .cursor(Cursor::Grab)
+        .on_drag_any(|d, tx| {
+            drag(d);
+            tx.live_only();
+        })
+        .on_layout_tx(|_: &mut S, rect, tx: &mut Tx| {
+            motion().lock().expect("the logo's motion").rect = rect;
+            tx.live_only();
+        })
 }
 
 /// The app icon, `size` points across: the ball at rest in its well, on the black tile.
