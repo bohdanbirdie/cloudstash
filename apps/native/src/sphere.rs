@@ -313,8 +313,8 @@ impl Intro {
             all.dedup();
             all.len() as f32
         };
-        // Over the middle of the grid sideways; at the window's own height, so a short grid doesn't pull it off the top.
-        unwrap.centre = [(x0 + x1) / 2.0, h / 2.0];
+        // It stays in the middle of the window, not of the grid beside the sidebar.
+        unwrap.centre = [w / 2.0, h / 2.0];
         unwrap.width = (1.55 / count(|r| r[0]).max(count(|r| r[1]) * 1.25)).min(0.34);
         // Each card's place on the face of the ball, the grid squeezed into a disc.
         let mut wants: Vec<(usize, [f32; 4], [f32; 2])> = seen
