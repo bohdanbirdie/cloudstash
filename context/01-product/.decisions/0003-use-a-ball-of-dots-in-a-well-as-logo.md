@@ -42,8 +42,18 @@ Everywhere else the ball stands alone in the foreground grey, with no ring or
 frame around it. The menu bar draws it with fewer, bigger dots so it survives
 18 points. Black and white only; the blue accent is not used in the logo.
 
-`apps/native/scripts/brand.py` draws every version. The SVGs it writes to
-`apps/native/assets/brand/` are the originals; `AppIcon.icns` and
-`menu-bar-icon.png` are made from them and never edited by hand. The web app
-still shows the knot until it is moved over. The pick is provisional: the
+There are two versions and nothing in between: the ball alone, and the Mac
+app icon. The tile never appears without its well, and the icon is never
+redrawn with a bigger ball for small sizes. The ball alone is used inside
+Cloudstash's own pages and windows. The app icon is used where Cloudstash sits
+among other apps or on someone else's surface: the Dock, a browser tab, a phone
+home screen, a consent page. At a browser tab's size the icon blurs; the
+maintainer accepted that over a third version.
+
+`apps/native/scripts/brand.py` draws every file. The SVGs it writes to
+`apps/native/assets/brand/` are the originals; `AppIcon.icns`,
+`menu-bar-icon.png` and the web icons in `public/` (`--web`) are made
+from the same drawing and never edited by hand. The web app draws the ball
+from the same numbers in `src/lib/brand/sphere.ts`. Its share image and the
+landing pages still show the old knot and orange. The pick is provisional: the
 maintainer may still change the mark or the tile colour.
