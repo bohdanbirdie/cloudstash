@@ -87,8 +87,17 @@ jobs:
             exit 1
           fi
           umask 077
-          printf '%s' "$NOTARY_KEY" > "$RUNNER_TEMP/notary.p8"
-          printf '%s' "$UPDATE_KEY" > "$RUNNER_TEMP/update.pem"
+          # A key pasted through a password manager can lose its line breaks; rebuild the PEM so
+          # either shape reads, then check both keys before the long build.
+          pem() {
+            body="$(sed -e 's/-----[^-]*-----//g' | tr -d ' \n\r\t')"
+            printf -- '-----BEGIN PRIVATE KEY-----\n%s\n-----END PRIVATE KEY-----\n' "$(printf '%s' "$body" | fold -w 64)"
+          }
+          printf '%s' "$NOTARY_KEY" | pem > "$RUNNER_TEMP/notary.p8"
+          printf '%s' "$UPDATE_KEY" | pem > "$RUNNER_TEMP/update.pem"
+          openssl="$(brew --prefix openssl@3)/bin/openssl"
+          "$openssl" pkey -in "$RUNNER_TEMP/notary.p8" -noout || { echo "::error::NATIVE_NOTARY_KEY isn't the App Store Connect .p8 key."; exit 1; }
+          "$openssl" pkey -in "$RUNNER_TEMP/update.pem" -noout || { echo "::error::NATIVE_UPDATE_KEY isn't the update-signing private key."; exit 1; }
 
       - name: Build, sign and notarize
         if: steps.version.outputs.new == 'true'
