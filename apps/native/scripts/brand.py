@@ -3,6 +3,7 @@
 
   python3 scripts/brand.py            # rewrite the SVGs
   python3 scripts/brand.py --raster   # also rebuild AppIcon.icns and menu-bar-icon.png (needs Google Chrome)
+  python3 scripts/brand.py --web      # also rebuild the website's icons in public/ (needs Google Chrome)
 
 The logo is a ball of dots. The Mac app icon rests it in a round well on a black tile. Inside the app, src/sphere.rs draws the
 same shapes itself. The SVGs in assets/brand/ are the originals; the .icns and .png are made from them and never edited by hand.
@@ -47,7 +48,7 @@ def sphere(cx, cy, R, n, base, fill, floor):
     return "".join(out)
 
 
-def tile(shadow):
+def tile(shadow, n=150, base=2.5, floor=0.1):
     """The app icon on Apple's 1024 grid: an 824 tile with a 185.4 corner."""
     k = 1024 / 120 * (824 / 1024 * 120 / 108)  # the mark was drawn in a 108-unit tile
     well = lambda r, g: (
@@ -67,7 +68,7 @@ def tile(shadow):
         + '<path d="%s" fill="url(#cs-t)"/>' % shape
         + well(43, "cs-w0") + well(33, "cs-w1")
         + '<circle cx="512" cy="512" r="%s" fill="url(#cs-g)"/>' % f(24 * k * 1.35)
-        + sphere(512, 512, 24 * k, 150, 2.5 * k, "#fff", 0.1)
+        + sphere(512, 512, 24 * k, n, base * k, "#fff", floor)
         + '<path d="%s" fill="none" stroke="url(#cs-e)" stroke-width="8.5"/>' % squircle(104.25, 104.25, 815.5, 815.5 * 0.225)
     )
 
@@ -119,8 +120,29 @@ def raster():
         subprocess.run(["sips", "-z", "36", "36", menu, "--out", os.path.join(ASSETS, "menu-bar-icon.png")], check=True, stdout=subprocess.DEVNULL)
 
 
+def web():
+    """The website's icons in public/: the app icon, with the simpler ball where it is small."""
+    public = os.path.join(HERE, "..", "..", "..", "public")
+    # The same icon; only the ball is the cut with fewer, bigger dots, as in the menu bar.
+    small = svg(1024, "100 100 824 824", tile(False, 44, 2.5 * 10.5 / 5.83, 0.3))
+    # A phone rounds the corners itself, so its icon fills the square.
+    full = svg(1024, "100 100 824 824", '<rect x="100" y="100" width="824" height="824" fill="#0c0c0d"/>' + tile(False))
+    with tempfile.TemporaryDirectory() as tmp:
+        for name, text, sizes in (("small", small, {16: ["favicon-16x16.png"], 32: ["favicon-32x32.png", "favicon.ico"]}),
+                                  ("full", full, {180: ["apple-touch-icon.png"]}),
+                                  ("icon", svg(1024, "100 100 824 824", tile(False)), {192: ["logo192.png"], 512: ["logo512.png"]})):
+            src, big = os.path.join(tmp, name + ".svg"), os.path.join(tmp, name + ".png")
+            open(src, "w").write(text)
+            shot(src, 1024, big)
+            for px, outs in sizes.items():
+                for out in outs:
+                    subprocess.run(["sips", "-z", str(px), str(px), big, "--out", os.path.join(public, out)], check=True, stdout=subprocess.DEVNULL)
+
+
 os.makedirs(BRAND, exist_ok=True)
 for name, text in FILES.items():
     open(os.path.join(BRAND, name), "w").write(text)
 if "--raster" in sys.argv:
     raster()
+if "--web" in sys.argv:
+    web()

@@ -52,7 +52,7 @@ export function Footer() {
       >
         <div>
           <div className="flex items-center gap-2.5">
-            <CloudstashLogo className="size-5 rounded-sm" variant="branded" />
+            <CloudstashLogo className="size-5" />
             <span className="text-[13px] font-medium tracking-[-0.005em]">
               cloudstash
             </span>

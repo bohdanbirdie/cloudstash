@@ -127,12 +127,10 @@ function BrandLockup({
 }) {
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <CloudstashLogo
-        className={cn("size-6", {
-          "text-primary-foreground": tone === "inverse",
-          "text-primary": tone !== "inverse",
-        })}
-      />
+      {/* Beside the big turning logo, the name stands alone. */}
+      {tone !== "inverse" && (
+        <CloudstashLogo className="size-6 text-foreground" />
+      )}
       <span className="text-sm font-semibold tracking-tight">cloudstash</span>
     </div>
   );
