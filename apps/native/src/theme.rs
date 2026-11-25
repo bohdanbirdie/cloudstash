@@ -99,7 +99,6 @@ pub fn palette(dark: bool) -> Palette {
 }
 
 /// A Space's colour from its hue. Every hue gets the same lightness, so no Space is louder than another.
-#[allow(dead_code)]
 pub fn space(dark: bool, hue: f32) -> Color {
     if dark { oklch(0.74, 0.13, hue) } else { oklch(0.6, 0.15, hue) }
 }

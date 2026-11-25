@@ -182,7 +182,6 @@ struct Look {
     button: Color,
     button_ring: Color,
     danger: Color,
-    primary: Color,
     scrim: Color,
     /// A switch's track on and off, and its knob.
     on: Color,
@@ -199,9 +198,9 @@ fn look(dark: bool) -> Look {
             side: oklch(0.165, 0.0, 0.0),
             content: oklch(0.19, 0.0, 0.0),
             card: oklch(0.225, 0.0, 0.0),
-            fg: oklch(0.94, 0.002, 90.0),
-            fg2: oklch(0.74, 0.004, 90.0),
-            fg3: oklch(0.56, 0.004, 90.0),
+            fg: oklch(0.94, 0.0, 0.0),
+            fg2: oklch(0.74, 0.0, 0.0),
+            fg3: oklch(0.56, 0.0, 0.0),
             line: oklcha(1.0, 0.0, 0.0, 0.08),
             hair: oklcha(1.0, 0.0, 0.0, 0.06),
             active: oklcha(1.0, 0.0, 0.0, 0.09),
@@ -209,21 +208,20 @@ fn look(dark: bool) -> Look {
             button: oklcha(1.0, 0.0, 0.0, 0.08),
             button_ring: oklcha(1.0, 0.0, 0.0, 0.1),
             danger: t.destructive,
-            primary: t.primary,
             scrim: oklcha(0.0, 0.0, 0.0, 0.35),
-            on: oklch(0.6, 0.18, 255.0),
+            on: t.primary,
             off: oklcha(1.0, 0.0, 0.0, 0.14),
             knob: oklch(0.97, 0.0, 0.0),
             lift: 0.5,
         }
     } else {
         Look {
-            side: oklch(0.945, 0.002, 106.0),
+            side: oklch(0.945, 0.0, 0.0),
             content: oklch(0.985, 0.0, 0.0),
             card: oklch(1.0, 0.0, 0.0),
-            fg: oklch(0.22, 0.002, 106.0),
-            fg2: oklch(0.47, 0.005, 90.0),
-            fg3: oklch(0.62, 0.006, 90.0),
+            fg: oklch(0.22, 0.0, 0.0),
+            fg2: oklch(0.47, 0.0, 0.0),
+            fg3: oklch(0.62, 0.0, 0.0),
             line: oklcha(0.0, 0.0, 0.0, 0.08),
             hair: oklcha(0.0, 0.0, 0.0, 0.06),
             active: oklcha(0.0, 0.0, 0.0, 0.08),
@@ -231,9 +229,8 @@ fn look(dark: bool) -> Look {
             button: oklch(1.0, 0.0, 0.0),
             button_ring: oklcha(0.0, 0.0, 0.0, 0.14),
             danger: t.destructive,
-            primary: t.primary,
             scrim: oklcha(0.0, 0.0, 0.0, 0.18),
-            on: oklch(0.62, 0.19, 255.0),
+            on: t.primary,
             off: oklcha(0.0, 0.0, 0.0, 0.12),
             knob: oklch(1.0, 0.0, 0.0),
             lift: 0.2,
@@ -543,7 +540,7 @@ fn about(s: &Settings, l: &Look) -> El {
                 .items_center()
                 .pt(24.0)
                 .gap(6.0)
-                .child(icon(&icons::LOGO, 44.0).color(l.primary))
+                .child(icon(&icons::LOGO_TILE, 64.0))
                 .child(text("Cloudstash for Mac").font(font(15.0, 600.0)).color(l.fg).mt(6.0))
                 .child(text(format!("Version {}", env!("CARGO_PKG_VERSION"))).font(font(12.0, 400.0)).color(l.fg3)),
         )
@@ -574,7 +571,7 @@ fn sheet(s: &Settings, l: &Look) -> Vec<El> {
         .fill(l.content)
         .box_shadow(ring(l.line))
         .box_shadow(Shadow { y: 12.0, blur: 40.0, color: oklcha(0.0, 0.0, 0.0, l.lift), ..Shadow::default() })
-        .child(icon(&icons::LOGO, 40.0).color(l.primary))
+        .child(icon(&icons::LOGO_TILE, 52.0))
         .child(text("Sign out of Cloudstash?").font(font(13.0, 600.0)).color(l.fg).mt(10.0))
         .child(
             text("Your links stay in your account. This Mac's copy is removed and syncs again when you sign back in.")
