@@ -243,7 +243,13 @@ impl Backend {
             },
             {
                 let ui = self.ui.clone();
-                move || ui.update(|s, _| s.filling = false)
+                move || {
+                    ui.update(|s, tx| {
+                        s.filling = false;
+                        // The toolbar's "Syncing" blurs out rather than vanishing; the server, not a click, caused it.
+                        tx.animated();
+                    })
+                }
             },
         ))
     }

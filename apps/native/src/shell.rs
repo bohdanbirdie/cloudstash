@@ -652,7 +652,9 @@ fn toolbar(s: &State, l: &Look) -> Toolbar {
         }
     };
     let sync = match &s.sync {
-        Sync::Online if s.filling => Some(shimmer("sync", "Syncing", font(12.0, 500.0), 64.0, true, l.fg3, l.fg).mr(8.0)),
+        Sync::Online if s.filling => {
+            Some(shimmer("sync", "Syncing", font(12.0, 500.0), 64.0, true, l.fg3, l.fg).mr(8.0).transition(Transition::blur(4.0)))
+        }
         Sync::Online => None,
         Sync::Connecting => Some(sync_note("Connecting…".to_owned(), l)),
         Sync::Offline => Some(sync_note("Offline".to_owned(), l)),

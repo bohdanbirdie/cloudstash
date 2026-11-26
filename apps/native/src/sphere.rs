@@ -227,18 +227,22 @@ const RAMP: f32 = 0.45;
 /// While the library takes its time, a line under the ball says what's happening: it waits this many
 /// seconds, so a quick download shows nothing extra, then fades in over `CAPTION_IN`.
 const CAPTION_AFTER: f32 = 0.8;
-const CAPTION_IN: f32 = 0.3;
-const CAPTION_OUT: f32 = 0.2;
+const CAPTION_IN: f32 = 0.4;
+const CAPTION_OUT: f32 = 0.3;
+/// Points of blur the line comes out of and goes back into, as it fades.
+const CAPTION_BLUR: f32 = 4.0;
 /// Points from the bottom of the ball to the line, which puts it where the sign-in screen's title
 /// was, and the line's height, to centre the two as a group when no sign-in screen came before.
 const CAPTION_GAP: f32 = 28.0;
 const CAPTION_LINE: f32 = 20.0;
 
 /// How visible the line under the ball is `t` seconds into the opening, the links having arrived at
-/// `loaded`: hidden at first, faded in once the wait drags on, faded out as soon as they're here.
+/// `loaded`: hidden at first, faded in once the wait drags on, faded out as soon as they're here,
+/// while the ball still turns before it opens. Both ways ease out.
 fn caption_alpha(t: f32, loaded: Option<f32>) -> f32 {
+    let ease_out = |from: f32, length: f32, x: f32| 1.0 - (1.0 - ((x - from) / length).clamp(0.0, 1.0)).powi(3);
     let until = loaded.unwrap_or(t).min(t);
-    smooth(CAPTION_AFTER, CAPTION_AFTER + CAPTION_IN, until) * (1.0 - smooth(until, until + CAPTION_OUT, t))
+    ease_out(CAPTION_AFTER, CAPTION_IN, until) * (1.0 - ease_out(until, CAPTION_OUT, t))
 }
 
 fn smooth(from: f32, to: f32, x: f32) -> f32 {
@@ -259,6 +263,7 @@ struct Stage {
     /// The line under the ball: how far down it sits, and how visible it is.
     caption_at: Live<[f32; 2]>,
     caption_alpha: Live<f32>,
+    caption_blur: Live<f32>,
 }
 
 fn stage() -> &'static Stage {
@@ -269,6 +274,7 @@ fn stage() -> &'static Stage {
         slots: (0..SLOTS).map(|_| Dot { rect: Live::new([0.0; 4]), alpha: Live::new(0.0) }).collect(),
         caption_at: Live::new([0.0; 2]),
         caption_alpha: Live::new(0.0),
+        caption_blur: Live::new(CAPTION_BLUR),
     })
 }
 
@@ -410,7 +416,9 @@ impl Motion {
             }
         }
         stage().caption_at.set([0.0, rest[1] + small + CAPTION_GAP]);
-        stage().caption_alpha.set(caption_alpha(i.t, i.loaded));
+        let shown = caption_alpha(i.t, i.loaded);
+        stage().caption_alpha.set(shown);
+        stage().caption_blur.set((1.0 - shown) * CAPTION_BLUR);
         let fade = if riding { 1.0 } else { 1.0 - smooth(0.0, 0.8, flown) };
         let base = radius * 5.83 / 56.0;
         for (n, dot) in dots().iter().enumerate() {
@@ -610,6 +618,7 @@ pub fn opening<S: 'static>(ink: Color, ground: Color, loaded: bool, pictures: Ve
         .center_y()
         .live_offset(&stage.caption_at)
         .live_opacity(&stage.caption_alpha)
+        .live_blur(&stage.caption_blur)
         .child(caption);
     layer.child(caption).child(el().size(1.0, 1.0).looping(LoopSpec::rotation(1.0))).on_layout_tx(|_: &mut S, rect, tx: &mut Tx| {
         if let Some(i) = &mut motion().lock().expect("the logo's motion").intro {
