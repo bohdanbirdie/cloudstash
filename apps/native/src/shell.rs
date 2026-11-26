@@ -743,53 +743,61 @@ fn display_panel(s: &State, l: &Look) -> Option<El> {
 }
 
 /// A layout in miniature, for its tile in the Display panel, drawn to the grid's real proportions:
-/// pictures at the cards' 16:11, as many columns as each zoom fits, and under them what that
-/// zoom shows: the title (strong lines), the summary (faint lines) and the site row (a favicon dot
-/// and a faint line). Flat, in the text's ink, darker for the chosen layout.
+/// pictures at the cards' 16:11, more columns the smaller the zoom, and under them what that zoom
+/// shows: the title (strong lines), the summary (faint lines) and the site row (a favicon dot and
+/// a faint line). Each sits centred in the same frame, so the four read as a set. Flat, in the
+/// text's ink, darker for the chosen layout.
 fn layout_preview(zoom: Zoom, on: bool, l: &Look) -> El {
     const W: f32 = 52.0;
+    const H: f32 = 36.0;
     const ASPECT: f32 = 11.0 / 16.0;
+    const LINE: f32 = 1.5;
     let ink = if on { l.fg } else { l.fg2 };
     let picture = |x: f32, y: f32, w: f32| el().absolute(x, y).size(w, w * ASPECT).radius(1.5).fill(ink.alpha(0.4));
-    let line = |x: f32, y: f32, w: f32, strong: bool| el().absolute(x, y).size(w, 1.5).radius(0.75).fill(ink.alpha(if strong { 0.6 } else { 0.25 }));
+    let line =
+        |x: f32, y: f32, w: f32, strong: bool| el().absolute(x, y).size(w, LINE).radius(LINE / 2.0).fill(ink.alpha(if strong { 0.6 } else { 0.25 }));
     let site =
-        |x: f32, y: f32, w: f32| [el().absolute(x, y - 0.75).size(3.0, 3.0).radius(1.5).fill(ink.alpha(0.4)), line(x + 4.5, y, w - 4.5, false)];
-    let columns = |n: usize, gap: f32| ((W - gap * (n - 1) as f32) / n as f32, gap);
+        |x: f32, y: f32, w: f32| [el().absolute(x, y).size(3.0, 3.0).radius(1.5).fill(ink.alpha(0.4)), line(x + 4.5, y + 0.75, w - 4.5, false)];
+    let width = |n: usize, gap: f32| (W - gap * (n - 1) as f32) / n as f32;
     let mut parts = Vec::new();
-    match zoom {
+    let height = match zoom {
         Zoom::Pictures => {
-            let (w, gap) = columns(4, 2.0);
+            let (w, gap) = (width(4, 2.0), 2.0);
             for i in 0..12 {
-                parts.push(picture((i % 4) as f32 * (w + gap), (i / 4) as f32 * (w * ASPECT + 2.5), w));
+                parts.push(picture((i % 4) as f32 * (w + gap), (i / 4) as f32 * (w * ASPECT + gap), w));
             }
+            3.0 * w * ASPECT + 2.0 * gap
         }
         Zoom::Titles => {
-            let (w, gap) = columns(3, 3.0);
+            let (w, gap) = (width(3, 3.0), 3.0);
+            let top = w * ASPECT + 3.0;
             for i in 0..3 {
                 let x = i as f32 * (w + gap);
-                let top = w * ASPECT + 3.0;
                 parts.extend([picture(x, 0.0, w), line(x, top, w, true), line(x, top + 3.0, w * 0.65, true)]);
-                parts.extend(site(x, top + 8.0, w * 0.8));
+                parts.extend(site(x, top + 7.0, w * 0.8));
             }
+            top + 10.0
         }
         Zoom::Summaries => {
-            let (w, gap) = columns(2, 3.0);
+            let (w, gap) = (width(2, 4.0), 4.0);
+            let top = w * ASPECT + 2.5;
             for i in 0..2 {
                 let x = i as f32 * (w + gap);
-                let top = w * ASPECT + 2.5;
                 parts.extend([picture(x, 0.0, w), line(x, top, w * 0.85, true)]);
-                parts.extend([line(x, top + 3.5, w, false), line(x, top + 6.5, w, false), line(x, top + 9.5, w * 0.6, false)]);
-                parts.extend(site(x, top + 13.5, w * 0.55));
+                parts.extend([line(x, top + 3.0, w, false), line(x, top + 6.0, w, false), line(x, top + 9.0, w * 0.6, false)]);
+                parts.extend(site(x, top + 12.0, w * 0.55));
             }
+            top + 15.0
         }
         Zoom::Feed => {
-            let (w, x) = (24.0, (W - 24.0) / 2.0);
-            parts.extend(site(x, 1.5, w * 0.6));
-            parts.extend([picture(x, 5.0, w), line(x, 5.0 + w * ASPECT + 2.5, w, true), line(x, 5.0 + w * ASPECT + 5.5, w * 0.5, true)]);
-            parts.extend([line(x, 5.0 + w * ASPECT + 10.0, w, false), line(x, 5.0 + w * ASPECT + 13.0, w, false)]);
+            let (w, x) = (28.0, (W - 28.0) / 2.0);
+            let top = 4.5 + w * ASPECT + 2.5;
+            parts.extend(site(x, 0.0, w * 0.6));
+            parts.extend([picture(x, 4.5, w), line(x, top, w, true), line(x, top + 3.0, w * 0.5, true), line(x, top + 7.0, w, false)]);
+            top + 7.0 + LINE
         }
-    }
-    el().size(W, 34.0).children(parts)
+    };
+    el().size(W, H).child(el().absolute(0.0, ((H - height) / 2.0).max(0.0)).size(W, height).children(parts))
 }
 
 fn sync_note(note: String, l: &Look) -> El {
