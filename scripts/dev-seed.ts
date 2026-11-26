@@ -115,6 +115,7 @@ type Library = {
   links: Map<string, LinkRecord>;
   deleted: Set<string>;
   tags: Map<string, { name: string; deleted: boolean }>;
+  tagLinks: Map<string, { linkId: string; tagId: string }>;
 };
 
 const createLink = (lib: Library, args: any) => {
@@ -178,13 +179,17 @@ const folds: Record<string, (lib: Library, args: any) => void> = {
   "v1.LinkSummarized": onLink((link, args) => {
     Object.assign(link, { summary: args.summary, summaryModel: args.model });
   }),
-  "v1.LinkTagged": onLink((link, args) => {
+  "v1.LinkTagged": onLink((link, args, lib) => {
     link.tags.push(args.tagId);
+    lib.tagLinks.set(args.id, { linkId: args.linkId, tagId: args.tagId });
   }),
   "v1.LinkUncompleted": onLink((link) => {
     link.completedAt = null;
   }),
-  "v1.LinkUntagged": untag,
+  "v1.LinkUntagged": (lib, args) => {
+    const tagLink = lib.tagLinks.get(args.id);
+    if (tagLink) untag(lib, tagLink);
+  },
   "v1.TagCreated": (lib, args) => {
     lib.tags.set(args.id, { deleted: false, name: args.name });
   },
@@ -203,6 +208,7 @@ const exportLibrary = async () => {
   const lib: Library = {
     deleted: new Set(),
     links: new Map(),
+    tagLinks: new Map(),
     tags: new Map(),
   };
   for (const { name, args } of log) folds[name]?.(lib, args);
