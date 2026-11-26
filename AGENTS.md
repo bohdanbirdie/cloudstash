@@ -49,6 +49,22 @@ How the check works: `context/02-system/01-data/spec.md` § LiveStore contract.
   recorded before any handwritten change can be introduced.
 - Run `bun run check:migrations` before committing migration changes.
 
+# Test data in a worktree
+
+A new worktree starts with an empty local library. To load the maintainer's
+test links:
+
+1. Link the shared folder if the worktree has none:
+   `ln -s ~/dev/other-projects/cloudstash-local local`.
+2. Start the dev server with `ENABLE_TEST_AUTH=true` in `.env`.
+3. Run `bun scripts/dev-seed.ts seed` (add `PORT=<port>` if not 3000). It signs
+   in a test account and loads `local/dev-data/links.jsonl` into the empty
+   library over `/sync`, with no AI calls, page fetches or notifications.
+
+Never copy `.alchemy` or `.wrangler` state between checkouts, and never
+overwrite `links.jsonl`; only the maintainer refreshes it with `export`.
+How it works: `context/04-delivery/spec.md`.
+
 <!--VITE PLUS START-->
 
 # Using Vite+, the Unified Toolchain for the Web
