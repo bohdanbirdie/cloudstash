@@ -742,42 +742,54 @@ fn display_panel(s: &State, l: &Look) -> Option<El> {
     )
 }
 
-/// A layout in miniature, for its tile in the Display panel: little flat cards laid out the way
-/// the grid lays them out at that zoom, in the text's ink, darker for the chosen layout.
+/// A layout in miniature, for its tile in the Display panel, drawn to the grid's real proportions:
+/// pictures at the cards' 16:11, as many columns as each zoom fits, and under them what that
+/// zoom shows: the title (strong lines), the summary (faint lines) and the site row (a favicon dot
+/// and a faint line). Flat, in the text's ink, darker for the chosen layout.
 fn layout_preview(zoom: Zoom, on: bool, l: &Look) -> El {
+    const W: f32 = 52.0;
+    const ASPECT: f32 = 11.0 / 16.0;
     let ink = if on { l.fg } else { l.fg2 };
-    let picture = |x: f32, y: f32, w: f32, h: f32| el().absolute(x, y).size(w, h).radius(2.0).fill(ink.alpha(0.4));
-    let line = |x: f32, y: f32, w: f32, strong: bool| el().absolute(x, y).size(w, 1.5).radius(0.75).fill(ink.alpha(if strong { 0.6 } else { 0.28 }));
+    let picture = |x: f32, y: f32, w: f32| el().absolute(x, y).size(w, w * ASPECT).radius(1.5).fill(ink.alpha(0.4));
+    let line = |x: f32, y: f32, w: f32, strong: bool| el().absolute(x, y).size(w, 1.5).radius(0.75).fill(ink.alpha(if strong { 0.6 } else { 0.25 }));
+    let site =
+        |x: f32, y: f32, w: f32| [el().absolute(x, y - 0.75).size(3.0, 3.0).radius(1.5).fill(ink.alpha(0.4)), line(x + 4.5, y, w - 4.5, false)];
+    let columns = |n: usize, gap: f32| ((W - gap * (n - 1) as f32) / n as f32, gap);
     let mut parts = Vec::new();
     match zoom {
         Zoom::Pictures => {
-            for i in 0..10 {
-                parts.push(picture((i % 5) as f32 * 10.6, 2.0 + (i / 5) as f32 * 15.5, 9.4, 13.5));
+            let (w, gap) = columns(4, 2.0);
+            for i in 0..12 {
+                parts.push(picture((i % 4) as f32 * (w + gap), (i / 4) as f32 * (w * ASPECT + 2.5), w));
             }
         }
         Zoom::Titles => {
+            let (w, gap) = columns(3, 3.0);
             for i in 0..3 {
-                let x = i as f32 * 17.8;
-                parts.extend([picture(x, 2.0, 16.0, 15.0), line(x, 20.5, 15.0, true), line(x, 24.5, 10.0, false), line(x, 29.5, 6.0, false)]);
+                let x = i as f32 * (w + gap);
+                let top = w * ASPECT + 3.0;
+                parts.extend([picture(x, 0.0, w), line(x, top, w, true), line(x, top + 3.0, w * 0.65, true)]);
+                parts.extend(site(x, top + 8.0, w * 0.8));
             }
         }
         Zoom::Summaries => {
+            let (w, gap) = columns(2, 3.0);
             for i in 0..2 {
-                let x = i as f32 * 27.0;
-                parts.push(picture(x, 2.0, 25.0, 13.0));
-                parts.extend([line(x, 18.5, 22.0, true), line(x, 22.5, 25.0, false), line(x, 26.0, 25.0, false), line(x, 29.5, 15.0, false)]);
+                let x = i as f32 * (w + gap);
+                let top = w * ASPECT + 2.5;
+                parts.extend([picture(x, 0.0, w), line(x, top, w * 0.85, true)]);
+                parts.extend([line(x, top + 3.5, w, false), line(x, top + 6.5, w, false), line(x, top + 9.5, w * 0.6, false)]);
+                parts.extend(site(x, top + 13.5, w * 0.55));
             }
         }
         Zoom::Feed => {
-            parts.extend([
-                el().absolute(14.0, 1.0).size(4.0, 4.0).radius(2.0).fill(ink.alpha(0.45)),
-                line(20.0, 2.25, 12.0, true),
-                line(14.0, 8.0, 24.0, false),
-            ]);
-            parts.extend([picture(14.0, 12.0, 24.0, 16.0), line(14.0, 31.0, 16.0, false)]);
+            let (w, x) = (24.0, (W - 24.0) / 2.0);
+            parts.extend(site(x, 1.5, w * 0.6));
+            parts.extend([picture(x, 5.0, w), line(x, 5.0 + w * ASPECT + 2.5, w, true), line(x, 5.0 + w * ASPECT + 5.5, w * 0.5, true)]);
+            parts.extend([line(x, 5.0 + w * ASPECT + 10.0, w, false), line(x, 5.0 + w * ASPECT + 13.0, w, false)]);
         }
     }
-    el().size(52.0, 34.0).children(parts)
+    el().size(W, 34.0).children(parts)
 }
 
 fn sync_note(note: String, l: &Look) -> El {
