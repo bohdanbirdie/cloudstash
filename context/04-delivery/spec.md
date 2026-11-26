@@ -67,13 +67,12 @@ web sign-in card's dot grid, 1pt dots every 18pt, in faint grey; each dot
 brightens and dims slowly out of step with its neighbours, and the grid fades
 out toward the window's edges. Reduce Motion holds it still.
 After a sign-in the app waits up to 10 seconds for the library to catch up with
-the server, then opens with what the Mac has. Meanwhile the logo stays where
-the sign-in screen had it, at the same size, and if the wait passes 0.8 seconds
-one dim word, "Syncing", fades in where that screen's title was, with a soft
-light sweeping across it. Once the links arrive the logo moves to the middle,
-grows and opens into the library. There is no
-count, bar, percentage or ellipsis. The word goes as the links arrive, so a
-quick download shows nothing extra. If the app opens before it has caught up,
+the server, then opens with what the Mac has. The logo moves, grows and turns
+as it always does; if the wait passes 0.8 seconds one dim word, "Syncing",
+blurs in under it, with a soft light sweeping across it. There is no count,
+bar, percentage or ellipsis. The word blurs out as soon as the links arrive,
+before the logo opens into the library, so a quick download shows nothing
+extra. If the app opens before it has caught up,
 the toolbar says "Syncing" in the same way until the server's
 last page arrives (the server marks it `NoMore`). Under Reduce Motion both
 lines stay still. In a debug build `CLOUDSTASH_SLOW_SYNC=<ms>` holds back each

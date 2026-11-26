@@ -217,9 +217,9 @@ pub fn live<S: 'static>(size: f32, ink: Color, busy: bool) -> El {
 
 /// How many cards' pictures the opening can carry.
 const SLOTS: usize = 60;
-/// Seconds: how long the ball takes to reach the middle at full size once the links are here, the least it turns before opening, how long pictures ride it, and
+/// Seconds: how slowly the ball grows, the least it turns before opening, how long pictures ride it, and
 /// the pull of each picture toward its card with how long that pull takes to come on.
-const GROW: f32 = 0.7;
+const GROW: f32 = 4.0;
 const LEAST: f32 = 0.6;
 const RIDE: f32 = 1.4;
 const PULL: f32 = 5.5;
@@ -231,8 +231,8 @@ const CAPTION_IN: f32 = 0.4;
 const CAPTION_OUT: f32 = 0.3;
 /// Points of blur the line comes out of and goes back into, as it fades.
 const CAPTION_BLUR: f32 = 4.0;
-/// Points from the bottom of the ball to the line, which puts it where the sign-in screen's title
-/// was, and the line's height, to centre the two as a group when no sign-in screen came before.
+/// Points from the bottom of the ball to the line, and the least room the line keeps below it to the
+/// window's edge, and the line's height.
 const CAPTION_GAP: f32 = 28.0;
 const CAPTION_LINE: f32 = 20.0;
 
@@ -378,17 +378,15 @@ impl Motion {
         let ease = (7.0 * dt).min(1.0);
         (self.look, self.pitch) = ([self.look[0] * (1.0 - ease), self.look[1] * (1.0 - ease)], self.pitch * (1.0 - ease));
         let [w, h] = i.window;
-        // While the library is on its way the ball stays where the sign-in screen had it, at its size, with
-        // the line where that screen's title was; once the links are here it moves to the middle and grows.
         let small = i.from.map_or(45.0, |f| f[2]);
-        let rest = i.from.map_or([w / 2.0, h / 2.0 - (CAPTION_GAP + CAPTION_LINE) / 2.0], |f| [f[0], f[1]]);
         let (mut centre, radius) = if w > 0.0 {
-            let (mid, big) = ([w / 2.0, h / 2.0], (0.15 * w.min(h)).max(small));
-            let k = i.loaded.map_or(0.0, |at| smooth(at, at + GROW, i.t));
-            ([mix(rest[0], mid[0], k), mix(rest[1], mid[1], k)], mix(small, big, k))
+            let (mid, big) = ([w / 2.0, h / 2.0], 0.44 * w.min(h));
+            let (start, k) = (i.from.map_or(mid, |f| [f[0], f[1]]), smooth(0.0, 0.7, i.t));
+            ([mix(start[0], mid[0], k), mix(start[1], mid[1], k)], big - (big - small) * (-i.t / GROW).exp())
         } else {
-            (rest, if i.from.is_some() { small } else { 0.0 })
+            (i.from.map_or([0.0; 2], |f| [f[0], f[1]]), if i.from.is_some() { small } else { 0.0 })
         };
+        let below = (centre[1] + radius + CAPTION_GAP).min(h - CAPTION_GAP - CAPTION_LINE);
         // It opens once it has turned a little, the links are here and the grid has said where its cards are.
         let placed = i.loaded.is_some_and(|at| i.t >= at + 0.5 || (i.t >= at + 0.2 && i.homes.iter().any(Option::is_some)));
         if i.unwrap.is_none() && w > 0.0 && i.t >= LEAST && placed {
@@ -415,7 +413,7 @@ impl Motion {
                 self.yaw += self.speed * dt;
             }
         }
-        stage().caption_at.set([0.0, rest[1] + small + CAPTION_GAP]);
+        stage().caption_at.set([0.0, below]);
         let shown = caption_alpha(i.t, i.loaded);
         stage().caption_alpha.set(shown);
         stage().caption_blur.set((1.0 - shown) * CAPTION_BLUR);
