@@ -634,7 +634,6 @@ fn toolbar(s: &State, l: &Look) -> Toolbar {
         .center_y()
         .radius(7.0)
         .cursor(Cursor::Pointer)
-        .help("Display  ⇧V")
         .press_scale(0.96)
         .child(icon(&SLIDERS, 14.0).color(ink))
         .child(text("Display").font(font(12.5, 400.0)).color(ink))
@@ -659,7 +658,7 @@ const SLIDE: Easing = Easing::cubic(0.77, 0.0, 0.175, 1.0);
 /// filter options still to come, dimmed and inert. Groups are set apart by space, not lines, and
 /// its corners are concentric with the tiles' (8 + the 6-point padding). It stays open while a
 /// layout is picked, so the grid can be compared behind it; a press outside, Esc or ⇧V closes it.
-/// It grows from its top-trailing corner, under the button. The shortcuts are in the tooltips.
+/// It grows from its top-trailing corner, under the button.
 fn display_panel(s: &State, l: &Look) -> Option<El> {
     if !s.display {
         return None;
@@ -692,7 +691,6 @@ fn display_panel(s: &State, l: &Look) -> Option<El> {
             .radius(8.0)
             .cursor(Cursor::Pointer)
             .press_scale(0.96)
-            .help(format!("{}  {}", zoom.label(), i + 1))
             .child(layout_preview(zoom, on, l))
             .child(text(zoom.label()).font(font(12.0, if on { 500.0 } else { 400.0 })).color(ink))
             .on_press_tx(move |s: &mut State, tx: &mut Tx| zoom_to(s, zoom, tx));
@@ -744,43 +742,29 @@ fn display_panel(s: &State, l: &Look) -> Option<El> {
     )
 }
 
-/// A layout in miniature, for its tile in the Display panel: little cards laid out the way the
-/// grid lays them out at that zoom, their pictures soft gradients in the spaces' hues. Only the
-/// chosen layout's pictures are in colour; the others are grey until picked.
+/// A layout in miniature, for its tile in the Display panel: little flat cards laid out the way
+/// the grid lays them out at that zoom, in the text's ink, darker for the chosen layout.
 fn layout_preview(zoom: Zoom, on: bool, l: &Look) -> El {
-    const HUES: [f32; 6] = [268.0, 30.0, 190.0, 330.0, 145.0, 230.0];
-    let (light, chroma) = match (on, l.dark) {
-        (true, true) => (0.62, 0.08),
-        (true, false) => (0.82, 0.08),
-        (false, true) => (0.46, 0.0),
-        (false, false) => (0.88, 0.0),
-    };
-    let picture = |i: usize, x: f32, y: f32, w: f32, h: f32| {
-        let hue = HUES[i % HUES.len()];
-        el().absolute(x, y)
-            .size(w, h)
-            .radius(2.0)
-            .linear_gradient(135.0, [(0.0, oklch(light, chroma, hue)), (1.0, oklch(light - 0.1, chroma, hue + 40.0))])
-    };
     let ink = if on { l.fg } else { l.fg2 };
+    let picture = |x: f32, y: f32, w: f32, h: f32| el().absolute(x, y).size(w, h).radius(2.0).fill(ink.alpha(0.4));
     let line = |x: f32, y: f32, w: f32, strong: bool| el().absolute(x, y).size(w, 1.5).radius(0.75).fill(ink.alpha(if strong { 0.6 } else { 0.28 }));
     let mut parts = Vec::new();
     match zoom {
         Zoom::Pictures => {
             for i in 0..10 {
-                parts.push(picture(i, (i % 5) as f32 * 10.6, 2.0 + (i / 5) as f32 * 15.5, 9.4, 13.5));
+                parts.push(picture((i % 5) as f32 * 10.6, 2.0 + (i / 5) as f32 * 15.5, 9.4, 13.5));
             }
         }
         Zoom::Titles => {
             for i in 0..3 {
                 let x = i as f32 * 17.8;
-                parts.extend([picture(i, x, 2.0, 16.0, 15.0), line(x, 20.5, 15.0, true), line(x, 24.5, 10.0, false), line(x, 29.5, 6.0, false)]);
+                parts.extend([picture(x, 2.0, 16.0, 15.0), line(x, 20.5, 15.0, true), line(x, 24.5, 10.0, false), line(x, 29.5, 6.0, false)]);
             }
         }
         Zoom::Summaries => {
             for i in 0..2 {
                 let x = i as f32 * 27.0;
-                parts.push(picture(i + 3, x, 2.0, 25.0, 13.0));
+                parts.push(picture(x, 2.0, 25.0, 13.0));
                 parts.extend([line(x, 18.5, 22.0, true), line(x, 22.5, 25.0, false), line(x, 26.0, 25.0, false), line(x, 29.5, 15.0, false)]);
             }
         }
@@ -790,7 +774,7 @@ fn layout_preview(zoom: Zoom, on: bool, l: &Look) -> El {
                 line(20.0, 2.25, 12.0, true),
                 line(14.0, 8.0, 24.0, false),
             ]);
-            parts.extend([picture(4, 14.0, 12.0, 24.0, 16.0), line(14.0, 31.0, 16.0, false)]);
+            parts.extend([picture(14.0, 12.0, 24.0, 16.0), line(14.0, 31.0, 16.0, false)]);
         }
     }
     el().size(52.0, 34.0).children(parts)
