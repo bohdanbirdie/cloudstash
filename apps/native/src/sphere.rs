@@ -5,7 +5,7 @@
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
-use rune::{Color, Cursor, Drag, El, FrameEncoded, Live, LoopSpec, Phase, Shadow, Tx, el, oklch, oklcha};
+use rune::{Color, Cursor, Drag, El, FrameEncoded, Live, LoopSpec, Phase, Shadow, Tx, el, oklch, oklcha, row};
 
 const DOTS: usize = 150;
 /// The golden angle, which spreads the dots evenly.
@@ -224,6 +224,25 @@ const LEAST: f32 = 0.6;
 const RIDE: f32 = 1.4;
 const PULL: f32 = 5.5;
 const RAMP: f32 = 0.45;
+/// While the library takes its time, a line at the bottom of the window says what's happening: it waits
+/// this many seconds, so a download that's done by then shows nothing extra, then fades in over `CAPTION_IN`.
+const CAPTION_AFTER: f32 = 3.0;
+const CAPTION_IN: f32 = 0.4;
+const CAPTION_OUT: f32 = 0.3;
+/// Points of blur the line comes out of and goes back into, as it fades.
+const CAPTION_BLUR: f32 = 4.0;
+/// Points from the window's bottom edge to the line, which stays put while the ball grows, and the line's height.
+const CAPTION_BOTTOM: f32 = 32.0;
+const CAPTION_LINE: f32 = 20.0;
+
+/// How visible the line at the bottom is `t` seconds into the opening, the links having arrived at
+/// `loaded`: hidden at first, faded in once the wait drags on, faded out as soon as they're here,
+/// while the ball still turns before it opens. Both ways ease out.
+fn caption_alpha(t: f32, loaded: Option<f32>) -> f32 {
+    let ease_out = |from: f32, length: f32, x: f32| 1.0 - (1.0 - ((x - from) / length).clamp(0.0, 1.0)).powi(3);
+    let until = loaded.unwrap_or(t).min(t);
+    ease_out(CAPTION_AFTER, CAPTION_IN, until) * (1.0 - ease_out(until, CAPTION_OUT, t))
+}
 
 fn smooth(from: f32, to: f32, x: f32) -> f32 {
     let x = ((x - from) / (to - from)).clamp(0.0, 1.0);
@@ -240,6 +259,9 @@ struct Stage {
     cover: Live<f32>,
     reveal: Live<f32>,
     slots: Vec<Dot>,
+    /// How visible the line at the bottom is.
+    caption_alpha: Live<f32>,
+    caption_blur: Live<f32>,
 }
 
 fn stage() -> &'static Stage {
@@ -248,6 +270,8 @@ fn stage() -> &'static Stage {
         cover: Live::new(0.0),
         reveal: Live::new(1.0),
         slots: (0..SLOTS).map(|_| Dot { rect: Live::new([0.0; 4]), alpha: Live::new(0.0) }).collect(),
+        caption_alpha: Live::new(0.0),
+        caption_blur: Live::new(CAPTION_BLUR),
     })
 }
 
@@ -385,6 +409,9 @@ impl Motion {
                 self.yaw += self.speed * dt;
             }
         }
+        let shown = caption_alpha(i.t, i.loaded);
+        stage().caption_alpha.set(shown);
+        stage().caption_blur.set((1.0 - shown) * CAPTION_BLUR);
         let fade = if riding { 1.0 } else { 1.0 - smooth(0.0, 0.8, flown) };
         let base = radius * 5.83 / 56.0;
         for (n, dot) in dots().iter().enumerate() {
@@ -477,6 +504,7 @@ fn settle() {
     let stage = stage();
     stage.cover.set(0.0);
     stage.reveal.set(1.0);
+    stage.caption_alpha.set(0.0);
     for slot in &stage.slots {
         slot.alpha.set(0.0);
     }
@@ -543,9 +571,10 @@ pub fn scrolled(offset: f32, by_hand: bool) {
     }
 }
 
-/// The opening, over the whole window: the ball in `ink` on a cover of `ground`, and once the library has
-/// `loaded`, a copy of each card's picture to fly from the ball to its card.
-pub fn opening<S: 'static>(ink: Color, ground: Color, loaded: bool, pictures: Vec<(String, El)>) -> El {
+/// The opening, over the whole window: the ball in `ink` on a cover of `ground` with `caption` under it
+/// while the library takes its time, and once the library has `loaded`, a copy of each card's picture
+/// to fly from the ball to its card.
+pub fn opening<S: 'static>(ink: Color, ground: Color, loaded: bool, pictures: Vec<(String, El)>, caption: El) -> El {
     {
         let mut m = motion().lock().expect("the logo's motion");
         m.shown = true;
@@ -574,7 +603,16 @@ pub fn opening<S: 'static>(ink: Color, ground: Color, loaded: bool, pictures: Ve
                 .live_opacity(&slot.alpha),
         )
     });
-    layer.child(el().size(1.0, 1.0).looping(LoopSpec::rotation(1.0))).on_layout_tx(|_: &mut S, rect, tx: &mut Tx| {
+    let caption = row()
+        .key("caption-line")
+        .pin(Some(0.0), None, Some(0.0), Some(CAPTION_BOTTOM))
+        .h(CAPTION_LINE)
+        .justify_center()
+        .center_y()
+        .live_opacity(&stage.caption_alpha)
+        .live_blur(&stage.caption_blur)
+        .child(caption);
+    layer.child(caption).child(el().size(1.0, 1.0).looping(LoopSpec::rotation(1.0))).on_layout_tx(|_: &mut S, rect, tx: &mut Tx| {
         if let Some(i) = &mut motion().lock().expect("the logo's motion").intro {
             i.window = [rect[2], rect[3]];
         }
@@ -617,4 +655,25 @@ pub fn tile(size: f32) -> El {
                 .fill(oklcha(1.0, 0.0, 0.0, light)),
         )
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_line_under_the_ball_waits_then_stays_until_the_links_arrive() {
+        assert_eq!(caption_alpha(2.9, None), 0.0, "not in the first three seconds");
+        assert_eq!(caption_alpha(3.5, None), 1.0, "shown once the wait drags on");
+        assert_eq!(caption_alpha(9.5, None), 1.0, "and for as long as it lasts");
+        assert_eq!(caption_alpha(6.0, Some(5.0)), 0.0, "gone once the links are here");
+        assert!(caption_alpha(5.1, Some(5.0)) > 0.0, "fading out, not cut");
+    }
+
+    #[test]
+    fn a_quick_download_never_shows_the_line() {
+        for t in [0.3, 1.5, 2.9, 3.5, 5.0] {
+            assert_eq!(caption_alpha(t, Some(2.9)), 0.0, "at {t} s");
+        }
+    }
 }
