@@ -142,7 +142,11 @@ function ConnectNativePage() {
       if (!response.ok || !data.code) {
         throw new Error(data.error ?? `HTTP ${response.status}`);
       }
-      const link = nativeSignInLink(data.code, request.state);
+      const link = nativeSignInLink(
+        data.code,
+        request.state,
+        searchParams.get("app")
+      );
       setHandoff({ link, status: "ready" });
       // Opening the app's link is what brings Cloudstash for Mac forward.
       window.location.href = link;

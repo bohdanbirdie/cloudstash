@@ -523,7 +523,7 @@ fn updates(s: &Settings, l: &Look) -> El {
 }
 
 fn about(s: &Settings, l: &Look) -> El {
-    let site = if s.server.is_empty() { crate::auth::DEFAULT_BASE.to_owned() } else { s.server.clone() };
+    let site = if s.server.is_empty() { crate::flavor::PRODUCTION_BASE.to_owned() } else { s.server.clone() };
     let host = url::Url::parse(&site).ok().and_then(|u| u.host_str().map(str::to_owned)).unwrap_or_else(|| site.clone());
     let website = button("website", &format!("Open {host}"), l.fg, l).on_press(move |_: &mut Settings| crate::open_browser(&site));
     let logs = button("logs", "Show in Finder", l.fg, l).on_press(|_: &mut Settings| {
@@ -541,7 +541,7 @@ fn about(s: &Settings, l: &Look) -> El {
                 .pt(24.0)
                 .gap(6.0)
                 .child(crate::sphere::tile(64.0))
-                .child(text("Cloudstash for Mac").font(font(15.0, 600.0)).color(l.fg).mt(6.0))
+                .child(text(format!("{} for Mac", crate::flavor::NAME)).font(font(15.0, 600.0)).color(l.fg).mt(6.0))
                 .child(text(format!("Version {}", env!("CARGO_PKG_VERSION"))).font(font(12.0, 400.0)).color(l.fg3)),
         )
         .child(group(

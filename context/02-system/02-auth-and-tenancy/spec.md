@@ -123,7 +123,8 @@ operations only to `admin`, not `viewer`.
 - **Native app (prototype):** the app opens `/connect/native` with a random
   state and a PKCE challenge. A signed-in browser mints a `native`-sourced
   key without a confirmation step and opens a `cloudstash://auth/callback`
-  deep link carrying a one-time code; the app accepts only the link for the
+  deep link carrying a one-time code (`cloudstash-dev://` when the app asks
+  with `app=dev`, so Cloudstash Dev's sign-in never opens the released app); the app accepts only the link for the
   sign-in it started and redeems the code with its verifier. Mint and exchange
   both revalidate current workspace access, the key never passes through the
   browser, and it is not plan-gated.
