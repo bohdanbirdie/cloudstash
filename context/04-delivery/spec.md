@@ -61,6 +61,11 @@ windows follow it. The app can hide its Dock icon only while its menu bar icon
 (the logo; a click brings the window forward) shows, so it can always be
 found; `ui.json` keeps the theme and both icons across sign-out and restores a
 Dock icon if neither was saved on.
+The whole-window screens before the library (sign in, waiting for the browser,
+the sign-in error, signing out, opening the library, must-update) sit on the
+web sign-in card's dot grid, 1pt dots every 18pt, in faint grey; each dot
+brightens and dims slowly out of step with its neighbours, and the grid fades
+out toward the window's edges. Reduce Motion holds it still.
 
 Local provider configuration is represented by committed 1Password references
 in `.env.example`. `bun run env:sync` explicitly and atomically materializes

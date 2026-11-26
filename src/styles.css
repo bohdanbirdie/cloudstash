@@ -264,12 +264,47 @@
   mask-image: linear-gradient(to bottom, black 0%, black 68%, transparent 98%);
 }
 
-.landing-dot-field-inverse {
-  --landing-dot-color: color-mix(
+.twinkle-dots {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    black 0%,
+    black 68%,
+    transparent 98%
+  );
+  mask-image: linear-gradient(to bottom, black 0%, black 68%, transparent 98%);
+}
+
+.twinkle-dots > span {
+  position: absolute;
+  inset: 0;
+  background-color: color-mix(
     in oklab,
     var(--primary-foreground) 12%,
     transparent
   );
+  -webkit-mask-image: var(--twinkle-mask);
+  mask-image: var(--twinkle-mask);
+  -webkit-mask-size: var(--twinkle-size);
+  mask-size: var(--twinkle-size);
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .twinkle-dots > span {
+    animation: twinkle-dot var(--twinkle-period) linear var(--twinkle-delay)
+      infinite;
+  }
+}
+
+@keyframes twinkle-dot {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 .landing-source-traveler-mask {
