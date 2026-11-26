@@ -9,8 +9,8 @@ use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rune::{
-    Color, Cursor, Cx, El, GrowthSpec, Icon, Key, KeyEvent, Live, LoopSpec, Mods, ScrollFade, ScrollSpec, Shadow, Side, Spring, SpringPair,
-    SurfaceFit, TextStyle, Transition, Tx, Vec2, col, el, icon, oklch, oklcha, row, text,
+    Color, Cursor, Curve, Cx, Easing, El, GrowthSpec, Icon, Key, KeyEvent, Live, LoopSpec, Mods, ScrollFade, ScrollSpec, Shadow, Side, Spring,
+    SpringPair, SurfaceFit, TextStyle, Transition, Tx, Vec2, col, el, icon, oklch, oklcha, row, text,
 };
 use rune_kit::{Kit, ScrollBar, ScrollBarStyle};
 
@@ -60,15 +60,6 @@ impl Zoom {
             Zoom::Titles => "Titles",
             Zoom::Summaries => "Summaries",
             Zoom::Feed => "Feed",
-        }
-    }
-
-    fn glyph(self) -> &'static Icon {
-        match self {
-            Zoom::Pictures => &PICTURES,
-            Zoom::Titles => &GRID,
-            Zoom::Summaries => &SUMMARIES,
-            Zoom::Feed => &FEED,
         }
     }
 
@@ -181,14 +172,13 @@ static GRID: Icon = glyph!(
     r#"<rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1.2"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1.2"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1.2"/><rect x="9" y="9" width="4.5" height="4.5" rx="1.2"/>"#
 );
 static FEED: Icon = glyph!("cs-feed", r#"<rect x="3.5" y="2.5" width="9" height="6" rx="1.2"/><path d="M3.5 11h9M3.5 13.5h6"/>"#);
-static PICTURES: Icon = glyph!(
-    "cs-pictures",
-    r#"<rect x="2.5" y="2.5" width="3" height="3" rx=".8"/><rect x="6.5" y="2.5" width="3" height="3" rx=".8"/><rect x="10.5" y="2.5" width="3" height="3" rx=".8"/><rect x="2.5" y="6.5" width="3" height="3" rx=".8"/><rect x="6.5" y="6.5" width="3" height="3" rx=".8"/><rect x="10.5" y="6.5" width="3" height="3" rx=".8"/><rect x="2.5" y="10.5" width="3" height="3" rx=".8"/><rect x="6.5" y="10.5" width="3" height="3" rx=".8"/><rect x="10.5" y="10.5" width="3" height="3" rx=".8"/>"#
+static SLIDERS: Icon = glyph!(
+    "cs-sliders",
+    r#"<path d="M2.5 4.5h6.5M13 4.5h.5M2.5 11.5h.5M7 11.5h6.5"/><circle cx="11" cy="4.5" r="1.6"/><circle cx="5" cy="11.5" r="1.6"/>"#
 );
-static SUMMARIES: Icon = glyph!(
-    "cs-summaries",
-    r#"<rect x="2.5" y="2.5" width="4.5" height="4" rx="1"/><rect x="9" y="2.5" width="4.5" height="4" rx="1"/><path d="M2.5 9.5h4.5M2.5 12h3M9 9.5h4.5M9 12h3"/>"#
-);
+static SORT: Icon = glyph!("cs-sort", r#"<path d="M5 3v10M2.5 10.5 5 13l2.5-2.5M11 13V3M8.5 5.5 11 3l2.5 2.5"/>"#);
+static FILTER: Icon = glyph!("cs-filter", r#"<path d="M2.5 4h11M4.5 8h7M6.5 12h3"/>"#);
+static CARD_FIELDS: Icon = glyph!("cs-card-fields", r#"<rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M5 6.5h6M5 9.5h4"/>"#);
 static BACK: Icon = glyph!("cs-back", r#"<path d="m10 4-4 4 4 4"/>"#);
 static TAG: Icon = glyph!("cs-tag", r#"<path d="M2.5 8.2V3.5a1 1 0 0 1 1-1h4.7l5.3 5.3-5.7 5.7-5.3-5.3Z"/><circle cx="5.5" cy="5.5" r=".8"/>"#);
 static TRASH: Icon = glyph!("cs-trash", r#"<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5"/>"#);
@@ -302,37 +292,6 @@ fn font(size: f32, weight: f32) -> TextStyle {
 
 fn count(n: usize, l: &Look) -> El {
     text(n.to_string()).font(font(12.0, 400.0).features("'tnum' 1")).color(l.fg3)
-}
-
-fn elevated(e: El, l: &Look) -> El {
-    let ring = if l.dark { oklcha(1.0, 0.0, 0.0, 0.07) } else { oklcha(0.0, 0.0, 0.0, 0.06) };
-    let e = e.box_shadow(Shadow { spread: 1.0, color: ring, ..Shadow::default() });
-    if l.dark {
-        return e;
-    }
-    e.box_shadow(Shadow { y: 1.0, blur: 2.0, color: oklcha(0.0, 0.0, 0.0, 0.04), ..Shadow::default() }).box_shadow(Shadow {
-        y: 4.0,
-        blur: 12.0,
-        color: oklcha(0.0, 0.0, 0.0, 0.04),
-        ..Shadow::default()
-    })
-}
-
-type Press = Box<dyn Fn(&mut State, &mut Tx)>;
-
-/// A segmented control: the selected segment is a raised chip.
-fn segment(key: &str, items: Vec<(El, bool, Press)>, l: &Look) -> El {
-    items.into_iter().fold(row().key(key.to_owned()).role("tablist").padding(2.0).gap(2.0).radius(8.0).fill(l.hover), |seg, (child, on, press)| {
-        let b = row()
-            .h(26.0)
-            .center()
-            .radius(6.0)
-            .cursor(Cursor::Pointer)
-            .role("tab")
-            .child(child)
-            .on_press_tx(move |s: &mut State, tx: &mut Tx| press(s, tx));
-        seg.child(if on { elevated(b.fill(l.panel), l) } else { b })
-    })
 }
 
 fn swatch(space: &Space, size: f32, l: &Look) -> El {
@@ -662,24 +621,180 @@ fn toolbar(s: &State, l: &Look) -> Toolbar {
         Sync::Offline => Some(sync_note("Offline".to_owned(), l)),
         Sync::Failed(e) => Some(sync_note(e.clone(), l)),
     };
-    let zooms = Zoom::ALL
-        .into_iter()
-        .enumerate()
-        .map(|(i, zoom)| {
-            let on = s.zoom == zoom;
-            let glyph = row().w(30.0).center().help(format!("{}  {}", zoom.label(), i + 1)).child(icon(zoom.glyph(), 15.0).color(if on {
-                l.fg
-            } else {
-                l.fg3
-            }));
-            (glyph, on, Box::new(move |s: &mut State, tx: &mut Tx| zoom_to(s, zoom, tx)) as Press)
-        })
-        .collect();
+    let ink = if s.display { l.fg } else { l.fg2 };
+    let display = row()
+        .key("display")
+        .role("button")
+        .label("Display")
+        .focusable(true)
+        .h(28.0)
+        .pl(8.0)
+        .pr(10.0)
+        .gap(6.0)
+        .center_y()
+        .radius(7.0)
+        .cursor(Cursor::Pointer)
+        .help("Display  ⇧V")
+        .child(icon(&SLIDERS, 14.0).color(ink))
+        .child(text("Display").font(font(12.5, 400.0)).color(ink))
+        .on_press_tx(|s: &mut State, tx: &mut Tx| show_display(s, !s.display, tx));
     let mut toolbar = Toolbar::new().leading(title);
     if let Some(sync) = sync {
         toolbar = toolbar.trailing(sync);
     }
-    toolbar.trailing(segment("zoom", zooms, l))
+    toolbar.trailing(if s.display { display.fill(l.active) } else { display.hover(l.hover) })
+}
+
+fn show_display(s: &mut State, open: bool, tx: &mut Tx) {
+    tx.animated();
+    s.display = open;
+}
+
+/// How the Display panel's highlight slides to the picked layout: a strong ease-in-out, as
+/// something moving on screen should (Emil Kowalski's `--ease-in-out`).
+const SLIDE: Easing = Easing::cubic(0.77, 0.0, 0.175, 1.0);
+
+/// The Display panel under its toolbar button, Linear's: the layouts as tiles, then the sort and
+/// filter options still to come, shown but inert. It stays open while a layout is picked, so the
+/// grid can be compared behind it; a press outside, Esc or ⇧V closes it. It grows from its
+/// top-trailing corner, under the button.
+fn display_panel(s: &State, l: &Look) -> Option<El> {
+    if !s.display {
+        return None;
+    }
+    let at = Zoom::ALL.iter().position(|z| *z == s.zoom).unwrap_or(1);
+    let highlight = el()
+        .key(format!("display-on-{at}"))
+        .grid_cell(at)
+        .w_full()
+        .h_full()
+        .radius(8.0)
+        .fill(l.hover)
+        .box_shadow(Shadow { spread: 1.0, color: l.line, ..Shadow::default() })
+        .matched("display-on")
+        .matched_motion(Curve::tween(0.25, SLIDE));
+    let tiles = row().key("display-layouts").role("radiogroup").label("Layout").w_full().equal_columns(4).gap(2.0).child(highlight);
+    let tiles = Zoom::ALL.into_iter().enumerate().fold(tiles, |tiles, (i, zoom)| {
+        let on = zoom == s.zoom;
+        let ink = if on { l.fg } else { l.fg2 };
+        let tile = col()
+            .key(format!("display-{}", zoom.label()))
+            .grid_cell(i)
+            .role("radio")
+            .label(zoom.label())
+            .w_full()
+            .pt(12.0)
+            .pb(9.0)
+            .gap(7.0)
+            .center()
+            .radius(8.0)
+            .cursor(Cursor::Pointer)
+            .help(format!("{}  {}", zoom.label(), i + 1))
+            .child(layout_preview(zoom, ink))
+            .child(text(zoom.label()).font(font(12.0, 400.0)).color(ink))
+            .on_press_tx(move |s: &mut State, tx: &mut Tx| zoom_to(s, zoom, tx));
+        tiles.child(if on { tile } else { tile.hover(Color { a: l.hover.a * 0.6, ..l.hover }) })
+    });
+    let heading = |title: &str, note: Option<&str>| {
+        row()
+            .w_full()
+            .px(8.0)
+            .pt(6.0)
+            .pb(7.0)
+            .gap(6.0)
+            .child(text(title.to_owned()).font(font(11.5, 400.0)).color(l.fg3))
+            .children(note.map(|n| text(n.to_owned()).font(font(10.5, 400.0)).color(l.fg3.alpha(0.7))))
+    };
+    let later = |glyph: &'static Icon, label: &str, value: &str| {
+        row()
+            .w_full()
+            .h(30.0)
+            .px(8.0)
+            .gap(10.0)
+            .center_y()
+            .child(icon(glyph, 15.0).color(l.fg3))
+            .child(text(label.to_owned()).font(font(12.5, 400.0)).color(l.fg3).grow(1.0))
+            .child(text(value.to_owned()).font(font(12.5, 400.0)).color(l.fg3))
+            .child(icon(&CHEVRON, 12.0).color(l.fg3))
+    };
+    let word = |t: &str| text(t.to_owned()).font(font(11.0, 400.0)).color(l.fg3);
+    let keys = row().gap(4.0).center_y().child(kbd("⇧V", l.panel, l)).child(word("open,")).child(kbd("←", l.panel, l)).child(kbd("→", l.panel, l));
+    let keys = keys.child(word("or")).child(kbd("1–4", l.panel, l)).child(word("pick"));
+    let footer = row()
+        .w_full()
+        .px(8.0)
+        .pt(8.0)
+        .pb(4.0)
+        .gap(4.0)
+        .center_y()
+        .child(keys)
+        .child(el().grow(1.0))
+        .child(kbd("esc", l.panel, l))
+        .child(word("close"));
+    let panel = col()
+        .key("display-panel")
+        .role("dialog")
+        .label("Display")
+        .w(348.0)
+        .padding(6.0)
+        .radius(12.0)
+        .fill(l.panel)
+        .child(heading("Layout", None))
+        .child(tiles)
+        .child(el().w_full().h(1.0).my(6.0).fill(solid(l.line, l.panel)))
+        .child(heading("Sort and filter", Some("later, not built")))
+        .child(later(&SORT, "Sort", "Newest first"))
+        .child(later(&FILTER, "Filter", "Site, tag, source"))
+        .child(later(&CARD_FIELDS, "Show on cards", "Picture, title, site"))
+        .child(footer);
+    let origin = Vec2::new(1.0, 0.0);
+    Some(
+        palette::lifted(panel, l)
+            .anchored("display", Side::Bottom, rune::Align::End, 6.0)
+            .transition(Transition::asymmetric(Transition::scale_anchor(0.96, origin), Transition::scale_anchor(0.98, origin)))
+            .modal_tx(true, |s: &mut State, tx: &mut Tx| show_display(s, false, tx))
+            .raise(),
+    )
+}
+
+/// A layout in miniature, for its tile in the Display panel: grey pictures and title lines laid
+/// out the way the grid lays out its cards at that zoom.
+fn layout_preview(zoom: Zoom, ink: Color) -> El {
+    let (picture, line) = (ink.alpha(0.5), ink.alpha(0.3));
+    let rect = |x: f32, y: f32, w: f32, h: f32, c: Color| el().absolute(x, y).size(w, h).radius(if c == picture { 1.5 } else { 1.0 }).fill(c);
+    let mut parts = Vec::new();
+    match zoom {
+        Zoom::Pictures => {
+            for i in 0..10 {
+                parts.push(rect(1.0 + (i % 5) as f32 * 8.6, 2.0 + (i / 5) as f32 * 12.5, 7.4, 10.5, picture));
+            }
+        }
+        Zoom::Titles => {
+            for i in 0..3 {
+                let x = 1.0 + i as f32 * 14.3;
+                parts.extend([rect(x, 2.0, 13.0, 12.0, picture), rect(x, 16.5, 13.0, 2.0, line), rect(x, 20.5, 9.0, 2.0, line)]);
+            }
+        }
+        Zoom::Summaries => {
+            for i in 0..2 {
+                let x = 1.0 + i as f32 * 21.5;
+                parts.extend([
+                    rect(x, 2.0, 20.5, 11.0, picture),
+                    rect(x, 15.0, 20.5, 2.0, line),
+                    rect(x, 19.0, 20.5, 2.0, line),
+                    rect(x, 23.0, 13.0, 2.0, line),
+                ]);
+            }
+        }
+        Zoom::Feed => parts.extend([
+            rect(12.0, 1.0, 3.0, 3.0, line),
+            rect(16.5, 1.5, 14.0, 2.0, line),
+            rect(12.0, 6.0, 20.0, 2.0, line),
+            rect(12.0, 10.0, 20.0, 13.0, picture),
+            rect(12.0, 25.0, 14.0, 2.0, line),
+        ]),
+    }
+    el().size(46.0, 29.0).children(parts)
 }
 
 fn sync_note(note: String, l: &Look) -> El {
@@ -1476,7 +1591,7 @@ pub fn view(s: &State, account: &Account, cx: &mut Cx<State>) -> El {
     let lead = shell.toolbar_lead();
     let shell = shell.main_overlay(overlay(s, lead, &l)).build(kit(dark));
     let palette = palette::layers(s, &l);
-    el().key("window").w_full().h_full().child(shell).children(palette).children(update_dialog(s, &l))
+    el().key("window").w_full().h_full().child(shell).children(display_panel(s, &l)).children(palette).children(update_dialog(s, &l))
 }
 
 /// How long the pointer rests on the window's left edge before the closed sidebar peeks, so
@@ -1553,6 +1668,30 @@ fn zoom_key(zoom: Zoom, e: &KeyEvent) -> Option<Zoom> {
     }
 }
 
+/// ⇧V opens and closes the Display panel at once, with no animation, as a key used often should.
+/// While it's open, ← and → step the layout and Esc closes it.
+fn on_display_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
+    let m = e.mods;
+    let plain = !m.cmd && !m.ctrl && !m.alt;
+    if plain && m.shift && matches!(&e.key, Key::Text(t) if t.eq_ignore_ascii_case("v")) {
+        tx.instant();
+        s.display = !s.display;
+        return true;
+    }
+    if !s.display {
+        return false;
+    }
+    match e.key {
+        Key::Escape => {
+            tx.instant();
+            s.display = false;
+        }
+        Key::Left | Key::Right if plain && !m.shift => zoom_to(s, s.zoom.step(if e.key == Key::Left { -1 } else { 1 }), tx),
+        _ => return false,
+    }
+    true
+}
+
 /// While a link is shown: ↵ opens the preview all the way, ⌘↵ opens the link in the browser,
 /// ← and → step to the links beside it and Esc closes it. The digits stay out of the zoom.
 fn on_preview_key(s: &mut State, e: &KeyEvent) -> bool {
@@ -1586,6 +1725,9 @@ pub fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
     }
     if let Some(place) = shortcut(e) {
         nav::go(s, place, tx);
+        return true;
+    }
+    if s.palette.is_none() && on_display_key(s, e, tx) {
         return true;
     }
     if s.palette.is_none() && on_preview_key(s, e) {
@@ -1639,6 +1781,21 @@ mod tests {
         assert_eq!(zoom_key(Zoom::Titles, &key(Key::Command('='), true)), Some(Zoom::Summaries));
         assert_eq!(zoom_key(Zoom::Pictures, &key(Key::Command('-'), true)), Some(Zoom::Pictures));
         assert_eq!(zoom_key(Zoom::Titles, &key(Key::Command('2'), true)), None, "⌘ and a number stay the sidebar's");
+    }
+
+    #[test]
+    fn shift_v_opens_the_display_panel_and_arrows_step_the_layout_only_while_it_is_open() {
+        let key = |key: Key, shift: bool| KeyEvent { key, mods: rune::Mods { shift, ..rune::Mods::default() } };
+        let mut s = State::default();
+        let tx = &mut Tx::default();
+        assert!(!on_display_key(&mut s, &key(Key::Right, false), tx), "closed, → stays the grid's");
+        assert!(on_display_key(&mut s, &key(Key::Text("V".into()), true), tx));
+        assert!(s.display);
+        assert!(on_display_key(&mut s, &key(Key::Right, false), tx));
+        assert_eq!(s.zoom, Zoom::Summaries);
+        assert!(on_display_key(&mut s, &key(Key::Escape, false), tx));
+        assert!(!s.display);
+        assert!(!on_display_key(&mut s, &key(Key::Text("v".into()), false), tx), "v alone isn't the shortcut");
     }
 
     #[test]

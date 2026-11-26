@@ -132,6 +132,8 @@ pub(crate) struct State {
     confirm_update: bool,
     /// The account's menu, under its name, is open.
     account_menu: bool,
+    /// The toolbar's Display panel, with the layouts, is open.
+    display: bool,
 }
 
 /// Headless snapshots render a named scene and must not touch the keychain, the network or the
