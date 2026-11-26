@@ -49,18 +49,19 @@ def sphere(cx, cy, R, n, base, fill, floor):
     return "".join(out)
 
 
-# The tile's and the two wells' gradients, top to bottom. Dev's blues are the accent, oklch(0.545 0.19 254), lighter and darker.
-BLACK = {"t": ("#2c2c30", "#0c0c0d"), "w0": ("#060607", "#19191c"), "w1": ("#030304", "#121214")}
-BLUE = {"t": ("#348df0", "#004dad"), "w0": ("#000f2f", "#00244f"), "w1": ("#000a22", "#001a3f")}
-# The accent lightened to oklch(0.7 0.15 254), so the ball's faint dots still show on a dark menu bar.
-MENU_BLUE = "#56a1f9"
+# The tile's and the two wells' gradients, top to bottom, the wells' lit lip, the glow behind the ball and the tile's top edge.
+BLACK = {"t": ("#2c2c30", "#0c0c0d"), "w0": ("#060607", "#19191c"), "w1": ("#030304", "#121214"), "lip": ".13", "glow": (".15", ".11", ".03"), "edge": ".22"}
+# Cloudstash Dev's, from the maintainer's blue "Well, dot sphere" mock (prototypes/CLOU-14-brand/logo-vault4.html).
+BLUE = {"t": ("#4f95ff", "#144bd0"), "w0": ("#0f3db4", "#2a6df2"), "w1": ("#0a2f96", "#1f5ad8"), "lip": ".3", "glow": (".18", ".13", ".04"), "edge": ".4"}
+# The tile's top blue, so the menu bar ball matches the Dock icon and its faint dots still show on a dark menu bar.
+MENU_BLUE = "#4f95ff"
 
 
 def tile(shadow, n=150, base=2.5, floor=0.1, colors=BLACK):
     """The app icon on Apple's 1024 grid: an 824 tile with a 185.4 corner."""
     k = 1024 / 120 * (824 / 1024 * 120 / 108)  # the mark was drawn in a 108-unit tile
     well = lambda r, g: (
-        '<circle cx="512" cy="%s" r="%s" fill="#fff" opacity=".13"/>' % (f(512 + 1.1 * k), f(r * k))
+        '<circle cx="512" cy="%s" r="%s" fill="#fff" opacity="%s"/>' % (f(512 + 1.1 * k), f(r * k), colors["lip"])
         + '<circle cx="512" cy="%s" r="%s" fill="#000" opacity=".5"/>' % (f(512 - 0.7 * k), f(r * k))
         + '<circle cx="512" cy="512" r="%s" fill="url(#%s)"/>' % (f(r * k), g)
     )
@@ -68,8 +69,8 @@ def tile(shadow, n=150, base=2.5, floor=0.1, colors=BLACK):
     shape = squircle(100, 100, 824, 185.4)
     return (
         "<defs>" + lg("cs-t", *colors["t"]) + lg("cs-w0", *colors["w0"]) + lg("cs-w1", *colors["w1"])
-        + '<linearGradient id="cs-e" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient>'
-        + '<radialGradient id="cs-g"><stop offset="0" stop-color="#fff" stop-opacity=".15"/><stop offset=".4" stop-color="#fff" stop-opacity=".11"/><stop offset=".75" stop-color="#fff" stop-opacity=".03"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>'
+        + '<linearGradient id="cs-e" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="%s"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient>' % colors["edge"]
+        + '<radialGradient id="cs-g"><stop offset="0" stop-color="#fff" stop-opacity="%s"/><stop offset=".4" stop-color="#fff" stop-opacity="%s"/><stop offset=".75" stop-color="#fff" stop-opacity="%s"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>' % colors["glow"]
         + ('<filter id="cs-s" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="10"/></filter>' if shadow else "")
         + "</defs>"
         + ('<path d="%s" fill="#000" opacity=".3" filter="url(#cs-s)" transform="translate(0 10)"/>' % shape if shadow else "")
