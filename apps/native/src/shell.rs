@@ -19,6 +19,7 @@ use crate::fps;
 use crate::icons::LOADER_CIRCLE;
 use crate::images::{self, Lane, Request};
 use crate::nav::{self, Place};
+use crate::shimmer::shimmer;
 use crate::update::{self, Update};
 
 mod palette;
@@ -651,10 +652,11 @@ fn toolbar(s: &State, l: &Look) -> Toolbar {
         }
     };
     let sync = match &s.sync {
+        Sync::Online if s.filling => Some(shimmer("sync", "Still getting your links…", font(12.0, 400.0), 170.0, true, l.fg3, l.fg).mr(8.0)),
         Sync::Online => None,
-        Sync::Connecting => Some("Connecting…".to_owned()),
-        Sync::Offline => Some("Offline".to_owned()),
-        Sync::Failed(e) => Some(e.clone()),
+        Sync::Connecting => Some(sync_note("Connecting…".to_owned(), l)),
+        Sync::Offline => Some(sync_note("Offline".to_owned(), l)),
+        Sync::Failed(e) => Some(sync_note(e.clone(), l)),
     };
     let zooms = Zoom::ALL
         .into_iter()
@@ -671,9 +673,13 @@ fn toolbar(s: &State, l: &Look) -> Toolbar {
         .collect();
     let mut toolbar = Toolbar::new().leading(title);
     if let Some(sync) = sync {
-        toolbar = toolbar.trailing(text(sync).key("sync").font(font(12.0, 400.0)).color(l.fg3).truncate().mr(8.0));
+        toolbar = toolbar.trailing(sync);
     }
     toolbar.trailing(segment("zoom", zooms, l))
+}
+
+fn sync_note(note: String, l: &Look) -> El {
+    text(note).key("sync").font(font(12.0, 400.0)).color(l.fg3).truncate().mr(8.0)
 }
 
 /// A title on one line: an X post's title keeps the post's line breaks.
@@ -1094,7 +1100,11 @@ fn grid(s: &State, columns: usize, dark: bool) -> El {
 
 fn page(s: &State, cx: &mut Cx<State>, dark: bool, l: &Look) -> El {
     let body = if shown(s).is_empty() {
-        let empty = if matches!(s.place, Place::Space(_)) || s.sync == Sync::Online { "Nothing here yet." } else { "Loading your library…" };
+        let empty = if matches!(s.place, Place::Space(_)) || (s.sync == Sync::Online && !s.filling) {
+            "Nothing here yet."
+        } else {
+            "Loading your library…"
+        };
         text(empty).key("empty").font(font(13.0, 400.0)).color(l.fg3)
     } else {
         let zoom = s.zoom;

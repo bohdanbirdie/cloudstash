@@ -5,7 +5,7 @@
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
-use rune::{Color, Cursor, Drag, El, FrameEncoded, Live, LoopSpec, Phase, Shadow, Tx, el, oklch, oklcha};
+use rune::{Color, Cursor, Drag, El, FrameEncoded, Live, LoopSpec, Phase, Shadow, Tx, el, oklch, oklcha, row};
 
 const DOTS: usize = 150;
 /// The golden angle, which spreads the dots evenly.
@@ -224,6 +224,20 @@ const LEAST: f32 = 0.6;
 const RIDE: f32 = 1.4;
 const PULL: f32 = 5.5;
 const RAMP: f32 = 0.45;
+/// While the library takes its time, a line under the ball says what's happening: it waits this many
+/// seconds, so a quick download shows nothing extra, then fades in over `CAPTION_IN`.
+const CAPTION_AFTER: f32 = 0.8;
+const CAPTION_IN: f32 = 0.3;
+const CAPTION_OUT: f32 = 0.2;
+/// Points from the bottom of the ball, grown as big as it gets, to the line.
+const CAPTION_GAP: f32 = 28.0;
+
+/// How visible the line under the ball is `t` seconds into the opening, the links having arrived at
+/// `loaded`: hidden at first, faded in once the wait drags on, faded out as soon as they're here.
+fn caption_alpha(t: f32, loaded: Option<f32>) -> f32 {
+    let until = loaded.unwrap_or(t).min(t);
+    smooth(CAPTION_AFTER, CAPTION_AFTER + CAPTION_IN, until) * (1.0 - smooth(until, until + CAPTION_OUT, t))
+}
 
 fn smooth(from: f32, to: f32, x: f32) -> f32 {
     let x = ((x - from) / (to - from)).clamp(0.0, 1.0);
@@ -240,6 +254,9 @@ struct Stage {
     cover: Live<f32>,
     reveal: Live<f32>,
     slots: Vec<Dot>,
+    /// The line under the ball: how far down it sits, and how visible it is.
+    caption_at: Live<[f32; 2]>,
+    caption_alpha: Live<f32>,
 }
 
 fn stage() -> &'static Stage {
@@ -248,6 +265,8 @@ fn stage() -> &'static Stage {
         cover: Live::new(0.0),
         reveal: Live::new(1.0),
         slots: (0..SLOTS).map(|_| Dot { rect: Live::new([0.0; 4]), alpha: Live::new(0.0) }).collect(),
+        caption_at: Live::new([0.0; 2]),
+        caption_alpha: Live::new(0.0),
     })
 }
 
@@ -352,8 +371,10 @@ impl Motion {
         (self.look, self.pitch) = ([self.look[0] * (1.0 - ease), self.look[1] * (1.0 - ease)], self.pitch * (1.0 - ease));
         let [w, h] = i.window;
         let small = i.from.map_or(45.0, |f| f[2]);
+        // A wait that drags on shows a modest ball with a line under it, not one that fills the window.
+        let big = (0.24 * w.min(h)).max(small);
         let (mut centre, radius) = if w > 0.0 {
-            let (mid, big) = ([w / 2.0, h / 2.0], 0.44 * w.min(h));
+            let mid = [w / 2.0, h / 2.0];
             let (start, k) = (i.from.map_or(mid, |f| [f[0], f[1]]), smooth(0.0, 0.7, i.t));
             ([mix(start[0], mid[0], k), mix(start[1], mid[1], k)], big - (big - small) * (-i.t / GROW).exp())
         } else {
@@ -385,6 +406,9 @@ impl Motion {
                 self.yaw += self.speed * dt;
             }
         }
+        // Where the ball will rest, so the line holds still while the ball grows toward it.
+        stage().caption_at.set([0.0, h / 2.0 + big + CAPTION_GAP]);
+        stage().caption_alpha.set(caption_alpha(i.t, i.loaded));
         let fade = if riding { 1.0 } else { 1.0 - smooth(0.0, 0.8, flown) };
         let base = radius * 5.83 / 56.0;
         for (n, dot) in dots().iter().enumerate() {
@@ -477,6 +501,7 @@ fn settle() {
     let stage = stage();
     stage.cover.set(0.0);
     stage.reveal.set(1.0);
+    stage.caption_alpha.set(0.0);
     for slot in &stage.slots {
         slot.alpha.set(0.0);
     }
@@ -543,9 +568,10 @@ pub fn scrolled(offset: f32, by_hand: bool) {
     }
 }
 
-/// The opening, over the whole window: the ball in `ink` on a cover of `ground`, and once the library has
-/// `loaded`, a copy of each card's picture to fly from the ball to its card.
-pub fn opening<S: 'static>(ink: Color, ground: Color, loaded: bool, pictures: Vec<(String, El)>) -> El {
+/// The opening, over the whole window: the ball in `ink` on a cover of `ground` with `caption` under it
+/// while the library takes its time, and once the library has `loaded`, a copy of each card's picture
+/// to fly from the ball to its card.
+pub fn opening<S: 'static>(ink: Color, ground: Color, loaded: bool, pictures: Vec<(String, El)>, caption: El) -> El {
     {
         let mut m = motion().lock().expect("the logo's motion");
         m.shown = true;
@@ -574,7 +600,14 @@ pub fn opening<S: 'static>(ink: Color, ground: Color, loaded: bool, pictures: Ve
                 .live_opacity(&slot.alpha),
         )
     });
-    layer.child(el().size(1.0, 1.0).looping(LoopSpec::rotation(1.0))).on_layout_tx(|_: &mut S, rect, tx: &mut Tx| {
+    let caption = row()
+        .key("caption-line")
+        .pin(Some(0.0), Some(0.0), Some(0.0), None)
+        .justify_center()
+        .live_offset(&stage.caption_at)
+        .live_opacity(&stage.caption_alpha)
+        .child(caption);
+    layer.child(caption).child(el().size(1.0, 1.0).looping(LoopSpec::rotation(1.0))).on_layout_tx(|_: &mut S, rect, tx: &mut Tx| {
         if let Some(i) = &mut motion().lock().expect("the logo's motion").intro {
             i.window = [rect[2], rect[3]];
         }
@@ -617,4 +650,25 @@ pub fn tile(size: f32) -> El {
                 .fill(oklcha(1.0, 0.0, 0.0, light)),
         )
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_line_under_the_ball_waits_then_stays_until_the_links_arrive() {
+        assert_eq!(caption_alpha(0.5, None), 0.0, "not in the first moment");
+        assert_eq!(caption_alpha(1.2, None), 1.0, "shown once the wait drags on");
+        assert_eq!(caption_alpha(9.5, None), 1.0, "and for as long as it lasts");
+        assert_eq!(caption_alpha(4.0, Some(3.0)), 0.0, "gone once the links are here");
+        assert!(caption_alpha(3.1, Some(3.0)) > 0.0, "fading out, not cut");
+    }
+
+    #[test]
+    fn a_quick_download_never_shows_the_line() {
+        for t in [0.3, 0.6, 0.9, 1.5, 3.0] {
+            assert_eq!(caption_alpha(t, Some(0.6)), 0.0, "at {t} s");
+        }
+    }
 }

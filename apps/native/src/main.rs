@@ -22,6 +22,7 @@ mod search;
 mod settings;
 mod shell;
 mod shell_kit;
+mod shimmer;
 mod sphere;
 mod theme;
 mod ui_state;
@@ -88,6 +89,9 @@ pub(crate) struct State {
     loaded: bool,
     /// The logo is opening into the library (`sphere::opening`).
     intro: bool,
+    /// The library is still catching up with the server: set when it starts syncing, cleared once
+    /// the server says there's nothing more to fetch.
+    filling: bool,
     place: nav::Place,
     sync: Sync,
     backend: Option<Backend>,
@@ -133,7 +137,7 @@ pub(crate) struct State {
 /// Headless snapshots render a named scene and must not touch the keychain, the network or the
 /// saved window.
 fn headless() -> bool {
-    std::env::args().any(|arg| matches!(arg.as_str(), "--snap" | "--tree" | "--script"))
+    std::env::args().any(|arg| matches!(arg.as_str(), "--snap" | "--tree" | "--script" | "--out" | "--strip" | "--video" | "--html"))
 }
 
 fn new_state() -> State {
@@ -165,6 +169,7 @@ impl Backend {
             Ok(Some(account)) => {
                 s.sync = Sync::Connecting;
                 s.loaded = false;
+                s.filling = true;
                 // The logo opens into the library after a sign-in, not each time the app starts.
                 s.intro = matches!(s.phase, Phase::Finishing | Phase::WaitingForBrowser);
                 if s.intro {
@@ -235,6 +240,10 @@ impl Backend {
             {
                 let ui = self.ui.clone();
                 move || ui.update(update::too_old)
+            },
+            {
+                let ui = self.ui.clone();
+                move || ui.update(|s, _| s.filling = false)
             },
         ))
     }
@@ -367,7 +376,22 @@ fn view(s: &State, cx: &mut Cx<State>) -> El {
             } else {
                 (el().w_full().h_full().fill(t.card).window_drag(), Vec::new())
             };
-            return el().key("root").w_full().h_full().child(under).child(sphere::opening::<State>(t.card_foreground, t.card, s.loaded, pictures));
+            let caption = shimmer::shimmer(
+                "caption",
+                "Getting your links…",
+                TextStyle::new(13.0, 400.0).lh(20.0),
+                240.0,
+                false,
+                t.muted_foreground,
+                t.card_foreground,
+            );
+            return el().key("root").w_full().h_full().child(under).child(sphere::opening::<State>(
+                t.card_foreground,
+                t.card,
+                s.loaded,
+                pictures,
+                caption,
+            ));
         }
         (Phase::SignedIn(_), _) if !s.loaded && !matches!(s.sync, Sync::Failed(_)) => {
             progress("Opening your library", "Getting your latest links.".into(), t)
@@ -725,6 +749,12 @@ fn main() {
                 s.intro = true;
                 sphere::begin();
             }),
+            ("opening-slow", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.links.clear();
+                (s.loaded, s.filling, s.intro) = (false, true, true);
+                sphere::begin();
+            }),
             ("opening-wide", |s| {
                 worst_case_scene(s, Tab::Inbox);
                 s.sidebar.set_open(false);
@@ -732,6 +762,10 @@ fn main() {
                 sphere::begin();
             }),
             ("signed-in", |s| signed_in_scene(s, Tab::Inbox)),
+            ("still-filling", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.filling = true;
+            }),
             ("completed", |s| signed_in_scene(s, Tab::Completed)),
             ("collapsed", |s| {
                 signed_in_scene(s, Tab::Inbox);

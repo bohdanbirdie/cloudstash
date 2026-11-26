@@ -66,6 +66,16 @@ the sign-in error, signing out, opening the library, must-update) sit on the
 web sign-in card's dot grid, 1pt dots every 18pt, in faint grey; each dot
 brightens and dims slowly out of step with its neighbours, and the grid fades
 out toward the window's edges. Reduce Motion holds it still.
+After a sign-in the app waits up to 10 seconds for the library to catch up with
+the server, then opens with what the Mac has. Meanwhile the logo grows to about
+a quarter of the window, and if the wait passes 0.8 seconds one dim line,
+"Getting your links…", fades in under it with a soft light sweeping across.
+There is no count, bar or percentage. The line goes as the links arrive, so a
+quick download shows nothing extra. If the app opens before it has caught up,
+the toolbar says "Still getting your links…" in the same way until the server's
+last page arrives (the server marks it `NoMore`). Under Reduce Motion both
+lines stay still. In a debug build `CLOUDSTASH_SLOW_SYNC=<ms>` holds back each
+page of that catch-up, to see the slow case against a fast local server.
 
 Local provider configuration is represented by committed 1Password references
 in `.env.example`. `bun run env:sync` explicitly and atomically materializes

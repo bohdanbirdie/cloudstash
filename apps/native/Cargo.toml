@@ -18,6 +18,8 @@ minimum-version = "0.1.0"
 base64 = "0.22"
 # Checks updates' signatures (src/update.rs).
 ed25519-dalek = { version = "2", features = ["std"] }
+# Watches the sync connection's pages (src/livestore/library.rs).
+futures = "0.3"
 getrandom = "0.2"
 # Decodes and shrinks the link cards' pictures and the resize cursor (rune uses the same crate).
 image = { version = "0.25", default-features = false, features = [

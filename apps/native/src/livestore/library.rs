@@ -8,13 +8,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use futures::StreamExt;
 use livestore::{
     InMemoryAdapter, QueryInput, ShutdownDeferred, Store, StoreOptions, SubscribeOptions, await_shutdown, create_store, make_shutdown_deferred,
     query_db,
 };
 use livestore_schema::{UnknownEventContext, UnknownEventHandling};
 use livestore_sqlite::Row;
-use livestore_sync::{InitialSyncOptions, Storage, SyncOptions};
+use livestore_sync::{BackendOverride, InitialSyncOptions, PageInfo, Storage, SyncBackend, SyncBackendConstructor, SyncOptions, constructor};
 use livestore_sync_cf::make_ws_sync;
 use livestore_sync_cf::transport::ClientOptions;
 use serde_json::{Value, json};
@@ -167,14 +168,17 @@ const TOO_OLD: &str = "too-old";
 /// Starts syncing on its own thread. `on_links` first hears once the library has caught up with the
 /// server ([`CATCH_UP`]), then gets every link after each change, and
 /// `on_status` the connection state (or an error that stopped the store, a panic included).
-/// `on_too_old` hears, once, that the library holds data only a newer version can apply.
+/// `on_too_old` hears, once, that the library holds data only a newer version can apply, and
+/// `on_caught_up`, once, that it has everything the server had (which may come after it opened).
 pub fn start(
     config: Config,
     on_links: impl Fn(Vec<LinkItem>) + Send + Sync + 'static,
     on_status: impl Fn(Result<bool, String>) + Send + Sync + 'static,
     on_too_old: impl Fn() + Send + Sync + 'static,
+    on_caught_up: impl Fn() + Send + Sync + 'static,
 ) -> Library {
     let on_too_old: Arc<dyn Fn() + Send + Sync> = Arc::new(on_too_old);
+    let on_caught_up: Arc<dyn Fn() + Send + Sync> = Arc::new(on_caught_up);
     let (stop, stopped) = oneshot::channel();
     let thread = std::thread::Builder::new()
         .name("sync".to_owned())
@@ -182,7 +186,7 @@ pub fn start(
             let run = std::panic::AssertUnwindSafe(|| {
                 tokio::runtime::Runtime::new()
                     .map_err(|e| e.to_string())
-                    .and_then(|rt| rt.block_on(serve(&config, stopped, on_links, &on_status, on_too_old)))
+                    .and_then(|rt| rt.block_on(serve(&config, stopped, on_links, &on_status, on_too_old, on_caught_up)))
             });
             let result = std::panic::catch_unwind(run).unwrap_or_else(|_| Err("Sync crashed; the log has the details".to_owned()));
             if let Err(e) = result {
@@ -200,10 +204,11 @@ async fn serve(
     on_links: impl Fn(Vec<LinkItem>) + Send + Sync + 'static,
     on_status: &(impl Fn(Result<bool, String>) + Send + Sync),
     on_too_old: Arc<dyn Fn() + Send + Sync>,
+    on_caught_up: Arc<dyn Fn() + Send + Sync>,
 ) -> Result<(), String> {
     let shutdown = make_shutdown_deferred();
     let began = std::time::Instant::now();
-    let store = open(config, &shutdown, on_too_old).await?;
+    let store = open(config, &shutdown, on_too_old, on_caught_up).await?;
     tracing::info!("the library opened after {} ms", began.elapsed().as_millis());
     let subscription = store.subscribe(
         &query_db(QueryInput::sql(LINKS_SQL).queried_tables(&["links", "link_snapshots", "link_summaries", "link_tags", "tags"])),
@@ -234,7 +239,12 @@ async fn serve(
     Ok(())
 }
 
-async fn open(config: &Config, shutdown: &ShutdownDeferred, on_too_old: Arc<dyn Fn() + Send + Sync>) -> Result<Store, String> {
+async fn open(
+    config: &Config,
+    shutdown: &ShutdownDeferred,
+    on_too_old: Arc<dyn Fn() + Send + Sync>,
+    on_caught_up: Arc<dyn Fn() + Send + Sync>,
+) -> Result<Store, String> {
     std::fs::create_dir_all(&config.dir).map_err(|e| e.to_string())?;
     let too_old = Arc::new(AtomicBool::new(false));
     if version_changed(&config.dir).map_err(|e| e.to_string())? {
@@ -258,12 +268,13 @@ async fn open(config: &Config, shutdown: &ShutdownDeferred, on_too_old: Arc<dyn 
     }));
     let url = format!("{}/sync", config.base.trim_end_matches('/')).replacen("https://", "wss://", 1).replacen("http://", "ws://", 1);
     let (payload, folder) = (json!({ "apiKey": config.api_key }), config.dir.clone());
+    let backend = watch_catch_up(make_ws_sync(&url, ClientOptions::default()), on_caught_up);
     let adapter = InMemoryAdapter {
         client_id: client_id(&config.dir).map_err(|e| e.to_string())?,
         session_id: random_id(),
         leader_builder: Some(Arc::new(move |builder| {
             builder.sync_payload(payload.clone()).storage(Storage::Folder(folder.clone())).sync(SyncOptions {
-                backend: Some(make_ws_sync(&url, ClientOptions::default())),
+                backend: Some(Arc::clone(&backend)),
                 initial_sync: InitialSyncOptions::Blocking { timeout: CATCH_UP },
                 ..SyncOptions::default()
             })
@@ -273,6 +284,47 @@ async fn open(config: &Config, shutdown: &ShutdownDeferred, on_too_old: Arc<dyn 
     let mut options = StoreOptions::new(super::schema::with_unknown(unknown), adapter.build(), &config.library_id);
     options.shutdown_deferred = Some(Arc::clone(shutdown));
     create_store(options).await.map_err(|e| e.to_string())
+}
+
+/// Wraps the connection to hear when the library has caught up with the server, which marks the last
+/// page of what it has `NoMore`. In a debug build `CLOUDSTASH_SLOW_SYNC=<ms>` holds each page back that
+/// long until then, to watch a slow first sync (or, with enough pages, the [`CATCH_UP`] limit) against
+/// a fast local server.
+fn watch_catch_up(make: SyncBackendConstructor, on_caught_up: Arc<dyn Fn() + Send + Sync>) -> SyncBackendConstructor {
+    let delay = std::env::var("CLOUDSTASH_SLOW_SYNC")
+        .ok()
+        .filter(|_| cfg!(debug_assertions))
+        .and_then(|ms| ms.parse().ok())
+        .map(std::time::Duration::from_millis);
+    let caught_up = Arc::new(AtomicBool::new(false));
+    constructor(move |args| {
+        let (made, caught_up, on_caught_up) = (make(args), Arc::clone(&caught_up), Arc::clone(&on_caught_up));
+        async move {
+            let backend = BackendOverride::new(made.await?).pull(move |inner, cursor, options| {
+                let (caught_up, on_caught_up) = (Arc::clone(&caught_up), Arc::clone(&on_caught_up));
+                inner
+                    .pull(cursor, options)
+                    .then(move |page| {
+                        let (caught_up, on_caught_up) = (Arc::clone(&caught_up), Arc::clone(&on_caught_up));
+                        async move {
+                            if let Ok(page) = &page
+                                && !caught_up.load(Ordering::Relaxed)
+                            {
+                                if let Some(delay) = delay {
+                                    tokio::time::sleep(delay).await;
+                                }
+                                if page.page_info == PageInfo::NoMore && !caught_up.swap(true, Ordering::Relaxed) {
+                                    on_caught_up();
+                                }
+                            }
+                            page
+                        }
+                    })
+                    .boxed()
+            });
+            Ok(Arc::new(backend) as Arc<dyn SyncBackend>)
+        }
+    })
 }
 
 /// Records this version as the folder's, and whether another one opened it before. When one
@@ -355,6 +407,76 @@ fn decode_entities(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::sync::atomic::AtomicUsize;
+
+    use futures::future::BoxFuture;
+    use livestore_sync::{
+        BackendIdStore, BackendMetadata, ConnectError, MakeBackendArgs, PingError, PullCursor, PullError, PullOptions, PullResItem, PullStream,
+        PushError, Supports,
+    };
+
+    /// A server that answers every pull with the same pages.
+    struct Pages(Vec<PageInfo>);
+
+    impl SyncBackend for Pages {
+        fn connect(&self) -> BoxFuture<'static, Result<(), ConnectError>> {
+            Box::pin(async { Ok(()) })
+        }
+        fn pull(&self, _: Option<PullCursor>, _: PullOptions) -> PullStream {
+            futures::stream::iter(self.0.clone().into_iter().map(|page_info| Ok::<_, PullError>(PullResItem { batch: Vec::new(), page_info })))
+                .boxed()
+        }
+        fn push(&self, _: Vec<livestore_core::GlobalEvent>) -> BoxFuture<'static, Result<(), PushError>> {
+            Box::pin(async { Ok(()) })
+        }
+        fn ping(&self) -> BoxFuture<'static, Result<(), PingError>> {
+            Box::pin(async { Ok(()) })
+        }
+        fn is_connected(&self) -> tokio::sync::watch::Receiver<bool> {
+            tokio::sync::watch::channel(true).1
+        }
+        fn metadata(&self) -> BackendMetadata {
+            BackendMetadata { name: "pages".to_owned(), description: String::new(), extra: serde_json::Map::new() }
+        }
+        fn supports(&self) -> Supports {
+            Supports { pull_page_info_known: true, pull_live: true }
+        }
+    }
+
+    struct NoId;
+
+    impl BackendIdStore for NoId {
+        fn get(&self) -> Option<String> {
+            None
+        }
+        fn set(&self, _: &str) {}
+    }
+
+    #[test]
+    fn it_hears_once_that_the_library_caught_up_at_the_last_page() {
+        let pages = vec![PageInfo::MoreKnown { remaining: 2 }, PageInfo::MoreUnknown, PageInfo::NoMore, PageInfo::NoMore];
+        let heard = Arc::new(AtomicUsize::new(0));
+        let server = constructor(move |_| {
+            let pages = pages.clone();
+            async move { Ok(Arc::new(Pages(pages)) as Arc<dyn SyncBackend>) }
+        });
+        let make = watch_catch_up(server, {
+            let heard = Arc::clone(&heard);
+            Arc::new(move || _ = heard.fetch_add(1, Ordering::Relaxed))
+        });
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let args = MakeBackendArgs { store_id: "s".to_owned(), client_id: "c".to_owned(), payload: None, backend_id: Arc::new(NoId) };
+            let backend = make(args).await.unwrap();
+            let mut pull = backend.pull(None, PullOptions { live: true });
+            for (page, heard_by_then) in [0, 0, 1, 1].into_iter().enumerate() {
+                pull.next().await.unwrap().unwrap();
+                assert_eq!(heard.load(Ordering::Relaxed), heard_by_then, "after page {}", page + 1);
+            }
+            backend.pull(None, PullOptions { live: true }).count().await;
+        });
+        assert_eq!(heard.load(Ordering::Relaxed), 1, "a later pull that ends the same way says nothing new");
+    }
 
     #[test]
     fn another_version_opening_the_folder_drops_its_state_and_keeps_its_eventlog() {
