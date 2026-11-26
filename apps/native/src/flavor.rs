@@ -9,7 +9,7 @@ pub const DEV: bool = cfg!(debug_assertions);
 
 /// The app's name, in the window title, the menu bar icon's tooltip and Settings.
 pub const NAME: &str = if DEV { "Cloudstash Dev" } else { "Cloudstash" };
-/// The bundle's identifier; also the keychain service and the data and caches folders' name.
+/// The bundle's identifier; also the data and caches folders' name and the release's keychain service.
 pub const BUNDLE_ID: &str = if DEV { "dev.cloudstash.native.dev" } else { "dev.cloudstash.native" };
 /// The deep link scheme the sign-in page opens to hand the app its code.
 pub const SCHEME: &str = if DEV { "cloudstash-dev" } else { "cloudstash" };

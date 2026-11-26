@@ -5,6 +5,9 @@
 //! and remembers both in a pending file so a link can complete sign-in even after a relaunch.
 //! The signed-in page opens `cloudstash://auth/callback?code=…&state=…`, macOS hands the link to the
 //! app, and the app exchanges the code and its verifier for its own API key, kept in the keychain.
+//! Cloudstash Dev keeps its key in a file in its own folder instead: macOS asks for the login
+//! password whenever a differently signed build reads a keychain item, and every worktree builds
+//! its own copy of Dev.
 
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -78,6 +81,32 @@ impl KeyStore for Keychain {
     }
 }
 
+/// Cloudstash Dev's key for one server, in a file only this user can read.
+pub struct KeyFile {
+    path: PathBuf,
+}
+
+impl KeyStore for KeyFile {
+    fn load(&self) -> Result<Option<String>, String> {
+        match std::fs::read_to_string(&self.path) {
+            Ok(key) => Ok(Some(key.trim().to_owned()).filter(|k| !k.is_empty())),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(format!("key file: {e}")),
+        }
+    }
+
+    fn save(&self, api_key: &str) -> Result<(), String> {
+        write_private(&self.path, api_key).map_err(|e| format!("key file: {e}"))
+    }
+
+    fn clear(&self) -> Result<(), String> {
+        match std::fs::remove_file(&self.path) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(format!("key file: {e}")),
+            _ => Ok(()),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Account {
     pub name: Option<String>,
@@ -111,7 +140,14 @@ pub struct Auth {
 impl Auth {
     pub fn from_env() -> Result<Auth, String> {
         let base = flavor::base();
-        Ok(Auth { store: Box::new(Keychain { account: base.clone() }), base, state_dir: state_dir()? })
+        let state_dir = state_dir()?;
+        let store: Box<dyn KeyStore> = if flavor::DEV {
+            let server: String = base.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect();
+            Box::new(KeyFile { path: state_dir.join("keys").join(server) })
+        } else {
+            Box::new(Keychain { account: base.clone() })
+        };
+        Ok(Auth { store, base, state_dir })
     }
 
     fn pending_file(&self) -> PathBuf {
@@ -237,7 +273,7 @@ fn random_token() -> Result<String, String> {
     Ok(URL_SAFE_NO_PAD.encode(bytes))
 }
 
-/// Writes a file only this user can read: it holds the PKCE verifier.
+/// Writes a file only this user can read: it holds the PKCE verifier, or Cloudstash Dev's key.
 fn write_private(path: &PathBuf, contents: &str) -> Result<(), String> {
     use std::io::Write;
     use std::os::unix::fs::OpenOptionsExt;
@@ -264,4 +300,26 @@ fn device_name() -> String {
         .map(|name| name.trim().to_owned())
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| "Mac".to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::os::unix::fs::PermissionsExt;
+
+    use super::*;
+
+    #[test]
+    fn the_dev_key_file_keeps_the_key_to_this_user_until_cleared() {
+        let dir = std::env::temp_dir().join(format!("cloudstash-key-file-{}", std::process::id()));
+        let store = KeyFile { path: dir.join("keys").join("http---127-0-0-1-3000") };
+        assert_eq!(store.load(), Ok(None));
+        store.save("lb_one").unwrap();
+        store.save("lb_two").unwrap();
+        assert_eq!(store.load(), Ok(Some("lb_two".to_owned())));
+        assert_eq!(std::fs::metadata(&store.path).unwrap().permissions().mode() & 0o777, 0o600);
+        store.clear().unwrap();
+        store.clear().unwrap();
+        assert_eq!(store.load(), Ok(None));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 }

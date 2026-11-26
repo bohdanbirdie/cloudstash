@@ -199,8 +199,11 @@ Cloudstash, which always talks to `https://cloudstash.dev`; a debug build
 (`scripts/run.sh`) is Cloudstash Dev, which talks to `http://127.0.0.1:3000`
 unless `CLOUDSTASH_URL` says otherwise and never updates. The two differ in
 bundle id (`dev.cloudstash.native` / `dev.cloudstash.native.dev`), name,
-executable, blue icon and menu bar ball, data, caches and keychain service
-(named by the bundle id), log file (`cloudstash.log` /
+executable, blue icon and menu bar ball, data and caches (named by the
+bundle id), where the sign-in key is kept (the release's keychain item; a
+file only the user can read in Dev's own folder, so a fresh worktree's build
+never asks for the login password, per
+[decision 0009](./.decisions/0009-keep-the-native-dev-key-in-a-file.md)), log file (`cloudstash.log` /
 `cloudstash-dev.log`) and sign-in link scheme (`cloudstash` /
 `cloudstash-dev`), so both run on one Mac at once, per
 [decision 0008](./.decisions/0008-give-native-debug-builds-their-own-app-identity.md). When `main` gets a version with no `native-v<version>` tag,
