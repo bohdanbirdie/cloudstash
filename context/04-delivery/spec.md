@@ -68,8 +68,9 @@ brightens and dims slowly out of step with its neighbours, and the grid fades
 out toward the window's edges. Reduce Motion holds it still.
 After a sign-in the app waits up to 10 seconds for the library to catch up with
 the server, then opens with what the Mac has. The logo moves, grows and turns
-as it always does; if the wait passes 0.8 seconds one dim word, "Syncing",
-blurs in under it, with a soft light sweeping across it. There is no count,
+as it always does; if the wait passes 3 seconds one dim word, "Syncing",
+blurs in near the bottom of the window, where it stays put while the logo
+grows, with a soft light sweeping across it. There is no count,
 bar, percentage or ellipsis. The word blurs out as soon as the links arrive,
 before the logo opens into the library, so a quick download shows nothing
 extra. If the app opens before it has caught up,

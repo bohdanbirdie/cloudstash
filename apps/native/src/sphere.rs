@@ -224,19 +224,18 @@ const LEAST: f32 = 0.6;
 const RIDE: f32 = 1.4;
 const PULL: f32 = 5.5;
 const RAMP: f32 = 0.45;
-/// While the library takes its time, a line under the ball says what's happening: it waits this many
-/// seconds, so a quick download shows nothing extra, then fades in over `CAPTION_IN`.
-const CAPTION_AFTER: f32 = 0.8;
+/// While the library takes its time, a line at the bottom of the window says what's happening: it waits
+/// this many seconds, so a download that's done by then shows nothing extra, then fades in over `CAPTION_IN`.
+const CAPTION_AFTER: f32 = 3.0;
 const CAPTION_IN: f32 = 0.4;
 const CAPTION_OUT: f32 = 0.3;
 /// Points of blur the line comes out of and goes back into, as it fades.
 const CAPTION_BLUR: f32 = 4.0;
-/// Points from the bottom of the ball to the line, and the least room the line keeps below it to the
-/// window's edge, and the line's height.
-const CAPTION_GAP: f32 = 28.0;
+/// Points from the window's bottom edge to the line, which stays put while the ball grows, and the line's height.
+const CAPTION_BOTTOM: f32 = 32.0;
 const CAPTION_LINE: f32 = 20.0;
 
-/// How visible the line under the ball is `t` seconds into the opening, the links having arrived at
+/// How visible the line at the bottom is `t` seconds into the opening, the links having arrived at
 /// `loaded`: hidden at first, faded in once the wait drags on, faded out as soon as they're here,
 /// while the ball still turns before it opens. Both ways ease out.
 fn caption_alpha(t: f32, loaded: Option<f32>) -> f32 {
@@ -260,8 +259,7 @@ struct Stage {
     cover: Live<f32>,
     reveal: Live<f32>,
     slots: Vec<Dot>,
-    /// The line under the ball: how far down it sits, and how visible it is.
-    caption_at: Live<[f32; 2]>,
+    /// How visible the line at the bottom is.
     caption_alpha: Live<f32>,
     caption_blur: Live<f32>,
 }
@@ -272,7 +270,6 @@ fn stage() -> &'static Stage {
         cover: Live::new(0.0),
         reveal: Live::new(1.0),
         slots: (0..SLOTS).map(|_| Dot { rect: Live::new([0.0; 4]), alpha: Live::new(0.0) }).collect(),
-        caption_at: Live::new([0.0; 2]),
         caption_alpha: Live::new(0.0),
         caption_blur: Live::new(CAPTION_BLUR),
     })
@@ -386,7 +383,6 @@ impl Motion {
         } else {
             (i.from.map_or([0.0; 2], |f| [f[0], f[1]]), if i.from.is_some() { small } else { 0.0 })
         };
-        let below = (centre[1] + radius + CAPTION_GAP).min(h - CAPTION_GAP - CAPTION_LINE);
         // It opens once it has turned a little, the links are here and the grid has said where its cards are.
         let placed = i.loaded.is_some_and(|at| i.t >= at + 0.5 || (i.t >= at + 0.2 && i.homes.iter().any(Option::is_some)));
         if i.unwrap.is_none() && w > 0.0 && i.t >= LEAST && placed {
@@ -413,7 +409,6 @@ impl Motion {
                 self.yaw += self.speed * dt;
             }
         }
-        stage().caption_at.set([0.0, below]);
         let shown = caption_alpha(i.t, i.loaded);
         stage().caption_alpha.set(shown);
         stage().caption_blur.set((1.0 - shown) * CAPTION_BLUR);
@@ -610,11 +605,10 @@ pub fn opening<S: 'static>(ink: Color, ground: Color, loaded: bool, pictures: Ve
     });
     let caption = row()
         .key("caption-line")
-        .pin(Some(0.0), Some(0.0), Some(0.0), None)
+        .pin(Some(0.0), None, Some(0.0), Some(CAPTION_BOTTOM))
         .h(CAPTION_LINE)
         .justify_center()
         .center_y()
-        .live_offset(&stage.caption_at)
         .live_opacity(&stage.caption_alpha)
         .live_blur(&stage.caption_blur)
         .child(caption);
@@ -669,17 +663,17 @@ mod tests {
 
     #[test]
     fn the_line_under_the_ball_waits_then_stays_until_the_links_arrive() {
-        assert_eq!(caption_alpha(0.5, None), 0.0, "not in the first moment");
-        assert_eq!(caption_alpha(1.2, None), 1.0, "shown once the wait drags on");
+        assert_eq!(caption_alpha(2.9, None), 0.0, "not in the first three seconds");
+        assert_eq!(caption_alpha(3.5, None), 1.0, "shown once the wait drags on");
         assert_eq!(caption_alpha(9.5, None), 1.0, "and for as long as it lasts");
-        assert_eq!(caption_alpha(4.0, Some(3.0)), 0.0, "gone once the links are here");
-        assert!(caption_alpha(3.1, Some(3.0)) > 0.0, "fading out, not cut");
+        assert_eq!(caption_alpha(6.0, Some(5.0)), 0.0, "gone once the links are here");
+        assert!(caption_alpha(5.1, Some(5.0)) > 0.0, "fading out, not cut");
     }
 
     #[test]
     fn a_quick_download_never_shows_the_line() {
-        for t in [0.3, 0.6, 0.9, 1.5, 3.0] {
-            assert_eq!(caption_alpha(t, Some(0.6)), 0.0, "at {t} s");
+        for t in [0.3, 1.5, 2.9, 3.5, 5.0] {
+            assert_eq!(caption_alpha(t, Some(2.9)), 0.0, "at {t} s");
         }
     }
 }
