@@ -47,7 +47,8 @@ Saved links open in the browser only when they are web
 addresses. The window's page is one `Place` value (a library state or a space
 by id), changed only through `nav::go`, so every navigation (sidebar, palette,
 ⌘1 to ⌘4 for the states in sidebar order, later menus and links) takes the
-same path. Between launches AppKit keeps the window's position and size, and
+same path. A navigation swaps the page at once, with no fade between the two
+pages' cards; a zoom change stays animated. Between launches AppKit keeps the window's position and size, and
 `ui.json` in the app's folder keeps the page, the zoom (Pictures, Titles,
 Summaries or Feed) and the sidebar's state and width. Each value is checked as it loads and an
 unknown one falls back to its default, so no saved state can strand the app;

@@ -389,7 +389,9 @@ fn sidebar(s: &State, account: &Account, l: &Look) -> El {
         let on = s.place == Place::Tab(tab);
         let lead = icon(glyph, 16.0).color(if on { l.fg } else { l.fg2 });
         let tail = if s.hints == Hints::Shown { kbd(&format!("⌘{}", i + 1), l.side, l) } else { count(tab.links(&s.links).len(), l) };
-        list = list.child(nav_row(format!("nav-{label}"), label, on, lead, tail, l).on_press(move |s: &mut State| nav::go(s, Place::Tab(tab))));
+        list = list.child(
+            nav_row(format!("nav-{label}"), label, on, lead, tail, l).on_press_tx(move |s: &mut State, tx: &mut Tx| nav::go(s, Place::Tab(tab), tx)),
+        );
     }
     list = list.child(text("Spaces").font(font(12.0, 400.0)).color(l.fg3).px(8.0).pt(16.0).pb(4.0));
     for space in &SPACES {
@@ -407,7 +409,7 @@ fn sidebar(s: &State, account: &Account, l: &Look) -> El {
         };
         let (id, on) = (space.id, s.place == Place::Space(space.id));
         let row = nav_row(format!("space-{id}"), space.name, on, lead, tail, l);
-        list = list.child(row.on_press(move |s: &mut State| nav::go(s, Place::Space(id))));
+        list = list.child(row.on_press_tx(move |s: &mut State, tx: &mut Tx| nav::go(s, Place::Space(id), tx)));
     }
     let name = account.name.as_deref().and_then(|n| n.split_whitespace().next()).unwrap_or(&account.email);
     let initial: String = name.chars().take(1).flat_map(char::to_uppercase).collect();
@@ -1576,7 +1578,7 @@ pub fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
         return false;
     }
     if let Some(place) = shortcut(e) {
-        nav::go(s, place);
+        nav::go(s, place, tx);
         return true;
     }
     if s.palette.is_none() && on_preview_key(s, e) {
@@ -1637,7 +1639,7 @@ mod tests {
         let mut s = State::default();
         preview(&mut s, "a", false);
         assert_eq!(s.preview, Some(Preview { id: "a".into(), full: false }));
-        nav::go(&mut s, Place::Tab(Tab::All));
+        nav::go(&mut s, Place::Tab(Tab::All), &mut Tx::default());
         assert_eq!(s.preview, None);
     }
 

@@ -812,6 +812,13 @@ fn main() {
                 shell::preview(s, &id, true);
             }),
             ("signed-in-worst", |s| worst_case_scene(s, Tab::Inbox)),
+            ("places", |s| {
+                worst_case_scene(s, Tab::Inbox);
+                s.links.truncate(15);
+                for link in &mut s.links[12..] {
+                    link.status = "completed".to_owned();
+                }
+            }),
             ("palette-worst", |s| {
                 worst_case_scene(s, Tab::Inbox);
                 s.palette = Some(shell::Palette::showing("e", 0));
