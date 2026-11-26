@@ -693,7 +693,7 @@ fn display_panel(s: &State, l: &Look) -> Option<El> {
             .cursor(Cursor::Pointer)
             .press_scale(0.96)
             .help(format!("{}  {}", zoom.label(), i + 1))
-            .child(layout_preview(zoom, ink))
+            .child(layout_preview(zoom, on, l))
             .child(text(zoom.label()).font(font(12.0, if on { 500.0 } else { 400.0 })).color(ink))
             .on_press_tx(move |s: &mut State, tx: &mut Tx| zoom_to(s, zoom, tx));
         tiles.child(if on { tile } else { tile.hover(Color { a: l.hover.a * 0.6, ..l.hover }) })
@@ -728,7 +728,6 @@ fn display_panel(s: &State, l: &Look) -> Option<El> {
         .padding(6.0)
         .radius(14.0)
         .fill(l.panel)
-        .child(heading("Layout", None))
         .child(tiles)
         .child(el().h(12.0))
         .child(heading("Sort and filter", Some("Coming soon")))
@@ -745,44 +744,56 @@ fn display_panel(s: &State, l: &Look) -> Option<El> {
     )
 }
 
-/// A layout in miniature, for its tile in the Display panel: grey pictures and title lines laid
-/// out the way the grid lays out its cards at that zoom.
-fn layout_preview(zoom: Zoom, ink: Color) -> El {
-    let (picture, line) = (ink.alpha(0.5), ink.alpha(0.3));
-    let rect = |x: f32, y: f32, w: f32, h: f32, c: Color| el().absolute(x, y).size(w, h).radius(if c == picture { 1.5 } else { 1.0 }).fill(c);
+/// A layout in miniature, for its tile in the Display panel: little cards laid out the way the
+/// grid lays them out at that zoom, their pictures soft gradients in the spaces' hues. Only the
+/// chosen layout's pictures are in colour; the others are grey until picked.
+fn layout_preview(zoom: Zoom, on: bool, l: &Look) -> El {
+    const HUES: [f32; 6] = [268.0, 30.0, 190.0, 330.0, 145.0, 230.0];
+    let (light, chroma) = match (on, l.dark) {
+        (true, true) => (0.62, 0.08),
+        (true, false) => (0.82, 0.08),
+        (false, true) => (0.46, 0.0),
+        (false, false) => (0.88, 0.0),
+    };
+    let picture = |i: usize, x: f32, y: f32, w: f32, h: f32| {
+        let hue = HUES[i % HUES.len()];
+        el().absolute(x, y)
+            .size(w, h)
+            .radius(2.0)
+            .linear_gradient(135.0, [(0.0, oklch(light, chroma, hue)), (1.0, oklch(light - 0.1, chroma, hue + 40.0))])
+    };
+    let ink = if on { l.fg } else { l.fg2 };
+    let line = |x: f32, y: f32, w: f32, strong: bool| el().absolute(x, y).size(w, 1.5).radius(0.75).fill(ink.alpha(if strong { 0.6 } else { 0.28 }));
     let mut parts = Vec::new();
     match zoom {
         Zoom::Pictures => {
             for i in 0..10 {
-                parts.push(rect(1.0 + (i % 5) as f32 * 8.6, 2.0 + (i / 5) as f32 * 12.5, 7.4, 10.5, picture));
+                parts.push(picture(i, (i % 5) as f32 * 10.6, 2.0 + (i / 5) as f32 * 15.5, 9.4, 13.5));
             }
         }
         Zoom::Titles => {
             for i in 0..3 {
-                let x = 1.0 + i as f32 * 14.3;
-                parts.extend([rect(x, 2.0, 13.0, 12.0, picture), rect(x, 16.5, 13.0, 2.0, line), rect(x, 20.5, 9.0, 2.0, line)]);
+                let x = i as f32 * 17.8;
+                parts.extend([picture(i, x, 2.0, 16.0, 15.0), line(x, 20.5, 15.0, true), line(x, 24.5, 10.0, false), line(x, 29.5, 6.0, false)]);
             }
         }
         Zoom::Summaries => {
             for i in 0..2 {
-                let x = 1.0 + i as f32 * 21.5;
-                parts.extend([
-                    rect(x, 2.0, 20.5, 11.0, picture),
-                    rect(x, 15.0, 20.5, 2.0, line),
-                    rect(x, 19.0, 20.5, 2.0, line),
-                    rect(x, 23.0, 13.0, 2.0, line),
-                ]);
+                let x = i as f32 * 27.0;
+                parts.push(picture(i + 3, x, 2.0, 25.0, 13.0));
+                parts.extend([line(x, 18.5, 22.0, true), line(x, 22.5, 25.0, false), line(x, 26.0, 25.0, false), line(x, 29.5, 15.0, false)]);
             }
         }
-        Zoom::Feed => parts.extend([
-            rect(12.0, 1.0, 3.0, 3.0, line),
-            rect(16.5, 1.5, 14.0, 2.0, line),
-            rect(12.0, 6.0, 20.0, 2.0, line),
-            rect(12.0, 10.0, 20.0, 13.0, picture),
-            rect(12.0, 25.0, 14.0, 2.0, line),
-        ]),
+        Zoom::Feed => {
+            parts.extend([
+                el().absolute(14.0, 1.0).size(4.0, 4.0).radius(2.0).fill(ink.alpha(0.45)),
+                line(20.0, 2.25, 12.0, true),
+                line(14.0, 8.0, 24.0, false),
+            ]);
+            parts.extend([picture(4, 14.0, 12.0, 24.0, 16.0), line(14.0, 31.0, 16.0, false)]);
+        }
     }
-    el().size(46.0, 29.0).children(parts)
+    el().size(52.0, 34.0).children(parts)
 }
 
 fn sync_note(note: String, l: &Look) -> El {
