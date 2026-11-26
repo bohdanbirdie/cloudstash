@@ -3,6 +3,8 @@
 //! state's links. The sidebar resizes, collapses and peeks (`shell_kit/SIDEBAR.md`).
 
 use std::borrow::Cow;
+use std::cell::Cell;
+use std::rc::Rc;
 use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -315,12 +317,19 @@ fn elevated(e: El, l: &Look) -> El {
     })
 }
 
-type Press = Box<dyn Fn(&mut State)>;
+type Press = Box<dyn Fn(&mut State, &mut Tx)>;
 
 /// A segmented control: the selected segment is a raised chip.
 fn segment(key: &str, items: Vec<(El, bool, Press)>, l: &Look) -> El {
     items.into_iter().fold(row().key(key.to_owned()).role("tablist").padding(2.0).gap(2.0).radius(8.0).fill(l.hover), |seg, (child, on, press)| {
-        let b = row().h(26.0).center().radius(6.0).cursor(Cursor::Pointer).role("tab").child(child).on_press(move |s: &mut State| press(s));
+        let b = row()
+            .h(26.0)
+            .center()
+            .radius(6.0)
+            .cursor(Cursor::Pointer)
+            .role("tab")
+            .child(child)
+            .on_press_tx(move |s: &mut State, tx: &mut Tx| press(s, tx));
         seg.child(if on { elevated(b.fill(l.panel), l) } else { b })
     })
 }
@@ -657,7 +666,7 @@ fn toolbar(s: &State, l: &Look) -> Toolbar {
             } else {
                 l.fg3
             }));
-            (glyph, on, Box::new(move |s: &mut State| s.zoom = zoom) as Press)
+            (glyph, on, Box::new(move |s: &mut State, tx: &mut Tx| zoom_to(s, zoom, tx)) as Press)
         })
         .collect();
     let mut toolbar = Toolbar::new().leading(title);
@@ -692,6 +701,8 @@ const PICTURE_RADIUS: f32 = 10.0;
 /// toolbar's buttons, and the scroll bar's thumb runs in the right gutter.
 const PAGE_PAD_LEFT: f32 = 16.0;
 const PAGE_PAD_RIGHT: f32 = 28.0;
+/// Above the first row of cards: its pictures start 16 points down.
+const PAGE_PAD_TOP: f32 = 16.0 - CARD_PAD;
 /// A card picture's pixel size: 16:11, sharp at 2× up to 400 pt wide. A favicon's, at 2×.
 /// A card's picture, whole: at most this many pixels a side, at its own shape.
 const PICTURE: (u32, u32) = (800, 420);
@@ -797,13 +808,17 @@ fn blurb(link: &LinkItem) -> Option<String> {
 /// A link card at `zoom`: its picture, then as much about it as the zoom shows. A click opens
 /// its preview; ⌘-click opens it in the browser.
 fn card(link: &LinkItem, now: i64, zoom: Zoom, l: &Look) -> El {
-    let picture = picture(link, PICTURE_RADIUS, l).key("picture").live_opacity(crate::sphere::reveal()).on_layout_tx({
-        let id = link.id.clone();
-        move |_: &mut State, rect, tx| {
-            crate::sphere::card_at(&id, rect);
-            tx.live_only();
-        }
-    });
+    let fly = |what: &str, el: El| el.matched(format!("{what}-{}", link.id)).matched_motion(REFLOW).transition(Transition::opacity());
+    let picture = fly(
+        "picture",
+        picture(link, PICTURE_RADIUS, l).key("picture").live_opacity(crate::sphere::reveal()).on_layout_tx({
+            let id = link.id.clone();
+            move |_: &mut State, rect, tx| {
+                crate::sphere::card_at(&id, rect);
+                tx.live_only();
+            }
+        }),
+    );
     let meta = row()
         .w_full()
         .gap(6.0)
@@ -813,7 +828,7 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, l: &Look) -> El {
         .child(text(ago(link.created_at, now)).font(font(12.0, 400.0)).color(l.fg3).group_color(l.fg2));
     let (url, id) = (link.url.clone(), link.id.clone());
     let card = col()
-        .key(link.id.clone())
+        .key(card_key(&link.id, zoom))
         .role("link")
         .label(link.title.clone())
         .focusable(true)
@@ -825,9 +840,14 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, l: &Look) -> El {
         .press(l.hover)
         .cursor(Cursor::Pointer)
         .hover_group()
-        .on_hover_change_any({
-            let image = link.image.clone();
-            move |inside, tx: &mut Tx| {
+        .on_hover_change({
+            let (image, id) = (link.image.clone(), link.id.clone());
+            move |s: &mut State, inside, tx: &mut Tx| {
+                if inside {
+                    s.hovered = Some(id.clone());
+                } else if s.hovered.as_ref() == Some(&id) {
+                    s.hovered = None;
+                }
                 if let Some(url) = image.as_deref().filter(|_| inside) {
                     images::picture(&Request::whole(url, WHOLE));
                 }
@@ -843,12 +863,177 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, l: &Look) -> El {
     let title =
         |size: f32, lh: f32, lines: usize| text(link.title.clone()).font(font(size, 500.0).lh(lh)).color(l.fg).wrap_anywhere().max_lines(lines);
     let blurb = |lines: usize| blurb(link).map(|b| text(b).font(font(13.0, 400.0).lh(19.0)).color(l.fg2).wrap().max_lines(lines));
+    let words =
+        |title: El, lines: usize| fly("words", col().w_full().gap(8.0).child(title).children(blurb(lines).filter(|_| lines > 0)).matched_crop());
+    let meta = fly("meta", meta.matched_crop());
     match zoom {
         Zoom::Pictures => card.help(link.title.clone()).child(picture),
-        Zoom::Titles => card.child(picture).child(title(13.5, 18.2, 2)).child(meta),
-        Zoom::Summaries => card.child(picture).child(title(14.5, 19.5, 2)).children(blurb(3)).child(meta),
-        Zoom::Feed => card.gap(10.0).child(meta).child(picture).child(title(17.0, 23.0, 3)).children(blurb(6)),
+        Zoom::Titles => card.child(picture).child(words(title(13.5, 18.2, 2), 0)).child(meta),
+        Zoom::Summaries => card.child(picture).child(words(title(14.5, 19.5, 2), 3)).child(meta),
+        Zoom::Feed => card.gap(10.0).child(meta).child(picture).child(words(title(17.0, 23.0, 3), 6)),
     }
+}
+
+/// Changes the zoom and keeps the card under the pointer, else the first card whose top is in
+/// view, where it shows, so the eye has something to hold on to; every other card the new grid
+/// shows flies to its place (`REFLOW`), as Atlas's grid does. A card the old grid had in view
+/// flies from where it was, and any other from its place in the old grid, out of view, after a
+/// frame that has a stand-in for it there (`Ghost`): the whole grid moves, none of it fades.
+///
+/// Rows a virtual list mounts for a scroll land at once and wouldn't fly, so until the held card
+/// lands the new grid isn't virtual: it builds the rows it shows where it lands (`State::landing`)
+/// between spacers at the rows' estimated height, as the list places rows it hasn't built.
+fn zoom_to(s: &mut State, zoom: Zoom, tx: &mut Tx) {
+    if zoom == s.zoom || !s.ghosts.is_empty() {
+        return;
+    }
+    let list = shown(s);
+    let hovered = s.hovered.as_ref().and_then(|id| list.iter().position(|l| &l.id == id));
+    let candidates: Vec<(usize, String)> = match hovered {
+        Some(at) => vec![at],
+        None => s.top_cards.to_vec(),
+    }
+    .into_iter()
+    .filter_map(|at| Some((at, card_key(&list.get(at)?.id, s.zoom))))
+    .collect();
+    if candidates.is_empty() {
+        s.zoom = zoom;
+        return;
+    }
+    let viewport = Rc::new(Cell::new(None));
+    tx.read_layout("viewport", {
+        let viewport = viewport.clone();
+        move |_: &mut State, rect, _: &mut Tx| viewport.set(rect)
+    });
+    let found = Rc::new(Cell::new(None::<(usize, [f32; 4])>));
+    let last = candidates.len() - 1;
+    for (i, (at, id)) in candidates.into_iter().enumerate() {
+        let (viewport, found) = (viewport.clone(), found.clone());
+        tx.read_layout(id, move |s: &mut State, rect, tx: &mut Tx| {
+            let Some(v) = viewport.get() else { return };
+            if let Some(card) = rect
+                && found.get().is_none_or(|(_, was)| was[1] < v[1])
+            {
+                found.set(Some((at, card)));
+            }
+            if i != last {
+                return;
+            }
+            let Some((at, card)) = found.get() else {
+                s.zoom = zoom;
+                return;
+            };
+            let (columns, pitch) = (columns(v[2], zoom), zoom.row_estimate());
+            let row = at / columns;
+            let list = shown(s);
+            let end = (PAGE_PAD_TOP + list.len().div_ceil(columns) as f32 * pitch + 80.0 - v[3]).max(0.0);
+            let to = (PAGE_PAD_TOP + row as f32 * pitch - (card[1] - v[1])).clamp(0.0, end);
+            let y = PAGE_PAD_TOP + row as f32 * pitch - to;
+            let rows = row.saturating_sub(((y - PAGE_PAD_TOP) / pitch).ceil().max(0.0) as usize + 1)
+                ..row + ((v[3] - y) / pitch).ceil().max(0.0) as usize + 2;
+            let key = card_key(&list[at].id, zoom);
+            for ghost in ghosts(s, zoom, at, card, v[1] + y, v) {
+                tx.read_layout(card_key(&ghost.id, s.zoom), move |s: &mut State, mounted, _: &mut Tx| {
+                    if mounted.is_none() {
+                        s.ghosts.push(ghost.clone());
+                    }
+                });
+            }
+            let switch = move |s: &mut State, _: Option<[f32; 4]>, tx: &mut Tx| {
+                s.zoom = zoom;
+                s.ghosts.clear();
+                s.landing = Some(rows);
+                tx.animated();
+                tx.read_layout(key.clone(), move |_: &mut State, landed, tx: &mut Tx| {
+                    if let Some(landed) = landed {
+                        tx.scroll_to_with("viewport", 0.0, (SCROLLED.get() + landed[1] - card[1]).max(0.0), REFLOW);
+                    }
+                    once_landed(
+                        tx,
+                        key.clone(),
+                        None,
+                        Rc::new({
+                            let key = key.clone();
+                            move |s: &mut State, tx: &mut Tx| {
+                                s.landing = None;
+                                tx.instant();
+                                tx.keep_on_screen(key.clone());
+                            }
+                        }),
+                    );
+                });
+            };
+            tx.read_layout("viewport", move |_: &mut State, _, tx: &mut Tx| tx.read_layout("viewport", switch));
+        });
+    }
+}
+
+type Then = Rc<dyn Fn(&mut State, &mut Tx)>;
+
+/// Runs `then` once the element keyed `key` has stopped moving: drawn in the same place two
+/// frames running.
+fn once_landed(tx: &mut Tx, key: String, was: Option<[f32; 4]>, then: Then) {
+    tx.read_presented(key.clone(), move |s: &mut State, drawn, tx: &mut Tx| match drawn.map(|(rect, _)| rect) {
+        Some(rect) if was != Some(rect) => once_landed(tx, key, Some(rect), then),
+        _ => then(s, tx),
+    });
+}
+
+thread_local! {
+    /// How far the grid is scrolled, for a zoom change to work out where to scroll it.
+    static SCROLLED: Cell<f32> = const { Cell::new(0.0) };
+}
+
+/// A card's key at `zoom`: a zoom change mounts every card afresh, so each one flies (`matched`)
+/// rather than some jumping where they stay in the same row.
+fn card_key(id: &str, zoom: Zoom) -> String {
+    format!("{id}@{}", zoom.label())
+}
+
+/// A stand-in for a card in the frame before a zoom change: its id, and where it would be in
+/// the old grid, from the viewport's top left.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Ghost {
+    id: String,
+    rect: [f32; 4],
+}
+
+/// Where card `i` lands in the grid at `zoom` in a viewport at `v` (window points), when card
+/// `anchor` lands with its top at `top`: its column exact, its row at the zoom's estimated row
+/// height.
+fn slot(i: usize, anchor: usize, top: f32, v: [f32; 4], zoom: Zoom) -> [f32; 4] {
+    let columns = columns(v[2], zoom);
+    let gap = CARD_GAP - 2.0 * CARD_PAD;
+    let inner = v[2] - PAGE_PAD_LEFT - PAGE_PAD_RIGHT + 2.0 * CARD_PAD;
+    let w = if zoom == Zoom::Feed { inner.min(FEED_W + 2.0 * CARD_PAD) } else { (inner - gap * (columns - 1) as f32) / columns as f32 };
+    let left = v[0] + PAGE_PAD_LEFT - CARD_PAD + (inner - w * columns as f32 - gap * (columns - 1) as f32) / 2.0;
+    let rows = (i / columns) as f32 - (anchor / columns) as f32;
+    let pitch = zoom.row_estimate();
+    [left + (i % columns) as f32 * (w + gap), top + rows * pitch, w, pitch - gap]
+}
+
+/// The stand-ins for the frame before changing to `zoom`, card `at` (drawn at `card`) landing
+/// with its top at `land`: one for each card the new grid shows in the viewport `v` that isn't in view now, at
+/// its place in the grid as it is, so every card moves from where it was, as the ones in view do.
+fn ghosts(s: &State, zoom: Zoom, at: usize, card: [f32; 4], land: f32, v: [f32; 4]) -> Vec<Ghost> {
+    let list = shown(s);
+    let held = slot(at, at, card[1], v, s.zoom);
+    let columns = columns(v[2], zoom);
+    let pitch = zoom.row_estimate();
+    let above = ((land - v[1]) / pitch).ceil().max(0.0) as usize + 1;
+    let below = ((v[1] + v[3] - land) / pitch).ceil().max(0.0) as usize + 1;
+    let first = (at / columns).saturating_sub(above) * columns;
+    let end = ((at / columns + below + 1) * columns).min(list.len());
+    (first..end)
+        .filter(|i| !s.in_view.contains(i))
+        .filter_map(|i| {
+            let r = slot(i, at, land, v, zoom);
+            (r[1] < v[1] + v[3] && r[1] + r[3] > v[1]).then(|| {
+                let was = slot(i, at, card[1], v, s.zoom);
+                Ghost { id: list[i].id.clone(), rect: [was[0] + card[0] - held[0] - v[0], was[1] - v[1], card[2], card[3]] }
+            })
+        })
+        .collect()
 }
 
 /// A copy of each of the first cards' pictures, for the opening to fly in (`sphere::opening`).
@@ -877,28 +1062,34 @@ fn grid(s: &State, columns: usize, dark: bool) -> El {
     let zoom = s.zoom;
     let grid = col().key("grid").w_full();
     let grid = if zoom == Zoom::Feed { grid.max_w(FEED_W + 2.0 * CARD_PAD) } else { grid };
+    let row = move |s: &State, i: usize| {
+        let l = look(dark);
+        let now = now_ms();
+        let gap = if zoom == Zoom::Feed { 40.0 } else { ROW_GAP };
+        shown(s)
+            .iter()
+            .skip(i * columns)
+            .take(columns)
+            .fold(row().w_full().equal_columns(columns).gap(CARD_GAP - 2.0 * CARD_PAD).pb(gap - 2.0 * CARD_PAD), |r, link| {
+                r.child(card(link, now, zoom, &l))
+            })
+    };
+    if let Some(landing) = &s.landing {
+        let (first, end) = (landing.start.min(rows), landing.end.min(rows));
+        let pitch = zoom.row_estimate();
+        return grid
+            .child(el().key("rows-above").h(first as f32 * pitch))
+            .children((first..end).map(|i| row(s, i).key(format!("row-{i}@{}", zoom.label()))))
+            .child(el().key("rows-below").h((rows - end) as f32 * pitch));
+    }
     grid.growth(GrowthSpec::default())
         .on_visible_rows(move |s: &mut State, rows: std::ops::Range<usize>| {
+            s.top_cards = [rows.start * columns, (rows.start + 1) * columns];
+            s.in_view = rows.start * columns..rows.end * columns;
             images::visible(shown(s).into_iter().skip(rows.start * columns).take(rows.len() * columns).flat_map(card_images).collect());
             false
         })
-        .virtual_rows(
-            rows,
-            zoom.row_estimate(),
-            |_: &State, i| Cow::Owned(format!("row-{i}")),
-            move |s: &State, i| {
-                let l = look(dark);
-                let now = now_ms();
-                let gap = if zoom == Zoom::Feed { 40.0 } else { ROW_GAP };
-                shown(s)
-                    .iter()
-                    .skip(i * columns)
-                    .take(columns)
-                    .fold(row().w_full().equal_columns(columns).gap(CARD_GAP - 2.0 * CARD_PAD).pb(gap - 2.0 * CARD_PAD), |r, link| {
-                        r.child(card(link, now, zoom, &l))
-                    })
-            },
-        )
+        .virtual_rows(rows, zoom.row_estimate(), move |_: &State, i| Cow::Owned(format!("row-{i}@{}", zoom.label())), row)
 }
 
 fn page(s: &State, cx: &mut Cx<State>, dark: bool, l: &Look) -> El {
@@ -921,12 +1112,13 @@ fn page(s: &State, cx: &mut Cx<State>, dark: bool, l: &Look) -> El {
         .on_scroll_offset({
             let divider = divider.clone();
             move |at| {
+                SCROLLED.set(at.offset[1]);
                 divider.set(divider_opacity(at.offset[1]));
                 crate::sphere::scrolled(at.offset[1], rune::scroll_watch_state().0);
             }
         })
         .child({
-            let page = col().key("page").w_full().pl(PAGE_PAD_LEFT - CARD_PAD).pr(PAGE_PAD_RIGHT - CARD_PAD).pt(16.0 - CARD_PAD).pb(80.0);
+            let page = col().key("page").w_full().pl(PAGE_PAD_LEFT - CARD_PAD).pr(PAGE_PAD_RIGHT - CARD_PAD).pt(PAGE_PAD_TOP).pb(80.0);
             if centered { page.items_center() } else { page }.child(body)
         });
     let opened = matches!(previewed(s), Some((_, true)));
@@ -937,13 +1129,27 @@ fn page(s: &State, cx: &mut Cx<State>, dark: bool, l: &Look) -> El {
         .h_full()
         .min_h(0.0)
         .children((!opened).then(|| el().key("divider").w_full().h(1.0).fill(solid(l.line2, l.panel)).live_opacity(&divider)))
-        .child(if opened { viewport.inert() } else { viewport })
+        .child(col().key("viewport-box").w_full().grow(1.0).min_h(0.0).child(if opened { viewport.inert() } else { viewport }).children(
+            s.ghosts.iter().map(|g| {
+                let w = g.rect[2] - 2.0 * CARD_PAD;
+                el().key(format!("ghost-{}", g.id))
+                    .matched(format!("picture-{}", g.id))
+                    .pin(Some(g.rect[0] + CARD_PAD), Some(g.rect[1] + CARD_PAD), None, None)
+                    .size(w, w * 11.0 / 16.0)
+                    .radius(PICTURE_RADIUS)
+                    .a11y_hidden()
+            }),
+        ))
 }
 
 /// The preview grows into the opened link, its panel's fill fading into the content card's as it
 /// does; they share this id.
 const OPENING: &str = "link-shown";
 const GROW: Spring = Spring::new(0.26, 0.0);
+/// Cards fly to their new places on this when the zoom changes the columns: SwiftUI's smooth
+/// spring, a touch longer than a control's so a whole grid travelling reads as one move, with
+/// just enough bounce that it settles rather than stops.
+const REFLOW: Spring = Spring::new(0.36, 0.12);
 /// The opened link settles back a touch and fades as it closes, quickly.
 const CLOSE: SpringPair = SpringPair::new(Spring::new(0.2, 0.0), Spring::new(0.16, 0.0));
 /// The preview and the dim behind it come in on a quick spring and go on a quicker one.
@@ -1362,7 +1568,7 @@ fn on_preview_key(s: &mut State, e: &KeyEvent) -> bool {
 /// ⌘K opens and closes the command palette, and ⌘1 to ⌘4 go to the library's states. ⌘B toggles
 /// the sidebar, like the reference apps, and so do rune-kit's ⇧⌘B and ⌃⌘S. ⌥⌘R
 /// throws away the saved pictures and loads them again, for experiments.
-pub fn on_key(s: &mut State, e: &KeyEvent, _: &mut Tx) -> bool {
+pub fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
     if !matches!(s.phase, Phase::SignedIn(_)) {
         return false;
     }
@@ -1376,7 +1582,7 @@ pub fn on_key(s: &mut State, e: &KeyEvent, _: &mut Tx) -> bool {
     if s.palette.is_none()
         && let Some(zoom) = zoom_key(s.zoom, e)
     {
-        s.zoom = zoom;
+        zoom_to(s, zoom, tx);
         return true;
     }
     if e.is_command('k') && !e.mods.shift && !e.mods.alt {

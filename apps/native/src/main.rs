@@ -92,6 +92,18 @@ pub(crate) struct State {
     early_link: Option<String>,
     sidebar: PaneState,
     zoom: shell::Zoom,
+    /// The card under the pointer, else the first card in the first row whose top is in view:
+    /// where a zoom change holds still.
+    hovered: Option<String>,
+    /// The first cards of the first two rows in view.
+    top_cards: [usize; 2],
+    /// The cards in the rows in view.
+    in_view: std::ops::Range<usize>,
+    /// For the frame before a zoom change: a stand-in for each card the new grid shows that the
+    /// old one doesn't, where it would be if the old grid ran on that far, so it flies in too.
+    ghosts: Vec<shell::Ghost>,
+    /// While a zoom change lands: the rows the grid builds, not virtual (`shell::zoom_to`).
+    landing: Option<std::ops::Range<usize>>,
     /// The link shown over the library, as a preview or all the way.
     preview: Option<shell::Preview>,
     /// Whether ⌘ is held alone, and since when, for the sidebar's shortcut hints.
