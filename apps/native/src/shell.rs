@@ -817,8 +817,9 @@ fn blurb(link: &LinkItem) -> Option<String> {
 
 /// A link card at `zoom`: its picture, then as much about it as the zoom shows. A click opens
 /// its preview; ⌘-click opens it in the browser.
-fn card(link: &LinkItem, now: i64, zoom: Zoom, l: &Look) -> El {
-    let fly = |what: &str, el: El| el.matched(format!("{what}-{}", link.id)).matched_motion(REFLOW).transition(Transition::opacity());
+fn card(link: &LinkItem, now: i64, zoom: Zoom, arriving: bool, l: &Look) -> El {
+    let fly =
+        |what: &str, el: El| el.matched(format!("{what}-{}", link.id)).matched_in_place().matched_motion(REFLOW).transition(Transition::opacity());
     let picture = fly(
         "picture",
         picture(link, PICTURE_RADIUS, l).key("picture").live_opacity(crate::sphere::reveal()).on_layout_tx({
@@ -873,9 +874,11 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, l: &Look) -> El {
     let title =
         |size: f32, lh: f32, lines: usize| text(link.title.clone()).font(font(size, 500.0).lh(lh)).color(l.fg).wrap_anywhere().max_lines(lines);
     let blurb = |lines: usize| blurb(link).map(|b| text(b).font(font(13.0, 400.0).lh(19.0)).color(l.fg2).wrap().max_lines(lines));
-    let words =
-        |title: El, lines: usize| fly("words", col().w_full().gap(8.0).child(title).children(blurb(lines).filter(|_| lines > 0)).matched_crop());
-    let meta = fly("meta", meta.matched_crop());
+    let after = if arriving { WORDS_AFTER } else { 0.0 };
+    let words = |title: El, lines: usize| {
+        fly("words", col().w_full().gap(8.0).child(title).children(blurb(lines).filter(|_| lines > 0)).matched_crop().enter_delay(after))
+    };
+    let meta = fly("meta", meta.matched_crop().enter_delay(after));
     match zoom {
         Zoom::Pictures => card.help(link.title.clone()).child(picture),
         Zoom::Titles => card.child(picture).child(words(title(13.5, 18.2, 2), 0)).child(meta),
@@ -1081,7 +1084,7 @@ fn grid(s: &State, columns: usize, dark: bool) -> El {
             .skip(i * columns)
             .take(columns)
             .fold(row().w_full().equal_columns(columns).gap(CARD_GAP - 2.0 * CARD_PAD).pb(gap - 2.0 * CARD_PAD), |r, link| {
-                r.child(card(link, now, zoom, &l))
+                r.child(card(link, now, zoom, s.landing.is_some(), &l))
             })
     };
     if let Some(landing) = &s.landing {
@@ -1164,6 +1167,10 @@ const GROW: Spring = Spring::new(0.26, 0.0);
 /// spring, a touch longer than a control's so a whole grid travelling reads as one move, with
 /// just enough bounce that it settles rather than stops.
 const REFLOW: Spring = Spring::new(0.36, 0.12);
+/// A card's title and meta that the old zoom didn't show (coming from Pictures) wait this long,
+/// most of `REFLOW`, and fade in as its picture settles, rather than waiting at their place while
+/// it flies there.
+const WORDS_AFTER: f32 = 0.24;
 /// The opened link settles back a touch and fades as it closes, quickly.
 const CLOSE: SpringPair = SpringPair::new(Spring::new(0.2, 0.0), Spring::new(0.16, 0.0));
 /// The preview and the dim behind it come in on a quick spring and go on a quicker one.
