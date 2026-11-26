@@ -5,6 +5,10 @@
 //   bun scripts/dev-seed.ts export [file]   library -> file
 //   bun scripts/dev-seed.ts seed [file]     file -> empty library
 //
+// With --if-empty, seed skips a library that has links without an error; the
+// dev server runs it that way on every library's first connection
+// (tools/dev-seed/vite-plugin.ts).
+//
 // Server: DEV_URL (default http://127.0.0.1:$PORT or :3000). Account: the
 // SEED_COOKIE header if set, else a test account (needs ENABLE_TEST_AUTH=true).
 // Seeded links arrive already processed, so no page fetch or AI summary runs.
@@ -34,7 +38,11 @@ type LinkRecord = {
 
 type EncodedEvent = { name: string; args: unknown };
 
-const [command, file = "local/dev-data/links.jsonl"] = process.argv.slice(2);
+const argv = process.argv.slice(2);
+const ifEmpty = argv.includes("--if-empty");
+const [command, file = "local/dev-data/links.jsonl"] = argv.filter(
+  (arg) => !arg.startsWith("--")
+);
 const base =
   process.env.DEV_URL ?? `http://127.0.0.1:${process.env.PORT ?? "3000"}`;
 const origin = process.env.BETTER_AUTH_URL ?? base;
@@ -331,10 +339,11 @@ const seedLibrary = async () => {
     return batch.map(encode);
   });
 
-  await withBackend((backend) =>
+  const seeded = await withBackend((backend) =>
     Effect.gen(function* () {
       const log = yield* pullAll(backend);
       if (log.some((e) => e.name.endsWith("LinkCreated"))) {
+        if (ifEmpty) return false;
         return yield* Effect.fail(
           new Error("This library already has links; seed only an empty one.")
         );
@@ -362,8 +371,10 @@ const seedLibrary = async () => {
         chunk.push(...batch);
       }
       if (chunk.length > 0) yield* push(chunk);
+      return true;
     })
   );
+  if (!seeded) return;
   console.log(
     `Seeded ${records.length} links and ${tagIds.size} tags into ${base}`
   );

@@ -96,6 +96,13 @@ tags, done/failed), and `seed` writes it into an empty library over `/sync`
 with today's events. Seeded links arrive processed and already notified, so no
 page fetch, AI summary or source notification runs. The account is a test
 account (`ENABLE_TEST_AUTH=true`) or the session in `SEED_COOKIE`.
+The dev server seeds on its own: on each library's first `/sync` connection in
+a server run it runs `seed --if-empty` with that connection's session, so any
+account that signs in, Google included, finds the links. It lives only in
+`vite serve` (not in builds, Vitest or Storybook), skips a library that has
+ever had a link, logs one line and starts empty when the links file is missing,
+and `DEV_SEED=off` turns it off. See
+[decision 0009](./.decisions/0009-seed-empty-local-libraries-from-the-dev-server.md).
 
 ## LiveStore Version
 

@@ -8,6 +8,7 @@ import viteReact from "@vitejs/plugin-react";
 import { defineConfig, lazyPlugins } from "vite-plus";
 import type { Plugin, UserConfig } from "vite-plus";
 
+import { devSeed } from "./tools/dev-seed/vite-plugin";
 import {
   WORKER_COMPATIBILITY,
   WORKER_EFFECTIVE_COMPATIBILITY_FLAGS,
@@ -327,6 +328,7 @@ const baseConfig: UserConfig = {
     viteReact(),
     livestoreDevtoolsPlugin({ schemaPath: "./src/livestore/schema.ts" }),
     prerenderMarketingPages(),
+    devSeed(),
   ]),
   server: {
     allowedHosts: [".trycloudflare.com"],
