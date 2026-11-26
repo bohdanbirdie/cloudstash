@@ -15,6 +15,13 @@ lifecycle rules before changing behavior.
 - `vendor/livestore/context/` is upstream LiveStore's separate Intent corpus and
   is not part of Cloudstash's tree.
 
+# Colours
+
+The interface is grey with one rare blue accent. Before adding or changing a
+colour, a shadow, or a border in the web app or the Mac app, read
+`context/01-product/spec.md` § Colour and Depth and take the value from a
+token in `src/styles.css` or `apps/native/src/theme.rs`.
+
 # LiveStore contract (`src/livestore/schema.ts`)
 
 Deployed events are saved forever, so they are append-only (`CS.SYS.DATA-R05`).

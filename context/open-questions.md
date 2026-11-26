@@ -33,3 +33,10 @@
   LinkProcessor RPC owner. Blocked on choosing thread ownership and
   deletion/export semantics. Resolve when an accepted decision answers those
   questions and names the migration path from the single workspace chat.
+- **CS-DQ6 Surface layering, shadows, and the light theme.** The colour rules in
+  [the product spec](./01-product/spec.md) settle grey, the accent, button
+  depth, and rings. They do not say how many surface layers exist, which
+  shadow a popover, dialog, or raised card gets, or whether a secondary action
+  may ever carry colour. Whether the light theme stays is also undecided.
+  Blocked on a maintainer decision made against a mock of the real windows.
+  Until then, reuse the existing tokens and add no new shadow or surface step.

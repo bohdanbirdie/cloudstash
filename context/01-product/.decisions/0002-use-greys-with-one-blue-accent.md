@@ -44,5 +44,5 @@ for destructive actions and errors; green and amber appear only for a real
 status, with an icon and words. Space colours belong to the user and share one
 lightness. The logo is drawn in the foreground grey, not in the accent. Rings
 are 1px and see-through. The native tokens live in
-`apps/native/src/theme.rs`; the web app's `src/styles.css` still carries the
-orange palette until it is moved over.
+`apps/native/src/theme.rs` and the web tokens in `src/styles.css`. The rules
+themselves are kept current in the product spec's Colour and Depth section.

@@ -59,6 +59,59 @@ are relevance-ranked. Filters can require all selected effective tags. Pending
 AI tag suggestions act as effective tags while remaining visibly distinguishable
 from explicit tags.
 
+## Colour and Depth
+
+The interface is grey. Colour is rare and always means something. Rationale:
+[decision 0002](./.decisions/0002-use-greys-with-one-blue-accent.md). The logo
+follows [decision 0003](./.decisions/0003-use-a-ball-of-dots-in-a-well-as-logo.md).
+
+**Grey**
+
+- Surfaces, text, lines, icons, and every button that is not the main action
+  are grey.
+- Greys are pure: chroma 0, no warm or cool tint.
+
+**The accent**
+
+- There is one accent, the Blue `oklch(0.545 0.19 254)`, with a near-white
+  label `oklch(0.99 0 0)`. It is the same in the dark and light themes.
+- It marks the one main action in a view. A view has at most one accent-filled
+  button.
+- It also marks "on" and "you are here": switches, checkboxes, focus, and
+  selection.
+- It is never used for titles, links in running interface text, or decoration.
+  One colour has one meaning.
+
+**Other colour**
+
+- Red is only for destructive actions and errors.
+- Green and amber appear only for a real status, with an icon and words. The
+  text stays grey.
+- Space colours and saved links' pictures are the user's content and stay
+  colourful. A Space colour is a rounded square, and every Space hue has the
+  same lightness.
+- The logo is drawn in the foreground grey, never in the accent.
+
+**Depth**
+
+- A colour-filled button carries a top-to-bottom gradient that is barely
+  visible, blended in OKLab.
+- A ring around a card, field, or button is 1px and see-through (white or black
+  with opacity), never a solid grey line.
+
+**Where the values live**
+
+- Mac app: `palette(dark)` and `space(dark, hue)` in
+  [`apps/native/src/theme.rs`](../../apps/native/src/theme.rs).
+- Web app: the `:root` and `.dark` tokens in
+  [`src/styles.css`](../../src/styles.css).
+
+New colours are added to those two files as named tokens, not written inline
+where they are used. Known drift is tracked in
+[DELTA-043](../.delta/DELTA-043-button-depth-and-web-colour-tokens-are-not-realized.md).
+Surface layering, shadows, and the future of the light theme are unsettled:
+see [CS-DQ6](../open-questions.md).
+
 ## Plans
 
 [`src/lib/plan.ts`](../../src/lib/plan.ts) owns executable plan copy and default
