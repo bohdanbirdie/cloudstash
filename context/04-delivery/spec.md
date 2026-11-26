@@ -73,6 +73,18 @@ the ignored `.env` with mode `0600`; failed resolution preserves the
 previous local file and no plaintext backup is retained. Normal development
 starts do not contact 1Password.
 
+Local dev state is per checkout: `alchemy dev` keeps D1, KV and every Durable
+Object under `<checkout>/.alchemy` (`local/` plus `state/`, which names the DO
+folders), so a new worktree starts with an empty library. Test data moves as a
+plain links file instead of shared state, because a branch's D1 migration or
+events written into shared state break every other branch.
+`bun scripts/dev-seed.ts export` writes the signed-in library to
+`local/dev-data/links.jsonl` (one link per line: url, page details, summary,
+tags, done/failed), and `seed` writes it into an empty library over `/sync`
+with today's events. Seeded links arrive processed and already notified, so no
+page fetch, AI summary or source notification runs. The account is a test
+account (`ENABLE_TEST_AUTH=true`) or the session in `SEED_COOKIE`.
+
 ## LiveStore Version
 
 Every `@livestore/*` dependency in the application and extension pins the same
