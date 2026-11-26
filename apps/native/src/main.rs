@@ -91,8 +91,9 @@ pub(crate) struct State {
     /// A link that arrived before the backend was ready, as when it launched the app.
     early_link: Option<String>,
     sidebar: PaneState,
-    kind: shell::Kind,
-    mode: shell::Mode,
+    zoom: shell::Zoom,
+    /// The link shown over the library, as a preview or all the way.
+    preview: Option<shell::Preview>,
     /// Whether ⌘ is held alone, and since when, for the sidebar's shortcut hints.
     hints: shell::Hints,
     /// The command palette, while it's open.
@@ -117,7 +118,7 @@ pub(crate) struct State {
 /// Headless snapshots render a named scene and must not touch the keychain, the network or the
 /// saved window.
 fn headless() -> bool {
-    std::env::args().any(|arg| arg == "--snap" || arg == "--tree")
+    std::env::args().any(|arg| matches!(arg.as_str(), "--snap" | "--tree" | "--script"))
 }
 
 fn new_state() -> State {
@@ -308,7 +309,7 @@ fn sign_out(s: &mut State) {
     let library = s.library.take();
     s.links.clear();
     s.place = nav::Place::default();
-    s.kind = shell::Kind::default();
+    s.preview = None;
     std::thread::spawn(move || {
         let key = backend.auth.take_key();
         if let Some(library) = library {
@@ -665,6 +666,34 @@ fn main() {
             ("palette", |s| {
                 signed_in_scene(s, Tab::Inbox);
                 shell::toggle_palette(s);
+            }),
+            ("pictures", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.zoom = shell::Zoom::Pictures;
+            }),
+            ("summaries", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.zoom = shell::Zoom::Summaries;
+            }),
+            ("feed", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.zoom = shell::Zoom::Feed;
+            }),
+            ("preview", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                let id = s.links[0].id.clone();
+                shell::preview(s, &id, false);
+            }),
+            ("preview-open", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                let id = s.links[0].id.clone();
+                shell::preview(s, &id, true);
+            }),
+            ("preview-open-no-sidebar", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.sidebar.set_open(false);
+                let id = s.links[0].id.clone();
+                shell::preview(s, &id, true);
             }),
             ("signed-in-worst", |s| worst_case_scene(s, Tab::Inbox)),
             ("palette-worst", |s| {
