@@ -75,6 +75,11 @@
   }
 }
 
+/*
+ * Colour tokens. Before adding or using a colour, read the rules in
+ * context/01-product/spec.md § Colour and Depth: greys are pure, the one blue
+ * accent is rare, red is only for destructive actions.
+ */
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0 0);

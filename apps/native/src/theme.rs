@@ -1,5 +1,6 @@
 //! Cloudstash's colour tokens in OKLCH: pure greys, one blue accent used rarely, red for destructive
-//! actions, green and amber for status. See `context/01-product/.decisions/0002-use-greys-with-one-blue-accent.md`.
+//! actions, green and amber for status. Before adding or using a colour, read the rules in
+//! `context/01-product/spec.md` § Colour and Depth (why: `.decisions/0002-use-greys-with-one-blue-accent.md` there).
 //! `_10` and `_20` are the same colour at 10% and 20% opacity.
 
 use rune::{Color, oklch, oklcha};
