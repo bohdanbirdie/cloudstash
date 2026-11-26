@@ -376,15 +376,8 @@ fn view(s: &State, cx: &mut Cx<State>) -> El {
             } else {
                 (el().w_full().h_full().fill(t.card).window_drag(), Vec::new())
             };
-            let caption = shimmer::shimmer(
-                "caption",
-                "Getting your links…",
-                TextStyle::new(13.0, 400.0).lh(20.0),
-                240.0,
-                false,
-                t.muted_foreground,
-                t.card_foreground,
-            );
+            let caption =
+                shimmer::shimmer("caption", "Syncing", TextStyle::new(13.0, 500.0).lh(20.0), 80.0, false, t.hint_foreground, t.card_foreground);
             return el().key("root").w_full().h_full().child(under).child(sphere::opening::<State>(
                 t.card_foreground,
                 t.card,

@@ -6,9 +6,9 @@
 
 use rune::{Color, Easing, El, LoopSpec, TextStyle, el, row, text};
 
-/// Points the light is wide, and points a second it travels.
-const BAND: f32 = 56.0;
-const SPEED: f32 = 110.0;
+/// Points the light is wide, and points a second it travels: a soft, unhurried pass over a word.
+const BAND: f32 = 44.0;
+const SPEED: f32 = 64.0;
 
 /// `label` in a box `width` points wide: centred, or against its right edge when `end`.
 pub fn shimmer(key: &'static str, label: &'static str, style: TextStyle, width: f32, end: bool, dim: Color, lit: Color) -> El {

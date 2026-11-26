@@ -217,9 +217,9 @@ pub fn live<S: 'static>(size: f32, ink: Color, busy: bool) -> El {
 
 /// How many cards' pictures the opening can carry.
 const SLOTS: usize = 60;
-/// Seconds: how slowly the ball grows, the least it turns before opening, how long pictures ride it, and
+/// Seconds: how long the ball takes to reach the middle at full size once the links are here, the least it turns before opening, how long pictures ride it, and
 /// the pull of each picture toward its card with how long that pull takes to come on.
-const GROW: f32 = 4.0;
+const GROW: f32 = 0.7;
 const LEAST: f32 = 0.6;
 const RIDE: f32 = 1.4;
 const PULL: f32 = 5.5;
@@ -229,8 +229,10 @@ const RAMP: f32 = 0.45;
 const CAPTION_AFTER: f32 = 0.8;
 const CAPTION_IN: f32 = 0.3;
 const CAPTION_OUT: f32 = 0.2;
-/// Points from the bottom of the ball, grown as big as it gets, to the line.
+/// Points from the bottom of the ball to the line, which puts it where the sign-in screen's title
+/// was, and the line's height, to centre the two as a group when no sign-in screen came before.
 const CAPTION_GAP: f32 = 28.0;
+const CAPTION_LINE: f32 = 20.0;
 
 /// How visible the line under the ball is `t` seconds into the opening, the links having arrived at
 /// `loaded`: hidden at first, faded in once the wait drags on, faded out as soon as they're here.
@@ -370,15 +372,16 @@ impl Motion {
         let ease = (7.0 * dt).min(1.0);
         (self.look, self.pitch) = ([self.look[0] * (1.0 - ease), self.look[1] * (1.0 - ease)], self.pitch * (1.0 - ease));
         let [w, h] = i.window;
+        // While the library is on its way the ball stays where the sign-in screen had it, at its size, with
+        // the line where that screen's title was; once the links are here it moves to the middle and grows.
         let small = i.from.map_or(45.0, |f| f[2]);
-        // A wait that drags on shows a modest ball with a line under it, not one that fills the window.
-        let big = (0.24 * w.min(h)).max(small);
+        let rest = i.from.map_or([w / 2.0, h / 2.0 - (CAPTION_GAP + CAPTION_LINE) / 2.0], |f| [f[0], f[1]]);
         let (mut centre, radius) = if w > 0.0 {
-            let mid = [w / 2.0, h / 2.0];
-            let (start, k) = (i.from.map_or(mid, |f| [f[0], f[1]]), smooth(0.0, 0.7, i.t));
-            ([mix(start[0], mid[0], k), mix(start[1], mid[1], k)], big - (big - small) * (-i.t / GROW).exp())
+            let (mid, big) = ([w / 2.0, h / 2.0], (0.15 * w.min(h)).max(small));
+            let k = i.loaded.map_or(0.0, |at| smooth(at, at + GROW, i.t));
+            ([mix(rest[0], mid[0], k), mix(rest[1], mid[1], k)], mix(small, big, k))
         } else {
-            (i.from.map_or([0.0; 2], |f| [f[0], f[1]]), if i.from.is_some() { small } else { 0.0 })
+            (rest, if i.from.is_some() { small } else { 0.0 })
         };
         // It opens once it has turned a little, the links are here and the grid has said where its cards are.
         let placed = i.loaded.is_some_and(|at| i.t >= at + 0.5 || (i.t >= at + 0.2 && i.homes.iter().any(Option::is_some)));
@@ -406,8 +409,7 @@ impl Motion {
                 self.yaw += self.speed * dt;
             }
         }
-        // Where the ball will rest, so the line holds still while the ball grows toward it.
-        stage().caption_at.set([0.0, h / 2.0 + big + CAPTION_GAP]);
+        stage().caption_at.set([0.0, rest[1] + small + CAPTION_GAP]);
         stage().caption_alpha.set(caption_alpha(i.t, i.loaded));
         let fade = if riding { 1.0 } else { 1.0 - smooth(0.0, 0.8, flown) };
         let base = radius * 5.83 / 56.0;
@@ -603,7 +605,9 @@ pub fn opening<S: 'static>(ink: Color, ground: Color, loaded: bool, pictures: Ve
     let caption = row()
         .key("caption-line")
         .pin(Some(0.0), Some(0.0), Some(0.0), None)
+        .h(CAPTION_LINE)
         .justify_center()
+        .center_y()
         .live_offset(&stage.caption_at)
         .live_opacity(&stage.caption_alpha)
         .child(caption);
