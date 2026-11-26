@@ -635,6 +635,7 @@ fn toolbar(s: &State, l: &Look) -> Toolbar {
         .radius(7.0)
         .cursor(Cursor::Pointer)
         .help("Display  ⇧V")
+        .press_scale(0.96)
         .child(icon(&SLIDERS, 14.0).color(ink))
         .child(text("Display").font(font(12.5, 400.0)).color(ink))
         .on_press_tx(|s: &mut State, tx: &mut Tx| show_display(s, !s.display, tx));
@@ -655,9 +656,10 @@ fn show_display(s: &mut State, open: bool, tx: &mut Tx) {
 const SLIDE: Easing = Easing::cubic(0.77, 0.0, 0.175, 1.0);
 
 /// The Display panel under its toolbar button, Linear's: the layouts as tiles, then the sort and
-/// filter options still to come, shown but inert. It stays open while a layout is picked, so the
-/// grid can be compared behind it; a press outside, Esc or ⇧V closes it. It grows from its
-/// top-trailing corner, under the button.
+/// filter options still to come, dimmed and inert. Groups are set apart by space, not lines, and
+/// its corners are concentric with the tiles' (8 + the 6-point padding). It stays open while a
+/// layout is picked, so the grid can be compared behind it; a press outside, Esc or ⇧V closes it.
+/// It grows from its top-trailing corner, under the button. The shortcuts are in the tooltips.
 fn display_panel(s: &State, l: &Look) -> Option<El> {
     if !s.display {
         return None;
@@ -689,9 +691,10 @@ fn display_panel(s: &State, l: &Look) -> Option<El> {
             .center()
             .radius(8.0)
             .cursor(Cursor::Pointer)
+            .press_scale(0.96)
             .help(format!("{}  {}", zoom.label(), i + 1))
             .child(layout_preview(zoom, ink))
-            .child(text(zoom.label()).font(font(12.0, 400.0)).color(ink))
+            .child(text(zoom.label()).font(font(12.0, if on { 500.0 } else { 400.0 })).color(ink))
             .on_press_tx(move |s: &mut State, tx: &mut Tx| zoom_to(s, zoom, tx));
         tiles.child(if on { tile } else { tile.hover(Color { a: l.hover.a * 0.6, ..l.hover }) })
     });
@@ -714,39 +717,24 @@ fn display_panel(s: &State, l: &Look) -> Option<El> {
             .center_y()
             .child(icon(glyph, 15.0).color(l.fg3))
             .child(text(label.to_owned()).font(font(12.5, 400.0)).color(l.fg3).grow(1.0))
-            .child(text(value.to_owned()).font(font(12.5, 400.0)).color(l.fg3))
-            .child(icon(&CHEVRON, 12.0).color(l.fg3))
+            .child(text(value.to_owned()).font(font(12.5, 400.0)).color(l.fg3.alpha(0.7)))
+            .child(icon(&CHEVRON, 12.0).color(l.fg3.alpha(0.7)))
     };
-    let word = |t: &str| text(t.to_owned()).font(font(11.0, 400.0)).color(l.fg3);
-    let keys = row().gap(4.0).center_y().child(kbd("⇧V", l.panel, l)).child(word("open,")).child(kbd("←", l.panel, l)).child(kbd("→", l.panel, l));
-    let keys = keys.child(word("or")).child(kbd("1–4", l.panel, l)).child(word("pick"));
-    let footer = row()
-        .w_full()
-        .px(8.0)
-        .pt(8.0)
-        .pb(4.0)
-        .gap(4.0)
-        .center_y()
-        .child(keys)
-        .child(el().grow(1.0))
-        .child(kbd("esc", l.panel, l))
-        .child(word("close"));
     let panel = col()
         .key("display-panel")
         .role("dialog")
         .label("Display")
         .w(348.0)
         .padding(6.0)
-        .radius(12.0)
+        .radius(14.0)
         .fill(l.panel)
         .child(heading("Layout", None))
         .child(tiles)
-        .child(el().w_full().h(1.0).my(6.0).fill(solid(l.line, l.panel)))
-        .child(heading("Sort and filter", Some("later, not built")))
+        .child(el().h(12.0))
+        .child(heading("Sort and filter", Some("Coming soon")))
         .child(later(&SORT, "Sort", "Newest first"))
-        .child(later(&FILTER, "Filter", "Site, tag, source"))
-        .child(later(&CARD_FIELDS, "Show on cards", "Picture, title, site"))
-        .child(footer);
+        .child(later(&FILTER, "Filter", "None"))
+        .child(later(&CARD_FIELDS, "Show on cards", "Picture, title, site"));
     let origin = Vec2::new(1.0, 0.0);
     Some(
         palette::lifted(panel, l)
