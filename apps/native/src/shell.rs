@@ -936,9 +936,11 @@ fn blurb(link: &LinkItem) -> Option<String> {
 
 /// A link card at `zoom`: its picture, then as much about it as the zoom shows. A click opens
 /// its preview; ⌘-click opens it in the browser.
-fn card(link: &LinkItem, now: i64, zoom: Zoom, arriving: bool, l: &Look) -> El {
-    let fly =
-        |what: &str, el: El| el.matched(format!("{what}-{}", link.id)).matched_in_place().matched_motion(REFLOW).transition(Transition::opacity());
+fn card(link: &LinkItem, now: i64, zoom: Zoom, arriving: bool, under: bool, l: &Look) -> El {
+    let fly = |what: &str, el: El| {
+        let el = el.matched(format!("{what}-{}", link.id)).matched_motion(REFLOW).transition(Transition::opacity());
+        if under { el.matched_in_place() } else { el }
+    };
     let picture = fly(
         "picture",
         picture(link, PICTURE_RADIUS, l).key("picture").live_opacity(crate::sphere::reveal()).on_layout_tx({
@@ -1203,7 +1205,7 @@ fn grid(s: &State, columns: usize, dark: bool) -> El {
             .skip(i * columns)
             .take(columns)
             .fold(row().w_full().equal_columns(columns).gap(CARD_GAP - 2.0 * CARD_PAD).pb(gap - 2.0 * CARD_PAD), |r, link| {
-                r.child(card(link, now, zoom, s.landing.is_some(), &l))
+                r.child(card(link, now, zoom, s.landing.is_some(), previewed(s).is_some(), &l))
             })
     };
     if let Some(landing) = &s.landing {
