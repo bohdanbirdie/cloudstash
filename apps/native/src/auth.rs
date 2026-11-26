@@ -142,8 +142,7 @@ impl Auth {
         let base = flavor::base();
         let state_dir = state_dir()?;
         let store: Box<dyn KeyStore> = if flavor::DEV {
-            let server: String = base.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect();
-            Box::new(KeyFile { path: state_dir.join("keys").join(server) })
+            Box::new(KeyFile { path: state_dir.join("keys").join(URL_SAFE_NO_PAD.encode(&base)) })
         } else {
             Box::new(Keychain { account: base.clone() })
         };

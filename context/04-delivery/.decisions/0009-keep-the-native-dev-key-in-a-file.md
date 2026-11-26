@@ -31,7 +31,8 @@ server's library alone.
 ## Decision
 
 A debug build keeps its key in `~/Library/Application Support/dev.cloudstash.native.dev/keys/<server>`,
-one file per server, readable only by the user (mode 0600), written the same
+one file per server, named by the full server address in URL-safe base64 so
+two servers never share a key, readable only by the user (mode 0600), written the same
 way as the pending sign-in. Release builds keep the keychain.
 
 ## Consequences
