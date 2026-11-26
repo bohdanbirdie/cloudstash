@@ -27,4 +27,21 @@ describe("nativeSignInLink", () => {
     expect(link.searchParams.get("code")).toBe("code-1");
     expect(link.searchParams.get("state")).toBe("state-1");
   });
+
+  it("sends Cloudstash Dev's sign-in to its own scheme", () => {
+    const link = new URL(nativeSignInLink("code-1", "state-1", "dev"));
+    expect(link.protocol).toBe("cloudstash-dev:");
+    expect(link.host).toBe("auth");
+    expect(link.pathname).toBe("/callback");
+    expect(link.searchParams.get("code")).toBe("code-1");
+    expect(link.searchParams.get("state")).toBe("state-1");
+  });
+
+  it("gives any other app value the released app's scheme", () => {
+    for (const app of [null, "", "prod", "evil", "DEV"]) {
+      expect(new URL(nativeSignInLink("c", "s", app)).protocol).toBe(
+        "cloudstash:"
+      );
+    }
+  });
 });

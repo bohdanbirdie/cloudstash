@@ -3,12 +3,13 @@
 //! beside a content card listing the chosen state's links (`shell.rs`).
 //!
 //! ```text
-//! scripts/run.sh                                    # against https://cloudstash.dev
-//! CLOUDSTASH_URL=http://127.0.0.1:3000 scripts/run.sh   # against a local dev server
+//! scripts/run.sh                                          # Cloudstash Dev, against http://127.0.0.1:3000
+//! CLOUDSTASH_URL=https://cloudstash.dev scripts/run.sh   # Cloudstash Dev, against another server
 //! ```
 
 mod appearance;
 mod auth;
+mod flavor;
 mod fps;
 mod icons;
 mod images;
@@ -34,7 +35,6 @@ use rune::{Align, App, AppHandle, AppSpec, Chrome, Color, Cx, El, FontSmoothing,
 use shell_kit::PaneState;
 use theme::Palette;
 
-const APP_TITLE: &str = "Cloudstash";
 /// `@fontsource-variable/noto-sans` 5.2.10's subsets, one family each, listed so each
 /// character falls back to its subset as the web's `unicode-range` faces do.
 const NOTO_SANS: &str = "Noto Sans Latin, Noto Sans Latin Ext, Noto Sans Cyrillic, Noto Sans Cyrillic Ext, Noto Sans Greek, Noto Sans Greek Ext, Noto Sans Vietnamese, Noto Sans Devanagari";
@@ -275,7 +275,7 @@ fn cancel_sign_in(s: &mut State) {
     s.phase = Phase::SignedOut;
 }
 
-/// Receives `cloudstash://` links from macOS, including the one that launched the app.
+/// Receives `cloudstash://` (Dev: `cloudstash-dev://`) links from macOS, including the one that launched the app.
 fn open_url(s: &mut State, link: &str, _: &mut Tx) {
     let Some(backend) = s.backend.clone() else {
         s.early_link = Some(link.to_owned());
@@ -778,7 +778,7 @@ fn main() {
         min_size: Some((900.0, 560.0)),
         on_key: Some(shell::on_key),
         poll: Some(poll),
-        ..AppSpec::new(APP_TITLE, size, new_state, view)
+        ..AppSpec::new(flavor::NAME, size, new_state, view)
     })
     .chrome(Chrome { full_size_content: true, traffic_lights: Some((21.0, 21.0)), drag_regions: true })
     .font_smoothing(FontSmoothing::Off)

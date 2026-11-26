@@ -164,8 +164,16 @@ review artifacts unless the maintainer separately authorizes a remote action.
 
 ## Native App Delivery
 
-The Mac app's version is `apps/native/Cargo.toml`'s; debug builds don't
-update. When `main` gets a version with no `native-v<version>` tag,
+The Mac app's version is `apps/native/Cargo.toml`'s. A release build is
+Cloudstash, which always talks to `https://cloudstash.dev`; a debug build
+(`scripts/run.sh`) is Cloudstash Dev, which talks to `http://127.0.0.1:3000`
+unless `CLOUDSTASH_URL` says otherwise and never updates. The two differ in
+bundle id (`dev.cloudstash.native` / `dev.cloudstash.native.dev`), name,
+executable, blue icon and menu bar ball, data, caches and keychain service
+(named by the bundle id), log file (`cloudstash.log` /
+`cloudstash-dev.log`) and sign-in link scheme (`cloudstash` /
+`cloudstash-dev`), so both run on one Mac at once, per
+[decision 0008](./.decisions/0008-give-native-debug-builds-their-own-app-identity.md). When `main` gets a version with no `native-v<version>` tag,
 `native-release.yml` builds a universal app (`apps/native/scripts/release.sh`),
 signs it with the maintainer's Developer ID and hardened runtime, notarizes and
 staples it and its disk image, and publishes them as the repository's latest

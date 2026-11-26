@@ -1,4 +1,5 @@
-//! Sign-in through the browser with a `cloudstash://` deep link, the usual desktop pattern.
+//! Sign-in through the browser with a `cloudstash://` deep link, the usual desktop pattern
+//! (`cloudstash-dev://` for Cloudstash Dev, which asks the page for it with `app=dev`; `flavor.rs`).
 //!
 //! The app opens Cloudstash's `/connect/native` page with a random `state` and a PKCE challenge,
 //! and remembers both in a pending file so a link can complete sign-in even after a relaunch.
@@ -14,11 +15,10 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use url::Url;
 
-pub const DEFAULT_BASE: &str = "https://cloudstash.dev";
-pub const SCHEME: &str = "cloudstash";
+use crate::flavor::{self, BUNDLE_ID, SCHEME};
+
 /// A pending sign-in older than this is ignored, matching the page's patience.
 const PENDING_TTL_SECS: u64 = 10 * 60;
-const KEYCHAIN_SERVICE: &str = "dev.cloudstash.native";
 
 struct HttpError {
     /// Set when the server answered; a rejected key is a status, a dropped connection is not.
@@ -53,7 +53,7 @@ pub struct Keychain {
 
 impl Keychain {
     fn entry(&self) -> Result<keyring::Entry, String> {
-        keyring::Entry::new(KEYCHAIN_SERVICE, &self.account).map_err(|e| e.to_string())
+        keyring::Entry::new(BUNDLE_ID, &self.account).map_err(|e| e.to_string())
     }
 }
 
@@ -97,7 +97,7 @@ pub enum Link {
 /// The app's own folder: the pending sign-in, the libraries and the saved window.
 pub fn state_dir() -> Result<PathBuf, String> {
     let home = std::env::var("HOME").map_err(|_| "HOME is not set".to_owned())?;
-    Ok(PathBuf::from(home).join("Library/Application Support/dev.cloudstash.native"))
+    Ok(PathBuf::from(home).join("Library/Application Support").join(BUNDLE_ID))
 }
 
 pub struct Auth {
@@ -110,8 +110,7 @@ pub struct Auth {
 
 impl Auth {
     pub fn from_env() -> Result<Auth, String> {
-        let base = std::env::var("CLOUDSTASH_URL").unwrap_or_else(|_| DEFAULT_BASE.to_owned());
-        let base = base.trim_end_matches('/').to_owned();
+        let base = flavor::base();
         Ok(Auth { store: Box::new(Keychain { account: base.clone() }), base, state_dir: state_dir()? })
     }
 
@@ -135,9 +134,12 @@ impl Auth {
         let state = random_token()?;
         let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
         write_private(&self.pending_file(), &json!({ "state": state, "verifier": verifier, "created": now() }).to_string())?;
-        let page =
+        let mut page =
             Url::parse_with_params(&format!("{}/connect/native", self.base), [("state", state.as_str()), ("code_challenge", challenge.as_str())])
                 .map_err(|e| e.to_string())?;
+        if flavor::DEV {
+            page.query_pairs_mut().append_pair("app", "dev");
+        }
         Ok(page.into())
     }
 

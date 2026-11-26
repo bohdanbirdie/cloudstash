@@ -16,8 +16,8 @@
 //!
 //! Restarting swaps the new app in where this one is (one rename each way, rolled back if the
 //! second fails) and launches it. A copy that can't be swapped in place (run from the disk image,
-//! moved to a read-only place) doesn't check at all, nor does a debug build unless
-//! `CLOUDSTASH_UPDATE_FEED` points it at a feed to try.
+//! moved to a read-only place) doesn't check at all, nor does Cloudstash Dev, a debug build: the
+//! feed and its apps are production's, which a Dev app must never offer or install.
 //!
 //! `CLOUDSTASH_FAKE_UPDATE` pretends instead, to try the UI without a release
 //! (`scripts/run.sh` passes it on):
@@ -54,7 +54,6 @@ const PUBLIC_KEY: &str = "6iwO3zA/UKsnfXXM2OwrzXnjyUznrKjWvhQyRUURoQw=";
 const DOWNLOAD_PAGE: &str = "https://github.com/bohdanbirdie/cloudstash/releases/latest";
 /// The Apple team whose Developer ID signs releases.
 const TEAM_ID: &str = "E6JHWE4P5L";
-const BUNDLE_ID: &str = "dev.cloudstash.native";
 /// This build's version (Cargo.toml's).
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// How long the app waits between checks while nothing is ready.
@@ -310,8 +309,8 @@ pub fn update_now(s: &mut State) {
 
 /// The app bundle this process runs from, when it's a release that can replace itself there.
 fn updatable() -> Option<PathBuf> {
-    if cfg!(debug_assertions) && std::env::var_os("CLOUDSTASH_UPDATE_FEED").is_none() {
-        tracing::info!("updates are off: development build");
+    if crate::flavor::DEV {
+        tracing::info!("updates are off: Cloudstash Dev");
         return None;
     }
     let exe = std::env::current_exe().ok()?;
@@ -336,7 +335,7 @@ fn tempfile_in(dir: &Path) -> bool {
 
 fn cache_dir() -> PathBuf {
     let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
-    home.join("Library/Caches").join(BUNDLE_ID).join("update")
+    home.join("Library/Caches").join(crate::flavor::BUNDLE_ID).join("update")
 }
 
 /// The newest release's feed, when it's newer than this build.
@@ -413,7 +412,7 @@ fn verify_signature(zip: &[u8], signature: &str, public_key: &str) -> Result<(),
 fn check_app(app: &Path, version: &str) -> Result<(), String> {
     let plist = app.join("Contents/Info.plist");
     let read = |key: &str| run(Command::new("/usr/libexec/PlistBuddy").arg("-c").arg(format!("Print :{key}")).arg(&plist));
-    if read("CFBundleIdentifier")? != BUNDLE_ID {
+    if read("CFBundleIdentifier")? != crate::flavor::BUNDLE_ID {
         return Err("the update isn't Cloudstash".into());
     }
     if read("CFBundleShortVersionString")? != version.trim_start_matches('v') {

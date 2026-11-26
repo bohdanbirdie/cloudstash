@@ -12,6 +12,7 @@ use sha2::{Digest, Sha256};
 use url::Url;
 
 use crate::auth::{Account, Auth, KeyStore, Link};
+use crate::flavor::SCHEME;
 
 const API_KEY: &str = "lb_test_key";
 
@@ -122,9 +123,10 @@ fn fixture(name: &str) -> Fixture {
 fn web_page(f: &Fixture, page: &str, code: &str) -> String {
     let page = Url::parse(page).unwrap();
     assert_eq!(page.path(), "/connect/native");
-    let param = |name: &str| page.query_pairs().find(|(key, _)| key == name).unwrap().1.into_owned();
-    f.server.lock().unwrap().challenge = Some(param("code_challenge"));
-    Url::parse_with_params("cloudstash://auth/callback", [("code", code), ("state", &param("state"))]).unwrap().into()
+    let param = |name: &str| page.query_pairs().find(|(key, _)| key == name).map(|(_, value)| value.into_owned());
+    f.server.lock().unwrap().challenge = param("code_challenge");
+    let scheme = if param("app").as_deref() == Some("dev") { "cloudstash-dev" } else { "cloudstash" };
+    Url::parse_with_params(&format!("{scheme}://auth/callback"), [("code", code), ("state", &param("state").unwrap())]).unwrap().into()
 }
 
 fn sign_in(f: &Fixture) -> Result<Account, String> {
@@ -168,8 +170,12 @@ fn links_that_are_not_this_sign_in_are_ignored() {
     let f = fixture("ignored");
     let page = f.auth.begin_sign_in().unwrap();
     let link = web_page(&f, &page, "code_1");
-    let forged = Url::parse_with_params("cloudstash://auth/callback", [("code", "code_1"), ("state", "forged")]).unwrap();
-    for other in [forged.as_str(), "cloudstash://elsewhere/callback?code=code_1", "https://auth/callback?code=code_1", "not a link"] {
+    let forged = Url::parse_with_params(&format!("{SCHEME}://auth/callback"), [("code", "code_1"), ("state", "forged")]).unwrap();
+    let elsewhere = format!("{SCHEME}://elsewhere/callback?code=code_1");
+    // The same sign-in's link sent to the other app's scheme: the released app and Cloudstash Dev
+    // never take each other's.
+    let other_app = link.replacen(SCHEME, if SCHEME == "cloudstash" { "cloudstash-dev" } else { "cloudstash" }, 1);
+    for other in [forged.as_str(), &elsewhere, &other_app, "https://auth/callback?code=code_1", "not a link"] {
         assert_eq!(f.auth.accept_link(other), Link::Ignored, "{other}");
     }
     // The genuine link still works after the others were ignored.
