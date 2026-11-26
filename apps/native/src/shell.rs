@@ -1170,15 +1170,11 @@ fn saved(created_ms: i64, now_ms: i64) -> String {
 
 /// The link's picture on the preview and the opened link, as the web app shows it: as wide as
 /// its place at a fixed 16:9, filled and cropped when its shape differs, so stepping between
-/// links never moves the text; None when the link has none. Until the sharper copy loads, the
-/// card's copy stands in.
+/// links never moves the text; None when the link has none. The sharper copy draws over the
+/// card's, so the card's shows until it loads and it shows the moment it does.
 fn whole_picture(link: &LinkItem, l: &Look) -> Option<El> {
     let url = link.image.as_deref()?;
-    let whole = images::picture(&Request::whole(url, WHOLE));
-    let pixels = match whole.size() {
-        (w, h) if w > 0 && h > 0 => whole,
-        _ => images::picture(&Request::whole(url, PICTURE)),
-    };
+    let sharper = el().pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0)).pixels_fit(&images::picture(&Request::whole(url, WHOLE)), SurfaceFit::Fill);
     let ring = el().pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0)).radius(10.0).border(1.0, l.ring);
     Some(
         el().key("preview-picture")
@@ -1187,7 +1183,8 @@ fn whole_picture(link: &LinkItem, l: &Look) -> Option<El> {
             .radius(10.0)
             .clip_rounded(10.0)
             .fill(l.tile)
-            .pixels_fit(&pixels, SurfaceFit::Fill)
+            .pixels_fit(&images::picture(&Request::whole(url, PICTURE)), SurfaceFit::Fill)
+            .child(sharper)
             .child(ring)
             .a11y_hidden(),
     )
