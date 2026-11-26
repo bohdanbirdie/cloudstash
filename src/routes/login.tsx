@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { CloudstashLogo } from "@/components/cloudstash-logo";
 import { SITE_URL } from "@/components/landing/seo-data";
 import { LoginAnimation } from "@/components/login-animation";
+import { TwinkleDots } from "@/components/twinkle-dots";
 import { Button } from "@/components/ui/button";
 import { authClient, loadAuth } from "@/lib/auth";
 import { META_PIXEL_HEAD_SCRIPTS } from "@/lib/meta-pixel";
@@ -74,7 +75,7 @@ export function AuthSplitCard({ children }: { children: ReactNode }) {
           aria-hidden="true"
           className="relative hidden overflow-hidden bg-primary p-8 text-primary-foreground md:flex md:flex-col md:justify-between"
         >
-          <div className="landing-dot-field landing-dot-field-inverse pointer-events-none absolute inset-0" />
+          <TwinkleDots className="pointer-events-none absolute inset-0" />
           <BrandLockup className="relative" tone="inverse" />
           <LoginAnimation
             variant="light"
