@@ -3,12 +3,13 @@
 //! beside a content card listing the chosen state's links (`shell.rs`).
 //!
 //! ```text
-//! scripts/run.sh                                    # against https://cloudstash.dev
-//! CLOUDSTASH_URL=http://127.0.0.1:3000 scripts/run.sh   # against a local dev server
+//! scripts/run.sh                                          # Cloudstash Dev, against http://127.0.0.1:3000
+//! CLOUDSTASH_URL=https://cloudstash.dev scripts/run.sh   # Cloudstash Dev, against another server
 //! ```
 
 mod appearance;
 mod auth;
+mod flavor;
 mod fps;
 mod icons;
 mod images;
@@ -21,6 +22,7 @@ mod search;
 mod settings;
 mod shell;
 mod shell_kit;
+mod sphere;
 mod theme;
 mod ui_state;
 mod update;
@@ -30,12 +32,12 @@ use std::sync::Arc;
 use auth::{Account, Auth, Link};
 use livestore::library::{self, Library, LinkItem, Tab};
 use rune::{
-    Align, App, AppHandle, AppSpec, Chrome, Color, Cx, El, FontSmoothing, LoopSpec, MenuItem, Shadow, TextStyle, Tx, col, el, icon, row, text,
+    Align, App, AppHandle, AppSpec, Chrome, Color, Cx, Cycle, El, FontSmoothing, LoopSpec, MenuItem, Pixels, Shadow, TextStyle, Tx, col, el, icon,
+    row, text,
 };
 use shell_kit::PaneState;
 use theme::Palette;
 
-const APP_TITLE: &str = "Cloudstash";
 /// `@fontsource-variable/noto-sans` 5.2.10's subsets, one family each, listed so each
 /// character falls back to its subset as the web's `unicode-range` faces do.
 const NOTO_SANS: &str = "Noto Sans Latin, Noto Sans Latin Ext, Noto Sans Cyrillic, Noto Sans Cyrillic Ext, Noto Sans Greek, Noto Sans Greek Ext, Noto Sans Vietnamese, Noto Sans Devanagari";
@@ -82,14 +84,31 @@ pub(crate) struct State {
     notice: Option<String>,
     library: Option<Library>,
     links: Vec<LinkItem>,
+    /// The library has opened and given its links, caught up with the server or done waiting for it.
+    loaded: bool,
+    /// The logo is opening into the library (`sphere::opening`).
+    intro: bool,
     place: nav::Place,
     sync: Sync,
     backend: Option<Backend>,
     /// A link that arrived before the backend was ready, as when it launched the app.
     early_link: Option<String>,
     sidebar: PaneState,
-    kind: shell::Kind,
-    mode: shell::Mode,
+    zoom: shell::Zoom,
+    /// The card under the pointer, else the first card in the first row whose top is in view:
+    /// where a zoom change holds still.
+    hovered: Option<String>,
+    /// The first cards of the first two rows in view.
+    top_cards: [usize; 2],
+    /// The cards in the rows in view.
+    in_view: std::ops::Range<usize>,
+    /// For the frame before a zoom change: a stand-in for each card the new grid shows that the
+    /// old one doesn't, where it would be if the old grid ran on that far, so it flies in too.
+    ghosts: Vec<shell::Ghost>,
+    /// While a zoom change lands: the rows the grid builds, not virtual (`shell::zoom_to`).
+    landing: Option<std::ops::Range<usize>>,
+    /// The link shown over the library, as a preview or all the way.
+    preview: Option<shell::Preview>,
     /// Whether ⌘ is held alone, and since when, for the sidebar's shortcut hints.
     hints: shell::Hints,
     /// The command palette, while it's open.
@@ -114,7 +133,7 @@ pub(crate) struct State {
 /// Headless snapshots render a named scene and must not touch the keychain, the network or the
 /// saved window.
 fn headless() -> bool {
-    std::env::args().any(|arg| arg == "--snap" || arg == "--tree")
+    std::env::args().any(|arg| matches!(arg.as_str(), "--snap" | "--tree" | "--script"))
 }
 
 fn new_state() -> State {
@@ -145,6 +164,12 @@ impl Backend {
         self.ui.update(move |s, _| match result {
             Ok(Some(account)) => {
                 s.sync = Sync::Connecting;
+                s.loaded = false;
+                // The logo opens into the library after a sign-in, not each time the app starts.
+                s.intro = matches!(s.phase, Phase::Finishing | Phase::WaitingForBrowser);
+                if s.intro {
+                    sphere::begin();
+                }
                 match backend.open_library(&account) {
                     Ok(library) => s.library = Some(library),
                     Err(e) => s.sync = Sync::Failed(e),
@@ -188,7 +213,14 @@ impl Backend {
             library::Config { base: self.auth.base.clone(), library_id: account.library_id.clone(), api_key, dir },
             move |links| {
                 images::prefetch(shell::wanted_images(&links));
-                on_links.update(move |s, _| s.links = links)
+                on_links.update(move |s, tx| {
+                    if !s.loaded {
+                        // A library just opened starts at its top, wherever the last one was left.
+                        tx.scroll_to_y("viewport", 0.0);
+                    }
+                    s.links = links;
+                    s.loaded = true;
+                })
             },
             move |status| {
                 on_status.update(move |s, _| {
@@ -246,7 +278,7 @@ fn cancel_sign_in(s: &mut State) {
     s.phase = Phase::SignedOut;
 }
 
-/// Receives `cloudstash://` links from macOS, including the one that launched the app.
+/// Receives `cloudstash://` (Dev: `cloudstash-dev://`) links from macOS, including the one that launched the app.
 fn open_url(s: &mut State, link: &str, _: &mut Tx) {
     let Some(backend) = s.backend.clone() else {
         s.early_link = Some(link.to_owned());
@@ -292,7 +324,7 @@ fn sign_out(s: &mut State) {
     let library = s.library.take();
     s.links.clear();
     s.place = nav::Place::default();
-    s.kind = shell::Kind::default();
+    s.preview = None;
     std::thread::spawn(move || {
         let key = backend.auth.take_key();
         if let Some(library) = library {
@@ -308,30 +340,133 @@ fn sign_out(s: &mut State) {
 }
 
 fn view(s: &State, cx: &mut Cx<State>) -> El {
+    sphere::hide();
     let t = theme::palette(cx.system_dark());
+    let opening = s.intro && matches!(s.phase, Phase::SignedIn(_)) && !matches!(s.sync, Sync::Failed(_));
+    if !opening {
+        sphere::cancel();
+    }
     if let update::Update::Required(progress) = s.update {
-        return screen(col().key("content").w_full().max_w(320.0).items_center().child(brand_lockup(t)).child(must_update(s, progress, t)), t);
+        return screen(col().key("content").w_full().max_w(280.0).items_center().child(must_update(s, progress, t)), t);
     }
     let content = match (&s.phase, &s.notice) {
-        (Phase::SignedOut, Some(notice)) => status(Tone::Problem, "Couldn't finish signing in", notice.clone(), t)
-            .child(primary_button("sign-in", "Try again", t).on_press(start_sign_in)),
-        (Phase::SignedOut, None) => header("Sign in to Cloudstash", "Access your saved links from anywhere.".into(), t)
-            .child(primary_button("sign-in", "Sign in", t).on_press(start_sign_in)),
-        (Phase::SigningOut, _) => status(Tone::Progress, "Signing out", "Removing this Mac's copy of your library.".into(), t),
-        (Phase::Restoring, _) => status(Tone::Progress, "Opening Cloudstash for Mac", "Checking for a saved session. This takes a moment.".into(), t),
-        (Phase::WaitingForBrowser, _) => {
-            status(Tone::Progress, "Finish signing in in your browser", "Cloudstash opens again when you're done.".into(), t)
-                .child(outline_button("cancel", "Cancel", t).on_press(cancel_sign_in))
+        (Phase::SignedOut, Some(notice)) => {
+            problem("Couldn't finish signing in", notice.clone(), t).child(primary_button("sign-in", "Try again", t).on_press(start_sign_in))
         }
-        (Phase::Finishing, _) => status(Tone::Progress, "Signing in to Cloudstash for Mac", "Preparing your sign-in. This takes a moment.".into(), t),
-        (Phase::SignedIn(account), _) => return shell::view(s, account, cx),
+        (Phase::SignedOut, None) => welcome("Sign in to Cloudstash", "Access your saved links from anywhere.".into(), t)
+            .child(primary_button("sign-in", "Sign in", t).on_press(start_sign_in)),
+        (Phase::SigningOut, _) => progress("Signing out", "Removing this Mac's copy of your library.".into(), t),
+        (Phase::Restoring, _) => progress("Opening Cloudstash for Mac", "Checking for a saved session. This takes a moment.".into(), t),
+        (Phase::WaitingForBrowser, _) => progress("Finish signing in in your browser", "Cloudstash opens again when you're done.".into(), t)
+            .child(outline_button("cancel", "Cancel", t).on_press(cancel_sign_in)),
+        (Phase::Finishing, _) => progress("Signing in to Cloudstash for Mac", "Preparing your sign-in. This takes a moment.".into(), t),
+        (Phase::SignedIn(account), _) if opening => {
+            // The library, once it has its links, under the logo that opens into it.
+            let (under, pictures) = if s.loaded {
+                (shell::view(s, account, cx), shell::opening_pictures(s, cx.system_dark()))
+            } else {
+                (el().w_full().h_full().fill(t.card).window_drag(), Vec::new())
+            };
+            return el().key("root").w_full().h_full().child(under).child(sphere::opening::<State>(t.card_foreground, t.card, s.loaded, pictures));
+        }
+        (Phase::SignedIn(_), _) if !s.loaded && !matches!(s.sync, Sync::Failed(_)) => {
+            progress("Opening your library", "Getting your latest links.".into(), t)
+        }
+        // Under the same root as while the logo opened, so the grid keeps its place when the opening ends.
+        (Phase::SignedIn(account), _) => return el().key("root").w_full().h_full().child(shell::view(s, account, cx)),
     };
-    screen(col().key("content").w_full().max_w(320.0).child(brand_lockup(t)).child(content), t)
+    screen(col().key("content").w_full().max_w(320.0).child(content), t)
 }
 
 /// A whole-window screen, as signing in shows: `content` in the middle of the card.
 fn screen(content: El, t: Palette) -> El {
-    col().key("window").w_full().h_full().padding(28.0).center().fill(t.card).window_drag().child(content)
+    col()
+        .key("window")
+        .w_full()
+        .h_full()
+        .padding(28.0)
+        .center()
+        .fill(t.card)
+        .window_drag()
+        .on_pointer_move_local(|_: &mut State, p, tx| {
+            sphere::pointer(Some([p.window_x, p.window_y]));
+            tx.live_only();
+        })
+        .on_hover_change(|_: &mut State, inside, tx| {
+            if !inside {
+                sphere::pointer(None);
+            }
+            tx.live_only();
+        })
+        .child(dot_field(t))
+        .child(content)
+}
+
+/// Points between the dots, as the web's `.landing-dot-field` in src/styles.css: 1pt dots every 18pt.
+const DOT_STEP: f32 = 18.0;
+/// Tile pixels per point, so the dots stay round on a Retina screen.
+const DOT_SCALE: u32 = 3;
+/// Dots across and down one tile; the twinkle repeats every this many dots.
+const DOT_CELLS: u32 = 12;
+/// Each dot twinkles with one of these: seconds a period, and where in it the dot starts.
+const TWINKLES: [(f32, f32); 4] = [(3.7, 0.0), (5.3, 0.35), (6.1, 0.7), (7.9, 0.15)];
+
+/// The faint grid of dots behind the sign-in screens, as behind the web's sign-in card: grey, so it
+/// stays out of the logo's and the button's way, each dot slowly brightening and dimming out of
+/// step with its neighbours, under a mask that fades it out toward the window's edges. Each
+/// twinkle is one tiled image of the dots it owns, its opacity run by the renderer, so the field
+/// costs a few quads and no view updates; Reduce Motion holds it still.
+fn dot_field(t: Palette) -> El {
+    static TILES: std::sync::OnceLock<Vec<Pixels>> = std::sync::OnceLock::new();
+    let tiles = TILES.get_or_init(|| {
+        let cell = DOT_STEP as u32 * DOT_SCALE;
+        let side = cell * DOT_CELLS;
+        let owner = |i: u32| {
+            let mut h = i.wrapping_add(0x9e37_79b9);
+            h = (h ^ (h >> 16)).wrapping_mul(0x85eb_ca6b);
+            h = (h ^ (h >> 13)).wrapping_mul(0xc2b2_ae35);
+            (h ^ (h >> 16)) as usize % TWINKLES.len()
+        };
+        (0..TWINKLES.len())
+            .map(|layer| {
+                let rgba = (0..side * side)
+                    .flat_map(|i| {
+                        let (px, py) = (i % side, i / side);
+                        if owner((py / cell) * DOT_CELLS + px / cell) != layer {
+                            return [0; 4];
+                        }
+                        let centre = cell as f32 / 2.0;
+                        let (x, y) = ((px % cell) as f32 + 0.5 - centre, (py % cell) as f32 + 0.5 - centre);
+                        let points = x.hypot(y) / DOT_SCALE as f32;
+                        // CSS `radial-gradient(circle, ink 1px, transparent 1.25px)`.
+                        let alpha = ((1.25 - points) / 0.25).clamp(0.0, 1.0);
+                        [255, 255, 255, (alpha * 255.0).round() as u8]
+                    })
+                    .collect();
+                let pixels = Pixels::new();
+                pixels.set(side, side, rgba);
+                pixels
+            })
+            .collect()
+    });
+    let span = DOT_STEP * DOT_CELLS as f32;
+    let field =
+        tiles.iter().zip(TWINKLES).fold(el().key("dots").pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0)), |field, (tile, (period, phase))| {
+            field.child(
+                el().pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
+                    .pixels_tile(tile, [span, span])
+                    .pixels_tint(t.card_foreground.alpha(0.06))
+                    .looping(LoopSpec::cycle(Cycle {
+                        period,
+                        phase,
+                        stops: &[(0.0, 0.2), (0.5, 1.0), (1.0, 0.2)],
+                        still: 0.6,
+                        fps: Cycle::DISPLAY_RATE,
+                    })),
+            )
+        });
+    let mask = [(0.0, t.card.alpha(0.0)), (0.65, t.card.alpha(0.0)), (1.0, t.card)];
+    field.child(el().pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0)).radial_gradient([0.5, 0.5], [520.0, 340.0], mask))
 }
 
 /// This version is too old to use, signed in or out: the window only offers the update, and
@@ -437,42 +572,47 @@ fn must_update(s: &State, progress: Option<u8>, t: Palette) -> El {
     )
 }
 
-enum Tone {
-    Problem,
-    Progress,
-}
-
-fn brand_lockup(t: Palette) -> El {
-    row()
-        .key("brand")
-        .items_center()
-        .gap(8.0)
-        .mb(28.0)
-        .child(icon(&icons::LOGO, 24.0).color(t.primary))
-        .child(text("cloudstash").font(TextStyle::new(14.0, 600.0).lh(20.0).tracking(-0.35)).color(t.card_foreground))
+/// The logo above a title and a line of text, all centred: what the sign-in screens share.
+fn welcome(title: &'static str, body: String, t: Palette) -> El {
+    scene(title, body, false, t)
 }
 
 fn header(title: &'static str, body: String, t: Palette) -> El {
     col()
         .key("header")
         .w_full()
-        .child(text(title).key("title").font(TextStyle::new(20.0, 600.0).lh(28.0).tracking(-0.5)).color(t.card_foreground).wrap())
-        .child(text(body).key("body").font(TextStyle::new(12.0, 400.0).lh(19.5)).color(t.muted_foreground).wrap().mt(8.0))
+        .items_center()
+        .child(
+            text(title).key("title").font(TextStyle::new(20.0, 600.0).lh(28.0).tracking(-0.5)).color(t.card_foreground).align(Align::Center).wrap(),
+        )
+        .child(text(body).key("body").font(TextStyle::new(12.0, 400.0).lh(19.5)).color(t.muted_foreground).align(Align::Center).wrap().mt(8.0))
 }
 
-fn status(tone: Tone, title: &'static str, body: String, t: Palette) -> El {
-    let (fill, ink, ring, glyph) = match tone {
-        Tone::Problem => (t.destructive_10, t.destructive, t.destructive_20, &icons::TRIANGLE_ALERT),
-        Tone::Progress => (t.muted, t.muted_foreground, t.foreground_10, &icons::LOADER_CIRCLE),
-    };
-    let mut glyph = icon(glyph, 20.0).color(ink);
-    if matches!(tone, Tone::Progress) {
-        glyph = glyph.looping(LoopSpec::rotation(1.0));
-    }
+/// Something is under way: the welcome with the logo turning faster.
+fn progress(title: &'static str, body: String, t: Palette) -> El {
+    scene(title, body, true, t)
+}
+
+fn scene(title: &'static str, body: String, busy: bool, t: Palette) -> El {
+    col().key("welcome").w_full().items_center().child(sphere::live::<State>(96.0, t.card_foreground, busy)).child(header(title, body, t).mt(24.0))
+}
+
+/// Something went wrong: a warning badge takes the logo's place.
+fn problem(title: &'static str, body: String, t: Palette) -> El {
     col()
         .key("status")
         .w_full()
-        .child(row().key("status-icon").size(40.0, 40.0).center().radius(20.0).fill(fill).box_shadow(ring_1(ring)).child(glyph))
+        .items_center()
+        .child(
+            row()
+                .key("status-icon")
+                .size(48.0, 48.0)
+                .center()
+                .radius(24.0)
+                .fill(t.destructive_10)
+                .box_shadow(ring_1(t.destructive_20))
+                .child(icon(&icons::TRIANGLE_ALERT, 20.0).color(t.destructive)),
+        )
         .child(header(title, body, t).mt(20.0))
 }
 
@@ -498,6 +638,7 @@ fn signed_in_scene(s: &mut State, tab: Tab) {
     s.phase =
         Phase::SignedIn(Account { name: Some("Ada Example".to_owned()), email: "ada@example.com".to_owned(), library_id: "org_example".to_owned() });
     s.sync = Sync::Online;
+    s.loaded = true;
     s.place = nav::Place::Tab(tab);
     let link = |id: &str, title: &str, status: &str, created_at: i64, completed_at: Option<i64>| LinkItem {
         id: id.to_owned(),
@@ -579,6 +720,17 @@ fn main() {
             }),
             ("waiting", |s| s.phase = Phase::WaitingForBrowser),
             ("finishing", |s| s.phase = Phase::Finishing),
+            ("opening", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.intro = true;
+                sphere::begin();
+            }),
+            ("opening-wide", |s| {
+                worst_case_scene(s, Tab::Inbox);
+                s.sidebar.set_open(false);
+                s.intro = true;
+                sphere::begin();
+            }),
             ("signed-in", |s| signed_in_scene(s, Tab::Inbox)),
             ("completed", |s| signed_in_scene(s, Tab::Completed)),
             ("collapsed", |s| {
@@ -597,6 +749,34 @@ fn main() {
             ("palette", |s| {
                 signed_in_scene(s, Tab::Inbox);
                 shell::toggle_palette(s);
+            }),
+            ("pictures", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.zoom = shell::Zoom::Pictures;
+            }),
+            ("summaries", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.zoom = shell::Zoom::Summaries;
+            }),
+            ("feed", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.zoom = shell::Zoom::Feed;
+            }),
+            ("preview", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                let id = s.links[0].id.clone();
+                shell::preview(s, &id, false);
+            }),
+            ("preview-open", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                let id = s.links[0].id.clone();
+                shell::preview(s, &id, true);
+            }),
+            ("preview-open-no-sidebar", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.sidebar.set_open(false);
+                let id = s.links[0].id.clone();
+                shell::preview(s, &id, true);
             }),
             ("signed-in-worst", |s| worst_case_scene(s, Tab::Inbox)),
             ("palette-worst", |s| {
@@ -669,14 +849,17 @@ fn main() {
         min_size: Some((900.0, 560.0)),
         on_key: Some(shell::on_key),
         poll: Some(poll),
-        ..AppSpec::new(APP_TITLE, size, new_state, view)
+        ..AppSpec::new(flavor::NAME, size, new_state, view)
     })
     .chrome(Chrome { full_size_content: true, traffic_lights: Some((21.0, 21.0)), drag_regions: true })
     .font_smoothing(FontSmoothing::Off)
     .on_frame_encoded({
         devtools_probes();
         let mut tracker = fps::Tracker::default();
-        move |frame| tracker.frame(frame)
+        move |frame| {
+            tracker.frame(frame);
+            sphere::frame(frame, headless().then_some(1.0 / 60.0));
+        }
     })
     .on_modifiers(shell::on_modifiers)
     .on_quit(|s, _| ui_state::flush(s))
@@ -695,6 +878,10 @@ fn main() {
         auth,
         ui: {
             let ui = app.handle();
+            sphere::on_opened({
+                let ui = ui.clone();
+                move || ui.update(|s, _| s.intro = false)
+            });
             fps::on_relayout({
                 let ui = ui.clone();
                 move || ui.update(|_, _| {})

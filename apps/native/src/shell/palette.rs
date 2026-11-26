@@ -1,6 +1,6 @@
 //! The ⌘K command palette, after Raycast and cmdk: one search field over a single list of
 //! commands and links, grouped so the consequence of ↵ is obvious, and a footer naming it. ↵
-//! opens a link in the browser or runs a command. It opens with a quick fade and a slight scale,
+//! opens a link in the app (⌘↵ in the browser) or runs a command. It opens with a quick fade and a slight scale,
 //! closes with a shorter fade, and moving the selection lands at once: no highlight fade, no
 //! scroll glide.
 
@@ -13,7 +13,7 @@ use rune::{
     el, icon, oklcha, rich, row, text, text_input,
 };
 
-use super::{ALL, ARCHIVE, DONE, FAVICON, FEED, GRID, INBOX, Look, Mode, RESET, RETURN, SEARCH, SIGN_OUT, font, scroll_bar, solid};
+use super::{ALL, ARCHIVE, DONE, FAVICON, FEED, GRID, INBOX, Look, RESET, RETURN, SEARCH, SIGN_OUT, Zoom, font, scroll_bar, solid};
 use rune_kit::ScrollBar;
 
 use crate::State;
@@ -82,9 +82,9 @@ struct Entry {
 }
 
 fn commands(s: &State) -> [(&'static str, Command); 7] {
-    let mode = match s.mode {
-        Mode::Grid => Command { name: "Show as feed", glyph: &FEED, run: |s| s.mode = Mode::Feed },
-        Mode::Feed => Command { name: "Show as grid", glyph: &GRID, run: |s| s.mode = Mode::Grid },
+    let mode = match s.zoom {
+        Zoom::Feed => Command { name: "Show as grid", glyph: &GRID, run: |s| s.zoom = Zoom::Titles },
+        _ => Command { name: "Show as feed", glyph: &FEED, run: |s| s.zoom = Zoom::Feed },
     };
     [
         ("Go to", Command { name: "Inbox", glyph: &INBOX, run: |s| go(s, Place::Tab(Tab::Inbox)) }),
@@ -97,8 +97,8 @@ fn commands(s: &State) -> [(&'static str, Command); 7] {
     ]
 }
 
-/// The query, the library's links' address and length, and the view mode.
-type FoundFor = (String, usize, usize, Mode);
+/// The query, the library's links' address and length, and the zoom.
+type FoundFor = (String, usize, usize, Zoom);
 
 thread_local! {
     /// The last entries and what they were found for: the query, the library (its links' address
@@ -108,7 +108,7 @@ thread_local! {
 }
 
 fn entries(s: &State, query: &str) -> Rc<Vec<Entry>> {
-    let key = (query.to_owned(), s.links.as_ptr() as usize, s.links.len(), s.mode);
+    let key = (query.to_owned(), s.links.as_ptr() as usize, s.links.len(), s.zoom);
     if let Some(found) = FOUND.with_borrow(|f| f.as_ref().filter(|(k, _)| *k == key).map(|(_, e)| Rc::clone(e))) {
         return found;
     }
@@ -156,11 +156,12 @@ fn point(s: &mut State, i: usize, at: PointerEvent, tx: &mut Tx) {
     p.sel_for = p.query.text.clone();
 }
 
-/// ↵ (with or without ⌘) opens a link in the browser or runs a command.
-fn activate(s: &mut State, item: &Item) {
+/// ↵ opens a link in the app, all the way, and ⌘↵ in the browser; either runs a command.
+fn activate(s: &mut State, item: &Item, browser: bool) {
     s.palette = None;
     match item {
-        Item::Link(hit) => crate::open_link(&hit.link.url),
+        Item::Link(hit) if browser => crate::open_link(&hit.link.url),
+        Item::Link(hit) => super::preview(s, &hit.link.id, true),
         Item::Command(c, _) => (c.run)(s),
     }
 }
@@ -180,7 +181,7 @@ fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
         }
         Key::Enter => {
             if let Some(entry) = found.get(sel) {
-                activate(s, &entry.item);
+                activate(s, &entry.item, e.mods.cmd);
             }
         }
         Key::Escape => s.palette = None,
@@ -258,7 +259,7 @@ fn entry_row(i: usize, entry: &Entry, on: bool, l: &Look) -> El {
         .child(body.grow(1.0).min_w(0.0))
         .children(trail)
         .on_pointer_move_local(move |s: &mut State, at, tx: &mut Tx| point(s, i, at, tx))
-        .on_press(move |s: &mut State| activate(s, &item));
+        .on_press_tx(move |s: &mut State, tx: &mut Tx| activate(s, &item, tx.mods().cmd));
     if on { r.fill(l.active) } else { r }
 }
 
@@ -324,7 +325,7 @@ pub fn layers(s: &State, l: &Look) -> Vec<El> {
     }
 
     let action = match found.get(sel).map(|e| &e.item) {
-        Some(Item::Link(_)) => vec![hint("Open link", &["↵"], l)],
+        Some(Item::Link(_)) => vec![hint("Browser", &["⌘", "↵"], l), hint("Open", &["↵"], l)],
         Some(Item::Command(..)) => vec![hint("Run", &["↵"], l)],
         None => vec![hint("Close", &["esc"], l)],
     };

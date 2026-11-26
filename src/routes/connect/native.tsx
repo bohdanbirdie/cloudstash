@@ -85,8 +85,16 @@ function StatusCard({
   );
 }
 
+// Enough to tell accounts apart, without showing the address on a shared screen.
+function redactEmail(email: string) {
+  const at = email.lastIndexOf("@");
+  return at < 1 ? "•••" : `${email.slice(0, 1)}•••${email.slice(at)}`;
+}
+
 function AccountChip({ auth }: { auth: AuthState }) {
-  const label = auth.name ?? auth.email;
+  // The first name only: the rest stays off a shared screen.
+  const name = auth.name?.trim().split(/\s+/)[0] || undefined;
+  const label = name ?? redactEmail(auth.email);
   return (
     <div className="mt-5 flex items-center gap-3 rounded-md bg-muted/50 px-3 py-2.5 ring-1 ring-foreground/10">
       <Avatar>
@@ -94,16 +102,9 @@ function AccountChip({ auth }: { auth: AuthState }) {
         <AvatarFallback>{label.slice(0, 1).toUpperCase()}</AvatarFallback>
       </Avatar>
       <div className="min-w-0 text-start">
-        {auth.name && (
-          <p className="truncate text-sm font-medium" title={auth.name}>
-            {auth.name}
-          </p>
-        )}
-        <p
-          className="truncate text-xs text-muted-foreground"
-          title={auth.email}
-        >
-          {auth.email}
+        {name && <p className="truncate text-sm font-medium">{name}</p>}
+        <p className="truncate text-xs text-muted-foreground">
+          {redactEmail(auth.email)}
         </p>
       </div>
     </div>
@@ -141,7 +142,11 @@ function ConnectNativePage() {
       if (!response.ok || !data.code) {
         throw new Error(data.error ?? `HTTP ${response.status}`);
       }
-      const link = nativeSignInLink(data.code, request.state);
+      const link = nativeSignInLink(
+        data.code,
+        request.state,
+        searchParams.get("app")
+      );
       setHandoff({ link, status: "ready" });
       // Opening the app's link is what brings Cloudstash for Mac forward.
       window.location.href = link;

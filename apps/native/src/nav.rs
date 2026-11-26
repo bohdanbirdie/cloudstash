@@ -44,10 +44,11 @@ impl Default for Place {
     }
 }
 
-/// Shows `place`, closing the palette if it's open over the page.
+/// Shows `place`, closing the palette and any link shown over the page.
 pub fn go(s: &mut State, place: Place) {
     s.place = place;
     s.palette = None;
+    s.preview = None;
 }
 
 #[cfg(test)]

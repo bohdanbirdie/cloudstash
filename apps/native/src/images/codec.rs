@@ -25,11 +25,14 @@ impl Made {
     }
 }
 
-/// Cropped to fill `size`, never enlarged, and encoded.
-pub fn make(bytes: &[u8], (width, height): (u32, u32)) -> Option<Made> {
+/// Cropped to fill `size` (or, `whole`, shrunk to fit inside it), never enlarged, and encoded.
+pub fn make(bytes: &[u8], (width, height): (u32, u32), whole: bool) -> Option<Made> {
     let picture = image::load_from_memory(bytes).ok()?;
-    let fitted =
-        if picture.width() > width || picture.height() > height { picture.resize_to_fill(width, height, FilterType::Triangle) } else { picture };
+    let fitted = match (picture.width() > width || picture.height() > height, whole) {
+        (false, _) => picture,
+        (true, false) => picture.resize_to_fill(width, height, FilterType::Triangle),
+        (true, true) => picture.resize(width, height, FilterType::Triangle),
+    };
     let rgba = fitted.to_rgba8();
     let (w, h) = rgba.dimensions();
     let mut file = Vec::new();
@@ -63,14 +66,20 @@ mod tests {
 
     #[test]
     fn an_opaque_picture_is_cropped_to_fill_and_saved_as_jpeg() {
-        let made = make(&png(&RgbaImage::from_pixel(400, 100, Rgba([200, 10, 10, 255]))), (80, 55)).unwrap();
+        let made = make(&png(&RgbaImage::from_pixel(400, 100, Rgba([200, 10, 10, 255]))), (80, 55), false).unwrap();
         assert_eq!((made.width, made.height, made.ext), (80, 55, "jpg"));
         assert_eq!(load(&made.file).map(|(w, h, _)| (w, h)), Some((80, 55)));
     }
 
     #[test]
     fn a_see_through_picture_stays_png_and_a_small_one_is_not_enlarged() {
-        let made = make(&png(&RgbaImage::from_pixel(20, 20, Rgba([0, 0, 0, 0]))), (80, 55)).unwrap();
+        let made = make(&png(&RgbaImage::from_pixel(20, 20, Rgba([0, 0, 0, 0]))), (80, 55), false).unwrap();
         assert_eq!((made.width, made.height, made.ext), (20, 20, "png"));
+    }
+
+    #[test]
+    fn a_whole_picture_keeps_its_shape_inside_the_size() {
+        let made = make(&png(&RgbaImage::from_pixel(400, 100, Rgba([200, 10, 10, 255]))), (80, 80), true).unwrap();
+        assert_eq!((made.width, made.height), (80, 20));
     }
 }

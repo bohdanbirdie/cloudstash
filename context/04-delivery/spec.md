@@ -40,15 +40,18 @@ flow in [auth-and-tenancy](../02-system/02-auth-and-tenancy/spec.md#pairing-flow
 and API-key LiveStore sync. Card pictures are kept as small local copies in each
 library's folder and deleted with it on sign-out, or at the next launch that
 finds no session; at most 80 MB of them are kept decoded in memory, per
-[decision 0006](./.decisions/0006-bound-native-picture-memory.md). Saved links open in the browser only when they are web
+[decision 0006](./.decisions/0006-bound-native-picture-memory.md). A click on a card opens a preview of the link over the grid,
+with the sidebar still usable; a click on the preview or ↵ opens it fully in
+the content area, and Esc steps back. ⌘-click opens the link in the browser.
+Saved links open in the browser only when they are web
 addresses. The window's page is one `Place` value (a library state or a space
 by id), changed only through `nav::go`, so every navigation (sidebar, palette,
 ⌘1 to ⌘4 for the states in sidebar order, later menus and links) takes the
 same path. Between launches AppKit keeps the window's position and size, and
-`ui.json` in the app's folder keeps the page, grid or feed, the kind filter and
-the sidebar's state and width. Each value is checked as it loads and an
+`ui.json` in the app's folder keeps the page, the zoom (Pictures, Titles,
+Summaries or Feed) and the sidebar's state and width. Each value is checked as it loads and an
 unknown one falls back to its default, so no saved state can strand the app;
-the file is replaced atomically, and sign-out forgets the page and filter.
+the file is replaced atomically, and sign-out forgets the page.
 Settings is a window of its own (⌘, or Cloudstash ▸ Settings…) with General
 (the account, Sign Out behind a confirmation, the theme, Open at login, and
 the Dock and menu bar icons), Updates (shown only, until the updater lands)
@@ -58,6 +61,11 @@ windows follow it. The app can hide its Dock icon only while its menu bar icon
 (the logo; a click brings the window forward) shows, so it can always be
 found; `ui.json` keeps the theme and both icons across sign-out and restores a
 Dock icon if neither was saved on.
+The whole-window screens before the library (sign in, waiting for the browser,
+the sign-in error, signing out, opening the library, must-update) sit on the
+web sign-in card's dot grid, 1pt dots every 18pt, in faint grey; each dot
+brightens and dims slowly out of step with its neighbours, and the grid fades
+out toward the window's edges. Reduce Motion holds it still.
 
 Local provider configuration is represented by committed 1Password references
 in `.env.example`. `bun run env:sync` explicitly and atomically materializes
@@ -161,8 +169,16 @@ review artifacts unless the maintainer separately authorizes a remote action.
 
 ## Native App Delivery
 
-The Mac app's version is `apps/native/Cargo.toml`'s; debug builds don't
-update. When `main` gets a version with no `native-v<version>` tag,
+The Mac app's version is `apps/native/Cargo.toml`'s. A release build is
+Cloudstash, which always talks to `https://cloudstash.dev`; a debug build
+(`scripts/run.sh`) is Cloudstash Dev, which talks to `http://127.0.0.1:3000`
+unless `CLOUDSTASH_URL` says otherwise and never updates. The two differ in
+bundle id (`dev.cloudstash.native` / `dev.cloudstash.native.dev`), name,
+executable, blue icon and menu bar ball, data, caches and keychain service
+(named by the bundle id), log file (`cloudstash.log` /
+`cloudstash-dev.log`) and sign-in link scheme (`cloudstash` /
+`cloudstash-dev`), so both run on one Mac at once, per
+[decision 0008](./.decisions/0008-give-native-debug-builds-their-own-app-identity.md). When `main` gets a version with no `native-v<version>` tag,
 `native-release.yml` builds a universal app (`apps/native/scripts/release.sh`),
 signs it with the maintainer's Developer ID and hardened runtime, notarizes and
 staples it and its disk image, and publishes them as the repository's latest

@@ -4,7 +4,7 @@
 
 [package]
 name = "cloudstash-native"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.99"
 publish = false
@@ -41,11 +41,11 @@ livestore-sqlite = { git = "https://github.com/livestorejs/livestore-contrib", r
 livestore-sync = { git = "https://github.com/livestorejs/livestore-contrib", rev = "dc0aa0d079fe195cf20802b7cd1ff5982f20b102" }
 livestore-sync-cf = { git = "https://github.com/livestorejs/livestore-contrib", rev = "dc0aa0d079fe195cf20802b7cd1ff5982f20b102" }
 # rune is pre-release: pinned to a commit.
-rune = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
+rune = { git = "https://github.com/anomalyco/rune", rev = "c0f6d48d67726d8c78e0f5c8367b3c16a5bdad37" }
 # rune's component kit, for the shell prototype's resizable, collapsible sidebar (SplitView).
-rune-kit = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
+rune-kit = { git = "https://github.com/anomalyco/rune", rev = "c0f6d48d67726d8c78e0f5c8367b3c16a5bdad37" }
 # Has AppKit remember the window's position and size (src/ui_state.rs).
-rune-mac = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
+rune-mac = { git = "https://github.com/anomalyco/rune", rev = "c0f6d48d67726d8c78e0f5c8367b3c16a5bdad37" }
 # Compares the app's version with the newest release's (src/update.rs).
 semver = "1"
 serde = { version = "1", features = ["derive"] }
@@ -71,12 +71,14 @@ tracing-subscriber = { version = "0.3", default-features = false, features = [
 
 # rune vendors patched crates; a dependency's [patch] does not reach us, so repeat it.
 [patch.crates-io]
-wgpu-hal = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
-winit = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
-sctk-adwaita = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
-parley_engine = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
-accesskit_windows = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
-accesskit_macos = { git = "https://github.com/anomalyco/rune", rev = "86b903de7fef9c6b683e05dc23440de4ebbc4347" }
+wgpu-hal = { git = "https://github.com/anomalyco/rune", rev = "c0f6d48d67726d8c78e0f5c8367b3c16a5bdad37" }
+naga = { git = "https://github.com/anomalyco/rune", rev = "c0f6d48d67726d8c78e0f5c8367b3c16a5bdad37" }
+winit = { git = "https://github.com/anomalyco/rune", rev = "c0f6d48d67726d8c78e0f5c8367b3c16a5bdad37" }
+sctk-adwaita = { git = "https://github.com/anomalyco/rune", rev = "c0f6d48d67726d8c78e0f5c8367b3c16a5bdad37" }
+parley_engine = { git = "https://github.com/anomalyco/rune", rev = "c0f6d48d67726d8c78e0f5c8367b3c16a5bdad37" }
+accesskit_windows = { git = "https://github.com/anomalyco/rune", rev = "c0f6d48d67726d8c78e0f5c8367b3c16a5bdad37" }
+accesskit_atspi_common = { git = "https://github.com/anomalyco/rune", rev = "c0f6d48d67726d8c78e0f5c8367b3c16a5bdad37" }
+accesskit_macos = { git = "https://github.com/anomalyco/rune", rev = "c0f6d48d67726d8c78e0f5c8367b3c16a5bdad37" }
 
 # The shell prototype's trackpad taps and left-only resize cursor (src/shell_kit/mac.rs), and the
 # theme (src/appearance.rs).

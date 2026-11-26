@@ -1,17 +1,19 @@
 import { useEffect, useRef } from "react";
 
-import { torusKnotPoint } from "@/lib/brand/torus-knot";
-import type { TorusKnotConfig } from "@/lib/brand/torus-knot";
+import { sphereDots, SPHERE_FINE, SPHERE_TILT } from "@/lib/brand/sphere";
 import { cn } from "@/lib/utils";
 
-const CONFIG: TorusKnotConfig = { R: 16, r: 8, cx: 50, cy: 50 };
-const PARTICLE_COUNT = 82;
-const TRAIL_SPAN = 0.24;
-const DURATION_MS = 6200;
-const PULSE_MS = 5200;
-const R_BASE = 16;
-const R_BREATH = 2;
+const RADIUS = 34;
+const BASE = (SPHERE_FINE.base * RADIUS) / 56;
+/** Radians a second at rest, as the Mac app's logo turns. */
+const IDLE = 0.45;
+/** It never turns slower than this on its own: a crawl makes the dots shimmer. */
+const SLOWEST = 0.3;
 
+/**
+ * The logo, turning: the ball of dots on the sign-in and loading screens. As in the Mac app
+ * (apps/native/src/sphere.rs) it leans toward a nearby pointer, and a drag turns and tips it.
+ */
 export function LoginAnimation({
   variant = "dark",
   className,
@@ -19,97 +21,167 @@ export function LoginAnimation({
   variant?: "dark" | "light";
   className?: string;
 }) {
+  const svgRef = useRef<SVGSVGElement>(null);
   const groupRef = useRef<SVGGElement>(null);
-  const pathRef = useRef<SVGPathElement>(null);
 
   useEffect(() => {
-    const group = groupRef.current!;
-    const path = pathRef.current!;
-    if (!group || !path) return;
+    const svg = svgRef.current;
+    const group = groupRef.current;
+    if (!svg || !group) return;
 
-    function renderStaticPath(R: number) {
-      let d = "";
-      for (let i = 0; i <= 480; i++) {
-        const pt = torusKnotPoint(i / 480, { ...CONFIG, R });
-        d += `${i === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)} `;
-      }
-      path.setAttribute("d", d + "Z");
-    }
-    renderStaticPath(R_BASE);
-
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
-      return;
-    }
-
-    const particleFill = variant === "light" ? "#ffffff" : "currentColor";
     const NS = "http://www.w3.org/2000/svg";
     const circles: SVGCircleElement[] = [];
-    for (let i = 0; i < PARTICLE_COUNT; i++) {
-      const c = document.createElementNS(NS, "circle");
-      c.setAttribute("fill", particleFill);
-      group.appendChild(c);
-      circles.push(c);
+    const m = {
+      yaw: 0,
+      turned: 0,
+      speed: IDLE,
+      pitch: 0,
+      look: [0, 0],
+      pointer: null as [number, number] | null,
+      drag: null as [number, number] | null,
+    };
+
+    function draw() {
+      const dots = sphereDots(
+        SPHERE_FINE.count,
+        SPHERE_FINE.floor,
+        m.yaw - m.look[0],
+        true,
+        SPHERE_TILT - m.look[1] - m.pitch
+      );
+      while (circles.length < dots.length) {
+        const c = document.createElementNS(NS, "circle");
+        c.setAttribute("fill", "currentColor");
+        group!.appendChild(c);
+        circles.push(c);
+      }
+      for (const [i, c] of circles.entries()) {
+        const dot = dots[i];
+        if (!dot) {
+          c.setAttribute("opacity", "0");
+          continue;
+        }
+        c.setAttribute("cx", (50 + RADIUS * dot.x).toFixed(2));
+        c.setAttribute("cy", (50 + RADIUS * dot.y).toFixed(2));
+        c.setAttribute("r", (BASE * dot.size).toFixed(2));
+        c.setAttribute("opacity", dot.opacity.toFixed(3));
+      }
+    }
+    draw();
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      return () => {
+        for (const c of circles) c.remove();
+      };
     }
 
-    const startedAt = performance.now();
-    let raf: number;
+    /** The ball's centre and radius on the page. */
+    function ball() {
+      const box = svg!.getBoundingClientRect();
+      return {
+        x: box.left + box.width / 2,
+        y: box.top + box.height / 2,
+        radius: (box.width * RADIUS) / 100,
+      };
+    }
 
+    let last = performance.now();
+    let raf = 0;
     function tick(now: number) {
-      const time = now - startedAt;
-      const progress = (time % DURATION_MS) / DURATION_MS;
-      const pulseP = (time % PULSE_MS) / PULSE_MS;
-      const s = 0.52 + ((Math.sin(pulseP * Math.PI * 2 + 0.55) + 1) / 2) * 0.48;
-      const R = R_BASE + s * R_BREATH;
-      const rotation = -((time % 34000) / 34000) * 360;
-
-      group.setAttribute("transform", `rotate(${rotation} 50 50)`);
-      renderStaticPath(R);
-
-      for (let idx = 0; idx < circles.length; idx++) {
-        const tailOffset = idx / (PARTICLE_COUNT - 1);
-        const p = (((progress - tailOffset * TRAIL_SPAN) % 1) + 1) % 1;
-        const pt = torusKnotPoint(p, { ...CONFIG, R });
-        const fade = (1 - tailOffset) ** 0.56;
-
-        circles[idx].setAttribute("cx", pt.x.toFixed(2));
-        circles[idx].setAttribute("cy", pt.y.toFixed(2));
-        circles[idx].setAttribute("r", (0.9 + fade * 2.7).toFixed(2));
-        circles[idx].setAttribute("opacity", (0.04 + fade * 0.96).toFixed(3));
+      const dt = Math.min((now - last) / 1000, 0.05);
+      last = now;
+      const ease = (rate: number) => Math.min(rate * dt, 1);
+      if (m.drag) {
+        // The hand turns it; remember how fast, so it keeps going when let go.
+        if (dt > 0) m.speed += ((m.yaw - m.turned) / dt - m.speed) * 0.35;
+        m.look = [m.look[0] * (1 - ease(7)), m.look[1] * (1 - ease(7))];
+      } else {
+        // It leans toward a pointer within about two and a half of its radii, less the farther off.
+        let want = [0, 0];
+        const { x, y, radius } = ball();
+        // Hidden (a narrow window drops this half of the page), it has no size to measure against.
+        if (m.pointer && radius > 0) {
+          const [dx, dy] = [m.pointer[0] - x, m.pointer[1] - y];
+          const far = Math.min(
+            1,
+            Math.max(0, (Math.hypot(dx, dy) / radius - 1.25) / 1.5)
+          );
+          const pull = 1 - far * far * (3 - 2 * far);
+          want = [
+            (dx / (2.75 * radius)) * 0.8 * pull,
+            (dy / (2.75 * radius)) * 0.5 * pull,
+          ];
+        }
+        m.speed += (IDLE - m.speed) * ease(1.4);
+        // Let go while turning backwards, it slows, then picks up forwards without crawling through a stop.
+        if (Math.abs(m.speed) < SLOWEST) m.speed = SLOWEST;
+        m.yaw += m.speed * dt;
+        m.pitch *= 1 - ease(1.2);
+        m.look = [
+          m.look[0] + (want[0] - m.look[0]) * ease(7),
+          m.look[1] + (want[1] - m.look[1]) * ease(7),
+        ];
       }
-
+      m.turned = m.yaw;
+      draw();
       raf = requestAnimationFrame(tick);
     }
-
     raf = requestAnimationFrame(tick);
+
+    const onMove = (e: PointerEvent) => {
+      m.pointer = [e.clientX, e.clientY];
+      if (!m.drag) return;
+      const { radius } = ball();
+      m.yaw -= (e.clientX - m.drag[0]) / radius;
+      m.pitch = Math.min(
+        1.2,
+        Math.max(-1.2, m.pitch + (e.clientY - m.drag[1]) / radius)
+      );
+      m.drag = [e.clientX, e.clientY];
+    };
+    const onLeave = () => {
+      m.pointer = null;
+    };
+    const onDown = (e: PointerEvent) => {
+      m.drag = [e.clientX, e.clientY];
+      svg.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    };
+    const onUp = () => {
+      m.drag = null;
+    };
+    window.addEventListener("pointermove", onMove);
+    document.documentElement.addEventListener("pointerleave", onLeave);
+    svg.addEventListener("pointerdown", onDown);
+    svg.addEventListener("pointerup", onUp);
+    svg.addEventListener("pointercancel", onUp);
     return () => {
       cancelAnimationFrame(raf);
+      window.removeEventListener("pointermove", onMove);
+      document.documentElement.removeEventListener("pointerleave", onLeave);
+      svg.removeEventListener("pointerdown", onDown);
+      svg.removeEventListener("pointerup", onUp);
+      svg.removeEventListener("pointercancel", onUp);
       for (const c of circles) c.remove();
     };
-  }, [variant]);
+  }, []);
 
   return (
     <svg
+      ref={svgRef}
       viewBox="0 0 100 100"
       className={cn(
-        "overflow-visible",
+        "cursor-grab touch-none overflow-visible active:cursor-grabbing motion-reduce:cursor-auto",
         {
           "text-white": variant === "light",
-          "text-foreground/50": variant !== "light",
+          "text-foreground": variant !== "light",
         },
         className ?? "size-56"
       )}
-      fill="none"
+      aria-hidden="true"
     >
-      <g ref={groupRef}>
-        <path
-          ref={pathRef}
-          stroke="currentColor"
-          strokeWidth={4.3}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          opacity={variant === "light" ? 0.35 : 0.08}
-        />
-      </g>
+      {/* Something to grab between the dots. */}
+      <circle cx={50} cy={50} r={RADIUS} fill="transparent" />
+      <g ref={groupRef} />
     </svg>
   );
 }
