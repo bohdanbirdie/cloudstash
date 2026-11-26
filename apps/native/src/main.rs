@@ -30,7 +30,10 @@ use std::sync::Arc;
 
 use auth::{Account, Auth, Link};
 use livestore::library::{self, Library, LinkItem, Tab};
-use rune::{Align, App, AppHandle, AppSpec, Chrome, Color, Cx, El, FontSmoothing, MenuItem, Shadow, TextStyle, Tx, col, el, icon, row, text};
+use rune::{
+    Align, App, AppHandle, AppSpec, Chrome, Color, Cx, Cycle, El, FontSmoothing, LoopSpec, MenuItem, Pixels, Shadow, TextStyle, Tx, col, el, icon,
+    row, text,
+};
 use shell_kit::PaneState;
 use theme::Palette;
 
@@ -395,7 +398,75 @@ fn screen(content: El, t: Palette) -> El {
             }
             tx.live_only();
         })
+        .child(dot_field(t))
         .child(content)
+}
+
+/// Points between the dots, as the web's `.landing-dot-field` in src/styles.css: 1pt dots every 18pt.
+const DOT_STEP: f32 = 18.0;
+/// Tile pixels per point, so the dots stay round on a Retina screen.
+const DOT_SCALE: u32 = 3;
+/// Dots across and down one tile; the twinkle repeats every this many dots.
+const DOT_CELLS: u32 = 12;
+/// Each dot twinkles with one of these: seconds a period, and where in it the dot starts.
+const TWINKLES: [(f32, f32); 4] = [(3.7, 0.0), (5.3, 0.35), (6.1, 0.7), (7.9, 0.15)];
+
+/// The faint grid of dots behind the sign-in screens, as behind the web's sign-in card: grey, so it
+/// stays out of the logo's and the button's way, each dot slowly brightening and dimming out of
+/// step with its neighbours, under a mask that fades it out toward the window's edges. Each
+/// twinkle is one tiled image of the dots it owns, its opacity run by the renderer, so the field
+/// costs a few quads and no view updates; Reduce Motion holds it still.
+fn dot_field(t: Palette) -> El {
+    static TILES: std::sync::OnceLock<Vec<Pixels>> = std::sync::OnceLock::new();
+    let tiles = TILES.get_or_init(|| {
+        let cell = DOT_STEP as u32 * DOT_SCALE;
+        let side = cell * DOT_CELLS;
+        let owner = |i: u32| {
+            let mut h = i.wrapping_add(0x9e37_79b9);
+            h = (h ^ (h >> 16)).wrapping_mul(0x85eb_ca6b);
+            h = (h ^ (h >> 13)).wrapping_mul(0xc2b2_ae35);
+            (h ^ (h >> 16)) as usize % TWINKLES.len()
+        };
+        (0..TWINKLES.len())
+            .map(|layer| {
+                let rgba = (0..side * side)
+                    .flat_map(|i| {
+                        let (px, py) = (i % side, i / side);
+                        if owner((py / cell) * DOT_CELLS + px / cell) != layer {
+                            return [0; 4];
+                        }
+                        let centre = cell as f32 / 2.0;
+                        let (x, y) = ((px % cell) as f32 + 0.5 - centre, (py % cell) as f32 + 0.5 - centre);
+                        let points = x.hypot(y) / DOT_SCALE as f32;
+                        // CSS `radial-gradient(circle, ink 1px, transparent 1.25px)`.
+                        let alpha = ((1.25 - points) / 0.25).clamp(0.0, 1.0);
+                        [255, 255, 255, (alpha * 255.0).round() as u8]
+                    })
+                    .collect();
+                let pixels = Pixels::new();
+                pixels.set(side, side, rgba);
+                pixels
+            })
+            .collect()
+    });
+    let span = DOT_STEP * DOT_CELLS as f32;
+    let field =
+        tiles.iter().zip(TWINKLES).fold(el().key("dots").pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0)), |field, (tile, (period, phase))| {
+            field.child(
+                el().pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
+                    .pixels_tile(tile, [span, span])
+                    .pixels_tint(t.card_foreground.alpha(0.06))
+                    .looping(LoopSpec::cycle(Cycle {
+                        period,
+                        phase,
+                        stops: &[(0.0, 0.2), (0.5, 1.0), (1.0, 0.2)],
+                        still: 0.6,
+                        fps: Cycle::DISPLAY_RATE,
+                    })),
+            )
+        });
+    let mask = [(0.0, t.card.alpha(0.0)), (0.65, t.card.alpha(0.0)), (1.0, t.card)];
+    field.child(el().pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0)).radial_gradient([0.5, 0.5], [520.0, 340.0], mask))
 }
 
 /// This version is too old to use, signed in or out: the window only offers the update, and
