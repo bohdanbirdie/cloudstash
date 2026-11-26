@@ -157,6 +157,7 @@ pub struct SplitView {
     peek: Option<SidebarPeek>,
     reduced: bool,
     floater: Option<El>,
+    main_overlay: Vec<El>,
 }
 
 impl SplitView {
@@ -176,6 +177,7 @@ impl SplitView {
             peek: None,
             reduced: false,
             floater: None,
+            main_overlay: Vec::new(),
         }
     }
     /// The leading pane. `access` finds its state in the app's; the grip and the toggle button
@@ -250,6 +252,24 @@ impl SplitView {
         self.floater = floater;
         self
     }
+    /// Layers over the whole main pane, its toolbar included. They're the pane's last children,
+    /// so `pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0))` makes one exactly the pane's size,
+    /// following it as the panes open and close on the same spring, and clipped by its corners.
+    pub fn main_overlay(mut self, layers: Vec<El>) -> Self {
+        self.main_overlay = layers;
+        self
+    }
+    /// Where the toolbar's first item starts, from the main pane's leading edge: clear of the
+    /// traffic lights and the sidebar's toggle while the sidebar is closed.
+    pub fn toolbar_lead(&self) -> f32 {
+        let t = &self.toggle;
+        if self.sidebar.as_ref().is_some_and(|p| p.state.is_open()) {
+            return 12.0;
+        }
+        let lights = if self.inset > 0.0 { self.inset + t.past_lights } else { t.edge };
+        let past_toggle = if self.show_toggle && self.sidebar.is_some() { lights + t.side() + t.gap } else { lights };
+        if self.in_panel { (past_toggle - self.frame).max(12.0) } else { past_toggle }
+    }
     /// Pass [`Cx::is_reduced_motion`]: fades replace the slides of the panes' contents and of
     /// a peek, as [`PaneMotion::reduced_motion_fade`] and [`SidebarPeek::reduced_motion_fade`]
     /// set. Widths snap under Reduce Motion either way.
@@ -261,6 +281,7 @@ impl SplitView {
     }
 
     pub fn build(self, k: &Kit) -> El {
+        let lead = self.toolbar_lead();
         let c = &k.c;
         let t = self.toggle;
         let side = t.side();
@@ -350,18 +371,7 @@ impl SplitView {
             let content = Contents { pad: self.padding, slide: peek.is_some(), peek, band: Some(band), frame: self.frame };
             dock(&d, "sidebar-pane", p, true, content, &mut zones)
         });
-        let toolbar = self
-            .toolbar
-            .unwrap_or_default()
-            .padding(if sidebar_open {
-                12.0
-            } else if self.in_panel {
-                (past_toggle - self.frame).max(12.0)
-            } else {
-                past_toggle
-            })
-            .build(k)
-            .motion(spring);
+        let toolbar = self.toolbar.unwrap_or_default().padding(lead).build(k).motion(spring);
         let (toolbar, above) = if self.in_panel { (Some(toolbar), None) } else { (None, Some(toolbar)) };
         let card = col()
             .key("main-pane")
@@ -378,7 +388,8 @@ impl SplitView {
             .clip_rounded(k.radius.lg)
             .motion(spring)
             .children(toolbar)
-            .child(self.main.grow(1.0).min_h(0.0));
+            .child(self.main.grow(1.0).min_h(0.0))
+            .children(self.main_overlay);
         let mut below = row().key("main-row").w_full().grow(1.0).min_h(0.0).motion(spring).child(card);
         if let Some(mut p) = self.inspector {
             if let Some(c) = p.clear.take() {

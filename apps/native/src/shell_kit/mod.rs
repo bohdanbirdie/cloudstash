@@ -26,7 +26,7 @@ mod toolbar;
 
 pub use pane::{PaneState, SidebarPeek, is_sidebar_toggle};
 pub use split::{SidebarToggle, SplitView};
-pub use toolbar::Toolbar;
+pub use toolbar::{TOOLBAR_HEIGHT, Toolbar};
 
 use rune::Icon;
 

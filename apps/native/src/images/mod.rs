@@ -44,17 +44,25 @@ pub enum Lane {
     Icon,
 }
 
-/// A picture at the size it's drawn, in pixels.
+/// A picture at the size it's drawn, in pixels: cropped to fill it, or whole inside it.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Request {
     pub url: String,
     pub size: (u32, u32),
     pub lane: Lane,
+    /// Shrunk to fit inside `size` at its own shape instead of cropped to fill it.
+    pub whole: bool,
 }
 
 impl Request {
     pub fn new(url: &str, size: (u32, u32), lane: Lane) -> Self {
-        Request { url: url.to_owned(), size, lane }
+        Request { url: url.to_owned(), size, lane, whole: false }
+    }
+
+    /// The whole picture, at most `size`. Give it a size no cropped request uses: copies on
+    /// disk are told apart by size.
+    pub fn whole(url: &str, size: (u32, u32)) -> Self {
+        Request { url: url.to_owned(), size, lane: Lane::Picture, whole: true }
     }
 }
 
@@ -303,8 +311,8 @@ impl Inner {
             runtime().spawn(async move {
                 let made = match fetch::get(&client, &req.url).await {
                     Ok(bytes) => {
-                        let size = req.size;
-                        tokio::task::spawn_blocking(move || codec::make(&bytes, size).filter(|m| inner().epoch == epoch && m.save(&path)))
+                        let (size, whole) = (req.size, req.whole);
+                        tokio::task::spawn_blocking(move || codec::make(&bytes, size, whole).filter(|m| inner().epoch == epoch && m.save(&path)))
                             .await
                             .ok()
                             .flatten()

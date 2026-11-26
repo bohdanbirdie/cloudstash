@@ -40,15 +40,18 @@ flow in [auth-and-tenancy](../02-system/02-auth-and-tenancy/spec.md#pairing-flow
 and API-key LiveStore sync. Card pictures are kept as small local copies in each
 library's folder and deleted with it on sign-out, or at the next launch that
 finds no session; at most 80 MB of them are kept decoded in memory, per
-[decision 0006](./.decisions/0006-bound-native-picture-memory.md). Saved links open in the browser only when they are web
+[decision 0006](./.decisions/0006-bound-native-picture-memory.md). A click on a card opens a preview of the link over the grid,
+with the sidebar still usable; a click on the preview or ↵ opens it fully in
+the content area, and Esc steps back. ⌘-click opens the link in the browser.
+Saved links open in the browser only when they are web
 addresses. The window's page is one `Place` value (a library state or a space
 by id), changed only through `nav::go`, so every navigation (sidebar, palette,
 ⌘1 to ⌘4 for the states in sidebar order, later menus and links) takes the
 same path. Between launches AppKit keeps the window's position and size, and
-`ui.json` in the app's folder keeps the page, grid or feed, the kind filter and
-the sidebar's state and width. Each value is checked as it loads and an
+`ui.json` in the app's folder keeps the page, the zoom (Pictures, Titles,
+Summaries or Feed) and the sidebar's state and width. Each value is checked as it loads and an
 unknown one falls back to its default, so no saved state can strand the app;
-the file is replaced atomically, and sign-out forgets the page and filter.
+the file is replaced atomically, and sign-out forgets the page.
 Settings is a window of its own (⌘, or Cloudstash ▸ Settings…) with General
 (the account, Sign Out behind a confirmation, the theme, Open at login, and
 the Dock and menu bar icons), Updates (shown only, until the updater lands)

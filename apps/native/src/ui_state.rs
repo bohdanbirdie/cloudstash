@@ -15,22 +15,20 @@ use crate::State;
 use crate::appearance::{self, THEMES, Theme};
 use crate::menu_bar;
 use crate::nav::Place;
-use crate::shell::{self, Kind, Mode};
+use crate::shell::{self, Zoom};
 
 /// The window's name for AppKit's saved frame.
 pub const WINDOW: &str = "main";
 /// How long a change rests before it's written, so dragging the sidebar writes once or twice.
 const SETTLE: f64 = 0.5;
 
-const MODES: [(Mode, &str); 2] = [(Mode::Grid, "grid"), (Mode::Feed, "feed")];
-const KINDS: [(Kind, &str); 4] = [(Kind::All, "all"), (Kind::Posts, "posts"), (Kind::Articles, "articles"), (Kind::Videos, "videos")];
+const ZOOMS: [(Zoom, &str); 4] = [(Zoom::Pictures, "pictures"), (Zoom::Titles, "titles"), (Zoom::Summaries, "summaries"), (Zoom::Feed, "feed")];
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Saved {
     place: Option<String>,
-    mode: Option<String>,
-    kind: Option<String>,
+    zoom: Option<String>,
     theme: Option<String>,
     dock_icon: Option<bool>,
     menu_bar: Option<bool>,
@@ -43,8 +41,7 @@ impl Saved {
     fn of(s: &State) -> Saved {
         Saved {
             place: Some(s.place.name()),
-            mode: name(&MODES, s.mode),
-            kind: name(&KINDS, s.kind),
+            zoom: name(&ZOOMS, s.zoom),
             theme: name(&THEMES.map(|(theme, id, _)| (theme, id)), s.theme),
             dock_icon: Some(!s.hide_dock),
             menu_bar: Some(s.menu_bar),
@@ -56,8 +53,7 @@ impl Saved {
 
     fn apply(&self, s: &mut State) {
         s.place = self.place.as_deref().and_then(Place::named).unwrap_or_default();
-        s.mode = value(&MODES, &self.mode).unwrap_or_default();
-        s.kind = value(&KINDS, &self.kind).unwrap_or_default();
+        s.zoom = value(&ZOOMS, &self.zoom).unwrap_or_default();
         s.theme = value(&THEMES.map(|(theme, id, _)| (theme, id)), &self.theme).unwrap_or_default();
         s.menu_bar = self.menu_bar.unwrap_or(false);
         s.hide_dock = self.dock_icon == Some(false) && s.menu_bar;
@@ -202,8 +198,7 @@ mod tests {
         let file = file("round-trip");
         let mut s = restored(&file);
         s.place = Place::Space("design");
-        s.mode = Mode::Feed;
-        s.kind = Kind::Videos;
+        s.zoom = Zoom::Feed;
         s.theme = Theme::Dark;
         s.menu_bar = true;
         s.hide_dock = true;
@@ -211,7 +206,7 @@ mod tests {
         s.sidebar.set_open(false);
         flush(&mut s);
         let back = restored(&file);
-        assert_eq!((back.place, back.mode, back.kind, back.theme), (Place::Space("design"), Mode::Feed, Kind::Videos, Theme::Dark));
+        assert_eq!((back.place, back.zoom, back.theme), (Place::Space("design"), Zoom::Feed, Theme::Dark));
         assert_eq!((back.sidebar.width(), back.sidebar.is_open()), (280.0, false));
         assert_eq!((back.hide_dock, back.menu_bar), (true, true));
         assert!(!file.with_extension("json.tmp").exists(), "the temporary file is renamed away");
@@ -224,7 +219,7 @@ mod tests {
         assert_eq!((fresh.place, fresh.sidebar.is_open()), (Place::Tab(Tab::Inbox), true));
         std::fs::write(&file, b"{\"place\": 3, ").unwrap();
         let broken = restored(&file);
-        assert_eq!((broken.place, broken.mode, broken.sidebar.width()), (Place::Tab(Tab::Inbox), Mode::Grid, shell::sidebar_state().width()));
+        assert_eq!((broken.place, broken.zoom, broken.sidebar.width()), (Place::Tab(Tab::Inbox), Zoom::Titles, shell::sidebar_state().width()));
     }
 
     #[test]
@@ -239,10 +234,10 @@ mod tests {
     fn unknown_values_fall_back_one_by_one() {
         let file = file("unknown");
         let old =
-            r#"{"place": "space:deleted", "mode": "carousel", "kind": "posts", "theme": "sepia", "sidebar_width": 5000, "from_the_future": true}"#;
+            r#"{"place": "space:deleted", "zoom": "carousel", "kind": "posts", "theme": "sepia", "sidebar_width": 5000, "from_the_future": true}"#;
         std::fs::write(&file, old).unwrap();
         let s = restored(&file);
-        assert_eq!((s.place, s.mode, s.kind, s.theme), (Place::Tab(Tab::Inbox), Mode::Grid, Kind::Posts, Theme::System));
+        assert_eq!((s.place, s.zoom, s.theme), (Place::Tab(Tab::Inbox), Zoom::Titles, Theme::System));
         assert_eq!(s.sidebar.width(), s.sidebar.max_width(), "a width out of range is kept inside it");
     }
 }
