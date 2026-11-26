@@ -431,7 +431,7 @@ fn sidebar(s: &State, account: &Account, l: &Look) -> El {
     if s.update.in_sidebar() {
         sidebar = sidebar.child(update_row(s.update, l));
     }
-    sidebar.child(user)
+    sidebar.child(fps::meter::<State>(l.fg3, l.line2)).child(user)
 }
 
 /// Opens or closes the account's menu. A peeking sidebar stays while it's open, whatever the
@@ -1455,13 +1455,7 @@ pub fn view(s: &State, account: &Account, cx: &mut Cx<State>) -> El {
     let lead = shell.toolbar_lead();
     let shell = shell.main_overlay(overlay(s, lead, &l)).build(kit(dark));
     let palette = palette::layers(s, &l);
-    el().key("window")
-        .w_full()
-        .h_full()
-        .child(shell)
-        .children(palette)
-        .children(update_dialog(s, &l))
-        .child(fps::meter::<State>(l.fg2, l.panel, l.line2).pin(None, None, Some(20.0), Some(20.0)).paint_order(100))
+    el().key("window").w_full().h_full().child(shell).children(palette).children(update_dialog(s, &l))
 }
 
 /// How long the pointer rests on the window's left edge before the closed sidebar peeks, so

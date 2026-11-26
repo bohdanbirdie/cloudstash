@@ -1,19 +1,18 @@
-//! A frame meter after overengineeringstudio/fps-meter, over the window's bottom-right corner:
-//! every display refresh is a bar, faint when a frame was drawn in it and red when it was missed,
+//! A frame meter after overengineeringstudio/fps-meter, at the foot of the sidebar so it never
+//! covers the content card: every display refresh is a bar, faint when a frame was drawn in it and red when it was missed,
 //! beside the average rate over the last two seconds. While it shows, the window draws every
 //! refresh, as a `requestAnimationFrame` loop does. Bars and text are live values, so frames
-//! never re-run the view. On its left, the readings other parts of the app register with
+//! never re-run the view. Above them, the readings other parts of the app register with
 //! [`probe`], refreshed four times a second; the meter knows nothing about what they measure.
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use rune::{Color, Cursor, El, FrameEncoded, FrameOutcome, Live, LiveText, LoopSpec, TextStyle, el, oklch, oklcha, row, text};
+use rune::{Color, Cursor, El, FrameEncoded, FrameOutcome, Live, LiveText, LoopSpec, TextStyle, col, el, oklch, oklcha, row, text};
 
 const BARS: usize = 120;
-const BARS_W: f32 = 120.0;
-const BARS_H: f32 = 22.0;
+const BARS_H: f32 = 14.0;
 const WINDOW: Duration = Duration::from_secs(2);
 /// Longer gaps are the window resting or hidden, not missed frames.
 const MAX_GAP: Duration = Duration::from_millis(500);
@@ -59,7 +58,7 @@ fn probes() -> &'static Mutex<Vec<Probe>> {
     PROBES.get_or_init(Mutex::default)
 }
 
-/// Shows `read()` on the meter, left of the frame rate, in the order registered. A live text
+/// Shows `read()` on the meter, above the frame rate, in the order registered. A live text
 /// keeps the box it was laid out in, so the view runs again when a reading's length changes.
 /// Register before the first view runs.
 pub fn probe(read: impl Fn() -> String + Send + 'static) {
@@ -144,22 +143,36 @@ impl Tracker {
     }
 }
 
-pub fn meter<S: 'static>(fg: Color, panel: Color, line: Color) -> El {
+/// The meter as a quiet sidebar block, as wide as the sidebar: the readings on one line, the
+/// frame rate and its bars below.
+pub fn meter<S: 'static>(fg: Color, line: Color) -> El {
     let h = handles();
     let font = TextStyle::new(11.0, 500.0).features("'tnum' 1");
-    let divider = || el().size(1.0, 12.0).fill(line);
-    let bars = h.bars.iter().fold(row().size(BARS_W, BARS_H), |r, bar| r.child(el().w(BARS_W / BARS as f32).h_full().live_fill(bar)));
-    let mut meter = row().key("fps-meter").padding(6.0).gap(8.0).center_y().radius(8.0).fill(panel).border(1.0, line).a11y_hidden();
-    for p in probes().lock().expect("probes").iter_mut() {
+    let divider = || el().size(1.0, 10.0).fill(line);
+    let bars = h.bars.iter().fold(row().grow(1.0).min_w(0.0).h(BARS_H).clip_rounded(3.0).fill(fg.alpha(0.1)), |r, bar| {
+        r.child(el().grow(1.0).min_w(0.0).h_full().live_fill(bar))
+    });
+    let mut readings = row().gap(7.0).center_y();
+    for (n, p) in probes().lock().expect("probes").iter_mut().enumerate() {
         p.laid = p.last.chars().count();
         let mut reading = text(p.last.clone()).live_text(&p.text).font(font).color(fg);
         if let Some(press) = p.press.clone() {
             reading = reading.cursor(Cursor::Pointer).on_press(move |_: &mut S| press());
         }
-        meter = meter.child(reading).child(divider());
+        if n > 0 {
+            readings = readings.child(divider());
+        }
+        readings = readings.child(reading);
     }
-    meter
-        .child(text("").live_text(&h.text).font(font).color(fg).w(48.0))
-        .child(bars)
+    col()
+        .key("fps-meter")
+        .w_full()
+        .px(8.0)
+        .pt(4.0)
+        .pb(10.0)
+        .gap(5.0)
+        .a11y_hidden()
+        .child(readings)
+        .child(row().w_full().gap(8.0).center_y().child(text("").live_text(&h.text).font(font).color(fg).w(46.0)).child(bars))
         .child(el().key("fps-tick").size(1.0, 1.0).looping(LoopSpec::rotation(1.0)))
 }
