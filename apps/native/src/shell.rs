@@ -684,6 +684,10 @@ fn shown(s: &State) -> Vec<&LinkItem> {
 const CARD_MIN: f32 = 230.0;
 const CARD_GAP: f32 = 16.0;
 const ROW_GAP: f32 = 20.0;
+/// A card's hover plate reaches this far past its picture, into the gaps, so the pictures
+/// stay where the gaps and page padding put them.
+const CARD_PAD: f32 = 8.0;
+const PICTURE_RADIUS: f32 = 10.0;
 /// The grid's edges line up with the toolbar: its left with the title, its right with the
 /// toolbar's buttons, and the scroll bar's thumb runs in the right gutter.
 const PAGE_PAD_LEFT: f32 = 16.0;
@@ -793,7 +797,7 @@ fn blurb(link: &LinkItem) -> Option<String> {
 /// A link card at `zoom`: its picture, then as much about it as the zoom shows. A click opens
 /// its preview; ⌘-click opens it in the browser.
 fn card(link: &LinkItem, now: i64, zoom: Zoom, l: &Look) -> El {
-    let picture = picture(link, 10.0, l).key("picture").live_opacity(crate::sphere::reveal()).on_layout_tx({
+    let picture = picture(link, PICTURE_RADIUS, l).key("picture").live_opacity(crate::sphere::reveal()).on_layout_tx({
         let id = link.id.clone();
         move |_: &mut State, rect, tx| {
             crate::sphere::card_at(&id, rect);
@@ -805,8 +809,8 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, l: &Look) -> El {
         .gap(6.0)
         .center_y()
         .child(favicon(link, 14.0, l))
-        .child(text(link.domain.clone()).font(font(12.0, 400.0)).color(l.fg3).truncate().grow(1.0).min_w(0.0))
-        .child(text(ago(link.created_at, now)).font(font(12.0, 400.0)).color(l.fg3));
+        .child(text(link.domain.clone()).font(font(12.0, 400.0)).color(l.fg3).group_color(l.fg2).truncate().grow(1.0).min_w(0.0))
+        .child(text(ago(link.created_at, now)).font(font(12.0, 400.0)).color(l.fg3).group_color(l.fg2));
     let (url, id) = (link.url.clone(), link.id.clone());
     let card = col()
         .key(link.id.clone())
@@ -815,7 +819,12 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, l: &Look) -> El {
         .focusable(true)
         .min_w(0.0)
         .gap(8.0)
+        .padding(CARD_PAD)
+        .radius(PICTURE_RADIUS + CARD_PAD)
+        .hover(l.hover)
+        .press(l.hover)
         .cursor(Cursor::Pointer)
+        .hover_group()
         .on_hover_change_any({
             let image = link.image.clone();
             move |inside, tx: &mut Tx| {
@@ -867,7 +876,7 @@ fn grid(s: &State, columns: usize, dark: bool) -> El {
     let rows = shown(s).len().div_ceil(columns);
     let zoom = s.zoom;
     let grid = col().key("grid").w_full();
-    let grid = if zoom == Zoom::Feed { grid.max_w(FEED_W) } else { grid };
+    let grid = if zoom == Zoom::Feed { grid.max_w(FEED_W + 2.0 * CARD_PAD) } else { grid };
     grid.growth(GrowthSpec::default())
         .on_visible_rows(move |s: &mut State, rows: std::ops::Range<usize>| {
             images::visible(shown(s).into_iter().skip(rows.start * columns).take(rows.len() * columns).flat_map(card_images).collect());
@@ -885,7 +894,9 @@ fn grid(s: &State, columns: usize, dark: bool) -> El {
                     .iter()
                     .skip(i * columns)
                     .take(columns)
-                    .fold(row().w_full().equal_columns(columns).gap(CARD_GAP).pb(gap), |r, link| r.child(card(link, now, zoom, &l)))
+                    .fold(row().w_full().equal_columns(columns).gap(CARD_GAP - 2.0 * CARD_PAD).pb(gap - 2.0 * CARD_PAD), |r, link| {
+                        r.child(card(link, now, zoom, &l))
+                    })
             },
         )
 }
@@ -915,7 +926,7 @@ fn page(s: &State, cx: &mut Cx<State>, dark: bool, l: &Look) -> El {
             }
         })
         .child({
-            let page = col().key("page").w_full().pl(PAGE_PAD_LEFT).pr(PAGE_PAD_RIGHT).pt(16.0).pb(80.0);
+            let page = col().key("page").w_full().pl(PAGE_PAD_LEFT - CARD_PAD).pr(PAGE_PAD_RIGHT - CARD_PAD).pt(16.0 - CARD_PAD).pb(80.0);
             if centered { page.items_center() } else { page }.child(body)
         });
     let opened = matches!(previewed(s), Some((_, true)));
