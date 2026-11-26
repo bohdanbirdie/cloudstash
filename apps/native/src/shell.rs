@@ -1000,7 +1000,7 @@ fn page_text(link: &LinkItem, size: f32, lh: f32, l: &Look) -> El {
 /// to the card's size as the sidebar opens and closes. The preview is a panel centred under the
 /// toolbar over a dimmed, blurred card, toolbar included; a click on it or ↵ opens the link all
 /// the way, over the content under the toolbar, which then shows the way back in its title's
-/// place. Esc, a click outside or Back closes it; in the preview, ← and → step to the links
+/// place. Esc, a click on the dimmed card or Back closes it, and the sidebar stays usable; in the preview, ← and → step to the links
 /// beside it.
 fn overlay(s: &State, lead: f32, l: &Look) -> Vec<El> {
     let Some((link, full)) = previewed(s) else {
@@ -1020,7 +1020,8 @@ fn overlay(s: &State, lead: f32, l: &Look) -> Vec<El> {
         .fill(oklcha(0.0, 0.0, 0.0, if l.dark { 0.35 } else { 0.14 }))
         .border(1.0, kit(l.dark).c.border_muted)
         .transition(Transition::opacity().springs(DIM))
-        .a11y_hidden();
+        .a11y_hidden()
+        .on_press(|s: &mut State| s.preview = None);
     let panel = col()
         .key("preview-panel")
         .matched(OPENING)
@@ -1036,8 +1037,7 @@ fn overlay(s: &State, lead: f32, l: &Look) -> Vec<El> {
         .cursor(Cursor::Pointer)
         .transition(Transition::scale(0.97).combined(Transition::opacity()).springs(DIM))
         .child(peek(link, whole_picture(link, l), l))
-        .on_press(move |s: &mut State| preview(s, &id, true))
-        .modal(true, |s: &mut State| s.preview = None);
+        .on_press(move |s: &mut State| preview(s, &id, true));
     let stage = col()
         .key("preview-stage")
         .pin(Some(0.0), Some(TOOLBAR_HEIGHT), Some(0.0), Some(0.0))
