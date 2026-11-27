@@ -569,10 +569,8 @@ fn update_dialog(s: &State, l: &Look) -> Vec<El> {
 }
 
 /// The toolbar while a link is open all the way: the way back in the title's place, so it moves
-/// as the title does when the sidebar opens or closes, and where the link sits in the list.
-fn opened_bar(s: &State, link: &LinkItem, lead: f32, l: &Look) -> El {
-    let list = shown(s);
-    let at = list.iter().position(|x| x.id == link.id).map_or(0, |i| i + 1);
+/// as the title does when the sidebar opens or closes.
+fn opened_bar(s: &State, lead: f32, l: &Look) -> El {
     let place = match s.place {
         Place::Tab(tab) => STATES.iter().find(|(t, ..)| *t == tab).map_or("Back", |(_, name, _)| name),
         Place::Space(id) => SPACES.iter().find(|space| space.id == id).map_or("Back", |space| space.name),
@@ -595,8 +593,7 @@ fn opened_bar(s: &State, link: &LinkItem, lead: f32, l: &Look) -> El {
         .child(icon(&BACK, 14.0).color(l.fg2))
         .child(text(place).font(font(13.5, 500.0)).color(l.fg))
         .on_press(|s: &mut State| s.preview = None);
-    let count = text(format!("{at} of {}", list.len())).key("preview-count").font(font(12.5, 400.0).features("'tnum' 1")).color(l.fg3);
-    row().key("opened-bar").w_full().h(TOOLBAR_HEIGHT).pl(lead).pr(16.0).center_y().window_drag().child(back).child(el().grow(1.0)).child(count)
+    row().key("opened-bar").w_full().h(TOOLBAR_HEIGHT).pl(lead).pr(16.0).center_y().window_drag().child(back)
 }
 
 fn toolbar(s: &State, l: &Look) -> Toolbar {
@@ -858,10 +855,10 @@ pub fn wanted_images(links: &[LinkItem]) -> Vec<Request> {
     newest.into_iter().flat_map(card_images).collect()
 }
 
-/// Only the bottom fades, over 20 pt at a strength that follows what's still below and gone at
+/// Only the bottom fades, over 40 pt at a strength that follows what's still below and gone at
 /// the end. The top has no fade: a hairline under the toolbar fades in over the first
 /// `DIVIDER_RAMP` points scrolled.
-const FADE: f32 = 20.0;
+const FADE: f32 = 40.0;
 const DIVIDER_RAMP: f32 = 24.0;
 
 /// The divider's opacity once the grid is scrolled `offset` points.
@@ -1390,7 +1387,7 @@ fn overlay(s: &State, lead: f32, l: &Look) -> Vec<El> {
         .pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
         .radius(radius)
         .clip_rounded(radius)
-        .backdrop_blur(2.0)
+        .backdrop_blur(6.0)
         .fill(oklcha(0.0, 0.0, 0.0, if l.dark { 0.35 } else { 0.14 }))
         .border(1.0, kit(l.dark).c.border_muted)
         .transition(Transition::opacity().springs(DIM))
@@ -1601,7 +1598,7 @@ fn opened(s: &State, link: &LinkItem, lead: f32, l: &Look) -> El {
                     grown().set(1.0);
                     tx.live_only();
                 })
-                .child(opened_bar(s, link, lead, l))
+                .child(opened_bar(s, lead, l))
                 .child(row().w_full().grow(1.0).min_h(0.0).child(margin).child(reading)),
         )
 }
