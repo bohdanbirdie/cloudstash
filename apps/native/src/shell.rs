@@ -214,6 +214,8 @@ struct Look {
     accent: Color,
     /// A filled main button, under a white label.
     primary: Color,
+    /// The keyboard focus ring.
+    focus: Color,
     warning: Color,
     /// Dims the window behind the peeking sidebar.
     scrim: Color,
@@ -239,6 +241,7 @@ fn look(dark: bool) -> Look {
             line2: oklcha(1.0, 0.0, 0.0, 0.1),
             accent: t.accent_text,
             primary: t.primary,
+            focus: t.focus,
             warning: t.warning,
             scrim: oklcha(0.0, 0.0, 0.0, 0.3),
             tile: oklch(0.235, 0.0, 0.0),
@@ -258,6 +261,7 @@ fn look(dark: bool) -> Look {
             line2: oklcha(0.0, 0.0, 0.0, 0.1),
             accent: t.accent_text,
             primary: t.primary,
+            focus: t.focus,
             warning: t.warning,
             scrim: oklcha(0.0, 0.0, 0.0, 0.06),
             tile: oklch(0.965, 0.0, 0.0),
@@ -311,6 +315,13 @@ fn kbd(label: &str, surface: Color, l: &Look) -> El {
     row().h(18.0).px(5.0).center().radius(4.0).border(1.0, solid(l.line2, surface)).child(text(label).font(font(11.0, 400.0)).color(l.fg3))
 }
 
+/// The keyboard focus ring, for a control inside an arrow-key group (a list's, a grid's, a
+/// menu's), which draws none by default.
+fn ring(e: El, l: &Look) -> El {
+    let (width, gap) = crate::theme::FOCUS_RING;
+    e.focus_ring(width, gap, l.focus)
+}
+
 /// A sidebar row: the selected one is filled, the others light up under the pointer.
 fn nav_row(key: String, label: &str, on: bool, lead: El, tail: El, l: &Look) -> El {
     let r = row()
@@ -327,7 +338,9 @@ fn nav_row(key: String, label: &str, on: bool, lead: El, tail: El, l: &Look) -> 
         .cursor(Cursor::Pointer)
         .child(lead)
         .child(text(label).font(font(13.5, 400.0)).color(if on { l.fg } else { l.fg2 }).truncate().grow(1.0))
-        .child(tail);
+        .child(tail)
+        .focus_selected(on);
+    let r = ring(r, l);
     if on { r.fill(l.active) } else { r.hover(l.hover) }
 }
 
@@ -349,16 +362,17 @@ fn sidebar(s: &State, account: &Account, l: &Look) -> El {
         .child(text("Search").font(font(13.5, 400.0)).color(l.fg2).grow(1.0))
         .children((s.hints == Hints::Shown).then(|| kbd("⌘K", l.side, l)))
         .on_press(palette::toggle);
-    let mut list = col().key("nav").w_full().gap(1.0).child(search).child(el().h(6.0));
+    let search = ring(search, l);
+    let mut states = col().key("nav-states").role("list").label("Library").focus_group().w_full().gap(1.0);
     for (i, (tab, label, glyph)) in STATES.into_iter().enumerate() {
         let on = s.place == Place::Tab(tab);
         let lead = icon(glyph, 16.0).color(if on { l.fg } else { l.fg2 });
         let tail = if s.hints == Hints::Shown { kbd(&format!("⌘{}", i + 1), l.side, l) } else { count(tab.links(&s.links).len(), l) };
-        list = list.child(
+        states = states.child(
             nav_row(format!("nav-{label}"), label, on, lead, tail, l).on_press_tx(move |s: &mut State, tx: &mut Tx| nav::go(s, Place::Tab(tab), tx)),
         );
     }
-    list = list.child(text("Spaces").font(font(12.0, 400.0)).color(l.fg3).px(8.0).pt(16.0).pb(4.0));
+    let mut spaces = col().key("nav-spaces").role("list").label("Spaces").focus_group().w_full().gap(1.0);
     for space in &SPACES {
         let lead = row().size(16.0, 16.0).center().child(swatch(space, 10.0, l));
         let tail = if space.draft {
@@ -374,8 +388,17 @@ fn sidebar(s: &State, account: &Account, l: &Look) -> El {
         };
         let (id, on) = (space.id, s.place == Place::Space(space.id));
         let row = nav_row(format!("space-{id}"), space.name, on, lead, tail, l);
-        list = list.child(row.on_press_tx(move |s: &mut State, tx: &mut Tx| nav::go(s, Place::Space(id), tx)));
+        spaces = spaces.child(row.on_press_tx(move |s: &mut State, tx: &mut Tx| nav::go(s, Place::Space(id), tx)));
     }
+    let list = col()
+        .key("nav")
+        .w_full()
+        .gap(1.0)
+        .child(search)
+        .child(el().h(6.0))
+        .child(states)
+        .child(text("Spaces").font(font(12.0, 400.0)).color(l.fg3).px(8.0).pt(16.0).pb(4.0))
+        .child(spaces);
     let name = account.name.as_deref().and_then(|n| n.split_whitespace().next()).unwrap_or(&account.email);
     let initial: String = name.chars().take(1).flat_map(char::to_uppercase).collect();
     let user = row()
@@ -395,7 +418,8 @@ fn sidebar(s: &State, account: &Account, l: &Look) -> El {
         .child(text(name.to_owned()).font(font(13.0, 500.0)).color(l.fg).truncate().grow(1.0).min_w(0.0))
         .on_press_tx(|s: &mut State, tx: &mut Tx| show_account_menu(s, true, tx));
     let user = if s.account_menu { user.fill(l.active) } else { user.hover(l.hover) };
-    let mut sidebar = col().key("sidebar").w_full().h_full().pb(12.0).child(list).child(el().grow(1.0).w_full().window_drag());
+    let mut sidebar =
+        col().key("sidebar").role("navigation").label("Sidebar").w_full().h_full().pb(8.0).child(list).child(el().grow(1.0).w_full().window_drag());
     if s.update.in_sidebar() {
         sidebar = sidebar.child(update_row(s.update, l));
     }
@@ -437,7 +461,7 @@ fn account_menu(s: &State, l: &Look) -> Option<El> {
             .gap(8.0)
             .center_y()
             .radius(8.0)
-            .hover(l.hover)
+            .focus_highlight(l.hover)
             .cursor(Cursor::Pointer)
             .child(icon(glyph, 15.0).color(l.fg2))
             .child(text(label.to_owned()).font(font(13.0, 400.0)).color(l.fg).grow(1.0))
@@ -452,6 +476,7 @@ fn account_menu(s: &State, l: &Look) -> Option<El> {
         .key("account-menu")
         .role("menu")
         .label("Account")
+        .focus_group()
         .min_w(200.0)
         .padding(4.0)
         .gap(1.0)
@@ -680,15 +705,19 @@ fn display_panel(s: &State, l: &Look) -> Option<El> {
         .box_shadow(Shadow { spread: 1.0, color: l.line, ..Shadow::default() })
         .matched("display-on")
         .matched_motion(Curve::tween(0.25, SLIDE));
-    let tiles = row().key("display-layouts").role("radiogroup").label("Layout").w_full().equal_columns(4).gap(2.0).child(highlight);
+    let tiles = row().key("display-layouts").role("toolbar").label("Layout").focus_group().w_full().equal_columns(4).gap(2.0).child(highlight);
     let tiles = Zoom::ALL.into_iter().enumerate().fold(tiles, |tiles, (i, zoom)| {
         let on = zoom == s.zoom;
         let ink = if on { l.fg } else { l.fg2 };
         let tile = col()
             .key(format!("display-{}", zoom.label()))
             .grid_cell(i)
-            .role("radio")
+            .role("button")
             .label(zoom.label())
+            .checked(on)
+            .focusable(true)
+            .focus_selected(on)
+            .press_on_return()
             .w_full()
             .pt(12.0)
             .pb(9.0)
@@ -974,6 +1003,7 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, 
         .role("link")
         .label(link.title.clone())
         .focusable(true)
+        .focus_ring(crate::theme::FOCUS_RING.0, crate::theme::FOCUS_RING.1, l.focus)
         .min_w(0.0)
         .gap(8.0)
         .padding(CARD_PAD)
@@ -1044,6 +1074,10 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, 
 fn zoom_to(s: &mut State, zoom: Zoom, tx: &mut Tx) {
     if zoom == s.zoom || !s.ghosts.is_empty() {
         return;
+    }
+    let suffix = format!("@{}", s.zoom.label());
+    if let Some(id) = tx.focused().and_then(|k| k.strip_suffix(suffix.as_str())).map(str::to_owned) {
+        tx.focus_when_shown(card_key(&id, zoom), true);
     }
     let list = shown(s);
     let hovered = s.hovered.as_ref().and_then(|id| list.iter().position(|l| &l.id == id));
@@ -1216,10 +1250,44 @@ pub fn opening_pictures(s: &State, dark: bool) -> Vec<(String, El)> {
 
 /// The prototype's grid: cards in as many columns as fit at the zoom, built a row at a time as
 /// they scroll into view, so only those cards fetch their pictures. The feed is one column.
+/// The arrow keys in the link grid: ← and → step one card, ↑ and ↓ one row, Home and End go to
+/// the first and the last link. It reaches rows the list hasn't built yet: it scrolls the row in
+/// and focuses the card once it shows.
+fn grid_key(s: &mut State, e: &KeyEvent, tx: &mut Tx, columns: usize) -> bool {
+    if e.mods.cmd || e.mods.ctrl || e.mods.alt || e.mods.shift {
+        return false;
+    }
+    let suffix = format!("@{}", s.zoom.label());
+    let Some(id) = tx.focused().and_then(|k| k.strip_suffix(suffix.as_str())).map(str::to_owned) else { return false };
+    let list = shown(s);
+    let Some(at) = list.iter().position(|l| l.id == id) else { return false };
+    let last = list.len() - 1;
+    let to = match e.key {
+        Key::Left => at.saturating_sub(1),
+        Key::Right => (at + 1).min(last),
+        Key::Up => at.checked_sub(columns).unwrap_or(at),
+        Key::Down => {
+            if at + columns <= last {
+                at + columns
+            } else {
+                at
+            }
+        }
+        Key::Home => 0,
+        Key::End => last,
+        _ => return false,
+    };
+    let key = card_key(&list[to].id, s.zoom);
+    tx.scroll_into_view(format!("row-{}{suffix}", to / columns));
+    tx.focus_when_shown(key, true);
+    true
+}
+
 fn grid(s: &State, columns: usize, dark: bool) -> El {
     let rows = shown(s).len().div_ceil(columns);
     let zoom = s.zoom;
     let grid = if zoom == Zoom::Feed { col().key("feed-grid").w_full().max_w(FEED_W + 2.0 * CARD_PAD) } else { col().key("grid").w_full() };
+    let grid = grid.role("grid").label("Links").focus_group().on_key(move |s: &mut State, e: &KeyEvent, tx: &mut Tx| grid_key(s, e, tx, columns));
     let row = move |s: &State, i: usize| {
         let l = look(dark);
         let now = now_ms();
@@ -1376,6 +1444,14 @@ fn page_text(link: &LinkItem, size: f32, lh: f32, l: &Look) -> El {
 /// the way, over the content under the toolbar, which then shows the way back in its title's
 /// place. Esc, a click on the dimmed card or Back closes it, and the sidebar stays usable; in the preview, ← and → step to the links
 /// beside it.
+/// Closes the preview or the opened link and puts focus back on its card, which may be another
+/// card than the one it opened from after ← and →.
+fn close_preview(s: &mut State, tx: &mut Tx) {
+    if let Some(p) = s.preview.take() {
+        tx.focus_when_shown(card_key(&p.id, s.zoom), tx.focus_visible());
+    }
+}
+
 fn overlay(s: &State, lead: f32, l: &Look) -> Vec<El> {
     let Some((link, full)) = previewed(s) else {
         return Vec::new();
@@ -1411,7 +1487,11 @@ fn overlay(s: &State, lead: f32, l: &Look) -> Vec<El> {
         .cursor(Cursor::Pointer)
         .transition(Transition::scale(0.97).combined(Transition::opacity()).springs(DIM))
         .child(peek(link, whole_picture(link, l), l))
-        .on_press(move |s: &mut State| preview(s, &id, true));
+        .focusable(true)
+        .no_focus_ring()
+        .autofocus()
+        .on_press(move |s: &mut State| preview(s, &id, true))
+        .modal_tx(true, close_preview);
     let stage = col()
         .key("preview-stage")
         .pin(Some(0.0), Some(TOOLBAR_HEIGHT), Some(0.0), Some(0.0))
@@ -1604,6 +1684,7 @@ fn opened(s: &State, link: &LinkItem, lead: f32, l: &Look) -> El {
         .border(1.0, k.c.border_muted)
         .transition(Transition::scale(0.98).combined(Transition::opacity()).springs(CLOSE))
         .on_background_press(|_: &mut State| {})
+        .modal_tx(false, close_preview)
         .child(
             col()
                 .key("opened-body")
@@ -1765,6 +1846,28 @@ fn on_preview_key(s: &mut State, e: &KeyEvent) -> bool {
     true
 }
 
+/// An arrow key while nothing has focus, or while the closed Display button has it, with nothing
+/// open over the grid, focuses the first card in view, so the arrows work on the grid without a
+/// Tab first. A focused field or other control keeps its arrows: this window handler hears them
+/// only after the focused control passed them on.
+fn arrow_into_grid(s: &State, e: &KeyEvent, tx: &mut Tx) -> bool {
+    let m = e.mods;
+    let open = s.palette.is_some() || s.display || s.preview.is_some() || s.account_menu || s.confirm_update;
+    if tx.focused().is_some_and(|k| k != "display")
+        || open
+        || m.cmd
+        || m.ctrl
+        || m.alt
+        || m.shift
+        || !matches!(e.key, Key::Up | Key::Down | Key::Left | Key::Right)
+    {
+        return false;
+    }
+    let Some(key) = shown(s).get(s.top_cards[0]).map(|link| card_key(&link.id, s.zoom)) else { return false };
+    tx.focus_when_shown(key, true);
+    true
+}
+
 /// ⌘K opens and closes the command palette, and ⌘1 to ⌘4 go to the library's states. ⌘B toggles
 /// the sidebar, like the reference apps, and so do rune-kit's ⇧⌘B and ⌃⌘S. ⌥⌘R
 /// throws away the saved pictures and loads them again, for experiments.
@@ -1774,6 +1877,9 @@ pub fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
     }
     if let Some(place) = shortcut(e) {
         nav::go(s, place, tx);
+        return true;
+    }
+    if arrow_into_grid(s, e, tx) {
         return true;
     }
     if s.palette.is_none() && on_display_key(s, e, tx) {

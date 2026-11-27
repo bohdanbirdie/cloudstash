@@ -112,6 +112,31 @@ where they are used. Known drift is tracked in
 Surface layering, shadows, and the future of the light theme are unsettled:
 see [CS-DQ6](../open-questions.md).
 
+## Keyboard Navigation (Mac app)
+
+Every control in the Mac app can be reached and used from the keyboard, the way
+a web page works in a browser, whatever the macOS "Keyboard navigation" setting
+says. Rationale:
+[decision 0004](./.decisions/0004-mac-app-keyboard-navigation-follows-aria-patterns.md).
+
+- Tab and Shift+Tab move between components in reading order: the sidebar's
+  Search, its Library list, its Spaces list and the account, then the link
+  grid, then the toolbar's controls.
+- Inside a component the arrow keys move: the sidebar lists and menus on ↑ ↓,
+  the link grid by card and by row (Home and End go to the ends), the Display
+  layouts on ← →. Moving never chooses; Enter or Space does.
+- An arrow key with nothing focused, or on the closed Display button, moves
+  focus to the first card in view. A focused text field keeps its arrows.
+- A dialog, menu or panel keeps focus inside it while open; Esc closes it and
+  focus returns to where it was. Closing a link's preview returns focus to that
+  link's card.
+- The command palette keeps focus in its field; ↑ ↓ move the highlighted
+  result.
+- The focus ring shows only for keyboard use: 2 points wide, 2 points outside
+  the control, in the accent (`focus` in `theme.rs`, at least 3:1 against
+  every surface it sits on). It is the one ring that is not a see-through
+  hairline.
+
 ## Plans
 
 [`src/lib/plan.ts`](../../src/lib/plan.ts) owns executable plan copy and default
