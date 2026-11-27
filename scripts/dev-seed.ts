@@ -5,8 +5,9 @@
 //   bun scripts/dev-seed.ts export [file]   library -> file
 //   bun scripts/dev-seed.ts seed [file]     file -> empty library
 //
-// With --if-empty, seed skips a library that has links without an error; the
-// dev server runs it that way on every library's first connection
+// With --if-empty, seed skips a library that has links without an error, and
+// the empty test account's library (tools/dev-seed/accounts.ts); the dev server
+// runs it that way on every library's first connection
 // (tools/dev-seed/vite-plugin.ts).
 //
 // Server: DEV_URL (default http://127.0.0.1:$PORT or :3000). Account: the
@@ -20,6 +21,7 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 
 import { events } from "../src/livestore/schema";
+import { EMPTY_ACCOUNT } from "../tools/dev-seed/accounts";
 
 type LinkRecord = {
   url: string;
@@ -74,8 +76,12 @@ const signIn = async (): Promise<string> => {
 const cookie = await signIn();
 const me = (await (
   await fetch(`${base}/api/auth/me`, { headers: { Cookie: cookie } })
-).json()) as { organization?: { id: string } };
+).json()) as { organization?: { id: string }; user?: { email?: string } };
 const storeId = me.organization?.id;
+if (command === "seed" && ifEmpty && me.user?.email === EMPTY_ACCOUNT.email) {
+  console.log(`Dev seed: ${EMPTY_ACCOUNT.email} stays empty.`);
+  process.exit(0);
+}
 if (!storeId) throw new Error("Signed in, but the account has no library.");
 
 const BaseSocket = globalThis.WebSocket;

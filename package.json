@@ -9,7 +9,7 @@
   "scripts": {
     "build-storybook": "storybook build",
     "env:sync": "bash scripts/sync-env.sh",
-    "dev": "alchemy dev",
+    "dev": "bun scripts/dev.ts",
     "dev:infra": "bun run --parallel dev:tunnel dev:raycast",
     "motel:tui": "bunx @kitlangton/motel",
     "motel:stop": "bunx @kitlangton/motel stop",
@@ -159,6 +159,7 @@
     "@vitest/coverage-v8": "4.1.10",
     "alchemy": "2.0.0-beta.87",
     "drizzle-kit": "1.0.0-rc.5",
+    "emulate": "0.14.0",
     "fast-check": "3.23.2",
     "jsdom": "29.1.1",
     "miniflare": "5.20260820.0-alpha",

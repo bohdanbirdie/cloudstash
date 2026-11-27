@@ -9,13 +9,16 @@ So far it does one thing: sign in through the browser and show who is signed in.
 
 ```sh
 cd apps/native
-scripts/run.sh                                        # against https://cloudstash.dev
-CLOUDSTASH_URL=http://127.0.0.1:3000 scripts/run.sh   # against a local dev server
-cargo test                                            # the sign-in flow against a stand-in server
+scripts/run.sh                                          # this worktree's Cloudstash Dev against its `bun run dev`
+CLOUDSTASH_URL=https://cloudstash.dev scripts/run.sh    # against another server
+cargo test                                              # the sign-in flow against a stand-in server
 ```
 
-`scripts/run.sh` builds the app, wraps it in `target/Cloudstash.app`, registers the
-`cloudstash://` scheme with Launch Services, and opens it. A bare `cargo run` works for the UI
+`scripts/run.sh` builds the app, wraps it in `target/Cloudstash Dev.app`, registers this
+worktree's own `cloudstash-dev-<id>://` scheme with Launch Services, and opens it. Each
+worktree's copy has its own name, data, sign-in and log, so several run at once; its icon
+and its dev meter show which dev server port each one talks to, and clicking the port in the
+meter opens the web app. A bare `cargo run` works for the UI
 but can't receive the sign-in link. Every build output stays in `apps/native/target/`
 (gitignored); `cargo clean` removes it, bundle included.
 

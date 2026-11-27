@@ -37,8 +37,25 @@ describe("nativeSignInLink", () => {
     expect(link.searchParams.get("state")).toBe("state-1");
   });
 
+  it("sends a worktree's Cloudstash Dev to that copy's scheme", () => {
+    expect(new URL(nativeSignInLink("c", "s", "dev-3f9a2c1b")).protocol).toBe(
+      "cloudstash-dev-3f9a2c1b:"
+    );
+  });
+
   it("gives any other app value the released app's scheme", () => {
-    for (const app of [null, "", "prod", "evil", "DEV"]) {
+    for (const app of [
+      null,
+      "",
+      "prod",
+      "evil",
+      "DEV",
+      "dev-",
+      "dev-UPPER",
+      "dev-a/b",
+      "dev-12345678901234567",
+      "devx",
+    ]) {
       expect(new URL(nativeSignInLink("c", "s", app)).protocol).toBe(
         "cloudstash:"
       );

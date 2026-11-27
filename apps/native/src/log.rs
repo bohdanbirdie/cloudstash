@@ -14,7 +14,7 @@ use tracing_subscriber::prelude::*;
 const MAX_BYTES: u64 = 5_000_000;
 
 pub fn path() -> Option<PathBuf> {
-    std::env::var_os("HOME").map(|home| PathBuf::from(home).join(format!("Library/Logs/Cloudstash/{}.log", crate::flavor::LOG)))
+    std::env::var_os("HOME").map(|home| PathBuf::from(home).join(format!("Library/Logs/Cloudstash/{}.log", crate::flavor::identity().log)))
 }
 
 /// Starts logging and records panics; without a home folder or a writable log, does neither.
@@ -24,7 +24,7 @@ pub fn start() {
         let _ = fs::create_dir_all(dir);
     }
     if fs::metadata(&path).is_ok_and(|m| m.len() > MAX_BYTES) {
-        let _ = fs::rename(&path, path.with_file_name(format!("{}.old.log", crate::flavor::LOG)));
+        let _ = fs::rename(&path, path.with_file_name(format!("{}.old.log", crate::flavor::identity().log)));
     }
     let Ok(file) = OpenOptions::new().create(true).append(true).open(&path) else { return };
     let levels = Targets::new().with_default(LevelFilter::WARN).with_target(env!("CARGO_CRATE_NAME"), LevelFilter::INFO);

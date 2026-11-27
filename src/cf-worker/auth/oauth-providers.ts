@@ -5,6 +5,7 @@ import { FetchHttpClient, HttpClient } from "effect/http";
 
 import type { Env } from "../shared";
 import { OtelTracingLive } from "../tracing";
+import { googleEmulatorURL } from "./local-dev";
 
 const GOOGLE_ISSUER = "https://accounts.google.com";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -78,8 +79,39 @@ export const getXUserInfo = Effect.fn("Auth.getXUserInfo")(function* (
   };
 });
 
-const googleConfig = (
-  env: Pick<Env, "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET">
+type GoogleEnv = Pick<Env, "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET"> & {
+  BETTER_AUTH_URL?: string;
+  GOOGLE_EMULATOR_URL?: string;
+};
+
+// The emulator mints a new subject for each user every time it starts, so
+// local accounts are keyed by email under an issuer of their own.
+const LOCAL_GOOGLE_ISSUER = "urn:cloudstash:local-google";
+
+const googleEmulatorConfig = (
+  env: GoogleEnv,
+  emulator: string
+): GenericOAuthConfig<"google"> => ({
+  providerId: "google",
+  accountIssuer: LOCAL_GOOGLE_ISSUER,
+  accountSubject: ({ profile }) => {
+    if (typeof profile.email !== "string" || profile.email.length === 0) {
+      throw new Error("Google emulator user info is missing an email");
+    }
+    return profile.email;
+  },
+  authorizationUrl: `${emulator}/o/oauth2/v2/auth`,
+  tokenUrl: `${emulator}/oauth2/token`,
+  userInfoUrl: `${emulator}/oauth2/v2/userinfo`,
+  clientId: env.GOOGLE_CLIENT_ID,
+  clientSecret: env.GOOGLE_CLIENT_SECRET,
+  scopes: ["openid", "email", "profile"],
+  pkce: true,
+  overrideUserInfo: true,
+});
+
+const googleProductionConfig = (
+  env: GoogleEnv
 ): GenericOAuthConfig<"google"> => ({
   providerId: "google",
   accountIssuer: GOOGLE_ISSUER,
@@ -102,6 +134,13 @@ const googleConfig = (
   pkce: true,
   overrideUserInfo: true,
 });
+
+const googleConfig = (env: GoogleEnv): GenericOAuthConfig<"google"> => {
+  const emulator = googleEmulatorURL(env);
+  return emulator
+    ? googleEmulatorConfig(env, emulator)
+    : googleProductionConfig(env);
+};
 
 const xConfig = (
   env: Partial<Pick<Env, "X_CLIENT_ID" | "X_CLIENT_SECRET">>
@@ -127,8 +166,7 @@ const xConfig = (
 };
 
 export const oauthProvidersPlugin = (
-  env: Pick<Env, "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET"> &
-    Partial<Pick<Env, "X_CLIENT_ID" | "X_CLIENT_SECRET">>
+  env: GoogleEnv & Partial<Pick<Env, "X_CLIENT_ID" | "X_CLIENT_SECRET">>
 ) => {
   const x = xConfig(env);
   return genericOAuth({ config: [googleConfig(env), ...(x ? [x] : [])] });

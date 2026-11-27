@@ -56,11 +56,30 @@ How the check works: `context/02-system/01-data/spec.md` § LiveStore contract.
   recorded before any handwritten change can be introduced.
 - Run `bun run check:migrations` before committing migration changes.
 
+# Running the app in a worktree
+
+Every worktree runs its own dev server and its own Cloudstash Dev at once; this
+is the only way to run them.
+
+- `bun run dev` takes the first free port from 3000 and prints its address
+  (`http://127.0.0.1:<port>`). Never stop a server you did not start.
+- Sign-in is the real OAuth flow against a local Google stand-in: Continue with
+  Google, then pick a test account on its page. `testuser@gmail.com` gets the
+  test links; `empty@cloudstash.test` always starts empty. Use
+  `DEV_GOOGLE=real bun run dev` only to check real Google, which works on port
+  3000 alone.
+- `scripts/run.sh` in `apps/native` builds this worktree's Cloudstash Dev
+  against this worktree's running server (no `CLOUDSTASH_URL` needed) and quits
+  only this worktree's copy. Its icon shows the server's port, and so does
+  the dev meter in its sidebar; click the port there to open the web app.
+
+How it works: `context/04-delivery/spec.md`.
+
 # Test data in a worktree
 
 The dev server fills every empty library with the maintainer's test links
-(`local/dev-data/links.jsonl`) when it first syncs, for any account, Google
-sign-in included. It only needs the shared folder linked from the worktree
+(`local/dev-data/links.jsonl`) when it first syncs, for any account except
+`empty@cloudstash.test`. It only needs the shared folder linked from the worktree
 root: `ln -s ~/dev/other-projects/cloudstash-local local`. Set `DEV_SEED=off`
 in `.env` for an empty library.
 

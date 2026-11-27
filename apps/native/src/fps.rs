@@ -145,8 +145,9 @@ impl Tracker {
 }
 
 /// The meter as a quiet sidebar block, as wide as the sidebar: the readings on one line, the
-/// frame rate and its bars below.
-pub fn meter<S: 'static>(fg: Color, line: Color) -> El {
+/// frame rate and its bars below. A reading that does something when clicked lights up under the
+/// pointer (`hover`) and while held (`press`), as the sidebar's rows do.
+pub fn meter<S: 'static>(fg: Color, line: Color, hover: Color, press: Color) -> El {
     let h = handles();
     let font = TextStyle::new(11.0, 500.0).features("'tnum' 1");
     let divider = || el().size(1.0, 10.0).fill(line);
@@ -157,8 +158,17 @@ pub fn meter<S: 'static>(fg: Color, line: Color) -> El {
     for (n, p) in probes().lock().expect("probes").iter_mut().enumerate() {
         p.laid = p.last.chars().count();
         let mut reading = text(p.last.clone()).live_text(&p.text).font(font).color(fg);
-        if let Some(press) = p.press.clone() {
-            reading = reading.cursor(Cursor::Pointer).on_press(move |_: &mut S| press());
+        if let Some(on_press) = p.press.clone() {
+            reading = row()
+                .px(4.0)
+                .py(1.0)
+                .mx(-4.0)
+                .radius(4.0)
+                .hover(hover)
+                .press(press)
+                .cursor(Cursor::Pointer)
+                .on_press(move |_: &mut S| on_press())
+                .child(reading);
         }
         if n > 0 {
             readings = readings.child(divider());

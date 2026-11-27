@@ -1,6 +1,6 @@
 // Seeds every empty library on the local dev server from Bohdan's links file.
 // A library is created on its first /sync connection, so this watches those
-// upgrades and runs `scripts/dev-seed.ts seed --if-empty` with the browser's
+// upgrades (and the Mac app's key mint, below) and runs `scripts/dev-seed.ts seed --if-empty` with the browser's
 // own cookie: it works for whichever account signed in. It exists only in
 // `vite serve`, never in the build that deploys.
 import { spawn } from "node:child_process";
@@ -19,7 +19,15 @@ export const devSeedApplies = (
   env: Record<string, string | undefined>
 ) => command === "serve" && !env.VITEST && env.STORYBOOK !== "true";
 
-export const syncConnection = (req: IncomingMessage) => {
+type SeedConnection = {
+  cookie: string;
+  origin: string | undefined;
+  storeId?: string;
+};
+
+export const syncConnection = (
+  req: IncomingMessage
+): SeedConnection | undefined => {
   const url = new URL(req.url ?? "/", "http://dev");
   const storeId = url.searchParams.get("storeId");
   const cookie = req.headers.cookie;
@@ -27,6 +35,19 @@ export const syncConnection = (req: IncomingMessage) => {
     return undefined;
   }
   return { cookie, origin: req.headers.origin, storeId };
+};
+
+// Cloudstash for Mac syncs with an API key, not a cookie, so a library it
+// opens first is seeded when the browser mints that key for it.
+export const nativeConnection = (
+  req: IncomingMessage
+): SeedConnection | undefined => {
+  const { pathname } = new URL(req.url ?? "/", "http://dev");
+  const cookie = req.headers.cookie;
+  if (req.method !== "POST" || pathname !== "/api/connect/native" || !cookie) {
+    return undefined;
+  }
+  return { cookie, origin: req.headers.origin };
 };
 
 export const devSeed = (): Plugin => ({
@@ -50,10 +71,11 @@ export const devSeed = (): Plugin => ({
       `Dev seed: empty libraries get the links in ${LINKS_FILE} (DEV_SEED=off to skip).`
     );
     const seeded = new Set<string>();
-    httpServer.on("upgrade", (req: IncomingMessage) => {
-      const connection = syncConnection(req);
-      if (!connection || seeded.has(connection.storeId)) return;
-      seeded.add(connection.storeId);
+    const seed = (connection: SeedConnection | undefined) => {
+      if (!connection) return;
+      const key = connection.storeId ?? `native:${connection.cookie}`;
+      if (seeded.has(key)) return;
+      seeded.add(key);
       const { port } = httpServer.address() as AddressInfo;
       const base = `http://127.0.0.1:${port}`;
       const child = spawn(
@@ -71,9 +93,15 @@ export const devSeed = (): Plugin => ({
         }
       );
       child.on("exit", (code) => {
-        if (code !== 0) seeded.delete(connection.storeId);
+        if (code !== 0) seeded.delete(key);
       });
-    });
+    };
+    httpServer.on("upgrade", (req: IncomingMessage) =>
+      seed(syncConnection(req))
+    );
+    httpServer.on("request", (req: IncomingMessage) =>
+      seed(nativeConnection(req))
+    );
   },
   name: "cloudstash:dev-seed",
 });

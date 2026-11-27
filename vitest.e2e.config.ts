@@ -38,6 +38,7 @@ const testBindings = {
   STRIPE_PRICE_PRO_YEARLY: "price_pro_yearly",
   CF_ACCOUNT_ID: "",
   CF_ANALYTICS_TOKEN: "",
+  GOOGLE_EMULATOR_URL: "",
   PUBLIC_URL: "",
   STRIPE_WEBHOOK_SECRET: "",
   TELEGRAM_BOT_TOKEN: "",

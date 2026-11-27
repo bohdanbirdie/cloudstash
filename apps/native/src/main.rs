@@ -298,7 +298,7 @@ fn cancel_sign_in(s: &mut State) {
     s.phase = Phase::SignedOut;
 }
 
-/// Receives `cloudstash://` (Dev: `cloudstash-dev://`) links from macOS, including the one that launched the app.
+/// Receives `cloudstash://` (Dev: `cloudstash-dev://`, a worktree's copy `cloudstash-dev-<instance>://`) links from macOS, including the one that launched the app.
 fn open_url(s: &mut State, link: &str, _: &mut Tx) {
     let Some(backend) = s.backend.clone() else {
         s.early_link = Some(link.to_owned());
@@ -316,9 +316,13 @@ fn open_url(s: &mut State, link: &str, _: &mut Tx) {
     });
 }
 
-/// The dev meter's readings, in Cloudstash Dev only: downloads running and waiting in view, then the pictures' cache on
-/// disk and how much of the background fill is done; clicking the cache empties it.
+/// The dev meter's readings, in Cloudstash Dev only: the dev server's port, which opens the web
+/// app when clicked; downloads running and waiting in view; then the pictures' cache on disk and
+/// how much of the background fill is done, which empties the cache when clicked.
 fn devtools_probes() {
+    let base = flavor::base();
+    let port = flavor::port().map_or_else(|| base.clone(), |p| format!(":{p}"));
+    fps::probe_pressable(move || port.clone(), move || open_browser(&base));
     fps::probe(|| {
         let s = images::stats();
         if s.waiting == 0 { format!("{} req", s.downloading) } else { format!("{} req +{}", s.downloading, s.waiting) }
@@ -895,7 +899,7 @@ fn main() {
         min_size: Some((900.0, 560.0)),
         on_key: Some(shell::on_key),
         poll: Some(poll),
-        ..AppSpec::new(flavor::NAME, size, new_state, view)
+        ..AppSpec::new(flavor::identity().name.as_str(), size, new_state, view)
     })
     .chrome(Chrome { full_size_content: true, traffic_lights: Some((21.0, 21.0)), drag_regions: true })
     .tab_visits_controls(true)

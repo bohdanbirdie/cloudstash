@@ -1,5 +1,6 @@
 //! Sign-in through the browser with a `cloudstash://` deep link, the usual desktop pattern
-//! (`cloudstash-dev://` for Cloudstash Dev, which asks the page for it with `app=dev`; `flavor.rs`).
+//! (`cloudstash-dev://` for Cloudstash Dev, which asks the page for it with `app=dev`, and
+//! `cloudstash-dev-<instance>://` for a worktree's copy, with `app=dev-<instance>`; `flavor.rs`).
 //!
 //! The app opens Cloudstash's `/connect/native` page with a random `state` and a PKCE challenge,
 //! and remembers both in a pending file so a link can complete sign-in even after a relaunch.
@@ -18,7 +19,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use url::Url;
 
-use crate::flavor::{self, BUNDLE_ID, SCHEME};
+use crate::flavor;
 
 /// A pending sign-in older than this is ignored, matching the page's patience.
 const PENDING_TTL_SECS: u64 = 10 * 60;
@@ -56,7 +57,7 @@ pub struct Keychain {
 
 impl Keychain {
     fn entry(&self) -> Result<keyring::Entry, String> {
-        keyring::Entry::new(BUNDLE_ID, &self.account).map_err(|e| e.to_string())
+        keyring::Entry::new(&flavor::identity().bundle_id, &self.account).map_err(|e| e.to_string())
     }
 }
 
@@ -126,7 +127,7 @@ pub enum Link {
 /// The app's own folder: the pending sign-in, the libraries and the saved window.
 pub fn state_dir() -> Result<PathBuf, String> {
     let home = std::env::var("HOME").map_err(|_| "HOME is not set".to_owned())?;
-    Ok(PathBuf::from(home).join("Library/Application Support").join(BUNDLE_ID))
+    Ok(PathBuf::from(home).join("Library/Application Support").join(&flavor::identity().bundle_id))
 }
 
 pub struct Auth {
@@ -172,8 +173,8 @@ impl Auth {
         let mut page =
             Url::parse_with_params(&format!("{}/connect/native", self.base), [("state", state.as_str()), ("code_challenge", challenge.as_str())])
                 .map_err(|e| e.to_string())?;
-        if flavor::DEV {
-            page.query_pairs_mut().append_pair("app", "dev");
+        if let Some(app) = &flavor::identity().app {
+            page.query_pairs_mut().append_pair("app", app);
         }
         Ok(page.into())
     }
@@ -188,7 +189,7 @@ impl Auth {
         let Ok(url) = Url::parse(link) else {
             return Link::Ignored;
         };
-        if url.scheme() != SCHEME || url.host_str() != Some("auth") || url.path() != "/callback" {
+        if url.scheme() != flavor::identity().scheme || url.host_str() != Some("auth") || url.path() != "/callback" {
             return Link::Ignored;
         }
         let param = |name: &str| url.query_pairs().find(|(key, _)| key == name).map(|(_, value)| value.into_owned());

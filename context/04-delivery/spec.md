@@ -117,6 +117,23 @@ account that signs in, Google included, finds the links. It lives only in
 ever had a link, logs one line and starts empty when the links file is missing,
 and `DEV_SEED=off` turns it off. See
 [decision 0009](./.decisions/0009-seed-empty-local-libraries-from-the-dev-server.md).
+The Mac app syncs with an API key rather than a cookie, so the plugin also
+seeds when a signed-in browser mints that key (`POST /api/connect/native`).
+
+Every worktree runs its own dev server at once. `bun run dev`
+(`scripts/dev.ts`) takes the first free port from 3000, starts a local
+stand-in for Google (`vercel-labs/emulate`, in-process) with two test
+accounts, `testuser@gmail.com`, whose library gets the test links, and
+`empty@cloudstash.test`, whose library is never filled (`tools/dev-seed/accounts.ts`),
+and runs `alchemy dev` on `127.0.0.1` at that port, failing rather
+than moving. Sign-in takes the production OAuth path against the stand-in;
+local accounts are keyed by email under `urn:cloudstash:local-google`, since
+the stand-in mints new subjects each start. The local `BETTER_AUTH_URL` is
+derived from the port, the variable `GOOGLE_EMULATOR_URL` exists on local
+stages only and is used only between loopback addresses, and a loopback
+server names its cookies `cloudstash-<port>` because browsers share cookies
+across ports. `DEV_GOOGLE=real` keeps real Google, which accepts only port 3000. The server writes its address to `.alchemy/dev-url` while it runs. Per
+[decision 0011](./.decisions/0011-run-worktrees-side-by-side.md).
 
 ## LiveStore Version
 
@@ -216,8 +233,9 @@ review artifacts unless the maintainer separately authorizes a remote action.
 
 The Mac app's version is `apps/native/Cargo.toml`'s. A release build is
 Cloudstash, which always talks to `https://cloudstash.dev`; a debug build
-(`scripts/run.sh`) is Cloudstash Dev, which talks to `http://127.0.0.1:3000`
-unless `CLOUDSTASH_URL` says otherwise and never updates. Only Dev shows the
+(`scripts/run.sh`) is Cloudstash Dev, which talks to its worktree's dev server
+(the address in `.alchemy/dev-url`) unless `CLOUDSTASH_URL` says otherwise and
+never updates. Only Dev shows the
 frame meter and download readings at the foot of the sidebar. The two differ in
 bundle id (`dev.cloudstash.native` / `dev.cloudstash.native.dev`), name,
 executable, blue icon and menu bar ball, data and caches (named by the
@@ -227,7 +245,14 @@ never asks for the login password, per
 [decision 0009](./.decisions/0009-keep-the-native-dev-key-in-a-file.md)), log file (`cloudstash.log` /
 `cloudstash-dev.log`) and sign-in link scheme (`cloudstash` /
 `cloudstash-dev`), so both run on one Mac at once, per
-[decision 0008](./.decisions/0008-give-native-debug-builds-their-own-app-identity.md). When `main` gets a version with no `native-v<version>` tag,
+[decision 0008](./.decisions/0008-give-native-debug-builds-their-own-app-identity.md).
+`scripts/run.sh` gives each worktree's Dev its own instance of all of these
+(id from the worktree's path: `dev.cloudstash.native.dev.<id>`,
+`cloudstash-dev-<id>`, `cloudstash-dev-<id>.log`, named "Cloudstash Dev ·
+<branch>"), quits only that worktree's copy, and draws the dev server's port onto the bottom
+of its icon as a red counter (`scripts/port-icon.swift`); the copy's dev meter shows the port too,
+and clicking it opens the web app, so every worktree's copy runs at once, per
+[decision 0011](./.decisions/0011-run-worktrees-side-by-side.md). When `main` gets a version with no `native-v<version>` tag,
 `native-release.yml` builds a universal app (`apps/native/scripts/release.sh`),
 signs it with the maintainer's Developer ID and hardened runtime, notarizes and
 staples it and its disk image, and publishes them as the repository's latest

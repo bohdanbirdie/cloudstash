@@ -556,7 +556,7 @@ fn about(s: &Settings, l: &Look) -> El {
                 .pt(24.0)
                 .gap(6.0)
                 .child(crate::sphere::tile(64.0))
-                .child(text(format!("{} for Mac", crate::flavor::NAME)).font(font(15.0, 600.0)).color(l.fg).mt(6.0))
+                .child(text(format!("{} for Mac", crate::flavor::identity().name.as_str())).font(font(15.0, 600.0)).color(l.fg).mt(6.0))
                 .child(text(format!("Version {}", env!("CARGO_PKG_VERSION"))).font(font(12.0, 400.0)).color(l.fg3)),
         )
         .child(group(

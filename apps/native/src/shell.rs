@@ -424,7 +424,7 @@ fn sidebar(s: &State, account: &Account, l: &Look) -> El {
         sidebar = sidebar.child(update_row(s.update, l));
     }
     if crate::flavor::DEV {
-        sidebar = sidebar.child(fps::meter::<State>(l.fg3, l.line2));
+        sidebar = sidebar.child(fps::meter::<State>(l.fg3, l.line2, l.hover, l.active));
     }
     sidebar.child(user)
 }

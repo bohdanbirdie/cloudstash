@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256};
 use url::Url;
 
 use crate::auth::{Account, Auth, KeyStore, Link};
-use crate::flavor::SCHEME;
+use crate::flavor;
 
 const API_KEY: &str = "lb_test_key";
 
@@ -170,11 +170,12 @@ fn links_that_are_not_this_sign_in_are_ignored() {
     let f = fixture("ignored");
     let page = f.auth.begin_sign_in().unwrap();
     let link = web_page(&f, &page, "code_1");
-    let forged = Url::parse_with_params(&format!("{SCHEME}://auth/callback"), [("code", "code_1"), ("state", "forged")]).unwrap();
-    let elsewhere = format!("{SCHEME}://elsewhere/callback?code=code_1");
+    let scheme = flavor::identity().scheme.as_str();
+    let forged = Url::parse_with_params(&format!("{scheme}://auth/callback"), [("code", "code_1"), ("state", "forged")]).unwrap();
+    let elsewhere = format!("{scheme}://elsewhere/callback?code=code_1");
     // The same sign-in's link sent to the other app's scheme: the released app and Cloudstash Dev
     // never take each other's.
-    let other_app = link.replacen(SCHEME, if SCHEME == "cloudstash" { "cloudstash-dev" } else { "cloudstash" }, 1);
+    let other_app = link.replacen(scheme, if scheme == "cloudstash" { "cloudstash-dev" } else { "cloudstash" }, 1);
     for other in [forged.as_str(), &elsewhere, &other_app, "https://auth/callback?code=code_1", "not a link"] {
         assert_eq!(f.auth.accept_link(other), Link::Ignored, "{other}");
     }

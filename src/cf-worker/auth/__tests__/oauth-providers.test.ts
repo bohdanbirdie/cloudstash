@@ -51,6 +51,36 @@ describe("OAuth provider registration", () => {
     expect(googleProvider()).not.toHaveProperty("discoveryUrl");
   });
 
+  it("points Google at the local emulator on a loopback dev server", () => {
+    const google = oauthProvidersPlugin({
+      BETTER_AUTH_URL: "http://127.0.0.1:3001",
+      GOOGLE_CLIENT_ID: "google-client",
+      GOOGLE_CLIENT_SECRET: "google-secret",
+      GOOGLE_EMULATOR_URL: "http://127.0.0.1:4100/",
+    }).options.config[0];
+    expect(google).toMatchObject({
+      accountIssuer: "urn:cloudstash:local-google",
+      authorizationUrl: "http://127.0.0.1:4100/o/oauth2/v2/auth",
+      tokenUrl: "http://127.0.0.1:4100/oauth2/token",
+      userInfoUrl: "http://127.0.0.1:4100/oauth2/v2/userinfo",
+    });
+  });
+
+  it.each([
+    ["a deployed server", "https://cloudstash.dev", "http://127.0.0.1:4100"],
+    ["a remote emulator", "http://127.0.0.1:3001", "https://evil.example"],
+    ["an invalid emulator URL", "http://127.0.0.1:3001", "not a url"],
+  ])("keeps real Google for %s", (_label, baseURL, emulator) => {
+    expect(
+      oauthProvidersPlugin({
+        BETTER_AUTH_URL: baseURL,
+        GOOGLE_CLIENT_ID: "google-client",
+        GOOGLE_CLIENT_SECRET: "google-secret",
+        GOOGLE_EMULATOR_URL: emulator,
+      }).options.config[0]
+    ).toMatchObject({ accountIssuer: "https://accounts.google.com" });
+  });
+
   it.each([
     ["absent X credentials", {}],
     ["only an X client ID", { X_CLIENT_ID: "x-client" }],
