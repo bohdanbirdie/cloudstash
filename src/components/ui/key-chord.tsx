@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment } from "react";
 
 const MAC_GLYPH: Record<string, string> = {
   cmd: "⌘",
@@ -29,16 +29,9 @@ function detectIsMac() {
   return /Mac|iPhone|iPad|iPod/.test(navigator.userAgent);
 }
 
-export function useIsMac() {
-  const [isMac, setIsMac] = useState(true);
-  useEffect(() => {
-    setIsMac(detectIsMac());
-  }, []);
-  return isMac;
-}
+const isMac = detectIsMac();
 
 export function KeyChord({ keys }: { keys: readonly string[] }) {
-  const isMac = useIsMac();
   const map = isMac ? MAC_GLYPH : WIN_GLYPH;
   return (
     <>

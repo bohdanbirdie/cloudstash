@@ -37,12 +37,15 @@ export function useCyclePhase({
   speed = 1,
 }: UseCyclePhaseOptions): number {
   const [phase, setPhase] = useState(0);
+  const [wasActive, setWasActive] = useState(active);
+
+  if (wasActive !== active) {
+    setWasActive(active);
+    if (!active) setPhase(0);
+  }
 
   useEffect(() => {
-    if (!active) {
-      setPhase(0);
-      return;
-    }
+    if (!active) return;
 
     const safeSpeed = speed > 0 ? speed : 1;
     const raw = cycleMsBase / safeSpeed;
@@ -120,15 +123,20 @@ export function useSteppedCycle({
   const cycleMs = stepMs * safeSteps;
 
   const [step, setStep] = useState(() => (active ? 0 : idleStep));
+  const [wasActive, setWasActive] = useState(active);
   const startMsRef = useRef<number>(0);
   const activeRef = useRef(false);
   const currentStepRef = useRef(idleStep);
+
+  if (wasActive !== active) {
+    setWasActive(active);
+    if (!active) setStep(idleStep);
+  }
 
   useEffect(() => {
     if (!active) {
       activeRef.current = false;
       currentStepRef.current = idleStep;
-      setStep(idleStep);
       return;
     }
 

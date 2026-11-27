@@ -209,7 +209,6 @@ const baseConfig: UserConfig = {
       "react_perf/jsx-no-new-array-as-prop": "off",
       "react/hooks": "off",
       "react/refs": "off",
-      "react/set-state-in-effect": "off",
       "jsx-a11y/no-autofocus": "off",
       "jsx-a11y/anchor-is-valid": "off",
       "jsx-a11y/click-events-have-key-events": "off",
