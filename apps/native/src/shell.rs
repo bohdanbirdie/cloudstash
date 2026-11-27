@@ -994,15 +994,18 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, 
         });
     let title =
         |size: f32, lh: f32, lines: usize| text(link.title.clone()).font(font(size, 500.0).lh(lh)).color(l.fg).wrap_anywhere().max_lines(lines);
-    let blurb = |lines: usize| {
-        blurb(link).map(|b| {
-            let after = if from.is_some() { WORDS_AFTER } else { 0.0 };
-            text(b).font(font(13.0, 400.0).lh(19.0)).color(l.fg2).wrap().max_lines(lines).transition(Transition::opacity()).enter_delay(after)
-        })
-    };
     let after = if from == Some(Zoom::Pictures) { WORDS_AFTER } else { 0.0 };
+    let blurb = |lines: usize| {
+        blurb(link)
+            .map(|b| fly("blurb", text(b).font(font(13.0, 400.0).lh(19.0)).color(l.fg2).wrap().max_lines(lines).matched_crop().enter_delay(after)))
+    };
     let words = |title: El, lines: usize| {
-        col().w_full().gap(8.0).child(fly("title", title.matched_crop().enter_delay(after))).children(blurb(lines).filter(|_| lines > 0))
+        let title = fly("title", title.matched_crop().enter_delay(after));
+        if lines > 0 {
+            return col().w_full().gap(8.0).child(title).children(blurb(lines));
+        }
+        let hidden = blurb(3).map(|b| b.absolute(0.0, 8.0).w_full().opacity(0.0).a11y_hidden());
+        col().w_full().child(title).child(el().w_full().h(0.0).children(hidden))
     };
     let meta = fly("meta", meta.matched_crop().enter_delay(after));
     match zoom {
@@ -1296,8 +1299,8 @@ const GROW: Spring = Spring::new(0.26, 0.0);
 const REFLOW: Spring = Spring::new(0.36, 0.12);
 /// A card's title and meta that the old zoom didn't show (coming from Pictures) wait this long,
 /// most of `REFLOW`, and fade in as its picture settles, rather than waiting at their place while
-/// it flies there. Its summary always does: it rewraps at the new width, and flying it with the
-/// title would centre the title on a block that grows or shrinks, off its picture.
+/// it flies there. The title and summary fly on their own, so neither is centred on a block that
+/// grows or shrinks; Titles keeps an unseen summary under each title for it to fade to and from.
 const WORDS_AFTER: f32 = 0.24;
 /// The opened link settles back a touch and fades as it closes, quickly.
 const CLOSE: SpringPair = SpringPair::new(Spring::new(0.2, 0.0), Spring::new(0.16, 0.0));
