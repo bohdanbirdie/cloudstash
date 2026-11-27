@@ -987,12 +987,18 @@ fn mark_spans(marks: &[std::ops::Range<usize>], shift: usize, l: &Look) -> Vec<S
 }
 
 /// Why a found card is there when its title and site don't say: the field, then the stretch of
-/// it that matched, with the matched words marked.
-fn found_in(e: &Evidence, l: &Look) -> El {
+/// it that matched, with the matched words marked. It takes the summary's place, or in Titles,
+/// which shows none, the site's, so a found card is as tall as any other; there it's `tight`
+/// and starts at the matched word, so the match shows in the narrow row.
+fn found_in(e: &Evidence, tight: bool, l: &Look) -> El {
     let label = e.field.label();
+    let first = e.marks.first().map_or(0, |r| r.start);
+    let from = if tight { e.text[..first].rfind([' ', '/']).map_or(0, |i| i + 1) } else { 0 };
+    let (body, cut) = if from > 0 { (format!("…{}", &e.text[from..]), from - '…'.len_utf8()) } else { (e.text.clone(), 0) };
     let at = format!("{label} · ").len();
-    let spans = std::iter::once(Span::new(0, at).color(l.fg3)).chain(mark_spans(&e.marks, at, l)).collect();
-    rich(format!("{label} · {}", e.text), spans).font(font(13.0, 400.0).lh(19.0)).color(l.fg2)
+    let marks: Vec<_> = e.marks.iter().map(|r| r.start - cut..r.end - cut).collect();
+    let spans = std::iter::once(Span::new(0, at).color(l.fg3)).chain(mark_spans(&marks, at, l)).collect();
+    rich(format!("{label} · {body}"), spans).color(l.fg2)
 }
 
 fn card(link: &LinkItem, hit: Option<&Hit>, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, l: &Look) -> El {
@@ -1010,23 +1016,21 @@ fn card(link: &LinkItem, hit: Option<&Hit>, now: i64, zoom: Zoom, from: Option<Z
             }
         }),
     );
+    let evidence = hit.and_then(|h| h.evidence.as_ref());
+    let site = match hit.filter(|h| !h.domain_marks.is_empty()) {
+        Some(h) => rich(link.domain.clone(), mark_spans(&h.domain_marks, 0, l)),
+        None => text(link.domain.clone()),
+    };
+    let site = match evidence.filter(|_| zoom == Zoom::Titles) {
+        Some(e) => found_in(e, true, l),
+        None => site.color(l.fg3).group_color(l.fg2),
+    };
     let meta = row()
         .w_full()
         .gap(6.0)
         .center_y()
         .child(favicon(link, 14.0, l))
-        .child(
-            match hit.filter(|h| !h.domain_marks.is_empty()) {
-                Some(h) => rich(link.domain.clone(), mark_spans(&h.domain_marks, 0, l)),
-                None => text(link.domain.clone()),
-            }
-            .font(font(12.0, 400.0))
-            .color(l.fg3)
-            .group_color(l.fg2)
-            .truncate()
-            .grow(1.0)
-            .min_w(0.0),
-        )
+        .child(site.font(font(12.0, 400.0)).truncate().grow(1.0).min_w(0.0))
         .child(text(ago(link.created_at, now)).font(font(12.0, 400.0)).color(l.fg3).group_color(l.fg2));
     let (url, id) = (link.url.clone(), link.id.clone());
     let card = col()
@@ -1073,7 +1077,6 @@ fn card(link: &LinkItem, hit: Option<&Hit>, now: i64, zoom: Zoom, from: Option<Z
         .wrap_anywhere()
         .max_lines(lines)
     };
-    let evidence = hit.and_then(|h| h.evidence.as_ref());
     let crossing = from.is_some_and(|from| (from == Zoom::Feed) != (zoom == Zoom::Feed));
     let after = match from {
         Some(Zoom::Pictures) => WORDS_AFTER,
@@ -1083,10 +1086,10 @@ fn card(link: &LinkItem, hit: Option<&Hit>, now: i64, zoom: Zoom, from: Option<Z
     let (title_id, blurb_id, meta_id) = if zoom == Zoom::Feed { ("feed-title", "feed-blurb", "feed-meta") } else { ("title", "blurb", "meta") };
     let blurb = |lines: usize| {
         let body = match evidence {
-            Some(e) => Some(found_in(e, l)),
-            None => blurb(link).map(|b| text(b).font(font(13.0, 400.0).lh(19.0)).color(l.fg2)),
+            Some(e) => Some(found_in(e, false, l)),
+            None => blurb(link).map(|b| text(b).color(l.fg2)),
         };
-        body.map(|b| fly(blurb_id, b.wrap().max_lines(lines).matched_crop().enter_delay(after)))
+        body.map(|b| fly(blurb_id, b.font(font(13.0, 400.0).lh(19.0)).wrap().max_lines(lines).matched_crop().enter_delay(after)))
     };
     let words = |title: El, lines: usize| {
         let title = fly(title_id, title.matched_crop().enter_delay(after));
@@ -1104,7 +1107,7 @@ fn card(link: &LinkItem, hit: Option<&Hit>, now: i64, zoom: Zoom, from: Option<Z
                 None => link.title.clone(),
             })
             .child(picture),
-        Zoom::Titles => card.child(picture).child(words(title(13.5, 18.2, 2), usize::from(evidence.is_some()))).child(meta),
+        Zoom::Titles => card.child(picture).child(words(title(13.5, 18.2, 2), 0)).child(meta),
         Zoom::Summaries => card.child(picture).child(words(title(14.5, 19.5, 2), 3)).child(meta),
         Zoom::Feed => card.gap(10.0).child(picture).child(words(title(17.0, 23.0, 3), 6)).child(meta),
     }
