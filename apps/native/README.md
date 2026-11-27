@@ -14,7 +14,7 @@ changes on `main`, and installed copies update themselves from GitHub Releases.
 cd apps/native
 scripts/run.sh                                          # this worktree's Cloudstash Dev against its `bun run dev`
 CLOUDSTASH_URL=https://cloudstash.dev scripts/run.sh    # against another server
-cargo test                                              # the sign-in flow against a stand-in server
+cargo test                                              # the app's tests
 ```
 
 `scripts/run.sh` builds the app, wraps it in `target/Cloudstash Dev.app`, registers this
@@ -59,12 +59,12 @@ CI runs both in `.github/workflows/livestore-contract.yml`.
 The usual desktop pattern: the browser signs in, then hands the app a one-time code through a
 deep link.
 
-1. The app saves a random `state` and a PKCE verifier to
-   `~/Library/Application Support/dev.cloudstash.native/pending-sign-in.json` (mode `0600`) and
+1. The app saves a random `state` and a PKCE verifier to `pending-sign-in.json` (mode `0600`) in
+   `~/Library/Application Support/<bundle id>/` and
    opens `/connect/native?state=…&code_challenge=…` in the default browser.
 2. The page shows the normal Google sign-in if the browser has no session. Once signed in, it asks
-   `POST /api/connect/native` for a one-time code bound to the challenge and opens
-   `cloudstash://auth/callback?code=…&state=…`.
+   `POST /api/connect/native` for a one-time code bound to the challenge and opens the app's
+   scheme, `cloudstash://auth/callback?code=…&state=…` for the release build.
 3. macOS brings the app forward, or launches it. The app accepts the link only for the sign-in it
    started (matching `state`, under ten minutes old, used once) and redeems the code with its
    verifier at `POST /api/connect/native/exchange` for its own API key.

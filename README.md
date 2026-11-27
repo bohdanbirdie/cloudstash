@@ -12,13 +12,15 @@
 ## What it does
 
 You save a URL from the web app, the Chrome extension, Telegram, Raycast, the
-public API, an MCP client, or your X bookmarks. The link shows up at once.
-Cloudstash then fetches the page's title, description and image, writes a short
-summary, and suggests tags. Links move between Inbox, Completed, All and
+public API, an MCP client, or your X bookmarks. A link saved in the web app
+shows up at once. In the background Cloudstash fetches the page's title,
+description and image, writes a short summary, and suggests tags. Links move between Inbox, Completed, All and
 Archive, and search runs locally over titles, tags, domains, descriptions,
 summaries and URLs. The library syncs across devices.
 
-Some capture surfaces and the chat agent need a paid plan; see
+The Free plan includes the web app, the Chrome extension, search, sync and a
+few AI summaries a month. Plus and Pro add the other capture surfaces, more
+summaries and the chat agent; see
 [`context/01-product/spec.md`](context/01-product/spec.md).
 
 ## Parts
