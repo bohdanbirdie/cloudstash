@@ -1,10 +1,12 @@
 //! ⌘F's find in view, Linear's: a "Find in view…" field takes the toolbar's trailing edge and
-//! the page shows only the links every typed word matches, as ⌘K's search matches them
-//! (`search.rs`), in the page's own order. ↵ keeps the words and hands the keys back to the
-//! grid; Esc clears them and puts the field away, and so does leaving it empty.
+//! the page shows only the links every typed word matches as a run of letters, in the page's
+//! own order (`search::in_view`). Each card says why it's there: the matched words are marked,
+//! and a match the card doesn't show (in a summary, a tag, the URL) takes its summary's place.
+//! ↵ keeps the words and hands the keys back to the grid; Esc clears them and puts the field
+//! away, and so does leaving it empty.
 
 use std::cell::RefCell;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use rune::{El, Key, KeyEvent, Shadow, TextEdit, Transition, Tx, icon, row, text_input};
@@ -12,7 +14,7 @@ use rune::{El, Key, KeyEvent, Shadow, TextEdit, Transition, Tx, icon, row, text_
 use super::{Look, SEARCH, font};
 use crate::State;
 use crate::livestore::library::LinkItem;
-use crate::search;
+use crate::search::{self, Hit};
 
 const FIELD: &str = "find";
 
@@ -38,23 +40,29 @@ fn query(s: &State) -> Option<&str> {
 type FoundFor = (String, usize, usize);
 
 thread_local! {
-    /// The ids of the links the last query matched, and what it ran over: the query and the
-    /// library's links' address and length, as each sync replaces them. A rebuild that changes
-    /// none of these doesn't search again.
-    static FOUND: RefCell<Option<(FoundFor, Rc<HashSet<String>>)>> = const { RefCell::new(None) };
+    /// The last query's hits by link id, and what it ran over: the query and the library's
+    /// links' address and length, as each sync replaces them. A rebuild that changes none of
+    /// these doesn't search again.
+    static FOUND: RefCell<Option<(FoundFor, Rc<HashMap<String, Hit>>)>> = const { RefCell::new(None) };
+}
+
+/// The field's hits over the whole library, by link id, while it has words.
+pub fn hits(s: &State) -> Option<Rc<HashMap<String, Hit>>> {
+    let query = query(s)?;
+    let key = (query.to_owned(), s.links.as_ptr() as usize, s.links.len());
+    let found = FOUND.with_borrow(|f| f.as_ref().filter(|(k, _)| *k == key).map(|(_, hits)| Rc::clone(hits)));
+    Some(found.unwrap_or_else(|| {
+        let all: Vec<&LinkItem> = s.links.iter().collect();
+        let hits: Rc<HashMap<String, Hit>> = Rc::new(search::in_view(&all, query).into_iter().map(|h| (h.link.id.clone(), h)).collect());
+        FOUND.set(Some((key, Rc::clone(&hits))));
+        hits
+    }))
 }
 
 /// `links`, a page's, narrowed to those the field's words match.
 pub fn narrow<'a>(s: &State, links: Vec<&'a LinkItem>) -> Vec<&'a LinkItem> {
-    let Some(query) = query(s) else { return links };
-    let key = (query.to_owned(), s.links.as_ptr() as usize, s.links.len());
-    let found = FOUND.with_borrow(|f| f.as_ref().filter(|(k, _)| *k == key).map(|(_, ids)| Rc::clone(ids))).unwrap_or_else(|| {
-        let all: Vec<&LinkItem> = s.links.iter().collect();
-        let ids: Rc<HashSet<String>> = Rc::new(search::matching(&all, query).into_iter().map(|l| l.id.clone()).collect());
-        FOUND.set(Some((key, Rc::clone(&ids))));
-        ids
-    });
-    links.into_iter().filter(|l| found.contains(&l.id)).collect()
+    let Some(hits) = hits(s) else { return links };
+    links.into_iter().filter(|l| hits.contains_key(&l.id)).collect()
 }
 
 /// The words nothing on the page matches, for the empty page to say so.

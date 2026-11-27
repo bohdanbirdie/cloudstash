@@ -20,7 +20,7 @@ use crate::State;
 use crate::images::{self, Lane, Request};
 use crate::livestore::library::{LinkItem, Tab};
 use crate::nav::{Place, go};
-use crate::search::{self, Evidence, Field, Hit};
+use crate::search::{self, Evidence, Hit};
 
 /// Links shown for a query at most; typing narrows them.
 const LIMIT: usize = 50;
@@ -213,12 +213,7 @@ fn marked(content: &str, marks: &[Range<usize>], size: f32, color: Color, strong
 /// Why a link is listed when the match isn't in its title or domain: the field, then the
 /// stretch of it that matched.
 fn evidence(e: &Evidence, l: &Look) -> El {
-    let label = match e.field {
-        Field::Tag => "Tagged",
-        Field::Description => "Description",
-        Field::Summary => "Summary",
-        _ => "URL",
-    };
+    let label = e.field.label();
     let at = label.len() + 1;
     let content = format!("{label} {}", e.text);
     let spans = std::iter::once(Span::new(0, label.len()).weight(500.0))

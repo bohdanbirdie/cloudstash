@@ -9,8 +9,8 @@ use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rune::{
-    Color, Cursor, Curve, Cx, Easing, El, GrowthSpec, Icon, Key, KeyEvent, Live, LoopSpec, Mods, ScrollFade, ScrollSpec, Shadow, Side, Spring,
-    SpringPair, SurfaceFit, TextStyle, Transition, Tx, Vec2, col, el, icon, oklch, oklcha, row, text,
+    Color, Cursor, Curve, Cx, Easing, El, GrowthSpec, Icon, Key, KeyEvent, Live, LoopSpec, Mods, ScrollFade, ScrollSpec, Shadow, Side, Span, Spring,
+    SpringPair, SurfaceFit, TextStyle, Transition, Tx, Vec2, col, el, icon, oklch, oklcha, rich, row, text,
 };
 use rune_kit::{Kit, ScrollBar, ScrollBarStyle};
 
@@ -19,6 +19,7 @@ use crate::fps;
 use crate::icons::LOADER_CIRCLE;
 use crate::images::{self, Lane, Request};
 use crate::nav::{self, Place};
+use crate::search::{Evidence, Hit};
 use crate::shimmer::shimmer;
 use crate::update::{self, Update};
 
@@ -979,7 +980,22 @@ fn blurb(link: &LinkItem) -> Option<String> {
 /// A link card at `zoom`: its picture, then as much about it as the zoom shows. A click opens
 /// its preview, or in Feed, which already shows a link as the preview would, the link all the
 /// way; ⌘-click opens it in the browser.
-fn card(link: &LinkItem, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, l: &Look) -> El {
+/// Marks on a found card: a soft plate behind the matched letters, in the text's own ink.
+fn mark_spans(marks: &[std::ops::Range<usize>], shift: usize, l: &Look) -> Vec<Span> {
+    let plate = Color { a: l.active.a * 2.0, ..l.active };
+    marks.iter().map(|r| Span::new(r.start + shift, r.end + shift).bg(plate, 1.5).color(l.fg)).collect()
+}
+
+/// Why a found card is there when its title and site don't say: the field, then the stretch of
+/// it that matched, with the matched words marked.
+fn found_in(e: &Evidence, l: &Look) -> El {
+    let label = e.field.label();
+    let at = format!("{label} · ").len();
+    let spans = std::iter::once(Span::new(0, at).color(l.fg3)).chain(mark_spans(&e.marks, at, l)).collect();
+    rich(format!("{label} · {}", e.text), spans).font(font(13.0, 400.0).lh(19.0)).color(l.fg2)
+}
+
+fn card(link: &LinkItem, hit: Option<&Hit>, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, l: &Look) -> El {
     let fly = |what: &str, el: El| {
         let el = el.matched(format!("{what}-{}", link.id)).matched_motion(REFLOW).transition(Transition::opacity());
         if under { el.matched_in_place() } else { el }
@@ -999,7 +1015,18 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, 
         .gap(6.0)
         .center_y()
         .child(favicon(link, 14.0, l))
-        .child(text(link.domain.clone()).font(font(12.0, 400.0)).color(l.fg3).group_color(l.fg2).truncate().grow(1.0).min_w(0.0))
+        .child(
+            match hit.filter(|h| !h.domain_marks.is_empty()) {
+                Some(h) => rich(link.domain.clone(), mark_spans(&h.domain_marks, 0, l)),
+                None => text(link.domain.clone()),
+            }
+            .font(font(12.0, 400.0))
+            .color(l.fg3)
+            .group_color(l.fg2)
+            .truncate()
+            .grow(1.0)
+            .min_w(0.0),
+        )
         .child(text(ago(link.created_at, now)).font(font(12.0, 400.0)).color(l.fg3).group_color(l.fg2));
     let (url, id) = (link.url.clone(), link.id.clone());
     let card = col()
@@ -1036,8 +1063,17 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, 
             }
             preview(s, &id, zoom == Zoom::Feed);
         });
-    let title =
-        |size: f32, lh: f32, lines: usize| text(link.title.clone()).font(font(size, 500.0).lh(lh)).color(l.fg).wrap_anywhere().max_lines(lines);
+    let title = |size: f32, lh: f32, lines: usize| {
+        match hit.filter(|h| !h.title_marks.is_empty()) {
+            Some(h) => rich(h.title.clone(), mark_spans(&h.title_marks, 0, l)),
+            None => text(link.title.clone()),
+        }
+        .font(font(size, 500.0).lh(lh))
+        .color(l.fg)
+        .wrap_anywhere()
+        .max_lines(lines)
+    };
+    let evidence = hit.and_then(|h| h.evidence.as_ref());
     let crossing = from.is_some_and(|from| (from == Zoom::Feed) != (zoom == Zoom::Feed));
     let after = match from {
         Some(Zoom::Pictures) => WORDS_AFTER,
@@ -1046,8 +1082,11 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, 
     };
     let (title_id, blurb_id, meta_id) = if zoom == Zoom::Feed { ("feed-title", "feed-blurb", "feed-meta") } else { ("title", "blurb", "meta") };
     let blurb = |lines: usize| {
-        blurb(link)
-            .map(|b| fly(blurb_id, text(b).font(font(13.0, 400.0).lh(19.0)).color(l.fg2).wrap().max_lines(lines).matched_crop().enter_delay(after)))
+        let body = match evidence {
+            Some(e) => Some(found_in(e, l)),
+            None => blurb(link).map(|b| text(b).font(font(13.0, 400.0).lh(19.0)).color(l.fg2)),
+        };
+        body.map(|b| fly(blurb_id, b.wrap().max_lines(lines).matched_crop().enter_delay(after)))
     };
     let words = |title: El, lines: usize| {
         let title = fly(title_id, title.matched_crop().enter_delay(after));
@@ -1059,8 +1098,13 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, 
     };
     let meta = fly(meta_id, meta.matched_crop().enter_delay(after));
     match zoom {
-        Zoom::Pictures => card.help(link.title.clone()).child(picture),
-        Zoom::Titles => card.child(picture).child(words(title(13.5, 18.2, 2), 0)).child(meta),
+        Zoom::Pictures => card
+            .help(match evidence {
+                Some(e) => format!("{}\n{} · {}", link.title, e.field.label(), e.text),
+                None => link.title.clone(),
+            })
+            .child(picture),
+        Zoom::Titles => card.child(picture).child(words(title(13.5, 18.2, 2), usize::from(evidence.is_some()))).child(meta),
         Zoom::Summaries => card.child(picture).child(words(title(14.5, 19.5, 2), 3)).child(meta),
         Zoom::Feed => card.gap(10.0).child(picture).child(words(title(17.0, 23.0, 3), 6)).child(meta),
     }
@@ -1296,13 +1340,14 @@ fn grid(s: &State, columns: usize, dark: bool) -> El {
         let l = look(dark);
         let now = now_ms();
         let gap = if zoom == Zoom::Feed { 40.0 } else { ROW_GAP };
-        shown(s)
-            .iter()
-            .skip(i * columns)
-            .take(columns)
-            .fold(row().w_full().equal_columns(columns).gap(CARD_GAP - 2.0 * CARD_PAD).pb(gap - 2.0 * CARD_PAD), |r, link| {
-                r.child(card(link, now, zoom, s.landing.as_ref().and(s.zoomed_from), previewed(s).is_some(), &l))
-            })
+        let hits = find::hits(s);
+        shown(s).iter().skip(i * columns).take(columns).fold(
+            row().w_full().equal_columns(columns).gap(CARD_GAP - 2.0 * CARD_PAD).pb(gap - 2.0 * CARD_PAD),
+            |r, link| {
+                let hit = hits.as_deref().and_then(|h| h.get(&link.id));
+                r.child(card(link, hit, now, zoom, s.landing.as_ref().and(s.zoomed_from), previewed(s).is_some(), &l))
+            },
+        )
     };
     if let Some(landing) = &s.landing {
         let (first, end) = (landing.start.min(rows), landing.end.min(rows));

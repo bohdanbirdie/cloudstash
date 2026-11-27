@@ -742,6 +742,17 @@ fn worst_case_scene(s: &mut State, tab: Tab) {
     s.links = links;
 }
 
+/// Find in view over links that match it in different places: a title, a description, a
+/// tag, a URL, so each card shows why it's there.
+fn find_why_scene(s: &mut State, zoom: shell::Zoom) {
+    worst_case_scene(s, Tab::Inbox);
+    s.zoom = zoom;
+    s.links[6].title = "GPU-driven canvas rendering".to_owned();
+    s.links[7].tags = vec!["gpu".to_owned(), "graphics".to_owned()];
+    s.links[8].url = "https://example.com/talks/gpu-text-shaping".to_owned();
+    s.find = Some(rune::TextEdit::new("gpu"));
+}
+
 fn main() {
     log::start();
     let size = if headless() { None } else { rune_mac::saved_size(ui_state::WINDOW) };
@@ -897,6 +908,8 @@ fn main() {
                 find.focused = true;
                 s.find = Some(find);
             }),
+            ("find-why", |s| find_why_scene(s, shell::Zoom::Titles)),
+            ("find-why-summaries", |s| find_why_scene(s, shell::Zoom::Summaries)),
             ("find-none", |s| {
                 signed_in_scene(s, Tab::All);
                 s.find = Some(rune::TextEdit::new("kubernetes operator"));

@@ -43,6 +43,18 @@ impl Field {
             Field::Description | Field::Summary | Field::Url => AtomKind::Substring,
         }
     }
+
+    /// How a match here is named where it's shown.
+    pub fn label(self) -> &'static str {
+        match self {
+            Field::Title => "Title",
+            Field::Tag => "Tagged",
+            Field::Domain => "Site",
+            Field::Description => "Description",
+            Field::Summary => "Summary",
+            Field::Url => "URL",
+        }
+    }
 }
 
 /// Where a word matched outside the title and domain: the field and the stretch of it to show,
@@ -85,19 +97,26 @@ struct Search {
     words: Vec<[Atom; 2]>,
     buf: Vec<char>,
     indices: Vec<u32>,
+    /// Every field matched as a run of letters, as find in view does: the page keeps its own
+    /// order, so a loose match can't sink below better ones and would only puzzle.
+    strict: bool,
 }
 
 impl Search {
     fn new(query: &str) -> Option<Search> {
         let atom = |w: &str, kind| Atom::new(w, CaseMatching::Ignore, Normalization::Smart, kind, false);
         let words: Vec<[Atom; 2]> = query.split_whitespace().map(|w| [atom(w, AtomKind::Fuzzy), atom(w, AtomKind::Substring)]).collect();
-        (!words.is_empty()).then(|| Search { matcher: Matcher::new(Config::DEFAULT), words, buf: Vec::new(), indices: Vec::new() })
+        (!words.is_empty()).then(|| Search { matcher: Matcher::new(Config::DEFAULT), words, buf: Vec::new(), indices: Vec::new(), strict: false })
+    }
+
+    fn kind(&self, field: Field) -> AtomKind {
+        if self.strict { AtomKind::Substring } else { field.kind() }
     }
 
     /// Word `w` in `text` as `field` matches it: the weighted score and, with `marks`, the
     /// matched byte ranges. A fuzzy match always works out its letters, to judge them.
     fn find(&mut self, w: usize, text: &str, field: Field, marks: bool) -> Option<(u32, Vec<Range<usize>>)> {
-        let fuzzy = field.kind() == AtomKind::Fuzzy;
+        let fuzzy = self.kind(field) == AtomKind::Fuzzy;
         let atom = &self.words[w][usize::from(!fuzzy)];
         let hay = Utf32Str::new(text, &mut self.buf);
         if !fuzzy && !marks {
@@ -155,10 +174,12 @@ pub fn name(name: &str, query: &str) -> Option<(u32, Vec<Range<usize>>)> {
     })
 }
 
-/// The links every word of `query` matches, in `links`' order.
-pub fn matching<'a>(links: &[&'a LinkItem], query: &str) -> Vec<&'a LinkItem> {
+/// Find in view's hits: the links every word of `query` matches as a run of letters, in
+/// `links`' order, each with its marks and evidence.
+pub fn in_view(links: &[&LinkItem], query: &str) -> Vec<Hit> {
     let Some(mut s) = Search::new(query) else { return Vec::new() };
-    links.iter().copied().filter(|l| score(&mut s, l, false).is_some()).collect()
+    s.strict = true;
+    links.iter().filter_map(|l| score(&mut s, l, true).and_then(|(_, hit)| hit)).collect()
 }
 
 /// The best `limit` links for `query`, best first; ties keep `links`' order. Every link is
@@ -191,7 +212,7 @@ fn score(s: &mut Search, link: &LinkItem, marks: bool) -> Option<(u32, Option<Hi
             continue;
         }
         let (field, text) = fields[at];
-        let found = if field.kind() == AtomKind::Fuzzy { found } else { s.find(w, text, field, true).map(|(_, m)| m).unwrap_or_default() };
+        let found = if s.kind(field) == AtomKind::Fuzzy { found } else { s.find(w, text, field, true).map(|(_, m)| m).unwrap_or_default() };
         match field {
             Field::Title => title_marks.extend(found),
             Field::Domain => domain_marks.extend(found),
@@ -305,6 +326,16 @@ mod tests {
         let refs = [&l];
         let e = links(&refs, "design", 50).remove(0).evidence.unwrap();
         assert_eq!((e.field, e.text.as_str(), &e.text[e.marks[0].clone()]), (Field::Tag, "#design", "design"));
+    }
+
+    #[test]
+    fn find_in_view_matches_runs_of_letters_only_and_keeps_the_order() {
+        let all = [link("a", "Canvas rendering notes", "https://a.dev/x"), link("b", "Rendering on canvas", "https://b.dev/y")];
+        let refs: Vec<&LinkItem> = all.iter().collect();
+        assert!(in_view(&refs, "cnvs").is_empty(), "letters with gaps are ⌘K's, not find's");
+        let hits = in_view(&refs, "canvas");
+        assert_eq!(hits.iter().map(|h| h.link.id.as_str()).collect::<Vec<_>>(), ["a", "b"]);
+        assert_eq!(&hits[1].title[hits[1].title_marks[0].clone()], "canvas");
     }
 
     #[test]
