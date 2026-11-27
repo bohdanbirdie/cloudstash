@@ -1,214 +1,73 @@
-# Cloudstash
+<p align="center">
+  <img src="apps/native/assets/brand/app-icon.svg" alt="" width="128" height="128">
+</p>
 
-Save and organize links with AI-powered summaries. Full-stack TypeScript on Cloudflare Workers.
+<h1 align="center">Cloudstash</h1>
 
-## Features
+<p align="center">
+  Cloudstash saves links into a private library and makes them easy to find
+  again. It is for people who collect more links than they can read at once.
+</p>
 
-- **Link saving** with automatic metadata extraction (title, description, favicon)
-- **AI summaries** powered by Cloudflare Workers AI
-- **Real-time sync** across devices via LiveStore + WebSocket
-- **Telegram bot** for saving links on the go
-- **Chrome extension** for quick saving from the browser toolbar
-- **AI chat** for asking questions about your saved links
-- **Admin panel** with usage analytics
+## What it does
 
-## Stack
+You save a URL from the web app, the Chrome extension, Telegram, Raycast, the
+public API, an MCP client, or your X bookmarks. A link saved in the web app
+shows up at once. In the background Cloudstash fetches the page's title,
+description and image, writes a short summary, and suggests tags. Links move between Inbox, Completed, All and
+Archive, and search runs locally over titles, tags, domains, descriptions,
+summaries and URLs. The library syncs across devices.
 
-- **Frontend:** React 19, Vite, TailwindCSS 4, TanStack Router
-- **Backend:** Cloudflare Workers, Hono.js, D1 (SQLite), Drizzle ORM
-- **Real-time:** LiveStore with Durable Objects
-- **AI:** Vercel AI SDK + Cloudflare Workers AI + OpenRouter
-- **Auth:** Better Auth + Google OAuth
+The Free plan includes the web app, the Chrome extension, search, sync and a
+few AI summaries a month. Plus and Pro add the other capture surfaces, more
+summaries and the chat agent; see
+[`context/01-product/spec.md`](context/01-product/spec.md).
 
-## Quick Start
+## Parts
 
-### Local Development
+- **Web app and server** (`src/`): React on Cloudflare Workers, with D1,
+  Durable Objects and LiveStore for sync. Infrastructure is declared in
+  [`alchemy.run.ts`](alchemy.run.ts).
+- **Mac app** ([`apps/native`](apps/native)): a native client written in Rust,
+  released through GitHub Releases.
+- **Chrome extension** ([`apps/extension`](apps/extension)): saves the current
+  tab. Published on the
+  [Chrome Web Store](https://chromewebstore.google.com/detail/cloudstash/bdommhffamndfanbpnikgmpjncpcobia).
+- **Integrations** (`src/cf-worker/`): Telegram bot, X bookmark sync, MCP
+  server, public API. The Raycast extension is released separately.
 
-```bash
-# Install dependencies
+## Run it locally
+
+You need [Bun](https://bun.sh) and a `.env` file with `BETTER_AUTH_SECRET`,
+`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`; `.env.example` lists every
+variable. Maintainers fill `.env` from 1Password with `bun run env:sync`.
+
+```sh
 bun install
-
-# Refresh the ignored .env from 1Password
-bun run env:sync
-
-# Start dev server (applies D1 migrations locally)
 bun run dev
 ```
 
-The dev server takes the first free port from 3000 and prints its address
-(`http://127.0.0.1:<port>`); keep the browser and local OAuth/MCP clients on
-that origin. Sign-in goes through a local Google stand-in, so any port works;
-`DEV_GOOGLE=real bun run dev` uses real Google on port 3000.
+`bun run dev` takes the first free port from 3000 and prints the address. Sign
+in with Continue with Google: locally this goes to a Google stand-in where you
+pick a test account. The other variables are optional and turn on AI
+chat, email, Telegram, X and billing.
 
-## Configuration
+To run the Mac app against that server, run `scripts/run.sh` in
+`apps/native` (macOS, Rust toolchain).
 
-### Required
-
-| Variable               | Description                                                                                 |
-| ---------------------- | ------------------------------------------------------------------------------------------- |
-| `GOOGLE_CLIENT_ID`     | Google OAuth Client ID ([Cloud Console](https://console.cloud.google.com/apis/credentials)) |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth Client Secret                                                                  |
-| `BETTER_AUTH_SECRET`   | Random string (32+ chars). Generate with: `openssl rand -hex 32`                            |
-
-### Optional
-
-| Variable                  | Description                                                                                 |
-| ------------------------- | ------------------------------------------------------------------------------------------- |
-| `OPENROUTER_API_KEY`      | [OpenRouter](https://openrouter.ai/keys) API key for chat, weekly digests, and X enrichment |
-| `AI_METER_LIMIT`          | Private Assistant metering configuration                                                    |
-| `RESEND_API_KEY`          | [Resend](https://resend.com) API key for email notifications                                |
-| `EMAIL_FROM`              | Custom sender address (default: `CloudStash <noreply@cloudstash.dev>`)                      |
-| `TELEGRAM_BOT_TOKEN`      | Telegram bot token from [@BotFather](https://t.me/BotFather)                                |
-| `TELEGRAM_WEBHOOK_SECRET` | Random string for Telegram webhook validation                                               |
-| `CF_ACCOUNT_ID`           | Cloudflare account ID (for observability scripts)                                           |
-| `CF_ANALYTICS_TOKEN`      | Cloudflare analytics token (for DO metrics)                                                 |
-
-**Local:** Store values in the `Cloudstash` 1Password vault. References live in
-`.env.example`; run `bun run env:sync` on demand after changing a value to
-atomically refresh the ignored, mode-`0600` `.env` file. Normal dev starts
-use the last synced file and do not contact 1Password.
-**Production:** Set as secrets in the GitHub `production` environment; the
-deploy workflow passes them to Alchemy.
-
-## First Admin Setup
-
-After the first user signs up, bootstrap admin access:
-
-Run this in the Cloudflare dashboard (D1 > `cloudstash` > Console), or locally
-in `bun run db:studio`:
-
-```sql
-UPDATE user SET approved = 1, role = 'admin' WHERE email = 'your@email.com';
+```sh
+bun run test        # all tests
+bun run check       # format, lint, types, Intent and migration checks
 ```
 
-After this, the admin can approve other users through the UI.
+## Documentation
 
-## Google OAuth Setup
+How Cloudstash works and why lives in [`context/`](context/). Start with
+[`context/intuition.md`](context/intuition.md). Rules for contributors and
+coding agents are in [`AGENTS.md`](AGENTS.md).
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-2. Create a new project (or select existing)
-3. Go to **APIs & Services > Credentials**
-4. Click **Create Credentials > OAuth client ID**
-5. Select **Web application**
-6. Add authorized redirect URIs:
-   - Local (only for `DEV_GOOGLE=real`): `http://127.0.0.1:3000/api/auth/callback/google`
-   - Production: `https://your-worker.workers.dev/api/auth/callback/google`
+## Licence
 
-## Telegram Bot Setup (Optional)
-
-1. Message [@BotFather](https://t.me/BotFather), send `/newbot`, save the token
-2. Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` in your env
-3. Register the webhook:
-
-```bash
-curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://YOUR_WORKER_URL/api/telegram", "secret_token": "YOUR_WEBHOOK_SECRET"}'
-```
-
-4. Optionally set bot commands via @BotFather:
-
-```
-/setcommands
-start - Show help
-help - Show help
-connect - Connect with API key
-disconnect - Disconnect account
-```
-
-## Browser Extension
-
-A Chrome extension for quickly saving the current page lives in `apps/extension` (built with [WXT](https://wxt.dev)). It's published on the [Chrome Web Store](https://chromewebstore.google.com/detail/cloudstash/bdommhffamndfanbpnikgmpjncpcobia) and authenticates with a paired API key — no separate login.
-
-Publishing is automated: bump the version in `apps/extension/package.json`, then run the **Publish Extension** GitHub Action (manual dispatch). It builds, zips, and submits to the Web Store for review. Requires the `CHROME_EXTENSION_ID`, `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`, and `CHROME_REFRESH_TOKEN` repository secrets — full setup in [`docs/todos/chrome-extension-publishing.md`](docs/todos/chrome-extension-publishing.md).
-
-Track review status and manage the listing in the [Chrome Web Store developer dashboard](https://chrome.google.com/webstore/devconsole).
-
-## Commands
-
-```bash
-bun run dev          # dev server on the first free port from 3000
-bun run dev:infra    # Auth emulator, tunnel, dashboard, raycast (separate terminal)
-bun run build        # Production build
-bun test             # Run all tests
-bun run test:unit    # Unit tests only
-bun run test:e2e     # E2E tests
-bun run typecheck    # Type checking
-bun run check        # Lint + format (Vite+) + Effect diagnostics
-bun run fix          # Auto-fix lint issues
-```
-
-### Database
-
-```bash
-bun run db:generate      # Generate a new migration (bun dev applies it)
-bun run db:studio        # Browse the local database
-```
-
-### Deployment
-
-Infrastructure is declared in `alchemy.run.ts` (Alchemy). GitHub Actions
-deploys production on every push to `main` (`.github/workflows/deploy.yml`).
-There is no staging environment at the moment; see
-[`docs/staging.md`](docs/staging.md).
-
-## Diagrams
-
-Architecture diagrams are in `docs/diagrams/` as `.excalidraw` files. Open them with the [Excalidraw Obsidian plugin](https://github.com/zsviczian/obsidian-excalidraw-plugin) or at [excalidraw.com](https://excalidraw.com).
-
-## Architecture
-
-The durable product and system contract lives in [`context/`](context/). Start
-with [`context/intuition.md`](context/intuition.md); architecture and feature
-docs under `docs/` are explanatory or historical views of that contract.
-
-```
-src/
-  cf-worker/           # Cloudflare Worker backend
-    admin/             # Admin API endpoints
-    auth/              # Better Auth + Google OAuth
-    chat-agent/        # AI chat Durable Object
-    db/                # Drizzle ORM schema + migrations
-    email/             # React Email templates + Resend
-    ingest/            # Link ingestion + metadata extraction
-    invites/           # Workspace invite system
-    link-processor/    # Link processing Durable Object
-    org/               # Organization/workspace API
-    sync/              # LiveStore sync Durable Object
-    telegram/          # Telegram bot integration
-  livestore/           # LiveStore schema, events, queries
-  routes/              # TanStack Router pages
-    _authed/           # Authenticated routes
-  components/          # React components
-  hooks/               # React hooks
-  stores/              # Zustand stores
-```
-
-### Cloudflare Resources
-
-| Resource             | Purpose                                  |
-| -------------------- | ---------------------------------------- |
-| **D1 Database**      | Users, sessions, organizations, invites  |
-| **SyncBackendDO**    | LiveStore real-time sync per workspace   |
-| **LinkProcessorDO**  | Async link processing + AI summaries     |
-| **ChatAgentDO**      | AI chat agent per workspace              |
-| **KV Namespace**     | Telegram user connections                |
-| **Workers AI**       | AI summaries for saved links             |
-| **Rate Limiting**    | 30 req/min per IP on sync/auth endpoints |
-| **Analytics Engine** | Per-user usage tracking                  |
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/my-feature`)
-3. Make your changes
-4. Run checks: `bun run check && bun run typecheck && bun test`
-5. Submit a pull request against `main`
-
-Uses `bun` (not npm) and `oxlint`/`oxfmt` via Vite+ (not eslint).
-
-## License
-
-Source available under the [PolyForm Noncommercial 1.0.0](LICENSE) license.
-
-You may clone, modify, and self-host Cloudstash for any non-commercial purpose — personal use, hobby projects, study, contributions back to this repository, etc. Commercial use (including running it as a paid service, monetizing it, or building a paid product on top of it) requires a separate license.
+[PolyForm Noncommercial 1.0.0](LICENSE). You may use, change and self-host
+Cloudstash for non-commercial purposes. Commercial use needs a separate
+licence.
