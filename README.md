@@ -1,7 +1,13 @@
-# Cloudstash
+<p align="center">
+  <img src="apps/native/assets/brand/app-icon.svg" alt="" width="128" height="128">
+</p>
 
-Cloudstash saves links into a private library and makes them easy to find
-again. It is for people who collect more links than they can read at once.
+<h1 align="center">Cloudstash</h1>
+
+<p align="center">
+  Cloudstash saves links into a private library and makes them easy to find
+  again. It is for people who collect more links than they can read at once.
+</p>
 
 ## What it does
 
