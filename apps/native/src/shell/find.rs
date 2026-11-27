@@ -39,21 +39,24 @@ fn query(s: &State) -> Option<&str> {
 /// The query and the library's links' address and length.
 type FoundFor = (String, usize, usize);
 
+/// Hits by link id.
+type Hits = Rc<HashMap<String, Hit>>;
+
 thread_local! {
     /// The last query's hits by link id, and what it ran over: the query and the library's
     /// links' address and length, as each sync replaces them. A rebuild that changes none of
     /// these doesn't search again.
-    static FOUND: RefCell<Option<(FoundFor, Rc<HashMap<String, Hit>>)>> = const { RefCell::new(None) };
+    static FOUND: RefCell<Option<(FoundFor, Hits)>> = const { RefCell::new(None) };
 }
 
 /// The field's hits over the whole library, by link id, while it has words.
-pub fn hits(s: &State) -> Option<Rc<HashMap<String, Hit>>> {
+pub fn hits(s: &State) -> Option<Hits> {
     let query = query(s)?;
     let key = (query.to_owned(), s.links.as_ptr() as usize, s.links.len());
     let found = FOUND.with_borrow(|f| f.as_ref().filter(|(k, _)| *k == key).map(|(_, hits)| Rc::clone(hits)));
     Some(found.unwrap_or_else(|| {
         let all: Vec<&LinkItem> = s.links.iter().collect();
-        let hits: Rc<HashMap<String, Hit>> = Rc::new(search::in_view(&all, query).into_iter().map(|h| (h.link.id.clone(), h)).collect());
+        let hits: Hits = Rc::new(search::in_view(&all, query).into_iter().map(|h| (h.link.id.clone(), h)).collect());
         FOUND.set(Some((key, Rc::clone(&hits))));
         hits
     }))

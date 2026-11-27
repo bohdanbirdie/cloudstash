@@ -233,7 +233,7 @@ fn score(s: &mut Search, link: &LinkItem, marks: bool) -> Option<(u32, Option<Hi
 }
 
 /// The stretch of a field to show: a tag whole, as `#tag`; a long field from a little before
-/// its first match, at a word start.
+/// its first match, at the start of a word or of a URL's path segment.
 fn excerpt(field: Field, text: &str, mut marks: Vec<Range<usize>>) -> Evidence {
     marks.sort_by_key(|r| r.start);
     let (text, shift) = match field {
@@ -242,7 +242,7 @@ fn excerpt(field: Field, text: &str, mut marks: Vec<Range<usize>>) -> Evidence {
             let first = marks.first().map_or(0, |r| r.start);
             let mut from = text[..first].char_indices().rev().nth(LEAD).map_or(0, |(i, _)| i);
             if from > 0 {
-                from = text[from..first].find(' ').map_or(from, |sp| from + sp + 1);
+                from = text[from..first].find([' ', '/']).map_or(from, |sp| from + sp + 1);
             }
             if from == 0 { (text.to_owned(), 0) } else { (format!("…{}", &text[from..]), from as isize - '…'.len_utf8() as isize) }
         }

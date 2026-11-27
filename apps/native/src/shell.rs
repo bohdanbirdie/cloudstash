@@ -983,7 +983,7 @@ fn blurb(link: &LinkItem) -> Option<String> {
 /// Marks on a found card: a soft plate behind the matched letters, in the text's own ink.
 fn mark_spans(marks: &[std::ops::Range<usize>], shift: usize, l: &Look) -> Vec<Span> {
     let plate = Color { a: l.active.a * 2.0, ..l.active };
-    marks.iter().map(|r| Span::new(r.start + shift, r.end + shift).bg(plate, 1.5).color(l.fg)).collect()
+    marks.iter().map(|r| Span::new(r.start + shift, r.end + shift).bg(plate, 1.0).color(l.fg)).collect()
 }
 
 /// Why a found card is there when its title and site don't say: the field, then the stretch of
