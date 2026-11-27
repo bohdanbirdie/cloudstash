@@ -1435,7 +1435,7 @@ const PEEK_FADE: f32 = 32.0;
 /// What the preview holds: the picture, where the link is from, the title, the summary and the
 /// page's text, and a footer saying what a click does. The summary, when there is one, sits in a
 /// quiet inset under its own label, as in the opened link's margin, so it never reads as the
-/// page's own words below it.
+/// page's own words below it; the inset reaches out past the text so its words line up with the rest.
 fn peek(link: &LinkItem, picture: Option<El>, l: &Look) -> El {
     let now = now_ms();
     let meta = row()
@@ -1458,7 +1458,7 @@ fn peek(link: &LinkItem, picture: Option<El>, l: &Look) -> El {
         .children(link.summary.as_deref().map(|t| {
             col()
                 .key("peek-summary")
-                .w_full()
+                .mx(-16.0)
                 .px(16.0)
                 .pt(12.0)
                 .pb(14.0)
