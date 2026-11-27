@@ -35,6 +35,21 @@ export CLOUDSTASH_INSTANCE_LABEL="${branch##*/}"
 [[ -n "$CLOUDSTASH_INSTANCE_LABEL" ]] || CLOUDSTASH_INSTANCE_LABEL="$port"
 executable="cloudstash-dev-$CLOUDSTASH_INSTANCE"
 
+# Compiled dependencies are shared between worktrees as copy-on-write clones (decision 0012 in
+# context/04-delivery/.decisions): a worktree's first build starts from a clone of the ones the
+# last build left in this cache, so they take no new disk space. Our own crate is never in the
+# cache, because Cargo would take another worktree's build of it as up to date. Clones need
+# APFS on one volume; anywhere else the cache is skipped and the build starts cold.
+cache="$HOME/Library/Caches/cloudstash/native-debug"
+mkdir -p target "$(dirname "$cache")"
+clones=""
+if [[ "$(df -Y target | awk 'NR == 2 { print $2 }')" == apfs && "$(stat -f %d target)" == "$(stat -f %d "$(dirname "$cache")")" ]]; then
+  clones=1
+fi
+if [[ -n "$clones" && ! -e target/debug && -d "$cache" ]]; then
+  cp -cRp "$cache" target/debug || rm -rf target/debug
+fi
+
 cargo build
 
 # The icon with the port drawn on, made once per port.
@@ -73,3 +88,15 @@ mkdir -p "$(dirname "$log")"
 echo "Cloudstash Dev · $CLOUDSTASH_INSTANCE_LABEL against $CLOUDSTASH_URL (log: $log)"
 # Launch Services can still be letting go of the copy just quit; one retry covers it.
 open --stdout "$log" --stderr "$log" "$app" 2>/dev/null || { sleep 1; open --stdout "$log" --stderr "$log" "$app"; }
+
+# Refresh the cache with this build's dependencies, one worktree at a time. It is replaced, never
+# added to, so it holds one build's worth and old dependency versions leave with it.
+[[ -n "$clones" ]] || exit 0
+find "$cache.lock" -maxdepth 0 -mmin +30 -exec rmdir {} + 2>/dev/null || true
+mkdir "$cache.lock" 2>/dev/null || exit 0
+trap 'rm -rf "$cache.new" "$cache.old"; rmdir "$cache.lock"' EXIT
+rm -rf "$cache.new" "$cache.old"
+cp -cRp target/debug "$cache.new"
+rm -rf "$cache.new"/{.fingerprint,deps,incremental,build}/cloudstash{-,_}native-* "$cache.new"/cloudstash-native{,.d}
+if [[ -e "$cache" ]]; then mv "$cache" "$cache.old"; fi
+mv "$cache.new" "$cache"
