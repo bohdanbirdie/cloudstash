@@ -70,17 +70,18 @@ pub fn narrow<'a>(s: &State, links: Vec<&'a LinkItem>) -> Vec<&'a LinkItem> {
 }
 
 /// A link card in the "no matches" drawing: its picture, two title lines and a site row, in the
-/// grid's own shapes, `turn` radians off upright.
+/// grid's own shapes, `turn` radians off upright. Its corner is concentric with the picture's
+/// (5 + the 6-point inset); the shadow is faint in dark, where depth comes from the border.
 fn sketch_card(x: f32, turn: f32, lines: [f32; 2], l: &Look) -> El {
     let bar = |w: f32| el().w(w).h(4.0).radius(2.0).fill(l.line2);
     col()
         .pin(Some(x), Some(22.0), None, None)
         .size(60.0, 78.0)
         .padding(6.0)
-        .radius(9.0)
+        .radius(11.0)
         .fill(l.panel)
         .border(1.0, l.line2)
-        .box_shadow(Shadow { y: 3.0, blur: 10.0, color: oklcha(0.0, 0.0, 0.0, if l.dark { 0.45 } else { 0.08 }), ..Shadow::default() })
+        .box_shadow(Shadow { y: 2.0, blur: 8.0, color: oklcha(0.0, 0.0, 0.0, if l.dark { 0.16 } else { 0.08 }), ..Shadow::default() })
         .rotate(turn)
         .child(el().w_full().h(33.0).radius(5.0).fill(l.tile))
         .child(el().h(8.0))
@@ -98,7 +99,7 @@ fn sketch(l: &Look) -> El {
         .a11y_hidden()
         .child(sketch_card(22.0, -10f32.to_radians(), [40.0, 28.0], l))
         .child(sketch_card(78.0, 10f32.to_radians(), [38.0, 22.0], l))
-        .child(el().pin(Some(50.0), Some(16.0), None, None).size(60.0, 82.0).radius(9.0).fill(l.panel).border(1.2, l.fg3).border_dash(3.0, 4.0))
+        .child(el().pin(Some(50.0), Some(16.0), None, None).size(60.0, 82.0).radius(11.0).fill(l.panel).border(1.2, l.fg3).border_dash(3.0, 4.0))
 }
 
 /// The first other page whose links the words match, and how many, in sidebar order with All
@@ -122,18 +123,19 @@ fn search_in(s: &mut State, tab: Tab, tx: &mut Tx) {
     s.find = words.map(TextEdit::new);
 }
 
+/// A quiet text button: a 28-point plate shows on hover, but the whole 40-point row takes
+/// the click, so the target is generous while the page stays calm.
 fn text_button(key: &str, label: El, l: &Look) -> El {
     row()
         .key(key.to_owned())
         .role("button")
-        .h(26.0)
-        .px(8.0)
-        .gap(6.0)
+        .h(40.0)
+        .px(10.0)
         .center_y()
-        .radius(7.0)
-        .hover(l.hover)
+        .hover_group()
         .press_scale(0.96)
         .cursor(Cursor::Pointer)
+        .child(el().pin(Some(0.0), Some(6.0), Some(0.0), Some(6.0)).radius(8.0).fill(l.hover).group_opacity(0.0, 1.0))
         .child(label)
 }
 
@@ -143,7 +145,7 @@ fn text_button(key: &str, label: El, l: &Look) -> El {
 pub fn empty(s: &State, page: &str, height: f32, l: &Look) -> Option<El> {
     let query = query(s)?;
     let title = format!("No links in {page} match “{query}”");
-    let mut actions = row().key("find-empty-actions").gap(8.0).center_y();
+    let mut actions = row().key("find-empty-actions").gap(4.0).center_y();
     if let Some((tab, name, n)) = elsewhere(s) {
         let label = row()
             .gap(4.0)
@@ -174,7 +176,7 @@ pub fn empty(s: &State, page: &str, height: f32, l: &Look) -> Option<El> {
             .child(text(title).font(font(14.0, 500.0).lh(20.0)).color(l.fg).wrap_anywhere().max_lines(2).align(rune::Align::Center).max_w(440.0))
             .child(el().h(4.0))
             .child(text("Searched titles, summaries, tags and addresses").font(font(12.5, 400.0)).color(l.fg3).align(rune::Align::Center))
-            .child(el().h(14.0))
+            .child(el().h(8.0))
             .child(actions),
     )
 }
