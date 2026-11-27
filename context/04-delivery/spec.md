@@ -56,7 +56,8 @@ The title flies right under its picture, and the summary flies with it,
 fading in or out on the way. Between Feed and a grid the words don't fly,
 since Feed sets them larger and wider and text can't scale in flight: the old
 ones fade where they were and the new ones fade in as the picture grows into
-place. In every zoom the site row sits under the picture. The zoom is picked in the toolbar's Display panel, as Linear's: four tiles, each a miniature of its layout, under a Display button or ⇧V. It stays open while a layout is picked, and a press outside, Esc or ⇧V closes it; ← and → step the layout while it's open, and 1 to 4 and ⌘+ and ⌘− work with it closed too. Opened by key it appears at once, by click it grows from the button. Its sort and filter rows are shown but do nothing yet. Between launches AppKit keeps the window's position and size, and
+place. Feed's narrow, centred column is a column of its own rather than the
+grid's resized, so nothing in it slides over from where the grid was. In every zoom the site row sits under the picture. The zoom is picked in the toolbar's Display panel, as Linear's: four tiles, each a miniature of its layout, under a Display button or ⇧V. It stays open while a layout is picked, and a press outside, Esc or ⇧V closes it; ← and → step the layout while it's open, and 1 to 4 and ⌘+ and ⌘− work with it closed too. Opened by key it appears at once, by click it grows from the button. Its sort and filter rows are shown but do nothing yet. Between launches AppKit keeps the window's position and size, and
 `ui.json` in the app's folder keeps the page, the zoom (Pictures, Titles,
 Summaries or Feed) and the sidebar's state and width. Each value is checked as it loads and an
 unknown one falls back to its default, so no saved state can strand the app;

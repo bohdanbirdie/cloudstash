@@ -1209,8 +1209,7 @@ pub fn opening_pictures(s: &State, dark: bool) -> Vec<(String, El)> {
 fn grid(s: &State, columns: usize, dark: bool) -> El {
     let rows = shown(s).len().div_ceil(columns);
     let zoom = s.zoom;
-    let grid = col().key("grid").w_full();
-    let grid = if zoom == Zoom::Feed { grid.max_w(FEED_W + 2.0 * CARD_PAD) } else { grid };
+    let grid = if zoom == Zoom::Feed { col().key("feed-grid").w_full().max_w(FEED_W + 2.0 * CARD_PAD) } else { col().key("grid").w_full() };
     let row = move |s: &State, i: usize| {
         let l = look(dark);
         let now = now_ms();
