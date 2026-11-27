@@ -211,7 +211,6 @@ const baseConfig: UserConfig = {
       "react/refs": "off",
       "react/set-state-in-effect": "off",
       "react/exhaustive-effect-dependencies": "off",
-      "react/memo-dependencies": "off",
       "react/immutability": "off",
       "jsx-a11y/no-autofocus": "off",
       "jsx-a11y/anchor-is-valid": "off",
