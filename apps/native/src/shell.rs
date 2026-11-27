@@ -994,20 +994,26 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, 
         });
     let title =
         |size: f32, lh: f32, lines: usize| text(link.title.clone()).font(font(size, 500.0).lh(lh)).color(l.fg).wrap_anywhere().max_lines(lines);
-    let after = if from == Some(Zoom::Pictures) { WORDS_AFTER } else { 0.0 };
+    let crossing = from.is_some_and(|from| (from == Zoom::Feed) != (zoom == Zoom::Feed));
+    let after = match from {
+        Some(Zoom::Pictures) => WORDS_AFTER,
+        _ if crossing => FEED_WORDS_AFTER,
+        _ => 0.0,
+    };
+    let (title_id, blurb_id, meta_id) = if zoom == Zoom::Feed { ("feed-title", "feed-blurb", "feed-meta") } else { ("title", "blurb", "meta") };
     let blurb = |lines: usize| {
         blurb(link)
-            .map(|b| fly("blurb", text(b).font(font(13.0, 400.0).lh(19.0)).color(l.fg2).wrap().max_lines(lines).matched_crop().enter_delay(after)))
+            .map(|b| fly(blurb_id, text(b).font(font(13.0, 400.0).lh(19.0)).color(l.fg2).wrap().max_lines(lines).matched_crop().enter_delay(after)))
     };
     let words = |title: El, lines: usize| {
-        let title = fly("title", title.matched_crop().enter_delay(after));
+        let title = fly(title_id, title.matched_crop().enter_delay(after));
         if lines > 0 {
             return col().w_full().gap(8.0).child(title).children(blurb(lines));
         }
         let hidden = blurb(3).map(|b| b.absolute(0.0, 8.0).w_full().opacity(0.0).a11y_hidden());
         col().w_full().child(title).child(el().w_full().h(0.0).children(hidden))
     };
-    let meta = fly("meta", meta.matched_crop().enter_delay(after));
+    let meta = fly(meta_id, meta.matched_crop().enter_delay(after));
     match zoom {
         Zoom::Pictures => card.help(link.title.clone()).child(picture),
         Zoom::Titles => card.child(picture).child(words(title(13.5, 18.2, 2), 0)).child(meta),
@@ -1302,6 +1308,10 @@ const REFLOW: Spring = Spring::new(0.36, 0.12);
 /// it flies there. The title and summary fly on their own, so neither is centred on a block that
 /// grows or shrinks; Titles keeps an unseen summary under each title for it to fade to and from.
 const WORDS_AFTER: f32 = 0.24;
+/// Feed's title and summary are set larger and much wider than any grid's, and text can't scale
+/// as it flies, so between Feed and a grid a card's words don't fly: the old ones fade where they
+/// were and the new ones wait this long, a third of `REFLOW`, and fade in as the picture grows into place.
+const FEED_WORDS_AFTER: f32 = 0.12;
 /// The opened link settles back a touch and fades as it closes, quickly.
 const CLOSE: SpringPair = SpringPair::new(Spring::new(0.2, 0.0), Spring::new(0.16, 0.0));
 /// The preview and the dim behind it come in on a quick spring and go on a quicker one.
