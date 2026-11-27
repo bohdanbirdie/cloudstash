@@ -878,6 +878,8 @@ const PAGE_PAD_LEFT: f32 = 16.0;
 const PAGE_PAD_RIGHT: f32 = 28.0;
 /// Above the first row of cards: its pictures start 16 points down.
 const PAGE_PAD_TOP: f32 = 16.0 - CARD_PAD;
+/// Below the last row, so it clears the fade at the bottom.
+const PAGE_PAD_BOTTOM: f32 = 80.0;
 /// A card picture's pixel size: 16:11, sharp at 2× up to 400 pt wide. A favicon's, at 2×.
 /// A card's picture, whole: at most this many pixels a side, at its own shape.
 const PICTURE: (u32, u32) = (800, 420);
@@ -1411,7 +1413,7 @@ fn page(s: &State, cx: &mut Cx<State>, dark: bool, l: &Look) -> El {
             }
         })
         .child({
-            let page = col().key("page").w_full().pl(PAGE_PAD_LEFT - CARD_PAD).pr(PAGE_PAD_RIGHT - CARD_PAD).pt(PAGE_PAD_TOP).pb(80.0);
+            let page = col().key("page").w_full().pl(PAGE_PAD_LEFT - CARD_PAD).pr(PAGE_PAD_RIGHT - CARD_PAD).pt(PAGE_PAD_TOP).pb(PAGE_PAD_BOTTOM);
             if centered { page.items_center() } else { page }.child(body)
         });
     let opened = matches!(previewed(s), Some((_, true)));

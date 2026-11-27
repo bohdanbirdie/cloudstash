@@ -11,13 +11,15 @@ use std::rc::Rc;
 
 use rune::{Anim, Cursor, El, Key, KeyEvent, Shadow, TextEdit, Transition, Tx, col, el, icon, oklcha, row, text, text_input};
 
-use super::{CHEVRON, CLEAR, Look, SEARCH, STATES, font};
+use super::{CHEVRON, CLEAR, Look, PAGE_PAD_BOTTOM, PAGE_PAD_TOP, SEARCH, STATES, font};
 use crate::State;
 use crate::livestore::library::{LinkItem, Tab};
 use crate::nav::{self, Place};
 use crate::search::{self, Hit};
 
 const FIELD: &str = "find";
+/// The page's top and bottom padding together, which the "no matches" block evens out.
+const CLEAR_OF_PAGE: f32 = PAGE_PAD_TOP + PAGE_PAD_BOTTOM;
 
 /// ⌘F: the field opens, or takes the keys again with its words selected, as a Mac app's find does.
 pub fn open(s: &mut State, tx: &mut Tx) {
@@ -141,7 +143,8 @@ fn text_button(key: &str, label: El, l: &Look) -> El {
 
 /// The page when the field's words match none of its links: the drawing, what was searched for
 /// and where, what the search looks at, then the way on: the next page with matches, and clearing
-/// the search. Centred a little above the middle of `height`, the page's.
+/// the search. Its middle is the middle of the page in view, `height` tall: the page's
+/// padding is cancelled, and the heavy drawing above lifts it no further.
 pub fn empty(s: &State, page: &str, height: f32, l: &Look) -> Option<El> {
     let query = query(s)?;
     let title = format!("No links in {page} match “{query}”");
@@ -168,9 +171,9 @@ pub fn empty(s: &State, page: &str, height: f32, l: &Look) -> Option<El> {
         col()
             .key("find-empty")
             .w_full()
-            .h((height - 120.0).max(320.0))
+            .h((height - CLEAR_OF_PAGE).max(320.0))
+            .pt(CLEAR_OF_PAGE - 2.0 * PAGE_PAD_TOP)
             .center()
-            .pb(height * 0.08)
             .child(sketch(l))
             .child(el().h(20.0))
             .child(text(title).font(font(14.0, 500.0).lh(20.0)).color(l.fg).wrap_anywhere().max_lines(2).align(rune::Align::Center).max_w(440.0))
