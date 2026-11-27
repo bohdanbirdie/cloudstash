@@ -155,6 +155,12 @@ pub fn name(name: &str, query: &str) -> Option<(u32, Vec<Range<usize>>)> {
     })
 }
 
+/// The links every word of `query` matches, in `links`' order.
+pub fn matching<'a>(links: &[&'a LinkItem], query: &str) -> Vec<&'a LinkItem> {
+    let Some(mut s) = Search::new(query) else { return Vec::new() };
+    links.iter().copied().filter(|l| score(&mut s, l, false).is_some()).collect()
+}
+
 /// The best `limit` links for `query`, best first; ties keep `links`' order. Every link is
 /// ranked by score alone; only those shown work out their marks and evidence.
 pub fn links(links: &[&LinkItem], query: &str, limit: usize) -> Vec<Hit> {

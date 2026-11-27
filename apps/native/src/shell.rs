@@ -22,6 +22,7 @@ use crate::nav::{self, Place};
 use crate::shimmer::shimmer;
 use crate::update::{self, Update};
 
+mod find;
 mod palette;
 use crate::livestore::library::{LinkItem, Tab};
 use crate::shell_kit::{PaneState, SidebarPeek, SidebarToggle, SplitView, TOOLBAR_HEIGHT, Toolbar, is_sidebar_toggle};
@@ -673,6 +674,9 @@ fn toolbar(s: &State, l: &Look) -> Toolbar {
     if let Some(sync) = sync {
         toolbar = toolbar.trailing(sync);
     }
+    if let Some(field) = find::field(s, l) {
+        toolbar = toolbar.trailing(field);
+    }
     toolbar.trailing(if s.display { display.fill(l.active) } else { display.hover(l.hover) })
 }
 
@@ -845,11 +849,11 @@ fn one_line(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// The links the content panel shows: the chosen state's, or none for a space (spaces have no
-/// links yet).
+/// The links the content panel shows: the chosen state's, narrowed to what the find field's
+/// words match, or none for a space (spaces have no links yet).
 fn shown(s: &State) -> Vec<&LinkItem> {
     match s.place {
-        Place::Tab(tab) => tab.links(&s.links),
+        Place::Tab(tab) => find::narrow(s, tab.links(&s.links)),
         Place::Space(_) => Vec::new(),
     }
 }
@@ -1320,10 +1324,12 @@ fn grid(s: &State, columns: usize, dark: bool) -> El {
 
 fn page(s: &State, cx: &mut Cx<State>, dark: bool, l: &Look) -> El {
     let body = if shown(s).is_empty() {
-        let empty = if matches!(s.place, Place::Space(_)) || (s.sync == Sync::Online && !s.filling) {
-            "Nothing here yet."
+        let empty = if let Some(missed) = find::missed(s) {
+            missed
+        } else if matches!(s.place, Place::Space(_)) || (s.sync == Sync::Online && !s.filling) {
+            "Nothing here yet.".to_owned()
         } else {
-            "Loading your library…"
+            "Loading your library…".to_owned()
         };
         text(empty).key("empty").font(font(13.0, 400.0)).color(l.fg3)
     } else {
@@ -1868,7 +1874,8 @@ fn arrow_into_grid(s: &State, e: &KeyEvent, tx: &mut Tx) -> bool {
     true
 }
 
-/// ⌘K opens and closes the command palette, and ⌘1 to ⌘4 go to the library's states. ⌘B toggles
+/// ⌘K opens and closes the command palette, ⌘F finds in the page (Esc puts it away) and ⌘1 to
+/// ⌘4 go to the library's states. ⌘B toggles
 /// the sidebar, like the reference apps, and so do rune-kit's ⇧⌘B and ⌃⌘S. ⌥⌘R
 /// throws away the saved pictures and loads them again, for experiments.
 pub fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
@@ -1886,6 +1893,14 @@ pub fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
         return true;
     }
     if s.palette.is_none() && on_preview_key(s, e) {
+        return true;
+    }
+    if s.palette.is_none() && e.is_command('f') && !e.mods.shift && !e.mods.alt {
+        find::open(s, tx);
+        return true;
+    }
+    if s.palette.is_none() && s.find.is_some() && e.key == Key::Escape {
+        find::close(s, tx);
         return true;
     }
     if s.palette.is_none()

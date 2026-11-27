@@ -137,6 +137,8 @@ pub(crate) struct State {
     account_menu: bool,
     /// The toolbar's Display panel, with the layouts, is open.
     display: bool,
+    /// ⌘F's find field and its words, while it's open.
+    find: Option<rune::TextEdit>,
 }
 
 /// Headless snapshots render a named scene and must not touch the keychain, the network or the
@@ -888,6 +890,16 @@ fn main() {
             ("must-update-signed-out", |s| {
                 s.phase = Phase::SignedOut;
                 s.update = update::Update::Required(None);
+            }),
+            ("find", |s| {
+                signed_in_scene(s, Tab::All);
+                let mut find = rune::TextEdit::new("design");
+                find.focused = true;
+                s.find = Some(find);
+            }),
+            ("find-none", |s| {
+                signed_in_scene(s, Tab::All);
+                s.find = Some(rune::TextEdit::new("kubernetes operator"));
             }),
             ("palette-empty", |s| {
                 worst_case_scene(s, Tab::Inbox);
