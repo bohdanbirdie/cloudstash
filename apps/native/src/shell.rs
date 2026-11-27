@@ -1296,7 +1296,8 @@ const GROW: Spring = Spring::new(0.26, 0.0);
 const REFLOW: Spring = Spring::new(0.36, 0.12);
 /// A card's title and meta that the old zoom didn't show (coming from Pictures) wait this long,
 /// most of `REFLOW`, and fade in as its picture settles, rather than waiting at their place while
-/// it flies there.
+/// it flies there. Its summary always does: it rewraps at the new width, and flying it with the
+/// title would centre the title on a block that grows or shrinks, off its picture.
 const WORDS_AFTER: f32 = 0.24;
 /// The opened link settles back a touch and fades as it closes, quickly.
 const CLOSE: SpringPair = SpringPair::new(Spring::new(0.2, 0.0), Spring::new(0.16, 0.0));
