@@ -1994,7 +1994,7 @@ mod tests {
 
     #[test]
     fn a_match_near_the_start_of_a_titles_excerpt_renders() {
-        let e = Evidence { field: crate::search::Field::Description, text: "a gpu guide".into(), marks: vec![2..5] };
+        let e = Evidence { field: crate::search::Field::Description, text: "a gpu guide".into(), marks: std::iter::once(2..5).collect() };
         found_in(&e, true, &look(true));
     }
 
