@@ -29,6 +29,7 @@ import { useCommand, useDismiss } from "@/lib/keyboard";
 import { searchLinks$ } from "@/livestore/queries/links";
 import type { LinkWithDetails, SearchResult } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
+import { useStoreQuery } from "@/livestore/use-store-query";
 import { useDockStore } from "@/stores/dock-store";
 import { useRightPaneStore } from "@/stores/right-pane-store";
 
@@ -227,7 +228,7 @@ function BottomDockInner({
 
   const store = useAppStore();
   const searchQuery = useMemo(() => searchLinks$(query.trim()), [query]);
-  const searchResults = store.useQuery(searchQuery);
+  const searchResults = useStoreQuery(searchQuery, store);
   const recentLinks = useRecentLinks();
 
   const openDetail = useRightPaneStore((s) => s.openDetail);

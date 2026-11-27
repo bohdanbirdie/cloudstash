@@ -29,6 +29,7 @@ import { parseYouTube } from "@/lib/youtube";
 import { linkById$, linkProcessingStatus$ } from "@/livestore/queries/links";
 import type { LinkWithDetails } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
+import { useStoreQuery } from "@/livestore/use-store-query";
 import { useRightPaneStore } from "@/stores/right-pane-store";
 
 const pageVariants = {
@@ -85,7 +86,7 @@ export function MobileDetailSheet() {
 function SheetContent({ linkId }: { linkId: string }) {
   const store = useAppStore();
   const linkQuery = useMemo(() => linkById$(linkId), [linkId]);
-  const link = store.useQuery(linkQuery);
+  const link = useStoreQuery(linkQuery, store);
 
   if (!link) {
     return (
@@ -234,7 +235,7 @@ function PageContent({ link }: { link: LinkWithDetails }) {
   const store = useAppStore();
   const { isAiSummaryEnabled } = useOrgFeatures();
 
-  const processingRecord = store.useQuery(linkProcessingStatus$(link.id));
+  const processingRecord = useStoreQuery(linkProcessingStatus$(link.id), store);
   const isProcessing = processingRecord?.status === "pending";
   const isReprocessing = processingRecord?.status === "reprocess-requested";
   const isFailed = processingRecord?.status === "failed";

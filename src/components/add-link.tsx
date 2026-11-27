@@ -23,6 +23,7 @@ import {
 } from "@/livestore/queries/links";
 import { events, schema, tables } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
+import { useStoreQuery } from "@/livestore/use-store-query";
 import { usePaywall } from "@/stores/paywall-store";
 import { useRightPaneStore } from "@/stores/right-pane-store";
 
@@ -100,8 +101,8 @@ async function fetchAndCommitMetadata(
 export function AddLinkProvider({ children }: { children: ReactNode }) {
   const store = useAppStore();
   const openDetail = useRightPaneStore((s) => s.openDetail);
-  const activeLinks = store.useQuery(allLinksCount$);
-  const retainedLinks = store.useQuery(anyLinksCount$);
+  const activeLinks = useStoreQuery(allLinksCount$, store);
+  const retainedLinks = useStoreQuery(anyLinksCount$, store);
   const { capabilities, isFallback, isLoading, tier } = useOrgFeatures();
   const retainedLinkCeiling = retainedLinkSafetyCeiling(capabilities);
   const openPaywall = usePaywall((state) => state.openPaywall);

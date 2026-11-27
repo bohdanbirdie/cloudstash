@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { Tag, TagByLinkRow } from "@/livestore/queries/tags";
 import { pendingTagsByLink$, tagsByLink$ } from "@/livestore/queries/tags";
 import { useAppStore } from "@/livestore/store";
+import { useStoreQuery } from "@/livestore/use-store-query";
 
 export interface ListData {
   tagsByLink: Map<string, readonly Tag[]>;
@@ -68,8 +69,8 @@ function groupTagsByLink(
 
 function useTagsByLink(): Map<string, readonly Tag[]> {
   const store = useAppStore();
-  const rows = store.useQuery(tagsByLink$);
-  const pendingRows = store.useQuery(pendingTagsByLink$);
+  const rows = useStoreQuery(tagsByLink$, store);
+  const pendingRows = useStoreQuery(pendingTagsByLink$, store);
   const [grouped, setGrouped] = useState(() => ({
     pendingRows,
     rows,

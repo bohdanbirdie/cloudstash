@@ -7,6 +7,7 @@ import {
   tagsWithCountsForStatus$,
 } from "@/livestore/queries/tags";
 import { useAppStore } from "@/livestore/store";
+import { useStoreQuery } from "@/livestore/use-store-query";
 import { useSelectionStore } from "@/stores/selection-store";
 
 import { TagChip } from "./tag-chip";
@@ -25,8 +26,8 @@ export const TagStrip = memo(function TagStrip({ status }: TagStripProps) {
     () => newTagSuggestionsWithCountsForStatus$(status),
     [status]
   );
-  const allTags = store.useQuery(tagsQuery);
-  const suggestionTags = store.useQuery(suggestionsQuery);
+  const allTags = useStoreQuery(tagsQuery, store);
+  const suggestionTags = useStoreQuery(suggestionsQuery, store);
   const { tag: selectedTag } = useTagFilter();
   const clearSelection = useSelectionStore((s) => s.clear);
   const limit = useInlineTagLimit();

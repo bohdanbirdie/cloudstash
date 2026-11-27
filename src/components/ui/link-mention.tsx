@@ -7,6 +7,7 @@ import { displayDescription, displayTitle } from "@/lib/link-display";
 import { linkByUrl$ } from "@/livestore/queries/links";
 import type { LinkWithDetails } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
+import { useStoreQuery } from "@/livestore/use-store-query";
 import { useRightPaneStore } from "@/stores/right-pane-store";
 
 const LINK_PILL_CLASS =
@@ -108,7 +109,7 @@ interface LinkMentionProps {
 
 export function LinkMention({ href, children }: LinkMentionProps) {
   const store = useAppStore();
-  const link = store.useQuery(linkByUrl$(href));
+  const link = useStoreQuery(linkByUrl$(href), store);
   const openDetail = useRightPaneStore((s) => s.openDetail);
 
   const childText = typeof children === "string" ? children : null;
