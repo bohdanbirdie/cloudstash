@@ -79,8 +79,14 @@ impl Zoom {
             Zoom::Pictures => 125.0,
             Zoom::Titles => 260.0,
             Zoom::Summaries => 340.0,
-            Zoom::Feed => 600.0,
+            Zoom::Feed => 530.0,
         }
+    }
+
+    /// The shape of a card's picture: the cards' 16:11, or the preview's 16:9 in Feed, whose one
+    /// wide column shows a link much as the preview does.
+    fn picture_aspect(self) -> f32 {
+        if self == Zoom::Feed { 16.0 / 9.0 } else { 16.0 / 11.0 }
     }
 
     /// One step closer (`by` 1) or further (−1), stopping at the ends.
@@ -917,10 +923,13 @@ fn favicon(link: &LinkItem, size: f32, l: &Look) -> El {
 }
 
 /// A link's picture, or its title on a tile when it has none.
-fn picture(link: &LinkItem, radius: f32, l: &Look) -> El {
+fn picture(link: &LinkItem, radius: f32, zoom: Zoom, l: &Look) -> El {
     let ring = el().pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0)).radius(radius).border(1.0, l.ring);
-    let tile = el().w_full().aspect_ratio(16.0 / 11.0).radius(radius).clip_rounded(radius).fill(l.tile);
+    let tile = el().w_full().aspect_ratio(zoom.picture_aspect()).radius(radius).clip_rounded(radius).fill(l.tile);
     let tile = match &link.image {
+        Some(url) if zoom == Zoom::Feed => tile
+            .pixels_fit(&images::picture(&Request::whole(url, PICTURE)), SurfaceFit::Fill)
+            .child(el().pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0)).pixels_fit(&images::picture(&Request::whole(url, WHOLE)), SurfaceFit::Fill)),
         Some(url) => tile.pixels_fit(&images::picture(&Request::whole(url, PICTURE)), SurfaceFit::Fill),
         None => {
             tile.padding(14.0).child(text(one_line(&link.title)).font(font(13.0, 400.0).lh(18.85)).color(l.fg2).w_full().wrap_anywhere().max_lines(6))
@@ -935,7 +944,8 @@ fn blurb(link: &LinkItem) -> Option<String> {
 }
 
 /// A link card at `zoom`: its picture, then as much about it as the zoom shows. A click opens
-/// its preview; ⌘-click opens it in the browser.
+/// its preview, or in Feed, which already shows a link as the preview would, the link all the
+/// way; ⌘-click opens it in the browser.
 fn card(link: &LinkItem, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, l: &Look) -> El {
     let fly = |what: &str, el: El| {
         let el = el.matched(format!("{what}-{}", link.id)).matched_motion(REFLOW).transition(Transition::opacity());
@@ -943,7 +953,7 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, 
     };
     let picture = fly(
         "picture",
-        picture(link, PICTURE_RADIUS, l).key("picture").live_opacity(crate::sphere::reveal()).on_layout_tx({
+        picture(link, PICTURE_RADIUS, zoom, l).key("picture").live_opacity(crate::sphere::reveal()).on_layout_tx({
             let id = link.id.clone();
             move |_: &mut State, rect, tx| {
                 crate::sphere::card_at(&id, rect);
@@ -990,7 +1000,7 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, 
             if tx.mods().cmd {
                 return crate::open_link(&url);
             }
-            preview(s, &id, false);
+            preview(s, &id, zoom == Zoom::Feed);
         });
     let title =
         |size: f32, lh: f32, lines: usize| text(link.title.clone()).font(font(size, 500.0).lh(lh)).color(l.fg).wrap_anywhere().max_lines(lines);
@@ -1287,7 +1297,7 @@ fn page(s: &State, cx: &mut Cx<State>, dark: bool, l: &Look) -> El {
                 el().key(format!("ghost-{}", g.id))
                     .matched(format!("picture-{}", g.id))
                     .pin(Some(g.rect[0] + CARD_PAD), Some(g.rect[1] + CARD_PAD), None, None)
-                    .size(w, w * 11.0 / 16.0)
+                    .size(w, w / s.zoom.picture_aspect())
                     .radius(PICTURE_RADIUS)
                     .a11y_hidden()
             }),

@@ -42,7 +42,9 @@ library's folder and deleted with it on sign-out, or at the next launch that
 finds no session; at most 80 MB of them are kept decoded in memory, per
 [decision 0006](./.decisions/0006-bound-native-picture-memory.md). A click on a card opens a preview of the link over the grid,
 with the sidebar still usable; a click on the preview or ↵ opens it fully in
-the content area, and Esc steps back. ⌘-click opens the link in the browser.
+the content area, and Esc steps back. Feed shows each link much as the preview
+does, its picture at the preview's 16:9 rather than the grid cards' 16:11, so a
+click on a Feed card opens the link fully at once. ⌘-click opens the link in the browser.
 Saved links open in the browser only when they are web
 addresses. The window's page is one `Place` value (a library state or a space
 by id), changed only through `nav::go`, so every navigation (sidebar, palette,
