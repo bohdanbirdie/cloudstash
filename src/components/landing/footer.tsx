@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { useState } from "react";
 
 import { CloudstashLogo } from "@/components/cloudstash-logo";
 import { SectionEyebrow } from "@/components/right-pane/detail-view/section-eyebrow";
@@ -41,7 +42,7 @@ const FOOTER_COLS: readonly {
 ];
 
 export function Footer() {
-  const year = new Date().getFullYear();
+  const [year] = useState(() => new Date().getFullYear());
   return (
     <footer>
       <div

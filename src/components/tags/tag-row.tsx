@@ -17,8 +17,8 @@ interface TagRowProps {
 }
 
 export function TagRow({ tag, count, onRename, onDelete }: TagRowProps) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(tag.name);
+  const [draft, setDraft] = useState<string | null>(null);
+  const isEditing = draft !== null;
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -28,23 +28,16 @@ export function TagRow({ tag, count, onRename, onDelete }: TagRowProps) {
     }
   }, [isEditing]);
 
-  useEffect(() => {
-    setEditValue(tag.name);
-  }, [tag.name]);
-
   const handleSave = () => {
-    const sanitized = sanitizeTagName(editValue);
+    const sanitized = sanitizeTagName(draft ?? "");
     if (isValidTagName(sanitized) && sanitized !== tag.name) {
       onRename(sanitized);
-    } else {
-      setEditValue(tag.name);
     }
-    setIsEditing(false);
+    setDraft(null);
   };
 
   const handleCancel = () => {
-    setEditValue(tag.name);
-    setIsEditing(false);
+    setDraft(null);
   };
 
   return (
@@ -52,8 +45,8 @@ export function TagRow({ tag, count, onRename, onDelete }: TagRowProps) {
       {isEditing ? (
         <Input
           ref={inputRef}
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
           onBlur={handleSave}
           maxLength={MAX_TAG_NAME_LENGTH}
           onKeyDown={(e) => {
@@ -72,7 +65,7 @@ export function TagRow({ tag, count, onRename, onDelete }: TagRowProps) {
       ) : (
         <button
           type="button"
-          onClick={() => setIsEditing(true)}
+          onClick={() => setDraft(tag.name)}
           className="flex h-7 flex-1 cursor-pointer items-center gap-1 text-xs font-medium text-foreground"
         >
           #{tag.name}

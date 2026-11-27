@@ -1,5 +1,6 @@
 import { useStore } from "@livestore/react";
 import { events, schema } from "@web/livestore/schema";
+import { useStoreQuery } from "@web/livestore/use-store-query";
 import { Match } from "effect";
 import { CheckCircle2 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -98,8 +99,8 @@ export function SaveAndList({
     storeId: creds.orgId,
     syncPayload: { apiKey: creds.apiKey },
   });
-  const recent = store.useQuery(recentLinks$);
-  const activeLinksCount = store.useQuery(activeLinksCount$);
+  const recent = useStoreQuery(recentLinks$, store);
+  const activeLinksCount = useStoreQuery(activeLinksCount$, store);
   const canSave =
     account === null ||
     account.maxSavedLinks === 0 ||

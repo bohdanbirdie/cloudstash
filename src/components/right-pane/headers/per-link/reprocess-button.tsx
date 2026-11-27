@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { linkProcessingStatus$ } from "@/livestore/queries/links";
 import { events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
+import { useStoreQuery } from "@/livestore/use-store-query";
 
 export function ReprocessButton({ linkId }: { linkId: string }) {
   const { role } = useAuth();
@@ -16,7 +17,7 @@ export function ReprocessButton({ linkId }: { linkId: string }) {
     () => linkProcessingStatus$(linkId),
     [linkId]
   );
-  const processingRecord = store.useQuery(processingQuery);
+  const processingRecord = useStoreQuery(processingQuery, store);
 
   if (role !== "admin") return null;
 

@@ -10,6 +10,7 @@ import { displayTitle } from "@/lib/link-display";
 import { cn } from "@/lib/utils";
 import { linksByIds$ } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
+import { useStoreQuery } from "@/livestore/use-store-query";
 
 interface LinkDeleteConfirmationProps {
   linkIds: string[];
@@ -53,7 +54,7 @@ export function LinkDeleteConfirmation({
   surface = "card",
 }: LinkDeleteConfirmationProps) {
   const store = useAppStore();
-  const links = store.useQuery(linksByIds$(linkIds));
+  const links = useStoreQuery(linksByIds$(linkIds), store);
 
   const linkMap = new Map(links.map((l) => [l.id, l]));
   const orderedLinks = linkIds.map((id) =>

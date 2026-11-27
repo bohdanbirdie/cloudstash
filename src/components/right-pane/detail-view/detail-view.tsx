@@ -18,6 +18,7 @@ import type { TagSuggestion } from "@/livestore/queries/schemas";
 import { allTags$, pendingSuggestionsForLink$ } from "@/livestore/queries/tags";
 import { events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
+import { useStoreQuery } from "@/livestore/use-store-query";
 import { useRightPaneStore } from "@/stores/right-pane-store";
 
 import { DetailSummary } from "./ai-summary";
@@ -29,7 +30,7 @@ import { SectionEyebrow } from "./section-eyebrow";
 export function DetailView({ linkId }: { linkId: string }) {
   const store = useAppStore();
   const linkQuery = useMemo(() => linkById$(linkId), [linkId]);
-  const link = store.useQuery(linkQuery);
+  const link = useStoreQuery(linkQuery, store);
 
   if (!link) return null;
 
@@ -48,7 +49,7 @@ const DetailViewInner = memo(function DetailViewInner({
 
   useDismiss("detail", closeDetail);
 
-  const processingRecord = store.useQuery(linkProcessingStatus$(link.id));
+  const processingRecord = useStoreQuery(linkProcessingStatus$(link.id), store);
   const isProcessing = processingRecord?.status === "pending";
   const isReprocessing = processingRecord?.status === "reprocess-requested";
   const isFailed = processingRecord?.status === "failed";
@@ -61,8 +62,8 @@ const DetailViewInner = memo(function DetailViewInner({
     () => pendingSuggestionsForLink$(link.id),
     [link.id]
   );
-  const suggestions = store.useQuery(suggestionsQuery);
-  const allTags = store.useQuery(allTags$);
+  const suggestions = useStoreQuery(suggestionsQuery, store);
+  const allTags = useStoreQuery(allTags$, store);
 
   const handleAcceptSuggestion = useCallback(
     (s: TagSuggestion) => {

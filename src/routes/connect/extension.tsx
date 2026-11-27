@@ -40,9 +40,6 @@ async function parseJson<T>(response: Response): Promise<T> {
 function useExtensionConnect() {
   const [phase, setPhase] = useState<Phase>({ tag: "checking" });
   const [announcement, setAnnouncement] = useState("");
-  const [nonce, setNonce] = useState(0);
-
-  const retry = useCallback(() => setNonce((n) => n + 1), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,8 +65,6 @@ function useExtensionConnect() {
     };
 
     const run = async () => {
-      setPhase({ tag: "checking" });
-
       const installed = await pingExtension();
       if (cancelled) return;
       if (!installed) {
@@ -108,13 +103,19 @@ function useExtensionConnect() {
       cancelled = true;
       if (closeTimer) clearTimeout(closeTimer);
     };
-  }, [nonce]);
+  }, []);
 
-  return { phase, announcement, retry };
+  return { phase, announcement };
 }
 
 function ConnectExtensionPage() {
-  const { phase, announcement, retry } = useExtensionConnect();
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  return <ConnectExtension key={attempt} retry={retry} />;
+}
+
+function ConnectExtension({ retry }: { retry: () => void }) {
+  const { phase, announcement } = useExtensionConnect();
 
   const subtitle = Match.value(phase).pipe(
     Match.when({ tag: "checking" }, () => "Looking for the extension…"),

@@ -36,6 +36,7 @@ import type { Tag } from "@/livestore/queries/tags";
 import { allTags$ } from "@/livestore/queries/tags";
 import { events } from "@/livestore/schema";
 import { useAppStore } from "@/livestore/store";
+import { useStoreQuery } from "@/livestore/use-store-query";
 
 interface TagComboboxProps {
   selectedTagIds: string[];
@@ -72,7 +73,7 @@ export function TagCombobox({
   onDismissSuggestion,
 }: TagComboboxProps) {
   const store = useAppStore();
-  const allTags = store.useQuery(allTags$);
+  const allTags = useStoreQuery(allTags$, store);
   const [inputValue, setInputValue] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [orderSnapshot, setOrderSnapshot] = useState<string[]>([]);

@@ -1,6 +1,6 @@
 import { StoreRegistryProvider } from "@livestore/react";
 import { Effect } from "effect";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 
 import type { Creds } from "../../lib/messages";
 import { runPopup } from "../../lib/runtime";
@@ -24,8 +24,6 @@ export function App() {
         : null
       : override;
 
-  const accountState = useAccount(creds?.apiKey ?? null, creds?.orgId ?? null);
-
   const persist = (next: Creds | null) => {
     runPopup(Effect.flatMap(CredsStorage, (svc) => svc.set(next)));
     setOverride(next);
@@ -38,13 +36,14 @@ export function App() {
     persist(null);
   };
 
+  const accountState = useAccount(
+    creds?.apiKey ?? null,
+    creds?.orgId ?? null,
+    () => persist(null)
+  );
+
   const accountResult =
     accountState.status === "ok" ? accountState.value : null;
-
-  const revoked = accountResult?.tag === "unauthorized";
-  useEffect(() => {
-    if (revoked) persist(null);
-  }, [revoked]);
 
   if (credsState.status === "loading") {
     return <LoadingShell>One moment</LoadingShell>;

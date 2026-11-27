@@ -5,6 +5,12 @@ import { isKeyboardMode } from "@/lib/input-mode";
 
 const NAV_KEYS = new Set(["ArrowLeft", "ArrowRight", "Home", "End"]);
 
+function focusItem(container: HTMLElement | null, id: string) {
+  container
+    ?.querySelector<HTMLElement>(`[data-tag-item="${CSS.escape(id)}"]`)
+    ?.focus();
+}
+
 interface RovingArgs {
   itemIds: string[];
   activeId: string | null;
@@ -26,11 +32,6 @@ export function useRovingTagFocus({
   const tabbableId =
     rovingId && itemIds.includes(rovingId) ? rovingId : defaultTabbable;
 
-  const focusItem = (id: string) =>
-    containerRef.current
-      ?.querySelector<HTMLElement>(`[data-tag-item="${CSS.escape(id)}"]`)
-      ?.focus();
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (!NAV_KEYS.has(e.key)) return;
     if (!(document.activeElement instanceof HTMLElement)) return;
@@ -48,7 +49,7 @@ export function useRovingTagFocus({
     );
 
     setRovingId(itemIds[next]);
-    focusItem(itemIds[next]);
+    focusItem(containerRef.current, itemIds[next]);
   };
 
   const handleFocus = (e: React.FocusEvent<HTMLDivElement>) => {
@@ -69,7 +70,7 @@ export function useRovingTagFocus({
       pendingFocusRef.current = null;
       const raf = requestAnimationFrame(() => {
         setRovingId(activeOverflowId);
-        focusItem(activeOverflowId);
+        focusItem(containerRef.current, activeOverflowId);
       });
       return () => cancelAnimationFrame(raf);
     }

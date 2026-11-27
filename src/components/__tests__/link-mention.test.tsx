@@ -32,7 +32,11 @@ vi.mock("@/livestore/queries/links", () => ({
 }));
 
 vi.mock("@/livestore/store", () => ({
-  useAppStore: () => ({ useQuery: () => savedLink }),
+  useAppStore: () => ({}),
+}));
+
+vi.mock("@/livestore/use-store-query", () => ({
+  useStoreQuery: () => savedLink,
 }));
 
 vi.mock("@/stores/right-pane-store", () => ({

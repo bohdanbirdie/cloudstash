@@ -6,7 +6,7 @@ import {
   UserIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 
 import { IntegrationsSection } from "@/components/integrations/integrations-section";
@@ -75,12 +75,14 @@ export function SettingsDialog() {
   const setOpen = useSettingsDialog((s) => s.setOpen);
 
   const [active, setActive] = useState<SettingsSection>(section);
+  const [directed, setDirected] = useState({ open, section });
 
-  // Sync local active state when the store directs us to a section (e.g. a
-  // paywall promo deep-links to "plan" while the dialog is already open).
-  useEffect(() => {
+  // Follow the store when it directs us to a section (e.g. a paywall promo
+  // deep-links to "plan" while the dialog is already open).
+  if (directed.open !== open || directed.section !== section) {
+    setDirected({ open, section });
     if (open) setActive(section);
-  }, [open, section]);
+  }
 
   return (
     <SettingsDialogSurface
@@ -104,25 +106,19 @@ export function SettingsDialogSurface({
     () => new Set([activeSection])
   );
 
-  // Reset visited tracking when the dialog closes so we don't keep stale
-  // sections mounted across separate opens.
-  useEffect(() => {
-    if (!open) setVisited(new Set());
-  }, [open]);
-
   const effective = sections.some((item) => item.id === activeSection)
     ? activeSection
     : sections[0]?.id;
 
   // Track every visited section so it stays mounted (hidden) on rail nav —
   // preserves things like the freshly-generated API key in Integrations and
-  // the Tags search input.
-  useEffect(() => {
-    if (!open || !effective) return;
-    setVisited((prev) =>
-      prev.has(effective) ? prev : new Set([...prev, effective])
-    );
-  }, [open, effective]);
+  // the Tags search input. Reset when the dialog closes so we don't keep
+  // stale sections mounted across separate opens.
+  if (!open && visited.size > 0) {
+    setVisited(new Set());
+  } else if (open && effective && !visited.has(effective)) {
+    setVisited(new Set([...visited, effective]));
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

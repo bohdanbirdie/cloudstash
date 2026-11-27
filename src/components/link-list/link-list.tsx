@@ -1,5 +1,12 @@
 import { motion } from "motion/react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { isInActivityGrid } from "@/components/activity-grid/owns-arrows";
 import { isInDock } from "@/components/bottom-dock/owns-arrows";
@@ -26,6 +33,7 @@ import { LinkListItem } from "./link-list-item";
 
 const EMPTY_TAGS: readonly Tag[] = [];
 const EMPTY_PREVIEW: ReadonlySet<string> = new Set();
+const NO_NEW_IDS: ReadonlySet<string> = new Set();
 
 interface LinkListProps {
   links: readonly LinkListItemData[];
@@ -57,26 +65,27 @@ export function LinkList({
   const { tagsByLink } = useListData();
 
   const linksRef = useRef(links);
-  linksRef.current = links;
   const activeLinkIdRef = useRef(activeLinkId);
-  activeLinkIdRef.current = activeLinkId;
+  useLayoutEffect(() => {
+    linksRef.current = links;
+    activeLinkIdRef.current = activeLinkId;
+  });
   const anchorRef = useRef<string | null>(null);
 
   const allIds = useMemo(() => links.map((l) => l.id), [links]);
 
-  const seenRef = useRef<{ key: string | undefined; ids: Set<string> } | null>(
-    null
-  );
-  const newIds = useMemo(() => {
-    const seen = seenRef.current;
-    if (!seen || seen.key !== listKey) return new Set<string>();
-    const result = new Set<string>();
-    for (const id of allIds) if (!seen.ids.has(id)) result.add(id);
-    return result;
-  }, [allIds, listKey]);
-  useEffect(() => {
-    seenRef.current = { key: listKey, ids: new Set(allIds) };
-  }, [allIds, listKey]);
+  const [seen, setSeen] = useState({ allIds, listKey, newIds: NO_NEW_IDS });
+  let newIds = seen.newIds;
+  if (seen.allIds !== allIds || seen.listKey !== listKey) {
+    newIds = NO_NEW_IDS;
+    if (seen.listKey === listKey) {
+      const prevIds = new Set(seen.allIds);
+      const result = new Set<string>();
+      for (const id of allIds) if (!prevIds.has(id)) result.add(id);
+      newIds = result;
+    }
+    setSeen({ allIds, listKey, newIds });
+  }
 
   const ids = useSelectionStore((s) => s.ids);
   const anchor = useSelectionStore((s) => s.anchor);
@@ -131,20 +140,6 @@ export function LinkList({
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useGlobalNavigation(
-    "listNav",
-    (dir) => {
-      if (dir === "ArrowDown") moveByKey(1);
-      else if (dir === "ArrowUp") moveByKey(-1);
-      else if (dir === "Home") moveByKey("home");
-      else if (dir === "End") moveByKey("end");
-    },
-    (e) => isInActivityGrid(e) || isInDock(e) || isInTagStrip(e)
-  );
-
-  useCommand("vimDown", () => moveByKey(1));
-  useCommand("vimUp", () => moveByKey(-1));
-
   function moveByKey(delta: number | "home" | "end") {
     const items = linksRef.current;
     const cursor = activeLinkIdRef.current ?? anchorRef.current;
@@ -160,6 +155,20 @@ export function LinkList({
       openDetail(target.id);
     }
   }
+
+  useGlobalNavigation(
+    "listNav",
+    (dir) => {
+      if (dir === "ArrowDown") moveByKey(1);
+      else if (dir === "ArrowUp") moveByKey(-1);
+      else if (dir === "Home") moveByKey("home");
+      else if (dir === "End") moveByKey("end");
+    },
+    (e) => isInActivityGrid(e) || isInDock(e) || isInTagStrip(e)
+  );
+
+  useCommand("vimDown", () => moveByKey(1));
+  useCommand("vimUp", () => moveByKey(-1));
 
   const handleRowClick = useCallback(
     (e: React.MouseEvent) => {

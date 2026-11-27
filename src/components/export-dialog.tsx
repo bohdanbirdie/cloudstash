@@ -20,6 +20,7 @@ import {
 import { linksByIds$ } from "@/livestore/queries/links";
 import type { LinkWithDetails } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
+import { useStoreQuery } from "@/livestore/use-store-query";
 
 interface ExportDialogProps {
   open: boolean;
@@ -39,7 +40,7 @@ export function ExportDialog({
 
   const store = useAppStore();
   const queryIds = useMemo(() => (open ? [...ids] : []), [open, ids]);
-  const fullLinksUnordered = store.useQuery(linksByIds$(queryIds));
+  const fullLinksUnordered = useStoreQuery(linksByIds$(queryIds), store);
 
   const fullLinks = useMemo<readonly LinkWithDetails[]>(() => {
     if (!open || ids.length === 0) return [];

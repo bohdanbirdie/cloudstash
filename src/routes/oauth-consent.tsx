@@ -46,27 +46,24 @@ function OAuthConsentPage() {
     [requestedScopes]
   );
   const [clientName, setClientName] = useState<string | null>(null);
-  const [status, setStatus] = useState<
+  const [clientStatus, setStatus] = useState<
     "loading" | "ready" | "submitting" | "error"
   >("loading");
-  const [error, setError] = useState<string | null>(null);
+  const [clientError, setError] = useState<string | null>(null);
+
+  const requestError = !workspace.ok
+    ? workspace.error
+    : !clientId ||
+        requestedScopes.length === 0 ||
+        requestedScopes.some((scope) => !ALLOWED_SCOPES.has(scope))
+      ? "This authorization request is missing required information."
+      : null;
+  const status = requestError ? "error" : clientStatus;
+  const error = requestError ?? clientError;
 
   useEffect(() => {
     let active = true;
-    if (!workspace.ok) {
-      setError(workspace.error);
-      setStatus("error");
-      return;
-    }
-    if (
-      !clientId ||
-      requestedScopes.length === 0 ||
-      requestedScopes.some((scope) => !ALLOWED_SCOPES.has(scope))
-    ) {
-      setError("This authorization request is missing required information.");
-      setStatus("error");
-      return;
-    }
+    if (requestError) return;
 
     const loadClient = Effect.tryPromise(() =>
       authClient.oauth2.publicClient({ query: { client_id: clientId } })
@@ -90,7 +87,7 @@ function OAuthConsentPage() {
     return () => {
       active = false;
     };
-  }, [clientId, requestedScopes, workspace]);
+  }, [clientId, requestError]);
 
   const submitConsent = async (accept: boolean) => {
     setStatus("submitting");

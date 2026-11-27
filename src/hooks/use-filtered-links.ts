@@ -5,6 +5,7 @@ import { filteredLinks$ } from "@/livestore/queries/filtered-links";
 import type { LinkStatus } from "@/livestore/queries/filtered-links";
 import type { LinkListItem } from "@/livestore/queries/links";
 import { useAppStore } from "@/livestore/store";
+import { useStoreQuery } from "@/livestore/use-store-query";
 import { useSelectionStore } from "@/stores/selection-store";
 
 export function useFilteredLinks(
@@ -16,7 +17,7 @@ export function useFilteredLinks(
     () => filteredLinks$(status, { tagIds: tag ? [tag] : [] }),
     [status, tag]
   );
-  const links = store.useQuery(query);
+  const links = useStoreQuery(query, store);
 
   useEffect(() => {
     const validIds = new Set(links.map((l) => l.id));
