@@ -24,7 +24,11 @@ It gives a user a new subject on every start, so local accounts are keyed by
 email under an issuer of their own. Cookie names take a prefix
 (`advanced.cookiePrefix`). A Mac app's identity is its bundle id, executable,
 link scheme, data folder and log, all of which `scripts/bundle.sh` writes and
-`src/flavor.rs` reads; `NSDockTile.badgeLabel` labels the Dock icon.
+`src/flavor.rs` reads. `NSDockTile.badgeLabel` alone was set (Launch Services
+reported it) but the Dock on macOS 26 did not draw it: the Dock draws an
+app's badge only once the person allows it notifications, which every copy
+would have to ask for, one prompt per worktree. So `scripts/run.sh` draws the port onto
+the bottom of the bundle's icon as a red counter, like the Dock's own badge.
 
 ## Options
 
@@ -39,8 +43,8 @@ link scheme, data folder and log, all of which `scripts/bundle.sh` writes and
 ## Decision
 
 `bun run dev` (`scripts/dev.ts`) is the only way to run the app locally. It
-takes the first free port from 3000, starts emulate's Google with the git
-user as its account, and runs `alchemy dev` with `PORT` and
+takes the first free port from 3000, starts emulate's Google with two test
+accounts (one seeded with the test links, one always empty), and runs `alchemy dev` with `PORT` and
 `GOOGLE_EMULATOR_URL`; `DEV_GOOGLE=real` keeps real Google on 3000.
 `alchemy.run.ts` derives the local `BETTER_AUTH_URL` from the port, binds
 `127.0.0.1` with a strict port, and passes `GOOGLE_EMULATOR_URL` on local
@@ -48,7 +52,8 @@ stages only; the Worker uses it only when both addresses are loopback. A
 loopback server names its cookies `cloudstash-<port>`. `scripts/run.sh` builds
 one Cloudstash Dev per worktree (an instance id from the worktree's path)
 against the address `bun run dev` writes to `.alchemy/dev-url`, quits only that
-worktree's copy, and badges its Dock icon with the port. The sign-in page opens
+worktree's copy; its icon carries the port as a red counter, and its dev meter shows
+the port and opens the web app when clicked. The sign-in page opens
 `cloudstash-dev-<instance>://` for `app=dev-<instance>`. Revisit if emulate
 stops tracking Google's endpoints or Google starts accepting any loopback port
 for web clients.

@@ -16,8 +16,9 @@ cargo test                                              # the sign-in flow again
 
 `scripts/run.sh` builds the app, wraps it in `target/Cloudstash Dev.app`, registers this
 worktree's own `cloudstash-dev-<id>://` scheme with Launch Services, and opens it. Each
-worktree's copy has its own name, data, sign-in and log, so several run at once; the Dock
-badge shows which dev server port each one talks to. A bare `cargo run` works for the UI
+worktree's copy has its own name, data, sign-in and log, so several run at once; its icon
+and its dev meter show which dev server port each one talks to, and clicking the port in the
+meter opens the web app. A bare `cargo run` works for the UI
 but can't receive the sign-in link. Every build output stays in `apps/native/target/`
 (gitignored); `cargo clean` removes it, bundle included.
 

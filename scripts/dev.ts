@@ -1,7 +1,8 @@
 // Starts the local dev server so any number of worktrees can run at once.
 // It takes the first free port from 3000 up, starts a local stand-in for
-// Google (vercel-labs/emulate) whose only account is your git user, and runs
-// `alchemy dev` against both. Sign-in goes through the same OAuth flow as
+// Google (vercel-labs/emulate) with two test accounts, one whose library gets
+// the test links and one that stays empty (tools/dev-seed/accounts.ts), and
+// runs `alchemy dev` against both. Sign-in goes through the same OAuth flow as
 // production, against the stand-in instead of Google.
 //
 //   bun run dev                    # free port, local Google
@@ -10,11 +11,13 @@
 //
 // The server's address is written to .alchemy/dev-url while it runs, so
 // apps/native/scripts/run.sh finds this worktree's server.
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 
 import { createEmulator } from "emulate";
+
+import { EMPTY_ACCOUNT, SEEDED_ACCOUNT } from "../tools/dev-seed/accounts";
 
 const URL_FILE = ".alchemy/dev-url";
 
@@ -37,9 +40,6 @@ const freePort = async (from: number) => {
   throw new Error(`No free port between ${from} and ${from + 99}`);
 };
 
-const gitConfig = (key: string) =>
-  spawnSync("git", ["config", key], { encoding: "utf8" }).stdout.trim();
-
 const realGoogle = process.env.DEV_GOOGLE === "real";
 const port = process.env.PORT
   ? Number(process.env.PORT)
@@ -48,21 +48,21 @@ const port = process.env.PORT
     : await freePort(3000);
 const origin = `http://127.0.0.1:${port}`;
 
-const email = gitConfig("user.email") || "dev@cloudstash.test";
-const name = gitConfig("user.name") || "Dev";
 const google = realGoogle
   ? undefined
   : await createEmulator({
       service: "google",
       port: 0,
-      seed: { google: { users: [{ email, name, email_verified: true }] } },
+      seed: {
+        google: { users: [{ ...EMPTY_ACCOUNT, email_verified: true }] },
+      },
     });
 
 mkdirSync(".alchemy", { recursive: true });
 writeFileSync(URL_FILE, `${origin}\n`);
 console.log(
   google
-    ? `Dev server: ${origin} (sign-in: local Google as ${email})`
+    ? `Dev server: ${origin} (sign-in: local Google, ${SEEDED_ACCOUNT} with the test links or ${EMPTY_ACCOUNT.email} empty)`
     : `Dev server: ${origin} (sign-in: real Google)`
 );
 

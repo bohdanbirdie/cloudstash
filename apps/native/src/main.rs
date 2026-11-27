@@ -316,9 +316,13 @@ fn open_url(s: &mut State, link: &str, _: &mut Tx) {
     });
 }
 
-/// The dev meter's readings, in Cloudstash Dev only: downloads running and waiting in view, then the pictures' cache on
-/// disk and how much of the background fill is done; clicking the cache empties it.
+/// The dev meter's readings, in Cloudstash Dev only: the dev server's port, which opens the web
+/// app when clicked; downloads running and waiting in view; then the pictures' cache on disk and
+/// how much of the background fill is done, which empties the cache when clicked.
 fn devtools_probes() {
+    let base = flavor::base();
+    let port = flavor::port().map_or_else(|| base.clone(), |p| format!(":{p}"));
+    fps::probe_pressable(move || port.clone(), move || open_browser(&base));
     fps::probe(|| {
         let s = images::stats();
         if s.waiting == 0 { format!("{} req", s.downloading) } else { format!("{} req +{}", s.downloading, s.waiting) }

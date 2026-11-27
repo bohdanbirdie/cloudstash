@@ -2,7 +2,8 @@
 # Builds this worktree's Cloudstash Dev (the debug build, src/flavor.rs) into target/ and opens it
 # against this worktree's dev server. It runs beside the released Cloudstash and beside every other
 # worktree's Cloudstash Dev: each worktree's copy has its own name ("Cloudstash Dev · <branch>"),
-# data, sign-in, log and link scheme, and its Dock icon carries the dev server's port as a badge.
+# data, sign-in, log and link scheme, and its icon carries the dev server's port
+# (scripts/port-icon.swift).
 # There are no updates. The bundle registers its link scheme, which a bare `cargo run` binary
 # cannot receive.
 #
@@ -24,17 +25,31 @@ if [[ -z "${CLOUDSTASH_URL:-}" ]]; then
 fi
 export CLOUDSTASH_URL
 
-# One copy per worktree, named after the worktree's path; its badge is the server's port (or host).
+# One copy per worktree, named after the worktree's path and labelled with its branch (or port).
 export CLOUDSTASH_INSTANCE="$(printf %s "$root" | shasum | cut -c1-8)"
 hostport="${CLOUDSTASH_URL#*://}"
 hostport="${hostport%%/*}"
-export CLOUDSTASH_INSTANCE_BADGE="${hostport##*:}"
+port="${hostport##*:}"
 branch="$(git -C "$root" branch --show-current)"
 export CLOUDSTASH_INSTANCE_LABEL="${branch##*/}"
-[[ -n "$CLOUDSTASH_INSTANCE_LABEL" ]] || CLOUDSTASH_INSTANCE_LABEL="$CLOUDSTASH_INSTANCE_BADGE"
+[[ -n "$CLOUDSTASH_INSTANCE_LABEL" ]] || CLOUDSTASH_INSTANCE_LABEL="$port"
 executable="cloudstash-dev-$CLOUDSTASH_INSTANCE"
 
 cargo build
+
+# The icon with the port drawn on, made once per port.
+icon="target/port-icon/$port.icns"
+if [[ ! -s "$icon" ]]; then
+  iconset="target/port-icon/$port.iconset"
+  rm -rf "$iconset" && mkdir -p "$iconset"
+  swift scripts/port-icon.swift assets/AppIconDev.icns "$port" "$iconset/icon_512x512@2x.png"
+  for size in 512 256 128 32 16; do
+    sips -z "$size" "$size" "$iconset/icon_512x512@2x.png" --out "$iconset/icon_${size}x${size}.png" >/dev/null
+  done
+  iconutil -c icns "$iconset" -o "$icon"
+  rm -rf "$iconset"
+fi
+export CLOUDSTASH_ICON="$icon"
 
 app="target/Cloudstash Dev.app"
 scripts/bundle.sh target/debug/cloudstash-native "$app" 0.0.0 dev
@@ -56,4 +71,5 @@ while pgrep -x "$executable" >/dev/null; do sleep 0.2; done
 log="$HOME/Library/Logs/Cloudstash/$executable.log"
 mkdir -p "$(dirname "$log")"
 echo "Cloudstash Dev · $CLOUDSTASH_INSTANCE_LABEL against $CLOUDSTASH_URL (log: $log)"
-open --stdout "$log" --stderr "$log" "$app"
+# Launch Services can still be letting go of the copy just quit; one retry covers it.
+open --stdout "$log" --stderr "$log" "$app" 2>/dev/null || { sleep 1; open --stdout "$log" --stderr "$log" "$app"; }

@@ -122,8 +122,10 @@ seeds when a signed-in browser mints that key (`POST /api/connect/native`).
 
 Every worktree runs its own dev server at once. `bun run dev`
 (`scripts/dev.ts`) takes the first free port from 3000, starts a local
-stand-in for Google (`vercel-labs/emulate`, in-process) whose account is the
-git user, and runs `alchemy dev` on `127.0.0.1` at that port, failing rather
+stand-in for Google (`vercel-labs/emulate`, in-process) with two test
+accounts, `testuser@gmail.com`, whose library gets the test links, and
+`empty@cloudstash.test`, whose library is never filled (`tools/dev-seed/accounts.ts`),
+and runs `alchemy dev` on `127.0.0.1` at that port, failing rather
 than moving. Sign-in takes the production OAuth path against the stand-in;
 local accounts are keyed by email under `urn:cloudstash:local-google`, since
 the stand-in mints new subjects each start. The local `BETTER_AUTH_URL` is
@@ -247,8 +249,9 @@ never asks for the login password, per
 `scripts/run.sh` gives each worktree's Dev its own instance of all of these
 (id from the worktree's path: `dev.cloudstash.native.dev.<id>`,
 `cloudstash-dev-<id>`, `cloudstash-dev-<id>.log`, named "Cloudstash Dev ·
-<branch>"), quits only that worktree's copy, and badges its Dock icon with
-the dev server's port, so every worktree's copy runs at once, per
+<branch>"), quits only that worktree's copy, and draws the dev server's port onto the bottom
+of its icon as a red counter (`scripts/port-icon.swift`); the copy's dev meter shows the port too,
+and clicking it opens the web app, so every worktree's copy runs at once, per
 [decision 0010](./.decisions/0010-run-worktrees-side-by-side.md). When `main` gets a version with no `native-v<version>` tag,
 `native-release.yml` builds a universal app (`apps/native/scripts/release.sh`),
 signs it with the maintainer's Developer ID and hardened runtime, notarizes and

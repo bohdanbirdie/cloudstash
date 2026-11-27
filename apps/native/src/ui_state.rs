@@ -118,7 +118,6 @@ pub fn poll(s: &mut State, now: f64, tx: &mut Tx) {
     if !s.memory.framed {
         s.memory.framed = rune_mac::remember_frame(WINDOW);
     }
-    crate::flavor::show_badge();
     if s.memory.applied != Some(s.theme) {
         appearance::apply(s.theme);
         s.memory.applied = Some(s.theme);
