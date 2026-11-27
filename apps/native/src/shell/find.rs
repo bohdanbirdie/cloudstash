@@ -9,7 +9,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use rune::{Anim, Cursor, El, Key, KeyEvent, Shadow, TextEdit, Transition, Tx, col, el, icon, oklcha, row, text, text_input};
+use rune::{Anim, Cursor, El, Key, KeyEvent, Shadow, TextEdit, Transition, Tx, col, el, icon, row, text, text_input};
 
 use super::{CHEVRON, CLEAR, Look, PAGE_PAD_BOTTOM, PAGE_PAD_TOP, SEARCH, STATES, font};
 use crate::State;
@@ -83,7 +83,7 @@ fn sketch_card(x: f32, turn: f32, lines: [f32; 2], l: &Look) -> El {
         .radius(11.0)
         .fill(l.panel)
         .border(1.0, l.line2)
-        .box_shadow(Shadow { y: 2.0, blur: 8.0, color: oklcha(0.0, 0.0, 0.0, if l.dark { 0.16 } else { 0.08 }), ..Shadow::default() })
+        .box_shadow(Shadow { y: 2.0, blur: 8.0, color: l.shadow, ..Shadow::default() })
         .rotate(turn)
         .child(el().w_full().h(33.0).radius(5.0).fill(l.tile))
         .child(el().h(8.0))

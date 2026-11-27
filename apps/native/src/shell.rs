@@ -226,6 +226,8 @@ struct Look {
     tile: Color,
     /// The hairline inside a card's picture.
     ring: Color,
+    /// Under a small raised card.
+    shadow: Color,
     dark: bool,
 }
 
@@ -246,6 +248,7 @@ fn look(dark: bool) -> Look {
             primary: t.primary,
             focus: t.focus,
             warning: t.warning,
+            shadow: t.shadow,
             scrim: oklcha(0.0, 0.0, 0.0, 0.3),
             tile: oklch(0.235, 0.0, 0.0),
             ring: oklcha(1.0, 0.0, 0.0, 0.08),
@@ -266,6 +269,7 @@ fn look(dark: bool) -> Look {
             primary: t.primary,
             focus: t.focus,
             warning: t.warning,
+            shadow: t.shadow,
             scrim: oklcha(0.0, 0.0, 0.0, 0.06),
             tile: oklch(0.965, 0.0, 0.0),
             ring: oklcha(0.0, 0.0, 0.0, 0.08),
@@ -1002,9 +1006,9 @@ fn found_in(e: &Evidence, tight: bool, l: &Look) -> El {
     let label = e.field.label();
     let first = e.marks.first().map_or(0, |r| r.start);
     let from = if tight { e.text[..first].rfind([' ', '/']).map_or(0, |i| i + 1) } else { 0 };
-    let (body, cut) = if from > 0 { (format!("…{}", &e.text[from..]), from - '…'.len_utf8()) } else { (e.text.clone(), 0) };
+    let (body, lead) = if from > 0 { (format!("…{}", &e.text[from..]), '…'.len_utf8()) } else { (e.text.clone(), 0) };
     let at = format!("{label} · ").len();
-    let marks: Vec<_> = e.marks.iter().map(|r| r.start - cut..r.end - cut).collect();
+    let marks: Vec<_> = e.marks.iter().map(|r| r.start + lead - from..r.end + lead - from).collect();
     let spans = std::iter::once(Span::new(0, at).color(l.fg3)).chain(mark_spans(&marks, at, l)).collect();
     rich(format!("{label} · {body}"), spans).color(l.fg2)
 }
@@ -1987,6 +1991,12 @@ pub fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_match_near_the_start_of_a_titles_excerpt_renders() {
+        let e = Evidence { field: crate::search::Field::Description, text: "a gpu guide".into(), marks: vec![2..5] };
+        found_in(&e, true, &look(true));
+    }
 
     #[test]
     fn cards_fill_columns_of_at_least_230_points() {
