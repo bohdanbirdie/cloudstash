@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 import type { RefObject } from "react";
 import { useHotkeys, useHotkeysContext } from "react-hotkeys-hook";
 
@@ -76,7 +76,9 @@ export function useCommand(
   const { keys, scope } = COMMANDS[id];
   const { activeScopes } = useHotkeysContext();
   const activeScopesRef = useRef(activeScopes);
-  activeScopesRef.current = activeScopes;
+  useLayoutEffect(() => {
+    activeScopesRef.current = activeScopes;
+  });
 
   const ignoreEventWhen = useCallback(
     (e: KeyboardEvent) =>
@@ -128,10 +130,12 @@ export function useGlobalNavigation(
   skipWhen?: (e: KeyboardEvent) => boolean
 ): void {
   const skipWhenRef = useRef(skipWhen);
-  skipWhenRef.current = skipWhen;
   const { activeScopes } = useHotkeysContext();
   const activeScopesRef = useRef(activeScopes);
-  activeScopesRef.current = activeScopes;
+  useLayoutEffect(() => {
+    skipWhenRef.current = skipWhen;
+    activeScopesRef.current = activeScopes;
+  });
 
   const ignoreEventWhen = useCallback(
     (e: KeyboardEvent) =>
