@@ -137,6 +137,8 @@ pub(crate) struct State {
     account_menu: bool,
     /// The toolbar's Display panel, with the layouts, is open.
     display: bool,
+    /// ⌘F's find field and its words, while it's open.
+    find: Option<rune::TextEdit>,
 }
 
 /// Headless snapshots render a named scene and must not touch the keychain, the network or the
@@ -740,6 +742,17 @@ fn worst_case_scene(s: &mut State, tab: Tab) {
     s.links = links;
 }
 
+/// Find in view over links that match it in different places: a title, a description, a
+/// tag, a URL, so each card shows why it's there.
+fn find_why_scene(s: &mut State, zoom: shell::Zoom) {
+    worst_case_scene(s, Tab::Inbox);
+    s.zoom = zoom;
+    s.links[6].title = "GPU-driven canvas rendering".to_owned();
+    s.links[7].tags = vec!["gpu".to_owned(), "graphics".to_owned()];
+    s.links[8].url = "https://example.com/talks/gpu-text-shaping".to_owned();
+    s.find = Some(rune::TextEdit::new("gpu"));
+}
+
 fn main() {
     log::start();
     let size = if headless() { None } else { rune_mac::saved_size(ui_state::WINDOW) };
@@ -888,6 +901,49 @@ fn main() {
             ("must-update-signed-out", |s| {
                 s.phase = Phase::SignedOut;
                 s.update = update::Update::Required(None);
+            }),
+            ("find", |s| {
+                signed_in_scene(s, Tab::All);
+                let mut find = rune::TextEdit::new("design");
+                find.focused = true;
+                s.find = Some(find);
+            }),
+            ("find-why", |s| find_why_scene(s, shell::Zoom::Titles)),
+            ("find-why-summaries", |s| find_why_scene(s, shell::Zoom::Summaries)),
+            ("find-none-light", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.find = Some(rune::TextEdit::new("calm"));
+            }),
+            ("find-worst-long", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.find = Some(rune::TextEdit::new("how to set up a kubernetes operator for postgres backups with point-in-time recovery"));
+            }),
+            ("find-worst-mixed", |s| {
+                signed_in_scene(s, Tab::Archive);
+                s.find = Some(rune::TextEdit::new("“local-first” café 👇 <b>"));
+            }),
+            ("find-worst-rtl", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.find = Some(rune::TextEdit::new("מדריך React שלום"));
+            }),
+            ("find-worst-count", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                let template = s.links[3].clone();
+                s.links.extend((0..1284).map(|i| LinkItem { id: format!("calm{i}"), title: format!("Calm notes {i}"), ..template.clone() }));
+                s.find = Some(rune::TextEdit::new("calm notes"));
+            }),
+            ("find-worst-feed", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.zoom = shell::Zoom::Feed;
+                s.find = Some(rune::TextEdit::new("calm"));
+            }),
+            ("find-worst-one", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.find = Some(rune::TextEdit::new("j"));
+            }),
+            ("find-none", |s| {
+                signed_in_scene(s, Tab::All);
+                s.find = Some(rune::TextEdit::new("kubernetes operator"));
             }),
             ("palette-empty", |s| {
                 worst_case_scene(s, Tab::Inbox);

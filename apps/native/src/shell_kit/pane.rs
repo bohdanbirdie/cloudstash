@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use rune::{Anim, Color, Curve, Easing, KeyEvent, Spring, Velocity};
+use rune::{Anim, Chord, Color, Curve, Easing, KeyEvent, Spring, Tx, Velocity};
 use rune_kit::Kit;
 
 use super::grip::Grip;
@@ -528,14 +528,18 @@ impl Default for SidebarPeek {
     }
 }
 
+/// Whether `ev` is `chord` (`"mod+shift+b"`) on whatever keyboard layout is on: the key that
+/// types the chord's letter, or on a layout with no Latin letters (Ukrainian, Greek) the key
+/// where that letter sits on a US keyboard, as the menu bar matches its shortcuts.
+pub fn pressed(ev: &KeyEvent, tx: &Tx, chord: &str) -> bool {
+    Chord::parse(chord).is_ok_and(|c| c.matches_tx(ev, tx))
+}
+
 /// Whether `ev` is the sidebar's show/hide shortcut: ⇧⌘B (Ctrl+Shift+B off macOS), and on macOS
 /// also ⌃⌘S, AppKit's Toggle Sidebar. Call it from the app's key handler (`AppSpec::on_key`)
 /// and toggle the sidebar's [`PaneState`] when it matches.
-pub fn is_sidebar_toggle(ev: &KeyEvent) -> bool {
-    let m = ev.mods;
-    let shift_b = ev.is_command('b') && m.shift && !m.alt && !(cfg!(target_os = "macos") && m.ctrl);
-    let ctrl_s = cfg!(target_os = "macos") && ev.is_command('s') && m.ctrl && !m.shift && !m.alt;
-    shift_b || ctrl_s
+pub fn is_sidebar_toggle(ev: &KeyEvent, tx: &Tx) -> bool {
+    pressed(ev, tx, "mod+shift+b") || (cfg!(target_os = "macos") && pressed(ev, tx, "ctrl+mod+s"))
 }
 
 #[cfg(test)]

@@ -46,13 +46,15 @@ impl Default for Place {
     }
 }
 
-/// Shows `place`, closing the palette and any link shown over the page. The page swaps at
+/// Shows `place`, closing the palette, the find field and any link shown over the page: a
+/// search was for the page it was typed on. The page swaps at
 /// once, as a Mac sidebar does: a fade would cross the two pages' cards, and the old page's
 /// extra rows would linger over the new one's empty space.
 pub fn go(s: &mut State, place: Place, tx: &mut Tx) {
     tx.instant();
     s.place = place;
     s.palette = None;
+    s.find = None;
     s.preview = None;
 }
 
@@ -71,12 +73,14 @@ mod tests {
     }
 
     #[test]
-    fn going_somewhere_shows_it_and_closes_the_palette() {
+    fn going_somewhere_shows_it_and_closes_the_palette_and_the_search() {
         let mut s = State::default();
         assert_eq!(s.place, Place::Tab(Tab::Inbox));
         shell::toggle_palette(&mut s);
+        s.find = Some(rune::TextEdit::new("rust"));
         go(&mut s, Place::Space("design"), &mut Tx::default());
         assert_eq!(s.place, Place::Space("design"));
         assert!(s.palette.is_none());
+        assert!(s.find.is_none(), "a search was for the page it was typed on");
     }
 }

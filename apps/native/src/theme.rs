@@ -41,6 +41,8 @@ pub struct Palette {
     pub field: Color,
     /// The outline button's fill: none on light, a faint white on dark.
     pub outline_fill: Color,
+    /// The shadow under a small raised card: faint in dark, where depth comes from the border.
+    pub shadow: Color,
 }
 
 /// The keyboard focus ring's width and its gap outside the control, in points.
@@ -74,6 +76,7 @@ pub fn palette(dark: bool) -> Palette {
             selected: oklcha(1.0, 0.0, 0.0, 0.07),
             field: oklcha(1.0, 0.0, 0.0, 0.05),
             outline_fill: oklcha(1.0, 0.0, 0.0, 0.15 * 0.3),
+            shadow: oklcha(0.0, 0.0, 0.0, 0.16),
         }
     } else {
         Palette {
@@ -102,6 +105,7 @@ pub fn palette(dark: bool) -> Palette {
             selected: oklcha(0.0, 0.0, 0.0, 0.06),
             field: oklcha(0.0, 0.0, 0.0, 0.045),
             outline_fill: Color::TRANSPARENT,
+            shadow: oklcha(0.0, 0.0, 0.0, 0.08),
         }
     }
 }

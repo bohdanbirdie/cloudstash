@@ -24,7 +24,7 @@ mod pane;
 mod split;
 mod toolbar;
 
-pub use pane::{PaneState, SidebarPeek, is_sidebar_toggle};
+pub use pane::{PaneState, SidebarPeek, is_sidebar_toggle, pressed};
 pub use split::{SidebarToggle, SplitView};
 pub use toolbar::{TOOLBAR_HEIGHT, Toolbar};
 

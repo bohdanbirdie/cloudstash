@@ -9,8 +9,8 @@ use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rune::{
-    Color, Cursor, Curve, Cx, Easing, El, GrowthSpec, Icon, Key, KeyEvent, Live, LoopSpec, Mods, ScrollFade, ScrollSpec, Shadow, Side, Spring,
-    SpringPair, SurfaceFit, TextStyle, Transition, Tx, Vec2, col, el, icon, oklch, oklcha, row, text,
+    Color, Cursor, Curve, Cx, Easing, El, GrowthSpec, Icon, Key, KeyEvent, Live, LoopSpec, Mods, ScrollFade, ScrollSpec, Shadow, Side, Span, Spring,
+    SpringPair, SurfaceFit, TextStyle, Transition, Tx, Vec2, col, el, icon, oklch, oklcha, rich, row, text,
 };
 use rune_kit::{Kit, ScrollBar, ScrollBarStyle};
 
@@ -19,12 +19,14 @@ use crate::fps;
 use crate::icons::LOADER_CIRCLE;
 use crate::images::{self, Lane, Request};
 use crate::nav::{self, Place};
+use crate::search::{Evidence, Hit};
 use crate::shimmer::shimmer;
 use crate::update::{self, Update};
 
+mod find;
 mod palette;
 use crate::livestore::library::{LinkItem, Tab};
-use crate::shell_kit::{PaneState, SidebarPeek, SidebarToggle, SplitView, TOOLBAR_HEIGHT, Toolbar, is_sidebar_toggle};
+use crate::shell_kit::{PaneState, SidebarPeek, SidebarToggle, SplitView, TOOLBAR_HEIGHT, Toolbar, is_sidebar_toggle, pressed};
 use crate::{Phase, State, Sync};
 pub use palette::{Palette, toggle as toggle_palette};
 
@@ -198,6 +200,7 @@ static SETTINGS: Icon = glyph!(
     r#"<g transform="scale(0.6667)" stroke-width="2.1"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></g>"#
 );
 static SEARCH: Icon = glyph!("cs-search", r#"<circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/>"#);
+static CLEAR: Icon = glyph!("cs-clear", r#"<path d="m4.5 4.5 7 7M11.5 4.5l-7 7"/>"#);
 
 /// The HTML prototype's tokens.
 struct Look {
@@ -223,6 +226,8 @@ struct Look {
     tile: Color,
     /// The hairline inside a card's picture.
     ring: Color,
+    /// Under a small raised card.
+    shadow: Color,
     dark: bool,
 }
 
@@ -243,6 +248,7 @@ fn look(dark: bool) -> Look {
             primary: t.primary,
             focus: t.focus,
             warning: t.warning,
+            shadow: t.shadow,
             scrim: oklcha(0.0, 0.0, 0.0, 0.3),
             tile: oklch(0.235, 0.0, 0.0),
             ring: oklcha(1.0, 0.0, 0.0, 0.08),
@@ -263,6 +269,7 @@ fn look(dark: bool) -> Look {
             primary: t.primary,
             focus: t.focus,
             warning: t.warning,
+            shadow: t.shadow,
             scrim: oklcha(0.0, 0.0, 0.0, 0.06),
             tile: oklch(0.965, 0.0, 0.0),
             ring: oklcha(0.0, 0.0, 0.0, 0.08),
@@ -596,13 +603,18 @@ fn update_dialog(s: &State, l: &Look) -> Vec<El> {
     ]
 }
 
+/// A page's name, as the sidebar shows it.
+fn place_name(place: Place) -> &'static str {
+    match place {
+        Place::Tab(tab) => STATES.iter().find(|(t, ..)| *t == tab).map_or("Back", |(_, name, _)| name),
+        Place::Space(id) => SPACES.iter().find(|space| space.id == id).map_or("Back", |space| space.name),
+    }
+}
+
 /// The toolbar while a link is open all the way: the way back in the title's place, so it moves
 /// as the title does when the sidebar opens or closes.
 fn opened_bar(s: &State, lead: f32, l: &Look) -> El {
-    let place = match s.place {
-        Place::Tab(tab) => STATES.iter().find(|(t, ..)| *t == tab).map_or("Back", |(_, name, _)| name),
-        Place::Space(id) => SPACES.iter().find(|space| space.id == id).map_or("Back", |space| space.name),
-    };
+    let place = place_name(s.place);
     let back = row()
         .key("preview-back")
         .role("button")
@@ -672,6 +684,9 @@ fn toolbar(s: &State, l: &Look) -> Toolbar {
     let mut toolbar = Toolbar::new().leading(title);
     if let Some(sync) = sync {
         toolbar = toolbar.trailing(sync);
+    }
+    if let Some(field) = find::field(s, place_name(s.place), l) {
+        toolbar = toolbar.trailing(field);
     }
     toolbar.trailing(if s.display { display.fill(l.active) } else { display.hover(l.hover) })
 }
@@ -845,11 +860,11 @@ fn one_line(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// The links the content panel shows: the chosen state's, or none for a space (spaces have no
-/// links yet).
+/// The links the content panel shows: the chosen state's, narrowed to what the find field's
+/// words match, or none for a space (spaces have no links yet).
 fn shown(s: &State) -> Vec<&LinkItem> {
     match s.place {
-        Place::Tab(tab) => tab.links(&s.links),
+        Place::Tab(tab) => find::narrow(s, tab.links(&s.links)),
         Place::Space(_) => Vec::new(),
     }
 }
@@ -867,6 +882,8 @@ const PAGE_PAD_LEFT: f32 = 16.0;
 const PAGE_PAD_RIGHT: f32 = 28.0;
 /// Above the first row of cards: its pictures start 16 points down.
 const PAGE_PAD_TOP: f32 = 16.0 - CARD_PAD;
+/// Below the last row, so it clears the fade at the bottom.
+const PAGE_PAD_BOTTOM: f32 = 80.0;
 /// A card picture's pixel size: 16:11, sharp at 2× up to 400 pt wide. A favicon's, at 2×.
 /// A card's picture, whole: at most this many pixels a side, at its own shape.
 const PICTURE: (u32, u32) = (800, 420);
@@ -975,7 +992,28 @@ fn blurb(link: &LinkItem) -> Option<String> {
 /// A link card at `zoom`: its picture, then as much about it as the zoom shows. A click opens
 /// its preview, or in Feed, which already shows a link as the preview would, the link all the
 /// way; ⌘-click opens it in the browser.
-fn card(link: &LinkItem, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, l: &Look) -> El {
+/// Marks on a found card: a soft plate behind the matched letters, in the text's own ink.
+fn mark_spans(marks: &[std::ops::Range<usize>], shift: usize, l: &Look) -> Vec<Span> {
+    let plate = Color { a: l.active.a * 2.0, ..l.active };
+    marks.iter().map(|r| Span::new(r.start + shift, r.end + shift).bg(plate, 1.0).color(l.fg)).collect()
+}
+
+/// Why a found card is there when its title and site don't say: the field, then the stretch of
+/// it that matched, with the matched words marked. It takes the summary's place, or in Titles,
+/// which shows none, the site's, so a found card is as tall as any other; there it's `tight`
+/// and starts at the matched word, so the match shows in the narrow row.
+fn found_in(e: &Evidence, tight: bool, l: &Look) -> El {
+    let label = e.field.label();
+    let first = e.marks.first().map_or(0, |r| r.start);
+    let from = if tight { e.text[..first].rfind([' ', '/']).map_or(0, |i| i + 1) } else { 0 };
+    let (body, lead) = if from > 0 { (format!("…{}", &e.text[from..]), '…'.len_utf8()) } else { (e.text.clone(), 0) };
+    let at = format!("{label} · ").len();
+    let marks: Vec<_> = e.marks.iter().map(|r| r.start + lead - from..r.end + lead - from).collect();
+    let spans = std::iter::once(Span::new(0, at).color(l.fg3)).chain(mark_spans(&marks, at, l)).collect();
+    rich(format!("{label} · {body}"), spans).color(l.fg2)
+}
+
+fn card(link: &LinkItem, hit: Option<&Hit>, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, l: &Look) -> El {
     let fly = |what: &str, el: El| {
         let el = el.matched(format!("{what}-{}", link.id)).matched_motion(REFLOW).transition(Transition::opacity());
         if under { el.matched_in_place() } else { el }
@@ -990,12 +1028,21 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, 
             }
         }),
     );
+    let evidence = hit.and_then(|h| h.evidence.as_ref());
+    let site = match hit.filter(|h| !h.domain_marks.is_empty()) {
+        Some(h) => rich(link.domain.clone(), mark_spans(&h.domain_marks, 0, l)),
+        None => text(link.domain.clone()),
+    };
+    let site = match evidence.filter(|_| zoom == Zoom::Titles) {
+        Some(e) => found_in(e, true, l),
+        None => site.color(l.fg3).group_color(l.fg2),
+    };
     let meta = row()
         .w_full()
         .gap(6.0)
         .center_y()
         .child(favicon(link, 14.0, l))
-        .child(text(link.domain.clone()).font(font(12.0, 400.0)).color(l.fg3).group_color(l.fg2).truncate().grow(1.0).min_w(0.0))
+        .child(site.font(font(12.0, 400.0)).truncate().grow(1.0).min_w(0.0))
         .child(text(ago(link.created_at, now)).font(font(12.0, 400.0)).color(l.fg3).group_color(l.fg2));
     let (url, id) = (link.url.clone(), link.id.clone());
     let card = col()
@@ -1032,8 +1079,16 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, 
             }
             preview(s, &id, zoom == Zoom::Feed);
         });
-    let title =
-        |size: f32, lh: f32, lines: usize| text(link.title.clone()).font(font(size, 500.0).lh(lh)).color(l.fg).wrap_anywhere().max_lines(lines);
+    let title = |size: f32, lh: f32, lines: usize| {
+        match hit.filter(|h| !h.title_marks.is_empty()) {
+            Some(h) => rich(h.title.clone(), mark_spans(&h.title_marks, 0, l)),
+            None => text(link.title.clone()),
+        }
+        .font(font(size, 500.0).lh(lh))
+        .color(l.fg)
+        .wrap_anywhere()
+        .max_lines(lines)
+    };
     let crossing = from.is_some_and(|from| (from == Zoom::Feed) != (zoom == Zoom::Feed));
     let after = match from {
         Some(Zoom::Pictures) => WORDS_AFTER,
@@ -1042,8 +1097,11 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, 
     };
     let (title_id, blurb_id, meta_id) = if zoom == Zoom::Feed { ("feed-title", "feed-blurb", "feed-meta") } else { ("title", "blurb", "meta") };
     let blurb = |lines: usize| {
-        blurb(link)
-            .map(|b| fly(blurb_id, text(b).font(font(13.0, 400.0).lh(19.0)).color(l.fg2).wrap().max_lines(lines).matched_crop().enter_delay(after)))
+        let body = match evidence {
+            Some(e) => Some(found_in(e, false, l)),
+            None => blurb(link).map(|b| text(b).color(l.fg2)),
+        };
+        body.map(|b| fly(blurb_id, b.font(font(13.0, 400.0).lh(19.0)).wrap().max_lines(lines).matched_crop().enter_delay(after)))
     };
     let words = |title: El, lines: usize| {
         let title = fly(title_id, title.matched_crop().enter_delay(after));
@@ -1055,7 +1113,12 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, 
     };
     let meta = fly(meta_id, meta.matched_crop().enter_delay(after));
     match zoom {
-        Zoom::Pictures => card.help(link.title.clone()).child(picture),
+        Zoom::Pictures => card
+            .help(match evidence {
+                Some(e) => format!("{}\n{} · {}", link.title, e.field.label(), e.text),
+                None => link.title.clone(),
+            })
+            .child(picture),
         Zoom::Titles => card.child(picture).child(words(title(13.5, 18.2, 2), 0)).child(meta),
         Zoom::Summaries => card.child(picture).child(words(title(14.5, 19.5, 2), 3)).child(meta),
         Zoom::Feed => card.gap(10.0).child(picture).child(words(title(17.0, 23.0, 3), 6)).child(meta),
@@ -1292,13 +1355,14 @@ fn grid(s: &State, columns: usize, dark: bool) -> El {
         let l = look(dark);
         let now = now_ms();
         let gap = if zoom == Zoom::Feed { 40.0 } else { ROW_GAP };
-        shown(s)
-            .iter()
-            .skip(i * columns)
-            .take(columns)
-            .fold(row().w_full().equal_columns(columns).gap(CARD_GAP - 2.0 * CARD_PAD).pb(gap - 2.0 * CARD_PAD), |r, link| {
-                r.child(card(link, now, zoom, s.landing.as_ref().and(s.zoomed_from), previewed(s).is_some(), &l))
-            })
+        let hits = find::hits(s);
+        shown(s).iter().skip(i * columns).take(columns).fold(
+            row().w_full().equal_columns(columns).gap(CARD_GAP - 2.0 * CARD_PAD).pb(gap - 2.0 * CARD_PAD),
+            |r, link| {
+                let hit = hits.as_deref().and_then(|h| h.get(&link.id));
+                r.child(card(link, hit, now, zoom, s.landing.as_ref().and(s.zoomed_from), previewed(s).is_some(), &l))
+            },
+        )
     };
     if let Some(landing) = &s.landing {
         let (first, end) = (landing.start.min(rows), landing.end.min(rows));
@@ -1319,13 +1383,18 @@ fn grid(s: &State, columns: usize, dark: bool) -> El {
 }
 
 fn page(s: &State, cx: &mut Cx<State>, dark: bool, l: &Look) -> El {
+    let missed = || find::empty(s, place_name(s.place), cx.layout_with("viewport", |r| r[3]).unwrap_or(600.0), l);
     let body = if shown(s).is_empty() {
-        let empty = if matches!(s.place, Place::Space(_)) || (s.sync == Sync::Online && !s.filling) {
-            "Nothing here yet."
+        if let Some(missed) = missed() {
+            missed
         } else {
-            "Loading your library…"
-        };
-        text(empty).key("empty").font(font(13.0, 400.0)).color(l.fg3)
+            let empty = if matches!(s.place, Place::Space(_)) || (s.sync == Sync::Online && !s.filling) {
+                "Nothing here yet."
+            } else {
+                "Loading your library…"
+            };
+            text(empty).key("empty").font(font(13.0, 400.0)).color(l.fg3)
+        }
     } else {
         let zoom = s.zoom;
         grid(s, cx.layout_with("viewport", move |r| columns(r[2], zoom)).unwrap_or(3), dark)
@@ -1348,7 +1417,7 @@ fn page(s: &State, cx: &mut Cx<State>, dark: bool, l: &Look) -> El {
             }
         })
         .child({
-            let page = col().key("page").w_full().pl(PAGE_PAD_LEFT - CARD_PAD).pr(PAGE_PAD_RIGHT - CARD_PAD).pt(PAGE_PAD_TOP).pb(80.0);
+            let page = col().key("page").w_full().pl(PAGE_PAD_LEFT - CARD_PAD).pr(PAGE_PAD_RIGHT - CARD_PAD).pt(PAGE_PAD_TOP).pb(PAGE_PAD_BOTTOM);
             if centered { page.items_center() } else { page }.child(body)
         });
     let opened = matches!(previewed(s), Some((_, true)));
@@ -1803,7 +1872,7 @@ fn zoom_key(zoom: Zoom, e: &KeyEvent) -> Option<Zoom> {
 fn on_display_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
     let m = e.mods;
     let plain = !m.cmd && !m.ctrl && !m.alt;
-    if plain && m.shift && matches!(&e.key, Key::Text(t) if t.eq_ignore_ascii_case("v")) {
+    if pressed(e, tx, "shift+v") {
         tx.instant();
         s.display = !s.display;
         return true;
@@ -1868,9 +1937,11 @@ fn arrow_into_grid(s: &State, e: &KeyEvent, tx: &mut Tx) -> bool {
     true
 }
 
-/// ⌘K opens and closes the command palette, and ⌘1 to ⌘4 go to the library's states. ⌘B toggles
+/// ⌘K opens and closes the command palette, ⌘F finds in the page (Esc puts it away) and ⌘1 to
+/// ⌘4 go to the library's states. ⌘B toggles
 /// the sidebar, like the reference apps, and so do rune-kit's ⇧⌘B and ⌃⌘S. ⌥⌘R
-/// throws away the saved pictures and loads them again, for experiments.
+/// throws away the saved pictures and loads them again, for experiments. Letters match on any
+/// keyboard layout, so ⌘F is ⌘F with Ukrainian on too.
 pub fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
     if !matches!(s.phase, Phase::SignedIn(_)) {
         return false;
@@ -1888,22 +1959,29 @@ pub fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
     if s.palette.is_none() && on_preview_key(s, e) {
         return true;
     }
+    if s.palette.is_none() && pressed(e, tx, "mod+f") {
+        find::open(s, tx);
+        return true;
+    }
+    if s.palette.is_none() && s.find.is_some() && e.key == Key::Escape {
+        find::close(s, tx);
+        return true;
+    }
     if s.palette.is_none()
         && let Some(zoom) = zoom_key(s.zoom, e)
     {
         zoom_to(s, zoom, tx);
         return true;
     }
-    if e.is_command('k') && !e.mods.shift && !e.mods.alt {
+    if pressed(e, tx, "mod+k") {
         palette::toggle(s);
         return true;
     }
-    if e.is_command('r') && e.mods.alt && !e.mods.shift {
+    if pressed(e, tx, "mod+alt+r") {
         images::reset();
         return true;
     }
-    let cmd_b = e.is_command('b') && !e.mods.shift && !e.mods.alt;
-    if !(cmd_b || is_sidebar_toggle(e)) || e.key == Key::Escape {
+    if !(pressed(e, tx, "mod+b") || is_sidebar_toggle(e, tx)) || e.key == Key::Escape {
         return false;
     }
     s.sidebar.toggle();
@@ -1913,6 +1991,12 @@ pub fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_match_near_the_start_of_a_titles_excerpt_renders() {
+        let e = Evidence { field: crate::search::Field::Description, text: "a gpu guide".into(), marks: std::iter::once(2..5).collect() };
+        found_in(&e, true, &look(true));
+    }
 
     #[test]
     fn cards_fill_columns_of_at_least_230_points() {
