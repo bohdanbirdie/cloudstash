@@ -7,7 +7,7 @@ use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use rune::{El, Key, KeyEvent, Shadow, TextEdit, Tx, icon, row, text_input};
+use rune::{El, Key, KeyEvent, Shadow, TextEdit, Transition, Tx, icon, row, text_input};
 
 use super::{Look, SEARCH, font};
 use crate::State;
@@ -18,6 +18,7 @@ const FIELD: &str = "find";
 
 /// ⌘F: the field opens, or takes the keys again with its words selected, as a Mac app's find does.
 pub fn open(s: &mut State, tx: &mut Tx) {
+    tx.instant();
     s.find.get_or_insert_with(TextEdit::default);
     tx.focus(FIELD, false);
     tx.select_all_text(FIELD);
@@ -70,7 +71,8 @@ fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
     true
 }
 
-/// The field, while it's open.
+/// The field, while it's open. It appears in its place, out of a blur and a fade, rather than
+/// travelling in from the toolbar's edge; it goes at once, as a key used this often should.
 pub fn field(s: &State, l: &Look) -> Option<El> {
     let edit = s.find.as_ref()?;
     let input = text_input(edit, font(12.5, 400.0))
@@ -99,6 +101,8 @@ pub fn field(s: &State, l: &Look) -> Option<El> {
             .center_y()
             .radius(7.0)
             .box_shadow(Shadow { spread: 1.0, color: ring, ..Shadow::default() })
+            .transition(Transition::blur(4.0))
+            .enter_in_instant()
             .child(icon(&SEARCH, 14.0).color(l.fg3))
             .child(input),
     )
