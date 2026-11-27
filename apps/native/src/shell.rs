@@ -791,10 +791,10 @@ fn layout_preview(zoom: Zoom, on: bool, l: &Look) -> El {
         }
         Zoom::Feed => {
             let (w, x) = (24.0, (INNER - 24.0) / 2.0);
-            let top = 4.5 + w * ASPECT + 2.5;
-            parts.extend(site(x, 0.0, w * 0.6));
-            parts.extend([picture(x, 4.5, w), line(x, top, w, true), line(x, top + 3.0, w * 0.5, true)]);
-            top + 3.0 + LINE
+            let top = w * ASPECT + 2.5;
+            parts.extend([picture(x, 0.0, w), line(x, top, w, true), line(x, top + 3.0, w * 0.5, true)]);
+            parts.extend(site(x, top + 7.0, w * 0.6));
+            top + 10.0
         }
     };
     let content = el().absolute((W - INNER) / 2.0, (H - height) / 2.0).size(INNER, height).children(parts);
@@ -936,7 +936,7 @@ fn blurb(link: &LinkItem) -> Option<String> {
 
 /// A link card at `zoom`: its picture, then as much about it as the zoom shows. A click opens
 /// its preview; ⌘-click opens it in the browser.
-fn card(link: &LinkItem, now: i64, zoom: Zoom, arriving: bool, under: bool, l: &Look) -> El {
+fn card(link: &LinkItem, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, l: &Look) -> El {
     let fly = |what: &str, el: El| {
         let el = el.matched(format!("{what}-{}", link.id)).matched_motion(REFLOW).transition(Transition::opacity());
         if under { el.matched_in_place() } else { el }
@@ -994,17 +994,22 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, arriving: bool, under: bool, l: &
         });
     let title =
         |size: f32, lh: f32, lines: usize| text(link.title.clone()).font(font(size, 500.0).lh(lh)).color(l.fg).wrap_anywhere().max_lines(lines);
-    let blurb = |lines: usize| blurb(link).map(|b| text(b).font(font(13.0, 400.0).lh(19.0)).color(l.fg2).wrap().max_lines(lines));
-    let after = if arriving { WORDS_AFTER } else { 0.0 };
+    let blurb = |lines: usize| {
+        blurb(link).map(|b| {
+            let after = if from.is_some() { WORDS_AFTER } else { 0.0 };
+            text(b).font(font(13.0, 400.0).lh(19.0)).color(l.fg2).wrap().max_lines(lines).transition(Transition::opacity()).enter_delay(after)
+        })
+    };
+    let after = if from == Some(Zoom::Pictures) { WORDS_AFTER } else { 0.0 };
     let words = |title: El, lines: usize| {
-        fly("words", col().w_full().gap(8.0).child(title).children(blurb(lines).filter(|_| lines > 0)).matched_crop().enter_delay(after))
+        col().w_full().gap(8.0).child(fly("title", title.matched_crop().enter_delay(after))).children(blurb(lines).filter(|_| lines > 0))
     };
     let meta = fly("meta", meta.matched_crop().enter_delay(after));
     match zoom {
         Zoom::Pictures => card.help(link.title.clone()).child(picture),
         Zoom::Titles => card.child(picture).child(words(title(13.5, 18.2, 2), 0)).child(meta),
         Zoom::Summaries => card.child(picture).child(words(title(14.5, 19.5, 2), 3)).child(meta),
-        Zoom::Feed => card.gap(10.0).child(meta).child(picture).child(words(title(17.0, 23.0, 3), 6)),
+        Zoom::Feed => card.gap(10.0).child(picture).child(words(title(17.0, 23.0, 3), 6)).child(meta),
     }
 }
 
@@ -1074,6 +1079,7 @@ fn zoom_to(s: &mut State, zoom: Zoom, tx: &mut Tx) {
                 });
             }
             let switch = move |s: &mut State, _: Option<[f32; 4]>, tx: &mut Tx| {
+                s.zoomed_from = Some(s.zoom);
                 s.zoom = zoom;
                 s.ghosts.clear();
                 s.landing = Some(rows);
@@ -1205,7 +1211,7 @@ fn grid(s: &State, columns: usize, dark: bool) -> El {
             .skip(i * columns)
             .take(columns)
             .fold(row().w_full().equal_columns(columns).gap(CARD_GAP - 2.0 * CARD_PAD).pb(gap - 2.0 * CARD_PAD), |r, link| {
-                r.child(card(link, now, zoom, s.landing.is_some(), previewed(s).is_some(), &l))
+                r.child(card(link, now, zoom, s.landing.as_ref().and(s.zoomed_from), previewed(s).is_some(), &l))
             })
     };
     if let Some(landing) = &s.landing {

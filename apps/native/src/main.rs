@@ -111,6 +111,9 @@ pub(crate) struct State {
     ghosts: Vec<shell::Ghost>,
     /// While a zoom change lands: the rows the grid builds, not virtual (`shell::zoom_to`).
     landing: Option<std::ops::Range<usize>>,
+    /// The zoom that change came from, so what it didn't show waits for the pictures to land
+    /// before fading in.
+    zoomed_from: Option<shell::Zoom>,
     /// The link shown over the library, as a preview or all the way.
     preview: Option<shell::Preview>,
     /// Whether ⌘ is held alone, and since when, for the sidebar's shortcut hints.
