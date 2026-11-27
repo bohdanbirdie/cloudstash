@@ -131,20 +131,6 @@ export function LinkList({
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useGlobalNavigation(
-    "listNav",
-    (dir) => {
-      if (dir === "ArrowDown") moveByKey(1);
-      else if (dir === "ArrowUp") moveByKey(-1);
-      else if (dir === "Home") moveByKey("home");
-      else if (dir === "End") moveByKey("end");
-    },
-    (e) => isInActivityGrid(e) || isInDock(e) || isInTagStrip(e)
-  );
-
-  useCommand("vimDown", () => moveByKey(1));
-  useCommand("vimUp", () => moveByKey(-1));
-
   function moveByKey(delta: number | "home" | "end") {
     const items = linksRef.current;
     const cursor = activeLinkIdRef.current ?? anchorRef.current;
@@ -160,6 +146,20 @@ export function LinkList({
       openDetail(target.id);
     }
   }
+
+  useGlobalNavigation(
+    "listNav",
+    (dir) => {
+      if (dir === "ArrowDown") moveByKey(1);
+      else if (dir === "ArrowUp") moveByKey(-1);
+      else if (dir === "Home") moveByKey("home");
+      else if (dir === "End") moveByKey("end");
+    },
+    (e) => isInActivityGrid(e) || isInDock(e) || isInTagStrip(e)
+  );
+
+  useCommand("vimDown", () => moveByKey(1));
+  useCommand("vimUp", () => moveByKey(-1));
 
   const handleRowClick = useCallback(
     (e: React.MouseEvent) => {
