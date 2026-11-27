@@ -1,9 +1,12 @@
-# Cloudstash native app (prototype)
+# Cloudstash for Mac
 
-A native Cloudstash client built with [Rune](https://github.com/anomalyco/rune). It is a
-standalone Cargo workspace: nothing in the Bun workspace builds or imports it.
+The native Mac client for Cloudstash, built with [Rune](https://github.com/anomalyco/rune). It
+signs in through the browser, syncs the library over LiveStore and shows it in the same Inbox,
+Completed, Archive and All views as the web app. It is a standalone Cargo workspace: nothing in the Bun workspace builds or
+imports it.
 
-So far it does one thing: sign in through the browser and show who is signed in.
+Releases are built by `.github/workflows/native-release.yml` when the version in `Cargo.toml`
+changes on `main`, and installed copies update themselves from GitHub Releases.
 
 ## Run
 
@@ -25,7 +28,8 @@ but can't receive the sign-in link. Every build output stays in `apps/native/tar
 ## Logs
 
 The app writes warnings, errors and every panic (with its thread and backtrace) to
-`~/Library/Logs/Cloudstash/cloudstash.log`, which Console.app lists under Log Reports. When
+`~/Library/Logs/Cloudstash/cloudstash.log` (`cloudstash-dev-<id>.log` for a worktree's Cloudstash Dev), which
+Console.app lists under Log Reports. When
 `scripts/run.sh` opens the app, anything it prints goes there too. Past 5 MB the file moves to
 `cloudstash.old.log` at the next launch. A crash on the sync thread also shows as an error in the
 toolbar instead of leaving the library loading.
@@ -64,28 +68,23 @@ deep link.
 3. macOS brings the app forward, or launches it. The app accepts the link only for the sign-in it
    started (matching `state`, under ten minutes old, used once) and redeems the code with its
    verifier at `POST /api/connect/native/exchange` for its own API key.
-4. The key goes into the system keychain (service `dev.cloudstash.native`). On launch the app
+4. The release build keeps the key in the system keychain (service `dev.cloudstash.native`);
+   Cloudstash Dev keeps it in a file only the user can read in its own folder. On launch the app
    checks it against `GET /api/connect/native/account`. Signing out revokes it.
 
-Only one build can own `cloudstash://` at a time: the most recently registered bundle wins.
+The release build owns `cloudstash://`; each worktree's Cloudstash Dev registers its own
+`cloudstash-dev-<id>://` scheme.
 
 ## Look
 
-The window is the web's sign-in card (`AuthSplitCard` with `StatusCard` from
-`src/routes/connect/native.tsx`) at its mobile width, ported one-to-one:
-
-- Colours: `src/theme.rs` holds the `src/styles.css` tokens in their original OKLCH, light and dark.
-- Type: `fonts/` are `@fontsource-variable/noto-sans` 5.2.10's `wght` subsets converted to TTF
-  (OFL, `fonts/OFL.txt`), drawn without font smoothing as the web's `antialiased` does.
-- Icons: `src/icons.rs` holds lucide's paths and the Cloudstash knot.
-- Spacing: Tailwind's values in points (`p-7` is 28, `mt-5` 20, `h-8` 32).
-
-Change the web first, then mirror it here.
+Colours come from `src/theme.rs`, which mirrors the `src/styles.css` tokens; the rules are in
+[`context/01-product/spec.md`](../../context/01-product/spec.md#colour-and-depth). `fonts/` holds
+Noto Sans (OFL, `fonts/OFL.txt`) and `src/icons.rs` holds the icons.
 
 ## Headless snapshots
 
 Debug builds render a scene without opening a window, the keychain, or the network:
 
 ```sh
-target/debug/cloudstash-native --snap out.png --scene signed-in   # signed-out, error, waiting, finishing, signed-in
+target/debug/cloudstash-native --snap out.png --scene signed-in
 ```
