@@ -200,6 +200,7 @@ static SETTINGS: Icon = glyph!(
     r#"<g transform="scale(0.6667)" stroke-width="2.1"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></g>"#
 );
 static SEARCH: Icon = glyph!("cs-search", r#"<circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/>"#);
+static CLEAR: Icon = glyph!("cs-clear", r#"<path d="m4.5 4.5 7 7M11.5 4.5l-7 7"/>"#);
 
 /// The HTML prototype's tokens.
 struct Look {
@@ -598,13 +599,18 @@ fn update_dialog(s: &State, l: &Look) -> Vec<El> {
     ]
 }
 
+/// A page's name, as the sidebar shows it.
+fn place_name(place: Place) -> &'static str {
+    match place {
+        Place::Tab(tab) => STATES.iter().find(|(t, ..)| *t == tab).map_or("Back", |(_, name, _)| name),
+        Place::Space(id) => SPACES.iter().find(|space| space.id == id).map_or("Back", |space| space.name),
+    }
+}
+
 /// The toolbar while a link is open all the way: the way back in the title's place, so it moves
 /// as the title does when the sidebar opens or closes.
 fn opened_bar(s: &State, lead: f32, l: &Look) -> El {
-    let place = match s.place {
-        Place::Tab(tab) => STATES.iter().find(|(t, ..)| *t == tab).map_or("Back", |(_, name, _)| name),
-        Place::Space(id) => SPACES.iter().find(|space| space.id == id).map_or("Back", |space| space.name),
-    };
+    let place = place_name(s.place);
     let back = row()
         .key("preview-back")
         .role("button")
@@ -675,7 +681,7 @@ fn toolbar(s: &State, l: &Look) -> Toolbar {
     if let Some(sync) = sync {
         toolbar = toolbar.trailing(sync);
     }
-    if let Some(field) = find::field(s, l) {
+    if let Some(field) = find::field(s, place_name(s.place), l) {
         toolbar = toolbar.trailing(field);
     }
     toolbar.trailing(if s.display { display.fill(l.active) } else { display.hover(l.hover) })

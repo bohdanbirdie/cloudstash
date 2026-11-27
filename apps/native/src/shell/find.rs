@@ -9,9 +9,9 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use rune::{El, Key, KeyEvent, Shadow, TextEdit, Transition, Tx, icon, row, text_input};
+use rune::{Anim, Cursor, El, Key, KeyEvent, Shadow, TextEdit, Transition, Tx, icon, row, text_input};
 
-use super::{Look, SEARCH, font};
+use super::{CLEAR, Look, SEARCH, font};
 use crate::State;
 use crate::livestore::library::LinkItem;
 use crate::search::{self, Hit};
@@ -82,14 +82,23 @@ fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
     true
 }
 
-/// The field, while it's open. It appears in its place, out of a blur and a fade, rather than
-/// travelling in from the toolbar's edge; it goes at once, as a key used this often should.
-pub fn field(s: &State, l: &Look) -> Option<El> {
+/// ✕: the words go and the field keeps the keys, as a Mac search field's clear button does.
+fn clear(s: &mut State, tx: &mut Tx) {
+    tx.instant();
+    s.find = Some(TextEdit::default());
+    tx.focus(FIELD, false);
+}
+
+/// The field, while it's open, searching `page`, with ✕ once it has words. It appears in its
+/// place, out of a blur and a fade, rather than travelling in from the toolbar's edge; it goes
+/// at once, however it closes (Esc, or leaving it empty for another page), as a key used this
+/// often should.
+pub fn field(s: &State, page: &str, l: &Look) -> Option<El> {
     let edit = s.find.as_ref()?;
     let input = text_input(edit, font(12.5, 400.0))
         .key(FIELD)
         .single_line()
-        .placeholder("Find in view…", l.fg3)
+        .placeholder(format!("Search {page}…"), l.fg3)
         .color(l.fg)
         .grow(1.0)
         .min_w(0.0)
@@ -113,9 +122,24 @@ pub fn field(s: &State, l: &Look) -> Option<El> {
             .radius(7.0)
             .box_shadow(Shadow { spread: 1.0, color: ring, ..Shadow::default() })
             .transition(Transition::blur(4.0))
+            .transition_motion(Transition::blur(4.0).springs.enter, Anim::INSTANT)
             .enter_in_instant()
             .child(icon(&SEARCH, 14.0).color(l.fg3))
-            .child(input),
+            .child(input)
+            .children(query(s).map(|_| {
+                row()
+                    .key("find-clear")
+                    .role("button")
+                    .label("Clear")
+                    .size(20.0, 20.0)
+                    .mr(-4.0)
+                    .center()
+                    .radius(5.0)
+                    .hover(l.hover)
+                    .cursor(Cursor::Pointer)
+                    .child(icon(&CLEAR, 14.0).color(l.fg2))
+                    .on_press_tx(clear)
+            })),
     )
 }
 
