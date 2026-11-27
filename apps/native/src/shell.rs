@@ -855,10 +855,10 @@ pub fn wanted_images(links: &[LinkItem]) -> Vec<Request> {
     newest.into_iter().flat_map(card_images).collect()
 }
 
-/// Only the bottom fades, over 40 pt at a strength that follows what's still below and gone at
-/// the end. The top has no fade: a hairline under the toolbar fades in over the first
+/// Only the bottom fades, over 32 pt but mostly in its last few, at a strength that follows
+/// what's still below and gone at the end. The top has no fade: a hairline under the toolbar fades in over the first
 /// `DIVIDER_RAMP` points scrolled.
-const FADE: f32 = 40.0;
+const FADE: f32 = 32.0;
 const DIVIDER_RAMP: f32 = 24.0;
 
 /// The divider's opacity once the grid is scrolled `offset` points.
@@ -1266,7 +1266,7 @@ fn page(s: &State, cx: &mut Cx<State>, dark: bool, l: &Look) -> El {
         .grow(1.0)
         .min_h(0.0)
         .scroll(ScrollSpec { stick_bottom: false })
-        .scroll_fade(ScrollFade::strength(FADE).end_only())
+        .scroll_fade(ScrollFade::strength(FADE).stops(&[(0.15, 0.45), (0.4, 0.8), (0.7, 0.96)]).end_only())
         .scroll_margin(FADE)
         .on_scroll_offset({
             let divider = divider.clone();
@@ -1433,7 +1433,9 @@ const MARGIN_GAP: f32 = 20.0;
 const PEEK_FADE: f32 = 32.0;
 
 /// What the preview holds: the picture, where the link is from, the title, the summary and the
-/// page's text, and a footer saying what a click does.
+/// page's text, and a footer saying what a click does. The summary, when there is one, sits in a
+/// quiet inset under its own label, as in the opened link's margin, so it never reads as the
+/// page's own words below it.
 fn peek(link: &LinkItem, picture: Option<El>, l: &Look) -> El {
     let now = now_ms();
     let meta = row()
@@ -1453,7 +1455,19 @@ fn peek(link: &LinkItem, picture: Option<El>, l: &Look) -> El {
         .pb(36.0)
         .child(meta)
         .child(text(link.title.clone()).font(font(24.0, 700.0).lh(29.0)).color(l.fg).wrap_anywhere().mt(8.0).mb(12.0))
-        .children(link.summary.as_deref().map(|t| text(one_line(t)).font(font(14.0, 400.0).lh(21.7)).color(l.fg2).wrap().mb(18.0)))
+        .children(link.summary.as_deref().map(|t| {
+            col()
+                .key("peek-summary")
+                .w_full()
+                .px(16.0)
+                .pt(12.0)
+                .pb(14.0)
+                .mb(24.0)
+                .radius(12.0)
+                .fill(l.hover)
+                .child(label("Summary", l))
+                .child(text(one_line(t)).font(font(14.0, 400.0).lh(21.7)).color(l.fg2).wrap())
+        }))
         .child(page_text(link, 17.0, 28.9, l));
     let body = col()
         .key("peek-body")
