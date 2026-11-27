@@ -6,14 +6,17 @@ export const isNativeSignInToken = (raw: string | null): raw is string =>
 // The deep link that hands the one-time code back to Cloudstash for Mac. The
 // app accepts it only for the sign-in it started, matched by state. Cloudstash
 // Dev, the app's development build, asks with app=dev and has its own scheme,
-// so its link never opens the released app; anything else gets the released
-// app's.
+// so its link never opens the released app. Each worktree's Dev build asks
+// with app=dev-<instance> for a scheme of its own, so several run at once.
+// Anything else gets the released app's.
+const DEV_APP = /^dev(-[a-z0-9]{1,16})?$/;
+
 export const nativeSignInLink = (
   code: string,
   state: string,
   app: string | null = null
 ): string => {
-  const scheme = app === "dev" ? "cloudstash-dev" : "cloudstash";
+  const scheme = app && DEV_APP.test(app) ? `cloudstash-${app}` : "cloudstash";
   const link = new URL(`${scheme}://auth/callback`);
   link.searchParams.set("code", code);
   link.searchParams.set("state", state);

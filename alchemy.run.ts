@@ -29,6 +29,8 @@ const PRODUCTION_STAGE = "prod";
 const requiredSecret = (name: string) =>
   Config.schema(Schema.Redacted(Schema.NonEmptyString), name);
 
+const devPort = Number(process.env.PORT) || 3000;
+
 const optionalString = (name: string) =>
   Config.String(name).pipe(Config.withDefault(""));
 
@@ -93,7 +95,7 @@ export const App = Effect.gen(function* () {
       logs: { enabled: true, invocationLogs: true },
       traces: { enabled: true, headSamplingRate: 1 },
     },
-    dev: { port: Number(process.env.PORT) || 3000 },
+    dev: { host: "127.0.0.1", port: devPort, strictPort: true },
     env: {
       ...WORKER_VARS,
       DB: db,
@@ -139,11 +141,12 @@ export const App = Effect.gen(function* () {
       }),
       BETTER_AUTH_URL: names
         ? `https://${names.domain}`
-        : Config.String("BETTER_AUTH_URL"),
+        : `http://127.0.0.1:${devPort}`,
       ...(names
         ? {}
         : {
             AI_METER_LIMIT: optionalString("AI_METER_LIMIT"),
+            GOOGLE_EMULATOR_URL: optionalString("GOOGLE_EMULATOR_URL"),
             PUBLIC_URL: optionalString("PUBLIC_URL"),
             ENABLE_TEST_AUTH: optionalString("ENABLE_TEST_AUTH"),
           }),

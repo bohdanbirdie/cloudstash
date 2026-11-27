@@ -28,5 +28,5 @@ pub fn show(ui: AppHandle<State>) -> Option<TrayIcon> {
     }));
     let builder = TrayIconBuilder::new();
     let builder = if crate::flavor::DEV { builder.with_icon(icon) } else { builder.with_icon_templated(icon) };
-    builder.with_tooltip(crate::flavor::NAME).build().inspect_err(|e| tracing::warn!("could not add the menu bar icon: {e}")).ok()
+    builder.with_tooltip(crate::flavor::identity().name.as_str()).build().inspect_err(|e| tracing::warn!("could not add the menu bar icon: {e}")).ok()
 }

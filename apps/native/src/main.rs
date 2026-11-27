@@ -298,7 +298,7 @@ fn cancel_sign_in(s: &mut State) {
     s.phase = Phase::SignedOut;
 }
 
-/// Receives `cloudstash://` (Dev: `cloudstash-dev://`) links from macOS, including the one that launched the app.
+/// Receives `cloudstash://` (Dev: `cloudstash-dev://`, a worktree's copy `cloudstash-dev-<instance>://`) links from macOS, including the one that launched the app.
 fn open_url(s: &mut State, link: &str, _: &mut Tx) {
     let Some(backend) = s.backend.clone() else {
         s.early_link = Some(link.to_owned());
@@ -894,7 +894,7 @@ fn main() {
         min_size: Some((900.0, 560.0)),
         on_key: Some(shell::on_key),
         poll: Some(poll),
-        ..AppSpec::new(flavor::NAME, size, new_state, view)
+        ..AppSpec::new(flavor::identity().name.as_str(), size, new_state, view)
     })
     .chrome(Chrome { full_size_content: true, traffic_lights: Some((21.0, 21.0)), drag_regions: true })
     .font_smoothing(FontSmoothing::Off)

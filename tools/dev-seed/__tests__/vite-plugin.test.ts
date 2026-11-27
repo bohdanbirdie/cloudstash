@@ -3,12 +3,21 @@ import { Socket } from "node:net";
 
 import { describe, expect, it } from "vitest";
 
-import { devSeedApplies, syncConnection } from "../vite-plugin";
+import {
+  devSeedApplies,
+  nativeConnection,
+  syncConnection,
+} from "../vite-plugin";
 
-const request = (url: string, headers: Record<string, string> = {}) => {
+const request = (
+  url: string,
+  headers: Record<string, string> = {},
+  method = "GET"
+) => {
   const req = new IncomingMessage(new Socket());
   req.url = url;
   req.headers = headers;
+  req.method = method;
   return req;
 };
 
@@ -47,6 +56,36 @@ describe("syncConnection", () => {
     expect(syncConnection(request("/sync?storeId=org_1"))).toBeUndefined();
     expect(
       syncConnection(request("/sync", { cookie: "session=abc" }))
+    ).toBeUndefined();
+  });
+});
+
+describe("nativeConnection", () => {
+  it("reads the session from the Mac app's key mint", () => {
+    expect(
+      nativeConnection(
+        request(
+          "/api/connect/native",
+          { cookie: "session=abc", origin: "http://127.0.0.1:3001" },
+          "POST"
+        )
+      )
+    ).toEqual({ cookie: "session=abc", origin: "http://127.0.0.1:3001" });
+  });
+
+  it("ignores other requests and mints without a session", () => {
+    expect(
+      nativeConnection(
+        request("/api/connect/native", { cookie: "session=abc" }, "GET")
+      )
+    ).toBeUndefined();
+    expect(
+      nativeConnection(request("/api/connect/native", {}, "POST"))
+    ).toBeUndefined();
+    expect(
+      nativeConnection(
+        request("/api/connect/native/exchange", { cookie: "s=1" }, "POST")
+      )
     ).toBeUndefined();
   });
 });

@@ -335,7 +335,7 @@ fn tempfile_in(dir: &Path) -> bool {
 
 fn cache_dir() -> PathBuf {
     let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
-    home.join("Library/Caches").join(crate::flavor::BUNDLE_ID).join("update")
+    home.join("Library/Caches").join(&crate::flavor::identity().bundle_id).join("update")
 }
 
 /// The newest release's feed, when it's newer than this build.
@@ -412,7 +412,7 @@ fn verify_signature(zip: &[u8], signature: &str, public_key: &str) -> Result<(),
 fn check_app(app: &Path, version: &str) -> Result<(), String> {
     let plist = app.join("Contents/Info.plist");
     let read = |key: &str| run(Command::new("/usr/libexec/PlistBuddy").arg("-c").arg(format!("Print :{key}")).arg(&plist));
-    if read("CFBundleIdentifier")? != crate::flavor::BUNDLE_ID {
+    if read("CFBundleIdentifier")? != crate::flavor::identity().bundle_id {
         return Err("the update isn't Cloudstash".into());
     }
     if read("CFBundleShortVersionString")? != version.trim_start_matches('v') {

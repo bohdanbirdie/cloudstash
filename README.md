@@ -32,11 +32,13 @@ bun install
 bun run env:sync
 
 # Start dev server (applies D1 migrations locally)
-bun dev
+bun run dev
 ```
 
-The app runs at `http://127.0.0.1:3000`. Keep `BETTER_AUTH_URL`, the browser,
-and local OAuth/MCP clients on that same origin.
+The dev server takes the first free port from 3000 and prints its address
+(`http://127.0.0.1:<port>`); keep the browser and local OAuth/MCP clients on
+that origin. Sign-in goes through a local Google stand-in, so any port works;
+`DEV_GOOGLE=real bun run dev` uses real Google on port 3000.
 
 ## Configuration
 
@@ -47,7 +49,6 @@ and local OAuth/MCP clients on that same origin.
 | `GOOGLE_CLIENT_ID`     | Google OAuth Client ID ([Cloud Console](https://console.cloud.google.com/apis/credentials)) |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth Client Secret                                                                  |
 | `BETTER_AUTH_SECRET`   | Random string (32+ chars). Generate with: `openssl rand -hex 32`                            |
-| `BETTER_AUTH_URL`      | Base URL (`http://127.0.0.1:3000` for local, your Worker URL for production)                |
 
 ### Optional
 
@@ -90,7 +91,7 @@ After this, the admin can approve other users through the UI.
 4. Click **Create Credentials > OAuth client ID**
 5. Select **Web application**
 6. Add authorized redirect URIs:
-   - Local: `http://127.0.0.1:3000/api/auth/callback/google`
+   - Local (only for `DEV_GOOGLE=real`): `http://127.0.0.1:3000/api/auth/callback/google`
    - Production: `https://your-worker.workers.dev/api/auth/callback/google`
 
 ## Telegram Bot Setup (Optional)
@@ -126,7 +127,7 @@ Track review status and manage the listing in the [Chrome Web Store developer da
 ## Commands
 
 ```bash
-bun dev              # Vite+ dev server (port 3000)
+bun run dev          # dev server on the first free port from 3000
 bun run dev:infra    # Auth emulator, tunnel, dashboard, raycast (separate terminal)
 bun run build        # Production build
 bun test             # Run all tests

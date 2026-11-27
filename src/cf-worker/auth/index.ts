@@ -22,6 +22,7 @@ import {
   resolveActiveOrg,
   startXBookmarkSyncForAccount,
 } from "./hooks";
+import { localCookiePrefix } from "./local-dev";
 import { mcpPlugin } from "./mcp-plugin";
 import { oauthProvidersPlugin } from "./oauth-providers";
 
@@ -48,6 +49,7 @@ export const createAuth = (env: Env, db: Database) => {
       },
     },
     advanced: {
+      cookiePrefix: localCookiePrefix(env.BETTER_AUTH_URL),
       ipAddress: {
         ipAddressHeaders: ["cf-connecting-ip"],
       },

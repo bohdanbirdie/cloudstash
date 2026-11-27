@@ -94,8 +94,13 @@ remain advertised there as well. Consent remains bound to its signed query and
 workspace across redirects. Each request verifies JWT/DPoP locally and rechecks
 access, entitlement, and scope; existing JWTs expire within five minutes.
 Google uses fixed endpoints, so auth initialization needs no discovery request.
-Local development uses those same endpoints with a registered loopback callback;
-there is no alternate Google issuer or base-URL override.
+Local development points those endpoints at a local Google stand-in, under an
+issuer of its own (`urn:cloudstash:local-google`) with accounts keyed by
+email, when `GOOGLE_EMULATOR_URL` is set; that variable exists on local stages
+only and is used only when the server and the stand-in are both loopback.
+Without it local development uses real Google on the registered
+`127.0.0.1:3000` callback. A loopback server names its cookies
+`cloudstash-<port>` so dev servers on different ports keep separate sessions.
 
 ## Roles and Permissions
 
@@ -124,7 +129,9 @@ operations only to `admin`, not `viewer`.
   state and a PKCE challenge. A signed-in browser mints a `native`-sourced
   key without a confirmation step and opens a `cloudstash://auth/callback`
   deep link carrying a one-time code (`cloudstash-dev://` when the app asks
-  with `app=dev`, so Cloudstash Dev's sign-in never opens the released app); the app accepts only the link for the
+  with `app=dev`, so Cloudstash Dev's sign-in never opens the released app,
+  and `cloudstash-dev-<instance>://` for a worktree's copy asking with
+  `app=dev-<instance>`, lowercase letters and digits only); the app accepts only the link for the
   sign-in it started and redeems the code with its verifier. Mint and exchange
   both revalidate current workspace access, the key never passes through the
   browser, and it is not plan-gated.
