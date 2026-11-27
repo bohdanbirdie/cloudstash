@@ -19,6 +19,8 @@ pub struct Palette {
     /// Top and bottom of the main button's barely visible gradient.
     pub primary_top: Color,
     pub primary_bottom: Color,
+    /// The keyboard focus ring: the accent, which marks "you are here".
+    pub focus: Color,
     /// The accent as text or an icon directly on the background.
     pub accent_text: Color,
     pub accent_tint: Color,
@@ -41,6 +43,9 @@ pub struct Palette {
     pub outline_fill: Color,
 }
 
+/// The keyboard focus ring's width and its gap outside the control, in points.
+pub const FOCUS_RING: (f32, f32) = (2.0, 2.0);
+
 pub fn palette(dark: bool) -> Palette {
     if dark {
         Palette {
@@ -49,6 +54,7 @@ pub fn palette(dark: bool) -> Palette {
             card_foreground: oklch(0.93, 0.0, 0.0),
             foreground_10: oklcha(0.93, 0.0, 0.0, 0.1),
             primary: oklch(0.545, 0.19, 254.0),
+            focus: oklch(0.545, 0.19, 254.0),
             primary_foreground: oklch(0.99, 0.0, 0.0),
             primary_top: oklch(0.56, 0.19, 254.0),
             primary_bottom: oklch(0.53, 0.19, 254.0),
@@ -76,6 +82,7 @@ pub fn palette(dark: bool) -> Palette {
             card_foreground: oklch(0.2, 0.0, 0.0),
             foreground_10: oklcha(0.2, 0.0, 0.0, 0.1),
             primary: oklch(0.545, 0.19, 254.0),
+            focus: oklch(0.545, 0.19, 254.0),
             primary_foreground: oklch(0.99, 0.0, 0.0),
             primary_top: oklch(0.56, 0.19, 254.0),
             primary_bottom: oklch(0.53, 0.19, 254.0),

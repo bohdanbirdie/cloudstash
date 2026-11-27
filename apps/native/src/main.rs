@@ -362,6 +362,7 @@ fn sign_out(s: &mut State) {
 fn view(s: &State, cx: &mut Cx<State>) -> El {
     sphere::hide();
     let t = theme::palette(cx.system_dark());
+    cx.focus_ring(theme::FOCUS_RING.0, theme::FOCUS_RING.1, t.focus);
     let opening = s.intro && matches!(s.phase, Phase::SignedIn(_)) && !matches!(s.sync, Sync::Failed(_));
     if !opening {
         sphere::cancel();
@@ -897,6 +898,7 @@ fn main() {
         ..AppSpec::new(flavor::NAME, size, new_state, view)
     })
     .chrome(Chrome { full_size_content: true, traffic_lights: Some((21.0, 21.0)), drag_regions: true })
+    .tab_visits_controls(true)
     .font_smoothing(FontSmoothing::Off)
     .on_frame_encoded({
         if flavor::DEV {

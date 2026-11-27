@@ -95,6 +95,7 @@ pub fn window(fonts: &'static [&'static [u8]], families: &'static str) -> Window
     };
     WindowSpec::new("settings", spec)
         .chrome(Chrome { full_size_content: true, traffic_lights: Some((20.0, 20.0)), drag_regions: true })
+        .tab_visits_controls(true)
         .font_smoothing(FontSmoothing::Off)
         .options(WindowOptions { visible: false, resizable: false, ..WindowOptions::default() })
 }
@@ -248,8 +249,21 @@ fn ring(color: Color) -> Shadow {
 
 fn view(s: &Settings, cx: &mut Cx<Settings>) -> El {
     let l = look(cx.system_dark());
+    let (width, gap) = crate::theme::FOCUS_RING;
+    cx.focus_ring(width, gap, crate::theme::palette(cx.system_dark()).focus);
     let nav = PAGES.iter().fold(
-        col().key("nav").w(SIDEBAR_W).h_full().fill(l.side).px(10.0).pt(TITLE_H).gap(1.0).window_drag(),
+        col()
+            .key("nav")
+            .role("tablist")
+            .label("Settings")
+            .focus_group()
+            .w(SIDEBAR_W)
+            .h_full()
+            .fill(l.side)
+            .px(10.0)
+            .pt(TITLE_H)
+            .gap(1.0)
+            .window_drag(),
         |nav, &(page, name, glyph)| {
             let on = s.page == page;
             let r = row()
@@ -257,6 +271,7 @@ fn view(s: &Settings, cx: &mut Cx<Settings>) -> El {
                 .role("tab")
                 .label(name)
                 .focusable(true)
+                .focus_selected(on)
                 .w_full()
                 .h(30.0)
                 .px(9.0)

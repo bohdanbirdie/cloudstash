@@ -371,6 +371,8 @@ impl SplitView {
             let content = Contents { pad: self.padding, slide: peek.is_some(), peek, band: Some(band), frame: self.frame };
             dock(&d, "sidebar-pane", p, true, content, &mut zones)
         });
+        // In the panel, the toolbar comes after the content in the tree, pinned over its top, so
+        // Tab goes from the sidebar to the content and then to the toolbar's controls.
         let toolbar = self.toolbar.unwrap_or_default().padding(lead).build(k).motion(spring);
         let (toolbar, above) = if self.in_panel { (Some(toolbar), None) } else { (None, Some(toolbar)) };
         let card = col()
@@ -387,8 +389,8 @@ impl SplitView {
             .border(1.0, c.border_muted)
             .clip_rounded(k.radius.lg)
             .motion(spring)
-            .children(toolbar)
-            .child(self.main.grow(1.0).min_h(0.0))
+            .child(self.main.grow(1.0).min_h(0.0).mt(if toolbar.is_some() { TOOLBAR_HEIGHT } else { 0.0 }))
+            .children(toolbar.map(|t| t.pin(Some(0.0), Some(0.0), Some(0.0), None)))
             .children(self.main_overlay);
         let mut below = row().key("main-row").w_full().grow(1.0).min_h(0.0).motion(spring).child(card);
         if let Some(mut p) = self.inspector {
