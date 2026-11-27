@@ -41,13 +41,27 @@ and API-key LiveStore sync. Card pictures are kept as small local copies in each
 library's folder and deleted with it on sign-out, or at the next launch that
 finds no session; at most 80 MB of them are kept decoded in memory, per
 [decision 0006](./.decisions/0006-bound-native-picture-memory.md). A click on a card opens a preview of the link over the grid,
-with the sidebar still usable; a click on the preview or ↵ opens it fully in
-the content area, and Esc steps back. ⌘-click opens the link in the browser.
+with the sidebar still usable. The preview shows a link's summary, when it has
+one, in a labelled inset above the page's own text, so the two never read as one.
+A click on the preview or ↵ opens it fully in
+the content area, and Esc steps back. Feed shows each link much as the preview
+does, its picture at the preview's 16:9 rather than the grid cards' 16:11, so a
+click on a Feed card opens the link fully at once. ⌘-click opens the link in the browser.
 Saved links open in the browser only when they are web
 addresses. The window's page is one `Place` value (a library state or a space
 by id), changed only through `nav::go`, so every navigation (sidebar, palette,
 ⌘1 to ⌘4 for the states in sidebar order, later menus and links) takes the
-same path. Between launches AppKit keeps the window's position and size, and
+same path. A navigation swaps the page at once, with no fade between the two
+pages' cards; a zoom change stays animated. Cards fly to their new places above
+the grid at full strength, and drop into the grid's layer only while a preview
+is open, so a preview opened mid-flight is on top from its first frame. A title the old zoom didn't show (coming from Pictures) fades in
+as its card lands, not at its place while the picture is still flying there.
+The title flies right under its picture, and the summary flies with it,
+fading in or out on the way. Between Feed and a grid the words don't fly,
+since Feed sets them larger and wider and text can't scale in flight: the old
+ones fade where they were and the new ones fade in as the picture grows into
+place. Feed's narrow, centred column is a column of its own rather than the
+grid's resized, so nothing in it slides over from where the grid was. In every zoom the site row sits under the picture. The zoom is picked in the toolbar's Display panel, as Linear's: four tiles, each a miniature of its layout, under a Display button or ⇧V. It stays open while a layout is picked, and a press outside, Esc or ⇧V closes it; ← and → step the layout while it's open, and 1 to 4 and ⌘+ and ⌘− work with it closed too. Opened by key it appears at once, by click it grows from the button. Its sort and filter rows are shown but do nothing yet. Between launches AppKit keeps the window's position and size, and
 `ui.json` in the app's folder keeps the page, the zoom (Pictures, Titles,
 Summaries or Feed) and the sidebar's state and width. Each value is checked as it loads and an
 unknown one falls back to its default, so no saved state can strand the app;
@@ -203,10 +217,14 @@ review artifacts unless the maintainer separately authorizes a remote action.
 The Mac app's version is `apps/native/Cargo.toml`'s. A release build is
 Cloudstash, which always talks to `https://cloudstash.dev`; a debug build
 (`scripts/run.sh`) is Cloudstash Dev, which talks to `http://127.0.0.1:3000`
-unless `CLOUDSTASH_URL` says otherwise and never updates. The two differ in
+unless `CLOUDSTASH_URL` says otherwise and never updates. Only Dev shows the
+frame meter and download readings at the foot of the sidebar. The two differ in
 bundle id (`dev.cloudstash.native` / `dev.cloudstash.native.dev`), name,
-executable, blue icon and menu bar ball, data, caches and keychain service
-(named by the bundle id), log file (`cloudstash.log` /
+executable, blue icon and menu bar ball, data and caches (named by the
+bundle id), where the sign-in key is kept (the release's keychain item; a
+file only the user can read in Dev's own folder, so a fresh worktree's build
+never asks for the login password, per
+[decision 0009](./.decisions/0009-keep-the-native-dev-key-in-a-file.md)), log file (`cloudstash.log` /
 `cloudstash-dev.log`) and sign-in link scheme (`cloudstash` /
 `cloudstash-dev`), so both run on one Mac at once, per
 [decision 0008](./.decisions/0008-give-native-debug-builds-their-own-app-identity.md). When `main` gets a version with no `native-v<version>` tag,

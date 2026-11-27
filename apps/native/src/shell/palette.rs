@@ -66,7 +66,7 @@ pub fn toggle(s: &mut State) {
 struct Command {
     name: &'static str,
     glyph: &'static Icon,
-    run: fn(&mut State),
+    run: fn(&mut State, &mut Tx),
 }
 
 #[derive(Clone)]
@@ -83,17 +83,17 @@ struct Entry {
 
 fn commands(s: &State) -> [(&'static str, Command); 7] {
     let mode = match s.zoom {
-        Zoom::Feed => Command { name: "Show as grid", glyph: &GRID, run: |s| s.zoom = Zoom::Titles },
-        _ => Command { name: "Show as feed", glyph: &FEED, run: |s| s.zoom = Zoom::Feed },
+        Zoom::Feed => Command { name: "Show as grid", glyph: &GRID, run: |s, _| s.zoom = Zoom::Titles },
+        _ => Command { name: "Show as feed", glyph: &FEED, run: |s, _| s.zoom = Zoom::Feed },
     };
     [
-        ("Go to", Command { name: "Inbox", glyph: &INBOX, run: |s| go(s, Place::Tab(Tab::Inbox)) }),
-        ("Go to", Command { name: "Done", glyph: &DONE, run: |s| go(s, Place::Tab(Tab::Completed)) }),
-        ("Go to", Command { name: "Archive", glyph: &ARCHIVE, run: |s| go(s, Place::Tab(Tab::Archive)) }),
-        ("Go to", Command { name: "All links", glyph: &ALL, run: |s| go(s, Place::Tab(Tab::All)) }),
+        ("Go to", Command { name: "Inbox", glyph: &INBOX, run: |s, tx| go(s, Place::Tab(Tab::Inbox), tx) }),
+        ("Go to", Command { name: "Done", glyph: &DONE, run: |s, tx| go(s, Place::Tab(Tab::Completed), tx) }),
+        ("Go to", Command { name: "Archive", glyph: &ARCHIVE, run: |s, tx| go(s, Place::Tab(Tab::Archive), tx) }),
+        ("Go to", Command { name: "All links", glyph: &ALL, run: |s, tx| go(s, Place::Tab(Tab::All), tx) }),
         ("Actions", mode),
-        ("Actions", Command { name: "Clear picture cache", glyph: &RESET, run: |_| images::reset() }),
-        ("Actions", Command { name: "Sign out", glyph: &SIGN_OUT, run: crate::sign_out }),
+        ("Actions", Command { name: "Clear picture cache", glyph: &RESET, run: |_, _| images::reset() }),
+        ("Actions", Command { name: "Sign out", glyph: &SIGN_OUT, run: |s, _| crate::sign_out(s) }),
     ]
 }
 
@@ -157,12 +157,12 @@ fn point(s: &mut State, i: usize, at: PointerEvent, tx: &mut Tx) {
 }
 
 /// ↵ opens a link in the app, all the way, and ⌘↵ in the browser; either runs a command.
-fn activate(s: &mut State, item: &Item, browser: bool) {
+fn activate(s: &mut State, item: &Item, browser: bool, tx: &mut Tx) {
     s.palette = None;
     match item {
         Item::Link(hit) if browser => crate::open_link(&hit.link.url),
         Item::Link(hit) => super::preview(s, &hit.link.id, true),
-        Item::Command(c, _) => (c.run)(s),
+        Item::Command(c, _) => (c.run)(s, tx),
     }
 }
 
@@ -181,7 +181,7 @@ fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
         }
         Key::Enter => {
             if let Some(entry) = found.get(sel) {
-                activate(s, &entry.item, e.mods.cmd);
+                activate(s, &entry.item, e.mods.cmd, tx);
             }
         }
         Key::Escape => s.palette = None,
@@ -259,7 +259,7 @@ fn entry_row(i: usize, entry: &Entry, on: bool, l: &Look) -> El {
         .child(body.grow(1.0).min_w(0.0))
         .children(trail)
         .on_pointer_move_local(move |s: &mut State, at, tx: &mut Tx| point(s, i, at, tx))
-        .on_press_tx(move |s: &mut State, tx: &mut Tx| activate(s, &item, tx.mods().cmd));
+        .on_press_tx(move |s: &mut State, tx: &mut Tx| activate(s, &item, tx.mods().cmd, tx));
     if on { r.fill(l.active) } else { r }
 }
 

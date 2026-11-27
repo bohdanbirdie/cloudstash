@@ -1,4 +1,5 @@
-//! A frame meter after overengineeringstudio/fps-meter, at the foot of the sidebar so it never
+//! A frame meter after overengineeringstudio/fps-meter, in Cloudstash Dev only (release builds
+//! leave it out), at the foot of the sidebar so it never
 //! covers the content card: every display refresh is a bar, faint when a frame was drawn in it and red when it was missed,
 //! beside the average rate over the last two seconds. While it shows, the window draws every
 //! refresh, as a `requestAnimationFrame` loop does. Bars and text are live values, so frames

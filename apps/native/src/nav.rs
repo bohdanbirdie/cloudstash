@@ -3,6 +3,8 @@
 //! `AppHandle::update`) all navigate the same way. Rune draws from state, so there's no router
 //! beyond this.
 
+use rune::Tx;
+
 use crate::State;
 use crate::livestore::library::Tab;
 
@@ -44,8 +46,11 @@ impl Default for Place {
     }
 }
 
-/// Shows `place`, closing the palette and any link shown over the page.
-pub fn go(s: &mut State, place: Place) {
+/// Shows `place`, closing the palette and any link shown over the page. The page swaps at
+/// once, as a Mac sidebar does: a fade would cross the two pages' cards, and the old page's
+/// extra rows would linger over the new one's empty space.
+pub fn go(s: &mut State, place: Place, tx: &mut Tx) {
+    tx.instant();
     s.place = place;
     s.palette = None;
     s.preview = None;
@@ -70,7 +75,7 @@ mod tests {
         let mut s = State::default();
         assert_eq!(s.place, Place::Tab(Tab::Inbox));
         shell::toggle_palette(&mut s);
-        go(&mut s, Place::Space("design"));
+        go(&mut s, Place::Space("design"), &mut Tx::default());
         assert_eq!(s.place, Place::Space("design"));
         assert!(s.palette.is_none());
     }

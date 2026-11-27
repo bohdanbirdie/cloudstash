@@ -111,6 +111,9 @@ pub(crate) struct State {
     ghosts: Vec<shell::Ghost>,
     /// While a zoom change lands: the rows the grid builds, not virtual (`shell::zoom_to`).
     landing: Option<std::ops::Range<usize>>,
+    /// The zoom that change came from, so what it didn't show waits for the pictures to land
+    /// before fading in.
+    zoomed_from: Option<shell::Zoom>,
     /// The link shown over the library, as a preview or all the way.
     preview: Option<shell::Preview>,
     /// Whether ⌘ is held alone, and since when, for the sidebar's shortcut hints.
@@ -132,6 +135,8 @@ pub(crate) struct State {
     confirm_update: bool,
     /// The account's menu, under its name, is open.
     account_menu: bool,
+    /// The toolbar's Display panel, with the layouts, is open.
+    display: bool,
 }
 
 /// Headless snapshots render a named scene and must not touch the keychain, the network or the
@@ -311,7 +316,7 @@ fn open_url(s: &mut State, link: &str, _: &mut Tx) {
     });
 }
 
-/// The dev meter's readings: downloads running and waiting in view, then the pictures' cache on
+/// The dev meter's readings, in Cloudstash Dev only: downloads running and waiting in view, then the pictures' cache on
 /// disk and how much of the background fill is done; clicking the cache empties it.
 fn devtools_probes() {
     fps::probe(|| {
@@ -812,6 +817,13 @@ fn main() {
                 shell::preview(s, &id, true);
             }),
             ("signed-in-worst", |s| worst_case_scene(s, Tab::Inbox)),
+            ("places", |s| {
+                worst_case_scene(s, Tab::Inbox);
+                s.links.truncate(15);
+                for link in &mut s.links[12..] {
+                    link.status = "completed".to_owned();
+                }
+            }),
             ("palette-worst", |s| {
                 worst_case_scene(s, Tab::Inbox);
                 s.palette = Some(shell::Palette::showing("e", 0));
@@ -887,10 +899,14 @@ fn main() {
     .chrome(Chrome { full_size_content: true, traffic_lights: Some((21.0, 21.0)), drag_regions: true })
     .font_smoothing(FontSmoothing::Off)
     .on_frame_encoded({
-        devtools_probes();
-        let mut tracker = fps::Tracker::default();
+        if flavor::DEV {
+            devtools_probes();
+        }
+        let mut tracker = flavor::DEV.then(fps::Tracker::default);
         move |frame| {
-            tracker.frame(frame);
+            if let Some(tracker) = &mut tracker {
+                tracker.frame(frame);
+            }
             sphere::frame(frame, headless().then_some(1.0 / 60.0));
         }
     })

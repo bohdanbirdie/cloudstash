@@ -15,10 +15,10 @@ cargo build
 app="target/Cloudstash Dev.app"
 scripts/bundle.sh target/debug/cloudstash-native "$app" 0.0.0 dev
 
-# The keychain trusts the app by its code signature. An ad-hoc signature changes with every
-# build, so macOS would ask for the login password on each launch; a certificate keeps it
-# stable, and one "Always Allow" lasts. CLOUDSTASH_SIGN_IDENTITY overrides the pick; with no
-# Apple Development certificate the bundle falls back to ad-hoc.
+# Signed with the Apple Development certificate when there is one, so macOS sees one app across
+# builds. Dev keeps its sign-in key in a file, not the keychain (src/auth.rs), so no build asks
+# for the login password. CLOUDSTASH_SIGN_IDENTITY overrides the pick; with no Apple Development
+# certificate the bundle falls back to ad-hoc.
 identity="${CLOUDSTASH_SIGN_IDENTITY:-$(security find-identity -v -p codesigning | sed -n 's/.*"\(Apple Development: [^"]*\)".*/\1/p' | head -1)}"
 codesign --force --sign "${identity:--}" "$app" >/dev/null
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$app"

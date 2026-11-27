@@ -9,8 +9,8 @@ use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rune::{
-    Color, Cursor, Cx, El, GrowthSpec, Icon, Key, KeyEvent, Live, LoopSpec, Mods, ScrollFade, ScrollSpec, Shadow, Side, Spring, SpringPair,
-    SurfaceFit, TextStyle, Transition, Tx, Vec2, col, el, icon, oklch, oklcha, row, text,
+    Color, Cursor, Curve, Cx, Easing, El, GrowthSpec, Icon, Key, KeyEvent, Live, LoopSpec, Mods, ScrollFade, ScrollSpec, Shadow, Side, Spring,
+    SpringPair, SurfaceFit, TextStyle, Transition, Tx, Vec2, col, el, icon, oklch, oklcha, row, text,
 };
 use rune_kit::{Kit, ScrollBar, ScrollBarStyle};
 
@@ -63,15 +63,6 @@ impl Zoom {
         }
     }
 
-    fn glyph(self) -> &'static Icon {
-        match self {
-            Zoom::Pictures => &PICTURES,
-            Zoom::Titles => &GRID,
-            Zoom::Summaries => &SUMMARIES,
-            Zoom::Feed => &FEED,
-        }
-    }
-
     /// The narrowest a card gets, or None for a single column.
     fn card_min(self) -> Option<f32> {
         match self {
@@ -88,8 +79,14 @@ impl Zoom {
             Zoom::Pictures => 125.0,
             Zoom::Titles => 260.0,
             Zoom::Summaries => 340.0,
-            Zoom::Feed => 600.0,
+            Zoom::Feed => 530.0,
         }
+    }
+
+    /// The shape of a card's picture: the cards' 16:11, or the preview's 16:9 in Feed, whose one
+    /// wide column shows a link much as the preview does.
+    fn picture_aspect(self) -> f32 {
+        if self == Zoom::Feed { 16.0 / 9.0 } else { 16.0 / 11.0 }
     }
 
     /// One step closer (`by` 1) or further (−1), stopping at the ends.
@@ -181,14 +178,13 @@ static GRID: Icon = glyph!(
     r#"<rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1.2"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1.2"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1.2"/><rect x="9" y="9" width="4.5" height="4.5" rx="1.2"/>"#
 );
 static FEED: Icon = glyph!("cs-feed", r#"<rect x="3.5" y="2.5" width="9" height="6" rx="1.2"/><path d="M3.5 11h9M3.5 13.5h6"/>"#);
-static PICTURES: Icon = glyph!(
-    "cs-pictures",
-    r#"<rect x="2.5" y="2.5" width="3" height="3" rx=".8"/><rect x="6.5" y="2.5" width="3" height="3" rx=".8"/><rect x="10.5" y="2.5" width="3" height="3" rx=".8"/><rect x="2.5" y="6.5" width="3" height="3" rx=".8"/><rect x="6.5" y="6.5" width="3" height="3" rx=".8"/><rect x="10.5" y="6.5" width="3" height="3" rx=".8"/><rect x="2.5" y="10.5" width="3" height="3" rx=".8"/><rect x="6.5" y="10.5" width="3" height="3" rx=".8"/><rect x="10.5" y="10.5" width="3" height="3" rx=".8"/>"#
+static SLIDERS: Icon = glyph!(
+    "cs-sliders",
+    r#"<path d="M2.5 4.5h6.5M13 4.5h.5M2.5 11.5h.5M7 11.5h6.5"/><circle cx="11" cy="4.5" r="1.6"/><circle cx="5" cy="11.5" r="1.6"/>"#
 );
-static SUMMARIES: Icon = glyph!(
-    "cs-summaries",
-    r#"<rect x="2.5" y="2.5" width="4.5" height="4" rx="1"/><rect x="9" y="2.5" width="4.5" height="4" rx="1"/><path d="M2.5 9.5h4.5M2.5 12h3M9 9.5h4.5M9 12h3"/>"#
-);
+static SORT: Icon = glyph!("cs-sort", r#"<path d="M5 3v10M2.5 10.5 5 13l2.5-2.5M11 13V3M8.5 5.5 11 3l2.5 2.5"/>"#);
+static FILTER: Icon = glyph!("cs-filter", r#"<path d="M2.5 4h11M4.5 8h7M6.5 12h3"/>"#);
+static CARD_FIELDS: Icon = glyph!("cs-card-fields", r#"<rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M5 6.5h6M5 9.5h4"/>"#);
 static BACK: Icon = glyph!("cs-back", r#"<path d="m10 4-4 4 4 4"/>"#);
 static TAG: Icon = glyph!("cs-tag", r#"<path d="M2.5 8.2V3.5a1 1 0 0 1 1-1h4.7l5.3 5.3-5.7 5.7-5.3-5.3Z"/><circle cx="5.5" cy="5.5" r=".8"/>"#);
 static TRASH: Icon = glyph!("cs-trash", r#"<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5"/>"#);
@@ -304,37 +300,6 @@ fn count(n: usize, l: &Look) -> El {
     text(n.to_string()).font(font(12.0, 400.0).features("'tnum' 1")).color(l.fg3)
 }
 
-fn elevated(e: El, l: &Look) -> El {
-    let ring = if l.dark { oklcha(1.0, 0.0, 0.0, 0.07) } else { oklcha(0.0, 0.0, 0.0, 0.06) };
-    let e = e.box_shadow(Shadow { spread: 1.0, color: ring, ..Shadow::default() });
-    if l.dark {
-        return e;
-    }
-    e.box_shadow(Shadow { y: 1.0, blur: 2.0, color: oklcha(0.0, 0.0, 0.0, 0.04), ..Shadow::default() }).box_shadow(Shadow {
-        y: 4.0,
-        blur: 12.0,
-        color: oklcha(0.0, 0.0, 0.0, 0.04),
-        ..Shadow::default()
-    })
-}
-
-type Press = Box<dyn Fn(&mut State, &mut Tx)>;
-
-/// A segmented control: the selected segment is a raised chip.
-fn segment(key: &str, items: Vec<(El, bool, Press)>, l: &Look) -> El {
-    items.into_iter().fold(row().key(key.to_owned()).role("tablist").padding(2.0).gap(2.0).radius(8.0).fill(l.hover), |seg, (child, on, press)| {
-        let b = row()
-            .h(26.0)
-            .center()
-            .radius(6.0)
-            .cursor(Cursor::Pointer)
-            .role("tab")
-            .child(child)
-            .on_press_tx(move |s: &mut State, tx: &mut Tx| press(s, tx));
-        seg.child(if on { elevated(b.fill(l.panel), l) } else { b })
-    })
-}
-
 fn swatch(space: &Space, size: f32, l: &Look) -> El {
     let mark = el().size(size, size).radius(size * 0.3);
     let color = crate::theme::space(l.dark, space.hue);
@@ -389,7 +354,9 @@ fn sidebar(s: &State, account: &Account, l: &Look) -> El {
         let on = s.place == Place::Tab(tab);
         let lead = icon(glyph, 16.0).color(if on { l.fg } else { l.fg2 });
         let tail = if s.hints == Hints::Shown { kbd(&format!("⌘{}", i + 1), l.side, l) } else { count(tab.links(&s.links).len(), l) };
-        list = list.child(nav_row(format!("nav-{label}"), label, on, lead, tail, l).on_press(move |s: &mut State| nav::go(s, Place::Tab(tab))));
+        list = list.child(
+            nav_row(format!("nav-{label}"), label, on, lead, tail, l).on_press_tx(move |s: &mut State, tx: &mut Tx| nav::go(s, Place::Tab(tab), tx)),
+        );
     }
     list = list.child(text("Spaces").font(font(12.0, 400.0)).color(l.fg3).px(8.0).pt(16.0).pb(4.0));
     for space in &SPACES {
@@ -407,7 +374,7 @@ fn sidebar(s: &State, account: &Account, l: &Look) -> El {
         };
         let (id, on) = (space.id, s.place == Place::Space(space.id));
         let row = nav_row(format!("space-{id}"), space.name, on, lead, tail, l);
-        list = list.child(row.on_press(move |s: &mut State| nav::go(s, Place::Space(id))));
+        list = list.child(row.on_press_tx(move |s: &mut State, tx: &mut Tx| nav::go(s, Place::Space(id), tx)));
     }
     let name = account.name.as_deref().and_then(|n| n.split_whitespace().next()).unwrap_or(&account.email);
     let initial: String = name.chars().take(1).flat_map(char::to_uppercase).collect();
@@ -432,7 +399,10 @@ fn sidebar(s: &State, account: &Account, l: &Look) -> El {
     if s.update.in_sidebar() {
         sidebar = sidebar.child(update_row(s.update, l));
     }
-    sidebar.child(fps::meter::<State>(l.fg3, l.line2)).child(user)
+    if crate::flavor::DEV {
+        sidebar = sidebar.child(fps::meter::<State>(l.fg3, l.line2));
+    }
+    sidebar.child(user)
 }
 
 /// Opens or closes the account's menu. A peeking sidebar stays while it's open, whatever the
@@ -602,10 +572,8 @@ fn update_dialog(s: &State, l: &Look) -> Vec<El> {
 }
 
 /// The toolbar while a link is open all the way: the way back in the title's place, so it moves
-/// as the title does when the sidebar opens or closes, and where the link sits in the list.
-fn opened_bar(s: &State, link: &LinkItem, lead: f32, l: &Look) -> El {
-    let list = shown(s);
-    let at = list.iter().position(|x| x.id == link.id).map_or(0, |i| i + 1);
+/// as the title does when the sidebar opens or closes.
+fn opened_bar(s: &State, lead: f32, l: &Look) -> El {
     let place = match s.place {
         Place::Tab(tab) => STATES.iter().find(|(t, ..)| *t == tab).map_or("Back", |(_, name, _)| name),
         Place::Space(id) => SPACES.iter().find(|space| space.id == id).map_or("Back", |space| space.name),
@@ -628,8 +596,7 @@ fn opened_bar(s: &State, link: &LinkItem, lead: f32, l: &Look) -> El {
         .child(icon(&BACK, 14.0).color(l.fg2))
         .child(text(place).font(font(13.5, 500.0)).color(l.fg))
         .on_press(|s: &mut State| s.preview = None);
-    let count = text(format!("{at} of {}", list.len())).key("preview-count").font(font(12.5, 400.0).features("'tnum' 1")).color(l.fg3);
-    row().key("opened-bar").w_full().h(TOOLBAR_HEIGHT).pl(lead).pr(16.0).center_y().window_drag().child(back).child(el().grow(1.0)).child(count)
+    row().key("opened-bar").w_full().h(TOOLBAR_HEIGHT).pl(lead).pr(16.0).center_y().window_drag().child(back)
 }
 
 fn toolbar(s: &State, l: &Look) -> Toolbar {
@@ -660,24 +627,184 @@ fn toolbar(s: &State, l: &Look) -> Toolbar {
         Sync::Offline => Some(sync_note("Offline".to_owned(), l)),
         Sync::Failed(e) => Some(sync_note(e.clone(), l)),
     };
-    let zooms = Zoom::ALL
-        .into_iter()
-        .enumerate()
-        .map(|(i, zoom)| {
-            let on = s.zoom == zoom;
-            let glyph = row().w(30.0).center().help(format!("{}  {}", zoom.label(), i + 1)).child(icon(zoom.glyph(), 15.0).color(if on {
-                l.fg
-            } else {
-                l.fg3
-            }));
-            (glyph, on, Box::new(move |s: &mut State, tx: &mut Tx| zoom_to(s, zoom, tx)) as Press)
-        })
-        .collect();
+    let ink = if s.display { l.fg } else { l.fg2 };
+    let display = row()
+        .key("display")
+        .role("button")
+        .label("Display")
+        .focusable(true)
+        .h(28.0)
+        .pl(8.0)
+        .pr(10.0)
+        .gap(6.0)
+        .center_y()
+        .radius(7.0)
+        .cursor(Cursor::Pointer)
+        .press_scale(0.96)
+        .child(icon(&SLIDERS, 14.0).color(ink))
+        .child(text("Display").font(font(12.5, 400.0)).color(ink))
+        .on_press_tx(|s: &mut State, tx: &mut Tx| show_display(s, !s.display, tx));
     let mut toolbar = Toolbar::new().leading(title);
     if let Some(sync) = sync {
         toolbar = toolbar.trailing(sync);
     }
-    toolbar.trailing(segment("zoom", zooms, l))
+    toolbar.trailing(if s.display { display.fill(l.active) } else { display.hover(l.hover) })
+}
+
+fn show_display(s: &mut State, open: bool, tx: &mut Tx) {
+    tx.animated();
+    s.display = open;
+}
+
+/// How the Display panel's highlight slides to the picked layout: a strong ease-in-out, as
+/// something moving on screen should (Emil Kowalski's `--ease-in-out`).
+const SLIDE: Easing = Easing::cubic(0.77, 0.0, 0.175, 1.0);
+
+/// The Display panel under its toolbar button, Linear's: the layouts as tiles, then the sort and
+/// filter options still to come, dimmed and inert. Groups are set apart by space, not lines, and
+/// its corners are concentric with the tiles' (8 + the 6-point padding). It stays open while a
+/// layout is picked, so the grid can be compared behind it; a press outside, Esc or ⇧V closes it.
+/// It grows from its top-trailing corner, under the button.
+fn display_panel(s: &State, l: &Look) -> Option<El> {
+    if !s.display {
+        return None;
+    }
+    let at = Zoom::ALL.iter().position(|z| *z == s.zoom).unwrap_or(1);
+    let highlight = el()
+        .key(format!("display-on-{at}"))
+        .grid_cell(at)
+        .w_full()
+        .h_full()
+        .radius(8.0)
+        .fill(l.hover)
+        .box_shadow(Shadow { spread: 1.0, color: l.line, ..Shadow::default() })
+        .matched("display-on")
+        .matched_motion(Curve::tween(0.25, SLIDE));
+    let tiles = row().key("display-layouts").role("radiogroup").label("Layout").w_full().equal_columns(4).gap(2.0).child(highlight);
+    let tiles = Zoom::ALL.into_iter().enumerate().fold(tiles, |tiles, (i, zoom)| {
+        let on = zoom == s.zoom;
+        let ink = if on { l.fg } else { l.fg2 };
+        let tile = col()
+            .key(format!("display-{}", zoom.label()))
+            .grid_cell(i)
+            .role("radio")
+            .label(zoom.label())
+            .w_full()
+            .pt(12.0)
+            .pb(9.0)
+            .gap(7.0)
+            .center()
+            .radius(8.0)
+            .cursor(Cursor::Pointer)
+            .press_scale(0.96)
+            .child(layout_preview(zoom, on, l))
+            .child(text(zoom.label()).font(font(12.0, if on { 500.0 } else { 400.0 })).color(ink))
+            .on_press_tx(move |s: &mut State, tx: &mut Tx| zoom_to(s, zoom, tx));
+        tiles.child(if on { tile } else { tile.hover(Color { a: l.hover.a * 0.6, ..l.hover }) })
+    });
+    let heading = |title: &str, note: Option<&str>| {
+        row()
+            .w_full()
+            .px(8.0)
+            .pt(6.0)
+            .pb(7.0)
+            .gap(6.0)
+            .child(text(title.to_owned()).font(font(11.5, 400.0)).color(l.fg3))
+            .children(note.map(|n| text(n.to_owned()).font(font(10.5, 400.0)).color(l.fg3.alpha(0.7))))
+    };
+    let later = |glyph: &'static Icon, label: &str, value: &str| {
+        row()
+            .w_full()
+            .h(30.0)
+            .px(8.0)
+            .gap(10.0)
+            .center_y()
+            .child(icon(glyph, 15.0).color(l.fg3))
+            .child(text(label.to_owned()).font(font(12.5, 400.0)).color(l.fg3).grow(1.0))
+            .child(text(value.to_owned()).font(font(12.5, 400.0)).color(l.fg3.alpha(0.7)))
+            .child(icon(&CHEVRON, 12.0).color(l.fg3.alpha(0.7)))
+    };
+    let panel = col()
+        .key("display-panel")
+        .role("dialog")
+        .label("Display")
+        .w(348.0)
+        .padding(6.0)
+        .radius(14.0)
+        .fill(l.panel)
+        .child(tiles)
+        .child(el().h(12.0))
+        .child(heading("Sort and filter", Some("Coming soon")))
+        .child(later(&SORT, "Sort", "Newest first"))
+        .child(later(&FILTER, "Filter", "None"))
+        .child(later(&CARD_FIELDS, "Show on cards", "Picture, title, site"));
+    let origin = Vec2::new(1.0, 0.0);
+    Some(
+        palette::lifted(panel, l)
+            .anchored("display", Side::Bottom, rune::Align::End, 6.0)
+            .transition(Transition::asymmetric(Transition::scale_anchor(0.96, origin), Transition::scale_anchor(0.98, origin)))
+            .modal_tx(true, |s: &mut State, tx: &mut Tx| show_display(s, false, tx))
+            .raise(),
+    )
+}
+
+/// A layout in miniature, for its tile in the Display panel: one frame for all four so they read
+/// as a set, and inside it the whole layout, centred and never cut off: pictures at the cards'
+/// 16:11, more columns the smaller the zoom, then the title (strong lines), the summary (faint
+/// lines) and the site row (a favicon dot and a faint line). Flat, in the text's ink, darker for
+/// the chosen layout.
+fn layout_preview(zoom: Zoom, on: bool, l: &Look) -> El {
+    const W: f32 = 50.0;
+    const H: f32 = 36.0;
+    const INNER: f32 = 42.0;
+    const ASPECT: f32 = 11.0 / 16.0;
+    const LINE: f32 = 1.5;
+    let ink = if on { l.fg } else { l.fg2 };
+    let picture = |x: f32, y: f32, w: f32| el().absolute(x, y).size(w, w * ASPECT).radius(1.5).fill(ink.alpha(0.4));
+    let line =
+        |x: f32, y: f32, w: f32, strong: bool| el().absolute(x, y).size(w, LINE).radius(LINE / 2.0).fill(ink.alpha(if strong { 0.6 } else { 0.25 }));
+    let site =
+        |x: f32, y: f32, w: f32| [el().absolute(x, y).size(3.0, 3.0).radius(1.5).fill(ink.alpha(0.4)), line(x + 4.5, y + 0.75, w - 4.5, false)];
+    let width = |n: usize, gap: f32| (INNER - gap * (n - 1) as f32) / n as f32;
+    let mut parts = Vec::new();
+    let height = match zoom {
+        Zoom::Pictures => {
+            let (w, gap) = (width(4, 2.0), 2.0);
+            for i in 0..12 {
+                parts.push(picture((i % 4) as f32 * (w + gap), (i / 4) as f32 * (w * ASPECT + gap), w));
+            }
+            3.0 * w * ASPECT + 2.0 * gap
+        }
+        Zoom::Titles => {
+            let (w, gap) = (width(3, 2.5), 2.5);
+            let top = w * ASPECT + 2.5;
+            for i in 0..3 {
+                let x = i as f32 * (w + gap);
+                parts.extend([picture(x, 0.0, w), line(x, top, w, true), line(x, top + 3.0, w * 0.65, true)]);
+                parts.extend(site(x, top + 7.0, w * 0.8));
+            }
+            top + 10.0
+        }
+        Zoom::Summaries => {
+            let (w, gap) = (width(2, 3.0), 3.0);
+            let top = w * ASPECT + 2.5;
+            for i in 0..2 {
+                let x = i as f32 * (w + gap);
+                parts.extend([picture(x, 0.0, w), line(x, top, w * 0.85, true), line(x, top + 3.0, w, false), line(x, top + 6.0, w * 0.6, false)]);
+                parts.extend(site(x, top + 9.0, w * 0.55));
+            }
+            top + 12.0
+        }
+        Zoom::Feed => {
+            let (w, x) = (24.0, (INNER - 24.0) / 2.0);
+            let top = w * ASPECT + 2.5;
+            parts.extend([picture(x, 0.0, w), line(x, top, w, true), line(x, top + 3.0, w * 0.5, true)]);
+            parts.extend(site(x, top + 7.0, w * 0.6));
+            top + 10.0
+        }
+    };
+    let content = el().absolute((W - INNER) / 2.0, (H - height) / 2.0).size(INNER, height).children(parts);
+    el().size(W, H).radius(5.0).fill(ink.alpha(0.04)).child(content)
 }
 
 fn sync_note(note: String, l: &Look) -> El {
@@ -731,10 +858,10 @@ pub fn wanted_images(links: &[LinkItem]) -> Vec<Request> {
     newest.into_iter().flat_map(card_images).collect()
 }
 
-/// Only the bottom fades, over 20 pt at a strength that follows what's still below and gone at
-/// the end. The top has no fade: a hairline under the toolbar fades in over the first
+/// Only the bottom fades, over 32 pt but mostly in its last few, at a strength that follows
+/// what's still below and gone at the end. The top has no fade: a hairline under the toolbar fades in over the first
 /// `DIVIDER_RAMP` points scrolled.
-const FADE: f32 = 20.0;
+const FADE: f32 = 32.0;
 const DIVIDER_RAMP: f32 = 24.0;
 
 /// The divider's opacity once the grid is scrolled `offset` points.
@@ -796,10 +923,13 @@ fn favicon(link: &LinkItem, size: f32, l: &Look) -> El {
 }
 
 /// A link's picture, or its title on a tile when it has none.
-fn picture(link: &LinkItem, radius: f32, l: &Look) -> El {
+fn picture(link: &LinkItem, radius: f32, zoom: Zoom, l: &Look) -> El {
     let ring = el().pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0)).radius(radius).border(1.0, l.ring);
-    let tile = el().w_full().aspect_ratio(16.0 / 11.0).radius(radius).clip_rounded(radius).fill(l.tile);
+    let tile = el().w_full().aspect_ratio(zoom.picture_aspect()).radius(radius).clip_rounded(radius).fill(l.tile);
     let tile = match &link.image {
+        Some(url) if zoom == Zoom::Feed => tile
+            .pixels_fit(&images::picture(&Request::whole(url, PICTURE)), SurfaceFit::Fill)
+            .child(el().pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0)).pixels_fit(&images::picture(&Request::whole(url, WHOLE)), SurfaceFit::Fill)),
         Some(url) => tile.pixels_fit(&images::picture(&Request::whole(url, PICTURE)), SurfaceFit::Fill),
         None => {
             tile.padding(14.0).child(text(one_line(&link.title)).font(font(13.0, 400.0).lh(18.85)).color(l.fg2).w_full().wrap_anywhere().max_lines(6))
@@ -814,12 +944,16 @@ fn blurb(link: &LinkItem) -> Option<String> {
 }
 
 /// A link card at `zoom`: its picture, then as much about it as the zoom shows. A click opens
-/// its preview; ⌘-click opens it in the browser.
-fn card(link: &LinkItem, now: i64, zoom: Zoom, l: &Look) -> El {
-    let fly = |what: &str, el: El| el.matched(format!("{what}-{}", link.id)).matched_motion(REFLOW).transition(Transition::opacity());
+/// its preview, or in Feed, which already shows a link as the preview would, the link all the
+/// way; ⌘-click opens it in the browser.
+fn card(link: &LinkItem, now: i64, zoom: Zoom, from: Option<Zoom>, under: bool, l: &Look) -> El {
+    let fly = |what: &str, el: El| {
+        let el = el.matched(format!("{what}-{}", link.id)).matched_motion(REFLOW).transition(Transition::opacity());
+        if under { el.matched_in_place() } else { el }
+    };
     let picture = fly(
         "picture",
-        picture(link, PICTURE_RADIUS, l).key("picture").live_opacity(crate::sphere::reveal()).on_layout_tx({
+        picture(link, PICTURE_RADIUS, zoom, l).key("picture").live_opacity(crate::sphere::reveal()).on_layout_tx({
             let id = link.id.clone();
             move |_: &mut State, rect, tx| {
                 crate::sphere::card_at(&id, rect);
@@ -866,19 +1000,35 @@ fn card(link: &LinkItem, now: i64, zoom: Zoom, l: &Look) -> El {
             if tx.mods().cmd {
                 return crate::open_link(&url);
             }
-            preview(s, &id, false);
+            preview(s, &id, zoom == Zoom::Feed);
         });
     let title =
         |size: f32, lh: f32, lines: usize| text(link.title.clone()).font(font(size, 500.0).lh(lh)).color(l.fg).wrap_anywhere().max_lines(lines);
-    let blurb = |lines: usize| blurb(link).map(|b| text(b).font(font(13.0, 400.0).lh(19.0)).color(l.fg2).wrap().max_lines(lines));
-    let words =
-        |title: El, lines: usize| fly("words", col().w_full().gap(8.0).child(title).children(blurb(lines).filter(|_| lines > 0)).matched_crop());
-    let meta = fly("meta", meta.matched_crop());
+    let crossing = from.is_some_and(|from| (from == Zoom::Feed) != (zoom == Zoom::Feed));
+    let after = match from {
+        Some(Zoom::Pictures) => WORDS_AFTER,
+        _ if crossing => FEED_WORDS_AFTER,
+        _ => 0.0,
+    };
+    let (title_id, blurb_id, meta_id) = if zoom == Zoom::Feed { ("feed-title", "feed-blurb", "feed-meta") } else { ("title", "blurb", "meta") };
+    let blurb = |lines: usize| {
+        blurb(link)
+            .map(|b| fly(blurb_id, text(b).font(font(13.0, 400.0).lh(19.0)).color(l.fg2).wrap().max_lines(lines).matched_crop().enter_delay(after)))
+    };
+    let words = |title: El, lines: usize| {
+        let title = fly(title_id, title.matched_crop().enter_delay(after));
+        if lines > 0 {
+            return col().w_full().gap(8.0).child(title).children(blurb(lines));
+        }
+        let hidden = blurb(3).map(|b| b.absolute(0.0, 8.0).w_full().opacity(0.0).a11y_hidden());
+        col().w_full().child(title).child(el().w_full().h(0.0).children(hidden))
+    };
+    let meta = fly(meta_id, meta.matched_crop().enter_delay(after));
     match zoom {
         Zoom::Pictures => card.help(link.title.clone()).child(picture),
         Zoom::Titles => card.child(picture).child(words(title(13.5, 18.2, 2), 0)).child(meta),
         Zoom::Summaries => card.child(picture).child(words(title(14.5, 19.5, 2), 3)).child(meta),
-        Zoom::Feed => card.gap(10.0).child(meta).child(picture).child(words(title(17.0, 23.0, 3), 6)),
+        Zoom::Feed => card.gap(10.0).child(picture).child(words(title(17.0, 23.0, 3), 6)).child(meta),
     }
 }
 
@@ -948,6 +1098,7 @@ fn zoom_to(s: &mut State, zoom: Zoom, tx: &mut Tx) {
                 });
             }
             let switch = move |s: &mut State, _: Option<[f32; 4]>, tx: &mut Tx| {
+                s.zoomed_from = Some(s.zoom);
                 s.zoom = zoom;
                 s.ghosts.clear();
                 s.landing = Some(rows);
@@ -1068,8 +1219,7 @@ pub fn opening_pictures(s: &State, dark: bool) -> Vec<(String, El)> {
 fn grid(s: &State, columns: usize, dark: bool) -> El {
     let rows = shown(s).len().div_ceil(columns);
     let zoom = s.zoom;
-    let grid = col().key("grid").w_full();
-    let grid = if zoom == Zoom::Feed { grid.max_w(FEED_W + 2.0 * CARD_PAD) } else { grid };
+    let grid = if zoom == Zoom::Feed { col().key("feed-grid").w_full().max_w(FEED_W + 2.0 * CARD_PAD) } else { col().key("grid").w_full() };
     let row = move |s: &State, i: usize| {
         let l = look(dark);
         let now = now_ms();
@@ -1079,7 +1229,7 @@ fn grid(s: &State, columns: usize, dark: bool) -> El {
             .skip(i * columns)
             .take(columns)
             .fold(row().w_full().equal_columns(columns).gap(CARD_GAP - 2.0 * CARD_PAD).pb(gap - 2.0 * CARD_PAD), |r, link| {
-                r.child(card(link, now, zoom, &l))
+                r.child(card(link, now, zoom, s.landing.as_ref().and(s.zoomed_from), previewed(s).is_some(), &l))
             })
     };
     if let Some(landing) = &s.landing {
@@ -1119,7 +1269,7 @@ fn page(s: &State, cx: &mut Cx<State>, dark: bool, l: &Look) -> El {
         .grow(1.0)
         .min_h(0.0)
         .scroll(ScrollSpec { stick_bottom: false })
-        .scroll_fade(ScrollFade::strength(FADE).end_only())
+        .scroll_fade(ScrollFade::strength(FADE).stops(&[(0.15, 0.45), (0.4, 0.8), (0.7, 0.96)]).end_only())
         .scroll_margin(FADE)
         .on_scroll_offset({
             let divider = divider.clone();
@@ -1147,7 +1297,7 @@ fn page(s: &State, cx: &mut Cx<State>, dark: bool, l: &Look) -> El {
                 el().key(format!("ghost-{}", g.id))
                     .matched(format!("picture-{}", g.id))
                     .pin(Some(g.rect[0] + CARD_PAD), Some(g.rect[1] + CARD_PAD), None, None)
-                    .size(w, w * 11.0 / 16.0)
+                    .size(w, w / s.zoom.picture_aspect())
                     .radius(PICTURE_RADIUS)
                     .a11y_hidden()
             }),
@@ -1162,6 +1312,15 @@ const GROW: Spring = Spring::new(0.26, 0.0);
 /// spring, a touch longer than a control's so a whole grid travelling reads as one move, with
 /// just enough bounce that it settles rather than stops.
 const REFLOW: Spring = Spring::new(0.36, 0.12);
+/// A card's title and meta that the old zoom didn't show (coming from Pictures) wait this long,
+/// most of `REFLOW`, and fade in as its picture settles, rather than waiting at their place while
+/// it flies there. The title and summary fly on their own, so neither is centred on a block that
+/// grows or shrinks; Titles keeps an unseen summary under each title for it to fade to and from.
+const WORDS_AFTER: f32 = 0.24;
+/// Feed's title and summary are set larger and much wider than any grid's, and text can't scale
+/// as it flies, so between Feed and a grid a card's words don't fly: the old ones fade where they
+/// were and the new ones wait this long, a third of `REFLOW`, and fade in as the picture grows into place.
+const FEED_WORDS_AFTER: f32 = 0.12;
 /// The opened link settles back a touch and fades as it closes, quickly.
 const CLOSE: SpringPair = SpringPair::new(Spring::new(0.2, 0.0), Spring::new(0.16, 0.0));
 /// The preview and the dim behind it come in on a quick spring and go on a quicker one.
@@ -1231,7 +1390,7 @@ fn overlay(s: &State, lead: f32, l: &Look) -> Vec<El> {
         .pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
         .radius(radius)
         .clip_rounded(radius)
-        .backdrop_blur(2.0)
+        .backdrop_blur(6.0)
         .fill(oklcha(0.0, 0.0, 0.0, if l.dark { 0.35 } else { 0.14 }))
         .border(1.0, kit(l.dark).c.border_muted)
         .transition(Transition::opacity().springs(DIM))
@@ -1277,7 +1436,9 @@ const MARGIN_GAP: f32 = 20.0;
 const PEEK_FADE: f32 = 32.0;
 
 /// What the preview holds: the picture, where the link is from, the title, the summary and the
-/// page's text, and a footer saying what a click does.
+/// page's text, and a footer saying what a click does. The summary, when there is one, sits in a
+/// quiet inset under its own label, as in the opened link's margin, so it never reads as the
+/// page's own words below it; the inset reaches out past the text so its words line up with the rest.
 fn peek(link: &LinkItem, picture: Option<El>, l: &Look) -> El {
     let now = now_ms();
     let meta = row()
@@ -1297,7 +1458,19 @@ fn peek(link: &LinkItem, picture: Option<El>, l: &Look) -> El {
         .pb(36.0)
         .child(meta)
         .child(text(link.title.clone()).font(font(24.0, 700.0).lh(29.0)).color(l.fg).wrap_anywhere().mt(8.0).mb(12.0))
-        .children(link.summary.as_deref().map(|t| text(one_line(t)).font(font(14.0, 400.0).lh(21.7)).color(l.fg2).wrap().mb(18.0)))
+        .children(link.summary.as_deref().map(|t| {
+            col()
+                .key("peek-summary")
+                .mx(-16.0)
+                .px(16.0)
+                .pt(12.0)
+                .pb(14.0)
+                .mb(24.0)
+                .radius(12.0)
+                .fill(l.hover)
+                .child(label("Summary", l))
+                .child(text(one_line(t)).font(font(14.0, 400.0).lh(21.7)).color(l.fg2).wrap())
+        }))
         .child(page_text(link, 17.0, 28.9, l));
     let body = col()
         .key("peek-body")
@@ -1442,7 +1615,7 @@ fn opened(s: &State, link: &LinkItem, lead: f32, l: &Look) -> El {
                     grown().set(1.0);
                     tx.live_only();
                 })
-                .child(opened_bar(s, link, lead, l))
+                .child(opened_bar(s, lead, l))
                 .child(row().w_full().grow(1.0).min_h(0.0).child(margin).child(reading)),
         )
 }
@@ -1467,7 +1640,7 @@ pub fn view(s: &State, account: &Account, cx: &mut Cx<State>) -> El {
     let lead = shell.toolbar_lead();
     let shell = shell.main_overlay(overlay(s, lead, &l)).build(kit(dark));
     let palette = palette::layers(s, &l);
-    el().key("window").w_full().h_full().child(shell).children(palette).children(update_dialog(s, &l))
+    el().key("window").w_full().h_full().child(shell).children(display_panel(s, &l)).children(palette).children(update_dialog(s, &l))
 }
 
 /// How long the pointer rests on the window's left edge before the closed sidebar peeks, so
@@ -1544,6 +1717,30 @@ fn zoom_key(zoom: Zoom, e: &KeyEvent) -> Option<Zoom> {
     }
 }
 
+/// ⇧V opens and closes the Display panel at once, with no animation, as a key used often should.
+/// While it's open, ← and → step the layout and Esc closes it.
+fn on_display_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
+    let m = e.mods;
+    let plain = !m.cmd && !m.ctrl && !m.alt;
+    if plain && m.shift && matches!(&e.key, Key::Text(t) if t.eq_ignore_ascii_case("v")) {
+        tx.instant();
+        s.display = !s.display;
+        return true;
+    }
+    if !s.display {
+        return false;
+    }
+    match e.key {
+        Key::Escape => {
+            tx.instant();
+            s.display = false;
+        }
+        Key::Left | Key::Right if plain && !m.shift => zoom_to(s, s.zoom.step(if e.key == Key::Left { -1 } else { 1 }), tx),
+        _ => return false,
+    }
+    true
+}
+
 /// While a link is shown: ↵ opens the preview all the way, ⌘↵ opens the link in the browser,
 /// ← and → step to the links beside it and Esc closes it. The digits stay out of the zoom.
 fn on_preview_key(s: &mut State, e: &KeyEvent) -> bool {
@@ -1576,7 +1773,10 @@ pub fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
         return false;
     }
     if let Some(place) = shortcut(e) {
-        nav::go(s, place);
+        nav::go(s, place, tx);
+        return true;
+    }
+    if s.palette.is_none() && on_display_key(s, e, tx) {
         return true;
     }
     if s.palette.is_none() && on_preview_key(s, e) {
@@ -1633,11 +1833,26 @@ mod tests {
     }
 
     #[test]
+    fn shift_v_opens_the_display_panel_and_arrows_step_the_layout_only_while_it_is_open() {
+        let key = |key: Key, shift: bool| KeyEvent { key, mods: rune::Mods { shift, ..rune::Mods::default() } };
+        let mut s = State::default();
+        let tx = &mut Tx::default();
+        assert!(!on_display_key(&mut s, &key(Key::Right, false), tx), "closed, → stays the grid's");
+        assert!(on_display_key(&mut s, &key(Key::Text("V".into()), true), tx));
+        assert!(s.display);
+        assert!(on_display_key(&mut s, &key(Key::Right, false), tx));
+        assert_eq!(s.zoom, Zoom::Summaries);
+        assert!(on_display_key(&mut s, &key(Key::Escape, false), tx));
+        assert!(!s.display);
+        assert!(!on_display_key(&mut s, &key(Key::Text("v".into()), false), tx), "v alone isn't the shortcut");
+    }
+
+    #[test]
     fn a_click_previews_a_link_and_going_elsewhere_closes_it() {
         let mut s = State::default();
         preview(&mut s, "a", false);
         assert_eq!(s.preview, Some(Preview { id: "a".into(), full: false }));
-        nav::go(&mut s, Place::Tab(Tab::All));
+        nav::go(&mut s, Place::Tab(Tab::All), &mut Tx::default());
         assert_eq!(s.preview, None);
     }
 
