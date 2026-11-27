@@ -133,7 +133,7 @@ derived from the port, the variable `GOOGLE_EMULATOR_URL` exists on local
 stages only and is used only between loopback addresses, and a loopback
 server names its cookies `cloudstash-<port>` because browsers share cookies
 across ports. `DEV_GOOGLE=real` keeps real Google, which accepts only port 3000. The server writes its address to `.alchemy/dev-url` while it runs. Per
-[decision 0010](./.decisions/0010-run-worktrees-side-by-side.md).
+[decision 0011](./.decisions/0011-run-worktrees-side-by-side.md).
 
 ## LiveStore Version
 
@@ -252,7 +252,7 @@ never asks for the login password, per
 <branch>"), quits only that worktree's copy, and draws the dev server's port onto the bottom
 of its icon as a red counter (`scripts/port-icon.swift`); the copy's dev meter shows the port too,
 and clicking it opens the web app, so every worktree's copy runs at once, per
-[decision 0010](./.decisions/0010-run-worktrees-side-by-side.md). When `main` gets a version with no `native-v<version>` tag,
+[decision 0011](./.decisions/0011-run-worktrees-side-by-side.md). When `main` gets a version with no `native-v<version>` tag,
 `native-release.yml` builds a universal app (`apps/native/scripts/release.sh`),
 signs it with the maintainer's Developer ID and hardened runtime, notarizes and
 staples it and its disk image, and publishes them as the repository's latest
