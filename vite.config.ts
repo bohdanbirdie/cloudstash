@@ -210,7 +210,6 @@ const baseConfig: UserConfig = {
       "react/hooks": "off",
       "react/refs": "off",
       "react/set-state-in-effect": "off",
-      "react/exhaustive-effect-dependencies": "off",
       "jsx-a11y/no-autofocus": "off",
       "jsx-a11y/anchor-is-valid": "off",
       "jsx-a11y/click-events-have-key-events": "off",

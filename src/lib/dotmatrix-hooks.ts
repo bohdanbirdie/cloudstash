@@ -183,11 +183,14 @@ export function useDotMatrixPhases({
     timeouts.current = [];
   }, []);
 
+  const hoverMode = hoverAnimated && !autoRun;
   useEffect(() => {
-    hoverGen.current += 1;
-    clearTimers();
-    return clearTimers;
-  }, [autoRun, hoverAnimated, clearTimers]);
+    if (!hoverMode) return;
+    return () => {
+      hoverGen.current += 1;
+      clearTimers();
+    };
+  }, [hoverMode, clearTimers]);
 
   const onMouseEnter = useCallback(() => {
     if (!hoverAnimated || autoRun) {

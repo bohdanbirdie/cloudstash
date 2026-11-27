@@ -1,5 +1,5 @@
 import { Effect, Option } from "effect";
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 
 import type { ApiKey, Creds, OrgId } from "../../lib/messages";
 import { runPopupState } from "../../lib/runtime";
@@ -46,15 +46,17 @@ export function useActiveTab(): EffectState<Option.Option<ActiveTab>, unknown> {
   return state;
 }
 
-// Cosmetic only: the header avatar + name. Keyed on the credential primitives
-// so it refetches when the connected account changes, not on every render.
+// Keyed on the credential primitives so it refetches when the connected
+// account changes, not on every render. A revoked key calls onUnauthorized.
 export function useAccount(
   apiKey: ApiKey | null,
-  orgId: OrgId | null
+  orgId: OrgId | null,
+  onUnauthorized: () => void
 ): EffectState<AccountResult, unknown> {
   const [state, setState] = useState<EffectState<AccountResult, unknown>>({
     status: "loading",
   });
+  const handleUnauthorized = useEffectEvent(onUnauthorized);
   useEffect(() => {
     let alive = true;
     const eff =
@@ -62,7 +64,11 @@ export function useAccount(
         ? Effect.flatMap(AccountClient, (svc) => svc.get({ apiKey, orgId }))
         : Effect.succeed<AccountResult>({ tag: "ok", account: null });
     void runPopupState(eff).then((result) => {
-      if (alive) setState(result);
+      if (!alive) return;
+      setState(result);
+      if (result.status === "ok" && result.value.tag === "unauthorized") {
+        handleUnauthorized();
+      }
     });
     return () => {
       alive = false;
