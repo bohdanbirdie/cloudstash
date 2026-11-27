@@ -51,10 +51,11 @@ Measured on Cargo 1.99.1, macOS, APFS (2026-11-27):
 
 `apps/native/scripts/run.sh` keeps one cache, `~/Library/Caches/cloudstash/native-debug`.
 When a worktree has no `target/debug`, it clones the cache there before
-`cargo build`. After launching the app it replaces the cache with a clone of
-its own `target/debug` minus the app's crate (fingerprint, `deps`,
-incremental data and binary), one worktree at a time under a lock directory, so
-the cache holds one build's worth and old dependency versions leave with it.
+`cargo build`. After launching the app it replaces the cache with clones of
+the dependency units that build used, as its JSON messages name them, one
+worktree at a time under a lock directory. Units of older builds, tests and
+clippy that `target/debug` also keeps stay out, as does the app's crate, so the
+cache holds one build's worth and old dependency versions leave with it.
 It does nothing unless `target` and the cache are on one APFS volume. Cargo
 configuration, CI and release builds are unchanged. Revisit when Cargo
 stabilizes checksum freshness, so a shared `build.build-dir` becomes safe.

@@ -50,7 +50,8 @@ if [[ -n "$clones" && ! -e target/debug && -d "$cache" ]]; then
   cp -cRp "$cache" target/debug || rm -rf target/debug
 fi
 
-cargo build
+# The build's messages name every unit it used, fresh or rebuilt, for the cache below.
+cargo build --message-format=json-render-diagnostics > target/debug-units.json
 
 # The icon with the port drawn on, made once per port.
 icon="target/port-icon/$port.icns"
@@ -89,14 +90,19 @@ echo "Cloudstash Dev · $CLOUDSTASH_INSTANCE_LABEL against $CLOUDSTASH_URL (log:
 # Launch Services can still be letting go of the copy just quit; one retry covers it.
 open --stdout "$log" --stderr "$log" "$app" 2>/dev/null || { sleep 1; open --stdout "$log" --stderr "$log" "$app"; }
 
-# Refresh the cache with this build's dependencies, one worktree at a time. It is replaced, never
-# added to, so it holds one build's worth and old dependency versions leave with it.
+# Refresh the cache with the dependencies this build used, one worktree at a time. target/debug
+# also keeps units of older builds, tests and clippy; only units named in this build's messages
+# go in, so the cache holds one build's worth and old dependency versions leave with it.
 [[ -n "$clones" ]] || exit 0
 find "$cache.lock" -maxdepth 0 -mmin +30 -exec rmdir {} + 2>/dev/null || true
 mkdir "$cache.lock" 2>/dev/null || exit 0
 trap 'rm -rf "$cache.new" "$cache.old"; rmdir "$cache.lock"' EXIT
 rm -rf "$cache.new" "$cache.old"
-cp -cRp target/debug "$cache.new"
-rm -rf "$cache.new"/{.fingerprint,deps,incremental,build}/cloudstash{-,_}native-* "$cache.new"/cloudstash-native{,.d}
+grep -v '"package_id":"path+' target/debug-units.json | grep -oE 'target/debug/(deps|build)/[^"/]*-[0-9a-f]{16}' |
+  grep -oE '[0-9a-f]{16}$' | sort -u > target/debug-units.hashes || true
+for dir in .fingerprint deps build; do
+  mkdir -p "$cache.new/$dir"
+  (cd "target/debug/$dir" && ls -A | grep -F -f ../../debug-units.hashes | xargs -J % cp -cRp % "$cache.new/$dir/") || true
+done
 if [[ -e "$cache" ]]; then mv "$cache" "$cache.old"; fi
 mv "$cache.new" "$cache"

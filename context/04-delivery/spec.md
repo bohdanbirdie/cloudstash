@@ -255,8 +255,8 @@ and clicking it opens the web app, so every worktree's copy runs at once, per
 [decision 0011](./.decisions/0011-run-worktrees-side-by-side.md). Each worktree keeps its own
 `apps/native/target`, but `scripts/run.sh` starts a worktree's first build from a
 copy-on-write clone of the compiled dependencies in
-`~/Library/Caches/cloudstash/native-debug`, which every run replaces with its
-own build minus the app's crate, so worktrees share those blocks and a new one
+`~/Library/Caches/cloudstash/native-debug`, which every run replaces with the
+dependency units its own build used, so worktrees share those blocks and a new one
 builds only the app's crate; off APFS, or on another volume, it builds cold, per
 [decision 0012](./.decisions/0012-share-native-dependencies-between-worktrees.md). When `main` gets a version with no `native-v<version>` tag,
 `native-release.yml` builds a universal app (`apps/native/scripts/release.sh`),
