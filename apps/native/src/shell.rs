@@ -399,7 +399,10 @@ fn sidebar(s: &State, account: &Account, l: &Look) -> El {
     if s.update.in_sidebar() {
         sidebar = sidebar.child(update_row(s.update, l));
     }
-    sidebar.child(fps::meter::<State>(l.fg3, l.line2)).child(user)
+    if crate::flavor::DEV {
+        sidebar = sidebar.child(fps::meter::<State>(l.fg3, l.line2));
+    }
+    sidebar.child(user)
 }
 
 /// Opens or closes the account's menu. A peeking sidebar stays while it's open, whatever the

@@ -316,7 +316,7 @@ fn open_url(s: &mut State, link: &str, _: &mut Tx) {
     });
 }
 
-/// The dev meter's readings: downloads running and waiting in view, then the pictures' cache on
+/// The dev meter's readings, in Cloudstash Dev only: downloads running and waiting in view, then the pictures' cache on
 /// disk and how much of the background fill is done; clicking the cache empties it.
 fn devtools_probes() {
     fps::probe(|| {
@@ -899,10 +899,14 @@ fn main() {
     .chrome(Chrome { full_size_content: true, traffic_lights: Some((21.0, 21.0)), drag_regions: true })
     .font_smoothing(FontSmoothing::Off)
     .on_frame_encoded({
-        devtools_probes();
-        let mut tracker = fps::Tracker::default();
+        if flavor::DEV {
+            devtools_probes();
+        }
+        let mut tracker = flavor::DEV.then(fps::Tracker::default);
         move |frame| {
-            tracker.frame(frame);
+            if let Some(tracker) = &mut tracker {
+                tracker.frame(frame);
+            }
             sphere::frame(frame, headless().then_some(1.0 / 60.0));
         }
     })

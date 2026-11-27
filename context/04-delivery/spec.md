@@ -210,7 +210,8 @@ review artifacts unless the maintainer separately authorizes a remote action.
 The Mac app's version is `apps/native/Cargo.toml`'s. A release build is
 Cloudstash, which always talks to `https://cloudstash.dev`; a debug build
 (`scripts/run.sh`) is Cloudstash Dev, which talks to `http://127.0.0.1:3000`
-unless `CLOUDSTASH_URL` says otherwise and never updates. The two differ in
+unless `CLOUDSTASH_URL` says otherwise and never updates. Only Dev shows the
+frame meter and download readings at the foot of the sidebar. The two differ in
 bundle id (`dev.cloudstash.native` / `dev.cloudstash.native.dev`), name,
 executable, blue icon and menu bar ball, data and caches (named by the
 bundle id), where the sign-in key is kept (the release's keychain item; a
