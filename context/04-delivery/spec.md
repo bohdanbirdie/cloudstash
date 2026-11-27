@@ -116,7 +116,7 @@ account that signs in, Google included, finds the links. It lives only in
 `vite serve` (not in builds, Vitest or Storybook), skips a library that has
 ever had a link, logs one line and starts empty when the links file is missing,
 and `DEV_SEED=off` turns it off. See
-[decision 0009](./.decisions/0009-seed-empty-local-libraries-from-the-dev-server.md).
+[decision 0010](./.decisions/0010-seed-empty-local-libraries-from-the-dev-server.md).
 The Mac app syncs with an API key rather than a cookie, so the plugin also
 seeds when a signed-in browser mints that key (`POST /api/connect/native`).
 
