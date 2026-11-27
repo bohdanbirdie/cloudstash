@@ -26,7 +26,7 @@ use crate::update::{self, Update};
 mod find;
 mod palette;
 use crate::livestore::library::{LinkItem, Tab};
-use crate::shell_kit::{PaneState, SidebarPeek, SidebarToggle, SplitView, TOOLBAR_HEIGHT, Toolbar, is_sidebar_toggle};
+use crate::shell_kit::{PaneState, SidebarPeek, SidebarToggle, SplitView, TOOLBAR_HEIGHT, Toolbar, is_sidebar_toggle, pressed};
 use crate::{Phase, State, Sync};
 pub use palette::{Palette, toggle as toggle_palette};
 
@@ -1868,7 +1868,7 @@ fn zoom_key(zoom: Zoom, e: &KeyEvent) -> Option<Zoom> {
 fn on_display_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
     let m = e.mods;
     let plain = !m.cmd && !m.ctrl && !m.alt;
-    if plain && m.shift && matches!(&e.key, Key::Text(t) if t.eq_ignore_ascii_case("v")) {
+    if pressed(e, tx, "shift+v") {
         tx.instant();
         s.display = !s.display;
         return true;
@@ -1936,7 +1936,8 @@ fn arrow_into_grid(s: &State, e: &KeyEvent, tx: &mut Tx) -> bool {
 /// ⌘K opens and closes the command palette, ⌘F finds in the page (Esc puts it away) and ⌘1 to
 /// ⌘4 go to the library's states. ⌘B toggles
 /// the sidebar, like the reference apps, and so do rune-kit's ⇧⌘B and ⌃⌘S. ⌥⌘R
-/// throws away the saved pictures and loads them again, for experiments.
+/// throws away the saved pictures and loads them again, for experiments. Letters match on any
+/// keyboard layout, so ⌘F is ⌘F with Ukrainian on too.
 pub fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
     if !matches!(s.phase, Phase::SignedIn(_)) {
         return false;
@@ -1954,7 +1955,7 @@ pub fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
     if s.palette.is_none() && on_preview_key(s, e) {
         return true;
     }
-    if s.palette.is_none() && e.is_command('f') && !e.mods.shift && !e.mods.alt {
+    if s.palette.is_none() && pressed(e, tx, "mod+f") {
         find::open(s, tx);
         return true;
     }
@@ -1968,16 +1969,15 @@ pub fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
         zoom_to(s, zoom, tx);
         return true;
     }
-    if e.is_command('k') && !e.mods.shift && !e.mods.alt {
+    if pressed(e, tx, "mod+k") {
         palette::toggle(s);
         return true;
     }
-    if e.is_command('r') && e.mods.alt && !e.mods.shift {
+    if pressed(e, tx, "mod+alt+r") {
         images::reset();
         return true;
     }
-    let cmd_b = e.is_command('b') && !e.mods.shift && !e.mods.alt;
-    if !(cmd_b || is_sidebar_toggle(e)) || e.key == Key::Escape {
+    if !(pressed(e, tx, "mod+b") || is_sidebar_toggle(e, tx)) || e.key == Key::Escape {
         return false;
     }
     s.sidebar.toggle();
