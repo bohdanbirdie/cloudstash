@@ -9,11 +9,12 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use rune::{Anim, Cursor, El, Key, KeyEvent, Shadow, TextEdit, Transition, Tx, icon, row, text_input};
+use rune::{Anim, Cursor, El, Key, KeyEvent, Shadow, TextEdit, Transition, Tx, col, el, icon, oklcha, row, text, text_input};
 
-use super::{CLEAR, Look, SEARCH, font};
+use super::{CHEVRON, CLEAR, Look, SEARCH, STATES, font};
 use crate::State;
-use crate::livestore::library::LinkItem;
+use crate::livestore::library::{LinkItem, Tab};
+use crate::nav::{self, Place};
 use crate::search::{self, Hit};
 
 const FIELD: &str = "find";
@@ -68,9 +69,114 @@ pub fn narrow<'a>(s: &State, links: Vec<&'a LinkItem>) -> Vec<&'a LinkItem> {
     links.into_iter().filter(|l| hits.contains_key(&l.id)).collect()
 }
 
-/// The words nothing on the page matches, for the empty page to say so.
-pub fn missed(s: &State) -> Option<String> {
-    query(s).map(|q| format!("No links match “{q}”"))
+/// A link card in the "no matches" drawing: its picture, two title lines and a site row, in the
+/// grid's own shapes, `turn` radians off upright.
+fn sketch_card(x: f32, turn: f32, lines: [f32; 2], l: &Look) -> El {
+    let bar = |w: f32| el().w(w).h(4.0).radius(2.0).fill(l.line2);
+    col()
+        .pin(Some(x), Some(22.0), None, None)
+        .size(60.0, 78.0)
+        .padding(6.0)
+        .radius(9.0)
+        .fill(l.panel)
+        .border(1.0, l.line2)
+        .box_shadow(Shadow { y: 3.0, blur: 10.0, color: oklcha(0.0, 0.0, 0.0, if l.dark { 0.45 } else { 0.08 }), ..Shadow::default() })
+        .rotate(turn)
+        .child(el().w_full().h(33.0).radius(5.0).fill(l.tile))
+        .child(el().h(8.0))
+        .child(bar(lines[0]))
+        .child(el().h(5.0))
+        .child(bar(lines[1]))
+        .child(el().h(7.0))
+        .child(row().gap(3.0).center_y().child(el().size(4.5, 4.5).radius(2.25).fill(l.line2)).child(el().w(16.0).h(3.0).radius(1.5).fill(l.line2)))
+}
+
+/// Two link cards fanned out with a dashed blank one in front, where the match would be.
+fn sketch(l: &Look) -> El {
+    el().key("find-sketch")
+        .size(160.0, 120.0)
+        .a11y_hidden()
+        .child(sketch_card(22.0, -10f32.to_radians(), [40.0, 28.0], l))
+        .child(sketch_card(78.0, 10f32.to_radians(), [38.0, 22.0], l))
+        .child(el().pin(Some(50.0), Some(16.0), None, None).size(60.0, 82.0).radius(9.0).fill(l.panel).border(1.2, l.fg3).border_dash(3.0, 4.0))
+}
+
+/// The first other page whose links the words match, and how many, in sidebar order with All
+/// links last, as it repeats the others.
+fn elsewhere(s: &State) -> Option<(Tab, &'static str, usize)> {
+    let hits = hits(s)?;
+    let Place::Tab(here) = s.place else { return None };
+    let count = |tab: Tab| tab.links(&s.links).iter().filter(|l| hits.contains_key(&l.id)).count();
+    STATES
+        .iter()
+        .filter(|(t, ..)| *t != here && *t != Tab::All)
+        .chain(STATES.iter().filter(|(t, ..)| *t == Tab::All && here != Tab::All))
+        .map(|(t, name, _)| (*t, *name, count(*t)))
+        .find(|(.., n)| *n > 0)
+}
+
+/// Goes to `tab` with the same words in the field, as the "2 in Done" link does.
+fn search_in(s: &mut State, tab: Tab, tx: &mut Tx) {
+    let words = s.find.take().map(|f| f.text.clone());
+    nav::go(s, Place::Tab(tab), tx);
+    s.find = words.map(TextEdit::new);
+}
+
+fn text_button(key: &str, label: El, l: &Look) -> El {
+    row()
+        .key(key.to_owned())
+        .role("button")
+        .h(26.0)
+        .px(8.0)
+        .gap(6.0)
+        .center_y()
+        .radius(7.0)
+        .hover(l.hover)
+        .press_scale(0.96)
+        .cursor(Cursor::Pointer)
+        .child(label)
+}
+
+/// The page when the field's words match none of its links: the drawing, what was searched for
+/// and where, what the search looks at, then the way on: the next page with matches, and clearing
+/// the search. Centred a little above the middle of `height`, the page's.
+pub fn empty(s: &State, page: &str, height: f32, l: &Look) -> Option<El> {
+    let query = query(s)?;
+    let title = format!("No links in {page} match “{query}”");
+    let mut actions = row().key("find-empty-actions").gap(8.0).center_y();
+    if let Some((tab, name, n)) = elsewhere(s) {
+        let label = row()
+            .gap(4.0)
+            .center_y()
+            .child(text(format!("{n} in {name}")).font(font(12.5, 500.0)).color(l.fg))
+            .child(icon(&CHEVRON, 12.0).color(l.fg2));
+        actions = actions.child(
+            text_button("find-elsewhere", label, l)
+                .label(format!("Search {name}"))
+                .on_press_tx(move |s: &mut State, tx: &mut Tx| search_in(s, tab, tx)),
+        );
+    }
+    let clear = row()
+        .gap(6.0)
+        .center_y()
+        .child(text("Clear search").font(font(12.5, 400.0)).color(l.fg2))
+        .child(text("esc").font(font(11.5, 400.0)).color(l.fg3));
+    actions = actions.child(text_button("find-empty-clear", clear, l).label("Clear search").on_press_tx(close));
+    Some(
+        col()
+            .key("find-empty")
+            .w_full()
+            .h((height - 120.0).max(320.0))
+            .center()
+            .pb(height * 0.08)
+            .child(sketch(l))
+            .child(el().h(20.0))
+            .child(text(title).font(font(14.0, 500.0).lh(20.0)).color(l.fg).wrap_anywhere().max_lines(2).align(rune::Align::Center).max_w(440.0))
+            .child(el().h(4.0))
+            .child(text("Searched titles, summaries, tags and addresses").font(font(12.5, 400.0)).color(l.fg3).align(rune::Align::Center))
+            .child(el().h(14.0))
+            .child(actions),
+    )
 }
 
 fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
@@ -146,7 +252,6 @@ pub fn field(s: &State, page: &str, l: &Look) -> Option<El> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::livestore::library::Tab;
 
     fn link(id: &str, title: &str, status: &str, created_at: i64) -> LinkItem {
         LinkItem {
@@ -185,6 +290,5 @@ mod tests {
         assert_eq!(ids(&s), ["a", "c"], "only the page's links, in its order");
         s.find = Some(TextEdit::new("calm rust"));
         assert!(ids(&s).is_empty(), "every word must match");
-        assert_eq!(missed(&s).as_deref(), Some("No links match “calm rust”"));
     }
 }

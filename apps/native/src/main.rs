@@ -910,6 +910,37 @@ fn main() {
             }),
             ("find-why", |s| find_why_scene(s, shell::Zoom::Titles)),
             ("find-why-summaries", |s| find_why_scene(s, shell::Zoom::Summaries)),
+            ("find-none-light", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.find = Some(rune::TextEdit::new("calm"));
+            }),
+            ("find-worst-long", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.find = Some(rune::TextEdit::new("how to set up a kubernetes operator for postgres backups with point-in-time recovery"));
+            }),
+            ("find-worst-mixed", |s| {
+                signed_in_scene(s, Tab::Archive);
+                s.find = Some(rune::TextEdit::new("“local-first” café 👇 <b>"));
+            }),
+            ("find-worst-rtl", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.find = Some(rune::TextEdit::new("מדריך React שלום"));
+            }),
+            ("find-worst-count", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                let template = s.links[3].clone();
+                s.links.extend((0..1284).map(|i| LinkItem { id: format!("calm{i}"), title: format!("Calm notes {i}"), ..template.clone() }));
+                s.find = Some(rune::TextEdit::new("calm notes"));
+            }),
+            ("find-worst-feed", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.zoom = shell::Zoom::Feed;
+                s.find = Some(rune::TextEdit::new("calm"));
+            }),
+            ("find-worst-one", |s| {
+                signed_in_scene(s, Tab::Inbox);
+                s.find = Some(rune::TextEdit::new("j"));
+            }),
             ("find-none", |s| {
                 signed_in_scene(s, Tab::All);
                 s.find = Some(rune::TextEdit::new("kubernetes operator"));

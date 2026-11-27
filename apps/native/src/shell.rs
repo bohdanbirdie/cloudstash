@@ -1377,15 +1377,18 @@ fn grid(s: &State, columns: usize, dark: bool) -> El {
 }
 
 fn page(s: &State, cx: &mut Cx<State>, dark: bool, l: &Look) -> El {
+    let missed = || find::empty(s, place_name(s.place), cx.layout_with("viewport", |r| r[3]).unwrap_or(600.0), l);
     let body = if shown(s).is_empty() {
-        let empty = if let Some(missed) = find::missed(s) {
+        if let Some(missed) = missed() {
             missed
-        } else if matches!(s.place, Place::Space(_)) || (s.sync == Sync::Online && !s.filling) {
-            "Nothing here yet.".to_owned()
         } else {
-            "Loading your library…".to_owned()
-        };
-        text(empty).key("empty").font(font(13.0, 400.0)).color(l.fg3)
+            let empty = if matches!(s.place, Place::Space(_)) || (s.sync == Sync::Online && !s.filling) {
+                "Nothing here yet."
+            } else {
+                "Loading your library…"
+            };
+            text(empty).key("empty").font(font(13.0, 400.0)).color(l.fg3)
+        }
     } else {
         let zoom = s.zoom;
         grid(s, cx.layout_with("viewport", move |r| columns(r[2], zoom)).unwrap_or(3), dark)
